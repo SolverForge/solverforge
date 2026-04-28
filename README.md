@@ -97,7 +97,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.9.1", features = ["console"] }
+solverforge = { version = "0.9.2", features = ["console"] }
 ```
 
 When `move_selector` is omitted from local search or VND, the canonical runtime
@@ -201,9 +201,17 @@ alias names from collection fields.
 
 Nearby scalar neighborhoods are model-provided, not inferred. If a solver policy
 uses `nearby_change_move_selector` or `nearby_swap_move_selector`, declare the
-matching hook on the variable with
-`#[planning_variable(nearby_value_distance_meter = "...")]` and/or
-`#[planning_variable(nearby_entity_distance_meter = "...")]`.
+matching candidate hook on the variable with
+`#[planning_variable(nearby_value_candidates = "...")]` and/or
+`#[planning_variable(nearby_entity_candidates = "...")]`. Distance meters
+(`nearby_value_distance_meter` and `nearby_entity_distance_meter`) may rank or
+filter those bounded candidates, but they are not candidate-discovery hooks.
+
+Scalar value neighborhoods can also be bounded with
+`candidate_values = "fn_name"` on the planning variable plus
+`value_candidate_limit` in construction, change, pillar-change, or
+ruin-recreate selector config. `cheapest_insertion` for scalar construction and
+scalar ruin-recreate requires one of those bounded candidate sources.
 
 Scalar construction ordering is model-provided too. If a construction phase uses
 `first_fit_decreasing`, `weakest_fit*`, `strongest_fit*`,
@@ -341,7 +349,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.9.1 - Zero-Erasure Constraint Solver
+                   v0.9.2 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -550,9 +558,9 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.9.1
+**Current Version**: 0.9.2
 
-### What's New in 0.9.1
+### What's New in 0.9.2
 
 - **Existence scoring now indexes exact `usize` keys internally**: direct and flattened `if_exists` / `if_not_exists` constraints keep the same public stream API, while exact `usize` join keys use dense vector bookkeeping and all other key types retain hashed storage.
 - **Local-search phase starts include the current score in console output**: solver telemetry emits the score on `phase_start`, and `solverforge-console` renders it when present so phase transitions preserve score context.
@@ -564,7 +572,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
   lists normal Rust modules and exports, and the macro derives deterministic
   model-owned metadata for scalar, list, and mixed models.
 - **Scalar runtime assembly is descriptor-addressed**: generated scalar helpers keep a compact `variable_index` for getter/setter dispatch, while runtime hook attachment and ordering use descriptor index plus variable name, so module declaration order is not a modeling contract.
-- **Scalar nearby selectors are model-declared capabilities**: `#[planning_variable]` supports `nearby_value_distance_meter` and `nearby_entity_distance_meter`, and runtime assembly threads those hooks through the canonical typed scalar contexts.
+- **Scalar nearby selectors are bounded model-declared capabilities**: `#[planning_variable]` supports `candidate_values`, `nearby_value_candidates`, and `nearby_entity_candidates`; distance meters rank or filter those bounded candidates and are rejected as standalone discovery mechanisms.
 - **Scalar construction ordering is model-declared too**: `#[planning_variable]` now supports `construction_entity_order_key` and `construction_value_order_key`, and scalar-only construction heuristics validate those hooks before phase build.
 - **Construction routing is capability-driven**: scalar-only heuristics route through the descriptor-scalar engine, list-only heuristics validate the existing list hook surface before build, and generic `FirstFit` / `CheapestInsertion` stay on the mixed engine when matching list work is present.
 - **Move selectors are cursor-based**: `open_cursor()` now yields stable candidate indices plus borrowable candidates, cartesian neighborhoods stay preview-safe and cursor-native, and ownership materializes only for the selected winner. Convenience owned-stream helpers such as `iter_moves()` and `append_moves()` are not a cartesian-safe contract.
@@ -611,7 +619,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 - **Generated domain accessors**: `#[planning_solution]` generates a `{Name}ConstraintStreams` trait with typed `.field_name()` methods on `ConstraintFactory` — e.g., `factory.shifts()` instead of `factory.for_each(|s| &s.shifts)`
 - **Ergonomic extractors**: `CollectionExtract<S>` trait accepts both `|s| s.field.as_slice()` and `|s| &s.field` (via `vec(|s| &s.field)`) — no forced `.as_slice()` at every call site
 - **Generated `.unassigned()` filter**: entities with `Option` planning variables get a `{Entity}UnassignedFilter` trait — e.g., `factory.shifts().unassigned()` filters to unassigned entities
-- **Projected derived rows**: generated accessors support `.project(...)` for stock incremental derived scoring state — e.g., `factory.assignments().project(|a| a.capacity_entries())` can be merged, grouped, and penalized without materialized facts
+- **Projected derived rows**: generated accessors support `.project(...)` with named bounded projection types that emit derived rows into a `ProjectionSink` — e.g., `factory.assignments().project(AssignmentLoadEntries)` can be merged, grouped, and penalized without materialized facts
 - **Convenience scoring**: `penalize_hard()`, `penalize_soft()`, `reward_hard()`, `reward_soft()` on all stream types
 - **Single `.join(target)`**: one join method dispatching on argument type — `equal(|a| key)` for self-join, `(extractor_b, equal_bi(ka, kb))` for keyed cross-join, `(other_stream, |a, b| pred)` for predicate join
 - **`.named("name")`**: sole finalization method on all builders (replaces `as_constraint`)

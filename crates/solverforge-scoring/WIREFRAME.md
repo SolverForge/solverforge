@@ -43,6 +43,7 @@ src/
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
 │   ├── exists/
 │   │   └── key_state.rs                            — Internal hashed/indexed key bookkeeping for existence constraints
+│   ├── projected.rs                                — ProjectedUniConstraint and ProjectedGroupedConstraint retained derived-row constraints
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
@@ -63,7 +64,9 @@ src/
 │       ├── complemented.rs                         — ComplementedGroupConstraint tests
 │       ├── flattened_bi.rs                         — FlattenedBiConstraint tests
 │       ├── exists.rs                               — IncrementalExistsConstraint update tests
-│       └── exists_storage.rs                       — Existence storage selection and parity tests
+│       ├── exists_storage.rs                       — Existence storage selection and parity tests
+│       ├── projected.rs                            — Projected constraint update, grouping, merge, and self-join tests
+│       └── repro_unknown.rs                        — Regression fixture coverage for unknown-source behavior
 ├── director/
 │   ├── mod.rs                                      — Re-exports all director types and traits
 │   ├── traits.rs                                   — Director<S> trait
@@ -151,7 +154,7 @@ src/
 pub use constraint::{
     GroupedUniConstraint, IncrementalBiConstraint, IncrementalCrossBiConstraint,
     IncrementalPentaConstraint, IncrementalQuadConstraint, IncrementalTriConstraint,
-    IncrementalUniConstraint,
+    IncrementalUniConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
 };
 
 // Constraint Set
@@ -173,7 +176,10 @@ pub use api::analysis::{
 // Fluent Stream API
 pub use stream::{
     BiConstraintBuilder, BiConstraintStream, ConstraintFactory, GroupedConstraintBuilder,
-    GroupedConstraintStream, UniConstraintBuilder, UniConstraintStream,
+    GroupedConstraintStream, ProjectedBiConstraintBuilder, ProjectedBiConstraintStream,
+    ProjectedConstraintBuilder, ProjectedConstraintStream, ProjectedGroupedConstraintBuilder,
+    ProjectedGroupedConstraintStream, Projection, ProjectionSink, UniConstraintBuilder,
+    UniConstraintStream,
 };
 ```
 
@@ -390,6 +396,10 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Derived scoring rows from one or more source streams. Projection output type is inferred from the named projection type passed to `project(...)`; retained rows are cached by `(source_slot, entity_index)` and updated incrementally only when the owning descriptor source changes. Projected self-join pair order follows `(source_slot, entity_index, emission_index)`; retained storage row IDs are internal and never semantic. Projected rows can be self-joined by `equal(|row| key)` without materialized facts. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
 - Operations: `filter()`, `merge(other)`, `group_by()`, `penalize_with()`, `penalize_hard_with()`
+
+**`ProjectedRowCoordinate`** — Hidden support coordinate for projected rows:
+`{ source_slot, entity_index, emit_index }`. It is used to keep projected
+self-join orientation stable across sparse row-slot reuse.
 
 Projection syntax:
 

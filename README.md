@@ -18,7 +18,7 @@
 
 A zero-erasure constraint solver in Rust.
 
-SolverForge optimizes planning and scheduling problems using metaheuristic algorithms. It combines a declarative constraint API with efficient incremental scoring to solve complex real-world problems like employee scheduling, vehicle routing, and resource allocation.
+SolverForge optimizes planning and scheduling problems using metaheuristic algorithms. It combines a declarative constraint API, retained projected scoring rows, bounded scalar neighborhoods, and incremental scoring to solve complex real-world problems like employee scheduling, vehicle routing, and resource allocation.
 
 ## Get Started
 
@@ -37,7 +37,7 @@ Open http://localhost:7860 to see your solver in action.
 Start new projects with the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository. It scaffolds complete SolverForge applications and sample data, while this repository provides the runtime crates you extend once the scaffold exists.
 
 The current CLI scaffolds a neutral shell via `solverforge new <name>`. You shape that shell afterward with `solverforge generate ...`, adding facts, entities, variables, constraints, and generated data as the domain becomes concrete. Generated applications can mix scalar planning variables with multiple independent planning lists, and the emitted code targets the same retained-runtime facade documented in this repository.
-The generated runtime now builds one `ModelContext` for every planning model. Scalar runtime metadata is ordered by descriptor index and variable name, with a compact generated index reserved for getter/setter dispatch, so module declaration order is not part of the user contract. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while pure scalar construction uses the descriptor-scalar boundary. Canonical local search still runs over the typed `ModelContext`; descriptor-scalar selectors remain an explicit descriptor engine. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
+The generated runtime now builds one `ModelContext` for every planning model. Scalar runtime metadata is ordered by descriptor index and variable name, with a compact generated index reserved for getter/setter dispatch, so module declaration order is not part of the user contract. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while pure scalar construction uses the descriptor-scalar boundary. Canonical local search runs over the typed `ModelContext`; descriptor-scalar selectors remain an explicit descriptor engine. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
 Scalar variables declared with `allows_unassigned = true` keep optional-assignment semantics in that runtime: stock construction can keep `None` when it is the best legal baseline, revision-advancing mutations reopen those completed optional slots for reconsideration, and stock local search can both assign and unassign.
 Scalar construction heuristics that sort entities or values declare those capabilities explicitly on `#[planning_variable]`: use `construction_entity_order_key = "fn_name"` for entity-priority ordering and `construction_value_order_key = "fn_name"` for weakest/strongest-fit and queue-style value ordering. Those hooks are evaluated against the live working solution at each construction step, not cached once at phase start.
 Generated applications and normal `solverforge` facade usage keep the same syntax. The recent construction unification only changes advanced direct `solverforge-solver` runtime assembly APIs.
@@ -74,7 +74,7 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
 ## Features
 
 - **Score Types**: SimpleScore, HardSoftScore, HardMediumSoftScore, BendableScore, HardSoftDecimalScore
-- **ConstraintStream API**: Declarative constraint definition with fluent builders
+- **ConstraintStream API**: Declarative constraints with fluent builders, source-aware generated streams, projected derived rows, existence checks, joins, grouping, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list `ModelContext` when matching list work is present, plus descriptor-scalar construction routing for pure scalar targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
@@ -85,10 +85,10 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
 - **Move System**: Zero-allocation typed moves with cursor-scoped ownership and selected-winner materialization
   - Scalar: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
   - List: ListChangeMove, ListSwapMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
-  - Nearby selection for list moves
+  - Scalar ruin-recreate, composite moves, cartesian composition, and nearby selection for scalar and list neighborhoods
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Model Macros**: `planning_model!`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
-- **Configuration**: TOML support with builder API
+- **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, selector telemetry, and level-aware simulated annealing configuration
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
 
 ## Installation
@@ -209,9 +209,9 @@ filter those bounded candidates, but they are not candidate-discovery hooks.
 
 Scalar value neighborhoods can also be bounded with
 `candidate_values = "fn_name"` on the planning variable plus
-`value_candidate_limit` in construction, change, pillar-change, or
-ruin-recreate selector config. `cheapest_insertion` for scalar construction and
-scalar ruin-recreate requires one of those bounded candidate sources.
+`value_candidate_limit` in construction, change, nearby-change, pillar-change,
+or ruin-recreate selector config. `cheapest_insertion` for scalar construction
+and scalar ruin-recreate requires one of those bounded candidate sources.
 
 Scalar construction ordering is model-provided too. If a construction phase uses
 `first_fit_decreasing`, `weakest_fit*`, `strongest_fit*`,
@@ -364,6 +364,15 @@ models show average `candidates`.
 ║                 FEASIBLE SOLUTION FOUND                  ║
 ╠══════════════════════════════════════════════════════════╣
 ║  Final Score:                            0hard/15soft    ║
+║  Moves Generated:                            104,864     ║
+║  Steps:                                      104,864     ║
+║  Generation Time:                              1.24s     ║
+║  Evaluation Time:                             28.76s     ║
+║  Moves/s:                                    456,000     ║
+║  Moves Evaluated:                            104,864     ║
+║  Moves Accepted:                              12,456     ║
+║  Score Calcs:                                104,864     ║
+║  Acceptance:                                  11.9%      ║
 ╚══════════════════════════════════════════════════════════╝
 ```
 
@@ -433,6 +442,7 @@ models show average `candidates`.
 | `solverforge-console` | Tracing-based console output with banner and progress display |
 | `solverforge-macros` | Procedural macros for domain model |
 | `solverforge-cvrp` | CVRP domain helpers: `VrpSolution`, `ProblemData`, distance meters, feasibility functions |
+| `solverforge-test` | Shared test fixtures for workspace crates |
 
 ## Score Types
 
@@ -726,7 +736,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 | Exhaustive search | Complete |
 | Partitioned search | Complete |
 | VND | Complete |
-| Move system (12 move types) | Complete |
+| Move system (scalar, list, ruin-recreate, cartesian, and composite families) | Complete |
 | Nearby selection | Complete |
 | Ruin-and-recreate (LNS) | Complete |
 | Selector decorators (8 types) | Complete |
@@ -747,7 +757,3 @@ Apache License 2.0. See [LICENSE](LICENSE).
 ## Contributing
 
 Contributions welcome. Please open an issue or pull request.
-
-## Acknowledgments
-
-Inspired by [Timefold](https://timefold.ai/) (formerly OptaPlanner).

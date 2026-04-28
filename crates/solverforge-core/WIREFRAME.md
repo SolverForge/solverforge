@@ -36,7 +36,8 @@ src/
 │       ├── hard_soft_score.rs             — HardSoftScore tests
 │       ├── hard_medium_soft_score.rs      — HardMediumSoftScore tests
 │       ├── hard_soft_decimal_score.rs     — HardSoftDecimalScore tests
-│       └── bendable_score.rs              — BendableScore tests
+│       ├── bendable_score.rs              — BendableScore tests
+│       └── custom_score.rs                — Custom Score implementation compatibility tests
 ├── domain/
 │   ├── mod.rs                             — Module declarations and re-exports for domain types
 │   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId, ListVariableSolution
@@ -492,6 +493,19 @@ pub struct VariableDescriptor {
 Constructors: `genuine(&str)`, `chained(&str)`, `list(&str)`, `shadow(&str, ShadowVariableKind)`, `piggyback(&str, &str)`
 
 Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_candidate_values()`, `with_nearby_value_candidates()`, `with_nearby_entity_candidates()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`, `with_construction_entity_order_key()`, `with_construction_value_order_key()`
+
+Scalar hook aliases:
+
+| Alias | Signature | Note |
+|-------|-----------|------|
+| `UsizeGetter` | `for<'a> fn(&'a dyn Any) -> Option<usize>` | Scalar getter |
+| `UsizeSetter` | `fn(&mut dyn Any, Option<usize>)` | Scalar setter |
+| `UsizeEntityValueProvider` | `for<'a> fn(&'a dyn Any) -> Vec<usize>` | Entity-local legal values |
+| `UsizeCandidateValues` | `for<'a> fn(&'a dyn Any, usize, usize) -> &'a [usize]` | Bounded scalar candidates |
+| `UsizeNearbyValueDistanceMeter` | `fn(&dyn Any, usize, usize) -> f64` | Ranks already bounded nearby values |
+| `UsizeNearbyEntityDistanceMeter` | `fn(&dyn Any, usize, usize) -> f64` | Ranks already bounded nearby entities |
+| `UsizeConstructionEntityOrderKey` | `fn(&dyn Any, usize) -> i64` | Construction entity order key |
+| `UsizeConstructionValueOrderKey` | `fn(&dyn Any, usize, usize) -> i64` | Construction value order key |
 
 ### Supply Types
 

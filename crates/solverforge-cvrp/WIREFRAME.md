@@ -7,7 +7,7 @@ Domain helpers for Capacitated Vehicle Routing Problems (CVRP).
 
 ## Dependencies
 
-- `solverforge` (workspace) — Facade; re-exports `CrossEntityDistanceMeter`
+- `solverforge-solver` (path) — `CrossEntityDistanceMeter`
 
 ## File Map
 
@@ -78,17 +78,17 @@ All functions are generic over `S: VrpSolution`.
 
 ```rust
 #[planning_list_variable(
-    merge_feasible_fn = "solverforge_cvrp_lib::is_time_feasible",
-    cw_depot_fn       = "solverforge_cvrp_lib::depot_for_cw",
-    cw_distance_fn    = "solverforge_cvrp_lib::distance",
-    cw_element_load_fn= "solverforge_cvrp_lib::element_load",
-    cw_capacity_fn    = "solverforge_cvrp_lib::capacity",
-    cw_assign_route_fn= "solverforge_cvrp_lib::replace_route",
-    k_opt_get_route   = "solverforge_cvrp_lib::get_route",
-    k_opt_set_route   = "solverforge_cvrp_lib::replace_route",
-    k_opt_depot_fn    = "solverforge_cvrp_lib::depot_for_entity",
-    k_opt_distance_fn = "solverforge_cvrp_lib::distance",
-    k_opt_feasible_fn = "solverforge_cvrp_lib::is_kopt_feasible",
+    merge_feasible_fn = "solverforge_cvrp::is_time_feasible",
+    cw_depot_fn       = "solverforge_cvrp::depot_for_cw",
+    cw_distance_fn    = "solverforge_cvrp::distance",
+    cw_element_load_fn= "solverforge_cvrp::element_load",
+    cw_capacity_fn    = "solverforge_cvrp::capacity",
+    cw_assign_route_fn= "solverforge_cvrp::replace_route",
+    k_opt_get_route   = "solverforge_cvrp::get_route",
+    k_opt_set_route   = "solverforge_cvrp::replace_route",
+    k_opt_depot_fn    = "solverforge_cvrp::depot_for_entity",
+    k_opt_distance_fn = "solverforge_cvrp::distance",
+    k_opt_feasible_fn = "solverforge_cvrp::is_kopt_feasible",
     // ...
 )]
 ```

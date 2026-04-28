@@ -83,6 +83,7 @@ src/
 │   │   ├── pillar_change.rs            — PillarChangeMove<S, V>
 │   │   ├── pillar_swap.rs              — PillarSwapMove<S, V>
 │   │   ├── ruin.rs                      — RuinMove<S, V>
+│   │   ├── ruin_recreate.rs             — RuinRecreateMove<S> and ScalarRecreateValueSource<S>
 │   │   ├── k_opt.rs                     — KOptMove<S, V>, CutPoint
 │   │   ├── k_opt_reconnection.rs       — KOptReconnection patterns
 │   │   ├── k_opt_reconnection_tests.rs — Tests
@@ -556,6 +557,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 | `PillarChangeMove` | `<S, V>` | Vec entity_indices, to_value, getter/setter fn ptrs | Yes (manual) | No |
 | `PillarSwapMove` | `<S, V>` | Vec left/right indices, getter/setter fn ptrs | Yes (manual) | No |
 | `RuinMove` | `<S, V>` | SmallVec entity_indices, getter/setter fn ptrs | Yes (manual) | No |
+| `RuinRecreateMove` | `<S>` | SmallVec ruined entities, bounded recreate value source, getter/setter fn ptrs | Yes (manual) | No |
 | `KOptMove` | `<S, V>` | [CutPoint; 5], KOptReconnection, fn ptrs | Yes (manual) | No |
 | `CompositeMove` | `<S, M1, M2>` | index_1, index_2, PhantomData | Yes | Yes |
 | `SequentialCompositeMove` | `<S, M>` | owned two-move arena plus cached descriptor/entity/tabu metadata | Yes (M: Clone) | No |

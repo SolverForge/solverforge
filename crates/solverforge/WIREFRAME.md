@@ -67,6 +67,8 @@ src/
 - `IncrementalConstraint` (trait)
 - `IncrementalUniConstraint`
 - `IncrementalBiConstraint`
+- `Projection` (trait)
+- `ProjectionSink` (trait)
 
 ### Score Director (from `solverforge-scoring`)
 
@@ -147,6 +149,9 @@ pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollec
 
 Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")` — no `as_constraint`, no `for_each_unique_pair`, no `join_self`/`join_keyed`. Use `.join(target)` for all join patterns (self-join, keyed, predicate).
 
+Collector helpers are available at `solverforge::stream::collector`, and the
+prelude re-exports `count`, `sum`, and `load_balance`.
+
 Extractor ergonomics: all `for_each` and join extractor params accept `CollectionExtract<S, Item = A>`. Use `|s| s.field.as_slice()` for slices, or `vec(|s| &s.field)` when the field is a `Vec<A>` and you prefer `&field` syntax.
 
 Generated keyed joins: unfiltered generated accessors can be passed directly as keyed join targets, preserving hidden `ChangeSource` metadata:
@@ -159,7 +164,7 @@ factory.assignments().join((
 
 Generated existence ergonomics: there is one public `ConstraintFactory::for_each(...)`. Generated `{Name}ConstraintStreams` accessors call it with hidden `ChangeSource::Descriptor(idx)` / `ChangeSource::Static` metadata so localized incremental callbacks use entity indexes only for the owning planning-entity collection. Raw facade `for_each(...)` extractors do not carry localized source ownership. Flattened existence targets use `.flattened(...)` and `FlattenedCollectionTarget`.
 
-Projected scoring ergonomics: `factory.assignments().project(TaskShiftWorkEntries)` creates bounded derived scoring rows from a named `Projection<A>` type without materializing facts or entities. Projected streams can be filtered, self-joined, merged, grouped, and weighted like normal scoring state. Projections emit through `ProjectionSink` and declare `MAX_EMITS`; Vec-returning projection closures are not part of the public API.
+Projected scoring ergonomics: `factory.assignments().project(TaskShiftWorkEntries)` creates bounded derived scoring rows from a named `Projection<A>` type without materializing facts or entities. Projected streams can be filtered, self-joined, merged, grouped, and weighted like normal scoring state. Projections emit through `ProjectionSink` and declare `MAX_EMITS`; Vec-returning projection closures are not part of the public API. Projected self-join ordering is coordinate-stable by `(source_slot, entity_index, emission_index)`, not sparse storage row id.
 
 ## `__internal` Module (`#[doc(hidden)]`)
 
@@ -199,6 +204,7 @@ Used exclusively by macro-generated code. Not public API.
 - `ChangeSource`, `CollectionExtract`, `SourceExtract`
 - `UniConstraintStream`, `UniConstraintBuilder`
 - `TrueFilter`, `UniFilter`, `FnUniFilter`, `AndUniFilter`
+- `source`
 
 **Derive macros (from `solverforge-macros`):**
 - `PlanningEntityImpl`, `PlanningSolutionImpl`, `ProblemFactImpl`

@@ -268,6 +268,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type |
 |-------|------|
+| `value_candidate_limit` | `Option<usize>` |
 | `entity_class` | `Option<String>` |
 | `variable_name` | `Option<String>` |
 
@@ -356,6 +357,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | Field | Type | Default |
 |-------|------|---------|
 | `max_nearby` | `usize` | `10` |
+| `value_candidate_limit` | `Option<usize>` | `None` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -377,6 +379,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 |-------|------|---------|
 | `minimum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only) |
 | `maximum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only) |
+| `value_candidate_limit` | `Option<usize>` | `None` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -412,8 +415,6 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | `min_ruin_count` | `usize` | `2` |
 | `max_ruin_count` | `usize` | `5` |
 | `moves_per_step` | `Option<usize>` | `None` |
-| `entity_class` | `Option<String>` | `None` |
-| `value_candidate_limit` | `Option<usize>` | `None` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -540,6 +541,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 |---------|---------|
 | `ConstructionHeuristic` | `ConstructionHeuristicConfig` |
 | `LocalSearch` | `LocalSearchConfig` |
+| `Vnd` | `VndConfig` |
 | `ExhaustiveSearch` | `ExhaustiveSearchConfig` |
 | `PartitionedSearch` | `PartitionedSearchConfig` |
 | `Custom` | `CustomPhaseConfig` |
@@ -615,7 +617,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `CartesianProductMoveSelector` | `CartesianProductConfig` |
 
 Decorator notes:
-- `LimitedNeighborhood` caps yielded candidates while preserving the wrapped selector order.
+- `LimitedNeighborhood` wraps the child cursor at neighborhood construction time, so candidate generation stops at `selected_count_limit` while preserving the wrapped selector order.
 - `CartesianProductMoveSelector` uses sequential preview, selector-order tabu ids, and selected-winner materialization rather than exposing an owned composite iterator.
 - Scalar `ChangeMoveSelector`, `NearbyChangeMoveSelector`, `PillarChangeMoveSelector`, and `RuinRecreateMoveSelector` accept `value_candidate_limit` for bounded scalar value candidate generation. Scalar `cheapest_insertion` requires either `candidate_values` on the model or this limit in config.
 

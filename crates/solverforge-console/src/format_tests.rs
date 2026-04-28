@@ -93,7 +93,7 @@ fn format_event_renders_progress_and_trace_steps() {
         .cloned()
         .expect("expected trace step output");
     assert!(step_output.contains("Step"));
-    assert!(step_output.contains("Entity"));
+    assert!(step_output.contains("Move"));
     assert!(step_output.contains("3"));
     assert!(step_output.contains("-1hard"));
 }

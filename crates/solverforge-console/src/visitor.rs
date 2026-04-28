@@ -14,7 +14,7 @@ pub(crate) struct EventVisitor {
     pub(crate) current_score: Option<String>,
     pub(crate) best_score: Option<String>,
     pub(crate) step: Option<u64>,
-    pub(crate) entity: Option<u64>,
+    pub(crate) move_index: Option<u64>,
     pub(crate) accepted: Option<bool>,
     pub(crate) duration: Option<String>,
     pub(crate) entity_count: Option<u64>,
@@ -57,8 +57,7 @@ impl Visit for EventVisitor {
             "steps" => self.steps = Some(value),
             "speed" => self.speed = Some(u128::from(value)),
             "step" => self.step = Some(value),
-            // TRACE step events emit `move_index`; keep `entity` as a legacy alias.
-            "entity" | "move_index" => self.entity = Some(value),
+            "move_index" => self.move_index = Some(value),
             "entity_count" => self.entity_count = Some(value),
             "element_count" | "candidate_count" => self.scale_count = Some(value),
             "constraint_count" => self.constraint_count = Some(value),

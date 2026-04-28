@@ -415,7 +415,7 @@ fn format_step(v: &EventVisitor, level: Level) -> String {
     }
 
     let step = v.step.unwrap_or(0);
-    let entity = v.entity.unwrap_or(0);
+    let move_index = v.move_index.unwrap_or(0);
     let score = v.score.as_deref().unwrap_or("N/A");
     let accepted = v.accepted.unwrap_or(false);
 
@@ -426,11 +426,11 @@ fn format_step(v: &EventVisitor, level: Level) -> String {
     };
 
     format!(
-        "{} {} Step {:>10} │ Entity {:>6} │ {}",
+        "{} {} Step {:>10} │ Move {:>6} │ {}",
         format_elapsed(),
         icon,
         step.to_formatted_string(&Locale::en).bright_black(),
-        entity.to_formatted_string(&Locale::en).bright_black(),
+        move_index.to_formatted_string(&Locale::en).bright_black(),
         format_score(score).bright_black()
     )
 }

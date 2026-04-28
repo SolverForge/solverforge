@@ -103,7 +103,7 @@ pub use penta_stream::{PentaConstraintBuilder, PentaConstraintStream};
 pub use projected_stream::{
     ProjectedBiConstraintBuilder, ProjectedBiConstraintStream, ProjectedConstraintBuilder,
     ProjectedConstraintStream, ProjectedGroupedConstraintBuilder, ProjectedGroupedConstraintStream,
-    ProjectedSource, Projection, ProjectionSink,
+    ProjectedRowCoordinate, ProjectedSource, Projection, ProjectionSink,
 };
 pub use quad_stream::{QuadConstraintBuilder, QuadConstraintStream};
 pub use tri_stream::{TriConstraintBuilder, TriConstraintStream};

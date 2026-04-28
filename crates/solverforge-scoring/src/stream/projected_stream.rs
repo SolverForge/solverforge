@@ -39,6 +39,14 @@ where
 }
 
 #[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProjectedRowCoordinate {
+    pub source_slot: usize,
+    pub entity_index: usize,
+    pub emit_index: usize,
+}
+
+#[doc(hidden)]
 pub trait ProjectedSource<S, Out>: Send + Sync {
     const MAX_EMITS: usize;
 
@@ -46,10 +54,10 @@ pub trait ProjectedSource<S, Out>: Send + Sync {
     fn change_source(&self, slot: usize) -> ChangeSource;
     fn collect_all<V>(&self, solution: &S, visit: V)
     where
-        V: FnMut(usize, usize, Out);
+        V: FnMut(ProjectedRowCoordinate, Out);
     fn collect_entity<V>(&self, solution: &S, slot: usize, entity_index: usize, visit: V)
     where
-        V: FnMut(Out);
+        V: FnMut(ProjectedRowCoordinate, Out);
 }
 
 pub struct SingleProjectedSource<S, A, E, F, P, Out> {
@@ -95,22 +103,31 @@ where
 
     fn collect_all<V>(&self, solution: &S, mut visit: V)
     where
-        V: FnMut(usize, usize, Out),
+        V: FnMut(ProjectedRowCoordinate, Out),
     {
         for (idx, entity) in self.extractor.extract(solution).iter().enumerate() {
             if !self.filter.test(solution, entity) {
                 continue;
             }
+            let mut emit_index = 0;
             let mut sink = VisitSink {
-                visit: |output| visit(0, idx, output),
+                visit: |output| {
+                    let coordinate = ProjectedRowCoordinate {
+                        source_slot: 0,
+                        entity_index: idx,
+                        emit_index,
+                    };
+                    emit_index += 1;
+                    visit(coordinate, output);
+                },
             };
             self.projection.project(entity, &mut sink);
         }
     }
 
-    fn collect_entity<V>(&self, solution: &S, slot: usize, entity_index: usize, visit: V)
+    fn collect_entity<V>(&self, solution: &S, slot: usize, entity_index: usize, mut visit: V)
     where
-        V: FnMut(Out),
+        V: FnMut(ProjectedRowCoordinate, Out),
     {
         if slot != 0 {
             return;
@@ -122,7 +139,18 @@ where
         if !self.filter.test(solution, entity) {
             return;
         }
-        let mut sink = VisitSink { visit };
+        let mut emit_index = 0;
+        let mut sink = VisitSink {
+            visit: |output| {
+                let coordinate = ProjectedRowCoordinate {
+                    source_slot: 0,
+                    entity_index,
+                    emit_index,
+                };
+                emit_index += 1;
+                visit(coordinate, output);
+            },
+        };
         self.projection.project(entity, &mut sink);
     }
 }
@@ -162,23 +190,23 @@ where
 
     fn collect_all<V>(&self, solution: &S, mut visit: V)
     where
-        V: FnMut(usize, usize, Out),
+        V: FnMut(ProjectedRowCoordinate, Out),
     {
-        self.source.collect_all(solution, |slot, idx, output| {
+        self.source.collect_all(solution, |coordinate, output| {
             if self.filter.test(solution, &output) {
-                visit(slot, idx, output);
+                visit(coordinate, output);
             }
         });
     }
 
     fn collect_entity<V>(&self, solution: &S, slot: usize, entity_index: usize, mut visit: V)
     where
-        V: FnMut(Out),
+        V: FnMut(ProjectedRowCoordinate, Out),
     {
         self.source
-            .collect_entity(solution, slot, entity_index, |output| {
+            .collect_entity(solution, slot, entity_index, |coordinate, output| {
                 if self.filter.test(solution, &output) {
-                    visit(output);
+                    visit(coordinate, output);
                 }
             });
     }
@@ -219,26 +247,35 @@ where
 
     fn collect_all<V>(&self, solution: &S, mut visit: V)
     where
-        V: FnMut(usize, usize, Out),
+        V: FnMut(ProjectedRowCoordinate, Out),
     {
         self.left.collect_all(solution, &mut visit);
         let left_count = self.left.source_count();
-        self.right.collect_all(solution, |slot, idx, output| {
-            visit(left_count + slot, idx, output);
+        self.right.collect_all(solution, |mut coordinate, output| {
+            coordinate.source_slot += left_count;
+            visit(coordinate, output);
         });
     }
 
     fn collect_entity<V>(&self, solution: &S, slot: usize, entity_index: usize, visit: V)
     where
-        V: FnMut(Out),
+        V: FnMut(ProjectedRowCoordinate, Out),
     {
         let left_count = self.left.source_count();
         if slot < left_count {
             self.left
                 .collect_entity(solution, slot, entity_index, visit);
         } else {
-            self.right
-                .collect_entity(solution, slot - left_count, entity_index, visit);
+            let mut visit = visit;
+            self.right.collect_entity(
+                solution,
+                slot - left_count,
+                entity_index,
+                |mut coordinate, output| {
+                    coordinate.source_slot += left_count;
+                    visit(coordinate, output);
+                },
+            );
         }
     }
 }

@@ -388,7 +388,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`ProjectionSink<Out>`** — Emission sink used by `Projection<A>` implementations. `emit(output)` is the only projection output channel.
 
-**`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Derived scoring rows from one or more source streams. Projection output type is inferred from the named projection type passed to `project(...)`; retained rows are cached by `(source_slot, entity_index)` and updated incrementally only when the owning descriptor source changes. Projected rows can be self-joined by `equal(|row| key)` without materialized facts. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
+**`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Derived scoring rows from one or more source streams. Projection output type is inferred from the named projection type passed to `project(...)`; retained rows are cached by `(source_slot, entity_index)` and updated incrementally only when the owning descriptor source changes. Projected self-join pair order follows `(source_slot, entity_index, emission_index)`; retained storage row IDs are internal and never semantic. Projected rows can be self-joined by `equal(|row| key)` without materialized facts. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
 - Operations: `filter()`, `merge(other)`, `group_by()`, `penalize_with()`, `penalize_hard_with()`
 
 Projection syntax:

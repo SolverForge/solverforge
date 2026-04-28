@@ -74,6 +74,50 @@ impl Projection<Work> for WorkEntryProjection {
     }
 }
 
+struct OrderedWorkEntries;
+
+impl Projection<Work> for OrderedWorkEntries {
+    type Out = Entry;
+    const MAX_EMITS: usize = 2;
+
+    fn project<Sink>(&self, work: &Work, out: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        out.emit(Entry {
+            bucket: work.bucket,
+            delta: work.demand,
+        });
+        out.emit(Entry {
+            bucket: work.bucket,
+            delta: work.demand + 10,
+        });
+    }
+}
+
+struct OptionalSecondWorkEntry;
+
+impl Projection<Work> for OptionalSecondWorkEntry {
+    type Out = Entry;
+    const MAX_EMITS: usize = 2;
+
+    fn project<Sink>(&self, work: &Work, out: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        out.emit(Entry {
+            bucket: work.bucket,
+            delta: work.demand,
+        });
+        if work.enabled {
+            out.emit(Entry {
+                bucket: work.bucket,
+                delta: work.demand + 10,
+            });
+        }
+    }
+}
+
 struct CapacityEntryProjection;
 
 impl Projection<Capacity> for CapacityEntryProjection {
@@ -294,6 +338,87 @@ fn projected_self_join_reuses_row_slots_after_repeated_updates() {
         assert_eq!(constraint.debug_row_storage_len(), initial_row_storage_len);
         assert_eq!(constraint.debug_free_row_count(), 0);
     }
+}
+
+#[test]
+fn projected_self_join_preserves_projection_order_when_reusing_slots() {
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(OrderedWorkEntries)
+        .join(equal(|entry: &Entry| entry.bucket))
+        .filter(|left: &Entry, right: &Entry| left.delta < right.delta)
+        .penalize_with(|left: &Entry, right: &Entry| SoftScore::of(left.delta * 10 + right.delta))
+        .named("projected ordered duplicate bucket");
+
+    let plan = Plan {
+        work: vec![Work {
+            bucket: 0,
+            demand: 1,
+            enabled: true,
+        }],
+        capacity: Vec::new(),
+    };
+
+    let mut total = constraint.initialize(&plan);
+    let initial_row_storage_len = constraint.debug_row_storage_len();
+    assert_eq!(total, SoftScore::of(-21));
+    assert_eq!(total, constraint.evaluate(&plan));
+
+    for _ in 0..4 {
+        total = total + constraint.on_retract(&plan, 0, 0);
+        total = total + constraint.on_insert(&plan, 0, 0);
+
+        assert_eq!(total, SoftScore::of(-21));
+        assert_eq!(total, constraint.evaluate(&plan));
+        assert_eq!(constraint.debug_row_storage_len(), initial_row_storage_len);
+        assert_eq!(constraint.debug_free_row_count(), 0);
+    }
+}
+
+#[test]
+fn projected_self_join_reuses_slots_across_cardinality_changes() {
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(OptionalSecondWorkEntry)
+        .join(equal(|entry: &Entry| entry.bucket))
+        .filter(|left: &Entry, right: &Entry| left.delta < right.delta)
+        .penalize_with(|left: &Entry, right: &Entry| SoftScore::of(left.delta * 10 + right.delta))
+        .named("projected cardinality changing duplicate bucket");
+
+    let mut plan = Plan {
+        work: vec![Work {
+            bucket: 0,
+            demand: 2,
+            enabled: true,
+        }],
+        capacity: Vec::new(),
+    };
+
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(total, SoftScore::of(-32));
+    assert_eq!(constraint.debug_row_storage_len(), 2);
+
+    total = total + constraint.on_retract(&plan, 0, 0);
+    plan.work[0].enabled = false;
+    total = total + constraint.on_insert(&plan, 0, 0);
+    assert_eq!(total, SoftScore::ZERO);
+    assert_eq!(total, constraint.evaluate(&plan));
+    assert_eq!(constraint.debug_row_storage_len(), 2);
+    assert_eq!(constraint.debug_free_row_count(), 1);
+
+    total = total + constraint.on_retract(&plan, 0, 0);
+    plan.work[0].enabled = true;
+    total = total + constraint.on_insert(&plan, 0, 0);
+    assert_eq!(total, SoftScore::of(-32));
+    assert_eq!(total, constraint.evaluate(&plan));
+    assert_eq!(constraint.debug_row_storage_len(), 2);
+    assert_eq!(constraint.debug_free_row_count(), 0);
 }
 
 #[test]

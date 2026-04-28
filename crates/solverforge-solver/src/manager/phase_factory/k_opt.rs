@@ -26,14 +26,10 @@ use super::super::PhaseFactory;
 ///
 /// * `S` - The planning solution type
 /// * `V` - The list element value type (e.g., `usize` for visit indices)
-/// * `DM` - The distance meter type (for nearby selection, stored for future use)
-/// * `ESF` - Entity selector factory type (for nearby selection, stored for future use)
-///
 /// # Example
 ///
 /// ```
 /// use solverforge_solver::KOptPhaseBuilder;
-/// use solverforge_solver::heuristic::selector::{DefaultDistanceMeter, FromSolutionEntitySelector};
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SoftScore;
 ///
@@ -70,9 +66,7 @@ use super::super::PhaseFactory;
 ///     }
 /// }
 ///
-/// let builder = KOptPhaseBuilder::<Plan, usize, _, _>::new(
-///     DefaultDistanceMeter,
-///     || FromSolutionEntitySelector::new(0),
+/// let builder = KOptPhaseBuilder::<Plan, usize>::new(
 ///     list_len,
 ///     |s, idx, pos| s.vehicles.get(idx).and_then(|v| v.visits.get(pos)).copied(),
 ///     sublist_remove,
@@ -81,7 +75,7 @@ use super::super::PhaseFactory;
 ///     0,
 /// );
 /// ```
-pub struct KOptPhaseBuilder<S, V, DM, ESF>
+pub struct KOptPhaseBuilder<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
@@ -94,22 +88,16 @@ where
     descriptor_index: usize,
     k: usize,
     step_limit: Option<u64>,
-    _marker: PhantomData<(fn() -> S, fn() -> V, fn() -> DM, fn() -> ESF)>,
+    _marker: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-impl<S, V, DM, ESF> KOptPhaseBuilder<S, V, DM, ESF>
+impl<S, V> KOptPhaseBuilder<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
     /// Creates a new k-opt phase builder.
-    ///
-    /// The `distance_meter` and `entity_selector_factory` parameters are accepted
-    /// for API compatibility but not currently used (reserved for nearby selection).
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        _distance_meter: DM,
-        _entity_selector_factory: ESF,
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
@@ -148,7 +136,7 @@ where
     }
 }
 
-impl<S, V, DM, ESF> Debug for KOptPhaseBuilder<S, V, DM, ESF>
+impl<S, V> Debug for KOptPhaseBuilder<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
@@ -312,12 +300,10 @@ where
     }
 }
 
-impl<S, V, DM, ESF, D> PhaseFactory<S, D> for KOptPhaseBuilder<S, V, DM, ESF>
+impl<S, V, D> PhaseFactory<S, D> for KOptPhaseBuilder<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
-    DM: Send + Sync,
-    ESF: Send + Sync,
     D: Director<S>,
 {
     type Phase = KOptPhase<S, V>;

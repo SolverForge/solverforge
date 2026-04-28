@@ -58,8 +58,12 @@ impl Score for CustomScore {
         2
     }
 
-    fn to_level_numbers(&self) -> Vec<i64> {
-        vec![self.hard, self.soft]
+    fn level_number(&self, index: usize) -> i64 {
+        match index {
+            0 => self.hard,
+            1 => self.soft,
+            _ => panic!("CustomScore has 2 levels, got index {}", index),
+        }
     }
 
     fn from_level_numbers(levels: &[i64]) -> Self {
@@ -99,16 +103,16 @@ impl Score for CustomScore {
 }
 
 #[test]
-fn custom_score_can_use_default_level_number() {
+fn custom_score_implements_required_level_number() {
     let score = CustomScore::of(-3, -14);
 
-    assert_eq!(score.to_level_numbers(), vec![-3, -14]);
     assert_eq!(score.level_number(0), -3);
     assert_eq!(score.level_number(1), -14);
+    assert_eq!(score.to_level_numbers(), vec![-3, -14]);
 }
 
 #[test]
 #[should_panic]
-fn custom_score_default_level_number_panics_out_of_range() {
+fn custom_score_level_number_panics_out_of_range() {
     let _ = CustomScore::of(0, 0).level_number(2);
 }

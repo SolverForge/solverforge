@@ -137,10 +137,6 @@ impl Score for HardMediumSoftScore {
         }
     }
 
-    fn to_level_numbers(&self) -> Vec<i64> {
-        vec![self.hard, self.medium, self.soft]
-    }
-
     fn from_level_numbers(levels: &[i64]) -> Self {
         assert_eq!(
             levels.len(),

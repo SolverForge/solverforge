@@ -114,9 +114,8 @@ impl MoveTabuAcceptor {
     }
 
     fn score_to_i64<S: PlanningSolution>(score: &S::Score) -> i64 {
-        let levels = score.to_level_numbers();
         // Use last level (soft score) as the primary comparison
-        *levels.last().unwrap_or(&0)
+        score.level_number(S::Score::levels_count() - 1)
     }
 }
 

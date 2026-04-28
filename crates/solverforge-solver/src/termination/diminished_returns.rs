@@ -171,17 +171,13 @@ impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Terminati
             return false; // Avoid division by near-zero
         }
 
-        // Use the last (lowest priority / soft) level for rate calculation
-        // This is the optimization objective being improved after feasibility
-        let current_levels = current_score.to_level_numbers();
-        let oldest_levels = oldest_score.to_level_numbers();
-
         /* Use the last level (soft score) for improvement rate
         For SoftScore: the only value
         For HardSoftScore: the soft value
         */
-        let current_value = *current_levels.last().unwrap_or(&0);
-        let oldest_value = *oldest_levels.last().unwrap_or(&0);
+        let objective_level = S::Score::levels_count() - 1;
+        let current_value = current_score.level_number(objective_level);
+        let oldest_value = oldest_score.level_number(objective_level);
 
         // Improvement = current - oldest (positive is better)
         let improvement = (current_value - oldest_value) as f64;

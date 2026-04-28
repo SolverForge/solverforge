@@ -2,13 +2,16 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use solverforge_core::score::SoftScore;
 
-use crate::api::constraint_set::IncrementalConstraint;
+use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
+use crate::director::score_director::ScoreDirector;
+use crate::director::{Director, RecordingDirector};
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::sum;
 use crate::stream::joiner::equal;
 use crate::stream::{ConstraintFactory, Projection, ProjectionSink};
+use solverforge_core::domain::PlanningSolution;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 struct Work {
     bucket: usize,
     demand: i64,
@@ -25,6 +28,16 @@ struct Capacity {
 struct Plan {
     work: Vec<Work>,
     capacity: Vec<Capacity>,
+}
+
+impl PlanningSolution for Plan {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        None
+    }
+
+    fn set_score(&mut self, _score: Option<Self::Score>) {}
 }
 
 #[derive(Clone)]
@@ -159,6 +172,57 @@ fn work(plan: &Plan) -> &[Work] {
 
 fn capacity(plan: &Plan) -> &[Capacity] {
     plan.capacity.as_slice()
+}
+
+fn projected_asymmetric_self_join_constraint() -> impl IncrementalConstraint<Plan, SoftScore> {
+    ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(OptionalSecondWorkEntry)
+        .join(equal(|entry: &Entry| entry.bucket))
+        .filter(|left: &Entry, right: &Entry| left.delta < right.delta)
+        .penalize_with(|left: &Entry, right: &Entry| SoftScore::of(left.delta * 10 + right.delta))
+        .named("projected asymmetric duplicate bucket")
+}
+
+fn projected_asymmetric_self_join_plan() -> Plan {
+    Plan {
+        work: vec![
+            Work {
+                bucket: 0,
+                demand: 2,
+                enabled: true,
+            },
+            Work {
+                bucket: 0,
+                demand: 20,
+                enabled: true,
+            },
+            Work {
+                bucket: 1,
+                demand: 40,
+                enabled: true,
+            },
+        ],
+        capacity: Vec::new(),
+    }
+}
+
+fn fresh_projected_asymmetric_self_join_score(plan: &Plan) -> SoftScore {
+    (projected_asymmetric_self_join_constraint(),).evaluate_all(plan)
+}
+
+fn assert_projected_director_matches_fresh<C>(director: &mut ScoreDirector<Plan, C>)
+where
+    C: ConstraintSet<Plan, SoftScore>,
+{
+    let cached = director.calculate_score();
+    let fresh = director
+        .constraints()
+        .evaluate_all(director.working_solution());
+    assert_eq!(cached, fresh);
 }
 
 #[test]
@@ -419,6 +483,95 @@ fn projected_self_join_reuses_slots_across_cardinality_changes() {
     assert_eq!(total, constraint.evaluate(&plan));
     assert_eq!(constraint.debug_row_storage_len(), 2);
     assert_eq!(constraint.debug_free_row_count(), 0);
+}
+
+#[test]
+fn projected_self_join_score_director_cached_score_matches_fresh_after_updates() {
+    let mut director = ScoreDirector::new(
+        projected_asymmetric_self_join_plan(),
+        (projected_asymmetric_self_join_constraint(),),
+    );
+    assert_projected_director_matches_fresh(&mut director);
+
+    for (entity_index, bucket, demand, enabled) in [
+        (2, 0, 40, true),
+        (1, 0, 20, false),
+        (1, 0, 5, true),
+        (0, 2, 2, true),
+        (2, 0, 30, false),
+        (2, 0, 30, true),
+    ] {
+        director.before_variable_changed(0, entity_index);
+        {
+            let work = &mut director.working_solution_mut().work[entity_index];
+            work.bucket = bucket;
+            work.demand = demand;
+            work.enabled = enabled;
+        }
+        director.after_variable_changed(0, entity_index);
+        assert_projected_director_matches_fresh(&mut director);
+    }
+}
+
+#[test]
+fn projected_self_join_nested_recording_director_undo_restores_cached_score() {
+    let initial_plan = projected_asymmetric_self_join_plan();
+    let mut inner = ScoreDirector::new(
+        initial_plan.clone(),
+        (projected_asymmetric_self_join_constraint(),),
+    );
+    assert_projected_director_matches_fresh(&mut inner);
+
+    {
+        let mut outer = RecordingDirector::new(&mut inner);
+        let old_outer_work = outer.working_solution().work[1].clone();
+        outer.before_variable_changed(0, 1);
+        {
+            let work = &mut outer.working_solution_mut().work[1];
+            work.bucket = 0;
+            work.demand = 5;
+            work.enabled = true;
+        }
+        outer.after_variable_changed(0, 1);
+        outer.register_undo(Box::new(move |plan: &mut Plan| {
+            plan.work[1] = old_outer_work;
+        }));
+        assert_eq!(
+            outer.calculate_score(),
+            fresh_projected_asymmetric_self_join_score(outer.working_solution())
+        );
+
+        {
+            let mut nested = RecordingDirector::new(&mut outer);
+            let old_nested_work = nested.working_solution().work[2].clone();
+            nested.before_variable_changed(0, 2);
+            {
+                let work = &mut nested.working_solution_mut().work[2];
+                work.bucket = 0;
+                work.demand = 30;
+                work.enabled = false;
+            }
+            nested.after_variable_changed(0, 2);
+            nested.register_undo(Box::new(move |plan: &mut Plan| {
+                plan.work[2] = old_nested_work;
+            }));
+
+            assert_eq!(
+                nested.calculate_score(),
+                fresh_projected_asymmetric_self_join_score(nested.working_solution())
+            );
+            nested.undo_changes();
+        }
+
+        assert_eq!(
+            outer.calculate_score(),
+            fresh_projected_asymmetric_self_join_score(outer.working_solution())
+        );
+        outer.undo_changes();
+    }
+
+    assert_eq!(inner.working_solution().work, initial_plan.work);
+    assert_projected_director_matches_fresh(&mut inner);
 }
 
 #[test]

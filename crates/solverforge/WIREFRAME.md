@@ -158,7 +158,7 @@ factory.assignments().join((
 
 Generated existence ergonomics: there is one public `ConstraintFactory::for_each(...)`. Generated `{Name}ConstraintStreams` accessors call it with hidden `ChangeSource::Descriptor(idx)` / `ChangeSource::Static` metadata so localized incremental callbacks use entity indexes only for the owning planning-entity collection. Raw facade `for_each(...)` extractors do not carry localized source ownership. Flattened existence targets use `.flattened(...)` and `FlattenedCollectionTarget`.
 
-Projected scoring ergonomics: `factory.assignments().project(TaskShiftWorkEntries)` creates bounded derived scoring rows from a named `Projection<A>` type without materializing facts or entities. Projected streams can be filtered, merged, grouped, and weighted like normal scoring state. Projections emit through `ProjectionSink` and declare `MAX_EMITS`; Vec-returning projection closures are not part of the public API.
+Projected scoring ergonomics: `factory.assignments().project(TaskShiftWorkEntries)` creates bounded derived scoring rows from a named `Projection<A>` type without materializing facts or entities. Projected streams can be filtered, self-joined, merged, grouped, and weighted like normal scoring state. Projections emit through `ProjectionSink` and declare `MAX_EMITS`; Vec-returning projection closures are not part of the public API.
 
 ## `__internal` Module (`#[doc(hidden)]`)
 

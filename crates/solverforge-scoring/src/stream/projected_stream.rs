@@ -5,7 +5,10 @@ use solverforge_core::score::Score;
 
 use super::collection_extract::{ChangeSource, CollectionExtract};
 use super::collector::UniCollector;
-use super::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter};
+use super::filter::{
+    AndBiFilter, AndUniFilter, BiFilter, FnBiFilter, FnUniFilter, TrueFilter, UniFilter,
+};
+use super::joiner::EqualJoiner;
 use super::uni_stream::UniConstraintStream;
 
 pub trait ProjectionSink<Out> {
@@ -336,6 +339,24 @@ where
         }
     }
 
+    pub fn join<K, KF>(
+        self,
+        joiner: EqualJoiner<KF, KF, K>,
+    ) -> ProjectedBiConstraintStream<S, Out, K, Src, F, KF, TrueFilter, Sc>
+    where
+        K: Clone + Eq + Hash + Send + Sync + 'static,
+        KF: Fn(&Out) -> K + Send + Sync,
+    {
+        let (key_fn, _) = joiner.into_keys();
+        ProjectedBiConstraintStream {
+            source: self.source,
+            filter: self.filter,
+            key_fn,
+            pair_filter: TrueFilter,
+            _phantom: PhantomData,
+        }
+    }
+
     fn into_weighted_builder<W>(
         self,
         impact_type: solverforge_core::ImpactType,
@@ -370,6 +391,143 @@ where
         W: Fn(&Out) -> Sc + Send + Sync,
     {
         self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight, false)
+    }
+}
+
+pub struct ProjectedBiConstraintStream<S, Out, K, Src, F, KF, PF, Sc>
+where
+    Sc: Score,
+{
+    pub(crate) source: Src,
+    pub(crate) filter: F,
+    pub(crate) key_fn: KF,
+    pub(crate) pair_filter: PF,
+    pub(crate) _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> K, fn() -> Sc)>,
+}
+
+impl<S, Out, K, Src, F, KF, PF, Sc> ProjectedBiConstraintStream<S, Out, K, Src, F, KF, PF, Sc>
+where
+    S: Send + Sync + 'static,
+    Out: Clone + Send + Sync + 'static,
+    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Src: ProjectedSource<S, Out>,
+    F: UniFilter<S, Out>,
+    KF: Fn(&Out) -> K + Send + Sync,
+    PF: BiFilter<S, Out, Out>,
+    Sc: Score + 'static,
+{
+    pub fn filter<P>(
+        self,
+        predicate: P,
+    ) -> ProjectedBiConstraintStream<
+        S,
+        Out,
+        K,
+        Src,
+        F,
+        KF,
+        AndBiFilter<PF, FnBiFilter<impl Fn(&S, &Out, &Out) -> bool + Send + Sync>>,
+        Sc,
+    >
+    where
+        P: Fn(&Out, &Out) -> bool + Send + Sync + 'static,
+    {
+        ProjectedBiConstraintStream {
+            source: self.source,
+            filter: self.filter,
+            key_fn: self.key_fn,
+            pair_filter: AndBiFilter::new(
+                self.pair_filter,
+                FnBiFilter::new(move |_s: &S, left: &Out, right: &Out| predicate(left, right)),
+            ),
+            _phantom: PhantomData,
+        }
+    }
+
+    fn into_weighted_builder<W>(
+        self,
+        impact_type: solverforge_core::ImpactType,
+        weight: W,
+        is_hard: bool,
+    ) -> ProjectedBiConstraintBuilder<S, Out, K, Src, F, KF, PF, W, Sc>
+    where
+        W: Fn(&Out, &Out) -> Sc + Send + Sync,
+    {
+        ProjectedBiConstraintBuilder {
+            source: self.source,
+            filter: self.filter,
+            key_fn: self.key_fn,
+            pair_filter: self.pair_filter,
+            impact_type,
+            weight,
+            is_hard,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn penalize_with<W>(
+        self,
+        weight: W,
+    ) -> ProjectedBiConstraintBuilder<S, Out, K, Src, F, KF, PF, W, Sc>
+    where
+        W: Fn(&Out, &Out) -> Sc + Send + Sync,
+    {
+        self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight, false)
+    }
+
+    pub fn penalize_hard_with<W>(
+        self,
+        weight: W,
+    ) -> ProjectedBiConstraintBuilder<S, Out, K, Src, F, KF, PF, W, Sc>
+    where
+        W: Fn(&Out, &Out) -> Sc + Send + Sync,
+    {
+        self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight, true)
+    }
+}
+
+pub struct ProjectedBiConstraintBuilder<S, Out, K, Src, F, KF, PF, W, Sc>
+where
+    Sc: Score,
+{
+    pub(crate) source: Src,
+    pub(crate) filter: F,
+    pub(crate) key_fn: KF,
+    pub(crate) pair_filter: PF,
+    pub(crate) impact_type: solverforge_core::ImpactType,
+    pub(crate) weight: W,
+    pub(crate) is_hard: bool,
+    pub(crate) _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> K, fn() -> Sc)>,
+}
+
+impl<S, Out, K, Src, F, KF, PF, W, Sc>
+    ProjectedBiConstraintBuilder<S, Out, K, Src, F, KF, PF, W, Sc>
+where
+    S: Send + Sync + 'static,
+    Out: Clone + Send + Sync + 'static,
+    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Src: ProjectedSource<S, Out>,
+    F: UniFilter<S, Out>,
+    KF: Fn(&Out) -> K + Send + Sync,
+    PF: BiFilter<S, Out, Out>,
+    W: Fn(&Out, &Out) -> Sc + Send + Sync,
+    Sc: Score + 'static,
+{
+    pub fn named(
+        self,
+        name: &str,
+    ) -> crate::constraint::projected::ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc>
+    {
+        crate::constraint::projected::ProjectedBiConstraint::new(
+            solverforge_core::ConstraintRef::new("", name),
+            self.impact_type,
+            self.source,
+            self.filter,
+            self.key_fn,
+            self.pair_filter,
+            self.weight,
+            self.is_hard,
+        )
     }
 }
 

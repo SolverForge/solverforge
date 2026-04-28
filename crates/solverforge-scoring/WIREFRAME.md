@@ -104,7 +104,7 @@ src/
 │   ├── flattened_bi_stream/weighting.rs            — Weighting helpers for flattened streams
 │   ├── existence_stream.rs                         — ExistsConstraintStream, ExistsConstraintBuilder, ExistenceMode, FlattenExtract
 │   ├── existence_target.rs                         — ExistenceTarget trait for direct and flattened existence targets
-│   ├── projected_stream.rs                         — ProjectedConstraintStream, merge/filter/group/weighting for derived rows
+│   ├── projected_stream.rs                         — ProjectedConstraintStream, self-join/merge/filter/group/weighting for derived rows
 │   ├── collection_extract.rs                       — CollectionExtract trait, source-aware extractors, VecExtract wrapper, vec() constructor
 │   ├── join_target.rs                              — JoinTarget trait + 3 impls (self-join, keyed cross-join, predicate cross-join)
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
@@ -388,7 +388,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`ProjectionSink<Out>`** — Emission sink used by `Projection<A>` implementations. `emit(output)` is the only projection output channel.
 
-**`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Derived scoring rows from one or more source streams. Projection output type is inferred from the named projection type passed to `project(...)`; retained rows are cached by `(source_slot, entity_index)` and updated incrementally only when the owning descriptor source changes. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
+**`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Derived scoring rows from one or more source streams. Projection output type is inferred from the named projection type passed to `project(...)`; retained rows are cached by `(source_slot, entity_index)` and updated incrementally only when the owning descriptor source changes. Projected rows can be self-joined by `equal(|row| key)` without materialized facts. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
 - Operations: `filter()`, `merge(other)`, `group_by()`, `penalize_with()`, `penalize_hard_with()`
 
 Projection syntax:

@@ -5,6 +5,7 @@ use solverforge_core::score::SoftScore;
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::sum;
+use crate::stream::joiner::equal;
 use crate::stream::{ConstraintFactory, Projection, ProjectionSink};
 
 #[derive(Clone)]
@@ -197,6 +198,53 @@ fn projected_grouping_merges_multiple_sources() {
 
     assert_eq!(constraint.match_count(&plan), 2);
     assert_eq!(constraint.evaluate(&plan), SoftScore::of(-2));
+}
+
+#[test]
+fn projected_rows_can_self_join_by_key() {
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(WorkEntryProjection)
+        .join(equal(|entry: &Entry| entry.bucket))
+        .filter(|left: &Entry, right: &Entry| left.delta < right.delta)
+        .penalize_with(|_left: &Entry, _right: &Entry| SoftScore::of(1))
+        .named("projected duplicate bucket");
+
+    let mut plan = Plan {
+        work: vec![
+            Work {
+                bucket: 0,
+                demand: 1,
+                enabled: true,
+            },
+            Work {
+                bucket: 0,
+                demand: 2,
+                enabled: true,
+            },
+            Work {
+                bucket: 1,
+                demand: 3,
+                enabled: true,
+            },
+        ],
+        capacity: Vec::new(),
+    };
+
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(constraint.match_count(&plan), 1);
+    assert_eq!(total, SoftScore::of(-1));
+
+    total = total + constraint.on_retract(&plan, 2, 0);
+    plan.work[2].bucket = 0;
+    total = total + constraint.on_insert(&plan, 2, 0);
+
+    assert_eq!(constraint.match_count(&plan), 3);
+    assert_eq!(total, SoftScore::of(-3));
+    assert_eq!(total, constraint.evaluate(&plan));
 }
 
 #[test]

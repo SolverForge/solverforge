@@ -106,6 +106,10 @@ impl Score for HardSoftScore {
         }
     }
 
+    fn to_level_numbers(&self) -> Vec<i64> {
+        vec![self.hard, self.soft]
+    }
+
     fn from_level_numbers(levels: &[i64]) -> Self {
         assert_eq!(levels.len(), 2, "HardSoftScore requires exactly 2 levels");
         HardSoftScore::of(levels[0], levels[1])

@@ -59,25 +59,24 @@ pub trait Score:
     */
     fn levels_count() -> usize;
 
-    /* Returns the score value at a priority level.
-
-    Level indices follow the same order as `to_level_numbers()` and
-    `level_label()`: highest priority first.
-
-    # Panics
-    Panics if `index >= levels_count()`.
-    */
-    fn level_number(&self, index: usize) -> i64;
-
     /* Returns the score values as a vector of i64.
 
     The order is from highest priority to lowest priority.
     For HardSoftScore: [hard, soft]
     */
-    fn to_level_numbers(&self) -> Vec<i64> {
-        (0..Self::levels_count())
-            .map(|index| self.level_number(index))
-            .collect()
+    fn to_level_numbers(&self) -> Vec<i64>;
+
+    /* Returns the score value at a priority level.
+
+    Level indices follow the same order as `to_level_numbers()` and
+    `level_label()`: highest priority first.
+    Built-in scores override this for allocation-free hot paths.
+
+    # Panics
+    Panics if `index >= levels_count()`.
+    */
+    fn level_number(&self, index: usize) -> i64 {
+        self.to_level_numbers()[index]
     }
 
     /* Creates a score from level numbers.

@@ -130,6 +130,10 @@ impl<const H: usize, const S: usize> Score for BendableScore<H, S> {
         }
     }
 
+    fn to_level_numbers(&self) -> Vec<i64> {
+        self.hard.iter().chain(self.soft.iter()).copied().collect()
+    }
+
     fn from_level_numbers(levels: &[i64]) -> Self {
         assert!(levels.len() >= H + S, "Not enough levels provided");
         let mut hard = [0; H];

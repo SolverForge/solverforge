@@ -96,7 +96,8 @@ Additionally, `pub mod constraint`, `pub mod domain`, `pub mod error`, `pub mod 
 | `is_feasible` | `fn is_feasible(&self) -> bool` | True when all hard scores >= 0 |
 | `zero` | `fn zero() -> Self` | Additive identity |
 | `levels_count` | `fn levels_count() -> usize` | Number of score levels |
-| `to_level_numbers` | `fn to_level_numbers(&self) -> Vec<i64>` | High-priority first |
+| `to_level_numbers` | `fn to_level_numbers(&self) -> Vec<i64>` | Required, high-priority first |
+| `level_number` | `fn level_number(&self, index: usize) -> i64` | Defaulted per-level accessor; built-ins override for allocation-free hot paths |
 | `from_level_numbers` | `fn from_level_numbers(levels: &[i64]) -> Self` | Panics on wrong count |
 | `multiply` | `fn multiply(&self, multiplicand: f64) -> Self` | Scalar multiply |
 | `divide` | `fn divide(&self, divisor: f64) -> Self` | Scalar divide |

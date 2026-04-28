@@ -71,6 +71,10 @@ impl Score for SoftScore {
         }
     }
 
+    fn to_level_numbers(&self) -> Vec<i64> {
+        vec![self.score]
+    }
+
     fn from_level_numbers(levels: &[i64]) -> Self {
         assert_eq!(levels.len(), 1, "SoftScore requires exactly 1 level");
         SoftScore::of(levels[0])

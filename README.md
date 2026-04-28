@@ -97,7 +97,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.9.2", features = ["console"] }
+solverforge = { version = "0.10.0", features = ["console"] }
 ```
 
 When `move_selector` is omitted from local search or VND, the canonical runtime
@@ -349,7 +349,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.9.2 - Zero-Erasure Constraint Solver
+                   v0.10.0 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -558,7 +558,13 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.9.2
+**Current Version**: 0.10.0
+
+### What's New in 0.10.0
+
+- **Projected derived rows keep coordinate-stable self-join order**: retained projected joins reuse sparse row storage without letting storage slots define pair orientation, so multi-output projections with order-sensitive filters stay incrementally consistent with full evaluation.
+- **Score level access is source-compatible and allocation-aware**: custom `Score` types can keep implementing `to_level_numbers()` as the required extension point, while built-in scores override `level_number()` for allocation-free score-level search behavior.
+- **Level-aware simulated annealing is production-ready**: simulated annealing uses per-score-level temperatures, hard-regression policy, calibration, and cooling into hill-climbing behavior for `HardSoftScore` and other multi-level scores.
 
 ### What's New in 0.9.2
 

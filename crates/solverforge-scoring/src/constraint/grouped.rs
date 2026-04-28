@@ -249,7 +249,10 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        if !self.change_source.reacts_to(descriptor_index) {
+        if !self
+            .change_source
+            .assert_localizes(descriptor_index, &self.constraint_ref.name)
+        {
             return Sc::zero();
         }
         let entities = self.extractor.extract(solution);
@@ -265,7 +268,10 @@ where
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        if !self.change_source.reacts_to(descriptor_index) {
+        if !self
+            .change_source
+            .assert_localizes(descriptor_index, &self.constraint_ref.name)
+        {
             return Sc::zero();
         }
         let entities = self.extractor.extract(solution);

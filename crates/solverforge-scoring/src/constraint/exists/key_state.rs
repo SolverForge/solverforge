@@ -2,6 +2,8 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use solverforge_core::score::Score;
+
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ExistsStorageKind {
@@ -9,29 +11,38 @@ pub(crate) enum ExistsStorageKind {
     IndexedUsize,
 }
 
-pub(super) struct HashedExistsState<K> {
+pub(super) struct HashedExistsState<K, Sc> {
     a_indices_by_key: HashMap<K, Vec<usize>>,
+    a_score_totals_by_key: HashMap<K, Sc>,
     b_key_counts: HashMap<K, usize>,
 }
 
-impl<K> Default for HashedExistsState<K> {
+impl<K, Sc> Default for HashedExistsState<K, Sc>
+where
+    Sc: Score,
+{
     fn default() -> Self {
         Self {
             a_indices_by_key: HashMap::new(),
+            a_score_totals_by_key: HashMap::new(),
             b_key_counts: HashMap::new(),
         }
     }
 }
 
 #[derive(Default)]
-pub(super) struct IndexedUsizeExistsState {
+pub(super) struct IndexedUsizeExistsState<Sc> {
     a_indices_by_key: Vec<Vec<usize>>,
+    a_score_totals_by_key: Vec<Sc>,
     b_key_counts: Vec<usize>,
 }
 
-pub(super) enum ExistsKeyState<K> {
-    Hashed(HashedExistsState<K>),
-    IndexedUsize(IndexedUsizeExistsState),
+pub(super) enum ExistsKeyState<K, Sc>
+where
+    Sc: Score,
+{
+    Hashed(HashedExistsState<K, Sc>),
+    IndexedUsize(IndexedUsizeExistsState<Sc>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -40,9 +51,10 @@ pub(super) struct MovedAIndex {
     pub(super) bucket_pos: usize,
 }
 
-impl<K> ExistsKeyState<K>
+impl<K, Sc> ExistsKeyState<K, Sc>
 where
     K: Eq + Hash + Clone + 'static,
+    Sc: Score,
 {
     pub(super) fn new() -> Self {
         if TypeId::of::<K>() == TypeId::of::<usize>() {
@@ -62,8 +74,14 @@ where
 
     pub(super) fn clear_a_buckets(&mut self) {
         match self {
-            Self::Hashed(state) => state.a_indices_by_key.clear(),
-            Self::IndexedUsize(state) => state.a_indices_by_key.clear(),
+            Self::Hashed(state) => {
+                state.a_indices_by_key.clear();
+                state.a_score_totals_by_key.clear();
+            }
+            Self::IndexedUsize(state) => {
+                state.a_indices_by_key.clear();
+                state.a_score_totals_by_key.clear();
+            }
         }
     }
 
@@ -92,6 +110,56 @@ where
                 bucket.push(idx);
                 bucket_pos
             }
+        }
+    }
+
+    pub(super) fn add_a_score(&mut self, key: &K, score: Sc) {
+        match self {
+            Self::Hashed(state) => {
+                let total = state
+                    .a_score_totals_by_key
+                    .entry(key.clone())
+                    .or_insert_with(Sc::zero);
+                *total = *total + score;
+            }
+            Self::IndexedUsize(state) => {
+                let key = usize_key(key);
+                if state.a_score_totals_by_key.len() <= key {
+                    state.a_score_totals_by_key.resize(key + 1, Sc::zero());
+                }
+                state.a_score_totals_by_key[key] = state.a_score_totals_by_key[key] + score;
+            }
+        }
+    }
+
+    pub(super) fn subtract_a_score(&mut self, key: &K, score: Sc) {
+        match self {
+            Self::Hashed(state) => {
+                if let Some(total) = state.a_score_totals_by_key.get_mut(key) {
+                    *total = *total - score;
+                }
+            }
+            Self::IndexedUsize(state) => {
+                let key = usize_key(key);
+                if let Some(total) = state.a_score_totals_by_key.get_mut(key) {
+                    *total = *total - score;
+                }
+            }
+        }
+    }
+
+    pub(super) fn a_score_total(&self, key: &K) -> Sc {
+        match self {
+            Self::Hashed(state) => state
+                .a_score_totals_by_key
+                .get(key)
+                .copied()
+                .unwrap_or_else(Sc::zero),
+            Self::IndexedUsize(state) => state
+                .a_score_totals_by_key
+                .get(usize_key(key))
+                .copied()
+                .unwrap_or_else(Sc::zero),
         }
     }
 
@@ -135,17 +203,6 @@ where
                     None
                 }
             }
-        }
-    }
-
-    pub(super) fn a_indices(&self, key: &K) -> Vec<usize> {
-        match self {
-            Self::Hashed(state) => state.a_indices_by_key.get(key).cloned().unwrap_or_default(),
-            Self::IndexedUsize(state) => state
-                .a_indices_by_key
-                .get(usize_key(key))
-                .cloned()
-                .unwrap_or_default(),
         }
     }
 

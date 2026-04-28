@@ -61,18 +61,38 @@ impl solverforge::__internal::PlanningModelSupport for Plan {
     }
 }
 
-fn assignment_entries(assignment: &Assignment) -> Vec<CapacityEntry> {
-    vec![CapacityEntry {
-        bucket: assignment.bucket,
-        delta: assignment.demand,
-    }]
+struct AssignmentEntries;
+
+impl Projection<Assignment> for AssignmentEntries {
+    type Out = CapacityEntry;
+    const MAX_EMITS: usize = 1;
+
+    fn project<Sink>(&self, assignment: &Assignment, sink: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        sink.emit(CapacityEntry {
+            bucket: assignment.bucket,
+            delta: assignment.demand,
+        });
+    }
 }
 
-fn capacity_entries(capacity: &Capacity) -> Vec<CapacityEntry> {
-    vec![CapacityEntry {
-        bucket: capacity.bucket,
-        delta: -capacity.amount,
-    }]
+struct CapacityEntries;
+
+impl Projection<Capacity> for CapacityEntries {
+    type Out = CapacityEntry;
+    const MAX_EMITS: usize = 1;
+
+    fn project<Sink>(&self, capacity: &Capacity, sink: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        sink.emit(CapacityEntry {
+            bucket: capacity.bucket,
+            delta: -capacity.amount,
+        });
+    }
 }
 
 #[test]
@@ -81,11 +101,11 @@ fn projected_stream_is_public_and_infers_output_type() {
 
     let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
         .assignments()
-        .project(assignment_entries as fn(&Assignment) -> Vec<CapacityEntry>)
+        .project(AssignmentEntries)
         .merge(
             ConstraintFactory::<Plan, HardSoftScore>::new()
                 .capacities()
-                .project(capacity_entries as fn(&Capacity) -> Vec<CapacityEntry>),
+                .project(CapacityEntries),
         )
         .group_by(
             |entry: &CapacityEntry| entry.bucket,

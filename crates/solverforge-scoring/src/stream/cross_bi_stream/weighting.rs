@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use crate::constraint::cross_bi_incremental::IncrementalCrossBiConstraint;
+use crate::constraint::cross_bi_incremental::{IncrementalCrossBiConstraint, PairWeight};
 
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::BiFilter;
@@ -256,8 +256,8 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
-    EA: CollectionExtract<S, Item = A> + Clone,
-    EB: CollectionExtract<S, Item = B> + Clone,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
     F: BiFilter<S, A, B>,
@@ -277,24 +277,13 @@ where
         KA,
         KB,
         impl Fn(&S, &A, &B) -> bool + Send + Sync,
-        impl Fn(&S, usize, usize) -> Sc + Send + Sync,
+        PairWeight<W>,
         Sc,
     > {
         let filter = self.filter;
         let combined_filter = move |s: &S, a: &A, b: &B| filter.test(s, a, b, 0, 0);
 
-        let extractor_a = self.extractor_a.clone();
-        let extractor_b = self.extractor_b.clone();
-        let weight = self.weight;
-        let adapted_weight = move |s: &S, a_idx: usize, b_idx: usize| {
-            let entities_a = extractor_a.extract(s);
-            let entities_b = extractor_b.extract(s);
-            let a = &entities_a[a_idx];
-            let b = &entities_b[b_idx];
-            weight(a, b)
-        };
-
-        IncrementalCrossBiConstraint::new(
+        IncrementalCrossBiConstraint::new_pair_weight(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor_a,
@@ -302,7 +291,7 @@ where
             self.key_a,
             self.key_b,
             combined_filter,
-            adapted_weight,
+            self.weight,
             self.is_hard,
         )
     }

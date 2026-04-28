@@ -3,7 +3,7 @@
 Facade crate: re-exports the public API from all sub-crates under a single `solverforge` dependency.
 
 **Location:** `crates/solverforge/`
-**Workspace Release:** `0.9.1`
+**Workspace Release:** `0.9.2`
 
 The CLI lives in the standalone `solverforge-cli` repository and is not part of this workspace or facade crate.
 
@@ -139,7 +139,7 @@ Re-exports the fluent constraint stream API:
 ```rust
 pub use solverforge_scoring::stream::collection_extract::vec;
 pub use solverforge_scoring::stream::collection_extract::{
-    source, ChangeSource, CollectionExtract, FlattenExtract, SourceExtract, VecExtract,
+    CollectionExtract, FlattenExtract, VecExtract,
 };
 pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollectionTarget};
 ```
@@ -148,9 +148,17 @@ Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penal
 
 Extractor ergonomics: all `for_each` and join extractor params accept `CollectionExtract<S, Item = A>`. Use `|s| s.field.as_slice()` for slices, or `vec(|s| &s.field)` when the field is a `Vec<A>` and you prefer `&field` syntax.
 
-Generated existence ergonomics: there is one public `ConstraintFactory::for_each(...)`. Generated `{Name}ConstraintStreams` accessors call it with hidden `ChangeSource` metadata so incremental `.if_exists(...)` / `.if_not_exists(...)` can react only to the owning entity collection. Flattened existence targets use `.flattened(...)` and `FlattenedCollectionTarget`.
+Generated keyed joins: unfiltered generated accessors can be passed directly as keyed join targets, preserving hidden `ChangeSource` metadata:
+```rust
+factory.assignments().join((
+    ConstraintFactory::<Plan, HardSoftScore>::new().furnaces(),
+    equal_bi(|assignment| assignment.furnace_idx(), |furnace| Some(furnace.id)),
+))
+```
 
-Projected scoring ergonomics: `factory.assignments().project(|assignment| assignment.derived_rows())` creates derived scoring rows without materializing facts or entities. Projected streams can be filtered, merged, grouped, and weighted like normal scoring state.
+Generated existence ergonomics: there is one public `ConstraintFactory::for_each(...)`. Generated `{Name}ConstraintStreams` accessors call it with hidden `ChangeSource::Descriptor(idx)` / `ChangeSource::Static` metadata so localized incremental callbacks use entity indexes only for the owning planning-entity collection. Raw facade `for_each(...)` extractors do not carry localized source ownership. Flattened existence targets use `.flattened(...)` and `FlattenedCollectionTarget`.
+
+Projected scoring ergonomics: `factory.assignments().project(TaskShiftWorkEntries)` creates bounded derived scoring rows from a named `Projection<A>` type without materializing facts or entities. Projected streams can be filtered, merged, grouped, and weighted like normal scoring state. Projections emit through `ProjectionSink` and declare `MAX_EMITS`; Vec-returning projection closures are not part of the public API.
 
 ## `__internal` Module (`#[doc(hidden)]`)
 

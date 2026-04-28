@@ -23,7 +23,7 @@ where
 {
     key: Option<K>,
     bucket_pos: usize,
-    contribution: Sc,
+    score: Sc,
 }
 
 impl<K, Sc> Default for ASlot<K, Sc>
@@ -34,7 +34,7 @@ where
         Self {
             key: None,
             bucket_pos: 0,
-            contribution: Sc::zero(),
+            score: Sc::zero(),
         }
     }
 }
@@ -58,7 +58,7 @@ where
     a_source: ChangeSource,
     parent_source: ChangeSource,
     a_slots: Vec<ASlot<K, Sc>>,
-    key_state: ExistsKeyState<K>,
+    key_state: ExistsKeyState<K, Sc>,
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> P, fn() -> B)>,
 }
 
@@ -168,13 +168,20 @@ where
         if idx >= self.a_slots.len() {
             return Sc::zero();
         }
-        let slot = self.a_slots[idx].clone();
-        let Some(key) = slot.key.clone() else {
+        let bucket_pos = self.a_slots[idx].bucket_pos;
+        let score = self.a_slots[idx].score;
+        let Some(key) = self.a_slots[idx].key.take() else {
             return Sc::zero();
         };
-        self.remove_a_from_bucket(idx, &key, slot.bucket_pos);
+        let contribution = if self.matches_existence(&key) {
+            score
+        } else {
+            Sc::zero()
+        };
+        self.remove_a_from_bucket(idx, &key, bucket_pos);
+        self.key_state.subtract_a_score(&key, score);
         self.a_slots[idx] = ASlot::default();
-        -slot.contribution
+        -contribution
     }
 
     fn insert_a(&mut self, solution: &S, idx: usize) -> Sc {
@@ -194,9 +201,11 @@ where
 
         let key = (self.key_a)(a);
         let bucket_pos = self.key_state.insert_a_index(key.clone(), idx);
+        let score = self.compute_score(a);
+        self.key_state.add_a_score(&key, score);
 
         let contribution = if self.matches_existence(&key) {
-            self.compute_score(a)
+            score
         } else {
             Sc::zero()
         };
@@ -204,48 +213,34 @@ where
         self.a_slots[idx] = ASlot {
             key: Some(key),
             bucket_pos,
-            contribution,
+            score,
         };
         contribution
     }
 
-    fn reevaluate_key(&mut self, solution: &S, key: &K) -> Sc {
-        let indices = self.key_state.a_indices(key);
-        if indices.is_empty() {
-            return Sc::zero();
-        };
-        let entities_a = self.extractor_a.extract(solution);
-        let mut total = Sc::zero();
-        let exists = self.matches_existence(key);
-
-        for idx in indices {
-            let a = &entities_a[idx];
-            let new_contribution = if exists {
-                self.compute_score(a)
-            } else {
-                Sc::zero()
-            };
-            let old_contribution = self.a_slots[idx].contribution;
-            self.a_slots[idx].contribution = new_contribution;
-            total = total + (new_contribution - old_contribution);
+    fn key_existence_delta(&self, key: &K, old_count: usize, new_count: usize) -> Sc {
+        let old_matches = self.matches_count(old_count);
+        let new_matches = self.matches_count(new_count);
+        if old_matches == new_matches {
+            Sc::zero()
+        } else if new_matches {
+            self.key_state.a_score_total(key)
+        } else {
+            -self.key_state.a_score_total(key)
         }
-
-        total
     }
 
-    fn update_key_counts(&mut self, solution: &S, key_counts: &[(K, usize)], insert: bool) -> Sc {
+    fn update_key_counts(&mut self, key_counts: &[(K, usize)], insert: bool) -> Sc {
         let mut total = Sc::zero();
 
         for (key, count) in key_counts {
+            let old_count = self.key_state.b_count(key);
             if insert {
                 self.key_state.increment_b_count(key, *count);
             } else {
                 self.key_state.decrement_b_count(key, *count);
             }
-        }
-
-        for (key, _) in key_counts {
-            total = total + self.reevaluate_key(solution, key);
+            total = total + self.key_existence_delta(key, old_count, self.key_state.b_count(key));
         }
 
         total
@@ -290,7 +285,7 @@ where
         total
     }
 
-    fn build_b_counts(&self, solution: &S) -> ExistsKeyState<K> {
+    fn build_b_counts(&self, solution: &S) -> ExistsKeyState<K, Sc> {
         let mut key_state = ExistsKeyState::new();
         for parent in self.extractor_parent.extract(solution) {
             if !self.filter_parent.test(solution, parent) {
@@ -366,21 +361,26 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        let a_changed = self.a_source.reacts_to(descriptor_index);
-        let parent_changed = self.parent_source.reacts_to(descriptor_index);
-        let same_source = self.a_source == self.parent_source && a_changed && parent_changed;
+        let a_changed = self
+            .a_source
+            .assert_localizes(descriptor_index, &self.constraint_ref.name);
+        let parent_changed = self
+            .parent_source
+            .assert_localizes(descriptor_index, &self.constraint_ref.name);
+        let same_source =
+            self.a_source.same_index_domain(self.parent_source) && a_changed && parent_changed;
 
         let mut total = Sc::zero();
         if same_source {
             let keys = self.parent_key_counts(solution, entity_index);
-            total = total + self.update_key_counts(solution, &keys, true);
+            total = total + self.update_key_counts(&keys, true);
             total = total + self.insert_a(solution, entity_index);
             return total;
         }
 
         if parent_changed {
             let keys = self.parent_key_counts(solution, entity_index);
-            total = total + self.update_key_counts(solution, &keys, true);
+            total = total + self.update_key_counts(&keys, true);
         }
         if a_changed {
             total = total + self.insert_a(solution, entity_index);
@@ -389,15 +389,20 @@ where
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        let a_changed = self.a_source.reacts_to(descriptor_index);
-        let parent_changed = self.parent_source.reacts_to(descriptor_index);
-        let same_source = self.a_source == self.parent_source && a_changed && parent_changed;
+        let a_changed = self
+            .a_source
+            .assert_localizes(descriptor_index, &self.constraint_ref.name);
+        let parent_changed = self
+            .parent_source
+            .assert_localizes(descriptor_index, &self.constraint_ref.name);
+        let same_source =
+            self.a_source.same_index_domain(self.parent_source) && a_changed && parent_changed;
 
         let mut total = Sc::zero();
         if same_source {
             let keys = self.parent_key_counts(solution, entity_index);
             total = total + self.retract_a(entity_index);
-            total = total + self.update_key_counts(solution, &keys, false);
+            total = total + self.update_key_counts(&keys, false);
             return total;
         }
 
@@ -406,7 +411,7 @@ where
         }
         if parent_changed {
             let keys = self.parent_key_counts(solution, entity_index);
-            total = total + self.update_key_counts(solution, &keys, false);
+            total = total + self.update_key_counts(&keys, false);
         }
         total
     }

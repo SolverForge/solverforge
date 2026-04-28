@@ -3,6 +3,7 @@
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::incremental::IncrementalUniConstraint;
 use crate::director::score_director::ScoreDirector;
+use crate::stream::collection_extract::{source, ChangeSource};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
@@ -29,7 +30,10 @@ fn make_unassigned_constraint() -> impl IncrementalConstraint<TestSolution, Soft
     IncrementalUniConstraint::new(
         ConstraintRef::new("", "Unassigned"),
         ImpactType::Penalty,
-        (|s: &TestSolution| s.values.as_slice()) as fn(&TestSolution) -> &[Option<i32>],
+        source(
+            (|s: &TestSolution| s.values.as_slice()) as fn(&TestSolution) -> &[Option<i32>],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &TestSolution, v: &Option<i32>| v.is_none(),
         |_v: &Option<i32>| SoftScore::of(1),
         false,
@@ -178,7 +182,10 @@ fn test_multiple_constraints() {
     let c2 = IncrementalUniConstraint::new(
         ConstraintRef::new("", "Assigned"),
         ImpactType::Reward,
-        (|s: &TestSolution| s.values.as_slice()) as fn(&TestSolution) -> &[Option<i32>],
+        source(
+            (|s: &TestSolution| s.values.as_slice()) as fn(&TestSolution) -> &[Option<i32>],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &TestSolution, v: &Option<i32>| v.is_some(),
         |_v: &Option<i32>| SoftScore::of(1),
         false,

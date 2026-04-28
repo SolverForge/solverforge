@@ -2,9 +2,9 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::balance::BalanceConstraint;
-use crate::stream::collection_extract::vec;
+use crate::stream::collection_extract::{source, vec, ChangeSource};
 use crate::stream::filter::TrueFilter;
-use solverforge_core::score::SoftScore;
+use solverforge_core::score::{Score, SoftScore};
 use solverforge_core::{ConstraintRef, ImpactType};
 
 #[derive(Clone)]
@@ -22,7 +22,7 @@ fn test_balance_evaluate_equal_distribution() {
     let constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance"),
         ImpactType::Penalty,
-        vec(|s: &Solution| &s.shifts),
+        source(vec(|s: &Solution| &s.shifts), ChangeSource::Descriptor(0)),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000), // 1000 per unit std_dev
@@ -56,7 +56,7 @@ fn test_balance_evaluate_unequal_distribution() {
     let constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance"),
         ImpactType::Penalty,
-        vec(|s: &Solution| &s.shifts),
+        source(vec(|s: &Solution| &s.shifts), ChangeSource::Descriptor(0)),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000), // 1000 per unit std_dev
@@ -91,7 +91,7 @@ fn test_balance_filters_unassigned() {
     let constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance"),
         ImpactType::Penalty,
-        vec(|s: &Solution| &s.shifts),
+        source(vec(|s: &Solution| &s.shifts), ChangeSource::Descriptor(0)),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000),
@@ -126,7 +126,7 @@ fn test_balance_incremental() {
     let mut constraint = BalanceConstraint::new(
         ConstraintRef::new("", "Balance"),
         ImpactType::Penalty,
-        vec(|s: &Solution| &s.shifts),
+        source(vec(|s: &Solution| &s.shifts), ChangeSource::Descriptor(0)),
         TrueFilter,
         |shift: &Shift| shift.employee_id,
         SoftScore::of(1000),
@@ -166,6 +166,56 @@ fn test_balance_incremental() {
     let delta = constraint.on_insert(&solution, 0, 0);
     // Back to balanced: delta = +500
     assert_eq!(delta, SoftScore::of(500));
+}
+
+#[test]
+fn test_balance_unrelated_descriptor_is_noop() {
+    let mut constraint = BalanceConstraint::new(
+        ConstraintRef::new("", "Balance"),
+        ImpactType::Penalty,
+        source(vec(|s: &Solution| &s.shifts), ChangeSource::Descriptor(0)),
+        TrueFilter,
+        |shift: &Shift| shift.employee_id,
+        SoftScore::of(1000),
+        false,
+    );
+
+    let solution = Solution {
+        shifts: vec![
+            Shift {
+                employee_id: Some(0),
+            },
+            Shift {
+                employee_id: Some(1),
+            },
+        ],
+    };
+
+    constraint.initialize(&solution);
+    assert_eq!(constraint.on_insert(&solution, 0, 1), SoftScore::zero());
+}
+
+#[test]
+#[should_panic(expected = "cannot localize entity indexes")]
+fn test_balance_unknown_source_panics_on_localized_callback() {
+    let mut constraint = BalanceConstraint::new(
+        ConstraintRef::new("", "Balance"),
+        ImpactType::Penalty,
+        vec(|s: &Solution| &s.shifts),
+        TrueFilter,
+        |shift: &Shift| shift.employee_id,
+        SoftScore::of(1000),
+        false,
+    );
+
+    let solution = Solution {
+        shifts: vec![Shift {
+            employee_id: Some(0),
+        }],
+    };
+
+    constraint.initialize(&solution);
+    constraint.on_insert(&solution, 0, 0);
 }
 
 #[test]

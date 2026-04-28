@@ -123,7 +123,10 @@ fn bench_incremental_moves() {
     let unassigned = IncrementalUniConstraint::new(
         ConstraintRef::new("", "Unassigned"),
         ImpactType::Penalty,
-        shifts,
+        source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
         |_sol: &Schedule, s: &Shift| s.employee_id.is_none(),
         |_s: &Shift| SoftScore::of(1),
         false,
@@ -132,7 +135,10 @@ fn bench_incremental_moves() {
     let overlapping = IncrementalBiConstraint::new(
         ConstraintRef::new("", "Overlapping"),
         ImpactType::Penalty,
-        shifts,
+        source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
         |_sol: &Schedule, s: &Shift, _idx: usize| s.employee_id,
         |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
             a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
@@ -195,7 +201,10 @@ fn bench_compare_approaches() {
         let unassigned = IncrementalUniConstraint::new(
             ConstraintRef::new("", "Unassigned"),
             ImpactType::Penalty,
-            shifts,
+            source(
+                shifts as fn(&Schedule) -> &[Shift],
+                ChangeSource::Descriptor(0),
+            ),
             |_sol: &Schedule, s: &Shift| s.employee_id.is_none(),
             |_s: &Shift| SoftScore::of(1),
             false,
@@ -204,7 +213,10 @@ fn bench_compare_approaches() {
         let overlapping = IncrementalBiConstraint::new(
             ConstraintRef::new("", "Overlapping"),
             ImpactType::Penalty,
-            shifts,
+            source(
+                shifts as fn(&Schedule) -> &[Shift],
+                ChangeSource::Descriptor(0),
+            ),
             |_sol: &Schedule, s: &Shift, _idx: usize| s.employee_id,
             |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
                 a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
@@ -296,17 +308,30 @@ fn rewrite_exists_bench_route<K, F>(
     }
 }
 
-fn run_flattened_exists_storage_bench<K, F>(label: &str, make_key: F) -> (SoftScore, f64)
+#[derive(Clone, Copy)]
+struct ExistsBenchSpec {
+    customer_count: usize,
+    route_count: usize,
+    route_len: usize,
+    moves: usize,
+    check_every: usize,
+}
+
+fn run_flattened_exists_storage_bench<K, F>(
+    label: &str,
+    spec: ExistsBenchSpec,
+    make_key: F,
+) -> (SoftScore, f64)
 where
     K: Copy + Clone + Eq + Hash + Send + Sync + 'static,
     F: Fn(usize) -> K + Copy,
 {
-    const CUSTOMER_COUNT: usize = 12_000;
-    const ROUTE_COUNT: usize = 96;
-    const ROUTE_LEN: usize = 96;
-    const MOVES: usize = 25_000;
-
-    let mut state = make_exists_bench_state(CUSTOMER_COUNT, ROUTE_COUNT, ROUTE_LEN, make_key);
+    let mut state = make_exists_bench_state(
+        spec.customer_count,
+        spec.route_count,
+        spec.route_len,
+        make_key,
+    );
     let mut constraint = ConstraintFactory::<ExistsBenchState<K>, SoftScore>::new()
         .for_each(source(
             exists_bench_customers::<K> as fn(&ExistsBenchState<K>) -> &[K],
@@ -328,18 +353,18 @@ where
     assert_eq!(total, constraint.evaluate(&state));
 
     let start = Instant::now();
-    for move_idx in 0..MOVES {
-        let route_idx = move_idx % ROUTE_COUNT;
+    for move_idx in 0..spec.moves {
+        let route_idx = move_idx % spec.route_count;
         total = total + constraint.on_retract(&state, route_idx, 0);
         rewrite_exists_bench_route(
             &mut state.routes[route_idx],
             move_idx,
-            CUSTOMER_COUNT,
+            spec.customer_count,
             make_key,
         );
         total = total + constraint.on_insert(&state, route_idx, 0);
 
-        if move_idx % 5_000 == 0 {
+        if move_idx % spec.check_every == 0 {
             assert_eq!(total, constraint.evaluate(&state));
         }
         black_box(total);
@@ -347,21 +372,27 @@ where
     let elapsed = start.elapsed();
 
     assert_eq!(total, constraint.evaluate(&state));
-    let moves_per_sec = MOVES as f64 / elapsed.as_secs_f64();
+    let moves_per_sec = spec.moves as f64 / elapsed.as_secs_f64();
     eprintln!(
-        "{label}: {MOVES} route rewrites in {:?} ({:.0} moves/sec), final score {}",
-        elapsed, moves_per_sec, total
+        "{label}: {} route rewrites in {:?} ({:.0} moves/sec), final score {}",
+        spec.moves, elapsed, moves_per_sec, total
     );
     (total, moves_per_sec)
 }
 
 #[test]
-#[ignore = "release-only storage comparison; run with --release -- --ignored --nocapture"]
 fn bench_exists_usize_storage() {
+    let spec = ExistsBenchSpec {
+        customer_count: 512,
+        route_count: 16,
+        route_len: 16,
+        moves: 512,
+        check_every: 128,
+    };
     let (usize_score, usize_rate) =
-        run_flattened_exists_storage_bench("exists usize indexed", |idx| idx);
+        run_flattened_exists_storage_bench("exists usize indexed", spec, |idx| idx);
     let (key_score, key_rate) =
-        run_flattened_exists_storage_bench("exists newtype hashed", ExistsBenchKey);
+        run_flattened_exists_storage_bench("exists newtype hashed", spec, ExistsBenchKey);
 
     assert_eq!(usize_score, key_score);
     eprintln!(
@@ -371,10 +402,16 @@ fn bench_exists_usize_storage() {
 }
 
 #[test]
-#[ignore = "release-only indexed-storage profile; run with perf in release mode"]
 fn bench_exists_indexed_usize_storage_only() {
+    let spec = ExistsBenchSpec {
+        customer_count: 512,
+        route_count: 16,
+        route_len: 16,
+        moves: 512,
+        check_every: 128,
+    };
     let (score, moves_per_sec) =
-        run_flattened_exists_storage_bench("exists usize indexed only", |idx| idx);
+        run_flattened_exists_storage_bench("exists usize indexed only", spec, |idx| idx);
     eprintln!(
         "exists indexed-only profile target: {:.0} moves/sec, final score {}",
         moves_per_sec, score

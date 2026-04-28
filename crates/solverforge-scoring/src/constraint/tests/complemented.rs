@@ -2,6 +2,7 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::complemented::ComplementedGroupConstraint;
+use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::count;
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
@@ -35,8 +36,14 @@ fn test_complemented_evaluate() {
     let constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
-        shifts,
-        employees,
+        source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            employees as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),
@@ -67,8 +74,14 @@ fn test_complemented_skips_none_keys() {
     let constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
-        shifts,
-        employees,
+        source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            employees as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),
@@ -103,8 +116,14 @@ fn test_complemented_incremental() {
     let mut constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
-        shifts,
-        employees,
+        source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            employees as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),
@@ -153,8 +172,14 @@ fn test_complemented_incremental_with_none_keys() {
     let mut constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
-        shifts,
-        employees,
+        source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            employees as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),
@@ -234,8 +259,14 @@ fn test_complemented_incremental_matches_evaluate() {
     let mut constraint = ComplementedGroupConstraint::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
-        shifts,
-        employees,
+        source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            employees as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
         count::<Shift>(),
@@ -280,4 +311,43 @@ fn test_complemented_incremental_matches_evaluate() {
     running_total = running_total + constraint.on_insert(&schedule, 2, 0);
     // Back to: Employee 0: 2->4, Employee 1: 1->1, Total: -5
     assert_eq!(running_total, SoftScore::of(-5));
+}
+
+#[test]
+fn test_complemented_b_side_insert_and_retract() {
+    let mut constraint = ComplementedGroupConstraint::new(
+        ConstraintRef::new("", "Shift count"),
+        ImpactType::Penalty,
+        source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            employees as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
+        |shift: &Shift| shift.employee_id,
+        |emp: &Employee| emp.id,
+        count::<Shift>(),
+        |_emp: &Employee| 0usize,
+        |count: &usize| SoftScore::of(*count as i64),
+        false,
+    );
+
+    let mut schedule = Schedule {
+        employees: vec![Employee { id: 0 }],
+        shifts: vec![Shift {
+            employee_id: Some(0),
+        }],
+    };
+
+    let mut running_total = constraint.initialize(&schedule);
+    assert_eq!(running_total, SoftScore::of(-1));
+
+    running_total = running_total + constraint.on_retract(&schedule, 0, 1);
+    schedule.employees[0].id = 2;
+    running_total = running_total + constraint.on_insert(&schedule, 0, 1);
+
+    assert_eq!(running_total, SoftScore::of(0));
+    assert_eq!(running_total, constraint.evaluate(&schedule));
 }

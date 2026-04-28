@@ -15,6 +15,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
+use crate::stream::collection_extract::ChangeSource;
 use crate::stream::filter::UniFilter;
 
 /* Zero-erasure balance constraint that penalizes uneven load distribution.
@@ -89,6 +90,7 @@ where
     extractor: E,
     filter: F,
     key_fn: KF,
+    change_source: ChangeSource,
     // Base score representing 1 unit of standard deviation
     base_score: Sc,
     is_hard: bool,
@@ -137,12 +139,14 @@ where
         base_score: Sc,
         is_hard: bool,
     ) -> Self {
+        let change_source = extractor.change_source();
         Self {
             constraint_ref,
             impact_type,
             extractor,
             filter,
             key_fn,
+            change_source,
             base_score,
             is_hard,
             counts: HashMap::new(),
@@ -288,6 +292,12 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
+        if !self
+            .change_source
+            .assert_localizes(_descriptor_index, &self.constraint_ref.name)
+        {
+            return Sc::zero();
+        }
         let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
             return Sc::zero();
@@ -320,6 +330,12 @@ where
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
+        if !self
+            .change_source
+            .assert_localizes(_descriptor_index, &self.constraint_ref.name)
+        {
+            return Sc::zero();
+        }
         let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
             return Sc::zero();

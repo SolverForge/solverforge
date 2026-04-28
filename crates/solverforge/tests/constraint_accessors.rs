@@ -3,6 +3,7 @@
 
 use solverforge::prelude::*;
 use solverforge::stream::ConstraintFactory;
+use solverforge::IncrementalConstraint;
 
 #[path = "constraint_accessors/domain/mod.rs"]
 mod domain;
@@ -37,6 +38,39 @@ fn test_constraint_stream_accessors_compile() {
 
     let factory2 = ConstraintFactory::<Schedule, HardSoftScore>::new();
     let _employees_stream = factory2.employees();
+}
+
+#[test]
+fn generated_descriptor_stream_localizes_callbacks() {
+    let mut constraint = ConstraintFactory::<Schedule, HardSoftScore>::new()
+        .shifts()
+        .penalize_hard()
+        .named("shift count");
+
+    let schedule = Schedule {
+        employees: vec![domain::Employee {
+            id: 1,
+            name: "Ada".to_string(),
+        }],
+        shifts: vec![
+            domain::Shift {
+                id: 1,
+                employee: Some(1),
+            },
+            domain::Shift {
+                id: 2,
+                employee: None,
+            },
+        ],
+        score: None,
+    };
+
+    assert_eq!(constraint.initialize(&schedule), HardSoftScore::of(-2, 0));
+    assert_eq!(constraint.on_insert(&schedule, 0, 1), HardSoftScore::zero());
+    assert_eq!(
+        constraint.on_retract(&schedule, 0, 0),
+        HardSoftScore::of(1, 0)
+    );
 }
 
 #[test]

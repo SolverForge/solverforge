@@ -2,6 +2,7 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::IncrementalTriConstraint;
+use crate::stream::collection_extract::{source, ChangeSource};
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -24,7 +25,10 @@ fn test_tri_constraint_evaluate() {
     let constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SoftScore::of(1),
@@ -49,7 +53,10 @@ fn test_tri_constraint_multiple_triples() {
     let constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SoftScore::of(1),
@@ -74,7 +81,10 @@ fn test_tri_constraint_incremental() {
     let mut constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SoftScore::of(1),
@@ -105,7 +115,10 @@ fn test_tri_constraint_reward() {
     let constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Team bonus"),
         ImpactType::Reward,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
         |_s: &Solution, _a_idx: usize, _b_idx: usize, _c_idx: usize| SoftScore::of(5),

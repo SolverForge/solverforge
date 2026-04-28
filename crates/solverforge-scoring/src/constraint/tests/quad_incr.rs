@@ -2,6 +2,7 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::IncrementalQuadConstraint;
+use crate::stream::collection_extract::{source, ChangeSource};
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -24,7 +25,10 @@ fn test_quad_constraint_evaluate() {
     let constraint = IncrementalQuadConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SoftScore::of(1),
@@ -50,7 +54,10 @@ fn test_quad_constraint_multiple_quads() {
     let constraint = IncrementalQuadConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SoftScore::of(1),
@@ -76,7 +83,10 @@ fn test_quad_constraint_incremental() {
     let mut constraint = IncrementalQuadConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SoftScore::of(1),
@@ -112,7 +122,10 @@ fn test_quad_constraint_reward() {
     let constraint = IncrementalQuadConstraint::new(
         ConstraintRef::new("", "Team bonus"),
         ImpactType::Reward,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize| SoftScore::of(5),

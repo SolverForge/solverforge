@@ -61,33 +61,28 @@ where
         }
     }
 
-    fn insert_outputs(
-        &mut self,
-        solution: &S,
-        slot: usize,
-        entity_index: usize,
-        outputs: Vec<Out>,
-    ) -> Sc {
+    fn insert_entity_outputs(&mut self, solution: &S, slot: usize, entity_index: usize) -> Sc {
         let mut total = Sc::zero();
         let mut contributions = Vec::new();
-        for output in outputs {
-            if !self.filter.test(solution, &output) {
-                continue;
+        let source = &self.source;
+        let filter = &self.filter;
+        let weight = &self.weight;
+        let impact = self.impact_type;
+        source.collect_entity(solution, slot, entity_index, |output| {
+            if !filter.test(solution, &output) {
+                return;
             }
-            let contribution = self.compute_score(&output);
+            let base = weight(&output);
+            let contribution = match impact {
+                ImpactType::Penalty => -base,
+                ImpactType::Reward => base,
+            };
             total = total + contribution;
             contributions.push(contribution);
-        }
+        });
         self.entity_contributions
             .insert((slot, entity_index), contributions);
         total
-    }
-
-    fn insert_entity_outputs(&mut self, solution: &S, slot: usize, entity_index: usize) -> Sc {
-        let mut outputs = Vec::new();
-        self.source
-            .collect_entity(solution, slot, entity_index, |output| outputs.push(output));
-        self.insert_outputs(solution, slot, entity_index, outputs)
     }
 
     fn retract_entity_outputs(&mut self, slot: usize, entity_index: usize) -> Sc {
@@ -96,6 +91,20 @@ where
             .unwrap_or_default()
             .into_iter()
             .fold(Sc::zero(), |total, contribution| total - contribution)
+    }
+
+    fn localized_slots(&self, descriptor_index: usize) -> Vec<usize> {
+        let mut slots = Vec::new();
+        for slot in 0..self.source.source_count() {
+            if self
+                .source
+                .change_source(slot)
+                .assert_localizes(descriptor_index, &self.constraint_ref.name)
+            {
+                slots.push(slot);
+            }
+        }
+        slots
     }
 }
 
@@ -131,32 +140,43 @@ where
 
     fn initialize(&mut self, solution: &S) -> Sc {
         self.reset();
-        let mut rows = HashMap::<(usize, usize), Vec<Out>>::new();
-        self.source.collect_all(solution, |slot, idx, output| {
-            rows.entry((slot, idx)).or_default().push(output);
+        let mut total = Sc::zero();
+        let source = &self.source;
+        let filter = &self.filter;
+        let weight = &self.weight;
+        let impact = self.impact_type;
+        let entity_contributions = &mut self.entity_contributions;
+        source.collect_all(solution, |slot, idx, output| {
+            if !filter.test(solution, &output) {
+                return;
+            }
+            let base = weight(&output);
+            let contribution = match impact {
+                ImpactType::Penalty => -base,
+                ImpactType::Reward => base,
+            };
+            let mut contributions = entity_contributions
+                .remove(&(slot, idx))
+                .unwrap_or_default();
+            total = total + contribution;
+            contributions.push(contribution);
+            entity_contributions.insert((slot, idx), contributions);
         });
-        rows.into_iter()
-            .fold(Sc::zero(), |total, ((slot, idx), outputs)| {
-                total + self.insert_outputs(solution, slot, idx, outputs)
-            })
+        total
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
         let mut total = Sc::zero();
-        for slot in 0..self.source.source_count() {
-            if self.source.change_source(slot).reacts_to(descriptor_index) {
-                total = total + self.insert_entity_outputs(solution, slot, entity_index);
-            }
+        for slot in self.localized_slots(descriptor_index) {
+            total = total + self.insert_entity_outputs(solution, slot, entity_index);
         }
         total
     }
 
     fn on_retract(&mut self, _solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
         let mut total = Sc::zero();
-        for slot in 0..self.source.source_count() {
-            if self.source.change_source(slot).reacts_to(descriptor_index) {
-                total = total + self.retract_entity_outputs(slot, entity_index);
-            }
+        for slot in self.localized_slots(descriptor_index) {
+            total = total + self.retract_entity_outputs(slot, entity_index);
         }
         total
     }
@@ -247,34 +267,6 @@ where
         }
     }
 
-    fn insert_output(&mut self, key: K, value: C::Value) -> Sc {
-        let impact = self.impact_type;
-        let is_new = !self.groups.contains_key(&key);
-        let acc = self
-            .groups
-            .entry(key.clone())
-            .or_insert_with(|| self.collector.create_accumulator());
-
-        let old = if is_new {
-            Sc::zero()
-        } else {
-            let old_base = (self.weight_fn)(&acc.finish());
-            match impact {
-                ImpactType::Penalty => -old_base,
-                ImpactType::Reward => old_base,
-            }
-        };
-
-        acc.accumulate(&value);
-        let new_base = (self.weight_fn)(&acc.finish());
-        let new_score = match impact {
-            ImpactType::Penalty => -new_base,
-            ImpactType::Reward => new_base,
-        };
-        *self.group_counts.entry(key).or_insert(0) += 1;
-        new_score - old
-    }
-
     fn retract_output(&mut self, key: &K, value: &C::Value) -> Sc {
         let Some(acc) = self.groups.get_mut(key) else {
             return Sc::zero();
@@ -311,32 +303,45 @@ where
     }
 
     fn insert_entity_outputs(&mut self, solution: &S, slot: usize, entity_index: usize) -> Sc {
-        let mut projected = Vec::new();
-        self.source
-            .collect_entity(solution, slot, entity_index, |output| {
-                projected.push(output)
-            });
-        self.insert_projected_outputs(solution, slot, entity_index, projected)
-    }
-
-    fn insert_projected_outputs(
-        &mut self,
-        solution: &S,
-        slot: usize,
-        entity_index: usize,
-        outputs: Vec<Out>,
-    ) -> Sc {
         let mut total = Sc::zero();
         let mut cached = Vec::new();
-        for output in outputs {
-            if !self.filter.test(solution, &output) {
-                continue;
+        let source = &self.source;
+        let filter = &self.filter;
+        let key_fn = &self.key_fn;
+        let collector = &self.collector;
+        let weight_fn = &self.weight_fn;
+        let impact = self.impact_type;
+        let groups = &mut self.groups;
+        let group_counts = &mut self.group_counts;
+        source.collect_entity(solution, slot, entity_index, |output| {
+            if !filter.test(solution, &output) {
+                return;
             }
-            let key = (self.key_fn)(&output);
-            let value = self.collector.extract(&output);
-            total = total + self.insert_output(key.clone(), value.clone());
+            let key = key_fn(&output);
+            let value = collector.extract(&output);
+            let is_new = !groups.contains_key(&key);
+            let acc = groups
+                .entry(key.clone())
+                .or_insert_with(|| collector.create_accumulator());
+            let old = if is_new {
+                Sc::zero()
+            } else {
+                let old_base = weight_fn(&acc.finish());
+                match impact {
+                    ImpactType::Penalty => -old_base,
+                    ImpactType::Reward => old_base,
+                }
+            };
+            acc.accumulate(&value);
+            let new_base = weight_fn(&acc.finish());
+            let new_score = match impact {
+                ImpactType::Penalty => -new_base,
+                ImpactType::Reward => new_base,
+            };
+            *group_counts.entry(key.clone()).or_insert(0) += 1;
             cached.push((key, value));
-        }
+            total = total + (new_score - old);
+        });
         self.entity_values.insert((slot, entity_index), cached);
         total
     }
@@ -350,6 +355,20 @@ where
             total = total + self.retract_output(&key, &value);
         }
         total
+    }
+
+    fn localized_slots(&self, descriptor_index: usize) -> Vec<usize> {
+        let mut slots = Vec::new();
+        for slot in 0..self.source.source_count() {
+            if self
+                .source
+                .change_source(slot)
+                .assert_localizes(descriptor_index, &self.constraint_ref.name)
+            {
+                slots.push(slot);
+            }
+        }
+        slots
     }
 }
 
@@ -399,32 +418,63 @@ where
 
     fn initialize(&mut self, solution: &S) -> Sc {
         self.reset();
-        let mut rows = HashMap::<(usize, usize), Vec<Out>>::new();
-        self.source.collect_all(solution, |slot, idx, output| {
-            rows.entry((slot, idx)).or_default().push(output);
+        let mut total = Sc::zero();
+        let source = &self.source;
+        let filter = &self.filter;
+        let key_fn = &self.key_fn;
+        let collector = &self.collector;
+        let weight_fn = &self.weight_fn;
+        let impact = self.impact_type;
+        let groups = &mut self.groups;
+        let group_counts = &mut self.group_counts;
+        let entity_values = &mut self.entity_values;
+        source.collect_all(solution, |slot, idx, output| {
+            if !filter.test(solution, &output) {
+                return;
+            }
+            let key = key_fn(&output);
+            let value = collector.extract(&output);
+            let is_new = !groups.contains_key(&key);
+            let acc = groups
+                .entry(key.clone())
+                .or_insert_with(|| collector.create_accumulator());
+            let old = if is_new {
+                Sc::zero()
+            } else {
+                let old_base = weight_fn(&acc.finish());
+                match impact {
+                    ImpactType::Penalty => -old_base,
+                    ImpactType::Reward => old_base,
+                }
+            };
+            acc.accumulate(&value);
+            let new_base = weight_fn(&acc.finish());
+            let new_score = match impact {
+                ImpactType::Penalty => -new_base,
+                ImpactType::Reward => new_base,
+            };
+            *group_counts.entry(key.clone()).or_insert(0) += 1;
+            entity_values
+                .entry((slot, idx))
+                .or_default()
+                .push((key, value));
+            total = total + (new_score - old);
         });
-        rows.into_iter()
-            .fold(Sc::zero(), |total, ((slot, idx), outputs)| {
-                total + self.insert_projected_outputs(solution, slot, idx, outputs)
-            })
+        total
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
         let mut total = Sc::zero();
-        for slot in 0..self.source.source_count() {
-            if self.source.change_source(slot).reacts_to(descriptor_index) {
-                total = total + self.insert_entity_outputs(solution, slot, entity_index);
-            }
+        for slot in self.localized_slots(descriptor_index) {
+            total = total + self.insert_entity_outputs(solution, slot, entity_index);
         }
         total
     }
 
     fn on_retract(&mut self, _solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
         let mut total = Sc::zero();
-        for slot in 0..self.source.source_count() {
-            if self.source.change_source(slot).reacts_to(descriptor_index) {
-                total = total + self.retract_entity_outputs(slot, entity_index);
-            }
+        for slot in self.localized_slots(descriptor_index) {
+            total = total + self.retract_entity_outputs(slot, entity_index);
         }
         total
     }

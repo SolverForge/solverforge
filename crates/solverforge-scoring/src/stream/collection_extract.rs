@@ -33,7 +33,9 @@ pub trait CollectionExtract<S>: Send + Sync {
     // Extracts the entity slice from the solution.
     fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item];
 
-    // Identifies the solution source for descriptor-scoped incremental updates.
+    // Identifies whether the solution source owns descriptor-scoped localized updates.
+    // Plain extractors are non-localized; wrap them in `source(..., Descriptor(idx))`
+    // when they must receive localized mutation callbacks.
     fn change_source(&self) -> ChangeSource {
         ChangeSource::Unknown
     }
@@ -54,6 +56,34 @@ impl ChangeSource {
             Self::Static => false,
             Self::Descriptor(index) => index == descriptor_index,
         }
+    }
+
+    #[inline]
+    pub fn owns_descriptor(self, descriptor_index: usize) -> bool {
+        matches!(self, Self::Descriptor(index) if index == descriptor_index)
+    }
+
+    #[inline]
+    pub fn is_unknown(self) -> bool {
+        matches!(self, Self::Unknown)
+    }
+
+    #[inline]
+    pub fn same_index_domain(self, other: Self) -> bool {
+        matches!((self, other), (Self::Descriptor(left), Self::Descriptor(right)) if left == right)
+    }
+
+    #[inline]
+    pub fn assert_localizes(self, descriptor_index: usize, constraint_name: &str) -> bool {
+        if self.owns_descriptor(descriptor_index) {
+            return true;
+        }
+        if self.reacts_to(descriptor_index) {
+            panic!(
+                "constraint `{constraint_name}` received descriptor {descriptor_index}, but source {self:?} cannot localize entity indexes"
+            );
+        }
+        false
     }
 }
 

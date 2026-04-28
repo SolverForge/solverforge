@@ -12,6 +12,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
+use crate::stream::collection_extract::ChangeSource;
 use crate::stream::collector::{Accumulator, UniCollector};
 
 /* Zero-erasure constraint for complemented grouped results.
@@ -100,6 +101,8 @@ where
     default_fn: D,
     weight_fn: W,
     is_hard: bool,
+    a_source: ChangeSource,
+    b_source: ChangeSource,
     // Group key -> accumulator for incremental scoring
     groups: HashMap<K, C::Accumulator>,
     // A entity index -> group key (for tracking which group each entity belongs to)
@@ -108,6 +111,8 @@ where
     entity_values: HashMap<usize, C::Value>,
     // B key -> B entity index (for looking up B entities by key)
     b_by_key: HashMap<K, usize>,
+    // B entity index -> B key (for localized B retraction)
+    b_index_to_key: HashMap<usize, K>,
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> Sc)>,
 }
 
@@ -142,6 +147,8 @@ where
         weight_fn: W,
         is_hard: bool,
     ) -> Self {
+        let a_source = extractor_a.change_source();
+        let b_source = extractor_b.change_source();
         Self {
             constraint_ref,
             impact_type,
@@ -153,10 +160,13 @@ where
             default_fn,
             weight_fn,
             is_hard,
+            a_source,
+            b_source,
             groups: HashMap::new(),
             entity_groups: HashMap::new(),
             entity_values: HashMap::new(),
             b_by_key: HashMap::new(),
+            b_index_to_key: HashMap::new(),
             _phantom: PhantomData,
         }
     }
@@ -245,7 +255,8 @@ where
         // Build B key -> index mapping
         for (idx, b) in entities_b.iter().enumerate() {
             let key = (self.key_b)(b);
-            self.b_by_key.insert(key, idx);
+            self.b_by_key.insert(key.clone(), idx);
+            self.b_index_to_key.insert(idx, key);
         }
 
         // Initialize all B entities with default scores
@@ -263,23 +274,47 @@ where
         total
     }
 
-    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        let a_changed = self
+            .a_source
+            .assert_localizes(descriptor_index, &self.constraint_ref.name);
+        let b_changed = self
+            .b_source
+            .assert_localizes(descriptor_index, &self.constraint_ref.name);
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
 
-        if entity_index >= entities_a.len() {
-            return Sc::zero();
+        let mut total = Sc::zero();
+        if a_changed {
+            if entity_index < entities_a.len() {
+                let entity = &entities_a[entity_index];
+                total = total + self.insert_entity(entities_b, entity_index, entity);
+            }
         }
-
-        let entity = &entities_a[entity_index];
-        self.insert_entity(entities_b, entity_index, entity)
+        if b_changed {
+            total = total + self.insert_b(entities_b, entity_index);
+        }
+        total
     }
 
-    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        let a_changed = self
+            .a_source
+            .assert_localizes(descriptor_index, &self.constraint_ref.name);
+        let b_changed = self
+            .b_source
+            .assert_localizes(descriptor_index, &self.constraint_ref.name);
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
 
-        self.retract_entity(entities_a, entities_b, entity_index)
+        let mut total = Sc::zero();
+        if a_changed {
+            total = total + self.retract_entity(entities_a, entities_b, entity_index);
+        }
+        if b_changed {
+            total = total + self.retract_b(entities_b, entity_index);
+        }
+        total
     }
 
     fn reset(&mut self) {
@@ -287,6 +322,7 @@ where
         self.entity_groups.clear();
         self.entity_values.clear();
         self.b_by_key.clear();
+        self.b_index_to_key.clear();
     }
 
     fn name(&self) -> &str {
@@ -380,6 +416,37 @@ where
 
         // Return delta
         new_score - old
+    }
+
+    fn b_score_for_key(&self, entities_b: &[B], key: &K, b_idx: usize) -> Sc {
+        if b_idx >= entities_b.len() {
+            return Sc::zero();
+        }
+        let b = &entities_b[b_idx];
+        let result = self
+            .groups
+            .get(key)
+            .map(|acc| acc.finish())
+            .unwrap_or_else(|| (self.default_fn)(b));
+        self.compute_score(&result)
+    }
+
+    fn insert_b(&mut self, entities_b: &[B], b_idx: usize) -> Sc {
+        if b_idx >= entities_b.len() {
+            return Sc::zero();
+        }
+        let key = (self.key_b)(&entities_b[b_idx]);
+        self.b_by_key.insert(key.clone(), b_idx);
+        self.b_index_to_key.insert(b_idx, key.clone());
+        self.b_score_for_key(entities_b, &key, b_idx)
+    }
+
+    fn retract_b(&mut self, entities_b: &[B], b_idx: usize) -> Sc {
+        let Some(key) = self.b_index_to_key.remove(&b_idx) else {
+            return Sc::zero();
+        };
+        self.b_by_key.remove(&key);
+        -self.b_score_for_key(entities_b, &key, b_idx)
     }
 
     // Retract an A entity and return the score delta.

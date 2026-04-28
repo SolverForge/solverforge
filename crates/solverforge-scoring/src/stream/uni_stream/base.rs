@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 
 use super::super::balance_stream::BalanceConstraintStream;
-use super::super::collection_extract::{CollectionExtract, FlattenVecExtract};
+use super::super::collection_extract::{ChangeSource, CollectionExtract, FlattenVecExtract};
 use super::super::collector::UniCollector;
 use super::super::existence_stream::ExistenceMode;
 use super::super::existence_target::ExistenceTarget;
@@ -183,5 +183,25 @@ impl<S, A, E, F, Sc: Score> UniConstraintStream<S, A, E, F, Sc> {
 impl<S, A, E, F, Sc: Score> std::fmt::Debug for UniConstraintStream<S, A, E, F, Sc> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("UniConstraintStream").finish()
+    }
+}
+
+impl<S, A, E, Sc> CollectionExtract<S> for UniConstraintStream<S, A, E, TrueFilter, Sc>
+where
+    S: Send + Sync + 'static,
+    A: Clone + Send + Sync + 'static,
+    E: CollectionExtract<S, Item = A>,
+    Sc: Score + 'static,
+{
+    type Item = A;
+
+    #[inline]
+    fn extract<'s>(&self, s: &'s S) -> &'s [A] {
+        self.extractor.extract(s)
+    }
+
+    #[inline]
+    fn change_source(&self) -> ChangeSource {
+        self.extractor.change_source()
     }
 }

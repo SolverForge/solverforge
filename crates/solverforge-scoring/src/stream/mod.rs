@@ -102,7 +102,7 @@ pub use key_extract::{EntityKeyAdapter, KeyExtract};
 pub use penta_stream::{PentaConstraintBuilder, PentaConstraintStream};
 pub use projected_stream::{
     ProjectedConstraintBuilder, ProjectedConstraintStream, ProjectedGroupedConstraintBuilder,
-    ProjectedGroupedConstraintStream, ProjectedSource,
+    ProjectedGroupedConstraintStream, ProjectedSource, Projection, ProjectionSink,
 };
 pub use quad_stream::{QuadConstraintBuilder, QuadConstraintStream};
 pub use tri_stream::{TriConstraintBuilder, TriConstraintStream};

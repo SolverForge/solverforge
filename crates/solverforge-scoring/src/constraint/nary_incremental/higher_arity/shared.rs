@@ -336,7 +336,10 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                 entity_index: usize,
                 descriptor_index: usize,
             ) -> Sc {
-                if !self.change_source.reacts_to(descriptor_index) {
+                if !self
+                    .change_source
+                    .assert_localizes(descriptor_index, &self.constraint_ref.name)
+                {
                     return Sc::zero();
                 }
                 let entities = $crate::stream::collection_extract::CollectionExtract::extract(
@@ -352,7 +355,10 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                 entity_index: usize,
                 descriptor_index: usize,
             ) -> Sc {
-                if !self.change_source.reacts_to(descriptor_index) {
+                if !self
+                    .change_source
+                    .assert_localizes(descriptor_index, &self.constraint_ref.name)
+                {
                     return Sc::zero();
                 }
                 let entities = $crate::stream::collection_extract::CollectionExtract::extract(

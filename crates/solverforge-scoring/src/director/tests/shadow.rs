@@ -5,6 +5,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::constraint::incremental::IncrementalUniConstraint;
 use crate::director::score_director::ScoreDirector;
+use crate::stream::collection_extract::{source, ChangeSource, SourceExtract};
 
 use solverforge_test::shadow::ShadowSolution;
 
@@ -12,7 +13,7 @@ use solverforge_test::shadow::ShadowSolution;
 fn make_sum_constraint() -> IncrementalUniConstraint<
     ShadowSolution,
     i32,
-    fn(&ShadowSolution) -> &[i32],
+    SourceExtract<fn(&ShadowSolution) -> &[i32]>,
     fn(&ShadowSolution, &i32) -> bool,
     fn(&i32) -> SoftScore,
     SoftScore,
@@ -30,7 +31,10 @@ fn make_sum_constraint() -> IncrementalUniConstraint<
     IncrementalUniConstraint::new(
         ConstraintRef::new("", "SumLimit"),
         ImpactType::Penalty,
-        extract as fn(&ShadowSolution) -> &[i32],
+        source(
+            extract as fn(&ShadowSolution) -> &[i32],
+            ChangeSource::Descriptor(0),
+        ),
         filter as fn(&ShadowSolution, &i32) -> bool,
         score as fn(&i32) -> SoftScore,
         false,
@@ -46,7 +50,7 @@ fn create_director(
         IncrementalUniConstraint<
             ShadowSolution,
             i32,
-            fn(&ShadowSolution) -> &[i32],
+            SourceExtract<fn(&ShadowSolution) -> &[i32]>,
             fn(&ShadowSolution, &i32) -> bool,
             fn(&i32) -> SoftScore,
             SoftScore,

@@ -2,6 +2,7 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::IncrementalPentaConstraint;
+use crate::stream::collection_extract::{source, ChangeSource};
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -24,7 +25,10 @@ fn test_penta_constraint_evaluate() {
     let constraint = IncrementalPentaConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(1),
@@ -51,7 +55,10 @@ fn test_penta_constraint_multiple_pentas() {
     let constraint = IncrementalPentaConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(1),
@@ -78,7 +85,10 @@ fn test_penta_constraint_incremental() {
     let mut constraint = IncrementalPentaConstraint::new(
         ConstraintRef::new("", "Cluster"),
         ImpactType::Penalty,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(1),
@@ -115,7 +125,10 @@ fn test_penta_constraint_reward() {
     let constraint = IncrementalPentaConstraint::new(
         ConstraintRef::new("", "Team bonus"),
         ImpactType::Reward,
-        tasks,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
         |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(5),

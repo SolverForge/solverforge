@@ -8,8 +8,37 @@ use super::collector::UniCollector;
 use super::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter};
 use super::uni_stream::UniConstraintStream;
 
+pub trait ProjectionSink<Out> {
+    fn emit(&mut self, output: Out);
+}
+
+pub trait Projection<A>: Send + Sync {
+    type Out: Clone + Send + Sync + 'static;
+    const MAX_EMITS: usize;
+
+    fn project<Sink>(&self, input: &A, sink: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>;
+}
+
+struct VisitSink<V> {
+    visit: V,
+}
+
+impl<Out, V> ProjectionSink<Out> for VisitSink<V>
+where
+    V: FnMut(Out),
+{
+    #[inline]
+    fn emit(&mut self, output: Out) {
+        (self.visit)(output);
+    }
+}
+
 #[doc(hidden)]
 pub trait ProjectedSource<S, Out>: Send + Sync {
+    const MAX_EMITS: usize;
+
     fn source_count(&self) -> usize;
     fn change_source(&self, slot: usize) -> ChangeSource;
     fn collect_all<V>(&self, solution: &S, visit: V)
@@ -44,9 +73,11 @@ where
     A: Clone + Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     F: UniFilter<S, A>,
-    P: Fn(&A) -> Vec<Out> + Send + Sync,
+    P: Projection<A, Out = Out>,
     Out: Clone + Send + Sync + 'static,
 {
+    const MAX_EMITS: usize = P::MAX_EMITS;
+
     fn source_count(&self) -> usize {
         1
     }
@@ -67,13 +98,14 @@ where
             if !self.filter.test(solution, entity) {
                 continue;
             }
-            for output in (self.projection)(entity) {
-                visit(0, idx, output);
-            }
+            let mut sink = VisitSink {
+                visit: |output| visit(0, idx, output),
+            };
+            self.projection.project(entity, &mut sink);
         }
     }
 
-    fn collect_entity<V>(&self, solution: &S, slot: usize, entity_index: usize, mut visit: V)
+    fn collect_entity<V>(&self, solution: &S, slot: usize, entity_index: usize, visit: V)
     where
         V: FnMut(Out),
     {
@@ -87,9 +119,8 @@ where
         if !self.filter.test(solution, entity) {
             return;
         }
-        for output in (self.projection)(entity) {
-            visit(output);
-        }
+        let mut sink = VisitSink { visit };
+        self.projection.project(entity, &mut sink);
     }
 }
 
@@ -116,6 +147,8 @@ where
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
 {
+    const MAX_EMITS: usize = Src::MAX_EMITS;
+
     fn source_count(&self) -> usize {
         self.source.source_count()
     }
@@ -166,6 +199,8 @@ where
     Left: ProjectedSource<S, Out>,
     Right: ProjectedSource<S, Out>,
 {
+    const MAX_EMITS: usize = Left::MAX_EMITS + Right::MAX_EMITS;
+
     fn source_count(&self) -> usize {
         self.left.source_count() + self.right.source_count()
     }
@@ -382,19 +417,24 @@ where
     F: UniFilter<S, A>,
     Sc: Score + 'static,
 {
-    pub fn project<Out, P>(
+    pub fn project<P>(
         self,
         projection: P,
-    ) -> ProjectedConstraintStream<S, Out, SingleProjectedSource<S, A, E, F, P, Out>, TrueFilter, Sc>
+    ) -> ProjectedConstraintStream<
+        S,
+        P::Out,
+        SingleProjectedSource<S, A, E, F, P, P::Out>,
+        TrueFilter,
+        Sc,
+    >
     where
-        Out: Clone + Send + Sync + 'static,
-        P: Fn(&A) -> Vec<Out> + Send + Sync + 'static,
+        P: Projection<A> + 'static,
     {
         let (extractor, filter) = self.into_parts();
         ProjectedConstraintStream::<
             S,
-            Out,
-            SingleProjectedSource<S, A, E, F, P, Out>,
+            P::Out,
+            SingleProjectedSource<S, A, E, F, P, P::Out>,
             TrueFilter,
             Sc,
         >::new(SingleProjectedSource::new(extractor, filter, projection))

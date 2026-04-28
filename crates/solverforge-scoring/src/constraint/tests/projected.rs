@@ -5,7 +5,7 @@ use solverforge_core::score::SoftScore;
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::sum;
-use crate::stream::ConstraintFactory;
+use crate::stream::{ConstraintFactory, Projection, ProjectionSink};
 
 #[derive(Clone)]
 struct Work {
@@ -32,6 +32,82 @@ struct Entry {
     delta: i64,
 }
 
+struct WorkTwoEntries;
+
+impl Projection<Work> for WorkTwoEntries {
+    type Out = Entry;
+    const MAX_EMITS: usize = 2;
+
+    fn project<Sink>(&self, work: &Work, out: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        if !work.enabled {
+            return;
+        }
+        out.emit(Entry {
+            bucket: work.bucket,
+            delta: work.demand,
+        });
+        out.emit(Entry {
+            bucket: work.bucket + 1,
+            delta: work.demand,
+        });
+    }
+}
+
+struct WorkEntryProjection;
+
+impl Projection<Work> for WorkEntryProjection {
+    type Out = Entry;
+    const MAX_EMITS: usize = 1;
+
+    fn project<Sink>(&self, work: &Work, out: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        out.emit(Entry {
+            bucket: work.bucket,
+            delta: work.demand,
+        });
+    }
+}
+
+struct CapacityEntryProjection;
+
+impl Projection<Capacity> for CapacityEntryProjection {
+    type Out = Entry;
+    const MAX_EMITS: usize = 1;
+
+    fn project<Sink>(&self, capacity: &Capacity, out: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        out.emit(Entry {
+            bucket: capacity.bucket,
+            delta: -capacity.capacity,
+        });
+    }
+}
+
+struct CountedProjection;
+
+impl Projection<Work> for CountedProjection {
+    type Out = Entry;
+    const MAX_EMITS: usize = 1;
+
+    fn project<Sink>(&self, work: &Work, out: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        PROJECTION_CALLS.fetch_add(1, Ordering::SeqCst);
+        out.emit(Entry {
+            bucket: work.bucket,
+            delta: work.demand,
+        });
+    }
+}
+
 fn work(plan: &Plan) -> &[Work] {
     plan.work.as_slice()
 }
@@ -47,22 +123,7 @@ fn projected_allows_zero_and_multiple_outputs() {
             work as fn(&Plan) -> &[Work],
             ChangeSource::Descriptor(0),
         ))
-        .project(|work: &Work| {
-            if !work.enabled {
-                Vec::new()
-            } else {
-                vec![
-                    Entry {
-                        bucket: work.bucket,
-                        delta: work.demand,
-                    },
-                    Entry {
-                        bucket: work.bucket + 1,
-                        delta: work.demand,
-                    },
-                ]
-            }
-        })
+        .project(WorkTwoEntries)
         .penalize_with(|entry: &Entry| SoftScore::of(entry.delta))
         .named("projected work");
 
@@ -93,24 +154,14 @@ fn projected_grouping_merges_multiple_sources() {
             work as fn(&Plan) -> &[Work],
             ChangeSource::Descriptor(0),
         ))
-        .project(|work: &Work| {
-            vec![Entry {
-                bucket: work.bucket,
-                delta: work.demand,
-            }]
-        })
+        .project(WorkEntryProjection)
         .merge(
             ConstraintFactory::<Plan, SoftScore>::new()
                 .for_each(source(
                     capacity as fn(&Plan) -> &[Capacity],
                     ChangeSource::Descriptor(1),
                 ))
-                .project(|capacity: &Capacity| {
-                    vec![Entry {
-                        bucket: capacity.bucket,
-                        delta: -capacity.capacity,
-                    }]
-                }),
+                .project(CapacityEntryProjection),
         )
         .group_by(
             |entry: &Entry| entry.bucket,
@@ -149,18 +200,123 @@ fn projected_grouping_merges_multiple_sources() {
 }
 
 #[test]
+fn projected_merged_descriptor_sources_update_only_owning_slot() {
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(WorkEntryProjection)
+        .merge(
+            ConstraintFactory::<Plan, SoftScore>::new()
+                .for_each(source(
+                    capacity as fn(&Plan) -> &[Capacity],
+                    ChangeSource::Descriptor(1),
+                ))
+                .project(CapacityEntryProjection),
+        )
+        .group_by(
+            |entry: &Entry| entry.bucket,
+            sum(|entry: &Entry| entry.delta),
+        )
+        .penalize_with(|delta: &i64| SoftScore::of((*delta).max(0)))
+        .named("capacity shortage");
+
+    let mut plan = Plan {
+        work: vec![Work {
+            bucket: 0,
+            demand: 5,
+            enabled: true,
+        }],
+        capacity: vec![Capacity {
+            bucket: 0,
+            capacity: 3,
+        }],
+    };
+
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(total, SoftScore::of(-2));
+
+    total = total + constraint.on_retract(&plan, 0, 1);
+    plan.capacity[0].capacity = 8;
+    total = total + constraint.on_insert(&plan, 0, 1);
+
+    assert_eq!(total, SoftScore::of(0));
+    assert_eq!(total, constraint.evaluate(&plan));
+}
+
+#[test]
+fn projected_merged_descriptor_sources_keep_same_entity_index_slots_distinct() {
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(WorkEntryProjection)
+        .merge(
+            ConstraintFactory::<Plan, SoftScore>::new()
+                .for_each(source(
+                    capacity as fn(&Plan) -> &[Capacity],
+                    ChangeSource::Descriptor(1),
+                ))
+                .project(CapacityEntryProjection),
+        )
+        .penalize_with(|entry: &Entry| SoftScore::of(entry.delta))
+        .named("merged projected rows");
+
+    let mut plan = Plan {
+        work: vec![Work {
+            bucket: 0,
+            demand: 5,
+            enabled: true,
+        }],
+        capacity: vec![Capacity {
+            bucket: 0,
+            capacity: 3,
+        }],
+    };
+
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(total, SoftScore::of(-2));
+
+    total = total + constraint.on_retract(&plan, 0, 0);
+    plan.work[0].demand = 8;
+    total = total + constraint.on_insert(&plan, 0, 0);
+
+    assert_eq!(total, SoftScore::of(-5));
+    assert_eq!(total, constraint.evaluate(&plan));
+}
+
+#[test]
+#[should_panic(expected = "cannot localize entity indexes")]
+fn projected_unknown_source_panics_on_localized_callback() {
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(work as fn(&Plan) -> &[Work])
+        .project(WorkEntryProjection)
+        .penalize_with(|entry: &Entry| SoftScore::of(entry.delta))
+        .named("unknown projected");
+
+    let plan = Plan {
+        work: vec![Work {
+            bucket: 0,
+            demand: 5,
+            enabled: true,
+        }],
+        capacity: Vec::new(),
+    };
+
+    constraint.initialize(&plan);
+    constraint.on_retract(&plan, 0, 0);
+}
+
+#[test]
 fn projected_retracts_previous_outputs_before_update() {
     let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(source(
             work as fn(&Plan) -> &[Work],
             ChangeSource::Descriptor(0),
         ))
-        .project(|work: &Work| {
-            vec![Entry {
-                bucket: work.bucket,
-                delta: work.demand,
-            }]
-        })
+        .project(WorkEntryProjection)
         .group_by(
             |entry: &Entry| entry.bucket,
             sum(|entry: &Entry| entry.delta),
@@ -189,14 +345,6 @@ fn projected_retracts_previous_outputs_before_update() {
 
 static PROJECTION_CALLS: AtomicUsize = AtomicUsize::new(0);
 
-fn counted_projection(work: &Work) -> Vec<Entry> {
-    PROJECTION_CALLS.fetch_add(1, Ordering::SeqCst);
-    vec![Entry {
-        bucket: work.bucket,
-        delta: work.demand,
-    }]
-}
-
 #[test]
 fn projected_updates_only_the_changed_descriptor_entity() {
     PROJECTION_CALLS.store(0, Ordering::SeqCst);
@@ -205,7 +353,7 @@ fn projected_updates_only_the_changed_descriptor_entity() {
             work as fn(&Plan) -> &[Work],
             ChangeSource::Descriptor(0),
         ))
-        .project(counted_projection as fn(&Work) -> Vec<Entry>)
+        .project(CountedProjection)
         .penalize_with(|entry: &Entry| SoftScore::of(entry.delta))
         .named("counted");
 

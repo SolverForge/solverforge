@@ -3,7 +3,7 @@
 Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 
 **Location:** `crates/solverforge-scoring/`
-**Workspace Release:** `0.9.1`
+**Workspace Release:** `0.9.2`
 
 ## Dependencies
 
@@ -38,7 +38,7 @@ src/
 │   ├── grouped.rs                                  — GroupedUniConstraint<S,A,K,E,Fi,KF,C,W,Sc>
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
 │   ├── complemented.rs                             — ComplementedGroupConstraint<S,A,B,K,EA,EB,KA,KB,C,D,W,Sc>
-│   ├── cross_bi_incremental.rs                     — IncrementalCrossBiConstraint<S,A,B,K,EA,EB,KA,KB,F,W,Sc>
+│   ├── cross_bi_incremental.rs                     — IncrementalCrossBiConstraint<S,A,B,K,EA,EB,KA,KB,F,W,Sc>; CrossBiWeight; IndexWeight; PairWeight
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint<S,A,B,C,K,CK,EA,EB,KA,KB,Flatten,CKeyFn,ALookup,F,W,Sc>
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
 │   ├── exists/
@@ -326,7 +326,9 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`IncrementalPentaConstraint<S, A, K, E, KE, F, W, Sc>`** — Self-join penta constraint.
 
-**`IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, W, Sc>`** — Cross-collection bi constraint (two different collections joined by key). Stateless `evaluate()`, `match_count()`, and `get_matches()` rebuild the keyed B-side index directly, so retained analysis works even before `initialize()`.
+**`IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, W, Sc>`** — Cross-collection bi constraint (two different collections joined by key). Stateless `evaluate()`, `match_count()`, and `get_matches()` rebuild the keyed B-side index directly, so retained analysis works even before `initialize()`. The low-level `new(...)` constructor preserves index-aware weights via `Fn(&S, usize, usize) -> Sc`; fluent stream builders use `PairWeight<W>` internally for `Fn(&A, &B) -> Sc` weights without cloning streams or extractors.
+
+**`CrossBiWeight<S, A, B, Sc>`**, **`IndexWeight<W>`**, **`PairWeight<W>`** — Zero-erasure cross-bi weight strategies. They keep low-level index-aware scoring and fluent pair-aware scoring as separate monomorphized paths.
 
 **`GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>`** where `C: UniCollector<A>` — Group-by with collector and weight on result.
 
@@ -376,15 +378,40 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
 - Operations: `filter()`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `ProjectedConstraintStream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- Unfiltered `UniConstraintStream<..., TrueFilter, ...>` implements `CollectionExtract` by delegating to its source extractor. This lets keyed cross-join targets use generated/source-aware streams directly, preserving `ChangeSource` metadata.
 - `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
 **`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `named()` → `IncrementalUniConstraint`
 
-**`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Derived scoring rows from one or more source streams. Projection output type is inferred from `project(...)`; rows are cached per source/entity and updated incrementally when the owning entity changes.
+**`Projection<A>`** — Typed retained projection contract for `.project(...)`. Implementations define `type Out`, `const MAX_EMITS: usize`, and `project(&self, input: &A, sink: &mut impl ProjectionSink<Self::Out>)`. Projection implementations emit bounded derived rows into the sink; Vec-returning closures are not part of the API.
+
+**`ProjectionSink<Out>`** — Emission sink used by `Projection<A>` implementations. `emit(output)` is the only projection output channel.
+
+**`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Derived scoring rows from one or more source streams. Projection output type is inferred from the named projection type passed to `project(...)`; retained rows are cached by `(source_slot, entity_index)` and updated incrementally only when the owning descriptor source changes. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
 - Operations: `filter()`, `merge(other)`, `group_by()`, `penalize_with()`, `penalize_hard_with()`
 
-**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()` and `count()`. `named()` → `ProjectedGroupedConstraint`.
+Projection syntax:
+
+```rust
+struct AssignmentLoadEntries;
+
+impl Projection<Assignment> for AssignmentLoadEntries {
+    type Out = LoadEntry;
+    const MAX_EMITS: usize = 4;
+
+    fn project<Sink>(&self, assignment: &Assignment, out: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        assignment.for_each_load_entry(|entry| out.emit(entry));
+    }
+}
+
+factory.assignments().project(AssignmentLoadEntries)
+```
+
+**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()` and `count()`. Grouped retained state uses the same source-slot/entity-index ownership as ungrouped projected rows. `named()` → `ProjectedGroupedConstraint`.
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
 - Operations: `filter()`, `join()` → TriStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
@@ -432,9 +459,9 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 .join((vec(|s: &Schedule| &s.employees), equal_bi(...)))
 ```
 
-**`ChangeSource`** — Enum describing incremental invalidation origin for source-aware streams: `Unknown`, `Static`, or `Descriptor(idx)`.
+**`ChangeSource`** — Enum describing whether a stream source can localize descriptor-owned incremental callbacks: `Unknown`, `Static`, or `Descriptor(idx)`. `Descriptor(idx)` owns localized events for that descriptor. `Static` never localizes. `Unknown` is non-localized metadata for raw/manual extraction: it is valid for `evaluate()` and `initialize()`, but localized `on_insert(...)` / `on_retract(...)` callbacks panic because the entity index cannot be safely mapped to a source.
 
-**`SourceExtract<E>` / `source(...)`** — Descriptor-aware collection extraction used by generated accessors and structured existence filtering. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact collections carry `ChangeSource::Static`. Raw `for_each` closure extractors use `ChangeSource::Unknown` and conservatively react to any descriptor update.
+**`SourceExtract<E>` / `source(...)`** — Descriptor-aware collection extraction used by generated accessors and structured source-aware streams. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact collections carry `ChangeSource::Static`. Raw `for_each` closure extractors use `ChangeSource::Unknown`; wrap extractors with `source(..., ChangeSource::Descriptor(idx))` when they must participate in localized incremental mutation callbacks.
 
 **`FlattenExtract<P>`** — Trait for flattening a parent entity into a child slice for existence filtering. Blanket impl for `Fn(&P) -> &[B] + Send + Sync`; `FlattenVecExtract<F>` adapts `Fn(&P) -> &Vec<B>`.
 

@@ -2,6 +2,7 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::flattened_bi::FlattenedBiConstraint;
+use crate::stream::collection_extract::{source, ChangeSource, SourceExtract};
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -30,8 +31,8 @@ fn create_test_constraint() -> FlattenedBiConstraint<
     u32,
     Option<usize>,
     u32,
-    fn(&Schedule) -> &[Shift],
-    fn(&Schedule) -> &[Employee],
+    SourceExtract<fn(&Schedule) -> &[Shift]>,
+    SourceExtract<fn(&Schedule) -> &[Employee]>,
     impl Fn(&Shift) -> Option<usize>,
     impl Fn(&Employee) -> Option<usize>,
     impl Fn(&Employee) -> &[u32],
@@ -44,8 +45,14 @@ fn create_test_constraint() -> FlattenedBiConstraint<
     FlattenedBiConstraint::new(
         ConstraintRef::new("", "Unavailable employee"),
         ImpactType::Penalty,
-        (|s: &Schedule| s.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
-        (|s: &Schedule| s.employees.as_slice()) as fn(&Schedule) -> &[Employee],
+        source(
+            (|s: &Schedule| s.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            (|s: &Schedule| s.employees.as_slice()) as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| Some(emp.id),
         |emp: &Employee| emp.unavailable_days.as_slice(),
@@ -130,6 +137,37 @@ fn test_incremental() {
     // Re-insert it
     let delta = constraint.on_insert(&schedule, 0, 0);
     assert_eq!(delta, SoftScore::of(-1)); // Adding penalty back
+}
+
+#[test]
+fn test_b_side_flattened_update_localizes_affected_a_scores() {
+    let mut constraint = create_test_constraint();
+    let mut schedule = Schedule {
+        shifts: vec![
+            Shift {
+                employee_id: Some(0),
+                day: 5,
+            },
+            Shift {
+                employee_id: Some(0),
+                day: 10,
+            },
+        ],
+        employees: vec![Employee {
+            id: 0,
+            unavailable_days: vec![5],
+        }],
+    };
+
+    let mut total = constraint.initialize(&schedule);
+    assert_eq!(total, SoftScore::of(-1));
+
+    total = total + constraint.on_retract(&schedule, 0, 1);
+    schedule.employees[0].unavailable_days = vec![10];
+    total = total + constraint.on_insert(&schedule, 0, 1);
+
+    assert_eq!(total, SoftScore::of(-1));
+    assert_eq!(total, constraint.evaluate(&schedule));
 }
 
 #[test]

@@ -182,7 +182,10 @@ where
         )
     } else if let Some(limit) = configured_time_limit {
         let time = TimeTermination::new(limit);
-        (AnyTermination::Default(OrTermination::new((time,))), Some(limit))
+        (
+            AnyTermination::Default(OrTermination::new((time,))),
+            Some(limit),
+        )
     } else {
         (AnyTermination::None(NoTermination), None)
     };

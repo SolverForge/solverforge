@@ -285,11 +285,9 @@ where
         let entities_b = self.extractor_b.extract(solution);
 
         let mut total = Sc::zero();
-        if a_changed {
-            if entity_index < entities_a.len() {
-                let entity = &entities_a[entity_index];
-                total = total + self.insert_entity(entities_b, entity_index, entity);
-            }
+        if a_changed && entity_index < entities_a.len() {
+            let entity = &entities_a[entity_index];
+            total = total + self.insert_entity(entities_b, entity_index, entity);
         }
         if b_changed {
             total = total + self.insert_b(entities_b, entity_index);

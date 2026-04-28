@@ -222,12 +222,9 @@ impl AcceptorBuilder {
                 TabuSearchAcceptor::<S>::new(normalize_tabu_search_policy(tabu_config)),
             ),
 
-            AcceptorConfig::SimulatedAnnealing(sa_config) => {
-                AnyAcceptor::SimulatedAnnealing(build_simulated_annealing::<S>(
-                    sa_config,
-                    random_seed,
-                ))
-            }
+            AcceptorConfig::SimulatedAnnealing(sa_config) => AnyAcceptor::SimulatedAnnealing(
+                build_simulated_annealing::<S>(sa_config, random_seed),
+            ),
 
             AcceptorConfig::LateAcceptance(la_config) => {
                 let size = la_config.late_acceptance_size.unwrap_or(400);

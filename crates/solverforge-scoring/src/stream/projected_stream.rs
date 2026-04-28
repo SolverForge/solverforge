@@ -516,8 +516,7 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> crate::constraint::projected::ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc>
-    {
+    ) -> crate::constraint::projected::ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc> {
         crate::constraint::projected::ProjectedBiConstraint::new(
             solverforge_core::ConstraintRef::new("", name),
             self.impact_type,

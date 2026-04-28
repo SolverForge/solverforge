@@ -60,6 +60,13 @@ where
             Self::Cartesian(cursor) => cursor.take_candidate(index),
         }
     }
+
+    fn selector_index(&self, index: CandidateId) -> Option<usize> {
+        match self {
+            Self::Leaf(cursor) => cursor.selector_index(index),
+            Self::Cartesian(cursor) => cursor.selector_index(index),
+        }
+    }
 }
 
 impl<S, V, DM, IDM> Debug for ListSelectorNode<S, V, DM, IDM>

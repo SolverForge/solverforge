@@ -4,7 +4,7 @@ pub enum SolverProgressKind {
     BestSolution,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct SolverProgressRef<'a, S: PlanningSolution> {
     pub kind: SolverProgressKind,
     pub status: SolverLifecycleState,
@@ -31,4 +31,3 @@ where
         self(progress);
     }
 }
-

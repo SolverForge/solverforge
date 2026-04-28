@@ -89,7 +89,11 @@ where
                         if runtime.is_cancel_requested() {
                             let (current_score, best_score, telemetry) = {
                                 let record = runtime.slot.record.lock().unwrap();
-                                (record.current_score, record.best_score, record.telemetry)
+                                (
+                                    record.current_score,
+                                    record.best_score,
+                                    record.telemetry.clone(),
+                                )
                             };
                             runtime.emit_cancelled(current_score, best_score, telemetry);
                         } else {

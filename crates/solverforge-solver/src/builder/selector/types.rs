@@ -170,6 +170,13 @@ where
             Self::List(cursor) => cursor.take_candidate(index),
         }
     }
+
+    fn selector_index(&self, index: CandidateId) -> Option<usize> {
+        match self {
+            Self::Scalar(cursor) => cursor.selector_index(index),
+            Self::List(cursor) => cursor.selector_index(index),
+        }
+    }
 }
 
 impl<S, V, DM, IDM> Debug for NeighborhoodLeaf<S, V, DM, IDM>
@@ -313,6 +320,13 @@ where
             Self::Limited(cursor) => cursor.take_candidate(index),
         }
     }
+
+    fn selector_index(&self, index: CandidateId) -> Option<usize> {
+        match self {
+            Self::Flat(cursor) => cursor.selector_index(index),
+            Self::Limited(cursor) => cursor.selector_index(index),
+        }
+    }
 }
 
 pub enum NeighborhoodCursor<'a, S, V, DM, IDM>
@@ -360,6 +374,14 @@ where
             Self::Flat(cursor) => cursor.take_candidate(index),
             Self::Limited(cursor) => cursor.take_candidate(index),
             Self::Cartesian(cursor) => cursor.take_candidate(index),
+        }
+    }
+
+    fn selector_index(&self, index: CandidateId) -> Option<usize> {
+        match self {
+            Self::Flat(cursor) => cursor.selector_index(index),
+            Self::Limited(cursor) => cursor.selector_index(index),
+            Self::Cartesian(cursor) => cursor.selector_index(index),
         }
     }
 }

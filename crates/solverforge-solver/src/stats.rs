@@ -29,16 +29,47 @@ assert_eq!(stats.moves_evaluated, 2);
 assert_eq!(stats.moves_accepted, 1);
 ```
 */
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SelectorTelemetry {
+    pub selector_index: usize,
+    pub selector_label: String,
+    pub moves_generated: u64,
+    pub moves_evaluated: u64,
+    pub moves_accepted: u64,
+    pub moves_applied: u64,
+    pub generation_time: Duration,
+    pub evaluation_time: Duration,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct SolverTelemetry {
     pub elapsed: Duration,
     pub step_count: u64,
     pub moves_generated: u64,
     pub moves_evaluated: u64,
     pub moves_accepted: u64,
+    pub moves_applied: u64,
     pub score_calculations: u64,
     pub generation_time: Duration,
     pub evaluation_time: Duration,
+    pub selector_telemetry: Vec<SelectorTelemetry>,
+}
+
+impl SolverTelemetry {
+    pub const fn new_const() -> Self {
+        Self {
+            elapsed: Duration::ZERO,
+            step_count: 0,
+            moves_generated: 0,
+            moves_evaluated: 0,
+            moves_accepted: 0,
+            moves_applied: 0,
+            score_calculations: 0,
+            generation_time: Duration::ZERO,
+            evaluation_time: Duration::ZERO,
+            selector_telemetry: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -102,10 +133,13 @@ pub struct SolverStats {
     pub moves_evaluated: u64,
     // Total moves accepted across all phases.
     pub moves_accepted: u64,
+    // Total moves applied across all phases.
+    pub moves_applied: u64,
     // Total score calculations performed.
     pub score_calculations: u64,
     generation_time: Duration,
     evaluation_time: Duration,
+    selector_stats: Vec<SelectorTelemetry>,
 }
 
 impl SolverStats {
@@ -141,6 +175,18 @@ impl SolverStats {
         self.generation_time += duration;
     }
 
+    pub fn record_selector_generated(
+        &mut self,
+        selector_index: usize,
+        count: u64,
+        duration: Duration,
+    ) {
+        self.record_generated_batch(count, duration);
+        let selector = self.selector_stats_entry(selector_index);
+        selector.moves_generated += count;
+        selector.generation_time += duration;
+    }
+
     /// Records generation time that did not itself yield a counted move.
     pub fn record_generation_time(&mut self, duration: Duration) {
         self.generation_time += duration;
@@ -157,9 +203,30 @@ impl SolverStats {
         self.evaluation_time += duration;
     }
 
+    pub fn record_selector_evaluated(&mut self, selector_index: usize, duration: Duration) {
+        self.record_evaluated_move(duration);
+        let selector = self.selector_stats_entry(selector_index);
+        selector.moves_evaluated += 1;
+        selector.evaluation_time += duration;
+    }
+
     /// Records an accepted move.
     pub fn record_move_accepted(&mut self) {
         self.moves_accepted += 1;
+    }
+
+    pub fn record_selector_accepted(&mut self, selector_index: usize) {
+        self.record_move_accepted();
+        self.selector_stats_entry(selector_index).moves_accepted += 1;
+    }
+
+    pub fn record_move_applied(&mut self) {
+        self.moves_applied += 1;
+    }
+
+    pub fn record_selector_applied(&mut self, selector_index: usize) {
+        self.record_move_applied();
+        self.selector_stats_entry(selector_index).moves_applied += 1;
     }
 
     /// Records a step completion.
@@ -209,10 +276,30 @@ impl SolverStats {
             moves_generated: self.moves_generated,
             moves_evaluated: self.moves_evaluated,
             moves_accepted: self.moves_accepted,
+            moves_applied: self.moves_applied,
             score_calculations: self.score_calculations,
             generation_time: self.generation_time,
             evaluation_time: self.evaluation_time,
+            selector_telemetry: self.selector_stats.clone(),
         }
+    }
+
+    fn selector_stats_entry(&mut self, selector_index: usize) -> &mut SelectorTelemetry {
+        if let Some(position) = self
+            .selector_stats
+            .iter()
+            .position(|entry| entry.selector_index == selector_index)
+        {
+            return &mut self.selector_stats[position];
+        }
+        self.selector_stats.push(SelectorTelemetry {
+            selector_index,
+            selector_label: format!("selector-{selector_index}"),
+            ..SelectorTelemetry::default()
+        });
+        self.selector_stats
+            .last_mut()
+            .expect("selector stats entry was just inserted")
     }
 }
 
@@ -253,10 +340,13 @@ pub struct PhaseStats {
     pub moves_evaluated: u64,
     // Number of moves accepted in this phase.
     pub moves_accepted: u64,
+    // Number of moves applied in this phase.
+    pub moves_applied: u64,
     // Number of score calculations in this phase.
     pub score_calculations: u64,
     generation_time: Duration,
     evaluation_time: Duration,
+    selector_stats: Vec<SelectorTelemetry>,
 }
 
 impl PhaseStats {
@@ -270,9 +360,11 @@ impl PhaseStats {
             moves_generated: 0,
             moves_evaluated: 0,
             moves_accepted: 0,
+            moves_applied: 0,
             score_calculations: 0,
             generation_time: Duration::default(),
             evaluation_time: Duration::default(),
+            selector_stats: Vec::new(),
         }
     }
 
@@ -291,6 +383,18 @@ impl PhaseStats {
         self.generation_time += duration;
     }
 
+    pub fn record_selector_generated(
+        &mut self,
+        selector_index: usize,
+        count: u64,
+        duration: Duration,
+    ) {
+        self.record_generated_batch(count, duration);
+        let selector = self.selector_stats_entry(selector_index);
+        selector.moves_generated += count;
+        selector.generation_time += duration;
+    }
+
     /// Records generation time that did not itself yield a counted move.
     pub fn record_generation_time(&mut self, duration: Duration) {
         self.generation_time += duration;
@@ -307,9 +411,30 @@ impl PhaseStats {
         self.evaluation_time += duration;
     }
 
+    pub fn record_selector_evaluated(&mut self, selector_index: usize, duration: Duration) {
+        self.record_evaluated_move(duration);
+        let selector = self.selector_stats_entry(selector_index);
+        selector.moves_evaluated += 1;
+        selector.evaluation_time += duration;
+    }
+
     /// Records an accepted move.
     pub fn record_move_accepted(&mut self) {
         self.moves_accepted += 1;
+    }
+
+    pub fn record_selector_accepted(&mut self, selector_index: usize) {
+        self.record_move_accepted();
+        self.selector_stats_entry(selector_index).moves_accepted += 1;
+    }
+
+    pub fn record_move_applied(&mut self) {
+        self.moves_applied += 1;
+    }
+
+    pub fn record_selector_applied(&mut self, selector_index: usize) {
+        self.record_move_applied();
+        self.selector_stats_entry(selector_index).moves_applied += 1;
     }
 
     /// Records a score calculation.
@@ -345,6 +470,28 @@ impl PhaseStats {
 
     pub fn evaluation_time(&self) -> Duration {
         self.evaluation_time
+    }
+
+    pub fn selector_telemetry(&self) -> &[SelectorTelemetry] {
+        &self.selector_stats
+    }
+
+    fn selector_stats_entry(&mut self, selector_index: usize) -> &mut SelectorTelemetry {
+        if let Some(position) = self
+            .selector_stats
+            .iter()
+            .position(|entry| entry.selector_index == selector_index)
+        {
+            return &mut self.selector_stats[position];
+        }
+        self.selector_stats.push(SelectorTelemetry {
+            selector_index,
+            selector_label: format!("selector-{selector_index}"),
+            ..SelectorTelemetry::default()
+        });
+        self.selector_stats
+            .last_mut()
+            .expect("selector stats entry was just inserted")
     }
 }
 
@@ -391,6 +538,47 @@ mod tests {
         assert_eq!(stats.score_calculations, 1);
         assert_eq!(stats.generation_time(), Duration::from_millis(8));
         assert_eq!(stats.evaluation_time(), Duration::from_millis(9));
+    }
+
+    #[test]
+    fn solver_snapshot_includes_selector_level_telemetry() {
+        let mut stats = SolverStats::default();
+        stats.start();
+        stats.record_selector_generated(2, 3, Duration::from_millis(4));
+        stats.record_selector_evaluated(2, Duration::from_millis(5));
+        stats.record_selector_accepted(2);
+        stats.record_selector_applied(2);
+
+        let snapshot = stats.snapshot();
+
+        assert_eq!(snapshot.moves_generated, 3);
+        assert_eq!(snapshot.moves_evaluated, 1);
+        assert_eq!(snapshot.moves_accepted, 1);
+        assert_eq!(snapshot.moves_applied, 1);
+        assert_eq!(snapshot.selector_telemetry.len(), 1);
+        assert_eq!(snapshot.selector_telemetry[0].selector_index, 2);
+        assert_eq!(snapshot.selector_telemetry[0].selector_label, "selector-2");
+        assert_eq!(snapshot.selector_telemetry[0].moves_generated, 3);
+        assert_eq!(snapshot.selector_telemetry[0].moves_evaluated, 1);
+        assert_eq!(snapshot.selector_telemetry[0].moves_accepted, 1);
+        assert_eq!(snapshot.selector_telemetry[0].moves_applied, 1);
+    }
+
+    #[test]
+    fn unattributed_applied_moves_do_not_create_selector_zero_telemetry() {
+        let mut stats = SolverStats::default();
+        stats.record_generated_move(Duration::from_millis(1));
+        stats.record_evaluated_move(Duration::from_millis(2));
+        stats.record_move_accepted();
+        stats.record_move_applied();
+
+        let snapshot = stats.snapshot();
+
+        assert_eq!(snapshot.moves_generated, 1);
+        assert_eq!(snapshot.moves_evaluated, 1);
+        assert_eq!(snapshot.moves_accepted, 1);
+        assert_eq!(snapshot.moves_applied, 1);
+        assert!(snapshot.selector_telemetry.is_empty());
     }
 
     #[test]

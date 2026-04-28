@@ -263,6 +263,21 @@ where
             Self::SublistSwap(cursor) => cursor.take_candidate(index),
         }
     }
+
+    fn selector_index(&self, index: CandidateId) -> Option<usize> {
+        match self {
+            Self::NearbyListChange(cursor) => cursor.selector_index(index),
+            Self::NearbyListSwap(cursor) => cursor.selector_index(index),
+            Self::ListReverse(cursor) => cursor.selector_index(index),
+            Self::SublistChange(cursor) => cursor.selector_index(index),
+            Self::KOpt(cursor) => cursor.selector_index(index),
+            Self::NearbyKOpt(cursor) => cursor.selector_index(index),
+            Self::ListRuin(cursor) => cursor.selector_index(index),
+            Self::ListChange(cursor) => cursor.selector_index(index),
+            Self::ListSwap(cursor) => cursor.selector_index(index),
+            Self::SublistSwap(cursor) => cursor.selector_index(index),
+        }
+    }
 }
 
 impl<S, V, DM, IDM> Debug for ListLeafSelector<S, V, DM, IDM>

@@ -40,6 +40,7 @@ fn commit_selection<S, D, BestCb, M>(
             step_scope.phase_scope_mut().record_move_accepted();
             let m = placement.take_move(idx);
             step_scope.apply_committed_move(&m);
+            step_scope.phase_scope_mut().record_move_applied();
         }
     }
 

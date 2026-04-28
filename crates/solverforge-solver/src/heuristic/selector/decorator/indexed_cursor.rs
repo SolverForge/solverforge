@@ -59,4 +59,9 @@ where
         let child_index = self.indices[index.index()];
         self.inner.take_candidate(child_index)
     }
+
+    fn selector_index(&self, index: CandidateId) -> Option<usize> {
+        let child_index = *self.indices.get(index.index())?;
+        self.inner.selector_index(child_index)
+    }
 }

@@ -91,7 +91,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             let terminal_reason = record.terminal_reason;
             record.current_score = current_score;
             record.best_score = Some(best_score);
-            record.telemetry = telemetry;
+            record.telemetry = telemetry.clone();
 
             let snapshot_revision = record.push_snapshot(super::types::SolverSnapshot {
                 job_id: self.job_id,
@@ -100,7 +100,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
                 terminal_reason,
                 current_score,
                 best_score: Some(best_score),
-                telemetry,
+                telemetry: telemetry.clone(),
                 solution: solution.clone(),
             });
 
@@ -125,7 +125,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             record.checkpoint_available = false;
             record.current_score = current_score;
             record.best_score = Some(best_score);
-            record.telemetry = telemetry;
+            record.telemetry = telemetry.clone();
 
             let snapshot_revision = record.push_snapshot(super::types::SolverSnapshot {
                 job_id: self.job_id,
@@ -134,7 +134,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
                 terminal_reason: Some(terminal_reason),
                 current_score,
                 best_score: Some(best_score),
-                telemetry,
+                telemetry: telemetry.clone(),
                 solution: solution.clone(),
             });
 
@@ -180,7 +180,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             record.terminal_reason = Some(SolverTerminalReason::Failed);
             record.checkpoint_available = false;
             record.failure_message = Some(error.clone());
-            let telemetry = record.telemetry;
+            let telemetry = record.telemetry.clone();
             let metadata = record.next_metadata(self.job_id, SolverLifecycleState::Failed, None);
             if let Some(sender) = sender {
                 let _ = sender.send(SolverEvent::Failed {
@@ -232,7 +232,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             record.checkpoint_available = true;
             record.current_score = current_score;
             record.best_score = best_score;
-            record.telemetry = telemetry;
+            record.telemetry = telemetry.clone();
 
             let snapshot_revision = record.push_snapshot(super::types::SolverSnapshot {
                 job_id: self.job_id,
@@ -241,7 +241,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
                 terminal_reason,
                 current_score,
                 best_score,
-                telemetry,
+                telemetry: telemetry.clone(),
                 solution,
             });
 
@@ -297,7 +297,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         self.slot.with_publication(|sender, record| {
             record.current_score = current_score;
             record.best_score = best_score;
-            record.telemetry = telemetry;
+            record.telemetry = telemetry.clone();
             if lifecycle_state != SolverLifecycleState::Paused {
                 record.checkpoint_available = false;
             }
@@ -336,7 +336,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             record.checkpoint_available = false;
             record.current_score = current_score;
             record.best_score = best_score;
-            record.telemetry = telemetry;
+            record.telemetry = telemetry.clone();
             let metadata = record.next_metadata(self.job_id, lifecycle_state, None);
             let event = match kind {
                 EventKind::Cancelled => SolverEvent::Cancelled { metadata },

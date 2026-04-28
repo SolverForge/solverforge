@@ -125,6 +125,10 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>>;
 
     fn take_candidate(&mut self, id: CandidateId) -> M;
+
+    fn selector_index(&self, _id: CandidateId) -> Option<usize> {
+        None
+    }
 }
 
 pub struct CandidateStore<S, M>

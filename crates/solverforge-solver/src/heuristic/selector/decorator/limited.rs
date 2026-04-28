@@ -42,6 +42,10 @@ where
     fn take_candidate(&mut self, id: CandidateId) -> M {
         self.inner.take_candidate(id)
     }
+
+    fn selector_index(&self, id: CandidateId) -> Option<usize> {
+        self.inner.selector_index(id)
+    }
 }
 
 #[cfg(test)]
@@ -132,6 +136,10 @@ mod tests {
         fn take_candidate(&mut self, id: CandidateId) -> TestMove {
             self.store.take_candidate(id)
         }
+
+        fn selector_index(&self, _id: CandidateId) -> Option<usize> {
+            Some(7)
+        }
     }
 
     impl Debug for CountingCursor {
@@ -156,6 +164,7 @@ mod tests {
         for _ in 0..3 {
             let id = cursor.next_candidate().expect("candidate should exist");
             assert!(cursor.candidate(id).is_some());
+            assert_eq!(cursor.selector_index(id), Some(7));
         }
 
         assert!(cursor.next_candidate().is_none());

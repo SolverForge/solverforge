@@ -31,6 +31,7 @@ fn commit_candidate<S, V, D, ProgressCb>(
             let mut step_scope = StepScope::new(phase_scope);
             step_scope.phase_scope_mut().record_move_accepted();
             step_scope.apply_committed_move(&mov);
+            step_scope.phase_scope_mut().record_move_applied();
             let step_score = step_scope.calculate_score();
             step_scope.set_step_score(step_score);
             step_scope.complete();
@@ -55,6 +56,7 @@ fn commit_candidate<S, V, D, ProgressCb>(
                 );
                 score_director.after_variable_changed(descriptor_index, entity_index);
             });
+            step_scope.phase_scope_mut().record_move_applied();
             let step_score = step_scope.calculate_score();
             step_scope.set_step_score(step_score);
             step_scope.complete();

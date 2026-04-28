@@ -153,6 +153,14 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
         self.record_generated_batch(1, duration);
     }
 
+    pub fn record_selector_generated_move(&mut self, selector_index: usize, duration: Duration) {
+        self.stats
+            .record_selector_generated(selector_index, 1, duration);
+        self.solver_scope
+            .stats_mut()
+            .record_selector_generated(selector_index, 1, duration);
+    }
+
     pub fn record_generation_time(&mut self, duration: Duration) {
         self.stats.record_generation_time(duration);
         self.solver_scope
@@ -167,9 +175,36 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
             .record_evaluated_move(duration);
     }
 
+    pub fn record_selector_evaluated_move(&mut self, selector_index: usize, duration: Duration) {
+        self.stats
+            .record_selector_evaluated(selector_index, duration);
+        self.solver_scope
+            .stats_mut()
+            .record_selector_evaluated(selector_index, duration);
+    }
+
     pub fn record_move_accepted(&mut self) {
         self.stats.record_move_accepted();
         self.solver_scope.stats_mut().record_move_accepted();
+    }
+
+    pub fn record_move_applied(&mut self) {
+        self.stats.record_move_applied();
+        self.solver_scope.stats_mut().record_move_applied();
+    }
+
+    pub fn record_selector_move_accepted(&mut self, selector_index: usize) {
+        self.stats.record_selector_accepted(selector_index);
+        self.solver_scope
+            .stats_mut()
+            .record_selector_accepted(selector_index);
+    }
+
+    pub fn record_selector_move_applied(&mut self, selector_index: usize) {
+        self.stats.record_selector_applied(selector_index);
+        self.solver_scope
+            .stats_mut()
+            .record_selector_applied(selector_index);
     }
 
     pub fn record_score_calculation(&mut self) {

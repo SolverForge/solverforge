@@ -173,15 +173,22 @@ where
                 let Some(candidate_id) = cursor.next_candidate() else {
                     break;
                 };
+                let selector_index = cursor.selector_index(candidate_id);
                 let mov = cursor
                     .candidate(candidate_id)
                     .expect("discovered candidate id must remain borrowable");
                 let generation_elapsed = generation_started.elapsed();
                 generated_moves += 1;
                 local_moves_generated += 1;
-                step_scope
-                    .phase_scope_mut()
-                    .record_generated_move(generation_elapsed);
+                if let Some(selector_index) = selector_index {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_selector_generated_move(selector_index, generation_elapsed);
+                } else {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_generated_move(generation_elapsed);
+                }
 
                 if should_interrupt_evaluation(&step_scope, evaluated_moves) {
                     interrupted_step = true;
@@ -220,9 +227,16 @@ where
 
                 let evaluation_started = Instant::now();
                 if !mov.is_doable(step_scope.score_director()) {
-                    step_scope
-                        .phase_scope_mut()
-                        .record_evaluated_move(evaluation_started.elapsed());
+                    if let Some(selector_index) = selector_index {
+                        step_scope.phase_scope_mut().record_selector_evaluated_move(
+                            selector_index,
+                            evaluation_started.elapsed(),
+                        );
+                    } else {
+                        step_scope
+                            .phase_scope_mut()
+                            .record_evaluated_move(evaluation_started.elapsed());
+                    }
                     continue;
                 }
 
@@ -248,11 +262,24 @@ where
                     move_signature.as_ref(),
                 );
 
-                step_scope
-                    .phase_scope_mut()
-                    .record_evaluated_move(evaluation_started.elapsed());
+                if let Some(selector_index) = selector_index {
+                    step_scope.phase_scope_mut().record_selector_evaluated_move(
+                        selector_index,
+                        evaluation_started.elapsed(),
+                    );
+                } else {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_evaluated_move(evaluation_started.elapsed());
+                }
                 if accepted {
-                    step_scope.phase_scope_mut().record_move_accepted();
+                    if let Some(selector_index) = selector_index {
+                        step_scope
+                            .phase_scope_mut()
+                            .record_selector_move_accepted(selector_index);
+                    } else {
+                        step_scope.phase_scope_mut().record_move_accepted();
+                    }
                 }
 
                 trace!(
@@ -278,12 +305,20 @@ where
             // Pick the best accepted move index
             let mut accepted_move_signature = None;
             if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
+                let selector_index = cursor.selector_index(selected_index);
                 let selected_move = cursor.take_candidate(selected_index);
                 if requires_move_signatures {
                     accepted_move_signature =
                         Some(selected_move.tabu_signature(step_scope.score_director()));
                 }
                 step_scope.apply_committed_move(&selected_move);
+                if let Some(selector_index) = selector_index {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_selector_move_applied(selector_index);
+                } else {
+                    step_scope.phase_scope_mut().record_move_applied();
+                }
                 step_scope.set_step_score(selected_score);
 
                 // Update last step score

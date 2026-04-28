@@ -58,6 +58,13 @@ where
             Self::Direct(cursor) => cursor.take_candidate(index),
         }
     }
+
+    fn selector_index(&self, index: CandidateId) -> Option<usize> {
+        match self {
+            Self::Change(cursor) => cursor.selector_index(index),
+            Self::Direct(cursor) => cursor.selector_index(index),
+        }
+    }
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
@@ -100,6 +107,13 @@ where
         match self {
             Self::Leaf(cursor) => cursor.take_candidate(index),
             Self::Cartesian(cursor) => cursor.take_candidate(index),
+        }
+    }
+
+    fn selector_index(&self, index: CandidateId) -> Option<usize> {
+        match self {
+            Self::Leaf(cursor) => cursor.selector_index(index),
+            Self::Cartesian(cursor) => cursor.selector_index(index),
         }
     }
 }

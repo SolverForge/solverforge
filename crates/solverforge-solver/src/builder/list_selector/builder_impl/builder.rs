@@ -98,7 +98,11 @@ impl ListMoveSelectorBuilder {
             !nodes.is_empty(),
             "move selector configuration produced no list neighborhoods"
         );
-        VecUnionSelector::new(nodes)
+        let selection_order = match config {
+            Some(MoveSelectorConfig::UnionMoveSelector(union)) => union.selection_order,
+            _ => solverforge_config::UnionSelectionOrder::Sequential,
+        };
+        VecUnionSelector::with_selection_order(nodes, selection_order)
     }
 
     pub fn build_flat<S, V, DM, IDM>(
@@ -125,7 +129,11 @@ impl ListMoveSelectorBuilder {
             !leaves.is_empty(),
             "move selector configuration produced no list neighborhoods"
         );
-        VecUnionSelector::new(leaves)
+        let selection_order = match config {
+            Some(MoveSelectorConfig::UnionMoveSelector(union)) => union.selection_order,
+            _ => solverforge_config::UnionSelectionOrder::Sequential,
+        };
+        VecUnionSelector::with_selection_order(leaves, selection_order)
     }
 
     fn collect_leaves<S, V, DM, IDM>(

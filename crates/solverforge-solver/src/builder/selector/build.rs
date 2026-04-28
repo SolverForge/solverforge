@@ -70,7 +70,11 @@ where
         model.has_list_variables(),
         selector_family_name(config),
     );
-    VecUnionSelector::new(leaves)
+    let selection_order = match config {
+        Some(MoveSelectorConfig::UnionMoveSelector(union)) => union.selection_order,
+        _ => solverforge_config::UnionSelectionOrder::Sequential,
+    };
+    VecUnionSelector::with_selection_order(leaves, selection_order)
 }
 
 fn build_cartesian_child_selector<S, V, DM, IDM>(
@@ -258,7 +262,11 @@ where
         model.has_list_variables(),
         selector_family_name(config),
     );
-    VecUnionSelector::new(neighborhoods)
+    let selection_order = match config {
+        Some(MoveSelectorConfig::UnionMoveSelector(union)) => union.selection_order,
+        _ => solverforge_config::UnionSelectionOrder::Sequential,
+    };
+    VecUnionSelector::with_selection_order(neighborhoods, selection_order)
 }
 
 pub fn build_local_search<S, V, DM, IDM>(

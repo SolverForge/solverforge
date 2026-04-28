@@ -9,6 +9,7 @@ determined at runtime from `solver.toml`.
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use solverforge_config::UnionSelectionOrder;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
@@ -20,13 +21,22 @@ use crate::heuristic::selector::move_selector::{
 /// Combines moves from an arbitrary number of leaf selectors into a single stream.
 pub struct VecUnionSelector<S, M, Leaf> {
     selectors: Vec<Leaf>,
+    selection_order: UnionSelectionOrder,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
 impl<S, M, Leaf> VecUnionSelector<S, M, Leaf> {
     pub fn new(selectors: Vec<Leaf>) -> Self {
+        Self::with_selection_order(selectors, UnionSelectionOrder::Sequential)
+    }
+
+    pub fn with_selection_order(
+        selectors: Vec<Leaf>,
+        selection_order: UnionSelectionOrder,
+    ) -> Self {
         Self {
             selectors,
+            selection_order,
             _phantom: PhantomData,
         }
     }
@@ -38,12 +48,17 @@ impl<S, M, Leaf> VecUnionSelector<S, M, Leaf> {
     pub fn into_selectors(self) -> Vec<Leaf> {
         self.selectors
     }
+
+    pub fn selection_order(&self) -> UnionSelectionOrder {
+        self.selection_order
+    }
 }
 
 impl<S, M, Leaf: Debug> Debug for VecUnionSelector<S, M, Leaf> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VecUnionSelector")
             .field("selectors", &self.selectors)
+            .field("selection_order", &self.selection_order)
             .finish()
     }
 }
@@ -65,6 +80,7 @@ where
                 .iter()
                 .map(|selector| selector.open_cursor(score_director))
                 .collect(),
+            self.selection_order,
         )
     }
 
@@ -81,6 +97,9 @@ where
 {
     cursors: Vec<C>,
     current_cursor: usize,
+    selection_order: UnionSelectionOrder,
+    exhausted: Vec<bool>,
+    live_cursor_count: usize,
     discovered: Vec<(usize, CandidateId)>,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
@@ -91,13 +110,61 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    fn new(cursors: Vec<C>) -> Self {
+    fn new(cursors: Vec<C>, selection_order: UnionSelectionOrder) -> Self {
+        let live_cursor_count = cursors.len();
         Self {
             cursors,
             current_cursor: 0,
+            selection_order,
+            exhausted: vec![false; live_cursor_count],
+            live_cursor_count,
             discovered: Vec::new(),
             _phantom: PhantomData,
         }
+    }
+
+    fn next_sequential_candidate(&mut self) -> Option<CandidateId> {
+        if self.current_cursor >= self.cursors.len() {
+            return None;
+        }
+        let cursor_index = self.current_cursor;
+        let Some(child_index) = self.cursors[cursor_index].next_candidate() else {
+            self.current_cursor += 1;
+            return self.next_sequential_candidate();
+        };
+        Some(self.push_discovered(cursor_index, child_index))
+    }
+
+    fn next_round_robin_candidate(&mut self) -> Option<CandidateId> {
+        if self.live_cursor_count == 0 {
+            return None;
+        }
+
+        while self.live_cursor_count > 0 {
+            let cursor_index = self.current_cursor % self.cursors.len();
+            self.current_cursor = (cursor_index + 1) % self.cursors.len();
+            if self.exhausted[cursor_index] {
+                continue;
+            }
+
+            if let Some(child_index) = self.cursors[cursor_index].next_candidate() {
+                return Some(self.push_discovered(cursor_index, child_index));
+            }
+
+            self.exhausted[cursor_index] = true;
+            self.live_cursor_count -= 1;
+        }
+
+        None
+    }
+
+    fn push_discovered(&mut self, cursor_index: usize, child_index: CandidateId) -> CandidateId {
+        let global_id = CandidateId::new(self.discovered.len());
+        self.discovered.push((cursor_index, child_index));
+        self.cursors[cursor_index]
+            .candidate(child_index)
+            .expect("vec union candidate must remain valid");
+        global_id
     }
 }
 
@@ -108,20 +175,10 @@ where
     C: MoveCursor<S, M>,
 {
     fn next_candidate(&mut self) -> Option<CandidateId> {
-        if self.current_cursor >= self.cursors.len() {
-            return None;
+        match self.selection_order {
+            UnionSelectionOrder::Sequential => self.next_sequential_candidate(),
+            UnionSelectionOrder::RoundRobin => self.next_round_robin_candidate(),
         }
-        let cursor_index = self.current_cursor;
-        let Some(child_index) = self.cursors[cursor_index].next_candidate() else {
-            self.current_cursor += 1;
-            return self.next_candidate();
-        };
-        let global_id = CandidateId::new(self.discovered.len());
-        self.discovered.push((cursor_index, child_index));
-        self.cursors[cursor_index]
-            .candidate(child_index)
-            .expect("vec union candidate must remain valid");
-        Some(global_id)
     }
 
     fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
@@ -132,6 +189,12 @@ where
     fn take_candidate(&mut self, index: CandidateId) -> M {
         let (cursor_index, child_index) = self.discovered[index.index()];
         self.cursors[cursor_index].take_candidate(child_index)
+    }
+
+    fn selector_index(&self, index: CandidateId) -> Option<usize> {
+        self.discovered
+            .get(index.index())
+            .map(|(cursor_index, _)| *cursor_index)
     }
 }
 
@@ -146,5 +209,162 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let id = self.next_candidate()?;
         Some(self.take_candidate(id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use solverforge_core::domain::PlanningSolution;
+    use solverforge_core::score::SoftScore;
+    use solverforge_scoring::Director;
+
+    use super::*;
+    use crate::heuristic::r#move::{Move, MoveTabuSignature};
+    use crate::heuristic::selector::move_selector::CandidateStore;
+
+    #[derive(Clone, Debug)]
+    struct TestSolution {
+        score: Option<SoftScore>,
+    }
+
+    impl PlanningSolution for TestSolution {
+        type Score = SoftScore;
+
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct TestMove(i32);
+
+    impl Move<TestSolution> for TestMove {
+        fn is_doable<D: Director<TestSolution>>(&self, _score_director: &D) -> bool {
+            true
+        }
+
+        fn do_move<D: Director<TestSolution>>(&self, _score_director: &mut D) {}
+
+        fn descriptor_index(&self) -> usize {
+            0
+        }
+
+        fn entity_indices(&self) -> &[usize] {
+            &[]
+        }
+
+        fn variable_name(&self) -> &str {
+            "test"
+        }
+
+        fn tabu_signature<D: Director<TestSolution>>(
+            &self,
+            _score_director: &D,
+        ) -> MoveTabuSignature {
+            panic!("vec union tests do not evaluate tabu signatures")
+        }
+    }
+
+    struct TestCursor {
+        store: CandidateStore<TestSolution, TestMove>,
+        next_index: usize,
+        count: usize,
+    }
+
+    impl TestCursor {
+        fn new(values: impl IntoIterator<Item = i32>) -> Self {
+            let mut store = CandidateStore::new();
+            let mut count = 0;
+            for value in values {
+                store.push(TestMove(value));
+                count += 1;
+            }
+            Self {
+                store,
+                next_index: 0,
+                count,
+            }
+        }
+    }
+
+    impl MoveCursor<TestSolution, TestMove> for TestCursor {
+        fn next_candidate(&mut self) -> Option<CandidateId> {
+            if self.next_index >= self.count {
+                return None;
+            }
+            let id = CandidateId::new(self.next_index);
+            self.next_index += 1;
+            Some(id)
+        }
+
+        fn candidate(
+            &self,
+            id: CandidateId,
+        ) -> Option<MoveCandidateRef<'_, TestSolution, TestMove>> {
+            self.store.candidate(id)
+        }
+
+        fn take_candidate(&mut self, id: CandidateId) -> TestMove {
+            self.store.take_candidate(id)
+        }
+    }
+
+    fn drain_values(
+        mut cursor: VecUnionMoveCursor<TestSolution, TestMove, TestCursor>,
+    ) -> Vec<i32> {
+        let mut values = Vec::new();
+        while let Some(id) = cursor.next_candidate() {
+            values.push(cursor.take_candidate(id).0);
+        }
+        values
+    }
+
+    #[test]
+    fn sequential_drains_each_child_before_next_child() {
+        let cursor = VecUnionMoveCursor::new(
+            vec![TestCursor::new([1, 2, 3]), TestCursor::new([10, 11])],
+            UnionSelectionOrder::Sequential,
+        );
+
+        assert_eq!(drain_values(cursor), vec![1, 2, 3, 10, 11]);
+    }
+
+    #[test]
+    fn round_robin_interleaves_uneven_child_lengths_and_skips_empty_children() {
+        let cursor = VecUnionMoveCursor::new(
+            vec![
+                TestCursor::new([1, 2, 3]),
+                TestCursor::new([]),
+                TestCursor::new([10]),
+                TestCursor::new([20, 21]),
+            ],
+            UnionSelectionOrder::RoundRobin,
+        );
+
+        assert_eq!(drain_values(cursor), vec![1, 10, 20, 2, 21, 3]);
+    }
+
+    #[test]
+    fn round_robin_candidates_remain_borrowable_and_takeable_after_interleaving() {
+        let mut cursor = VecUnionMoveCursor::new(
+            vec![TestCursor::new([1, 2]), TestCursor::new([10, 11])],
+            UnionSelectionOrder::RoundRobin,
+        );
+
+        let first = cursor.next_candidate().unwrap();
+        let second = cursor.next_candidate().unwrap();
+        let third = cursor.next_candidate().unwrap();
+
+        assert_eq!(cursor.selector_index(first), Some(0));
+        assert_eq!(cursor.selector_index(second), Some(1));
+        assert_eq!(cursor.selector_index(third), Some(0));
+        assert!(cursor.candidate(second).is_some());
+        assert_eq!(cursor.take_candidate(second), TestMove(10));
+        assert_eq!(cursor.take_candidate(first), TestMove(1));
+        assert_eq!(cursor.take_candidate(third), TestMove(2));
     }
 }

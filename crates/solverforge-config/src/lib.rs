@@ -64,7 +64,8 @@ pub use move_selector::{
     MoveSelectorConfig, NearbyChangeMoveConfig, NearbyListChangeMoveConfig,
     NearbyListSwapMoveConfig, NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig,
     RecreateHeuristicType, RuinRecreateMoveSelectorConfig, SublistChangeMoveConfig,
-    SublistSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig, VariableTargetConfig,
+    SublistSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig, UnionSelectionOrder,
+    VariableTargetConfig,
 };
 pub use phase::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, CustomPhaseConfig,

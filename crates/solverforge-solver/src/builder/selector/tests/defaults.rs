@@ -141,6 +141,7 @@ fn union_child_limited_neighborhood_keeps_scalar_change_context() {
         descriptor.clone(),
     );
     let config = MoveSelectorConfig::UnionMoveSelector(UnionMoveSelectorConfig {
+        selection_order: solverforge_config::UnionSelectionOrder::Sequential,
         selectors: vec![MoveSelectorConfig::LimitedNeighborhood(
             LimitedNeighborhoodConfig {
                 selected_count_limit: 2,
@@ -176,6 +177,7 @@ fn union_child_limited_neighborhood_keeps_scalar_change_context() {
 #[test]
 fn explicit_scalar_union_selector_remains_supported() {
     let config = MoveSelectorConfig::UnionMoveSelector(UnionMoveSelectorConfig {
+        selection_order: solverforge_config::UnionSelectionOrder::Sequential,
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
                 value_candidate_limit: None,
@@ -201,4 +203,27 @@ fn explicit_scalar_union_selector_remains_supported() {
         Neighborhood::Flat(leafs)
             if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Swap(_)))
     ));
+}
+
+#[test]
+fn explicit_scalar_union_selector_can_be_round_robin() {
+    let config = MoveSelectorConfig::UnionMoveSelector(UnionMoveSelectorConfig {
+        selection_order: solverforge_config::UnionSelectionOrder::RoundRobin,
+        selectors: vec![
+            MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
+                target: VariableTargetConfig::default(),
+            }),
+            MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+                target: VariableTargetConfig::default(),
+            }),
+        ],
+    });
+
+    let selector = build_move_selector(Some(&config), &scalar_only_model(), None);
+
+    assert_eq!(
+        selector.selection_order(),
+        solverforge_config::UnionSelectionOrder::RoundRobin
+    );
 }

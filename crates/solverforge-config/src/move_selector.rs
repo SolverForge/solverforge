@@ -156,6 +156,14 @@ pub enum RecreateHeuristicType {
     CheapestInsertion,
 }
 
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UnionSelectionOrder {
+    #[default]
+    Sequential,
+    RoundRobin,
+}
+
 // Ruin-and-recreate move configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -353,6 +361,8 @@ pub struct LimitedNeighborhoodConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct UnionMoveSelectorConfig {
+    #[serde(default)]
+    pub selection_order: UnionSelectionOrder,
     // Child selectors.
     pub selectors: Vec<MoveSelectorConfig>,
 }

@@ -269,5 +269,9 @@ where
         !leaves.is_empty(),
         "move selector configuration produced no scalar neighborhoods"
     );
-    VecUnionSelector::new(leaves)
+    let selection_order = match config {
+        Some(MoveSelectorConfig::UnionMoveSelector(union)) => union.selection_order,
+        _ => solverforge_config::UnionSelectionOrder::Sequential,
+    };
+    VecUnionSelector::with_selection_order(leaves, selection_order)
 }

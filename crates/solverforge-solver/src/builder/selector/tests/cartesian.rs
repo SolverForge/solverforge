@@ -15,6 +15,9 @@ fn cartesian_scalar_selector_builds_composite_moves() {
         descriptor,
     );
     let change = MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+
+        value_candidate_limit: None,
+
         target: VariableTargetConfig::default(),
     });
     let swap = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
@@ -114,6 +117,9 @@ fn cartesian_mixed_selector_supports_limited_children() {
     let limited_change = MoveSelectorConfig::LimitedNeighborhood(LimitedNeighborhoodConfig {
         selected_count_limit: 2,
         selector: Box::new(MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+
+            value_candidate_limit: None,
+
             target: VariableTargetConfig::default(),
         })),
     });
@@ -173,6 +179,9 @@ fn mixed_builder_cartesian_selector_survives_filtering_wrapper() {
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+
+                value_candidate_limit: None,
+
                 target: VariableTargetConfig::default(),
             }),
             MoveSelectorConfig::ListReverseMoveSelector(ListReverseMoveConfig {
@@ -204,6 +213,9 @@ fn cartesian_selector_rejects_score_seeking_scalar_left_child() {
         selectors: vec![
             MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig::default()),
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+
+                value_candidate_limit: None,
+
                 target: VariableTargetConfig::default(),
             }),
         ],

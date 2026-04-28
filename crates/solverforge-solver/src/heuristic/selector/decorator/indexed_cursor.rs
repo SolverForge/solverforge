@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor};
+use crate::heuristic::selector::move_selector::{CandidateId, MoveCandidateRef, MoveCursor};
 
 pub struct IndexedMoveCursor<S, M, C>
 where
@@ -12,7 +12,7 @@ where
     C: MoveCursor<S, M>,
 {
     inner: C,
-    indices: Vec<usize>,
+    indices: Vec<CandidateId>,
     next_outer_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
@@ -23,7 +23,7 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    pub fn new(inner: C, indices: Vec<usize>) -> Self {
+    pub fn new(inner: C, indices: Vec<CandidateId>) -> Self {
         Self {
             inner,
             indices,
@@ -39,24 +39,24 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)> {
+    fn next_candidate(&mut self) -> Option<CandidateId> {
         let outer_index = self.next_outer_index;
         let child_index = *self.indices.get(outer_index)?;
         self.next_outer_index += 1;
-        let candidate = self
-            .inner
+        let id = CandidateId::new(outer_index);
+        self.inner
             .candidate(child_index)
             .expect("indexed cursor candidate must remain valid");
-        Some((outer_index, candidate))
+        Some(id)
     }
 
-    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
-        let child_index = *self.indices.get(index)?;
+    fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+        let child_index = *self.indices.get(index.index())?;
         self.inner.candidate(child_index)
     }
 
-    fn take_candidate(&mut self, index: usize) -> M {
-        let child_index = self.indices[index];
+    fn take_candidate(&mut self, index: CandidateId) -> M {
+        let child_index = self.indices[index.index()];
         self.inner.take_candidate(child_index)
     }
 }

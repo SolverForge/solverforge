@@ -11,10 +11,11 @@ use crate::heuristic::r#move::{
     ListMoveUnion, Move, MoveArena, MoveTabuSignature, ScalarMoveUnion, SequentialCompositeMove,
 };
 use crate::heuristic::selector::decorator::{
-    CartesianProductCursor, CartesianProductSelector, VecUnionSelector,
+    CartesianProductCursor, CartesianProductSelector, LimitedMoveCursor, MappedMoveCursor,
+    VecUnionSelector,
 };
 use crate::heuristic::selector::move_selector::{
-    ArenaMoveCursor, MoveCandidateRef, MoveCursor, MoveSelector,
+    collect_cursor_indices, CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::dynamic_vnd::DynamicVndPhase;

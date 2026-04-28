@@ -21,35 +21,40 @@ where
     Cartesian(ListCartesianSelector<S, V, DM, IDM>),
 }
 
-pub enum ListSelectorCursor<S, V>
+pub enum ListSelectorCursor<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + 'static,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
-    Leaf(ArenaMoveCursor<S, ListMoveUnion<S, V>>),
+    Leaf(ListLeafCursor<'a, S, V, DM, IDM>),
     Cartesian(CartesianProductCursor<S, ListMoveUnion<S, V>>),
 }
 
-impl<S, V> MoveCursor<S, ListMoveUnion<S, V>> for ListSelectorCursor<S, V>
+impl<S, V, DM, IDM> MoveCursor<S, ListMoveUnion<S, V>>
+    for ListSelectorCursor<'_, S, V, DM, IDM>
 where
     S: PlanningSolution + 'static,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
-    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, ListMoveUnion<S, V>>)> {
+    fn next_candidate(&mut self) -> Option<CandidateId> {
         match self {
             Self::Leaf(cursor) => cursor.next_candidate(),
             Self::Cartesian(cursor) => cursor.next_candidate(),
         }
     }
 
-    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, ListMoveUnion<S, V>>> {
+    fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, ListMoveUnion<S, V>>> {
         match self {
             Self::Leaf(cursor) => cursor.candidate(index),
             Self::Cartesian(cursor) => cursor.candidate(index),
         }
     }
 
-    fn take_candidate(&mut self, index: usize) -> ListMoveUnion<S, V> {
+    fn take_candidate(&mut self, index: CandidateId) -> ListMoveUnion<S, V> {
         match self {
             Self::Leaf(cursor) => cursor.take_candidate(index),
             Self::Cartesian(cursor) => cursor.take_candidate(index),
@@ -80,7 +85,7 @@ where
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
     type Cursor<'a>
-        = ListSelectorCursor<S, V>
+        = ListSelectorCursor<'a, S, V, DM, IDM>
     where
         Self: 'a;
 
@@ -122,4 +127,3 @@ where
 {
     ListMoveUnion::Composite(mov)
 }
-

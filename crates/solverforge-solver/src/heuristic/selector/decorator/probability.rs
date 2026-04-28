@@ -140,7 +140,10 @@ where
         let mut inner = self.inner.open_cursor(score_director);
         let weight_fn = self.weight_fn;
         let mut weighted_indices = Vec::new();
-        while let Some((child_index, candidate)) = inner.next_candidate() {
+        while let Some(child_index) = inner.next_candidate() {
+            let candidate = inner
+                .candidate(child_index)
+                .expect("probability candidate must remain valid");
             weighted_indices.push((child_index, weight_fn(candidate)));
         }
 

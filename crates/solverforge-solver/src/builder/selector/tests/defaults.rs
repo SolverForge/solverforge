@@ -105,6 +105,7 @@ fn explicit_limited_neighborhood_remains_supported() {
     let config = MoveSelectorConfig::LimitedNeighborhood(LimitedNeighborhoodConfig {
         selected_count_limit: 2,
         selector: Box::new(MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+            value_candidate_limit: None,
             target: VariableTargetConfig::default(),
         })),
     });
@@ -144,6 +145,7 @@ fn union_child_limited_neighborhood_keeps_scalar_change_context() {
             LimitedNeighborhoodConfig {
                 selected_count_limit: 2,
                 selector: Box::new(MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                    value_candidate_limit: None,
                     target: VariableTargetConfig::default(),
                 })),
             },
@@ -176,6 +178,7 @@ fn explicit_scalar_union_selector_remains_supported() {
     let config = MoveSelectorConfig::UnionMoveSelector(UnionMoveSelectorConfig {
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
                 target: VariableTargetConfig::default(),
             }),
             MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {

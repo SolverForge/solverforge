@@ -6,6 +6,7 @@ use solverforge_core::score::Score;
 use std::fmt::Debug;
 
 use crate::heuristic::r#move::Move;
+use crate::heuristic::selector::move_selector::CandidateId;
 use crate::phase::localsearch::{
     AcceptedCountForager, BestScoreForager, FirstAcceptedForager, FirstBestScoreImprovingForager,
     FirstLastStepScoreImprovingForager, LocalSearchForager,
@@ -68,7 +69,7 @@ where
         }
     }
 
-    fn add_move_index(&mut self, index: usize, score: S::Score) {
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
         match self {
             Self::AcceptedCount(f) => LocalSearchForager::<S, M>::add_move_index(f, index, score),
             Self::FirstAccepted(f) => LocalSearchForager::<S, M>::add_move_index(f, index, score),
@@ -92,7 +93,7 @@ where
         }
     }
 
-    fn pick_move_index(&mut self) -> Option<(usize, S::Score)> {
+    fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
         match self {
             Self::AcceptedCount(f) => LocalSearchForager::<S, M>::pick_move_index(f),
             Self::FirstAccepted(f) => LocalSearchForager::<S, M>::pick_move_index(f),

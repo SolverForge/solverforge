@@ -18,7 +18,8 @@ use crate::heuristic::r#move::{
     SequentialPreviewDirector,
 };
 use crate::heuristic::selector::move_selector::{
-    collect_cursor_indices, MoveCandidateRef, MoveCursor, MoveSelector, MoveSelectorIter,
+    collect_cursor_indices, CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
+    MoveSelectorIter,
 };
 
 /// Holds two owned move arenas and provides indexed pair iteration.
@@ -229,8 +230,8 @@ where
         }
     }
 
-    fn build_candidate(&self, pair_index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
-        let pair = self.pairs.get(pair_index)?;
+    fn build_candidate(&self, pair_id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+        let pair = self.pairs.get(pair_id.index())?;
         let left = self.left_moves.get(pair.left_index)?.as_ref()?;
         let row = self.rows.get(pair.left_index)?;
         let right = row.right_moves.get(pair.right_index)?.as_ref()?;
@@ -257,23 +258,23 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)> {
+    fn next_candidate(&mut self) -> Option<CandidateId> {
         let index = self.next_pair;
         self.next_pair = index + 1;
-        self.build_candidate(index)
-            .map(|candidate| (index, candidate))
+        let id = CandidateId::new(index);
+        self.build_candidate(id).map(|_| id)
     }
 
-    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
+    fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
         self.build_candidate(index)
     }
 
-    fn take_candidate(&mut self, index: usize) -> M {
+    fn take_candidate(&mut self, index: CandidateId) -> M {
         assert!(
             !self.selected,
             "cartesian product cursors only support materializing one selected winner",
         );
-        let pair = &self.pairs[index];
+        let pair = &self.pairs[index.index()];
         let left = self.left_moves[pair.left_index]
             .take()
             .expect("selected left cartesian move must remain valid");

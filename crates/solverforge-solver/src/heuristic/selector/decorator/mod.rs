@@ -14,6 +14,8 @@ changing the move type. All decorators preserve the zero-erasure architecture.
 mod cartesian_product;
 mod filtering;
 mod indexed_cursor;
+mod limited;
+mod mapped_cursor;
 mod probability;
 mod shuffling;
 mod sorting;
@@ -25,6 +27,8 @@ mod vec_union;
 pub(crate) use cartesian_product::CartesianProductCursor;
 pub use cartesian_product::{CartesianProductArena, CartesianProductSelector};
 pub use filtering::FilteringMoveSelector;
+pub(crate) use limited::LimitedMoveCursor;
+pub(crate) use mapped_cursor::MappedMoveCursor;
 pub use probability::ProbabilityMoveSelector;
 pub use shuffling::ShufflingMoveSelector;
 pub use sorting::SortingMoveSelector;

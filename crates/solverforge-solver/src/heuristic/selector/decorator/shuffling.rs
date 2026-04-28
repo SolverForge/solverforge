@@ -110,7 +110,7 @@ where
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let mut inner = self.inner.open_cursor(score_director);
         let mut indices = Vec::new();
-        while let Some((child_index, _)) = inner.next_candidate() {
+        while let Some(child_index) = inner.next_candidate() {
             indices.push(child_index);
         }
         indices.shuffle(&mut *self.rng.borrow_mut());

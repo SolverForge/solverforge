@@ -42,6 +42,19 @@ where
     Sequential(SequentialCompositeMoveRef<'a, S, M>),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CandidateId(usize);
+
+impl CandidateId {
+    pub fn new(index: usize) -> Self {
+        Self(index)
+    }
+
+    pub fn index(self) -> usize {
+        self.0
+    }
+}
+
 impl<S, M> Debug for MoveCandidateRef<'_, S, M>
 where
     S: PlanningSolution,
@@ -107,11 +120,85 @@ where
 }
 
 pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
-    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)>;
+    fn next_candidate(&mut self) -> Option<CandidateId>;
 
-    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>>;
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>>;
 
-    fn take_candidate(&mut self, index: usize) -> M;
+    fn take_candidate(&mut self, id: CandidateId) -> M;
+}
+
+pub struct CandidateStore<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    moves: Vec<Option<M>>,
+    _phantom: PhantomData<fn() -> S>,
+}
+
+impl<S, M> CandidateStore<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    pub fn new() -> Self {
+        Self {
+            moves: Vec::new(),
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            moves: Vec::with_capacity(capacity),
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn push(&mut self, mov: M) -> CandidateId {
+        let id = CandidateId::new(self.moves.len());
+        self.moves.push(Some(mov));
+        id
+    }
+
+    pub fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = M>,
+    {
+        self.moves.extend(iter.into_iter().map(Some));
+    }
+
+    pub fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+        self.moves
+            .get(id.index())
+            .and_then(|mov| mov.as_ref())
+            .map(MoveCandidateRef::Borrowed)
+    }
+
+    pub fn take_candidate(&mut self, id: CandidateId) -> M {
+        self.moves
+            .get_mut(id.index())
+            .and_then(Option::take)
+            .expect("move cursor candidate id must remain valid")
+    }
+
+    pub fn len(&self) -> usize {
+        self.moves.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.moves.is_empty()
+    }
+}
+
+impl<S, M> Default for CandidateStore<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 pub struct ArenaMoveCursor<S, M>
@@ -119,9 +206,8 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    moves: Vec<Option<M>>,
+    store: CandidateStore<S, M>,
     next_index: usize,
-    _phantom: PhantomData<fn() -> S>,
 }
 
 impl<S, M> ArenaMoveCursor<S, M>
@@ -131,17 +217,15 @@ where
 {
     pub fn new() -> Self {
         Self {
-            moves: Vec::new(),
+            store: CandidateStore::new(),
             next_index: 0,
-            _phantom: PhantomData,
         }
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            moves: Vec::with_capacity(capacity),
+            store: CandidateStore::with_capacity(capacity),
             next_index: 0,
-            _phantom: PhantomData,
         }
     }
 
@@ -154,15 +238,15 @@ where
         cursor
     }
 
-    pub fn push(&mut self, mov: M) {
-        self.moves.push(Some(mov));
+    pub fn push(&mut self, mov: M) -> CandidateId {
+        self.store.push(mov)
     }
 
     pub fn extend<I>(&mut self, iter: I)
     where
         I: IntoIterator<Item = M>,
     {
-        self.moves.extend(iter.into_iter().map(Some));
+        self.store.extend(iter);
     }
 }
 
@@ -183,7 +267,7 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ArenaMoveCursor")
-            .field("move_count", &self.moves.len())
+            .field("move_count", &self.store.len())
             .field("next_index", &self.next_index)
             .finish()
     }
@@ -194,29 +278,23 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)> {
-        while self.next_index < self.moves.len() {
-            let index = self.next_index;
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        while self.next_index < self.store.len() {
+            let id = CandidateId::new(self.next_index);
             self.next_index += 1;
-            if let Some(mov) = self.moves[index].as_ref() {
-                return Some((index, MoveCandidateRef::Borrowed(mov)));
+            if self.store.candidate(id).is_some() {
+                return Some(id);
             }
         }
         None
     }
 
-    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
-        self.moves
-            .get(index)
-            .and_then(|mov| mov.as_ref())
-            .map(MoveCandidateRef::Borrowed)
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+        self.store.candidate(id)
     }
 
-    fn take_candidate(&mut self, index: usize) -> M {
-        self.moves
-            .get_mut(index)
-            .and_then(Option::take)
-            .expect("move cursor candidate index must remain valid")
+    fn take_candidate(&mut self, id: CandidateId) -> M {
+        self.store.take_candidate(id)
     }
 }
 
@@ -228,24 +306,20 @@ where
     type Item = M;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let index = {
-            let (index, _) = self.next_candidate()?;
-            index
-        };
-        Some(self.take_candidate(index))
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
     }
 }
 
-pub(crate) fn collect_cursor_indices<S, M, C>(cursor: &mut C) -> Vec<usize>
+pub(crate) fn collect_cursor_indices<S, M, C>(cursor: &mut C) -> Vec<CandidateId>
 where
     S: PlanningSolution,
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
     let mut indices = Vec::new();
-    while let Some((index, _)) = cursor.next_candidate() {
-        indices.push(index);
+    while let Some(id) = cursor.next_candidate() {
+        indices.push(id);
     }
     indices
 }
-

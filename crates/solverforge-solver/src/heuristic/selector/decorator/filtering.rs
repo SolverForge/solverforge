@@ -109,7 +109,10 @@ where
         let mut inner = self.inner.open_cursor(score_director);
         let predicate = self.predicate;
         let mut indices = Vec::new();
-        while let Some((child_index, candidate)) = inner.next_candidate() {
+        while let Some(child_index) = inner.next_candidate() {
+            let candidate = inner
+                .candidate(child_index)
+                .expect("filtering candidate must remain valid");
             if predicate(candidate) {
                 indices.push(child_index);
             }

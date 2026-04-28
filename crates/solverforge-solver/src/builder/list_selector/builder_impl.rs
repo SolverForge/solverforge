@@ -11,12 +11,12 @@ use crate::heuristic::selector::decorator::{
 use crate::heuristic::selector::k_opt::KOptConfig;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::{
-    move_selector::{ArenaMoveCursor, MoveCandidateRef, MoveCursor},
+    move_selector::{CandidateId, MoveCandidateRef, MoveCursor},
     FromSolutionEntitySelector, MoveSelector,
 };
 
 use super::super::context::{IntraDistanceAdapter, ListVariableContext};
-use super::leaf::ListLeafSelector;
+use super::leaf::{ListLeafCursor, ListLeafSelector};
 
 include!("builder_impl/types.rs");
 include!("builder_impl/builder.rs");

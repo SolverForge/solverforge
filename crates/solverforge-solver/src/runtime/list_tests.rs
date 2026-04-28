@@ -83,6 +83,7 @@ impl Director<GenericListPlan> for GenericListDirector {
 
 fn config(kind: ConstructionHeuristicType) -> ConstructionHeuristicConfig {
     ConstructionHeuristicConfig {
+        value_candidate_limit: None,
         construction_heuristic_type: kind,
         target: VariableTargetConfig::default(),
         k: 2,

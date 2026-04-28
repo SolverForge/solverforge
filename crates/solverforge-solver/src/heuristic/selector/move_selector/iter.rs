@@ -31,11 +31,8 @@ where
     type Item = M;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let index = {
-            let (index, _) = self.cursor.next_candidate()?;
-            index
-        };
-        Some(self.cursor.take_candidate(index))
+        let id = self.cursor.next_candidate()?;
+        Some(self.cursor.take_candidate(id))
     }
 }
 
@@ -59,8 +56,8 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
 
     fn append_moves<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>) {
         let mut cursor = self.open_cursor(score_director);
-        for index in collect_cursor_indices::<S, M, _>(&mut cursor) {
-            arena.push(cursor.take_candidate(index));
+        for id in collect_cursor_indices::<S, M, _>(&mut cursor) {
+            arena.push(cursor.take_candidate(id));
         }
     }
 
@@ -68,4 +65,3 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
         false
     }
 }
-

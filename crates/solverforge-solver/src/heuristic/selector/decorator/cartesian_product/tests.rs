@@ -1,7 +1,7 @@
 use super::*;
 use crate::heuristic::r#move::{ChangeMove, Move, ScalarMoveUnion};
 use crate::heuristic::selector::move_selector::{
-    collect_cursor_indices, ArenaMoveCursor, MoveCandidateRef, MoveCursor,
+    collect_cursor_indices, ArenaMoveCursor, CandidateId, MoveCandidateRef, MoveCursor,
 };
 use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector};
 use crate::phase::localsearch::{Acceptor, TabuSearchAcceptor, TabuSearchPolicy};
@@ -123,7 +123,7 @@ fn wrap_scalar_composite(
     ScalarMoveUnion::Composite(mov)
 }
 
-fn collect_indices<C>(cursor: &mut C) -> Vec<usize>
+fn collect_indices<C>(cursor: &mut C) -> Vec<CandidateId>
 where
     C: MoveCursor<Sol, ScalarMoveUnion<Sol, i32>>,
 {

@@ -13,7 +13,9 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, MoveSelector};
+use crate::heuristic::selector::move_selector::{
+    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
+};
 
 /// Combines moves from an arbitrary number of leaf selectors into a single stream.
 pub struct VecUnionSelector<S, M, Leaf> {
@@ -79,7 +81,7 @@ where
 {
     cursors: Vec<C>,
     current_cursor: usize,
-    discovered: Vec<(usize, usize)>,
+    discovered: Vec<(usize, CandidateId)>,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
@@ -105,30 +107,30 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)> {
+    fn next_candidate(&mut self) -> Option<CandidateId> {
         if self.current_cursor >= self.cursors.len() {
             return None;
         }
         let cursor_index = self.current_cursor;
-        let Some((child_index, _)) = self.cursors[cursor_index].next_candidate() else {
+        let Some(child_index) = self.cursors[cursor_index].next_candidate() else {
             self.current_cursor += 1;
             return self.next_candidate();
         };
-        let global_index = self.discovered.len();
+        let global_id = CandidateId::new(self.discovered.len());
         self.discovered.push((cursor_index, child_index));
-        let candidate = self.cursors[cursor_index]
+        self.cursors[cursor_index]
             .candidate(child_index)
             .expect("vec union candidate must remain valid");
-        Some((global_index, candidate))
+        Some(global_id)
     }
 
-    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
-        let (cursor_index, child_index) = *self.discovered.get(index)?;
+    fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+        let (cursor_index, child_index) = *self.discovered.get(index.index())?;
         self.cursors[cursor_index].candidate(child_index)
     }
 
-    fn take_candidate(&mut self, index: usize) -> M {
-        let (cursor_index, child_index) = self.discovered[index];
+    fn take_candidate(&mut self, index: CandidateId) -> M {
+        let (cursor_index, child_index) = self.discovered[index.index()];
         self.cursors[cursor_index].take_candidate(child_index)
     }
 }
@@ -142,10 +144,7 @@ where
     type Item = M;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let index = {
-            let (index, _) = self.next_candidate()?;
-            index
-        };
-        Some(self.take_candidate(index))
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
     }
 }

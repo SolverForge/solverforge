@@ -10,7 +10,9 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, MoveSelector};
+use crate::heuristic::selector::move_selector::{
+    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
+};
 
 /// Combines moves from two selectors into a single stream.
 ///
@@ -119,7 +121,7 @@ where
 {
     first: A,
     second: B,
-    discovered: Vec<(u8, usize)>,
+    discovered: Vec<(u8, CandidateId)>,
     active: ActiveSource,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
@@ -149,40 +151,38 @@ where
     A: MoveCursor<S, M>,
     B: MoveCursor<S, M>,
 {
-    fn next_candidate(&mut self) -> Option<(usize, MoveCandidateRef<'_, S, M>)> {
+    fn next_candidate(&mut self) -> Option<CandidateId> {
         match self.active {
             ActiveSource::First => {
-                let Some((child_index, _)) = self.first.next_candidate() else {
+                let Some(child_index) = self.first.next_candidate() else {
                     self.active = ActiveSource::Second;
                     return self.next_candidate();
                 };
-                let global_index = self.discovered.len();
+                let global_id = CandidateId::new(self.discovered.len());
                 self.discovered.push((0, child_index));
-                let candidate = self
-                    .first
+                self.first
                     .candidate(child_index)
                     .expect("union first candidate must remain valid");
-                Some((global_index, candidate))
+                Some(global_id)
             }
             ActiveSource::Second => {
-                let Some((child_index, _)) = self.second.next_candidate() else {
+                let Some(child_index) = self.second.next_candidate() else {
                     self.active = ActiveSource::Done;
                     return None;
                 };
-                let global_index = self.discovered.len();
+                let global_id = CandidateId::new(self.discovered.len());
                 self.discovered.push((1, child_index));
-                let candidate = self
-                    .second
+                self.second
                     .candidate(child_index)
                     .expect("union second candidate must remain valid");
-                Some((global_index, candidate))
+                Some(global_id)
             }
             ActiveSource::Done => None,
         }
     }
 
-    fn candidate(&self, index: usize) -> Option<MoveCandidateRef<'_, S, M>> {
-        let (source, child_index) = *self.discovered.get(index)?;
+    fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+        let (source, child_index) = *self.discovered.get(index.index())?;
         match source {
             0 => self.first.candidate(child_index),
             1 => self.second.candidate(child_index),
@@ -190,8 +190,8 @@ where
         }
     }
 
-    fn take_candidate(&mut self, index: usize) -> M {
-        let (source, child_index) = self.discovered[index];
+    fn take_candidate(&mut self, index: CandidateId) -> M {
+        let (source, child_index) = self.discovered[index.index()];
         match source {
             0 => self.first.take_candidate(child_index),
             1 => self.second.take_candidate(child_index),
@@ -210,11 +210,8 @@ where
     type Item = M;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let index = {
-            let (index, _) = self.next_candidate()?;
-            index
-        };
-        Some(self.take_candidate(index))
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
     }
 }
 

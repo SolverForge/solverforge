@@ -5,7 +5,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{Director, RecordingDirector};
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::MoveCursor;
+use crate::heuristic::selector::move_selector::{CandidateId, MoveCursor};
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::control::{
     settle_search_interrupt, should_interrupt_evaluation, should_interrupt_generation,
@@ -97,7 +97,7 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    let mut best: Option<(usize, S::Score)> = None;
+    let mut best: Option<(CandidateId, S::Score)> = None;
 
     let mut generated = 0usize;
     let mut evaluated = 0usize;
@@ -105,10 +105,13 @@ where
         if should_interrupt_generation(step_scope, generated) {
             return MoveSearchResult::Interrupted;
         }
-        let Some((candidate_index, mov)) = cursor.next_candidate() else {
+        let Some(candidate_index) = cursor.next_candidate() else {
             break;
         };
         generated += 1;
+        let mov = cursor
+            .candidate(candidate_index)
+            .expect("discovered candidate id must remain borrowable");
 
         if !mov.is_doable(step_scope.score_director()) {
             continue;

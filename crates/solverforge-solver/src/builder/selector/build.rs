@@ -108,6 +108,7 @@ where
 
 fn default_scalar_change_selector() -> MoveSelectorConfig {
     MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+        value_candidate_limit: None,
         target: VariableTargetConfig::default(),
     })
 }

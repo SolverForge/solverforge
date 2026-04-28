@@ -10,7 +10,9 @@ use solverforge_scoring::Director;
 use super::*;
 use crate::heuristic::r#move::metadata::{hash_str, MoveTabuScope};
 use crate::heuristic::r#move::{Move, MoveTabuSignature};
-use crate::heuristic::selector::move_selector::{ArenaMoveCursor, MoveCandidateRef, MoveCursor};
+use crate::heuristic::selector::move_selector::{
+    ArenaMoveCursor, CandidateId, MoveCandidateRef, MoveCursor,
+};
 use crate::heuristic::selector::MoveSelector;
 use crate::manager::SolverTerminalReason;
 use crate::scope::SolverScope;
@@ -130,12 +132,10 @@ struct FlaggingCursor {
 }
 
 impl MoveCursor<InterruptPlan, InterruptMove> for FlaggingCursor {
-    fn next_candidate(
-        &mut self,
-    ) -> Option<(usize, MoveCandidateRef<'_, InterruptPlan, InterruptMove>)> {
+    fn next_candidate(&mut self) -> Option<CandidateId> {
         let next = self.inner.next_candidate();
-        if let Some((index, _)) = next.as_ref() {
-            if *index == self.trigger_index {
+        if let Some(index) = next {
+            if index.index() == self.trigger_index {
                 self.terminate.store(true, Ordering::SeqCst);
             }
         }
@@ -144,12 +144,12 @@ impl MoveCursor<InterruptPlan, InterruptMove> for FlaggingCursor {
 
     fn candidate(
         &self,
-        index: usize,
+        index: CandidateId,
     ) -> Option<MoveCandidateRef<'_, InterruptPlan, InterruptMove>> {
         self.inner.candidate(index)
     }
 
-    fn take_candidate(&mut self, index: usize) -> InterruptMove {
+    fn take_candidate(&mut self, index: CandidateId) -> InterruptMove {
         self.inner.take_candidate(index)
     }
 }

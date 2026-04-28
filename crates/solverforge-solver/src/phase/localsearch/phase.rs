@@ -170,9 +170,12 @@ where
                 }
 
                 let generation_started = Instant::now();
-                let Some((candidate_index, mov)) = cursor.next_candidate() else {
+                let Some(candidate_id) = cursor.next_candidate() else {
                     break;
                 };
+                let mov = cursor
+                    .candidate(candidate_id)
+                    .expect("discovered candidate id must remain borrowable");
                 let generation_elapsed = generation_started.elapsed();
                 generated_moves += 1;
                 local_moves_generated += 1;
@@ -255,13 +258,13 @@ where
                 trace!(
                     event = "step",
                     step = step_scope.step_index(),
-                    move_index = candidate_index,
+                    move_index = candidate_id.index(),
                     score = %move_score,
                     accepted = accepted,
                 );
 
                 if accepted {
-                    self.forager.add_move_index(candidate_index, move_score);
+                    self.forager.add_move_index(candidate_id, move_score);
                 }
             }
 

@@ -5,6 +5,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
 use crate::heuristic::r#move::Move;
+use crate::heuristic::selector::move_selector::CandidateId;
 
 use super::LocalSearchForager;
 
@@ -18,7 +19,7 @@ where
     S: PlanningSolution,
 {
     best_score: S::Score,
-    accepted_moves: Vec<(usize, S::Score)>,
+    accepted_moves: Vec<(CandidateId, S::Score)>,
     found_best_improving: bool,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -82,7 +83,7 @@ where
         self.found_best_improving = false;
     }
 
-    fn add_move_index(&mut self, index: usize, score: S::Score) {
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
         if score > self.best_score {
             self.accepted_moves.clear();
             self.accepted_moves.push((index, score));
@@ -96,7 +97,7 @@ where
         self.found_best_improving
     }
 
-    fn pick_move_index(&mut self) -> Option<(usize, S::Score)> {
+    fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
         if self.accepted_moves.is_empty() {
             return None;
         }
@@ -126,7 +127,7 @@ where
     S: PlanningSolution,
 {
     last_step_score: S::Score,
-    accepted_moves: Vec<(usize, S::Score)>,
+    accepted_moves: Vec<(CandidateId, S::Score)>,
     found_last_step_improving: bool,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -190,7 +191,7 @@ where
         self.found_last_step_improving = false;
     }
 
-    fn add_move_index(&mut self, index: usize, score: S::Score) {
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
         if score > self.last_step_score {
             self.accepted_moves.clear();
             self.accepted_moves.push((index, score));
@@ -204,7 +205,7 @@ where
         self.found_last_step_improving
     }
 
-    fn pick_move_index(&mut self) -> Option<(usize, S::Score)> {
+    fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
         if self.accepted_moves.is_empty() {
             return None;
         }

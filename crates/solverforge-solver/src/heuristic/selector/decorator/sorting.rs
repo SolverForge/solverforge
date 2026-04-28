@@ -120,7 +120,7 @@ where
         let mut inner = self.inner.open_cursor(score_director);
         let comparator = self.comparator;
         let mut indices = Vec::new();
-        while let Some((child_index, _)) = inner.next_candidate() {
+        while let Some(child_index) = inner.next_candidate() {
             indices.push(child_index);
         }
         indices.sort_by(|left, right| {

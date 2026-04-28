@@ -8,6 +8,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use crate::heuristic::r#move::Move;
+use crate::heuristic::selector::move_selector::CandidateId;
 use solverforge_core::domain::PlanningSolution;
 
 /// Trait for collecting and selecting moves in local search.
@@ -38,7 +39,7 @@ where
 
     The index refers to a position in the MoveArena.
     */
-    fn add_move_index(&mut self, index: usize, score: S::Score);
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score);
 
     // Returns true if the forager has collected enough moves and
     // wants to stop evaluating more.
@@ -48,7 +49,7 @@ where
 
     Returns None if no moves were accepted.
     */
-    fn pick_move_index(&mut self) -> Option<(usize, S::Score)>;
+    fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)>;
 }
 
 mod improving;
@@ -67,7 +68,7 @@ where
     // Maximum number of accepted moves to retain.
     accepted_count_limit: usize,
     // Collected move indices with their scores.
-    accepted_moves: Vec<(usize, S::Score)>,
+    accepted_moves: Vec<(CandidateId, S::Score)>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -130,7 +131,7 @@ where
         self.accepted_moves.clear();
     }
 
-    fn add_move_index(&mut self, index: usize, score: S::Score) {
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
         if self.accepted_moves.len() < self.accepted_count_limit {
             self.accepted_moves.push((index, score));
             return;
@@ -154,7 +155,7 @@ where
         false
     }
 
-    fn pick_move_index(&mut self) -> Option<(usize, S::Score)> {
+    fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
         if self.accepted_moves.is_empty() {
             return None;
         }
@@ -183,7 +184,7 @@ where
     S: PlanningSolution,
 {
     // The first accepted move index.
-    accepted_move: Option<(usize, S::Score)>,
+    accepted_move: Option<(CandidateId, S::Score)>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -240,7 +241,7 @@ where
         self.accepted_move = None;
     }
 
-    fn add_move_index(&mut self, index: usize, score: S::Score) {
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
         if self.accepted_move.is_none() {
             self.accepted_move = Some((index, score));
         }
@@ -250,7 +251,7 @@ where
         self.accepted_move.is_some()
     }
 
-    fn pick_move_index(&mut self) -> Option<(usize, S::Score)> {
+    fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
         self.accepted_move.take()
     }
 }
@@ -264,7 +265,7 @@ where
     S: PlanningSolution,
 {
     // Collected move indices with their scores.
-    accepted_moves: Vec<(usize, S::Score)>,
+    accepted_moves: Vec<(CandidateId, S::Score)>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -321,7 +322,7 @@ where
         self.accepted_moves.clear();
     }
 
-    fn add_move_index(&mut self, index: usize, score: S::Score) {
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
         self.accepted_moves.push((index, score));
     }
 
@@ -329,7 +330,7 @@ where
         false // Never quit early — always evaluate the full move space
     }
 
-    fn pick_move_index(&mut self) -> Option<(usize, S::Score)> {
+    fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
         if self.accepted_moves.is_empty() {
             return None;
         }

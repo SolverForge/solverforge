@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.10.0](///compare/v0.9.2...v0.10.0) (2026-04-28)
+
+
+### Features
+
+* **scoring:** allow projected row self joins 56ae571
+* **solver:** make simulated annealing score-level aware 86d41e3
+* **solver:** support round-robin union selectors 0149b28
+
+
+### Bug Fixes
+
+* **core:** keep score level access source compatible 76029c2
+* **facade:** export source-aware stream helpers 933fc7b
+* **scoring:** preserve projected join coordinate ordering 81fa377
+* **scoring:** reuse projected join row slots 16d46d8
+* **solver:** preserve effective fallback time limits 0720d11
+* **solver:** report selector telemetry without phantom fallbacks 08e42a6
+
 ## [0.9.1](///compare/v0.9.0...v0.9.1) (2026-04-26)
 
 

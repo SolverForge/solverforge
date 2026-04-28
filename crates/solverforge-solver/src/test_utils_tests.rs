@@ -16,21 +16,8 @@ fn test_create_scope() {
 }
 
 #[test]
-fn test_create_test_scope_alias() {
-    let scope = create_test_scope();
-    assert_eq!(scope.total_step_count(), 0);
-}
-
-#[test]
 fn test_create_scope_with_score() {
     let scope = create_scope_with_score(SoftScore::of(-10));
-    assert!(scope.best_solution().is_some());
-    assert_eq!(scope.best_score(), Some(&SoftScore::of(-10)));
-}
-
-#[test]
-fn test_create_test_scope_with_score_alias() {
-    let scope = create_test_scope_with_score(SoftScore::of(-10));
     assert!(scope.best_solution().is_some());
     assert_eq!(scope.best_score(), Some(&SoftScore::of(-10)));
 }

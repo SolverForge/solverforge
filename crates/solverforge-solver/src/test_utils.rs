@@ -100,11 +100,6 @@ pub fn create_scope() -> SolverScope<'static, TestSolution, TestDirector> {
     SolverScope::new(director)
 }
 
-/// Alias for `create_scope` for backward compatibility.
-pub fn create_test_scope() -> SolverScope<'static, TestSolution, TestDirector> {
-    create_scope()
-}
-
 /// Creates a SolverScope with a fixed score.
 ///
 /// The score is set directly on the solution — no calculator is used.
@@ -117,13 +112,6 @@ pub fn create_scope_with_score(
     let mut scope = SolverScope::new(director);
     scope.set_best_solution(solution, score);
     scope
-}
-
-/// Alias for `create_scope_with_score` for backward compatibility.
-pub fn create_test_scope_with_score(
-    score: SoftScore,
-) -> SolverScope<'static, TestSolution, TestDirector> {
-    create_scope_with_score(score)
 }
 
 #[cfg(test)]

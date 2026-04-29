@@ -36,7 +36,9 @@ Constraint Set (Tuple-Based, Zero-Erasure)
 ============================================================================
 */
 
-pub use api::constraint_set::{ConstraintResult, ConstraintSet, IncrementalConstraint};
+pub use api::constraint_set::{
+    ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
+};
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 /* ============================================================================

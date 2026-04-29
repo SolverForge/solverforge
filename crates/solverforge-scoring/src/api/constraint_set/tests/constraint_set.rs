@@ -10,6 +10,7 @@ struct CountingConstraint<S, F> {
     extractor: fn(&S) -> usize,
     predicate: F,
     weight: i64,
+    is_hard: bool,
 }
 
 impl<S, F> CountingConstraint<S, F>
@@ -22,6 +23,23 @@ where
             extractor,
             predicate,
             weight,
+            is_hard: false,
+        }
+    }
+
+    fn new_with_hardness(
+        name: &str,
+        extractor: fn(&S) -> usize,
+        predicate: F,
+        weight: i64,
+        is_hard: bool,
+    ) -> Self {
+        Self {
+            constraint_ref: ConstraintRef::new("", name),
+            extractor,
+            predicate,
+            weight,
+            is_hard,
         }
     }
 }
@@ -80,6 +98,10 @@ where
 
     fn name(&self) -> &str {
         &self.constraint_ref.name
+    }
+
+    fn is_hard(&self) -> bool {
+        self.is_hard
     }
 
     fn constraint_ref(&self) -> ConstraintRef {
@@ -153,6 +175,76 @@ fn test_two_constraints() {
     // c2: 1 high value (-2)
     assert_eq!(constraints.evaluate_all(&solution), SoftScore::of(-3));
     assert_eq!(constraints.constraint_count(), 2);
+}
+
+#[test]
+fn constraint_set_returns_constraint_metadata() {
+    let c1 = CountingConstraint::new_with_hardness(
+        "unassigned",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_none(),
+        1,
+        true,
+    );
+    let c2 = CountingConstraint::new(
+        "high_value",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_some_and(|v| v > 5),
+        2,
+    );
+
+    let metadata = (c1, c2).constraint_metadata();
+
+    assert_eq!(metadata.len(), 2);
+    assert_eq!(metadata[0].name(), "unassigned");
+    assert!(metadata[0].is_hard);
+    assert_eq!(metadata[1].name(), "high_value");
+    assert!(!metadata[1].is_hard);
+}
+
+#[test]
+fn constraint_set_deduplicates_matching_constraint_metadata() {
+    let c1 = CountingConstraint::new_with_hardness(
+        "same",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_none(),
+        1,
+        true,
+    );
+    let c2 = CountingConstraint::new_with_hardness(
+        "same",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_some(),
+        1,
+        true,
+    );
+
+    let metadata = (c1, c2).constraint_metadata();
+
+    assert_eq!(metadata.len(), 1);
+    assert_eq!(metadata[0].name(), "same");
+    assert!(metadata[0].is_hard);
+}
+
+#[test]
+#[should_panic(expected = "constraint `same` has conflicting hard/non-hard metadata")]
+fn constraint_set_rejects_conflicting_constraint_metadata() {
+    let c1 = CountingConstraint::new_with_hardness(
+        "same",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_none(),
+        1,
+        true,
+    );
+    let c2 = CountingConstraint::new_with_hardness(
+        "same",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_some(),
+        1,
+        false,
+    );
+
+    let _ = (c1, c2).constraint_metadata();
 }
 
 #[test]

@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 
-use crate::api::constraint_set::ConstraintSet;
+use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 
 /* A typed score director for zero-erasure incremental scoring.
 
@@ -68,6 +68,7 @@ where
 {
     pub(super) working_solution: S,
     constraints: C,
+    constraint_metadata: Vec<ConstraintMetadata>,
     cached_score: S::Score,
     initialized: bool,
     pub(super) solution_descriptor: SolutionDescriptor,
@@ -122,9 +123,11 @@ where
         solution_descriptor: SolutionDescriptor,
         entity_counter: fn(&S, usize) -> usize,
     ) -> Self {
+        let constraint_metadata = constraints.constraint_metadata();
         Self {
             working_solution: solution,
             constraints,
+            constraint_metadata,
             cached_score: S::Score::zero(),
             initialized: false,
             solution_descriptor,
@@ -320,6 +323,11 @@ where
     // Returns a mutable reference to the constraint set.
     pub fn constraints_mut(&mut self) -> &mut C {
         &mut self.constraints
+    }
+
+    // Returns immutable scoring-constraint metadata.
+    pub fn constraint_metadata(&self) -> &[ConstraintMetadata] {
+        &self.constraint_metadata
     }
 
     // Returns the number of constraints.

@@ -137,6 +137,10 @@ impl Director<InterruptPlan> for InterruptDirector {
     fn total_entity_count(&self) -> Option<usize> {
         Some(0)
     }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
 }
 
 #[derive(Clone, Debug)]

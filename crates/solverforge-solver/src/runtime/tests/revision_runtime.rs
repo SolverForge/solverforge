@@ -79,6 +79,10 @@ impl Director<RevisionPlan> for RevisionDirector {
     fn total_entity_count(&self) -> Option<usize> {
         Some(self.working_solution.tasks.len() + self.working_solution.routes.len())
     }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
 }
 
 fn revision_task_getter(entity: &dyn std::any::Any) -> Option<usize> {

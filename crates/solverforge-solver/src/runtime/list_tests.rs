@@ -79,6 +79,10 @@ impl Director<GenericListPlan> for GenericListDirector {
     fn total_entity_count(&self) -> Option<usize> {
         Some(self.working_solution.routes.len())
     }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
 }
 
 fn config(kind: ConstructionHeuristicType) -> ConstructionHeuristicConfig {

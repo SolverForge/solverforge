@@ -64,6 +64,7 @@ src/
 ### Constraint API (from `solverforge-scoring`)
 
 - `ConstraintSet` (trait)
+- `ConstraintMetadata`
 - `IncrementalConstraint` (trait)
 - `IncrementalUniConstraint`
 - `IncrementalBiConstraint`
@@ -129,7 +130,7 @@ Convenient single import for user code:
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     planning_entity, planning_model, planning_solution, problem_fact,
-    BendableScore, ConstraintSet, HardMediumSoftScore,
+    BendableScore, ConstraintMetadata, ConstraintSet, HardMediumSoftScore,
     HardSoftDecimalScore, HardSoftScore, Score, Director,
     SoftScore, ScoreDirector,
 };

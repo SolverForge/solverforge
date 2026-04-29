@@ -117,6 +117,10 @@ impl Director<PromptControlSolution> for PromptControlDirector {
     fn total_entity_count(&self) -> Option<usize> {
         Some(0)
     }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
 }
 
 #[derive(Clone, Debug)]

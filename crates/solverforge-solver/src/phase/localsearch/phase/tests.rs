@@ -110,6 +110,10 @@ impl Director<OptionalTaskSolution> for OptionalScoreDirector {
     fn total_entity_count(&self) -> Option<usize> {
         Some(self.working_solution.tasks.len())
     }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
 }
 
 fn get_optional_tasks(solution: &OptionalTaskSolution) -> &Vec<OptionalTask> {

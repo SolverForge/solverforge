@@ -2,6 +2,8 @@
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
+use crate::api::constraint_set::ConstraintMetadata;
+
 /// Snapshot of the director's committed score state.
 ///
 /// Construction and local-search trial evaluation use this to restore the
@@ -49,10 +51,15 @@ pub trait Director<S: PlanningSolution>: Send {
     // Returns the total number of entities across all collections.
     fn total_entity_count(&self) -> Option<usize>;
 
-    // Returns whether a known constraint is hard. Directors without typed
-    // constraint metadata return `None`.
-    fn constraint_is_hard(&self, _name: &str) -> Option<bool> {
-        None
+    // Returns immutable scoring-constraint metadata known to this director.
+    fn constraint_metadata(&self) -> &[ConstraintMetadata];
+
+    // Returns whether a known constraint is hard.
+    fn constraint_is_hard(&self, name: &str) -> Option<bool> {
+        self.constraint_metadata()
+            .iter()
+            .find(|metadata| metadata.name() == name)
+            .map(|metadata| metadata.is_hard)
     }
 
     // Returns true if this score director supports incremental scoring.

@@ -17,6 +17,8 @@ via `register_undo()`. No BoxedValue, no type erasure on the undo path.
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
+use crate::api::constraint_set::ConstraintMetadata;
+
 use super::{Director, DirectorScoreState};
 
 /* A score director wrapper that stores typed undo closures.
@@ -181,8 +183,8 @@ impl<S: PlanningSolution, D: Director<S>> Director<S> for RecordingDirector<'_, 
         self.inner.total_entity_count()
     }
 
-    fn constraint_is_hard(&self, name: &str) -> Option<bool> {
-        self.inner.constraint_is_hard(name)
+    fn constraint_metadata(&self) -> &[ConstraintMetadata] {
+        self.inner.constraint_metadata()
     }
 
     fn is_incremental(&self) -> bool {

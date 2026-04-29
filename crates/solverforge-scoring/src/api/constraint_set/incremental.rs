@@ -119,6 +119,26 @@ pub struct ConstraintResult<Sc> {
     pub is_hard: bool,
 }
 
+// Immutable public metadata for a scoring constraint.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstraintMetadata {
+    pub constraint_ref: ConstraintRef,
+    pub is_hard: bool,
+}
+
+impl ConstraintMetadata {
+    pub fn new(constraint_ref: ConstraintRef, is_hard: bool) -> Self {
+        Self {
+            constraint_ref,
+            is_hard,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.constraint_ref.name
+    }
+}
+
 /* A set of constraints that can be evaluated together.
 
 `ConstraintSet` is implemented for tuples of `IncrementalConstraint`,
@@ -131,8 +151,8 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     // Returns the number of constraints in this set.
     fn constraint_count(&self) -> usize;
 
-    // Returns whether the named constraint is hard, or `None` if it is not in this set.
-    fn constraint_is_hard(&self, name: &str) -> Option<bool>;
+    // Returns immutable metadata for constraints in this set.
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata>;
 
     /* Evaluates each constraint individually and returns per-constraint results.
 
@@ -198,8 +218,8 @@ impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
     }
 
     #[inline]
-    fn constraint_is_hard(&self, _name: &str) -> Option<bool> {
-        None
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata> {
+        Vec::new()
     }
 
     #[inline]
@@ -264,13 +284,15 @@ macro_rules! impl_constraint_set_for_tuple {
                 count
             }
 
-            fn constraint_is_hard(&self, name: &str) -> Option<bool> {
+            fn constraint_metadata(&self) -> Vec<ConstraintMetadata> {
+                let mut metadata = Vec::new();
                 $(
-                    if self.$idx.name() == name {
-                        return Some(self.$idx.is_hard());
-                    }
+                    push_constraint_metadata(
+                        &mut metadata,
+                        ConstraintMetadata::new(self.$idx.constraint_ref(), self.$idx.is_hard()),
+                    );
                 )+
-                None
+                metadata
             }
 
             fn evaluate_each(&self, solution: &S) -> Vec<ConstraintResult<Sc>> {
@@ -321,7 +343,20 @@ macro_rules! impl_constraint_set_for_tuple {
     };
 }
 
-// Implement for tuples of size 1 through 16
+fn push_constraint_metadata(metadata: &mut Vec<ConstraintMetadata>, candidate: ConstraintMetadata) {
+    if let Some(existing) = metadata.iter().find(|item| item.name() == candidate.name()) {
+        assert_eq!(
+            existing.is_hard,
+            candidate.is_hard,
+            "constraint `{}` has conflicting hard/non-hard metadata",
+            candidate.name()
+        );
+        return;
+    }
+    metadata.push(candidate);
+}
+
+// Implement for tuples of size 1 through 32.
 impl_constraint_set_for_tuple!(0: C0);
 impl_constraint_set_for_tuple!(0: C0, 1: C1);
 impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2);

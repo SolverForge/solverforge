@@ -109,6 +109,10 @@ impl solverforge_scoring::Director<LifecycleSolution> for LifecycleDirector {
     fn total_entity_count(&self) -> Option<usize> {
         Some(0)
     }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
 }
 
 impl Solvable for LifecycleSolution {

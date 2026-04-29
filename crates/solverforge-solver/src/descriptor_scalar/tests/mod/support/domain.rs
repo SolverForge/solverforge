@@ -179,6 +179,10 @@ impl solverforge_scoring::Director<Plan> for PlanScoreDirector {
     fn total_entity_count(&self) -> Option<usize> {
         Some(self.working_solution.tasks.len())
     }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -231,6 +235,10 @@ impl solverforge_scoring::Director<QueuePlan> for QueueScoreDirector {
 
     fn total_entity_count(&self) -> Option<usize> {
         Some(self.working_solution.tasks.len())
+    }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
     }
 }
 

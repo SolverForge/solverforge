@@ -68,8 +68,8 @@ Constraint API
 */
 
 pub use solverforge_scoring::{
-    ConstraintSet, IncrementalBiConstraint, IncrementalConstraint, IncrementalUniConstraint,
-    Projection, ProjectionSink,
+    ConstraintMetadata, ConstraintSet, IncrementalBiConstraint, IncrementalConstraint,
+    IncrementalUniConstraint, Projection, ProjectionSink,
 };
 
 /* ============================================================================

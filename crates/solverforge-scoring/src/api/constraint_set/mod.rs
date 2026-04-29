@@ -5,4 +5,4 @@ mod incremental;
 #[cfg(test)]
 mod tests;
 
-pub use incremental::{ConstraintResult, ConstraintSet, IncrementalConstraint};
+pub use incremental::{ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint};

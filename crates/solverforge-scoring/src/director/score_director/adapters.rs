@@ -2,7 +2,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 
 use super::typed::ScoreDirector;
-use crate::api::constraint_set::ConstraintSet;
+use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 use crate::director::Director;
 
 impl<S, C> std::fmt::Debug for ScoreDirector<S, C>
@@ -68,8 +68,8 @@ where
         Some(count)
     }
 
-    fn constraint_is_hard(&self, name: &str) -> Option<bool> {
-        self.constraints().constraint_is_hard(name)
+    fn constraint_metadata(&self) -> &[ConstraintMetadata] {
+        self.constraint_metadata()
     }
 
     fn is_incremental(&self) -> bool {

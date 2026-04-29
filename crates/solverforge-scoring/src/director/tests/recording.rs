@@ -3,7 +3,7 @@
 use crate::director::recording::RecordingDirector;
 use crate::director::score_director::ScoreDirector;
 use crate::Director;
-use crate::{ConstraintAnalysis, ConstraintResult, ConstraintSet};
+use crate::{ConstraintAnalysis, ConstraintMetadata, ConstraintResult, ConstraintSet};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_core::ConstraintRef;
@@ -213,6 +213,27 @@ fn test_recording_entity_count() {
     assert_eq!(recording.total_entity_count(), Some(2));
 }
 
+#[test]
+fn test_recording_preserves_constraint_metadata() {
+    let descriptor =
+        SolutionDescriptor::new("ScoreProbeSolution", TypeId::of::<ScoreProbeSolution>());
+    let mut inner = ScoreDirector::with_descriptor(
+        ScoreProbeSolution {
+            value: 2,
+            score: None,
+        },
+        ValueConstraintSet,
+        descriptor,
+        |_, descriptor_index| usize::from(descriptor_index == 0),
+    );
+
+    let recording = RecordingDirector::new(&mut inner);
+
+    assert_eq!(recording.constraint_metadata().len(), 1);
+    assert_eq!(recording.constraint_metadata()[0].name(), "value");
+    assert_eq!(recording.constraint_is_hard("value"), Some(false));
+}
+
 #[derive(Clone)]
 struct ScoreProbeSolution {
     value: i64,
@@ -231,8 +252,11 @@ impl ConstraintSet<ScoreProbeSolution, SoftScore> for ValueConstraintSet {
         1
     }
 
-    fn constraint_is_hard(&self, name: &str) -> Option<bool> {
-        (name == "value").then_some(false)
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata> {
+        vec![ConstraintMetadata::new(
+            ConstraintRef::new("", "value"),
+            false,
+        )]
     }
 
     fn evaluate_each(&self, solution: &ScoreProbeSolution) -> Vec<ConstraintResult<SoftScore>> {

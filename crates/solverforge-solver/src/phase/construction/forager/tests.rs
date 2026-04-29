@@ -123,6 +123,10 @@ impl Director<NQueensSolution> for ScoredDirector {
     fn total_entity_count(&self) -> Option<usize> {
         Some(self.working_solution.queens.len())
     }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
 }
 
 type TestMove = ChangeMove<NQueensSolution, i64>;

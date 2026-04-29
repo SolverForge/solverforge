@@ -80,6 +80,10 @@ impl Director<QueueRuntimePlan> for QueueRuntimeDirector {
     fn total_entity_count(&self) -> Option<usize> {
         Some(self.working_solution.tasks.len())
     }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
 }
 
 fn queue_runtime_get_worker_idx(entity: &dyn std::any::Any) -> Option<usize> {

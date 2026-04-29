@@ -20,8 +20,8 @@ src/
 │   ├── mod.rs                                      — Re-exports analysis, constraint_set, weight_overrides
 │   ├── analysis.rs                                 — ScoreExplanation, ConstraintAnalysis, Indictment, IndictmentMap, DetailedConstraintMatch, etc.
 │   ├── constraint_set/
-│   │   ├── mod.rs                                  — Re-exports ConstraintSet, IncrementalConstraint, ConstraintResult
-│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, tuple impls (0..16)
+│   │   ├── mod.rs                                  — Re-exports ConstraintSet, IncrementalConstraint, ConstraintMetadata, ConstraintResult
+│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, tuple impls (0..32)
 │   │   └── tests/
 │   │       ├── mod.rs                              — Test module declarations
 │   │       └── constraint_set.rs                   — ConstraintSet tuple tests
@@ -158,7 +158,9 @@ pub use constraint::{
 };
 
 // Constraint Set
-pub use api::constraint_set::{ConstraintResult, ConstraintSet, IncrementalConstraint};
+pub use api::constraint_set::{
+    ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
+};
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 // Score Directors
@@ -198,6 +200,8 @@ pub use stream::{
 | `after_variable_changed` | `fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize)` | Post-change notification |
 | `entity_count` | `fn entity_count(&self, descriptor_index: usize) -> Option<usize>` | Count entities by descriptor |
 | `total_entity_count` | `fn total_entity_count(&self) -> Option<usize>` | Total across all descriptors |
+| `constraint_metadata` | `fn constraint_metadata(&self) -> &[ConstraintMetadata]` | Immutable constraint metadata known to this director |
+| `constraint_is_hard` | `fn constraint_is_hard(&self, name: &str) -> Option<bool>` | Helper derived from `constraint_metadata()` |
 | `is_incremental` | `fn is_incremental(&self) -> bool` | Default: false |
 | `snapshot_score_state` | `fn snapshot_score_state(&self) -> DirectorScoreState<S::Score>` | Snapshot committed score state for speculative evaluation |
 | `restore_score_state` | `fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>)` | Restore a previously snapshotted committed score state |
@@ -231,6 +235,7 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 |--------|-----------|------|
 | `evaluate_all` | `fn evaluate_all(&self, solution: &S) -> Sc` | Sum all constraints |
 | `constraint_count` | `fn constraint_count(&self) -> usize` | Number of constraints |
+| `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata>` | Immutable name/ref/hardness metadata |
 | `evaluate_each` | `fn evaluate_each(&self, solution: &S) -> Vec<ConstraintResult<Sc>>` | Per-constraint results |
 | `evaluate_detailed` | `fn evaluate_detailed(&self, solution: &S) -> Vec<ConstraintAnalysis<Sc>>` | With match details |
 | `initialize_all` | `fn initialize_all(&mut self, solution: &S) -> Sc` | Initialize all for incremental |
@@ -238,7 +243,7 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 | `on_retract_all` | `fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental retract all |
 | `reset_all` | `fn reset_all(&mut self)` | Reset all |
 
-Implemented for tuples `()` through `(C0, C1, ..., C15)` where each `Ci: IncrementalConstraint<S, Sc>`.
+Implemented for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: IncrementalConstraint<S, Sc>`. Tuple metadata deduplicates repeated constraint names when hardness agrees and panics when the same name has conflicting hard/non-hard metadata.
 
 ### Shadow Lifecycle on `PlanningSolution`
 
@@ -306,7 +311,8 @@ All `Send + Sync`:
 
 **`ScoreDirector<S, C>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`
 - Primary incremental scoring director. Zero-erasure.
-- Key methods: `new()`, `with_descriptor()`, `simple()` (convenience for `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor), `calculate_score()`, `before_variable_changed()`, `after_variable_changed()`, `do_change()`, `get_score()`, `constraint_match_totals()`, `into_working_solution()`, `take_solution()`
+- Key methods: `new()`, `with_descriptor()`, `simple()` (convenience for `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor), `calculate_score()`, `before_variable_changed()`, `after_variable_changed()`, `do_change()`, `get_score()`, `constraint_metadata()`, `constraint_match_totals()`, `into_working_solution()`, `take_solution()`
+- Builds immutable constraint metadata once from the typed `ConstraintSet`.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
 - Implements `Director<S>`
@@ -351,6 +357,8 @@ All implement `IncrementalConstraint<S, Sc>`.
 ### Analysis Types
 
 **`ConstraintResult<Sc>`** — `{ name: String, score: Sc, match_count: usize, is_hard: bool }`
+
+**`ConstraintMetadata`** — `{ constraint_ref: ConstraintRef, is_hard: bool }`; `name()` returns the configured constraint name used by config-facing selector validation.
 
 **`EntityRef`** — `{ type_name: String, display: String, entity: Arc<dyn Any + Send + Sync> }`
 - Methods: `new()`, `with_display()`, `as_entity::<T>()`, `short_type_name()`
@@ -558,7 +566,7 @@ The `ScoreDirector` delegates to `ConstraintSet::on_retract_all()` / `on_insert_
 
 ### ConstraintSet Tuple Implementation
 
-`ConstraintSet` is implemented for tuples of up to 16 elements via a macro. Each tuple element must implement `IncrementalConstraint<S, Sc>`. Operations iterate over all tuple elements, summing scores. This is the zero-erasure alternative to `Vec<Box<dyn Constraint>>`.
+`ConstraintSet` is implemented for tuples of up to 32 elements via a macro. Each tuple element must implement `IncrementalConstraint<S, Sc>`. Operations iterate over all tuple elements, summing scores. This is the zero-erasure alternative to `Vec<Box<dyn Constraint>>`.
 
 ### N-ary Constraint Macros
 

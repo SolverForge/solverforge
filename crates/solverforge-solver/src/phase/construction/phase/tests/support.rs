@@ -246,6 +246,10 @@ impl Director<ConstructionPauseSolution> for ConstructionPauseDirector {
     fn total_entity_count(&self) -> Option<usize> {
         Some(self.working_solution.entities.len())
     }
+
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
 }
 
 #[derive(Clone, Debug)]

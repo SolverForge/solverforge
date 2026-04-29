@@ -105,6 +105,10 @@ impl Director<PartitionedLifecycleSolution> for PartitionedLifecycleDirector {
         Some(1)
     }
 
+    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
+        &[]
+    }
+
     fn is_incremental(&self) -> bool {
         true
     }

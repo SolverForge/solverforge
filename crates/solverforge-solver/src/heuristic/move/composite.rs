@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 
 use smallvec::SmallVec;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
-use solverforge_scoring::{Director, DirectorScoreState};
+use solverforge_scoring::{ConstraintMetadata, Director, DirectorScoreState};
 
 use super::{Move, MoveArena, MoveTabuSignature};
 
@@ -129,6 +129,7 @@ where
 pub(crate) struct SequentialPreviewDirector<'a, S: PlanningSolution> {
     working_solution: S,
     descriptor: &'a SolutionDescriptor,
+    constraint_metadata: &'a [ConstraintMetadata],
     entity_counts: Vec<Option<usize>>,
     total_entity_count: Option<usize>,
 }
@@ -143,6 +144,7 @@ impl<'a, S: PlanningSolution> SequentialPreviewDirector<'a, S> {
         Self {
             working_solution: score_director.clone_working_solution(),
             descriptor,
+            constraint_metadata: score_director.constraint_metadata(),
             entity_counts,
             total_entity_count: score_director.total_entity_count(),
         }
@@ -186,6 +188,10 @@ impl<S: PlanningSolution> Director<S> for SequentialPreviewDirector<'_, S> {
 
     fn total_entity_count(&self) -> Option<usize> {
         self.total_entity_count
+    }
+
+    fn constraint_metadata(&self) -> &[ConstraintMetadata] {
+        self.constraint_metadata
     }
 
     fn is_incremental(&self) -> bool {

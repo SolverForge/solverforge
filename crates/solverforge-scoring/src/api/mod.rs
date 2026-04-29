@@ -18,5 +18,5 @@ pub use analysis::{
     ConstraintAnalysis, ConstraintJustification, DetailedConstraintEvaluation,
     DetailedConstraintMatch, EntityRef, Indictment, IndictmentMap, ScoreExplanation,
 };
-pub use constraint_set::{ConstraintSet, IncrementalConstraint};
+pub use constraint_set::{ConstraintMetadata, ConstraintSet, IncrementalConstraint};
 pub use weight_overrides::{ConstraintWeightOverrides, WeightProvider};

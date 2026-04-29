@@ -308,17 +308,46 @@ impl SolverStats {
         }
     }
 
+    pub fn record_selector_generated_with_label(
+        &mut self,
+        selector_index: usize,
+        selector_label: impl Into<String>,
+        count: u64,
+        duration: Duration,
+    ) {
+        self.record_generated_batch(count, duration);
+        let selector = self.selector_stats_entry_with_label(selector_index, selector_label);
+        selector.moves_generated += count;
+        selector.generation_time += duration;
+    }
+
     fn selector_stats_entry(&mut self, selector_index: usize) -> &mut SelectorTelemetry {
+        self.selector_stats_entry_with_label(selector_index, format!("selector-{selector_index}"))
+    }
+
+    fn selector_stats_entry_with_label(
+        &mut self,
+        selector_index: usize,
+        selector_label: impl Into<String>,
+    ) -> &mut SelectorTelemetry {
+        let selector_label = selector_label.into();
         if let Some(position) = self
             .selector_stats
             .iter()
             .position(|entry| entry.selector_index == selector_index)
         {
+            if self.selector_stats[position]
+                .selector_label
+                .starts_with("selector-")
+                && !selector_label.starts_with("selector-")
+            {
+                self.selector_stats[position].selector_label = selector_label;
+            }
             return &mut self.selector_stats[position];
         }
         self.selector_stats.push(SelectorTelemetry {
             selector_index,
-            selector_label: format!("selector-{selector_index}"),
+            selector_label,
             ..SelectorTelemetry::default()
         });
         self.selector_stats
@@ -518,17 +547,46 @@ impl PhaseStats {
         &self.selector_stats
     }
 
+    pub fn record_selector_generated_with_label(
+        &mut self,
+        selector_index: usize,
+        selector_label: impl Into<String>,
+        count: u64,
+        duration: Duration,
+    ) {
+        self.record_generated_batch(count, duration);
+        let selector = self.selector_stats_entry_with_label(selector_index, selector_label);
+        selector.moves_generated += count;
+        selector.generation_time += duration;
+    }
+
     fn selector_stats_entry(&mut self, selector_index: usize) -> &mut SelectorTelemetry {
+        self.selector_stats_entry_with_label(selector_index, format!("selector-{selector_index}"))
+    }
+
+    fn selector_stats_entry_with_label(
+        &mut self,
+        selector_index: usize,
+        selector_label: impl Into<String>,
+    ) -> &mut SelectorTelemetry {
+        let selector_label = selector_label.into();
         if let Some(position) = self
             .selector_stats
             .iter()
             .position(|entry| entry.selector_index == selector_index)
         {
+            if self.selector_stats[position]
+                .selector_label
+                .starts_with("selector-")
+                && !selector_label.starts_with("selector-")
+            {
+                self.selector_stats[position].selector_label = selector_label;
+            }
             return &mut self.selector_stats[position];
         }
         self.selector_stats.push(SelectorTelemetry {
             selector_index,
-            selector_label: format!("selector-{selector_index}"),
+            selector_label,
             ..SelectorTelemetry::default()
         });
         self.selector_stats
@@ -604,6 +662,26 @@ mod tests {
         assert_eq!(snapshot.selector_telemetry[0].moves_evaluated, 1);
         assert_eq!(snapshot.selector_telemetry[0].moves_accepted, 1);
         assert_eq!(snapshot.selector_telemetry[0].moves_applied, 1);
+    }
+
+    #[test]
+    fn solver_snapshot_prefers_observed_selector_label() {
+        let mut stats = SolverStats::default();
+        stats.record_selector_generated(2, 1, Duration::from_millis(1));
+        stats.record_selector_generated_with_label(
+            2,
+            "conflict_repair",
+            1,
+            Duration::from_millis(2),
+        );
+
+        let snapshot = stats.snapshot();
+
+        assert_eq!(
+            snapshot.selector_telemetry[0].selector_label,
+            "conflict_repair"
+        );
+        assert_eq!(snapshot.selector_telemetry[0].moves_generated, 2);
     }
 
     #[test]

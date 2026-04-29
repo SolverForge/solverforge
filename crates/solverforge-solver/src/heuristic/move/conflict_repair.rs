@@ -7,7 +7,7 @@ use solverforge_scoring::Director;
 use super::metadata::{
     encode_option_usize, encode_usize, hash_str, MoveTabuScope, MoveTabuSignature,
 };
-use super::Move;
+use super::{Move, MoveAffectedEntity};
 
 const CONFLICT_REPAIR_VARIABLE: &str = "conflict_repair";
 
@@ -140,15 +140,26 @@ where
             let variable = hash_str(edit.variable_name);
             let from = encode_option_usize(current);
             let to = encode_option_usize(edit.to_value);
+            let edit_scope = MoveTabuScope::new(edit.descriptor_index, edit.variable_name);
 
             move_id.extend([descriptor, entity, variable, from, to]);
             undo_move_id.extend([descriptor, entity, variable, to, from]);
-            entity_tokens.push(scope.entity_token(entity));
-            destination_tokens.push(scope.value_token(to));
+            entity_tokens.push(edit_scope.entity_token(entity));
+            destination_tokens.push(edit_scope.value_token(to));
         }
 
         MoveTabuSignature::new(scope, move_id, undo_move_id)
             .with_entity_tokens(entity_tokens)
             .with_destination_value_tokens(destination_tokens)
+    }
+
+    fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {
+        for edit in &self.edits {
+            visitor(MoveAffectedEntity {
+                descriptor_index: edit.descriptor_index,
+                entity_index: edit.entity_index,
+                variable_name: edit.variable_name,
+            });
+        }
     }
 }

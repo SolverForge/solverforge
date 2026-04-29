@@ -9,7 +9,7 @@ use solverforge_scoring::{Director, RecordingDirector};
 use tracing::{debug, info, trace};
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::MoveCursor;
+use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor};
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::control::{
     settle_search_interrupt, should_interrupt_evaluation, should_interrupt_generation,
@@ -54,6 +54,20 @@ where
     forager: Fo,
     step_limit: Option<u64>,
     _phantom: PhantomData<fn() -> (S, M)>,
+}
+
+fn candidate_selector_label<S, M>(mov: &MoveCandidateRef<'_, S, M>) -> String
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    let mut label = None;
+    mov.for_each_affected_entity(&mut |affected| {
+        if label.is_none() {
+            label = Some(affected.variable_name.to_string());
+        }
+    });
+    label.unwrap_or_else(|| "move".to_string())
 }
 
 impl<S, M, MS, A, Fo> LocalSearchPhase<S, M, MS, A, Fo>
@@ -177,13 +191,18 @@ where
                 let mov = cursor
                     .candidate(candidate_id)
                     .expect("discovered candidate id must remain borrowable");
+                let selector_label = selector_index.map(|_| candidate_selector_label(&mov));
                 let generation_elapsed = generation_started.elapsed();
                 generated_moves += 1;
                 local_moves_generated += 1;
                 if let Some(selector_index) = selector_index {
                     step_scope
                         .phase_scope_mut()
-                        .record_selector_generated_move(selector_index, generation_elapsed);
+                        .record_selector_generated_move_with_label(
+                            selector_index,
+                            selector_label.as_deref().unwrap_or("selector"),
+                            generation_elapsed,
+                        );
                 } else {
                     step_scope
                         .phase_scope_mut()

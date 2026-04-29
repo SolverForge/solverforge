@@ -161,6 +161,24 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
             .record_selector_generated(selector_index, 1, duration);
     }
 
+    pub fn record_selector_generated_move_with_label(
+        &mut self,
+        selector_index: usize,
+        selector_label: impl Into<String>,
+        duration: Duration,
+    ) {
+        let selector_label = selector_label.into();
+        self.stats.record_selector_generated_with_label(
+            selector_index,
+            selector_label.clone(),
+            1,
+            duration,
+        );
+        self.solver_scope
+            .stats_mut()
+            .record_selector_generated_with_label(selector_index, selector_label, 1, duration);
+    }
+
     pub fn record_generation_time(&mut self, duration: Duration) {
         self.stats.record_generation_time(duration);
         self.solver_scope

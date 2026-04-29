@@ -101,4 +101,4 @@ pub use ruin_recreate::{RuinRecreateMove, ScalarRecreateValueSource};
 pub use sublist_change::SublistChangeMove;
 pub use sublist_swap::SublistSwapMove;
 pub use swap::SwapMove;
-pub use traits::Move;
+pub use traits::{Move, MoveAffectedEntity};

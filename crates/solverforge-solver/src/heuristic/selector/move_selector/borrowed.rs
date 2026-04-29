@@ -31,6 +31,13 @@ where
     ) -> crate::heuristic::r#move::MoveTabuSignature {
         (**self).tabu_signature(score_director)
     }
+
+    fn for_each_affected_entity(
+        &self,
+        visitor: &mut dyn FnMut(crate::heuristic::r#move::MoveAffectedEntity<'_>),
+    ) {
+        (**self).for_each_affected_entity(visitor);
+    }
 }
 
 pub enum MoveCandidateRef<'a, S, M>
@@ -115,6 +122,16 @@ where
         match self {
             Self::Borrowed(mov) => mov.tabu_signature(score_director),
             Self::Sequential(mov) => mov.tabu_signature(score_director),
+        }
+    }
+
+    fn for_each_affected_entity(
+        &self,
+        visitor: &mut dyn FnMut(crate::heuristic::r#move::MoveAffectedEntity<'_>),
+    ) {
+        match self {
+            Self::Borrowed(mov) => mov.for_each_affected_entity(visitor),
+            Self::Sequential(mov) => mov.for_each_affected_entity(visitor),
         }
     }
 }

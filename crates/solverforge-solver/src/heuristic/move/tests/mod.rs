@@ -10,6 +10,7 @@ use std::any::TypeId;
 
 mod arena;
 mod change;
+mod conflict_repair;
 mod k_opt;
 mod list_change;
 mod list_reverse;

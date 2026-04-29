@@ -26,3 +26,4 @@ include!("tests/revision_runtime.rs");
 include!("tests/multi_owner_runtime.rs");
 include!("tests/mixed_target_runtime.rs");
 include!("tests/coupled_scalar_runtime.rs");
+include!("tests/grouped_scalar_construction.rs");

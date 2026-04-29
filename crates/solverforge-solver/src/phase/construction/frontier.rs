@@ -1,9 +1,14 @@
-use super::{ConstructionGroupSlotId, ConstructionListElementId, ConstructionSlotId};
+use std::collections::HashMap;
+
+use super::{
+    ConstructionGroupSlotId, ConstructionGroupSlotKey, ConstructionListElementId,
+    ConstructionSlotId,
+};
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ConstructionFrontier {
     scalar_completed_at_revision: Vec<Vec<u64>>,
-    group_completed_at_revision: Vec<Vec<u64>>,
+    group_completed_at_revision: Vec<HashMap<ConstructionGroupSlotKey, u64>>,
     list_completed_at_revision: Vec<Vec<u64>>,
 }
 
@@ -51,7 +56,7 @@ impl ConstructionFrontier {
     ) -> bool {
         self.group_completed_at_revision
             .get(slot_id.group_index())
-            .and_then(|groups| groups.get(slot_id.entity_or_group_key()))
+            .and_then(|groups| groups.get(slot_id.key()))
             .is_some_and(|completed_revision| *completed_revision == solution_revision)
     }
 
@@ -60,7 +65,7 @@ impl ConstructionFrontier {
         slot_id: ConstructionGroupSlotId,
         solution_revision: u64,
     ) {
-        let slot = self.ensure_group_slot(slot_id);
+        let slot = self.ensure_group_slot(&slot_id);
         *slot = solution_revision;
     }
 
@@ -96,16 +101,13 @@ impl ConstructionFrontier {
         &mut slots[slot_id.entity_index()]
     }
 
-    fn ensure_group_slot(&mut self, slot_id: ConstructionGroupSlotId) -> &mut u64 {
+    fn ensure_group_slot(&mut self, slot_id: &ConstructionGroupSlotId) -> &mut u64 {
         if self.group_completed_at_revision.len() <= slot_id.group_index() {
             self.group_completed_at_revision
-                .resize_with(slot_id.group_index() + 1, Vec::new);
+                .resize_with(slot_id.group_index() + 1, HashMap::new);
         }
         let slots = &mut self.group_completed_at_revision[slot_id.group_index()];
-        if slots.len() <= slot_id.entity_or_group_key() {
-            slots.resize(slot_id.entity_or_group_key() + 1, 0);
-        }
-        &mut slots[slot_id.entity_or_group_key()]
+        slots.entry(slot_id.key().clone()).or_default()
     }
 
     fn ensure_list_element(&mut self, element_id: ConstructionListElementId) -> &mut u64 {

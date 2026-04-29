@@ -1,7 +1,10 @@
 fn grouped_worker_candidates(
     _solution: &MixedPlan,
-    _limits: crate::builder::ScalarGroupLimits,
+    limits: crate::builder::ScalarGroupLimits,
 ) -> Vec<crate::builder::ScalarGroupCandidate> {
+    assert_eq!(limits.value_candidate_limit, Some(4));
+    assert_eq!(limits.group_candidate_limit, None);
+    assert_eq!(limits.max_moves_per_step, Some(8));
     vec![crate::builder::ScalarGroupCandidate::new(
         "worker_pair",
         vec![crate::builder::ScalarGroupEdit::set_scalar(

@@ -6,6 +6,7 @@ use super::variable::{ScalarGetter, ScalarSetter, ScalarVariableContext};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScalarGroupLimits {
     pub value_candidate_limit: Option<usize>,
+    pub group_candidate_limit: Option<usize>,
     pub max_moves_per_step: Option<usize>,
 }
 
@@ -37,11 +38,35 @@ impl ScalarGroupEdit {
 pub struct ScalarGroupCandidate {
     pub reason: &'static str,
     pub edits: Vec<ScalarGroupEdit>,
+    pub construction_slot_key: Option<usize>,
+    pub construction_entity_order_key: Option<i64>,
+    pub construction_value_order_key: Option<i64>,
 }
 
 impl ScalarGroupCandidate {
     pub fn new(reason: &'static str, edits: Vec<ScalarGroupEdit>) -> Self {
-        Self { reason, edits }
+        Self {
+            reason,
+            edits,
+            construction_slot_key: None,
+            construction_entity_order_key: None,
+            construction_value_order_key: None,
+        }
+    }
+
+    pub fn with_construction_slot_key(mut self, key: usize) -> Self {
+        self.construction_slot_key = Some(key);
+        self
+    }
+
+    pub fn with_construction_entity_order_key(mut self, key: i64) -> Self {
+        self.construction_entity_order_key = Some(key);
+        self
+    }
+
+    pub fn with_construction_value_order_key(mut self, key: i64) -> Self {
+        self.construction_value_order_key = Some(key);
+        self
     }
 }
 

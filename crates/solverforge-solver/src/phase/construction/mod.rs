@@ -27,4 +27,7 @@ pub(crate) use frontier::ConstructionFrontier;
 pub(crate) use grouped_scalar::solve_grouped_scalar_construction;
 pub use phase::ConstructionHeuristicPhase;
 pub use placer::{EntityPlacer, Placement, QueuedEntityPlacer, SortedEntityPlacer};
-pub(crate) use slot::{ConstructionGroupSlotId, ConstructionListElementId, ConstructionSlotId};
+pub(crate) use slot::{
+    ConstructionGroupSlotId, ConstructionGroupSlotKey, ConstructionListElementId,
+    ConstructionSlotId,
+};

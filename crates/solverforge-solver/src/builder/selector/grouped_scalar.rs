@@ -20,6 +20,7 @@ impl<S> GroupedScalarSelector<S> {
     fn limits(&self) -> crate::builder::context::ScalarGroupLimits {
         crate::builder::context::ScalarGroupLimits {
             value_candidate_limit: self.value_candidate_limit,
+            group_candidate_limit: None,
             max_moves_per_step: Some(self.max_moves_per_step),
         }
     }

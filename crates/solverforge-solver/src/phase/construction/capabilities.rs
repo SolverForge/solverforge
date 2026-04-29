@@ -45,11 +45,17 @@ where
     let variable_name = config.and_then(|cfg| cfg.target.variable_name.clone());
     let group_name = config.and_then(|cfg| cfg.group_name.as_deref());
     let explicit_target = entity_class.is_some() || variable_name.is_some();
-    let scalar_bindings = find_resolved_binding(
-        &resolve_scalar_bindings(descriptor, model),
+    let resolved_scalar_bindings = resolve_scalar_bindings(descriptor, model);
+    let targeted_scalar_bindings = find_resolved_binding(
+        &resolved_scalar_bindings,
         entity_class.as_deref(),
         variable_name.as_deref(),
     );
+    let scalar_bindings = if group_name.is_some() {
+        resolved_scalar_bindings.clone()
+    } else {
+        targeted_scalar_bindings.clone()
+    };
     let list_variables: Vec<_> = model
         .list_variables()
         .filter(|ctx| {
@@ -59,7 +65,7 @@ where
         .cloned()
         .collect();
 
-    if explicit_target && scalar_bindings.is_empty() && list_variables.is_empty() {
+    if explicit_target && targeted_scalar_bindings.is_empty() && list_variables.is_empty() {
         panic!(
             "construction heuristic matched no planning variables for entity_class={:?} variable_name={:?}",
             entity_class,
@@ -80,8 +86,17 @@ where
                 "grouped scalar construction group_name `{name}` may only be used with scalar construction heuristics"
             );
         }
-        if !list_variables.is_empty() && scalar_bindings.is_empty() {
+        if !list_variables.is_empty() && targeted_scalar_bindings.is_empty() {
             panic!("grouped scalar construction cannot target planning list variables");
+        }
+        if matches!(
+            heuristic,
+            ConstructionHeuristicType::AllocateEntityFromQueue
+                | ConstructionHeuristicType::AllocateToValueFromQueue
+        ) {
+            panic!(
+                "grouped scalar construction group_name `{name}` does not support queue-based scalar construction heuristics"
+            );
         }
         model
             .scalar_groups()

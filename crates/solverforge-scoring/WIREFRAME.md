@@ -37,13 +37,17 @@ src/
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
 │   ├── grouped.rs                                  — GroupedUniConstraint<S,A,K,E,Fi,KF,C,W,Sc>
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
-│   ├── complemented.rs                             — ComplementedGroupConstraint<S,A,B,K,EA,EB,KA,KB,C,D,W,Sc>
-│   ├── cross_bi_incremental.rs                     — IncrementalCrossBiConstraint<S,A,B,K,EA,EB,KA,KB,F,W,Sc>; CrossBiWeight; IndexWeight; PairWeight
-│   ├── flattened_bi.rs                             — FlattenedBiConstraint<S,A,B,C,K,CK,EA,EB,KA,KB,Flatten,CKeyFn,ALookup,F,W,Sc>
+│   ├── complemented.rs                             — ComplementedGroupConstraint module root and re-exports
+│   ├── complemented/*.rs                           — Retained complemented state, incremental callbacks, helpers, and debug accessors
+│   ├── cross_bi_incremental.rs                     — IncrementalCrossBiConstraint module root and re-exports
+│   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
+│   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
+│   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
 │   ├── exists/
 │   │   └── key_state.rs                            — Internal hashed/indexed key bookkeeping for existence constraints
-│   ├── projected.rs                                — ProjectedUniConstraint and ProjectedGroupedConstraint retained derived-row constraints
+│   ├── projected.rs                                — Projected retained derived-row constraint module root and re-exports
+│   ├── projected/*.rs                              — Projected uni, bi, grouped constraints and shared source state
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
@@ -65,7 +69,8 @@ src/
 │       ├── flattened_bi.rs                         — FlattenedBiConstraint tests
 │       ├── exists.rs                               — IncrementalExistsConstraint update tests
 │       ├── exists_storage.rs                       — Existence storage selection and parity tests
-│       ├── projected.rs                            — Projected constraint update, grouping, merge, and self-join tests
+│       ├── projected.rs                            — Projected constraint test module root
+│       ├── projected/*.rs                          — Projected support fixtures, localization, update, grouping, merge, and self-join tests
 │       └── repro_unknown.rs                        — Regression fixture coverage for unknown-source behavior
 ├── director/
 │   ├── mod.rs                                      — Re-exports all director types and traits
@@ -107,7 +112,8 @@ src/
 │   ├── flattened_bi_stream/weighting.rs            — Weighting helpers for flattened streams
 │   ├── existence_stream.rs                         — ExistsConstraintStream, ExistsConstraintBuilder, ExistenceMode, FlattenExtract
 │   ├── existence_target.rs                         — ExistenceTarget trait for direct and flattened existence targets
-│   ├── projected_stream.rs                         — ProjectedConstraintStream, self-join/merge/filter/group/weighting for derived rows
+│   ├── projected_stream.rs                         — Projected stream module root and re-exports
+│   ├── projected_stream/*.rs                       — Projected source, uni, bi, and grouped stream builders
 │   ├── collection_extract.rs                       — CollectionExtract trait, source-aware extractors, VecExtract wrapper, vec() constructor
 │   ├── join_target.rs                              — JoinTarget trait + 3 impls (self-join, keyed cross-join, predicate cross-join)
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct

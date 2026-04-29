@@ -47,6 +47,8 @@ src/
 │   ├── acceptor/tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
 │   ├── context.rs                       — ModelContext<S, V, DM, IDM>, VariableContext<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar metadata, ScalarGroupContext<S>, grouped scalar candidate metadata, expanded scalar/list construction capability hooks
+│   ├── context/scalar/mod.rs            — Scalar context module root and public re-exports
+│   ├── context/scalar/*.rs              — Scalar value-source, scalar variable, and grouped scalar context definitions
 │   ├── scalar_selector.rs               — Canonical typed scalar selector assembly over index-addressed scalar contexts, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
 │   ├── scalar_selector/*.rs             — Typed scalar value, leaf, dispatch, and build chunks
 │   ├── scalar_selector/tests.rs         — Typed scalar selector test root with change/swap, nearby/ruin, pillar, and cartesian chunks
@@ -188,9 +190,10 @@ src/
 │   │   ├── forager/tests.rs             — Tests
 │   │   ├── placer.rs                    — EntityPlacer trait, Placement, QueuedEntityPlacer, SortedEntityPlacer; queued placements expose optional keep-current legality
 │   │   ├── placer/tests.rs              — Tests
-│   │   ├── slot.rs                      — ConstructionSlotId, ConstructionGroupSlotId, and ConstructionListElementId for construction frontier tracking
+│   │   ├── slot.rs                      — ConstructionSlotId, exact-keyed ConstructionGroupSlotId, ConstructionGroupSlotKey, and ConstructionListElementId for construction frontier tracking
 │   │   ├── capabilities.rs              — Shared heuristic-to-capability routing and early validation for scalar/list/grouped-scalar construction
-│   │   ├── grouped_scalar.rs            — Atomic grouped scalar construction over declared ScalarGroupContext candidates
+│   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroupContext candidates
+│   │   ├── grouped_scalar/*.rs          — Grouped construction candidate normalization, selection semantics, compound move building, and phase loop
 │   │   ├── engine.rs                    — Canonical generic scalar/list/mixed construction engine used by runtime assembly
 │   │   └── engine/*.rs                  — Generic construction candidate, scan, commit, and target-matching chunks
 │   ├── localsearch/
@@ -690,6 +693,15 @@ candidate provider returning `ScalarGroupCandidate` values. A candidate is
 applied as one `CompoundScalarMove<S>` after framework legality, duplicate, and
 not-doable checks. Grouped construction is opt-in by `ConstructionHeuristicConfig
 { group_name }`; without a group name scalar construction remains single-slot.
+`ScalarGroupLimits` separates `value_candidate_limit`,
+`group_candidate_limit`, and `max_moves_per_step`: grouped construction passes
+the first two, while grouped local search passes `max_moves_per_step`.
+`ScalarGroupCandidate` exposes construction metadata with
+`with_construction_slot_key(usize)`,
+`with_construction_entity_order_key(i64)`, and
+`with_construction_value_order_key(i64)`. Grouped construction uses an explicit
+slot key when supplied; otherwise it keys frontier completion by the exact
+sorted set of scalar target slots touched by the candidate.
 
 **`IntraDistanceAdapter<T>`** — `builder/context.rs`. Newtype wrapping `T: CrossEntityDistanceMeter<S>`. Implements `ListPositionDistanceMeter<S>` by forwarding to `T::distance` with `src_entity_idx == dst_entity_idx`. Used by `ListMoveSelectorBuilder::push_kopt` when `max_nearby > 0`.
 
@@ -707,6 +719,16 @@ Runtime routing is capability-driven:
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
 - list-only heuristics validate required `cw_*` or `k_opt_*` hooks before phase build
 - generic mixed construction stays in the canonical engine
+
+Grouped scalar construction is slot-first: candidates are normalized into exact
+group slots, the next grouped slot is selected, and then a candidate inside
+that slot is chosen. Supported grouped scalar heuristics are `FirstFit`,
+`FirstFitDecreasing`, `CheapestInsertion`, `WeakestFit`,
+`WeakestFitDecreasing`, `StrongestFit`, and `StrongestFitDecreasing`. The
+decreasing variants require `construction_entity_order_key`; weakest and
+strongest variants require `construction_value_order_key`. Queue-based
+construction heuristics are rejected when `group_name` is set because they do
+not yet have a faithful grouped queue contract.
 
 Construction foragers:
 
@@ -917,16 +939,19 @@ Human-facing `moves/s` is derived only at log/console formatting edges.
 `construction_slots_assigned`, `construction_slots_kept`, and
 `construction_slots_no_doable`, which distinguish scalar construction slots
 that received a candidate, legally kept their current unassigned value, or had
-no doable candidate. `SelectorTelemetry` exposes per-selector generated,
-evaluated, accepted, applied, generation-time, and evaluation-time counters for
-local-search selector diagnosis.
+no doable candidate. Grouped scalar construction records completion against the
+exact grouped slot and also marks every scalar slot covered by the grouped
+decision, so later construction phases cannot fill those members one by one.
+`SelectorTelemetry` exposes per-selector generated, evaluated, accepted,
+applied, generation-time, and evaluation-time counters for local-search
+selector diagnosis.
 
 ### `runtime.rs`
 
 Runtime helpers:
 
 - `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
-- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, use the descriptor-scalar construction boundary for pure scalar targets, use grouped scalar construction when `group_name` selects a registered `ScalarGroupContext`, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations
+- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, use the descriptor-scalar construction boundary for pure scalar targets, use grouped scalar construction when `group_name` selects a registered `ScalarGroupContext`, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations. Grouped construction receives all resolved scalar bindings for legality even when the phase target narrows which members must still need work.
 - `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
 - `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `ModelContext`

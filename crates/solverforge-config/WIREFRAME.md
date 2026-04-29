@@ -137,7 +137,11 @@ even if the unassigned baseline scores better.
 `group_name` opts scalar construction into a named model-provided scalar group.
 When set, grouped construction evaluates and applies each candidate's scalar
 edits atomically; `group_candidate_limit` caps candidates returned for that
-group.
+group. Grouped construction also passes `value_candidate_limit` through to the
+provider for per-entity or per-slot value capping. Grouped local-search
+selectors do not use `group_candidate_limit`; they use
+`max_moves_per_step` from `GroupedScalarMoveSelectorConfig` for the total
+provider cap.
 
 ### `LocalSearchConfig`
 
@@ -461,6 +465,10 @@ Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`.
 | `value_candidate_limit` | `Option<usize>` | `None` |
 | `max_moves_per_step` | `Option<usize>` | `None` |
 
+`value_candidate_limit` is provider-defined per assignment or value-source
+work, while `max_moves_per_step` caps the total grouped local-search moves
+generated for one selector step.
+
 ### `LimitedNeighborhoodConfig`
 
 Derives: `Debug, Clone, Deserialize, Serialize`.
@@ -619,6 +627,13 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 | `ListRegretInsertion` | Specialized list-only highest-regret insertion; validates the targeted list variable exists before phase build |
 | `ListClarkeWright` | Specialized list-only greedy route merging by savings; validates required `cw_*` hooks before phase build |
 | `ListKOpt` | Specialized list-only per-route k-opt polishing (k=2 = 2-opt); validates required `k_opt_*` hooks before phase build |
+
+When `group_name` is set, grouped scalar construction supports
+`FirstFit`, `FirstFitDecreasing`, `CheapestInsertion`, `WeakestFit`,
+`WeakestFitDecreasing`, `StrongestFit`, and `StrongestFitDecreasing`.
+Grouped queue construction with `AllocateEntityFromQueue` or
+`AllocateToValueFromQueue` is rejected until the grouped queue contract is
+explicit.
 
 ### `ConstructionObligation`
 

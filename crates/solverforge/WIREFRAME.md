@@ -195,6 +195,10 @@ Used exclusively by macro-generated code. Not public API.
 - `ListVariableEntity`, `ListVariableMetadata`
 - `PlanningModelSupport`
 
+Grouped scalar re-exports include the construction metadata surface on
+`ScalarGroupCandidate` and the split `ScalarGroupLimits` fields used by grouped
+construction and grouped local-search selectors.
+
 **Config (from `solverforge-config`):**
 - `PhaseConfig`, `SolverConfig`
 

@@ -117,11 +117,12 @@ fn create_director(
 }
 
 #[derive(Default)]
-struct NamedHardConstraint {
+struct NamedConstraint {
     name: &'static str,
+    is_hard: bool,
 }
 
-impl IncrementalConstraint<MixedPlan, SoftScore> for NamedHardConstraint {
+impl IncrementalConstraint<MixedPlan, SoftScore> for NamedConstraint {
     fn evaluate(&self, _solution: &MixedPlan) -> SoftScore {
         SoftScore::of(0)
     }
@@ -159,7 +160,7 @@ impl IncrementalConstraint<MixedPlan, SoftScore> for NamedHardConstraint {
     }
 
     fn is_hard(&self) -> bool {
-        true
+        self.is_hard
     }
 
     fn constraint_ref(&self) -> ConstraintRef {
@@ -171,15 +172,17 @@ impl IncrementalConstraint<MixedPlan, SoftScore> for NamedHardConstraint {
     }
 }
 
-fn create_director_with_hard_constraint(
+fn create_director_with_constraint(
     solution: MixedPlan,
     descriptor: SolutionDescriptor,
     constraint_name: &'static str,
-) -> ScoreDirector<MixedPlan, (NamedHardConstraint,)> {
+    is_hard: bool,
+) -> ScoreDirector<MixedPlan, (NamedConstraint,)> {
     ScoreDirector::with_descriptor(
         solution,
-        (NamedHardConstraint {
+        (NamedConstraint {
             name: constraint_name,
+            is_hard,
         },),
         descriptor,
         |solution, descriptor_index| match descriptor_index {

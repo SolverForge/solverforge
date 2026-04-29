@@ -477,6 +477,20 @@ Runtime note: cartesian selectors compose children in selector order. The left
 child is previewed first, the right child is opened against that preview state,
 and the runtime rejects left-child previews that require full score evaluation.
 
+### `ConflictRepairMoveSelectorConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`. Manual `Default`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `constraints` | `Vec<String>` | `[]` |
+| `max_matches_per_step` | `usize` | `16` |
+| `max_repairs_per_match` | `usize` | `32` |
+| `max_moves_per_step` | `usize` | `256` |
+| `include_soft_matches` | `bool` | `false` |
+
+Runtime note: configured constraints must match scoring constraint metadata before providers are invoked. With `include_soft_matches = false`, non-hard scoring constraints are rejected; setting it to `true` explicitly allows soft repair providers.
+
 ### `ExhaustiveSearchConfig`
 
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
@@ -628,6 +642,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `ListReverseMoveSelector` | `ListReverseMoveConfig` |
 | `KOptMoveSelector` | `KOptMoveSelectorConfig` |
 | `ListRuinMoveSelector` | `ListRuinMoveSelectorConfig` |
+| `ConflictRepairMoveSelector` | `ConflictRepairMoveSelectorConfig` |
 | `LimitedNeighborhood` | `LimitedNeighborhoodConfig` |
 | `UnionMoveSelector` | `UnionMoveSelectorConfig` |
 | `CartesianProductMoveSelector` | `CartesianProductConfig` |
@@ -635,6 +650,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 Decorator notes:
 - `LimitedNeighborhood` wraps the child cursor at neighborhood construction time, so candidate generation stops at `selected_count_limit` while preserving the wrapped selector order.
 - `CartesianProductMoveSelector` uses sequential preview, selector-order tabu ids, and selected-winner materialization rather than exposing an owned composite iterator.
+- `ConflictRepairMoveSelector` validates configured constraint names and hardness through director constraint metadata before opening repair providers.
 - Scalar `ChangeMoveSelector`, `NearbyChangeMoveSelector`, `PillarChangeMoveSelector`, and `RuinRecreateMoveSelector` accept `value_candidate_limit` for bounded scalar value candidate generation. Scalar `cheapest_insertion` requires either `candidate_values` on the model or this limit in config.
 
 ## Architectural Notes

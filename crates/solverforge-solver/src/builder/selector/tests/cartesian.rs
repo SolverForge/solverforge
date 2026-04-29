@@ -54,6 +54,138 @@ fn cartesian_scalar_selector_builds_composite_moves() {
 }
 
 #[test]
+fn cartesian_right_child_conflict_repair_uses_preview_constraint_metadata() {
+    let descriptor = descriptor(true);
+    let director = create_director_with_constraint(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+        "testConstraint",
+        true,
+    );
+    let model = scalar_only_model().with_conflict_repair_providers(vec![
+        crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
+    ]);
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        selectors: vec![
+            MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
+                target: VariableTargetConfig::default(),
+            }),
+            MoveSelectorConfig::ConflictRepairMoveSelector(
+                solverforge_config::ConflictRepairMoveSelectorConfig {
+                    constraints: vec!["testConstraint".to_string()],
+                    max_matches_per_step: 2,
+                    max_repairs_per_match: 3,
+                    max_moves_per_step: 4,
+                    include_soft_matches: false,
+                },
+            ),
+        ],
+    });
+
+    let selector = build_move_selector(Some(&config), &model, None);
+    let mut cursor = selector.open_cursor(&director);
+    let indices =
+        collect_cursor_indices::<MixedPlan, NeighborhoodMove<MixedPlan, usize>, _>(&mut cursor);
+
+    assert!(
+        !indices.is_empty(),
+        "right-child conflict repair must open against preview metadata"
+    );
+    assert!(indices.iter().all(|&index| matches!(
+        cursor.candidate(index),
+        Some(MoveCandidateRef::Sequential(_))
+    )));
+}
+
+#[test]
+#[should_panic(
+    expected = "conflict_repair_move_selector configured for non-hard constraint `testConstraint` while include_soft_matches is false"
+)]
+fn cartesian_right_child_conflict_repair_rejects_soft_metadata_when_not_configured() {
+    let descriptor = descriptor(true);
+    let director = create_director_with_constraint(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+        "testConstraint",
+        false,
+    );
+    let model = scalar_only_model().with_conflict_repair_providers(vec![
+        crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
+    ]);
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        selectors: vec![
+            MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
+                target: VariableTargetConfig::default(),
+            }),
+            MoveSelectorConfig::ConflictRepairMoveSelector(
+                solverforge_config::ConflictRepairMoveSelectorConfig {
+                    constraints: vec!["testConstraint".to_string()],
+                    max_matches_per_step: 2,
+                    max_repairs_per_match: 3,
+                    max_moves_per_step: 4,
+                    include_soft_matches: false,
+                },
+            ),
+        ],
+    });
+    let selector = build_move_selector(Some(&config), &model, None);
+
+    let _ = selector.open_cursor(&director);
+}
+
+#[test]
+fn cartesian_right_child_conflict_repair_allows_soft_metadata_when_configured() {
+    let descriptor = descriptor(true);
+    let director = create_director_with_constraint(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+        "testConstraint",
+        false,
+    );
+    let model = scalar_only_model().with_conflict_repair_providers(vec![
+        crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
+    ]);
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        selectors: vec![
+            MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
+                target: VariableTargetConfig::default(),
+            }),
+            MoveSelectorConfig::ConflictRepairMoveSelector(
+                solverforge_config::ConflictRepairMoveSelectorConfig {
+                    constraints: vec!["testConstraint".to_string()],
+                    max_matches_per_step: 2,
+                    max_repairs_per_match: 3,
+                    max_moves_per_step: 4,
+                    include_soft_matches: true,
+                },
+            ),
+        ],
+    });
+
+    let selector = build_move_selector(Some(&config), &model, None);
+    let mut cursor = selector.open_cursor(&director);
+    let indices =
+        collect_cursor_indices::<MixedPlan, NeighborhoodMove<MixedPlan, usize>, _>(&mut cursor);
+
+    assert!(!indices.is_empty());
+}
+
+#[test]
 fn cartesian_list_selector_builds_composite_moves() {
     let descriptor = descriptor(false);
     let director = create_director(

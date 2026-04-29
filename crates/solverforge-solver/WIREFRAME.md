@@ -325,8 +325,11 @@ Requires: `Send + Sync + Debug`.
 | `entity_indices` | `fn(&self) -> &[usize]` |
 | `variable_name` | `fn(&self) -> &str` |
 | `tabu_signature` | `fn<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature` |
+| `for_each_affected_entity` | `fn(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>))` |
 
 Moves are **never cloned**. Ownership transfers via `MoveArena` indices.
+
+**`MoveAffectedEntity<'a>`** — `{ descriptor_index, entity_index, variable_name }`. Multi-edit moves report each edited descriptor/entity/variable pair directly instead of compressing metadata into a single descriptor scope.
 
 ### `MoveTabuSignature` and Scoped Tokens — `heuristic/move/metadata.rs`
 
@@ -558,6 +561,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 | `PillarSwapMove` | `<S, V>` | Vec left/right indices, getter/setter fn ptrs | Yes (manual) | No |
 | `RuinMove` | `<S, V>` | SmallVec entity_indices, getter/setter fn ptrs | Yes (manual) | No |
 | `RuinRecreateMove` | `<S>` | SmallVec ruined entities, bounded recreate value source, getter/setter fn ptrs | Yes (manual) | No |
+| `ConflictRepairMove` | `<S>` | provider reason plus scalar edits with per-edit descriptor/entity/variable scope | Yes (manual) | No |
 | `KOptMove` | `<S, V>` | [CutPoint; 5], KOptReconnection, fn ptrs | Yes (manual) | No |
 | `CompositeMove` | `<S, M1, M2>` | index_1, index_2, PhantomData | Yes | Yes |
 | `SequentialCompositeMove` | `<S, M>` | owned two-move arena plus cached descriptor/entity/tabu metadata | Yes (M: Clone) | No |
@@ -565,7 +569,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 ### Move Union Enums
 
 **`ScalarMoveUnion<S, V>`** — Scalar variable union:
-- `Change(ChangeMove<S, V>)`, `Swap(SwapMove<S, V>)`, `PillarChange(PillarChangeMove<S, V>)`, `PillarSwap(PillarSwapMove<S, V>)`, `RuinRecreate(RuinRecreateMove<S>)`, `Composite(SequentialCompositeMove<S, ScalarMoveUnion<S, V>>)`
+- `Change(ChangeMove<S, V>)`, `Swap(SwapMove<S, V>)`, `PillarChange(PillarChangeMove<S, V>)`, `PillarSwap(PillarSwapMove<S, V>)`, `RuinRecreate(RuinRecreateMove<S>)`, `ConflictRepair(ConflictRepairMove<S>)`, `Composite(SequentialCompositeMove<S, ScalarMoveUnion<S, V>>)`
 
 **`ListMoveUnion<S, V>`** — List variable union:
 - `ListChange`, `ListSwap`, `SublistChange`, `SublistSwap`, `ListReverse`, `KOpt`, `ListRuin`, `Composite`
@@ -639,6 +643,8 @@ on a generic type-lifting map adapter.
 | `ShufflingMoveSelector<S, M, Inner>` | RNG | Randomizes order without type-lifting moves |
 | `SortingMoveSelector<S, M, Inner>` | Comparator `for<'a> fn(MoveCandidateRef<'a, S, M>, MoveCandidateRef<'a, S, M>) -> Ordering` | Sorts borrowable candidates without reopening cartesian children |
 | `ProbabilityMoveSelector<S, M, Inner>` | Weight `for<'a> fn(MoveCandidateRef<'a, S, M>) -> f64` | Probabilistic filtering without reopening cartesian children |
+
+Cartesian preview state uses `SequentialPreviewDirector`: it owns a cloned working solution for right-child selector generation, updates shadows for previewed left moves, borrows immutable descriptor and constraint metadata from the source director, and intentionally panics on `calculate_score()`.
 
 ### Supporting Types
 

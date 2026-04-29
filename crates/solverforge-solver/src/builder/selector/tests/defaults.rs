@@ -256,10 +256,17 @@ fn repair_worker_to_one(
     ]
 }
 
+fn repair_provider_must_not_run(
+    _solution: &MixedPlan,
+    _limits: crate::builder::ConflictRepairLimits,
+) -> Vec<crate::builder::ConflictRepairSpec> {
+    panic!("conflict repair provider must not run before metadata validation")
+}
+
 #[test]
 fn conflict_repair_selector_builds_executable_registered_repairs() {
     let descriptor = descriptor(true);
-    let mut director = create_director_with_hard_constraint(
+    let mut director = create_director_with_constraint(
         MixedPlan {
             shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
             vehicles: vec![],
@@ -267,6 +274,7 @@ fn conflict_repair_selector_builds_executable_registered_repairs() {
         },
         descriptor,
         "testConstraint",
+        true,
     );
     let model = scalar_only_model().with_conflict_repair_providers(vec![
         crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
@@ -297,4 +305,105 @@ fn conflict_repair_selector_builds_executable_registered_repairs() {
 
     assert_eq!(director.working_solution().shifts[0].worker, Some(1));
     assert_eq!(director.working_solution().shifts[1].worker, Some(1));
+}
+
+#[test]
+#[should_panic(
+    expected = "conflict_repair_move_selector configured for non-hard constraint `testConstraint` while include_soft_matches is false"
+)]
+fn conflict_repair_rejects_non_hard_constraint_before_provider_invocation() {
+    let descriptor = descriptor(true);
+    let director = create_director_with_constraint(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+        "testConstraint",
+        false,
+    );
+    let model = scalar_only_model().with_conflict_repair_providers(vec![
+        crate::builder::ConflictRepairProviderEntry::new(
+            "testConstraint",
+            repair_provider_must_not_run,
+        ),
+    ]);
+    let config = MoveSelectorConfig::ConflictRepairMoveSelector(
+        solverforge_config::ConflictRepairMoveSelectorConfig {
+            constraints: vec!["testConstraint".to_string()],
+            max_matches_per_step: 2,
+            max_repairs_per_match: 3,
+            max_moves_per_step: 4,
+            include_soft_matches: false,
+        },
+    );
+    let selector = build_move_selector(Some(&config), &model, None);
+
+    let _ = selector.open_cursor(&director);
+}
+
+#[test]
+fn conflict_repair_allows_non_hard_constraint_when_configured() {
+    let descriptor = descriptor(true);
+    let director = create_director_with_constraint(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+        "testConstraint",
+        false,
+    );
+    let model = scalar_only_model().with_conflict_repair_providers(vec![
+        crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
+    ]);
+    let config = MoveSelectorConfig::ConflictRepairMoveSelector(
+        solverforge_config::ConflictRepairMoveSelectorConfig {
+            constraints: vec!["testConstraint".to_string()],
+            max_matches_per_step: 2,
+            max_repairs_per_match: 3,
+            max_moves_per_step: 4,
+            include_soft_matches: true,
+        },
+    );
+    let selector = build_move_selector(Some(&config), &model, None);
+    let mut cursor = selector.open_cursor(&director);
+
+    assert!(cursor.next_candidate().is_some());
+}
+
+#[test]
+#[should_panic(
+    expected = "conflict_repair_move_selector configured for `testConstraint`, but no matching scoring constraint was found"
+)]
+fn conflict_repair_rejects_provider_without_matching_scoring_constraint() {
+    let descriptor = descriptor(true);
+    let director = create_director(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+    );
+    let model = scalar_only_model().with_conflict_repair_providers(vec![
+        crate::builder::ConflictRepairProviderEntry::new(
+            "testConstraint",
+            repair_provider_must_not_run,
+        ),
+    ]);
+    let config = MoveSelectorConfig::ConflictRepairMoveSelector(
+        solverforge_config::ConflictRepairMoveSelectorConfig {
+            constraints: vec!["testConstraint".to_string()],
+            max_matches_per_step: 2,
+            max_repairs_per_match: 3,
+            max_moves_per_step: 4,
+            include_soft_matches: false,
+        },
+    );
+    let selector = build_move_selector(Some(&config), &model, None);
+
+    let _ = selector.open_cursor(&director);
 }

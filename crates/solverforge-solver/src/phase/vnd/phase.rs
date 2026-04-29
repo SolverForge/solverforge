@@ -13,6 +13,7 @@ use crate::phase::control::{
     settle_search_interrupt, should_interrupt_evaluation, should_interrupt_generation,
     StepInterrupt,
 };
+use crate::phase::hard_delta::{hard_score_delta, HardScoreDelta};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
@@ -236,6 +237,12 @@ where
         mov.do_move(&mut recording);
         let move_score = recording.calculate_score();
         recording.undo_changes();
+
+        if mov.requires_hard_improvement()
+            && hard_score_delta(*current_score, move_score) != Some(HardScoreDelta::Improving)
+        {
+            continue;
+        }
 
         if move_score > *current_score {
             match &best {

@@ -5,7 +5,6 @@ use std::marker::PhantomData;
 use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::ScoreLevel;
 use solverforge_scoring::{Director, RecordingDirector};
 use tracing::{debug, info, trace};
 
@@ -16,6 +15,7 @@ use crate::phase::control::{
     settle_search_interrupt, should_interrupt_evaluation, should_interrupt_generation,
     StepInterrupt,
 };
+use crate::phase::hard_delta::{hard_score_delta, HardScoreDelta};
 use crate::phase::localsearch::{Acceptor, LocalSearchForager};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
@@ -72,28 +72,6 @@ where
         }
     });
     label.unwrap_or_else(|| "move".to_string())
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum HardScoreDelta {
-    Improving,
-    Neutral,
-    Worse,
-}
-
-fn hard_score_delta<Score: solverforge_core::score::Score>(
-    previous: Score,
-    candidate: Score,
-) -> Option<HardScoreDelta> {
-    let hard_index =
-        (0..Score::levels_count()).find(|index| Score::level_label(*index) == ScoreLevel::Hard)?;
-    let previous_hard = previous.level_number(hard_index);
-    let candidate_hard = candidate.level_number(hard_index);
-    Some(match candidate_hard.cmp(&previous_hard) {
-        std::cmp::Ordering::Greater => HardScoreDelta::Improving,
-        std::cmp::Ordering::Equal => HardScoreDelta::Neutral,
-        std::cmp::Ordering::Less => HardScoreDelta::Worse,
-    })
 }
 
 impl<S, M, MS, A, Fo> LocalSearchPhase<S, M, MS, A, Fo>

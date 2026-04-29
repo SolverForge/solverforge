@@ -12,6 +12,7 @@ pub mod construction;
 pub(crate) mod control;
 pub mod dynamic_vnd;
 pub mod exhaustive;
+mod hard_delta;
 pub mod localsearch;
 pub mod partitioned;
 pub mod sequence;

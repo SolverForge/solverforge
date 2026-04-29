@@ -89,9 +89,11 @@ pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
     analyze, run_solver, run_solver_with_config, Analyzable, ConflictRepairEdit,
     ConflictRepairLimits, ConflictRepairProviderEntry, ConflictRepairSpec, ConstraintAnalysis,
-    ScoreAnalysis, SelectorTelemetry, Solvable, SolverEvent, SolverEventMetadata,
-    SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime, SolverSnapshot,
-    SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTerminalReason,
+    ScalarGroupCandidate, ScalarGroupContext, ScalarGroupEdit, ScalarGroupLimits,
+    ScalarGroupMember, ScalarVariableContext, ScoreAnalysis, SelectorTelemetry, Solvable,
+    SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager, SolverManagerError,
+    SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTelemetry,
+    SolverTerminalReason,
 };
 
 /* ============================================================================

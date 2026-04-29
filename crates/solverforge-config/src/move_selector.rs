@@ -32,6 +32,9 @@ pub enum MoveSelectorConfig {
     // Ruin-and-recreate move selector (scalar variables).
     RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig),
 
+    // Atomic grouped scalar move selector.
+    GroupedScalarMoveSelector(GroupedScalarMoveSelectorConfig),
+
     // List change move selector — relocates single elements within/between routes.
     ListChangeMoveSelector(ListChangeMoveConfig),
 
@@ -73,6 +76,9 @@ pub enum MoveSelectorConfig {
 
     // Conflict-directed scalar repair selector.
     ConflictRepairMoveSelector(ConflictRepairMoveSelectorConfig),
+
+    // Conflict-directed compound scalar repair selector with framework-enforced hard improvement.
+    CompoundConflictRepairMoveSelector(CompoundConflictRepairMoveSelectorConfig),
 }
 
 // Change move configuration.
@@ -191,6 +197,15 @@ impl Default for RuinRecreateMoveSelectorConfig {
             target: VariableTargetConfig::default(),
         }
     }
+}
+
+// Configuration for `GroupedScalarMoveSelector`.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub struct GroupedScalarMoveSelectorConfig {
+    pub group_name: String,
+    pub value_candidate_limit: Option<usize>,
+    pub max_moves_per_step: Option<usize>,
 }
 
 // Configuration for `ListChangeMoveSelector`.
@@ -389,6 +404,8 @@ pub struct ConflictRepairMoveSelectorConfig {
     #[serde(default = "default_conflict_repair_max_moves")]
     pub max_moves_per_step: usize,
     #[serde(default)]
+    pub require_hard_improvement: bool,
+    #[serde(default)]
     pub include_soft_matches: bool,
 }
 
@@ -399,6 +416,36 @@ impl Default for ConflictRepairMoveSelectorConfig {
             max_matches_per_step: default_conflict_repair_max_matches(),
             max_repairs_per_match: default_conflict_repair_max_repairs(),
             max_moves_per_step: default_conflict_repair_max_moves(),
+            require_hard_improvement: false,
+            include_soft_matches: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub struct CompoundConflictRepairMoveSelectorConfig {
+    pub constraints: Vec<String>,
+    #[serde(default = "default_conflict_repair_max_matches")]
+    pub max_matches_per_step: usize,
+    #[serde(default = "default_conflict_repair_max_repairs")]
+    pub max_repairs_per_match: usize,
+    #[serde(default = "default_conflict_repair_max_moves")]
+    pub max_moves_per_step: usize,
+    #[serde(default = "default_require_hard_improvement")]
+    pub require_hard_improvement: bool,
+    #[serde(default)]
+    pub include_soft_matches: bool,
+}
+
+impl Default for CompoundConflictRepairMoveSelectorConfig {
+    fn default() -> Self {
+        Self {
+            constraints: Vec::new(),
+            max_matches_per_step: default_conflict_repair_max_matches(),
+            max_repairs_per_match: default_conflict_repair_max_repairs(),
+            max_moves_per_step: default_conflict_repair_max_moves(),
+            require_hard_improvement: default_require_hard_improvement(),
             include_soft_matches: false,
         }
     }
@@ -414,4 +461,8 @@ fn default_conflict_repair_max_repairs() -> usize {
 
 fn default_conflict_repair_max_moves() -> usize {
     256
+}
+
+fn default_require_hard_improvement() -> bool {
+    true
 }

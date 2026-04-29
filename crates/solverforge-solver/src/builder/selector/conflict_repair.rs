@@ -1,11 +1,13 @@
 use std::collections::HashSet;
 
-use solverforge_config::ConflictRepairMoveSelectorConfig;
+use solverforge_config::{
+    CompoundConflictRepairMoveSelectorConfig, ConflictRepairMoveSelectorConfig,
+};
 
 use crate::builder::context::{
     ConflictRepairEdit, ConflictRepairLimits, ConflictRepairProviderEntry, ScalarVariableContext,
 };
-use crate::heuristic::r#move::{ConflictRepairMove, ConflictRepairScalarEdit};
+use crate::heuristic::r#move::{CompoundScalarEdit, CompoundScalarMove};
 use crate::heuristic::selector::move_selector::CandidateStore;
 
 pub struct ConflictRepairSelector<S> {
@@ -22,6 +24,25 @@ impl<S> ConflictRepairSelector<S> {
     ) -> Self {
         Self {
             config,
+            scalar_variables,
+            providers,
+        }
+    }
+
+    pub fn new_compound(
+        config: CompoundConflictRepairMoveSelectorConfig,
+        scalar_variables: Vec<ScalarVariableContext<S>>,
+        providers: Vec<ConflictRepairProviderEntry<S>>,
+    ) -> Self {
+        Self {
+            config: ConflictRepairMoveSelectorConfig {
+                constraints: config.constraints,
+                max_matches_per_step: config.max_matches_per_step,
+                max_repairs_per_match: config.max_repairs_per_match,
+                max_moves_per_step: config.max_moves_per_step,
+                require_hard_improvement: config.require_hard_improvement,
+                include_soft_matches: config.include_soft_matches,
+            },
             scalar_variables,
             providers,
         }
@@ -67,6 +88,10 @@ impl<S> std::fmt::Debug for ConflictRepairSelector<S> {
             .field("max_matches_per_step", &self.config.max_matches_per_step)
             .field("max_repairs_per_match", &self.config.max_repairs_per_match)
             .field("max_moves_per_step", &self.config.max_moves_per_step)
+            .field(
+                "require_hard_improvement",
+                &self.config.require_hard_improvement,
+            )
             .finish()
     }
 }
@@ -165,7 +190,7 @@ where
                             legal = false;
                             break;
                         }
-                        edits.push(ConflictRepairScalarEdit {
+                        edits.push(CompoundScalarEdit {
                             descriptor_index: ctx.descriptor_index,
                             entity_index: edit.entity_index,
                             variable_index: ctx.variable_index,
@@ -173,13 +198,17 @@ where
                             to_value: edit.to_value,
                             getter: ctx.getter,
                             setter: ctx.setter,
+                            value_is_legal: None,
                         });
                     }
                     if legal {
-                        store.push(ScalarMoveUnion::ConflictRepair(ConflictRepairMove::new(
+                        let mov = CompoundScalarMove::with_label(
                             spec.reason,
+                            "conflict_repair",
                             edits,
-                        )));
+                        )
+                        .with_require_hard_improvement(self.config.require_hard_improvement);
+                        store.push(ScalarMoveUnion::CompoundScalar(mov));
                     }
                 }
             }

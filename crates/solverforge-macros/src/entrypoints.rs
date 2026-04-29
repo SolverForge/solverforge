@@ -34,6 +34,7 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
         config_path,
         solver_toml_path,
         conflict_repair_providers_path,
+        scalar_groups_path,
     ) = parse_solution_flags(attr);
     let input = parse_macro_input!(item as ItemStruct);
     let name = &input.ident;
@@ -55,6 +56,8 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
         solver_toml_path.map(|p| quote! { #[solverforge_solver_toml_path = #p] });
     let conflict_repair_providers_attr = conflict_repair_providers_path
         .map(|p| quote! { #[solverforge_conflict_repair_providers_path = #p] });
+    let scalar_groups_attr =
+        scalar_groups_path.map(|p| quote! { #[solverforge_scalar_groups_path = #p] });
 
     let expanded = quote! {
         #[derive(Clone, Debug, #serde_derives ::solverforge::PlanningSolutionImpl)]
@@ -62,6 +65,7 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
         #config_attr
         #solver_toml_attr
         #conflict_repair_providers_attr
+        #scalar_groups_attr
         #(#attrs)*
         #vis struct #name #generics #fields
     };

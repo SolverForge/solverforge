@@ -184,7 +184,7 @@ Used exclusively by macro-generated code. Not public API.
 - `SolvableSolution`
 
 **Solver infrastructure (from `solverforge-solver`):**
-- `ListVariableContext`, `LocalSearch`, `ModelContext`, `ScalarVariableContext`, `ValueSource`, `VariableContext`, `Vnd`
+- `ListVariableContext`, `LocalSearch`, `ModelContext`, `ScalarGroupCandidate`, `ScalarGroupContext`, `ScalarGroupEdit`, `ScalarGroupLimits`, `ScalarGroupMember`, `ScalarVariableContext`, `ValueSource`, `VariableContext`, `Vnd`
 - `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
 - `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`
 - `PhaseFactory`, `SolverFactory`

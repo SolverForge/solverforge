@@ -12,7 +12,7 @@ use solverforge_scoring::{Director, RecordingDirector};
 use crate::heuristic::r#move::Move;
 use crate::manager::{SolverLifecycleState, SolverRuntime, SolverTerminalReason};
 use crate::phase::construction::{
-    ConstructionFrontier, ConstructionListElementId, ConstructionSlotId,
+    ConstructionFrontier, ConstructionGroupSlotId, ConstructionListElementId, ConstructionSlotId,
 };
 use crate::stats::SolverStats;
 

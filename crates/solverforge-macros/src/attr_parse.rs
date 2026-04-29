@@ -29,11 +29,13 @@ pub(crate) fn has_serde_flag(attr: TokenStream) -> bool {
 }
 
 // Parses planning_solution attribute flags: serde, constraints = "path",
-// config = "path", solver_toml = "path", conflict_repair_providers = "path".
+// config = "path", solver_toml = "path", conflict_repair_providers = "path",
+// scalar_groups = "path".
 pub(crate) fn parse_solution_flags(
     attr: TokenStream,
 ) -> (
     bool,
+    Option<String>,
     Option<String>,
     Option<String>,
     Option<String>,
@@ -44,6 +46,7 @@ pub(crate) fn parse_solution_flags(
     let mut config_path = None;
     let mut solver_toml_path = None;
     let mut conflict_repair_providers_path = None;
+    let mut scalar_groups_path = None;
 
     if attr.is_empty() {
         return (
@@ -52,6 +55,7 @@ pub(crate) fn parse_solution_flags(
             config_path,
             solver_toml_path,
             conflict_repair_providers_path,
+            scalar_groups_path,
         );
     }
 
@@ -92,6 +96,13 @@ pub(crate) fn parse_solution_flags(
                         }
                     }
                 }
+                Meta::NameValue(nv) if path_matches_ident(&nv.path, "scalar_groups") => {
+                    if let Expr::Lit(expr_lit) = &nv.value {
+                        if let Lit::Str(lit_str) = &expr_lit.lit {
+                            scalar_groups_path = Some(lit_str.value());
+                        }
+                    }
+                }
                 _ => {}
             }
         }
@@ -103,6 +114,7 @@ pub(crate) fn parse_solution_flags(
         config_path,
         solver_toml_path,
         conflict_repair_providers_path,
+        scalar_groups_path,
     )
 }
 

@@ -17,6 +17,7 @@ use crate::attr_parse::{
 include!("planning_model/manifest.rs");
 include!("planning_model/modules.rs");
 include!("planning_model/metadata.rs");
+include!("planning_model/support_groups.rs");
 include!("planning_model/support.rs");
 include!("planning_model/shadows.rs");
 include!("planning_model/tests.rs");

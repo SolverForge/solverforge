@@ -200,6 +200,21 @@ where
                     finalize_noop_construction(solver_scope);
                 }
             }
+            ConstructionRoute::GroupedScalar => {
+                let Some((group_index, group)) = capabilities.scalar_group.as_ref() else {
+                    unreachable!("grouped scalar route requires a selected scalar group");
+                };
+                let ran_child_phase = crate::phase::construction::solve_grouped_scalar_construction(
+                    config,
+                    *group_index,
+                    group,
+                    &capabilities.scalar_bindings,
+                    solver_scope,
+                );
+                if !ran_child_phase {
+                    finalize_noop_construction(solver_scope);
+                }
+            }
             ConstructionRoute::GenericMixed => {
                 let ran_child_phase = crate::phase::construction::solve_construction(
                     config,

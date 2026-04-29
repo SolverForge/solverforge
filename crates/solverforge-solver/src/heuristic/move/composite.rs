@@ -377,6 +377,10 @@ where
         self.variable_name
     }
 
+    fn requires_hard_improvement(&self) -> bool {
+        self.first.requires_hard_improvement() || self.second.requires_hard_improvement()
+    }
+
     fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {
         self.tabu_signature.clone()
     }
@@ -444,6 +448,11 @@ where
 
     fn variable_name(&self) -> &str {
         &self.variable_name
+    }
+
+    fn requires_hard_improvement(&self) -> bool {
+        self.first_move().requires_hard_improvement()
+            || self.second_move().requires_hard_improvement()
     }
 
     fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {

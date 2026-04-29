@@ -11,10 +11,10 @@ pub mod selector;
 // Re-export move types
 pub use r#move::k_opt_reconnection;
 pub use r#move::{
-    ChangeMove, CompositeMove, CutPoint, KOptMove, ListChangeMove, ListMoveUnion, ListReverseMove,
-    ListRuinMove, ListSwapMove, Move, MoveArena, PillarChangeMove, PillarSwapMove, RuinMove,
-    RuinRecreateMove, ScalarMoveUnion, ScalarRecreateValueSource, SublistChangeMove,
-    SublistSwapMove, SwapMove,
+    ChangeMove, CompositeMove, CompoundScalarEdit, CompoundScalarMove, CutPoint, KOptMove,
+    ListChangeMove, ListMoveUnion, ListReverseMove, ListRuinMove, ListSwapMove, Move, MoveArena,
+    PillarChangeMove, PillarSwapMove, RuinMove, RuinRecreateMove, ScalarMoveUnion,
+    ScalarRecreateValueSource, SublistChangeMove, SublistSwapMove, SwapMove,
 };
 
 // Re-export selector types

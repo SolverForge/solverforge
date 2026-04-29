@@ -36,8 +36,9 @@ pub use builder::{
     build_local_search, build_move_selector, build_vnd, AcceptorBuilder, AnyAcceptor, AnyForager,
     ConflictRepairEdit, ConflictRepairLimits, ConflictRepairProviderEntry, ConflictRepairSpec,
     ForagerBuilder, IntraDistanceAdapter, ListVariableContext, LocalSearch, ModelContext,
-    Neighborhood, NeighborhoodLeaf, NeighborhoodMove, ScalarVariableContext, Selector, ValueSource,
-    VariableContext, Vnd,
+    Neighborhood, NeighborhoodLeaf, NeighborhoodMove, ScalarGroupCandidate, ScalarGroupContext,
+    ScalarGroupEdit, ScalarGroupLimits, ScalarGroupMember, ScalarVariableContext, Selector,
+    ValueSource, VariableContext, Vnd,
 };
 pub use descriptor_scalar::{
     build_descriptor_move_selector, descriptor_has_bindings, DescriptorConstruction,
@@ -54,6 +55,8 @@ pub use heuristic::{
     ChangeMove,
     ChangeMoveSelector,
     CompositeMove,
+    CompoundScalarEdit,
+    CompoundScalarMove,
     CrossEntityDistanceMeter,
     CutPoint,
     DefaultCrossEntityDistanceMeter,

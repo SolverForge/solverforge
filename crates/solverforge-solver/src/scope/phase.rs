@@ -225,6 +225,54 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
             .record_selector_applied(selector_index);
     }
 
+    pub fn record_move_not_doable(&mut self) {
+        self.stats.record_move_not_doable();
+        self.solver_scope.stats_mut().record_move_not_doable();
+    }
+
+    pub fn record_selector_move_not_doable(&mut self, selector_index: usize) {
+        self.stats.record_selector_not_doable(selector_index);
+        self.solver_scope
+            .stats_mut()
+            .record_selector_not_doable(selector_index);
+    }
+
+    pub fn record_move_acceptor_rejected(&mut self) {
+        self.stats.record_move_acceptor_rejected();
+        self.solver_scope
+            .stats_mut()
+            .record_move_acceptor_rejected();
+    }
+
+    pub fn record_selector_move_acceptor_rejected(&mut self, selector_index: usize) {
+        self.stats.record_selector_acceptor_rejected(selector_index);
+        self.solver_scope
+            .stats_mut()
+            .record_selector_acceptor_rejected(selector_index);
+    }
+
+    pub fn record_moves_forager_ignored(&mut self, count: u64) {
+        self.stats.record_moves_forager_ignored(count);
+        self.solver_scope
+            .stats_mut()
+            .record_moves_forager_ignored(count);
+    }
+
+    pub fn record_move_hard_improving(&mut self) {
+        self.stats.record_move_hard_improving();
+        self.solver_scope.stats_mut().record_move_hard_improving();
+    }
+
+    pub fn record_move_hard_neutral(&mut self) {
+        self.stats.record_move_hard_neutral();
+        self.solver_scope.stats_mut().record_move_hard_neutral();
+    }
+
+    pub fn record_move_hard_worse(&mut self) {
+        self.stats.record_move_hard_worse();
+        self.solver_scope.stats_mut().record_move_hard_worse();
+    }
+
     pub fn record_score_calculation(&mut self) {
         self.stats.record_score_calculation();
         self.solver_scope.stats_mut().record_score_calculation();

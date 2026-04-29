@@ -45,6 +45,10 @@ pub(super) fn parse_conflict_repair_providers_path(attrs: &[syn::Attribute]) -> 
     parse_hidden_path_attr(attrs, "solverforge_conflict_repair_providers_path")
 }
 
+pub(super) fn parse_scalar_groups_path(attrs: &[syn::Attribute]) -> Option<String> {
+    parse_hidden_path_attr(attrs, "solverforge_scalar_groups_path")
+}
+
 pub(super) fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
     let mut config = ShadowConfig::default();
 

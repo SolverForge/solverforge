@@ -9,6 +9,7 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
     let mut runtime_attachments = Vec::new();
     let mut validation_checks = Vec::new();
     let shadow_methods = generate_shadow_methods(model)?;
+    let scalar_groups_impl = generate_scalar_groups_impl(model);
 
     for collection in model
         .solution
@@ -473,6 +474,12 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                 #(#runtime_helpers)*
                 #(#runtime_attachments)*
                 context
+            }
+
+            fn attach_scalar_groups(
+                scalar_variables: &[::solverforge::__internal::ScalarVariableContext<Self>],
+            ) -> ::std::vec::Vec<::solverforge::__internal::ScalarGroupContext<Self>> {
+                #scalar_groups_impl
             }
 
             fn validate_model(descriptor: &::solverforge::__internal::SolutionDescriptor) {

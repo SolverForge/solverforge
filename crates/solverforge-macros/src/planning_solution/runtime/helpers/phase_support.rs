@@ -2,6 +2,7 @@ pub(super) fn generate_runtime_phase_support(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     constraints_path: &Option<String>,
     conflict_repair_providers_path: &Option<String>,
+    scalar_groups_path: &Option<String>,
     solution_name: &Ident,
 ) -> TokenStream {
     if constraints_path.is_none() {
@@ -31,6 +32,20 @@ pub(super) fn generate_runtime_phase_support(
             quote! { .with_conflict_repair_providers(#providers_fn()) }
         })
         .unwrap_or_else(|| quote! {});
+    let scalar_groups_expr = scalar_groups_path
+        .as_ref()
+        .map(|path| {
+            let groups_fn: syn::Path =
+                syn::parse_str(path).expect("scalar groups path must be valid");
+            quote! { #groups_fn(&__solverforge_scalar_contexts) }
+        })
+        .unwrap_or_else(|| {
+            quote! {
+                <#solution_name as ::solverforge::__internal::PlanningModelSupport>::attach_scalar_groups(
+                    &__solverforge_scalar_contexts,
+                )
+            }
+        });
     let scalar_candidate_count_helper =
         generate_scalar_candidate_count_helper(fields, solution_name);
 
@@ -333,12 +348,25 @@ pub(super) fn generate_runtime_phase_support(
                             }
                         }
                     });
+                    let __solverforge_scalar_contexts = __solverforge_variables
+                        .iter()
+                        .filter_map(|variable| match variable {
+                            ::solverforge::__internal::VariableContext::Scalar(ctx) => {
+                                ::core::option::Option::Some(*ctx)
+                            }
+                            ::solverforge::__internal::VariableContext::List(_) => {
+                                ::core::option::Option::None
+                            }
+                        })
+                        .collect::<::std::vec::Vec<_>>();
+                    let __solverforge_scalar_groups = #scalar_groups_expr;
                     let model = ::solverforge::__internal::ModelContext::<
                         #solution_name,
                         usize,
                         #cross_enum_ident,
                         #intra_enum_ident
                     >::new(__solverforge_variables)
+                    .with_scalar_groups(__solverforge_scalar_groups)
                     #conflict_repair_provider_expr;
                     ::solverforge::__internal::build_phases(
                         config,
@@ -406,12 +434,25 @@ pub(super) fn generate_runtime_phase_support(
             > {
                 let descriptor = Self::descriptor();
                 #scalar_setup
+                let __solverforge_scalar_contexts = __solverforge_variables
+                    .iter()
+                    .filter_map(|variable| match variable {
+                        ::solverforge::__internal::VariableContext::Scalar(ctx) => {
+                            ::core::option::Option::Some(*ctx)
+                        }
+                        ::solverforge::__internal::VariableContext::List(_) => {
+                            ::core::option::Option::None
+                        }
+                    })
+                    .collect::<::std::vec::Vec<_>>();
+                let __solverforge_scalar_groups = #scalar_groups_expr;
                 let model = ::solverforge::__internal::ModelContext::<
                     #solution_name,
                     usize,
                     ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
                     ::solverforge::__internal::DefaultCrossEntityDistanceMeter
                 >::new(__solverforge_variables)
+                .with_scalar_groups(__solverforge_scalar_groups)
                 #conflict_repair_provider_expr;
                 ::solverforge::__internal::build_phases(
                     config,

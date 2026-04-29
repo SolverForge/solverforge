@@ -11,6 +11,7 @@ mod engine;
 mod evaluation;
 mod forager;
 mod frontier;
+mod grouped_scalar;
 mod phase;
 mod placer;
 mod slot;
@@ -23,6 +24,7 @@ pub use forager::{
     StrongestFitForager, WeakestFitForager,
 };
 pub(crate) use frontier::ConstructionFrontier;
+pub(crate) use grouped_scalar::solve_grouped_scalar_construction;
 pub use phase::ConstructionHeuristicPhase;
 pub use placer::{EntityPlacer, Placement, QueuedEntityPlacer, SortedEntityPlacer};
-pub(crate) use slot::{ConstructionListElementId, ConstructionSlotId};
+pub(crate) use slot::{ConstructionGroupSlotId, ConstructionListElementId, ConstructionSlotId};

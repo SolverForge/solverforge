@@ -92,6 +92,8 @@ fn config(kind: ConstructionHeuristicType) -> ConstructionHeuristicConfig {
         construction_obligation: Default::default(),
         target: VariableTargetConfig::default(),
         k: 2,
+        group_name: None,
+        group_candidate_limit: None,
         termination: None,
     }
 }

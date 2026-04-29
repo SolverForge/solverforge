@@ -28,8 +28,10 @@ fn selector_family(config: &MoveSelectorConfig) -> SelectorFamily {
         | MoveSelectorConfig::NearbySwapMoveSelector(_)
         | MoveSelectorConfig::PillarChangeMoveSelector(_)
         | MoveSelectorConfig::PillarSwapMoveSelector(_)
-        | MoveSelectorConfig::RuinRecreateMoveSelector(_) => SelectorFamily::Scalar,
-        MoveSelectorConfig::ConflictRepairMoveSelector(_) => SelectorFamily::Mixed,
+        | MoveSelectorConfig::RuinRecreateMoveSelector(_)
+        | MoveSelectorConfig::GroupedScalarMoveSelector(_)
+        | MoveSelectorConfig::ConflictRepairMoveSelector(_)
+        | MoveSelectorConfig::CompoundConflictRepairMoveSelector(_) => SelectorFamily::Scalar,
         MoveSelectorConfig::ListChangeMoveSelector(_)
         | MoveSelectorConfig::NearbyListChangeMoveSelector(_)
         | MoveSelectorConfig::ListSwapMoveSelector(_)
@@ -176,5 +178,69 @@ fn push_conflict_repair_selector<S, V, DM, IDM>(
         config.clone(),
         scalar_variables,
         providers,
+    )));
+}
+
+fn push_compound_conflict_repair_selector<S, V, DM, IDM>(
+    config: &solverforge_config::CompoundConflictRepairMoveSelectorConfig,
+    model: &ModelContext<S, V, DM, IDM>,
+    out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
+) where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
+{
+    if config.constraints.is_empty() {
+        panic!("compound_conflict_repair_move_selector requires at least one constraint");
+    }
+    let scalar_variables = model.scalar_variables().copied().collect::<Vec<_>>();
+    let providers = model
+        .conflict_repair_providers()
+        .iter()
+        .copied()
+        .filter(|provider| {
+            config
+                .constraints
+                .iter()
+                .any(|constraint| constraint == provider.constraint_name)
+        })
+        .collect::<Vec<_>>();
+    if providers.is_empty() {
+        panic!(
+            "compound_conflict_repair_move_selector configured for {:?}, but no matching providers were registered",
+            config.constraints
+        );
+    }
+    out.push(NeighborhoodLeaf::ConflictRepair(
+        ConflictRepairSelector::new_compound(config.clone(), scalar_variables, providers),
+    ));
+}
+
+fn push_grouped_scalar_selector<S, V, DM, IDM>(
+    config: &solverforge_config::GroupedScalarMoveSelectorConfig,
+    model: &ModelContext<S, V, DM, IDM>,
+    out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
+) where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
+{
+    let Some(group) = model
+        .scalar_groups()
+        .iter()
+        .find(|group| group.group_name == config.group_name)
+        .cloned()
+    else {
+        panic!(
+            "grouped_scalar_move_selector configured for `{}`, but no matching scalar group was registered",
+            config.group_name
+        );
+    };
+    out.push(NeighborhoodLeaf::GroupedScalar(GroupedScalarSelector::new(
+        group,
+        config.value_candidate_limit,
+        config.max_moves_per_step,
     )));
 }

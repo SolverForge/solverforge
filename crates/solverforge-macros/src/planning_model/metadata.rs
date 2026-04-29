@@ -49,7 +49,18 @@ fn parse_solution(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Sol
         collections,
         collection_field_names,
         shadow_config: parse_shadow_config(&item_struct.attrs),
+        scalar_groups_path: parse_solution_scalar_groups_path(module, item_struct)?,
     })
+}
+
+fn parse_solution_scalar_groups_path(
+    module: &ModuleSource,
+    item_struct: &ItemStruct,
+) -> Result<Option<syn::Path>> {
+    let Some(attr) = get_attribute(&item_struct.attrs, "planning_solution") else {
+        return Ok(None);
+    };
+    parse_hook_path(attr, "scalar_groups", &module.ident, item_struct)
 }
 
 fn parse_shadow_config(attrs: &[Attribute]) -> ShadowConfig {

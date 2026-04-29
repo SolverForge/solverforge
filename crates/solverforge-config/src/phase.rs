@@ -56,6 +56,12 @@ pub struct ConstructionHeuristicConfig {
     // Optional cap for scalar value candidates generated per entity.
     pub value_candidate_limit: Option<usize>,
 
+    // Optional named scalar group for atomic grouped scalar construction.
+    pub group_name: Option<String>,
+
+    // Optional cap for grouped scalar candidates generated per provider call.
+    pub group_candidate_limit: Option<usize>,
+
     // Phase termination configuration.
     pub termination: Option<TerminationConfig>,
 }
@@ -68,6 +74,8 @@ impl Default for ConstructionHeuristicConfig {
             target: VariableTargetConfig::default(),
             k: default_k(),
             value_candidate_limit: None,
+            group_name: None,
+            group_candidate_limit: None,
             termination: None,
         }
     }

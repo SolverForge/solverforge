@@ -66,6 +66,8 @@ fn config(
             variable_name: variable_name.map(str::to_owned),
         },
         k: 2,
+        group_name: None,
+        group_candidate_limit: None,
         termination: None,
     }
 }

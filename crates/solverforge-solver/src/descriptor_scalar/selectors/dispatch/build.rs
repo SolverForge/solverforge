@@ -263,6 +263,14 @@ where
             MoveSelectorConfig::ConflictRepairMoveSelector(_) => {
                 panic!("conflict_repair_move_selector must be handled by the canonical runtime");
             }
+            MoveSelectorConfig::CompoundConflictRepairMoveSelector(_) => {
+                panic!(
+                    "compound_conflict_repair_move_selector must be handled by the canonical runtime"
+                );
+            }
+            MoveSelectorConfig::GroupedScalarMoveSelector(_) => {
+                panic!("grouped_scalar_move_selector must be handled by the canonical runtime");
+            }
         }
     }
 

@@ -5,13 +5,14 @@ use solverforge_config::{ConstructionHeuristicConfig, ConstructionHeuristicType}
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::domain::SolutionDescriptor;
 
-use crate::builder::{ListVariableContext, ModelContext};
+use crate::builder::{ListVariableContext, ModelContext, ScalarGroupContext};
 use crate::descriptor_scalar::{collect_bindings, find_resolved_binding, ResolvedVariableBinding};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ConstructionRoute {
     DescriptorScalar,
+    GroupedScalar,
     GenericMixed,
     SpecializedList,
 }
@@ -20,6 +21,7 @@ pub(crate) enum ConstructionRoute {
 pub(crate) struct ConstructionCapabilities<S, V, DM, IDM> {
     pub(crate) route: ConstructionRoute,
     pub(crate) scalar_bindings: Vec<ResolvedVariableBinding<S>>,
+    pub(crate) scalar_group: Option<(usize, ScalarGroupContext<S>)>,
     pub(crate) list_variables: Vec<ListVariableContext<S, V, DM, IDM>>,
     pub(crate) entity_class: Option<String>,
     pub(crate) variable_name: Option<String>,
@@ -41,6 +43,7 @@ where
         .unwrap_or(ConstructionHeuristicType::FirstFit);
     let entity_class = config.and_then(|cfg| cfg.target.entity_class.clone());
     let variable_name = config.and_then(|cfg| cfg.target.variable_name.clone());
+    let group_name = config.and_then(|cfg| cfg.group_name.as_deref());
     let explicit_target = entity_class.is_some() || variable_name.is_some();
     let scalar_bindings = find_resolved_binding(
         &resolve_scalar_bindings(descriptor, model),
@@ -64,6 +67,31 @@ where
         );
     }
 
+    let scalar_group = group_name.map(|name| {
+        if matches!(
+            heuristic,
+            ConstructionHeuristicType::ListRoundRobin
+                | ConstructionHeuristicType::ListCheapestInsertion
+                | ConstructionHeuristicType::ListRegretInsertion
+                | ConstructionHeuristicType::ListClarkeWright
+                | ConstructionHeuristicType::ListKOpt
+        ) {
+            panic!(
+                "grouped scalar construction group_name `{name}` may only be used with scalar construction heuristics"
+            );
+        }
+        if !list_variables.is_empty() && scalar_bindings.is_empty() {
+            panic!("grouped scalar construction cannot target planning list variables");
+        }
+        model
+            .scalar_groups()
+            .iter()
+            .enumerate()
+            .find(|(_, group)| group.group_name == name)
+            .map(|(index, group)| (index, group.clone()))
+            .unwrap_or_else(|| panic!("grouped scalar construction configured for `{name}`, but no matching scalar group was registered"))
+    });
+
     let route = match heuristic {
         ConstructionHeuristicType::ListRoundRobin
         | ConstructionHeuristicType::ListCheapestInsertion
@@ -80,20 +108,28 @@ where
         | ConstructionHeuristicType::StrongestFitDecreasing
         | ConstructionHeuristicType::AllocateEntityFromQueue
         | ConstructionHeuristicType::AllocateToValueFromQueue => {
-            validate_scalar_route(heuristic, &scalar_bindings, list_variables.is_empty());
-            ConstructionRoute::DescriptorScalar
+            if scalar_group.is_some() {
+                ConstructionRoute::GroupedScalar
+            } else {
+                validate_scalar_route(heuristic, &scalar_bindings, list_variables.is_empty());
+                ConstructionRoute::DescriptorScalar
+            }
         }
         ConstructionHeuristicType::FirstFit | ConstructionHeuristicType::CheapestInsertion => {
-            if scalar_bindings.is_empty() && list_variables.is_empty() {
-                panic!(
-                    "construction heuristic {:?} matched no planning variables",
-                    heuristic
-                );
-            }
-            if !scalar_bindings.is_empty() && list_variables.is_empty() {
-                ConstructionRoute::DescriptorScalar
+            if scalar_group.is_some() {
+                ConstructionRoute::GroupedScalar
             } else {
-                ConstructionRoute::GenericMixed
+                if scalar_bindings.is_empty() && list_variables.is_empty() {
+                    panic!(
+                        "construction heuristic {:?} matched no planning variables",
+                        heuristic
+                    );
+                }
+                if !scalar_bindings.is_empty() && list_variables.is_empty() {
+                    ConstructionRoute::DescriptorScalar
+                } else {
+                    ConstructionRoute::GenericMixed
+                }
             }
         }
     };
@@ -101,6 +137,7 @@ where
     ConstructionCapabilities {
         route,
         scalar_bindings,
+        scalar_group,
         list_variables,
         entity_class,
         variable_name,

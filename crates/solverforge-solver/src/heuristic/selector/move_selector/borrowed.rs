@@ -25,6 +25,10 @@ where
         (**self).variable_name()
     }
 
+    fn requires_hard_improvement(&self) -> bool {
+        (**self).requires_hard_improvement()
+    }
+
     fn tabu_signature<D: Director<S>>(
         &self,
         score_director: &D,
@@ -112,6 +116,13 @@ where
         match self {
             Self::Borrowed(mov) => mov.variable_name(),
             Self::Sequential(mov) => mov.variable_name(),
+        }
+    }
+
+    fn requires_hard_improvement(&self) -> bool {
+        match self {
+            Self::Borrowed(mov) => mov.requires_hard_improvement(),
+            Self::Sequential(mov) => mov.requires_hard_improvement(),
         }
     }
 

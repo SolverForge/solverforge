@@ -26,7 +26,8 @@ src/
 ├── phase.rs         — PhaseConfig plus construction/local-search/VND/exhaustive configs
 ├── solver_config.rs — SolverConfig, SolverConfigOverride, environment/thread settings
 ├── termination.rs   — TerminationConfig
-└── tests.rs         — Unit tests for TOML/YAML parsing and builder API
+└── tests.rs         — Test module root
+    └── tests/*.rs   — Unit tests for TOML/YAML parsing, selector config, and roundtrips
 ```
 
 ## Public Re-exports (lib.rs)
@@ -119,6 +120,8 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `target` | `VariableTargetConfig` | empty target |
 | `k` | `usize` | `2` (for `ListKOpt`) |
 | `value_candidate_limit` | `Option<usize>` | `None` |
+| `group_name` | `Option<String>` | `None` |
+| `group_candidate_limit` | `Option<usize>` | `None` |
 | `termination` | `Option<TerminationConfig>` | `None` |
 
 `target` is flattened in serde, so configuration files still use top-level
@@ -130,6 +133,11 @@ default `preserve_unassigned` allows an optional scalar slot to remain
 unassigned when the current unassigned state is legal. `assign_when_candidate_exists`
 forces construction to assign a candidate whenever a doable candidate exists,
 even if the unassigned baseline scores better.
+
+`group_name` opts scalar construction into a named model-provided scalar group.
+When set, grouped construction evaluates and applies each candidate's scalar
+edits atomically; `group_candidate_limit` caps candidates returned for that
+group.
 
 ### `LocalSearchConfig`
 
@@ -443,6 +451,16 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
+### `GroupedScalarMoveSelectorConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `group_name` | `String` | required |
+| `value_candidate_limit` | `Option<usize>` | `None` |
+| `max_moves_per_step` | `Option<usize>` | `None` |
+
 ### `LimitedNeighborhoodConfig`
 
 Derives: `Debug, Clone, Deserialize, Serialize`.
@@ -487,9 +505,23 @@ Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`. Manual `Default`
 | `max_matches_per_step` | `usize` | `16` |
 | `max_repairs_per_match` | `usize` | `32` |
 | `max_moves_per_step` | `usize` | `256` |
+| `require_hard_improvement` | `bool` | `false` |
 | `include_soft_matches` | `bool` | `false` |
 
 Runtime note: configured constraints must match scoring constraint metadata before providers are invoked. With `include_soft_matches = false`, non-hard scoring constraints are rejected; setting it to `true` explicitly allows soft repair providers.
+
+### `CompoundConflictRepairMoveSelectorConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`. Manual `Default`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `constraints` | `Vec<String>` | `[]` |
+| `max_matches_per_step` | `usize` | `16` |
+| `max_repairs_per_match` | `usize` | `32` |
+| `max_moves_per_step` | `usize` | `256` |
+| `require_hard_improvement` | `bool` | `true` |
+| `include_soft_matches` | `bool` | `false` |
 
 ### `ExhaustiveSearchConfig`
 
@@ -633,6 +665,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `PillarChangeMoveSelector` | `PillarChangeMoveConfig` |
 | `PillarSwapMoveSelector` | `PillarSwapMoveConfig` |
 | `RuinRecreateMoveSelector` | `RuinRecreateMoveSelectorConfig` |
+| `GroupedScalarMoveSelector` | `GroupedScalarMoveSelectorConfig` |
 | `ListChangeMoveSelector` | `ListChangeMoveConfig` |
 | `NearbyListChangeMoveSelector` | `NearbyListChangeMoveConfig` |
 | `ListSwapMoveSelector` | `ListSwapMoveConfig` |
@@ -643,6 +676,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `KOptMoveSelector` | `KOptMoveSelectorConfig` |
 | `ListRuinMoveSelector` | `ListRuinMoveSelectorConfig` |
 | `ConflictRepairMoveSelector` | `ConflictRepairMoveSelectorConfig` |
+| `CompoundConflictRepairMoveSelector` | `CompoundConflictRepairMoveSelectorConfig` |
 | `LimitedNeighborhood` | `LimitedNeighborhoodConfig` |
 | `UnionMoveSelector` | `UnionMoveSelectorConfig` |
 | `CartesianProductMoveSelector` | `CartesianProductConfig` |

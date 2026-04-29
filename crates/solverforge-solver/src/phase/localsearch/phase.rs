@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::ScoreLevel;
 use solverforge_scoring::{Director, RecordingDirector};
 use tracing::{debug, info, trace};
 
@@ -61,6 +62,9 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
+    if mov.variable_name() == "compound_scalar" || mov.variable_name() == "conflict_repair" {
+        return mov.variable_name().to_string();
+    }
     let mut label = None;
     mov.for_each_affected_entity(&mut |affected| {
         if label.is_none() {
@@ -68,6 +72,28 @@ where
         }
     });
     label.unwrap_or_else(|| "move".to_string())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum HardScoreDelta {
+    Improving,
+    Neutral,
+    Worse,
+}
+
+fn hard_score_delta<Score: solverforge_core::score::Score>(
+    previous: Score,
+    candidate: Score,
+) -> Option<HardScoreDelta> {
+    let hard_index =
+        (0..Score::levels_count()).find(|index| Score::level_label(*index) == ScoreLevel::Hard)?;
+    let previous_hard = previous.level_number(hard_index);
+    let candidate_hard = candidate.level_number(hard_index);
+    Some(match candidate_hard.cmp(&previous_hard) {
+        std::cmp::Ordering::Greater => HardScoreDelta::Improving,
+        std::cmp::Ordering::Equal => HardScoreDelta::Neutral,
+        std::cmp::Ordering::Less => HardScoreDelta::Worse,
+    })
 }
 
 impl<S, M, MS, A, Fo> LocalSearchPhase<S, M, MS, A, Fo>
@@ -171,6 +197,7 @@ where
             let mut interrupted_step = false;
             let mut generated_moves = 0usize;
             let mut evaluated_moves = 0usize;
+            let mut accepted_moves_this_step = 0u64;
             let generation_started = Instant::now();
             let mut cursor = self.move_selector.open_cursor(step_scope.score_director());
             step_scope
@@ -251,10 +278,14 @@ where
                             selector_index,
                             evaluation_started.elapsed(),
                         );
+                        step_scope
+                            .phase_scope_mut()
+                            .record_selector_move_not_doable(selector_index);
                     } else {
                         step_scope
                             .phase_scope_mut()
                             .record_evaluated_move(evaluation_started.elapsed());
+                        step_scope.phase_scope_mut().record_move_not_doable();
                     }
                     continue;
                 }
@@ -268,6 +299,39 @@ where
                 };
 
                 step_scope.phase_scope_mut().record_score_calculation();
+
+                let hard_delta = hard_score_delta(last_step_score, move_score);
+                match hard_delta {
+                    Some(HardScoreDelta::Improving) => {
+                        step_scope.phase_scope_mut().record_move_hard_improving();
+                    }
+                    Some(HardScoreDelta::Neutral) => {
+                        step_scope.phase_scope_mut().record_move_hard_neutral();
+                    }
+                    Some(HardScoreDelta::Worse) => {
+                        step_scope.phase_scope_mut().record_move_hard_worse();
+                    }
+                    None => {}
+                }
+
+                if mov.requires_hard_improvement() && hard_delta != Some(HardScoreDelta::Improving)
+                {
+                    if let Some(selector_index) = selector_index {
+                        step_scope.phase_scope_mut().record_selector_evaluated_move(
+                            selector_index,
+                            evaluation_started.elapsed(),
+                        );
+                        step_scope
+                            .phase_scope_mut()
+                            .record_selector_move_acceptor_rejected(selector_index);
+                    } else {
+                        step_scope
+                            .phase_scope_mut()
+                            .record_evaluated_move(evaluation_started.elapsed());
+                        step_scope.phase_scope_mut().record_move_acceptor_rejected();
+                    }
+                    continue;
+                }
 
                 let move_signature = if requires_move_signatures {
                     Some(mov.tabu_signature(step_scope.score_director()))
@@ -299,6 +363,13 @@ where
                     } else {
                         step_scope.phase_scope_mut().record_move_accepted();
                     }
+                    accepted_moves_this_step += 1;
+                } else if let Some(selector_index) = selector_index {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_selector_move_acceptor_rejected(selector_index);
+                } else {
+                    step_scope.phase_scope_mut().record_move_acceptor_rejected();
                 }
 
                 trace!(
@@ -345,6 +416,15 @@ where
 
                 // Update best solution if improved
                 step_scope.phase_scope_mut().update_best_solution();
+                if accepted_moves_this_step > 1 {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_moves_forager_ignored(accepted_moves_this_step - 1);
+                }
+            } else if accepted_moves_this_step > 0 {
+                step_scope
+                    .phase_scope_mut()
+                    .record_moves_forager_ignored(accepted_moves_this_step);
             }
             /* else: no accepted moves this step — that's fine, the acceptor
             history still needs to advance so Late Acceptance / SA / etc.

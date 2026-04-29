@@ -59,8 +59,9 @@ pub use director::DirectorConfig;
 pub use error::ConfigError;
 pub use forager::{AcceptedCountForagerConfig, ForagerConfig};
 pub use move_selector::{
-    CartesianProductConfig, ChangeMoveConfig, ConflictRepairMoveSelectorConfig,
-    KOptMoveSelectorConfig, LimitedNeighborhoodConfig, ListChangeMoveConfig, ListReverseMoveConfig,
+    CartesianProductConfig, ChangeMoveConfig, CompoundConflictRepairMoveSelectorConfig,
+    ConflictRepairMoveSelectorConfig, GroupedScalarMoveSelectorConfig, KOptMoveSelectorConfig,
+    LimitedNeighborhoodConfig, ListChangeMoveConfig, ListReverseMoveConfig,
     ListRuinMoveSelectorConfig, ListSwapMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig,
     NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, NearbySwapMoveConfig,
     PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,

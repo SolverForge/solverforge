@@ -6,7 +6,7 @@ use crate::attr_parse::has_attribute;
 
 use super::config::{
     parse_config_path, parse_conflict_repair_providers_path, parse_constraints_path,
-    parse_shadow_config, parse_solver_toml_path,
+    parse_scalar_groups_path, parse_shadow_config, parse_solver_toml_path,
 };
 use super::list_operations::generate_list_operations;
 use super::runtime::{
@@ -113,6 +113,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let config_path = parse_config_path(&input.attrs);
     let solver_toml_path = parse_solver_toml_path(&input.attrs);
     let conflict_repair_providers_path = parse_conflict_repair_providers_path(&input.attrs);
+    let scalar_groups_path = parse_scalar_groups_path(&input.attrs);
     let entity_count_arms: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
@@ -161,6 +162,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         fields,
         &constraints_path,
         &conflict_repair_providers_path,
+        &scalar_groups_path,
         name,
     );
     let runtime_solve_internal =

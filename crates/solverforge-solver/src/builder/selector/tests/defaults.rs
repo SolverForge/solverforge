@@ -285,6 +285,7 @@ fn conflict_repair_selector_builds_executable_registered_repairs() {
             max_matches_per_step: 2,
             max_repairs_per_match: 3,
             max_moves_per_step: 4,
+            require_hard_improvement: false,
             include_soft_matches: false,
         },
     );
@@ -335,6 +336,7 @@ fn conflict_repair_rejects_non_hard_constraint_before_provider_invocation() {
             max_matches_per_step: 2,
             max_repairs_per_match: 3,
             max_moves_per_step: 4,
+            require_hard_improvement: false,
             include_soft_matches: false,
         },
     );
@@ -365,6 +367,7 @@ fn conflict_repair_allows_non_hard_constraint_when_configured() {
             max_matches_per_step: 2,
             max_repairs_per_match: 3,
             max_moves_per_step: 4,
+            require_hard_improvement: false,
             include_soft_matches: true,
         },
     );
@@ -400,6 +403,7 @@ fn conflict_repair_rejects_provider_without_matching_scoring_constraint() {
             max_matches_per_step: 2,
             max_repairs_per_match: 3,
             max_moves_per_step: 4,
+            require_hard_improvement: false,
             include_soft_matches: false,
         },
     );

@@ -21,6 +21,9 @@ where
         | Some(MoveSelectorConfig::RuinRecreateMoveSelector(_)) => {
             push_scalar_selector(config, model, random_seed, &mut leaves);
         }
+        Some(MoveSelectorConfig::GroupedScalarMoveSelector(config)) => {
+            push_grouped_scalar_selector(config, model, &mut leaves);
+        }
         Some(MoveSelectorConfig::ListChangeMoveSelector(_))
         | Some(MoveSelectorConfig::NearbyListChangeMoveSelector(_))
         | Some(MoveSelectorConfig::ListSwapMoveSelector(_))
@@ -34,6 +37,21 @@ where
         }
         Some(MoveSelectorConfig::UnionMoveSelector(union)) => {
             for child in &union.selectors {
+                match child {
+                    MoveSelectorConfig::GroupedScalarMoveSelector(config) => {
+                        push_grouped_scalar_selector(config, model, &mut leaves);
+                        continue;
+                    }
+                    MoveSelectorConfig::ConflictRepairMoveSelector(config) => {
+                        push_conflict_repair_selector(config, model, &mut leaves);
+                        continue;
+                    }
+                    MoveSelectorConfig::CompoundConflictRepairMoveSelector(config) => {
+                        push_compound_conflict_repair_selector(config, model, &mut leaves);
+                        continue;
+                    }
+                    _ => {}
+                }
                 match selector_family(child) {
                     SelectorFamily::Scalar => {
                         push_scalar_selector(Some(child), model, random_seed, &mut leaves);
@@ -63,6 +81,9 @@ where
         }
         Some(MoveSelectorConfig::ConflictRepairMoveSelector(config)) => {
             push_conflict_repair_selector(config, model, &mut leaves);
+        }
+        Some(MoveSelectorConfig::CompoundConflictRepairMoveSelector(config)) => {
+            push_compound_conflict_repair_selector(config, model, &mut leaves);
         }
     }
     assert!(
@@ -224,6 +245,16 @@ fn collect_neighborhoods<S, V, DM, IDM>(
         Some(MoveSelectorConfig::ConflictRepairMoveSelector(config)) => {
             let mut leaves = Vec::new();
             push_conflict_repair_selector(config, model, &mut leaves);
+            out.push(Neighborhood::Flat(VecUnionSelector::new(leaves)));
+        }
+        Some(MoveSelectorConfig::CompoundConflictRepairMoveSelector(config)) => {
+            let mut leaves = Vec::new();
+            push_compound_conflict_repair_selector(config, model, &mut leaves);
+            out.push(Neighborhood::Flat(VecUnionSelector::new(leaves)));
+        }
+        Some(MoveSelectorConfig::GroupedScalarMoveSelector(config)) => {
+            let mut leaves = Vec::new();
+            push_grouped_scalar_selector(config, model, &mut leaves);
             out.push(Neighborhood::Flat(VecUnionSelector::new(leaves)));
         }
         Some(MoveSelectorConfig::CartesianProductMoveSelector(cartesian)) => {

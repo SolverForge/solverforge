@@ -22,6 +22,29 @@ impl ConstructionSlotId {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct ConstructionGroupSlotId {
+    group_index: usize,
+    entity_or_group_key: usize,
+}
+
+impl ConstructionGroupSlotId {
+    pub(crate) fn new(group_index: usize, entity_or_group_key: usize) -> Self {
+        Self {
+            group_index,
+            entity_or_group_key,
+        }
+    }
+
+    pub(crate) fn group_index(self) -> usize {
+        self.group_index
+    }
+
+    pub(crate) fn entity_or_group_key(self) -> usize {
+        self.entity_or_group_key
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct ConstructionListElementId {
     list_index: usize,
     element_index: usize,

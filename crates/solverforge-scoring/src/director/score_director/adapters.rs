@@ -68,6 +68,10 @@ where
         Some(count)
     }
 
+    fn constraint_is_hard(&self, name: &str) -> Option<bool> {
+        self.constraints().constraint_is_hard(name)
+    }
+
     fn is_incremental(&self) -> bool {
         true
     }

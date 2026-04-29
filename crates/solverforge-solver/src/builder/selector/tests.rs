@@ -12,7 +12,8 @@ use solverforge_core::domain::{
     VariableDescriptor,
 };
 use solverforge_core::score::SoftScore;
-use solverforge_scoring::ScoreDirector;
+use solverforge_core::ConstraintRef;
+use solverforge_scoring::{DetailedConstraintMatch, IncrementalConstraint, ScoreDirector};
 
 use super::*;
 use crate::builder::list_selector::ListLeafSelector;

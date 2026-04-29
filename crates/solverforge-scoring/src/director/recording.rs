@@ -181,6 +181,10 @@ impl<S: PlanningSolution, D: Director<S>> Director<S> for RecordingDirector<'_, 
         self.inner.total_entity_count()
     }
 
+    fn constraint_is_hard(&self, name: &str) -> Option<bool> {
+        self.inner.constraint_is_hard(name)
+    }
+
     fn is_incremental(&self) -> bool {
         self.inner.is_incremental()
     }

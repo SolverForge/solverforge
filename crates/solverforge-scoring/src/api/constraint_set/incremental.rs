@@ -131,6 +131,9 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     // Returns the number of constraints in this set.
     fn constraint_count(&self) -> usize;
 
+    // Returns whether the named constraint is hard, or `None` if it is not in this set.
+    fn constraint_is_hard(&self, name: &str) -> Option<bool>;
+
     /* Evaluates each constraint individually and returns per-constraint results.
 
     Useful for score explanation and debugging.
@@ -195,6 +198,11 @@ impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
     }
 
     #[inline]
+    fn constraint_is_hard(&self, _name: &str) -> Option<bool> {
+        None
+    }
+
+    #[inline]
     fn evaluate_each(&self, _solution: &S) -> Vec<ConstraintResult<Sc>> {
         Vec::new()
     }
@@ -254,6 +262,15 @@ macro_rules! impl_constraint_set_for_tuple {
                 let mut count = 0;
                 $(let _ = &self.$idx; count += 1;)+
                 count
+            }
+
+            fn constraint_is_hard(&self, name: &str) -> Option<bool> {
+                $(
+                    if self.$idx.name() == name {
+                        return Some(self.$idx.is_hard());
+                    }
+                )+
+                None
             }
 
             fn evaluate_each(&self, solution: &S) -> Vec<ConstraintResult<Sc>> {

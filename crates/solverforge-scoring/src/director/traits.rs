@@ -49,6 +49,12 @@ pub trait Director<S: PlanningSolution>: Send {
     // Returns the total number of entities across all collections.
     fn total_entity_count(&self) -> Option<usize>;
 
+    // Returns whether a known constraint is hard. Directors without typed
+    // constraint metadata return `None`.
+    fn constraint_is_hard(&self, _name: &str) -> Option<bool> {
+        None
+    }
+
     // Returns true if this score director supports incremental scoring.
     fn is_incremental(&self) -> bool {
         false

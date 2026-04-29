@@ -231,6 +231,10 @@ impl ConstraintSet<ScoreProbeSolution, SoftScore> for ValueConstraintSet {
         1
     }
 
+    fn constraint_is_hard(&self, name: &str) -> Option<bool> {
+        (name == "value").then_some(false)
+    }
+
     fn evaluate_each(&self, solution: &ScoreProbeSolution) -> Vec<ConstraintResult<SoftScore>> {
         vec![ConstraintResult {
             name: "value".to_string(),

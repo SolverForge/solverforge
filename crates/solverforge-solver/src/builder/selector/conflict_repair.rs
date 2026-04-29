@@ -35,13 +35,28 @@ impl<S> ConflictRepairSelector<S> {
         }
     }
 
-    fn variable_for_edit(
-        &self,
-        edit: &ConflictRepairEdit,
-    ) -> Option<ScalarVariableContext<S>> {
+    fn variable_for_edit(&self, edit: &ConflictRepairEdit) -> Option<ScalarVariableContext<S>> {
         self.scalar_variables.iter().copied().find(|ctx| {
             ctx.descriptor_index == edit.descriptor_index && ctx.variable_name == edit.variable_name
         })
+    }
+
+    fn validate_constraint_hardness<D>(&self, score_director: &D)
+    where
+        S: PlanningSolution,
+        D: solverforge_scoring::Director<S>,
+    {
+        for constraint_name in &self.config.constraints {
+            let Some(is_hard) = score_director.constraint_is_hard(constraint_name) else {
+                panic!(
+                    "conflict_repair_move_selector configured for `{constraint_name}`, but no matching scoring constraint was found"
+                );
+            };
+            assert!(
+                is_hard || self.config.include_soft_matches,
+                "conflict_repair_move_selector configured for non-hard constraint `{constraint_name}` while include_soft_matches is false"
+            );
+        }
     }
 }
 
@@ -114,6 +129,7 @@ where
         &'a self,
         score_director: &D,
     ) -> Self::Cursor<'a> {
+        self.validate_constraint_hardness(score_director);
         let solution = score_director.working_solution();
         let limits = self.limits();
         let mut store = CandidateStore::with_capacity(self.config.max_moves_per_step);
@@ -132,7 +148,10 @@ where
                     if store.len() >= self.config.max_moves_per_step {
                         return ConflictRepairCursor::new(store);
                     }
-                    if spec.edits.is_empty() || !seen.insert(spec.clone()) {
+                    if spec.edits.is_empty()
+                        || spec_has_duplicate_scalar_targets(&spec.edits)
+                        || !seen.insert(spec.clone())
+                    {
                         continue;
                     }
                     let mut edits = Vec::with_capacity(spec.edits.len());
@@ -172,4 +191,11 @@ where
     fn size<D: solverforge_scoring::Director<S>>(&self, _score_director: &D) -> usize {
         self.config.max_moves_per_step
     }
+}
+
+fn spec_has_duplicate_scalar_targets(edits: &[ConflictRepairEdit]) -> bool {
+    let mut targets = HashSet::new();
+    edits
+        .iter()
+        .any(|edit| !targets.insert((edit.descriptor_index, edit.entity_index, edit.variable_name)))
 }

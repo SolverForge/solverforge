@@ -1,4 +1,3 @@
-
 #[test]
 fn default_scalar_selector_uses_change_and_swap() {
     let descriptor = descriptor(true);
@@ -260,13 +259,14 @@ fn repair_worker_to_one(
 #[test]
 fn conflict_repair_selector_builds_executable_registered_repairs() {
     let descriptor = descriptor(true);
-    let mut director = create_director(
+    let mut director = create_director_with_hard_constraint(
         MixedPlan {
             shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
             vehicles: vec![],
             score: None,
         },
         descriptor,
+        "testConstraint",
     );
     let model = scalar_only_model().with_conflict_repair_providers(vec![
         crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),

@@ -116,6 +116,80 @@ fn create_director(
     )
 }
 
+#[derive(Default)]
+struct NamedHardConstraint {
+    name: &'static str,
+}
+
+impl IncrementalConstraint<MixedPlan, SoftScore> for NamedHardConstraint {
+    fn evaluate(&self, _solution: &MixedPlan) -> SoftScore {
+        SoftScore::of(0)
+    }
+
+    fn match_count(&self, _solution: &MixedPlan) -> usize {
+        0
+    }
+
+    fn initialize(&mut self, _solution: &MixedPlan) -> SoftScore {
+        SoftScore::of(0)
+    }
+
+    fn on_insert(
+        &mut self,
+        _solution: &MixedPlan,
+        _entity_index: usize,
+        _descriptor_index: usize,
+    ) -> SoftScore {
+        SoftScore::of(0)
+    }
+
+    fn on_retract(
+        &mut self,
+        _solution: &MixedPlan,
+        _entity_index: usize,
+        _descriptor_index: usize,
+    ) -> SoftScore {
+        SoftScore::of(0)
+    }
+
+    fn reset(&mut self) {}
+
+    fn name(&self) -> &str {
+        self.name
+    }
+
+    fn is_hard(&self) -> bool {
+        true
+    }
+
+    fn constraint_ref(&self) -> ConstraintRef {
+        ConstraintRef::new("", self.name)
+    }
+
+    fn get_matches(&self, _solution: &MixedPlan) -> Vec<DetailedConstraintMatch<SoftScore>> {
+        Vec::new()
+    }
+}
+
+fn create_director_with_hard_constraint(
+    solution: MixedPlan,
+    descriptor: SolutionDescriptor,
+    constraint_name: &'static str,
+) -> ScoreDirector<MixedPlan, (NamedHardConstraint,)> {
+    ScoreDirector::with_descriptor(
+        solution,
+        (NamedHardConstraint {
+            name: constraint_name,
+        },),
+        descriptor,
+        |solution, descriptor_index| match descriptor_index {
+            0 => solution.shifts.len(),
+            1 => solution.vehicles.len(),
+            _ => 0,
+        },
+    )
+}
+
 fn shift_count(solution: &MixedPlan) -> usize {
     solution.shifts.len()
 }

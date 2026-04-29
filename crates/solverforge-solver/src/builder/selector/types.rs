@@ -101,6 +101,7 @@ where
 {
     Scalar(ScalarLeafSelector<S>),
     List(ListLeafSelector<S, V, DM, IDM>),
+    ConflictRepair(ConflictRepairSelector<S>),
 }
 
 fn wrap_scalar_neighborhood_move<S, V>(mov: ScalarMoveUnion<S, usize>) -> NeighborhoodMove<S, V>
@@ -140,6 +141,13 @@ where
         <ListLeafSelector<S, V, DM, IDM> as MoveSelector<S, ListMoveUnion<S, V>>>::Cursor<'a>,
         fn(ListMoveUnion<S, V>) -> NeighborhoodMove<S, V>,
     >),
+    ConflictRepair(MappedMoveCursor<
+        S,
+        ScalarMoveUnion<S, usize>,
+        NeighborhoodMove<S, V>,
+        <ConflictRepairSelector<S> as MoveSelector<S, ScalarMoveUnion<S, usize>>>::Cursor<'a>,
+        fn(ScalarMoveUnion<S, usize>) -> NeighborhoodMove<S, V>,
+    >),
 }
 
 impl<S, V, DM, IDM> MoveCursor<S, NeighborhoodMove<S, V>>
@@ -154,6 +162,7 @@ where
         match self {
             Self::Scalar(cursor) => cursor.next_candidate(),
             Self::List(cursor) => cursor.next_candidate(),
+            Self::ConflictRepair(cursor) => cursor.next_candidate(),
         }
     }
 
@@ -161,6 +170,7 @@ where
         match self {
             Self::Scalar(cursor) => cursor.candidate(index),
             Self::List(cursor) => cursor.candidate(index),
+            Self::ConflictRepair(cursor) => cursor.candidate(index),
         }
     }
 
@@ -168,6 +178,7 @@ where
         match self {
             Self::Scalar(cursor) => cursor.take_candidate(index),
             Self::List(cursor) => cursor.take_candidate(index),
+            Self::ConflictRepair(cursor) => cursor.take_candidate(index),
         }
     }
 
@@ -175,6 +186,7 @@ where
         match self {
             Self::Scalar(cursor) => cursor.selector_index(index),
             Self::List(cursor) => cursor.selector_index(index),
+            Self::ConflictRepair(cursor) => cursor.selector_index(index),
         }
     }
 }
@@ -190,6 +202,9 @@ where
         match self {
             Self::Scalar(selector) => write!(f, "NeighborhoodLeaf::Scalar({selector:?})"),
             Self::List(selector) => write!(f, "NeighborhoodLeaf::List({selector:?})"),
+            Self::ConflictRepair(selector) => {
+                write!(f, "NeighborhoodLeaf::ConflictRepair({selector:?})")
+            }
         }
     }
 }
@@ -219,6 +234,12 @@ where
                 selector.open_cursor(score_director),
                 wrap_list_neighborhood_move::<S, V>,
             )),
+            Self::ConflictRepair(selector) => {
+                NeighborhoodLeafCursor::ConflictRepair(MappedMoveCursor::new(
+                    selector.open_cursor(score_director),
+                    wrap_scalar_neighborhood_move::<S, V>,
+                ))
+            }
         }
     }
 
@@ -226,6 +247,7 @@ where
         match self {
             Self::Scalar(selector) => selector.size(score_director),
             Self::List(selector) => selector.size(score_director),
+            Self::ConflictRepair(selector) => selector.size(score_director),
         }
     }
 

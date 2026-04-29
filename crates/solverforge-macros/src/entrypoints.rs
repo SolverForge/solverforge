@@ -28,7 +28,13 @@ pub(crate) fn planning_entity_attr(attr: TokenStream, item: TokenStream) -> Toke
 }
 
 pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let (has_serde, constraints_path, config_path, solver_toml_path) = parse_solution_flags(attr);
+    let (
+        has_serde,
+        constraints_path,
+        config_path,
+        solver_toml_path,
+        conflict_repair_providers_path,
+    ) = parse_solution_flags(attr);
     let input = parse_macro_input!(item as ItemStruct);
     let name = &input.ident;
     let vis = &input.vis;
@@ -47,12 +53,15 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
     let config_attr = config_path.map(|p| quote! { #[solverforge_config_path = #p] });
     let solver_toml_attr =
         solver_toml_path.map(|p| quote! { #[solverforge_solver_toml_path = #p] });
+    let conflict_repair_providers_attr = conflict_repair_providers_path
+        .map(|p| quote! { #[solverforge_conflict_repair_providers_path = #p] });
 
     let expanded = quote! {
         #[derive(Clone, Debug, #serde_derives ::solverforge::PlanningSolutionImpl)]
         #constraints_attr
         #config_attr
         #solver_toml_attr
+        #conflict_repair_providers_attr
         #(#attrs)*
         #vis struct #name #generics #fields
     };

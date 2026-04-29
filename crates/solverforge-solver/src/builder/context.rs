@@ -4,6 +4,81 @@ use std::marker::PhantomData;
 use crate::heuristic::selector::k_opt::ListPositionDistanceMeter;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConflictRepairEdit {
+    pub descriptor_index: usize,
+    pub entity_index: usize,
+    pub variable_name: &'static str,
+    pub to_value: Option<usize>,
+}
+
+impl ConflictRepairEdit {
+    pub fn set_scalar(
+        descriptor_index: usize,
+        entity_index: usize,
+        variable_name: &'static str,
+        to_value: Option<usize>,
+    ) -> Self {
+        Self {
+            descriptor_index,
+            entity_index,
+            variable_name,
+            to_value,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConflictRepairSpec {
+    pub reason: &'static str,
+    pub edits: Vec<ConflictRepairEdit>,
+}
+
+impl ConflictRepairSpec {
+    pub fn new(reason: &'static str, edits: Vec<ConflictRepairEdit>) -> Self {
+        Self { reason, edits }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ConflictRepairLimits {
+    pub max_matches_per_step: usize,
+    pub max_repairs_per_match: usize,
+    pub max_moves_per_step: usize,
+}
+
+pub type ConflictRepairProvider<S> = fn(&S, ConflictRepairLimits) -> Vec<ConflictRepairSpec>;
+
+pub struct ConflictRepairProviderEntry<S> {
+    pub constraint_name: &'static str,
+    pub provider: ConflictRepairProvider<S>,
+}
+
+impl<S> ConflictRepairProviderEntry<S> {
+    pub const fn new(constraint_name: &'static str, provider: ConflictRepairProvider<S>) -> Self {
+        Self {
+            constraint_name,
+            provider,
+        }
+    }
+}
+
+impl<S> fmt::Debug for ConflictRepairProviderEntry<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ConflictRepairProviderEntry")
+            .field("constraint_name", &self.constraint_name)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<S> Clone for ConflictRepairProviderEntry<S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S> Copy for ConflictRepairProviderEntry<S> {}
+
 pub enum ValueSource<S> {
     Empty,
     CountableRange {
@@ -535,6 +610,7 @@ impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for VariableContext<S, V,
 
 pub struct ModelContext<S, V, DM, IDM> {
     variables: Vec<VariableContext<S, V, DM, IDM>>,
+    conflict_repair_providers: Vec<ConflictRepairProviderEntry<S>>,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
@@ -542,6 +618,7 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ModelContext<S, V, DM, IDM> {
     fn clone(&self) -> Self {
         Self {
             variables: self.variables.clone(),
+            conflict_repair_providers: self.conflict_repair_providers.clone(),
             _phantom: PhantomData,
         }
     }
@@ -551,12 +628,25 @@ impl<S, V, DM, IDM> ModelContext<S, V, DM, IDM> {
     pub fn new(variables: Vec<VariableContext<S, V, DM, IDM>>) -> Self {
         Self {
             variables,
+            conflict_repair_providers: Vec::new(),
             _phantom: PhantomData,
         }
     }
 
+    pub fn with_conflict_repair_providers(
+        mut self,
+        providers: Vec<ConflictRepairProviderEntry<S>>,
+    ) -> Self {
+        self.conflict_repair_providers = providers;
+        self
+    }
+
     pub fn variables(&self) -> &[VariableContext<S, V, DM, IDM>] {
         &self.variables
+    }
+
+    pub fn conflict_repair_providers(&self) -> &[ConflictRepairProviderEntry<S>] {
+        &self.conflict_repair_providers
     }
 
     pub fn is_empty(&self) -> bool {
@@ -588,6 +678,7 @@ impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for ModelContext<S, V, DM
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ModelContext")
             .field("variables", &self.variables)
+            .field("conflict_repair_providers", &self.conflict_repair_providers)
             .finish()
     }
 }

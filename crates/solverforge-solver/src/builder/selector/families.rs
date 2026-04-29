@@ -29,6 +29,7 @@ fn selector_family(config: &MoveSelectorConfig) -> SelectorFamily {
         | MoveSelectorConfig::PillarChangeMoveSelector(_)
         | MoveSelectorConfig::PillarSwapMoveSelector(_)
         | MoveSelectorConfig::RuinRecreateMoveSelector(_) => SelectorFamily::Scalar,
+        MoveSelectorConfig::ConflictRepairMoveSelector(_) => SelectorFamily::Mixed,
         MoveSelectorConfig::ListChangeMoveSelector(_)
         | MoveSelectorConfig::NearbyListChangeMoveSelector(_)
         | MoveSelectorConfig::ListSwapMoveSelector(_)
@@ -140,3 +141,40 @@ fn push_list_selector<S, V, DM, IDM>(
     }
 }
 
+fn push_conflict_repair_selector<S, V, DM, IDM>(
+    config: &solverforge_config::ConflictRepairMoveSelectorConfig,
+    model: &ModelContext<S, V, DM, IDM>,
+    out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
+) where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
+{
+    if config.constraints.is_empty() {
+        panic!("conflict_repair_move_selector requires at least one constraint");
+    }
+    let scalar_variables = model.scalar_variables().copied().collect::<Vec<_>>();
+    let providers = model
+        .conflict_repair_providers()
+        .iter()
+        .copied()
+        .filter(|provider| {
+            config
+                .constraints
+                .iter()
+                .any(|constraint| constraint == provider.constraint_name)
+        })
+        .collect::<Vec<_>>();
+    if providers.is_empty() {
+        panic!(
+            "conflict_repair_move_selector configured for {:?}, but no matching providers were registered",
+            config.constraints
+        );
+    }
+    out.push(NeighborhoodLeaf::ConflictRepair(ConflictRepairSelector::new(
+        config.clone(),
+        scalar_variables,
+        providers,
+    )));
+}

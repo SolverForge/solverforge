@@ -202,6 +202,9 @@ impl ListMoveSelectorBuilder {
             MoveSelectorConfig::CartesianProductMoveSelector(_) => {
                 panic!("nested cartesian_product move selectors are not supported inside list cartesian children");
             }
+            MoveSelectorConfig::ConflictRepairMoveSelector(_) => {
+                panic!("conflict_repair_move_selector must be handled by the canonical runtime");
+            }
         }
     }
 

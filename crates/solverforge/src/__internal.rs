@@ -28,6 +28,7 @@ pub use tokio::sync::mpsc::UnboundedSender;
 
 // Solver infrastructure
 pub use solverforge_solver::builder::{
+    ConflictRepairEdit, ConflictRepairLimits, ConflictRepairProviderEntry, ConflictRepairSpec,
     ListVariableContext, LocalSearch, ModelContext, ScalarVariableContext, ValueSource,
     VariableContext, Vnd,
 };

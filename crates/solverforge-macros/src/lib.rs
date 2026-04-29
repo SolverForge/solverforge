@@ -57,7 +57,8 @@ pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
         shadow_variable_updates,
         solverforge_constraints_path,
         solverforge_config_path,
-        solverforge_solver_toml_path
+        solverforge_solver_toml_path,
+        solverforge_conflict_repair_providers_path
     )
 )]
 pub fn derive_planning_solution(input: TokenStream) -> TokenStream {

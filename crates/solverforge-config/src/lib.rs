@@ -59,13 +59,13 @@ pub use director::DirectorConfig;
 pub use error::ConfigError;
 pub use forager::{AcceptedCountForagerConfig, ForagerConfig};
 pub use move_selector::{
-    CartesianProductConfig, ChangeMoveConfig, KOptMoveSelectorConfig, LimitedNeighborhoodConfig,
-    ListChangeMoveConfig, ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig,
-    MoveSelectorConfig, NearbyChangeMoveConfig, NearbyListChangeMoveConfig,
-    NearbyListSwapMoveConfig, NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig,
-    RecreateHeuristicType, RuinRecreateMoveSelectorConfig, SublistChangeMoveConfig,
-    SublistSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig, UnionSelectionOrder,
-    VariableTargetConfig,
+    CartesianProductConfig, ChangeMoveConfig, ConflictRepairMoveSelectorConfig,
+    KOptMoveSelectorConfig, LimitedNeighborhoodConfig, ListChangeMoveConfig, ListReverseMoveConfig,
+    ListRuinMoveSelectorConfig, ListSwapMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig,
+    NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, NearbySwapMoveConfig,
+    PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,
+    RuinRecreateMoveSelectorConfig, SublistChangeMoveConfig, SublistSwapMoveConfig, SwapMoveConfig,
+    UnionMoveSelectorConfig, UnionSelectionOrder, VariableTargetConfig,
 };
 pub use phase::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,

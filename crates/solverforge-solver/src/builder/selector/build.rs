@@ -61,6 +61,9 @@ where
                 "cartesian_product move selectors are not supported in the runtime selector graph"
             );
         }
+        Some(MoveSelectorConfig::ConflictRepairMoveSelector(config)) => {
+            push_conflict_repair_selector(config, model, &mut leaves);
+        }
     }
     assert!(
         !leaves.is_empty(),
@@ -217,6 +220,11 @@ fn collect_neighborhoods<S, V, DM, IDM>(
                 selector,
                 selected_count_limit: limit.selected_count_limit,
             });
+        }
+        Some(MoveSelectorConfig::ConflictRepairMoveSelector(config)) => {
+            let mut leaves = Vec::new();
+            push_conflict_repair_selector(config, model, &mut leaves);
+            out.push(Neighborhood::Flat(VecUnionSelector::new(leaves)));
         }
         Some(MoveSelectorConfig::CartesianProductMoveSelector(cartesian)) => {
             assert_eq!(

@@ -409,6 +409,9 @@ fn collect_scalar_leaf_selectors<S>(
             MoveSelectorConfig::CartesianProductMoveSelector(_) => {
                 panic!("nested cartesian_product move selectors are not supported inside scalar cartesian children");
             }
+            MoveSelectorConfig::ConflictRepairMoveSelector(_) => {
+                panic!("conflict_repair_move_selector must be handled by the canonical runtime");
+            }
         }
     }
 

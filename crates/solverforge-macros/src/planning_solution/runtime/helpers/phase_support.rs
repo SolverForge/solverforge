@@ -1,6 +1,7 @@
 pub(super) fn generate_runtime_phase_support(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     constraints_path: &Option<String>,
+    conflict_repair_providers_path: &Option<String>,
     solution_name: &Ident,
 ) -> TokenStream {
     if constraints_path.is_none() {
@@ -22,6 +23,14 @@ pub(super) fn generate_runtime_phase_support(
         })
         .collect();
     let scalar_setup = generate_scalar_runtime_setup(fields, solution_name);
+    let conflict_repair_provider_expr = conflict_repair_providers_path
+        .as_ref()
+        .map(|path| {
+            let providers_fn: syn::Path =
+                syn::parse_str(path).expect("conflict repair providers path must be valid");
+            quote! { .with_conflict_repair_providers(#providers_fn()) }
+        })
+        .unwrap_or_else(|| quote! {});
     let scalar_candidate_count_helper =
         generate_scalar_candidate_count_helper(fields, solution_name);
 
@@ -329,7 +338,8 @@ pub(super) fn generate_runtime_phase_support(
                         usize,
                         #cross_enum_ident,
                         #intra_enum_ident
-                    >::new(__solverforge_variables);
+                    >::new(__solverforge_variables)
+                    #conflict_repair_provider_expr;
                     ::solverforge::__internal::build_phases(
                         config,
                         &descriptor,
@@ -401,7 +411,8 @@ pub(super) fn generate_runtime_phase_support(
                     usize,
                     ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
                     ::solverforge::__internal::DefaultCrossEntityDistanceMeter
-                >::new(__solverforge_variables);
+                >::new(__solverforge_variables)
+                #conflict_repair_provider_expr;
                 ::solverforge::__internal::build_phases(
                     config,
                     &descriptor,
@@ -411,4 +422,3 @@ pub(super) fn generate_runtime_phase_support(
         }
     }
 }
-

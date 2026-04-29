@@ -5,7 +5,8 @@ use syn::{Data, DeriveInput, Error, Fields};
 use crate::attr_parse::has_attribute;
 
 use super::config::{
-    parse_config_path, parse_constraints_path, parse_shadow_config, parse_solver_toml_path,
+    parse_config_path, parse_conflict_repair_providers_path, parse_constraints_path,
+    parse_shadow_config, parse_solver_toml_path,
 };
 use super::list_operations::generate_list_operations;
 use super::runtime::{
@@ -111,6 +112,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let constraints_path = parse_constraints_path(&input.attrs);
     let config_path = parse_config_path(&input.attrs);
     let solver_toml_path = parse_solver_toml_path(&input.attrs);
+    let conflict_repair_providers_path = parse_conflict_repair_providers_path(&input.attrs);
     let entity_count_arms: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))
@@ -155,7 +157,12 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .collect();
 
     let list_operations = generate_list_operations(fields);
-    let runtime_phase_support = generate_runtime_phase_support(fields, &constraints_path, name);
+    let runtime_phase_support = generate_runtime_phase_support(
+        fields,
+        &constraints_path,
+        &conflict_repair_providers_path,
+        name,
+    );
     let runtime_solve_internal =
         generate_runtime_solve_internal(&constraints_path, &config_path, &solver_toml_path);
     let solvable_solution_impl = generate_solvable_solution(name, &constraints_path);

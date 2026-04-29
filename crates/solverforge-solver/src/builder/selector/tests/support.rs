@@ -133,6 +133,14 @@ fn set_worker(
     solution.shifts[entity_index].worker = value;
 }
 
+fn worker_candidate_values(
+    _solution: &MixedPlan,
+    _entity_index: usize,
+    _variable_index: usize,
+) -> &'static [usize] {
+    &[0, 1]
+}
+
 fn worker_count(solution: &MixedPlan, _provider_index: usize) -> usize {
     solution.shifts.len().max(1)
 }
@@ -231,6 +239,7 @@ fn scalar_context() -> ScalarVariableContext<MixedPlan> {
         },
         true,
     )
+    .with_candidate_values(worker_candidate_values)
 }
 
 fn list_context() -> ListVariableContext<MixedPlan, usize, NoopMeter, NoopMeter> {

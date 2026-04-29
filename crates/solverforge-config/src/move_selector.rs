@@ -70,6 +70,9 @@ pub enum MoveSelectorConfig {
     // composes tabu ids in selector order, and rejects left children that require full score
     // evaluation during preview.
     CartesianProductMoveSelector(CartesianProductConfig),
+
+    // Conflict-directed scalar repair selector.
+    ConflictRepairMoveSelector(ConflictRepairMoveSelectorConfig),
 }
 
 // Change move configuration.
@@ -373,4 +376,42 @@ pub struct UnionMoveSelectorConfig {
 pub struct CartesianProductConfig {
     // Child selectors.
     pub selectors: Vec<MoveSelectorConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub struct ConflictRepairMoveSelectorConfig {
+    pub constraints: Vec<String>,
+    #[serde(default = "default_conflict_repair_max_matches")]
+    pub max_matches_per_step: usize,
+    #[serde(default = "default_conflict_repair_max_repairs")]
+    pub max_repairs_per_match: usize,
+    #[serde(default = "default_conflict_repair_max_moves")]
+    pub max_moves_per_step: usize,
+    #[serde(default)]
+    pub include_soft_matches: bool,
+}
+
+impl Default for ConflictRepairMoveSelectorConfig {
+    fn default() -> Self {
+        Self {
+            constraints: Vec::new(),
+            max_matches_per_step: default_conflict_repair_max_matches(),
+            max_repairs_per_match: default_conflict_repair_max_repairs(),
+            max_moves_per_step: default_conflict_repair_max_moves(),
+            include_soft_matches: false,
+        }
+    }
+}
+
+fn default_conflict_repair_max_matches() -> usize {
+    16
+}
+
+fn default_conflict_repair_max_repairs() -> usize {
+    32
+}
+
+fn default_conflict_repair_max_moves() -> usize {
+    256
 }

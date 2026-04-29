@@ -13,6 +13,7 @@ pub mod selector;
 
 pub use acceptor::{AcceptorBuilder, AnyAcceptor};
 pub use context::{
+    ConflictRepairEdit, ConflictRepairLimits, ConflictRepairProviderEntry, ConflictRepairSpec,
     IntraDistanceAdapter, ListVariableContext, ModelContext, ScalarVariableContext, ValueSource,
     VariableContext,
 };

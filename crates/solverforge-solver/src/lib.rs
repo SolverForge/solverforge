@@ -34,6 +34,7 @@ pub mod termination;
 
 pub use builder::{
     build_local_search, build_move_selector, build_vnd, AcceptorBuilder, AnyAcceptor, AnyForager,
+    ConflictRepairEdit, ConflictRepairLimits, ConflictRepairProviderEntry, ConflictRepairSpec,
     ForagerBuilder, IntraDistanceAdapter, ListVariableContext, LocalSearch, ModelContext,
     Neighborhood, NeighborhoodLeaf, NeighborhoodMove, ScalarVariableContext, Selector, ValueSource,
     VariableContext, Vnd,

@@ -365,6 +365,40 @@ fn test_round_robin_union_with_limited_neighborhood_parsing() {
 }
 
 #[test]
+fn test_conflict_repair_selector_roundtrip() {
+    let toml = r#"
+        [[phases]]
+        type = "local_search"
+
+        [phases.move_selector]
+        type = "conflict_repair_move_selector"
+        constraints = ["minimumRest", "furnaceOverlap"]
+        max_matches_per_step = 4
+        max_repairs_per_match = 8
+        max_moves_per_step = 32
+        include_soft_matches = true
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    let encoded = toml::to_string(&config).unwrap();
+    let reparsed = SolverConfig::from_toml_str(&encoded).unwrap();
+    let PhaseConfig::LocalSearch(local_search) = &reparsed.phases[0] else {
+        panic!("phase should be local_search");
+    };
+    let Some(MoveSelectorConfig::ConflictRepairMoveSelector(selector)) =
+        &local_search.move_selector
+    else {
+        panic!("local search should have conflict repair selector");
+    };
+
+    assert_eq!(selector.constraints, ["minimumRest", "furnaceOverlap"]);
+    assert_eq!(selector.max_matches_per_step, 4);
+    assert_eq!(selector.max_repairs_per_match, 8);
+    assert_eq!(selector.max_moves_per_step, 32);
+    assert!(selector.include_soft_matches);
+}
+
+#[test]
 fn test_new_scalar_selector_variants_and_cartesian_roundtrip() {
     let toml = r#"
         [[phases]]

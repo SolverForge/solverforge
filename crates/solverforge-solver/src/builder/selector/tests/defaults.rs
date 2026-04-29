@@ -227,3 +227,74 @@ fn explicit_scalar_union_selector_can_be_round_robin() {
         solverforge_config::UnionSelectionOrder::RoundRobin
     );
 }
+
+fn repair_worker_to_one(
+    _solution: &MixedPlan,
+    limits: crate::builder::ConflictRepairLimits,
+) -> Vec<crate::builder::ConflictRepairSpec> {
+    assert_eq!(limits.max_matches_per_step, 2);
+    assert_eq!(limits.max_repairs_per_match, 3);
+    assert_eq!(limits.max_moves_per_step, 4);
+    vec![
+        crate::builder::ConflictRepairSpec::new(
+            "testConstraint",
+            vec![crate::builder::ConflictRepairEdit::set_scalar(
+                0,
+                0,
+                "worker",
+                Some(1),
+            )],
+        ),
+        crate::builder::ConflictRepairSpec::new(
+            "testConstraint",
+            vec![crate::builder::ConflictRepairEdit::set_scalar(
+                0,
+                1,
+                "worker",
+                Some(99),
+            )],
+        ),
+    ]
+}
+
+#[test]
+fn conflict_repair_selector_builds_executable_registered_repairs() {
+    let descriptor = descriptor(true);
+    let mut director = create_director(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+    );
+    let model = scalar_only_model().with_conflict_repair_providers(vec![
+        crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
+    ]);
+    let config = MoveSelectorConfig::ConflictRepairMoveSelector(
+        solverforge_config::ConflictRepairMoveSelectorConfig {
+            constraints: vec!["testConstraint".to_string()],
+            max_matches_per_step: 2,
+            max_repairs_per_match: 3,
+            max_moves_per_step: 4,
+            include_soft_matches: false,
+        },
+    );
+
+    let selector = build_move_selector(Some(&config), &model, None);
+    let mut cursor = selector.open_cursor(&director);
+    let first = cursor
+        .next_candidate()
+        .expect("registered legal repair should produce a candidate");
+    assert!(
+        cursor.next_candidate().is_none(),
+        "illegal provider edits must be filtered before candidate exposure"
+    );
+
+    let repair = cursor.take_candidate(first);
+    assert!(repair.is_doable(&director));
+    repair.do_move(&mut director);
+
+    assert_eq!(director.working_solution().shifts[0].worker, Some(1));
+    assert_eq!(director.working_solution().shifts[1].worker, Some(1));
+}

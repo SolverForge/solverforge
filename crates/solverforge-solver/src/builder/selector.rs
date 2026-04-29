@@ -29,6 +29,7 @@ use super::forager::{AnyForager, ForagerBuilder};
 use super::list_selector::{ListLeafSelector, ListMoveSelectorBuilder};
 use super::scalar_selector::{build_scalar_flat_selector, ScalarLeafSelector};
 
+include!("selector/conflict_repair.rs");
 include!("selector/types.rs");
 include!("selector/families.rs");
 include!("selector/build.rs");

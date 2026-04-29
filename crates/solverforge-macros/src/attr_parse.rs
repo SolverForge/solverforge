@@ -29,17 +29,30 @@ pub(crate) fn has_serde_flag(attr: TokenStream) -> bool {
 }
 
 // Parses planning_solution attribute flags: serde, constraints = "path",
-// config = "path", solver_toml = "path".
+// config = "path", solver_toml = "path", conflict_repair_providers = "path".
 pub(crate) fn parse_solution_flags(
     attr: TokenStream,
-) -> (bool, Option<String>, Option<String>, Option<String>) {
+) -> (
+    bool,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+) {
     let mut has_serde = false;
     let mut constraints_path = None;
     let mut config_path = None;
     let mut solver_toml_path = None;
+    let mut conflict_repair_providers_path = None;
 
     if attr.is_empty() {
-        return (has_serde, constraints_path, config_path, solver_toml_path);
+        return (
+            has_serde,
+            constraints_path,
+            config_path,
+            solver_toml_path,
+            conflict_repair_providers_path,
+        );
     }
 
     let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
@@ -70,12 +83,27 @@ pub(crate) fn parse_solution_flags(
                         }
                     }
                 }
+                Meta::NameValue(nv)
+                    if path_matches_ident(&nv.path, "conflict_repair_providers") =>
+                {
+                    if let Expr::Lit(expr_lit) = &nv.value {
+                        if let Lit::Str(lit_str) = &expr_lit.lit {
+                            conflict_repair_providers_path = Some(lit_str.value());
+                        }
+                    }
+                }
                 _ => {}
             }
         }
     }
 
-    (has_serde, constraints_path, config_path, solver_toml_path)
+    (
+        has_serde,
+        constraints_path,
+        config_path,
+        solver_toml_path,
+        conflict_repair_providers_path,
+    )
 }
 
 pub(crate) fn has_attribute(attrs: &[Attribute], name: &str) -> bool {

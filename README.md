@@ -39,7 +39,7 @@ Start new projects with the standalone [`solverforge-cli`](https://github.com/so
 The current CLI scaffolds a neutral shell via `solverforge new <name>`. You shape that shell afterward with `solverforge generate ...`, adding facts, entities, variables, constraints, and generated data as the domain becomes concrete. Generated applications can mix scalar planning variables with multiple independent planning lists, and the emitted code targets the same retained-runtime facade documented in this repository.
 The generated runtime now builds one `ModelContext` for every planning model. Scalar runtime metadata is ordered by descriptor index and variable name, with a compact generated index reserved for getter/setter dispatch, so module declaration order is not part of the user contract. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while pure scalar construction uses the descriptor-scalar boundary. Canonical local search runs over the typed `ModelContext`; descriptor-scalar selectors remain an explicit descriptor engine. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
 Scalar variables declared with `allows_unassigned = true` keep optional-assignment semantics in that runtime: stock construction can keep `None` when it is the best legal baseline, revision-advancing mutations reopen those completed optional slots for reconsideration, and stock local search can both assign and unassign.
-Scalar construction heuristics that sort entities or values declare those capabilities explicitly on `#[planning_variable]`: use `construction_entity_order_key = "fn_name"` for entity-priority ordering and `construction_value_order_key = "fn_name"` for weakest/strongest-fit and queue-style value ordering. Those hooks are evaluated against the live working solution at each construction step, not cached once at phase start.
+Scalar construction heuristics that sort entities or values declare those capabilities explicitly on `#[planning_variable]`: use `construction_entity_order_key = "fn_name"` for entity-priority ordering and `construction_value_order_key = "fn_name"` for weakest/strongest-fit and queue-style value ordering. Those hooks are evaluated against the live working solution at each construction step, not cached once at phase start, and they never reorder local-search scalar candidates.
 Generated applications and normal `solverforge` facade usage keep the same syntax. The recent construction unification only changes advanced direct `solverforge-solver` runtime assembly APIs.
 
 ## Extend the Scaffold
@@ -220,7 +220,9 @@ matching `construction_entity_order_key = "..."` and/or
 `construction_value_order_key = "..."` hook on that scalar variable. SolverForge
 re-evaluates those hooks on the current working solution at every construction
 step, so queue-style and weakest/strongest-fit heuristics track the live model
-state instead of a phase-start snapshot.
+state instead of a phase-start snapshot. Local-search scalar change,
+pillar-change, and ruin/recreate selectors keep canonical bounded candidate
+order; they do not consume construction order keys.
 
 ### 2. Define Constraints
 
@@ -589,7 +591,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
   model-owned metadata for scalar, list, and mixed models.
 - **Scalar runtime assembly is descriptor-addressed**: generated scalar helpers keep a compact `variable_index` for getter/setter dispatch, while runtime hook attachment and ordering use descriptor index plus variable name, so module declaration order is not a modeling contract.
 - **Scalar nearby selectors are bounded model-declared capabilities**: `#[planning_variable]` supports `candidate_values`, `nearby_value_candidates`, and `nearby_entity_candidates`; distance meters rank or filter those bounded candidates and are rejected as standalone discovery mechanisms.
-- **Scalar construction ordering is model-declared too**: `#[planning_variable]` now supports `construction_entity_order_key` and `construction_value_order_key`, and scalar-only construction heuristics validate those hooks before phase build.
+- **Scalar construction ordering is model-declared too**: `#[planning_variable]` now supports `construction_entity_order_key` and `construction_value_order_key`, and scalar-only construction heuristics validate those hooks before phase build. These hooks are construction-only and do not change local-search selector order.
 - **Construction routing is capability-driven**: scalar-only heuristics route through the descriptor-scalar engine, list-only heuristics validate the existing list hook surface before build, and generic `FirstFit` / `CheapestInsertion` stay on the mixed engine when matching list work is present.
 - **Move selectors are cursor-based**: `open_cursor()` now yields stable candidate indices plus borrowable candidates, cartesian neighborhoods stay preview-safe and cursor-native, and ownership materializes only for the selected winner. Convenience owned-stream helpers such as `iter_moves()` and `append_moves()` are not a cartesian-safe contract.
 - **Large modules stay split by behavior**: solver, descriptor-scalar, runtime, construction, and macro-generated support code keep implementation and test chunks in adjacent subsystem files so each Rust source file stays below the 500 LOC maintenance boundary.

@@ -32,6 +32,9 @@ fn commit_candidate<S, V, D, ProgressCb>(
             step_scope.phase_scope_mut().record_move_accepted();
             step_scope.apply_committed_move(&mov);
             step_scope.phase_scope_mut().record_move_applied();
+            step_scope
+                .phase_scope_mut()
+                .record_construction_slot_assigned();
             let step_score = step_scope.calculate_score();
             step_scope.set_step_score(step_score);
             step_scope.complete();
@@ -64,8 +67,15 @@ fn commit_candidate<S, V, D, ProgressCb>(
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ScalarSlotCompletion {
+    Kept,
+    NoDoableCandidate,
+}
+
 fn complete_scalar_slot<S, D, ProgressCb>(
     slot_id: ConstructionSlotId,
+    completion: ScalarSlotCompletion,
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
 ) where
     S: PlanningSolution,
@@ -78,6 +88,14 @@ fn complete_scalar_slot<S, D, ProgressCb>(
         .phase_scope_mut()
         .solver_scope_mut()
         .mark_scalar_slot_completed(slot_id);
+    match completion {
+        ScalarSlotCompletion::Kept => step_scope
+            .phase_scope_mut()
+            .record_construction_slot_kept(),
+        ScalarSlotCompletion::NoDoableCandidate => step_scope
+            .phase_scope_mut()
+            .record_construction_slot_no_doable(),
+    }
     let step_score = step_scope.calculate_score();
     step_scope.set_step_score(step_score);
     step_scope.complete();

@@ -105,6 +105,52 @@ fn first_fit_optional_construction_keeps_current_when_baseline_is_not_beaten() {
 }
 
 #[test]
+fn first_fit_forced_construction_assigns_first_doable_candidate_even_when_worse() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![-5, -1], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, FirstFitForager::new())
+        .with_construction_obligation(
+            solverforge_config::ConstructionObligation::AssignWhenCandidateExists,
+        );
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, Some(-5));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(-5))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+    assert_eq!(solver_scope.stats().step_count, 1);
+}
+
+#[test]
+fn best_fit_forced_construction_assigns_best_candidate_even_when_worse() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let placer = ScoredConstructionPlacer::new(vec![-5, -1], true);
+    let mut phase = ConstructionHeuristicPhase::new(placer, BestFitForager::new())
+        .with_construction_obligation(
+            solverforge_config::ConstructionObligation::AssignWhenCandidateExists,
+        );
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, Some(-1));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(-1))
+    );
+    assert_eq!(solver_scope.stats().moves_accepted, 1);
+    assert_eq!(solver_scope.stats().step_count, 1);
+}
+
+#[test]
 fn first_fit_optional_construction_skips_worse_candidate_and_takes_later_improvement() {
     let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
     let mut solver_scope = SolverScope::new(director);

@@ -40,6 +40,11 @@ pub struct ConstructionHeuristicConfig {
     #[serde(default)]
     pub construction_heuristic_type: ConstructionHeuristicType,
 
+    // Whether nullable scalar variables may keep their current unassigned value during
+    // construction, or must receive a candidate when one exists.
+    #[serde(default)]
+    pub construction_obligation: ConstructionObligation,
+
     // Optional variable target.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
@@ -59,12 +64,26 @@ impl Default for ConstructionHeuristicConfig {
     fn default() -> Self {
         Self {
             construction_heuristic_type: ConstructionHeuristicType::default(),
+            construction_obligation: ConstructionObligation::default(),
             target: VariableTargetConfig::default(),
             k: default_k(),
             value_candidate_limit: None,
             termination: None,
         }
     }
+}
+
+// Construction obligation for nullable scalar variables.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConstructionObligation {
+    // Preserve current behavior: unassigned nullable variables may remain unassigned.
+    #[default]
+    PreserveUnassigned,
+
+    // If a nullable scalar variable is unassigned and has a doable candidate, construction
+    // must assign one instead of comparing against the unassigned baseline.
+    AssignWhenCandidateExists,
 }
 
 // Construction heuristic types.

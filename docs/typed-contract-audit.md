@@ -66,6 +66,7 @@ Audit the former `Typed*` / `typed_*` public surface, explain the architectural 
 - Scalar construction order hooks now mean live model hooks, not phase-start
   snapshots. Weakest-fit, strongest-fit, decreasing, and queue-style scalar
   heuristics re-evaluate the current working solution at each construction step.
+  Local-search scalar selectors do not consume construction order hooks.
 
 ## Risk summary
 

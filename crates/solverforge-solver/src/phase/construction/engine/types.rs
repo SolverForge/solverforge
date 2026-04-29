@@ -83,6 +83,9 @@ where
     let heuristic = config
         .map(|cfg| cfg.construction_heuristic_type)
         .unwrap_or(ConstructionHeuristicType::FirstFit);
+    let construction_obligation = config
+        .map(|cfg| cfg.construction_obligation)
+        .unwrap_or_default();
     let value_candidate_limit = config.and_then(|cfg| cfg.value_candidate_limit);
     if heuristic == ConstructionHeuristicType::CheapestInsertion {
         let unbounded = model.variables().iter().any(|variable| {
@@ -126,6 +129,7 @@ where
                     entity_class,
                     variable_name,
                     value_candidate_limit,
+                    construction_obligation,
                 )
             }
             ConstructionHeuristicType::CheapestInsertion => {
@@ -135,6 +139,7 @@ where
                     entity_class,
                     variable_name,
                     value_candidate_limit,
+                    construction_obligation,
                 )
             }
             other => panic!("unsupported generic construction heuristic {other:?}"),

@@ -93,6 +93,10 @@ fn test_target_and_vnd_parsing() {
     let PhaseConfig::ConstructionHeuristic(construction) = &config.phases[0] else {
         panic!("first phase should be construction");
     };
+    assert_eq!(
+        construction.construction_obligation,
+        ConstructionObligation::PreserveUnassigned
+    );
     assert_eq!(construction.target.entity_class.as_deref(), Some("Shift"));
     assert_eq!(
         construction.target.variable_name.as_deref(),
@@ -115,6 +119,48 @@ fn test_target_and_vnd_parsing() {
     };
     assert_eq!(list_change.target.entity_class.as_deref(), Some("Vehicle"));
     assert_eq!(list_change.target.variable_name.as_deref(), Some("visits"));
+}
+
+#[test]
+fn construction_obligation_parses_and_roundtrips() {
+    let toml = r#"
+        [[phases]]
+        type = "construction_heuristic"
+        construction_heuristic_type = "cheapest_insertion"
+        construction_obligation = "assign_when_candidate_exists"
+        entity_class = "Shift"
+        variable_name = "employee_id"
+        value_candidate_limit = 32
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    let PhaseConfig::ConstructionHeuristic(construction) = &config.phases[0] else {
+        panic!("phase should be construction");
+    };
+    assert_eq!(
+        construction.construction_obligation,
+        ConstructionObligation::AssignWhenCandidateExists
+    );
+    assert_eq!(
+        construction.construction_heuristic_type,
+        ConstructionHeuristicType::CheapestInsertion
+    );
+    assert_eq!(construction.target.entity_class.as_deref(), Some("Shift"));
+    assert_eq!(
+        construction.target.variable_name.as_deref(),
+        Some("employee_id")
+    );
+    assert_eq!(construction.value_candidate_limit, Some(32));
+
+    let encoded = toml::to_string(&config).unwrap();
+    let reparsed = SolverConfig::from_toml_str(&encoded).unwrap();
+    let PhaseConfig::ConstructionHeuristic(reparsed_construction) = &reparsed.phases[0] else {
+        panic!("reparsed phase should be construction");
+    };
+    assert_eq!(
+        reparsed_construction.construction_obligation,
+        ConstructionObligation::AssignWhenCandidateExists
+    );
 }
 
 #[test]

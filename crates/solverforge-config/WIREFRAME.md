@@ -115,6 +115,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | Field | Type | Default |
 |-------|------|---------|
 | `construction_heuristic_type` | `ConstructionHeuristicType` | `FirstFit` |
+| `construction_obligation` | `ConstructionObligation` | `PreserveUnassigned` |
 | `target` | `VariableTargetConfig` | empty target |
 | `k` | `usize` | `2` (for `ListKOpt`) |
 | `value_candidate_limit` | `Option<usize>` | `None` |
@@ -123,6 +124,12 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 `target` is flattened in serde, so configuration files still use top-level
 `entity_class = "..."` and `variable_name = "..."` keys when targeting one
 planning variable family.
+
+`construction_obligation` controls nullable scalar construction only. The
+default `preserve_unassigned` allows an optional scalar slot to remain
+unassigned when the current unassigned state is legal. `assign_when_candidate_exists`
+forces construction to assign a candidate whenever a doable candidate exists,
+even if the unassigned baseline scores better.
 
 ### `LocalSearchConfig`
 
@@ -566,6 +573,15 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 | `ListRegretInsertion` | Specialized list-only highest-regret insertion; validates the targeted list variable exists before phase build |
 | `ListClarkeWright` | Specialized list-only greedy route merging by savings; validates required `cw_*` hooks before phase build |
 | `ListKOpt` | Specialized list-only per-route k-opt polishing (k=2 = 2-opt); validates required `k_opt_*` hooks before phase build |
+
+### `ConstructionObligation`
+
+Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
+
+| Variant | Note |
+|---------|------|
+| `PreserveUnassigned` | **Default.** Nullable scalar construction may keep the current unassigned value when legal |
+| `AssignWhenCandidateExists` | Nullable scalar construction must assign a doable candidate when one exists |
 
 ### `AcceptorConfig`
 

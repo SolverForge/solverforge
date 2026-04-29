@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use solverforge_core::score::Score;
 
 use super::ConstructionChoice;
+use solverforge_config::ConstructionObligation;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,4 +155,15 @@ where
             }
         }
     }
+}
+
+pub(crate) fn keep_current_allowed(
+    keep_current_legal: bool,
+    construction_obligation: ConstructionObligation,
+) -> bool {
+    keep_current_legal
+        && matches!(
+            construction_obligation,
+            ConstructionObligation::PreserveUnassigned
+        )
 }

@@ -2,6 +2,7 @@ fn solve_scalar_first_fit<S, V, D, ProgressCb>(
     variable_index: usize,
     ctx: ScalarVariableContext<S>,
     value_candidate_limit: Option<usize>,
+    construction_obligation: ConstructionObligation,
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
 ) -> IterationProgress<S, V>
 where
@@ -33,14 +34,20 @@ where
         );
         if values.is_empty() {
             if ctx.allows_unassigned {
-                complete_scalar_slot(slot_id, phase_scope);
+                complete_scalar_slot(
+                    slot_id,
+                    ScalarSlotCompletion::NoDoableCandidate,
+                    phase_scope,
+                );
                 return IterationProgress::CompletedOnly;
             }
             continue;
         }
 
         let mut first_doable = None;
-        let baseline_score = ctx.allows_unassigned.then(|| phase_scope.calculate_score());
+        let baseline_score =
+            keep_current_allowed(ctx.allows_unassigned, construction_obligation)
+                .then(|| phase_scope.calculate_score());
 
         for (value_index, value) in values.into_iter().enumerate() {
             let mov = ChangeMove::new(
@@ -97,7 +104,13 @@ where
             crate::phase::construction::ConstructionChoice::KeepCurrent
                 if ctx.allows_unassigned =>
             {
-                complete_scalar_slot(slot_id, phase_scope);
+                let completion =
+                    if keep_current_allowed(ctx.allows_unassigned, construction_obligation) {
+                        ScalarSlotCompletion::Kept
+                    } else {
+                        ScalarSlotCompletion::NoDoableCandidate
+                    };
+                complete_scalar_slot(slot_id, completion, phase_scope);
                 return IterationProgress::CompletedOnly;
             }
             crate::phase::construction::ConstructionChoice::KeepCurrent => {}

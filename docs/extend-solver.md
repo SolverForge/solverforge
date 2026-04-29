@@ -41,7 +41,9 @@ ad hoc special cases:
   scalar route resolves one binding set from descriptor metadata plus runtime
   scalar-variable hooks by descriptor index and variable name, then uses that
   same resolved set for validation and execution. The compact scalar
-  `variable_index` remains the generated getter/setter dispatch index.
+  `variable_index` remains the generated getter/setter dispatch index. Those
+  construction hooks are not selector-order hints for local search; local-search
+  scalar selectors keep canonical bounded candidate order.
 - `list_round_robin`, `list_cheapest_insertion`, `list_regret_insertion`,
   `list_clarke_wright`, and `list_k_opt` are list-only. The runtime validates
   the required list hooks before phase build instead of failing deep inside the

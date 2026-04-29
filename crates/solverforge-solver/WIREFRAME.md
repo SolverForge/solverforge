@@ -668,7 +668,10 @@ on a generic type-lifting map adapter.
 Runtime scalar construction resolves one canonical binding set per variable by
 overlaying these runtime hooks onto descriptor-discovered scalar bindings by
 descriptor index and variable name. Validation and execution use that
-same resolved binding set.
+same resolved binding set. Construction order-key hooks are construction-only:
+ordinary local-search change, pillar, and ruin/recreate selectors use canonical
+bounded candidate order and do not reorder candidates from
+`construction_value_order_key`.
 
 **`IntraDistanceAdapter<T>`** — `builder/context.rs`. Newtype wrapping `T: CrossEntityDistanceMeter<S>`. Implements `ListPositionDistanceMeter<S>` by forwarding to `T::distance` with `src_entity_idx == dst_entity_idx`. Used by `ListMoveSelectorBuilder::push_kopt` when `max_nearby > 0`.
 
@@ -890,6 +893,14 @@ moves accepted, moves applied, score calculations, elapsed time, generation
 time, evaluation time, acceptance rate, selector-level telemetry, and exact
 `Throughput { count, elapsed }` views for generated/evaluated work.
 Human-facing `moves/s` is derived only at log/console formatting edges.
+
+`SolverTelemetry` snapshots expose the same counters plus
+`construction_slots_assigned`, `construction_slots_kept`, and
+`construction_slots_no_doable`, which distinguish scalar construction slots
+that received a candidate, legally kept their current unassigned value, or had
+no doable candidate. `SelectorTelemetry` exposes per-selector generated,
+evaluated, accepted, applied, generation-time, and evaluation-time counters for
+local-search selector diagnosis.
 
 ### `runtime.rs`
 

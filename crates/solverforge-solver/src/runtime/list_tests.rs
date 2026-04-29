@@ -85,6 +85,7 @@ fn config(kind: ConstructionHeuristicType) -> ConstructionHeuristicConfig {
     ConstructionHeuristicConfig {
         value_candidate_limit: None,
         construction_heuristic_type: kind,
+        construction_obligation: Default::default(),
         target: VariableTargetConfig::default(),
         k: 2,
         termination: None,

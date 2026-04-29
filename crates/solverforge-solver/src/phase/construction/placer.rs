@@ -111,6 +111,36 @@ where
 {
     // Returns all placements (entities + their candidate moves).
     fn get_placements<D: Director<S>>(&self, score_director: &D) -> Vec<Placement<S, M>>;
+
+    // Returns the next live placement and the number of candidate moves generated
+    // while finding it. The default preserves the eager construction behavior.
+    fn get_next_placement<D, IsCompleted>(
+        &self,
+        score_director: &D,
+        mut is_completed: IsCompleted,
+    ) -> Option<(Placement<S, M>, u64)>
+    where
+        D: Director<S>,
+        IsCompleted: FnMut(usize, usize) -> bool,
+    {
+        let mut selected = None;
+        let mut generated_moves = 0u64;
+
+        for placement in self.get_placements(score_director) {
+            if let Some(slot_id) = placement.slot_id() {
+                if is_completed(slot_id.binding_index(), slot_id.entity_index()) {
+                    continue;
+                }
+            }
+            generated_moves = generated_moves
+                .saturating_add(u64::try_from(placement.moves.len()).unwrap_or(u64::MAX));
+            if selected.is_none() {
+                selected = Some(placement);
+            }
+        }
+
+        selected.map(|placement| (placement, generated_moves))
+    }
 }
 
 /// A queued entity placer that processes entities in order.

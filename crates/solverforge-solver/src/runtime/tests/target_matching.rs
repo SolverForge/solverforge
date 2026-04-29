@@ -60,6 +60,7 @@ fn config(
     ConstructionHeuristicConfig {
         value_candidate_limit: Some(usize::MAX),
         construction_heuristic_type,
+        construction_obligation: Default::default(),
         target: VariableTargetConfig {
             entity_class: entity_class.map(str::to_owned),
             variable_name: variable_name.map(str::to_owned),

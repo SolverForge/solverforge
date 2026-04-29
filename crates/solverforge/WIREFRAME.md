@@ -225,6 +225,8 @@ Used exclusively by macro-generated code. Not public API.
   the hidden `PlanningModelSupport` impl that attaches nearby hooks plus scalar
   construction order-key hooks from `#[planning_variable]`, while list
   construction capabilities continue to come from `#[planning_list_variable]`.
+  Construction order-key hooks are construction-only and do not reorder
+  local-search scalar candidate neighborhoods.
 - **Retained lifecycle surface.** The facade re-exports the retained job / snapshot / checkpoint lifecycle contract from `solverforge-solver`, including exact pause/resume, lifecycle-complete events, and snapshot-bound analysis types.
 - **Prelude** provides the minimal set of types needed for defining domain models and constraints. Users import `use solverforge::prelude::*` and get attribute macros, score types, constraint traits, and the stream API.
 - **Feature flags** propagate to sub-crates: `decimal` → `solverforge-core/decimal`, `serde` → `solverforge-core/serde`.

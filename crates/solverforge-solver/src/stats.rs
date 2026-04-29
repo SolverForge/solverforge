@@ -50,6 +50,9 @@ pub struct SolverTelemetry {
     pub moves_accepted: u64,
     pub moves_applied: u64,
     pub score_calculations: u64,
+    pub construction_slots_assigned: u64,
+    pub construction_slots_kept: u64,
+    pub construction_slots_no_doable: u64,
     pub generation_time: Duration,
     pub evaluation_time: Duration,
     pub selector_telemetry: Vec<SelectorTelemetry>,
@@ -65,6 +68,9 @@ impl SolverTelemetry {
             moves_accepted: 0,
             moves_applied: 0,
             score_calculations: 0,
+            construction_slots_assigned: 0,
+            construction_slots_kept: 0,
+            construction_slots_no_doable: 0,
             generation_time: Duration::ZERO,
             evaluation_time: Duration::ZERO,
             selector_telemetry: Vec::new(),
@@ -137,6 +143,9 @@ pub struct SolverStats {
     pub moves_applied: u64,
     // Total score calculations performed.
     pub score_calculations: u64,
+    pub construction_slots_assigned: u64,
+    pub construction_slots_kept: u64,
+    pub construction_slots_no_doable: u64,
     generation_time: Duration,
     evaluation_time: Duration,
     selector_stats: Vec<SelectorTelemetry>,
@@ -239,6 +248,18 @@ impl SolverStats {
         self.score_calculations += 1;
     }
 
+    pub fn record_construction_slot_assigned(&mut self) {
+        self.construction_slots_assigned += 1;
+    }
+
+    pub fn record_construction_slot_kept(&mut self) {
+        self.construction_slots_kept += 1;
+    }
+
+    pub fn record_construction_slot_no_doable(&mut self) {
+        self.construction_slots_no_doable += 1;
+    }
+
     pub fn generated_throughput(&self) -> Throughput {
         Throughput {
             count: self.moves_generated,
@@ -278,6 +299,9 @@ impl SolverStats {
             moves_accepted: self.moves_accepted,
             moves_applied: self.moves_applied,
             score_calculations: self.score_calculations,
+            construction_slots_assigned: self.construction_slots_assigned,
+            construction_slots_kept: self.construction_slots_kept,
+            construction_slots_no_doable: self.construction_slots_no_doable,
             generation_time: self.generation_time,
             evaluation_time: self.evaluation_time,
             selector_telemetry: self.selector_stats.clone(),
@@ -344,6 +368,9 @@ pub struct PhaseStats {
     pub moves_applied: u64,
     // Number of score calculations in this phase.
     pub score_calculations: u64,
+    pub construction_slots_assigned: u64,
+    pub construction_slots_kept: u64,
+    pub construction_slots_no_doable: u64,
     generation_time: Duration,
     evaluation_time: Duration,
     selector_stats: Vec<SelectorTelemetry>,
@@ -362,6 +389,9 @@ impl PhaseStats {
             moves_accepted: 0,
             moves_applied: 0,
             score_calculations: 0,
+            construction_slots_assigned: 0,
+            construction_slots_kept: 0,
+            construction_slots_no_doable: 0,
             generation_time: Duration::default(),
             evaluation_time: Duration::default(),
             selector_stats: Vec::new(),
@@ -440,6 +470,18 @@ impl PhaseStats {
     /// Records a score calculation.
     pub fn record_score_calculation(&mut self) {
         self.score_calculations += 1;
+    }
+
+    pub fn record_construction_slot_assigned(&mut self) {
+        self.construction_slots_assigned += 1;
+    }
+
+    pub fn record_construction_slot_kept(&mut self) {
+        self.construction_slots_kept += 1;
+    }
+
+    pub fn record_construction_slot_no_doable(&mut self) {
+        self.construction_slots_no_doable += 1;
     }
 
     pub fn generated_throughput(&self) -> Throughput {

@@ -2,7 +2,9 @@ use std::any::Any;
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
 
-use solverforge_config::{ConstructionHeuristicConfig, ConstructionHeuristicType};
+use solverforge_config::{
+    ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,
+};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
@@ -177,6 +179,105 @@ where
                 )
             })
     }
+
+    fn ordered_entity_indices<D: Director<S>>(
+        &self,
+        binding: &ResolvedVariableBinding<S>,
+        score_director: &D,
+    ) -> Vec<usize> {
+        let count = score_director
+            .entity_count(binding.descriptor_index)
+            .unwrap_or(0);
+        let mut entity_indices: Vec<_> = (0..count).collect();
+        if self.entity_order != EntityOrder::Canonical {
+            let solution = score_director.working_solution();
+            entity_indices.sort_by(|left, right| {
+                let left_key = self.entity_order_key(binding, solution, *left);
+                let right_key = self.entity_order_key(binding, solution, *right);
+                match self.entity_order {
+                    EntityOrder::Canonical => left.cmp(right),
+                    EntityOrder::AscendingKey => left_key.cmp(&right_key).then(left.cmp(right)),
+                    EntityOrder::DescendingKey => right_key.cmp(&left_key).then(left.cmp(right)),
+                }
+            });
+        }
+        entity_indices
+    }
+
+    fn ordered_candidate_values(
+        &self,
+        binding: &ResolvedVariableBinding<S>,
+        solution: &S,
+        entity_index: usize,
+    ) -> Vec<usize> {
+        let mut values: Vec<_> = binding
+            .candidate_values_for_entity_index(
+                &self.solution_descriptor,
+                solution as &dyn Any,
+                entity_index,
+                self.value_candidate_limit,
+            )
+            .into_iter()
+            .enumerate()
+            .collect();
+        if self.value_order != ValueOrder::Canonical {
+            values.sort_by(|(left_order, left_value), (right_order, right_value)| {
+                let left_key = self.value_order_key(binding, solution, entity_index, *left_value);
+                let right_key = self.value_order_key(binding, solution, entity_index, *right_value);
+                match self.value_order {
+                    ValueOrder::Canonical => left_order.cmp(right_order),
+                    ValueOrder::AscendingKey => {
+                        left_key.cmp(&right_key).then(left_order.cmp(right_order))
+                    }
+                }
+            });
+        }
+        values.into_iter().map(|(_, value)| value).collect()
+    }
+
+    fn descriptor_change_move(
+        &self,
+        binding: &ResolvedVariableBinding<S>,
+        entity_index: usize,
+        value: usize,
+    ) -> DescriptorScalarMoveUnion<S> {
+        let mut mov = DescriptorChangeMove::new(
+            binding.clone_binding(),
+            entity_index,
+            Some(value),
+            self.solution_descriptor.clone(),
+        );
+        if let Some(order_key) = binding.runtime_value_order_key() {
+            mov = mov.with_construction_value_order_key(order_key);
+        }
+        DescriptorScalarMoveUnion::Change(mov)
+    }
+
+    fn placement_for_entity(
+        &self,
+        binding: &ResolvedVariableBinding<S>,
+        solution: &S,
+        entity_index: usize,
+    ) -> Option<Placement<S, DescriptorScalarMoveUnion<S>>> {
+        let moves = self
+            .ordered_candidate_values(binding, solution, entity_index)
+            .into_iter()
+            .map(|value| self.descriptor_change_move(binding, entity_index, value))
+            .collect::<Vec<_>>();
+
+        if moves.is_empty() {
+            return None;
+        }
+
+        Some(
+            Placement::new(
+                EntityReference::new(binding.descriptor_index, entity_index),
+                moves,
+            )
+            .with_slot_id(binding.slot_id(entity_index))
+            .with_keep_current_legal(binding.allows_unassigned),
+        )
+    }
 }
 
 impl<S> EntityPlacer<S, DescriptorScalarMoveUnion<S>> for DescriptorEntityPlacer<S>
@@ -192,25 +293,7 @@ where
         let erased_solution = solution as &dyn Any;
 
         for binding in &self.bindings {
-            let count = score_director
-                .entity_count(binding.descriptor_index)
-                .unwrap_or(0);
-            let mut entity_indices: Vec<_> = (0..count).collect();
-            if self.entity_order != EntityOrder::Canonical {
-                entity_indices.sort_by(|left, right| {
-                    let left_key = self.entity_order_key(binding, solution, *left);
-                    let right_key = self.entity_order_key(binding, solution, *right);
-                    match self.entity_order {
-                        EntityOrder::Canonical => left.cmp(right),
-                        EntityOrder::AscendingKey => left_key.cmp(&right_key).then(left.cmp(right)),
-                        EntityOrder::DescendingKey => {
-                            right_key.cmp(&left_key).then(left.cmp(right))
-                        }
-                    }
-                });
-            }
-
-            for entity_index in entity_indices {
+            for entity_index in self.ordered_entity_indices(binding, score_director) {
                 let entity = self
                     .solution_descriptor
                     .get_entity(erased_solution, binding.descriptor_index, entity_index)
@@ -219,63 +302,52 @@ where
                     continue;
                 }
 
-                let mut values: Vec<_> = binding
-                    .candidate_values_for_entity_index(
-                        &self.solution_descriptor,
-                        erased_solution,
-                        entity_index,
-                        self.value_candidate_limit,
-                    )
-                    .into_iter()
-                    .enumerate()
-                    .collect();
-                if self.value_order != ValueOrder::Canonical {
-                    values.sort_by(|(left_order, left_value), (right_order, right_value)| {
-                        let left_key =
-                            self.value_order_key(binding, solution, entity_index, *left_value);
-                        let right_key =
-                            self.value_order_key(binding, solution, entity_index, *right_value);
-                        match self.value_order {
-                            ValueOrder::Canonical => left_order.cmp(right_order),
-                            ValueOrder::AscendingKey => {
-                                left_key.cmp(&right_key).then(left_order.cmp(right_order))
-                            }
-                        }
-                    });
+                if let Some(placement) = self.placement_for_entity(binding, solution, entity_index)
+                {
+                    placements.push(placement);
                 }
-
-                let moves = values
-                    .into_iter()
-                    .map(|(_, value)| {
-                        let mut mov = DescriptorChangeMove::new(
-                            binding.clone_binding(),
-                            entity_index,
-                            Some(value),
-                            self.solution_descriptor.clone(),
-                        );
-                        if let Some(order_key) = binding.runtime_value_order_key() {
-                            mov = mov.with_construction_value_order_key(order_key);
-                        }
-                        DescriptorScalarMoveUnion::Change(mov)
-                    })
-                    .collect::<Vec<_>>();
-
-                if moves.is_empty() {
-                    continue;
-                }
-
-                placements.push(
-                    Placement::new(
-                        EntityReference::new(binding.descriptor_index, entity_index),
-                        moves,
-                    )
-                    .with_slot_id(binding.slot_id(entity_index))
-                    .with_keep_current_legal(binding.allows_unassigned),
-                );
             }
         }
 
         placements
+    }
+
+    fn get_next_placement<D, IsCompleted>(
+        &self,
+        score_director: &D,
+        mut is_completed: IsCompleted,
+    ) -> Option<(Placement<S, DescriptorScalarMoveUnion<S>>, u64)>
+    where
+        D: Director<S>,
+        IsCompleted: FnMut(usize, usize) -> bool,
+    {
+        let solution = score_director.working_solution();
+        let erased_solution = solution as &dyn Any;
+
+        for binding in &self.bindings {
+            for entity_index in self.ordered_entity_indices(binding, score_director) {
+                let slot_id = binding.slot_id(entity_index);
+                if is_completed(slot_id.binding_index(), slot_id.entity_index()) {
+                    continue;
+                }
+
+                let entity = self
+                    .solution_descriptor
+                    .get_entity(erased_solution, binding.descriptor_index, entity_index)
+                    .expect("entity lookup failed for descriptor construction");
+                if (binding.getter)(entity).is_some() {
+                    continue;
+                }
+
+                if let Some(placement) = self.placement_for_entity(binding, solution, entity_index)
+                {
+                    let generated_moves = u64::try_from(placement.moves.len()).unwrap_or(u64::MAX);
+                    return Some((placement, generated_moves));
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -323,6 +395,7 @@ fn heuristic_requires_live_refresh(heuristic: ConstructionHeuristicType) -> bool
 fn build_descriptor_phase<S, Fo>(
     placer: &DescriptorEntityPlacer<S>,
     heuristic: ConstructionHeuristicType,
+    construction_obligation: ConstructionObligation,
     forager: Fo,
 ) -> ConstructionHeuristicPhase<S, DescriptorScalarMoveUnion<S>, DescriptorEntityPlacer<S>, Fo>
 where
@@ -330,7 +403,8 @@ where
     S::Score: Score,
     Fo: crate::phase::construction::ConstructionForager<S, DescriptorScalarMoveUnion<S>>,
 {
-    let phase = ConstructionHeuristicPhase::new(placer.clone(), forager);
+    let phase = ConstructionHeuristicPhase::new(placer.clone(), forager)
+        .with_construction_obligation(construction_obligation);
     if heuristic_requires_live_refresh(heuristic) {
         phase.with_live_placement_refresh()
     } else {
@@ -354,6 +428,9 @@ where
     let construction_type = config
         .map(|cfg| cfg.construction_heuristic_type)
         .unwrap_or(ConstructionHeuristicType::FirstFit);
+    let construction_obligation = config
+        .map(|cfg| cfg.construction_obligation)
+        .unwrap_or_default();
     let value_candidate_limit = config.and_then(|cfg| cfg.value_candidate_limit);
     if construction_type == ConstructionHeuristicType::CheapestInsertion {
         let unbounded = bindings
@@ -376,16 +453,27 @@ where
         ConstructionHeuristicType::FirstFit
         | ConstructionHeuristicType::FirstFitDecreasing
         | ConstructionHeuristicType::AllocateEntityFromQueue
-        | ConstructionHeuristicType::AllocateToValueFromQueue => DescriptorConstruction::FirstFit(
-            build_descriptor_phase(&placer, construction_type, FirstFitForager::new()),
-        ),
-        ConstructionHeuristicType::CheapestInsertion => DescriptorConstruction::BestFit(
-            build_descriptor_phase(&placer, construction_type, BestFitForager::new()),
-        ),
+        | ConstructionHeuristicType::AllocateToValueFromQueue => {
+            DescriptorConstruction::FirstFit(build_descriptor_phase(
+                &placer,
+                construction_type,
+                construction_obligation,
+                FirstFitForager::new(),
+            ))
+        }
+        ConstructionHeuristicType::CheapestInsertion => {
+            DescriptorConstruction::BestFit(build_descriptor_phase(
+                &placer,
+                construction_type,
+                construction_obligation,
+                BestFitForager::new(),
+            ))
+        }
         ConstructionHeuristicType::WeakestFit | ConstructionHeuristicType::WeakestFitDecreasing => {
             DescriptorConstruction::WeakestFit(build_descriptor_phase(
                 &placer,
                 construction_type,
+                construction_obligation,
                 WeakestFitForager::new(descriptor_scalar_move_strength::<S>),
             ))
         }
@@ -394,6 +482,7 @@ where
             DescriptorConstruction::StrongestFit(build_descriptor_phase(
                 &placer,
                 construction_type,
+                construction_obligation,
                 StrongestFitForager::new(descriptor_scalar_move_strength::<S>),
             ))
         }

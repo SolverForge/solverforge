@@ -211,4 +211,25 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
         self.stats.record_score_calculation();
         self.solver_scope.stats_mut().record_score_calculation();
     }
+
+    pub fn record_construction_slot_assigned(&mut self) {
+        self.stats.record_construction_slot_assigned();
+        self.solver_scope
+            .stats_mut()
+            .record_construction_slot_assigned();
+    }
+
+    pub fn record_construction_slot_kept(&mut self) {
+        self.stats.record_construction_slot_kept();
+        self.solver_scope
+            .stats_mut()
+            .record_construction_slot_kept();
+    }
+
+    pub fn record_construction_slot_no_doable(&mut self) {
+        self.stats.record_construction_slot_no_doable();
+        self.solver_scope
+            .stats_mut()
+            .record_construction_slot_no_doable();
+    }
 }

@@ -26,6 +26,7 @@ where
 fn commit_selection<S, D, BestCb, M>(
     placement: &mut Placement<S, M>,
     selection: ConstructionChoice,
+    construction_obligation: ConstructionObligation,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
 ) where
     S: PlanningSolution,
@@ -41,18 +42,41 @@ fn commit_selection<S, D, BestCb, M>(
             let m = placement.take_move(idx);
             step_scope.apply_committed_move(&m);
             step_scope.phase_scope_mut().record_move_applied();
+            if placement.slot_id().is_some() {
+                step_scope
+                    .phase_scope_mut()
+                    .record_construction_slot_assigned();
+            }
         }
     }
 
     let step_score = step_scope.calculate_score();
     step_scope.set_step_score(step_score);
 
-    if matches!(selection, ConstructionChoice::Select(_)) || placement.keep_current_legal() {
+    if matches!(selection, ConstructionChoice::Select(_))
+        || keep_current_allowed(placement.keep_current_legal(), construction_obligation)
+        || (placement.keep_current_legal()
+            && matches!(
+                construction_obligation,
+                ConstructionObligation::AssignWhenCandidateExists
+            ))
+    {
         if let Some(slot_id) = placement.slot_id() {
             step_scope
                 .phase_scope_mut()
                 .solver_scope_mut()
                 .mark_scalar_slot_completed(slot_id);
+            if matches!(selection, ConstructionChoice::KeepCurrent) {
+                if keep_current_allowed(placement.keep_current_legal(), construction_obligation) {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_construction_slot_kept();
+                } else {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_construction_slot_no_doable();
+                }
+            }
         }
     }
 }
@@ -60,6 +84,7 @@ fn commit_selection<S, D, BestCb, M>(
 fn select_move_index<S, D, BestCb, M, Fo>(
     forager: &Fo,
     placement: &crate::phase::construction::Placement<S, M>,
+    construction_obligation: ConstructionObligation,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
 ) -> ConstructionSelection
 where
@@ -73,19 +98,19 @@ where
     let erased = forager as &dyn Any;
 
     if erased.is::<FirstFitForager<S, M>>() {
-        return select_first_fit_index(placement, step_scope);
+        return select_first_fit_index(placement, construction_obligation, step_scope);
     }
     if erased.is::<BestFitForager<S, M>>() {
-        return select_best_fit_index(placement, step_scope);
+        return select_best_fit_index(placement, construction_obligation, step_scope);
     }
     if erased.is::<FirstFeasibleForager<S, M>>() {
-        return select_first_feasible_index(placement, step_scope);
+        return select_first_feasible_index(placement, construction_obligation, step_scope);
     }
     if let Some(forager) = erased.downcast_ref::<WeakestFitForager<S, M>>() {
-        return select_weakest_fit_index(forager, placement, step_scope);
+        return select_weakest_fit_index(forager, placement, construction_obligation, step_scope);
     }
     if let Some(forager) = erased.downcast_ref::<StrongestFitForager<S, M>>() {
-        return select_strongest_fit_index(forager, placement, step_scope);
+        return select_strongest_fit_index(forager, placement, construction_obligation, step_scope);
     }
 
     ConstructionSelection::Selected(
@@ -95,6 +120,7 @@ where
 
 fn select_first_fit_index<S, D, BestCb, M>(
     placement: &crate::phase::construction::Placement<S, M>,
+    construction_obligation: ConstructionObligation,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
 ) -> ConstructionSelection
 where
@@ -104,8 +130,7 @@ where
     M: Move<S> + 'static,
 {
     let mut first_doable = None;
-    let baseline_score = placement
-        .keep_current_legal()
+    let baseline_score = keep_current_allowed(placement.keep_current_legal(), construction_obligation)
         .then(|| step_scope.calculate_score());
 
     for (idx, m) in placement.moves.iter().enumerate() {
@@ -147,6 +172,7 @@ where
 
 fn select_best_fit_index<S, D, BestCb, M>(
     placement: &crate::phase::construction::Placement<S, M>,
+    construction_obligation: ConstructionObligation,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
 ) -> ConstructionSelection
 where
@@ -156,8 +182,7 @@ where
     BestCb: ProgressCallback<S>,
     M: Move<S> + 'static,
 {
-    let baseline_score = placement
-        .keep_current_legal()
+    let baseline_score = keep_current_allowed(placement.keep_current_legal(), construction_obligation)
         .then(|| step_scope.calculate_score());
     let mut tracker = ScoredChoiceTracker::default();
 
@@ -187,6 +212,7 @@ where
 
 fn select_first_feasible_index<S, D, BestCb, M>(
     placement: &crate::phase::construction::Placement<S, M>,
+    construction_obligation: ConstructionObligation,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
 ) -> ConstructionSelection
 where
@@ -196,8 +222,7 @@ where
     BestCb: ProgressCallback<S>,
     M: Move<S> + 'static,
 {
-    let baseline_score = placement
-        .keep_current_legal()
+    let baseline_score = keep_current_allowed(placement.keep_current_legal(), construction_obligation)
         .then(|| step_scope.calculate_score());
 
     let mut fallback_tracker = ScoredChoiceTracker::default();
@@ -239,6 +264,7 @@ where
 fn select_weakest_fit_index<S, D, BestCb, M>(
     forager: &WeakestFitForager<S, M>,
     placement: &crate::phase::construction::Placement<S, M>,
+    construction_obligation: ConstructionObligation,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
 ) -> ConstructionSelection
 where
@@ -279,7 +305,7 @@ where
         return ConstructionSelection::Selected(ConstructionChoice::KeepCurrent);
     };
 
-    if !placement.keep_current_legal() {
+    if !keep_current_allowed(placement.keep_current_legal(), construction_obligation) {
         return ConstructionSelection::Selected(ConstructionChoice::Select(best_idx));
     }
 
@@ -297,6 +323,7 @@ where
 fn select_strongest_fit_index<S, D, BestCb, M>(
     forager: &StrongestFitForager<S, M>,
     placement: &crate::phase::construction::Placement<S, M>,
+    construction_obligation: ConstructionObligation,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
 ) -> ConstructionSelection
 where
@@ -337,7 +364,7 @@ where
         return ConstructionSelection::Selected(ConstructionChoice::KeepCurrent);
     };
 
-    if !placement.keep_current_legal() {
+    if !keep_current_allowed(placement.keep_current_legal(), construction_obligation) {
         return ConstructionSelection::Selected(ConstructionChoice::Select(best_idx));
     }
 

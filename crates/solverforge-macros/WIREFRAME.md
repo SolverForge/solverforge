@@ -93,7 +93,8 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
   `nearby_value_distance_meter = "fn_name"` and `nearby_entity_distance_meter = "fn_name"`
   scalar construction ordering hooks are declared here too:
   `construction_entity_order_key = "fn_name"` and
-  `construction_value_order_key = "fn_name"`
+  `construction_value_order_key = "fn_name"`. These are emitted for
+  construction routing and are not local-search selector ordering hooks.
 - `#[planning_list_variable(...)]` — list planning variable
   currently requires `Vec<usize>` and `element_collection = "solution_field"`
 - `#[planning_pin]` — boolean field controlling entity pinning

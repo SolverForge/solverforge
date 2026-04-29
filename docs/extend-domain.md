@@ -44,7 +44,8 @@ Use the scaffold as a thin starter, then model the real problem in your app.
   values per entity, such as weakest-fit, strongest-fit, or queue-style
   allocation.
 - Keep these separate. Nearby hooks guide local-search neighborhood shape;
-  construction order keys guide construction-phase ordering.
+  construction order keys guide construction-phase ordering and are not read by
+  local-search scalar selectors.
 
 ## When the scaffold is no longer enough
 

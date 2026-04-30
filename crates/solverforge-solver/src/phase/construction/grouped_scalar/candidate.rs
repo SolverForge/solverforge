@@ -32,6 +32,7 @@ pub(super) fn normalize_grouped_candidates<S, D, ProgressCb>(
     group: &ScalarGroupContext<S>,
     scalar_bindings: &[ResolvedVariableBinding<S>],
     limits: ScalarGroupLimits,
+    group_candidate_limit: Option<usize>,
 ) -> Vec<NormalizedGroupedCandidate<S>>
 where
     S: PlanningSolution + 'static,
@@ -40,11 +41,14 @@ where
 {
     let solution = phase_scope.score_director().working_solution();
     let raw_candidates = (group.candidate_provider)(solution, limits);
-    let total_limit = limits.group_candidate_limit.unwrap_or(raw_candidates.len());
+    let total_limit = group_candidate_limit.unwrap_or(usize::MAX);
+    if total_limit == 0 {
+        return Vec::new();
+    }
     let mut seen = HashSet::new();
     let mut normalized = Vec::new();
 
-    for (sequence, candidate) in raw_candidates.into_iter().take(total_limit).enumerate() {
+    for (sequence, candidate) in raw_candidates.into_iter().enumerate() {
         if candidate.edits.is_empty() || !seen.insert((candidate.reason, candidate.edits.clone())) {
             continue;
         }
@@ -81,6 +85,9 @@ where
             value_order_key: candidate.construction_value_order_key,
             mov,
         });
+        if normalized.len() >= total_limit {
+            break;
+        }
     }
 
     normalized

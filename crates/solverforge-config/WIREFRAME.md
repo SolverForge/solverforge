@@ -136,10 +136,11 @@ even if the unassigned baseline scores better.
 
 `group_name` opts scalar construction into a named model-provided scalar group.
 When set, grouped construction evaluates and applies each candidate's scalar
-edits atomically; `group_candidate_limit` caps candidates returned for that
-group. Grouped construction also passes `value_candidate_limit` through to the
-provider for per-entity or per-slot value capping. Grouped local-search
-selectors do not use `group_candidate_limit`; they use
+edits atomically; `group_candidate_limit` caps normalized candidates after
+framework legality, duplicate, frontier, and no-op filtering. Grouped
+construction passes `value_candidate_limit` through to the provider for
+per-entity or per-slot value capping. Grouped local-search selectors do not use
+`group_candidate_limit`; they use
 `max_moves_per_step` from `GroupedScalarMoveSelectorConfig` for the total
 provider cap.
 

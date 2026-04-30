@@ -73,15 +73,23 @@ fn grouped_config(
 }
 
 fn coupled_edit_candidate(reason: &'static str, value: usize) -> ScalarGroupCandidate {
+    coupled_edit_candidate_for_entity(reason, 0, value)
+}
+
+fn coupled_edit_candidate_for_entity(
+    reason: &'static str,
+    entity_index: usize,
+    value: usize,
+) -> ScalarGroupCandidate {
     ScalarGroupCandidate::new(
         reason,
         vec![
-            ScalarGroupEdit::set_scalar(0, 0, "first", Some(value)),
-            ScalarGroupEdit::set_scalar(0, 0, "second", Some(value)),
-            ScalarGroupEdit::set_scalar(0, 0, "third", Some(value)),
+            ScalarGroupEdit::set_scalar(0, entity_index, "first", Some(value)),
+            ScalarGroupEdit::set_scalar(0, entity_index, "second", Some(value)),
+            ScalarGroupEdit::set_scalar(0, entity_index, "third", Some(value)),
         ],
     )
-    .with_construction_slot_key(0)
+    .with_construction_slot_key(entity_index)
 }
 
 fn worse_then_better_group_candidates(
@@ -108,6 +116,17 @@ fn ordered_group_candidates(
     vec![
         coupled_edit_candidate("stronger", 0).with_construction_value_order_key(10),
         coupled_edit_candidate("weaker", 1).with_construction_value_order_key(1),
+    ]
+}
+
+fn assigned_then_open_group_candidates(
+    _plan: &CoupledScalarPlan,
+    limits: ScalarGroupLimits,
+) -> Vec<ScalarGroupCandidate> {
+    assert_eq!(limits.group_candidate_limit, None);
+    vec![
+        coupled_edit_candidate_for_entity("assigned", 0, 0),
+        coupled_edit_candidate_for_entity("open", 1, 1),
     ]
 }
 
@@ -199,6 +218,47 @@ fn grouped_scalar_construction_skips_already_assigned_slots() {
     phase.solve(&mut solver_scope);
 
     let choice = &solver_scope.working_solution().choices[0];
+    assert_eq!((choice.first, choice.second, choice.third), (Some(1), Some(1), Some(1)));
+}
+
+#[test]
+fn grouped_scalar_construction_applies_group_limit_after_frontier_filtering() {
+    let descriptor = coupled_scalar_descriptor();
+    let director = CoupledScalarDirector {
+        working_solution: CoupledScalarPlan {
+            score: None,
+            choices: vec![
+                CoupledScalarChoice {
+                    first: Some(1),
+                    second: Some(1),
+                    third: Some(1),
+                },
+                CoupledScalarChoice {
+                    first: None,
+                    second: None,
+                    third: None,
+                },
+            ],
+        },
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = Construction::new(
+        Some(ConstructionHeuristicConfig {
+            group_candidate_limit: Some(1),
+            ..grouped_config(
+                ConstructionHeuristicType::FirstFit,
+                ConstructionObligation::AssignWhenCandidateExists,
+            )
+        }),
+        descriptor,
+        coupled_model_with_group_provider(assigned_then_open_group_candidates),
+    );
+    phase.solve(&mut solver_scope);
+
+    let choice = &solver_scope.working_solution().choices[1];
     assert_eq!((choice.first, choice.second, choice.third), (Some(1), Some(1), Some(1)));
 }
 

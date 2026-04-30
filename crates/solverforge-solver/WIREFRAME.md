@@ -695,7 +695,9 @@ not-doable checks. Grouped construction is opt-in by `ConstructionHeuristicConfi
 { group_name }`; without a group name scalar construction remains single-slot.
 `ScalarGroupLimits` separates `value_candidate_limit`,
 `group_candidate_limit`, and `max_moves_per_step`: grouped construction passes
-the first two, while grouped local search passes `max_moves_per_step`.
+`value_candidate_limit` to providers and applies `group_candidate_limit` after
+framework normalization, while grouped local search passes
+`max_moves_per_step`.
 `ScalarGroupCandidate` exposes construction metadata with
 `with_construction_slot_key(usize)`,
 `with_construction_entity_order_key(i64)`, and

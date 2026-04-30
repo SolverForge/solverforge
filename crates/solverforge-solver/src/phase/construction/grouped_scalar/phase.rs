@@ -31,9 +31,10 @@ where
         .unwrap_or_default();
     let limits = ScalarGroupLimits {
         value_candidate_limit: config.and_then(|cfg| cfg.value_candidate_limit),
-        group_candidate_limit: config.and_then(|cfg| cfg.group_candidate_limit),
+        group_candidate_limit: None,
         max_moves_per_step: None,
     };
+    let group_candidate_limit = config.and_then(|cfg| cfg.group_candidate_limit);
 
     let mut phase_scope =
         PhaseScope::with_phase_type(solver_scope, 0, "Grouped Scalar Construction");
@@ -47,8 +48,14 @@ where
             break;
         }
 
-        let candidates =
-            normalize_grouped_candidates(&phase_scope, group_index, group, scalar_bindings, limits);
+        let candidates = normalize_grouped_candidates(
+            &phase_scope,
+            group_index,
+            group,
+            scalar_bindings,
+            limits,
+            group_candidate_limit,
+        );
         let Some(selection) = select_candidate_for_next_group_slot(
             &mut phase_scope,
             candidates,

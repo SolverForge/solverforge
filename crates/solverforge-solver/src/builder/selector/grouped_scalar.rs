@@ -2,6 +2,7 @@ pub struct GroupedScalarSelector<S> {
     group: crate::builder::context::ScalarGroupContext<S>,
     value_candidate_limit: Option<usize>,
     max_moves_per_step: usize,
+    require_hard_improvement: bool,
 }
 
 impl<S> GroupedScalarSelector<S> {
@@ -9,11 +10,13 @@ impl<S> GroupedScalarSelector<S> {
         group: crate::builder::context::ScalarGroupContext<S>,
         value_candidate_limit: Option<usize>,
         max_moves_per_step: Option<usize>,
+        require_hard_improvement: bool,
     ) -> Self {
         Self {
             group,
             value_candidate_limit,
             max_moves_per_step: max_moves_per_step.unwrap_or(256),
+            require_hard_improvement,
         }
     }
 
@@ -32,6 +35,7 @@ impl<S> std::fmt::Debug for GroupedScalarSelector<S> {
             .field("group_name", &self.group.group_name)
             .field("value_candidate_limit", &self.value_candidate_limit)
             .field("max_moves_per_step", &self.max_moves_per_step)
+            .field("require_hard_improvement", &self.require_hard_improvement)
             .finish()
     }
 }
@@ -117,6 +121,7 @@ where
             else {
                 continue;
             };
+            let mov = mov.with_require_hard_improvement(self.require_hard_improvement);
             if mov.is_doable(score_director) {
                 store.push(ScalarMoveUnion::CompoundScalar(mov));
             }

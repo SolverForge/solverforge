@@ -178,6 +178,7 @@ fn grouped_scalar_move_selector_parses_and_roundtrips() {
         group_name = "task_operator_assignment"
         value_candidate_limit = 24
         max_moves_per_step = 64
+        require_hard_improvement = true
     "#;
 
     let config = SolverConfig::from_toml_str(toml).unwrap();
@@ -194,4 +195,5 @@ fn grouped_scalar_move_selector_parses_and_roundtrips() {
     assert_eq!(selector.group_name, "task_operator_assignment");
     assert_eq!(selector.value_candidate_limit, Some(24));
     assert_eq!(selector.max_moves_per_step, Some(64));
+    assert!(selector.require_hard_improvement);
 }

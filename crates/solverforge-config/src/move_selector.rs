@@ -206,6 +206,8 @@ pub struct GroupedScalarMoveSelectorConfig {
     pub group_name: String,
     pub value_candidate_limit: Option<usize>,
     pub max_moves_per_step: Option<usize>,
+    #[serde(default)]
+    pub require_hard_improvement: bool,
 }
 
 // Configuration for `ListChangeMoveSelector`.

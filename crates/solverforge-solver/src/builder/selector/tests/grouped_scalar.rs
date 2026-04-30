@@ -72,6 +72,7 @@ fn grouped_scalar_selector_builds_one_compound_candidate() {
             group_name: "worker_group".to_string(),
             value_candidate_limit: Some(4),
             max_moves_per_step: Some(8),
+            require_hard_improvement: true,
         },
     );
 
@@ -83,6 +84,7 @@ fn grouped_scalar_selector_builds_one_compound_candidate() {
     assert!(cursor.next_candidate().is_none());
     let mov = cursor.take_candidate(first);
     assert_eq!(mov.variable_name(), "compound_scalar");
+    assert!(mov.requires_hard_improvement());
     assert!(mov.is_doable(&director));
 }
 
@@ -110,6 +112,7 @@ fn grouped_scalar_selector_filters_illegal_and_duplicate_edits() {
                 group_name: "worker_group".to_string(),
                 value_candidate_limit: None,
                 max_moves_per_step: Some(8),
+                require_hard_improvement: false,
             },
         );
         let selector = build_move_selector(Some(&config), &model, None);

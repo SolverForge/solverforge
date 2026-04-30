@@ -465,10 +465,13 @@ Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`.
 | `group_name` | `String` | required |
 | `value_candidate_limit` | `Option<usize>` | `None` |
 | `max_moves_per_step` | `Option<usize>` | `None` |
+| `require_hard_improvement` | `bool` | `false` |
 
 `value_candidate_limit` is provider-defined per assignment or value-source
 work, while `max_moves_per_step` caps the total grouped local-search moves
-generated for one selector step.
+generated for one selector step. When `require_hard_improvement` is true,
+each emitted grouped compound move carries the shared hard-improvement gate
+used by compound repair and cartesian moves.
 
 ### `LimitedNeighborhoodConfig`
 

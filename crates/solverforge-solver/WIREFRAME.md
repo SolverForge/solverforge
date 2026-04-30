@@ -732,6 +732,11 @@ strongest variants require `construction_value_order_key`. Queue-based
 construction heuristics are rejected when `group_name` is set because they do
 not yet have a faithful grouped queue contract.
 
+Grouped scalar local-search selectors emit `CompoundScalarMove` candidates.
+When `GroupedScalarMoveSelectorConfig.require_hard_improvement` is true, those
+candidates carry the shared hard-improvement requirement enforced by local
+search, VND, and cartesian composition.
+
 Construction foragers:
 
 | Forager | Strategy |

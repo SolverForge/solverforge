@@ -242,5 +242,6 @@ fn push_grouped_scalar_selector<S, V, DM, IDM>(
         group,
         config.value_candidate_limit,
         config.max_moves_per_step,
+        config.require_hard_improvement,
     )));
 }

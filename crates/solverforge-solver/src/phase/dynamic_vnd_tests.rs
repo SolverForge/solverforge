@@ -400,4 +400,9 @@ fn dynamic_vnd_rejects_hard_neutral_repair_move_when_hard_improvement_required()
         solver_scope.current_score().copied(),
         Some(HardSoftScore::of(-1, 0))
     );
+    let stats = solver_scope.stats();
+    assert_eq!(stats.moves_generated, 1);
+    assert_eq!(stats.moves_evaluated, 1);
+    assert_eq!(stats.moves_acceptor_rejected, 1);
+    assert_eq!(stats.moves_hard_neutral, 1);
 }

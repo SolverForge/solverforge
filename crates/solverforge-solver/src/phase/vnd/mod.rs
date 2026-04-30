@@ -20,6 +20,7 @@ Moves are never cloned - ownership transfers via `arena.take(index)`.
 */
 
 mod phase;
+pub(crate) mod telemetry;
 
 pub use phase::VndPhase;
 pub use solverforge_scoring::Director as DirectorTrait;

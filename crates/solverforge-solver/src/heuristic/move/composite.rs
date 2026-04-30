@@ -223,6 +223,7 @@ pub struct SequentialCompositeMove<S, M> {
     entity_indices: SmallVec<[usize; 8]>,
     variable_name: String,
     tabu_signature: MoveTabuSignature,
+    require_hard_improvement: bool,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -249,8 +250,14 @@ where
             entity_indices,
             variable_name: variable_name.into(),
             tabu_signature,
+            require_hard_improvement: false,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_require_hard_improvement(mut self, require_hard_improvement: bool) -> Self {
+        self.require_hard_improvement = require_hard_improvement;
+        self
     }
 
     fn first_move(&self) -> &M {
@@ -277,6 +284,7 @@ where
     entity_indices: &'a [usize],
     variable_name: &'a str,
     tabu_signature: &'a MoveTabuSignature,
+    require_hard_improvement: bool,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -306,6 +314,7 @@ where
         entity_indices: &'a [usize],
         variable_name: &'a str,
         tabu_signature: &'a MoveTabuSignature,
+        require_hard_improvement: bool,
     ) -> Self {
         Self {
             first,
@@ -314,6 +323,7 @@ where
             entity_indices,
             variable_name,
             tabu_signature,
+            require_hard_improvement,
             _phantom: PhantomData,
         }
     }
@@ -340,6 +350,7 @@ where
             entity_indices: self.entity_indices,
             variable_name: self.variable_name,
             tabu_signature: self.tabu_signature,
+            require_hard_improvement: self.require_hard_improvement,
             _phantom: PhantomData,
         }
     }
@@ -378,7 +389,9 @@ where
     }
 
     fn requires_hard_improvement(&self) -> bool {
-        self.first.requires_hard_improvement() || self.second.requires_hard_improvement()
+        self.require_hard_improvement
+            || self.first.requires_hard_improvement()
+            || self.second.requires_hard_improvement()
     }
 
     fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {
@@ -400,6 +413,7 @@ where
             self.variable_name.clone(),
             self.tabu_signature.clone(),
         )
+        .with_require_hard_improvement(self.require_hard_improvement)
     }
 }
 
@@ -451,7 +465,8 @@ where
     }
 
     fn requires_hard_improvement(&self) -> bool {
-        self.first_move().requires_hard_improvement()
+        self.require_hard_improvement
+            || self.first_move().requires_hard_improvement()
             || self.second_move().requires_hard_improvement()
     }
 

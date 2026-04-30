@@ -117,6 +117,7 @@ fn test_new_scalar_selector_variants_and_cartesian_roundtrip() {
 
         [[phases.move_selector.selectors]]
         type = "cartesian_product_move_selector"
+        require_hard_improvement = true
 
         [[phases.move_selector.selectors.selectors]]
         type = "change_move_selector"
@@ -175,6 +176,7 @@ fn test_new_scalar_selector_variants_and_cartesian_roundtrip() {
     let MoveSelectorConfig::CartesianProductMoveSelector(cartesian) = &union.selectors[5] else {
         panic!("sixth selector should be cartesian_product");
     };
+    assert!(cartesian.require_hard_improvement);
     assert_eq!(cartesian.selectors.len(), 2);
 }
 

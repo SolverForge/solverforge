@@ -498,11 +498,14 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type |
 |-------|------|
+| `require_hard_improvement` | `bool` |
 | `selectors` | `Vec<MoveSelectorConfig>` |
 
 Runtime note: cartesian selectors compose children in selector order. The left
 child is previewed first, the right child is opened against that preview state,
 and the runtime rejects left-child previews that require full score evaluation.
+When `require_hard_improvement` is true, the composed candidate carries the
+same hard-improvement gate used by compound repair moves.
 
 ### `ConflictRepairMoveSelectorConfig`
 

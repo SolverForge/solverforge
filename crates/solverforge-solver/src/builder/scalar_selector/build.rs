@@ -39,7 +39,8 @@ where
                     random_seed,
                 );
                 nodes.push(ScalarSelectorNode::Cartesian(
-                    CartesianProductSelector::new(left, right, wrap_scalar_composite::<S>),
+                    CartesianProductSelector::new(left, right, wrap_scalar_composite::<S>)
+                        .with_require_hard_improvement(cartesian.require_hard_improvement),
                 ));
             }
             other => {

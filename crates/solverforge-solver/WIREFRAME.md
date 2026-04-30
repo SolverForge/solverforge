@@ -645,7 +645,7 @@ on a generic type-lifting map adapter.
 | `UnionMoveSelector<S, M, A, B>` | Two selectors | Sequential combination |
 | `CartesianProductArena<S, M1, M2>` | Two move types | Cross-product iteration arena |
 | `CartesianProductCursor<S, M>` | One move type | Cursor-backed sequential preview rows with stable pair indices |
-| `CartesianProductSelector<S, M, Left, Right>` | Two selectors plus a wrapping function | Preview-state sequential composition with borrowable candidates, selected-winner materialization, and pure upper-bound `size()` |
+| `CartesianProductSelector<S, M, Left, Right>` | Two selectors plus a wrapping function | Preview-state sequential composition with borrowable candidates, selected-winner materialization, optional hard-improvement gating, and pure upper-bound `size()` |
 | `FilteringMoveSelector<S, M, Inner>` | Predicate `for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool` | Filters moves without reopening cartesian children |
 | `ShufflingMoveSelector<S, M, Inner>` | RNG | Randomizes order without type-lifting moves |
 | `SortingMoveSelector<S, M, Inner>` | Comparator `for<'a> fn(MoveCandidateRef<'a, S, M>, MoveCandidateRef<'a, S, M>) -> Ordering` | Sorts borrowable candidates without reopening cartesian children |

@@ -24,6 +24,7 @@ fn cartesian_scalar_selector_builds_composite_moves() {
         target: VariableTargetConfig::default(),
     });
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![change.clone(), swap.clone()],
     });
 
@@ -54,6 +55,44 @@ fn cartesian_scalar_selector_builds_composite_moves() {
 }
 
 #[test]
+fn cartesian_scalar_selector_can_require_hard_improvement() {
+    let descriptor = descriptor(true);
+    let director = create_director(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+    );
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: true,
+        selectors: vec![
+            MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
+                target: VariableTargetConfig::default(),
+            }),
+            MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+                target: VariableTargetConfig::default(),
+            }),
+        ],
+    });
+
+    let selector = build_move_selector(Some(&config), &scalar_only_model(), None);
+    let mut cursor = selector.open_cursor(&director);
+    let indices =
+        collect_cursor_indices::<MixedPlan, NeighborhoodMove<MixedPlan, usize>, _>(&mut cursor);
+
+    assert!(!indices.is_empty());
+    assert!(cursor
+        .candidate(indices[0])
+        .is_some_and(|mov| mov.requires_hard_improvement()));
+    assert!(cursor
+        .take_candidate(indices[0])
+        .requires_hard_improvement());
+}
+
+#[test]
 fn cartesian_right_child_conflict_repair_uses_preview_constraint_metadata() {
     let descriptor = descriptor(true);
     let director = create_director_with_constraint(
@@ -70,6 +109,7 @@ fn cartesian_right_child_conflict_repair_uses_preview_constraint_metadata() {
         crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
     ]);
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
                 value_candidate_limit: None,
@@ -123,6 +163,7 @@ fn cartesian_right_child_conflict_repair_rejects_soft_metadata_when_not_configur
         crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
     ]);
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
                 value_candidate_limit: None,
@@ -162,6 +203,7 @@ fn cartesian_right_child_conflict_repair_allows_soft_metadata_when_configured() 
         crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
     ]);
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
                 value_candidate_limit: None,
@@ -211,6 +253,7 @@ fn cartesian_list_selector_builds_composite_moves() {
         target: VariableTargetConfig::default(),
     });
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![list_change.clone(), list_reverse.clone()],
     });
 
@@ -262,6 +305,7 @@ fn cartesian_mixed_selector_supports_limited_children() {
         target: VariableTargetConfig::default(),
     });
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![limited_change.clone(), list_reverse.clone()],
     });
 
@@ -312,6 +356,7 @@ fn mixed_builder_cartesian_selector_survives_filtering_wrapper() {
         descriptor,
     );
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
 
@@ -345,6 +390,7 @@ fn mixed_builder_cartesian_selector_survives_filtering_wrapper() {
 )]
 fn cartesian_selector_rejects_score_seeking_scalar_left_child() {
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig::default()),
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
@@ -365,6 +411,7 @@ fn cartesian_selector_rejects_score_seeking_scalar_left_child() {
 )]
 fn cartesian_selector_rejects_score_seeking_list_left_child() {
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ListRuinMoveSelector(ListRuinMoveSelectorConfig::default()),
             MoveSelectorConfig::ListChangeMoveSelector(ListChangeMoveConfig {

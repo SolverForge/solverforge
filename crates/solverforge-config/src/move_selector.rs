@@ -389,6 +389,10 @@ pub struct UnionMoveSelectorConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct CartesianProductConfig {
+    // When true, search phases reject composed candidates unless the hard score improves.
+    #[serde(default)]
+    pub require_hard_improvement: bool,
+
     // Child selectors.
     pub selectors: Vec<MoveSelectorConfig>,
 }

@@ -277,6 +277,7 @@ fn public_list_builder_supports_cartesian_product() {
         None,
     );
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ListChangeMoveSelector(ListChangeMoveConfig {
                 target: VariableTargetConfig::default(),

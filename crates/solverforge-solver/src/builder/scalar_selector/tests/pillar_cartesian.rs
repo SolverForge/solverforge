@@ -225,6 +225,7 @@ fn scalar_builder_cartesian_selector_survives_filtering_wrapper() {
         true,
     )];
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
                 value_candidate_limit: None,

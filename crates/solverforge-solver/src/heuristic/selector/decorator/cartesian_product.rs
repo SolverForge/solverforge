@@ -142,6 +142,7 @@ where
     M: Move<S>,
 {
     wrap: fn(SequentialCompositeMove<S, M>) -> M,
+    require_hard_improvement: bool,
     left_moves: Vec<Option<M>>,
     rows: Vec<CartesianRow<M>>,
     pairs: Vec<CartesianPair>,
@@ -157,6 +158,7 @@ where
 {
     fn new<LeftCursor, Right, D>(
         wrap: fn(SequentialCompositeMove<S, M>) -> M,
+        require_hard_improvement: bool,
         mut left_cursor: LeftCursor,
         right_selector: &Right,
         score_director: &D,
@@ -221,6 +223,7 @@ where
 
         Self {
             wrap,
+            require_hard_improvement,
             left_moves,
             rows,
             pairs,
@@ -248,6 +251,7 @@ where
                 pair.entity_indices.as_slice(),
                 variable_name,
                 &pair.tabu_signature,
+                self.require_hard_improvement,
             ),
         ))
     }
@@ -289,14 +293,17 @@ where
         } else {
             "cartesian_product".to_string()
         };
-        (self.wrap)(SequentialCompositeMove::new(
-            left,
-            right,
-            pair.tabu_signature.scope.descriptor_index,
-            pair.entity_indices.clone(),
-            variable_name,
-            pair.tabu_signature.clone(),
-        ))
+        (self.wrap)(
+            SequentialCompositeMove::new(
+                left,
+                right,
+                pair.tabu_signature.scope.descriptor_index,
+                pair.entity_indices.clone(),
+                variable_name,
+                pair.tabu_signature.clone(),
+            )
+            .with_require_hard_improvement(self.require_hard_improvement),
+        )
     }
 }
 
@@ -316,6 +323,7 @@ pub struct CartesianProductSelector<S, M, Left, Right> {
     left: Left,
     right: Right,
     wrap: fn(SequentialCompositeMove<S, M>) -> M,
+    require_hard_improvement: bool,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -331,8 +339,14 @@ where
             left,
             right,
             wrap,
+            require_hard_improvement: false,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_require_hard_improvement(mut self, require_hard_improvement: bool) -> Self {
+        self.require_hard_improvement = require_hard_improvement;
+        self
     }
 }
 
@@ -347,6 +361,7 @@ where
         f.debug_struct("CartesianProductSelector")
             .field("left", &self.left)
             .field("right", &self.right)
+            .field("require_hard_improvement", &self.require_hard_improvement)
             .finish()
     }
 }
@@ -366,6 +381,7 @@ where
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         CartesianProductCursor::new(
             self.wrap,
+            self.require_hard_improvement,
             self.left.open_cursor(score_director),
             &self.right,
             score_director,

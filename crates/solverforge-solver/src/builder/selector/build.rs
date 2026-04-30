@@ -266,11 +266,10 @@ fn collect_neighborhoods<S, V, DM, IDM>(
             assert_cartesian_left_preview_safe(&cartesian.selectors[0]);
             let left = build_cartesian_child_selector(&cartesian.selectors[0], model, random_seed);
             let right = build_cartesian_child_selector(&cartesian.selectors[1], model, random_seed);
-            out.push(Neighborhood::Cartesian(CartesianProductSelector::new(
-                left,
-                right,
-                wrap_neighborhood_composite::<S, V>,
-            )));
+            out.push(Neighborhood::Cartesian(
+                CartesianProductSelector::new(left, right, wrap_neighborhood_composite::<S, V>)
+                    .with_require_hard_improvement(cartesian.require_hard_improvement),
+            ));
         }
         Some(other) => out.push(Neighborhood::Flat(build_leaf_selector(
             Some(other),

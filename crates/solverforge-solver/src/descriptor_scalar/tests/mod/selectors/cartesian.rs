@@ -16,6 +16,7 @@ fn descriptor_cartesian_builds_composite_moves() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
                 value_candidate_limit: None,
@@ -65,6 +66,7 @@ fn descriptor_cartesian_selector_survives_filtering_wrapper() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
                 value_candidate_limit: None,
@@ -97,6 +99,7 @@ fn descriptor_cartesian_selector_survives_filtering_wrapper() {
 fn descriptor_cartesian_rejects_score_seeking_left_child() {
     let descriptor = descriptor();
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig::default()),
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {

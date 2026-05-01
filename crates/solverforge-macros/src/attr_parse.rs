@@ -31,32 +31,21 @@ pub(crate) fn has_serde_flag(attr: TokenStream) -> bool {
 // Parses planning_solution attribute flags: serde, constraints = "path",
 // config = "path", solver_toml = "path", conflict_repair_providers = "path",
 // scalar_groups = "path".
-pub(crate) fn parse_solution_flags(
-    attr: TokenStream,
-) -> (
-    bool,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-    Option<String>,
-) {
-    let mut has_serde = false;
-    let mut constraints_path = None;
-    let mut config_path = None;
-    let mut solver_toml_path = None;
-    let mut conflict_repair_providers_path = None;
-    let mut scalar_groups_path = None;
+#[derive(Default)]
+pub(crate) struct SolutionFlags {
+    pub(crate) has_serde: bool,
+    pub(crate) constraints_path: Option<String>,
+    pub(crate) config_path: Option<String>,
+    pub(crate) solver_toml_path: Option<String>,
+    pub(crate) conflict_repair_providers_path: Option<String>,
+    pub(crate) scalar_groups_path: Option<String>,
+}
+
+pub(crate) fn parse_solution_flags(attr: TokenStream) -> SolutionFlags {
+    let mut flags = SolutionFlags::default();
 
     if attr.is_empty() {
-        return (
-            has_serde,
-            constraints_path,
-            config_path,
-            solver_toml_path,
-            conflict_repair_providers_path,
-            scalar_groups_path,
-        );
+        return flags;
     }
 
     let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
@@ -64,26 +53,26 @@ pub(crate) fn parse_solution_flags(
         for meta in nested {
             match meta {
                 Meta::Path(path) if path_matches_ident(&path, "serde") => {
-                    has_serde = true;
+                    flags.has_serde = true;
                 }
                 Meta::NameValue(nv) if path_matches_ident(&nv.path, "constraints") => {
                     if let Expr::Lit(expr_lit) = &nv.value {
                         if let Lit::Str(lit_str) = &expr_lit.lit {
-                            constraints_path = Some(lit_str.value());
+                            flags.constraints_path = Some(lit_str.value());
                         }
                     }
                 }
                 Meta::NameValue(nv) if path_matches_ident(&nv.path, "config") => {
                     if let Expr::Lit(expr_lit) = &nv.value {
                         if let Lit::Str(lit_str) = &expr_lit.lit {
-                            config_path = Some(lit_str.value());
+                            flags.config_path = Some(lit_str.value());
                         }
                     }
                 }
                 Meta::NameValue(nv) if path_matches_ident(&nv.path, "solver_toml") => {
                     if let Expr::Lit(expr_lit) = &nv.value {
                         if let Lit::Str(lit_str) = &expr_lit.lit {
-                            solver_toml_path = Some(lit_str.value());
+                            flags.solver_toml_path = Some(lit_str.value());
                         }
                     }
                 }
@@ -92,14 +81,14 @@ pub(crate) fn parse_solution_flags(
                 {
                     if let Expr::Lit(expr_lit) = &nv.value {
                         if let Lit::Str(lit_str) = &expr_lit.lit {
-                            conflict_repair_providers_path = Some(lit_str.value());
+                            flags.conflict_repair_providers_path = Some(lit_str.value());
                         }
                     }
                 }
                 Meta::NameValue(nv) if path_matches_ident(&nv.path, "scalar_groups") => {
                     if let Expr::Lit(expr_lit) = &nv.value {
                         if let Lit::Str(lit_str) = &expr_lit.lit {
-                            scalar_groups_path = Some(lit_str.value());
+                            flags.scalar_groups_path = Some(lit_str.value());
                         }
                     }
                 }
@@ -108,14 +97,7 @@ pub(crate) fn parse_solution_flags(
         }
     }
 
-    (
-        has_serde,
-        constraints_path,
-        config_path,
-        solver_toml_path,
-        conflict_repair_providers_path,
-        scalar_groups_path,
-    )
+    flags
 }
 
 pub(crate) fn has_attribute(attrs: &[Attribute], name: &str) -> bool {

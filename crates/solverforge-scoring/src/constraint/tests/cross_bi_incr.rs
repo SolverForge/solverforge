@@ -1,6 +1,11 @@
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
+
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::IncrementalCrossBiConstraint;
-use crate::stream::collection_extract::{source, ChangeSource};
+use crate::stream::collection_extract::{source, ChangeSource, CollectionExtract};
 use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
 use solverforge_core::score::{Score, SoftScore};
@@ -22,6 +27,42 @@ struct Shift {
 struct Schedule {
     shifts: Vec<Shift>,
     employees: Vec<Employee>,
+}
+
+#[derive(Clone)]
+struct CountingShiftExtract {
+    calls: Arc<AtomicUsize>,
+}
+
+impl CollectionExtract<Schedule> for CountingShiftExtract {
+    type Item = Shift;
+
+    fn extract<'s>(&self, schedule: &'s Schedule) -> &'s [Self::Item] {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        schedule.shifts.as_slice()
+    }
+
+    fn change_source(&self) -> ChangeSource {
+        ChangeSource::Descriptor(0)
+    }
+}
+
+#[derive(Clone)]
+struct CountingEmployeeExtract {
+    calls: Arc<AtomicUsize>,
+}
+
+impl CollectionExtract<Schedule> for CountingEmployeeExtract {
+    type Item = Employee;
+
+    fn extract<'s>(&self, schedule: &'s Schedule) -> &'s [Self::Item] {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        schedule.employees.as_slice()
+    }
+
+    fn change_source(&self) -> ChangeSource {
+        ChangeSource::Descriptor(1)
+    }
 }
 
 fn create_unavailable_employee_constraint() -> impl IncrementalConstraint<Schedule, SoftScore> {
@@ -63,6 +104,40 @@ fn sample_schedule() -> Schedule {
             unavailable_days: vec![5],
         }],
     }
+}
+
+#[test]
+fn cross_bi_unrelated_insert_skips_extractors() {
+    let shift_extract_calls = Arc::new(AtomicUsize::new(0));
+    let employee_extract_calls = Arc::new(AtomicUsize::new(0));
+    let mut constraint = IncrementalCrossBiConstraint::new(
+        ConstraintRef::new("", "Unavailable employee"),
+        ImpactType::Penalty,
+        CountingShiftExtract {
+            calls: Arc::clone(&shift_extract_calls),
+        },
+        CountingEmployeeExtract {
+            calls: Arc::clone(&employee_extract_calls),
+        },
+        |shift: &Shift| shift.employee_id,
+        |employee: &Employee| Some(employee.id),
+        |_schedule: &Schedule, shift: &Shift, employee: &Employee| {
+            shift.employee_id.is_some() && employee.unavailable_days.contains(&shift.day)
+        },
+        |_schedule: &Schedule, _shift_idx: usize, _employee_idx: usize| SoftScore::of(1),
+        false,
+    );
+    let schedule = sample_schedule();
+
+    assert_eq!(constraint.initialize(&schedule), SoftScore::of(-1));
+    shift_extract_calls.store(0, Ordering::Relaxed);
+    employee_extract_calls.store(0, Ordering::Relaxed);
+
+    let delta = constraint.on_insert(&schedule, 0, 2);
+
+    assert_eq!(delta, SoftScore::zero());
+    assert_eq!(shift_extract_calls.load(Ordering::Relaxed), 0);
+    assert_eq!(employee_extract_calls.load(Ordering::Relaxed), 0);
 }
 
 #[test]

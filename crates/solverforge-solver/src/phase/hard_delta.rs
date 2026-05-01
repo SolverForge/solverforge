@@ -1,4 +1,5 @@
 use solverforge_core::score::{Score, ScoreLevel};
+use std::cmp::Ordering;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HardScoreDelta {
@@ -14,13 +15,21 @@ pub(crate) fn hard_score_delta<ScoreT>(
 where
     ScoreT: Score,
 {
-    let hard_index = (0..ScoreT::levels_count())
-        .find(|index| ScoreT::level_label(*index) == ScoreLevel::Hard)?;
-    let previous_hard = previous.level_number(hard_index);
-    let candidate_hard = candidate.level_number(hard_index);
-    Some(match candidate_hard.cmp(&previous_hard) {
-        std::cmp::Ordering::Greater => HardScoreDelta::Improving,
-        std::cmp::Ordering::Equal => HardScoreDelta::Neutral,
-        std::cmp::Ordering::Less => HardScoreDelta::Worse,
-    })
+    let mut saw_hard_level = false;
+    for level in 0..ScoreT::levels_count() {
+        if ScoreT::level_label(level) != ScoreLevel::Hard {
+            continue;
+        }
+        saw_hard_level = true;
+        match candidate
+            .level_number(level)
+            .cmp(&previous.level_number(level))
+        {
+            Ordering::Greater => return Some(HardScoreDelta::Improving),
+            Ordering::Less => return Some(HardScoreDelta::Worse),
+            Ordering::Equal => {}
+        }
+    }
+
+    saw_hard_level.then_some(HardScoreDelta::Neutral)
 }

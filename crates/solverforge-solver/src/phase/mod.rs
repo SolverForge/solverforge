@@ -13,6 +13,10 @@ pub(crate) mod control;
 pub mod dynamic_vnd;
 pub mod exhaustive;
 mod hard_delta;
+#[cfg(test)]
+mod hard_delta_phase_tests;
+#[cfg(test)]
+mod hard_delta_tests;
 pub mod localsearch;
 pub mod partitioned;
 pub mod sequence;

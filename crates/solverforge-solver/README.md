@@ -29,6 +29,10 @@ owns selector limits, duplicate filtering, legality checks, not-doable filtering
 hard-improvement filtering, scoring, tabu identity, and affected-entity
 reporting through `CompoundScalarMove`.
 
+Configured constraint keys resolve against scoring metadata by exact identity:
+package-qualified constraints use `ConstraintRef::full_name()` strings, while
+package-less constraints use the short name.
+
 This keeps app-specific logic as domain candidate generation only. Applications
 should not add seed repair, relaxed hard constraints, fake variables, or private
 solver orchestration to make coupled scalar states reachable.

@@ -178,8 +178,12 @@ src/
 ├── phase/
 │   ├── mod.rs                           — Phase<S, D> trait, tuple impls
 │   ├── control.rs                       — Internal prompt/control settlement helpers for runtime-owned pause and cancellation boundaries
+│   ├── hard_delta.rs                    — Internal hard-score delta classification shared by local search and VND gates
+│   ├── hard_delta_tests.rs              — Hard-score delta tests
+│   ├── hard_delta_phase_tests.rs        — Phase-level hard-improvement gate tests
 │   ├── construction/
-│   │   ├── mod.rs                       — ForagerType enum, ConstructionHeuristicConfig, re-exports
+│   │   ├── mod.rs                       — Construction module declarations and re-exports
+│   │   ├── config.rs                    — ForagerType enum and ConstructionHeuristicConfig
 │   │   ├── decision.rs                  — Shared baseline/tie-breaking helpers for construction choice resolution
 │   │   ├── evaluation.rs                — Trial-move evaluation via RecordingDirector with exact rollback
 │   │   ├── frontier.rs                  — Revision-scoped ConstructionFrontier shared by generic scalar and list work
@@ -236,16 +240,20 @@ src/
 │   │   ├── phase_tests.rs               — Tests
 │   │   └── priority_node.rs             — PriorityNode<S>
 │   ├── partitioned/
-│   │   ├── mod.rs                       — PartitionedSearchPhase, PartitionedSearchConfig, ChildPhases trait
+│   │   ├── mod.rs                       — Partitioned module declarations and re-exports
+│   │   ├── child_phases.rs              — ChildPhases trait and tuple impls
+│   │   ├── config.rs                    — PartitionedSearchConfig
 │   │   ├── partitioner.rs              — SolutionPartitioner trait, FunctionalPartitioner, ThreadCount
 │   │   ├── partitioner_tests.rs        — Tests
 │   │   ├── phase.rs                    — PartitionedSearchPhase<P, Part>
 │   │   └── phase_tests.rs              — Tests
 │   ├── sequence.rs                      — PhaseSequence<P>
 │   ├── dynamic_vnd.rs                   — DynamicVndPhase<S, M, MS>
+│   ├── dynamic_vnd_tests.rs             — Dynamic VND tests, including progress, selector telemetry, prompt settlement, and hard-improvement gating
 │   └── vnd/
 │       ├── mod.rs                       — Re-exports
 │       ├── phase.rs                     — VndPhase, impl_vnd_phase! macro (up to 8 neighborhoods)
+│       ├── telemetry.rs                 — Internal VND progress and selector-label helpers
 │       └── phase_tests.rs               — Tests
 │
 ├── manager/
@@ -948,15 +956,18 @@ time, evaluation time, acceptance rate, selector-level telemetry, and exact
 `Throughput { count, elapsed }` views for generated/evaluated work.
 Human-facing `moves/s` is derived only at log/console formatting edges.
 
-`SolverTelemetry` snapshots expose the same counters plus
-`construction_slots_assigned`, `construction_slots_kept`, and
-`construction_slots_no_doable`, which distinguish scalar construction slots
-that received a candidate, legally kept their current unassigned value, or had
-no doable candidate. Grouped scalar construction records completion against the
-exact grouped slot and also marks every scalar slot covered by the grouped
-decision, so later construction phases cannot fill those members one by one.
-`SelectorTelemetry` exposes per-selector generated, evaluated, accepted,
-applied, generation-time, and evaluation-time counters for local-search
+`SolverTelemetry` snapshots expose the same counters plus not-doable,
+acceptor-rejected, forager-ignored, hard-improving/neutral/worse, conflict
+repair provider/filter/exposure counters, `construction_slots_assigned`,
+`construction_slots_kept`, and `construction_slots_no_doable`, which
+distinguish scalar construction slots that received a candidate, legally kept
+their current unassigned value, or had no doable candidate. Grouped scalar
+construction records completion against the exact grouped slot and also marks
+every scalar slot covered by the grouped decision, so later construction phases
+cannot fill those members one by one. `SelectorTelemetry` exposes
+`selector_index`, `selector_label`, generated, evaluated, accepted, applied,
+not-doable, acceptor-rejected, forager-ignored, hard-delta, conflict-repair,
+generation-time, and evaluation-time counters for local-search and VND
 selector diagnosis.
 
 ### `runtime.rs`

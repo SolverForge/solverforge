@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.10.0](///compare/v0.9.2...v0.10.0) (2026-05-02)
+
+
+### Features
+
+* **scoring:** allow projected row self joins 56ae571
+* **scoring:** expose constraint metadata through directors a53d2b1
+* **solver:** add conflict-directed scalar repair selector b746404
+* **solver:** add grouped scalar construction 72814dd
+* **solver:** gate cartesian composites on hard improvement f8f95e6
+* **solver:** gate grouped scalar moves on hard improvement 89c4513
+* **solver:** label selector telemetry from move metadata 140dee5
+* **solver:** make simulated annealing score-level aware 86d41e3
+* **solver:** support mandatory nullable construction assignment 0292a75
+* **solver:** support round-robin union selectors 0149b28
+
+
+### Bug Fixes
+
+* **ci:** satisfy clippy termination config tests a8942ca
+* **core:** keep score level access source compatible 76029c2
+* **facade:** export source-aware stream helpers 933fc7b
+* **macros:** simplify solution flag parsing 25b4c6f
+* **scoring:** deduplicate metadata by full constraint ref 6127092
+* **scoring:** preserve projected join coordinate ordering 81fa377
+* **scoring:** reuse projected join row slots 16d46d8
+* **solver:** apply grouped construction caps after normalization c2d0c4d
+* **solver:** compare all hard levels for repair gating 3df8b14
+* **solver:** enforce hard repair improvement in vnd 8fee571
+* **solver:** expose grouped construction repair progress b570d78
+* **solver:** honor scalar semantics in grouped construction ad98d6c
+* **solver:** preserve effective fallback time limits 0720d11
+* **solver:** report selector telemetry without phantom fallbacks 08e42a6
+* **solver:** validate conflict repair constraints 1f3b2c6
+
 ## [0.10.0](///compare/v0.9.2...v0.10.0) (2026-04-28)
 
 

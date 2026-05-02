@@ -88,6 +88,16 @@ src/
 - `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
+- `ConflictRepairEdit`
+- `ConflictRepairLimits`
+- `ConflictRepairProviderEntry`
+- `ConflictRepairSpec`
+- `ScalarGroupCandidate`
+- `ScalarGroupContext`
+- `ScalarGroupEdit`
+- `ScalarGroupLimits`
+- `ScalarGroupMember`
+- `ScalarVariableContext`
 - `SolverManager`
 - `SolverRuntime`
 - `SolverEvent`
@@ -127,12 +137,13 @@ Module: `solverforge::cvrp`
 Convenient single import for user code:
 
 ```rust
+pub use crate::stream::collector::{count, load_balance, sum};
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     planning_entity, planning_model, planning_solution, problem_fact,
     BendableScore, ConstraintMetadata, ConstraintSet, HardMediumSoftScore,
-    HardSoftDecimalScore, HardSoftScore, Score, Director,
-    SoftScore, ScoreDirector,
+    HardSoftDecimalScore, HardSoftScore, Projection, ProjectionSink, Score,
+    Director, SoftScore, ScoreDirector,
 };
 ```
 
@@ -145,6 +156,7 @@ pub use solverforge_scoring::stream::collection_extract::vec;
 pub use solverforge_scoring::stream::collection_extract::{
     source, ChangeSource, CollectionExtract, FlattenExtract, SourceExtract, VecExtract,
 };
+pub use solverforge_scoring::stream::collector;
 pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollectionTarget};
 ```
 
@@ -184,6 +196,7 @@ Used exclusively by macro-generated code. Not public API.
 - `SolvableSolution`
 
 **Solver infrastructure (from `solverforge-solver`):**
+- `ConflictRepairEdit`, `ConflictRepairLimits`, `ConflictRepairProviderEntry`, `ConflictRepairSpec`
 - `ListVariableContext`, `LocalSearch`, `ModelContext`, `ScalarGroupCandidate`, `ScalarGroupContext`, `ScalarGroupEdit`, `ScalarGroupLimits`, `ScalarGroupMember`, `ScalarVariableContext`, `ValueSource`, `VariableContext`, `Vnd`
 - `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
 - `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`

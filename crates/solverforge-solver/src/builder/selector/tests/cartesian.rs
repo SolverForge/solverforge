@@ -144,6 +144,58 @@ fn cartesian_right_child_conflict_repair_uses_preview_constraint_metadata() {
 }
 
 #[test]
+fn cartesian_right_child_conflict_repair_uses_package_qualified_preview_metadata() {
+    let descriptor = descriptor(true);
+    let director = create_director_with_constraint_ref(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+        "pkg",
+        "testConstraint",
+        true,
+    );
+    let model = scalar_only_model().with_conflict_repair_providers(vec![
+        crate::builder::ConflictRepairProviderEntry::new("pkg/testConstraint", repair_worker_to_one),
+    ]);
+    let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+        require_hard_improvement: false,
+        selectors: vec![
+            MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
+                target: VariableTargetConfig::default(),
+            }),
+            MoveSelectorConfig::ConflictRepairMoveSelector(
+                solverforge_config::ConflictRepairMoveSelectorConfig {
+                    constraints: vec!["pkg/testConstraint".to_string()],
+                    max_matches_per_step: 2,
+                    max_repairs_per_match: 3,
+                    max_moves_per_step: 4,
+                    require_hard_improvement: false,
+                    include_soft_matches: false,
+                },
+            ),
+        ],
+    });
+
+    let selector = build_move_selector(Some(&config), &model, None);
+    let mut cursor = selector.open_cursor(&director);
+    let indices =
+        collect_cursor_indices::<MixedPlan, NeighborhoodMove<MixedPlan, usize>, _>(&mut cursor);
+
+    assert!(
+        !indices.is_empty(),
+        "right-child conflict repair must resolve package-qualified preview metadata"
+    );
+    assert!(indices.iter().all(|&index| matches!(
+        cursor.candidate(index),
+        Some(MoveCandidateRef::Sequential(_))
+    )));
+}
+
+#[test]
 #[should_panic(
     expected = "conflict_repair_move_selector configured for non-hard constraint `testConstraint` while include_soft_matches is false"
 )]

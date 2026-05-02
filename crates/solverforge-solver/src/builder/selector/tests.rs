@@ -27,6 +27,7 @@ use crate::CrossEntityDistanceMeter;
 
 include!("tests/support.rs");
 include!("tests/defaults.rs");
+include!("tests/conflict_repair.rs");
 include!("tests/cartesian.rs");
 include!("tests/grouped_scalar.rs");
 include!("tests/phases.rs");

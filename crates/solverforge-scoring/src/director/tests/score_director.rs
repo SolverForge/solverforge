@@ -4,9 +4,11 @@ use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::incremental::IncrementalUniConstraint;
 use crate::director::score_director::ScoreDirector;
 use crate::stream::collection_extract::{source, ChangeSource};
-use solverforge_core::domain::PlanningSolution;
+use crate::Director;
+use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
+use std::any::TypeId;
 
 #[derive(Clone, Debug)]
 struct TestSolution {
@@ -37,6 +39,23 @@ fn make_unassigned_constraint() -> impl IncrementalConstraint<TestSolution, Soft
         |_s: &TestSolution, v: &Option<i32>| v.is_none(),
         |_v: &Option<i32>| SoftScore::of(1),
         false,
+    )
+}
+
+fn make_named_constraint(
+    constraint_ref: ConstraintRef,
+    is_hard: bool,
+) -> impl IncrementalConstraint<TestSolution, SoftScore> {
+    IncrementalUniConstraint::new(
+        constraint_ref,
+        ImpactType::Penalty,
+        source(
+            (|s: &TestSolution| s.values.as_slice()) as fn(&TestSolution) -> &[Option<i32>],
+            ChangeSource::Descriptor(0),
+        ),
+        |_s: &TestSolution, _v: &Option<i32>| false,
+        |_v: &Option<i32>| SoftScore::of(1),
+        is_hard,
     )
 }
 
@@ -167,6 +186,36 @@ fn test_constraint_count() {
     let director = ScoreDirector::new(solution, (c1,));
 
     assert_eq!(director.constraint_count(), 1);
+}
+
+#[test]
+fn score_director_preserves_package_qualified_constraint_metadata() {
+    let solution = TestSolution {
+        values: vec![Some(1)],
+        score: None,
+    };
+    let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
+    let c1 = make_named_constraint(ConstraintRef::new("pkg_a", "same"), true);
+    let c2 = make_named_constraint(ConstraintRef::new("pkg_b", "same"), false);
+    let director =
+        ScoreDirector::with_descriptor(solution, (c1, c2), descriptor, |s, _| s.values.len());
+    let metadata = director.constraint_metadata();
+
+    assert_eq!(metadata.len(), 2);
+    assert_eq!(metadata[0].full_name(), "pkg_a/same");
+    assert_eq!(metadata[1].full_name(), "pkg_b/same");
+    assert_eq!(
+        director.constraint_is_hard(&ConstraintRef::new("pkg_a", "same")),
+        Some(true)
+    );
+    assert_eq!(
+        director.constraint_is_hard(&ConstraintRef::new("pkg_b", "same")),
+        Some(false)
+    );
+    assert_eq!(
+        director.constraint_is_hard(&ConstraintRef::new("", "same")),
+        None
+    );
 }
 
 #[test]

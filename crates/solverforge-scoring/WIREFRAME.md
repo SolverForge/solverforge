@@ -207,7 +207,7 @@ pub use stream::{
 | `entity_count` | `fn entity_count(&self, descriptor_index: usize) -> Option<usize>` | Count entities by descriptor |
 | `total_entity_count` | `fn total_entity_count(&self) -> Option<usize>` | Total across all descriptors |
 | `constraint_metadata` | `fn constraint_metadata(&self) -> &[ConstraintMetadata]` | Immutable constraint metadata known to this director |
-| `constraint_is_hard` | `fn constraint_is_hard(&self, name: &str) -> Option<bool>` | Helper derived from `constraint_metadata()` |
+| `constraint_is_hard` | `fn constraint_is_hard(&self, constraint_ref: &ConstraintRef) -> Option<bool>` | Exact identity helper derived from `constraint_metadata()` |
 | `is_incremental` | `fn is_incremental(&self) -> bool` | Default: false |
 | `snapshot_score_state` | `fn snapshot_score_state(&self) -> DirectorScoreState<S::Score>` | Snapshot committed score state for speculative evaluation |
 | `restore_score_state` | `fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>)` | Restore a previously snapshotted committed score state |
@@ -241,7 +241,7 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 |--------|-----------|------|
 | `evaluate_all` | `fn evaluate_all(&self, solution: &S) -> Sc` | Sum all constraints |
 | `constraint_count` | `fn constraint_count(&self) -> usize` | Number of constraints |
-| `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata>` | Immutable name/ref/hardness metadata |
+| `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata>` | Immutable ref/name/hardness metadata |
 | `evaluate_each` | `fn evaluate_each(&self, solution: &S) -> Vec<ConstraintResult<Sc>>` | Per-constraint results |
 | `evaluate_detailed` | `fn evaluate_detailed(&self, solution: &S) -> Vec<ConstraintAnalysis<Sc>>` | With match details |
 | `initialize_all` | `fn initialize_all(&mut self, solution: &S) -> Sc` | Initialize all for incremental |
@@ -249,7 +249,7 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 | `on_retract_all` | `fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental retract all |
 | `reset_all` | `fn reset_all(&mut self)` | Reset all |
 
-Implemented for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: IncrementalConstraint<S, Sc>`. Tuple metadata deduplicates repeated constraint names when hardness agrees and panics when the same name has conflicting hard/non-hard metadata.
+Implemented for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: IncrementalConstraint<S, Sc>`. Tuple metadata deduplicates repeated full `ConstraintRef`s when hardness agrees and panics when the same full ref has conflicting hard/non-hard metadata. Package-qualified constraints that share a short name remain distinct.
 
 ### Shadow Lifecycle on `PlanningSolution`
 
@@ -364,7 +364,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`ConstraintResult<Sc>`** — `{ name: String, score: Sc, match_count: usize, is_hard: bool }`
 
-**`ConstraintMetadata`** — `{ constraint_ref: ConstraintRef, is_hard: bool }`; `name()` returns the configured constraint name used by config-facing selector validation.
+**`ConstraintMetadata`** — `{ constraint_ref: ConstraintRef, is_hard: bool }`; `name()` returns the short constraint name, and `full_name()` returns the package-qualified identity used for exact matching.
 
 **`EntityRef`** — `{ type_name: String, display: String, entity: Arc<dyn Any + Send + Sync> }`
 - Methods: `new()`, `with_display()`, `as_entity::<T>()`, `short_type_name()`

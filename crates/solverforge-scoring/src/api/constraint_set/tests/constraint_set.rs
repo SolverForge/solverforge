@@ -42,6 +42,23 @@ where
             is_hard,
         }
     }
+
+    fn new_with_ref_and_hardness(
+        package: &str,
+        name: &str,
+        extractor: fn(&S) -> usize,
+        predicate: F,
+        weight: i64,
+        is_hard: bool,
+    ) -> Self {
+        Self {
+            constraint_ref: ConstraintRef::new(package, name),
+            extractor,
+            predicate,
+            weight,
+            is_hard,
+        }
+    }
 }
 
 impl<S, F> IncrementalConstraint<S, SoftScore> for CountingConstraint<S, F>
@@ -204,14 +221,16 @@ fn constraint_set_returns_constraint_metadata() {
 
 #[test]
 fn constraint_set_deduplicates_matching_constraint_metadata() {
-    let c1 = CountingConstraint::new_with_hardness(
+    let c1 = CountingConstraint::new_with_ref_and_hardness(
+        "pkg_a",
         "same",
         entity_count,
         |s: &TestSolution, i| s.values[i].is_none(),
         1,
         true,
     );
-    let c2 = CountingConstraint::new_with_hardness(
+    let c2 = CountingConstraint::new_with_ref_and_hardness(
+        "pkg_a",
         "same",
         entity_count,
         |s: &TestSolution, i| s.values[i].is_some(),
@@ -223,20 +242,75 @@ fn constraint_set_deduplicates_matching_constraint_metadata() {
 
     assert_eq!(metadata.len(), 1);
     assert_eq!(metadata[0].name(), "same");
+    assert_eq!(metadata[0].full_name(), "pkg_a/same");
     assert!(metadata[0].is_hard);
 }
 
 #[test]
-#[should_panic(expected = "constraint `same` has conflicting hard/non-hard metadata")]
-fn constraint_set_rejects_conflicting_constraint_metadata() {
-    let c1 = CountingConstraint::new_with_hardness(
+fn constraint_set_preserves_same_name_in_different_packages() {
+    let c1 = CountingConstraint::new_with_ref_and_hardness(
+        "pkg_a",
         "same",
         entity_count,
         |s: &TestSolution, i| s.values[i].is_none(),
         1,
         true,
     );
-    let c2 = CountingConstraint::new_with_hardness(
+    let c2 = CountingConstraint::new_with_ref_and_hardness(
+        "pkg_b",
+        "same",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_some(),
+        1,
+        true,
+    );
+
+    let metadata = (c1, c2).constraint_metadata();
+
+    assert_eq!(metadata.len(), 2);
+    assert_eq!(metadata[0].full_name(), "pkg_a/same");
+    assert_eq!(metadata[1].full_name(), "pkg_b/same");
+}
+
+#[test]
+fn constraint_set_preserves_same_name_with_different_package_hardness() {
+    let c1 = CountingConstraint::new_with_ref_and_hardness(
+        "pkg_a",
+        "same",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_none(),
+        1,
+        true,
+    );
+    let c2 = CountingConstraint::new_with_ref_and_hardness(
+        "pkg_b",
+        "same",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_some(),
+        1,
+        false,
+    );
+
+    let metadata = (c1, c2).constraint_metadata();
+
+    assert_eq!(metadata.len(), 2);
+    assert!(metadata[0].is_hard);
+    assert!(!metadata[1].is_hard);
+}
+
+#[test]
+#[should_panic(expected = "constraint `pkg_a/same` has conflicting hard/non-hard metadata")]
+fn constraint_set_rejects_conflicting_constraint_metadata() {
+    let c1 = CountingConstraint::new_with_ref_and_hardness(
+        "pkg_a",
+        "same",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_none(),
+        1,
+        true,
+    );
+    let c2 = CountingConstraint::new_with_ref_and_hardness(
+        "pkg_a",
         "same",
         entity_count,
         |s: &TestSolution, i| s.values[i].is_some(),

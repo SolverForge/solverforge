@@ -1,6 +1,7 @@
 // Score director trait definition.
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+use solverforge_core::ConstraintRef;
 
 use crate::api::constraint_set::ConstraintMetadata;
 
@@ -55,10 +56,10 @@ pub trait Director<S: PlanningSolution>: Send {
     fn constraint_metadata(&self) -> &[ConstraintMetadata];
 
     // Returns whether a known constraint is hard.
-    fn constraint_is_hard(&self, name: &str) -> Option<bool> {
+    fn constraint_is_hard(&self, constraint_ref: &ConstraintRef) -> Option<bool> {
         self.constraint_metadata()
             .iter()
-            .find(|metadata| metadata.name() == name)
+            .find(|metadata| &metadata.constraint_ref == constraint_ref)
             .map(|metadata| metadata.is_hard)
     }
 

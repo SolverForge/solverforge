@@ -632,6 +632,7 @@ All moves are generic over `S` (solution) and `V` (value). All use typed `fn` po
 | `NearbyListChangeMoveSelector<S, V, D, ES>` | `ListChangeMove<S, V>` | Distance-pruned relocation with stable tie ordering |
 | `NearbyListSwapMoveSelector<S, V, D, ES>` | `ListSwapMove<S, V>` | Distance-pruned swap with canonical pair ordering |
 | `RuinMoveSelector<S, V>` | `RuinMove<S, V>` | Scalar variable LNS using `RuinVariableAccess<S, V>` |
+| `ConflictRepairSelector<S>` | `ConflictRepairMove<S>` | Provider-backed scalar repair for configured scoring constraints |
 
 List-selector lifting is direct union assembly. The canonical list builder opens
 concrete list leaves straight into `ListMoveUnion<S, V>` at leaf-open time, so
@@ -652,6 +653,11 @@ on a generic type-lifting map adapter.
 | `ProbabilityMoveSelector<S, M, Inner>` | Weight `for<'a> fn(MoveCandidateRef<'a, S, M>) -> f64` | Probabilistic filtering without reopening cartesian children |
 
 Cartesian preview state uses `SequentialPreviewDirector`: it owns a cloned working solution for right-child selector generation, updates shadows for previewed left moves, borrows immutable descriptor and constraint metadata from the source director, and intentionally panics on `calculate_score()`.
+
+Conflict repair constraint keys resolve against scoring metadata by identity:
+package-qualified constraints must be configured with `ConstraintRef::full_name()`
+strings such as `package/name`, package-less constraints use their short name,
+and provider registration keys must match the configured key exactly.
 
 ### Supporting Types
 

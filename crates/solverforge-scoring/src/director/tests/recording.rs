@@ -231,7 +231,10 @@ fn test_recording_preserves_constraint_metadata() {
 
     assert_eq!(recording.constraint_metadata().len(), 1);
     assert_eq!(recording.constraint_metadata()[0].name(), "value");
-    assert_eq!(recording.constraint_is_hard("value"), Some(false));
+    assert_eq!(
+        recording.constraint_is_hard(&ConstraintRef::new("", "value")),
+        Some(false)
+    );
 }
 
 #[derive(Clone)]

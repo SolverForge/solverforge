@@ -137,6 +137,10 @@ impl ConstraintMetadata {
     pub fn name(&self) -> &str {
         &self.constraint_ref.name
     }
+
+    pub fn full_name(&self) -> String {
+        self.constraint_ref.full_name()
+    }
 }
 
 /* A set of constraints that can be evaluated together.
@@ -344,12 +348,15 @@ macro_rules! impl_constraint_set_for_tuple {
 }
 
 fn push_constraint_metadata(metadata: &mut Vec<ConstraintMetadata>, candidate: ConstraintMetadata) {
-    if let Some(existing) = metadata.iter().find(|item| item.name() == candidate.name()) {
+    if let Some(existing) = metadata
+        .iter()
+        .find(|item| item.constraint_ref == candidate.constraint_ref)
+    {
         assert_eq!(
             existing.is_hard,
             candidate.is_hard,
             "constraint `{}` has conflicting hard/non-hard metadata",
-            candidate.name()
+            candidate.full_name()
         );
         return;
     }

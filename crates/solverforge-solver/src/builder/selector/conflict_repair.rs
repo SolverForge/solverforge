@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use solverforge_config::{
     CompoundConflictRepairMoveSelectorConfig, ConflictRepairMoveSelectorConfig,
 };
+use solverforge_scoring::ConstraintMetadata;
 
 use crate::builder::context::{
     ConflictRepairEdit, ConflictRepairLimits, ConflictRepairProviderEntry, ScalarVariableContext,
@@ -68,17 +69,37 @@ impl<S> ConflictRepairSelector<S> {
         D: solverforge_scoring::Director<S>,
     {
         for constraint_name in &self.config.constraints {
-            let Some(is_hard) = score_director.constraint_is_hard(constraint_name) else {
+            let Some(metadata) =
+                resolve_configured_constraint(score_director.constraint_metadata(), constraint_name)
+            else {
                 panic!(
                     "conflict_repair_move_selector configured for `{constraint_name}`, but no matching scoring constraint was found"
                 );
             };
             assert!(
-                is_hard || self.config.include_soft_matches,
+                metadata.is_hard || self.config.include_soft_matches,
                 "conflict_repair_move_selector configured for non-hard constraint `{constraint_name}` while include_soft_matches is false"
             );
         }
     }
+}
+
+fn resolve_configured_constraint<'a>(
+    metadata: &'a [ConstraintMetadata],
+    constraint_name: &str,
+) -> Option<&'a ConstraintMetadata> {
+    metadata
+        .iter()
+        .find(|metadata| metadata.full_name() == constraint_name)
+        .or_else(|| {
+            if constraint_name.contains('/') {
+                None
+            } else {
+                metadata.iter().find(|metadata| {
+                    metadata.constraint_ref.package.is_empty() && metadata.name() == constraint_name
+                })
+            }
+        })
 }
 
 impl<S> std::fmt::Debug for ConflictRepairSelector<S> {

@@ -88,9 +88,14 @@ where
         let b_changed = self
             .b_source
             .assert_localizes(descriptor_index, &self.constraint_ref.name);
+        let mut total = Sc::zero();
+
+        if !a_changed && !b_changed {
+            return total;
+        }
+
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
-        let mut total = Sc::zero();
         if a_changed {
             total = total + self.insert_a(solution, entities_a, entities_b, entity_index);
         }
@@ -108,6 +113,11 @@ where
             .b_source
             .assert_localizes(descriptor_index, &self.constraint_ref.name);
         let mut total = Sc::zero();
+
+        if !a_changed && !b_changed {
+            return total;
+        }
+
         if a_changed {
             total = total + self.retract_a(entity_index);
         }

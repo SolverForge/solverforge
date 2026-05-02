@@ -88,7 +88,7 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
   - Scalar ruin-recreate, composite moves, cartesian composition, and nearby selection for scalar and list neighborhoods
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Model Macros**: `planning_model!`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
-- **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, selector telemetry, and level-aware simulated annealing configuration
+- **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, grouped scalar move selectors, conflict-repair selectors, selector telemetry, and level-aware simulated annealing configuration
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
 
 ## Installation
@@ -505,7 +505,7 @@ fn solver_config_for_solution(solution: &Schedule, config: SolverConfig) -> Solv
 
 ## SolverManager API
 
-The `SolverManager` owns the retained runtime lifecycle for each job. The 0.8 contract uses neutral `job`, `snapshot`, and `checkpoint` terminology throughout the public API. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint rather than restarting from the best solution. Built-in search phases now poll retained-runtime control during large neighborhood generation and evaluation, so config time limits, `pause()`, and `cancel()` unwind promptly without app-side watchdogs. Declare a `static` instance so it satisfies the `'static` lifetime requirement:
+The `SolverManager` owns the retained runtime lifecycle for each job. The public contract uses neutral `job`, `snapshot`, and `checkpoint` terminology throughout the API. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process checkpoint rather than restarting from the best solution. Built-in search phases now poll retained-runtime control during large neighborhood generation and evaluation, so config time limits, `pause()`, and `cancel()` unwind promptly without app-side watchdogs. Declare a `static` instance so it satisfies the `'static` lifetime requirement:
 
 ```rust
 use solverforge::{SolverLifecycleState, SolverManager, SolverStatus, Solvable};
@@ -575,6 +575,9 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 ### What's New in 0.10.0
 
 - **Projected derived rows keep coordinate-stable self-join order**: retained projected joins reuse sparse row storage without letting storage slots define pair orientation, so multi-output projections with order-sensitive filters stay incrementally consistent with full evaluation.
+- **Constraint metadata identity is package-aware**: scoring metadata deduplicates by full `ConstraintRef`, package-qualified constraints with the same short name stay distinct, and conflict-repair selectors resolve configured keys against that exact identity.
+- **Grouped scalar construction and search are explicit**: named `ScalarGroupContext` providers emit atomic `CompoundScalarMove` candidates for coupled nullable-scalar decisions, with separate construction and local-search limits.
+- **Hard-improvement gates are shared across compound moves**: grouped scalar, conflict-repair, cartesian, local-search, and VND paths now enforce the same hard-score improvement requirement when configured.
 - **Score level access is allocation-free by contract**: custom `Score` types implement `level_number()` as the required per-level accessor, and `to_level_numbers()` is the derived vector view for callers that need owned level data.
 - **Level-aware simulated annealing is production-ready**: simulated annealing uses per-score-level temperatures, hard-regression policy, calibration, and cooling into hill-climbing behavior for `HardSoftScore` and other multi-level scores.
 
@@ -733,15 +736,15 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 | Domain model macros | Complete |
 | ConstraintStream API | Complete |
 | SERIO incremental scoring | Complete |
-| Construction heuristics (7 types) | Complete |
-| Local search (7 acceptors, 5 foragers) | Complete |
+| Construction heuristics (scalar, grouped-scalar, list, and mixed routing) | Complete |
+| Local search acceptors and foragers | Complete |
 | Exhaustive search | Complete |
 | Partitioned search | Complete |
 | VND | Complete |
-| Move system (scalar, list, ruin-recreate, cartesian, and composite families) | Complete |
+| Move system (scalar, list, grouped scalar, conflict repair, ruin-recreate, cartesian, and composite families) | Complete |
 | Nearby selection | Complete |
 | Ruin-and-recreate (LNS) | Complete |
-| Selector decorators (8 types) | Complete |
+| Selector decorators and cursor-native composition | Complete |
 | Termination | Complete |
 | SolverManager | Complete |
 | Score Analysis (`analyze()`) | Complete |

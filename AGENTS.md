@@ -151,6 +151,7 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
 ## Change Policy
 
 - Do not keep compatibility shims, fallback implementations, or transitional APIs.
+- Do not add aliases or targeted handling for removed configuration keys solely to support deprecated solver files.
 - Delete dead code rather than hiding it behind `_unused` names or "removed" comments.
 - When a design changes, migrate call sites to the new design instead of preserving the old path.
 - Do not mention external solver frameworks in code comments, examples, or commits. SolverForge is an independent implementation.

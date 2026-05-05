@@ -3,7 +3,7 @@
 Domain helpers for Capacitated Vehicle Routing Problems (CVRP).
 
 **Location:** `crates/solverforge-cvrp/`
-**Workspace Release:** `0.11.0`
+**Workspace Release:** `0.11.1`
 
 ## Dependencies
 

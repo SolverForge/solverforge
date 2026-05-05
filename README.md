@@ -97,7 +97,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.11.0", features = ["console"] }
+solverforge = { version = "0.11.1", features = ["console"] }
 ```
 
 When `move_selector` is omitted from local search or VND, the canonical runtime
@@ -388,7 +388,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.11.0 - Zero-Erasure Constraint Solver
+                   v0.11.1 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -607,7 +607,12 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.11.0
+**Current Version**: 0.11.1
+
+### What's New in 0.11.1
+
+- **Facade configuration exports are complete**: solver configuration controls such as `AcceptorConfig`, `PhaseConfig`, `MoveSelectorConfig`, `ForagerConfig`, `SolverConfigOverride`, and related enums are available directly from the `solverforge` facade crate, matching the documented single-dependency workflow.
+- **Recording score directors are available from the facade**: `RecordingDirector` is re-exported beside `Director` and `ScoreDirector` for extension code that needs trial-move rollback without depending on the scoring crate directly.
 
 ### What's New in 0.11.0
 

@@ -7,7 +7,7 @@ rust-version.workspace = true
 description = "Incremental constraint scoring for SolverForge"
 
 [dependencies]
-solverforge-core = { version = "0.11.0", path = "../solverforge-core" }
+solverforge-core = { version = "0.11.1", path = "../solverforge-core" }
 thiserror.workspace = true
 
 [dev-dependencies]

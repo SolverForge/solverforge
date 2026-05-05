@@ -47,7 +47,7 @@ src/
 │   ├── exists/
 │   │   └── key_state.rs                            — Internal hashed/indexed key bookkeeping for existence constraints
 │   ├── projected.rs                                — Projected retained scoring-row constraint module root and re-exports
-│   ├── projected/*.rs                              — Projected uni, bi, grouped constraints and shared source state
+│   ├── projected/*.rs                              — Projected uni, bi, and grouped constraints
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
@@ -325,7 +325,7 @@ All `Send + Sync`:
 **`ScoreDirector<S, C>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`
 - Primary incremental scoring director. Zero-erasure.
 - Key methods: `new()`, `with_descriptor()`, `simple()` (convenience for `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor), `calculate_score()`, `before_variable_changed()`, `after_variable_changed()`, `do_change()`, `get_score()`, `constraint_metadata()`, `constraint_match_totals()`, `into_working_solution()`, `take_solution()`
-- Builds immutable constraint metadata once from the typed `ConstraintSet`.
+- Returns borrowed constraint metadata views from the typed `ConstraintSet` on demand.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
 - Implements `Director<S>`
@@ -596,7 +596,7 @@ The `ScoreDirector` delegates to `ConstraintSet::on_retract_all()` / `on_insert_
 
 ### Stream Arity Macros
 
-`impl_bi_arity_stream!`, `impl_tri_arity_stream!`, `impl_quad_arity_stream!`, `impl_penta_arity_stream!` generate the stream and builder structs for each arity level. All four macros are consolidated in `nary_stream.rs`. They share the same field layout and method pattern but differ in the number of entity arguments to filter/weight functions.
+`impl_bi_arity_stream!`, `impl_tri_arity_stream!`, `impl_quad_arity_stream!`, `impl_penta_arity_stream!` generate the stream and builder structs for each arity level. All four macros live under `arity_stream_macros/nary_stream/`. They share the same field layout and method pattern but differ in the number of entity arguments to filter/weight functions.
 
 ### PhantomData Pattern
 

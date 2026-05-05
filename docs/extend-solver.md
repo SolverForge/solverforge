@@ -61,8 +61,9 @@ story:
 
 Nearby scalar selectors are explicit model capabilities. If the search policy
 uses `nearby_change_move_selector` or `nearby_swap_move_selector`, the matching
-scalar variable must provide the corresponding nearby distance hook; the runtime
-does not guess one.
+scalar variable must provide the corresponding nearby candidate hook; distance
+meters may rank or filter those bounded candidates, but the runtime does not use
+them as candidate-discovery hooks.
 
 Canonical local search uses the typed `ModelContext` published by macro runtime
 assembly. The descriptor-scalar engine remains the explicit descriptor boundary

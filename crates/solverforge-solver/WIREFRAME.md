@@ -47,6 +47,7 @@ src/
 │   ├── acceptor/tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
 │   ├── context.rs                       — ModelContext<S, V, DM, IDM>, VariableContext<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar metadata, ScalarGroupContext<S>, grouped scalar candidate metadata, expanded scalar/list construction capability hooks
+│   ├── context/*.rs                     — Model, list, conflict-repair, and scalar context implementation chunks
 │   ├── context/scalar/mod.rs            — Scalar context module root and public re-exports
 │   ├── context/scalar/*.rs              — Scalar value-source, scalar variable, and grouped scalar context definitions
 │   ├── scalar_selector.rs               — Canonical typed scalar selector assembly over index-addressed scalar contexts, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
@@ -54,6 +55,7 @@ src/
 │   ├── scalar_selector/tests.rs         — Typed scalar selector test root with change/swap, nearby/ruin, pillar, and cartesian chunks
 │   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published ModelContext variable contexts
 │   ├── selector/*.rs                    — Mixed scalar/list neighborhood move, grouped scalar selector, conflict repair selector, family classification, and builder chunks
+│   ├── selector/types/*.rs              — Neighborhood leaf, composite, cursor, and union types used by typed selector assembly
 │   ├── selector/tests.rs                — Mixed selector test root with support, defaults, grouped scalar, cartesian, and phase chunks
 │   ├── list_selector.rs                 — Re-exports list selector leaf and builder modules
 │   └── list_selector/
@@ -98,6 +100,8 @@ src/
 │   │       ├── arena.rs
 │   │       ├── change.rs
 │   │       ├── swap.rs
+│   │       ├── compound_scalar.rs
+│   │       ├── conflict_repair.rs
 │   │       ├── list_change.rs
 │   │       ├── list_swap.rs
 │   │       ├── list_reverse.rs
@@ -137,12 +141,16 @@ src/
 │       ├── nearby_list_change.rs       — CrossEntityDistanceMeter trait, NearbyListChangeMoveSelector
 │       ├── nearby_list_support.rs      — Private selected-entity snapshots and nearby candidate ordering
 │       ├── nearby_list_swap.rs         — NearbyListSwapMoveSelector
+│       ├── nearby_support.rs           — Shared nearest-candidate ordering helpers for bounded nearby neighborhoods
 │       ├── decorator/
 │       │   ├── mod.rs                   — Re-exports
 │       │   ├── cartesian_product.rs    — CartesianProductArena<S, M1, M2>, CartesianProductCursor<S, M>, CartesianProductSelector<S, M, Left, Right>
 │       │   ├── cartesian_product/tests.rs — Tests
 │       │   ├── filtering.rs            — FilteringMoveSelector<S, M, Inner>
 │       │   ├── filtering/tests.rs      — Tests
+│       │   ├── indexed_cursor.rs       — Shared indexed cursor adapter
+│       │   ├── limited.rs              — Candidate-limit cursor decorator
+│       │   ├── mapped_cursor.rs        — Shared mapped cursor adapter
 │       │   ├── probability.rs          — ProbabilityMoveSelector<S, M, Inner>
 │       │   ├── probability/tests.rs    — Tests
 │       │   ├── shuffling.rs            — ShufflingMoveSelector<S, M, Inner>
@@ -208,7 +216,8 @@ src/
 │   │   ├── forager/improving.rs        — FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager
 │   │   ├── forager/tests.rs             — Tests
 │   │   └── acceptor/
-│   │       ├── mod.rs                   — Acceptor<S> trait, re-exports
+│   │       ├── mod.rs                   — Acceptor module declarations and re-exports
+│   │       ├── traits.rs                — Acceptor<S> trait
 │   │       ├── hill_climbing.rs        — HillClimbingAcceptor
 │   │       ├── late_acceptance.rs      — LateAcceptanceAcceptor<S>
 │   │       ├── simulated_annealing.rs  — SimulatedAnnealingAcceptor

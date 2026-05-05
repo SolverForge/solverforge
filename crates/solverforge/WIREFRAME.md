@@ -68,7 +68,6 @@ src/
 - `IncrementalConstraint` (trait)
 - `IncrementalUniConstraint`
 - `IncrementalBiConstraint`
-- `Projection`, `ProjectionSink`
 - `Projection` (trait)
 - `ProjectionSink` (trait)
 

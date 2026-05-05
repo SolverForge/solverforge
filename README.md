@@ -97,7 +97,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.10.0", features = ["console"] }
+solverforge = { version = "0.11.0", features = ["console"] }
 ```
 
 When `move_selector` is omitted from local search or VND, the canonical runtime
@@ -388,7 +388,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.10.0 - Zero-Erasure Constraint Solver
+                   v0.11.0 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -607,7 +607,13 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.10.0
+**Current Version**: 0.11.0
+
+### What's New in 0.11.0
+
+- **Joined projected scoring rows use the existing `.project(...)` verb**: keyed cross joins can now project retained scoring rows directly with `.project(|left, right| Row { ... })`, while single-source `Projection` types keep the existing bounded multi-row path.
+- **Projected scoring paths no longer require cloned rows or keys**: projected outputs, projected self-join keys, and grouped collector values can be non-`Clone`, and retained projected state avoids row/key clones in scoring hot paths.
+- **Constraint identity is borrowed from the owning constraint**: metadata and analysis views now preserve package-qualified `ConstraintRef` identity without cloning it, so public reporting types carry borrowed lifetimes instead of owned constraint references.
 
 ### What's New in 0.10.0
 

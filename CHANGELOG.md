@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.11.1](///compare/v0.11.0...v0.11.1) (2026-05-05)
+
+
+### Features
+
+* **facade:** re-export solver configuration controls c2dc672
+
+
+### Bug Fixes
+
+* **release:** publish workspace crates only 17c7e7f
+
 ## [0.11.0](///compare/v0.10.0...v0.11.0) (2026-05-05)
 
 

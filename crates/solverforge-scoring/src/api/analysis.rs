@@ -123,19 +123,19 @@ impl ConstraintJustification {
 
 // A detailed constraint match with entity information.
 #[derive(Debug, Clone)]
-pub struct DetailedConstraintMatch<Sc: Score> {
+pub struct DetailedConstraintMatch<'a, Sc: Score> {
     // Reference to the constraint that matched.
-    pub constraint_ref: ConstraintRef,
+    pub constraint_ref: &'a ConstraintRef,
     // Score impact of this match.
     pub score: Sc,
     // Justification with involved entities.
     pub justification: ConstraintJustification,
 }
 
-impl<Sc: Score> DetailedConstraintMatch<Sc> {
+impl<'a, Sc: Score> DetailedConstraintMatch<'a, Sc> {
     // Creates a new detailed constraint match.
     pub fn new(
-        constraint_ref: ConstraintRef,
+        constraint_ref: &'a ConstraintRef,
         score: Sc,
         justification: ConstraintJustification,
     ) -> Self {
@@ -149,18 +149,18 @@ impl<Sc: Score> DetailedConstraintMatch<Sc> {
 
 // Extended constraint evaluation with detailed match information.
 #[derive(Debug, Clone)]
-pub struct DetailedConstraintEvaluation<Sc: Score> {
+pub struct DetailedConstraintEvaluation<'a, Sc: Score> {
     // Total score impact from all matches.
     pub total_score: Sc,
     // Number of matches found.
     pub match_count: usize,
     // Detailed information for each match.
-    pub matches: Vec<DetailedConstraintMatch<Sc>>,
+    pub matches: Vec<DetailedConstraintMatch<'a, Sc>>,
 }
 
-impl<Sc: Score> DetailedConstraintEvaluation<Sc> {
+impl<'a, Sc: Score> DetailedConstraintEvaluation<'a, Sc> {
     // Creates a new detailed evaluation.
-    pub fn new(total_score: Sc, matches: Vec<DetailedConstraintMatch<Sc>>) -> Self {
+    pub fn new(total_score: Sc, matches: Vec<DetailedConstraintMatch<'a, Sc>>) -> Self {
         let match_count = matches.len();
         Self {
             total_score,
@@ -181,26 +181,26 @@ impl<Sc: Score> DetailedConstraintEvaluation<Sc> {
 
 // Per-constraint breakdown in a score explanation.
 #[derive(Debug, Clone)]
-pub struct ConstraintAnalysis<Sc: Score> {
+pub struct ConstraintAnalysis<'a, Sc: Score> {
     // Constraint reference.
-    pub constraint_ref: ConstraintRef,
+    pub constraint_ref: &'a ConstraintRef,
     // Constraint weight (score per match).
     pub weight: Sc,
     // Total score from this constraint.
     pub score: Sc,
     // All matches for this constraint.
-    pub matches: Vec<DetailedConstraintMatch<Sc>>,
+    pub matches: Vec<DetailedConstraintMatch<'a, Sc>>,
     // Whether this is a hard constraint.
     pub is_hard: bool,
 }
 
-impl<Sc: Score> ConstraintAnalysis<Sc> {
+impl<'a, Sc: Score> ConstraintAnalysis<'a, Sc> {
     // Creates a new constraint analysis.
     pub fn new(
-        constraint_ref: ConstraintRef,
+        constraint_ref: &'a ConstraintRef,
         weight: Sc,
         score: Sc,
-        matches: Vec<DetailedConstraintMatch<Sc>>,
+        matches: Vec<DetailedConstraintMatch<'a, Sc>>,
         is_hard: bool,
     ) -> Self {
         Self {
@@ -225,16 +225,16 @@ impl<Sc: Score> ConstraintAnalysis<Sc> {
 
 // Complete score explanation with per-constraint breakdown.
 #[derive(Debug, Clone)]
-pub struct ScoreExplanation<Sc: Score> {
+pub struct ScoreExplanation<'a, Sc: Score> {
     // The total score.
     pub score: Sc,
     // Per-constraint breakdown.
-    pub constraint_analyses: Vec<ConstraintAnalysis<Sc>>,
+    pub constraint_analyses: Vec<ConstraintAnalysis<'a, Sc>>,
 }
 
-impl<Sc: Score> ScoreExplanation<Sc> {
+impl<'a, Sc: Score> ScoreExplanation<'a, Sc> {
     // Creates a new score explanation.
-    pub fn new(score: Sc, constraint_analyses: Vec<ConstraintAnalysis<Sc>>) -> Self {
+    pub fn new(score: Sc, constraint_analyses: Vec<ConstraintAnalysis<'a, Sc>>) -> Self {
         Self {
             score,
             constraint_analyses,
@@ -250,7 +250,7 @@ impl<Sc: Score> ScoreExplanation<Sc> {
     }
 
     // Returns constraints with non-zero scores.
-    pub fn non_zero_constraints(&self) -> Vec<&ConstraintAnalysis<Sc>> {
+    pub fn non_zero_constraints(&self) -> Vec<&ConstraintAnalysis<'a, Sc>> {
         self.constraint_analyses
             .iter()
             .filter(|a| a.score != Sc::zero())
@@ -258,7 +258,7 @@ impl<Sc: Score> ScoreExplanation<Sc> {
     }
 
     // Returns all detailed matches across all constraints.
-    pub fn all_matches(&self) -> Vec<&DetailedConstraintMatch<Sc>> {
+    pub fn all_matches(&self) -> Vec<&DetailedConstraintMatch<'a, Sc>> {
         self.constraint_analyses
             .iter()
             .flat_map(|a| &a.matches)
@@ -268,16 +268,16 @@ impl<Sc: Score> ScoreExplanation<Sc> {
 
 // Analysis of how a single entity impacts the score.
 #[derive(Debug, Clone)]
-pub struct Indictment<Sc: Score> {
+pub struct Indictment<'a, Sc: Score> {
     // The entity being analyzed.
     pub entity: EntityRef,
     // Total score impact from this entity.
     pub score: Sc,
     // Matches involving this entity, grouped by constraint.
-    pub constraint_matches: HashMap<ConstraintRef, Vec<DetailedConstraintMatch<Sc>>>,
+    pub constraint_matches: HashMap<&'a ConstraintRef, Vec<DetailedConstraintMatch<'a, Sc>>>,
 }
 
-impl<Sc: Score> Indictment<Sc> {
+impl<'a, Sc: Score> Indictment<'a, Sc> {
     // Creates a new indictment for an entity.
     pub fn new(entity: EntityRef) -> Self {
         Self {
@@ -288,10 +288,10 @@ impl<Sc: Score> Indictment<Sc> {
     }
 
     // Adds a match to this indictment.
-    pub fn add_match(&mut self, constraint_match: DetailedConstraintMatch<Sc>) {
+    pub fn add_match(&mut self, constraint_match: DetailedConstraintMatch<'a, Sc>) {
         self.score = self.score + constraint_match.score;
         self.constraint_matches
-            .entry(constraint_match.constraint_ref.clone())
+            .entry(constraint_match.constraint_ref)
             .or_default()
             .push(constraint_match);
     }
@@ -306,7 +306,7 @@ impl<Sc: Score> Indictment<Sc> {
 
     // Returns the constraint refs for all violated constraints.
     pub fn violated_constraints(&self) -> Vec<&ConstraintRef> {
-        self.constraint_matches.keys().collect()
+        self.constraint_matches.keys().copied().collect()
     }
 
     // Returns the number of distinct constraints violated.
@@ -317,12 +317,12 @@ impl<Sc: Score> Indictment<Sc> {
 
 // Map of entity indictments for analyzing which entities cause violations.
 #[derive(Debug, Clone)]
-pub struct IndictmentMap<Sc: Score> {
+pub struct IndictmentMap<'a, Sc: Score> {
     // Indictments keyed by entity reference.
-    pub indictments: HashMap<EntityRef, Indictment<Sc>>,
+    pub indictments: HashMap<EntityRef, Indictment<'a, Sc>>,
 }
 
-impl<Sc: Score> IndictmentMap<Sc> {
+impl<'a, Sc: Score> IndictmentMap<'a, Sc> {
     // Creates an empty indictment map.
     pub fn new() -> Self {
         Self {
@@ -331,7 +331,7 @@ impl<Sc: Score> IndictmentMap<Sc> {
     }
 
     // Builds an indictment map from a collection of detailed matches.
-    pub fn from_matches(matches: Vec<DetailedConstraintMatch<Sc>>) -> Self {
+    pub fn from_matches(matches: Vec<DetailedConstraintMatch<'a, Sc>>) -> Self {
         let mut map = Self::new();
         for m in matches {
             for entity in &m.justification.entities {
@@ -345,7 +345,7 @@ impl<Sc: Score> IndictmentMap<Sc> {
     }
 
     // Gets the indictment for a specific entity.
-    pub fn get(&self, entity: &EntityRef) -> Option<&Indictment<Sc>> {
+    pub fn get(&self, entity: &EntityRef) -> Option<&Indictment<'a, Sc>> {
         self.indictments.get(entity)
     }
 
@@ -376,7 +376,7 @@ impl<Sc: Score> IndictmentMap<Sc> {
     }
 }
 
-impl<Sc: Score> Default for IndictmentMap<Sc> {
+impl<'a, Sc: Score> Default for IndictmentMap<'a, Sc> {
     fn default() -> Self {
         Self::new()
     }

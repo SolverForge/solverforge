@@ -69,9 +69,8 @@ impl<S> ConflictRepairSelector<S> {
         D: solverforge_scoring::Director<S>,
     {
         for constraint_name in &self.config.constraints {
-            let Some(metadata) =
-                resolve_configured_constraint(score_director.constraint_metadata(), constraint_name)
-            else {
+            let metadata = score_director.constraint_metadata();
+            let Some(metadata) = resolve_configured_constraint(&metadata, constraint_name) else {
                 panic!(
                     "conflict_repair_move_selector configured for `{constraint_name}`, but no matching scoring constraint was found"
                 );
@@ -84,10 +83,10 @@ impl<S> ConflictRepairSelector<S> {
     }
 }
 
-fn resolve_configured_constraint<'a>(
-    metadata: &'a [ConstraintMetadata],
+fn resolve_configured_constraint<'metadata, 'constraint>(
+    metadata: &'metadata [ConstraintMetadata<'constraint>],
     constraint_name: &str,
-) -> Option<&'a ConstraintMetadata> {
+) -> Option<&'metadata ConstraintMetadata<'constraint>> {
     metadata
         .iter()
         .find(|metadata| metadata.full_name() == constraint_name)

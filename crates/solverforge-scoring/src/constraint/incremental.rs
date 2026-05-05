@@ -167,24 +167,20 @@ where
         self.is_hard
     }
 
-    fn constraint_ref(&self) -> ConstraintRef {
-        self.constraint_ref.clone()
+    fn constraint_ref(&self) -> &ConstraintRef {
+        &self.constraint_ref
     }
 
-    fn get_matches(&self, solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
+    fn get_matches<'a>(&'a self, solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>> {
         let entities = self.extractor.extract(solution);
-        let cref = self.constraint_ref.clone();
+        let cref = self.constraint_ref();
         entities
             .iter()
             .filter(|e| self.matches(solution, e))
             .map(|entity| {
                 let entity_ref = EntityRef::new(entity);
                 let justification = ConstraintJustification::new(vec![entity_ref]);
-                DetailedConstraintMatch::new(
-                    cref.clone(),
-                    self.compute_delta(entity),
-                    justification,
-                )
+                DetailedConstraintMatch::new(cref, self.compute_delta(entity), justification)
             })
             .collect()
     }

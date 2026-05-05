@@ -24,8 +24,8 @@ where
 impl<S, Out, K, Src, F, KF, PF, Sc> ProjectedBiConstraintStream<S, Out, K, Src, F, KF, PF, Sc>
 where
     S: Send + Sync + 'static,
-    Out: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Out: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
@@ -120,8 +120,8 @@ impl<S, Out, K, Src, F, KF, PF, W, Sc>
     ProjectedBiConstraintBuilder<S, Out, K, Src, F, KF, PF, W, Sc>
 where
     S: Send + Sync + 'static,
-    Out: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Out: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
@@ -161,7 +161,7 @@ where
 impl<S, Out, Src, F, W, Sc> ProjectedConstraintBuilder<S, Out, Src, F, W, Sc>
 where
     S: Send + Sync + 'static,
-    Out: Clone + Send + Sync + 'static,
+    Out: Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     W: Fn(&Out) -> Sc + Send + Sync,

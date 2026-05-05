@@ -6,7 +6,7 @@ pub(super) use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint
 pub(super) use crate::director::score_director::ScoreDirector;
 pub(super) use crate::director::{Director, RecordingDirector};
 pub(super) use crate::stream::collection_extract::{source, ChangeSource};
-pub(super) use crate::stream::collector::sum;
+pub(super) use crate::stream::collector::{sum, Accumulator, UniCollector};
 pub(super) use crate::stream::joiner::equal;
 pub(super) use crate::stream::{ConstraintFactory, Projection, ProjectionSink};
 use solverforge_core::domain::PlanningSolution;
@@ -40,10 +40,74 @@ impl PlanningSolution for Plan {
     fn set_score(&mut self, _score: Option<Self::Score>) {}
 }
 
-#[derive(Clone)]
 pub(super) struct Entry {
     pub(super) bucket: usize,
     pub(super) delta: i64,
+}
+
+pub(super) struct NonCloneEntry {
+    pub(super) bucket: usize,
+    pub(super) delta: i64,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub(super) struct NonCloneBucket(pub(super) usize);
+
+pub(super) struct NonCloneWorkEntryProjection;
+
+impl Projection<Work> for NonCloneWorkEntryProjection {
+    type Out = NonCloneEntry;
+    const MAX_EMITS: usize = 1;
+
+    fn project<Sink>(&self, work: &Work, out: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        out.emit(NonCloneEntry {
+            bucket: work.bucket,
+            delta: work.demand,
+        });
+    }
+}
+
+pub(super) struct NonCloneDelta(pub(super) i64);
+
+pub(super) struct NonCloneDeltaCollector;
+
+impl UniCollector<Entry> for NonCloneDeltaCollector {
+    type Value = NonCloneDelta;
+    type Result = i64;
+    type Accumulator = NonCloneDeltaAccumulator;
+
+    fn extract(&self, entry: &Entry) -> Self::Value {
+        NonCloneDelta(entry.delta)
+    }
+
+    fn create_accumulator(&self) -> Self::Accumulator {
+        NonCloneDeltaAccumulator { total: 0 }
+    }
+}
+
+pub(super) struct NonCloneDeltaAccumulator {
+    total: i64,
+}
+
+impl Accumulator<NonCloneDelta, i64> for NonCloneDeltaAccumulator {
+    fn accumulate(&mut self, value: &NonCloneDelta) {
+        self.total += value.0;
+    }
+
+    fn retract(&mut self, value: &NonCloneDelta) {
+        self.total -= value.0;
+    }
+
+    fn finish(&self) -> i64 {
+        self.total
+    }
+
+    fn reset(&mut self) {
+        self.total = 0;
+    }
 }
 
 pub(super) struct WorkTwoEntries;

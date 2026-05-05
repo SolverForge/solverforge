@@ -101,9 +101,10 @@ pub use join_target::JoinTarget;
 pub use key_extract::{EntityKeyAdapter, KeyExtract};
 pub use penta_stream::{PentaConstraintBuilder, PentaConstraintStream};
 pub use projected_stream::{
-    ProjectedBiConstraintBuilder, ProjectedBiConstraintStream, ProjectedConstraintBuilder,
-    ProjectedConstraintStream, ProjectedGroupedConstraintBuilder, ProjectedGroupedConstraintStream,
-    ProjectedRowCoordinate, ProjectedSource, Projection, ProjectionSink,
+    JoinedProjectedSource, ProjectedBiConstraintBuilder, ProjectedBiConstraintStream,
+    ProjectedConstraintBuilder, ProjectedConstraintStream, ProjectedGroupedConstraintBuilder,
+    ProjectedGroupedConstraintStream, ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource,
+    Projection, ProjectionSink,
 };
 pub use quad_stream::{QuadConstraintBuilder, QuadConstraintStream};
 pub use tri_stream::{TriConstraintBuilder, TriConstraintStream};

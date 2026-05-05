@@ -3,7 +3,7 @@
 Facade crate: re-exports the public API from all sub-crates under a single `solverforge` dependency.
 
 **Location:** `crates/solverforge/`
-**Workspace Release:** `0.10.0`
+**Workspace Release:** `0.11.0`
 
 The CLI lives in the standalone `solverforge-cli` repository and is not part of this workspace or facade crate.
 
@@ -64,7 +64,7 @@ src/
 ### Constraint API (from `solverforge-scoring`)
 
 - `ConstraintSet` (trait)
-- `ConstraintMetadata`
+- `ConstraintMetadata<'a>` (borrowed constraint identity view)
 - `IncrementalConstraint` (trait)
 - `IncrementalUniConstraint`
 - `IncrementalBiConstraint`
@@ -111,7 +111,7 @@ src/
 - `SelectorTelemetry`
 - `SolverTerminalReason`
 - `ScoreAnalysis`
-- `ConstraintAnalysis`
+- `ConstraintAnalysis` (solver-level serializable analysis)
 - `DefaultDistanceMeter`
 - `CrossEntityDistanceMeter`
 
@@ -177,7 +177,7 @@ factory.assignments().join((
 
 Generated existence ergonomics: there is one public `ConstraintFactory::for_each(...)`. Generated `{Name}ConstraintStreams` accessors call it with hidden `ChangeSource::Descriptor(idx)` / `ChangeSource::Static` metadata so localized incremental callbacks use entity indexes only for the owning planning-entity collection. Raw facade `for_each(...)` extractors do not carry localized source ownership. Flattened existence targets use `.flattened(...)` and `FlattenedCollectionTarget`.
 
-Projected scoring ergonomics: `factory.assignments().project(TaskShiftWorkEntries)` creates bounded derived scoring rows from a named `Projection<A>` type without materializing facts or entities. Projected streams can be filtered, self-joined, merged, grouped, and weighted like normal scoring state. Projections emit through `ProjectionSink` and declare `MAX_EMITS`; Vec-returning projection closures are not part of the public API. Projected self-join ordering is coordinate-stable by `(source_slot, entity_index, emission_index)`, not sparse storage row id.
+Projected scoring ergonomics: `factory.assignments().project(TaskShiftWorkEntries)` creates bounded scoring rows from a named `Projection<A>` type without materializing facts or entities. Keyed cross joins use `.project(|assignment, capacity| Row { ... })` to emit one scoring row per retained joined pair. Projected streams can be filtered, self-joined, merged, grouped, and weighted like normal scoring state. Single-source projection implementations emit through `ProjectionSink` and declare `MAX_EMITS`; joined-pair closures do not need a helper type. Projected output rows, projected self-join keys, and grouped collector values do not need `Clone`. Projected self-join ordering is coordinate-stable by `ProjectedRowCoordinate`, not sparse storage row id.
 
 ## `__internal` Module (`#[doc(hidden)]`)
 

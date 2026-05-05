@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -7,16 +7,16 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::filter::{BiFilter, UniFilter};
-use crate::stream::{ProjectedRowCoordinate, ProjectedSource};
+use crate::stream::{ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource};
 
-struct ProjectedJoinRow<Out, K> {
-    key: K,
+struct ProjectedJoinRow<Out> {
     output: Out,
-    order: ProjectedRowCoordinate,
+    coordinate: ProjectedRowCoordinate,
 }
 
 pub struct ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc>
 where
+    Src: ProjectedSource<S, Out>,
     Sc: Score,
 {
     constraint_ref: ConstraintRef,
@@ -27,9 +27,11 @@ where
     pair_filter: PF,
     weight: W,
     is_hard: bool,
-    rows: Vec<Option<ProjectedJoinRow<Out, K>>>,
+    source_state: Option<Src::State>,
+    rows: Vec<Option<ProjectedJoinRow<Out>>>,
     free_row_ids: Vec<usize>,
-    rows_by_entity: HashMap<(usize, usize), Vec<usize>>,
+    rows_by_owner: HashMap<ProjectedRowOwner, Vec<usize>>,
+    row_ids_by_coordinate: HashMap<ProjectedRowCoordinate, usize>,
     rows_by_key: HashMap<K, Vec<usize>>,
     _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> Sc)>,
 }
@@ -37,8 +39,8 @@ where
 impl<S, Out, K, Src, F, KF, PF, W, Sc> ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc>
 where
     S: Send + Sync + 'static,
-    Out: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Out: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
@@ -66,9 +68,11 @@ where
             pair_filter,
             weight,
             is_hard,
+            source_state: None,
             rows: Vec::new(),
             free_row_ids: Vec::new(),
-            rows_by_entity: HashMap::new(),
+            rows_by_owner: HashMap::new(),
+            row_ids_by_coordinate: HashMap::new(),
             rows_by_key: HashMap::new(),
             _phantom: PhantomData,
         }
@@ -85,10 +89,10 @@ where
     fn score_ordered_rows(
         &self,
         solution: &S,
-        first: &ProjectedJoinRow<Out, K>,
-        second: &ProjectedJoinRow<Out, K>,
+        first: &ProjectedJoinRow<Out>,
+        second: &ProjectedJoinRow<Out>,
     ) -> Sc {
-        let (left, right) = if first.order <= second.order {
+        let (left, right) = if first.coordinate <= second.coordinate {
             (first, second)
         } else {
             (second, first)
@@ -102,6 +106,24 @@ where
         self.compute_score(&left.output, &right.output)
     }
 
+    fn score_candidate_row(
+        &self,
+        solution: &S,
+        candidate_output: &Out,
+        candidate_coordinate: ProjectedRowCoordinate,
+        other: &ProjectedJoinRow<Out>,
+    ) -> Sc {
+        let (left, right) = if candidate_coordinate <= other.coordinate {
+            (candidate_output, &other.output)
+        } else {
+            (&other.output, candidate_output)
+        };
+        if !self.pair_filter.test(solution, left, right, 0, 1) {
+            return Sc::zero();
+        }
+        self.compute_score(left, right)
+    }
+
     fn score_pair(&self, solution: &S, first_id: usize, second_id: usize) -> Sc {
         let Some(first) = self.rows.get(first_id).and_then(Option::as_ref) else {
             return Sc::zero();
@@ -112,14 +134,45 @@ where
         self.score_ordered_rows(solution, first, second)
     }
 
-    fn insert_row(&mut self, solution: &S, coordinate: ProjectedRowCoordinate, output: Out) -> Sc {
-        let key = (self.key_fn)(&output);
-        let existing = self.rows_by_key.get(&key).cloned().unwrap_or_default();
-        let row = Some(ProjectedJoinRow {
-            key: key.clone(),
-            output,
-            order: coordinate,
+    fn ensure_source_state(&mut self, solution: &S) {
+        if self.source_state.is_none() {
+            self.source_state = Some(self.source.build_state(solution));
+        }
+    }
+
+    fn index_row_owners(&mut self, coordinate: ProjectedRowCoordinate, row_id: usize) {
+        coordinate.for_each_owner(|owner| {
+            self.rows_by_owner.entry(owner).or_default().push(row_id);
         });
+    }
+
+    fn unindex_row_owners(&mut self, coordinate: ProjectedRowCoordinate, row_id: usize) {
+        coordinate.for_each_owner(|owner| {
+            let mut remove_bucket = false;
+            if let Some(ids) = self.rows_by_owner.get_mut(&owner) {
+                ids.retain(|candidate| *candidate != row_id);
+                remove_bucket = ids.is_empty();
+            }
+            if remove_bucket {
+                self.rows_by_owner.remove(&owner);
+            }
+        });
+    }
+
+    fn insert_row(&mut self, solution: &S, coordinate: ProjectedRowCoordinate, output: Out) -> Sc {
+        if self.row_ids_by_coordinate.contains_key(&coordinate) {
+            return Sc::zero();
+        }
+        let key = (self.key_fn)(&output);
+        let mut total = Sc::zero();
+        if let Some(existing) = self.rows_by_key.get(&key) {
+            for &other_id in existing {
+                if let Some(other) = self.rows.get(other_id).and_then(Option::as_ref) {
+                    total = total + self.score_candidate_row(solution, &output, coordinate, other);
+                }
+            }
+        }
+        let row = Some(ProjectedJoinRow { output, coordinate });
         let row_id = if let Some(row_id) = self.free_row_ids.pop() {
             debug_assert!(self.rows[row_id].is_none());
             self.rows[row_id] = row;
@@ -129,31 +182,29 @@ where
             self.rows.push(row);
             row_id
         };
-        self.rows_by_entity
-            .entry((coordinate.source_slot, coordinate.entity_index))
-            .or_default()
-            .push(row_id);
-
-        let mut total = Sc::zero();
-        for other_id in existing {
-            total = total + self.score_pair(solution, row_id, other_id);
-        }
+        self.row_ids_by_coordinate.insert(coordinate, row_id);
+        self.index_row_owners(coordinate, row_id);
         self.rows_by_key.entry(key).or_default().push(row_id);
         total
     }
 
     fn retract_row(&mut self, solution: &S, row_id: usize) -> Sc {
-        let Some(row) = self.rows.get(row_id).and_then(Option::as_ref) else {
+        let Some((key, coordinate)) = self
+            .rows
+            .get(row_id)
+            .and_then(Option::as_ref)
+            .map(|row| ((self.key_fn)(&row.output), row.coordinate))
+        else {
             return Sc::zero();
         };
-        let key = row.key.clone();
-        let candidates = self.rows_by_key.get(&key).cloned().unwrap_or_default();
         let mut total = Sc::zero();
-        for other_id in candidates {
-            if other_id == row_id {
-                continue;
+        if let Some(candidates) = self.rows_by_key.get(&key) {
+            for &other_id in candidates {
+                if other_id == row_id {
+                    continue;
+                }
+                total = total - self.score_pair(solution, row_id, other_id);
             }
-            total = total - self.score_pair(solution, row_id, other_id);
         }
 
         if let Some(ids) = self.rows_by_key.get_mut(&key) {
@@ -162,57 +213,32 @@ where
                 self.rows_by_key.remove(&key);
             }
         }
+        self.row_ids_by_coordinate.remove(&coordinate);
+        self.unindex_row_owners(coordinate, row_id);
         self.rows[row_id] = None;
         self.free_row_ids.push(row_id);
         total
     }
 
-    fn insert_entity_outputs(&mut self, solution: &S, slot: usize, entity_index: usize) -> Sc {
-        let mut outputs = Vec::new();
+    fn evaluate_rows(&self, solution: &S) -> Vec<ProjectedJoinRow<Out>> {
+        let state = self.source.build_state(solution);
+        let mut rows = Vec::new();
         self.source
-            .collect_entity(solution, slot, entity_index, |coordinate, output| {
+            .collect_all(solution, &state, |coordinate, output| {
                 if self.filter.test(solution, &output) {
-                    outputs.push((coordinate, output));
+                    rows.push(ProjectedJoinRow { output, coordinate });
                 }
             });
-
-        outputs
-            .into_iter()
-            .fold(Sc::zero(), |total, (coordinate, output)| {
-                total + self.insert_row(solution, coordinate, output)
-            })
-    }
-
-    fn retract_entity_outputs(&mut self, solution: &S, slot: usize, entity_index: usize) -> Sc {
-        let Some(row_ids) = self.rows_by_entity.remove(&(slot, entity_index)) else {
-            return Sc::zero();
-        };
-        row_ids.into_iter().fold(Sc::zero(), |total, row_id| {
-            total + self.retract_row(solution, row_id)
-        })
-    }
-
-    fn evaluate_rows(&self, solution: &S) -> Vec<ProjectedJoinRow<Out, K>> {
-        let mut rows = Vec::new();
-        self.source.collect_all(solution, |coordinate, output| {
-            if self.filter.test(solution, &output) {
-                rows.push(ProjectedJoinRow {
-                    key: (self.key_fn)(&output),
-                    output,
-                    order: coordinate,
-                });
-            }
-        });
         rows
     }
 
     fn score_evaluation_pair(
         &self,
         solution: &S,
-        first: &ProjectedJoinRow<Out, K>,
-        second: &ProjectedJoinRow<Out, K>,
+        first: &ProjectedJoinRow<Out>,
+        second: &ProjectedJoinRow<Out>,
     ) -> Sc {
-        if first.key == second.key {
+        if (self.key_fn)(&first.output) == (self.key_fn)(&second.output) {
             self.score_ordered_rows(solution, first, second)
         } else {
             Sc::zero()
@@ -222,13 +248,13 @@ where
     fn evaluation_pair_matches(
         &self,
         solution: &S,
-        first: &ProjectedJoinRow<Out, K>,
-        second: &ProjectedJoinRow<Out, K>,
+        first: &ProjectedJoinRow<Out>,
+        second: &ProjectedJoinRow<Out>,
     ) -> bool {
-        if first.key != second.key {
+        if (self.key_fn)(&first.output) != (self.key_fn)(&second.output) {
             return false;
         }
-        let (left, right) = if first.order <= second.order {
+        let (left, right) = if first.coordinate <= second.coordinate {
             (first, second)
         } else {
             (second, first)
@@ -237,18 +263,41 @@ where
             .test(solution, &left.output, &right.output, 0, 1)
     }
 
-    fn localized_slots(&self, descriptor_index: usize) -> Vec<usize> {
-        let mut slots = Vec::new();
+    fn localized_owners(
+        &self,
+        descriptor_index: usize,
+        entity_index: usize,
+    ) -> Vec<ProjectedRowOwner> {
+        let mut owners = Vec::new();
         for slot in 0..self.source.source_count() {
             if self
                 .source
                 .change_source(slot)
                 .assert_localizes(descriptor_index, &self.constraint_ref.name)
             {
-                slots.push(slot);
+                owners.push(ProjectedRowOwner {
+                    source_slot: slot,
+                    entity_index,
+                });
             }
         }
-        slots
+        owners
+    }
+
+    fn row_ids_for_owners(&self, owners: &[ProjectedRowOwner]) -> Vec<usize> {
+        let mut seen = HashSet::new();
+        let mut row_ids = Vec::new();
+        for owner in owners {
+            let Some(ids) = self.rows_by_owner.get(owner) else {
+                continue;
+            };
+            for &row_id in ids {
+                if seen.insert(row_id) {
+                    row_ids.push(row_id);
+                }
+            }
+        }
+        row_ids
     }
 
     #[cfg(test)]
@@ -266,8 +315,8 @@ impl<S, Out, K, Src, F, KF, PF, W, Sc> IncrementalConstraint<S, Sc>
     for ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc>
 where
     S: Send + Sync + 'static,
-    Out: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Out: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
@@ -304,12 +353,15 @@ where
 
     fn initialize(&mut self, solution: &S) -> Sc {
         self.reset();
+        let state = self.source.build_state(solution);
         let mut rows = Vec::new();
-        self.source.collect_all(solution, |coordinate, output| {
-            if self.filter.test(solution, &output) {
-                rows.push((coordinate, output));
-            }
-        });
+        self.source
+            .collect_all(solution, &state, |coordinate, output| {
+                if self.filter.test(solution, &output) {
+                    rows.push((coordinate, output));
+                }
+            });
+        self.source_state = Some(state);
 
         rows.into_iter()
             .fold(Sc::zero(), |total, (coordinate, output)| {
@@ -318,25 +370,66 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        let owners = self.localized_owners(descriptor_index, entity_index);
+        self.ensure_source_state(solution);
+        {
+            let state = self.source_state.as_mut().expect("projected source state");
+            for owner in &owners {
+                self.source.insert_entity_state(
+                    solution,
+                    state,
+                    owner.source_slot,
+                    owner.entity_index,
+                );
+            }
+        }
+        let mut rows = Vec::new();
+        let state = self.source_state.as_ref().expect("projected source state");
+        for owner in &owners {
+            self.source.collect_entity(
+                solution,
+                state,
+                owner.source_slot,
+                owner.entity_index,
+                |coordinate, output| {
+                    if self.filter.test(solution, &output) {
+                        rows.push((coordinate, output));
+                    }
+                },
+            );
+        }
         let mut total = Sc::zero();
-        for slot in self.localized_slots(descriptor_index) {
-            total = total + self.insert_entity_outputs(solution, slot, entity_index);
+        for (coordinate, output) in rows {
+            total = total + self.insert_row(solution, coordinate, output);
         }
         total
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        let owners = self.localized_owners(descriptor_index, entity_index);
         let mut total = Sc::zero();
-        for slot in self.localized_slots(descriptor_index) {
-            total = total + self.retract_entity_outputs(solution, slot, entity_index);
+        for row_id in self.row_ids_for_owners(&owners) {
+            total = total + self.retract_row(solution, row_id);
+        }
+        if let Some(state) = self.source_state.as_mut() {
+            for owner in &owners {
+                self.source.retract_entity_state(
+                    solution,
+                    state,
+                    owner.source_slot,
+                    owner.entity_index,
+                );
+            }
         }
         total
     }
 
     fn reset(&mut self) {
+        self.source_state = None;
         self.rows.clear();
         self.free_row_ids.clear();
-        self.rows_by_entity.clear();
+        self.rows_by_owner.clear();
+        self.row_ids_by_coordinate.clear();
         self.rows_by_key.clear();
     }
 
@@ -344,11 +437,11 @@ where
         &self.constraint_ref.name
     }
 
-    fn is_hard(&self) -> bool {
-        self.is_hard
+    fn constraint_ref(&self) -> &ConstraintRef {
+        &self.constraint_ref
     }
 
-    fn constraint_ref(&self) -> ConstraintRef {
-        self.constraint_ref.clone()
+    fn is_hard(&self) -> bool {
+        self.is_hard
     }
 }

@@ -222,7 +222,7 @@ fn test_recording_preserves_constraint_metadata() {
             value: 2,
             score: None,
         },
-        ValueConstraintSet,
+        ValueConstraintSet::default(),
         descriptor,
         |_, descriptor_index| usize::from(descriptor_index == 0),
     );
@@ -243,8 +243,17 @@ struct ScoreProbeSolution {
     score: Option<SoftScore>,
 }
 
-#[derive(Default)]
-struct ValueConstraintSet;
+struct ValueConstraintSet {
+    constraint_ref: ConstraintRef,
+}
+
+impl Default for ValueConstraintSet {
+    fn default() -> Self {
+        Self {
+            constraint_ref: ConstraintRef::new("", "value"),
+        }
+    }
+}
 
 impl ConstraintSet<ScoreProbeSolution, SoftScore> for ValueConstraintSet {
     fn evaluate_all(&self, solution: &ScoreProbeSolution) -> SoftScore {
@@ -255,16 +264,16 @@ impl ConstraintSet<ScoreProbeSolution, SoftScore> for ValueConstraintSet {
         1
     }
 
-    fn constraint_metadata(&self) -> Vec<ConstraintMetadata> {
-        vec![ConstraintMetadata::new(
-            ConstraintRef::new("", "value"),
-            false,
-        )]
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+        vec![ConstraintMetadata::new(&self.constraint_ref, false)]
     }
 
-    fn evaluate_each(&self, solution: &ScoreProbeSolution) -> Vec<ConstraintResult<SoftScore>> {
+    fn evaluate_each<'a>(
+        &'a self,
+        solution: &ScoreProbeSolution,
+    ) -> Vec<ConstraintResult<'a, SoftScore>> {
         vec![ConstraintResult {
-            name: "value".to_string(),
+            name: "value",
             score: self.evaluate_all(solution),
             match_count: 1,
             is_hard: false,
@@ -274,9 +283,9 @@ impl ConstraintSet<ScoreProbeSolution, SoftScore> for ValueConstraintSet {
     fn evaluate_detailed(
         &self,
         solution: &ScoreProbeSolution,
-    ) -> Vec<ConstraintAnalysis<SoftScore>> {
+    ) -> Vec<ConstraintAnalysis<'_, SoftScore>> {
         vec![ConstraintAnalysis::new(
-            ConstraintRef::new("", "value"),
+            &self.constraint_ref,
             SoftScore::of(1),
             self.evaluate_all(solution),
             Vec::new(),
@@ -330,7 +339,7 @@ fn test_recording_undo_restores_committed_cached_score_state() {
             value: 2,
             score: None,
         },
-        ValueConstraintSet,
+        ValueConstraintSet::default(),
         descriptor,
         |_, descriptor_index| usize::from(descriptor_index == 0),
     );

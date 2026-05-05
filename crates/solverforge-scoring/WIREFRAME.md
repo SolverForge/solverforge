@@ -3,7 +3,7 @@
 Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 
 **Location:** `crates/solverforge-scoring/`
-**Workspace Release:** `0.10.0`
+**Workspace Release:** `0.11.0`
 
 ## Dependencies
 
@@ -46,8 +46,8 @@ src/
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
 │   ├── exists/
 │   │   └── key_state.rs                            — Internal hashed/indexed key bookkeeping for existence constraints
-│   ├── projected.rs                                — Projected retained derived-row constraint module root and re-exports
-│   ├── projected/*.rs                              — Projected uni, bi, grouped constraints and shared source state
+│   ├── projected.rs                                — Projected retained scoring-row constraint module root and re-exports
+│   ├── projected/*.rs                              — Projected uni, bi, and grouped constraints
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
@@ -113,7 +113,14 @@ src/
 │   ├── existence_stream.rs                         — ExistsConstraintStream, ExistsConstraintBuilder, ExistenceMode, FlattenExtract
 │   ├── existence_target.rs                         — ExistenceTarget trait for direct and flattened existence targets
 │   ├── projected_stream.rs                         — Projected stream module root and re-exports
-│   ├── projected_stream/*.rs                       — Projected source, uni, bi, and grouped stream builders
+│   ├── projected_stream/uni.rs                     — ProjectedConstraintStream and terminal builder
+│   ├── projected_stream/bi.rs                      — ProjectedBiConstraintStream and terminal builder
+│   ├── projected_stream/grouped.rs                 — ProjectedGroupedConstraintStream and terminal builder
+│   ├── projected_stream/source.rs                  — Projection, projected row coordinates, ProjectedSource trait
+│   ├── projected_stream/source/single.rs           — Single-source `.project(...)` source
+│   ├── projected_stream/source/filtered.rs         — Row-level filtered projected source
+│   ├── projected_stream/source/merged.rs           — Merged projected sources with source-slot offsets
+│   ├── projected_stream/source/joined.rs           — Cross-join `.project(...)` projected source
 │   ├── collection_extract.rs                       — CollectionExtract trait, source-aware extractors, VecExtract wrapper, vec() constructor
 │   ├── join_target.rs                              — JoinTarget trait + 3 impls (self-join, keyed cross-join, predicate cross-join)
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
@@ -206,7 +213,7 @@ pub use stream::{
 | `after_variable_changed` | `fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize)` | Post-change notification |
 | `entity_count` | `fn entity_count(&self, descriptor_index: usize) -> Option<usize>` | Count entities by descriptor |
 | `total_entity_count` | `fn total_entity_count(&self) -> Option<usize>` | Total across all descriptors |
-| `constraint_metadata` | `fn constraint_metadata(&self) -> &[ConstraintMetadata]` | Immutable constraint metadata known to this director |
+| `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>` | Borrowed constraint metadata views known to this director |
 | `constraint_is_hard` | `fn constraint_is_hard(&self, constraint_ref: &ConstraintRef) -> Option<bool>` | Exact identity helper derived from `constraint_metadata()` |
 | `is_incremental` | `fn is_incremental(&self) -> bool` | Default: false |
 | `snapshot_score_state` | `fn snapshot_score_state(&self) -> DirectorScoreState<S::Score>` | Snapshot committed score state for speculative evaluation |
@@ -229,10 +236,10 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 | `on_insert` | `fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental insert delta |
 | `on_retract` | `fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental retract delta |
 | `reset` | `fn reset(&mut self)` | Clear incremental state |
-| `name` | `fn name(&self) -> &str` | Constraint name |
+| `name` | `fn name(&self) -> &str` | Constraint name; default derives from `constraint_ref()` |
 | `is_hard` | `fn is_hard(&self) -> bool` | Default: false |
-| `constraint_ref` | `fn constraint_ref(&self) -> ConstraintRef` | Default: from name |
-| `get_matches` | `fn get_matches(&self, _solution: &S) -> Vec<DetailedConstraintMatch<Sc>>` | Default: empty |
+| `constraint_ref` | `fn constraint_ref(&self) -> &ConstraintRef` | Borrowed package-qualified identity owned by the constraint |
+| `get_matches` | `fn get_matches<'a>(&'a self, _solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>>` | Default: empty |
 | `weight` | `fn weight(&self) -> Sc` | Default: Sc::zero() |
 
 ### `ConstraintSet<S, Sc: Score>` — `Send + Sync`
@@ -241,9 +248,9 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 |--------|-----------|------|
 | `evaluate_all` | `fn evaluate_all(&self, solution: &S) -> Sc` | Sum all constraints |
 | `constraint_count` | `fn constraint_count(&self) -> usize` | Number of constraints |
-| `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata>` | Immutable ref/name/hardness metadata |
-| `evaluate_each` | `fn evaluate_each(&self, solution: &S) -> Vec<ConstraintResult<Sc>>` | Per-constraint results |
-| `evaluate_detailed` | `fn evaluate_detailed(&self, solution: &S) -> Vec<ConstraintAnalysis<Sc>>` | With match details |
+| `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>` | Borrowed ref/name/hardness metadata |
+| `evaluate_each` | `fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>>` | Per-constraint results |
+| `evaluate_detailed` | `fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>>` | With match details |
 | `initialize_all` | `fn initialize_all(&mut self, solution: &S) -> Sc` | Initialize all for incremental |
 | `on_insert_all` | `fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental insert all |
 | `on_retract_all` | `fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental retract all |
@@ -318,7 +325,7 @@ All `Send + Sync`:
 **`ScoreDirector<S, C>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`
 - Primary incremental scoring director. Zero-erasure.
 - Key methods: `new()`, `with_descriptor()`, `simple()` (convenience for `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor), `calculate_score()`, `before_variable_changed()`, `after_variable_changed()`, `do_change()`, `get_score()`, `constraint_metadata()`, `constraint_match_totals()`, `into_working_solution()`, `take_solution()`
-- Builds immutable constraint metadata once from the typed `ConstraintSet`.
+- Returns borrowed constraint metadata views from the typed `ConstraintSet` on demand.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
 - Implements `Director<S>`
@@ -362,9 +369,11 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 ### Analysis Types
 
-**`ConstraintResult<Sc>`** — `{ name: String, score: Sc, match_count: usize, is_hard: bool }`
+Constraints own their `ConstraintRef` once. Metadata and analysis types borrow that identity so package-qualified constraint names remain intact without cloning `ConstraintRef` in scoring or reporting paths.
 
-**`ConstraintMetadata`** — `{ constraint_ref: ConstraintRef, is_hard: bool }`; `name()` returns the short constraint name, and `full_name()` returns the package-qualified identity used for exact matching.
+**`ConstraintResult<'a, Sc>`** — `{ name: &'a str, score: Sc, match_count: usize, is_hard: bool }`
+
+**`ConstraintMetadata<'a>`** — `{ constraint_ref: &'a ConstraintRef, is_hard: bool }`; `name()` returns the short constraint name, and `full_name()` returns the package-qualified identity used for exact matching.
 
 **`EntityRef`** — `{ type_name: String, display: String, entity: Arc<dyn Any + Send + Sync> }`
 - Methods: `new()`, `with_display()`, `as_entity::<T>()`, `short_type_name()`
@@ -372,19 +381,19 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`ConstraintJustification`** — `{ entities: Vec<EntityRef>, description: String }`
 
-**`DetailedConstraintMatch<Sc: Score>`** — `{ constraint_ref: ConstraintRef, score: Sc, justification: ConstraintJustification }`
+**`DetailedConstraintMatch<'a, Sc: Score>`** — `{ constraint_ref: &'a ConstraintRef, score: Sc, justification: ConstraintJustification }`
 
-**`DetailedConstraintEvaluation<Sc: Score>`** — `{ total_score: Sc, match_count: usize, matches: Vec<DetailedConstraintMatch<Sc>> }`
+**`DetailedConstraintEvaluation<'a, Sc: Score>`** — `{ total_score: Sc, match_count: usize, matches: Vec<DetailedConstraintMatch<'a, Sc>> }`
 
-**`ConstraintAnalysis<Sc: Score>`** — `{ constraint_ref: ConstraintRef, weight: Sc, score: Sc, matches: Vec<DetailedConstraintMatch<Sc>>, is_hard: bool }`
+**`ConstraintAnalysis<'a, Sc: Score>`** — `{ constraint_ref: &'a ConstraintRef, weight: Sc, score: Sc, matches: Vec<DetailedConstraintMatch<'a, Sc>>, is_hard: bool }`
 
-**`ScoreExplanation<Sc: Score>`** — `{ score: Sc, constraint_analyses: Vec<ConstraintAnalysis<Sc>> }`
+**`ScoreExplanation<'a, Sc: Score>`** — `{ score: Sc, constraint_analyses: Vec<ConstraintAnalysis<'a, Sc>> }`
 - Methods: `total_match_count()`, `non_zero_constraints()`, `all_matches()`
 
-**`Indictment<Sc: Score>`** — `{ entity: EntityRef, score: Sc, constraint_matches: HashMap<ConstraintRef, Vec<DetailedConstraintMatch<Sc>>> }`
+**`Indictment<'a, Sc: Score>`** — `{ entity: EntityRef, score: Sc, constraint_matches: HashMap<&'a ConstraintRef, Vec<DetailedConstraintMatch<'a, Sc>>> }`
 - Methods: `add_match()`, `match_count()`, `violated_constraints()`, `constraint_count()`
 
-**`IndictmentMap<Sc: Score>`** — `{ indictments: HashMap<EntityRef, Indictment<Sc>> }`
+**`IndictmentMap<'a, Sc: Score>`** — `{ indictments: HashMap<EntityRef, Indictment<'a, Sc>> }`
 - Methods: `from_matches()`, `get()`, `entities()`, `worst_entities()`, `len()`, `is_empty()`
 
 **`ConstraintWeightOverrides<Sc: Score>`** — `{ weights: HashMap<String, Sc> }`
@@ -404,16 +413,19 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `named()` → `IncrementalUniConstraint`
 
-**`Projection<A>`** — Typed retained projection contract for `.project(...)`. Implementations define `type Out`, `const MAX_EMITS: usize`, and `project(&self, input: &A, sink: &mut impl ProjectionSink<Self::Out>)`. Projection implementations emit bounded derived rows into the sink; Vec-returning closures are not part of the API.
+**`Projection<A>`** — Typed retained projection contract for single-source `.project(...)`. Implementations define `type Out`, `const MAX_EMITS: usize`, and `project(&self, input: &A, sink: &mut impl ProjectionSink<Self::Out>)`. Projection implementations emit bounded scoring rows into the sink; Vec-returning closures are not part of the API. `Out` does not need `Clone`.
 
 **`ProjectionSink<Out>`** — Emission sink used by `Projection<A>` implementations. `emit(output)` is the only projection output channel.
 
-**`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Derived scoring rows from one or more source streams. Projection output type is inferred from the named projection type passed to `project(...)`; retained rows are cached by `(source_slot, entity_index)` and updated incrementally only when the owning descriptor source changes. Projected self-join pair order follows `(source_slot, entity_index, emission_index)`; retained storage row IDs are internal and never semantic. Projected rows can be self-joined by `equal(|row| key)` without materialized facts. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
-- Operations: `filter()`, `merge(other)`, `group_by()`, `penalize_with()`, `penalize_hard_with()`
+**`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Scoring rows from one or more source streams. Single-source output type is inferred from the named projection type passed to `project(...)`; keyed cross joins use `CrossBiConstraintStream::project(|left, right| row)` and emit exactly one scoring row per retained joined pair. Retained rows are cached by `ProjectedRowCoordinate` and indexed by one or two `ProjectedRowOwner` values. Single-source projected rows update incrementally from their source owner; joined-pair projected rows update incrementally from either joined source when that source is descriptor-localized. Projected self-join pair order follows `ProjectedRowCoordinate` ordering; retained storage row IDs are internal and never semantic. Projected rows can be self-joined by `equal(|row| key)` without materialized facts, and projected output rows plus projected self-join keys do not need `Clone`. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
+- Operations: `filter()`, `merge(other)`, `group_by()`, `join(equal(...))`, `penalize_with()`, `penalize_hard_with()`
 
 **`ProjectedRowCoordinate`** — Hidden support coordinate for projected rows:
-`{ source_slot, entity_index, emit_index }`. It is used to keep projected
-self-join orientation stable across sparse row-slot reuse.
+`{ primary_owner, secondary_owner, emit_index }`. `primary_owner` is always
+present; `secondary_owner` is present for joined-pair rows from
+`CrossBiConstraintStream::project(...)`. It is used to keep projected self-join
+orientation stable across sparse row-slot reuse and to dedupe callbacks when
+both owners localize to the same descriptor/entity update.
 
 Projection syntax:
 
@@ -435,7 +447,7 @@ impl Projection<Assignment> for AssignmentLoadEntries {
 factory.assignments().project(AssignmentLoadEntries)
 ```
 
-**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()` and `count()`. Grouped retained state uses the same source-slot/entity-index ownership as ungrouped projected rows. `named()` → `ProjectedGroupedConstraint`.
+**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()` and `count()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and recomputes key/value on retract. `named()` → `ProjectedGroupedConstraint`.
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
 - Operations: `filter()`, `join()` → TriStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
@@ -449,7 +461,7 @@ factory.assignments().project(AssignmentLoadEntries)
 **`PentaConstraintStream/Builder`** — Same pattern, penta-arity. Terminal (no further joins). Same convenience methods.
 
 **`CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>`** — Cross-collection bi stream.
-- Operations: `filter()`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`, `flatten_last()` → FlattenedBiStream
+- Operations: `filter()`, `project(|left, right| row)` → ProjectedConstraintStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`, `flatten_last()` → FlattenedBiStream
 
 **`CrossBiConstraintBuilder`** — `named()` → `IncrementalCrossBiConstraint`
 
@@ -584,7 +596,7 @@ The `ScoreDirector` delegates to `ConstraintSet::on_retract_all()` / `on_insert_
 
 ### Stream Arity Macros
 
-`impl_bi_arity_stream!`, `impl_tri_arity_stream!`, `impl_quad_arity_stream!`, `impl_penta_arity_stream!` generate the stream and builder structs for each arity level. All four macros are consolidated in `nary_stream.rs`. They share the same field layout and method pattern but differ in the number of entity arguments to filter/weight functions.
+`impl_bi_arity_stream!`, `impl_tri_arity_stream!`, `impl_quad_arity_stream!`, `impl_penta_arity_stream!` generate the stream and builder structs for each arity level. All four macros live under `arity_stream_macros/nary_stream/`. They share the same field layout and method pattern but differ in the number of entity arguments to filter/weight functions.
 
 ### PhantomData Pattern
 

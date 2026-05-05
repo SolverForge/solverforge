@@ -180,8 +180,8 @@ impl solverforge_scoring::Director<Plan> for PlanScoreDirector {
         Some(self.working_solution.tasks.len())
     }
 
-    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
-        &[]
+    fn constraint_metadata(&self) -> Vec<solverforge_scoring::ConstraintMetadata<'_>> {
+        Vec::new()
     }
 }
 
@@ -237,8 +237,8 @@ impl solverforge_scoring::Director<QueuePlan> for QueueScoreDirector {
         Some(self.working_solution.tasks.len())
     }
 
-    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
-        &[]
+    fn constraint_metadata(&self) -> Vec<solverforge_scoring::ConstraintMetadata<'_>> {
+        Vec::new()
     }
 }
 

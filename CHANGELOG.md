@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.11.0](///compare/v0.10.0...v0.11.0) (2026-05-05)
+
+
+### Features
+
+* **scoring:** make projected rows clone-free aa50a3f
+
 ## [0.10.0](///compare/v0.9.2...v0.10.0) (2026-05-02)
 
 

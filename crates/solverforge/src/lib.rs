@@ -50,7 +50,11 @@ Score Types
 ============================================================================
 */
 
-pub use solverforge_config::{SolverConfig, SolverConfigOverride};
+pub use solverforge_config::{
+    AcceptorConfig, ConstructionHeuristicType, ConstructionObligation, EnvironmentMode,
+    ForagerConfig, HardRegressionPolicyConfig, MoveSelectorConfig, MoveThreadCount, PhaseConfig,
+    RecreateHeuristicType, SolverConfig, SolverConfigOverride, UnionSelectionOrder,
+};
 pub use solverforge_core::score::{
     BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SoftScore,
 };
@@ -77,7 +81,7 @@ Score Director
 ============================================================================
 */
 
-pub use solverforge_scoring::{Director, ScoreDirector};
+pub use solverforge_scoring::{Director, RecordingDirector, ScoreDirector};
 
 /* ============================================================================
 Solver

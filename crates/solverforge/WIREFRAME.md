@@ -75,11 +75,23 @@ src/
 
 - `Director` (trait)
 - `ScoreDirector`
+- `RecordingDirector`
 
 ### Configuration (from `solverforge-config`)
 
+- `AcceptorConfig`
+- `ConstructionHeuristicType`
+- `ConstructionObligation`
+- `EnvironmentMode`
+- `ForagerConfig`
+- `HardRegressionPolicyConfig`
+- `MoveSelectorConfig`
+- `MoveThreadCount`
+- `PhaseConfig`
+- `RecreateHeuristicType`
 - `SolverConfig`
 - `SolverConfigOverride`
+- `UnionSelectionOrder`
 
 ### Solver (from `solverforge-solver`)
 

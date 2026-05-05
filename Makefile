@@ -24,7 +24,7 @@ RUST_VERSION := 1.95+
 # ============== Phony Targets ==============
 .PHONY: banner help build build-release examples test test-quick test-doc test-unit test-one \
         lint fmt fmt-check clippy ci-local pre-release version bump-patch bump-minor bump-major \
-        bump-dry publish-crates-dry publish-crates install-cli clean watch
+        bump-dry publish-crates-dry publish-crates clean watch
 
 # ============== Default Target ==============
 .DEFAULT_GOAL := help
@@ -196,12 +196,11 @@ publish-crates-dry: test banner
 	@printf "$(CYAN)$(BOLD)║              Pre-Publish Verification                    ║$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"
 	@printf "$(GREEN)$(CHECK) All tests passed$(RESET)\n"
-	@printf "$(ARROW) Publishing order: $(GRAY)core → macros → scoring → config → solver → cvrp → console → facade → cli$(RESET)\n\n"
+	@printf "$(ARROW) Publishing order: $(GRAY)core → macros → scoring → config → solver → cvrp → console → facade$(RESET)\n\n"
 	@printf "$(PROGRESS) Running cargo publish --dry-run for standalone crates...\n"
 	@cargo publish --dry-run -p solverforge-core >/dev/null && printf "$(GREEN)$(CHECK) solverforge-core dry-run passed$(RESET)\n" || exit 1
 	@cargo publish --dry-run -p solverforge-macros >/dev/null && printf "$(GREEN)$(CHECK) solverforge-macros dry-run passed$(RESET)\n" || exit 1
 	@cargo publish --dry-run -p solverforge-console >/dev/null && printf "$(GREEN)$(CHECK) solverforge-console dry-run passed$(RESET)\n" || exit 1
-	@cargo publish --dry-run -p solverforge-cli >/dev/null && printf "$(GREEN)$(CHECK) solverforge-cli dry-run passed$(RESET)\n" || exit 1
 	@printf "$(GRAY)Dependent crates still need staggered dry-runs once their exact-version dependencies are visible on crates.io.$(RESET)\n"
 	@printf "$(GRAY)Run cargo publish --dry-run for scoring, config, solver, cvrp, and facade immediately before each upload.$(RESET)\n\n"
 
@@ -213,43 +212,33 @@ publish-crates: banner
 	@printf "$(YELLOW)Press Ctrl+C to abort, or Enter to continue...$(RESET)\n"
 	@read dummy
 	@printf "\n$(PROGRESS) Publishing crates in dependency order...\n\n"
-	@printf "$(ARROW) [1/9] Publishing solverforge-core...\n"
+	@printf "$(ARROW) [1/8] Publishing solverforge-core...\n"
 	@cargo publish -p solverforge-core && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [2/9] Publishing solverforge-macros...\n"
+	@printf "$(ARROW) [2/8] Publishing solverforge-macros...\n"
 	@cargo publish -p solverforge-macros && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [3/9] Publishing solverforge-scoring...\n"
+	@printf "$(ARROW) [3/8] Publishing solverforge-scoring...\n"
 	@cargo publish -p solverforge-scoring && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [4/9] Publishing solverforge-config...\n"
+	@printf "$(ARROW) [4/8] Publishing solverforge-config...\n"
 	@cargo publish -p solverforge-config && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [5/9] Publishing solverforge-solver...\n"
+	@printf "$(ARROW) [5/8] Publishing solverforge-solver...\n"
 	@cargo publish -p solverforge-solver && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [6/9] Publishing solverforge-cvrp...\n"
+	@printf "$(ARROW) [6/8] Publishing solverforge-cvrp...\n"
 	@cargo publish -p solverforge-cvrp && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [7/9] Publishing solverforge-console...\n"
+	@printf "$(ARROW) [7/8] Publishing solverforge-console...\n"
 	@cargo publish -p solverforge-console && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [8/9] Publishing solverforge (facade)...\n"
+	@printf "$(ARROW) [8/8] Publishing solverforge (facade)...\n"
 	@cargo publish -p solverforge && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "$(GRAY)Waiting 45s for crates.io index...$(RESET)\n" && sleep 45
-	@printf "$(ARROW) [9/9] Publishing solverforge-cli...\n"
-	@cargo publish -p solverforge-cli && printf "$(GREEN)$(CHECK) Published$(RESET)\n" || exit 1
 	@printf "\n$(GREEN)$(BOLD)╔══════════════════════════════════════════════════════════╗$(RESET)\n"
 	@printf "$(GREEN)$(BOLD)║          $(CHECK) All crates published successfully!            ║$(RESET)\n"
 	@printf "$(GREEN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"
-
-# ============== CLI ==============
-
-install-cli: banner
-	@printf "$(ARROW) $(BOLD)Installing solverforge CLI...$(RESET)\n"
-	@cargo install --path crates/solverforge-cli && \
-		printf "$(GREEN)$(CHECK) CLI installed — run 'solverforge --help'$(RESET)\n\n" || \
-		(printf "$(RED)$(CROSS) CLI install failed$(RESET)\n\n" && exit 1)
 
 # ============== Clean ==============
 
@@ -298,10 +287,7 @@ help: banner
 	@/bin/echo -e ""
 	@/bin/echo -e "$(CYAN)$(BOLD)Publishing:$(RESET)"
 	@/bin/echo -e "  $(GREEN)make publish-crates-dry$(RESET) - Dry-run publish to crates.io"
-	@/bin/echo -e "  $(GREEN)make publish-crates$(RESET) - $(RED)$(BOLD)Publish to crates.io (all 9 publishable crates)$(RESET)"
-	@/bin/echo -e ""
-	@/bin/echo -e "$(CYAN)$(BOLD)CLI:$(RESET)"
-	@/bin/echo -e "  $(GREEN)make install-cli$(RESET)    - Install solverforge CLI binary"
+	@/bin/echo -e "  $(GREEN)make publish-crates$(RESET) - $(RED)$(BOLD)Publish to crates.io (all 8 publishable crates)$(RESET)"
 	@/bin/echo -e ""
 	@/bin/echo -e "$(CYAN)$(BOLD)Other:$(RESET)"
 	@/bin/echo -e "  $(GREEN)make clean$(RESET)          - Clean build artifacts"

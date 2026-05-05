@@ -22,15 +22,15 @@ where
 impl<S, Out, K, Src, F, KF, C, Sc> ProjectedGroupedConstraintStream<S, Out, K, Src, F, KF, C, Sc>
 where
     S: Send + Sync + 'static,
-    Out: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Out: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: UniCollector<Out> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
-    C::Value: Clone + Send + Sync,
-    C::Result: Clone + Send + Sync,
+    C::Value: Send + Sync,
+    C::Result: Send + Sync,
     Sc: Score + 'static,
 {
     fn into_weighted_builder<W>(
@@ -93,15 +93,15 @@ impl<S, Out, K, Src, F, KF, C, W, Sc>
     ProjectedGroupedConstraintBuilder<S, Out, K, Src, F, KF, C, W, Sc>
 where
     S: Send + Sync + 'static,
-    Out: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Out: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: UniCollector<Out> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
-    C::Value: Clone + Send + Sync,
-    C::Result: Clone + Send + Sync,
+    C::Value: Send + Sync,
+    C::Result: Send + Sync,
     W: Fn(&C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {

@@ -68,7 +68,6 @@ where
 {
     pub(super) working_solution: S,
     constraints: C,
-    constraint_metadata: Vec<ConstraintMetadata>,
     cached_score: S::Score,
     initialized: bool,
     pub(super) solution_descriptor: SolutionDescriptor,
@@ -123,11 +122,9 @@ where
         solution_descriptor: SolutionDescriptor,
         entity_counter: fn(&S, usize) -> usize,
     ) -> Self {
-        let constraint_metadata = constraints.constraint_metadata();
         Self {
             working_solution: solution,
             constraints,
-            constraint_metadata,
             cached_score: S::Score::zero(),
             initialized: false,
             solution_descriptor,
@@ -326,8 +323,8 @@ where
     }
 
     // Returns immutable scoring-constraint metadata.
-    pub fn constraint_metadata(&self) -> &[ConstraintMetadata] {
-        &self.constraint_metadata
+    pub fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+        self.constraints.constraint_metadata()
     }
 
     // Returns the number of constraints.
@@ -351,7 +348,7 @@ where
                 } else {
                     S::Score::zero()
                 };
-                (r.name, weight, r.score, r.match_count)
+                (r.name.to_string(), weight, r.score, r.match_count)
             })
             .collect()
     }

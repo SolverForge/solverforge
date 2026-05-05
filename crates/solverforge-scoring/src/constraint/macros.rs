@@ -16,7 +16,7 @@ All N-ary constraints share the same pattern:
 This macro is used internally in constraint implementations:
 
 ```text
-fn get_matches(&self, solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
+fn get_matches<'a>(&'a self, solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>> {
 impl_get_matches_nary!(bi: self, solution)
 }
 ```
@@ -34,7 +34,7 @@ macro_rules! impl_get_matches_nary {
             &$self.extractor,
             $solution,
         );
-        let cref = $self.constraint_ref.clone();
+        let cref = $self.constraint_ref();
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
@@ -61,11 +61,7 @@ macro_rules! impl_get_matches_nary {
                             EntityRef::new(b),
                         ]);
                         let score = $self.compute_score($solution, idx_a, idx_b);
-                        matches.push(DetailedConstraintMatch::new(
-                            cref.clone(),
-                            score,
-                            justification,
-                        ));
+                        matches.push(DetailedConstraintMatch::new(cref, score, justification));
                     }
                 }
             }
@@ -82,7 +78,7 @@ macro_rules! impl_get_matches_nary {
             &$self.extractor,
             $solution,
         );
-        let cref = $self.constraint_ref.clone();
+        let cref = $self.constraint_ref();
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
@@ -113,11 +109,7 @@ macro_rules! impl_get_matches_nary {
                                 EntityRef::new(c),
                             ]);
                             let score = $self.compute_score($solution, i, j, k);
-                            matches.push(DetailedConstraintMatch::new(
-                                cref.clone(),
-                                score,
-                                justification,
-                            ));
+                            matches.push(DetailedConstraintMatch::new(cref, score, justification));
                         }
                     }
                 }
@@ -135,7 +127,7 @@ macro_rules! impl_get_matches_nary {
             &$self.extractor,
             $solution,
         );
-        let cref = $self.constraint_ref.clone();
+        let cref = $self.constraint_ref();
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
@@ -171,7 +163,7 @@ macro_rules! impl_get_matches_nary {
                                 ]);
                                 let score = $self.compute_score($solution, i, j, k, l);
                                 matches.push(DetailedConstraintMatch::new(
-                                    cref.clone(),
+                                    cref,
                                     score,
                                     justification,
                                 ));
@@ -193,7 +185,7 @@ macro_rules! impl_get_matches_nary {
             &$self.extractor,
             $solution,
         );
-        let cref = $self.constraint_ref.clone();
+        let cref = $self.constraint_ref();
 
         let mut temp_index: HashMap<_, Vec<usize>> = HashMap::new();
         for (i, entity) in entities.iter().enumerate() {
@@ -233,7 +225,7 @@ macro_rules! impl_get_matches_nary {
                                     ]);
                                     let score = $self.compute_score($solution, i, j, k, l, m);
                                     matches.push(DetailedConstraintMatch::new(
-                                        cref.clone(),
+                                        cref,
                                         score,
                                         justification,
                                     ));

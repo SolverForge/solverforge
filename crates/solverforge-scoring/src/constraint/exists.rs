@@ -430,8 +430,8 @@ where
         self.is_hard
     }
 
-    fn constraint_ref(&self) -> ConstraintRef {
-        self.constraint_ref.clone()
+    fn constraint_ref(&self) -> &ConstraintRef {
+        &self.constraint_ref
     }
 }
 

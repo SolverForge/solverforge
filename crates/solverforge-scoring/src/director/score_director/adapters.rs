@@ -68,7 +68,7 @@ where
         Some(count)
     }
 
-    fn constraint_metadata(&self) -> &[ConstraintMetadata] {
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
         self.constraint_metadata()
     }
 

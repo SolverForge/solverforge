@@ -18,10 +18,15 @@ pub struct Assignment {
     pub demand: i64,
 }
 
-#[derive(Clone)]
 pub struct CapacityEntry {
     pub bucket: usize,
     pub delta: i64,
+}
+
+pub struct AssignmentCapacity {
+    pub bucket: usize,
+    pub demand: i64,
+    pub capacity: i64,
 }
 
 #[planning_solution]
@@ -113,6 +118,48 @@ fn projected_stream_is_public_and_infers_output_type() {
         )
         .penalize_hard_with(|delta: &i64| HardSoftScore::of_hard((*delta).max(0)))
         .named("capacity shortage");
+
+    let plan = Plan {
+        capacities: vec![Capacity {
+            id: 0,
+            bucket: 0,
+            amount: 3,
+        }],
+        assignments: vec![Assignment {
+            id: 0,
+            bucket: 0,
+            demand: 5,
+        }],
+        score: None,
+    };
+
+    assert_eq!(constraint.evaluate(&plan), HardSoftScore::of(-2, 0));
+}
+
+#[test]
+fn cross_join_project_is_public_and_infers_output_type() {
+    use PlanConstraintStreams;
+
+    let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
+        .assignments()
+        .join((
+            ConstraintFactory::<Plan, HardSoftScore>::new().capacities(),
+            joiner::equal_bi(
+                |assignment: &Assignment| assignment.bucket,
+                |capacity: &Capacity| capacity.bucket,
+            ),
+        ))
+        .project(
+            |assignment: &Assignment, capacity: &Capacity| AssignmentCapacity {
+                bucket: assignment.bucket,
+                demand: assignment.demand,
+                capacity: capacity.amount,
+            },
+        )
+        .penalize_hard_with(|row: &AssignmentCapacity| {
+            HardSoftScore::of_hard((row.demand - row.capacity).max(0))
+        })
+        .named("assignment capacity shortage");
 
     let plan = Plan {
         capacities: vec![Capacity {

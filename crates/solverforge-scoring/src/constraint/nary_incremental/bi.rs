@@ -287,11 +287,11 @@ macro_rules! impl_incremental_bi_constraint {
                 self.is_hard
             }
 
-            fn constraint_ref(&self) -> ConstraintRef {
-                self.constraint_ref.clone()
-            }
+            fn constraint_ref(&self) -> &ConstraintRef {
+        &self.constraint_ref
+    }
 
-            fn get_matches(&self, solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
+            fn get_matches<'a>(&'a self, solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>> {
                 $crate::impl_get_matches_nary!(bi: self, solution)
             }
         }

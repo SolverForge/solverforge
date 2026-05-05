@@ -80,8 +80,8 @@ impl Director<RevisionPlan> for RevisionDirector {
         Some(self.working_solution.tasks.len() + self.working_solution.routes.len())
     }
 
-    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
-        &[]
+    fn constraint_metadata(&self) -> Vec<solverforge_scoring::ConstraintMetadata<'_>> {
+        Vec::new()
     }
 }
 

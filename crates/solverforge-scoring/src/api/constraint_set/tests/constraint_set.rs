@@ -121,8 +121,8 @@ where
         self.is_hard
     }
 
-    fn constraint_ref(&self) -> ConstraintRef {
-        self.constraint_ref.clone()
+    fn constraint_ref(&self) -> &ConstraintRef {
+        &self.constraint_ref
     }
 }
 
@@ -210,7 +210,8 @@ fn constraint_set_returns_constraint_metadata() {
         2,
     );
 
-    let metadata = (c1, c2).constraint_metadata();
+    let constraints = (c1, c2);
+    let metadata = constraints.constraint_metadata();
 
     assert_eq!(metadata.len(), 2);
     assert_eq!(metadata[0].name(), "unassigned");
@@ -238,7 +239,8 @@ fn constraint_set_deduplicates_matching_constraint_metadata() {
         true,
     );
 
-    let metadata = (c1, c2).constraint_metadata();
+    let constraints = (c1, c2);
+    let metadata = constraints.constraint_metadata();
 
     assert_eq!(metadata.len(), 1);
     assert_eq!(metadata[0].name(), "same");
@@ -265,7 +267,8 @@ fn constraint_set_preserves_same_name_in_different_packages() {
         true,
     );
 
-    let metadata = (c1, c2).constraint_metadata();
+    let constraints = (c1, c2);
+    let metadata = constraints.constraint_metadata();
 
     assert_eq!(metadata.len(), 2);
     assert_eq!(metadata[0].full_name(), "pkg_a/same");
@@ -291,7 +294,8 @@ fn constraint_set_preserves_same_name_with_different_package_hardness() {
         false,
     );
 
-    let metadata = (c1, c2).constraint_metadata();
+    let constraints = (c1, c2);
+    let metadata = constraints.constraint_metadata();
 
     assert_eq!(metadata.len(), 2);
     assert!(metadata[0].is_hard);

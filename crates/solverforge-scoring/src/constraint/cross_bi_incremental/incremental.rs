@@ -146,15 +146,15 @@ where
         self.is_hard
     }
 
-    fn constraint_ref(&self) -> ConstraintRef {
-        self.constraint_ref.clone()
+    fn constraint_ref(&self) -> &ConstraintRef {
+        &self.constraint_ref
     }
 
-    fn get_matches(&self, solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
+    fn get_matches<'a>(&'a self, solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>> {
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
         let b_by_key = self.b_index_for(entities_b);
-        let cref = self.constraint_ref.clone();
+        let cref = self.constraint_ref();
 
         let mut matches = Vec::new();
 
@@ -166,11 +166,7 @@ where
                     let entity_b = EntityRef::new(b);
                     let justification = ConstraintJustification::new(vec![entity_a, entity_b]);
                     let score = self.compute_score(solution, entities_a, entities_b, a_idx, b_idx);
-                    matches.push(DetailedConstraintMatch::new(
-                        cref.clone(),
-                        score,
-                        justification,
-                    ));
+                    matches.push(DetailedConstraintMatch::new(cref, score, justification));
                 }
             }
         }

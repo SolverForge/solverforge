@@ -183,7 +183,7 @@ impl<S: PlanningSolution, D: Director<S>> Director<S> for RecordingDirector<'_, 
         self.inner.total_entity_count()
     }
 
-    fn constraint_metadata(&self) -> &[ConstraintMetadata] {
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
         self.inner.constraint_metadata()
     }
 

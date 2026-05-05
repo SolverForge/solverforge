@@ -129,7 +129,7 @@ where
 pub(crate) struct SequentialPreviewDirector<'a, S: PlanningSolution> {
     working_solution: S,
     descriptor: &'a SolutionDescriptor,
-    constraint_metadata: &'a [ConstraintMetadata],
+    constraint_metadata: Vec<ConstraintMetadata<'a>>,
     entity_counts: Vec<Option<usize>>,
     total_entity_count: Option<usize>,
 }
@@ -190,8 +190,8 @@ impl<S: PlanningSolution> Director<S> for SequentialPreviewDirector<'_, S> {
         self.total_entity_count
     }
 
-    fn constraint_metadata(&self) -> &[ConstraintMetadata] {
-        self.constraint_metadata
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+        self.constraint_metadata.to_vec()
     }
 
     fn is_incremental(&self) -> bool {

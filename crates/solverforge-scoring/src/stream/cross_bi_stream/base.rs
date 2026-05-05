@@ -6,6 +6,7 @@ use solverforge_core::score::Score;
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter};
 use super::super::flattened_bi_stream::FlattenedBiConstraintStream;
+use super::super::projected_stream::{JoinedProjectedSource, ProjectedConstraintStream};
 
 /* Zero-erasure constraint stream over cross-entity pairs.
 
@@ -151,6 +152,50 @@ where
             c_key_fn,
             a_lookup_fn,
         )
+    }
+}
+
+impl<S, A, B, K, EA, EB, KA, KB, F, Sc> CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>
+where
+    S: Send + Sync + 'static,
+    A: Clone + Send + Sync + 'static,
+    B: Clone + Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
+    KA: Fn(&A) -> K + Send + Sync,
+    KB: Fn(&B) -> K + Send + Sync,
+    F: BiFilter<S, A, B>,
+    Sc: Score + 'static,
+{
+    pub fn project<Out, P>(
+        self,
+        project: P,
+    ) -> ProjectedConstraintStream<
+        S,
+        Out,
+        JoinedProjectedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>,
+        TrueFilter,
+        Sc,
+    >
+    where
+        Out: Send + Sync + 'static,
+        P: Fn(&A, &B) -> Out + Send + Sync + 'static,
+    {
+        ProjectedConstraintStream::<
+            S,
+            Out,
+            JoinedProjectedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>,
+            TrueFilter,
+            Sc,
+        >::new(JoinedProjectedSource::new(
+            self.extractor_a,
+            self.extractor_b,
+            self.key_a,
+            self.key_b,
+            self.filter,
+            project,
+        ))
     }
 }
 

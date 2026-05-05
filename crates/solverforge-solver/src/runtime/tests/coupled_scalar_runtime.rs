@@ -69,8 +69,8 @@ impl Director<CoupledScalarPlan> for CoupledScalarDirector {
         Some(self.working_solution.choices.len())
     }
 
-    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
-        &[]
+    fn constraint_metadata(&self) -> Vec<solverforge_scoring::ConstraintMetadata<'_>> {
+        Vec::new()
     }
 }
 

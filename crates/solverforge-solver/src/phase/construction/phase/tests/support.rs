@@ -247,8 +247,8 @@ impl Director<ConstructionPauseSolution> for ConstructionPauseDirector {
         Some(self.working_solution.entities.len())
     }
 
-    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
-        &[]
+    fn constraint_metadata(&self) -> Vec<solverforge_scoring::ConstraintMetadata<'_>> {
+        Vec::new()
     }
 }
 

@@ -116,11 +116,18 @@ fn create_director(
     )
 }
 
-#[derive(Default)]
 struct NamedConstraint {
-    package: &'static str,
-    name: &'static str,
+    constraint_ref: ConstraintRef,
     is_hard: bool,
+}
+
+impl Default for NamedConstraint {
+    fn default() -> Self {
+        Self {
+            constraint_ref: ConstraintRef::new("", ""),
+            is_hard: false,
+        }
+    }
 }
 
 impl IncrementalConstraint<MixedPlan, SoftScore> for NamedConstraint {
@@ -157,18 +164,21 @@ impl IncrementalConstraint<MixedPlan, SoftScore> for NamedConstraint {
     fn reset(&mut self) {}
 
     fn name(&self) -> &str {
-        self.name
+        &self.constraint_ref.name
     }
 
     fn is_hard(&self) -> bool {
         self.is_hard
     }
 
-    fn constraint_ref(&self) -> ConstraintRef {
-        ConstraintRef::new(self.package, self.name)
+    fn constraint_ref(&self) -> &ConstraintRef {
+        &self.constraint_ref
     }
 
-    fn get_matches(&self, _solution: &MixedPlan) -> Vec<DetailedConstraintMatch<SoftScore>> {
+    fn get_matches<'a>(
+        &'a self,
+        _solution: &MixedPlan,
+    ) -> Vec<DetailedConstraintMatch<'a, SoftScore>> {
         Vec::new()
     }
 }
@@ -192,8 +202,7 @@ fn create_director_with_constraint_ref(
     ScoreDirector::with_descriptor(
         solution,
         (NamedConstraint {
-            package: constraint_package,
-            name: constraint_name,
+            constraint_ref: ConstraintRef::new(constraint_package, constraint_name),
             is_hard,
         },),
         descriptor,

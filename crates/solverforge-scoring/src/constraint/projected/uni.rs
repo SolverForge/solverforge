@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
@@ -6,10 +6,11 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::filter::UniFilter;
-use crate::stream::ProjectedSource;
+use crate::stream::{ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource};
 
 pub struct ProjectedUniConstraint<S, Out, Src, F, W, Sc>
 where
+    Src: ProjectedSource<S, Out>,
     Sc: Score,
 {
     constraint_ref: ConstraintRef,
@@ -18,14 +19,16 @@ where
     filter: F,
     weight: W,
     is_hard: bool,
-    entity_contributions: HashMap<(usize, usize), Vec<Sc>>,
+    source_state: Option<Src::State>,
+    row_contributions: HashMap<ProjectedRowCoordinate, Sc>,
+    rows_by_owner: HashMap<ProjectedRowOwner, Vec<ProjectedRowCoordinate>>,
     _phantom: PhantomData<(fn() -> S, fn() -> Out)>,
 }
 
 impl<S, Out, Src, F, W, Sc> ProjectedUniConstraint<S, Out, Src, F, W, Sc>
 where
     S: Send + Sync + 'static,
-    Out: Clone + Send + Sync + 'static,
+    Out: Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     W: Fn(&Out) -> Sc + Send + Sync,
@@ -46,7 +49,9 @@ where
             filter,
             weight,
             is_hard,
-            entity_contributions: HashMap::new(),
+            source_state: None,
+            row_contributions: HashMap::new(),
+            rows_by_owner: HashMap::new(),
             _phantom: PhantomData,
         }
     }
@@ -59,50 +64,88 @@ where
         }
     }
 
-    fn insert_entity_outputs(&mut self, solution: &S, slot: usize, entity_index: usize) -> Sc {
-        let mut total = Sc::zero();
-        let mut contributions = Vec::new();
-        let source = &self.source;
-        let filter = &self.filter;
-        let weight = &self.weight;
-        let impact = self.impact_type;
-        source.collect_entity(solution, slot, entity_index, |_, output| {
-            if !filter.test(solution, &output) {
-                return;
-            }
-            let base = weight(&output);
-            let contribution = match impact {
-                ImpactType::Penalty => -base,
-                ImpactType::Reward => base,
-            };
-            total = total + contribution;
-            contributions.push(contribution);
+    fn ensure_source_state(&mut self, solution: &S) {
+        if self.source_state.is_none() {
+            self.source_state = Some(self.source.build_state(solution));
+        }
+    }
+
+    fn index_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
+        coordinate.for_each_owner(|owner| {
+            self.rows_by_owner
+                .entry(owner)
+                .or_default()
+                .push(coordinate);
         });
-        self.entity_contributions
-            .insert((slot, entity_index), contributions);
-        total
     }
 
-    fn retract_entity_outputs(&mut self, slot: usize, entity_index: usize) -> Sc {
-        self.entity_contributions
-            .remove(&(slot, entity_index))
-            .unwrap_or_default()
-            .into_iter()
-            .fold(Sc::zero(), |total, contribution| total - contribution)
+    fn unindex_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
+        coordinate.for_each_owner(|owner| {
+            let mut remove_bucket = false;
+            if let Some(rows) = self.rows_by_owner.get_mut(&owner) {
+                rows.retain(|candidate| *candidate != coordinate);
+                remove_bucket = rows.is_empty();
+            }
+            if remove_bucket {
+                self.rows_by_owner.remove(&owner);
+            }
+        });
     }
 
-    fn localized_slots(&self, descriptor_index: usize) -> Vec<usize> {
-        let mut slots = Vec::new();
+    fn insert_row(&mut self, solution: &S, coordinate: ProjectedRowCoordinate, output: Out) -> Sc {
+        if self.row_contributions.contains_key(&coordinate) || !self.filter.test(solution, &output)
+        {
+            return Sc::zero();
+        }
+        let contribution = self.compute_score(&output);
+        self.row_contributions.insert(coordinate, contribution);
+        self.index_coordinate(coordinate);
+        contribution
+    }
+
+    fn retract_row(&mut self, coordinate: ProjectedRowCoordinate) -> Sc {
+        let Some(contribution) = self.row_contributions.remove(&coordinate) else {
+            return Sc::zero();
+        };
+        self.unindex_coordinate(coordinate);
+        -contribution
+    }
+
+    fn localized_owners(
+        &self,
+        descriptor_index: usize,
+        entity_index: usize,
+    ) -> Vec<ProjectedRowOwner> {
+        let mut owners = Vec::new();
         for slot in 0..self.source.source_count() {
             if self
                 .source
                 .change_source(slot)
                 .assert_localizes(descriptor_index, &self.constraint_ref.name)
             {
-                slots.push(slot);
+                owners.push(ProjectedRowOwner {
+                    source_slot: slot,
+                    entity_index,
+                });
             }
         }
-        slots
+        owners
+    }
+
+    fn coordinates_for_owners(&self, owners: &[ProjectedRowOwner]) -> Vec<ProjectedRowCoordinate> {
+        let mut seen = HashSet::new();
+        let mut coordinates = Vec::new();
+        for owner in owners {
+            let Some(rows) = self.rows_by_owner.get(owner) else {
+                continue;
+            };
+            for &coordinate in rows {
+                if seen.insert(coordinate) {
+                    coordinates.push(coordinate);
+                }
+            }
+        }
+        coordinates
     }
 }
 
@@ -110,15 +153,16 @@ impl<S, Out, Src, F, W, Sc> IncrementalConstraint<S, Sc>
     for ProjectedUniConstraint<S, Out, Src, F, W, Sc>
 where
     S: Send + Sync + 'static,
-    Out: Clone + Send + Sync + 'static,
+    Out: Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     W: Fn(&Out) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     fn evaluate(&self, solution: &S) -> Sc {
+        let state = self.source.build_state(solution);
         let mut total = Sc::zero();
-        self.source.collect_all(solution, |_, output| {
+        self.source.collect_all(solution, &state, |_, output| {
             if self.filter.test(solution, &output) {
                 total = total + self.compute_score(&output);
             }
@@ -127,8 +171,9 @@ where
     }
 
     fn match_count(&self, solution: &S) -> usize {
+        let state = self.source.build_state(solution);
         let mut count = 0;
-        self.source.collect_all(solution, |_, output| {
+        self.source.collect_all(solution, &state, |_, output| {
             if self.filter.test(solution, &output) {
                 count += 1;
             }
@@ -138,63 +183,86 @@ where
 
     fn initialize(&mut self, solution: &S) -> Sc {
         self.reset();
+        let state = self.source.build_state(solution);
         let mut total = Sc::zero();
-        let source = &self.source;
-        let filter = &self.filter;
-        let weight = &self.weight;
-        let impact = self.impact_type;
-        let entity_contributions = &mut self.entity_contributions;
-        source.collect_all(solution, |coordinate, output| {
-            if !filter.test(solution, &output) {
-                return;
-            }
-            let base = weight(&output);
-            let contribution = match impact {
-                ImpactType::Penalty => -base,
-                ImpactType::Reward => base,
-            };
-            let mut contributions = entity_contributions
-                .remove(&(coordinate.source_slot, coordinate.entity_index))
-                .unwrap_or_default();
-            total = total + contribution;
-            contributions.push(contribution);
-            entity_contributions.insert(
-                (coordinate.source_slot, coordinate.entity_index),
-                contributions,
-            );
-        });
-        total
-    }
-
-    fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        let mut total = Sc::zero();
-        for slot in self.localized_slots(descriptor_index) {
-            total = total + self.insert_entity_outputs(solution, slot, entity_index);
+        let mut rows = Vec::new();
+        self.source
+            .collect_all(solution, &state, |coordinate, output| {
+                rows.push((coordinate, output));
+            });
+        self.source_state = Some(state);
+        for (coordinate, output) in rows {
+            total = total + self.insert_row(solution, coordinate, output);
         }
         total
     }
 
-    fn on_retract(&mut self, _solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        let owners = self.localized_owners(descriptor_index, entity_index);
+        self.ensure_source_state(solution);
+        {
+            let state = self.source_state.as_mut().expect("projected source state");
+            for owner in &owners {
+                self.source.insert_entity_state(
+                    solution,
+                    state,
+                    owner.source_slot,
+                    owner.entity_index,
+                );
+            }
+        }
+        let mut rows = Vec::new();
+        let state = self.source_state.as_ref().expect("projected source state");
+        for owner in &owners {
+            self.source.collect_entity(
+                solution,
+                state,
+                owner.source_slot,
+                owner.entity_index,
+                |coordinate, output| rows.push((coordinate, output)),
+            );
+        }
         let mut total = Sc::zero();
-        for slot in self.localized_slots(descriptor_index) {
-            total = total + self.retract_entity_outputs(slot, entity_index);
+        for (coordinate, output) in rows {
+            total = total + self.insert_row(solution, coordinate, output);
+        }
+        total
+    }
+
+    fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        let owners = self.localized_owners(descriptor_index, entity_index);
+        let mut total = Sc::zero();
+        for coordinate in self.coordinates_for_owners(&owners) {
+            total = total + self.retract_row(coordinate);
+        }
+        if let Some(state) = self.source_state.as_mut() {
+            for owner in &owners {
+                self.source.retract_entity_state(
+                    solution,
+                    state,
+                    owner.source_slot,
+                    owner.entity_index,
+                );
+            }
         }
         total
     }
 
     fn reset(&mut self) {
-        self.entity_contributions.clear();
+        self.source_state = None;
+        self.row_contributions.clear();
+        self.rows_by_owner.clear();
     }
 
     fn name(&self) -> &str {
         &self.constraint_ref.name
     }
 
-    fn is_hard(&self) -> bool {
-        self.is_hard
+    fn constraint_ref(&self) -> &ConstraintRef {
+        &self.constraint_ref
     }
 
-    fn constraint_ref(&self) -> ConstraintRef {
-        self.constraint_ref.clone()
+    fn is_hard(&self) -> bool {
+        self.is_hard
     }
 }

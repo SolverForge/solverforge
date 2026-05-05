@@ -74,7 +74,7 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
 ## Features
 
 - **Score Types**: SimpleScore, HardSoftScore, HardMediumSoftScore, BendableScore, HardSoftDecimalScore
-- **ConstraintStream API**: Declarative constraints with fluent builders, source-aware generated streams, projected derived rows, existence checks, joins, grouping, and balance/complemented streams
+- **ConstraintStream API**: Declarative constraints with fluent builders, source-aware generated streams, single-source and cross-join projected scoring rows, existence checks, joins, grouping, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list `ModelContext` when matching list work is present, plus descriptor-scalar construction routing for pure scalar targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
@@ -261,6 +261,43 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
     (required_skill, no_overlap)
 }
 ```
+
+Projected scoring rows can come from either one source row or one retained
+joined pair. They are useful when the constraint shape is easier to express as
+a scoring-only row rather than either source object directly:
+
+```rust
+struct AssignedShift {
+    shift_id: i64,
+    employee_id: i64,
+    start: i64,
+    end: i64,
+}
+
+let assigned_overlaps = ConstraintFactory::<Schedule, HardSoftScore>::new()
+    .shifts()
+    .join((
+        ConstraintFactory::<Schedule, HardSoftScore>::new().employees(),
+        equal_bi(|shift: &Shift| shift.employee, |emp: &Employee| Some(emp.id)),
+    ))
+    .project(|shift: &Shift, employee: &Employee| AssignedShift {
+        shift_id: shift.id,
+        employee_id: employee.id,
+        start: shift.start,
+        end: shift.end,
+    })
+    .join(equal(|row: &AssignedShift| row.employee_id))
+    .filter(|a: &AssignedShift, b: &AssignedShift| {
+        a.shift_id != b.shift_id && a.start < b.end && b.start < a.end
+    })
+    .penalize_hard_with(|_a: &AssignedShift, _b: &AssignedShift| {
+        HardSoftScore::of_hard(1)
+    })
+    .named("Assigned overlap");
+```
+
+Projected rows are retained scoring rows. They are not planning entities,
+problem facts, value ranges, or move-selector targets.
 
 ### 3. Solve
 
@@ -574,7 +611,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ### What's New in 0.10.0
 
-- **Projected derived rows keep coordinate-stable self-join order**: retained projected joins reuse sparse row storage without letting storage slots define pair orientation, so multi-output projections with order-sensitive filters stay incrementally consistent with full evaluation.
+- **Projected scoring rows keep coordinate-stable self-join order**: retained projected joins reuse sparse row storage without letting storage slots define pair orientation, so multi-output projections with order-sensitive filters stay incrementally consistent with full evaluation.
 - **Constraint metadata identity is package-aware**: scoring metadata deduplicates by full `ConstraintRef`, package-qualified constraints with the same short name stay distinct, and conflict-repair selectors resolve configured keys against that exact identity.
 - **Grouped scalar construction and search are explicit**: named `ScalarGroupContext` providers emit atomic `CompoundScalarMove` candidates for coupled nullable-scalar decisions, with separate construction and local-search limits.
 - **Hard-improvement gates are shared across compound moves**: grouped scalar, conflict-repair, cartesian, local-search, and VND paths now enforce the same hard-score improvement requirement when configured.
@@ -640,7 +677,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 - **Generated domain accessors**: `#[planning_solution]` generates a `{Name}ConstraintStreams` trait with typed `.field_name()` methods on `ConstraintFactory` — e.g., `factory.shifts()` instead of `factory.for_each(|s| &s.shifts)`
 - **Ergonomic extractors**: `CollectionExtract<S>` trait accepts both `|s| s.field.as_slice()` and `|s| &s.field` (via `vec(|s| &s.field)`) — no forced `.as_slice()` at every call site
 - **Generated `.unassigned()` filter**: entities with `Option` planning variables get a `{Entity}UnassignedFilter` trait — e.g., `factory.shifts().unassigned()` filters to unassigned entities
-- **Projected derived rows**: generated accessors support `.project(...)` with named bounded projection types that emit derived rows into a `ProjectionSink` — e.g., `factory.assignments().project(AssignmentLoadEntries)` can be joined, merged, grouped, and penalized without materialized facts
+- **Projected scoring rows**: generated accessors support `.project(...)` with named bounded projection types, and keyed cross joins support `.project(|left, right| Row { ... })` for one retained row per joined pair. Both forms create scoring-only rows without materialized facts.
 - **Convenience scoring**: `penalize_hard()`, `penalize_soft()`, `reward_hard()`, `reward_soft()` on all stream types
 - **Single `.join(target)`**: one join method dispatching on argument type — `equal(|a| key)` for self-join, `(extractor_b, equal_bi(ka, kb))` for keyed cross-join, `(other_stream, |a, b| pred)` for predicate join
 - **`.named("name")`**: sole finalization method on all builders (replaces `as_constraint`)
@@ -717,7 +754,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ### What's New in 0.5.1
 
-- Removed `filter_with_solution()` in favor of shadow variables on entities
+- Removed the solution-aware filter helper in favor of shadow variables on entities
 
 ### What's New in 0.5.0
 

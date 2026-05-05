@@ -87,7 +87,7 @@ fn test_detailed_evaluation() {
     };
 
     let match1 = DetailedConstraintMatch::new(
-        constraint_ref.clone(),
+        &constraint_ref,
         SoftScore::of(-1),
         ConstraintJustification::new(vec![EntityRef::new(&entity)]),
     );
@@ -112,7 +112,7 @@ fn test_indictment_map() {
     };
 
     let match1 = DetailedConstraintMatch::new(
-        constraint_ref.clone(),
+        &constraint_ref,
         SoftScore::of(-1),
         ConstraintJustification::new(vec![EntityRef::new(&entity1), EntityRef::new(&entity2)]),
     );
@@ -132,7 +132,7 @@ fn test_score_explanation() {
     let constraint_ref = ConstraintRef::new("", "TestConstraint");
 
     let analysis = ConstraintAnalysis::new(
-        constraint_ref,
+        &constraint_ref,
         SoftScore::of(1),
         SoftScore::of(-3),
         vec![],

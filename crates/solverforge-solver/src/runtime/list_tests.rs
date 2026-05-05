@@ -80,8 +80,8 @@ impl Director<GenericListPlan> for GenericListDirector {
         Some(self.working_solution.routes.len())
     }
 
-    fn constraint_metadata(&self) -> &[solverforge_scoring::ConstraintMetadata] {
-        &[]
+    fn constraint_metadata(&self) -> Vec<solverforge_scoring::ConstraintMetadata<'_>> {
+        Vec::new()
     }
 }
 

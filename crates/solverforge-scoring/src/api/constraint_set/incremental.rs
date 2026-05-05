@@ -68,20 +68,17 @@ pub trait IncrementalConstraint<S, Sc: Score>: Send + Sync {
     // Resets internal state for a new solving session.
     fn reset(&mut self);
 
+    // Returns the constraint reference (package + name).
+    fn constraint_ref(&self) -> &ConstraintRef;
+
     // Returns the constraint name.
-    fn name(&self) -> &str;
+    fn name(&self) -> &str {
+        &self.constraint_ref().name
+    }
 
     // Returns true if this is a hard constraint.
     fn is_hard(&self) -> bool {
         false
-    }
-
-    /* Returns the constraint reference (package + name).
-
-    Default implementation constructs from `name()`.
-    */
-    fn constraint_ref(&self) -> ConstraintRef {
-        ConstraintRef::new("", self.name())
     }
 
     /* Returns detailed matches with entity justifications.
@@ -93,7 +90,7 @@ pub trait IncrementalConstraint<S, Sc: Score>: Send + Sync {
     This enables score explanation features without requiring all constraints
     to implement detailed tracking.
     */
-    fn get_matches(&self, _solution: &S) -> Vec<DetailedConstraintMatch<Sc>> {
+    fn get_matches<'a>(&'a self, _solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>> {
         Vec::new()
     }
 
@@ -108,9 +105,9 @@ pub trait IncrementalConstraint<S, Sc: Score>: Send + Sync {
 
 // Result of evaluating a single constraint.
 #[derive(Debug, Clone)]
-pub struct ConstraintResult<Sc> {
+pub struct ConstraintResult<'a, Sc> {
     // Constraint name.
-    pub name: String,
+    pub name: &'a str,
     // Score contribution from this constraint.
     pub score: Sc,
     // Number of matches for this constraint.
@@ -120,14 +117,14 @@ pub struct ConstraintResult<Sc> {
 }
 
 // Immutable public metadata for a scoring constraint.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConstraintMetadata {
-    pub constraint_ref: ConstraintRef,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConstraintMetadata<'a> {
+    pub constraint_ref: &'a ConstraintRef,
     pub is_hard: bool,
 }
 
-impl ConstraintMetadata {
-    pub fn new(constraint_ref: ConstraintRef, is_hard: bool) -> Self {
+impl<'a> ConstraintMetadata<'a> {
+    pub fn new(constraint_ref: &'a ConstraintRef, is_hard: bool) -> Self {
         Self {
             constraint_ref,
             is_hard,
@@ -156,20 +153,20 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     fn constraint_count(&self) -> usize;
 
     // Returns immutable metadata for constraints in this set.
-    fn constraint_metadata(&self) -> Vec<ConstraintMetadata>;
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>;
 
     /* Evaluates each constraint individually and returns per-constraint results.
 
     Useful for score explanation and debugging.
     */
-    fn evaluate_each(&self, solution: &S) -> Vec<ConstraintResult<Sc>>;
+    fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>>;
 
     /* Evaluates each constraint with detailed match information.
 
     Returns per-constraint analysis including all matches with entity
     justifications. This enables full score explanation features.
     */
-    fn evaluate_detailed(&self, solution: &S) -> Vec<ConstraintAnalysis<Sc>>;
+    fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>>;
 
     /* Initializes all constraints by inserting all entities.
 
@@ -222,17 +219,17 @@ impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
     }
 
     #[inline]
-    fn constraint_metadata(&self) -> Vec<ConstraintMetadata> {
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
         Vec::new()
     }
 
     #[inline]
-    fn evaluate_each(&self, _solution: &S) -> Vec<ConstraintResult<Sc>> {
+    fn evaluate_each<'a>(&'a self, _solution: &S) -> Vec<ConstraintResult<'a, Sc>> {
         Vec::new()
     }
 
     #[inline]
-    fn evaluate_detailed(&self, _solution: &S) -> Vec<ConstraintAnalysis<Sc>> {
+    fn evaluate_detailed<'a>(&'a self, _solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>> {
         Vec::new()
     }
 
@@ -288,7 +285,7 @@ macro_rules! impl_constraint_set_for_tuple {
                 count
             }
 
-            fn constraint_metadata(&self) -> Vec<ConstraintMetadata> {
+            fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
                 let mut metadata = Vec::new();
                 $(
                     push_constraint_metadata(
@@ -299,16 +296,16 @@ macro_rules! impl_constraint_set_for_tuple {
                 metadata
             }
 
-            fn evaluate_each(&self, solution: &S) -> Vec<ConstraintResult<Sc>> {
+            fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>> {
                 vec![$(ConstraintResult {
-                    name: self.$idx.name().to_string(),
+                    name: self.$idx.name(),
                     score: self.$idx.evaluate(solution),
                     match_count: self.$idx.match_count(solution),
                     is_hard: self.$idx.is_hard(),
                 }),+]
             }
 
-            fn evaluate_detailed(&self, solution: &S) -> Vec<ConstraintAnalysis<Sc>> {
+            fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>> {
                 vec![$(ConstraintAnalysis::new(
                     self.$idx.constraint_ref(),
                     self.$idx.weight(),
@@ -347,7 +344,10 @@ macro_rules! impl_constraint_set_for_tuple {
     };
 }
 
-fn push_constraint_metadata(metadata: &mut Vec<ConstraintMetadata>, candidate: ConstraintMetadata) {
+fn push_constraint_metadata<'a>(
+    metadata: &mut Vec<ConstraintMetadata<'a>>,
+    candidate: ConstraintMetadata<'a>,
+) {
     if let Some(existing) = metadata
         .iter()
         .find(|item| item.constraint_ref == candidate.constraint_ref)

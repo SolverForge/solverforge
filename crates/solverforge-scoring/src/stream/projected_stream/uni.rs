@@ -23,7 +23,7 @@ where
 impl<S, Out, Src, F, Sc> ProjectedConstraintStream<S, Out, Src, F, Sc>
 where
     S: Send + Sync + 'static,
-    Out: Clone + Send + Sync + 'static,
+    Out: Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     Sc: Score + 'static,
@@ -91,12 +91,12 @@ where
         collector: C,
     ) -> ProjectedGroupedConstraintStream<S, Out, K, Src, F, KF, C, Sc>
     where
-        K: Clone + Eq + Hash + Send + Sync + 'static,
+        K: Eq + Hash + Send + Sync + 'static,
         KF: Fn(&Out) -> K + Send + Sync,
         C: UniCollector<Out> + Send + Sync + 'static,
         C::Accumulator: Send + Sync,
-        C::Value: Clone + Send + Sync,
-        C::Result: Clone + Send + Sync,
+        C::Value: Send + Sync,
+        C::Result: Send + Sync,
     {
         ProjectedGroupedConstraintStream {
             source: self.source,
@@ -112,7 +112,7 @@ where
         joiner: EqualJoiner<KF, KF, K>,
     ) -> ProjectedBiConstraintStream<S, Out, K, Src, F, KF, TrueFilter, Sc>
     where
-        K: Clone + Eq + Hash + Send + Sync + 'static,
+        K: Eq + Hash + Send + Sync + 'static,
         KF: Fn(&Out) -> K + Send + Sync,
     {
         let (key_fn, _) = joiner.into_keys();

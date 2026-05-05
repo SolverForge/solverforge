@@ -53,13 +53,14 @@ pub trait Director<S: PlanningSolution>: Send {
     fn total_entity_count(&self) -> Option<usize>;
 
     // Returns immutable scoring-constraint metadata known to this director.
-    fn constraint_metadata(&self) -> &[ConstraintMetadata];
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>;
 
     // Returns whether a known constraint is hard.
     fn constraint_is_hard(&self, constraint_ref: &ConstraintRef) -> Option<bool> {
-        self.constraint_metadata()
+        let metadata = self.constraint_metadata();
+        metadata
             .iter()
-            .find(|metadata| &metadata.constraint_ref == constraint_ref)
+            .find(|metadata| metadata.constraint_ref == constraint_ref)
             .map(|metadata| metadata.is_hard)
     }
 

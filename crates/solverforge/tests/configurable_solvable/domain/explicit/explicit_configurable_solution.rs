@@ -23,11 +23,9 @@ pub struct ExplicitConfigurableSolution {
 
 fn define_explicit_constraints(
 ) -> impl ConstraintSet<ExplicitConfigurableSolution, HardSoftScore> {
-    use ExplicitConfigurableSolutionConstraintStreams;
-
     (
         ConstraintFactory::<ExplicitConfigurableSolution, HardSoftScore>::new()
-            .entities()
+            .for_each(ExplicitConfigurableSolution::entities())
             .penalize_with(|_| HardSoftScore::of(0, 0))
             .named("noop"),
     )

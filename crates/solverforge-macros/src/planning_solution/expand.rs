@@ -13,7 +13,7 @@ use super::runtime::{
     generate_runtime_phase_support, generate_runtime_solve_internal, generate_solvable_solution,
 };
 use super::shadow::generate_shadow_support;
-use super::stream_extensions::generate_constraint_stream_extensions;
+use super::stream_extensions::generate_collection_source_methods;
 use super::type_helpers::{extract_collection_inner_type, extract_option_inner_type};
 
 pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
@@ -169,7 +169,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         generate_runtime_solve_internal(&constraints_path, &config_path, &solver_toml_path);
     let solvable_solution_impl = generate_solvable_solution(name, &constraints_path);
 
-    let stream_extensions = generate_constraint_stream_extensions(fields, name);
+    let collection_source_methods = generate_collection_source_methods(fields);
 
     let expanded = quote! {
         impl #impl_generics ::solverforge::__internal::PlanningSolution for #name #ty_generics #where_clause {
@@ -206,6 +206,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             }
 
             #(#collection_accessors)*
+            #collection_source_methods
 
             #list_operations
             #runtime_solve_internal
@@ -213,8 +214,6 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 
         #runtime_phase_support
         #solvable_solution_impl
-
-        #stream_extensions
     };
 
     Ok(expanded)

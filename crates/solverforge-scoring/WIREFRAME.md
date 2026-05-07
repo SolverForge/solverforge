@@ -121,7 +121,8 @@ src/
 │   ├── projected_stream/source/filtered.rs         — Row-level filtered projected source
 │   ├── projected_stream/source/merged.rs           — Merged projected sources with source-slot offsets
 │   ├── projected_stream/source/joined.rs           — Cross-join `.project(...)` projected source
-│   ├── collection_extract.rs                       — CollectionExtract trait, source-aware extractors, VecExtract wrapper, vec() constructor
+│   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata, VecExtract wrapper, vec() constructor
+│   ├── unassigned.rs                               — Hidden UnassignedEntity hook and `.unassigned()` stream method
 │   ├── join_target.rs                              — JoinTarget trait + 3 impls (self-join, keyed cross-join, predicate cross-join)
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/
@@ -403,11 +404,11 @@ Constraints own their `ConstraintRef` once. Metadata and analysis types borrow t
 
 **`ConstraintFactory<S, Sc: Score>`** — Entry point.
 - `new()`, `for_each()` → `UniConstraintStream`
-- Generated domain accessors call the same `for_each()` with hidden descriptor/static source metadata.
+- Generated solution source methods pass `for_each()` hidden descriptor/static source metadata.
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
-- Operations: `filter()`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `ProjectedConstraintStream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
-- Unfiltered `UniConstraintStream<..., TrueFilter, ...>` implements `CollectionExtract` by delegating to its source extractor. This lets keyed cross-join targets use generated/source-aware streams directly, preserving `ChangeSource` metadata.
+- Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `ProjectedConstraintStream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- Unfiltered `UniConstraintStream<..., TrueFilter, ...>` implements `CollectionExtract` by delegating to its source extractor. This lets keyed cross-join targets use generated model sources directly, preserving hidden source metadata.
 - `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
@@ -444,7 +445,9 @@ impl Projection<Assignment> for AssignmentLoadEntries {
     }
 }
 
-factory.assignments().project(AssignmentLoadEntries)
+ConstraintFactory::<Plan, HardSoftScore>::new()
+    .for_each(Plan::assignments())
+    .project(AssignmentLoadEntries)
 ```
 
 **`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()` and `count()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and recomputes key/value on retract. `named()` → `ProjectedGroupedConstraint`.
@@ -495,9 +498,11 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 .join((vec(|s: &Schedule| &s.employees), equal_bi(...)))
 ```
 
-**`ChangeSource`** — Enum describing whether a stream source can localize descriptor-owned incremental callbacks: `Unknown`, `Static`, or `Descriptor(idx)`. `Descriptor(idx)` owns localized events for that descriptor. `Static` never localizes. `Unknown` is non-localized metadata for raw/manual extraction: it is valid for `evaluate()` and `initialize()`, but localized `on_insert(...)` / `on_retract(...)` callbacks panic because the entity index cannot be safely mapped to a source.
+**`CollectionExtract<S>`** — Public low-level source contract accepted by `ConstraintFactory::for_each(...)`. Macro-generated solution source functions return `impl CollectionExtract<S, Item = T>` so users do not import generated helper traits.
 
-**`SourceExtract<E>` / `source(...)`** — Descriptor-aware collection extraction used by generated accessors and structured source-aware streams. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact collections carry `ChangeSource::Static`. Raw `for_each` closure extractors use `ChangeSource::Unknown`; wrap extractors with `source(..., ChangeSource::Descriptor(idx))` when they must participate in localized incremental mutation callbacks.
+**`ChangeSource`** — Hidden enum describing whether a stream source can localize descriptor-owned incremental callbacks: `Unknown`, `Static`, or `Descriptor(idx)`. `Descriptor(idx)` owns localized events for that descriptor. `Static` never localizes. `Unknown` is non-localized metadata for raw/manual extraction: it is valid for `evaluate()` and `initialize()`, but localized `on_insert(...)` / `on_retract(...)` callbacks panic because the entity index cannot be safely mapped to a source.
+
+**`SourceExtract<E>` / `source(...)`** — Hidden descriptor-aware collection extraction used by macro-generated solution source methods. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact and list-element collections carry `ChangeSource::Static`. These symbols are not part of the facade stream workflow.
 
 **`FlattenExtract<P>`** — Trait for flattening a parent entity into a child slice for existence filtering. Blanket impl for `Fn(&P) -> &[B] + Send + Sync`; `FlattenVecExtract<F>` adapts `Fn(&P) -> &Vec<B>`.
 

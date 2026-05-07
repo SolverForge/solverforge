@@ -34,13 +34,14 @@ pub trait CollectionExtract<S>: Send + Sync {
     fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item];
 
     // Identifies whether the solution source owns descriptor-scoped localized updates.
-    // Plain extractors are non-localized; wrap them in `source(..., Descriptor(idx))`
-    // when they must receive localized mutation callbacks.
+    // Plain extractors are non-localized. Macro-generated solution source methods
+    // attach descriptor/static metadata through hidden internal support.
     fn change_source(&self) -> ChangeSource {
         ChangeSource::Unknown
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChangeSource {
     Unknown,
@@ -132,6 +133,7 @@ where
     }
 }
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub struct SourceExtract<E> {
     extractor: E,
@@ -210,6 +212,7 @@ where
     VecExtract(f)
 }
 
+#[doc(hidden)]
 pub fn source<E>(extractor: E, change_source: ChangeSource) -> SourceExtract<E> {
     SourceExtract::new(extractor, change_source)
 }

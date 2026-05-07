@@ -6,6 +6,6 @@ solverforge::planning_model! {
     mod shift;
 
     pub use employee::Employee;
-    pub use schedule::{Schedule, ScheduleConstraintStreams};
-    pub use shift::{Shift, ShiftUnassignedFilter};
+    pub use schedule::Schedule;
+    pub use shift::Shift;
 }

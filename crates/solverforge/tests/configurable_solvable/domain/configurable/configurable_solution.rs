@@ -21,11 +21,9 @@ pub struct ConfigurableSolution {
 }
 
 fn define_constraints() -> impl ConstraintSet<ConfigurableSolution, HardSoftScore> {
-    use ConfigurableSolutionConstraintStreams;
-
     (
         ConstraintFactory::<ConfigurableSolution, HardSoftScore>::new()
-            .entities()
+            .for_each(ConfigurableSolution::entities())
             .penalize_with(|_| HardSoftScore::of(0, 0))
             .named("noop"),
     )

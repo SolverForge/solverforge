@@ -19,10 +19,8 @@ pub struct Plan {
 }
 
 fn define_constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
-    use PlanConstraintStreams;
-
     (ConstraintFactory::<Plan, HardSoftScore>::new()
-        .tasks()
+        .for_each(Plan::tasks())
         .penalize_with(|_| HardSoftScore::of(0, 0))
         .named("noop"),)
 }

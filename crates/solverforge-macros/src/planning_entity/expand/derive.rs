@@ -271,69 +271,25 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 
     let unassigned_filter_extension = if optional_planning_variables.len() == 1 {
         let (field_name, field_type) = optional_planning_variables[0];
-        let predicate_name = syn::Ident::new(
-            &format!(
-                "__{}_{}_unassigned",
-                name.to_string().to_lowercase(),
-                field_name
-            ),
-            proc_macro2::Span::call_site(),
-        );
-        let filter_trait_name = syn::Ident::new(
-            &format!("{}UnassignedFilter", name),
-            proc_macro2::Span::call_site(),
-        );
+        let mut unassigned_generics = generics.clone();
+        unassigned_generics
+            .params
+            .push(parse_quote!(__SolverForgeSolution));
+        unassigned_generics
+            .make_where_clause()
+            .predicates
+            .push(parse_quote!(__SolverForgeSolution: ::solverforge::__internal::PlanningSolution));
+        let (unassigned_impl_generics, _, unassigned_where_clause) =
+            unassigned_generics.split_for_impl();
 
         quote! {
-            #[allow(non_snake_case)]
-            fn #predicate_name<Solution>(
-                _solution: &Solution,
-                entity: &#name,
-            ) -> bool
-            where
-                Solution: ::solverforge::__internal::PlanningSolution,
+            impl #unassigned_impl_generics ::solverforge::__internal::UnassignedEntity<__SolverForgeSolution>
+                for #name #ty_generics
+                #unassigned_where_clause
             {
-                let value: &::core::option::Option<#field_type> = &entity.#field_name;
-                value.is_none()
-            }
-
-            pub trait #filter_trait_name<Sc: ::solverforge::Score + 'static, Solution, E, F> {
-                type Output;
-                fn unassigned(self) -> Self::Output;
-            }
-
-            impl<Sc, Solution, E, F> #filter_trait_name<Sc, Solution, E, F>
-                for ::solverforge::__internal::UniConstraintStream<Solution, #name, E, F, Sc>
-            where
-                Sc: ::solverforge::Score + 'static,
-                Solution: ::solverforge::__internal::PlanningSolution,
-                E: ::solverforge::__internal::CollectionExtract<Solution, Item = #name>,
-                F: ::solverforge::__internal::UniFilter<Solution, #name>,
-            {
-                type Output = ::solverforge::__internal::UniConstraintStream<
-                    Solution,
-                    #name,
-                    E,
-                    ::solverforge::__internal::AndUniFilter<
-                        F,
-                        ::solverforge::__internal::FnUniFilter<
-                            fn(&Solution, &#name) -> bool
-                        >,
-                    >,
-                    Sc,
-                >;
-
-                fn unassigned(self) -> Self::Output {
-                    let (extractor, filter) = self.into_parts();
-                    ::solverforge::__internal::UniConstraintStream::from_parts(
-                        extractor,
-                        ::solverforge::__internal::AndUniFilter::new(
-                            filter,
-                            ::solverforge::__internal::FnUniFilter::new(
-                                #predicate_name::<Solution> as fn(&Solution, &#name) -> bool
-                            ),
-                        ),
-                    )
+                fn is_unassigned(_solution: &__SolverForgeSolution, entity: &Self) -> bool {
+                    let value: &::core::option::Option<#field_type> = &entity.#field_name;
+                    value.is_none()
                 }
             }
         }

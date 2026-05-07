@@ -63,7 +63,7 @@ examples: banner
 	@printf "$(CYAN)$(BOLD)╔══════════════════════════════════════╗$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)║        Building Examples             ║$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════╝$(RESET)\n\n"
-	@for ex in nqueens employee-scheduling vehicle-routing; do \
+	@for ex in scalar-graph-coloring list-tsp mixed-job-shop nqueens; do \
 		printf "$(PROGRESS) Building $$ex...\n"; \
 		cargo build -p $$ex --quiet && \
 			printf "$(GREEN)$(CHECK) Built $$ex$(RESET)\n" || \

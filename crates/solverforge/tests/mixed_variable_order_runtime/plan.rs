@@ -19,10 +19,8 @@ pub struct Plan {
 }
 
 fn constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
-    use PlanConstraintStreams;
-
     (ConstraintFactory::<Plan, HardSoftScore>::new()
-        .routes()
+        .for_each(Plan::routes())
         .filter(|route: &Route| route.first_visit.is_none())
         .penalize(HardSoftScore::of(1, 0))
         .named("missing first visit"),)

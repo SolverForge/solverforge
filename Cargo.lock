@@ -198,6 +198,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
 [[package]]
+name = "list-tsp"
+version = "0.0.0"
+dependencies = [
+ "solverforge",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -236,6 +243,20 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys",
+]
+
+[[package]]
+name = "mixed-job-shop"
+version = "0.0.0"
+dependencies = [
+ "solverforge",
+]
+
+[[package]]
+name = "nqueens"
+version = "0.0.0"
+dependencies = [
+ "solverforge",
 ]
 
 [[package]]
@@ -419,6 +440,13 @@ name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
+name = "scalar-graph-coloring"
+version = "0.0.0"
+dependencies = [
+ "solverforge",
+]
 
 [[package]]
 name = "scopeguard"

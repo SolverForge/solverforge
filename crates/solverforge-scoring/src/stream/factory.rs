@@ -56,11 +56,12 @@ where
         }
     }
 
-    /* Creates a zero-erasure uni-constraint stream over entities extracted from the solution.
+    /* Creates a zero-erasure uni-constraint stream over a collection source.
 
-    The extractor function receives a reference to the solution and returns
-    a slice of entities to iterate over. The extractor type is preserved
-    as a concrete generic for full zero-erasure.
+    For macro-generated models, pass the inherent solution source method:
+    `ConstraintFactory::new().for_each(Schedule::shifts())`.
+    Low-level callers can still pass any `CollectionExtract<S, Item = A>`.
+    The extractor type is preserved as a concrete generic for full zero-erasure.
     */
     pub fn for_each<A, E>(self, extractor: E) -> UniConstraintStream<S, A, E, TrueFilter, Sc>
     where

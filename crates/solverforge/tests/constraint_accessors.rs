@@ -2,17 +2,13 @@
 // and convenience methods (penalize_hard, penalize_soft, etc.) on the Score trait.
 
 use solverforge::prelude::*;
-use solverforge::stream::{source, ChangeSource, ConstraintFactory, SourceExtract};
+use solverforge::stream::{CollectionExtract, ConstraintFactory};
 use solverforge::IncrementalConstraint;
 
 #[path = "constraint_accessors/domain/mod.rs"]
 mod domain;
 
-use domain::{Schedule, ScheduleConstraintStreams, ShiftUnassignedFilter};
-
-fn raw_shifts(schedule: &Schedule) -> &[domain::Shift] {
-    schedule.shifts.as_slice()
-}
+use domain::Schedule;
 
 #[test]
 fn test_one_hard_returns_correct_score() {
@@ -34,20 +30,19 @@ fn test_soft_score_one_soft() {
 
 #[test]
 fn test_constraint_stream_accessors_compile() {
-    // Test that the generated .shifts() and .employees() methods exist and compile.
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
-    let _shifts_stream = factory.shifts();
+    let _shifts_stream = factory.for_each(Schedule::shifts());
     let factory3 = ConstraintFactory::<Schedule, HardSoftScore>::new();
-    let _unassigned_stream = factory3.shifts().unassigned();
+    let _unassigned_stream = factory3.for_each(Schedule::shifts()).unassigned();
 
     let factory2 = ConstraintFactory::<Schedule, HardSoftScore>::new();
-    let _employees_stream = factory2.employees();
+    let _employees_stream = factory2.for_each(Schedule::employees());
 }
 
 #[test]
 fn generated_descriptor_stream_localizes_callbacks() {
     let mut constraint = ConstraintFactory::<Schedule, HardSoftScore>::new()
-        .shifts()
+        .for_each(Schedule::shifts())
         .penalize_hard()
         .named("shift count");
 
@@ -78,11 +73,10 @@ fn generated_descriptor_stream_localizes_callbacks() {
 }
 
 #[test]
-fn facade_exports_source_aware_extractors() {
-    let extractor: SourceExtract<fn(&Schedule) -> &[domain::Shift]> = source(
-        raw_shifts as fn(&Schedule) -> &[domain::Shift],
-        ChangeSource::Descriptor(0),
-    );
+fn generated_model_sources_carry_descriptor_metadata() {
+    let extractor = Schedule::shifts();
+    assert!(extractor.change_source().owns_descriptor(0));
+
     let mut constraint = ConstraintFactory::<Schedule, HardSoftScore>::new()
         .for_each(extractor)
         .penalize_hard()
@@ -110,7 +104,10 @@ fn facade_exports_source_aware_extractors() {
 #[test]
 fn test_penalize_hard_compiles_on_stream() {
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
-    let constraint = factory.shifts().penalize_hard().named("Test penalize hard");
+    let constraint = factory
+        .for_each(Schedule::shifts())
+        .penalize_hard()
+        .named("Test penalize hard");
 
     let _ = constraint;
 }
@@ -118,7 +115,10 @@ fn test_penalize_hard_compiles_on_stream() {
 #[test]
 fn test_penalize_soft_compiles_on_stream() {
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
-    let constraint = factory.shifts().penalize_soft().named("Test penalize soft");
+    let constraint = factory
+        .for_each(Schedule::shifts())
+        .penalize_soft()
+        .named("Test penalize soft");
 
     let _ = constraint;
 }
@@ -126,7 +126,10 @@ fn test_penalize_soft_compiles_on_stream() {
 #[test]
 fn test_named_alias_compiles() {
     let factory = ConstraintFactory::<Schedule, HardSoftScore>::new();
-    let constraint = factory.shifts().penalize_hard().named("Test named alias");
+    let constraint = factory
+        .for_each(Schedule::shifts())
+        .penalize_hard()
+        .named("Test named alias");
 
     let _ = constraint;
 }

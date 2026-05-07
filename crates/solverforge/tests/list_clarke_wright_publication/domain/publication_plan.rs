@@ -49,13 +49,11 @@ impl solverforge::cvrp::VrpSolution for PublicationPlan {
 }
 
 fn define_constraints() -> impl ConstraintSet<PublicationPlan, HardSoftScore> {
-    use PublicationPlanConstraintStreams;
-
     (ConstraintFactory::<PublicationPlan, HardSoftScore>::new()
-        .customers()
+        .for_each(PublicationPlan::customers())
         .if_not_exists((
             ConstraintFactory::<PublicationPlan, HardSoftScore>::new()
-                .routes()
+                .for_each(PublicationPlan::routes())
                 .flattened(|route: &Route| &route.visits),
             equal_bi(
                 |customer: &Customer| customer.id,

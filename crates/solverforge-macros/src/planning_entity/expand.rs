@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Data, DeriveInput, Error, Fields};
+use syn::{parse_quote, Data, DeriveInput, Error, Fields};
 
 use crate::attr_parse::{
     attribute_argument_names, get_attribute, has_attribute, has_attribute_argument,

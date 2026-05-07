@@ -5,7 +5,7 @@ it to a planning variable on an entity.
 
 # Zero-Erasure Design
 
-This move stores typed function pointers that operate directly on
+This move stores concrete function pointers that operate directly on
 the solution. No `Arc<dyn>`, no `Box<dyn Any>`, no `downcast_ref`.
 */
 
@@ -20,8 +20,8 @@ use super::{Move, MoveTabuSignature};
 
 /// A move that assigns a value to an entity's variable.
 ///
-/// Stores typed function pointers for zero-erasure execution.
-/// No trait objects, no boxing - all operations are fully typed at compile time.
+/// Stores concrete function pointers for zero-erasure execution.
+/// No trait objects, no boxing - all operations are fully monomorphized at compile time.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -65,7 +65,7 @@ impl<S, V: Debug> Debug for ChangeMove<S, V> {
 }
 
 impl<S, V> ChangeMove<S, V> {
-    /// Creates a new change move with typed function pointers.
+    /// Creates a new change move with concrete function pointers.
     ///
     /// # Arguments
     /// * `entity_index` - Index of the entity in its collection
@@ -121,14 +121,14 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
-        // Get current value using typed getter - no boxing, no downcast
+        // Get current value using concrete getter - no boxing, no downcast
         let current = (self.getter)(
             score_director.working_solution(),
             self.entity_index,
             self.variable_index,
         );
 
-        // Compare directly - fully typed comparison
+        // Compare directly - fully monomorphized comparison
         match (&current, &self.to_value) {
             (None, None) => false,                      // Both unassigned
             (Some(cur), Some(target)) => cur != target, // Different values
@@ -137,7 +137,7 @@ where
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
-        // Capture old value using typed getter - zero erasure
+        // Capture old value using concrete getter - zero erasure
         let old_value = (self.getter)(
             score_director.working_solution(),
             self.entity_index,
@@ -147,7 +147,7 @@ where
         // Notify before change
         score_director.before_variable_changed(self.descriptor_index, self.entity_index);
 
-        // Set value using typed setter - no boxing
+        // Set value using concrete setter - no boxing
         (self.setter)(
             score_director.working_solution_mut(),
             self.entity_index,
@@ -158,7 +158,7 @@ where
         // Notify after change
         score_director.after_variable_changed(self.descriptor_index, self.entity_index);
 
-        // Register typed undo closure - zero erasure
+        // Register concrete undo closure - zero erasure
         let setter = self.setter;
         let idx = self.entity_index;
         let variable_index = self.variable_index;

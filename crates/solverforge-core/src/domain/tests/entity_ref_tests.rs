@@ -22,7 +22,7 @@ fn get_entities_mut(s: &mut TestSolution) -> &mut Vec<TestEntity> {
 }
 
 #[test]
-fn test_typed_entity_extractor_count() {
+fn test_entity_collection_extractor_count() {
     let extractor =
         EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
@@ -45,7 +45,7 @@ fn test_typed_entity_extractor_count() {
 }
 
 #[test]
-fn test_typed_entity_extractor_get() {
+fn test_entity_collection_extractor_get() {
     let extractor =
         EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
@@ -74,7 +74,7 @@ fn test_typed_entity_extractor_get() {
 }
 
 #[test]
-fn test_typed_entity_extractor_get_mut() {
+fn test_entity_collection_extractor_get_mut() {
     let extractor =
         EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 
@@ -94,7 +94,7 @@ fn test_typed_entity_extractor_get_mut() {
 }
 
 #[test]
-fn test_typed_entity_extractor_entity_refs() {
+fn test_entity_collection_extractor_entity_refs() {
     let extractor =
         EntityCollectionExtractor::new("TestEntity", "entities", get_entities, get_entities_mut);
 

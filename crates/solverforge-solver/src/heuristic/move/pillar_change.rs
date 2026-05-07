@@ -5,7 +5,7 @@ This move changes all of them to a new value atomically.
 
 # Zero-Erasure Design
 
-PillarChangeMove uses typed function pointers instead of `dyn Any` for complete
+PillarChangeMove uses concrete function pointers instead of `dyn Any` for complete
 compile-time type safety. No runtime type checks or downcasting.
 */
 
@@ -22,7 +22,7 @@ use super::{Move, MoveTabuSignature};
 
 /// A move that assigns a value to all entities in a pillar.
 ///
-/// Stores entity indices and typed function pointers for zero-erasure access.
+/// Stores entity indices and concrete function pointers for zero-erasure access.
 /// Undo is handled by `RecordingDirector`, not by this move.
 ///
 /// # Type Parameters
@@ -33,9 +33,9 @@ pub struct PillarChangeMove<S, V> {
     descriptor_index: usize,
     variable_name: &'static str,
     to_value: Option<V>,
-    // Typed getter function pointer - zero erasure.
+    // Concrete getter function pointer - zero erasure.
     getter: fn(&S, usize, usize) -> Option<V>,
-    // Typed setter function pointer - zero erasure.
+    // Concrete setter function pointer - zero erasure.
     setter: fn(&mut S, usize, usize, Option<V>),
     variable_index: usize,
 }
@@ -67,13 +67,13 @@ impl<S, V: Debug> Debug for PillarChangeMove<S, V> {
 }
 
 impl<S, V> PillarChangeMove<S, V> {
-    /// Creates a new pillar change move with typed function pointers.
+    /// Creates a new pillar change move with concrete function pointers.
     ///
     /// # Arguments
     /// * `entity_indices` - Indices of entities in the pillar
     /// * `to_value` - The new value to assign to all entities
-    /// * `getter` - Typed getter function pointer
-    /// * `setter` - Typed setter function pointer
+    /// * `getter` - Concrete getter function pointer
+    /// * `setter` - Concrete setter function pointer
     /// * `variable_name` - Name of the variable being changed
     /// * `descriptor_index` - Index in the entity descriptor
     pub fn new(
@@ -122,7 +122,7 @@ where
                 return false;
             }
 
-            // Get current value using typed getter - zero erasure
+            // Get current value using concrete getter - zero erasure
             let current = (self.getter)(
                 score_director.working_solution(),
                 first_idx,
@@ -140,7 +140,7 @@ where
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
-        // Capture old values using typed getter - zero erasure
+        // Capture old values using concrete getter - zero erasure
         let old_values: Vec<(usize, Option<V>)> = self
             .entity_indices
             .iter()
@@ -157,7 +157,7 @@ where
             score_director.before_variable_changed(self.descriptor_index, idx);
         }
 
-        // Apply new value to all entities using typed setter - zero erasure
+        // Apply new value to all entities using concrete setter - zero erasure
         for &idx in &self.entity_indices {
             (self.setter)(
                 score_director.working_solution_mut(),
@@ -172,7 +172,7 @@ where
             score_director.after_variable_changed(self.descriptor_index, idx);
         }
 
-        // Register typed undo closure
+        // Register concrete undo closure
         let setter = self.setter;
         let variable_index = self.variable_index;
         score_director.register_undo(Box::new(move |s: &mut S| {

@@ -8,7 +8,7 @@ fundamental move for TSP and VRP optimization.
 
 - Fixed arrays for cut points (no SmallVec for static data)
 - Reconnection pattern stored by value (`KOptReconnection` is `Copy`)
-- Typed function pointers for all list operations
+- Concrete function pointers for all list operations
 
 # Example
 
@@ -124,7 +124,7 @@ impl CutPoint {
 ///
 /// - Fixed array `[CutPoint; 5]` for up to 5 cuts (5-opt)
 /// - `KOptReconnection` stored by value (`Copy` type, no heap allocation)
-/// - Typed function pointers for list operations
+/// - Concrete function pointers for list operations
 ///
 /// # Type Parameters
 ///

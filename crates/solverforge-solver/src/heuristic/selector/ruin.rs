@@ -108,7 +108,7 @@ impl<S, V> Clone for RuinVariableAccess<S, V> {
 impl<S, V> Copy for RuinVariableAccess<S, V> {}
 
 impl<S, V> RuinVariableAccess<S, V> {
-    /// Creates typed variable access metadata for scalar ruin moves.
+    /// Creates scalar-variable access metadata for scalar ruin moves.
     pub fn new(
         entity_count: fn(&S) -> usize,
         getter: fn(&S, usize, usize) -> Option<V>,
@@ -173,12 +173,12 @@ impl<S, V: Debug> Debug for RuinMoveSelector<S, V> {
 }
 
 impl<S, V> RuinMoveSelector<S, V> {
-    /// Creates a new ruin move selector with typed function pointers.
+    /// Creates a new ruin move selector with concrete function pointers.
     ///
     /// # Arguments
     /// * `min_ruin_count` - Minimum entities to ruin (at least 1)
     /// * `max_ruin_count` - Maximum entities to ruin
-    /// * `access` - Typed variable access metadata for the scalar variable
+    /// * `access` - Concrete variable access metadata for the scalar variable
     ///
     /// # Panics
     /// Panics if `min_ruin_count` is 0 or `max_ruin_count < min_ruin_count`.

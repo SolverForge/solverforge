@@ -5,7 +5,7 @@ Essential for vehicle routing where multiple consecutive stops need relocation.
 
 # Zero-Erasure Design
 
-Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
 */
 
 use std::fmt::Debug;
@@ -25,7 +25,7 @@ use super::{Move, MoveTabuSignature};
 /// A move that relocates a contiguous sublist from one position to another.
 ///
 /// Supports both intra-list moves (within same entity) and inter-list moves
-/// (between different entities). Uses typed function pointers for zero-erasure.
+/// (between different entities). Uses concrete function pointers for zero-erasure.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -125,7 +125,7 @@ impl<S, V: Debug> Debug for SublistChangeMove<S, V> {
 }
 
 impl<S, V> SublistChangeMove<S, V> {
-    /* Creates a new sublist change move with typed function pointers.
+    /* Creates a new sublist change move with concrete function pointers.
 
     # Arguments
     * `source_entity_index` - Entity index to remove from

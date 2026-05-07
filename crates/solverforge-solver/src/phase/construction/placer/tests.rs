@@ -40,12 +40,12 @@ fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
     &mut s.queens
 }
 
-// Typed getter - zero erasure
+// Concrete getter - zero erasure
 fn get_queen_row(s: &NQueensSolution, idx: usize, _variable_index: usize) -> Option<i32> {
     s.queens.get(idx).and_then(|q| q.row)
 }
 
-// Typed setter - zero erasure
+// Concrete setter - zero erasure
 fn set_queen_row(s: &mut NQueensSolution, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(queen) = s.queens.get_mut(idx) {
         queen.row = v;

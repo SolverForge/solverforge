@@ -35,7 +35,7 @@ pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: Director<S>>: Send + D
 
 /// A simple value-based decider that works with any value type.
 ///
-/// Uses typed setter for zero-erasure variable assignment.
+/// Uses concrete setter for zero-erasure variable assignment.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -50,18 +50,18 @@ pub struct SimpleDecider<S: PlanningSolution, V: Clone + Send + Sync + 'static, 
     values: Vec<V>,
     // Score bounder for optimistic bounds (None = no bounding).
     bounder: Option<B>,
-    // Typed setter for zero-erasure variable assignment.
+    // Concrete setter for zero-erasure variable assignment.
     setter: fn(&mut S, usize, Option<V>),
 }
 
 impl<S: PlanningSolution, V: Clone + Send + Sync + 'static> SimpleDecider<S, V, ()> {
-    /// Creates a new simple decider with typed setter and no bounder.
+    /// Creates a new simple decider with concrete setter and no bounder.
     ///
     /// # Arguments
     /// * `descriptor_index` - Index of the entity descriptor
     /// * `variable_name` - Name of the variable being assigned
     /// * `values` - Possible values to try
-    /// * `setter` - Typed setter function `fn(&mut S, entity_index, value)`
+    /// * `setter` - Concrete setter function `fn(&mut S, entity_index, value)`
     pub fn new(
         descriptor_index: usize,
         variable_name: impl Into<String>,
@@ -127,7 +127,7 @@ where
         let mut children = Vec::with_capacity(self.values.len());
 
         for (value_index, value) in self.values.iter().enumerate() {
-            // Apply assignment using typed setter
+            // Apply assignment using concrete setter
             score_director.before_variable_changed(self.descriptor_index, entity_index);
 
             (self.setter)(

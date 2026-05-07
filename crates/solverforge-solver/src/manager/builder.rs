@@ -15,7 +15,7 @@ use super::{PhaseFactory, SolverFactory};
 
 /// Builder for SolverFactory with zero type erasure.
 ///
-/// Accumulates configuration and produces a fully typed SolverFactory.
+/// Accumulates configuration and produces a fully monomorphized SolverFactory.
 /// Type bounds are only checked at `build()` time.
 pub struct SolverFactoryBuilder<S, D, C, P, T>
 where

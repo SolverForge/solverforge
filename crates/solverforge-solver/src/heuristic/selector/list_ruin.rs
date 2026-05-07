@@ -138,7 +138,7 @@ impl<S, V: Debug> Debug for ListRuinMoveSelector<S, V> {
 }
 
 impl<S, V> ListRuinMoveSelector<S, V> {
-    /* Creates a new list ruin move selector with typed function pointers.
+    /* Creates a new list ruin move selector with concrete function pointers.
 
     # Arguments
     * `min_ruin_count` - Minimum elements to remove (at least 1)

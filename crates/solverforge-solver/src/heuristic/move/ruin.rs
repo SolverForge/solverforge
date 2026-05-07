@@ -6,7 +6,7 @@ Large Neighborhood Search (LNS) algorithms.
 
 # Zero-Erasure Design
 
-Uses typed function pointers for variable access. No `dyn Any`, no downcasting.
+Uses concrete function pointers for variable access. No `dyn Any`, no downcasting.
 */
 
 use std::fmt::Debug;
@@ -97,7 +97,7 @@ impl<S, V: Debug> Debug for RuinMove<S, V> {
 }
 
 impl<S, V> RuinMove<S, V> {
-    /// Creates a new ruin move with typed function pointers.
+    /// Creates a new ruin move with concrete function pointers.
     ///
     /// # Arguments
     /// * `entity_indices` - Indices of entities to unassign

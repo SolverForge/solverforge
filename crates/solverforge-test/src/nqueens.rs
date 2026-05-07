@@ -144,7 +144,7 @@ pub fn get_queen_row(s: &NQueensSolution, idx: usize, _variable_index: usize) ->
 
 /// Sets the row value for a queen at the given index.
 ///
-/// This is the typed setter for the planning variable.
+/// This is the concrete setter for the planning variable.
 pub fn set_queen_row(s: &mut NQueensSolution, idx: usize, _variable_index: usize, v: Option<i64>) {
     if let Some(queen) = s.queens.get_mut(idx) {
         queen.row = v;

@@ -7,7 +7,7 @@ the solution in a degenerate state.
 
 # Zero-Erasure Design
 
-Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
 */
 
 use std::fmt::Debug;

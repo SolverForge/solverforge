@@ -5,7 +5,7 @@ This move swaps the values between two pillars atomically.
 
 # Zero-Erasure Design
 
-PillarSwapMove uses typed function pointers instead of `dyn Any` for complete
+PillarSwapMove uses concrete function pointers instead of `dyn Any` for complete
 compile-time type safety. No runtime type checks or downcasting.
 */
 
@@ -23,7 +23,7 @@ use super::{Move, MoveTabuSignature};
 
 /// A move that swaps values between two pillars.
 ///
-/// Stores pillar indices and typed function pointers for zero-erasure access.
+/// Stores pillar indices and concrete function pointers for zero-erasure access.
 /// Undo is handled by `RecordingDirector`, not by this move.
 ///
 /// # Type Parameters
@@ -34,9 +34,9 @@ pub struct PillarSwapMove<S, V> {
     right_indices: Vec<usize>,
     descriptor_index: usize,
     variable_name: &'static str,
-    // Typed getter function pointer - zero erasure.
+    // Concrete getter function pointer - zero erasure.
     getter: fn(&S, usize, usize) -> Option<V>,
-    // Typed setter function pointer - zero erasure.
+    // Concrete setter function pointer - zero erasure.
     setter: fn(&mut S, usize, usize, Option<V>),
     variable_index: usize,
 }
@@ -68,13 +68,13 @@ impl<S, V: Debug> Debug for PillarSwapMove<S, V> {
 }
 
 impl<S, V> PillarSwapMove<S, V> {
-    /// Creates a new pillar swap move with typed function pointers.
+    /// Creates a new pillar swap move with concrete function pointers.
     ///
     /// # Arguments
     /// * `left_indices` - Indices of entities in the left pillar
     /// * `right_indices` - Indices of entities in the right pillar
-    /// * `getter` - Typed getter function pointer
-    /// * `setter` - Typed setter function pointer
+    /// * `getter` - Concrete getter function pointer
+    /// * `setter` - Concrete setter function pointer
     /// * `variable_name` - Name of the variable being swapped
     /// * `descriptor_index` - Index in the entity descriptor
     pub fn new(
@@ -126,7 +126,7 @@ where
             }
         }
 
-        // Get representative values using typed getter - zero erasure
+        // Get representative values using concrete getter - zero erasure
         let left_val = self
             .left_indices
             .first()
@@ -140,7 +140,7 @@ where
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
-        // Capture all old values using typed getter - zero erasure
+        // Capture all old values using concrete getter - zero erasure
         let left_old: Vec<(usize, Option<V>)> = self
             .left_indices
             .iter()
@@ -171,7 +171,7 @@ where
             score_director.before_variable_changed(self.descriptor_index, idx);
         }
 
-        // Swap: left gets right's value using typed setter - zero erasure
+        // Swap: left gets right's value using concrete setter - zero erasure
         for &idx in &self.left_indices {
             (self.setter)(
                 score_director.working_solution_mut(),
@@ -195,7 +195,7 @@ where
             score_director.after_variable_changed(self.descriptor_index, idx);
         }
 
-        // Register typed undo closure - restore all original values
+        // Register concrete undo closure - restore all original values
         let setter = self.setter;
         let variable_index = self.variable_index;
         score_director.register_undo(Box::new(move |s: &mut S| {

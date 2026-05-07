@@ -5,7 +5,7 @@ live in their respective arenas - CompositeMove just references them.
 
 # Zero-Erasure Design
 
-No cloning, no boxing - just typed arena indices.
+No cloning, no boxing - just concrete arena indices.
 */
 
 use std::fmt::Debug;

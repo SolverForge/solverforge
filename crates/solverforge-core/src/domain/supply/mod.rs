@@ -7,7 +7,7 @@ such as inverse relationships (who points to whom) and anchor tracking (chain ro
 
 - **Index-based**: All supplies store indices, not cloned domain objects
 - **Owned**: Supplies are owned directly, no `Arc`, `Box`, or `dyn`
-- **Mutation via `&mut`**: Standard Rust ownership, no `RwLock` or interior mutability
+- **Mutation via `&mut`**: Ordinary Rust ownership, no `RwLock` or interior mutability
 - **Generic**: Full type information preserved through the entire pipeline
 
 # Available Supplies

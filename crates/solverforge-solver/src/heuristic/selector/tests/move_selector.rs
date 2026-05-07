@@ -1,4 +1,4 @@
-// Tests for typed move selectors.
+// Tests for zero-erasure move selectors.
 
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
@@ -46,12 +46,12 @@ fn get_tasks_mut(s: &mut TaskSolution) -> &mut Vec<Task> {
     &mut s.tasks
 }
 
-// Typed getter - zero erasure
+// Concrete getter - zero erasure
 fn get_priority(s: &TaskSolution, idx: usize, _variable_index: usize) -> Option<i32> {
     s.tasks.get(idx).and_then(|t| t.priority)
 }
 
-// Typed setter - zero erasure
+// Concrete setter - zero erasure
 fn set_priority(s: &mut TaskSolution, idx: usize, _variable_index: usize, v: Option<i32>) {
     if let Some(task) = s.tasks.get_mut(idx) {
         task.priority = v;
@@ -360,7 +360,7 @@ fn test_change_do_and_undo() {
         let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        // Verify change using typed getter - zero erasure
+        // Verify change using concrete getter - zero erasure
         let val = get_priority(recording.working_solution(), 0, 0);
         assert_eq!(val, Some(99));
 
@@ -368,7 +368,7 @@ fn test_change_do_and_undo() {
         recording.undo_changes();
     }
 
-    // Verify restored using typed getter
+    // Verify restored using concrete getter
     let val = get_priority(director.working_solution(), 0, 0);
     assert_eq!(val, Some(1));
 }
@@ -398,7 +398,7 @@ fn test_swap_do_and_undo() {
         let mut recording = RecordingDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        // Verify swap using typed getter
+        // Verify swap using concrete getter
         let val0 = get_priority(recording.working_solution(), 0, 0);
         let val1 = get_priority(recording.working_solution(), 1, 0);
         assert_eq!(val0, Some(20));
@@ -408,7 +408,7 @@ fn test_swap_do_and_undo() {
         recording.undo_changes();
     }
 
-    // Verify restored using typed getter
+    // Verify restored using concrete getter
     let val0 = get_priority(director.working_solution(), 0, 0);
     let val1 = get_priority(director.working_solution(), 1, 0);
     assert_eq!(val0, Some(10));

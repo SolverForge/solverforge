@@ -5,7 +5,7 @@ Useful for permutation-based problems.
 
 # Zero-Erasure Design
 
-SwapMove uses typed function pointers instead of `dyn Any` for complete
+SwapMove uses concrete function pointers instead of `dyn Any` for complete
 compile-time type safety. No runtime type checks or downcasting.
 */
 
@@ -22,7 +22,7 @@ use super::{Move, MoveTabuSignature};
 
 /// A move that swaps values between two entities.
 ///
-/// Stores entity indices and typed function pointers for zero-erasure access.
+/// Stores entity indices and concrete function pointers for zero-erasure access.
 /// Undo is handled by `RecordingDirector`, not by this move.
 ///
 /// # Type Parameters
@@ -44,7 +44,7 @@ use super::{Move, MoveTabuSignature};
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// // Typed getter/setter with zero erasure
+/// // Concrete getter/setter with zero erasure
 /// fn get_v(s: &Sol, idx: usize, _var: usize) -> Option<i32> { s.values.get(idx).copied().flatten() }
 /// fn set_v(s: &mut Sol, idx: usize, _var: usize, v: Option<i32>) { if let Some(x) = s.values.get_mut(idx) { *x = v; } }
 ///
@@ -54,9 +54,9 @@ use super::{Move, MoveTabuSignature};
 pub struct SwapMove<S, V> {
     left_entity_index: usize,
     right_entity_index: usize,
-    // Typed getter function pointer - zero erasure.
+    // Concrete getter function pointer - zero erasure.
     getter: fn(&S, usize, usize) -> Option<V>,
-    // Typed setter function pointer - zero erasure.
+    // Concrete setter function pointer - zero erasure.
     setter: fn(&mut S, usize, usize, Option<V>),
     variable_index: usize,
     variable_name: &'static str,
@@ -86,13 +86,13 @@ impl<S, V: Debug> Debug for SwapMove<S, V> {
 }
 
 impl<S, V> SwapMove<S, V> {
-    /// Creates a new swap move with typed function pointers.
+    /// Creates a new swap move with concrete function pointers.
     ///
     /// # Arguments
     /// * `left_entity_index` - Index of the first entity
     /// * `right_entity_index` - Index of the second entity
-    /// * `getter` - Typed getter function pointer
-    /// * `setter` - Typed setter function pointer
+    /// * `getter` - Concrete getter function pointer
+    /// * `setter` - Concrete setter function pointer
     /// * `variable_name` - Name of the variable being swapped
     /// * `descriptor_index` - Index in the entity descriptor
     pub fn new(
@@ -136,7 +136,7 @@ where
             return false;
         }
 
-        // Get current values using typed getter - zero erasure
+        // Get current values using concrete getter - zero erasure
         let left_val = (self.getter)(
             score_director.working_solution(),
             self.left_entity_index,
@@ -153,7 +153,7 @@ where
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) {
-        // Get both values using typed getter - zero erasure
+        // Get both values using concrete getter - zero erasure
         let left_value = (self.getter)(
             score_director.working_solution(),
             self.left_entity_index,
@@ -187,7 +187,7 @@ where
         score_director.after_variable_changed(self.descriptor_index, self.left_entity_index);
         score_director.after_variable_changed(self.descriptor_index, self.right_entity_index);
 
-        // Register typed undo closure - swap back
+        // Register concrete undo closure - swap back
         let setter = self.setter;
         let left_idx = self.left_entity_index;
         let right_idx = self.right_entity_index;

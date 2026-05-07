@@ -16,7 +16,7 @@ pub struct MoveAffectedEntity<'a> {
 
 /// A move that modifies one or more planning variables.
 ///
-/// Moves are fully typed for maximum performance - no boxing, no virtual dispatch.
+/// Moves are fully monomorphized for maximum performance - no boxing, no virtual dispatch.
 /// Undo is handled by `RecordingDirector`, not by move return values.
 ///
 /// # Type Parameters

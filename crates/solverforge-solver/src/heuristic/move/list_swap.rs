@@ -5,7 +5,7 @@ Useful for TSP-style improvements and route optimization.
 
 # Zero-Erasure Design
 
-Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
 */
 
 use std::fmt::Debug;
@@ -23,7 +23,7 @@ use super::{Move, MoveTabuSignature};
 /// A move that swaps two elements in list variables.
 ///
 /// Supports both intra-list swaps (within same entity) and inter-list swaps
-/// (between different entities). Uses typed function pointers for zero-erasure.
+/// (between different entities). Uses concrete function pointers for zero-erasure.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -107,7 +107,7 @@ impl<S, V: Debug> Debug for ListSwapMove<S, V> {
 }
 
 impl<S, V> ListSwapMove<S, V> {
-    /* Creates a new list swap move with typed function pointers.
+    /* Creates a new list swap move with concrete function pointers.
 
     # Arguments
     * `first_entity_index` - First entity index

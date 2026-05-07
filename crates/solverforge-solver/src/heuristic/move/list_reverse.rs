@@ -5,7 +5,7 @@ TSP 2-opt optimization where reversing a tour segment can reduce distance.
 
 # Zero-Erasure Design
 
-Uses typed function pointers for list operations. No `dyn Any`, no downcasting.
+Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
 */
 
 use std::fmt::Debug;
@@ -94,7 +94,7 @@ impl<S, V: Debug> Debug for ListReverseMove<S, V> {
 }
 
 impl<S, V> ListReverseMove<S, V> {
-    /* Creates a new list reverse move with typed function pointers.
+    /* Creates a new list reverse move with concrete function pointers.
 
     # Arguments
     * `entity_index` - Entity index

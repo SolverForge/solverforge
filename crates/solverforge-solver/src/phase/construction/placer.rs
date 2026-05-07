@@ -146,7 +146,7 @@ where
 /// A queued entity placer that processes entities in order.
 ///
 /// For each uninitialized entity, generates change moves for all possible values.
-/// Uses typed function pointers for zero-erasure access.
+/// Uses concrete function pointers for zero-erasure access.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -163,9 +163,9 @@ where
     entity_selector: ES,
     // The value selector.
     value_selector: VS,
-    // Typed getter function pointer.
+    // Concrete getter function pointer.
     getter: fn(&S, usize, usize) -> Option<V>,
-    // Typed setter function pointer.
+    // Concrete setter function pointer.
     setter: fn(&mut S, usize, usize, Option<V>),
     variable_index: usize,
     // The variable name.
@@ -248,7 +248,7 @@ where
         self.entity_selector
             .iter(score_director)
             .filter_map(|entity_ref| {
-                // Check if entity is uninitialized using typed getter - zero erasure
+                // Check if entity is uninitialized using concrete getter - zero erasure
                 let current_value = getter(
                     score_director.working_solution(),
                     entity_ref.entity_index,
@@ -296,7 +296,7 @@ where
 
 /// Entity placer that sorts placements by a comparator function.
 ///
-/// Wraps an inner placer and sorts its placements using a typed comparator.
+/// Wraps an inner placer and sorts its placements using a concrete comparator.
 /// This enables FIRST_FIT_DECREASING and similar construction variants.
 ///
 /// # Example

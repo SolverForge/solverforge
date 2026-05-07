@@ -620,13 +620,13 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 
 | Variant | Note |
 |---------|------|
-| `FirstFit` | **Default.** Generic first-fit construction over mixed or list-bearing `ModelContext` targets; pure scalar targets reuse the descriptor-scalar path |
+| `FirstFit` | **Default.** Generic first-fit construction over mixed or list-bearing `ModelContext` targets; scalar-only targets reuse the descriptor path |
 | `FirstFitDecreasing` | Specialized scalar-only first fit by entity difficulty; validates `construction_entity_order_key` |
 | `WeakestFit` | Specialized scalar-only weakest-fit heuristic; validates `construction_value_order_key` |
 | `WeakestFitDecreasing` | Specialized scalar-only weakest-fit-by-difficulty heuristic; validates both scalar order-key hooks |
 | `StrongestFit` | Specialized scalar-only strongest-fit heuristic; validates `construction_value_order_key` |
 | `StrongestFitDecreasing` | Specialized scalar-only strongest-fit-by-difficulty heuristic; validates both scalar order-key hooks |
-| `CheapestInsertion` | Generic best-score construction over mixed or list-bearing `ModelContext` targets; pure scalar targets reuse the descriptor-scalar path |
+| `CheapestInsertion` | Generic best-score construction over mixed or list-bearing `ModelContext` targets; scalar-only targets reuse the descriptor path |
 | `AllocateEntityFromQueue` | Specialized scalar-only queue-driven allocation; validates `construction_entity_order_key` |
 | `AllocateToValueFromQueue` | Specialized scalar-only value-queue allocation; validates `construction_value_order_key` |
 | `ListRoundRobin` | Specialized list-only even distribution; validates the targeted list variable exists before phase build |

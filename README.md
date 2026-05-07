@@ -37,7 +37,7 @@ Open http://localhost:7860 to see your solver in action.
 Start new projects with the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository. It scaffolds complete SolverForge applications and sample data, while this repository provides the runtime crates you extend once the scaffold exists.
 
 The current CLI scaffolds a neutral shell via `solverforge new <name>`. You shape that shell afterward with `solverforge generate ...`, adding facts, entities, variables, constraints, and generated data as the domain becomes concrete. Generated applications can mix scalar planning variables with multiple independent planning lists, and the emitted code targets the same retained-runtime facade documented in this repository.
-The generated runtime now builds one `ModelContext` for every planning model. Scalar runtime metadata is ordered by descriptor index and variable name, with a compact generated index reserved for getter/setter dispatch, so module declaration order is not part of the user contract. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while pure scalar construction uses the descriptor-scalar boundary. Canonical local search runs over the typed `ModelContext`; descriptor-scalar selectors remain an explicit descriptor engine. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
+The generated runtime now builds one `ModelContext` for every planning model. Scalar runtime metadata is ordered by descriptor index and variable name, with a compact generated index reserved for getter/setter dispatch, so module declaration order is not part of the user contract. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while scalar-only construction uses the descriptor boundary. Canonical local search runs over the monomorphized `ModelContext`; descriptor selectors remain an explicit advanced boundary. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
 Scalar variables declared with `allows_unassigned = true` keep optional-assignment semantics in that runtime: stock construction can keep `None` when it is the best legal baseline, revision-advancing mutations reopen those completed optional slots for reconsideration, and stock local search can both assign and unassign.
 Scalar construction heuristics that sort entities or values declare those capabilities explicitly on `#[planning_variable]`: use `construction_entity_order_key = "fn_name"` for entity-priority ordering and `construction_value_order_key = "fn_name"` for weakest/strongest-fit and queue-style value ordering. Those hooks are evaluated against the live working solution at each construction step, not cached once at phase start, and they never reorder local-search scalar candidates.
 Generated applications and normal `solverforge` facade usage keep the same syntax. The recent construction unification only changes advanced direct `solverforge-solver` runtime assembly APIs.
@@ -53,7 +53,7 @@ Generated applications and normal `solverforge` facade usage keep the same synta
 - `docs/extend-solver.md` and `docs/extend-domain.md` cover scaffold extension workflows.
 - `docs/lifecycle-pause-resume-contract.md` defines the retained lifecycle contract, including exact pause/resume semantics, snapshot identity, and terminal-state cleanup rules.
 - `docs/naming-charter.md` is the canonical naming contract for scalar/list terminology and selector-family cleanup.
-- `docs/typed-contract-audit.md` records the current neutral selector and extractor naming model, including the `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector` surface adopted in `0.7.0`.
+- `docs/naming-contract-audit.md` records the current neutral selector and extractor naming model, including the `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector` surface adopted in `0.7.0`.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps for each crate.
 - `AGENTS.md` defines repository-level engineering and documentation expectations for coding agents.
 
@@ -69,7 +69,7 @@ SolverForge preserves concrete types through the entire solver pipeline:
 
 This enables aggressive compiler optimizations and cache-friendly data layouts.
 
-Current public naming follows neutral Rust contracts rather than `Typed*` prefixes. The object-safe descriptor boundary is still intentional, but the concrete adapter and selector surface are now documented as `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector`. The historical rename and rationale are captured in [docs/typed-contract-audit.md](docs/typed-contract-audit.md).
+Current public naming follows neutral Rust contracts rather than helper-role prefixes. The object-safe descriptor boundary is still intentional, but the concrete adapter and selector surface are now documented as `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector`. The historical rename and rationale are captured in [docs/naming-contract-audit.md](docs/naming-contract-audit.md).
 
 ## Features
 
@@ -77,12 +77,12 @@ Current public naming follows neutral Rust contracts rather than `Typed*` prefix
 - **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, existence checks, joins, grouping, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
-  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list `ModelContext` when matching list work is present, plus descriptor-scalar construction routing for pure scalar targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
+  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list `ModelContext` when matching list work is present, plus descriptor construction routing for scalar-only targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
   - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, Diversified Late Acceptance)
   - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
   - Partitioned Search (multi-threaded via rayon)
   - VND (Variable Neighborhood Descent)
-- **Move System**: Zero-allocation typed moves with cursor-scoped ownership and selected-winner materialization
+- **Move System**: Zero-allocation moves with cursor-scoped ownership and selected-winner materialization
   - Scalar: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
   - List: ListChangeMove, ListSwapMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
   - Scalar ruin-recreate, composite moves, cartesian composition, and nearby selection for scalar and list neighborhoods
@@ -609,7 +609,7 @@ For project scaffolding and end-to-end application templates, use the standalone
 
 SolverForge leverages Rust's zero-cost abstractions:
 
-- **Typed Moves**: Values stored inline, no boxing, arena-based ownership (never cloned)
+- **Zero-Erasure Moves**: Values stored inline, no boxing, arena-based ownership (never cloned)
 - **RPITIT Selectors**: Return-position impl Trait eliminates `Box<dyn Iterator>` from all selectors
 - **Incremental Scoring**: SERIO propagates only changed constraints
 - **No GC**: Predictable latency without garbage collection
@@ -656,16 +656,16 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 - **Scalar runtime assembly is descriptor-addressed**: generated scalar helpers keep a compact `variable_index` for getter/setter dispatch, while runtime hook attachment and ordering use descriptor index plus variable name, so module declaration order is not a modeling contract.
 - **Scalar nearby selectors are bounded model-declared capabilities**: `#[planning_variable]` supports `candidate_values`, `nearby_value_candidates`, and `nearby_entity_candidates`; distance meters rank or filter those bounded candidates and are rejected as standalone discovery mechanisms.
 - **Scalar construction ordering is model-declared too**: `#[planning_variable]` now supports `construction_entity_order_key` and `construction_value_order_key`, and scalar-only construction heuristics validate those hooks before phase build. These hooks are construction-only and do not change local-search selector order.
-- **Construction routing is capability-driven**: scalar-only heuristics route through the descriptor-scalar engine, list-only heuristics validate the existing list hook surface before build, and generic `FirstFit` / `CheapestInsertion` stay on the mixed engine when matching list work is present.
+- **Construction routing is capability-driven**: scalar-only heuristics route through the descriptor boundary, list-only heuristics validate the existing list hook surface before build, and generic `FirstFit` / `CheapestInsertion` stay on the mixed engine when matching list work is present.
 - **Move selectors are cursor-based**: `open_cursor()` now yields stable candidate indices plus borrowable candidates, cartesian neighborhoods stay preview-safe and cursor-native, and ownership materializes only for the selected winner. Convenience owned-stream helpers such as `iter_moves()` and `append_moves()` are not a cartesian-safe contract.
-- **Large modules stay split by behavior**: solver, descriptor-scalar, runtime, construction, and macro-generated support code keep implementation and test chunks in adjacent subsystem files so each Rust source file stays below the 500 LOC maintenance boundary.
+- **Large modules stay split by behavior**: solver, descriptor, runtime, construction, and macro-generated support code keep implementation and test chunks in adjacent subsystem files so each Rust source file stays below the 500 LOC maintenance boundary.
 - **Scalar solve startup telemetry now reports candidates instead of descriptor slots**: runtime logging estimates the average candidate count per scalar slot from range providers and countable ranges, and the console labels scalar solve startup scale as `candidates`.
 
 ### What's New in 0.8.12
 
 - **Optional `FirstFit` now respects `None` as a real baseline**: optional scalar construction keeps `None` unless an assignment is strictly better, matching `CheapestInsertion` semantics while preserving `FirstFit`'s eager search order.
 - **Accepted-count local search now retains the best accepted candidates**: the accepted-count forager `limit` caps the retained accepted moves for final selection and no longer acts as an implicit early-exit threshold.
-- **Construction/runtime cleanup**: the canonical generic construction engine now lives under `phase/construction/engine.rs`, pure-scalar construction uses the descriptor-scalar construction boundary, and round-robin list construction uses a single shared implementation for runtime and builder assembly.
+- **Construction/runtime cleanup**: the canonical generic construction engine now lives under `phase/construction/engine.rs`, scalar-only construction uses the descriptor boundary, and round-robin list construction uses a single shared implementation for runtime and builder assembly.
 
 ### What's New in 0.8.11
 

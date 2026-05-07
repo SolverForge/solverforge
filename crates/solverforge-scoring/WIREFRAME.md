@@ -75,8 +75,8 @@ src/
 ├── director/
 │   ├── mod.rs                                      — Re-exports all director types and traits
 │   ├── traits.rs                                   — Director<S> trait
-│   ├── score_director.rs                           — Re-exports typed ScoreDirector pieces
-│   │   ├── score_director/typed.rs                 — ScoreDirector<S,C> (zero-erasure incremental)
+│   ├── score_director.rs                           — Re-exports ScoreDirector pieces
+│   │   ├── score_director/incremental.rs           — ScoreDirector<S,C> (zero-erasure incremental)
 │   │   └── score_director/adapters.rs              — Debug and Director trait impls for ScoreDirector
 │   ├── recording.rs                                — RecordingDirector<'a,S,D> (automatic undo tracking)
 │   ├── shadow_aware.rs                             — SolvableSolution trait and shadow lifecycle notes
@@ -326,7 +326,7 @@ All `Send + Sync`:
 **`ScoreDirector<S, C>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`
 - Primary incremental scoring director. Zero-erasure.
 - Key methods: `new()`, `with_descriptor()`, `simple()` (convenience for `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor), `calculate_score()`, `before_variable_changed()`, `after_variable_changed()`, `do_change()`, `get_score()`, `constraint_metadata()`, `constraint_match_totals()`, `into_working_solution()`, `take_solution()`
-- Returns borrowed constraint metadata views from the typed `ConstraintSet` on demand.
+- Returns borrowed constraint metadata views from the monomorphized `ConstraintSet` on demand.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
 - Implements `Director<S>`
@@ -414,7 +414,7 @@ Constraints own their `ConstraintRef` once. Metadata and analysis types borrow t
 
 **`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `named()` → `IncrementalUniConstraint`
 
-**`Projection<A>`** — Typed retained projection contract for single-source `.project(...)`. Implementations define `type Out`, `const MAX_EMITS: usize`, and `project(&self, input: &A, sink: &mut impl ProjectionSink<Self::Out>)`. Projection implementations emit bounded scoring rows into the sink; Vec-returning closures are not part of the API. `Out` does not need `Clone`.
+**`Projection<A>`** — Retained projection contract for single-source `.project(...)`. Implementations define `type Out`, `const MAX_EMITS: usize`, and `project(&self, input: &A, sink: &mut impl ProjectionSink<Self::Out>)`. Projection implementations emit bounded scoring rows into the sink; Vec-returning closures are not part of the API. `Out` does not need `Clone`.
 
 **`ProjectionSink<Out>`** — Emission sink used by `Projection<A>` implementations. `emit(output)` is the only projection output channel.
 

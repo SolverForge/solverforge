@@ -31,8 +31,7 @@ Construction heuristics now route by validated model capability rather than
 ad hoc special cases:
 
 - `first_fit` and `cheapest_insertion` stay generic for mixed or list-bearing
-  targets, but pure scalar construction targets use the descriptor-scalar
-  construction boundary.
+  targets, but scalar-only construction targets use the descriptor boundary.
 - `first_fit_decreasing`, `weakest_fit*`, `strongest_fit*`,
   `allocate_entity_from_queue`, and `allocate_to_value_from_queue` are scalar-only.
   The targeted scalar variable must declare the required
@@ -65,10 +64,10 @@ scalar variable must provide the corresponding nearby candidate hook; distance
 meters may rank or filter those bounded candidates, but the runtime does not use
 them as candidate-discovery hooks.
 
-Canonical local search uses the typed `ModelContext` published by macro runtime
-assembly. The descriptor-scalar engine remains the explicit descriptor boundary
-for scalar construction and callers that intentionally assemble descriptor
-selectors; it is not a fallback path for normal local search.
+Canonical local search uses the monomorphized `ModelContext` published by macro runtime
+assembly. The descriptor boundary remains explicit for scalar-only construction
+and callers that intentionally assemble descriptor selectors; it is not a
+fallback path for normal local search.
 
 `limited_neighborhood` applies a fixed move cap to one configured neighborhood
 when that cap is part of the search policy. The canonical defaults are already

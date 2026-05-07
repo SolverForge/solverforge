@@ -22,17 +22,17 @@ src/
 ├── lib.rs                  — Crate root; required proc-macro entry points only
 ├── planning_model.rs       — `planning_model!` manifest parser, file reader, metadata validator, and model-support generator
 ├── planning_model/*.rs     — Manifest parsing, module loading, metadata validation, scalar-group support generation, shadow generation, and tests split by responsibility
-├── planning_entity.rs      — PlanningEntityImpl derive module root
+├── planning_entity.rs      — planning-entity support derive module root
 ├── planning_entity/*.rs    — Entity derive expansion, scalar/list-variable helpers, and utilities
 ├── planning_entity/expand/*.rs — Entity derive expansion and validation helpers
 ├── planning_entity_tests.rs — PlanningEntity derive tests
-├── planning_solution.rs    — PlanningSolutionImpl derive module root
+├── planning_solution.rs    — planning-solution support derive module root
 ├── planning_solution/*.rs  — Solution derive expansion, config/shadow/runtime/list roots, stream extensions, and type helpers
 ├── planning_solution/list_operations/*.rs — Entity-collection list runtime helpers and public list-method generation
 ├── planning_solution/runtime/*.rs — Runtime module root, solve generation, scalar setup, and helper declarations
 ├── planning_solution/runtime/helpers/*.rs — Runtime helper code split by candidate counts, phase support, and generated trait impls
 ├── planning_solution_tests.rs — PlanningSolution derive tests
-└── problem_fact.rs         — ProblemFactImpl derive: ProblemFact, PlanningId, problem_fact_descriptor()
+└── problem_fact.rs         — problem-fact support derive: ProblemFact, PlanningId, problem_fact_descriptor()
 ```
 
 ## Function-like Macros
@@ -70,19 +70,19 @@ scalar hooks, runtime scalar contexts, model validation, and list-shadow updates
 
 ### `#[planning_entity]` / `#[planning_entity(serde)]`
 
-Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, Hash, PlanningEntityImpl`. Optionally adds `serde::Serialize, serde::Deserialize` when `serde` flag is present.
+Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support derive output. Optionally adds `serde::Serialize, serde::Deserialize` when `serde` flag is present.
 
 ### `#[planning_solution]` / `#[planning_solution(serde, constraints = "path", config = "path")]`
 
-Applies to structs. Adds derives: `Clone, Debug, PlanningSolutionImpl`. Optionally adds serde derives. The `constraints = "path"` flag embeds a `#[solverforge_constraints_path = "path"]` attribute for the derive to consume. The `config = "path"` flag embeds a `#[solverforge_config_path = "path"]` attribute for the derive to consume; the callback must have signature `fn(&Solution, SolverConfig) -> SolverConfig` and decorates the loaded `solver.toml` config instead of replacing it.
+Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support derive output. Optionally adds serde derives. The `constraints = "path"` flag embeds a `#[solverforge_constraints_path = "path"]` attribute for the derive to consume. The `config = "path"` flag embeds a `#[solverforge_config_path = "path"]` attribute for the derive to consume; the callback must have signature `fn(&Solution, SolverConfig) -> SolverConfig` and decorates the loaded `solver.toml` config instead of replacing it.
 
 ### `#[problem_fact]` / `#[problem_fact(serde)]`
 
-Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`. Optionally adds serde derives.
+Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support derive output. Optionally adds serde derives.
 
 ## Derive Macros (proc_macro_derive)
 
-### `PlanningEntityImpl`
+### Planning Entity Support Derive
 
 **Consumed attributes on fields:**
 - `#[planning_id]` — marks the unique ID field
@@ -109,10 +109,10 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl T { pub fn entity_descriptor(solution_field: &'static str) -> EntityDescriptor }` — builds descriptor with all variable descriptors (genuine, list, shadow) and preserves `#[planning_id]` / `#[planning_pin]` metadata
 - Hidden scalar metadata bridge: private indexed helpers for scalar variable count, name, allows-unassigned, value-source metadata, getter/setter, and entity-local value slices. Helper order matches `entity_descriptor()` genuine scalar variable order; the index is used for generated getter/setter dispatch, while manifest hook attachment resolves descriptor variables by descriptor index plus variable name.
 - Hidden list metadata bridge (when the entity has a `#[planning_list_variable]` field): public cross-module `__SOLVERFORGE_LIST_VARIABLE_COUNT` plus private `__SOLVERFORGE_LIST_VARIABLE_NAME`, `__SOLVERFORGE_LIST_ELEMENT_COLLECTION`, `__solverforge_list_field()`, `__solverforge_list_field_mut()`, `__solverforge_list_metadata()`
-- Hidden typed list bridge (when the entity has a `#[planning_list_variable]` field): `impl __internal::ListVariableEntity<Solution> for Entity`
+- Hidden list metadata bridge implementation (when the entity has a `#[planning_list_variable]` field): `impl __internal::ListVariableEntity<Solution> for Entity`
 - Hidden unassigned bridge (when the entity has exactly one `Option<_>` planning variable): `impl __internal::UnassignedEntity<Solution> for Entity`, enabling `.unassigned()` on `UniConstraintStream<_, Entity, ...>` without a generated public trait import
 
-### `PlanningSolutionImpl`
+### Planning Solution Support Derive
 
 **Consumed attributes on fields:**
 - `#[planning_entity_collection]` — `Vec<Entity>` field containing planning entities
@@ -154,10 +154,10 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` with canonical shadow support and returns `ScoreAnalysis`
-- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `ModelContext` containing typed scalar contexts plus zero or more owner-specific list contexts, delegate scalar hook attachment to the `planning_model!` support impl, sort those variable contexts to the descriptor-backed variable order emitted by the macros, compute hidden shape-aware solve-start telemetry (`__solverforge_total_list_elements()` for list models and `__solverforge_scalar_candidate_count()` for scalar models), and then call hidden `build_phases(config, &descriptor, &model)`
+- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `ModelContext` containing scalar contexts plus zero or more owner-specific list contexts, delegate scalar hook attachment to the `planning_model!` support impl, sort those variable contexts to the descriptor-backed variable order emitted by the macros, compute hidden shape-aware solve-start telemetry (`__solverforge_total_list_elements()` for list models and `__solverforge_scalar_candidate_count()` for scalar models), and then call hidden `build_phases(config, &descriptor, &model)`
 - Public solution source methods for all `#[planning_entity_collection]`, `#[problem_fact_collection]`, and streamable `#[planning_list_element_collection]` fields. Each method is inherent on the solution type, for example `Plan::tasks()`, returns `impl solverforge::stream::CollectionExtract<Plan, Item = Task>`, and carries hidden `ChangeSource::Descriptor(idx)` for planning entities or `ChangeSource::Static` for facts and list elements. User constraints call `ConstraintFactory::new().for_each(Plan::tasks())`; there is still only one public stream-entry verb.
 
-### `ProblemFactImpl`
+### Problem Fact Support Derive
 
 **Consumed attributes on fields:**
 - `#[planning_id]` — marks the unique ID field

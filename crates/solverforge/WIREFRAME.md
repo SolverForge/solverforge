@@ -46,12 +46,6 @@ src/
 - `planning_solution`
 - `problem_fact`
 
-### Derive Macros (from `solverforge-macros`)
-
-- `PlanningEntityImpl`
-- `PlanningSolutionImpl`
-- `ProblemFactImpl`
-
 ### Score Types (from `solverforge-core`)
 
 - `Score` (trait)
@@ -238,8 +232,8 @@ construction and grouped local-search selectors.
 - `TrueFilter`, `UniFilter`, `FnUniFilter`, `AndUniFilter`
 - `source`, `UnassignedEntity`
 
-**Derive macros (from `solverforge-macros`):**
-- `PlanningEntityImpl`, `PlanningSolutionImpl`, `ProblemFactImpl`
+**Macro support (hidden):**
+- Attribute macros route their support derives through `__internal`; users should not import those derive macros directly.
 
 ### Functions
 

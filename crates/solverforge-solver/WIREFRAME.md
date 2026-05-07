@@ -24,21 +24,21 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── runtime.rs                           — Runtime assembly and target matching over `ModelContext`; routes pure scalar construction through the descriptor-scalar construction boundary, routes named grouped scalar construction through the atomic grouped-scalar builder, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
+├── runtime.rs                           — Runtime assembly and target matching over `ModelContext`; routes scalar-only construction through the descriptor boundary, routes named grouped scalar construction through the atomic grouped-scalar builder, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
 ├── model_support.rs                     — Hidden `PlanningModelSupport` trait implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model validation, and shadow updates
 ├── runtime/
 │   ├── tests.rs                         — Runtime construction routing and target-validation tests
 │   ├── tests/*.rs                       — Runtime test fixtures split by scalar, queue, revision, multi-owner, and mixed-target behavior
 │   └── list_tests.rs                    — Specialized list-construction runtime tests
-├── descriptor_scalar.rs               — Re-exports the explicit descriptor-scalar bindings, selectors, move types, and internal construction/runtime helpers
-├── descriptor_scalar/
+├── descriptor.rs                        — Re-exports descriptor bindings, selectors, move types, and internal construction/runtime helpers
+├── descriptor/
 │   ├── bindings.rs                      — Scalar-variable binding discovery, nearby hooks, scalar construction order keys, and frontier-aware work checks
-│   ├── move_types.rs                    — DescriptorChangeMove<S>, DescriptorSwapMove<S>, DescriptorPillarChangeMove<S>, DescriptorPillarSwapMove<S>, DescriptorRuinRecreateMove<S>, DescriptorScalarMoveUnion<S>
-│   ├── move_types/*.rs                  — Descriptor scalar move implementations split by move family
+│   ├── move_types.rs                    — DescriptorChangeMove<S>, DescriptorSwapMove<S>, DescriptorPillarChangeMove<S>, DescriptorPillarSwapMove<S>, DescriptorRuinRecreateMove<S>, DescriptorMoveUnion<S>
+│   ├── move_types/*.rs                  — Descriptor move implementations split by move family
 │   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, DescriptorFlatSelector<S>, DescriptorSelectorNode<S>, DescriptorSelector<S>, build_descriptor_move_selector(config, descriptor, random_seed); nearby scalar selectors require descriptor-provided nearby candidate hooks, optional meters rank/filter those candidates, optional assigned variables can emit one `Some(v) -> None` change, top-level cartesian selectors expose borrowable sequential candidates, and scalar ruin-recreate uses the configured seed when provided
-│   ├── selectors/*.rs                   — Descriptor scalar selector legality, leaf, dispatch, and builder chunks split by neighborhood family
-│   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>; runtime-only descriptor-scalar construction assembly from resolved scalar bindings with optional keep-current legality and slot identity
-│   └── tests.rs                         — Descriptor-scalar test root with support/construction/selector/ruin-recreate chunks under `tests/mod/`
+│   ├── selectors/*.rs                   — Descriptor selector legality, leaf, dispatch, and builder chunks split by neighborhood family
+│   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>; runtime-only descriptor construction assembly from resolved scalar bindings with optional keep-current legality and slot identity
+│   └── tests.rs                         — Descriptor test root with support/construction/selector/ruin-recreate chunks under `tests/mod/`
 ├── run.rs                               — AnyTermination, build_termination, run_solver(), run_solver_with_config()
 ├── run_tests.rs                         — Tests
 ├── builder/
@@ -50,12 +50,12 @@ src/
 │   ├── context/*.rs                     — Model, list, conflict-repair, and scalar context implementation chunks
 │   ├── context/scalar/mod.rs            — Scalar context module root and public re-exports
 │   ├── context/scalar/*.rs              — Scalar value-source, scalar variable, and grouped scalar context definitions
-│   ├── scalar_selector.rs               — Canonical typed scalar selector assembly over index-addressed scalar contexts, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
-│   ├── scalar_selector/*.rs             — Typed scalar value, leaf, dispatch, and build chunks
-│   ├── scalar_selector/tests.rs         — Typed scalar selector test root with change/swap, nearby/ruin, pillar, and cartesian chunks
+│   ├── scalar_selector.rs               — Canonical scalar selector assembly over index-addressed scalar contexts, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
+│   ├── scalar_selector/*.rs             — Scalar value, leaf, dispatch, and build chunks
+│   ├── scalar_selector/tests.rs         — Scalar selector test root with change/swap, nearby/ruin, pillar, and cartesian chunks
 │   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published ModelContext variable contexts
 │   ├── selector/*.rs                    — Mixed scalar/list neighborhood move, grouped scalar selector, conflict repair selector, family classification, and builder chunks
-│   ├── selector/types/*.rs              — Neighborhood leaf, composite, cursor, and union types used by typed selector assembly
+│   ├── selector/types/*.rs              — Neighborhood leaf, composite, cursor, and union types used by selector assembly
 │   ├── selector/tests.rs                — Mixed selector test root with support, defaults, grouped scalar, cartesian, and phase chunks
 │   ├── list_selector.rs                 — Re-exports list selector leaf and builder modules
 │   └── list_selector/
@@ -93,8 +93,8 @@ src/
 │   │   ├── k_opt_reconnection_tests.rs — Tests
 │   │   ├── compound_scalar.rs          — CompoundScalarMove<S> for atomic multi-scalar edits with exact undo, tabu identity, and affected-entity reporting
 │   │   ├── composite.rs                — CompositeMove<S, M1, M2>, SequentialCompositeMove<S, M>
-│   │   ├── either.rs                    — ScalarMoveUnion<S, V> enum
-│   │   ├── list_either.rs              — ListMoveUnion<S, V> enum
+│   │   ├── scalar_union.rs             — ScalarMoveUnion<S, V> enum
+│   │   ├── list_union.rs               — ListMoveUnion<S, V> enum
 │   │   └── tests/                       — Additional test modules
 │   │       ├── mod.rs
 │   │       ├── arena.rs
@@ -119,7 +119,7 @@ src/
 │       ├── value_selector.rs              — ValueSelector trait, StaticValueSelector, FromSolutionValueSelector
 │       ├── move_selector.rs             — MoveSelector trait, MoveCursor, MoveCandidateRef, ChangeMoveSelector, SwapMoveSelector, scalar union helpers; `ChangeMoveSelector::with_allows_unassigned()` enables `Some(v) -> None` generation for assigned optional variables
 │       ├── move_selector/*.rs           — Borrowed candidate cursor, iterator adapter, change selector, and swap selector implementation chunks
-│       ├── move_selector/either.rs      — ScalarChangeMoveSelector, ScalarSwapMoveSelector
+│       ├── move_selector/scalar_union.rs — ScalarChangeMoveSelector, ScalarSwapMoveSelector
 │       ├── list_change.rs              — ListChangeMoveSelector<S, V, ES>
 │       ├── list_support.rs             — Private selected-entity snapshots and exact list-neighborhood counting
 │       ├── list_swap.rs                — ListSwapMoveSelector<S, V, ES>
@@ -568,7 +568,7 @@ Requires: `Send + Debug`.
 
 ## Move Types
 
-All moves are generic over `S` (solution) and `V` (value). All use typed `fn` pointers for zero-erasure access.
+All moves are generic over `S` (solution) and `V` (value). All use concrete `fn` pointers for zero-erasure access.
 
 | Move | Type Params | Key Fields | Clone | Copy |
 |------|-------------|------------|-------|------|
@@ -690,9 +690,9 @@ and provider registration keys must match the configured key exactly.
 
 **`KOptConfig`** — `{ k: usize, min_segment_len: usize, limited_patterns: bool }`. Methods: `new(k)`, `with_min_segment_len()`, `with_limited_patterns()`.
 
-**`RuinVariableAccess<S, V>`** — `selector/ruin.rs`. Typed scalar-variable access bundle for `RuinMoveSelector::new(min, max, access)`: entity count, getter, setter, variable index, variable name, and descriptor index.
+**`RuinVariableAccess<S, V>`** — `selector/ruin.rs`. Scalar-variable access bundle for `RuinMoveSelector::new(min, max, access)`: entity count, getter, setter, variable index, variable name, and descriptor index.
 
-**`ScalarVariableContext<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the typed runtime. The compact scalar `variable_index` is the generated getter/setter dispatch index; hook attachment, descriptor ordering, and user-facing target matching use descriptor index plus variable name, with the canonical entity type name kept for target matching and diagnostics. Getter, setter, and entity-local value sources receive the scalar variable index so selector hot paths do not need descriptor-erased access. In addition to value-source hooks it carries optional nearby hooks and scalar construction order-key hooks via builder-style methods:
+**`ScalarVariableContext<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the monomorphized runtime. The compact scalar `variable_index` is the generated getter/setter dispatch index; hook attachment, descriptor ordering, and user-facing target matching use descriptor index plus variable name, with the canonical entity type name kept for target matching and diagnostics. Getter, setter, and entity-local value sources receive the scalar variable index so selector hot paths do not need descriptor-erased access. In addition to value-source hooks it carries optional nearby hooks and scalar construction order-key hooks via builder-style methods:
 - `with_candidate_values(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for bounded scalar value candidates
 - `with_nearby_value_candidates(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for nearby scalar change
 - `with_nearby_entity_candidates(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for nearby scalar swap
@@ -739,7 +739,7 @@ sorted set of scalar target slots touched by the candidate.
 **`ConstructionHeuristicPhase<S, M, P, Fo>`** — Bounds: `P: EntityPlacer<S, M>`, `Fo: ConstructionForager<S, M>`. `with_live_placement_refresh()` switches order-sensitive scalar heuristics from phase-start placement snapshots to per-step recomputation.
 
 Runtime routing is capability-driven:
-- pure scalar `FirstFit` and `CheapestInsertion` use the descriptor-scalar construction boundary
+- scalar-only `FirstFit` and `CheapestInsertion` use the descriptor boundary
 - named grouped scalar construction uses the explicit `ScalarGroupContext` route and applies all candidate edits atomically
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
 - list-only heuristics validate required `cw_*` or `k_opt_*` hooks before phase build
@@ -847,7 +847,7 @@ Sealed trait for zero-allocation callback dispatch. Implemented for `()` (no-op)
 
 Top-level scope for a retained solve. Holds score director, current score, best solution, best score, RNG, active timing, stats, runtime bridge, terminal reason, and termination state.
 
-Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `score_director()`, `working_solution()`, `trial(...)`, `mutate(...)`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. The current implementation also tracks a working-solution revision for built-in descriptor-scalar construction completion; committed mutation goes through `mutate(...)` (or the equivalent crate-private step boundary), which clears `current_score` and advances that revision exactly once. `trial(...)` wraps a `RecordingDirector` and restores both solution values and committed score state after speculative work. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination.
+Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `score_director()`, `working_solution()`, `trial(...)`, `mutate(...)`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. The current implementation also tracks a working-solution revision for built-in descriptor-driven construction completion; committed mutation goes through `mutate(...)` (or the equivalent crate-private step boundary), which clears `current_score` and advances that revision exactly once. `trial(...)` wraps a `RecordingDirector` and restores both solution values and committed score state after speculative work. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination.
 
 Public fields: `inphase_step_count_limit`, `inphase_move_count_limit`, `inphase_score_calc_count_limit`.
 
@@ -984,12 +984,12 @@ selector diagnosis.
 Runtime helpers:
 
 - `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
-- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, use the descriptor-scalar construction boundary for pure scalar targets, use grouped scalar construction when `group_name` selects a registered `ScalarGroupContext`, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations. Grouped construction receives all resolved scalar bindings for legality even when the phase target narrows which members must still need work.
+- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, use the descriptor boundary for scalar-only targets, use grouped scalar construction when `group_name` selects a registered `ScalarGroupContext`, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations. Grouped construction receives all resolved scalar bindings for legality even when the phase target narrows which members must still need work.
 - `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
 - `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `ModelContext`
 - `PlanningModelSupport` — hidden support trait with no default impl; generated by
-  `planning_model!` so solution derives can attach descriptor scalar hooks,
+  `planning_model!` so solution derives can attach descriptor hooks,
   runtime scalar hooks, scalar groups, validate the manifest-backed model, and delegate
   list-shadow updates without proc-macro registries
 
@@ -1016,12 +1016,12 @@ Canonical solve entrypoints used by macro-generated solving. They accept generat
 ## Architectural Notes
 
 - **Zero-erasure throughout.** All moves, selectors, phases, acceptors, foragers, and terminations are fully monomorphized via generics. No `Box<dyn Trait>` or `Arc` in hot paths.
-- **Typed runtime selectors.** `builder/selector.rs` consumes the typed `ModelContext` published by macro/runtime assembly and does not synthesize scalar neighborhoods from descriptor bindings.
+- **Runtime selectors.** `builder/selector.rs` consumes the monomorphized `ModelContext` published by macro/runtime assembly and does not synthesize scalar neighborhoods from descriptor bindings.
 - **Grouped scalar is explicit.** Nullable scalar variables that must change together use declared scalar groups and compound scalar moves. The solver does not infer groups from unrelated nullable variables.
 - **Compound repair is framework-owned.** Conflict repair providers produce domain edit hints, while the selector layer enforces limits, legality, not-doable filtering, hard-improvement filtering, telemetry, affected-entity reporting, and tabu identity.
 - **Cartesian stays sequential.** Cartesian selectors compose exactly two child selectors over a preview state. They are not a general atomic grouped-search facility.
 - **Projected scoring rows are never planning entities.** Streams created with `.project(...)` are scoring-only internal cache rows owned by scoring constraints. They are not surfaced in `ModelContext`, value ranges, construction heuristics, or move selectors.
-- **Explicit descriptor-scalar boundary.** Descriptor-driven scalar construction and selector assembly live under `descriptor_scalar/*`; canonical local search stays on typed `ModelContext`, while descriptor-scalar selectors are only for callers that intentionally choose that engine.
+- **Explicit descriptor boundary.** Construction and selector assembly for scalar-only targets live under `descriptor/*`; canonical local search stays on the monomorphized `ModelContext`, while descriptor selectors are only for callers that intentionally choose that boundary.
 - **Function pointer storage.** Moves and selectors store index-aware `fn` pointers (e.g., `fn(&S, usize, usize) -> Option<V>`) instead of trait objects for solution access.
 - **PhantomData<fn() -> T>** pattern used in all move types to avoid inheriting Clone/Send/Sync bounds from phantom type parameters.
 - **SmallVec<[usize; 8]>** used in RuinMove and ListRuinMove for stack-allocated small ruin counts.

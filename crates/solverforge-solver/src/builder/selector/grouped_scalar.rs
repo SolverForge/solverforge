@@ -1,5 +1,5 @@
 pub struct GroupedScalarSelector<S> {
-    group: crate::builder::context::ScalarGroupContext<S>,
+    group: crate::builder::context::ScalarGroupBinding<S>,
     value_candidate_limit: Option<usize>,
     max_moves_per_step: usize,
     require_hard_improvement: bool,
@@ -7,7 +7,7 @@ pub struct GroupedScalarSelector<S> {
 
 impl<S> GroupedScalarSelector<S> {
     pub fn new(
-        group: crate::builder::context::ScalarGroupContext<S>,
+        group: crate::builder::context::ScalarGroupBinding<S>,
         value_candidate_limit: Option<usize>,
         max_moves_per_step: Option<usize>,
         require_hard_improvement: bool,
@@ -107,12 +107,16 @@ where
             if store.len() >= self.max_moves_per_step {
                 break;
             }
-            if candidate.edits.is_empty() || !seen.insert(candidate.clone()) {
+            if candidate.edits().is_empty() || !seen.insert(candidate.clone()) {
                 continue;
             }
             targets.clear();
-            if candidate.edits.iter().any(|edit| {
-                !targets.insert((edit.descriptor_index, edit.entity_index, edit.variable_name))
+            if candidate.edits().iter().any(|edit| {
+                !targets.insert((
+                    edit.descriptor_index(),
+                    edit.entity_index(),
+                    edit.variable_name(),
+                ))
             }) {
                 continue;
             }
@@ -136,25 +140,26 @@ where
 }
 
 fn compound_move_for_group_candidate<S>(
-    group: &crate::builder::context::ScalarGroupContext<S>,
+    group: &crate::builder::context::ScalarGroupBinding<S>,
     solution: &S,
-    candidate: crate::builder::context::ScalarGroupCandidate,
+    candidate: crate::builder::context::ScalarCandidate<S>,
 ) -> Option<crate::heuristic::r#move::CompoundScalarMove<S>>
 where
     S: PlanningSolution + 'static,
 {
-    let mut edits = Vec::with_capacity(candidate.edits.len());
-    for edit in candidate.edits {
+    let reason = candidate.reason();
+    let mut edits = Vec::with_capacity(candidate.edits().len());
+    for edit in candidate.into_edits() {
         let member = group.member_for_edit(&edit)?;
-        if !member.value_is_legal(solution, edit.entity_index, edit.to_value) {
+        if !member.value_is_legal(solution, edit.entity_index(), edit.to_value()) {
             return None;
         }
         edits.push(crate::heuristic::r#move::CompoundScalarEdit {
             descriptor_index: member.descriptor_index,
-            entity_index: edit.entity_index,
+            entity_index: edit.entity_index(),
             variable_index: member.variable_index,
             variable_name: member.variable_name,
-            to_value: edit.to_value,
+            to_value: edit.to_value(),
             getter: member.getter,
             setter: member.setter,
             value_is_legal: None,
@@ -162,7 +167,7 @@ where
     }
 
     Some(crate::heuristic::r#move::CompoundScalarMove::with_label(
-        candidate.reason,
+        reason,
         crate::heuristic::r#move::COMPOUND_SCALAR_VARIABLE,
         edits,
     ))

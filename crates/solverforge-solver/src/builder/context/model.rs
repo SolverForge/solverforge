@@ -1,16 +1,14 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use super::{
-    ConflictRepairProviderEntry, ListVariableContext, ScalarGroupContext, ScalarVariableContext,
-};
+use super::{ConflictRepair, ListVariableSlot, ScalarGroupBinding, ScalarVariableSlot};
 
-pub enum VariableContext<S, V, DM, IDM> {
-    Scalar(ScalarVariableContext<S>),
-    List(ListVariableContext<S, V, DM, IDM>),
+pub enum VariableSlot<S, V, DM, IDM> {
+    Scalar(ScalarVariableSlot<S>),
+    List(ListVariableSlot<S, V, DM, IDM>),
 }
 
-impl<S, V, DM: Clone, IDM: Clone> Clone for VariableContext<S, V, DM, IDM> {
+impl<S, V, DM: Clone, IDM: Clone> Clone for VariableSlot<S, V, DM, IDM> {
     fn clone(&self) -> Self {
         match self {
             Self::Scalar(variable) => Self::Scalar(*variable),
@@ -19,7 +17,7 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for VariableContext<S, V, DM, IDM> {
     }
 }
 
-impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for VariableContext<S, V, DM, IDM> {
+impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for VariableSlot<S, V, DM, IDM> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Scalar(variable) => variable.fmt(f),
@@ -28,57 +26,54 @@ impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for VariableContext<S, V,
     }
 }
 
-pub struct ModelContext<S, V, DM, IDM> {
-    variables: Vec<VariableContext<S, V, DM, IDM>>,
-    scalar_groups: Vec<ScalarGroupContext<S>>,
-    conflict_repair_providers: Vec<ConflictRepairProviderEntry<S>>,
+pub struct RuntimeModel<S, V, DM, IDM> {
+    variables: Vec<VariableSlot<S, V, DM, IDM>>,
+    scalar_groups: Vec<ScalarGroupBinding<S>>,
+    conflict_repairs: Vec<ConflictRepair<S>>,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-impl<S, V, DM: Clone, IDM: Clone> Clone for ModelContext<S, V, DM, IDM> {
+impl<S, V, DM: Clone, IDM: Clone> Clone for RuntimeModel<S, V, DM, IDM> {
     fn clone(&self) -> Self {
         Self {
             variables: self.variables.clone(),
             scalar_groups: self.scalar_groups.clone(),
-            conflict_repair_providers: self.conflict_repair_providers.clone(),
+            conflict_repairs: self.conflict_repairs.clone(),
             _phantom: PhantomData,
         }
     }
 }
 
-impl<S, V, DM, IDM> ModelContext<S, V, DM, IDM> {
-    pub fn new(variables: Vec<VariableContext<S, V, DM, IDM>>) -> Self {
+impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
+    pub fn new(variables: Vec<VariableSlot<S, V, DM, IDM>>) -> Self {
         Self {
             variables,
             scalar_groups: Vec::new(),
-            conflict_repair_providers: Vec::new(),
+            conflict_repairs: Vec::new(),
             _phantom: PhantomData,
         }
     }
 
-    pub fn with_scalar_groups(mut self, groups: Vec<ScalarGroupContext<S>>) -> Self {
+    pub fn with_scalar_groups(mut self, groups: Vec<ScalarGroupBinding<S>>) -> Self {
         self.scalar_groups = groups;
         self
     }
 
-    pub fn with_conflict_repair_providers(
-        mut self,
-        providers: Vec<ConflictRepairProviderEntry<S>>,
-    ) -> Self {
-        self.conflict_repair_providers = providers;
+    pub fn with_conflict_repairs(mut self, repairs: Vec<ConflictRepair<S>>) -> Self {
+        self.conflict_repairs = repairs;
         self
     }
 
-    pub fn variables(&self) -> &[VariableContext<S, V, DM, IDM>] {
+    pub fn variables(&self) -> &[VariableSlot<S, V, DM, IDM>] {
         &self.variables
     }
 
-    pub fn scalar_groups(&self) -> &[ScalarGroupContext<S>] {
+    pub fn scalar_groups(&self) -> &[ScalarGroupBinding<S>] {
         &self.scalar_groups
     }
 
-    pub fn conflict_repair_providers(&self) -> &[ConflictRepairProviderEntry<S>] {
-        &self.conflict_repair_providers
+    pub fn conflict_repairs(&self) -> &[ConflictRepair<S>] {
+        &self.conflict_repairs
     }
 
     pub fn is_empty(&self) -> bool {
@@ -88,30 +83,30 @@ impl<S, V, DM, IDM> ModelContext<S, V, DM, IDM> {
     pub fn has_list_variables(&self) -> bool {
         self.variables
             .iter()
-            .any(|variable| matches!(variable, VariableContext::List(_)))
+            .any(|variable| matches!(variable, VariableSlot::List(_)))
     }
 
-    pub fn scalar_variables(&self) -> impl Iterator<Item = &ScalarVariableContext<S>> {
+    pub fn scalar_variables(&self) -> impl Iterator<Item = &ScalarVariableSlot<S>> {
         self.variables.iter().filter_map(|variable| match variable {
-            VariableContext::Scalar(ctx) => Some(ctx),
-            VariableContext::List(_) => None,
+            VariableSlot::Scalar(ctx) => Some(ctx),
+            VariableSlot::List(_) => None,
         })
     }
 
-    pub fn list_variables(&self) -> impl Iterator<Item = &ListVariableContext<S, V, DM, IDM>> {
+    pub fn list_variables(&self) -> impl Iterator<Item = &ListVariableSlot<S, V, DM, IDM>> {
         self.variables.iter().filter_map(|variable| match variable {
-            VariableContext::List(ctx) => Some(ctx),
-            VariableContext::Scalar(_) => None,
+            VariableSlot::List(ctx) => Some(ctx),
+            VariableSlot::Scalar(_) => None,
         })
     }
 }
 
-impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for ModelContext<S, V, DM, IDM> {
+impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for RuntimeModel<S, V, DM, IDM> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ModelContext")
+        f.debug_struct("RuntimeModel")
             .field("variables", &self.variables)
             .field("scalar_groups", &self.scalar_groups)
-            .field("conflict_repair_providers", &self.conflict_repair_providers)
+            .field("conflict_repairs", &self.conflict_repairs)
             .finish()
     }
 }

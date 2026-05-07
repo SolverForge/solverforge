@@ -202,15 +202,15 @@ fn scalar_runtime_value_order_key(
 
 fn scalar_runtime_model_with_allows_unassigned(
     allows_unassigned: bool,
-) -> ModelContext<ScalarRuntimePlan, usize, DefaultMeter, DefaultMeter> {
+) -> RuntimeModel<ScalarRuntimePlan, usize, DefaultMeter, DefaultMeter> {
     scalar_runtime_model_with_hooks(allows_unassigned, None)
 }
 
 fn scalar_runtime_model_with_hooks(
     allows_unassigned: bool,
     value_order_key: Option<fn(&ScalarRuntimePlan, usize, usize, usize) -> Option<i64>>,
-) -> ModelContext<ScalarRuntimePlan, usize, DefaultMeter, DefaultMeter> {
-    let mut ctx = ScalarVariableContext::new(
+) -> RuntimeModel<ScalarRuntimePlan, usize, DefaultMeter, DefaultMeter> {
+    let mut ctx = ScalarVariableSlot::new(
         0,
         0,
         "Task",
@@ -227,9 +227,9 @@ fn scalar_runtime_model_with_hooks(
     if let Some(order_key) = value_order_key {
         ctx = ctx.with_construction_value_order_key(order_key);
     }
-    ModelContext::new(vec![VariableContext::Scalar(ctx)])
+    RuntimeModel::new(vec![VariableSlot::Scalar(ctx)])
 }
 
-fn scalar_runtime_model() -> ModelContext<ScalarRuntimePlan, usize, DefaultMeter, DefaultMeter> {
+fn scalar_runtime_model() -> RuntimeModel<ScalarRuntimePlan, usize, DefaultMeter, DefaultMeter> {
     scalar_runtime_model_with_allows_unassigned(true)
 }

@@ -57,6 +57,7 @@ pub use solverforge_core::score::{
 };
 
 pub mod cvrp;
+pub mod planning;
 pub mod prelude;
 pub mod stream;
 
@@ -88,13 +89,12 @@ Solver
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
-    analyze, run_solver, run_solver_with_config, Analyzable, ConflictRepairEdit,
-    ConflictRepairLimits, ConflictRepairProviderEntry, ConflictRepairSpec, ConstraintAnalysis,
-    ScalarGroupCandidate, ScalarGroupContext, ScalarGroupEdit, ScalarGroupLimits,
-    ScalarGroupMember, ScalarVariableContext, ScoreAnalysis, SelectorTelemetry, Solvable,
-    SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager, SolverManagerError,
-    SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTelemetry,
-    SolverTerminalReason,
+    analyze, run_solver, run_solver_with_config, Analyzable, ConflictRepair, ConstraintAnalysis,
+    RepairCandidate, RepairLimits, RepairProvider, ScalarCandidate, ScalarCandidateProvider,
+    ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget, ScoreAnalysis, SelectorTelemetry,
+    Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager,
+    SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
+    SolverTelemetry, SolverTerminalReason,
 };
 
 /* ============================================================================

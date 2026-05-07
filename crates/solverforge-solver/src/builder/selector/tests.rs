@@ -18,11 +18,12 @@ use solverforge_scoring::{DetailedConstraintMatch, IncrementalConstraint, ScoreD
 use super::*;
 use crate::builder::list_selector::ListLeafSelector;
 use crate::builder::scalar_selector::ScalarLeafSelector;
-use crate::builder::{ListVariableContext, ScalarVariableContext, ValueSource, VariableContext};
+use crate::builder::{ListVariableSlot, ScalarVariableSlot, ValueSource, VariableSlot};
 use crate::heuristic::selector::decorator::FilteringMoveSelector;
 use crate::heuristic::selector::move_selector::{
     collect_cursor_indices, MoveCandidateRef, MoveCursor,
 };
+use crate::planning::{ScalarGroup, ScalarTarget};
 use crate::CrossEntityDistanceMeter;
 
 include!("tests/support.rs");

@@ -2,10 +2,14 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Error, Fields};
 
-use crate::attr_parse::has_attribute;
+use crate::attr_parse::{get_attribute, has_attribute};
+use crate::attr_validation::{
+    validate_list_element_collection_attribute, validate_no_attribute_args,
+    validate_shadow_updates_attribute,
+};
 
 use super::config::{
-    parse_config_path, parse_conflict_repair_providers_path, parse_constraints_path,
+    parse_config_path, parse_conflict_repairs_path, parse_constraints_path,
     parse_scalar_groups_path, parse_shadow_config, parse_solver_toml_path,
 };
 use super::list_operations::generate_list_operations;
@@ -38,6 +42,8 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             ))
         }
     };
+
+    validate_solution_attributes(&input, fields)?;
 
     let score_field = fields
         .iter()
@@ -112,7 +118,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let constraints_path = parse_constraints_path(&input.attrs);
     let config_path = parse_config_path(&input.attrs);
     let solver_toml_path = parse_solver_toml_path(&input.attrs);
-    let conflict_repair_providers_path = parse_conflict_repair_providers_path(&input.attrs);
+    let conflict_repairs_path = parse_conflict_repairs_path(&input.attrs);
     let scalar_groups_path = parse_scalar_groups_path(&input.attrs);
     let entity_count_arms: Vec<_> = fields
         .iter()
@@ -161,7 +167,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let runtime_phase_support = generate_runtime_phase_support(
         fields,
         &constraints_path,
-        &conflict_repair_providers_path,
+        &conflict_repairs_path,
         &scalar_groups_path,
         name,
     );
@@ -217,4 +223,33 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     };
 
     Ok(expanded)
+}
+
+fn validate_solution_attributes(
+    input: &DeriveInput,
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Result<(), Error> {
+    if let Some(attr) = get_attribute(&input.attrs, "shadow_variable_updates") {
+        validate_shadow_updates_attribute(attr)?;
+    }
+
+    for field in fields {
+        if let Some(attr) = get_attribute(&field.attrs, "planning_entity_collection") {
+            validate_no_attribute_args(attr, "planning_entity_collection")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "problem_fact_collection") {
+            validate_no_attribute_args(attr, "problem_fact_collection")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "planning_score") {
+            validate_no_attribute_args(attr, "planning_score")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "value_range_provider") {
+            validate_no_attribute_args(attr, "value_range_provider")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "planning_list_element_collection") {
+            validate_list_element_collection_attribute(attr)?;
+        }
+    }
+
+    Ok(())
 }

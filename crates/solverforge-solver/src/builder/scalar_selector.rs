@@ -26,7 +26,7 @@ use crate::heuristic::selector::{
     PillarSelector, RuinMoveSelector, RuinVariableAccess, ValueSelector,
 };
 
-use super::context::{ScalarVariableContext, ValueSource};
+use super::context::{ScalarVariableSlot, ValueSource};
 
 pub type ScalarFlatSelector<S> =
     VecUnionSelector<S, ScalarMoveUnion<S, usize>, ScalarLeafSelector<S>>;

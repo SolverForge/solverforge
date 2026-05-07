@@ -88,7 +88,7 @@ fn generate_scalar_runtime_setup(
         })
         .collect();
 
-    let scalar_context_pushes: Vec<_> = entity_fields
+    let scalar_slot_pushes: Vec<_> = entity_fields
         .iter()
         .map(|(descriptor_index, field_name, field_type)| {
             let entity_count_fn_ident = format_ident!("__solverforge_scalar_count_{}", field_name);
@@ -161,8 +161,8 @@ fn generate_scalar_runtime_setup(
                             }
                         };
 
-                        let __solverforge_context =
-                            ::solverforge::__internal::ScalarVariableContext::new(
+                        let __solverforge_slot =
+                            ::solverforge::__internal::ScalarVariableSlot::new(
                                 __solverforge_descriptor_index,
                                 __solverforge_variable_index,
                                 __solverforge_entity_descriptor.type_name,
@@ -173,13 +173,13 @@ fn generate_scalar_runtime_setup(
                                 __solverforge_value_source,
                                 __solverforge_variable_descriptor.allows_unassigned,
                             );
-                        let __solverforge_context =
+                        let __solverforge_slot =
                             <#solution_name as ::solverforge::__internal::PlanningModelSupport>::attach_runtime_scalar_hooks(
-                                __solverforge_context,
+                                __solverforge_slot,
                             );
                         __solverforge_variables.push(
-                            ::solverforge::__internal::VariableContext::Scalar(
-                                __solverforge_context,
+                            ::solverforge::__internal::VariableSlot::Scalar(
+                                __solverforge_slot,
                             )
                         );
                     }
@@ -203,7 +203,7 @@ fn generate_scalar_runtime_setup(
                 _ => 0,
             }
         }
-        #(#scalar_context_pushes)*
+        #(#scalar_slot_pushes)*
     }
 }
 

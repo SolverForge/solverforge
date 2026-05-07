@@ -103,7 +103,7 @@ fn complete_scalar_slot<S, D, ProgressCb>(
 
 fn evaluate_list_insertion<S, V, DM, IDM, D, ProgressCb>(
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
-    ctx: &ListVariableContext<S, V, DM, IDM>,
+    ctx: &ListVariableSlot<S, V, DM, IDM>,
     element: V,
     entity_index: usize,
     position: usize,
@@ -159,13 +159,13 @@ where
 }
 
 fn matches_target<S, V, DM, IDM>(
-    variable: &VariableContext<S, V, DM, IDM>,
+    variable: &VariableSlot<S, V, DM, IDM>,
     entity_class: Option<&str>,
     variable_name: Option<&str>,
 ) -> bool {
     match variable {
-        VariableContext::Scalar(ctx) => ctx.matches_target(entity_class, variable_name),
-        VariableContext::List(ctx) => ctx.matches_target(entity_class, variable_name),
+        VariableSlot::Scalar(ctx) => ctx.matches_target(entity_class, variable_name),
+        VariableSlot::List(ctx) => ctx.matches_target(entity_class, variable_name),
     }
 }
 

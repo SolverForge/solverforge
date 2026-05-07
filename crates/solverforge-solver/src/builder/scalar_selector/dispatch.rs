@@ -270,7 +270,7 @@ where
 
 pub(super) fn build_scalar_flat_selector<S>(
     config: Option<&MoveSelectorConfig>,
-    scalar_variables: &[ScalarVariableContext<S>],
+    scalar_variables: &[ScalarVariableSlot<S>],
     random_seed: Option<u64>,
 ) -> ScalarFlatSelector<S>
 where

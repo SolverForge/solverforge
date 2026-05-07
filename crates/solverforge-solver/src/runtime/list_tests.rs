@@ -1,5 +1,5 @@
 use super::Construction;
-use crate::builder::{ListVariableContext, ModelContext, VariableContext};
+use crate::builder::{ListVariableSlot, RuntimeModel, VariableSlot};
 use crate::phase::Phase;
 use crate::scope::SolverScope;
 use crate::DefaultCrossEntityDistanceMeter;
@@ -195,8 +195,8 @@ fn route_index_to_element(solution: &GenericListPlan, idx: usize) -> usize {
     solution.route_pool[idx]
 }
 
-fn generic_list_model() -> ModelContext<GenericListPlan, usize, DefaultMeter, DefaultMeter> {
-    ModelContext::new(vec![VariableContext::List(ListVariableContext::new(
+fn generic_list_model() -> RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter> {
+    RuntimeModel::new(vec![VariableSlot::List(ListVariableSlot::new(
         "Route",
         route_element_count,
         assigned_route_elements,

@@ -322,8 +322,8 @@ fn index_to_visit(solution: &MixedPlan, idx: usize) -> usize {
     assigned_visits(solution).get(idx).copied().unwrap_or(idx)
 }
 
-fn scalar_context() -> ScalarVariableContext<MixedPlan> {
-    ScalarVariableContext::new(
+fn scalar_slot() -> ScalarVariableSlot<MixedPlan> {
+    ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -340,8 +340,8 @@ fn scalar_context() -> ScalarVariableContext<MixedPlan> {
     .with_candidate_values(worker_candidate_values)
 }
 
-fn list_context() -> ListVariableContext<MixedPlan, usize, NoopMeter, NoopMeter> {
-    ListVariableContext::new(
+fn list_slot() -> ListVariableSlot<MixedPlan, usize, NoopMeter, NoopMeter> {
+    ListVariableSlot::new(
         "Vehicle",
         visit_count,
         assigned_visits,
@@ -376,21 +376,21 @@ fn list_context() -> ListVariableContext<MixedPlan, usize, NoopMeter, NoopMeter>
     )
 }
 
-fn scalar_only_model() -> ModelContext<MixedPlan, usize, NoopMeter, NoopMeter> {
-    ModelContext::new(vec![VariableContext::Scalar(scalar_context())])
+fn scalar_only_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {
+    RuntimeModel::new(vec![VariableSlot::Scalar(scalar_slot())])
 }
 
-fn list_only_model() -> ModelContext<MixedPlan, usize, NoopMeter, NoopMeter> {
-    ModelContext::new(vec![VariableContext::List(list_context())])
+fn list_only_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {
+    RuntimeModel::new(vec![VariableSlot::List(list_slot())])
 }
 
-fn mixed_model() -> ModelContext<MixedPlan, usize, NoopMeter, NoopMeter> {
-    ModelContext::new(vec![
-        VariableContext::Scalar(scalar_context()),
-        VariableContext::List(list_context()),
+fn mixed_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {
+    RuntimeModel::new(vec![
+        VariableSlot::Scalar(scalar_slot()),
+        VariableSlot::List(list_slot()),
     ])
 }
 
-fn empty_model() -> ModelContext<MixedPlan, usize, NoopMeter, NoopMeter> {
-    ModelContext::new(vec![])
+fn empty_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {
+    RuntimeModel::new(vec![])
 }

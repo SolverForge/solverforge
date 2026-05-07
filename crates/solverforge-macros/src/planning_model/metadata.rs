@@ -1,6 +1,9 @@
-
 fn parse_solution(module: &ModuleSource, item_struct: &ItemStruct) -> Result<SolutionMetadata> {
+    if let Some(attr) = get_attribute(&item_struct.attrs, "planning_solution") {
+        validate_planning_solution_attribute(attr)?;
+    }
     let fields = named_fields(item_struct, "#[planning_solution] requires named fields")?;
+    validate_solution_fields(item_struct, fields)?;
     let mut collections = Vec::new();
     let mut collection_field_names = BTreeSet::new();
     let mut descriptor_index = 0usize;
@@ -48,7 +51,7 @@ fn parse_solution(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Sol
         ident: item_struct.ident.clone(),
         collections,
         collection_field_names,
-        shadow_config: parse_shadow_config(&item_struct.attrs),
+        shadow_config: parse_shadow_config(&item_struct.attrs)?,
         scalar_groups_path: parse_solution_scalar_groups_path(module, item_struct)?,
     })
 }
@@ -63,9 +66,10 @@ fn parse_solution_scalar_groups_path(
     parse_hook_path(attr, "scalar_groups", &module.ident, item_struct)
 }
 
-fn parse_shadow_config(attrs: &[Attribute]) -> ShadowConfig {
+fn parse_shadow_config(attrs: &[Attribute]) -> Result<ShadowConfig> {
     let mut config = ShadowConfig::default();
     if let Some(attr) = get_attribute(attrs, "shadow_variable_updates") {
+        validate_shadow_updates_attribute(attr)?;
         config.list_owner = parse_attribute_string(attr, "list_owner");
         config.inverse_field = parse_attribute_string(attr, "inverse_field");
         config.previous_field = parse_attribute_string(attr, "previous_field");
@@ -75,11 +79,15 @@ fn parse_shadow_config(attrs: &[Attribute]) -> ShadowConfig {
         config.entity_aggregates = parse_attribute_list(attr, "entity_aggregate");
         config.entity_computes = parse_attribute_list(attr, "entity_compute");
     }
-    config
+    Ok(config)
 }
 
 fn parse_entity(module: &ModuleSource, item_struct: &ItemStruct) -> Result<EntityMetadata> {
+    if let Some(attr) = get_attribute(&item_struct.attrs, "planning_entity") {
+        validate_planning_entity_attribute(attr)?;
+    }
     let fields = named_fields(item_struct, "#[planning_entity] requires named fields")?;
+    validate_entity_fields(fields)?;
     let mut scalar_variables = Vec::new();
     let mut list_variable_name = None;
     let mut list_element_collection = None;
@@ -167,6 +175,75 @@ fn parse_entity(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Entit
         list_variable_name,
         list_element_collection,
     })
+}
+
+fn validate_solution_fields(
+    item_struct: &ItemStruct,
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Result<()> {
+    if let Some(attr) = get_attribute(&item_struct.attrs, "shadow_variable_updates") {
+        validate_shadow_updates_attribute(attr)?;
+    }
+    for field in fields {
+        if let Some(attr) = get_attribute(&field.attrs, "planning_entity_collection") {
+            validate_no_attribute_args(attr, "planning_entity_collection")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "problem_fact_collection") {
+            validate_no_attribute_args(attr, "problem_fact_collection")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "planning_score") {
+            validate_no_attribute_args(attr, "planning_score")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "value_range_provider") {
+            validate_no_attribute_args(attr, "value_range_provider")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "planning_list_element_collection") {
+            validate_list_element_collection_attribute(attr)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_entity_fields(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Result<()> {
+    for field in fields {
+        if let Some(attr) = get_attribute(&field.attrs, "planning_id") {
+            validate_no_attribute_args(attr, "planning_id")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "planning_pin") {
+            validate_no_attribute_args(attr, "planning_pin")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "planning_variable") {
+            validate_planning_variable_attribute(attr)?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "planning_list_variable") {
+            validate_planning_list_variable_attribute(attr)?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "inverse_relation_shadow_variable") {
+            validate_shadow_variable_attribute(attr, "inverse_relation_shadow_variable")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "previous_element_shadow_variable") {
+            validate_shadow_variable_attribute(attr, "previous_element_shadow_variable")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "next_element_shadow_variable") {
+            validate_shadow_variable_attribute(attr, "next_element_shadow_variable")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "cascading_update_shadow_variable") {
+            validate_no_attribute_args(attr, "cascading_update_shadow_variable")?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_problem_fact_fields(item_struct: &ItemStruct) -> Result<()> {
+    let fields = named_fields(item_struct, "#[problem_fact] requires named fields")?;
+    for field in fields {
+        if let Some(attr) = get_attribute(&field.attrs, "planning_id") {
+            validate_no_attribute_args(attr, "planning_id")?;
+        }
+    }
+    Ok(())
 }
 
 fn named_fields<'a>(

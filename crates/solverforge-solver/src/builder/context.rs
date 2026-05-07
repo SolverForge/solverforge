@@ -3,15 +3,12 @@ mod list;
 mod model;
 mod scalar;
 
-pub use conflict_repair::{
-    ConflictRepairEdit, ConflictRepairLimits, ConflictRepairProvider, ConflictRepairProviderEntry,
-    ConflictRepairSpec,
-};
-pub use list::{IntraDistanceAdapter, ListVariableContext};
-pub use model::{ModelContext, VariableContext};
+pub use conflict_repair::{ConflictRepair, RepairCandidate, RepairLimits, RepairProvider};
+pub use list::{IntraDistanceAdapter, ListVariableSlot};
+pub use model::{RuntimeModel, VariableSlot};
 pub use scalar::{
-    ConstructionEntityOrderKey, ConstructionValueOrderKey, NearbyEntityDistanceMeter,
-    NearbyValueDistanceMeter, ScalarCandidateValues, ScalarGetter, ScalarGroupCandidate,
-    ScalarGroupCandidateProvider, ScalarGroupContext, ScalarGroupEdit, ScalarGroupLimits,
-    ScalarGroupMember, ScalarSetter, ScalarVariableContext, ValueSource,
+    bind_scalar_groups, ConstructionEntityOrderKey, ConstructionValueOrderKey,
+    NearbyEntityDistanceMeter, NearbyValueDistanceMeter, ScalarCandidate, ScalarCandidateProvider,
+    ScalarCandidateValues, ScalarEdit, ScalarGetter, ScalarGroupBinding, ScalarGroupLimits,
+    ScalarGroupMemberBinding, ScalarSetter, ScalarVariableSlot, ValueSource,
 };

@@ -157,9 +157,9 @@ fn coupled_set_third(entity: &mut dyn std::any::Any, value: Option<usize>) {
 
 fn coupled_scalar_model(
     with_group: bool,
-) -> ModelContext<CoupledScalarPlan, usize, DefaultMeter, DefaultMeter> {
+) -> RuntimeModel<CoupledScalarPlan, usize, DefaultMeter, DefaultMeter> {
     let variables = vec![
-        VariableContext::Scalar(ScalarVariableContext::new(
+        VariableSlot::Scalar(ScalarVariableSlot::new(
             0,
             0,
             "CoupledScalarChoice",
@@ -172,7 +172,7 @@ fn coupled_scalar_model(
             ValueSource::CountableRange { from: 0, to: 2 },
             true,
         )),
-        VariableContext::Scalar(ScalarVariableContext::new(
+        VariableSlot::Scalar(ScalarVariableSlot::new(
             0,
             1,
             "CoupledScalarChoice",
@@ -185,7 +185,7 @@ fn coupled_scalar_model(
             ValueSource::CountableRange { from: 0, to: 2 },
             true,
         )),
-        VariableContext::Scalar(ScalarVariableContext::new(
+        VariableSlot::Scalar(ScalarVariableSlot::new(
             0,
             2,
             "CoupledScalarChoice",
@@ -200,41 +200,45 @@ fn coupled_scalar_model(
         )),
     ];
 
-    let scalar_contexts = variables
+    let scalar_slots = variables
         .iter()
         .filter_map(|variable| match variable {
-            VariableContext::Scalar(ctx) => Some(*ctx),
-            VariableContext::List(_) => None,
+            VariableSlot::Scalar(ctx) => Some(*ctx),
+            VariableSlot::List(_) => None,
         })
         .collect::<Vec<_>>();
-    let model = ModelContext::new(variables);
+    let model = RuntimeModel::new(variables);
     if !with_group {
         return model;
     }
 
-    model.with_scalar_groups(vec![ScalarGroupContext::new(
-        "coupled_assignment",
-        scalar_contexts
-            .into_iter()
-            .map(ScalarGroupMember::from_scalar_context)
-            .collect(),
-        coupled_group_candidates,
-    )])
+    model.with_scalar_groups(bind_scalar_groups(
+        vec![ScalarGroup::new(
+            "coupled_assignment",
+            vec![
+                ScalarTarget::from_descriptor_index(0, "first"),
+                ScalarTarget::from_descriptor_index(0, "second"),
+                ScalarTarget::from_descriptor_index(0, "third"),
+            ],
+            coupled_group_candidates,
+        )],
+        &scalar_slots,
+    ))
 }
 
 fn coupled_group_candidates(
     plan: &CoupledScalarPlan,
     _limits: ScalarGroupLimits,
-) -> Vec<ScalarGroupCandidate> {
+) -> Vec<ScalarCandidate<CoupledScalarPlan>> {
     if plan.choices.is_empty() {
         return Vec::new();
     }
-    vec![ScalarGroupCandidate::new(
+    vec![ScalarCandidate::new(
         "witness",
         vec![
-            ScalarGroupEdit::set_scalar(0, 0, "first", Some(1)),
-            ScalarGroupEdit::set_scalar(0, 0, "second", Some(1)),
-            ScalarGroupEdit::set_scalar(0, 0, "third", Some(1)),
+            ScalarTarget::from_descriptor_index(0, "first").set(0, Some(1)),
+            ScalarTarget::from_descriptor_index(0, "second").set(0, Some(1)),
+            ScalarTarget::from_descriptor_index(0, "third").set(0, Some(1)),
         ],
     )]
 }

@@ -13,10 +13,22 @@ Since SolverForge v0.9.0, `scalar` is the only canonical opposite of `list`.
 
 ## Canonical names
 
-- `ScalarVariableContext`
-- `ListVariableContext`
-- `VariableContext::Scalar`
-- `VariableContext::List`
+Internal runtime assembly uses slot/binding names for hidden model metadata:
+
+- `ScalarVariableSlot`
+- `ListVariableSlot`
+- `VariableSlot::Scalar`
+- `VariableSlot::List`
+
+Public grouped scalar declarations use target/group names:
+
+- `ScalarTarget`
+- `ScalarEdit`
+- `ScalarCandidate`
+- `ScalarGroup`
+
+Move-family unions keep their family contrast:
+
 - `ScalarMoveUnion`
 - `ListMoveUnion`
 

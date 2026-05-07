@@ -19,7 +19,7 @@ use crate::phase::localsearch::{
 };
 
 use super::acceptor::{AcceptorBuilder, AnyAcceptor};
-use super::context::ModelContext;
+use super::context::RuntimeModel;
 use super::forager::{AnyForager, ForagerBuilder};
 use super::list_selector::ListMoveSelectorBuilder;
 use super::scalar_selector::build_scalar_flat_selector;

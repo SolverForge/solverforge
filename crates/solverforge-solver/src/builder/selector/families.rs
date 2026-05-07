@@ -99,7 +99,7 @@ fn assert_cartesian_left_preview_safe(config: &MoveSelectorConfig) {
 
 fn push_scalar_selector<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
     out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
 ) where
@@ -123,7 +123,7 @@ fn push_scalar_selector<S, V, DM, IDM>(
 
 fn push_list_selector<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
     out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
 ) where
@@ -145,7 +145,7 @@ fn push_list_selector<S, V, DM, IDM>(
 
 fn push_conflict_repair_selector<S, V, DM, IDM>(
     config: &solverforge_config::ConflictRepairMoveSelectorConfig,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
 ) where
     S: PlanningSolution + 'static,
@@ -157,18 +157,18 @@ fn push_conflict_repair_selector<S, V, DM, IDM>(
         panic!("conflict_repair_move_selector requires at least one constraint");
     }
     let scalar_variables = model.scalar_variables().copied().collect::<Vec<_>>();
-    let providers = model
-        .conflict_repair_providers()
+    let repairs = model
+        .conflict_repairs()
         .iter()
         .copied()
-        .filter(|provider| {
+        .filter(|repair| {
             config
                 .constraints
                 .iter()
-                .any(|constraint| constraint == provider.constraint_name)
+                .any(|constraint| constraint == repair.constraint_name())
         })
         .collect::<Vec<_>>();
-    if providers.is_empty() {
+    if repairs.is_empty() {
         panic!(
             "conflict_repair_move_selector configured for {:?}, but no matching providers were registered",
             config.constraints
@@ -177,13 +177,13 @@ fn push_conflict_repair_selector<S, V, DM, IDM>(
     out.push(NeighborhoodLeaf::ConflictRepair(ConflictRepairSelector::new(
         config.clone(),
         scalar_variables,
-        providers,
+        repairs,
     )));
 }
 
 fn push_compound_conflict_repair_selector<S, V, DM, IDM>(
     config: &solverforge_config::CompoundConflictRepairMoveSelectorConfig,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
 ) where
     S: PlanningSolution + 'static,
@@ -195,31 +195,31 @@ fn push_compound_conflict_repair_selector<S, V, DM, IDM>(
         panic!("compound_conflict_repair_move_selector requires at least one constraint");
     }
     let scalar_variables = model.scalar_variables().copied().collect::<Vec<_>>();
-    let providers = model
-        .conflict_repair_providers()
+    let repairs = model
+        .conflict_repairs()
         .iter()
         .copied()
-        .filter(|provider| {
+        .filter(|repair| {
             config
                 .constraints
                 .iter()
-                .any(|constraint| constraint == provider.constraint_name)
+                .any(|constraint| constraint == repair.constraint_name())
         })
         .collect::<Vec<_>>();
-    if providers.is_empty() {
+    if repairs.is_empty() {
         panic!(
             "compound_conflict_repair_move_selector configured for {:?}, but no matching providers were registered",
             config.constraints
         );
     }
     out.push(NeighborhoodLeaf::ConflictRepair(
-        ConflictRepairSelector::new_compound(config.clone(), scalar_variables, providers),
+        ConflictRepairSelector::new_compound(config.clone(), scalar_variables, repairs),
     ));
 }
 
 fn push_grouped_scalar_selector<S, V, DM, IDM>(
     config: &solverforge_config::GroupedScalarMoveSelectorConfig,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
 ) where
     S: PlanningSolution + 'static,

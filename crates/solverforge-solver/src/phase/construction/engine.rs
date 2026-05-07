@@ -11,7 +11,7 @@ use solverforge_scoring::{Director, RecordingDirector};
 use tracing::info;
 
 use crate::builder::context::{ScalarGetter, ScalarSetter};
-use crate::builder::{ListVariableContext, ModelContext, ScalarVariableContext, VariableContext};
+use crate::builder::{ListVariableSlot, RuntimeModel, ScalarVariableSlot, VariableSlot};
 use crate::heuristic::r#move::{ChangeMove, Move};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second};

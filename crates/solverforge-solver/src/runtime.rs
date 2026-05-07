@@ -6,7 +6,7 @@ use solverforge_config::{ConstructionHeuristicConfig, PhaseConfig, SolverConfig}
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
 
-use crate::builder::{build_local_search, build_vnd, LocalSearch, ModelContext, Vnd};
+use crate::builder::{build_local_search, build_vnd, LocalSearch, RuntimeModel, Vnd};
 use crate::descriptor::{
     build_descriptor_construction_from_bindings, scalar_work_remaining_with_frontier,
 };
@@ -97,7 +97,7 @@ where
 {
     config: Option<ConstructionHeuristicConfig>,
     descriptor: SolutionDescriptor,
-    model: ModelContext<S, V, DM, IDM>,
+    model: RuntimeModel<S, V, DM, IDM>,
 }
 
 impl<S, V, DM, IDM> Construction<S, V, DM, IDM>
@@ -110,7 +110,7 @@ where
     fn new(
         config: Option<ConstructionHeuristicConfig>,
         descriptor: SolutionDescriptor,
-        model: ModelContext<S, V, DM, IDM>,
+        model: RuntimeModel<S, V, DM, IDM>,
     ) -> Self {
         Self {
             config,
@@ -122,7 +122,7 @@ where
     fn solve_list<D, ProgressCb>(
         &self,
         solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
-        list_variables: &[crate::builder::ListVariableContext<S, V, DM, IDM>],
+        list_variables: &[crate::builder::ListVariableSlot<S, V, DM, IDM>],
     ) -> bool
     where
         D: solverforge_scoring::Director<S>,
@@ -132,7 +132,7 @@ where
             panic!("specialized list construction requires explicit configuration");
         };
         if list_variables.is_empty() {
-            panic!("list construction configured against a scalar-only context");
+            panic!("list construction configured against a scalar-only model");
         }
 
         solve_specialized_list_construction(
@@ -293,7 +293,7 @@ where
 pub fn build_phases<S, V, DM, IDM>(
     config: &SolverConfig,
     descriptor: &SolutionDescriptor,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
 ) -> PhaseSequence<
     RuntimePhase<Construction<S, V, DM, IDM>, LocalSearch<S, V, DM, IDM>, Vnd<S, V, DM, IDM>>,
 >

@@ -1,0 +1,5 @@
+error: shadow_variable_updates argument `list_owner` must be a string literal
+ --> tests/ui/fail/shadow_updates_malformed_argument.rs:4:27
+  |
+4 | #[shadow_variable_updates(list_owner = routes)]
+  |                           ^^^^^^^^^^^^^^^^^^^

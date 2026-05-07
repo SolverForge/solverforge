@@ -5,7 +5,7 @@ fn generate_scalar_groups_impl(model: &ModelMetadata) -> TokenStream {
         .as_ref()
         .map(|path| {
             quote! {
-                #path(scalar_variables)
+                ::solverforge::__internal::bind_scalar_groups(#path(), scalar_variables)
             }
         })
         .unwrap_or_else(|| {

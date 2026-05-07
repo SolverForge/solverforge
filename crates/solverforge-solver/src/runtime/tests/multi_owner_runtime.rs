@@ -234,9 +234,9 @@ fn shift_index_to_element(solution: &MultiOwnerSolution, idx: usize) -> usize {
     solution.shift_pool[idx]
 }
 
-fn multi_owner_model() -> ModelContext<MultiOwnerSolution, usize, DefaultMeter, DefaultMeter> {
-    ModelContext::new(vec![
-        VariableContext::List(ListVariableContext::new(
+fn multi_owner_model() -> RuntimeModel<MultiOwnerSolution, usize, DefaultMeter, DefaultMeter> {
+    RuntimeModel::new(vec![
+        VariableSlot::List(ListVariableSlot::new(
             "Route",
             route_element_count,
             assigned_route_elements,
@@ -269,7 +269,7 @@ fn multi_owner_model() -> ModelContext<MultiOwnerSolution, usize, DefaultMeter, 
             None,
             None,
         )),
-        VariableContext::List(ListVariableContext::new(
+        VariableSlot::List(ListVariableSlot::new(
             "Shift",
             shift_element_count,
             assigned_shift_elements,

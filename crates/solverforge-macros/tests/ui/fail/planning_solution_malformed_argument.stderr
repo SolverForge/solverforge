@@ -1,0 +1,5 @@
+error: planning_solution argument `conflict_repairs` must be a string literal
+ --> tests/ui/fail/planning_solution_malformed_argument.rs:3:21
+  |
+3 | #[planning_solution(conflict_repairs = repairs)]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^

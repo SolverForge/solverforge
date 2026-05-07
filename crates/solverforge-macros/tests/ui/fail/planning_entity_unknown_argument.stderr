@@ -1,0 +1,5 @@
+error: unsupported planning_entity argument `debug`; supported arguments are serde
+ --> tests/ui/fail/planning_entity_unknown_argument.rs:3:19
+  |
+3 | #[planning_entity(debug)]
+  |                   ^^^^^

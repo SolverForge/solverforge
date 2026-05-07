@@ -52,7 +52,7 @@ where
 
 pub(crate) fn solve_construction<S, V, DM, IDM, D, ProgressCb>(
     config: Option<&ConstructionHeuristicConfig>,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
 ) -> bool
 where
@@ -92,7 +92,7 @@ where
             matches_target(variable, entity_class, variable_name)
                 && matches!(
                     variable,
-                    VariableContext::Scalar(ctx)
+                    VariableSlot::Scalar(ctx)
                         if ctx.candidate_values.is_none() && value_candidate_limit.is_none()
                 )
         });

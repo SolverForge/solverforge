@@ -82,7 +82,28 @@ fn golden_solution_expansion_embeds_explicit_solver_toml_source() {
 }
 
 #[test]
-fn golden_solution_expansion_binds_owner_specific_list_helpers() {
+fn golden_solution_expansion_binds_conflict_repairs_path() {
+    let input = parse_quote! {
+        #[solverforge_constraints_path = "crate::constraints::create_constraints"]
+        #[solverforge_conflict_repairs_path = "crate::repairs::define_repairs"]
+        struct Plan {
+            #[planning_entity_collection]
+            tasks: Vec<Task>,
+            #[planning_score]
+            score: Option<HardSoftScore>,
+        }
+    };
+
+    let expanded = expand_derive(input)
+        .expect("solution expansion should succeed")
+        .to_string();
+
+    assert!(expanded.contains("crate :: repairs :: define_repairs"));
+    assert!(expanded.contains("with_conflict_repairs"));
+}
+
+#[test]
+fn golden_solution_expansion_binds_private_list_runtime_helpers() {
     let input = parse_quote! {
         #[solverforge_constraints_path = "crate::constraints::create_constraints"]
         struct Plan {

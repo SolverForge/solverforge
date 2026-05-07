@@ -2,10 +2,13 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput, ItemStruct};
 
-use crate::attr_parse::{has_serde_flag, parse_solution_flags};
+use crate::attr_validation::{parse_serde_flag, parse_solution_flags};
 
 pub(crate) fn planning_entity_attr(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let has_serde = has_serde_flag(attr);
+    let has_serde = match parse_serde_flag(attr.into(), "planning_entity") {
+        Ok(has_serde) => has_serde,
+        Err(error) => return error.to_compile_error().into(),
+    };
     let input = parse_macro_input!(item as ItemStruct);
     let name = &input.ident;
     let vis = &input.vis;
@@ -28,7 +31,10 @@ pub(crate) fn planning_entity_attr(attr: TokenStream, item: TokenStream) -> Toke
 }
 
 pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let flags = parse_solution_flags(attr);
+    let flags = match parse_solution_flags(attr.into()) {
+        Ok(flags) => flags,
+        Err(error) => return error.to_compile_error().into(),
+    };
     let input = parse_macro_input!(item as ItemStruct);
     let name = &input.ident;
     let vis = &input.vis;
@@ -51,9 +57,9 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
     let solver_toml_attr = flags
         .solver_toml_path
         .map(|p| quote! { #[solverforge_solver_toml_path = #p] });
-    let conflict_repair_providers_attr = flags
-        .conflict_repair_providers_path
-        .map(|p| quote! { #[solverforge_conflict_repair_providers_path = #p] });
+    let conflict_repairs_attr = flags
+        .conflict_repairs_path
+        .map(|p| quote! { #[solverforge_conflict_repairs_path = #p] });
     let scalar_groups_attr = flags
         .scalar_groups_path
         .map(|p| quote! { #[solverforge_scalar_groups_path = #p] });
@@ -63,7 +69,7 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
         #constraints_attr
         #config_attr
         #solver_toml_attr
-        #conflict_repair_providers_attr
+        #conflict_repairs_attr
         #scalar_groups_attr
         #(#attrs)*
         #vis struct #name #generics #fields
@@ -72,7 +78,10 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
 }
 
 pub(crate) fn problem_fact_attr(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let has_serde = has_serde_flag(attr);
+    let has_serde = match parse_serde_flag(attr.into(), "problem_fact") {
+        Ok(has_serde) => has_serde,
+        Err(error) => return error.to_compile_error().into(),
+    };
     let input = parse_macro_input!(item as ItemStruct);
     let name = &input.ident;
     let vis = &input.vis;

@@ -16,7 +16,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::{ListClarkeWrightPhase, ListKOptPhase};
-use crate::builder::ListVariableContext;
+use crate::builder::ListVariableSlot;
 use crate::phase::Phase;
 use crate::scope::{ProgressCallback, SolverScope};
 
@@ -29,10 +29,7 @@ pub use cheapest::ListCheapestInsertionPhase;
 pub use regret::ListRegretInsertionPhase;
 pub use round_robin::{ListConstructionPhase, ListConstructionPhaseBuilder};
 
-fn list_work_remaining<S, V, DM, IDM>(
-    ctx: &ListVariableContext<S, V, DM, IDM>,
-    solution: &S,
-) -> bool
+fn list_work_remaining<S, V, DM, IDM>(ctx: &ListVariableSlot<S, V, DM, IDM>, solution: &S) -> bool
 where
     S: PlanningSolution,
     V: Copy + PartialEq + Eq + Hash + Send + Sync + 'static,
@@ -44,7 +41,7 @@ pub(crate) fn solve_specialized_list_construction<S, V, DM, IDM, D, ProgressCb>(
     heuristic: ConstructionHeuristicType,
     k: usize,
     solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
-    list_variables: &[ListVariableContext<S, V, DM, IDM>],
+    list_variables: &[ListVariableSlot<S, V, DM, IDM>],
 ) -> bool
 where
     S: PlanningSolution,
@@ -63,7 +60,7 @@ where
 
         match heuristic {
             ConstructionHeuristicType::ListRoundRobin => {
-                ListConstructionPhase::from_variable_context(ctx).solve(solver_scope);
+                ListConstructionPhase::from_variable_slot(ctx).solve(solver_scope);
             }
             ConstructionHeuristicType::ListCheapestInsertion => {
                 ListCheapestInsertionPhase::new(

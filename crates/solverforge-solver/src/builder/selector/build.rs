@@ -1,6 +1,6 @@
 fn build_leaf_selector<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
 ) -> LeafSelector<S, V, DM, IDM>
 where
@@ -89,7 +89,7 @@ where
     assert!(
         !leaves.is_empty(),
         "move selector configuration produced no neighborhoods \
-         (scalar_contexts_present={}, list_contexts_present={}, requested_selector_family={})",
+         (scalar_slots_present={}, list_slots_present={}, requested_selector_family={})",
         model.scalar_variables().next().is_some(),
         model.has_list_variables(),
         selector_family_name(config),
@@ -103,7 +103,7 @@ where
 
 fn build_cartesian_child_selector<S, V, DM, IDM>(
     config: &MoveSelectorConfig,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
 ) -> CartesianChildSelector<S, V, DM, IDM>
 where
@@ -168,7 +168,7 @@ fn default_list_reverse_selector() -> MoveSelectorConfig {
 }
 
 fn collect_default_neighborhoods<S, V, DM, IDM>(
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
     out: &mut Vec<Neighborhood<S, V, DM, IDM>>,
 ) where
@@ -219,7 +219,7 @@ fn collect_default_neighborhoods<S, V, DM, IDM>(
 
 fn collect_neighborhoods<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
     out: &mut Vec<Neighborhood<S, V, DM, IDM>>,
 ) where
@@ -281,7 +281,7 @@ fn collect_neighborhoods<S, V, DM, IDM>(
 
 pub fn build_move_selector<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
 ) -> Selector<S, V, DM, IDM>
 where
@@ -295,7 +295,7 @@ where
     assert!(
         !neighborhoods.is_empty(),
         "move selector configuration produced no neighborhoods \
-         (scalar_contexts_present={}, list_contexts_present={}, requested_selector_family={})",
+         (scalar_slots_present={}, list_slots_present={}, requested_selector_family={})",
         model.scalar_variables().next().is_some(),
         model.has_list_variables(),
         selector_family_name(config),
@@ -309,7 +309,7 @@ where
 
 pub fn build_local_search<S, V, DM, IDM>(
     config: Option<&LocalSearchConfig>,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
 ) -> LocalSearch<S, V, DM, IDM>
 where
@@ -364,7 +364,7 @@ where
 
 pub fn build_vnd<S, V, DM, IDM>(
     config: &VndConfig,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
 ) -> Vnd<S, V, DM, IDM>
 where

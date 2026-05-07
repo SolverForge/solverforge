@@ -109,10 +109,10 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                     }
                 });
                 runtime_attachments.push(quote! {
-                    if context.descriptor_index == #descriptor_index
-                        && context.variable_name == #variable_name
+                    if slot.descriptor_index == #descriptor_index
+                        && slot.variable_name == #variable_name
                     {
-                        context = context.with_candidate_values(#runtime_helper);
+                        slot = slot.with_candidate_values(#runtime_helper);
                     }
                 });
             }
@@ -160,10 +160,10 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                     }
                 });
                 runtime_attachments.push(quote! {
-                    if context.descriptor_index == #descriptor_index
-                        && context.variable_name == #variable_name
+                    if slot.descriptor_index == #descriptor_index
+                        && slot.variable_name == #variable_name
                     {
-                        context = context.with_nearby_value_candidates(#runtime_helper);
+                        slot = slot.with_nearby_value_candidates(#runtime_helper);
                     }
                 });
             }
@@ -211,10 +211,10 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                     }
                 });
                 runtime_attachments.push(quote! {
-                    if context.descriptor_index == #descriptor_index
-                        && context.variable_name == #variable_name
+                    if slot.descriptor_index == #descriptor_index
+                        && slot.variable_name == #variable_name
                     {
-                        context = context.with_nearby_entity_candidates(#runtime_helper);
+                        slot = slot.with_nearby_entity_candidates(#runtime_helper);
                     }
                 });
             }
@@ -265,10 +265,10 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                     }
                 });
                 runtime_attachments.push(quote! {
-                    if context.descriptor_index == #descriptor_index
-                        && context.variable_name == #variable_name
+                    if slot.descriptor_index == #descriptor_index
+                        && slot.variable_name == #variable_name
                     {
-                        context = context.with_nearby_value_distance_meter(#runtime_helper);
+                        slot = slot.with_nearby_value_distance_meter(#runtime_helper);
                     }
                 });
             }
@@ -321,10 +321,10 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                     }
                 });
                 runtime_attachments.push(quote! {
-                    if context.descriptor_index == #descriptor_index
-                        && context.variable_name == #variable_name
+                    if slot.descriptor_index == #descriptor_index
+                        && slot.variable_name == #variable_name
                     {
-                        context = context.with_nearby_entity_distance_meter(#runtime_helper);
+                        slot = slot.with_nearby_entity_distance_meter(#runtime_helper);
                     }
                 });
             }
@@ -373,10 +373,10 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                     }
                 });
                 runtime_attachments.push(quote! {
-                    if context.descriptor_index == #descriptor_index
-                        && context.variable_name == #variable_name
+                    if slot.descriptor_index == #descriptor_index
+                        && slot.variable_name == #variable_name
                     {
-                        context = context.with_construction_entity_order_key(#runtime_helper);
+                        slot = slot.with_construction_entity_order_key(#runtime_helper);
                     }
                 });
             }
@@ -427,10 +427,10 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                     }
                 });
                 runtime_attachments.push(quote! {
-                    if context.descriptor_index == #descriptor_index
-                        && context.variable_name == #variable_name
+                    if slot.descriptor_index == #descriptor_index
+                        && slot.variable_name == #variable_name
                     {
-                        context = context.with_construction_value_order_key(#runtime_helper);
+                        slot = slot.with_construction_value_order_key(#runtime_helper);
                     }
                 });
             }
@@ -469,16 +469,16 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
             }
 
             fn attach_runtime_scalar_hooks(
-                mut context: ::solverforge::__internal::ScalarVariableContext<Self>,
-            ) -> ::solverforge::__internal::ScalarVariableContext<Self> {
+                mut slot: ::solverforge::__internal::ScalarVariableSlot<Self>,
+            ) -> ::solverforge::__internal::ScalarVariableSlot<Self> {
                 #(#runtime_helpers)*
                 #(#runtime_attachments)*
-                context
+                slot
             }
 
             fn attach_scalar_groups(
-                scalar_variables: &[::solverforge::__internal::ScalarVariableContext<Self>],
-            ) -> ::std::vec::Vec<::solverforge::__internal::ScalarGroupContext<Self>> {
+                scalar_variables: &[::solverforge::__internal::ScalarVariableSlot<Self>],
+            ) -> ::std::vec::Vec<::solverforge::__internal::ScalarGroupBinding<Self>> {
                 #scalar_groups_impl
             }
 

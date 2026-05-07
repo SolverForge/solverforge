@@ -1,6 +1,6 @@
 #[derive(Clone, Copy)]
 pub struct PillarChangeLeafSelector<S> {
-    ctx: ScalarVariableContext<S>,
+    ctx: ScalarVariableSlot<S>,
     minimum_sub_pillar_size: usize,
     maximum_sub_pillar_size: usize,
     value_candidate_limit: Option<usize>,
@@ -99,7 +99,7 @@ where
 
 #[derive(Clone, Copy)]
 pub struct PillarSwapLeafSelector<S> {
-    ctx: ScalarVariableContext<S>,
+    ctx: ScalarVariableSlot<S>,
     minimum_sub_pillar_size: usize,
     maximum_sub_pillar_size: usize,
 }

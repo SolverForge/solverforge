@@ -5,35 +5,34 @@ use solverforge_config::{
 };
 use solverforge_scoring::ConstraintMetadata;
 
-use crate::builder::context::{
-    ConflictRepairEdit, ConflictRepairLimits, ConflictRepairProviderEntry, ScalarVariableContext,
-};
+use crate::builder::context::{ConflictRepair, RepairLimits, ScalarVariableSlot};
 use crate::heuristic::r#move::{CompoundScalarEdit, CompoundScalarMove};
 use crate::heuristic::selector::move_selector::CandidateStore;
+use crate::planning::ScalarEdit;
 
 pub struct ConflictRepairSelector<S> {
     config: ConflictRepairMoveSelectorConfig,
-    scalar_variables: Vec<ScalarVariableContext<S>>,
-    providers: Vec<ConflictRepairProviderEntry<S>>,
+    scalar_variables: Vec<ScalarVariableSlot<S>>,
+    repairs: Vec<ConflictRepair<S>>,
 }
 
 impl<S> ConflictRepairSelector<S> {
     pub fn new(
         config: ConflictRepairMoveSelectorConfig,
-        scalar_variables: Vec<ScalarVariableContext<S>>,
-        providers: Vec<ConflictRepairProviderEntry<S>>,
+        scalar_variables: Vec<ScalarVariableSlot<S>>,
+        repairs: Vec<ConflictRepair<S>>,
     ) -> Self {
         Self {
             config,
             scalar_variables,
-            providers,
+            repairs,
         }
     }
 
     pub fn new_compound(
         config: CompoundConflictRepairMoveSelectorConfig,
-        scalar_variables: Vec<ScalarVariableContext<S>>,
-        providers: Vec<ConflictRepairProviderEntry<S>>,
+        scalar_variables: Vec<ScalarVariableSlot<S>>,
+        repairs: Vec<ConflictRepair<S>>,
     ) -> Self {
         Self {
             config: ConflictRepairMoveSelectorConfig {
@@ -45,21 +44,22 @@ impl<S> ConflictRepairSelector<S> {
                 include_soft_matches: config.include_soft_matches,
             },
             scalar_variables,
-            providers,
+            repairs,
         }
     }
 
-    fn limits(&self) -> ConflictRepairLimits {
-        ConflictRepairLimits {
+    fn limits(&self) -> RepairLimits {
+        RepairLimits {
             max_matches_per_step: self.config.max_matches_per_step,
             max_repairs_per_match: self.config.max_repairs_per_match,
             max_moves_per_step: self.config.max_moves_per_step,
         }
     }
 
-    fn variable_for_edit(&self, edit: &ConflictRepairEdit) -> Option<ScalarVariableContext<S>> {
+    fn variable_for_edit(&self, edit: &ScalarEdit<S>) -> Option<ScalarVariableSlot<S>> {
         self.scalar_variables.iter().copied().find(|ctx| {
-            ctx.descriptor_index == edit.descriptor_index && ctx.variable_name == edit.variable_name
+            ctx.descriptor_index == edit.descriptor_index()
+                && ctx.variable_name == edit.variable_name()
         })
     }
 
@@ -181,41 +181,41 @@ where
         let mut seen = HashSet::new();
 
         for constraint_name in &self.config.constraints {
-            for provider in self
-                .providers
+            for repair in self
+                .repairs
                 .iter()
-                .filter(|provider| provider.constraint_name == constraint_name)
+                .filter(|repair| repair.constraint_name() == constraint_name)
             {
-                for spec in (provider.provider)(solution, limits)
+                for spec in (repair.provider())(solution, limits)
                     .into_iter()
                     .take(self.config.max_repairs_per_match)
                 {
                     if store.len() >= self.config.max_moves_per_step {
                         return ConflictRepairCursor::new(store);
                     }
-                    if spec.edits.is_empty()
-                        || spec_has_duplicate_scalar_targets(&spec.edits)
+                    if spec.edits().is_empty()
+                        || spec_has_duplicate_scalar_targets(spec.edits())
                         || !seen.insert(spec.clone())
                     {
                         continue;
                     }
-                    let mut edits = Vec::with_capacity(spec.edits.len());
+                    let mut edits = Vec::with_capacity(spec.edits().len());
                     let mut legal = true;
-                    for edit in &spec.edits {
+                    for edit in spec.edits() {
                         let Some(ctx) = self.variable_for_edit(edit) else {
                             legal = false;
                             break;
                         };
-                        if !ctx.value_is_legal(solution, edit.entity_index, edit.to_value) {
+                        if !ctx.value_is_legal(solution, edit.entity_index(), edit.to_value()) {
                             legal = false;
                             break;
                         }
                         edits.push(CompoundScalarEdit {
                             descriptor_index: ctx.descriptor_index,
-                            entity_index: edit.entity_index,
+                            entity_index: edit.entity_index(),
                             variable_index: ctx.variable_index,
                             variable_name: ctx.variable_name,
-                            to_value: edit.to_value,
+                            to_value: edit.to_value(),
                             getter: ctx.getter,
                             setter: ctx.setter,
                             value_is_legal: None,
@@ -223,7 +223,7 @@ where
                     }
                     if legal {
                         let mov = CompoundScalarMove::with_label(
-                            spec.reason,
+                            spec.reason(),
                             "conflict_repair",
                             edits,
                         )
@@ -242,9 +242,13 @@ where
     }
 }
 
-fn spec_has_duplicate_scalar_targets(edits: &[ConflictRepairEdit]) -> bool {
+fn spec_has_duplicate_scalar_targets<S>(edits: &[ScalarEdit<S>]) -> bool {
     let mut targets = HashSet::new();
-    edits
-        .iter()
-        .any(|edit| !targets.insert((edit.descriptor_index, edit.entity_index, edit.variable_name)))
+    edits.iter().any(|edit| {
+        !targets.insert((
+            edit.descriptor_index(),
+            edit.entity_index(),
+            edit.variable_name(),
+        ))
+    })
 }

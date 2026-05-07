@@ -24,7 +24,7 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── runtime.rs                           — Runtime assembly and target matching over `ModelContext`; routes scalar-only construction through the descriptor boundary, routes named grouped scalar construction through the atomic grouped-scalar builder, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
+├── runtime.rs                           — Runtime assembly and target matching over `RuntimeModel`; routes scalar-only construction through the descriptor boundary, routes named grouped scalar construction through the atomic grouped-scalar builder, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
 ├── model_support.rs                     — Hidden `PlanningModelSupport` trait implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model validation, and shadow updates
 ├── runtime/
 │   ├── tests.rs                         — Runtime construction routing and target-validation tests
@@ -46,14 +46,14 @@ src/
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
 │   ├── acceptor/tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
-│   ├── context.rs                       — ModelContext<S, V, DM, IDM>, VariableContext<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar metadata, ScalarGroupContext<S>, grouped scalar candidate metadata, expanded scalar/list construction capability hooks
-│   ├── context/*.rs                     — Model, list, conflict-repair, and scalar context implementation chunks
-│   ├── context/scalar/mod.rs            — Scalar context module root and public re-exports
-│   ├── context/scalar/*.rs              — Scalar value-source, scalar variable, and grouped scalar context definitions
-│   ├── scalar_selector.rs               — Canonical scalar selector assembly over index-addressed scalar contexts, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
+│   ├── context.rs                       — RuntimeModel<S, V, DM, IDM>, VariableSlot<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar slots, internal ScalarGroupBinding<S>, grouped scalar candidate metadata, expanded scalar/list construction capability hooks
+│   ├── context/*.rs                     — Model, list, conflict-repair, and scalar slot implementation chunks
+│   ├── context/scalar/mod.rs            — Scalar slot module root and internal re-exports
+│   ├── context/scalar/*.rs              — Scalar value-source, scalar variable-slot, and grouped scalar binding definitions
+│   ├── scalar_selector.rs               — Canonical scalar selector assembly over index-addressed scalar slots, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
 │   ├── scalar_selector/*.rs             — Scalar value, leaf, dispatch, and build chunks
 │   ├── scalar_selector/tests.rs         — Scalar selector test root with change/swap, nearby/ruin, pillar, and cartesian chunks
-│   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published ModelContext variable contexts
+│   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published RuntimeModel variable slots
 │   ├── selector/*.rs                    — Mixed scalar/list neighborhood move, grouped scalar selector, conflict repair selector, family classification, and builder chunks
 │   ├── selector/types/*.rs              — Neighborhood leaf, composite, cursor, and union types used by selector assembly
 │   ├── selector/tests.rs                — Mixed selector test root with support, defaults, grouped scalar, cartesian, and phase chunks
@@ -204,7 +204,7 @@ src/
 │   │   ├── placer/tests.rs              — Tests
 │   │   ├── slot.rs                      — ConstructionSlotId, exact-keyed ConstructionGroupSlotId, ConstructionGroupSlotKey, and ConstructionListElementId for construction frontier tracking
 │   │   ├── capabilities.rs              — Shared heuristic-to-capability routing and early validation for scalar/list/grouped-scalar construction
-│   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroupContext candidates
+│   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroup candidates bound to runtime scalar slots
 │   │   ├── grouped_scalar/*.rs          — Grouped construction candidate normalization, selection semantics, compound move building, and phase loop
 │   │   ├── engine.rs                    — Canonical generic scalar/list/mixed construction engine used by runtime assembly
 │   │   └── engine/*.rs                  — Generic construction candidate, scan, commit, and target-matching chunks
@@ -692,7 +692,7 @@ and provider registration keys must match the configured key exactly.
 
 **`RuinVariableAccess<S, V>`** — `selector/ruin.rs`. Scalar-variable access bundle for `RuinMoveSelector::new(min, max, access)`: entity count, getter, setter, variable index, variable name, and descriptor index.
 
-**`ScalarVariableContext<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the monomorphized runtime. The compact scalar `variable_index` is the generated getter/setter dispatch index; hook attachment, descriptor ordering, and user-facing target matching use descriptor index plus variable name, with the canonical entity type name kept for target matching and diagnostics. Getter, setter, and entity-local value sources receive the scalar variable index so selector hot paths do not need descriptor-erased access. In addition to value-source hooks it carries optional nearby hooks and scalar construction order-key hooks via builder-style methods:
+**`ScalarVariableSlot<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the monomorphized runtime. The compact scalar `variable_index` is the generated getter/setter dispatch index; hook attachment, descriptor ordering, and user-facing target matching use descriptor index plus variable name, with the canonical entity type name kept for target matching and diagnostics. Getter, setter, and entity-local value sources receive the scalar variable index so selector hot paths do not need descriptor-erased access. In addition to value-source hooks it carries optional nearby hooks and scalar construction order-key hooks via builder-style methods:
 - `with_candidate_values(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for bounded scalar value candidates
 - `with_nearby_value_candidates(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for nearby scalar change
 - `with_nearby_entity_candidates(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for nearby scalar swap
@@ -709,10 +709,12 @@ ordinary local-search change, pillar, and ruin/recreate selectors use canonical
 bounded candidate order and do not reorder candidates from
 `construction_value_order_key`.
 
-**`ScalarGroupContext<S>`** — `builder/context.rs`. Named model-owned scalar
-group used by grouped construction and grouped local-search selectors. Each
-group declares real scalar members through `ScalarGroupMember<S>` and a
-candidate provider returning `ScalarGroupCandidate` values. A candidate is
+**`ScalarGroup<S>` / `ScalarGroupBinding<S>`** — `planning/scalar.rs` and
+`builder/context.rs`. `ScalarGroup<S>` is the public model-owned declaration
+used by grouped construction and grouped local-search selectors. It declares
+real scalar targets through `ScalarTarget<S>` and a candidate provider returning
+`ScalarCandidate<S>` values. Macro/runtime assembly binds those public targets
+to internal `ScalarGroupBinding<S>` values before phase construction. A candidate is
 applied as one `CompoundScalarMove<S>` after framework legality, duplicate, and
 not-doable checks. Grouped construction is opt-in by `ConstructionHeuristicConfig
 { group_name }`; without a group name scalar construction remains single-slot.
@@ -721,7 +723,7 @@ not-doable checks. Grouped construction is opt-in by `ConstructionHeuristicConfi
 `value_candidate_limit` to providers and applies `group_candidate_limit` after
 framework normalization, while grouped local search passes
 `max_moves_per_step`.
-`ScalarGroupCandidate` exposes construction metadata with
+`ScalarCandidate` exposes construction metadata with
 `with_construction_slot_key(usize)`,
 `with_construction_entity_order_key(i64)`, and
 `with_construction_value_order_key(i64)`. Grouped construction uses an explicit
@@ -740,7 +742,7 @@ sorted set of scalar target slots touched by the candidate.
 
 Runtime routing is capability-driven:
 - scalar-only `FirstFit` and `CheapestInsertion` use the descriptor boundary
-- named grouped scalar construction uses the explicit `ScalarGroupContext` route and applies all candidate edits atomically
+- named grouped scalar construction uses explicit `ScalarGroup` declarations bound to runtime scalar slots and applies all candidate edits atomically
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
 - list-only heuristics validate required `cw_*` or `k_opt_*` hooks before phase build
 - generic mixed construction stays in the canonical engine
@@ -984,16 +986,16 @@ selector diagnosis.
 Runtime helpers:
 
 - `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
-- `Construction<S, V, DM, IDM>` — runtime construction phase over one `ModelContext`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, use the descriptor boundary for scalar-only targets, use grouped scalar construction when `group_name` selects a registered `ScalarGroupContext`, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations. Grouped construction receives all resolved scalar bindings for legality even when the phase target narrows which members must still need work.
+- `Construction<S, V, DM, IDM>` — runtime construction phase over one `RuntimeModel`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, use the descriptor boundary for scalar-only targets, use grouped scalar construction when `group_name` selects a registered `ScalarGroup`, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations. Grouped construction receives all resolved scalar bindings for legality even when the phase target narrows which members must still need work.
 - `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
-- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `ModelContext`
+- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `RuntimeModel`
 - `PlanningModelSupport` — hidden support trait with no default impl; generated by
   `planning_model!` so solution derives can attach descriptor hooks,
   runtime scalar hooks, scalar groups, validate the manifest-backed model, and delegate
   list-shadow updates without proc-macro registries
 
-Scalar-only, list-only, and mixed planning models now target the same canonical runtime layer through `ModelContext`. Generic construction order is the descriptor-backed variable order emitted by the macros, and scalar runtime assembly does not depend on Rust module declaration order. Scalar construction is single-slot by default; grouped scalar construction is explicit, named, and atomic. Specialized list heuristics remain explicit non-generic phases.
+Scalar-only, list-only, and mixed planning models now target the same canonical runtime layer through `RuntimeModel`. Generic construction order is the descriptor-backed variable order emitted by the macros, and scalar runtime assembly does not depend on Rust module declaration order. Scalar construction is single-slot by default; grouped scalar construction is explicit, named, and atomic. Specialized list heuristics remain explicit non-generic phases.
 
 ### `AnyTermination` / `build_termination()` — `run.rs`
 
@@ -1016,12 +1018,12 @@ Canonical solve entrypoints used by macro-generated solving. They accept generat
 ## Architectural Notes
 
 - **Zero-erasure throughout.** All moves, selectors, phases, acceptors, foragers, and terminations are fully monomorphized via generics. No `Box<dyn Trait>` or `Arc` in hot paths.
-- **Runtime selectors.** `builder/selector.rs` consumes the monomorphized `ModelContext` published by macro/runtime assembly and does not synthesize scalar neighborhoods from descriptor bindings.
+- **Runtime selectors.** `builder/selector.rs` consumes the monomorphized `RuntimeModel` published by macro/runtime assembly and does not synthesize scalar neighborhoods from descriptor bindings.
 - **Grouped scalar is explicit.** Nullable scalar variables that must change together use declared scalar groups and compound scalar moves. The solver does not infer groups from unrelated nullable variables.
 - **Compound repair is framework-owned.** Conflict repair providers produce domain edit hints, while the selector layer enforces limits, legality, not-doable filtering, hard-improvement filtering, telemetry, affected-entity reporting, and tabu identity.
 - **Cartesian stays sequential.** Cartesian selectors compose exactly two child selectors over a preview state. They are not a general atomic grouped-search facility.
-- **Projected scoring rows are never planning entities.** Streams created with `.project(...)` are scoring-only internal cache rows owned by scoring constraints. They are not surfaced in `ModelContext`, value ranges, construction heuristics, or move selectors.
-- **Explicit descriptor boundary.** Construction and selector assembly for scalar-only targets live under `descriptor/*`; canonical local search stays on the monomorphized `ModelContext`, while descriptor selectors are only for callers that intentionally choose that boundary.
+- **Projected scoring rows are never planning entities.** Streams created with `.project(...)` are scoring-only internal cache rows owned by scoring constraints. They are not surfaced in `RuntimeModel`, value ranges, construction heuristics, or move selectors.
+- **Explicit descriptor boundary.** Construction and selector assembly for scalar-only targets live under `descriptor/*`; canonical local search stays on the monomorphized `RuntimeModel`, while descriptor selectors are only for callers that intentionally choose that boundary.
 - **Function pointer storage.** Moves and selectors store index-aware `fn` pointers (e.g., `fn(&S, usize, usize) -> Option<V>`) instead of trait objects for solution access.
 - **PhantomData<fn() -> T>** pattern used in all move types to avoid inheriting Clone/Send/Sync bounds from phantom type parameters.
 - **SmallVec<[usize; 8]>** used in RuinMove and ListRuinMove for stack-allocated small ruin counts.

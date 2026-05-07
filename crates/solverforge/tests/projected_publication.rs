@@ -43,9 +43,9 @@ impl solverforge::__internal::PlanningModelSupport for Plan {
     fn attach_descriptor_hooks(_descriptor: &mut solverforge::__internal::SolutionDescriptor) {}
 
     fn attach_runtime_scalar_hooks(
-        context: solverforge::__internal::ScalarVariableContext<Self>,
-    ) -> solverforge::__internal::ScalarVariableContext<Self> {
-        context
+        slot: solverforge::__internal::ScalarVariableSlot<Self>,
+    ) -> solverforge::__internal::ScalarVariableSlot<Self> {
+        slot
     }
 
     fn validate_model(_descriptor: &solverforge::__internal::SolutionDescriptor) {}

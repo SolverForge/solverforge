@@ -1,78 +1,11 @@
 use std::fmt;
 
+use crate::planning::{ScalarCandidateProvider, ScalarEdit, ScalarGroup};
+
 use super::value_source::ValueSource;
-use super::variable::{ScalarGetter, ScalarSetter, ScalarVariableContext};
+use super::variable::{ScalarGetter, ScalarSetter, ScalarVariableSlot};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ScalarGroupLimits {
-    pub value_candidate_limit: Option<usize>,
-    pub group_candidate_limit: Option<usize>,
-    pub max_moves_per_step: Option<usize>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ScalarGroupEdit {
-    pub descriptor_index: usize,
-    pub entity_index: usize,
-    pub variable_name: &'static str,
-    pub to_value: Option<usize>,
-}
-
-impl ScalarGroupEdit {
-    pub fn set_scalar(
-        descriptor_index: usize,
-        entity_index: usize,
-        variable_name: &'static str,
-        to_value: Option<usize>,
-    ) -> Self {
-        Self {
-            descriptor_index,
-            entity_index,
-            variable_name,
-            to_value,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ScalarGroupCandidate {
-    pub reason: &'static str,
-    pub edits: Vec<ScalarGroupEdit>,
-    pub construction_slot_key: Option<usize>,
-    pub construction_entity_order_key: Option<i64>,
-    pub construction_value_order_key: Option<i64>,
-}
-
-impl ScalarGroupCandidate {
-    pub fn new(reason: &'static str, edits: Vec<ScalarGroupEdit>) -> Self {
-        Self {
-            reason,
-            edits,
-            construction_slot_key: None,
-            construction_entity_order_key: None,
-            construction_value_order_key: None,
-        }
-    }
-
-    pub fn with_construction_slot_key(mut self, key: usize) -> Self {
-        self.construction_slot_key = Some(key);
-        self
-    }
-
-    pub fn with_construction_entity_order_key(mut self, key: i64) -> Self {
-        self.construction_entity_order_key = Some(key);
-        self
-    }
-
-    pub fn with_construction_value_order_key(mut self, key: i64) -> Self {
-        self.construction_value_order_key = Some(key);
-        self
-    }
-}
-
-pub type ScalarGroupCandidateProvider<S> = fn(&S, ScalarGroupLimits) -> Vec<ScalarGroupCandidate>;
-
-pub struct ScalarGroupMember<S> {
+pub struct ScalarGroupMemberBinding<S> {
     pub descriptor_index: usize,
     pub variable_index: usize,
     pub entity_type_name: &'static str,
@@ -83,25 +16,25 @@ pub struct ScalarGroupMember<S> {
     pub allows_unassigned: bool,
 }
 
-impl<S> Clone for ScalarGroupMember<S> {
+impl<S> Clone for ScalarGroupMemberBinding<S> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<S> Copy for ScalarGroupMember<S> {}
+impl<S> Copy for ScalarGroupMemberBinding<S> {}
 
-impl<S> ScalarGroupMember<S> {
-    pub fn from_scalar_context(context: ScalarVariableContext<S>) -> Self {
+impl<S> ScalarGroupMemberBinding<S> {
+    pub fn from_scalar_slot(slot: ScalarVariableSlot<S>) -> Self {
         Self {
-            descriptor_index: context.descriptor_index,
-            variable_index: context.variable_index,
-            entity_type_name: context.entity_type_name,
-            variable_name: context.variable_name,
-            getter: context.getter,
-            setter: context.setter,
-            value_source: context.value_source,
-            allows_unassigned: context.allows_unassigned,
+            descriptor_index: slot.descriptor_index,
+            variable_index: slot.variable_index,
+            entity_type_name: slot.entity_type_name,
+            variable_name: slot.variable_name,
+            getter: slot.getter,
+            setter: slot.setter,
+            value_source: slot.value_source,
+            allows_unassigned: slot.allows_unassigned,
         }
     }
 
@@ -132,9 +65,9 @@ impl<S> ScalarGroupMember<S> {
     }
 }
 
-impl<S> fmt::Debug for ScalarGroupMember<S> {
+impl<S> fmt::Debug for ScalarGroupMemberBinding<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ScalarGroupMember")
+        f.debug_struct("ScalarGroupMemberBinding")
             .field("descriptor_index", &self.descriptor_index)
             .field("variable_index", &self.variable_index)
             .field("entity_type_name", &self.entity_type_name)
@@ -145,34 +78,55 @@ impl<S> fmt::Debug for ScalarGroupMember<S> {
     }
 }
 
-pub struct ScalarGroupContext<S> {
+pub struct ScalarGroupBinding<S> {
     pub group_name: &'static str,
-    pub members: Vec<ScalarGroupMember<S>>,
-    pub candidate_provider: ScalarGroupCandidateProvider<S>,
+    pub members: Vec<ScalarGroupMemberBinding<S>>,
+    pub candidate_provider: ScalarCandidateProvider<S>,
 }
 
-impl<S> ScalarGroupContext<S> {
-    pub fn new(
-        group_name: &'static str,
-        members: Vec<ScalarGroupMember<S>>,
-        candidate_provider: ScalarGroupCandidateProvider<S>,
-    ) -> Self {
+impl<S> ScalarGroupBinding<S> {
+    pub fn bind(group: ScalarGroup<S>, scalar_slots: &[ScalarVariableSlot<S>]) -> Self {
+        let members = group
+            .targets()
+            .iter()
+            .map(|target| {
+                let descriptor_index = target.descriptor_index();
+                let variable_name = target.variable_name();
+                let slot = scalar_slots
+                    .iter()
+                    .copied()
+                    .find(|slot| {
+                        slot.descriptor_index == descriptor_index
+                            && slot.variable_name == variable_name
+                    })
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "scalar group `{}` targets unknown scalar variable `{}` on descriptor {}",
+                            group.group_name(),
+                            variable_name,
+                            descriptor_index
+                        )
+                    });
+                ScalarGroupMemberBinding::from_scalar_slot(slot)
+            })
+            .collect();
+
         Self {
-            group_name,
+            group_name: group.group_name(),
             members,
-            candidate_provider,
+            candidate_provider: group.candidate_provider(),
         }
     }
 
-    pub fn member_for_edit(&self, edit: &ScalarGroupEdit) -> Option<ScalarGroupMember<S>> {
+    pub fn member_for_edit(&self, edit: &ScalarEdit<S>) -> Option<ScalarGroupMemberBinding<S>> {
         self.members.iter().copied().find(|member| {
-            member.descriptor_index == edit.descriptor_index
-                && member.variable_name == edit.variable_name
+            member.descriptor_index == edit.descriptor_index()
+                && member.variable_name == edit.variable_name()
         })
     }
 }
 
-impl<S> Clone for ScalarGroupContext<S> {
+impl<S> Clone for ScalarGroupBinding<S> {
     fn clone(&self) -> Self {
         Self {
             group_name: self.group_name,
@@ -182,11 +136,21 @@ impl<S> Clone for ScalarGroupContext<S> {
     }
 }
 
-impl<S> fmt::Debug for ScalarGroupContext<S> {
+impl<S> fmt::Debug for ScalarGroupBinding<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ScalarGroupContext")
+        f.debug_struct("ScalarGroupBinding")
             .field("group_name", &self.group_name)
             .field("members", &self.members)
             .finish_non_exhaustive()
     }
+}
+
+pub fn bind_scalar_groups<S>(
+    groups: Vec<ScalarGroup<S>>,
+    scalar_slots: &[ScalarVariableSlot<S>],
+) -> Vec<ScalarGroupBinding<S>> {
+    groups
+        .into_iter()
+        .map(|group| ScalarGroupBinding::bind(group, scalar_slots))
+        .collect()
 }

@@ -13,7 +13,7 @@ impl<S, T: CrossEntityDistanceMeter<S>> ListPositionDistanceMeter<S> for IntraDi
     }
 }
 
-pub struct ListVariableContext<S, V, DM, IDM> {
+pub struct ListVariableSlot<S, V, DM, IDM> {
     pub entity_type_name: &'static str,
     pub element_count: fn(&S) -> usize,
     pub assigned_elements: fn(&S) -> Vec<V>,
@@ -48,7 +48,7 @@ pub struct ListVariableContext<S, V, DM, IDM> {
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableContext<S, V, DM, IDM> {
+impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
     fn clone(&self) -> Self {
         Self {
             entity_type_name: self.entity_type_name,
@@ -87,7 +87,7 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableContext<S, V, DM, IDM> {
     }
 }
 
-impl<S, V, DM, IDM> ListVariableContext<S, V, DM, IDM> {
+impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_type_name: &'static str,
@@ -164,9 +164,9 @@ impl<S, V, DM, IDM> ListVariableContext<S, V, DM, IDM> {
     }
 }
 
-impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for ListVariableContext<S, V, DM, IDM> {
+impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for ListVariableSlot<S, V, DM, IDM> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ListVariableContext")
+        f.debug_struct("ListVariableSlot")
             .field("entity_type_name", &self.entity_type_name)
             .field("variable_name", &self.variable_name)
             .field("descriptor_index", &self.descriptor_index)

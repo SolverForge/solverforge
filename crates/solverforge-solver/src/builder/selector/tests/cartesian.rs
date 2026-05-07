@@ -105,8 +105,8 @@ fn cartesian_right_child_conflict_repair_uses_preview_constraint_metadata() {
         "testConstraint",
         true,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new("testConstraint", repair_worker_to_one),
     ]);
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
         require_hard_improvement: false,
@@ -157,8 +157,8 @@ fn cartesian_right_child_conflict_repair_uses_package_qualified_preview_metadata
         "testConstraint",
         true,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new("pkg/testConstraint", repair_worker_to_one),
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new("pkg/testConstraint", repair_worker_to_one),
     ]);
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
         require_hard_improvement: false,
@@ -211,8 +211,8 @@ fn cartesian_right_child_conflict_repair_rejects_soft_metadata_when_not_configur
         "testConstraint",
         false,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new("testConstraint", repair_worker_to_one),
     ]);
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
         require_hard_improvement: false,
@@ -251,8 +251,8 @@ fn cartesian_right_child_conflict_repair_allows_soft_metadata_when_configured() 
         "testConstraint",
         false,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new("testConstraint", repair_worker_to_one),
     ]);
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
         require_hard_improvement: false,

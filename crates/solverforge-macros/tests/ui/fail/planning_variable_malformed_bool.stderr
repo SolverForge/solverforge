@@ -1,0 +1,5 @@
+error: planning_variable argument `allows_unassigned` must be a boolean literal
+ --> tests/ui/fail/planning_variable_malformed_bool.rs:8:25
+  |
+8 |     #[planning_variable(allows_unassigned = "yes")]
+  |                         ^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -24,13 +24,13 @@ impl ListMoveSelectorBuilder {
         );
     }
 
-    /// Builds a top-level list move selector from move selector config and domain context.
+    /// Builds a top-level list move selector from move selector config and domain slot.
     ///
     /// Default (no config): `Union(NearbyListChange(20), NearbyListSwap(20), ListReverse)`
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn build<S, V, DM, IDM>(
         config: Option<&MoveSelectorConfig>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
         random_seed: Option<u64>,
     ) -> VecUnionSelector<S, ListMoveUnion<S, V>, ListSelectorNode<S, V, DM, IDM>>
     where
@@ -41,7 +41,7 @@ impl ListMoveSelectorBuilder {
     {
         fn collect_nodes<S, V, DM, IDM>(
             config: Option<&MoveSelectorConfig>,
-            ctx: &ListVariableContext<S, V, DM, IDM>,
+            ctx: &ListVariableSlot<S, V, DM, IDM>,
             random_seed: Option<u64>,
             nodes: &mut Vec<ListSelectorNode<S, V, DM, IDM>>,
         ) where
@@ -106,7 +106,7 @@ impl ListMoveSelectorBuilder {
 
     pub fn build_flat<S, V, DM, IDM>(
         config: Option<&MoveSelectorConfig>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
         random_seed: Option<u64>,
     ) -> ListFlatSelector<S, V, DM, IDM>
     where
@@ -137,7 +137,7 @@ impl ListMoveSelectorBuilder {
 
     fn collect_leaves<S, V, DM, IDM>(
         config: &MoveSelectorConfig,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
         random_seed: Option<u64>,
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
     ) where
@@ -196,7 +196,7 @@ impl ListMoveSelectorBuilder {
             | MoveSelectorConfig::PillarChangeMoveSelector(_)
             | MoveSelectorConfig::PillarSwapMoveSelector(_)
             | MoveSelectorConfig::RuinRecreateMoveSelector(_) => {
-                panic!("scalar move selector configured against a list-variable context");
+                panic!("scalar move selector configured against a list-variable model");
             }
             MoveSelectorConfig::CartesianProductMoveSelector(_) => {
                 panic!("nested cartesian_product move selectors are not supported inside list cartesian children");
@@ -217,7 +217,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_nearby_change<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
         max_nearby: usize,
     ) where
         S: PlanningSolution,
@@ -243,7 +243,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_nearby_swap<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
         max_nearby: usize,
     ) where
         S: PlanningSolution,
@@ -268,7 +268,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_list_reverse<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
     ) where
         S: PlanningSolution,
         V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -290,7 +290,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_sublist_change<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
         min_sublist_size: usize,
         max_sublist_size: usize,
     ) where
@@ -317,7 +317,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_sublist_swap<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
         min_sublist_size: usize,
         max_sublist_size: usize,
     ) where
@@ -344,7 +344,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_kopt<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
         k: usize,
         min_segment_len: usize,
         max_nearby: usize,
@@ -389,7 +389,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_list_ruin<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
         min_ruin_count: usize,
         max_ruin_count: usize,
         moves_per_step: Option<usize>,
@@ -424,7 +424,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_list_change<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
     ) where
         S: PlanningSolution,
         V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -447,7 +447,7 @@ impl ListMoveSelectorBuilder {
 
     fn push_list_swap<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
-        ctx: &ListVariableContext<S, V, DM, IDM>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
     ) where
         S: PlanningSolution,
         V: Clone + PartialEq + Send + Sync + Debug + 'static,

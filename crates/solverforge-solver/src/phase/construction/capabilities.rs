@@ -5,7 +5,7 @@ use solverforge_config::{ConstructionHeuristicConfig, ConstructionHeuristicType}
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::domain::SolutionDescriptor;
 
-use crate::builder::{ListVariableContext, ModelContext, ScalarGroupContext};
+use crate::builder::{ListVariableSlot, RuntimeModel, ScalarGroupBinding};
 use crate::descriptor::{collect_bindings, find_resolved_binding, ResolvedVariableBinding};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
@@ -21,8 +21,8 @@ pub(crate) enum ConstructionRoute {
 pub(crate) struct ConstructionCapabilities<S, V, DM, IDM> {
     pub(crate) route: ConstructionRoute,
     pub(crate) scalar_bindings: Vec<ResolvedVariableBinding<S>>,
-    pub(crate) scalar_group: Option<(usize, ScalarGroupContext<S>)>,
-    pub(crate) list_variables: Vec<ListVariableContext<S, V, DM, IDM>>,
+    pub(crate) scalar_group: Option<(usize, ScalarGroupBinding<S>)>,
+    pub(crate) list_variables: Vec<ListVariableSlot<S, V, DM, IDM>>,
     pub(crate) entity_class: Option<String>,
     pub(crate) variable_name: Option<String>,
 }
@@ -30,7 +30,7 @@ pub(crate) struct ConstructionCapabilities<S, V, DM, IDM> {
 pub(crate) fn select_construction_capabilities<S, V, DM, IDM>(
     config: Option<&ConstructionHeuristicConfig>,
     descriptor: &solverforge_core::domain::SolutionDescriptor,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
 ) -> ConstructionCapabilities<S, V, DM, IDM>
 where
     S: PlanningSolution + 'static,
@@ -161,7 +161,7 @@ where
 
 fn resolve_scalar_bindings<S, V, DM, IDM>(
     descriptor: &SolutionDescriptor,
-    model: &ModelContext<S, V, DM, IDM>,
+    model: &RuntimeModel<S, V, DM, IDM>,
 ) -> Vec<ResolvedVariableBinding<S>>
 where
     S: PlanningSolution + 'static,
@@ -183,7 +183,7 @@ where
 
 fn validate_list_route<S, V, DM, IDM>(
     heuristic: ConstructionHeuristicType,
-    list_variables: &[ListVariableContext<S, V, DM, IDM>],
+    list_variables: &[ListVariableSlot<S, V, DM, IDM>],
     scalar_target_empty: bool,
 ) where
     S: PlanningSolution,

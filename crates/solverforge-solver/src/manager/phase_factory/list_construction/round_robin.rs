@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::builder::ListVariableContext;
+use crate::builder::ListVariableSlot;
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 use crate::PhaseFactory;
@@ -147,7 +147,7 @@ where
     S: PlanningSolution,
     E: Copy + Send + Sync + 'static,
 {
-    pub(crate) fn from_variable_context<DM, IDM>(ctx: &ListVariableContext<S, E, DM, IDM>) -> Self {
+    pub(crate) fn from_variable_slot<DM, IDM>(ctx: &ListVariableSlot<S, E, DM, IDM>) -> Self {
         Self {
             element_count: ctx.element_count,
             get_assigned: ctx.assigned_elements,

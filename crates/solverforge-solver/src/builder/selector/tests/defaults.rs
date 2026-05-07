@@ -229,37 +229,27 @@ fn explicit_scalar_union_selector_can_be_round_robin() {
 
 fn repair_worker_to_one(
     _solution: &MixedPlan,
-    limits: crate::builder::ConflictRepairLimits,
-) -> Vec<crate::builder::ConflictRepairSpec> {
+    limits: crate::builder::RepairLimits,
+) -> Vec<crate::builder::RepairCandidate<MixedPlan>> {
     assert_eq!(limits.max_matches_per_step, 2);
     assert_eq!(limits.max_repairs_per_match, 3);
     assert_eq!(limits.max_moves_per_step, 4);
     vec![
-        crate::builder::ConflictRepairSpec::new(
+        crate::builder::RepairCandidate::new(
             "testConstraint",
-            vec![crate::builder::ConflictRepairEdit::set_scalar(
-                0,
-                0,
-                "worker",
-                Some(1),
-            )],
+            vec![ScalarTarget::from_descriptor_index(0, "worker").set(0, Some(1))],
         ),
-        crate::builder::ConflictRepairSpec::new(
+        crate::builder::RepairCandidate::new(
             "testConstraint",
-            vec![crate::builder::ConflictRepairEdit::set_scalar(
-                0,
-                1,
-                "worker",
-                Some(99),
-            )],
+            vec![ScalarTarget::from_descriptor_index(0, "worker").set(1, Some(99))],
         ),
     ]
 }
 
 fn repair_provider_must_not_run(
     _solution: &MixedPlan,
-    _limits: crate::builder::ConflictRepairLimits,
-) -> Vec<crate::builder::ConflictRepairSpec> {
+    _limits: crate::builder::RepairLimits,
+) -> Vec<crate::builder::RepairCandidate<MixedPlan>> {
     panic!("conflict repair provider must not run before metadata validation")
 }
 
@@ -276,8 +266,8 @@ fn conflict_repair_selector_builds_executable_registered_repairs() {
         "testConstraint",
         true,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new("testConstraint", repair_worker_to_one),
     ]);
     let config = MoveSelectorConfig::ConflictRepairMoveSelector(
         solverforge_config::ConflictRepairMoveSelectorConfig {
@@ -324,8 +314,8 @@ fn conflict_repair_rejects_non_hard_constraint_before_provider_invocation() {
         "testConstraint",
         false,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new(
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new(
             "testConstraint",
             repair_provider_must_not_run,
         ),
@@ -358,8 +348,8 @@ fn conflict_repair_allows_non_hard_constraint_when_configured() {
         "testConstraint",
         false,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new("testConstraint", repair_worker_to_one),
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new("testConstraint", repair_worker_to_one),
     ]);
     let config = MoveSelectorConfig::ConflictRepairMoveSelector(
         solverforge_config::ConflictRepairMoveSelectorConfig {
@@ -391,8 +381,8 @@ fn conflict_repair_rejects_provider_without_matching_scoring_constraint() {
         },
         descriptor,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new(
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new(
             "testConstraint",
             repair_provider_must_not_run,
         ),

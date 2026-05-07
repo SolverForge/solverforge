@@ -10,7 +10,7 @@ pub type NearbyEntityDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f6
 pub type ConstructionEntityOrderKey<S> = fn(&S, usize, usize) -> Option<i64>;
 pub type ConstructionValueOrderKey<S> = fn(&S, usize, usize, usize) -> Option<i64>;
 
-pub struct ScalarVariableContext<S> {
+pub struct ScalarVariableSlot<S> {
     pub descriptor_index: usize,
     pub variable_index: usize,
     pub entity_type_name: &'static str,
@@ -29,15 +29,15 @@ pub struct ScalarVariableContext<S> {
     pub construction_value_order_key: Option<ConstructionValueOrderKey<S>>,
 }
 
-impl<S> Clone for ScalarVariableContext<S> {
+impl<S> Clone for ScalarVariableSlot<S> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<S> Copy for ScalarVariableContext<S> {}
+impl<S> Copy for ScalarVariableSlot<S> {}
 
-impl<S> ScalarVariableContext<S> {
+impl<S> ScalarVariableSlot<S> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         descriptor_index: usize,
@@ -261,9 +261,9 @@ impl<S> ScalarVariableContext<S> {
     }
 }
 
-impl<S> fmt::Debug for ScalarVariableContext<S> {
+impl<S> fmt::Debug for ScalarVariableSlot<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ScalarVariableContext")
+        f.debug_struct("ScalarVariableSlot")
             .field("descriptor_index", &self.descriptor_index)
             .field("variable_index", &self.variable_index)
             .field("entity_type_name", &self.entity_type_name)

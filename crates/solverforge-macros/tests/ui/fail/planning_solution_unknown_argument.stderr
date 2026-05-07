@@ -1,0 +1,5 @@
+error: unsupported planning_solution argument `conflict_repair_providers`; supported arguments are serde, constraints, config, solver_toml, conflict_repairs, scalar_groups
+ --> tests/ui/fail/planning_solution_unknown_argument.rs:3:21
+  |
+3 | #[planning_solution(conflict_repair_providers = "repairs")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

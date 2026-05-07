@@ -12,8 +12,8 @@ fn conflict_repair_accepts_package_qualified_constraint_metadata() {
         "testConstraint",
         true,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new("pkg/testConstraint", repair_worker_to_one),
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new("pkg/testConstraint", repair_worker_to_one),
     ]);
     let config = MoveSelectorConfig::ConflictRepairMoveSelector(
         solverforge_config::ConflictRepairMoveSelectorConfig {
@@ -48,8 +48,8 @@ fn conflict_repair_rejects_soft_package_qualified_metadata() {
         "testConstraint",
         false,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new(
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new(
             "pkg/testConstraint",
             repair_provider_must_not_run,
         ),
@@ -86,8 +86,8 @@ fn conflict_repair_rejects_short_name_for_package_qualified_metadata() {
         "testConstraint",
         true,
     );
-    let model = scalar_only_model().with_conflict_repair_providers(vec![
-        crate::builder::ConflictRepairProviderEntry::new(
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new(
             "testConstraint",
             repair_provider_must_not_run,
         ),

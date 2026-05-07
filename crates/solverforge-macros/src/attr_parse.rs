@@ -1,8 +1,8 @@
 // Helpers for parsing proc-macro attribute arguments.
 
-use proc_macro::TokenStream;
+use proc_macro2::TokenStream;
 use syn::parse::Parser;
-use syn::{Attribute, Expr, Lit, Meta, Path};
+use syn::{Attribute, Error, Expr, Lit, Meta, Path};
 
 pub(crate) fn path_matches_ident(path: &Path, name: &str) -> bool {
     path.segments
@@ -10,94 +10,29 @@ pub(crate) fn path_matches_ident(path: &Path, name: &str) -> bool {
         .is_some_and(|segment| segment.ident == name)
 }
 
-// Checks if attribute stream contains the `serde` flag.
-pub(crate) fn has_serde_flag(attr: TokenStream) -> bool {
-    if attr.is_empty() {
-        return false;
-    }
+pub(crate) fn parse_meta_args(
+    tokens: TokenStream,
+) -> Result<syn::punctuated::Punctuated<Meta, syn::Token![,]>, Error> {
     let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
-    if let Ok(nested) = parser.parse(attr) {
-        for meta in nested {
-            if let Meta::Path(path) = meta {
-                if path_matches_ident(&path, "serde") {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    parser.parse2(tokens)
 }
 
-// Parses planning_solution attribute flags: serde, constraints = "path",
-// config = "path", solver_toml = "path", conflict_repair_providers = "path",
-// scalar_groups = "path".
-#[derive(Default)]
-pub(crate) struct SolutionFlags {
-    pub(crate) has_serde: bool,
-    pub(crate) constraints_path: Option<String>,
-    pub(crate) config_path: Option<String>,
-    pub(crate) solver_toml_path: Option<String>,
-    pub(crate) conflict_repair_providers_path: Option<String>,
-    pub(crate) scalar_groups_path: Option<String>,
-}
-
-pub(crate) fn parse_solution_flags(attr: TokenStream) -> SolutionFlags {
-    let mut flags = SolutionFlags::default();
-
-    if attr.is_empty() {
-        return flags;
-    }
-
-    let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
-    if let Ok(nested) = parser.parse(attr) {
-        for meta in nested {
-            match meta {
-                Meta::Path(path) if path_matches_ident(&path, "serde") => {
-                    flags.has_serde = true;
-                }
-                Meta::NameValue(nv) if path_matches_ident(&nv.path, "constraints") => {
-                    if let Expr::Lit(expr_lit) = &nv.value {
-                        if let Lit::Str(lit_str) = &expr_lit.lit {
-                            flags.constraints_path = Some(lit_str.value());
-                        }
-                    }
-                }
-                Meta::NameValue(nv) if path_matches_ident(&nv.path, "config") => {
-                    if let Expr::Lit(expr_lit) = &nv.value {
-                        if let Lit::Str(lit_str) = &expr_lit.lit {
-                            flags.config_path = Some(lit_str.value());
-                        }
-                    }
-                }
-                Meta::NameValue(nv) if path_matches_ident(&nv.path, "solver_toml") => {
-                    if let Expr::Lit(expr_lit) = &nv.value {
-                        if let Lit::Str(lit_str) = &expr_lit.lit {
-                            flags.solver_toml_path = Some(lit_str.value());
-                        }
-                    }
-                }
-                Meta::NameValue(nv)
-                    if path_matches_ident(&nv.path, "conflict_repair_providers") =>
-                {
-                    if let Expr::Lit(expr_lit) = &nv.value {
-                        if let Lit::Str(lit_str) = &expr_lit.lit {
-                            flags.conflict_repair_providers_path = Some(lit_str.value());
-                        }
-                    }
-                }
-                Meta::NameValue(nv) if path_matches_ident(&nv.path, "scalar_groups") => {
-                    if let Expr::Lit(expr_lit) = &nv.value {
-                        if let Lit::Str(lit_str) = &expr_lit.lit {
-                            flags.scalar_groups_path = Some(lit_str.value());
-                        }
-                    }
-                }
-                _ => {}
-            }
+pub(crate) fn lit_bool_value(expr: &Expr) -> Option<bool> {
+    if let Expr::Lit(expr_lit) = expr {
+        if let Lit::Bool(lit_bool) = &expr_lit.lit {
+            return Some(lit_bool.value());
         }
     }
+    None
+}
 
-    flags
+pub(crate) fn lit_string_value(expr: &Expr) -> Option<String> {
+    if let Expr::Lit(expr_lit) = expr {
+        if let Lit::Str(lit_str) = &expr_lit.lit {
+            return Some(lit_str.value());
+        }
+    }
+    None
 }
 
 pub(crate) fn has_attribute(attrs: &[Attribute], name: &str) -> bool {
@@ -126,28 +61,6 @@ pub(crate) fn has_attribute_argument(attr: &Attribute, key: &str) -> bool {
     false
 }
 
-pub(crate) fn attribute_argument_names(attr: &Attribute) -> Vec<String> {
-    if let Meta::List(meta_list) = &attr.meta {
-        let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
-        if let Ok(nested) = parser.parse2(meta_list.tokens.clone()) {
-            return nested
-                .into_iter()
-                .filter_map(|meta| {
-                    let path = match meta {
-                        Meta::Path(path) => path,
-                        Meta::NameValue(nv) => nv.path,
-                        Meta::List(meta_list) => meta_list.path,
-                    };
-                    path.segments
-                        .last()
-                        .map(|segment| segment.ident.to_string())
-                })
-                .collect();
-        }
-    }
-    Vec::new()
-}
-
 pub(crate) fn parse_attribute_bool(attr: &Attribute, key: &str) -> Option<bool> {
     if let Meta::List(meta_list) = &attr.meta {
         let parser = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated;
@@ -155,11 +68,7 @@ pub(crate) fn parse_attribute_bool(attr: &Attribute, key: &str) -> Option<bool> 
             for meta in nested {
                 if let Meta::NameValue(nv) = meta {
                     if path_matches_ident(&nv.path, key) {
-                        if let Expr::Lit(expr_lit) = &nv.value {
-                            if let Lit::Bool(lit_bool) = &expr_lit.lit {
-                                return Some(lit_bool.value());
-                            }
-                        }
+                        return lit_bool_value(&nv.value);
                     }
                 }
             }
@@ -175,11 +84,7 @@ pub(crate) fn parse_attribute_string(attr: &Attribute, key: &str) -> Option<Stri
             for meta in nested {
                 if let Meta::NameValue(nv) = meta {
                     if path_matches_ident(&nv.path, key) {
-                        if let Expr::Lit(expr_lit) = &nv.value {
-                            if let Lit::Str(lit_str) = &expr_lit.lit {
-                                return Some(lit_str.value());
-                            }
-                        }
+                        return lit_string_value(&nv.value);
                     }
                 }
             }
@@ -196,10 +101,8 @@ pub(crate) fn parse_attribute_list(attr: &Attribute, key: &str) -> Vec<String> {
             for meta in nested {
                 if let Meta::NameValue(nv) = meta {
                     if path_matches_ident(&nv.path, key) {
-                        if let Expr::Lit(expr_lit) = &nv.value {
-                            if let Lit::Str(lit_str) = &expr_lit.lit {
-                                result.push(lit_str.value());
-                            }
+                        if let Some(value) = lit_string_value(&nv.value) {
+                            result.push(value);
                         }
                     }
                 }

@@ -15,7 +15,7 @@ use crate::heuristic::selector::{
     FromSolutionEntitySelector, MoveSelector,
 };
 
-use super::super::context::{IntraDistanceAdapter, ListVariableContext};
+use super::super::context::{IntraDistanceAdapter, ListVariableSlot};
 use super::leaf::{ListLeafCursor, ListLeafSelector};
 
 include!("builder_impl/types.rs");

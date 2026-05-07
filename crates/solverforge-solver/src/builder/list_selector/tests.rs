@@ -13,7 +13,7 @@ use solverforge_core::domain::{
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
-use crate::builder::ListVariableContext;
+use crate::builder::ListVariableSlot;
 use crate::heuristic::selector::move_selector::{
     collect_cursor_indices, MoveCandidateRef, MoveCursor, MoveSelector,
 };
@@ -175,7 +175,7 @@ fn index_to_element(s: &Plan, idx: usize) -> usize {
 fn nearby_list_swap_uses_cross_entity_meter() {
     let (cross_meter, cross_calls) = CountingMeter::new();
     let (intra_meter, intra_calls) = CountingMeter::new();
-    let ctx = ListVariableContext::new(
+    let ctx = ListVariableSlot::new(
         "Vehicle",
         element_count,
         assigned_elements,
@@ -243,7 +243,7 @@ fn nearby_list_swap_uses_cross_entity_meter() {
 fn public_list_builder_supports_cartesian_product() {
     let (cross_meter, _) = CountingMeter::new();
     let (intra_meter, _) = CountingMeter::new();
-    let ctx = ListVariableContext::new(
+    let ctx = ListVariableSlot::new(
         "Vehicle",
         element_count,
         assigned_elements,

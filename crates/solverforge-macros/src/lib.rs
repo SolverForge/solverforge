@@ -3,6 +3,7 @@
 use proc_macro::TokenStream;
 
 mod attr_parse;
+mod attr_validation;
 mod entrypoints;
 mod planning_entity;
 mod planning_model;
@@ -60,7 +61,7 @@ pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
         solverforge_constraints_path,
         solverforge_config_path,
         solverforge_solver_toml_path,
-        solverforge_conflict_repair_providers_path,
+        solverforge_conflict_repairs_path,
         solverforge_scalar_groups_path
     )
 )]

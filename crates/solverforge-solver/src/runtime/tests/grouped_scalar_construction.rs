@@ -1,8 +1,8 @@
 fn coupled_model_with_group_provider(
-    provider: crate::builder::context::ScalarGroupCandidateProvider<CoupledScalarPlan>,
-) -> ModelContext<CoupledScalarPlan, usize, DefaultMeter, DefaultMeter> {
+    provider: crate::builder::context::ScalarCandidateProvider<CoupledScalarPlan>,
+) -> RuntimeModel<CoupledScalarPlan, usize, DefaultMeter, DefaultMeter> {
     let variables = vec![
-        VariableContext::Scalar(ScalarVariableContext::new(
+        VariableSlot::Scalar(ScalarVariableSlot::new(
             0,
             0,
             "CoupledScalarChoice",
@@ -15,7 +15,7 @@ fn coupled_model_with_group_provider(
             ValueSource::CountableRange { from: 0, to: 2 },
             true,
         )),
-        VariableContext::Scalar(ScalarVariableContext::new(
+        VariableSlot::Scalar(ScalarVariableSlot::new(
             0,
             1,
             "CoupledScalarChoice",
@@ -28,7 +28,7 @@ fn coupled_model_with_group_provider(
             ValueSource::CountableRange { from: 0, to: 2 },
             true,
         )),
-        VariableContext::Scalar(ScalarVariableContext::new(
+        VariableSlot::Scalar(ScalarVariableSlot::new(
             0,
             2,
             "CoupledScalarChoice",
@@ -42,22 +42,26 @@ fn coupled_model_with_group_provider(
             true,
         )),
     ];
-    let scalar_contexts = variables
+    let scalar_slots = variables
         .iter()
         .filter_map(|variable| match variable {
-            VariableContext::Scalar(ctx) => Some(*ctx),
-            VariableContext::List(_) => None,
+            VariableSlot::Scalar(ctx) => Some(*ctx),
+            VariableSlot::List(_) => None,
         })
         .collect::<Vec<_>>();
 
-    ModelContext::new(variables).with_scalar_groups(vec![ScalarGroupContext::new(
-        "coupled_assignment",
-        scalar_contexts
-            .into_iter()
-            .map(ScalarGroupMember::from_scalar_context)
-            .collect(),
-        provider,
-    )])
+    RuntimeModel::new(variables).with_scalar_groups(bind_scalar_groups(
+        vec![ScalarGroup::new(
+            "coupled_assignment",
+            vec![
+                ScalarTarget::from_descriptor_index(0, "first"),
+                ScalarTarget::from_descriptor_index(0, "second"),
+                ScalarTarget::from_descriptor_index(0, "third"),
+            ],
+            provider,
+        )],
+        &scalar_slots,
+    ))
 }
 
 fn grouped_config(
@@ -72,7 +76,7 @@ fn grouped_config(
     }
 }
 
-fn coupled_edit_candidate(reason: &'static str, value: usize) -> ScalarGroupCandidate {
+fn coupled_edit_candidate(reason: &'static str, value: usize) -> ScalarCandidate<CoupledScalarPlan> {
     coupled_edit_candidate_for_entity(reason, 0, value)
 }
 
@@ -80,13 +84,13 @@ fn coupled_edit_candidate_for_entity(
     reason: &'static str,
     entity_index: usize,
     value: usize,
-) -> ScalarGroupCandidate {
-    ScalarGroupCandidate::new(
+) -> ScalarCandidate<CoupledScalarPlan> {
+    ScalarCandidate::new(
         reason,
         vec![
-            ScalarGroupEdit::set_scalar(0, entity_index, "first", Some(value)),
-            ScalarGroupEdit::set_scalar(0, entity_index, "second", Some(value)),
-            ScalarGroupEdit::set_scalar(0, entity_index, "third", Some(value)),
+            ScalarTarget::from_descriptor_index(0, "first").set(entity_index, Some(value)),
+            ScalarTarget::from_descriptor_index(0, "second").set(entity_index, Some(value)),
+            ScalarTarget::from_descriptor_index(0, "third").set(entity_index, Some(value)),
         ],
     )
     .with_construction_slot_key(entity_index)
@@ -95,7 +99,7 @@ fn coupled_edit_candidate_for_entity(
 fn worse_then_better_group_candidates(
     _plan: &CoupledScalarPlan,
     _limits: ScalarGroupLimits,
-) -> Vec<ScalarGroupCandidate> {
+) -> Vec<ScalarCandidate<CoupledScalarPlan>> {
     vec![
         coupled_edit_candidate("worse", 0),
         coupled_edit_candidate("better", 1),
@@ -105,14 +109,14 @@ fn worse_then_better_group_candidates(
 fn worse_only_group_candidates(
     _plan: &CoupledScalarPlan,
     _limits: ScalarGroupLimits,
-) -> Vec<ScalarGroupCandidate> {
+) -> Vec<ScalarCandidate<CoupledScalarPlan>> {
     vec![coupled_edit_candidate("worse", 0)]
 }
 
 fn ordered_group_candidates(
     _plan: &CoupledScalarPlan,
     _limits: ScalarGroupLimits,
-) -> Vec<ScalarGroupCandidate> {
+) -> Vec<ScalarCandidate<CoupledScalarPlan>> {
     vec![
         coupled_edit_candidate("stronger", 0).with_construction_value_order_key(10),
         coupled_edit_candidate("weaker", 1).with_construction_value_order_key(1),
@@ -122,7 +126,7 @@ fn ordered_group_candidates(
 fn assigned_then_open_group_candidates(
     _plan: &CoupledScalarPlan,
     limits: ScalarGroupLimits,
-) -> Vec<ScalarGroupCandidate> {
+) -> Vec<ScalarCandidate<CoupledScalarPlan>> {
     assert_eq!(limits.group_candidate_limit, None);
     vec![
         coupled_edit_candidate_for_entity("assigned", 0, 0),

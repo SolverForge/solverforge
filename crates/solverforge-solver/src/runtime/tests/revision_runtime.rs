@@ -264,9 +264,9 @@ fn revision_route_index_to_element(solution: &RevisionPlan, idx: usize) -> usize
     solution.route_pool[idx]
 }
 
-fn revision_model() -> ModelContext<RevisionPlan, usize, DefaultMeter, DefaultMeter> {
-    ModelContext::new(vec![
-        VariableContext::Scalar(ScalarVariableContext::new(
+fn revision_model() -> RuntimeModel<RevisionPlan, usize, DefaultMeter, DefaultMeter> {
+    RuntimeModel::new(vec![
+        VariableSlot::Scalar(ScalarVariableSlot::new(
             0,
             0,
             "Task",
@@ -280,7 +280,7 @@ fn revision_model() -> ModelContext<RevisionPlan, usize, DefaultMeter, DefaultMe
             },
             true,
         )),
-        VariableContext::List(ListVariableContext::new(
+        VariableSlot::List(ListVariableSlot::new(
             "Route",
             revision_route_element_count,
             revision_assigned_route_elements,

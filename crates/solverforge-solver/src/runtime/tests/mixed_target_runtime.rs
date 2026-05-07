@@ -292,9 +292,9 @@ fn mixed_target_available_workers(
     }
 }
 
-fn mixed_target_model() -> ModelContext<MixedTargetPlan, usize, DefaultMeter, DefaultMeter> {
-    ModelContext::new(vec![
-        VariableContext::Scalar(ScalarVariableContext::new(
+fn mixed_target_model() -> RuntimeModel<MixedTargetPlan, usize, DefaultMeter, DefaultMeter> {
+    RuntimeModel::new(vec![
+        VariableSlot::Scalar(ScalarVariableSlot::new(
             0,
             0,
             "Route",
@@ -307,7 +307,7 @@ fn mixed_target_model() -> ModelContext<MixedTargetPlan, usize, DefaultMeter, De
             },
             true,
         )),
-        VariableContext::List(ListVariableContext::new(
+        VariableSlot::List(ListVariableSlot::new(
             "Route",
             mixed_target_element_count,
             mixed_target_assigned_elements,

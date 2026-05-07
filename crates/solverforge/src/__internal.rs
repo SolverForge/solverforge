@@ -28,10 +28,8 @@ pub use tokio::sync::mpsc::UnboundedSender;
 
 // Solver infrastructure
 pub use solverforge_solver::builder::{
-    ConflictRepairEdit, ConflictRepairLimits, ConflictRepairProviderEntry, ConflictRepairSpec,
-    ListVariableContext, LocalSearch, ModelContext, ScalarGroupCandidate, ScalarGroupContext,
-    ScalarGroupEdit, ScalarGroupLimits, ScalarGroupMember, ScalarVariableContext, ValueSource,
-    VariableContext, Vnd,
+    bind_scalar_groups, ListVariableSlot, LocalSearch, RuntimeModel, ScalarGroupBinding,
+    ScalarGroupMemberBinding, ScalarVariableSlot, ValueSource, VariableSlot, Vnd,
 };
 pub use solverforge_solver::heuristic::selector::{
     DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, FromSolutionEntitySelector,

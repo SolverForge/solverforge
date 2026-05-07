@@ -20,7 +20,7 @@ fn pillar_change_uses_public_pillar_semantics() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -76,7 +76,7 @@ fn pillar_change_intersects_entity_slice_domains() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -144,7 +144,7 @@ fn pillar_swap_prunes_illegal_entity_slice_partners() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -211,7 +211,7 @@ fn scalar_builder_cartesian_selector_survives_filtering_wrapper() {
         ],
         score: None,
     });
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",

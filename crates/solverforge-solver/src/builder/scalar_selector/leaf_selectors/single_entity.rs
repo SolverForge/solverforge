@@ -1,6 +1,6 @@
 #[derive(Clone, Copy)]
 pub struct SwapLeafSelector<S> {
-    ctx: ScalarVariableContext<S>,
+    ctx: ScalarVariableSlot<S>,
 }
 
 impl<S> Debug for SwapLeafSelector<S> {
@@ -81,7 +81,7 @@ where
 
 #[derive(Clone, Copy)]
 pub struct NearbyChangeLeafSelector<S> {
-    ctx: ScalarVariableContext<S>,
+    ctx: ScalarVariableSlot<S>,
     max_nearby: usize,
     value_candidate_limit: Option<usize>,
 }
@@ -191,7 +191,7 @@ where
 
 #[derive(Clone, Copy)]
 pub struct NearbySwapLeafSelector<S> {
-    ctx: ScalarVariableContext<S>,
+    ctx: ScalarVariableSlot<S>,
     max_nearby: usize,
 }
 

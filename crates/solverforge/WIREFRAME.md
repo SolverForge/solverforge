@@ -33,6 +33,7 @@ src/
 ├── __internal.rs  — Hidden macro support re-exports and helpers
 ├── cvrp.rs        — CVRP facade re-exports
 ├── lib.rs         — Top-level crate re-exports and module declarations
+├── planning.rs    — Planning target helpers for grouped scalar declarations
 ├── prelude.rs     — Prelude exports
 └── stream.rs      — Fluent constraint stream facade
 ```
@@ -94,16 +95,16 @@ src/
 - `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
-- `ConflictRepairEdit`
-- `ConflictRepairLimits`
-- `ConflictRepairProviderEntry`
-- `ConflictRepairSpec`
-- `ScalarGroupCandidate`
-- `ScalarGroupContext`
-- `ScalarGroupEdit`
+- `RepairLimits`
+- `ConflictRepair`
+- `RepairCandidate`
+- `RepairProvider`
+- `ScalarCandidate`
+- `ScalarEdit`
+- `ScalarGroup`
 - `ScalarGroupLimits`
-- `ScalarGroupMember`
-- `ScalarVariableContext`
+- `ScalarTarget`
+- `ScalarCandidateProvider`
 - `SolverManager`
 - `SolverRuntime`
 - `SolverEvent`
@@ -120,6 +121,15 @@ src/
 - `ConstraintAnalysis` (solver-level serializable analysis)
 - `DefaultDistanceMeter`
 - `CrossEntityDistanceMeter`
+
+### Planning Helpers
+
+Module: `solverforge::planning`
+
+- `EntitySourceTargetExt` — extension trait for macro-generated model-owned
+  planning entity sources. `scalar(&self, variable_name)` borrows the source
+  and returns a `ScalarTarget<S>`, so one bound generated source can declare
+  multiple scalar targets for grouped scalar construction or local search.
 
 ### CVRP Domain Helpers (from `solverforge-cvrp`)
 
@@ -204,8 +214,7 @@ Used exclusively by macro-generated code. Not public API.
 - `SolvableSolution`
 
 **Solver infrastructure (from `solverforge-solver`):**
-- `ConflictRepairEdit`, `ConflictRepairLimits`, `ConflictRepairProviderEntry`, `ConflictRepairSpec`
-- `ListVariableContext`, `LocalSearch`, `ModelContext`, `ScalarGroupCandidate`, `ScalarGroupContext`, `ScalarGroupEdit`, `ScalarGroupLimits`, `ScalarGroupMember`, `ScalarVariableContext`, `ValueSource`, `VariableContext`, `Vnd`
+- `ListVariableSlot`, `LocalSearch`, `RuntimeModel`, `ScalarGroupBinding`, `ScalarGroupMemberBinding`, `ScalarVariableSlot`, `ValueSource`, `VariableSlot`, `Vnd`
 - `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
 - `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`
 - `PhaseFactory`, `SolverFactory`
@@ -217,7 +226,7 @@ Used exclusively by macro-generated code. Not public API.
 - `PlanningModelSupport`
 
 Grouped scalar re-exports include the construction metadata surface on
-`ScalarGroupCandidate` and the split `ScalarGroupLimits` fields used by grouped
+`ScalarCandidate` and the split `ScalarGroupLimits` fields used by grouped
 construction and grouped local-search selectors.
 
 **Config (from `solverforge-config`):**
@@ -247,7 +256,7 @@ construction and grouped local-search selectors.
 - **Pure re-export crate.** Contains zero implementation logic — only `pub use` statements and the `__internal` module.
 - **`__internal` module** exists so that macro-generated code can reference types via `::solverforge::__internal::*` paths. This allows derive macros in `solverforge-macros` to generate code that compiles in user crates that only depend on `solverforge`.
 - **Shape-aware startup telemetry.** Hidden runtime logging helpers under `__internal` emit `element_count` for list solves and average `candidate_count` for scalar solves so console startup output can label the scale correctly.
-- **Macro-built runtime contexts stay model-owned.** `planning_model!` generates
+- **Macro-built runtime slots stay model-owned.** `planning_model!` generates
   the hidden `PlanningModelSupport` impl that attaches nearby hooks plus scalar
   construction order-key hooks from `#[planning_variable]`, while list
   construction capabilities continue to come from `#[planning_list_variable]`.

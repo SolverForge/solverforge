@@ -1,0 +1,5 @@
+error: unsupported problem_fact argument `debug`; supported arguments are serde
+ --> tests/ui/fail/problem_fact_unknown_argument.rs:3:16
+  |
+3 | #[problem_fact(debug)]
+  |                ^^^^^

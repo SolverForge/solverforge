@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::builder::context::{ScalarGroupCandidate, ScalarGroupContext, ScalarGroupLimits};
+use crate::builder::context::{ScalarCandidate, ScalarGroupBinding, ScalarGroupLimits};
 use crate::descriptor::ResolvedVariableBinding;
 use crate::heuristic::r#move::{CompoundScalarMove, Move};
 use crate::scope::{PhaseScope, ProgressCallback};
@@ -29,7 +29,7 @@ where
 pub(super) fn normalize_grouped_candidates<S, D, ProgressCb>(
     phase_scope: &PhaseScope<'_, '_, S, D, ProgressCb>,
     group_index: usize,
-    group: &ScalarGroupContext<S>,
+    group: &ScalarGroupBinding<S>,
     scalar_bindings: &[ResolvedVariableBinding<S>],
     limits: ScalarGroupLimits,
     group_candidate_limit: Option<usize>,
@@ -49,7 +49,9 @@ where
     let mut normalized = Vec::new();
 
     for (sequence, candidate) in raw_candidates.into_iter().enumerate() {
-        if candidate.edits.is_empty() || !seen.insert((candidate.reason, candidate.edits.clone())) {
+        if candidate.edits().is_empty()
+            || !seen.insert((candidate.reason(), candidate.edits().to_vec()))
+        {
             continue;
         }
         let Some((scalar_slots, keep_current_legal, has_unfinished_unassigned_slot)) =
@@ -81,8 +83,8 @@ where
             group_slot,
             scalar_slots,
             keep_current_legal,
-            entity_order_key: candidate.construction_entity_order_key,
-            value_order_key: candidate.construction_value_order_key,
+            entity_order_key: candidate.construction_entity_order_key(),
+            value_order_key: candidate.construction_value_order_key(),
             mov,
         });
         if normalized.len() >= total_limit {
@@ -95,10 +97,10 @@ where
 
 fn scalar_slots_for_candidate<S, D, ProgressCb>(
     phase_scope: &PhaseScope<'_, '_, S, D, ProgressCb>,
-    group: &ScalarGroupContext<S>,
+    group: &ScalarGroupBinding<S>,
     scalar_bindings: &[ResolvedVariableBinding<S>],
     solution: &S,
-    candidate: &ScalarGroupCandidate,
+    candidate: &ScalarCandidate<S>,
 ) -> Option<(Vec<ConstructionSlotId>, bool, bool)>
 where
     S: PlanningSolution,
@@ -106,27 +108,34 @@ where
     ProgressCb: ProgressCallback<S>,
 {
     let mut targets = HashSet::new();
-    let mut scalar_slots = Vec::with_capacity(candidate.edits.len());
+    let mut scalar_slots = Vec::with_capacity(candidate.edits().len());
     let mut keep_current_legal = true;
     let mut has_unfinished_unassigned_slot = false;
 
-    for edit in &candidate.edits {
-        if !targets.insert((edit.descriptor_index, edit.entity_index, edit.variable_name)) {
+    for edit in candidate.edits() {
+        if !targets.insert((
+            edit.descriptor_index(),
+            edit.entity_index(),
+            edit.variable_name(),
+        )) {
             return None;
         }
         let member = group.member_for_edit(edit)?;
-        if !member.value_is_legal(solution, edit.entity_index, edit.to_value) {
+        if !member.value_is_legal(solution, edit.entity_index(), edit.to_value()) {
             return None;
         }
         let binding = scalar_bindings.iter().find(|binding| {
             binding.descriptor_index == member.descriptor_index
                 && binding.variable_index == member.variable_index
         })?;
-        let slot = binding.slot_id(edit.entity_index);
+        let slot = binding.slot_id(edit.entity_index());
         if phase_scope.solver_scope().is_scalar_slot_completed(slot) {
             return None;
         }
-        if member.current_value(solution, edit.entity_index).is_none() {
+        if member
+            .current_value(solution, edit.entity_index())
+            .is_none()
+        {
             has_unfinished_unassigned_slot = true;
         }
         keep_current_legal &= member.allows_unassigned;
@@ -142,13 +151,13 @@ where
     ))
 }
 
-fn group_slot_id(
+fn group_slot_id<S>(
     group_index: usize,
-    candidate: &ScalarGroupCandidate,
+    candidate: &ScalarCandidate<S>,
     scalar_slots: &[ConstructionSlotId],
 ) -> ConstructionGroupSlotId {
     let key = candidate
-        .construction_slot_key
+        .construction_slot_key()
         .map(ConstructionGroupSlotKey::Explicit)
         .unwrap_or_else(|| ConstructionGroupSlotKey::Targets(scalar_slots.to_vec()));
     ConstructionGroupSlotId::new(group_index, key)

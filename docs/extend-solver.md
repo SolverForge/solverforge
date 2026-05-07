@@ -36,9 +36,9 @@ ad hoc special cases:
   `allocate_entity_from_queue`, and `allocate_to_value_from_queue` are scalar-only.
   The targeted scalar variable must declare the required
   `construction_entity_order_key` and/or `construction_value_order_key`.
-  Manual `ModelContext` assembly can provide the same hooks at runtime; the
-  scalar route resolves one binding set from descriptor metadata plus runtime
-  scalar-variable hooks by descriptor index and variable name, then uses that
+  Generated model assembly provides the same hooks at runtime; the scalar route
+  resolves one binding set from descriptor metadata plus runtime scalar-variable
+  hooks by descriptor index and variable name, then uses that
   same resolved set for validation and execution. The compact scalar
   `variable_index` remains the generated getter/setter dispatch index. Those
   construction hooks are not selector-order hints for local search; local-search
@@ -64,10 +64,10 @@ scalar variable must provide the corresponding nearby candidate hook; distance
 meters may rank or filter those bounded candidates, but the runtime does not use
 them as candidate-discovery hooks.
 
-Canonical local search uses the monomorphized `ModelContext` published by macro runtime
-assembly. The descriptor boundary remains explicit for scalar-only construction
-and callers that intentionally assemble descriptor selectors; it is not a
-fallback path for normal local search.
+Canonical local search uses the monomorphized variable plan published by macro
+runtime assembly. The descriptor boundary remains explicit for scalar-only
+construction and callers that intentionally assemble descriptor selectors; it is
+not a fallback path for normal local search.
 
 `limited_neighborhood` applies a fixed move cap to one configured neighborhood
 when that cap is part of the search policy. The canonical defaults are already

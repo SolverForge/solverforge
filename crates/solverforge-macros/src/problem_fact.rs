@@ -4,7 +4,8 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Error, Fields};
 
-use crate::attr_parse::has_attribute;
+use crate::attr_parse::{get_attribute, has_attribute};
+use crate::attr_validation::validate_no_attribute_args;
 
 pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let name = &input.ident;
@@ -28,6 +29,12 @@ pub fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             ))
         }
     };
+
+    for field in fields {
+        if let Some(attr) = get_attribute(&field.attrs, "planning_id") {
+            validate_no_attribute_args(attr, "planning_id")?;
+        }
+    }
 
     let id_field = fields
         .iter()

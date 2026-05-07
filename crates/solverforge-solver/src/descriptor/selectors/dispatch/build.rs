@@ -253,7 +253,7 @@ where
             | MoveSelectorConfig::ListReverseMoveSelector(_)
             | MoveSelectorConfig::KOptMoveSelector(_)
             | MoveSelectorConfig::ListRuinMoveSelector(_) => {
-                panic!("list move selector configured against a scalar-variable context");
+                panic!("list move selector configured against a scalar-variable model");
             }
             MoveSelectorConfig::CartesianProductMoveSelector(_) => {
                 panic!(

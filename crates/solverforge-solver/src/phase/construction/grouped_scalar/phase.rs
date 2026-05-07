@@ -6,7 +6,7 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 use tracing::info;
 
-use crate::builder::context::{ScalarGroupContext, ScalarGroupLimits};
+use crate::builder::context::{ScalarGroupBinding, ScalarGroupLimits};
 use crate::descriptor::ResolvedVariableBinding;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second};
@@ -17,7 +17,7 @@ use super::selection::{select_candidate_for_next_group_slot, GroupedSelection};
 pub(crate) fn solve_grouped_scalar_construction<S, D, ProgressCb>(
     config: Option<&ConstructionHeuristicConfig>,
     group_index: usize,
-    group: &ScalarGroupContext<S>,
+    group: &ScalarGroupBinding<S>,
     scalar_bindings: &[ResolvedVariableBinding<S>],
     solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
 ) -> bool

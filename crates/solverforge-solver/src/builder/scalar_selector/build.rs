@@ -1,7 +1,7 @@
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn build_scalar_move_selector<S>(
     config: Option<&MoveSelectorConfig>,
-    scalar_variables: &[ScalarVariableContext<S>],
+    scalar_variables: &[ScalarVariableSlot<S>],
     random_seed: Option<u64>,
 ) -> ScalarSelector<S>
 where
@@ -10,7 +10,7 @@ where
 {
     fn collect_nodes<S: PlanningSolution + 'static>(
         config: Option<&MoveSelectorConfig>,
-        scalar_variables: &[ScalarVariableContext<S>],
+        scalar_variables: &[ScalarVariableSlot<S>],
         random_seed: Option<u64>,
         nodes: &mut Vec<ScalarSelectorNode<S>>,
     ) where
@@ -84,7 +84,7 @@ fn build_sub_pillar_config(
 
 fn collect_scalar_leaf_selectors<S>(
     config: Option<&MoveSelectorConfig>,
-    scalar_variables: &[ScalarVariableContext<S>],
+    scalar_variables: &[ScalarVariableSlot<S>],
     random_seed: Option<u64>,
     leaves: &mut Vec<ScalarLeafSelector<S>>,
 ) where
@@ -92,10 +92,10 @@ fn collect_scalar_leaf_selectors<S>(
     S::Score: Score,
 {
     fn matching_variables<S: PlanningSolution + 'static>(
-        scalar_variables: &[ScalarVariableContext<S>],
+        scalar_variables: &[ScalarVariableSlot<S>],
         entity_class: Option<&str>,
         variable_name: Option<&str>,
-    ) -> Vec<ScalarVariableContext<S>> {
+    ) -> Vec<ScalarVariableSlot<S>> {
         scalar_variables
             .iter()
             .copied()
@@ -104,7 +104,7 @@ fn collect_scalar_leaf_selectors<S>(
     }
 
     fn push_change<S: PlanningSolution + 'static>(
-        ctx: &ScalarVariableContext<S>,
+        ctx: &ScalarVariableSlot<S>,
         value_candidate_limit: Option<usize>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
@@ -123,14 +123,14 @@ fn collect_scalar_leaf_selectors<S>(
     }
 
     fn push_swap<S: PlanningSolution + 'static>(
-        ctx: &ScalarVariableContext<S>,
+        ctx: &ScalarVariableSlot<S>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
         leaves.push(ScalarLeafSelector::Swap(SwapLeafSelector { ctx: *ctx }));
     }
 
     fn push_nearby_change<S: PlanningSolution + 'static>(
-        ctx: &ScalarVariableContext<S>,
+        ctx: &ScalarVariableSlot<S>,
         max_nearby: usize,
         value_candidate_limit: Option<usize>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
@@ -149,7 +149,7 @@ fn collect_scalar_leaf_selectors<S>(
     }
 
     fn push_nearby_swap<S: PlanningSolution + 'static>(
-        ctx: &ScalarVariableContext<S>,
+        ctx: &ScalarVariableSlot<S>,
         max_nearby: usize,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
@@ -166,7 +166,7 @@ fn collect_scalar_leaf_selectors<S>(
     }
 
     fn push_pillar_change<S: PlanningSolution + 'static>(
-        ctx: &ScalarVariableContext<S>,
+        ctx: &ScalarVariableSlot<S>,
         minimum_sub_pillar_size: usize,
         maximum_sub_pillar_size: usize,
         value_candidate_limit: Option<usize>,
@@ -181,7 +181,7 @@ fn collect_scalar_leaf_selectors<S>(
     }
 
     fn push_pillar_swap<S: PlanningSolution + 'static>(
-        ctx: &ScalarVariableContext<S>,
+        ctx: &ScalarVariableSlot<S>,
         minimum_sub_pillar_size: usize,
         maximum_sub_pillar_size: usize,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
@@ -194,7 +194,7 @@ fn collect_scalar_leaf_selectors<S>(
     }
 
     fn push_ruin_recreate<S: PlanningSolution + 'static>(
-        ctx: &ScalarVariableContext<S>,
+        ctx: &ScalarVariableSlot<S>,
         config: &RuinRecreateMoveSelectorConfig,
         random_seed: Option<u64>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
@@ -243,7 +243,7 @@ fn collect_scalar_leaf_selectors<S>(
         label: &str,
         entity_class: Option<&str>,
         variable_name: Option<&str>,
-        matched: &[ScalarVariableContext<S>],
+        matched: &[ScalarVariableSlot<S>],
     ) {
         assert!(
             !matched.is_empty(),
@@ -255,7 +255,7 @@ fn collect_scalar_leaf_selectors<S>(
 
     fn collect<S: PlanningSolution + 'static>(
         cfg: &MoveSelectorConfig,
-        scalar_variables: &[ScalarVariableContext<S>],
+        scalar_variables: &[ScalarVariableSlot<S>],
         random_seed: Option<u64>,
         leaves: &mut Vec<ScalarLeafSelector<S>>,
     ) {
@@ -405,7 +405,7 @@ fn collect_scalar_leaf_selectors<S>(
             | MoveSelectorConfig::ListReverseMoveSelector(_)
             | MoveSelectorConfig::KOptMoveSelector(_)
             | MoveSelectorConfig::ListRuinMoveSelector(_) => {
-                panic!("list move selector configured against a scalar-variable context");
+                panic!("list move selector configured against a scalar-variable model");
             }
             MoveSelectorConfig::CartesianProductMoveSelector(_) => {
                 panic!("nested cartesian_product move selectors are not supported inside scalar cartesian children");

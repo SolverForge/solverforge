@@ -1,7 +1,7 @@
 pub(super) fn generate_runtime_phase_support(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
     constraints_path: &Option<String>,
-    conflict_repair_providers_path: &Option<String>,
+    conflict_repairs_path: &Option<String>,
     scalar_groups_path: &Option<String>,
     solution_name: &Ident,
 ) -> TokenStream {
@@ -24,12 +24,12 @@ pub(super) fn generate_runtime_phase_support(
         })
         .collect();
     let scalar_setup = generate_scalar_runtime_setup(fields, solution_name);
-    let conflict_repair_provider_expr = conflict_repair_providers_path
+    let conflict_repair_expr = conflict_repairs_path
         .as_ref()
         .map(|path| {
-            let providers_fn: syn::Path =
-                syn::parse_str(path).expect("conflict repair providers path must be valid");
-            quote! { .with_conflict_repair_providers(#providers_fn()) }
+            let repairs_fn: syn::Path =
+                syn::parse_str(path).expect("conflict repairs path must be valid");
+            quote! { .with_conflict_repairs(#repairs_fn()) }
         })
         .unwrap_or_else(|| quote! {});
     let scalar_groups_expr = scalar_groups_path
@@ -37,12 +37,17 @@ pub(super) fn generate_runtime_phase_support(
         .map(|path| {
             let groups_fn: syn::Path =
                 syn::parse_str(path).expect("scalar groups path must be valid");
-            quote! { #groups_fn(&__solverforge_scalar_contexts) }
+            quote! {
+                ::solverforge::__internal::bind_scalar_groups(
+                    #groups_fn(),
+                    &__solverforge_scalar_slots,
+                )
+            }
         })
         .unwrap_or_else(|| {
             quote! {
                 <#solution_name as ::solverforge::__internal::PlanningModelSupport>::attach_scalar_groups(
-                    &__solverforge_scalar_contexts,
+                    &__solverforge_scalar_slots,
                 )
             }
         });
@@ -144,8 +149,8 @@ pub(super) fn generate_runtime_phase_support(
                             .type_name;
                         let metadata = #list_trait::list_metadata();
                         __solverforge_variables.push(
-                            ::solverforge::__internal::VariableContext::List(
-                                ::solverforge::__internal::ListVariableContext::new(
+                            ::solverforge::__internal::VariableSlot::List(
+                                ::solverforge::__internal::ListVariableSlot::new(
                                     __solverforge_entity_type_name,
                                     Self::#element_count_ident,
                                     Self::#assigned_elements_ident,
@@ -328,7 +333,7 @@ pub(super) fn generate_runtime_phase_support(
                         };
                     __solverforge_variables.sort_by_key(|variable| {
                         match variable {
-                            ::solverforge::__internal::VariableContext::Scalar(ctx) => {
+                            ::solverforge::__internal::VariableSlot::Scalar(ctx) => {
                                 (
                                     ctx.descriptor_index,
                                     __solverforge_descriptor_variable_order(
@@ -337,7 +342,7 @@ pub(super) fn generate_runtime_phase_support(
                                     ),
                                 )
                             }
-                            ::solverforge::__internal::VariableContext::List(ctx) => {
+                            ::solverforge::__internal::VariableSlot::List(ctx) => {
                                 (
                                     ctx.descriptor_index,
                                     __solverforge_descriptor_variable_order(
@@ -348,26 +353,26 @@ pub(super) fn generate_runtime_phase_support(
                             }
                         }
                     });
-                    let __solverforge_scalar_contexts = __solverforge_variables
+                    let __solverforge_scalar_slots = __solverforge_variables
                         .iter()
                         .filter_map(|variable| match variable {
-                            ::solverforge::__internal::VariableContext::Scalar(ctx) => {
+                            ::solverforge::__internal::VariableSlot::Scalar(ctx) => {
                                 ::core::option::Option::Some(*ctx)
                             }
-                            ::solverforge::__internal::VariableContext::List(_) => {
+                            ::solverforge::__internal::VariableSlot::List(_) => {
                                 ::core::option::Option::None
                             }
                         })
                         .collect::<::std::vec::Vec<_>>();
                     let __solverforge_scalar_groups = #scalar_groups_expr;
-                    let model = ::solverforge::__internal::ModelContext::<
+                    let model = ::solverforge::__internal::RuntimeModel::<
                         #solution_name,
                         usize,
                         #cross_enum_ident,
                         #intra_enum_ident
                     >::new(__solverforge_variables)
                     .with_scalar_groups(__solverforge_scalar_groups)
-                    #conflict_repair_provider_expr;
+                    #conflict_repair_expr;
                     ::solverforge::__internal::build_phases(
                         config,
                         &descriptor,
@@ -434,26 +439,26 @@ pub(super) fn generate_runtime_phase_support(
             > {
                 let descriptor = Self::descriptor();
                 #scalar_setup
-                let __solverforge_scalar_contexts = __solverforge_variables
+                let __solverforge_scalar_slots = __solverforge_variables
                     .iter()
                     .filter_map(|variable| match variable {
-                        ::solverforge::__internal::VariableContext::Scalar(ctx) => {
+                        ::solverforge::__internal::VariableSlot::Scalar(ctx) => {
                             ::core::option::Option::Some(*ctx)
                         }
-                        ::solverforge::__internal::VariableContext::List(_) => {
+                        ::solverforge::__internal::VariableSlot::List(_) => {
                             ::core::option::Option::None
                         }
                     })
                     .collect::<::std::vec::Vec<_>>();
                 let __solverforge_scalar_groups = #scalar_groups_expr;
-                let model = ::solverforge::__internal::ModelContext::<
+                let model = ::solverforge::__internal::RuntimeModel::<
                     #solution_name,
                     usize,
                     ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
                     ::solverforge::__internal::DefaultCrossEntityDistanceMeter
                 >::new(__solverforge_variables)
                 .with_scalar_groups(__solverforge_scalar_groups)
-                #conflict_repair_provider_expr;
+                #conflict_repair_expr;
                 ::solverforge::__internal::build_phases(
                     config,
                     &descriptor,

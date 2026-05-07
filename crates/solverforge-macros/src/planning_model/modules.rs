@@ -120,6 +120,10 @@ fn collect_model_metadata(
                         entities.insert(metadata.type_name.clone(), metadata);
                     }
                     if has_attribute(&item_struct.attrs, "problem_fact") {
+                        if let Some(attr) = get_attribute(&item_struct.attrs, "problem_fact") {
+                            validate_problem_fact_attribute(attr)?;
+                        }
+                        validate_problem_fact_fields(item_struct)?;
                         facts.insert(item_struct.ident.to_string());
                     }
                 }

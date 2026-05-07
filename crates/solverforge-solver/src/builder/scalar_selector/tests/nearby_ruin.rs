@@ -16,7 +16,7 @@ fn builds_nearby_change_selectors_when_meter_is_present() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -65,7 +65,7 @@ fn builds_nearby_change_selectors_when_meter_is_present() {
 #[test]
 #[should_panic(expected = "nearby_change_move selector requires nearby_value_candidates")]
 fn nearby_change_rejects_distance_meter_without_candidate_hook() {
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -100,7 +100,7 @@ fn scalar_change_applies_value_candidate_limit_before_generation() {
         }],
         score: None,
     });
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -145,7 +145,7 @@ fn nearby_change_applies_value_candidate_limit_before_ranking() {
         }],
         score: None,
     });
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -203,7 +203,7 @@ fn nearby_swap_filters_same_value_candidates_before_limiting() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -255,7 +255,7 @@ fn ruin_recreate_skips_required_entities_without_recreate_values() {
         }],
         score: None,
     });
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -299,7 +299,7 @@ fn ruin_recreate_honors_configured_random_seed() {
                 .collect(),
             score: None,
         });
-        let scalar_variables = vec![ScalarVariableContext::new(
+        let scalar_variables = vec![ScalarVariableSlot::new(
             0,
             0,
             "Shift",

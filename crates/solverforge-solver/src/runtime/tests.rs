@@ -1,10 +1,11 @@
 use super::Construction;
 use crate::builder::{
-    ListVariableContext, ModelContext, ScalarGroupCandidate, ScalarGroupContext, ScalarGroupEdit,
-    ScalarGroupLimits, ScalarGroupMember, ScalarVariableContext, ValueSource, VariableContext,
+    bind_scalar_groups, ListVariableSlot, RuntimeModel, ScalarCandidate, ScalarGroupLimits,
+    ScalarVariableSlot, ValueSource, VariableSlot,
 };
 use crate::descriptor::{scalar_target_matches, scalar_work_remaining_with_frontier};
 use crate::phase::Phase;
+use crate::planning::{ScalarGroup, ScalarTarget};
 use crate::scope::SolverScope;
 use crate::DefaultCrossEntityDistanceMeter;
 use solverforge_config::{

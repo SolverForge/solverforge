@@ -16,12 +16,12 @@ pub enum ScalarValueSelector<S> {
 }
 
 pub struct ScalarCandidateSelector<S> {
-    ctx: ScalarVariableContext<S>,
+    ctx: ScalarVariableSlot<S>,
     value_candidate_limit: Option<usize>,
 }
 
 impl<S> ScalarCandidateSelector<S> {
-    pub fn new(ctx: ScalarVariableContext<S>, value_candidate_limit: Option<usize>) -> Self {
+    pub fn new(ctx: ScalarVariableSlot<S>, value_candidate_limit: Option<usize>) -> Self {
         Self {
             ctx,
             value_candidate_limit,
@@ -74,7 +74,7 @@ where
 }
 
 impl<S> ScalarValueSelector<S> {
-    fn from_context(ctx: ScalarVariableContext<S>) -> Self {
+    fn from_context(ctx: ScalarVariableSlot<S>) -> Self {
         match ctx.value_source {
             ValueSource::Empty => Self::Empty,
             ValueSource::CountableRange { from, to } => Self::CountableRange { from, to },
@@ -94,7 +94,7 @@ impl<S> ScalarValueSelector<S> {
 }
 
 fn scalar_recreate_candidate_source<S>(
-    ctx: ScalarVariableContext<S>,
+    ctx: ScalarVariableSlot<S>,
     value_candidate_limit: Option<usize>,
 ) -> ScalarRecreateValueSource<S> {
     if let Some(candidate_values) = ctx.candidate_values {
@@ -259,7 +259,7 @@ fn scalar_value_is_legal(
 }
 
 fn scalar_swap_is_legal<S>(
-    ctx: ScalarVariableContext<S>,
+    ctx: ScalarVariableSlot<S>,
     legal_values: &[usize],
     value: Option<usize>,
 ) -> bool {

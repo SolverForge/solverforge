@@ -1,17 +1,15 @@
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
-use crate::builder::{ScalarGroupContext, ScalarVariableContext};
+use crate::builder::{ScalarGroupBinding, ScalarVariableSlot};
 
 pub trait PlanningModelSupport: PlanningSolution + Sized + 'static {
     fn attach_descriptor_hooks(descriptor: &mut SolutionDescriptor);
 
-    fn attach_runtime_scalar_hooks(
-        context: ScalarVariableContext<Self>,
-    ) -> ScalarVariableContext<Self>;
+    fn attach_runtime_scalar_hooks(slot: ScalarVariableSlot<Self>) -> ScalarVariableSlot<Self>;
 
     fn attach_scalar_groups(
-        _scalar_variables: &[ScalarVariableContext<Self>],
-    ) -> Vec<ScalarGroupContext<Self>> {
+        _scalar_variables: &[ScalarVariableSlot<Self>],
+    ) -> Vec<ScalarGroupBinding<Self>> {
         Vec::new()
     }
 

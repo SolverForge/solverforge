@@ -16,7 +16,7 @@ fn builds_solution_count_scalar_selectors_without_descriptor_bindings() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -61,7 +61,7 @@ fn filters_change_moves_against_entity_slice_candidates() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -122,7 +122,7 @@ fn change_selector_ignores_construction_value_order_key() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -178,7 +178,7 @@ fn filters_swap_moves_against_entity_slice_candidates_before_evaluation() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -231,7 +231,7 @@ fn swap_selector_emits_complete_assignment_swaps_without_domain() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",
@@ -279,7 +279,7 @@ fn swap_selector_rejects_explicit_empty_entity_slice_domain() {
         score: None,
     });
 
-    let scalar_variables = vec![ScalarVariableContext::new(
+    let scalar_variables = vec![ScalarVariableSlot::new(
         0,
         0,
         "Shift",

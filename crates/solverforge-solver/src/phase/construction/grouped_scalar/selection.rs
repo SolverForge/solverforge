@@ -285,7 +285,7 @@ fn validate_heuristic_metadata<S>(
             .any(|candidate| candidate.entity_order_key.is_none())
     {
         panic!(
-            "grouped scalar construction heuristic {:?} requires ScalarGroupCandidate::with_construction_entity_order_key",
+            "grouped scalar construction heuristic {:?} requires ScalarCandidate::with_construction_entity_order_key",
             construction_type
         );
     }
@@ -295,7 +295,7 @@ fn validate_heuristic_metadata<S>(
             .any(|candidate| candidate.value_order_key.is_none())
     {
         panic!(
-            "grouped scalar construction heuristic {:?} requires ScalarGroupCandidate::with_construction_value_order_key",
+            "grouped scalar construction heuristic {:?} requires ScalarCandidate::with_construction_value_order_key",
             construction_type
         );
     }

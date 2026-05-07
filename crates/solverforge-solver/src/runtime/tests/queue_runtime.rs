@@ -204,8 +204,8 @@ fn queue_runtime_value_load_key(
 fn queue_runtime_model(
     entity_order_key: Option<fn(&QueueRuntimePlan, usize, usize) -> Option<i64>>,
     value_order_key: Option<fn(&QueueRuntimePlan, usize, usize, usize) -> Option<i64>>,
-) -> ModelContext<QueueRuntimePlan, usize, DefaultMeter, DefaultMeter> {
-    let mut ctx = ScalarVariableContext::new(
+) -> RuntimeModel<QueueRuntimePlan, usize, DefaultMeter, DefaultMeter> {
+    let mut ctx = ScalarVariableSlot::new(
         0,
         0,
         "QueueTask",
@@ -224,7 +224,7 @@ fn queue_runtime_model(
     if let Some(order_key) = value_order_key {
         ctx = ctx.with_construction_value_order_key(order_key);
     }
-    ModelContext::new(vec![VariableContext::Scalar(ctx)])
+    RuntimeModel::new(vec![VariableSlot::Scalar(ctx)])
 }
 
 #[test]

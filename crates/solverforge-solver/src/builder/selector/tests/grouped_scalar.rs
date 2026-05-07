@@ -1,58 +1,53 @@
 fn grouped_worker_candidates(
     _solution: &MixedPlan,
     limits: crate::builder::ScalarGroupLimits,
-) -> Vec<crate::builder::ScalarGroupCandidate> {
+) -> Vec<crate::builder::ScalarCandidate<MixedPlan>> {
     assert_eq!(limits.value_candidate_limit, Some(4));
     assert_eq!(limits.group_candidate_limit, None);
     assert_eq!(limits.max_moves_per_step, Some(8));
-    vec![crate::builder::ScalarGroupCandidate::new(
+    vec![crate::builder::ScalarCandidate::new(
         "worker_pair",
-        vec![crate::builder::ScalarGroupEdit::set_scalar(
-            0,
-            0,
-            "worker",
-            Some(1),
-        )],
+        vec![ScalarTarget::from_descriptor_index(0, "worker").set(0, Some(1))],
     )]
 }
 
 fn illegal_grouped_worker_candidates(
     _solution: &MixedPlan,
     _limits: crate::builder::ScalarGroupLimits,
-) -> Vec<crate::builder::ScalarGroupCandidate> {
-    vec![crate::builder::ScalarGroupCandidate::new(
+) -> Vec<crate::builder::ScalarCandidate<MixedPlan>> {
+    vec![crate::builder::ScalarCandidate::new(
         "illegal",
-        vec![crate::builder::ScalarGroupEdit::set_scalar(
-            0,
-            0,
-            "worker",
-            Some(99),
-        )],
+        vec![ScalarTarget::from_descriptor_index(0, "worker").set(0, Some(99))],
     )]
 }
 
 fn duplicate_grouped_worker_candidates(
     _solution: &MixedPlan,
     _limits: crate::builder::ScalarGroupLimits,
-) -> Vec<crate::builder::ScalarGroupCandidate> {
-    vec![crate::builder::ScalarGroupCandidate::new(
+) -> Vec<crate::builder::ScalarCandidate<MixedPlan>> {
+    vec![crate::builder::ScalarCandidate::new(
         "duplicate",
         vec![
-            crate::builder::ScalarGroupEdit::set_scalar(0, 0, "worker", Some(0)),
-            crate::builder::ScalarGroupEdit::set_scalar(0, 0, "worker", Some(1)),
+            ScalarTarget::from_descriptor_index(0, "worker").set(0, Some(0)),
+            ScalarTarget::from_descriptor_index(0, "worker").set(0, Some(1)),
         ],
     )]
 }
 
 fn model_with_group(
-    provider: crate::builder::context::ScalarGroupCandidateProvider<MixedPlan>,
-) -> crate::builder::ModelContext<MixedPlan, usize, NoopMeter, NoopMeter> {
-    let ctx = scalar_context();
-    scalar_only_model().with_scalar_groups(vec![crate::builder::ScalarGroupContext::new(
-        "worker_group",
-        vec![crate::builder::ScalarGroupMember::from_scalar_context(ctx)],
-        provider,
-    )])
+    provider: crate::builder::context::ScalarCandidateProvider<MixedPlan>,
+) -> crate::builder::RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {
+    let model = scalar_only_model();
+    let scalar_slots = model.scalar_variables().copied().collect::<Vec<_>>();
+    let groups = crate::builder::bind_scalar_groups(
+        vec![ScalarGroup::new(
+            "worker_group",
+            vec![ScalarTarget::from_descriptor_index(0, "worker")],
+            provider,
+        )],
+        &scalar_slots,
+    );
+    model.with_scalar_groups(groups)
 }
 
 #[test]
@@ -102,9 +97,9 @@ fn grouped_scalar_selector_filters_illegal_and_duplicate_edits() {
 
     for provider in [
         illegal_grouped_worker_candidates
-            as crate::builder::context::ScalarGroupCandidateProvider<MixedPlan>,
+            as crate::builder::context::ScalarCandidateProvider<MixedPlan>,
         duplicate_grouped_worker_candidates
-            as crate::builder::context::ScalarGroupCandidateProvider<MixedPlan>,
+            as crate::builder::context::ScalarCandidateProvider<MixedPlan>,
     ] {
         let model = model_with_group(provider);
         let config = MoveSelectorConfig::GroupedScalarMoveSelector(

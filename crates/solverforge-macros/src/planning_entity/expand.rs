@@ -3,8 +3,12 @@ use quote::quote;
 use syn::{parse_quote, Data, DeriveInput, Error, Fields};
 
 use crate::attr_parse::{
-    attribute_argument_names, get_attribute, has_attribute, has_attribute_argument,
-    parse_attribute_bool, parse_attribute_string,
+    get_attribute, has_attribute, has_attribute_argument, parse_attribute_bool,
+    parse_attribute_string,
+};
+use crate::attr_validation::{
+    validate_no_attribute_args, validate_planning_list_variable_attribute,
+    validate_planning_variable_attribute, validate_shadow_variable_attribute,
 };
 
 use super::list_variable::{generate_list_metadata, generate_list_trait_impl};

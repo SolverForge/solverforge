@@ -13,8 +13,8 @@ behavior remains the default whenever a construction heuristic has no
 
 Use grouped scalar construction when a model has nullable scalar variables that
 must change together before a hard-feasible state is reachable. A model declares
-named `ScalarGroupContext` entries, and a construction heuristic opts in with
-`group_name`. The grouped route evaluates a whole `ScalarGroupCandidate` as one
+named `ScalarGroup` entries, and a construction heuristic opts in with
+`group_name`. The grouped route evaluates a whole `ScalarCandidate` as one
 compound scalar move, applies all legal edits atomically, and marks every
 touched scalar slot complete through the normal committed mutation path.
 

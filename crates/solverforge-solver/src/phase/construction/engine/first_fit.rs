@@ -1,6 +1,6 @@
 fn solve_scalar_first_fit<S, V, D, ProgressCb>(
     variable_index: usize,
-    ctx: ScalarVariableContext<S>,
+    ctx: ScalarVariableSlot<S>,
     value_candidate_limit: Option<usize>,
     construction_obligation: ConstructionObligation,
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
@@ -122,7 +122,7 @@ where
 
 fn solve_list_first_fit<S, V, DM, IDM, D, ProgressCb>(
     list_index: usize,
-    ctx: ListVariableContext<S, V, DM, IDM>,
+    ctx: ListVariableSlot<S, V, DM, IDM>,
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
 ) -> IterationProgress<S, V>
 where

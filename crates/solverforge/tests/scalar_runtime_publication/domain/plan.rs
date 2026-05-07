@@ -19,10 +19,8 @@ pub struct Plan {
 }
 
 fn define_constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
-    use PlanConstraintStreams;
-
     (ConstraintFactory::<Plan, HardSoftScore>::new()
-        .tasks()
+        .for_each(Plan::tasks())
         .filter(|task: &Task| task.resource_idx.is_none())
         .penalize(HardSoftScore::of(0, 1))
         .named("unassigned task"),)

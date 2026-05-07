@@ -51,9 +51,9 @@ pub use solverforge_solver::{
 // Config
 pub use solverforge_config::{PhaseConfig, SolverConfig};
 
-// Stream types needed for macro-generated extension traits
+// Stream types needed for macro-generated source methods
 pub use solverforge_scoring::stream::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter};
 pub use solverforge_scoring::stream::{
-    source, ChangeSource, CollectionExtract, SourceExtract, UniConstraintBuilder,
+    source, ChangeSource, CollectionExtract, SourceExtract, UnassignedEntity, UniConstraintBuilder,
     UniConstraintStream,
 };

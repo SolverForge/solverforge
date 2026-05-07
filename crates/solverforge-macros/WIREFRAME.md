@@ -110,7 +110,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - Hidden scalar metadata bridge: private indexed helpers for scalar variable count, name, allows-unassigned, value-source metadata, getter/setter, and entity-local value slices. Helper order matches `entity_descriptor()` genuine scalar variable order; the index is used for generated getter/setter dispatch, while manifest hook attachment resolves descriptor variables by descriptor index plus variable name.
 - Hidden list metadata bridge (when the entity has a `#[planning_list_variable]` field): public cross-module `__SOLVERFORGE_LIST_VARIABLE_COUNT` plus private `__SOLVERFORGE_LIST_VARIABLE_NAME`, `__SOLVERFORGE_LIST_ELEMENT_COLLECTION`, `__solverforge_list_field()`, `__solverforge_list_field_mut()`, `__solverforge_list_metadata()`
 - Hidden typed list bridge (when the entity has a `#[planning_list_variable]` field): `impl __internal::ListVariableEntity<Solution> for Entity`
-- `pub trait {Entity}UnassignedFilter<...>` (when the entity has exactly one `Option<_>` planning variable) — `.unassigned()` on `UniConstraintStream<_, Entity, ...>`, including generated accessor streams from `#[planning_solution]`
+- Hidden unassigned bridge (when the entity has exactly one `Option<_>` planning variable): `impl __internal::UnassignedEntity<Solution> for Entity`, enabling `.unassigned()` on `UniConstraintStream<_, Entity, ...>` without a generated public trait import
 
 ### `PlanningSolutionImpl`
 
@@ -155,7 +155,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` with canonical shadow support and returns `ScoreAnalysis`
 - `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `ModelContext` containing typed scalar contexts plus zero or more owner-specific list contexts, delegate scalar hook attachment to the `planning_model!` support impl, sort those variable contexts to the descriptor-backed variable order emitted by the macros, compute hidden shape-aware solve-start telemetry (`__solverforge_total_list_elements()` for list models and `__solverforge_scalar_candidate_count()` for scalar models), and then call hidden `build_phases(config, &descriptor, &model)`
-- `pub trait {Name}ConstraintStreams<Sc>` — accessor methods for all `#[planning_entity_collection]` and `#[problem_fact_collection]` fields; implemented on `ConstraintFactory<{Name}, Sc>`. Each accessor returns a `UniConstraintStream` backed by `SourceExtract<fn(&Solution) -> &[Item]>`, using `ChangeSource::Descriptor(idx)` for planning entities and `ChangeSource::Static` for problem facts so generated streams work with incremental `.if_exists(...)` / `.if_not_exists(...)`, `.project(...)`, and `.unassigned()`. There is still only one public `for_each` entrypoint.
+- Public solution source methods for all `#[planning_entity_collection]`, `#[problem_fact_collection]`, and streamable `#[planning_list_element_collection]` fields. Each method is inherent on the solution type, for example `Plan::tasks()`, returns `impl solverforge::stream::CollectionExtract<Plan, Item = Task>`, and carries hidden `ChangeSource::Descriptor(idx)` for planning entities or `ChangeSource::Static` for facts and list elements. User constraints call `ConstraintFactory::new().for_each(Plan::tasks())`; there is still only one public stream-entry verb.
 
 ### `ProblemFactImpl`
 
@@ -193,7 +193,7 @@ Applies to structs. Adds derives: `Clone, Debug, PartialEq, Eq, ProblemFactImpl`
 | `generate_list_operations` | `fn(&Fields) -> TokenStream` | Generates the private runtime helper family, public owner-scoped list methods, and guarded single-owner generic methods without relying on bare-name metadata lookup |
 | `generate_solvable_solution` | `fn(&Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |
 | `generate_shadow_support` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates `PlanningSolution` shadow method overrides |
-| `generate_constraint_stream_extensions` | `fn(&Fields, &Ident) -> TokenStream` | Generates `{Name}ConstraintStreams` trait + impl on ConstraintFactory |
+| `generate_collection_source_methods` | `fn(&Fields) -> TokenStream` | Generates inherent solution source methods used with ConstraintFactory::for_each |
 | `extract_option_inner_type` | `fn(&Type) -> Result<&Type, Error>` | Extracts `T` from `Option<T>` |
 | `extract_collection_inner_type` | `fn(&Type) -> Option<&Type>` | Extracts `T` from `Vec<T>` |
 

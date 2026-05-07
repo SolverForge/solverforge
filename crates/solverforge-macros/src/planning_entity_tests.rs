@@ -32,8 +32,8 @@ fn golden_entity_expansion_includes_descriptor_and_planning_id() {
     assert!(expanded.contains("const HAS_LIST_VARIABLE : bool = true"));
     assert!(expanded.contains("LIST_ELEMENT_SOURCE"));
     assert!(expanded.contains("fn __solverforge_list_metadata < Solution >"));
-    assert!(expanded.contains("pub trait TaskUnassignedFilter"));
-    assert!(expanded.contains("fn unassigned (self)"));
+    assert!(expanded.contains("UnassignedEntity < __SolverForgeSolution > for Task"));
+    assert!(expanded.contains("fn is_unassigned"));
 }
 
 #[test]

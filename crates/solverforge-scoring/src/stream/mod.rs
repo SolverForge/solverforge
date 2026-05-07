@@ -82,6 +82,7 @@ mod penta_stream;
 mod projected_stream;
 mod quad_stream;
 mod tri_stream;
+mod unassigned;
 mod uni_stream;
 mod weighting_support;
 
@@ -108,4 +109,6 @@ pub use projected_stream::{
 };
 pub use quad_stream::{QuadConstraintBuilder, QuadConstraintStream};
 pub use tri_stream::{TriConstraintBuilder, TriConstraintStream};
+#[doc(hidden)]
+pub use unassigned::UnassignedEntity;
 pub use uni_stream::{UniConstraintBuilder, UniConstraintStream};

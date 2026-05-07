@@ -10,6 +10,10 @@ members = [
     "crates/solverforge",
     "crates/solverforge-cvrp",
     "crates/solverforge-test",
+    "examples/scalar-graph-coloring",
+    "examples/list-tsp",
+    "examples/mixed-job-shop",
+    "examples/nqueens",
 ]
 
 [workspace.package]

@@ -16,11 +16,9 @@ pub struct Plan {
 }
 
 fn constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
-    use PlanConstraintStreams;
-
     (
         ConstraintFactory::<Plan, HardSoftScore>::new()
-            .tasks()
+            .for_each(Plan::tasks())
             .penalize_soft()
             .named("penalize_tasks"),
     )

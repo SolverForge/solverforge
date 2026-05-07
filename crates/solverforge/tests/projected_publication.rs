@@ -102,14 +102,12 @@ impl Projection<Capacity> for CapacityEntries {
 
 #[test]
 fn projected_stream_is_public_and_infers_output_type() {
-    use PlanConstraintStreams;
-
     let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
-        .assignments()
+        .for_each(Plan::assignments())
         .project(AssignmentEntries)
         .merge(
             ConstraintFactory::<Plan, HardSoftScore>::new()
-                .capacities()
+                .for_each(Plan::capacities())
                 .project(CapacityEntries),
         )
         .group_by(
@@ -138,12 +136,10 @@ fn projected_stream_is_public_and_infers_output_type() {
 
 #[test]
 fn cross_join_project_is_public_and_infers_output_type() {
-    use PlanConstraintStreams;
-
     let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
-        .assignments()
+        .for_each(Plan::assignments())
         .join((
-            ConstraintFactory::<Plan, HardSoftScore>::new().capacities(),
+            ConstraintFactory::<Plan, HardSoftScore>::new().for_each(Plan::capacities()),
             joiner::equal_bi(
                 |assignment: &Assignment| assignment.bucket,
                 |capacity: &Capacity| capacity.bucket,

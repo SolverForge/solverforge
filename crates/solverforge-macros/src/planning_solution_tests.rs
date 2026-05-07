@@ -2,7 +2,7 @@ use crate::planning_solution::expand_derive;
 use syn::parse_quote;
 
 #[test]
-fn golden_solution_expansion_emits_constraint_streams_and_descriptor() {
+fn golden_solution_expansion_emits_model_sources_and_descriptor() {
     let input = parse_quote! {
         #[solverforge_constraints_path = "crate::constraints::create_constraints"]
         struct Plan {
@@ -20,7 +20,12 @@ fn golden_solution_expansion_emits_constraint_streams_and_descriptor() {
         .to_string();
 
     assert!(expanded.contains("impl :: solverforge :: __internal :: PlanningSolution for Plan"));
-    assert!(expanded.contains("pub trait PlanConstraintStreams"));
+    assert!(expanded
+        .contains("pub fn workers () -> impl :: solverforge :: stream :: CollectionExtract < Self , Item = Worker >"));
+    assert!(expanded
+        .contains("pub fn tasks () -> impl :: solverforge :: stream :: CollectionExtract < Self , Item = Task >"));
+    assert!(expanded.contains("ChangeSource :: Static"));
+    assert!(expanded.contains("ChangeSource :: Descriptor (0)"));
     assert!(expanded
         .contains("pub fn descriptor () -> :: solverforge :: __internal :: SolutionDescriptor"));
     assert!(expanded.contains("pub fn __solverforge_entity_tasks"));

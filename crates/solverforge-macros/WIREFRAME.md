@@ -18,6 +18,7 @@ No solverforge crate dependencies. Generated code references `::solverforge::__i
 ```
 src/
 ├── attr_parse.rs          — Shared attribute parsing helpers
+├── attr_validation.rs     — Strict user-authored attribute argument contracts and diagnostics
 ├── entrypoints.rs          — Shared proc-macro wrapper logic used by the crate root
 ├── lib.rs                  — Crate root; required proc-macro entry points only
 ├── planning_model.rs       — `planning_model!` manifest parser, file reader, metadata validator, and model-support generator
@@ -64,7 +65,7 @@ the same Rust modules and exports plus `include_str!` dependencies for every
 read module, enforces exactly one `#[planning_solution]`, validates entity and
 fact collection types, validates list element collection references, and
 generates the hidden `PlanningModelSupport` impl used by the solution derive for
-scalar hooks, runtime scalar contexts, model validation, and list-shadow updates.
+scalar hooks, runtime scalar slots, model validation, and list-shadow updates.
 
 ## Attribute Macros (proc_macro_attribute)
 
@@ -72,9 +73,17 @@ scalar hooks, runtime scalar contexts, model validation, and list-shadow updates
 
 Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support derive output. Optionally adds `serde::Serialize, serde::Deserialize` when `serde` flag is present.
 
-### `#[planning_solution]` / `#[planning_solution(serde, constraints = "path", config = "path")]`
+### `#[planning_solution]` / `#[planning_solution(...)]`
 
-Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support derive output. Optionally adds serde derives. The `constraints = "path"` flag embeds a `#[solverforge_constraints_path = "path"]` attribute for the derive to consume. The `config = "path"` flag embeds a `#[solverforge_config_path = "path"]` attribute for the derive to consume; the callback must have signature `fn(&Solution, SolverConfig) -> SolverConfig` and decorates the loaded `solver.toml` config instead of replacing it.
+Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support
+derive output. Accepted arguments are `serde`, `constraints = "path"`,
+`config = "path"`, `solver_toml = "path"`, `conflict_repairs = "path"`, and
+`scalar_groups = "path"`. Unknown or malformed arguments are compile errors.
+The `constraints` flag embeds a `#[solverforge_constraints_path = "path"]`
+attribute for the derive to consume. The `config` flag embeds a
+`#[solverforge_config_path = "path"]` attribute for the derive to consume; the
+callback must have signature `fn(&Solution, SolverConfig) -> SolverConfig` and
+decorates the loaded `solver.toml` config instead of replacing it.
 
 ### `#[problem_fact]` / `#[problem_fact(serde)]`
 
@@ -103,6 +112,9 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 - `#[next_element_shadow_variable(source_variable_name = "field")]` — next element shadow
 - `#[cascading_update_shadow_variable]` — cascading update shadow
 
+Unknown or malformed user-authored field arguments are compile errors. Current
+valid syntax is unchanged by strict validation.
+
 **Generated code:**
 - `impl PlanningEntity for T` — `is_pinned()`, `as_any()`, `as_any_mut()`
 - `impl PlanningId for T` (if `#[planning_id]` present) — `type Id` set to field type, `planning_id()` returns field value
@@ -121,10 +133,18 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 - `#[planning_score]` — `Option<Score>` field (required)
 - `#[value_range_provider]` — value range source
 
+Collection marker attributes and `#[planning_score]` do not accept arguments.
+`#[planning_list_element_collection]` accepts only `owner = "field"` when
+arguments are present. Unknown or malformed user-authored solution field
+arguments are compile errors.
+
 **Consumed attributes on struct:**
 - `#[shadow_variable_updates(...)]` — configures descriptor-aware shadow updates for the canonical solver path
 - `#[solverforge_constraints_path = "path"]` — path to constraint factory function
 - `#[solverforge_config_path = "path"]` — path to a config callback with signature `fn(&Solution, SolverConfig) -> SolverConfig`; called with the loaded `solver.toml` config (or defaults if the file is missing)
+- `#[solverforge_solver_toml_path = "path"]` — generated bridge attribute for an explicit solver TOML source
+- `#[solverforge_conflict_repairs_path = "path"]` — generated bridge attribute for the current conflict-repair provider function
+- `#[solverforge_scalar_groups_path = "path"]` — generated bridge attribute for grouped scalar declarations
 
 **`#[shadow_variable_updates]` parameters:**
 - `list_owner = "field"` — selects the `#[planning_entity_collection]` field whose entity owns the list shadow updates
@@ -149,12 +169,10 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 - `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors, reusing entity-generated descriptors so field-level variable order and metadata are preserved
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
 - Private owner-specific list operations used by the canonical runtime: `__solverforge_list_len_<owner>()`, `__solverforge_list_remove_<owner>()`, `__solverforge_list_insert_<owner>()`, `__solverforge_list_get_<owner>()`, `__solverforge_list_set_<owner>()`, `__solverforge_list_reverse_<owner>()`, `__solverforge_sublist_remove_<owner>()`, `__solverforge_sublist_insert_<owner>()`, `__solverforge_ruin_remove_<owner>()`, `__solverforge_ruin_insert_<owner>()`, `__solverforge_list_remove_for_construction_<owner>()`, `__solverforge_index_to_element_<owner>()`, `__solverforge_element_count_<owner>()`, `__solverforge_assigned_elements_<owner>()`, `__solverforge_n_entities_<owner>()`, `__solverforge_assign_element_<owner>()`, plus aggregate helpers `__solverforge_total_list_entities()` and `__solverforge_total_list_elements()`
-- Public owner-scoped list operations are generated for each `#[planning_entity_collection]` field: `{owner}_list_len()`, `{owner}_list_len_static()`, `{owner}_list_remove()`, `{owner}_list_insert()`, `{owner}_list_get()`, `{owner}_list_set()`, `{owner}_list_reverse()`, `{owner}_sublist_remove()`, `{owner}_sublist_insert()`, `{owner}_ruin_remove()`, `{owner}_ruin_insert()`, `{owner}_list_remove_for_construction()`, `{owner}_index_to_element_static()`, `{owner}_list_variable_descriptor_index()`, `{owner}_element_count()`, `{owner}_assigned_elements()`, `{owner}_n_entities()`, `{owner}_assign_element()`. Calls reject non-list owners at runtime with an explicit panic instead of relying on proc-macro name registries.
-- Generic single-owner convenience methods assert at runtime that the solution has exactly one actual list owner before dispatching: `list_len()`, `list_len_static()`, `list_remove()`, `list_insert()`, `list_get()`, `list_set()`, `list_reverse()`, `sublist_remove()`, `sublist_insert()`, `ruin_remove()`, `ruin_insert()`, `list_remove_for_construction()`, `index_to_element_static()`, `list_variable_descriptor_index()`, `element_count()`, `assigned_elements()`, `n_entities()`, `assign_element()`
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` with canonical shadow support and returns `ScoreAnalysis`
-- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `ModelContext` containing scalar contexts plus zero or more owner-specific list contexts, delegate scalar hook attachment to the `planning_model!` support impl, sort those variable contexts to the descriptor-backed variable order emitted by the macros, compute hidden shape-aware solve-start telemetry (`__solverforge_total_list_elements()` for list models and `__solverforge_scalar_candidate_count()` for scalar models), and then call hidden `build_phases(config, &descriptor, &model)`
+- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `RuntimeModel` containing scalar slots plus zero or more owner-specific list slots, delegate scalar hook attachment to the `planning_model!` support impl, sort those variable slots to the descriptor-backed variable order emitted by the macros, compute hidden shape-aware solve-start telemetry (`__solverforge_total_list_elements()` for list models and `__solverforge_scalar_candidate_count()` for scalar models), and then call hidden `build_phases(config, &descriptor, &model)`
 - Public solution source methods for all `#[planning_entity_collection]`, `#[problem_fact_collection]`, and streamable `#[planning_list_element_collection]` fields. Each method is inherent on the solution type, for example `Plan::tasks()`, returns `impl solverforge::stream::CollectionExtract<Plan, Item = Task>`, and carries hidden `ChangeSource::Descriptor(idx)` for planning entities or `ChangeSource::Static` for facts and list elements. User constraints call `ConstraintFactory::new().for_each(Plan::tasks())`; there is still only one public stream-entry verb.
 
 ### Problem Fact Support Derive
@@ -167,12 +185,12 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 - `impl PlanningId for T` (if `#[planning_id]` present) — same as entity version
 - `impl T { pub fn problem_fact_descriptor(solution_field: &'static str) -> ProblemFactDescriptor }`
 
-## Shared Helper Functions (`entrypoints.rs` / `attr_parse.rs`, private)
+## Shared Helper Functions (`entrypoints.rs` / `attr_parse.rs` / `attr_validation.rs`, private)
 
 | Function | Signature | Note |
 |----------|-----------|------|
-| `has_serde_flag` | `fn(TokenStream) -> bool` | Checks attribute stream for `serde` flag |
-| `parse_solution_flags` | `fn(TokenStream) -> (bool, Option<String>, Option<String>)` | Parses `serde`, `constraints = "path"`, and `config = "path"` |
+| `parse_serde_flag` | `fn(TokenStream, &str) -> Result<bool>` | Strictly parses top-level `serde` flags |
+| `parse_solution_flags` | `fn(TokenStream) -> Result<SolutionFlags>` | Strictly parses current `#[planning_solution(...)]` arguments |
 | `has_attribute` | `fn(&[Attribute], &str) -> bool` | Checks if field has named attribute |
 | `get_attribute` | `fn(&[Attribute], &str) -> Option<&Attribute>` | Gets named attribute |
 | `parse_attribute_bool` | `fn(&Attribute, &str) -> Option<bool>` | Parses `key = true/false` from attribute |
@@ -237,7 +255,7 @@ Scalar runtime assembly is index-based and manifest-owned. `#[planning_entity]`
 emits hidden per-entity scalar helpers in declaration order; that compact
 `variable_index` is the generated getter/setter index. `planning_model!` reads
 the declared modules and generates the `PlanningModelSupport` impl that attaches
-descriptor hooks and runtime `ScalarVariableContext` hooks by descriptor index
+descriptor hooks and runtime `ScalarVariableSlot` hooks by descriptor index
 plus variable name, then orders runtime variables from descriptor order. The
 modeling syntax is unchanged, and Rust module declaration order is not a user
 contract.

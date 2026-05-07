@@ -2,6 +2,7 @@
 
 use solverforge::__internal::{PlanningId, PlanningSolution as PlanningSolutionTrait};
 use solverforge::prelude::*;
+use solverforge::stream::CollectionExtract;
 
 #[path = "derive_macros/aliased_route_plan/mod.rs"]
 mod aliased_route_plan_domain;
@@ -107,8 +108,8 @@ fn test_field_only_list_solution_preserves_list_descriptor_metadata() {
 }
 
 #[test]
-fn test_single_owner_list_helpers_remain_available_when_unambiguous() {
-    let mut plan = RoutePlan {
+fn test_single_owner_list_sources_are_field_scoped() {
+    let plan = RoutePlan {
         visits: vec![Visit { id: 10 }],
         routes: vec![Route {
             id: 1,
@@ -117,24 +118,13 @@ fn test_single_owner_list_helpers_remain_available_when_unambiguous() {
         score: None,
     };
 
-    assert_eq!(plan.list_len(0), 1);
-    assert_eq!(RoutePlan::list_len_static(&plan, 0), 1);
-    assert_eq!(RoutePlan::element_count(&plan), 1);
-    assert_eq!(RoutePlan::n_entities(&plan), 1);
-    assert_eq!(RoutePlan::assigned_elements(&plan), vec![0]);
-    assert_eq!(RoutePlan::index_to_element_static(&plan, 0), 0);
-    assert_eq!(RoutePlan::list_variable_descriptor_index(), 0);
+    let routes = RoutePlan::routes().extract(&plan);
+    let visits = RoutePlan::visits().extract(&plan);
 
-    assert_eq!(RoutePlan::routes_list_len_static(&plan, 0), 1);
-    assert_eq!(RoutePlan::routes_element_count(&plan), 1);
-    assert_eq!(RoutePlan::routes_n_entities(&plan), 1);
-    assert_eq!(RoutePlan::routes_assigned_elements(&plan), vec![0]);
-    assert_eq!(RoutePlan::routes_index_to_element_static(&plan, 0), 0);
-    assert_eq!(RoutePlan::routes_list_variable_descriptor_index(), 0);
-
-    RoutePlan::assign_element(&mut plan, 0, 0);
-    RoutePlan::routes_assign_element(&mut plan, 0, 0);
-    assert_eq!(RoutePlan::list_len_static(&plan, 0), 3);
+    assert_eq!(routes.len(), 1);
+    assert_eq!(routes[0].visits, vec![0]);
+    assert_eq!(visits.len(), 1);
+    assert_eq!(PlanningId::planning_id(&visits[0]), 10);
 }
 
 #[test]
@@ -168,116 +158,7 @@ fn test_multi_owner_shadow_updates_are_descriptor_scoped() {
 }
 
 #[test]
-fn test_multi_owner_list_helpers_are_owner_scoped() {
-    let mut plan = MultiOwnerShadowPlan {
-        routes: vec![ShadowRoute {
-            id: 1,
-            visits: vec![0],
-        }],
-        shifts: vec![ShadowShift {
-            id: 2,
-            visits: vec![0],
-        }],
-        routed_visits: vec![RoutedVisit {
-            id: 10,
-            route: None,
-        }],
-        shift_visits: vec![ShiftVisit { id: 20 }],
-        score: None,
-    };
-
-    assert_eq!(MultiOwnerShadowPlan::routes_list_len_static(&plan, 0), 1);
-    assert_eq!(MultiOwnerShadowPlan::shifts_list_len_static(&plan, 0), 1);
-    assert_eq!(MultiOwnerShadowPlan::routes_element_count(&plan), 1);
-    assert_eq!(MultiOwnerShadowPlan::shifts_element_count(&plan), 1);
-    assert_eq!(MultiOwnerShadowPlan::routes_n_entities(&plan), 1);
-    assert_eq!(MultiOwnerShadowPlan::shifts_n_entities(&plan), 1);
-    assert_eq!(
-        MultiOwnerShadowPlan::routes_assigned_elements(&plan),
-        vec![0]
-    );
-    assert_eq!(
-        MultiOwnerShadowPlan::shifts_assigned_elements(&plan),
-        vec![0]
-    );
-    assert_eq!(
-        MultiOwnerShadowPlan::routes_index_to_element_static(&plan, 0),
-        0
-    );
-    assert_eq!(
-        MultiOwnerShadowPlan::shifts_index_to_element_static(&plan, 0),
-        0
-    );
-    assert_eq!(
-        MultiOwnerShadowPlan::routes_list_variable_descriptor_index(),
-        0
-    );
-    assert_eq!(
-        MultiOwnerShadowPlan::shifts_list_variable_descriptor_index(),
-        1
-    );
-
-    MultiOwnerShadowPlan::routes_assign_element(&mut plan, 0, 0);
-    MultiOwnerShadowPlan::shifts_assign_element(&mut plan, 0, 0);
-    assert_eq!(MultiOwnerShadowPlan::routes_list_len_static(&plan, 0), 2);
-    assert_eq!(MultiOwnerShadowPlan::shifts_list_len_static(&plan, 0), 2);
-}
-
-#[test]
-fn test_list_helpers_work_for_aliased_single_owner_types() {
-    let mut plan = AliasedRoutePlan {
-        visits: vec![AliasedVisit { id: 10 }],
-        routes: vec![AliasedRoute {
-            id: 1,
-            visits: vec![0],
-        }],
-        score: None,
-    };
-
-    assert_eq!(AliasedRoutePlan::list_len_static(&plan, 0), 1);
-    assert_eq!(AliasedRoutePlan::routes_list_len_static(&plan, 0), 1);
-    assert_eq!(AliasedRoutePlan::routes_element_count(&plan), 1);
-
-    AliasedRoutePlan::assign_element(&mut plan, 0, 0);
-    AliasedRoutePlan::routes_assign_element(&mut plan, 0, 0);
-    assert_eq!(AliasedRoutePlan::list_len_static(&plan, 0), 3);
-}
-
-#[test]
-fn test_duplicate_short_names_do_not_confuse_list_helper_binding() {
-    let plan = duplicate_names::Plan {
-        visits: vec![duplicate_names::Visit { id: 10 }],
-        listed_routes: vec![duplicate_names::Route {
-            id: 1,
-            visits: vec![0],
-        }],
-        plain_routes: vec![duplicate_names::RenamedPlainRoute { id: 2 }],
-        score: None,
-    };
-
-    assert_eq!(duplicate_names::Plan::list_len_static(&plan, 0), 1);
-    assert_eq!(
-        duplicate_names::Plan::listed_routes_list_len_static(&plan, 0),
-        1
-    );
-
-    let panic = std::panic::catch_unwind(|| {
-        let _ = duplicate_names::Plan::plain_routes_list_len_static(&plan, 0);
-    })
-    .expect_err("non-list entity collections should reject list helper calls");
-
-    let message = if let Some(message) = panic.downcast_ref::<String>() {
-        message.as_str()
-    } else if let Some(message) = panic.downcast_ref::<&str>() {
-        message
-    } else {
-        ""
-    };
-    assert!(message.contains("plain_routes"));
-}
-
-#[test]
-fn test_multi_owner_generic_list_helpers_reject_ambiguous_calls() {
+fn test_multi_owner_list_sources_are_owner_field_scoped() {
     let plan = MultiOwnerShadowPlan {
         routes: vec![ShadowRoute {
             id: 1,
@@ -295,17 +176,63 @@ fn test_multi_owner_generic_list_helpers_reject_ambiguous_calls() {
         score: None,
     };
 
-    let panic = std::panic::catch_unwind(|| {
-        let _ = MultiOwnerShadowPlan::list_len_static(&plan, 0);
-    })
-    .expect_err("multi-owner plans should reject generic list helper calls");
+    let routes = MultiOwnerShadowPlan::routes().extract(&plan);
+    let shifts = MultiOwnerShadowPlan::shifts().extract(&plan);
+    let routed_visits = MultiOwnerShadowPlan::routed_visits().extract(&plan);
+    let shift_visits = MultiOwnerShadowPlan::shift_visits().extract(&plan);
 
-    let message = if let Some(message) = panic.downcast_ref::<String>() {
-        message.as_str()
-    } else if let Some(message) = panic.downcast_ref::<&str>() {
-        message
-    } else {
-        ""
+    assert_eq!(routes.len(), 1);
+    assert_eq!(routes[0].visits, vec![0]);
+    assert_eq!(shifts.len(), 1);
+    assert_eq!(shifts[0].visits, vec![0]);
+    assert_eq!(routed_visits.len(), 1);
+    assert_eq!(shift_visits.len(), 1);
+}
+
+#[test]
+fn test_list_sources_work_for_aliased_single_owner_types() {
+    let plan = AliasedRoutePlan {
+        visits: vec![AliasedVisit { id: 10 }],
+        routes: vec![AliasedRoute {
+            id: 1,
+            visits: vec![0],
+        }],
+        score: None,
     };
-    assert!(message.contains("single-owner list helper"));
+
+    let routes = AliasedRoutePlan::routes().extract(&plan);
+    let visits = AliasedRoutePlan::visits().extract(&plan);
+
+    assert_eq!(routes.len(), 1);
+    assert_eq!(routes[0].visits, vec![0]);
+    assert_eq!(visits.len(), 1);
+}
+
+#[test]
+fn test_duplicate_short_names_do_not_confuse_list_descriptor_binding() {
+    let plan = duplicate_names::Plan {
+        visits: vec![duplicate_names::Visit { id: 10 }],
+        listed_routes: vec![duplicate_names::Route {
+            id: 1,
+            visits: vec![0],
+        }],
+        plain_routes: vec![duplicate_names::RenamedPlainRoute { id: 2 }],
+        score: None,
+    };
+
+    let listed_routes = duplicate_names::Plan::listed_routes().extract(&plan);
+    let plain_routes = duplicate_names::Plan::plain_routes().extract(&plan);
+    let descriptor = duplicate_names::Plan::descriptor();
+    let listed_descriptor = descriptor
+        .find_entity_descriptor("Route")
+        .expect("listed route descriptor should be present");
+    let plain_descriptor = descriptor
+        .find_entity_descriptor("PlainRoute")
+        .expect("plain route descriptor should be present");
+
+    assert_eq!(listed_routes.len(), 1);
+    assert_eq!(listed_routes[0].visits, vec![0]);
+    assert_eq!(plain_routes.len(), 1);
+    assert!(listed_descriptor.find_variable("visits").is_some());
+    assert!(plain_descriptor.find_variable("visits").is_none());
 }

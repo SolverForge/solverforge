@@ -88,7 +88,7 @@ pub trait Director<S: PlanningSolution>: Send {
     // Resets the score director state.
     fn reset(&mut self) {}
 
-    /* Registers a typed undo closure.
+    /* Registers a concrete undo closure.
 
     Called by moves after applying changes to enable automatic undo.
     The closure will be called in reverse order during `undo_changes()`.

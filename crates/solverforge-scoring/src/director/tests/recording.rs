@@ -26,13 +26,13 @@ fn test_recording_register_undo() {
     {
         let mut recording = RecordingDirector::new(&mut inner);
 
-        // Capture old value using typed getter
+        // Capture old value using concrete getter
         let old_value = get_queen_row(recording.working_solution(), 0, 0);
 
-        // Apply change using typed setter
+        // Apply change using concrete setter
         set_queen_row(recording.working_solution_mut(), 0, 0, Some(5));
 
-        // Register typed undo closure
+        // Register concrete undo closure
         recording.register_undo(Box::new(move |s: &mut NQueensSolution| {
             set_queen_row(s, 0, 0, old_value);
         }));
@@ -62,7 +62,7 @@ fn test_recording_multiple_undo() {
     {
         let mut recording = RecordingDirector::new(&mut inner);
 
-        // Change multiple entities, registering typed undo for each
+        // Change multiple entities, registering concrete undo for each
         for i in 0..3 {
             let old = get_queen_row(recording.working_solution(), i, 0);
             set_queen_row(recording.working_solution_mut(), i, 0, Some(10 + i as i64));

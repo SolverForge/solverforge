@@ -1,4 +1,4 @@
-// Typed constraint set for zero-erasure incremental scoring.
+// Monomorphized constraint set for zero-erasure incremental scoring.
 
 mod incremental;
 

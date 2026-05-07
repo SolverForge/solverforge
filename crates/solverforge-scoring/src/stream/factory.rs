@@ -1,4 +1,4 @@
-/* Constraint factory for creating typed constraint streams.
+/* Constraint factory for creating monomorphized constraint streams.
 
 The factory is the entry point for the fluent constraint API.
 */

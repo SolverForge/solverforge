@@ -5,16 +5,16 @@ use solverforge_core::score::Score;
 
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 
-/* A typed score director for zero-erasure incremental scoring.
+/* A zero-erasure score director for incremental scoring.
 
 Unlike `IncrementalDirector` which uses BAVET session with trait objects,
-this director uses a fully typed `ConstraintSet` where all constraint types
+this director uses a monomorphized `ConstraintSet` where all constraint types
 are known at compile time, enabling complete monomorphization.
 
 # Type Parameters
 
 - `S`: The solution type (must implement `PlanningSolution`)
-- `C`: The constraint set type (tuple of typed constraints)
+- `C`: The constraint set type (tuple of monomorphized constraints)
 
 # Example
 
@@ -48,7 +48,7 @@ ImpactType::Penalty,
 false,
 );
 
-// Create typed director with tuple-based constraint set
+// Create a zero-erasure director with a tuple-based constraint set
 let solution = Solution { values: vec![Some(1), None, Some(2)], score: None };
 let mut director = ScoreDirector::new(solution, (c1,));
 
@@ -71,10 +71,10 @@ where
     cached_score: S::Score,
     initialized: bool,
     pub(super) solution_descriptor: SolutionDescriptor,
-    /* Typed entity counter function.
+    /* Entity counter function.
 
     Returns the number of entities for the given descriptor index.
-    This is a typed function pointer that preserves full type information
+    This concrete function pointer preserves full type information
     throughout the solver pipeline.
     */
     pub(super) entity_counter: fn(&S, usize) -> usize,
@@ -87,12 +87,12 @@ where
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
 {
-    /* Creates a new typed score director with an empty descriptor.
+    /* Creates a new zero-erasure score director with an empty descriptor.
 
     Use this for manual solver loops that don't need the `Director` trait.
     For full solver infrastructure integration, use `with_descriptor()`.
 
-    The constraints should be a tuple of typed constraints (e.g., `(C1, C2, C3)`).
+    The constraints should be a tuple of monomorphized constraints (e.g., `(C1, C2, C3)`).
     */
     pub fn new(solution: S, constraints: C) -> Self {
         use std::any::TypeId;
@@ -104,7 +104,7 @@ where
         )
     }
 
-    /* Creates a new typed score director with a solution descriptor.
+    /* Creates a new zero-erasure score director with a solution descriptor.
 
     This constructor enables the `Director` trait implementation for
     integration with the full solver infrastructure (phases, move selectors, etc.).
@@ -112,9 +112,9 @@ where
     # Arguments
 
     * `solution` - The initial solution
-    * `constraints` - Tuple of typed constraints (e.g., `(C1, C2, C3)`)
+    * `constraints` - Tuple of monomorphized constraints (e.g., `(C1, C2, C3)`)
     * `solution_descriptor` - Metadata for solver infrastructure
-    * `entity_counter` - Typed function returning entity count for descriptor index
+    * `entity_counter` - Function returning entity count for descriptor index
     */
     pub fn with_descriptor(
         solution: S,

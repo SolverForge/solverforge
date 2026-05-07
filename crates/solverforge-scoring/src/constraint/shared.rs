@@ -1,4 +1,4 @@
-// Shared utilities for typed constraints.
+// Shared utilities for monomorphized constraints.
 
 use std::hash::{Hash, Hasher};
 

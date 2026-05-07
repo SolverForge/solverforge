@@ -1,7 +1,7 @@
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 
-use super::typed::ScoreDirector;
+use super::incremental::ScoreDirector;
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 use crate::director::Director;
 

@@ -1,6 +1,6 @@
-/* Zero-erasure typed constraint infrastructure.
+/* Zero-erasure monomorphized constraint infrastructure.
 
-This module provides a fully typed constraint evaluation system where
+This module provides a fully monomorphized constraint evaluation system where
 all closures are stored as concrete generic types - no Arc, no dyn,
 fully monomorphized.
 

@@ -1,4 +1,4 @@
-/* Typed constraint set for zero-erasure incremental scoring.
+/* Monomorphized constraint set for zero-erasure incremental scoring.
 
 This module provides the `ConstraintSet` trait which enables fully
 monomorphized constraint evaluation without virtual dispatch.
@@ -143,7 +143,7 @@ impl<'a> ConstraintMetadata<'a> {
 /* A set of constraints that can be evaluated together.
 
 `ConstraintSet` is implemented for tuples of `IncrementalConstraint`,
-enabling fully typed constraint evaluation without virtual dispatch.
+enabling fully monomorphized constraint evaluation without virtual dispatch.
 */
 pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     // Evaluates all constraints and returns the total score.

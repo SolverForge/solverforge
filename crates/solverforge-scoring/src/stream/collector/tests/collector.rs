@@ -82,7 +82,7 @@ fn test_single_item() {
     assert_eq!(result.loads().get(&0), Some(&3));
 }
 
-// Standard load balance test: checks incremental add/retract correctness.
+// Baseline load balance test: checks incremental add/retract correctness.
 // Note: We return i64 (rounded) so 0.707 -> 1.
 #[test]
 fn test_load_balance_standard_deviation() {

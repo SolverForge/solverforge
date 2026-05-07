@@ -1,9 +1,9 @@
 /*
 Zero-erasure incremental constraint scoring for SolverForge.
 
-This crate provides fully-typed incremental scoring infrastructure:
+This crate provides monomorphized incremental scoring infrastructure:
 - Zero-erasure incremental constraints (IncrementalUniConstraint, IncrementalBiConstraint, etc.)
-- Typed score directors (ScoreDirector)
+- Incremental score directors (ScoreDirector)
 - Tuple-based constraint sets (zero virtual dispatch)
 
 Architecture:

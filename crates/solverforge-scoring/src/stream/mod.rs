@@ -1,7 +1,7 @@
 /* Fluent constraint stream API for zero-erasure constraint programming.
 
 This module provides an ergonomic builder pattern for defining constraints
-that compile to fully-typed, monomorphized constraint implementations.
+that compile to fully monomorphized, monomorphized constraint implementations.
 
 # Overview
 

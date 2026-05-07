@@ -1,17 +1,17 @@
 /* Recording score director for automatic undo tracking.
 
 The `RecordingDirector` wraps an existing score director and stores
-typed undo closures registered by moves. This enables zero-erasure undo:
+concrete undo closures registered by moves. This enables zero-erasure undo:
 
 ```text
 // Pattern:
 let mut recording = RecordingDirector::new(&mut inner_sd);
-move.do_move(&mut recording);  // Move registers typed undo closure
+move.do_move(&mut recording);  // Move registers concrete undo closure
 let score = recording.calculate_score();
 recording.undo_changes();  // Calls undo closures in reverse order
 ```
 
-Moves capture old values using typed getters and register undo closures
+Moves capture old values using concrete getters and register undo closures
 via `register_undo()`. No BoxedValue, no type erasure on the undo path.
 */
 
@@ -21,9 +21,9 @@ use crate::api::constraint_set::ConstraintMetadata;
 
 use super::{Director, DirectorScoreState};
 
-/* A score director wrapper that stores typed undo closures.
+/* A score director wrapper that stores concrete undo closures.
 
-Moves register their own typed undo closures via `register_undo()`.
+Moves register their own concrete undo closures via `register_undo()`.
 This enables zero-erasure undo - no BoxedValue, no downcasting.
 
 # Example
@@ -67,7 +67,7 @@ assert_eq!(recording.working_solution().value, 10);
 */
 pub struct RecordingDirector<'a, S: PlanningSolution, D: Director<S>> {
     inner: &'a mut D,
-    // Typed undo closures registered by moves.
+    // Concrete undo closures registered by moves.
     undo_stack: Vec<Box<dyn FnOnce(&mut S) + Send>>,
     // Entities modified during this step that need shadow refresh after undo.
     // Stores (descriptor_index, entity_index) pairs.

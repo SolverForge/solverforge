@@ -9,4 +9,4 @@ help: the trait `solverforge::__internal::PlanningModelSupport` is not implement
   |
 9 | #[planning_solution]
   | ^^^^^^^^^^^^^^^^^^^^
-  = note: this error originates in the derive macro `::solverforge::PlanningSolutionImpl` which comes from the expansion of the attribute macro `planning_solution` (in Nightly builds, run with -Z macro-backtrace for more info)
+  = note: this error originates in the derive macro `::solverforge::__internal::PlanningSolutionImpl` which comes from the expansion of the attribute macro `planning_solution` (in Nightly builds, run with -Z macro-backtrace for more info)

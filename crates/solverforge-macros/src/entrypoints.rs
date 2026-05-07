@@ -20,7 +20,7 @@ pub(crate) fn planning_entity_attr(attr: TokenStream, item: TokenStream) -> Toke
     };
 
     let expanded = quote! {
-        #[derive(Clone, Debug, PartialEq, Eq, Hash, #serde_derives ::solverforge::PlanningEntityImpl)]
+        #[derive(Clone, Debug, PartialEq, Eq, Hash, #serde_derives ::solverforge::__internal::PlanningEntityImpl)]
         #(#attrs)*
         #vis struct #name #generics #fields
     };
@@ -59,7 +59,7 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
         .map(|p| quote! { #[solverforge_scalar_groups_path = #p] });
 
     let expanded = quote! {
-        #[derive(Clone, Debug, #serde_derives ::solverforge::PlanningSolutionImpl)]
+        #[derive(Clone, Debug, #serde_derives ::solverforge::__internal::PlanningSolutionImpl)]
         #constraints_attr
         #config_attr
         #solver_toml_attr
@@ -87,7 +87,7 @@ pub(crate) fn problem_fact_attr(attr: TokenStream, item: TokenStream) -> TokenSt
     };
 
     let expanded = quote! {
-        #[derive(Clone, Debug, PartialEq, Eq, #serde_derives ::solverforge::ProblemFactImpl)]
+        #[derive(Clone, Debug, PartialEq, Eq, #serde_derives ::solverforge::__internal::ProblemFactImpl)]
         #(#attrs)*
         #vis struct #name #generics #fields
     };

@@ -29,6 +29,7 @@ pub fn planning_model(input: TokenStream) -> TokenStream {
     entrypoints::planning_model_macro(input)
 }
 
+#[doc(hidden)]
 #[proc_macro_derive(
     PlanningEntityImpl,
     attributes(
@@ -46,6 +47,7 @@ pub fn derive_planning_entity(input: TokenStream) -> TokenStream {
     entrypoints::derive_planning_entity(input)
 }
 
+#[doc(hidden)]
 #[proc_macro_derive(
     PlanningSolutionImpl,
     attributes(
@@ -66,6 +68,7 @@ pub fn derive_planning_solution(input: TokenStream) -> TokenStream {
     entrypoints::derive_planning_solution(input)
 }
 
+#[doc(hidden)]
 #[proc_macro_derive(ProblemFactImpl, attributes(planning_id))]
 pub fn derive_problem_fact(input: TokenStream) -> TokenStream {
     entrypoints::derive_problem_fact(input)

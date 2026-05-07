@@ -27,8 +27,8 @@ fn golden_entity_expansion_includes_descriptor_and_planning_id() {
     assert!(expanded.contains("pub const __SOLVERFORGE_LIST_VARIABLE_COUNT : usize = 1"));
     assert!(expanded
         .contains("const __SOLVERFORGE_LIST_ELEMENT_COLLECTION : & 'static str = \"all_tasks\""));
-    assert!(expanded.contains("pub (crate) fn __solverforge_get_worker_idx_typed"));
-    assert!(expanded.contains("pub (crate) fn __solverforge_set_worker_idx_typed"));
+    assert!(expanded.contains("pub (crate) fn __solverforge_get_worker_idx_scalar"));
+    assert!(expanded.contains("pub (crate) fn __solverforge_set_worker_idx_scalar"));
     assert!(expanded.contains("const HAS_LIST_VARIABLE : bool = true"));
     assert!(expanded.contains("LIST_ELEMENT_SOURCE"));
     assert!(expanded.contains("fn __solverforge_list_metadata < Solution >"));
@@ -108,10 +108,10 @@ fn chained_option_usize_does_not_enter_scalar_helper_indexing() {
 
     assert!(expanded.contains("VariableDescriptor :: chained (\"previous\")"));
     assert!(expanded.contains("VariableDescriptor :: genuine (\"worker\")"));
-    assert!(!expanded.contains("__solverforge_get_previous_typed"));
-    assert!(!expanded.contains("__solverforge_set_previous_typed"));
-    assert!(expanded.contains("__solverforge_get_worker_typed"));
-    assert!(expanded.contains("__solverforge_set_worker_typed"));
+    assert!(!expanded.contains("__solverforge_get_previous_scalar"));
+    assert!(!expanded.contains("__solverforge_set_previous_scalar"));
+    assert!(expanded.contains("__solverforge_get_worker_scalar"));
+    assert!(expanded.contains("__solverforge_set_worker_scalar"));
     assert!(expanded.contains(
         "pub (crate) const fn __solverforge_scalar_variable_count () -> usize { 1usize }"
     ));

@@ -1,5 +1,5 @@
 solverforge::planning_model! {
-    root = "crates/solverforge-macros/tests/ui/pass/standard_solution/domain";
+    root = "crates/solverforge-macros/tests/ui/pass/basic_solution/domain";
 
     mod worker;
     mod task;

@@ -32,12 +32,12 @@ pub(super) fn generate_scalar_helpers(
 
         let supports_scalar_helpers = field_is_option_usize(&field.ty) && !is_chained;
 
-        let typed_getter_name = syn::Ident::new(
-            &format!("__solverforge_get_{}_typed", field_name_str),
+        let scalar_getter_name = syn::Ident::new(
+            &format!("__solverforge_get_{}_scalar", field_name_str),
             proc_macro2::Span::call_site(),
         );
-        let typed_setter_name = syn::Ident::new(
-            &format!("__solverforge_set_{}_typed", field_name_str),
+        let scalar_setter_name = syn::Ident::new(
+            &format!("__solverforge_set_{}_scalar", field_name_str),
             proc_macro2::Span::call_site(),
         );
 
@@ -57,12 +57,12 @@ pub(super) fn generate_scalar_helpers(
 
             helpers.push(quote! {
                 #[inline]
-                pub(crate) fn #typed_getter_name(entity: &Self) -> ::core::option::Option<usize> {
+                pub(crate) fn #scalar_getter_name(entity: &Self) -> ::core::option::Option<usize> {
                     entity.#field_name
                 }
 
                 #[inline]
-                pub(crate) fn #typed_setter_name(
+                pub(crate) fn #scalar_setter_name(
                     entity: &mut Self,
                     value: ::core::option::Option<usize>,
                 ) {
@@ -70,10 +70,10 @@ pub(super) fn generate_scalar_helpers(
                 }
             });
 
-            getter_arms.push(quote! { #index => Self::#typed_getter_name(entity), });
+            getter_arms.push(quote! { #index => Self::#scalar_getter_name(entity), });
             setter_arms.push(quote! {
                 #index => {
-                    Self::#typed_setter_name(entity, value);
+                    Self::#scalar_setter_name(entity, value);
                 }
             });
             name_arms.push(quote! { #index => ::core::option::Option::Some(#field_name_str), });
@@ -101,19 +101,19 @@ pub(super) fn generate_scalar_helpers(
                 value_range_provider.as_ref().unwrap(),
                 proc_macro2::Span::call_site(),
             );
-            let typed_provider_name = syn::Ident::new(
-                &format!("__solverforge_values_for_{}_typed", field_name_str),
+            let scalar_provider_name = syn::Ident::new(
+                &format!("__solverforge_values_for_{}_scalar", field_name_str),
                 proc_macro2::Span::call_site(),
             );
             helpers.push(quote! {
                 #[inline]
-                pub(crate) fn #typed_provider_name(entity: &Self) -> &[usize] {
+                pub(crate) fn #scalar_provider_name(entity: &Self) -> &[usize] {
                     &entity.#provider_field
                 }
             });
             let index = scalar_variable_index - 1;
             entity_slice_arms.push(quote! {
-                #index => Self::#typed_provider_name(entity),
+                #index => Self::#scalar_provider_name(entity),
             });
         }
     }

@@ -1,4 +1,4 @@
-#[path = "standard_solution/domain/mod.rs"]
+#[path = "basic_solution/domain/mod.rs"]
 mod domain;
 
 use domain::*;

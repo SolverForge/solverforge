@@ -1,4 +1,4 @@
-/* Typed move selectors for zero-erasure move generation.
+/* Zero-erasure move selectors for zero-erasure move generation.
 
 Selectors now expose cursor-owned storage plus borrowable candidates.
 The solver evaluates candidates by reference and only takes ownership of the
@@ -16,7 +16,7 @@ use crate::heuristic::r#move::{ChangeMove, Move, MoveArena, SequentialCompositeM
 use super::entity::{EntitySelector, FromSolutionEntitySelector};
 use super::value_selector::{StaticValueSelector, ValueSelector};
 
-mod either;
+mod scalar_union;
 
 include!("move_selector/borrowed.rs");
 include!("move_selector/iter.rs");

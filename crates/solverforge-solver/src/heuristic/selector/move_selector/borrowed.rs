@@ -1,4 +1,4 @@
-pub use either::{ScalarChangeMoveSelector, ScalarSwapMoveSelector};
+pub use scalar_union::{ScalarChangeMoveSelector, ScalarSwapMoveSelector};
 
 impl<S, M> Move<S> for &M
 where

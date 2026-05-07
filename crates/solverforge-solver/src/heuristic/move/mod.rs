@@ -6,7 +6,7 @@ and evaluating their impact on the score.
 
 # Architecture
 
-All moves are fully typed with inline value storage for maximum performance:
+All moves are fully monomorphized with inline value storage for maximum performance:
 - `ChangeMove<S, V>` - assigns a value to a variable
 - `SwapMove<S, V>` - swaps values between two entities
 - `CompositeMove<'a, S, M1, M2>` - applies two moves by reference
@@ -58,19 +58,19 @@ mod change;
 mod composite;
 mod compound_scalar;
 mod conflict_repair;
-mod either;
 mod k_opt;
 pub mod k_opt_reconnection;
 mod list_change;
-mod list_either;
 mod list_reverse;
 mod list_ruin;
 mod list_swap;
+mod list_union;
 pub(crate) mod metadata;
 mod pillar_change;
 mod pillar_swap;
 mod ruin;
 mod ruin_recreate;
+mod scalar_union;
 mod segment_layout;
 mod sublist_change;
 mod sublist_swap;
@@ -88,18 +88,18 @@ pub(crate) use composite::SequentialCompositeMoveRef;
 pub(crate) use composite::SequentialPreviewDirector;
 pub use compound_scalar::{CompoundScalarEdit, CompoundScalarMove, COMPOUND_SCALAR_VARIABLE};
 pub use conflict_repair::{ConflictRepairMove, ConflictRepairScalarEdit};
-pub use either::ScalarMoveUnion;
 pub use k_opt::{CutPoint, KOptMove};
 pub use list_change::ListChangeMove;
-pub use list_either::ListMoveUnion;
 pub use list_reverse::ListReverseMove;
 pub use list_ruin::ListRuinMove;
 pub use list_swap::ListSwapMove;
+pub use list_union::ListMoveUnion;
 pub use metadata::MoveTabuSignature;
 pub use pillar_change::PillarChangeMove;
 pub use pillar_swap::PillarSwapMove;
 pub use ruin::RuinMove;
 pub use ruin_recreate::{RuinRecreateMove, ScalarRecreateValueSource};
+pub use scalar_union::ScalarMoveUnion;
 pub use sublist_change::SublistChangeMove;
 pub use sublist_swap::SublistSwapMove;
 pub use swap::SwapMove;

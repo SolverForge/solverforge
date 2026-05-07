@@ -36,7 +36,7 @@ where
     }
 }
 
-/// A typed move selector that yields stable candidate indices plus borrowable
+/// A zero-erasure move selector that yields stable candidate indices plus borrowable
 /// move views. Ownership is transferred only via `take_candidate`.
 pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
     type Cursor<'a>: MoveCursor<S, M> + 'a

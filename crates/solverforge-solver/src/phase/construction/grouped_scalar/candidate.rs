@@ -4,7 +4,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::builder::context::{ScalarGroupCandidate, ScalarGroupContext, ScalarGroupLimits};
-use crate::descriptor_scalar::ResolvedVariableBinding;
+use crate::descriptor::ResolvedVariableBinding;
 use crate::heuristic::r#move::{CompoundScalarMove, Move};
 use crate::scope::{PhaseScope, ProgressCallback};
 

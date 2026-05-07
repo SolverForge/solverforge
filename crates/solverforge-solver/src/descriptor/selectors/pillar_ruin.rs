@@ -31,13 +31,13 @@ impl<S> Debug for DescriptorPillarChangeMoveSelector<S> {
     }
 }
 
-impl<S> MoveSelector<S, DescriptorScalarMoveUnion<S>> for DescriptorPillarChangeMoveSelector<S>
+impl<S> MoveSelector<S, DescriptorMoveUnion<S>> for DescriptorPillarChangeMoveSelector<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
     where
         Self: 'a;
 
@@ -79,7 +79,7 @@ where
                 let descriptor = descriptor.clone();
                 let entity_indices = entity_indices.clone();
                 move |value| {
-                    DescriptorScalarMoveUnion::PillarChange(DescriptorPillarChangeMove::new(
+                    DescriptorMoveUnion::PillarChange(DescriptorPillarChangeMove::new(
                         binding.clone(),
                         entity_indices.clone(),
                         Some(value),
@@ -116,13 +116,13 @@ impl<S> Debug for DescriptorPillarSwapMoveSelector<S> {
     }
 }
 
-impl<S> MoveSelector<S, DescriptorScalarMoveUnion<S>> for DescriptorPillarSwapMoveSelector<S>
+impl<S> MoveSelector<S, DescriptorMoveUnion<S>> for DescriptorPillarSwapMoveSelector<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
     where
         Self: 'a;
 
@@ -156,7 +156,7 @@ where
                 {
                     continue;
                 }
-                moves.push(DescriptorScalarMoveUnion::PillarSwap(
+                moves.push(DescriptorMoveUnion::PillarSwap(
                     DescriptorPillarSwapMove::new(
                         binding.clone(),
                         pillars[left_index]
@@ -208,13 +208,13 @@ impl<S> Debug for DescriptorRuinRecreateMoveSelector<S> {
     }
 }
 
-impl<S> MoveSelector<S, DescriptorScalarMoveUnion<S>> for DescriptorRuinRecreateMoveSelector<S>
+impl<S> MoveSelector<S, DescriptorMoveUnion<S>> for DescriptorRuinRecreateMoveSelector<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
     where
         Self: 'a;
 
@@ -277,7 +277,7 @@ where
                         value_candidate_limit,
                     );
                     mov.is_doable(score_director)
-                        .then_some(DescriptorScalarMoveUnion::RuinRecreate(mov))
+                        .then_some(DescriptorMoveUnion::RuinRecreate(mov))
                 }
             })
             .collect();

@@ -7,7 +7,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
 
 use crate::builder::{build_local_search, build_vnd, LocalSearch, ModelContext, Vnd};
-use crate::descriptor_scalar::{
+use crate::descriptor::{
     build_descriptor_construction_from_bindings, scalar_work_remaining_with_frontier,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
@@ -180,7 +180,7 @@ where
                     finalize_noop_construction(solver_scope);
                 }
             }
-            ConstructionRoute::DescriptorScalar => {
+            ConstructionRoute::Descriptor => {
                 let scalar_remaining = scalar_work_remaining_with_frontier(
                     &self.descriptor,
                     solver_scope.construction_frontier(),
@@ -352,7 +352,7 @@ where
 mod construction_routing_tests {
     use solverforge_config::ConstructionHeuristicType;
 
-    fn should_use_descriptor_scalar_path(
+    fn should_use_descriptor_path(
         heuristic: ConstructionHeuristicType,
         has_scalar_variables: bool,
         has_list_variables: bool,
@@ -381,8 +381,8 @@ mod construction_routing_tests {
     }
 
     #[test]
-    fn pure_scalar_first_fit_uses_descriptor_scalar_path() {
-        assert!(should_use_descriptor_scalar_path(
+    fn pure_scalar_first_fit_uses_descriptor_path() {
+        assert!(should_use_descriptor_path(
             ConstructionHeuristicType::FirstFit,
             true,
             false,
@@ -390,8 +390,8 @@ mod construction_routing_tests {
     }
 
     #[test]
-    fn pure_scalar_cheapest_insertion_uses_descriptor_scalar_path() {
-        assert!(should_use_descriptor_scalar_path(
+    fn pure_scalar_cheapest_insertion_uses_descriptor_path() {
+        assert!(should_use_descriptor_path(
             ConstructionHeuristicType::CheapestInsertion,
             true,
             false,
@@ -400,7 +400,7 @@ mod construction_routing_tests {
 
     #[test]
     fn mixed_first_fit_keeps_generic_construction_path() {
-        assert!(!should_use_descriptor_scalar_path(
+        assert!(!should_use_descriptor_path(
             ConstructionHeuristicType::FirstFit,
             true,
             true,
@@ -409,7 +409,7 @@ mod construction_routing_tests {
 
     #[test]
     fn mixed_cheapest_insertion_keeps_generic_construction_path() {
-        assert!(!should_use_descriptor_scalar_path(
+        assert!(!should_use_descriptor_path(
             ConstructionHeuristicType::CheapestInsertion,
             true,
             true,
@@ -418,7 +418,7 @@ mod construction_routing_tests {
 
     #[test]
     fn scalar_only_heuristics_still_route_to_descriptor_path() {
-        assert!(should_use_descriptor_scalar_path(
+        assert!(should_use_descriptor_path(
             ConstructionHeuristicType::StrongestFit,
             true,
             true,

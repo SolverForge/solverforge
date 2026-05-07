@@ -15,39 +15,39 @@ use crate::phase::construction::{
 use crate::scope::{ProgressCallback, SolverScope};
 
 use super::super::bindings::ResolvedVariableBinding;
-use super::super::move_types::{DescriptorChangeMove, DescriptorScalarMoveUnion};
+use super::super::move_types::{DescriptorChangeMove, DescriptorMoveUnion};
 
 pub enum DescriptorConstruction<S: PlanningSolution> {
     FirstFit(
         ConstructionHeuristicPhase<
             S,
-            DescriptorScalarMoveUnion<S>,
+            DescriptorMoveUnion<S>,
             DescriptorEntityPlacer<S>,
-            FirstFitForager<S, DescriptorScalarMoveUnion<S>>,
+            FirstFitForager<S, DescriptorMoveUnion<S>>,
         >,
     ),
     BestFit(
         ConstructionHeuristicPhase<
             S,
-            DescriptorScalarMoveUnion<S>,
+            DescriptorMoveUnion<S>,
             DescriptorEntityPlacer<S>,
-            BestFitForager<S, DescriptorScalarMoveUnion<S>>,
+            BestFitForager<S, DescriptorMoveUnion<S>>,
         >,
     ),
     WeakestFit(
         ConstructionHeuristicPhase<
             S,
-            DescriptorScalarMoveUnion<S>,
+            DescriptorMoveUnion<S>,
             DescriptorEntityPlacer<S>,
-            WeakestFitForager<S, DescriptorScalarMoveUnion<S>>,
+            WeakestFitForager<S, DescriptorMoveUnion<S>>,
         >,
     ),
     StrongestFit(
         ConstructionHeuristicPhase<
             S,
-            DescriptorScalarMoveUnion<S>,
+            DescriptorMoveUnion<S>,
             DescriptorEntityPlacer<S>,
-            StrongestFitForager<S, DescriptorScalarMoveUnion<S>>,
+            StrongestFitForager<S, DescriptorMoveUnion<S>>,
         >,
     ),
 }
@@ -150,7 +150,7 @@ where
     ) -> i64 {
         binding.entity_order_key(solution, entity_index).unwrap_or_else(|| {
             unreachable!(
-                "validated descriptor scalar construction must provide construction_entity_order_key for {}.{}",
+                "validated descriptor-driven construction must provide construction_entity_order_key for {}.{}",
                 binding.entity_type_name,
                 binding.variable_name
             )
@@ -168,7 +168,7 @@ where
             .value_order_key(solution, entity_index, value)
             .unwrap_or_else(|| {
                 unreachable!(
-                    "validated descriptor scalar construction must provide construction_value_order_key for {}.{}",
+                    "validated descriptor-driven construction must provide construction_value_order_key for {}.{}",
                     binding.entity_type_name,
                     binding.variable_name
                 )
@@ -235,7 +235,7 @@ where
         binding: &ResolvedVariableBinding<S>,
         entity_index: usize,
         value: usize,
-    ) -> DescriptorScalarMoveUnion<S> {
+    ) -> DescriptorMoveUnion<S> {
         let mut mov = DescriptorChangeMove::new(
             binding.clone_binding(),
             entity_index,
@@ -245,7 +245,7 @@ where
         if let Some(order_key) = binding.runtime_value_order_key() {
             mov = mov.with_construction_value_order_key(order_key);
         }
-        DescriptorScalarMoveUnion::Change(mov)
+        DescriptorMoveUnion::Change(mov)
     }
 
     fn placement_for_entity(
@@ -253,7 +253,7 @@ where
         binding: &ResolvedVariableBinding<S>,
         solution: &S,
         entity_index: usize,
-    ) -> Option<Placement<S, DescriptorScalarMoveUnion<S>>> {
+    ) -> Option<Placement<S, DescriptorMoveUnion<S>>> {
         let moves = self
             .ordered_candidate_values(binding, solution, entity_index)
             .into_iter()
@@ -275,14 +275,14 @@ where
     }
 }
 
-impl<S> EntityPlacer<S, DescriptorScalarMoveUnion<S>> for DescriptorEntityPlacer<S>
+impl<S> EntityPlacer<S, DescriptorMoveUnion<S>> for DescriptorEntityPlacer<S>
 where
     S: PlanningSolution + 'static,
 {
     fn get_placements<D: Director<S>>(
         &self,
         score_director: &D,
-    ) -> Vec<Placement<S, DescriptorScalarMoveUnion<S>>> {
+    ) -> Vec<Placement<S, DescriptorMoveUnion<S>>> {
         let mut placements = Vec::new();
         let solution = score_director.working_solution();
         let erased_solution = solution as &dyn Any;
@@ -311,7 +311,7 @@ where
         &self,
         score_director: &D,
         mut is_completed: IsCompleted,
-    ) -> Option<(Placement<S, DescriptorScalarMoveUnion<S>>, u64)>
+    ) -> Option<(Placement<S, DescriptorMoveUnion<S>>, u64)>
     where
         D: Director<S>,
         IsCompleted: FnMut(usize, usize) -> bool,
@@ -346,16 +346,13 @@ where
     }
 }
 
-pub(super) fn descriptor_scalar_move_strength<S>(
-    mov: &DescriptorScalarMoveUnion<S>,
-    solution: &S,
-) -> i64
+pub(super) fn descriptor_move_strength<S>(mov: &DescriptorMoveUnion<S>, solution: &S) -> i64
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
     match mov {
-        DescriptorScalarMoveUnion::Change(mov) => mov.live_value_order_key(solution).unwrap_or(0),
+        DescriptorMoveUnion::Change(mov) => mov.live_value_order_key(solution).unwrap_or(0),
         _ => 0,
     }
 }

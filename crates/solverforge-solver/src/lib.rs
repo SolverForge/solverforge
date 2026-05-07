@@ -19,7 +19,7 @@ triggers on these tuples but the pattern is architecturally required.
 pub mod test_utils;
 
 pub mod builder;
-pub mod descriptor_scalar;
+pub mod descriptor;
 pub mod heuristic;
 pub mod manager;
 pub mod model_support;
@@ -40,10 +40,10 @@ pub use builder::{
     ScalarGroupEdit, ScalarGroupLimits, ScalarGroupMember, ScalarVariableContext, Selector,
     ValueSource, VariableContext, Vnd,
 };
-pub use descriptor_scalar::{
+pub use descriptor::{
     build_descriptor_move_selector, descriptor_has_bindings, DescriptorConstruction,
-    DescriptorFlatSelector, DescriptorLeafSelector, DescriptorPillarChangeMove,
-    DescriptorPillarSwapMove, DescriptorRuinRecreateMove, DescriptorScalarMoveUnion,
+    DescriptorFlatSelector, DescriptorLeafSelector, DescriptorMoveUnion,
+    DescriptorPillarChangeMove, DescriptorPillarSwapMove, DescriptorRuinRecreateMove,
     DescriptorSelector, DescriptorSelectorNode,
 };
 pub use heuristic::{

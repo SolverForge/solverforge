@@ -31,7 +31,7 @@ fn descriptor_cartesian_builds_composite_moves() {
     let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
     let mut cursor = selector.open_cursor(&director);
     let indices =
-        collect_cursor_indices::<Plan, super::DescriptorScalarMoveUnion<Plan>, _>(&mut cursor);
+        collect_cursor_indices::<Plan, super::DescriptorMoveUnion<Plan>, _>(&mut cursor);
 
     assert!(!indices.is_empty());
     assert!(indices.iter().all(|&index| matches!(
@@ -44,7 +44,7 @@ fn descriptor_cartesian_builds_composite_moves() {
 }
 
 fn keep_all_descriptor_cartesian_candidates(
-    candidate: MoveCandidateRef<'_, Plan, super::DescriptorScalarMoveUnion<Plan>>,
+    candidate: MoveCandidateRef<'_, Plan, super::DescriptorMoveUnion<Plan>>,
 ) -> bool {
     matches!(candidate, MoveCandidateRef::Sequential(_))
 }
@@ -82,7 +82,7 @@ fn descriptor_cartesian_selector_survives_filtering_wrapper() {
     let filtered = FilteringMoveSelector::new(selector, keep_all_descriptor_cartesian_candidates);
     let mut cursor = filtered.open_cursor(&director);
     let indices =
-        collect_cursor_indices::<Plan, super::DescriptorScalarMoveUnion<Plan>, _>(&mut cursor);
+        collect_cursor_indices::<Plan, super::DescriptorMoveUnion<Plan>, _>(&mut cursor);
 
     assert!(!indices.is_empty());
     assert!(indices.iter().all(|&index| matches!(

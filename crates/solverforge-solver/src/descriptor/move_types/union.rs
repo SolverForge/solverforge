@@ -1,13 +1,13 @@
-pub enum DescriptorScalarMoveUnion<S> {
+pub enum DescriptorMoveUnion<S> {
     Change(DescriptorChangeMove<S>),
     Swap(DescriptorSwapMove<S>),
     PillarChange(DescriptorPillarChangeMove<S>),
     PillarSwap(DescriptorPillarSwapMove<S>),
     RuinRecreate(DescriptorRuinRecreateMove<S>),
-    Composite(SequentialCompositeMove<S, DescriptorScalarMoveUnion<S>>),
+    Composite(SequentialCompositeMove<S, DescriptorMoveUnion<S>>),
 }
 
-impl<S> Clone for DescriptorScalarMoveUnion<S>
+impl<S> Clone for DescriptorMoveUnion<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
@@ -24,7 +24,7 @@ where
     }
 }
 
-impl<S> Debug for DescriptorScalarMoveUnion<S>
+impl<S> Debug for DescriptorMoveUnion<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
@@ -41,7 +41,7 @@ where
     }
 }
 
-impl<S> Move<S> for DescriptorScalarMoveUnion<S>
+impl<S> Move<S> for DescriptorMoveUnion<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,

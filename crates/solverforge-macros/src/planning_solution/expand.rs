@@ -188,7 +188,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                 .with_score_field(#score_field_str)
                 #(#entity_descriptors)*
                 #(#fact_descriptors)*;
-                <Self as ::solverforge::__internal::PlanningModelSupport>::attach_descriptor_scalar_hooks(
+                <Self as ::solverforge::__internal::PlanningModelSupport>::attach_descriptor_hooks(
                     &mut descriptor,
                 );
                 <Self as ::solverforge::__internal::PlanningModelSupport>::validate_model(

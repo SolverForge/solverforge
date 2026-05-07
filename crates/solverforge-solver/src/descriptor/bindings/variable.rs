@@ -62,7 +62,7 @@ impl VariableBinding {
     ) -> &'a dyn Any {
         solution_descriptor
             .get_entity(solution, self.descriptor_index, entity_index)
-            .expect("entity lookup failed for descriptor scalar binding")
+            .expect("entity lookup failed for descriptor-driven binding")
     }
 
     pub(crate) fn values_for_entity(

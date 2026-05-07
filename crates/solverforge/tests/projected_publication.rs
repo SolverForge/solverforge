@@ -40,10 +40,7 @@ pub struct Plan {
 }
 
 impl solverforge::__internal::PlanningModelSupport for Plan {
-    fn attach_descriptor_scalar_hooks(
-        _descriptor: &mut solverforge::__internal::SolutionDescriptor,
-    ) {
-    }
+    fn attach_descriptor_hooks(_descriptor: &mut solverforge::__internal::SolutionDescriptor) {}
 
     fn attach_runtime_scalar_hooks(
         context: solverforge::__internal::ScalarVariableContext<Self>,

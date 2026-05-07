@@ -126,7 +126,7 @@ fn descriptor_ruin_recreate_honors_configured_random_seed() {
             .map(|mov| {
                 assert!(matches!(
                     mov,
-                    super::DescriptorScalarMoveUnion::RuinRecreate(_)
+                    super::DescriptorMoveUnion::RuinRecreate(_)
                 ));
                 mov.entity_indices().to_vec()
             })

@@ -29,20 +29,20 @@ use crate::heuristic::selector::seed::scoped_seed;
 
 use super::bindings::{collect_bindings, find_binding, VariableBinding};
 use super::move_types::{
-    DescriptorChangeMove, DescriptorPillarChangeMove, DescriptorPillarSwapMove,
-    DescriptorRuinRecreateMove, DescriptorScalarMoveUnion, DescriptorSwapMove,
+    DescriptorChangeMove, DescriptorMoveUnion, DescriptorPillarChangeMove,
+    DescriptorPillarSwapMove, DescriptorRuinRecreateMove, DescriptorSwapMove,
 };
 
 pub type DescriptorFlatSelector<S> =
-    VecUnionSelector<S, DescriptorScalarMoveUnion<S>, DescriptorLeafSelector<S>>;
+    VecUnionSelector<S, DescriptorMoveUnion<S>, DescriptorLeafSelector<S>>;
 type DescriptorCartesianSelector<S> = CartesianProductSelector<
     S,
-    DescriptorScalarMoveUnion<S>,
+    DescriptorMoveUnion<S>,
     DescriptorFlatSelector<S>,
     DescriptorFlatSelector<S>,
 >;
 pub type DescriptorSelector<S> =
-    VecUnionSelector<S, DescriptorScalarMoveUnion<S>, DescriptorSelectorNode<S>>;
+    VecUnionSelector<S, DescriptorMoveUnion<S>, DescriptorSelectorNode<S>>;
 
 const SWAP_LEGALITY_WORD_BITS: usize = usize::BITS as usize;
 

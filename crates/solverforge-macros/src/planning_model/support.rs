@@ -439,7 +439,7 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
 
     Ok(quote! {
         impl ::solverforge::__internal::PlanningModelSupport for #solution_path {
-            fn attach_descriptor_scalar_hooks(
+            fn attach_descriptor_hooks(
                 descriptor: &mut ::solverforge::__internal::SolutionDescriptor,
             ) {
                 fn attach_scalar_variable_hook(

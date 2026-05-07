@@ -6,12 +6,12 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::domain::SolutionDescriptor;
 
 use crate::builder::{ListVariableContext, ModelContext, ScalarGroupContext};
-use crate::descriptor_scalar::{collect_bindings, find_resolved_binding, ResolvedVariableBinding};
+use crate::descriptor::{collect_bindings, find_resolved_binding, ResolvedVariableBinding};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ConstructionRoute {
-    DescriptorScalar,
+    Descriptor,
     GroupedScalar,
     GenericMixed,
     SpecializedList,
@@ -127,7 +127,7 @@ where
                 ConstructionRoute::GroupedScalar
             } else {
                 validate_scalar_route(heuristic, &scalar_bindings, list_variables.is_empty());
-                ConstructionRoute::DescriptorScalar
+                ConstructionRoute::Descriptor
             }
         }
         ConstructionHeuristicType::FirstFit | ConstructionHeuristicType::CheapestInsertion => {
@@ -141,7 +141,7 @@ where
                     );
                 }
                 if !scalar_bindings.is_empty() && list_variables.is_empty() {
-                    ConstructionRoute::DescriptorScalar
+                    ConstructionRoute::Descriptor
                 } else {
                     ConstructionRoute::GenericMixed
                 }

@@ -13,8 +13,8 @@ pub(crate) use construction::build_descriptor_construction;
 pub(crate) use construction::build_descriptor_construction_from_bindings;
 pub use construction::{DescriptorConstruction, DescriptorEntityPlacer};
 pub use move_types::{
-    DescriptorChangeMove, DescriptorPillarChangeMove, DescriptorPillarSwapMove,
-    DescriptorRuinRecreateMove, DescriptorScalarMoveUnion, DescriptorSwapMove,
+    DescriptorChangeMove, DescriptorMoveUnion, DescriptorPillarChangeMove,
+    DescriptorPillarSwapMove, DescriptorRuinRecreateMove, DescriptorSwapMove,
 };
 pub use selectors::{
     build_descriptor_move_selector, DescriptorChangeMoveSelector, DescriptorFlatSelector,

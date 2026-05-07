@@ -32,7 +32,7 @@ fn descriptor_pillar_change_uses_public_pillar_semantics() {
     assert_eq!(moves.len(), 2);
     assert!(moves
         .iter()
-        .all(|mov| matches!(mov, super::DescriptorScalarMoveUnion::PillarChange(_))));
+        .all(|mov| matches!(mov, super::DescriptorMoveUnion::PillarChange(_))));
 }
 
 #[test]

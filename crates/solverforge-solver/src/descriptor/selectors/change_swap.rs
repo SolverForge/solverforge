@@ -32,13 +32,13 @@ impl<S> DescriptorChangeMoveSelector<S> {
     }
 }
 
-impl<S> MoveSelector<S, DescriptorScalarMoveUnion<S>> for DescriptorChangeMoveSelector<S>
+impl<S> MoveSelector<S, DescriptorMoveUnion<S>> for DescriptorChangeMoveSelector<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
     where
         Self: 'a;
 
@@ -60,7 +60,7 @@ where
                     let binding = binding.clone();
                     let descriptor = descriptor.clone();
                     move || {
-                        DescriptorScalarMoveUnion::Change(DescriptorChangeMove::new(
+                        DescriptorMoveUnion::Change(DescriptorChangeMove::new(
                             binding.clone(),
                             entity_index,
                             None,
@@ -80,7 +80,7 @@ where
                         let binding = binding.clone();
                         let descriptor = descriptor.clone();
                         move |value| {
-                            DescriptorScalarMoveUnion::Change(DescriptorChangeMove::new(
+                            DescriptorMoveUnion::Change(DescriptorChangeMove::new(
                                 binding.clone(),
                                 entity_index,
                                 Some(value),
@@ -148,13 +148,13 @@ impl<S> DescriptorSwapMoveSelector<S> {
     }
 }
 
-impl<S> MoveSelector<S, DescriptorScalarMoveUnion<S>> for DescriptorSwapMoveSelector<S>
+impl<S> MoveSelector<S, DescriptorMoveUnion<S>> for DescriptorSwapMoveSelector<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
     where
         Self: 'a;
 
@@ -179,7 +179,7 @@ where
                 if let Some((left_value, right_value)) =
                     legality_index.values_for_swap(left_entity_index, right_entity_index)
                 {
-                    moves.push(DescriptorScalarMoveUnion::Swap(
+                    moves.push(DescriptorMoveUnion::Swap(
                         DescriptorSwapMove::new_validated(
                             binding.clone(),
                             left_entity_index,
@@ -230,13 +230,13 @@ impl<S> Debug for DescriptorNearbyChangeMoveSelector<S> {
     }
 }
 
-impl<S> MoveSelector<S, DescriptorScalarMoveUnion<S>> for DescriptorNearbyChangeMoveSelector<S>
+impl<S> MoveSelector<S, DescriptorMoveUnion<S>> for DescriptorNearbyChangeMoveSelector<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
     where
         Self: 'a;
 
@@ -288,7 +288,7 @@ where
                     let binding = binding.clone();
                     let descriptor = descriptor.clone();
                     move |(value, _, _)| {
-                        DescriptorScalarMoveUnion::Change(DescriptorChangeMove::new(
+                        DescriptorMoveUnion::Change(DescriptorChangeMove::new(
                             binding.clone(),
                             entity_index,
                             Some(value),
@@ -300,7 +300,7 @@ where
                     let binding = binding.clone();
                     let descriptor = descriptor.clone();
                     move || {
-                        DescriptorScalarMoveUnion::Change(DescriptorChangeMove::new(
+                        DescriptorMoveUnion::Change(DescriptorChangeMove::new(
                             binding.clone(),
                             entity_index,
                             None,
@@ -336,13 +336,13 @@ impl<S> Debug for DescriptorNearbySwapMoveSelector<S> {
     }
 }
 
-impl<S> MoveSelector<S, DescriptorScalarMoveUnion<S>> for DescriptorNearbySwapMoveSelector<S>
+impl<S> MoveSelector<S, DescriptorMoveUnion<S>> for DescriptorNearbySwapMoveSelector<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
     where
         Self: 'a;
 
@@ -398,7 +398,7 @@ where
                 else {
                     continue;
                 };
-                moves.push(DescriptorScalarMoveUnion::Swap(
+                moves.push(DescriptorMoveUnion::Swap(
                     DescriptorSwapMove::new_validated(
                         binding.clone(),
                         left_entity_index,

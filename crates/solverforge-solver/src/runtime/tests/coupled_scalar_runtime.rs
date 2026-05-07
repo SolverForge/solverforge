@@ -74,7 +74,7 @@ impl Director<CoupledScalarPlan> for CoupledScalarDirector {
     }
 }
 
-fn coupled_scalar_descriptor() -> SolutionDescriptor {
+fn coupled_plan_descriptor() -> SolutionDescriptor {
     SolutionDescriptor::new("CoupledScalarPlan", TypeId::of::<CoupledScalarPlan>()).with_entity(
         EntityDescriptor::new(
             "CoupledScalarChoice",
@@ -254,7 +254,7 @@ fn coupled_empty_plan() -> CoupledScalarPlan {
 fn coupled_scalar_witness_is_hard_feasible_only_as_compound_assignment() {
     let mut empty = CoupledScalarDirector {
         working_solution: coupled_empty_plan(),
-        descriptor: coupled_scalar_descriptor(),
+        descriptor: coupled_plan_descriptor(),
     };
     assert_eq!(empty.calculate_score(), HardSoftScore::of(-1, 0));
 
@@ -268,7 +268,7 @@ fn coupled_scalar_witness_is_hard_feasible_only_as_compound_assignment() {
         }
         let mut director = CoupledScalarDirector {
             working_solution: one_edit,
-            descriptor: coupled_scalar_descriptor(),
+            descriptor: coupled_plan_descriptor(),
         };
         assert!(director.calculate_score() < HardSoftScore::of(-1, 0));
     }
@@ -282,14 +282,14 @@ fn coupled_scalar_witness_is_hard_feasible_only_as_compound_assignment() {
                 third: Some(1),
             }],
         },
-        descriptor: coupled_scalar_descriptor(),
+        descriptor: coupled_plan_descriptor(),
     };
     assert_eq!(witness.calculate_score(), HardSoftScore::of(0, 0));
 }
 
 #[test]
 fn scalar_construction_is_order_local_for_coupled_nullable_slots() {
-    let descriptor = coupled_scalar_descriptor();
+    let descriptor = coupled_plan_descriptor();
     let director = CoupledScalarDirector {
         working_solution: coupled_empty_plan(),
         descriptor: descriptor.clone(),
@@ -320,7 +320,7 @@ fn scalar_construction_is_order_local_for_coupled_nullable_slots() {
 
 #[test]
 fn grouped_scalar_construction_reaches_coupled_hard_witness() {
-    let descriptor = coupled_scalar_descriptor();
+    let descriptor = coupled_plan_descriptor();
     let director = CoupledScalarDirector {
         working_solution: coupled_empty_plan(),
         descriptor: descriptor.clone(),

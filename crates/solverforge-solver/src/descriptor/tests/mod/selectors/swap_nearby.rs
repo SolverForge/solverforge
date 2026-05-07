@@ -27,7 +27,7 @@ fn descriptor_nearby_change_uses_value_distance_meter() {
     assert_eq!(moves.len(), 4);
     assert!(moves
         .iter()
-        .all(|mov| matches!(mov, super::DescriptorScalarMoveUnion::Change(_))));
+        .all(|mov| matches!(mov, super::DescriptorMoveUnion::Change(_))));
     assert!(moves.iter().all(|mov| mov.is_doable(&director)));
 }
 
@@ -53,7 +53,7 @@ fn descriptor_nearby_change_applies_value_candidate_limit_before_ranking() {
     let targets: Vec<_> = moves
         .iter()
         .map(|mov| {
-            assert!(matches!(mov, super::DescriptorScalarMoveUnion::Change(_)));
+            assert!(matches!(mov, super::DescriptorMoveUnion::Change(_)));
             mov.entity_indices().to_vec()
         })
         .collect();
@@ -105,7 +105,7 @@ fn descriptor_nearby_swap_filters_same_value_candidates_before_limiting() {
     let swap_pairs: Vec<Vec<_>> = moves
         .iter()
         .map(|mov| {
-            assert!(matches!(mov, super::DescriptorScalarMoveUnion::Swap(_)));
+            assert!(matches!(mov, super::DescriptorMoveUnion::Swap(_)));
             mov.entity_indices().to_vec()
         })
         .collect();
@@ -180,7 +180,7 @@ fn descriptor_swap_selector_prunes_illegal_entity_ranges() {
     let swap_pairs: Vec<_> = moves
         .iter()
         .map(|mov| {
-            assert!(matches!(mov, super::DescriptorScalarMoveUnion::Swap(_)));
+            assert!(matches!(mov, super::DescriptorMoveUnion::Swap(_)));
             mov.entity_indices().to_vec()
         })
         .collect();
@@ -217,7 +217,7 @@ fn descriptor_swap_selector_emits_complete_assignment_swaps_without_domain() {
     assert_eq!(moves.len(), 1);
     assert!(matches!(
         moves[0],
-        super::DescriptorScalarMoveUnion::Swap(_)
+        super::DescriptorMoveUnion::Swap(_)
     ));
     assert_eq!(moves[0].entity_indices(), [0, 1]);
     assert!(moves[0].is_doable(&director));
@@ -283,7 +283,7 @@ fn descriptor_nearby_swap_prunes_illegal_entity_ranges_before_limiting() {
     let swap_pairs: Vec<_> = moves
         .iter()
         .map(|mov| {
-            assert!(matches!(mov, super::DescriptorScalarMoveUnion::Swap(_)));
+            assert!(matches!(mov, super::DescriptorMoveUnion::Swap(_)));
             mov.entity_indices().to_vec()
         })
         .collect();

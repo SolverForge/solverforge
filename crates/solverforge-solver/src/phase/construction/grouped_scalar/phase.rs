@@ -7,7 +7,7 @@ use solverforge_scoring::Director;
 use tracing::info;
 
 use crate::builder::context::{ScalarGroupContext, ScalarGroupLimits};
-use crate::descriptor_scalar::ResolvedVariableBinding;
+use crate::descriptor::ResolvedVariableBinding;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second};
 

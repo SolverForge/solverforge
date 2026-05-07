@@ -25,13 +25,13 @@ where
     }
 }
 
-impl<S> MoveSelector<S, DescriptorScalarMoveUnion<S>> for DescriptorLeafSelector<S>
+impl<S> MoveSelector<S, DescriptorMoveUnion<S>> for DescriptorLeafSelector<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>
+        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
     where
         Self: 'a;
 
@@ -70,11 +70,11 @@ pub enum DescriptorSelectorCursor<S>
 where
     S: PlanningSolution + 'static,
 {
-    Leaf(ArenaMoveCursor<S, DescriptorScalarMoveUnion<S>>),
-    Cartesian(CartesianProductCursor<S, DescriptorScalarMoveUnion<S>>),
+    Leaf(ArenaMoveCursor<S, DescriptorMoveUnion<S>>),
+    Cartesian(CartesianProductCursor<S, DescriptorMoveUnion<S>>),
 }
 
-impl<S> MoveCursor<S, DescriptorScalarMoveUnion<S>> for DescriptorSelectorCursor<S>
+impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorSelectorCursor<S>
 where
     S: PlanningSolution + 'static,
 {
@@ -88,14 +88,14 @@ where
     fn candidate(
         &self,
         index: CandidateId,
-    ) -> Option<MoveCandidateRef<'_, S, DescriptorScalarMoveUnion<S>>> {
+    ) -> Option<MoveCandidateRef<'_, S, DescriptorMoveUnion<S>>> {
         match self {
             Self::Leaf(cursor) => cursor.candidate(index),
             Self::Cartesian(cursor) => cursor.candidate(index),
         }
     }
 
-    fn take_candidate(&mut self, index: CandidateId) -> DescriptorScalarMoveUnion<S> {
+    fn take_candidate(&mut self, index: CandidateId) -> DescriptorMoveUnion<S> {
         match self {
             Self::Leaf(cursor) => cursor.take_candidate(index),
             Self::Cartesian(cursor) => cursor.take_candidate(index),
@@ -122,7 +122,7 @@ where
     }
 }
 
-impl<S> MoveSelector<S, DescriptorScalarMoveUnion<S>> for DescriptorSelectorNode<S>
+impl<S> MoveSelector<S, DescriptorMoveUnion<S>> for DescriptorSelectorNode<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
@@ -152,11 +152,11 @@ where
 }
 
 fn wrap_descriptor_composite<S>(
-    mov: crate::heuristic::r#move::SequentialCompositeMove<S, DescriptorScalarMoveUnion<S>>,
-) -> DescriptorScalarMoveUnion<S>
+    mov: crate::heuristic::r#move::SequentialCompositeMove<S, DescriptorMoveUnion<S>>,
+) -> DescriptorMoveUnion<S>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    DescriptorScalarMoveUnion::Composite(mov)
+    DescriptorMoveUnion::Composite(mov)
 }

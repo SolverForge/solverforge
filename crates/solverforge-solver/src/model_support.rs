@@ -3,7 +3,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use crate::builder::{ScalarGroupContext, ScalarVariableContext};
 
 pub trait PlanningModelSupport: PlanningSolution + Sized + 'static {
-    fn attach_descriptor_scalar_hooks(descriptor: &mut SolutionDescriptor);
+    fn attach_descriptor_hooks(descriptor: &mut SolutionDescriptor);
 
     fn attach_runtime_scalar_hooks(
         context: ScalarVariableContext<Self>,

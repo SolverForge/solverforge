@@ -189,6 +189,6 @@ fn solution_descriptor_delegates_scalar_hook_attachment_to_model_manifest() {
         .to_string();
 
     assert!(expanded.contains("PlanningModelSupport"));
-    assert!(expanded.contains("attach_descriptor_scalar_hooks"));
+    assert!(expanded.contains("attach_descriptor_hooks"));
     assert!(expanded.contains("validate_model"));
 }

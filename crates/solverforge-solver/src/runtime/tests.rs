@@ -3,7 +3,7 @@ use crate::builder::{
     ListVariableContext, ModelContext, ScalarGroupCandidate, ScalarGroupContext, ScalarGroupEdit,
     ScalarGroupLimits, ScalarGroupMember, ScalarVariableContext, ValueSource, VariableContext,
 };
-use crate::descriptor_scalar::{scalar_target_matches, scalar_work_remaining_with_frontier};
+use crate::descriptor::{scalar_target_matches, scalar_work_remaining_with_frontier};
 use crate::phase::Phase;
 use crate::scope::SolverScope;
 use crate::DefaultCrossEntityDistanceMeter;

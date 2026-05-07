@@ -207,7 +207,7 @@ where
                         assert!(
                             binding.candidate_values.is_some()
                                 || ruin_recreate.value_candidate_limit.is_some(),
-                            "cheapest_insertion descriptor scalar ruin_recreate requires candidate_values or value_candidate_limit for {}::{}",
+                            "cheapest_insertion descriptor-driven ruin_recreate requires candidate_values or value_candidate_limit for {}::{}",
                             binding.entity_type_name,
                             binding.variable_name,
                         );

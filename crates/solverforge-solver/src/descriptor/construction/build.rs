@@ -5,16 +5,16 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 
 #[cfg(test)]
-use crate::descriptor_scalar::bindings::collect_bindings;
-use crate::descriptor_scalar::bindings::ResolvedVariableBinding;
-use crate::descriptor_scalar::move_types::DescriptorScalarMoveUnion;
+use crate::descriptor::bindings::collect_bindings;
+use crate::descriptor::bindings::ResolvedVariableBinding;
+use crate::descriptor::move_types::DescriptorMoveUnion;
 use crate::phase::construction::{
     BestFitForager, ConstructionHeuristicPhase, FirstFitForager, StrongestFitForager,
     WeakestFitForager,
 };
 
 use super::placer::{
-    descriptor_scalar_move_strength, entity_order_for_heuristic, heuristic_requires_live_refresh,
+    descriptor_move_strength, entity_order_for_heuristic, heuristic_requires_live_refresh,
     value_order_for_heuristic, DescriptorConstruction, DescriptorEntityPlacer,
 };
 
@@ -23,11 +23,11 @@ fn build_descriptor_phase<S, Fo>(
     heuristic: ConstructionHeuristicType,
     construction_obligation: ConstructionObligation,
     forager: Fo,
-) -> ConstructionHeuristicPhase<S, DescriptorScalarMoveUnion<S>, DescriptorEntityPlacer<S>, Fo>
+) -> ConstructionHeuristicPhase<S, DescriptorMoveUnion<S>, DescriptorEntityPlacer<S>, Fo>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
-    Fo: crate::phase::construction::ConstructionForager<S, DescriptorScalarMoveUnion<S>>,
+    Fo: crate::phase::construction::ConstructionForager<S, DescriptorMoveUnion<S>>,
 {
     let phase = ConstructionHeuristicPhase::new(placer.clone(), forager)
         .with_construction_obligation(construction_obligation);
@@ -49,7 +49,7 @@ where
 {
     assert!(
         !bindings.is_empty(),
-        "descriptor scalar construction requires at least one resolved binding",
+        "descriptor-driven construction requires at least one resolved binding",
     );
     let construction_type = config
         .map(|cfg| cfg.construction_heuristic_type)
@@ -64,7 +64,7 @@ where
             .any(|binding| binding.candidate_values.is_none() && value_candidate_limit.is_none());
         assert!(
             !unbounded,
-            "cheapest_insertion descriptor scalar construction requires candidate_values or value_candidate_limit",
+            "cheapest_insertion descriptor-driven construction requires candidate_values or value_candidate_limit",
         );
     }
     let placer = DescriptorEntityPlacer::new(
@@ -100,7 +100,7 @@ where
                 &placer,
                 construction_type,
                 construction_obligation,
-                WeakestFitForager::new(descriptor_scalar_move_strength::<S>),
+                WeakestFitForager::new(descriptor_move_strength::<S>),
             ))
         }
         ConstructionHeuristicType::StrongestFit
@@ -109,7 +109,7 @@ where
                 &placer,
                 construction_type,
                 construction_obligation,
-                StrongestFitForager::new(descriptor_scalar_move_strength::<S>),
+                StrongestFitForager::new(descriptor_move_strength::<S>),
             ))
         }
         ConstructionHeuristicType::ListRoundRobin
@@ -118,7 +118,7 @@ where
         | ConstructionHeuristicType::ListClarkeWright
         | ConstructionHeuristicType::ListKOpt => {
             unreachable!(
-                "descriptor scalar construction only handles scalar heuristics, got {:?}",
+                "descriptor-driven construction only handles scalar heuristics, got {:?}",
                 construction_type
             );
         }

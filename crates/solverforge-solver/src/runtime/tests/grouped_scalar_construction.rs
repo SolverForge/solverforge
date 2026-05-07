@@ -132,7 +132,7 @@ fn assigned_then_open_group_candidates(
 
 #[test]
 fn grouped_scalar_first_fit_scans_past_worse_candidate_for_later_improvement() {
-    let descriptor = coupled_scalar_descriptor();
+    let descriptor = coupled_plan_descriptor();
     let director = CoupledScalarDirector {
         working_solution: coupled_empty_plan(),
         descriptor: descriptor.clone(),
@@ -157,7 +157,7 @@ fn grouped_scalar_first_fit_scans_past_worse_candidate_for_later_improvement() {
 
 #[test]
 fn grouped_scalar_keep_current_marks_scalar_slots_complete() {
-    let descriptor = coupled_scalar_descriptor();
+    let descriptor = coupled_plan_descriptor();
     let director = CoupledScalarDirector {
         working_solution: coupled_empty_plan(),
         descriptor: descriptor.clone(),
@@ -192,7 +192,7 @@ fn grouped_scalar_keep_current_marks_scalar_slots_complete() {
 
 #[test]
 fn grouped_scalar_construction_skips_already_assigned_slots() {
-    let descriptor = coupled_scalar_descriptor();
+    let descriptor = coupled_plan_descriptor();
     let director = CoupledScalarDirector {
         working_solution: CoupledScalarPlan {
             score: None,
@@ -223,7 +223,7 @@ fn grouped_scalar_construction_skips_already_assigned_slots() {
 
 #[test]
 fn grouped_scalar_construction_applies_group_limit_after_frontier_filtering() {
-    let descriptor = coupled_scalar_descriptor();
+    let descriptor = coupled_plan_descriptor();
     let director = CoupledScalarDirector {
         working_solution: CoupledScalarPlan {
             score: None,
@@ -264,7 +264,7 @@ fn grouped_scalar_construction_applies_group_limit_after_frontier_filtering() {
 
 #[test]
 fn grouped_scalar_weakest_fit_uses_candidate_strength_key() {
-    let descriptor = coupled_scalar_descriptor();
+    let descriptor = coupled_plan_descriptor();
     let director = CoupledScalarDirector {
         working_solution: coupled_empty_plan(),
         descriptor: descriptor.clone(),
@@ -288,7 +288,7 @@ fn grouped_scalar_weakest_fit_uses_candidate_strength_key() {
 
 #[test]
 fn grouped_scalar_construction_applies_group_candidate_limit_separately() {
-    let descriptor = coupled_scalar_descriptor();
+    let descriptor = coupled_plan_descriptor();
     let director = CoupledScalarDirector {
         working_solution: coupled_empty_plan(),
         descriptor: descriptor.clone(),

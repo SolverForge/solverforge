@@ -170,257 +170,60 @@ monomorphized.
 
 ## Quick Start
 
-### 1. Define Your Domain Model
+The README quickstart is the checked-in
+[`minimal-shift-scheduling`](examples/minimal-shift-scheduling/) package. It is
+small enough to read in one sitting, but it is still a real SolverForge model:
+`make examples` builds it, and the command below compiles and runs it from the
+workspace.
 
-```rust
-// src/domain/mod.rs
-solverforge::planning_model! {
-    root = "src/domain";
-
-    mod employee;
-    mod shift;
-    mod schedule;
-
-    pub use employee::Employee;
-    pub use shift::Shift;
-    pub use schedule::Schedule;
-}
-
-// src/domain/employee.rs
-use solverforge::prelude::*;
-
-#[problem_fact]
-pub struct Employee {
-    #[planning_id]
-    pub id: usize,
-    pub name: String,
-    pub skills: Vec<String>,
-}
-
-// src/domain/shift.rs
-use solverforge::prelude::*;
-
-#[planning_entity]
-pub struct Shift {
-    #[planning_id]
-    pub id: usize,
-    pub required_skill: String,
-    pub start: i64,
-    pub end: i64,
-    #[planning_variable]
-    pub employee: Option<usize>,
-}
-
-// src/domain/schedule.rs
-use solverforge::prelude::*;
-
-use super::{Employee, Shift};
-
-#[planning_solution]
-pub struct Schedule {
-    #[problem_fact_collection]
-    pub employees: Vec<Employee>,
-    #[planning_entity_collection]
-    pub shifts: Vec<Shift>,
-    #[planning_score]
-    pub score: Option<HardSoftScore>,
-}
+```bash
+cargo run -p minimal-shift-scheduling
 ```
 
-`planning_model!` is the canonical domain manifest. It preserves normal
-separate Rust files while making model metadata deterministic and owned by the
-model instead of by proc-macro expansion order.
+A successful run prints a feasible nurse assignment:
 
-Public Rust aliases are accepted at the manifest boundary, including
-`type Alias = Type;` and `pub use module::Type as Alias;`. Solver configuration
-targets still use canonical descriptor type names such as `Task.worker`, not
-alias names from collection fields.
-
-Nearby scalar neighborhoods are model-provided, not inferred. If a solver policy
-uses `nearby_change_move_selector` or `nearby_swap_move_selector`, declare the
-matching candidate hook on the variable with
-`#[planning_variable(nearby_value_candidates = "...")]` and/or
-`#[planning_variable(nearby_entity_candidates = "...")]`. Distance meters
-(`nearby_value_distance_meter` and `nearby_entity_distance_meter`) may rank or
-filter those bounded candidates, but they are not candidate-discovery hooks.
-
-Scalar value neighborhoods can also be bounded with
-`candidate_values = "fn_name"` on the planning variable plus
-`value_candidate_limit` in construction, change, nearby-change, pillar-change,
-or ruin-recreate selector config. `cheapest_insertion` for scalar construction
-and scalar ruin-recreate requires one of those bounded candidate sources.
-
-Scalar construction ordering is model-provided too. If a construction phase uses
-`first_fit_decreasing`, `weakest_fit*`, `strongest_fit*`,
-`allocate_entity_from_queue`, or `allocate_to_value_from_queue`, declare the
-matching `construction_entity_order_key = "..."` and/or
-`construction_value_order_key = "..."` hook on that scalar variable. SolverForge
-re-evaluates those hooks on the current working solution at every construction
-step, so queue-style and weakest/strongest-fit heuristics track the live model
-state instead of a phase-start snapshot. Local-search scalar change,
-pillar-change, and ruin/recreate selectors keep canonical bounded candidate
-order; they do not consume construction order keys.
-
-### 2. Define Constraints
-
-The `#[planning_solution]` macro generates source functions on the solution type
-for each collection field. Use those functions with `ConstraintFactory::for_each(...)`
-so constraints stay tied to the model-owned field instead of to a generated trait
-import:
-
-```rust
-use solverforge::prelude::*;
-use solverforge::stream::{joiner::*, ConstraintFactory};
-
-use crate::domain::{Employee, Schedule, Shift};
-
-fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
-    let unassigned = ConstraintFactory::<Schedule, HardSoftScore>::new()
-        .for_each(Schedule::shifts())
-        .unassigned()
-        .penalize_hard()
-        .named("Unassigned shift");
-
-    let required_skill = ConstraintFactory::<Schedule, HardSoftScore>::new()
-        .for_each(Schedule::shifts())
-        .join((
-            ConstraintFactory::<Schedule, HardSoftScore>::new()
-                .for_each(Schedule::employees()),
-            equal_bi(
-                |shift: &Shift| shift.employee,
-                |emp: &Employee| Some(emp.id),
-            ),
-        ))
-        .filter(|shift: &Shift, emp: &Employee| {
-            !emp.skills.contains(&shift.required_skill)
-        })
-        .penalize_hard()
-        .named("Required skill");
-
-    let no_overlap = ConstraintFactory::<Schedule, HardSoftScore>::new()
-        .for_each(Schedule::shifts())
-        .join(equal(|shift: &Shift| shift.employee))
-        .filter(|a: &Shift, b: &Shift| {
-            a.employee.is_some() && a.start < b.end && b.start < a.end
-        })
-        .penalize_hard()
-        .named("No overlap");
-
-    (unassigned, required_skill, no_overlap)
-}
+```text
+score: 0hard/0soft
+day 0 slot 0 -> Amina
+day 0 slot 1 -> Bruno
+day 1 slot 0 -> Bruno
+day 1 slot 1 -> Chiara
+day 2 slot 0 -> Chiara
+day 2 slot 1 -> Amina
+day 3 slot 0 -> Amina
+day 3 slot 1 -> Bruno
+day 4 slot 0 -> Bruno
+day 4 slot 1 -> Chiara
+day 5 slot 0 -> Chiara
+day 5 slot 1 -> Amina
 ```
 
-Projected scoring rows can come from either one source row or one retained
-joined pair. They are useful when the constraint shape is easier to express as
-a scoring-only row rather than either source object directly:
+Read the quickstart files in this order:
 
-```rust
-struct AssignedShift {
-    shift_id: usize,
-    employee_id: usize,
-    start: i64,
-    end: i64,
-}
+- [`src/domain/mod.rs`](examples/minimal-shift-scheduling/src/domain/mod.rs)
+  declares the model with `solverforge::planning_model!`.
+- [`src/domain/nurse.rs`](examples/minimal-shift-scheduling/src/domain/nurse.rs)
+  defines the problem facts.
+- [`src/domain/shift.rs`](examples/minimal-shift-scheduling/src/domain/shift.rs)
+  defines the planning entities and the `nurse_idx` planning variable.
+- [`src/domain/schedule.rs`](examples/minimal-shift-scheduling/src/domain/schedule.rs)
+  owns the solution, constraints, `solver.toml` link, and coverage group hooks.
+- [`solver.toml`](examples/minimal-shift-scheduling/solver.toml) configures
+  coverage-first construction and local search.
+- [`src/main.rs`](examples/minimal-shift-scheduling/src/main.rs) builds a small
+  schedule, starts `SolverManager`, consumes solver events, and prints the
+  completed assignment.
 
-let assigned_overlaps = ConstraintFactory::<Schedule, HardSoftScore>::new()
-    .for_each(Schedule::shifts())
-    .join((
-        ConstraintFactory::<Schedule, HardSoftScore>::new().for_each(Schedule::employees()),
-        equal_bi(|shift: &Shift| shift.employee, |emp: &Employee| Some(emp.id)),
-    ))
-    .project(|shift: &Shift, employee: &Employee| AssignedShift {
-        shift_id: shift.id,
-        employee_id: employee.id,
-        start: shift.start,
-        end: shift.end,
-    })
-    .join(equal(|row: &AssignedShift| row.employee_id))
-    .filter(|a: &AssignedShift, b: &AssignedShift| {
-        a.shift_id != b.shift_id && a.start < b.end && b.start < a.end
-    })
-    .penalize_hard_with(|_a: &AssignedShift, _b: &AssignedShift| {
-        HardSoftScore::of_hard(1)
-    })
-    .named("Assigned overlap");
-```
+The important boundary is that SolverForge model metadata is owned by the model,
+not by detached helper imports. The domain manifest lists normal Rust modules;
+the `#[planning_solution]` macro generates collection source functions such as
+`Schedule::shifts()`, and constraints use those functions through
+`ConstraintFactory::for_each(...)`.
 
-Projected rows are retained scoring rows. They are not planning entities,
-problem facts, value ranges, or move-selector targets.
-
-### 3. Solve
-
-```rust
-use solverforge::{SolverEvent, SolverManager, Solvable};
-
-static MANAGER: SolverManager<Schedule> = SolverManager::new();
-
-fn main() {
-    let schedule = Schedule {
-        employees,
-        shifts,
-        score: None,
-    };
-
-    let (job_id, mut receiver) = MANAGER.solve(schedule).unwrap();
-    let mut pause_requested = false;
-
-    while let Some(event) = receiver.blocking_recv() {
-        match event {
-            SolverEvent::Progress { metadata } => {
-                println!("job {} state {:?}", metadata.job_id, metadata.lifecycle_state);
-                if !pause_requested && metadata.telemetry.step_count >= 10_000 {
-                    MANAGER.pause(job_id).unwrap();
-                    pause_requested = true;
-                }
-            }
-            SolverEvent::BestSolution { metadata, .. } => {
-                if let Some(snapshot_revision) = metadata.snapshot_revision {
-                    let analysis = MANAGER
-                        .analyze_snapshot(job_id, Some(snapshot_revision))
-                        .unwrap();
-                    println!(
-                        "job {} snapshot {} score {}",
-                        metadata.job_id,
-                        snapshot_revision,
-                        analysis.analysis.score
-                    );
-                }
-            }
-            SolverEvent::PauseRequested { metadata } => {
-                println!("pause requested for job {}", metadata.job_id);
-            }
-            SolverEvent::Paused { metadata } => {
-                let snapshot = MANAGER
-                    .get_snapshot(job_id, metadata.snapshot_revision)
-                    .unwrap();
-                println!(
-                    "job {} paused at snapshot {}",
-                    metadata.job_id,
-                    snapshot.snapshot_revision
-                );
-                MANAGER.resume(job_id).unwrap();
-            }
-            SolverEvent::Resumed { metadata } => {
-                println!("job {} resumed", metadata.job_id);
-            }
-            SolverEvent::Completed { metadata, .. } => {
-                println!("job {} completed", metadata.job_id);
-                break;
-            }
-            SolverEvent::Cancelled { metadata } => {
-                println!("job {} cancelled", metadata.job_id);
-                break;
-            }
-            SolverEvent::Failed { metadata, error } => {
-                println!("job {} failed: {}", metadata.job_id, error);
-                break;
-            }
-        }
-    }
-}
-```
-
-`pause()` settles at a runtime-owned safe boundary and `resume()` continues from that exact in-process checkpoint. Snapshot analysis is always revision-bound: you analyze a retained `snapshot_revision`, never the live mutable job directly.
+For a new application, start with `solverforge-cli` so the file layout,
+`solver.toml`, model manifest, constraints, and frontend handoff are generated
+together. Use the runtime crates directly when you want to embed SolverForge in
+an existing Rust service or build lower-level integrations.
 
 ## Console Output
 

@@ -6,20 +6,23 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 use tracing::info;
 
-use crate::builder::CoverageGroupBinding;
+use crate::builder::{ScalarAssignmentBinding, ScalarGroupLimits};
 use crate::heuristic::r#move::{CompoundScalarMove, Move};
 use crate::phase::construction::evaluation::evaluate_trial_move;
 use crate::phase::hard_delta::{hard_score_delta, HardScoreDelta};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second};
 
-use super::candidate::{
-    optional_coverage_moves, remaining_required_count, required_coverage_moves, CoverageMoveOptions,
+use super::assignment_candidate::{
+    optional_assignment_moves, remaining_required_count, required_assignment_moves,
+    ScalarAssignmentMoveOptions,
 };
 
-pub(crate) fn solve_coverage_construction<S, D, ProgressCb>(
+pub(super) fn solve_scalar_assignment_construction<S, D, ProgressCb>(
     config: Option<&ConstructionHeuristicConfig>,
-    group: &CoverageGroupBinding<S>,
+    group_name: &'static str,
+    group: ScalarAssignmentBinding<S>,
+    limits: ScalarGroupLimits,
     solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
 ) -> bool
 where
@@ -28,15 +31,15 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    let options = CoverageMoveOptions::for_construction(
-        group,
+    let options = ScalarAssignmentMoveOptions::for_construction(
+        limits,
         config.and_then(|cfg| cfg.value_candidate_limit),
         config.and_then(|cfg| cfg.group_candidate_limit),
     );
     let construction_obligation = config
         .map(|cfg| cfg.construction_obligation)
         .unwrap_or_default();
-    let phase_name = "Coverage Construction";
+    let phase_name = "Scalar Assignment Construction";
     let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, phase_name);
     let phase_index = phase_scope.phase_index();
     let start_score = phase_scope
@@ -50,7 +53,7 @@ where
     info!(
         event = "phase_start",
         phase = phase_name,
-        group = group.group_name,
+        group = group_name,
         phase_index = phase_index,
         score = start_score,
     );
@@ -64,12 +67,12 @@ where
             break;
         }
         let remaining =
-            remaining_required_count(group, phase_scope.score_director().working_solution());
+            remaining_required_count(&group, phase_scope.score_director().working_solution());
         if remaining == 0 {
             break;
         }
-        let moves = required_coverage_moves(
-            group,
+        let moves = required_assignment_moves(
+            &group,
             phase_scope.score_director().working_solution(),
             options,
         );
@@ -77,17 +80,17 @@ where
             select_required_move(&mut phase_scope, moves, construction_obligation)
         else {
             phase_scope.record_construction_slot_no_doable();
-            phase_scope.record_coverage_required_remaining(group.group_name, remaining as u64);
+            phase_scope.record_scalar_assignment_required_remaining(group_name, remaining);
             break;
         };
-        commit_coverage_move(&mut phase_scope, &mov, score, &mut ran_step);
+        commit_assignment_move(&mut phase_scope, &mov, score, &mut ran_step);
         if last_progress_time.elapsed().as_secs() >= 1 {
             phase_scope.solver_scope().report_progress();
             last_progress_time = Instant::now();
         }
     }
 
-    if remaining_required_count(group, phase_scope.score_director().working_solution()) == 0 {
+    if remaining_required_count(&group, phase_scope.score_director().working_solution()) == 0 {
         loop {
             if phase_scope
                 .solver_scope_mut()
@@ -95,15 +98,15 @@ where
             {
                 break;
             }
-            let moves = optional_coverage_moves(
-                group,
+            let moves = optional_assignment_moves(
+                &group,
                 phase_scope.score_director().working_solution(),
                 options,
             );
             let Some((mov, score)) = select_optional_move(&mut phase_scope, moves) else {
                 break;
             };
-            commit_coverage_move(&mut phase_scope, &mov, score, &mut ran_step);
+            commit_assignment_move(&mut phase_scope, &mov, score, &mut ran_step);
             if last_progress_time.elapsed().as_secs() >= 1 {
                 phase_scope.solver_scope().report_progress();
                 last_progress_time = Instant::now();
@@ -112,8 +115,8 @@ where
     }
 
     let remaining =
-        remaining_required_count(group, phase_scope.score_director().working_solution());
-    phase_scope.record_coverage_required_remaining(group.group_name, remaining as u64);
+        remaining_required_count(&group, phase_scope.score_director().working_solution());
+    phase_scope.record_scalar_assignment_required_remaining(group_name, remaining);
     if ran_step {
         phase_scope.update_best_solution();
     }
@@ -132,7 +135,7 @@ where
     info!(
         event = "phase_end",
         phase = phase_name,
-        group = group.group_name,
+        group = group_name,
         phase_index = phase_index,
         required_remaining = remaining,
         duration = %format_duration(duration),
@@ -163,9 +166,9 @@ where
 {
     let current = phase_scope.calculate_score();
     let mode = match construction_obligation {
-        ConstructionObligation::PreserveUnassigned => CoverageSelectionMode::RequiredPreserve,
+        ConstructionObligation::PreserveUnassigned => AssignmentSelectionMode::RequiredPreserve,
         ConstructionObligation::AssignWhenCandidateExists => {
-            CoverageSelectionMode::RequiredAssignWhenCandidateExists
+            AssignmentSelectionMode::RequiredAssignWhenCandidateExists
         }
     };
     select_move(phase_scope, moves, current, mode)
@@ -182,11 +185,16 @@ where
     ProgressCb: ProgressCallback<S>,
 {
     let current = phase_scope.calculate_score();
-    select_move(phase_scope, moves, current, CoverageSelectionMode::Optional)
+    select_move(
+        phase_scope,
+        moves,
+        current,
+        AssignmentSelectionMode::Optional,
+    )
 }
 
 #[derive(Clone, Copy)]
-enum CoverageSelectionMode {
+enum AssignmentSelectionMode {
     RequiredPreserve,
     RequiredAssignWhenCandidateExists,
     Optional,
@@ -196,7 +204,7 @@ fn select_move<S, D, ProgressCb>(
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
     moves: Vec<CompoundScalarMove<S>>,
     current: S::Score,
-    mode: CoverageSelectionMode,
+    mode: AssignmentSelectionMode,
 ) -> Option<(CompoundScalarMove<S>, S::Score)>
 where
     S: PlanningSolution,
@@ -218,7 +226,7 @@ where
         phase_scope.record_evaluated_move(evaluation_started.elapsed());
         if matches!(
             mode,
-            CoverageSelectionMode::RequiredAssignWhenCandidateExists
+            AssignmentSelectionMode::RequiredAssignWhenCandidateExists
         ) {
             return Some((mov, score));
         }
@@ -227,13 +235,13 @@ where
             continue;
         }
         match mode {
-            CoverageSelectionMode::RequiredPreserve => {
+            AssignmentSelectionMode::RequiredPreserve => {
                 if hard_delta == Some(HardScoreDelta::Improving) || score >= current {
                     return Some((mov, score));
                 }
             }
-            CoverageSelectionMode::RequiredAssignWhenCandidateExists => unreachable!(),
-            CoverageSelectionMode::Optional => {
+            AssignmentSelectionMode::RequiredAssignWhenCandidateExists => unreachable!(),
+            AssignmentSelectionMode::Optional => {
                 if score > current {
                     return Some((mov, score));
                 }
@@ -243,7 +251,7 @@ where
     None
 }
 
-fn commit_coverage_move<S, D, ProgressCb>(
+fn commit_assignment_move<S, D, ProgressCb>(
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
     mov: &CompoundScalarMove<S>,
     score: S::Score,

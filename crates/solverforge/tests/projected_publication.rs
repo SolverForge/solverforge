@@ -48,12 +48,6 @@ impl solverforge::__internal::PlanningModelSupport for Plan {
         slot
     }
 
-    fn attach_coverage_groups(
-        _scalar_variables: &[solverforge::__internal::ScalarVariableSlot<Self>],
-    ) -> Vec<solverforge::__internal::CoverageGroupBinding<Self>> {
-        Vec::new()
-    }
-
     fn validate_model(_descriptor: &solverforge::__internal::SolutionDescriptor) {}
 
     fn update_entity_shadows(

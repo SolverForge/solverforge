@@ -7,6 +7,7 @@ use solverforge_scoring::Director;
 use tracing::info;
 
 use crate::builder::context::{ScalarGroupBinding, ScalarGroupLimits};
+use crate::builder::ScalarGroupBindingKind;
 use crate::descriptor::ResolvedVariableBinding;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second};
@@ -27,6 +28,19 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
+    match group.kind {
+        ScalarGroupBindingKind::Assignment(assignment) => {
+            return super::assignment_phase::solve_scalar_assignment_construction(
+                config,
+                group.group_name,
+                assignment,
+                group.limits,
+                solver_scope,
+            );
+        }
+        ScalarGroupBindingKind::Candidates { .. } => {}
+    }
+
     let construction_type = config
         .map(|cfg| cfg.construction_heuristic_type)
         .unwrap_or(ConstructionHeuristicType::FirstFit);
@@ -37,6 +51,8 @@ where
         value_candidate_limit: config.and_then(|cfg| cfg.value_candidate_limit),
         group_candidate_limit: None,
         max_moves_per_step: None,
+        max_augmenting_depth: None,
+        max_rematch_size: None,
     };
     let group_candidate_limit = config.and_then(|cfg| cfg.group_candidate_limit);
 

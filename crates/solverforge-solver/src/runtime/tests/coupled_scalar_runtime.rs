@@ -213,7 +213,7 @@ fn coupled_scalar_model(
     }
 
     model.with_scalar_groups(bind_scalar_groups(
-        vec![ScalarGroup::new(
+        vec![ScalarGroup::candidates(
             "coupled_assignment",
             vec![
                 ScalarTarget::from_descriptor_index(0, "first"),

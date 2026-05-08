@@ -51,7 +51,7 @@ impl ConstructionFrontier {
 
     pub(crate) fn is_group_completed(
         &self,
-        slot_id: ConstructionGroupSlotId,
+        slot_id: &ConstructionGroupSlotId,
         solution_revision: u64,
     ) -> bool {
         self.group_completed_at_revision

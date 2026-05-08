@@ -271,9 +271,6 @@ where
             MoveSelectorConfig::GroupedScalarMoveSelector(_) => {
                 panic!("grouped_scalar_move_selector must be handled by the canonical runtime");
             }
-            MoveSelectorConfig::CoverageRepairMoveSelector(_) => {
-                panic!("coverage_repair_move_selector must be handled by the canonical runtime");
-            }
         }
     }
 

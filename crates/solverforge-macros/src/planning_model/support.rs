@@ -10,7 +10,6 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
     let mut validation_checks = Vec::new();
     let shadow_methods = generate_shadow_methods(model)?;
     let scalar_groups_impl = generate_scalar_groups_impl(model);
-    let coverage_groups_impl = generate_coverage_groups_impl(model);
 
     for collection in model
         .solution
@@ -481,12 +480,6 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                 scalar_variables: &[::solverforge::__internal::ScalarVariableSlot<Self>],
             ) -> ::std::vec::Vec<::solverforge::__internal::ScalarGroupBinding<Self>> {
                 #scalar_groups_impl
-            }
-
-            fn attach_coverage_groups(
-                scalar_variables: &[::solverforge::__internal::ScalarVariableSlot<Self>],
-            ) -> ::std::vec::Vec<::solverforge::__internal::CoverageGroupBinding<Self>> {
-                #coverage_groups_impl
             }
 
             fn validate_model(descriptor: &::solverforge::__internal::SolutionDescriptor) {

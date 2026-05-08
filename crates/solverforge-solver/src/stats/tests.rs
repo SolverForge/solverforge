@@ -83,17 +83,17 @@ fn solver_snapshot_prefers_observed_selector_label() {
 }
 
 #[test]
-fn solver_coverage_remaining_aggregates_by_group() {
+fn solver_scalar_assignment_remaining_aggregates_by_group() {
     let mut stats = SolverStats::default();
 
-    stats.record_coverage_required_remaining("group_a", 3);
-    stats.record_coverage_required_remaining("group_b", 0);
-    assert_eq!(stats.coverage_required_remaining, 3);
-    assert_eq!(stats.snapshot().coverage_required_remaining, 3);
+    stats.record_scalar_assignment_required_remaining("group_a", 3);
+    stats.record_scalar_assignment_required_remaining("group_b", 0);
+    assert_eq!(stats.scalar_assignment_required_remaining, 3);
+    assert_eq!(stats.snapshot().scalar_assignment_required_remaining, 3);
 
-    stats.record_coverage_required_remaining("group_a", 0);
-    assert_eq!(stats.coverage_required_remaining, 0);
-    assert_eq!(stats.snapshot().coverage_required_remaining, 0);
+    stats.record_scalar_assignment_required_remaining("group_a", 0);
+    assert_eq!(stats.scalar_assignment_required_remaining, 0);
+    assert_eq!(stats.snapshot().scalar_assignment_required_remaining, 0);
 }
 
 #[test]

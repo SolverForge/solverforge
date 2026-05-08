@@ -208,23 +208,47 @@ fn coverage_capacity_key(
     Some(solution.slots[entity_index].day * solution.worker_count + worker)
 }
 
+fn coverage_position_key(solution: &CoveragePlan, entity_index: usize) -> i64 {
+    let slot = &solution.slots[entity_index];
+    let day = match i64::try_from(slot.day) {
+        Ok(day) => day,
+        Err(_) => return i64::MAX,
+    };
+    let entity = match i64::try_from(entity_index) {
+        Ok(entity) => entity,
+        Err(_) => return i64::MAX,
+    };
+    day.saturating_mul(100).saturating_add(entity)
+}
+
+fn coverage_sequence_key(
+    solution: &CoveragePlan,
+    entity_index: usize,
+    _worker: usize,
+) -> Option<usize> {
+    Some(solution.slots[entity_index].day)
+}
+
 fn coverage_entity_order(solution: &CoveragePlan, entity_index: usize) -> i64 {
-    (solution.slots[entity_index].day * 100 + entity_index) as i64
+    coverage_position_key(solution, entity_index)
 }
 
 fn coverage_value_order(_solution: &CoveragePlan, _entity_index: usize, value: usize) -> i64 {
-    value as i64
+    match i64::try_from(value) {
+        Ok(value) => value,
+        Err(_) => i64::MAX,
+    }
 }
 
-fn coverage_model() -> RuntimeModel<CoveragePlan, usize, DefaultMeter, DefaultMeter> {
-    coverage_model_with_limits(CoverageGroupLimits {
+fn assignment_model() -> RuntimeModel<CoveragePlan, usize, DefaultMeter, DefaultMeter> {
+    assignment_model_with_limits(ScalarGroupLimits {
         max_augmenting_depth: Some(3),
-        ..CoverageGroupLimits::new()
+        ..ScalarGroupLimits::new()
     })
 }
 
-fn coverage_model_with_limits(
-    limits: CoverageGroupLimits,
+fn assignment_model_with_limits(
+    limits: ScalarGroupLimits,
 ) -> RuntimeModel<CoveragePlan, usize, DefaultMeter, DefaultMeter> {
     let scalar_slot = ScalarVariableSlot::new(
         0,
@@ -242,13 +266,15 @@ fn coverage_model_with_limits(
         true,
     );
     let variables = vec![VariableSlot::Scalar(scalar_slot)];
-    RuntimeModel::new(variables).with_coverage_groups(bind_coverage_groups(
-        vec![CoverageGroup::new(
-            "slot_coverage",
+    RuntimeModel::new(variables).with_scalar_groups(bind_scalar_groups(
+        vec![ScalarGroup::assignment(
+            "slot_assignment",
             ScalarTarget::from_descriptor_index(0, "worker"),
         )
-        .with_required_slot(coverage_required)
+        .with_required_entity(coverage_required)
         .with_capacity_key(coverage_capacity_key)
+        .with_position_key(coverage_position_key)
+        .with_sequence_key(coverage_sequence_key)
         .with_entity_order(coverage_entity_order)
         .with_value_order(coverage_value_order)
         .with_limits(limits)],
@@ -256,20 +282,20 @@ fn coverage_model_with_limits(
     ))
 }
 
-fn coverage_config() -> ConstructionHeuristicConfig {
+fn assignment_config() -> ConstructionHeuristicConfig {
     ConstructionHeuristicConfig {
-        construction_heuristic_type: ConstructionHeuristicType::CoverageFirstFit,
+        construction_heuristic_type: ConstructionHeuristicType::FirstFit,
         construction_obligation: ConstructionObligation::AssignWhenCandidateExists,
-        group_name: Some("slot_coverage".to_string()),
+        group_name: Some("slot_assignment".to_string()),
         ..ConstructionHeuristicConfig::default()
     }
 }
 
-fn solve_coverage(plan: CoveragePlan) -> SolverScope<'static, CoveragePlan, CoverageDirector> {
-    solve_coverage_with_config_and_model(plan, coverage_config(), coverage_model())
+fn solve_assignment(plan: CoveragePlan) -> SolverScope<'static, CoveragePlan, CoverageDirector> {
+    solve_assignment_with_config_and_model(plan, assignment_config(), assignment_model())
 }
 
-fn solve_coverage_with_config_and_model(
+fn solve_assignment_with_config_and_model(
     plan: CoveragePlan,
     config: ConstructionHeuristicConfig,
     model: RuntimeModel<CoveragePlan, usize, DefaultMeter, DefaultMeter>,
@@ -287,8 +313,8 @@ fn solve_coverage_with_config_and_model(
 }
 
 #[test]
-fn coverage_construction_fills_required_slots_with_free_capacity() {
-    let solver_scope = solve_coverage(coverage_plan(
+fn scalar_assignment_construction_fills_required_slots_with_free_capacity() {
+    let solver_scope = solve_assignment(coverage_plan(
         2,
         vec![
             coverage_slot(true, 0, None, &[0, 1]),
@@ -306,12 +332,12 @@ fn coverage_construction_fills_required_slots_with_free_capacity() {
 }
 
 #[test]
-fn coverage_construction_ignores_repair_move_cap() {
-    let model = coverage_model_with_limits(CoverageGroupLimits {
+fn scalar_assignment_construction_ignores_repair_move_cap() {
+    let model = assignment_model_with_limits(ScalarGroupLimits {
         group_candidate_limit: Some(2),
         max_moves_per_step: Some(1),
         max_augmenting_depth: Some(3),
-        ..CoverageGroupLimits::new()
+        ..ScalarGroupLimits::new()
     });
     let plan = coverage_plan(
         2,
@@ -320,13 +346,18 @@ fn coverage_construction_ignores_repair_move_cap() {
             coverage_slot(true, 0, None, &[0, 1]),
         ],
     );
-    let options = crate::phase::construction::coverage::CoverageMoveOptions::for_construction(
-        &model.coverage_groups()[0],
+    let crate::builder::ScalarGroupBindingKind::Assignment(assignment) =
+        model.scalar_groups()[0].kind
+    else {
+        panic!("test model should contain an assignment-backed scalar group");
+    };
+    let options = crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_construction(
+        model.scalar_groups()[0].limits,
         None,
         None,
     );
-    let moves = crate::phase::construction::coverage::required_coverage_moves(
-        &model.coverage_groups()[0],
+    let moves = crate::phase::construction::grouped_scalar::required_assignment_moves(
+        &assignment,
         &plan,
         options,
     );
@@ -335,8 +366,8 @@ fn coverage_construction_ignores_repair_move_cap() {
 }
 
 #[test]
-fn coverage_construction_assigns_optional_only_after_required_complete() {
-    let solver_scope = solve_coverage(coverage_plan(
+fn scalar_assignment_construction_assigns_optional_only_after_required_complete() {
+    let solver_scope = solve_assignment(coverage_plan(
         1,
         vec![
             coverage_slot(false, 0, None, &[0]),
@@ -354,8 +385,8 @@ fn coverage_construction_assigns_optional_only_after_required_complete() {
 }
 
 #[test]
-fn coverage_construction_displaces_optional_occupant_for_required_slot() {
-    let solver_scope = solve_coverage(coverage_plan(
+fn scalar_assignment_construction_displaces_optional_occupant_for_required_slot() {
+    let solver_scope = solve_assignment(coverage_plan(
         1,
         vec![
             coverage_slot(false, 0, Some(0), &[0]),
@@ -373,8 +404,8 @@ fn coverage_construction_displaces_optional_occupant_for_required_slot() {
 }
 
 #[test]
-fn coverage_construction_moves_required_blocker_through_augmenting_path() {
-    let solver_scope = solve_coverage(coverage_plan(
+fn scalar_assignment_construction_moves_required_blocker_through_augmenting_path() {
+    let solver_scope = solve_assignment(coverage_plan(
         2,
         vec![
             coverage_slot(true, 0, None, &[0]),
@@ -392,8 +423,8 @@ fn coverage_construction_moves_required_blocker_through_augmenting_path() {
 }
 
 #[test]
-fn coverage_construction_forces_required_assignment_when_hard_neutral_soft_worse() {
-    let solver_scope = solve_coverage(soft_preferred_coverage_plan(
+fn scalar_assignment_construction_forces_required_assignment_when_hard_neutral_soft_worse() {
+    let solver_scope = solve_assignment(soft_preferred_coverage_plan(
         1,
         vec![coverage_slot_with_penalty(true, 0, None, &[0], 5)],
     ));
@@ -403,17 +434,17 @@ fn coverage_construction_forces_required_assignment_when_hard_neutral_soft_worse
         solver_scope.current_score().copied(),
         Some(HardSoftScore::of(0, -5))
     );
-    assert_eq!(solver_scope.stats().coverage_required_remaining, 0);
+    assert_eq!(solver_scope.stats().scalar_assignment_required_remaining, 0);
 }
 
 #[test]
-fn coverage_construction_reports_remaining_required_slots_without_panic() {
-    let solver_scope = solve_coverage(coverage_plan(1, vec![coverage_slot(true, 0, None, &[])]));
+fn scalar_assignment_construction_reports_remaining_required_slots_without_panic() {
+    let solver_scope = solve_assignment(coverage_plan(1, vec![coverage_slot(true, 0, None, &[])]));
 
     assert_eq!(solver_scope.working_solution().slots[0].assigned, None);
     assert_eq!(
         solver_scope.current_score().copied(),
         Some(HardSoftScore::of(-1, 0))
     );
-    assert_eq!(solver_scope.stats().coverage_required_remaining, 1);
+    assert_eq!(solver_scope.stats().scalar_assignment_required_remaining, 1);
 }

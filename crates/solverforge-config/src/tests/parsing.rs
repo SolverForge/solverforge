@@ -168,41 +168,6 @@ fn construction_obligation_parses_and_roundtrips() {
 }
 
 #[test]
-fn coverage_first_fit_construction_parses_and_roundtrips() {
-    let toml = r#"
-        [[phases]]
-        type = "construction_heuristic"
-        construction_heuristic_type = "coverage_first_fit"
-        construction_obligation = "assign_when_candidate_exists"
-        group_name = "shift_nurse_coverage"
-        value_candidate_limit = 32
-        group_candidate_limit = 512
-    "#;
-
-    let config = SolverConfig::from_toml_str(toml).unwrap();
-    let encoded = toml::to_string(&config).unwrap();
-    let reparsed = SolverConfig::from_toml_str(&encoded).unwrap();
-    let PhaseConfig::ConstructionHeuristic(construction) = &reparsed.phases[0] else {
-        panic!("phase should be construction");
-    };
-
-    assert_eq!(
-        construction.construction_heuristic_type,
-        ConstructionHeuristicType::CoverageFirstFit
-    );
-    assert_eq!(
-        construction.construction_obligation,
-        ConstructionObligation::AssignWhenCandidateExists
-    );
-    assert_eq!(
-        construction.group_name.as_deref(),
-        Some("shift_nurse_coverage")
-    );
-    assert_eq!(construction.value_candidate_limit, Some(32));
-    assert_eq!(construction.group_candidate_limit, Some(512));
-}
-
-#[test]
 fn grouped_scalar_move_selector_parses_and_roundtrips() {
     let toml = r#"
         [[phases]]
@@ -231,61 +196,4 @@ fn grouped_scalar_move_selector_parses_and_roundtrips() {
     assert_eq!(selector.value_candidate_limit, Some(24));
     assert_eq!(selector.max_moves_per_step, Some(64));
     assert!(selector.require_hard_improvement);
-}
-
-#[test]
-fn coverage_repair_move_selector_parses_and_roundtrips() {
-    let toml = r#"
-        [[phases]]
-        type = "local_search"
-
-        [phases.move_selector]
-        type = "coverage_repair_move_selector"
-        group_name = "shift_nurse_coverage"
-        value_candidate_limit = 24
-        max_moves_per_step = 64
-        require_hard_improvement = true
-    "#;
-
-    let config = SolverConfig::from_toml_str(toml).unwrap();
-    let encoded = toml::to_string(&config).unwrap();
-    let reparsed = SolverConfig::from_toml_str(&encoded).unwrap();
-    let PhaseConfig::LocalSearch(local_search) = &reparsed.phases[0] else {
-        panic!("phase should be local_search");
-    };
-    let Some(MoveSelectorConfig::CoverageRepairMoveSelector(selector)) =
-        &local_search.move_selector
-    else {
-        panic!("local search should have coverage repair selector");
-    };
-
-    assert_eq!(selector.group_name, "shift_nurse_coverage");
-    assert_eq!(selector.value_candidate_limit, Some(24));
-    assert_eq!(selector.max_moves_per_step, Some(64));
-    assert!(selector.require_hard_improvement);
-}
-
-#[test]
-fn coverage_repair_move_selector_omits_repair_cap_when_unconfigured() {
-    let toml = r#"
-        [[phases]]
-        type = "local_search"
-
-        [phases.move_selector]
-        type = "coverage_repair_move_selector"
-        group_name = "shift_nurse_coverage"
-    "#;
-
-    let config = SolverConfig::from_toml_str(toml).unwrap();
-    let PhaseConfig::LocalSearch(local_search) = &config.phases[0] else {
-        panic!("phase should be local_search");
-    };
-    let Some(MoveSelectorConfig::CoverageRepairMoveSelector(selector)) =
-        &local_search.move_selector
-    else {
-        panic!("local search should have coverage repair selector");
-    };
-
-    assert_eq!(selector.group_name, "shift_nurse_coverage");
-    assert_eq!(selector.max_moves_per_step, None);
 }

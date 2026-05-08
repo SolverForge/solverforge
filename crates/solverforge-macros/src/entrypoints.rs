@@ -63,9 +63,6 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
     let scalar_groups_attr = flags
         .scalar_groups_path
         .map(|p| quote! { #[solverforge_scalar_groups_path = #p] });
-    let coverage_groups_attr = flags
-        .coverage_groups_path
-        .map(|p| quote! { #[solverforge_coverage_groups_path = #p] });
 
     let expanded = quote! {
         #[derive(Clone, Debug, #serde_derives ::solverforge::__internal::PlanningSolutionImpl)]
@@ -74,7 +71,6 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
         #solver_toml_attr
         #conflict_repairs_attr
         #scalar_groups_attr
-        #coverage_groups_attr
         #(#attrs)*
         #vis struct #name #generics #fields
     };

@@ -3,7 +3,6 @@ pub(super) fn generate_runtime_phase_support(
     constraints_path: &Option<String>,
     conflict_repairs_path: &Option<String>,
     scalar_groups_path: &Option<String>,
-    coverage_groups_path: &Option<String>,
     solution_name: &Ident,
 ) -> TokenStream {
     if constraints_path.is_none() {
@@ -48,25 +47,6 @@ pub(super) fn generate_runtime_phase_support(
         .unwrap_or_else(|| {
             quote! {
                 <#solution_name as ::solverforge::__internal::PlanningModelSupport>::attach_scalar_groups(
-                    &__solverforge_scalar_slots,
-                )
-            }
-        });
-    let coverage_groups_expr = coverage_groups_path
-        .as_ref()
-        .map(|path| {
-            let groups_fn: syn::Path =
-                syn::parse_str(path).expect("coverage groups path must be valid");
-            quote! {
-                ::solverforge::__internal::bind_coverage_groups(
-                    #groups_fn(),
-                    &__solverforge_scalar_slots,
-                )
-            }
-        })
-        .unwrap_or_else(|| {
-            quote! {
-                <#solution_name as ::solverforge::__internal::PlanningModelSupport>::attach_coverage_groups(
                     &__solverforge_scalar_slots,
                 )
             }
@@ -385,7 +365,6 @@ pub(super) fn generate_runtime_phase_support(
                         })
                         .collect::<::std::vec::Vec<_>>();
                     let __solverforge_scalar_groups = #scalar_groups_expr;
-                    let __solverforge_coverage_groups = #coverage_groups_expr;
                     let model = ::solverforge::__internal::RuntimeModel::<
                         #solution_name,
                         usize,
@@ -393,7 +372,6 @@ pub(super) fn generate_runtime_phase_support(
                         #intra_enum_ident
                     >::new(__solverforge_variables)
                     .with_scalar_groups(__solverforge_scalar_groups)
-                    .with_coverage_groups(__solverforge_coverage_groups)
                     #conflict_repair_expr;
                     ::solverforge::__internal::build_phases(
                         config,
@@ -473,7 +451,6 @@ pub(super) fn generate_runtime_phase_support(
                     })
                     .collect::<::std::vec::Vec<_>>();
                 let __solverforge_scalar_groups = #scalar_groups_expr;
-                let __solverforge_coverage_groups = #coverage_groups_expr;
                 let model = ::solverforge::__internal::RuntimeModel::<
                     #solution_name,
                     usize,
@@ -481,7 +458,6 @@ pub(super) fn generate_runtime_phase_support(
                     ::solverforge::__internal::DefaultCrossEntityDistanceMeter
                 >::new(__solverforge_variables)
                 .with_scalar_groups(__solverforge_scalar_groups)
-                .with_coverage_groups(__solverforge_coverage_groups)
                 #conflict_repair_expr;
                 ::solverforge::__internal::build_phases(
                     config,

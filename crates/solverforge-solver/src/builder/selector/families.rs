@@ -30,7 +30,6 @@ fn selector_family(config: &MoveSelectorConfig) -> SelectorFamily {
         | MoveSelectorConfig::PillarSwapMoveSelector(_)
         | MoveSelectorConfig::RuinRecreateMoveSelector(_)
         | MoveSelectorConfig::GroupedScalarMoveSelector(_)
-        | MoveSelectorConfig::CoverageRepairMoveSelector(_)
         | MoveSelectorConfig::ConflictRepairMoveSelector(_)
         | MoveSelectorConfig::CompoundConflictRepairMoveSelector(_) => SelectorFamily::Scalar,
         MoveSelectorConfig::ListChangeMoveSelector(_)
@@ -245,35 +244,4 @@ fn push_grouped_scalar_selector<S, V, DM, IDM>(
         config.max_moves_per_step,
         config.require_hard_improvement,
     )));
-}
-
-fn push_coverage_repair_selector<S, V, DM, IDM>(
-    config: &solverforge_config::CoverageRepairMoveSelectorConfig,
-    model: &RuntimeModel<S, V, DM, IDM>,
-    out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
-) where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
-{
-    let Some(group) = model
-        .coverage_groups()
-        .iter()
-        .find(|group| group.group_name == config.group_name)
-        .copied()
-    else {
-        panic!(
-            "coverage_repair_move_selector configured for `{}`, but no matching coverage group was registered",
-            config.group_name
-        );
-    };
-    out.push(NeighborhoodLeaf::CoverageRepair(
-        CoverageRepairSelector::new(
-            group,
-            config.value_candidate_limit,
-            config.max_moves_per_step,
-            config.require_hard_improvement,
-        ),
-    ));
 }

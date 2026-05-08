@@ -102,7 +102,7 @@ fn soft_coverage_value_order(
     value as i64
 }
 
-fn soft_coverage_model() -> RuntimeModel<SoftCoveragePlan, usize, DefaultMeter, DefaultMeter> {
+fn soft_assignment_model() -> RuntimeModel<SoftCoveragePlan, usize, DefaultMeter, DefaultMeter> {
     let scalar_slot = ScalarVariableSlot::new(
         0,
         0,
@@ -118,14 +118,14 @@ fn soft_coverage_model() -> RuntimeModel<SoftCoveragePlan, usize, DefaultMeter, 
         },
         true,
     );
-    RuntimeModel::new(vec![VariableSlot::Scalar(scalar_slot)]).with_coverage_groups(
-        bind_coverage_groups(
+    RuntimeModel::new(vec![VariableSlot::Scalar(scalar_slot)]).with_scalar_groups(
+        bind_scalar_groups(
             vec![
-                CoverageGroup::new(
-                    "slot_coverage",
+                ScalarGroup::assignment(
+                    "slot_assignment",
                     ScalarTarget::from_descriptor_index(0, "worker"),
                 )
-                .with_required_slot(soft_coverage_required)
+                .with_required_entity(soft_coverage_required)
                 .with_capacity_key(soft_coverage_capacity_key)
                 .with_entity_order(soft_coverage_entity_order)
                 .with_value_order(soft_coverage_value_order),
@@ -165,13 +165,13 @@ fn solve_soft_coverage(
     };
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
-    let mut phase = Construction::new(Some(coverage_config()), descriptor, soft_coverage_model());
+    let mut phase = Construction::new(Some(assignment_config()), descriptor, soft_assignment_model());
     phase.solve(&mut solver_scope);
     solver_scope
 }
 
 #[test]
-fn coverage_construction_forces_required_assignment_for_soft_score_worse_move() {
+fn scalar_assignment_construction_forces_required_assignment_for_soft_score_worse_move() {
     let solver_scope = solve_soft_coverage(SoftCoveragePlan {
         score: None,
         worker_count: 1,
@@ -180,5 +180,5 @@ fn coverage_construction_forces_required_assignment_for_soft_score_worse_move() 
 
     assert_eq!(solver_scope.working_solution().slots[0].assigned, Some(0));
     assert_eq!(solver_scope.current_score().copied(), Some(SoftScore::of(-7)));
-    assert_eq!(solver_scope.stats().coverage_required_remaining, 0);
+    assert_eq!(solver_scope.stats().scalar_assignment_required_remaining, 0);
 }

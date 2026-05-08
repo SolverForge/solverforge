@@ -3,7 +3,9 @@ use std::collections::HashSet;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::builder::context::{ScalarCandidate, ScalarGroupBinding, ScalarGroupLimits};
+use crate::builder::context::{
+    ScalarCandidate, ScalarGroupBinding, ScalarGroupBindingKind, ScalarGroupLimits,
+};
 use crate::descriptor::ResolvedVariableBinding;
 use crate::heuristic::r#move::{CompoundScalarMove, Move};
 use crate::scope::{PhaseScope, ProgressCallback};
@@ -40,17 +42,25 @@ where
     ProgressCb: ProgressCallback<S>,
 {
     let solution = phase_scope.score_director().working_solution();
-    let raw_candidates = (group.candidate_provider)(solution, limits);
+    let ScalarGroupBindingKind::Candidates { candidate_provider } = group.kind else {
+        panic!(
+            "candidate-backed grouped scalar construction requires ScalarGroup::candidates for `{}`",
+            group.group_name
+        );
+    };
+    let raw_candidates = candidate_provider(solution, limits);
     let total_limit = group_candidate_limit.unwrap_or(usize::MAX);
     if total_limit == 0 {
         return Vec::new();
     }
-    let mut seen = HashSet::new();
+    let mut seen_candidates = Vec::new();
     let mut normalized = Vec::new();
 
     for (sequence, candidate) in raw_candidates.into_iter().enumerate() {
         if candidate.edits().is_empty()
-            || !seen.insert((candidate.reason(), candidate.edits().to_vec()))
+            || seen_candidates
+                .iter()
+                .any(|seen_candidate| seen_candidate == &candidate)
         {
             continue;
         }
@@ -66,7 +76,7 @@ where
         let group_slot = group_slot_id(group_index, &candidate, &scalar_slots);
         if phase_scope
             .solver_scope()
-            .is_group_slot_completed(group_slot.clone())
+            .is_group_slot_completed(&group_slot)
         {
             continue;
         }
@@ -78,15 +88,18 @@ where
             continue;
         }
 
+        let entity_order_key = candidate.construction_entity_order_key();
+        let value_order_key = candidate.construction_value_order_key();
         normalized.push(NormalizedGroupedCandidate {
             sequence,
             group_slot,
             scalar_slots,
             keep_current_legal,
-            entity_order_key: candidate.construction_entity_order_key(),
-            value_order_key: candidate.construction_value_order_key(),
+            entity_order_key,
+            value_order_key,
             mov,
         });
+        seen_candidates.push(candidate);
         if normalized.len() >= total_limit {
             break;
         }

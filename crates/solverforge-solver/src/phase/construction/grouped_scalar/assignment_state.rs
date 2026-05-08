@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::builder::CoverageGroupBinding;
+use crate::builder::ScalarAssignmentBinding;
 
-pub(super) struct CoverageState {
+pub(super) struct ScalarAssignmentState {
     values: Vec<Option<usize>>,
     required: Vec<bool>,
     occupancy: HashMap<usize, Vec<usize>>,
@@ -13,8 +13,8 @@ pub(super) struct CapacityConflict {
     pub(super) occupants: Vec<usize>,
 }
 
-impl CoverageState {
-    pub(super) fn new<S>(group: &CoverageGroupBinding<S>, solution: &S) -> Self {
+impl ScalarAssignmentState {
+    pub(super) fn new<S>(group: &ScalarAssignmentBinding<S>, solution: &S) -> Self {
         let entity_count = group.entity_count(solution);
         let mut values = Vec::with_capacity(entity_count);
         let mut required = Vec::with_capacity(entity_count);
@@ -46,7 +46,7 @@ impl CoverageState {
 
     pub(super) fn set_value<S>(
         &mut self,
-        group: &CoverageGroupBinding<S>,
+        group: &ScalarAssignmentBinding<S>,
         solution: &S,
         entity_index: usize,
         value: Option<usize>,
@@ -65,7 +65,7 @@ impl CoverageState {
 
     pub(super) fn set_value_recording<S>(
         &mut self,
-        group: &CoverageGroupBinding<S>,
+        group: &ScalarAssignmentBinding<S>,
         solution: &S,
         entity_index: usize,
         value: Option<usize>,
@@ -81,7 +81,7 @@ impl CoverageState {
 
     pub(super) fn rollback<S>(
         &mut self,
-        group: &CoverageGroupBinding<S>,
+        group: &ScalarAssignmentBinding<S>,
         solution: &S,
         changes: &mut Vec<(usize, Option<usize>)>,
         checkpoint: usize,
@@ -96,7 +96,7 @@ impl CoverageState {
 
     pub(super) fn blockers<S>(
         &self,
-        group: &CoverageGroupBinding<S>,
+        group: &ScalarAssignmentBinding<S>,
         solution: &S,
         entity_index: usize,
         value: usize,
@@ -114,7 +114,7 @@ impl CoverageState {
 
     pub(super) fn capacity_conflicts<S>(
         &self,
-        group: &CoverageGroupBinding<S>,
+        group: &ScalarAssignmentBinding<S>,
         solution: &S,
     ) -> Vec<CapacityConflict> {
         let mut conflicts = self
@@ -145,9 +145,27 @@ impl CoverageState {
         conflicts
     }
 
+    pub(super) fn capacity_feasible_after_edits<S>(
+        &mut self,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
+        edits: &[(usize, Option<usize>)],
+    ) -> bool {
+        let mut changes = Vec::with_capacity(edits.len());
+        for (entity_index, value) in edits {
+            self.set_value_recording(group, solution, *entity_index, *value, &mut changes);
+        }
+        let feasible = self
+            .occupancy
+            .values()
+            .all(|occupants| occupants.len() <= 1);
+        self.rollback(group, solution, &mut changes, 0);
+        feasible
+    }
+
     fn remove_current<S>(
         &mut self,
-        group: &CoverageGroupBinding<S>,
+        group: &ScalarAssignmentBinding<S>,
         solution: &S,
         entity_index: usize,
     ) {
@@ -167,10 +185,10 @@ impl CoverageState {
 
     fn occupant_order_key<S>(
         &self,
-        group: &CoverageGroupBinding<S>,
+        group: &ScalarAssignmentBinding<S>,
         solution: &S,
         entity_index: usize,
-    ) -> (bool, i64, usize) {
+    ) -> (bool, Option<i64>, usize) {
         (
             !self.is_required(entity_index),
             group.entity_order_key(solution, entity_index),

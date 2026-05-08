@@ -35,9 +35,6 @@ pub enum MoveSelectorConfig {
     // Atomic grouped scalar move selector.
     GroupedScalarMoveSelector(GroupedScalarMoveSelectorConfig),
 
-    // Coverage-directed compound scalar repair selector.
-    CoverageRepairMoveSelector(CoverageRepairMoveSelectorConfig),
-
     // List change move selector — relocates single elements within/between routes.
     ListChangeMoveSelector(ListChangeMoveConfig),
 
@@ -206,16 +203,6 @@ impl Default for RuinRecreateMoveSelectorConfig {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub struct GroupedScalarMoveSelectorConfig {
-    pub group_name: String,
-    pub value_candidate_limit: Option<usize>,
-    pub max_moves_per_step: Option<usize>,
-    #[serde(default)]
-    pub require_hard_improvement: bool,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub struct CoverageRepairMoveSelectorConfig {
     pub group_name: String,
     pub value_candidate_limit: Option<usize>,
     pub max_moves_per_step: Option<usize>,

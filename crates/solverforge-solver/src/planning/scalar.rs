@@ -257,19 +257,95 @@ pub struct ScalarGroupLimits {
     pub value_candidate_limit: Option<usize>,
     pub group_candidate_limit: Option<usize>,
     pub max_moves_per_step: Option<usize>,
+    pub max_augmenting_depth: Option<usize>,
+    pub max_rematch_size: Option<usize>,
+}
+
+impl ScalarGroupLimits {
+    pub const fn new() -> Self {
+        Self {
+            value_candidate_limit: None,
+            group_candidate_limit: None,
+            max_moves_per_step: None,
+            max_augmenting_depth: None,
+            max_rematch_size: None,
+        }
+    }
+}
+
+impl Default for ScalarGroupLimits {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 pub type ScalarCandidateProvider<S> = fn(&S, ScalarGroupLimits) -> Vec<ScalarCandidate<S>>;
 
-#[derive(Clone)]
+pub(crate) struct ScalarAssignmentDeclaration<S> {
+    pub(crate) required_entity: Option<fn(&S, usize) -> bool>,
+    pub(crate) capacity_key: Option<fn(&S, usize, usize) -> Option<usize>>,
+    pub(crate) position_key: Option<fn(&S, usize) -> i64>,
+    pub(crate) sequence_key: Option<fn(&S, usize, usize) -> Option<usize>>,
+    pub(crate) entity_order: Option<fn(&S, usize) -> i64>,
+    pub(crate) value_order: Option<fn(&S, usize, usize) -> i64>,
+}
+
+impl<S> Clone for ScalarAssignmentDeclaration<S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S> Copy for ScalarAssignmentDeclaration<S> {}
+
+impl<S> Default for ScalarAssignmentDeclaration<S> {
+    fn default() -> Self {
+        Self {
+            required_entity: None,
+            capacity_key: None,
+            position_key: None,
+            sequence_key: None,
+            entity_order: None,
+            value_order: None,
+        }
+    }
+}
+
 pub struct ScalarGroup<S> {
     group_name: &'static str,
     targets: Vec<ScalarTarget<S>>,
-    candidate_provider: ScalarCandidateProvider<S>,
+    kind: ScalarGroupKind<S>,
+    limits: ScalarGroupLimits,
+}
+
+pub(crate) enum ScalarGroupKind<S> {
+    Candidates {
+        candidate_provider: ScalarCandidateProvider<S>,
+    },
+    Assignment(ScalarAssignmentDeclaration<S>),
+}
+
+impl<S> Clone for ScalarGroupKind<S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<S> Copy for ScalarGroupKind<S> {}
+
+impl<S> Clone for ScalarGroup<S> {
+    fn clone(&self) -> Self {
+        Self {
+            group_name: self.group_name,
+            targets: self.targets.clone(),
+            kind: self.kind,
+            limits: self.limits,
+        }
+    }
 }
 
 impl<S> ScalarGroup<S> {
-    pub fn new(
+    pub fn candidates(
         group_name: &'static str,
         targets: Vec<ScalarTarget<S>>,
         candidate_provider: ScalarCandidateProvider<S>,
@@ -277,8 +353,69 @@ impl<S> ScalarGroup<S> {
         Self {
             group_name,
             targets,
-            candidate_provider,
+            kind: ScalarGroupKind::Candidates { candidate_provider },
+            limits: ScalarGroupLimits::new(),
         }
+    }
+
+    pub fn assignment(group_name: &'static str, target: ScalarTarget<S>) -> Self {
+        Self {
+            group_name,
+            targets: vec![target],
+            kind: ScalarGroupKind::Assignment(ScalarAssignmentDeclaration::default()),
+            limits: ScalarGroupLimits::new(),
+        }
+    }
+
+    pub fn with_required_entity(mut self, required_entity: fn(&S, usize) -> bool) -> Self {
+        self.assignment_mut().required_entity = Some(required_entity);
+        self
+    }
+
+    pub fn with_capacity_key(
+        mut self,
+        capacity_key: fn(&S, usize, usize) -> Option<usize>,
+    ) -> Self {
+        self.assignment_mut().capacity_key = Some(capacity_key);
+        self
+    }
+
+    pub fn with_position_key(mut self, position_key: fn(&S, usize) -> i64) -> Self {
+        self.assignment_mut().position_key = Some(position_key);
+        self
+    }
+
+    pub fn with_sequence_key(
+        mut self,
+        sequence_key: fn(&S, usize, usize) -> Option<usize>,
+    ) -> Self {
+        self.assignment_mut().sequence_key = Some(sequence_key);
+        self
+    }
+
+    pub fn with_entity_order(mut self, entity_order: fn(&S, usize) -> i64) -> Self {
+        self.assignment_mut().entity_order = Some(entity_order);
+        self
+    }
+
+    pub fn with_value_order(mut self, value_order: fn(&S, usize, usize) -> i64) -> Self {
+        self.assignment_mut().value_order = Some(value_order);
+        self
+    }
+
+    pub fn with_limits(mut self, limits: ScalarGroupLimits) -> Self {
+        self.limits = limits;
+        self
+    }
+
+    fn assignment_mut(&mut self) -> &mut ScalarAssignmentDeclaration<S> {
+        let ScalarGroupKind::Assignment(declaration) = &mut self.kind else {
+            panic!(
+                "scalar group `{}` is candidate-backed; assignment hooks require ScalarGroup::assignment",
+                self.group_name
+            );
+        };
+        declaration
     }
 
     #[doc(hidden)]
@@ -295,8 +432,14 @@ impl<S> ScalarGroup<S> {
 
     #[doc(hidden)]
     #[inline]
-    pub fn candidate_provider(&self) -> ScalarCandidateProvider<S> {
-        self.candidate_provider
+    pub(crate) fn kind(&self) -> ScalarGroupKind<S> {
+        self.kind
+    }
+
+    #[doc(hidden)]
+    #[inline]
+    pub fn limits(&self) -> ScalarGroupLimits {
+        self.limits
     }
 }
 
@@ -305,6 +448,14 @@ impl<S> std::fmt::Debug for ScalarGroup<S> {
         f.debug_struct("ScalarGroup")
             .field("group_name", &self.group_name)
             .field("target_count", &self.targets.len())
+            .field(
+                "kind",
+                match self.kind {
+                    ScalarGroupKind::Assignment(_) => &"assignment",
+                    ScalarGroupKind::Candidates { .. } => &"candidates",
+                },
+            )
+            .field("limits", &self.limits)
             .finish_non_exhaustive()
     }
 }

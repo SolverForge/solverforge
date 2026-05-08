@@ -40,7 +40,7 @@ fn model_with_group(
     let model = scalar_only_model();
     let scalar_slots = model.scalar_variables().copied().collect::<Vec<_>>();
     let groups = crate::builder::bind_scalar_groups(
-        vec![ScalarGroup::new(
+        vec![ScalarGroup::candidates(
             "worker_group",
             vec![ScalarTarget::from_descriptor_index(0, "worker")],
             provider,

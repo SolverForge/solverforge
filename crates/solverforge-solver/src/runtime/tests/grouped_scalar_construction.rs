@@ -51,7 +51,7 @@ fn coupled_model_with_group_provider(
         .collect::<Vec<_>>();
 
     RuntimeModel::new(variables).with_scalar_groups(bind_scalar_groups(
-        vec![ScalarGroup::new(
+        vec![ScalarGroup::candidates(
             "coupled_assignment",
             vec![
                 ScalarTarget::from_descriptor_index(0, "first"),

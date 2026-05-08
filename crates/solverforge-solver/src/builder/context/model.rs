@@ -1,9 +1,7 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use super::{
-    ConflictRepair, CoverageGroupBinding, ListVariableSlot, ScalarGroupBinding, ScalarVariableSlot,
-};
+use super::{ConflictRepair, ListVariableSlot, ScalarGroupBinding, ScalarVariableSlot};
 
 pub enum VariableSlot<S, V, DM, IDM> {
     Scalar(ScalarVariableSlot<S>),
@@ -31,19 +29,15 @@ impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for VariableSlot<S, V, DM
 pub struct RuntimeModel<S, V, DM, IDM> {
     variables: Vec<VariableSlot<S, V, DM, IDM>>,
     scalar_groups: Vec<ScalarGroupBinding<S>>,
-    coverage_groups: Vec<CoverageGroupBinding<S>>,
     conflict_repairs: Vec<ConflictRepair<S>>,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V, DM: Clone, IDM: Clone> Clone for RuntimeModel<S, V, DM, IDM> {
     fn clone(&self) -> Self {
-        let mut coverage_groups = Vec::with_capacity(self.coverage_groups.len());
-        coverage_groups.extend(self.coverage_groups.iter().copied());
         Self {
             variables: self.variables.clone(),
             scalar_groups: self.scalar_groups.clone(),
-            coverage_groups,
             conflict_repairs: self.conflict_repairs.clone(),
             _phantom: PhantomData,
         }
@@ -55,7 +49,6 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
         Self {
             variables,
             scalar_groups: Vec::new(),
-            coverage_groups: Vec::new(),
             conflict_repairs: Vec::new(),
             _phantom: PhantomData,
         }
@@ -63,11 +56,6 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
 
     pub fn with_scalar_groups(mut self, groups: Vec<ScalarGroupBinding<S>>) -> Self {
         self.scalar_groups = groups;
-        self
-    }
-
-    pub fn with_coverage_groups(mut self, groups: Vec<CoverageGroupBinding<S>>) -> Self {
-        self.coverage_groups = groups;
         self
     }
 
@@ -82,10 +70,6 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
 
     pub fn scalar_groups(&self) -> &[ScalarGroupBinding<S>] {
         &self.scalar_groups
-    }
-
-    pub fn coverage_groups(&self) -> &[CoverageGroupBinding<S>] {
-        &self.coverage_groups
     }
 
     pub fn conflict_repairs(&self) -> &[ConflictRepair<S>] {
@@ -122,7 +106,6 @@ impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for RuntimeModel<S, V, DM
         f.debug_struct("RuntimeModel")
             .field("variables", &self.variables)
             .field("scalar_groups", &self.scalar_groups)
-            .field("coverage_groups", &self.coverage_groups)
             .field("conflict_repairs", &self.conflict_repairs)
             .finish()
     }

@@ -13,7 +13,7 @@ fn provider(_plan: &Plan, _limits: ScalarGroupLimits) -> Vec<ScalarCandidate<Pla
 fn bound_generated_source_can_build_multiple_scalar_targets() {
     let shifts = Plan::shifts();
 
-    let group = ScalarGroup::new(
+    let group = ScalarGroup::candidates(
         "paired_assignment",
         vec![shifts.scalar("primary"), shifts.scalar("secondary")],
         provider,

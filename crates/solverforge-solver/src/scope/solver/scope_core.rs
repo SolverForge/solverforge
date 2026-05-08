@@ -242,7 +242,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             .mark_scalar_completed(slot_id, self.solution_revision);
     }
 
-    pub(crate) fn is_group_slot_completed(&self, slot_id: ConstructionGroupSlotId) -> bool {
+    pub(crate) fn is_group_slot_completed(&self, slot_id: &ConstructionGroupSlotId) -> bool {
         self.construction_frontier
             .is_group_completed(slot_id, self.solution_revision)
     }

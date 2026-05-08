@@ -1,100 +1,104 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use solverforge_core::domain::PlanningSolution;
 
-use super::state::CoverageState;
-use crate::builder::CoverageGroupBinding;
+use super::assignment_state::ScalarAssignmentState;
+use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::{CompoundScalarEdit, CompoundScalarMove};
 use crate::planning::ScalarEdit;
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct CoverageMoveOptions {
+pub(crate) struct ScalarAssignmentMoveOptions {
     pub(crate) value_candidate_limit: Option<usize>,
     pub(crate) max_moves: usize,
     pub(crate) max_depth: usize,
+    pub(crate) max_rematch_size: usize,
 }
 
-impl CoverageMoveOptions {
-    pub(crate) fn for_construction<S>(
-        group: &CoverageGroupBinding<S>,
+impl ScalarAssignmentMoveOptions {
+    pub(crate) fn for_construction(
+        limits: crate::builder::ScalarGroupLimits,
         value_candidate_limit: Option<usize>,
         group_candidate_limit: Option<usize>,
     ) -> Self {
-        let limits = group.limits;
         Self {
             value_candidate_limit: value_candidate_limit.or(limits.value_candidate_limit),
             max_moves: group_candidate_limit
                 .or(limits.group_candidate_limit)
                 .unwrap_or(usize::MAX),
             max_depth: limits.max_augmenting_depth.unwrap_or(3),
+            max_rematch_size: limits.max_rematch_size.unwrap_or(4).max(2),
         }
     }
 
-    pub(crate) fn for_repair<S>(
-        group: &CoverageGroupBinding<S>,
+    pub(crate) fn for_selector(
+        limits: crate::builder::ScalarGroupLimits,
         value_candidate_limit: Option<usize>,
         max_moves_per_step: usize,
     ) -> Self {
-        let limits = group.limits;
         Self {
             value_candidate_limit: value_candidate_limit.or(limits.value_candidate_limit),
             max_moves: max_moves_per_step,
             max_depth: limits.max_augmenting_depth.unwrap_or(3),
+            max_rematch_size: limits.max_rematch_size.unwrap_or(4).max(2),
         }
     }
 }
 
 #[derive(Clone, Copy)]
-struct CoverageMoveIntent {
+struct AssignmentMoveIntent {
     allow_optional_displacement: bool,
     reason: &'static str,
-    label: &'static str,
 }
 
-impl CoverageMoveIntent {
+impl AssignmentMoveIntent {
     const fn required() -> Self {
         Self {
             allow_optional_displacement: true,
-            reason: "coverage_required",
-            label: "coverage",
+            reason: "scalar_assignment_required",
         }
     }
 
     const fn optional() -> Self {
         Self {
             allow_optional_displacement: false,
-            reason: "coverage_optional",
-            label: "coverage",
+            reason: "scalar_assignment_optional",
         }
     }
 
     const fn capacity_repair() -> Self {
         Self {
             allow_optional_displacement: true,
-            reason: "coverage_capacity_repair",
-            label: "coverage_repair",
+            reason: "scalar_assignment_capacity_repair",
+        }
+    }
+
+    const fn reassignment() -> Self {
+        Self {
+            allow_optional_displacement: true,
+            reason: "scalar_assignment_reassignment",
         }
     }
 }
 
-pub(crate) fn remaining_required_count<S>(group: &CoverageGroupBinding<S>, solution: &S) -> usize {
+pub(crate) fn remaining_required_count<S>(group: &ScalarAssignmentBinding<S>, solution: &S) -> u64 {
     (0..group.entity_count(solution))
         .filter(|entity_index| {
             group.is_required(solution, *entity_index)
                 && group.current_value(solution, *entity_index).is_none()
         })
-        .count()
+        .fold(0_u64, |count, _| count.saturating_add(1))
 }
 
-pub(crate) fn required_coverage_moves<S>(
-    group: &CoverageGroupBinding<S>,
+pub(crate) fn required_assignment_moves<S>(
+    group: &ScalarAssignmentBinding<S>,
     solution: &S,
-    options: CoverageMoveOptions,
+    options: ScalarAssignmentMoveOptions,
 ) -> Vec<CompoundScalarMove<S>>
 where
     S: PlanningSolution,
 {
-    let state = CoverageState::new(group, solution);
+    let state = ScalarAssignmentState::new(group, solution);
     ordered_entities(group, solution, |entity_index| {
         state.is_required(entity_index) && state.current_value(entity_index).is_none()
     })
@@ -105,22 +109,22 @@ where
             solution,
             entity_index,
             options,
-            CoverageMoveIntent::required(),
+            AssignmentMoveIntent::required(),
         )
     })
     .take(options.max_moves)
     .collect()
 }
 
-pub(crate) fn optional_coverage_moves<S>(
-    group: &CoverageGroupBinding<S>,
+pub(crate) fn optional_assignment_moves<S>(
+    group: &ScalarAssignmentBinding<S>,
     solution: &S,
-    options: CoverageMoveOptions,
+    options: ScalarAssignmentMoveOptions,
 ) -> Vec<CompoundScalarMove<S>>
 where
     S: PlanningSolution,
 {
-    let state = CoverageState::new(group, solution);
+    let state = ScalarAssignmentState::new(group, solution);
     ordered_entities(group, solution, |entity_index| {
         !state.is_required(entity_index) && state.current_value(entity_index).is_none()
     })
@@ -131,7 +135,7 @@ where
             solution,
             entity_index,
             options,
-            CoverageMoveIntent::optional(),
+            AssignmentMoveIntent::optional(),
         )
     })
     .take(options.max_moves)
@@ -139,14 +143,14 @@ where
 }
 
 pub(crate) fn capacity_conflict_moves<S>(
-    group: &CoverageGroupBinding<S>,
+    group: &ScalarAssignmentBinding<S>,
     solution: &S,
-    options: CoverageMoveOptions,
+    options: ScalarAssignmentMoveOptions,
 ) -> Vec<CompoundScalarMove<S>>
 where
     S: PlanningSolution,
 {
-    let state = CoverageState::new(group, solution);
+    let state = ScalarAssignmentState::new(group, solution);
     let mut moves = Vec::new();
     let mut seen_entities = HashSet::new();
     for conflict in state.capacity_conflicts(group, solution) {
@@ -158,13 +162,9 @@ where
             }
             if !state.is_required(entity_index) {
                 let edits = [group.edit(entity_index, None)];
-                if let Some(mov) = move_from_edits(
-                    group,
-                    solution,
-                    &edits,
-                    "coverage_capacity_repair",
-                    "coverage_repair",
-                ) {
+                if let Some(mov) =
+                    move_from_edits(group, solution, &edits, "scalar_assignment_capacity_repair")
+                {
                     moves.push(mov);
                 }
                 continue;
@@ -174,7 +174,7 @@ where
                 solution,
                 entity_index,
                 options,
-                CoverageMoveIntent::capacity_repair(),
+                AssignmentMoveIntent::capacity_repair(),
             );
             moves.extend(
                 repair_moves
@@ -189,8 +189,111 @@ where
     moves
 }
 
+pub(crate) fn reassignment_moves<S>(
+    group: &ScalarAssignmentBinding<S>,
+    solution: &S,
+    options: ScalarAssignmentMoveOptions,
+) -> Vec<CompoundScalarMove<S>>
+where
+    S: PlanningSolution,
+{
+    let state = ScalarAssignmentState::new(group, solution);
+    ordered_entities(group, solution, |entity_index| {
+        state.current_value(entity_index).is_some()
+    })
+    .into_iter()
+    .flat_map(|entity_index| {
+        assignment_moves_for_entity(
+            group,
+            solution,
+            entity_index,
+            options,
+            AssignmentMoveIntent::reassignment(),
+        )
+    })
+    .take(options.max_moves)
+    .collect()
+}
+
+pub(crate) fn rematch_assignment_moves<S>(
+    group: &ScalarAssignmentBinding<S>,
+    solution: &S,
+    options: ScalarAssignmentMoveOptions,
+) -> Vec<CompoundScalarMove<S>>
+where
+    S: PlanningSolution,
+{
+    let mut state = ScalarAssignmentState::new(group, solution);
+    let mut by_sequence: HashMap<Option<usize>, Vec<usize>> = HashMap::new();
+    for entity_index in 0..group.entity_count(solution) {
+        let Some(value) = state.current_value(entity_index) else {
+            continue;
+        };
+        by_sequence
+            .entry(group.sequence_key(solution, entity_index, value))
+            .or_default()
+            .push(entity_index);
+    }
+
+    let mut moves = Vec::new();
+    let mut seen = HashSet::new();
+    for entities in by_sequence.values_mut() {
+        entities.sort_by_key(|entity_index| {
+            (
+                group.position_key(solution, *entity_index),
+                group.entity_order_key(solution, *entity_index),
+                *entity_index,
+            )
+        });
+        for left_pos in 0..entities.len() {
+            let right_limit = (left_pos + options.max_rematch_size).min(entities.len());
+            for right_pos in (left_pos + 1)..right_limit {
+                if moves.len() >= options.max_moves {
+                    return moves;
+                }
+                let left = entities[left_pos];
+                let right = entities[right_pos];
+                let Some(left_value) = state.current_value(left) else {
+                    continue;
+                };
+                let Some(right_value) = state.current_value(right) else {
+                    continue;
+                };
+                if left_value == right_value
+                    || !group.value_is_legal(solution, left, Some(right_value))
+                    || !group.value_is_legal(solution, right, Some(left_value))
+                {
+                    continue;
+                }
+                let normalized = if left < right {
+                    (left, right, left_value, right_value)
+                } else {
+                    (right, left, right_value, left_value)
+                };
+                if !seen.insert(normalized) {
+                    continue;
+                }
+                let edits = [(left, Some(right_value)), (right, Some(left_value))];
+                if !state.capacity_feasible_after_edits(group, solution, &edits) {
+                    continue;
+                }
+                let scalar_edits = [
+                    group.edit(left, Some(right_value)),
+                    group.edit(right, Some(left_value)),
+                ];
+                if let Some(mov) =
+                    move_from_edits(group, solution, &scalar_edits, "scalar_assignment_rematch")
+                {
+                    moves.push(mov);
+                }
+            }
+        }
+    }
+    moves
+}
+
 fn ordered_entities<S, F>(
-    group: &CoverageGroupBinding<S>,
+    group: &ScalarAssignmentBinding<S>,
     solution: &S,
     mut predicate: F,
 ) -> Vec<usize>
@@ -210,18 +313,18 @@ where
 }
 
 fn assignment_moves_for_entity<S>(
-    group: &CoverageGroupBinding<S>,
+    group: &ScalarAssignmentBinding<S>,
     solution: &S,
     entity_index: usize,
-    options: CoverageMoveOptions,
-    intent: CoverageMoveIntent,
+    options: ScalarAssignmentMoveOptions,
+    intent: AssignmentMoveIntent,
 ) -> Vec<CompoundScalarMove<S>>
 where
     S: PlanningSolution,
 {
     let values = group.candidate_values(solution, entity_index, options.value_candidate_limit);
     let mut moves = Vec::new();
-    let mut state = CoverageState::new(group, solution);
+    let mut state = ScalarAssignmentState::new(group, solution);
     let mut changes = Vec::new();
     let mut edits = Vec::new();
     let mut visiting = HashSet::new();
@@ -240,7 +343,7 @@ where
         visiting.clear();
         if search.assign(
             &mut state,
-            CoverageAssignment {
+            AssignmentRequest {
                 entity_index,
                 value,
                 depth: options.max_depth,
@@ -249,13 +352,9 @@ where
             &mut changes,
             &mut edits,
         ) {
-            if let Some(mov) = move_from_edits(
-                group,
-                solution,
-                &edits[edit_checkpoint..],
-                intent.reason,
-                intent.label,
-            ) {
+            if let Some(mov) =
+                move_from_edits(group, solution, &edits[edit_checkpoint..], intent.reason)
+            {
                 moves.push(mov);
             }
         }
@@ -269,14 +368,14 @@ where
 }
 
 #[derive(Clone, Copy)]
-struct CoverageAssignment {
+struct AssignmentRequest {
     entity_index: usize,
     value: usize,
     depth: usize,
 }
 
 struct AugmentingPathSearch<'a, S> {
-    group: &'a CoverageGroupBinding<S>,
+    group: &'a ScalarAssignmentBinding<S>,
     solution: &'a S,
     allow_optional_displacement: bool,
     value_candidate_limit: Option<usize>,
@@ -285,8 +384,8 @@ struct AugmentingPathSearch<'a, S> {
 impl<S> AugmentingPathSearch<'_, S> {
     fn assign(
         &self,
-        state: &mut CoverageState,
-        assignment: CoverageAssignment,
+        state: &mut ScalarAssignmentState,
+        assignment: AssignmentRequest,
         visiting: &mut HashSet<usize>,
         changes: &mut Vec<(usize, Option<usize>)>,
         edits: &mut Vec<ScalarEdit<S>>,
@@ -350,7 +449,7 @@ impl<S> AugmentingPathSearch<'_, S> {
             let edit_checkpoint = edits.len();
             if self.assign(
                 state,
-                CoverageAssignment {
+                AssignmentRequest {
                     entity_index: blocker,
                     value: alternative,
                     depth: assignment.depth - 1,
@@ -383,11 +482,10 @@ impl<S> AugmentingPathSearch<'_, S> {
 }
 
 fn move_from_edits<S>(
-    group: &CoverageGroupBinding<S>,
+    group: &ScalarAssignmentBinding<S>,
     solution: &S,
     edits: &[ScalarEdit<S>],
     reason: &'static str,
-    label: &'static str,
 ) -> Option<CompoundScalarMove<S>>
 where
     S: PlanningSolution,
@@ -415,9 +513,5 @@ where
             value_is_legal: None,
         });
     }
-    Some(CompoundScalarMove::with_label(
-        reason,
-        label,
-        compound_edits,
-    ))
+    Some(CompoundScalarMove::new(reason, compound_edits))
 }

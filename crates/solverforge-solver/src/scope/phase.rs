@@ -299,10 +299,15 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
             .record_construction_slot_no_doable();
     }
 
-    pub fn record_coverage_required_remaining(&mut self, group_name: &'static str, count: u64) {
-        self.stats.record_coverage_required_remaining(count);
+    pub fn record_scalar_assignment_required_remaining(
+        &mut self,
+        group_name: &'static str,
+        count: u64,
+    ) {
+        self.stats
+            .record_scalar_assignment_required_remaining(count);
         self.solver_scope
             .stats_mut()
-            .record_coverage_required_remaining(group_name, count);
+            .record_scalar_assignment_required_remaining(group_name, count);
     }
 }

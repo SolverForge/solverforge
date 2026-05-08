@@ -1,6 +1,6 @@
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
-use crate::builder::{CoverageGroupBinding, ScalarGroupBinding, ScalarVariableSlot};
+use crate::builder::{ScalarGroupBinding, ScalarVariableSlot};
 
 pub trait PlanningModelSupport: PlanningSolution + Sized + 'static {
     fn attach_descriptor_hooks(descriptor: &mut SolutionDescriptor);
@@ -12,10 +12,6 @@ pub trait PlanningModelSupport: PlanningSolution + Sized + 'static {
     ) -> Vec<ScalarGroupBinding<Self>> {
         Vec::new()
     }
-
-    fn attach_coverage_groups(
-        scalar_variables: &[ScalarVariableSlot<Self>],
-    ) -> Vec<CoverageGroupBinding<Self>>;
 
     fn validate_model(descriptor: &SolutionDescriptor);
 

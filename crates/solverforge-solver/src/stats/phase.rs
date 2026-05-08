@@ -36,7 +36,7 @@ pub struct PhaseStats {
     pub construction_slots_assigned: u64,
     pub construction_slots_kept: u64,
     pub construction_slots_no_doable: u64,
-    pub coverage_required_remaining: u64,
+    pub scalar_assignment_required_remaining: u64,
     generation_time: Duration,
     evaluation_time: Duration,
     selector_stats: Vec<SelectorTelemetry>,
@@ -70,7 +70,7 @@ impl PhaseStats {
             construction_slots_assigned: 0,
             construction_slots_kept: 0,
             construction_slots_no_doable: 0,
-            coverage_required_remaining: 0,
+            scalar_assignment_required_remaining: 0,
             generation_time: Duration::default(),
             evaluation_time: Duration::default(),
             selector_stats: Vec::new(),
@@ -222,8 +222,8 @@ impl PhaseStats {
         self.construction_slots_no_doable += 1;
     }
 
-    pub fn record_coverage_required_remaining(&mut self, count: u64) {
-        self.coverage_required_remaining = count;
+    pub fn record_scalar_assignment_required_remaining(&mut self, count: u64) {
+        self.scalar_assignment_required_remaining = count;
     }
 
     pub fn generated_throughput(&self) -> Throughput {

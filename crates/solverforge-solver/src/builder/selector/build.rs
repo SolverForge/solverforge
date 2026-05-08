@@ -24,9 +24,6 @@ where
         Some(MoveSelectorConfig::GroupedScalarMoveSelector(config)) => {
             push_grouped_scalar_selector(config, model, &mut leaves);
         }
-        Some(MoveSelectorConfig::CoverageRepairMoveSelector(config)) => {
-            push_coverage_repair_selector(config, model, &mut leaves);
-        }
         Some(MoveSelectorConfig::ListChangeMoveSelector(_))
         | Some(MoveSelectorConfig::NearbyListChangeMoveSelector(_))
         | Some(MoveSelectorConfig::ListSwapMoveSelector(_))
@@ -43,10 +40,6 @@ where
                 match child {
                     MoveSelectorConfig::GroupedScalarMoveSelector(config) => {
                         push_grouped_scalar_selector(config, model, &mut leaves);
-                        continue;
-                    }
-                    MoveSelectorConfig::CoverageRepairMoveSelector(config) => {
-                        push_coverage_repair_selector(config, model, &mut leaves);
                         continue;
                     }
                     MoveSelectorConfig::ConflictRepairMoveSelector(config) => {
@@ -262,11 +255,6 @@ fn collect_neighborhoods<S, V, DM, IDM>(
         Some(MoveSelectorConfig::GroupedScalarMoveSelector(config)) => {
             let mut leaves = Vec::new();
             push_grouped_scalar_selector(config, model, &mut leaves);
-            out.push(Neighborhood::Flat(VecUnionSelector::new(leaves)));
-        }
-        Some(MoveSelectorConfig::CoverageRepairMoveSelector(config)) => {
-            let mut leaves = Vec::new();
-            push_coverage_repair_selector(config, model, &mut leaves);
             out.push(Neighborhood::Flat(VecUnionSelector::new(leaves)));
         }
         Some(MoveSelectorConfig::CartesianProductMoveSelector(cartesian)) => {

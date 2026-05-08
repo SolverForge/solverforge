@@ -6,20 +6,18 @@ planning variables one at a time.
 
 mod capabilities;
 mod config;
-pub(crate) mod coverage;
 mod decision;
 mod engine;
 mod evaluation;
 mod forager;
 mod frontier;
-mod grouped_scalar;
+pub(crate) mod grouped_scalar;
 mod phase;
 mod placer;
 mod slot;
 
 pub(crate) use capabilities::{select_construction_capabilities, ConstructionRoute};
 pub use config::{ConstructionHeuristicConfig, ForagerType};
-pub(crate) use coverage::solve_coverage_construction;
 pub(crate) use engine::solve_construction;
 pub use forager::{
     BestFitForager, ConstructionChoice, ConstructionForager, FirstFeasibleForager, FirstFitForager,

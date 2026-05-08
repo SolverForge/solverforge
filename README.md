@@ -74,7 +74,7 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
 ## Features
 
 - **Score Types**: SoftScore, HardSoftScore, HardMediumSoftScore, BendableScore, HardSoftDecimalScore
-- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, existence checks, joins, grouping, and balance/complemented streams
+- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, existence checks, joins, grouping, `consecutive_runs`, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list runtime plan when matching list work is present, plus descriptor construction routing for scalar-only targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
@@ -90,6 +90,27 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
 - **Model Macros**: `planning_model!`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
 - **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, grouped scalar move selectors, conflict-repair selectors, selector telemetry, and level-aware simulated annealing configuration
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
+
+Grouped scoring weights receive both the group key and collected result:
+
+```rust
+ConstraintFactory::<Schedule, HardSoftScore>::new()
+    .for_each(Schedule::shifts())
+    .filter(|shift: &Shift| shift.nurse_idx.is_some())
+    .group_by(
+        |shift: &Shift| shift.nurse_idx.unwrap_or(usize::MAX),
+        consecutive_runs(|shift: &Shift| shift.day),
+    )
+    .penalize_with(|_nurse_idx: &usize, runs: &Runs| {
+        let excess_days = runs
+            .runs()
+            .iter()
+            .map(|run| run.point_count().saturating_sub(2) as i64)
+            .sum();
+        HardSoftScore::of_soft(excess_days)
+    })
+    .named("Long work streaks");
+```
 
 ## Installation
 
@@ -598,10 +619,15 @@ packages:
 
 ```bash
 cargo run -p scalar-graph-coloring
+cargo run -p minimal-shift-scheduling
 cargo run -p list-tsp
 cargo run -p mixed-job-shop
 cargo run -p nqueens
 ```
+
+`minimal-shift-scheduling` is the compact public solver path: it uses
+`planning_model!`, generated collection sources, `solver.toml`,
+`CoverageGroup`, `consecutive_runs`, and `SolverManager`.
 
 For project scaffolding and end-to-end application templates, use the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository: `cargo install solverforge-cli`, then `solverforge new ...`.
 

@@ -158,7 +158,7 @@ Module: `solverforge::cvrp`
 Convenient single import for user code:
 
 ```rust
-pub use crate::stream::collector::{count, load_balance, sum};
+pub use crate::stream::collector::{consecutive_runs, count, load_balance, sum, Run, Runs};
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     planning_entity, planning_model, planning_solution, problem_fact,
@@ -184,7 +184,16 @@ pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollec
 Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")` — no `as_constraint`, no `for_each_unique_pair`, no `join_self`/`join_keyed`. Use `.join(target)` for all join patterns (self-join, keyed, predicate).
 
 Collector helpers are available at `solverforge::stream::collector`, and the
-prelude re-exports `count`, `sum`, and `load_balance`.
+prelude re-exports `count`, `sum`, `load_balance`, `consecutive_runs`, `Run`,
+and `Runs`.
+
+## Workspace Examples
+
+- `examples/scalar-graph-coloring` — scalar assignment using `planning_model!`, generated sources, `solver.toml`, and `SolverManager`
+- `examples/minimal-shift-scheduling` — compact public solver path using `CoverageGroup`, `consecutive_runs`, generated sources, `solver.toml`, and `SolverManager`
+- `examples/list-tsp` — list-variable route optimization
+- `examples/mixed-job-shop` — mixed scalar/list planning model
+- `examples/nqueens` — scalar assignment model
 
 Extractor ergonomics: all `for_each` and join extractor params accept `CollectionExtract<S, Item = A>`. Use `|s| s.field.as_slice()` for slices, or `vec(|s| &s.field)` when the field is a `Vec<A>` and you prefer `&field` syntax.
 

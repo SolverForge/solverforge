@@ -156,6 +156,7 @@ src/
 │       ├── count.rs                                — CountCollector, CountAccumulator, count()
 │       ├── sum.rs                                  — SumCollector, SumAccumulator, sum()
 │       ├── load_balance.rs                         — LoadBalanceCollector, LoadBalanceAccumulator, LoadBalance, load_balance()
+│       ├── runs.rs                                 — RunsCollector, RunsAccumulator, Run, Runs, consecutive_runs()
 │       └── tests/
 │           ├── mod.rs                              — Test module declarations
 │           └── collector.rs                        — Collector tests
@@ -356,7 +357,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`CrossBiWeight<S, A, B, Sc>`**, **`IndexWeight<W>`**, **`PairWeight<W>`** — Zero-erasure cross-bi weight strategies. They keep low-level index-aware scoring and fluent pair-aware scoring as separate monomorphized paths.
 
-**`GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>`** where `C: UniCollector<A>` — Group-by with collector and weight on result.
+**`GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>`** where `C: UniCollector<A>` — Group-by with collector and weight on `(&K, &C::Result)`.
 
 **`BalanceConstraint<S, A, K, E, F, KF, Sc>`** — Load balancing using sum-of-squared-deviations.
 
@@ -450,7 +451,7 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
     .project(AssignmentLoadEntries)
 ```
 
-**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()` and `count()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and recomputes key/value on retract. `named()` → `ProjectedGroupedConstraint`.
+**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()`, `count()`, and `consecutive_runs()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and recomputes key/value on retract. Grouped weights use the canonical `penalize_with(|key, result| ...)` / `penalize_hard_with(|key, result| ...)` shape. `named()` → `ProjectedGroupedConstraint`.
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
 - Operations: `filter()`, `join()` → TriStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
@@ -470,12 +471,13 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 
 **`GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>`** — Grouped stream.
 - Operations: `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`, `complement()`, `complement_with_key()` → ComplementedStream
+- Weighted operations use one canonical key-aware closure shape: `Fn(&K, &C::Result) -> Sc`.
 
 **`GroupedConstraintBuilder`** — `named()` → `GroupedUniConstraint`
 
 **`BalanceConstraintStream/Builder`** — Balance stream. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `BalanceConstraint`
 
-**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward_with()`, `reward_hard()`, `reward_soft()`, `named()` → `ComplementedGroupConstraint`
+**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward_with()`, `reward_hard()`, `reward_soft()`, `named()` → `ComplementedGroupConstraint`. Weighted operations receive the real or complemented key as `Fn(&K, &C::Result) -> Sc`.
 
 **`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize()`, `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `FlattenedBiConstraint`
 
@@ -565,6 +567,11 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 **`LoadBalanceCollector<A, K, F, M>`** / **`LoadBalanceAccumulator<K>`** / **`LoadBalance<K>`** — Load balance with unfairness metric.
 - Factory: `load_balance(key_fn, metric_fn)`
 - `LoadBalance<K>` has `loads()` and `unfairness()` methods.
+
+**`RunsCollector<A, F>`** / **`RunsAccumulator`** / **`Run`** / **`Runs`** — Consecutive unique `i64` point runs with duplicate item accounting.
+- Factory: `consecutive_runs(index_fn)`
+- `Run` exposes `start()`, `end()`, `point_count()`, and `item_count()`.
+- `Runs` exposes `runs()`, `point_count()`, `item_count()`, `len()`, and `is_empty()`.
 
 ## Architectural Notes
 

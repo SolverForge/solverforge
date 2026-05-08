@@ -200,6 +200,19 @@ where
                     finalize_noop_construction(solver_scope);
                 }
             }
+            ConstructionRoute::Coverage => {
+                let Some(group) = capabilities.coverage_group.as_ref() else {
+                    unreachable!("coverage construction route requires a selected coverage group");
+                };
+                let ran_child_phase = crate::phase::construction::solve_coverage_construction(
+                    config,
+                    group,
+                    solver_scope,
+                );
+                if !ran_child_phase {
+                    finalize_noop_construction(solver_scope);
+                }
+            }
             ConstructionRoute::GroupedScalar => {
                 let Some((group_index, group)) = capabilities.scalar_group.as_ref() else {
                     unreachable!("grouped scalar route requires a selected scalar group");
@@ -366,7 +379,8 @@ mod construction_routing_tests {
             | ConstructionHeuristicType::ListCheapestInsertion
             | ConstructionHeuristicType::ListRegretInsertion
             | ConstructionHeuristicType::ListClarkeWright
-            | ConstructionHeuristicType::ListKOpt => false,
+            | ConstructionHeuristicType::ListKOpt
+            | ConstructionHeuristicType::CoverageFirstFit => false,
             ConstructionHeuristicType::FirstFit | ConstructionHeuristicType::CheapestInsertion => {
                 !has_list_variables
             }

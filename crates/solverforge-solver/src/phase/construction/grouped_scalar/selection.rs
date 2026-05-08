@@ -82,6 +82,7 @@ where
         ),
         ConstructionHeuristicType::AllocateEntityFromQueue
         | ConstructionHeuristicType::AllocateToValueFromQueue
+        | ConstructionHeuristicType::CoverageFirstFit
         | ConstructionHeuristicType::ListRoundRobin
         | ConstructionHeuristicType::ListCheapestInsertion
         | ConstructionHeuristicType::ListRegretInsertion

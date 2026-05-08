@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
 use super::{SelectorTelemetry, SolverTelemetry, Throughput};
@@ -33,6 +34,8 @@ pub struct SolverStats {
     pub construction_slots_assigned: u64,
     pub construction_slots_kept: u64,
     pub construction_slots_no_doable: u64,
+    pub coverage_required_remaining: u64,
+    coverage_required_remaining_by_group: BTreeMap<&'static str, u64>,
     generation_time: Duration,
     evaluation_time: Duration,
     selector_stats: Vec<SelectorTelemetry>,
@@ -206,6 +209,16 @@ impl SolverStats {
         self.construction_slots_no_doable += 1;
     }
 
+    pub fn record_coverage_required_remaining(&mut self, group_name: &'static str, count: u64) {
+        self.coverage_required_remaining_by_group
+            .insert(group_name, count);
+        self.coverage_required_remaining = self
+            .coverage_required_remaining_by_group
+            .values()
+            .copied()
+            .sum();
+    }
+
     pub fn generated_throughput(&self) -> Throughput {
         Throughput {
             count: self.moves_generated,
@@ -260,6 +273,7 @@ impl SolverStats {
             construction_slots_assigned: self.construction_slots_assigned,
             construction_slots_kept: self.construction_slots_kept,
             construction_slots_no_doable: self.construction_slots_no_doable,
+            coverage_required_remaining: self.coverage_required_remaining,
             generation_time: self.generation_time,
             evaluation_time: self.evaluation_time,
             selector_telemetry: self.selector_stats.clone(),

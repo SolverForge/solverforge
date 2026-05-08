@@ -1,11 +1,11 @@
 use super::Construction;
 use crate::builder::{
-    bind_scalar_groups, ListVariableSlot, RuntimeModel, ScalarCandidate, ScalarGroupLimits,
-    ScalarVariableSlot, ValueSource, VariableSlot,
+    bind_coverage_groups, bind_scalar_groups, ListVariableSlot, RuntimeModel, ScalarCandidate,
+    ScalarGroupLimits, ScalarVariableSlot, ValueSource, VariableSlot,
 };
 use crate::descriptor::{scalar_target_matches, scalar_work_remaining_with_frontier};
 use crate::phase::Phase;
-use crate::planning::{ScalarGroup, ScalarTarget};
+use crate::planning::{CoverageGroup, CoverageGroupLimits, ScalarGroup, ScalarTarget};
 use crate::scope::SolverScope;
 use crate::DefaultCrossEntityDistanceMeter;
 use solverforge_config::{
@@ -28,3 +28,5 @@ include!("tests/multi_owner_runtime.rs");
 include!("tests/mixed_target_runtime.rs");
 include!("tests/coupled_scalar_runtime.rs");
 include!("tests/grouped_scalar_construction.rs");
+include!("tests/coverage_construction.rs");
+include!("tests/coverage_soft.rs");

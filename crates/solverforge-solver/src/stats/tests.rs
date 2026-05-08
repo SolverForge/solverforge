@@ -83,6 +83,20 @@ fn solver_snapshot_prefers_observed_selector_label() {
 }
 
 #[test]
+fn solver_coverage_remaining_aggregates_by_group() {
+    let mut stats = SolverStats::default();
+
+    stats.record_coverage_required_remaining("group_a", 3);
+    stats.record_coverage_required_remaining("group_b", 0);
+    assert_eq!(stats.coverage_required_remaining, 3);
+    assert_eq!(stats.snapshot().coverage_required_remaining, 3);
+
+    stats.record_coverage_required_remaining("group_a", 0);
+    assert_eq!(stats.coverage_required_remaining, 0);
+    assert_eq!(stats.snapshot().coverage_required_remaining, 0);
+}
+
+#[test]
 fn unattributed_applied_moves_do_not_create_selector_zero_telemetry() {
     let mut stats = SolverStats::default();
     stats.record_generated_move(Duration::from_millis(1));

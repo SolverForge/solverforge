@@ -116,7 +116,8 @@ where
         | ConstructionHeuristicType::ListCheapestInsertion
         | ConstructionHeuristicType::ListRegretInsertion
         | ConstructionHeuristicType::ListClarkeWright
-        | ConstructionHeuristicType::ListKOpt => {
+        | ConstructionHeuristicType::ListKOpt
+        | ConstructionHeuristicType::CoverageFirstFit => {
             unreachable!(
                 "descriptor-driven construction only handles scalar heuristics, got {:?}",
                 construction_type

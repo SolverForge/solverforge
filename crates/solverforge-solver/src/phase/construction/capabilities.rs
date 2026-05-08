@@ -5,13 +5,14 @@ use solverforge_config::{ConstructionHeuristicConfig, ConstructionHeuristicType}
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::domain::SolutionDescriptor;
 
-use crate::builder::{ListVariableSlot, RuntimeModel, ScalarGroupBinding};
+use crate::builder::{CoverageGroupBinding, ListVariableSlot, RuntimeModel, ScalarGroupBinding};
 use crate::descriptor::{collect_bindings, find_resolved_binding, ResolvedVariableBinding};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ConstructionRoute {
     Descriptor,
+    Coverage,
     GroupedScalar,
     GenericMixed,
     SpecializedList,
@@ -22,6 +23,7 @@ pub(crate) struct ConstructionCapabilities<S, V, DM, IDM> {
     pub(crate) route: ConstructionRoute,
     pub(crate) scalar_bindings: Vec<ResolvedVariableBinding<S>>,
     pub(crate) scalar_group: Option<(usize, ScalarGroupBinding<S>)>,
+    pub(crate) coverage_group: Option<CoverageGroupBinding<S>>,
     pub(crate) list_variables: Vec<ListVariableSlot<S, V, DM, IDM>>,
     pub(crate) entity_class: Option<String>,
     pub(crate) variable_name: Option<String>,
@@ -73,7 +75,30 @@ where
         );
     }
 
-    let scalar_group = group_name.map(|name| {
+    let coverage_group = if heuristic == ConstructionHeuristicType::CoverageFirstFit {
+        let Some(name) = group_name else {
+            panic!("coverage_first_fit construction requires group_name");
+        };
+        if !list_variables.is_empty() && targeted_scalar_bindings.is_empty() {
+            panic!("coverage_first_fit construction cannot target planning list variables");
+        }
+        Some(
+            model
+                .coverage_groups()
+                .iter()
+                .find(|group| group.group_name == name)
+                .copied()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "coverage_first_fit construction configured for `{name}`, but no matching coverage group was registered"
+                    )
+                }),
+        )
+    } else {
+        None
+    };
+
+    let scalar_group = group_name.filter(|_| coverage_group.is_none()).map(|name| {
         if matches!(
             heuristic,
             ConstructionHeuristicType::ListRoundRobin
@@ -116,6 +141,7 @@ where
             validate_list_route(heuristic, &list_variables, scalar_bindings.is_empty());
             ConstructionRoute::SpecializedList
         }
+        ConstructionHeuristicType::CoverageFirstFit => ConstructionRoute::Coverage,
         ConstructionHeuristicType::FirstFitDecreasing
         | ConstructionHeuristicType::WeakestFit
         | ConstructionHeuristicType::WeakestFitDecreasing
@@ -153,6 +179,7 @@ where
         route,
         scalar_bindings,
         scalar_group,
+        coverage_group,
         list_variables,
         entity_class,
         variable_name,

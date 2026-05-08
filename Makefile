@@ -20,6 +20,7 @@ PROGRESS := →
 # ============== Project Metadata ==============
 VERSION := $(shell grep -m1 '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
 RUST_VERSION := 1.95+
+EXAMPLE_PACKAGES := $(shell find examples -mindepth 2 -maxdepth 2 -name Cargo.toml -exec sed -n 's/^name = "\(.*\)"/\1/p' {} \; | sort)
 
 # ============== Phony Targets ==============
 .PHONY: banner help build build-release examples test test-quick test-doc test-unit test-one \
@@ -63,7 +64,7 @@ examples: banner
 	@printf "$(CYAN)$(BOLD)╔══════════════════════════════════════╗$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)║        Building Examples             ║$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════╝$(RESET)\n\n"
-	@for ex in scalar-graph-coloring list-tsp mixed-job-shop nqueens; do \
+	@for ex in $(EXAMPLE_PACKAGES); do \
 		printf "$(PROGRESS) Building $$ex...\n"; \
 		cargo build -p $$ex --quiet && \
 			printf "$(GREEN)$(CHECK) Built $$ex$(RESET)\n" || \

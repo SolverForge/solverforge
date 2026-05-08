@@ -66,7 +66,7 @@ let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
 |emp: &Employee| emp.id,
 |_emp: &Employee| 0usize,
 )
-.penalize_with(|count: &usize| SoftScore::of(*count as i64))
+.penalize_with(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
 .named("Shift count");
 
 let schedule = Schedule {
@@ -119,7 +119,7 @@ where
         is_hard: bool,
     ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
     where
-        W: Fn(&C::Result) -> Sc + Send + Sync,
+        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     {
         ComplementedConstraintBuilder {
             extractor_a: self.extractor_a,
@@ -161,7 +161,7 @@ where
         weight_fn: W,
     ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
     where
-        W: Fn(&C::Result) -> Sc + Send + Sync,
+        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     {
         self.into_weighted_builder(ImpactType::Penalty, weight_fn, false)
     }
@@ -172,7 +172,7 @@ where
         weight_fn: W,
     ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
     where
-        W: Fn(&C::Result) -> Sc + Send + Sync,
+        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     {
         self.into_weighted_builder(ImpactType::Penalty, weight_fn, true)
     }
@@ -183,7 +183,7 @@ where
         weight_fn: W,
     ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
     where
-        W: Fn(&C::Result) -> Sc + Send + Sync,
+        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     {
         self.into_weighted_builder(ImpactType::Reward, weight_fn, false)
     }
@@ -194,7 +194,7 @@ where
         weight_fn: W,
     ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
     where
-        W: Fn(&C::Result) -> Sc + Send + Sync,
+        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     {
         self.into_weighted_builder(ImpactType::Reward, weight_fn, true)
     }
@@ -213,14 +213,14 @@ where
         KB,
         C,
         D,
-        impl Fn(&C::Result) -> Sc + Send + Sync,
+        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
         Sc,
     >
     where
         Sc: Copy,
     {
         let w = Sc::one_hard();
-        self.penalize_hard_with(move |_: &C::Result| w)
+        self.penalize_hard_with(move |_: &K, _: &C::Result| w)
     }
 
     // Penalizes each complemented group with one soft score unit.
@@ -237,14 +237,14 @@ where
         KB,
         C,
         D,
-        impl Fn(&C::Result) -> Sc + Send + Sync,
+        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
         Sc,
     >
     where
         Sc: Copy,
     {
         let w = Sc::one_soft();
-        self.penalize_with(move |_: &C::Result| w)
+        self.penalize_with(move |_: &K, _: &C::Result| w)
     }
 
     // Rewards each complemented group with one hard score unit.
@@ -261,14 +261,14 @@ where
         KB,
         C,
         D,
-        impl Fn(&C::Result) -> Sc + Send + Sync,
+        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
         Sc,
     >
     where
         Sc: Copy,
     {
         let w = Sc::one_hard();
-        self.reward_hard_with(move |_: &C::Result| w)
+        self.reward_hard_with(move |_: &K, _: &C::Result| w)
     }
 
     // Rewards each complemented group with one soft score unit.
@@ -285,14 +285,14 @@ where
         KB,
         C,
         D,
-        impl Fn(&C::Result) -> Sc + Send + Sync,
+        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
         Sc,
     >
     where
         Sc: Copy,
     {
         let w = Sc::one_soft();
-        self.reward_with(move |_: &C::Result| w)
+        self.reward_with(move |_: &K, _: &C::Result| w)
     }
 }
 
@@ -336,7 +336,7 @@ where
     C::Accumulator: Send + Sync,
     C::Result: Clone + Send + Sync,
     D: Fn(&B) -> C::Result + Send + Sync,
-    W: Fn(&C::Result) -> Sc + Send + Sync,
+    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     pub fn named(

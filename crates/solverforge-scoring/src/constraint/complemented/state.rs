@@ -67,7 +67,7 @@ ImpactType::Penalty,
 |emp: &Employee| emp.id,
 count(),
 |_emp: &Employee| 0usize,
-|count: &usize| SoftScore::of(*count as i64),
+|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
 false,
 );
 
@@ -129,7 +129,7 @@ where
     C: UniCollector<A>,
     C::Result: Clone,
     D: Fn(&B) -> C::Result,
-    W: Fn(&C::Result) -> Sc,
+    W: Fn(&K, &C::Result) -> Sc,
     Sc: Score,
 {
     // Creates a new complemented group constraint.
@@ -171,8 +171,8 @@ where
     }
 
     #[inline]
-    pub(super) fn compute_score(&self, result: &C::Result) -> Sc {
-        let base = (self.weight_fn)(result);
+    pub(super) fn compute_score(&self, key: &K, result: &C::Result) -> Sc {
+        let base = (self.weight_fn)(key, result);
         match self.impact_type {
             ImpactType::Penalty => -base,
             ImpactType::Reward => base,

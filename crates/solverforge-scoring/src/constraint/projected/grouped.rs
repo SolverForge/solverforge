@@ -48,7 +48,7 @@ where
     C::Accumulator: Send + Sync,
     C::Result: Send + Sync,
     C::Value: Send + Sync,
-    W: Fn(&C::Result) -> Sc + Send + Sync,
+    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     #[allow(clippy::too_many_arguments)]
@@ -79,8 +79,8 @@ where
         }
     }
 
-    fn compute_score(&self, result: &C::Result) -> Sc {
-        let base = (self.weight_fn)(result);
+    fn compute_score(&self, key: &K, result: &C::Result) -> Sc {
+        let base = (self.weight_fn)(key, result);
         match self.impact_type {
             ImpactType::Penalty => -base,
             ImpactType::Reward => base,
@@ -118,30 +118,38 @@ where
     fn insert_value(&mut self, key: K, value: &C::Value) -> Sc {
         let impact = self.impact_type;
         let weight_fn = &self.weight_fn;
-        let group = match self.groups.entry(key) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(GroupState {
-                accumulator: self.collector.create_accumulator(),
-                count: 0,
-            }),
-        };
-        let old = if group.count == 0 {
-            Sc::zero()
-        } else {
-            let old_base = weight_fn(&group.accumulator.finish());
-            match impact {
-                ImpactType::Penalty => -old_base,
-                ImpactType::Reward => old_base,
+        match self.groups.entry(key) {
+            Entry::Occupied(mut entry) => {
+                let old_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
+                let old = match impact {
+                    ImpactType::Penalty => -old_base,
+                    ImpactType::Reward => old_base,
+                };
+                let group = entry.get_mut();
+                group.accumulator.accumulate(value);
+                group.count += 1;
+                let new_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
+                let new_score = match impact {
+                    ImpactType::Penalty => -new_base,
+                    ImpactType::Reward => new_base,
+                };
+                new_score - old
             }
-        };
-        group.accumulator.accumulate(value);
-        group.count += 1;
-        let new_base = weight_fn(&group.accumulator.finish());
-        let new_score = match self.impact_type {
-            ImpactType::Penalty => -new_base,
-            ImpactType::Reward => new_base,
-        };
-        new_score - old
+            Entry::Vacant(entry) => {
+                let mut entry = entry.insert_entry(GroupState {
+                    accumulator: self.collector.create_accumulator(),
+                    count: 0,
+                });
+                let group = entry.get_mut();
+                group.accumulator.accumulate(value);
+                group.count += 1;
+                let new_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
+                match impact {
+                    ImpactType::Penalty => -new_base,
+                    ImpactType::Reward => new_base,
+                }
+            }
+        }
     }
 
     fn retract_value(&mut self, key: K, value: &C::Value) -> Sc {
@@ -150,19 +158,19 @@ where
         let Entry::Occupied(mut entry) = self.groups.entry(key) else {
             return Sc::zero();
         };
-        let group = entry.get_mut();
-        let old_base = weight_fn(&group.accumulator.finish());
+        let old_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
         let old = match impact {
             ImpactType::Penalty => -old_base,
             ImpactType::Reward => old_base,
         };
+        let group = entry.get_mut();
         group.accumulator.retract(value);
         group.count = group.count.saturating_sub(1);
         let new_score = if group.count == 0 {
             entry.remove();
             Sc::zero()
         } else {
-            let new_base = weight_fn(&group.accumulator.finish());
+            let new_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
             match impact {
                 ImpactType::Penalty => -new_base,
                 ImpactType::Reward => new_base,
@@ -245,7 +253,7 @@ where
     C::Accumulator: Send + Sync,
     C::Result: Send + Sync,
     C::Value: Send + Sync,
-    W: Fn(&C::Result) -> Sc + Send + Sync,
+    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     fn evaluate(&self, solution: &S) -> Sc {
@@ -262,8 +270,8 @@ where
                 .or_insert_with(|| self.collector.create_accumulator())
                 .accumulate(&value);
         });
-        groups.values().fold(Sc::zero(), |total, acc| {
-            total + self.compute_score(&acc.finish())
+        groups.iter().fold(Sc::zero(), |total, (key, acc)| {
+            total + self.compute_score(key, &acc.finish())
         })
     }
 

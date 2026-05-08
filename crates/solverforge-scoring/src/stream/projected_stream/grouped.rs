@@ -40,7 +40,7 @@ where
         is_hard: bool,
     ) -> ProjectedGroupedConstraintBuilder<S, Out, K, Src, F, KF, C, W, Sc>
     where
-        W: Fn(&C::Result) -> Sc + Send + Sync,
+        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     {
         ProjectedGroupedConstraintBuilder {
             source: self.source,
@@ -59,7 +59,7 @@ where
         weight_fn: W,
     ) -> ProjectedGroupedConstraintBuilder<S, Out, K, Src, F, KF, C, W, Sc>
     where
-        W: Fn(&C::Result) -> Sc + Send + Sync,
+        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     {
         self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight_fn, true)
     }
@@ -69,7 +69,7 @@ where
         weight_fn: W,
     ) -> ProjectedGroupedConstraintBuilder<S, Out, K, Src, F, KF, C, W, Sc>
     where
-        W: Fn(&C::Result) -> Sc + Send + Sync,
+        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     {
         self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight_fn, false)
     }
@@ -102,7 +102,7 @@ where
     C::Accumulator: Send + Sync,
     C::Value: Send + Sync,
     C::Result: Send + Sync,
-    W: Fn(&C::Result) -> Sc + Send + Sync,
+    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     pub fn named(

@@ -12,7 +12,7 @@ fn projected_retracts_previous_outputs_before_update() {
             |entry: &Entry| entry.bucket,
             sum(|entry: &Entry| entry.delta),
         )
-        .penalize_with(|delta: &i64| SoftScore::of((*delta).max(0)))
+        .penalize_with(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
         .named("demand");
 
     let mut plan = Plan {
@@ -32,6 +32,42 @@ fn projected_retracts_previous_outputs_before_update() {
 
     assert_eq!(total, SoftScore::of(-2));
     assert_eq!(total, constraint.evaluate(&plan));
+}
+
+#[test]
+fn projected_grouped_weight_can_use_key() {
+    let constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(WorkEntryProjection)
+        .group_by(
+            |entry: &Entry| entry.bucket,
+            sum(|entry: &Entry| entry.delta),
+        )
+        .penalize_with(|bucket: &usize, delta: &i64| {
+            SoftScore::of((*bucket as i64) + (*delta).max(0))
+        })
+        .named("key weighted demand");
+
+    let plan = Plan {
+        work: vec![
+            Work {
+                bucket: 2,
+                demand: 3,
+                enabled: true,
+            },
+            Work {
+                bucket: 4,
+                demand: 1,
+                enabled: true,
+            },
+        ],
+        capacity: Vec::new(),
+    };
+
+    assert_eq!(constraint.evaluate(&plan), SoftScore::of(-10));
 }
 
 #[test]

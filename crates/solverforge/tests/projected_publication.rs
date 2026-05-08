@@ -117,7 +117,7 @@ fn projected_stream_is_public_and_infers_output_type() {
             |entry: &CapacityEntry| entry.bucket,
             sum(|entry: &CapacityEntry| entry.delta),
         )
-        .penalize_hard_with(|delta: &i64| HardSoftScore::of_hard((*delta).max(0)))
+        .penalize_hard_with(|_bucket: &usize, delta: &i64| HardSoftScore::of_hard((*delta).max(0)))
         .named("capacity shortage");
 
     let plan = Plan {

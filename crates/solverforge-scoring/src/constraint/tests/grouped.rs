@@ -31,7 +31,7 @@ fn test_grouped_constraint_evaluate() {
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
-        |count: &usize| SoftScore::of((*count * *count) as i64),
+        |_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64),
         false,
     );
 
@@ -63,7 +63,7 @@ fn test_grouped_constraint_incremental() {
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
-        |count: &usize| SoftScore::of(*count as i64),
+        |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -103,7 +103,7 @@ fn test_grouped_constraint_reward() {
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
         count::<GroupedShift>(),
-        |count: &usize| SoftScore::of(*count as i64),
+        |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -116,4 +116,28 @@ fn test_grouped_constraint_reward() {
 
     // 2 shifts in one group -> reward of +2
     assert_eq!(constraint.evaluate(&solution), SoftScore::of(2));
+}
+
+#[test]
+fn test_grouped_constraint_weight_can_use_key() {
+    let constraint = GroupedUniConstraint::new(
+        ConstraintRef::new("", "Key weighted workload"),
+        ImpactType::Penalty,
+        vec(|s: &GroupedSolution| &s.shifts),
+        TrueFilter,
+        |shift: &GroupedShift| shift.employee_id,
+        count::<GroupedShift>(),
+        |employee_id: &usize, count: &usize| SoftScore::of((*employee_id as i64) * (*count as i64)),
+        false,
+    );
+
+    let solution = GroupedSolution {
+        shifts: vec![
+            GroupedShift { employee_id: 1 },
+            GroupedShift { employee_id: 2 },
+            GroupedShift { employee_id: 2 },
+        ],
+    };
+
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-5));
 }

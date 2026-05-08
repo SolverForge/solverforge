@@ -22,7 +22,7 @@ where
     C::Result: Clone + Send + Sync,
     C::Value: Send + Sync,
     D: Fn(&B) -> C::Result + Send + Sync,
-    W: Fn(&C::Result) -> Sc + Send + Sync,
+    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score,
 {
     // Insert an A entity and return the score delta.
@@ -62,7 +62,7 @@ where
             .get(&key)
             .map(|acc| acc.finish())
             .unwrap_or_else(|| (self.default_fn)(b));
-        let old_base = (self.weight_fn)(&old_result);
+        let old_base = (self.weight_fn)(&key, &old_result);
         let old = match impact {
             ImpactType::Penalty => -old_base,
             ImpactType::Reward => old_base,
@@ -77,7 +77,7 @@ where
 
         // Compute new score
         let new_result = acc.finish();
-        let new_base = (self.weight_fn)(&new_result);
+        let new_base = (self.weight_fn)(&key, &new_result);
         let new_score = match impact {
             ImpactType::Penalty => -new_base,
             ImpactType::Reward => new_base,
@@ -101,7 +101,7 @@ where
             .get(key)
             .map(|acc| acc.finish())
             .unwrap_or_else(|| (self.default_fn)(b));
-        self.compute_score(&result)
+        self.compute_score(key, &result)
     }
 
     pub(super) fn insert_b(&mut self, entities_b: &[B], b_idx: usize) -> Sc {
@@ -157,7 +157,7 @@ where
 
         // Compute old score
         let old_result = acc.finish();
-        let old_base = (self.weight_fn)(&old_result);
+        let old_base = (self.weight_fn)(&key, &old_result);
         let old = match impact {
             ImpactType::Penalty => -old_base,
             ImpactType::Reward => old_base,
@@ -168,7 +168,7 @@ where
 
         // Compute new score
         let new_result = acc.finish();
-        let new_base = (self.weight_fn)(&new_result);
+        let new_base = (self.weight_fn)(&key, &new_result);
         let new_score = match impact {
             ImpactType::Penalty => -new_base,
             ImpactType::Reward => new_base,

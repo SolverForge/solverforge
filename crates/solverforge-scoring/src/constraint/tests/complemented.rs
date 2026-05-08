@@ -48,7 +48,7 @@ fn test_complemented_evaluate() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SoftScore::of(*count as i64),
+        |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -86,7 +86,7 @@ fn test_complemented_skips_none_keys() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SoftScore::of(*count as i64),
+        |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -128,7 +128,7 @@ fn test_complemented_incremental() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SoftScore::of(*count as i64),
+        |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -184,7 +184,7 @@ fn test_complemented_incremental_with_none_keys() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SoftScore::of(*count as i64),
+        |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -227,7 +227,7 @@ fn test_complemented_with_default() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SoftScore::of((*count as i64).pow(2)),
+        |_employee_id: &usize, count: &usize| SoftScore::of((*count as i64).pow(2)),
         false,
     );
 
@@ -271,7 +271,7 @@ fn test_complemented_incremental_matches_evaluate() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SoftScore::of((*count as i64).pow(2)),
+        |_employee_id: &usize, count: &usize| SoftScore::of((*count as i64).pow(2)),
         false,
     );
 
@@ -330,7 +330,7 @@ fn test_complemented_b_side_insert_and_retract() {
         |emp: &Employee| emp.id,
         count::<Shift>(),
         |_emp: &Employee| 0usize,
-        |count: &usize| SoftScore::of(*count as i64),
+        |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
     );
 
@@ -350,4 +350,29 @@ fn test_complemented_b_side_insert_and_retract() {
 
     assert_eq!(running_total, SoftScore::of(0));
     assert_eq!(running_total, constraint.evaluate(&schedule));
+}
+
+#[test]
+fn test_complemented_missing_group_weight_can_use_complement_key() {
+    let constraint = ComplementedGroupConstraint::new(
+        ConstraintRef::new("", "Missing key weighted shift count"),
+        ImpactType::Penalty,
+        shifts,
+        employees,
+        |shift: &Shift| shift.employee_id,
+        |emp: &Employee| emp.id,
+        count::<Shift>(),
+        |_emp: &Employee| 0usize,
+        |employee_id: &usize, count: &usize| SoftScore::of((*employee_id as i64) + (*count as i64)),
+        false,
+    );
+
+    let schedule = Schedule {
+        employees: vec![Employee { id: 1 }, Employee { id: 3 }],
+        shifts: vec![Shift {
+            employee_id: Some(1),
+        }],
+    };
+
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-5));
 }

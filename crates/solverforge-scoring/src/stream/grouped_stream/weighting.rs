@@ -35,7 +35,7 @@ where
     C: UniCollector<A> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
     C::Result: Clone + Send + Sync,
-    W: Fn(&C::Result) -> Sc + Send + Sync,
+    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     /* Finalizes the builder into a zero-erasure `GroupedUniConstraint`. */

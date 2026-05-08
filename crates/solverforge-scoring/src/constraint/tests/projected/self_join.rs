@@ -51,7 +51,7 @@ fn projected_grouping_merges_multiple_sources() {
             |entry: &Entry| entry.bucket,
             sum(|entry: &Entry| entry.delta),
         )
-        .penalize_with(|delta: &i64| SoftScore::of((*delta).max(0)))
+        .penalize_with(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
         .named("capacity shortage");
 
     let plan = Plan {
@@ -314,7 +314,7 @@ fn projected_group_by_accepts_non_clone_collector_values() {
         ))
         .project(WorkEntryProjection)
         .group_by(|entry: &Entry| entry.bucket, NonCloneDeltaCollector)
-        .penalize_with(|delta: &i64| SoftScore::of((*delta).max(0)))
+        .penalize_with(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
         .named("projected non-clone collector value");
 
     let mut plan = Plan {

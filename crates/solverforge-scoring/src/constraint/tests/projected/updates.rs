@@ -109,7 +109,7 @@ fn projected_merged_descriptor_sources_update_only_owning_slot() {
             |entry: &Entry| entry.bucket,
             sum(|entry: &Entry| entry.delta),
         )
-        .penalize_with(|delta: &i64| SoftScore::of((*delta).max(0)))
+        .penalize_with(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
         .named("capacity shortage");
 
     let mut plan = Plan {

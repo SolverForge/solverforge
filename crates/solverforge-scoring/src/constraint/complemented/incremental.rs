@@ -23,7 +23,7 @@ where
     C::Result: Clone + Send + Sync,
     C::Value: Send + Sync,
     D: Fn(&B) -> C::Result + Send + Sync,
-    W: Fn(&C::Result) -> Sc + Send + Sync,
+    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score,
 {
     fn evaluate(&self, solution: &S) -> Sc {
@@ -35,11 +35,14 @@ where
         let mut total = Sc::zero();
         for b in entities_b {
             let key = (self.key_b)(b);
-            let result = groups
-                .get(&key)
-                .cloned()
-                .unwrap_or_else(|| (self.default_fn)(b));
-            total = total + self.compute_score(&result);
+            total = total
+                + match groups.get(&key) {
+                    Some(result) => self.compute_score(&key, result),
+                    None => {
+                        let default_result = (self.default_fn)(b);
+                        self.compute_score(&key, &default_result)
+                    }
+                };
         }
 
         total
@@ -66,8 +69,9 @@ where
         // Initialize all B entities with default scores
         let mut total = Sc::zero();
         for b in entities_b {
+            let key = (self.key_b)(b);
             let default_result = (self.default_fn)(b);
-            total = total + self.compute_score(&default_result);
+            total = total + self.compute_score(&key, &default_result);
         }
 
         // Now insert all A entities incrementally

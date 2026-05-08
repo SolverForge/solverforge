@@ -16,6 +16,11 @@ use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collector::{Accumulator, UniCollector};
 use crate::stream::filter::UniFilter;
 
+struct GroupState<Acc> {
+    accumulator: Acc,
+    count: usize,
+}
+
 /* Zero-erasure constraint that groups entities by key and scores based on collector results.
 
 This enables incremental scoring for group-by operations:
@@ -61,7 +66,7 @@ ImpactType::Penalty,
 TrueFilter,
 |shift: &Shift| shift.employee_id,
 count::<Shift>(),
-|count: &usize| SoftScore::of((*count * *count) as i64),
+|_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64),
 false,
 );
 
@@ -94,10 +99,8 @@ where
     weight_fn: W,
     is_hard: bool,
     change_source: crate::stream::collection_extract::ChangeSource,
-    // Group key -> accumulator (scores computed on-the-fly, no cloning)
-    groups: HashMap<K, C::Accumulator>,
-    // Group key -> number of entities in the group (for empty-group detection)
-    group_counts: HashMap<K, usize>,
+    // Group key -> accumulator plus count (scores computed on-the-fly, no cloning)
+    groups: HashMap<K, GroupState<C::Accumulator>>,
     // Entity index -> group key (for tracking which group an entity belongs to)
     entity_groups: HashMap<usize, K>,
     // Entity index -> extracted value (for correct retraction after entity mutation)
@@ -116,7 +119,7 @@ where
     C: UniCollector<A> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
     C::Result: Send + Sync,
-    W: Fn(&C::Result) -> Sc + Send + Sync,
+    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     /* Creates a new zero-erasure grouped constraint.
@@ -155,7 +158,6 @@ where
             is_hard,
             change_source,
             groups: HashMap::new(),
-            group_counts: HashMap::new(),
             entity_groups: HashMap::new(),
             entity_values: HashMap::new(),
             _phantom: PhantomData,
@@ -163,8 +165,8 @@ where
     }
 
     // Computes the score contribution for a group's result.
-    fn compute_score(&self, result: &C::Result) -> Sc {
-        let base = (self.weight_fn)(result);
+    fn compute_score(&self, key: &K, result: &C::Result) -> Sc {
+        let base = (self.weight_fn)(key, result);
         match self.impact_type {
             ImpactType::Penalty => -base,
             ImpactType::Reward => base,
@@ -185,7 +187,7 @@ where
     C::Accumulator: Send + Sync,
     C::Result: Send + Sync,
     C::Value: Send + Sync,
-    W: Fn(&C::Result) -> Sc + Send + Sync,
+    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     fn evaluate(&self, solution: &S) -> Sc {
@@ -208,9 +210,9 @@ where
 
         // Sum scores for all groups
         let mut total = Sc::zero();
-        for acc in groups.values() {
+        for (key, acc) in &groups {
             let result = acc.finish();
-            total = total + self.compute_score(&result);
+            total = total + self.compute_score(key, &result);
         }
 
         total
@@ -280,7 +282,6 @@ where
 
     fn reset(&mut self) {
         self.groups.clear();
-        self.group_counts.clear();
         self.entity_groups.clear();
         self.entity_values.clear();
     }
@@ -310,44 +311,53 @@ where
     C::Accumulator: Send + Sync,
     C::Result: Send + Sync,
     C::Value: Send + Sync,
-    W: Fn(&C::Result) -> Sc + Send + Sync,
+    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     fn insert_entity(&mut self, _entities: &[A], entity_index: usize, entity: &A) -> Sc {
         let key = (self.key_fn)(entity);
+        let entity_key = (self.key_fn)(entity);
         let value = self.collector.extract(entity);
         let impact = self.impact_type;
 
-        // Get or create group accumulator
-        let is_new = !self.groups.contains_key(&key);
-        let acc = self
-            .groups
-            .entry(key.clone())
-            .or_insert_with(|| self.collector.create_accumulator());
-
-        // Old score is zero for new groups (they didn't exist before, contributing nothing)
-        let old = if is_new {
-            Sc::zero()
-        } else {
-            let old_base = (self.weight_fn)(&acc.finish());
-            match impact {
-                ImpactType::Penalty => -old_base,
-                ImpactType::Reward => old_base,
+        let weight_fn = &self.weight_fn;
+        let (old, new_score) = match self.groups.entry(key) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                let old_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
+                let old = match impact {
+                    ImpactType::Penalty => -old_base,
+                    ImpactType::Reward => old_base,
+                };
+                let group = entry.get_mut();
+                group.accumulator.accumulate(&value);
+                group.count += 1;
+                let new_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
+                let new_score = match impact {
+                    ImpactType::Penalty => -new_base,
+                    ImpactType::Reward => new_base,
+                };
+                (old, new_score)
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                let mut entry = entry.insert_entry(GroupState {
+                    accumulator: self.collector.create_accumulator(),
+                    count: 0,
+                });
+                let group = entry.get_mut();
+                group.accumulator.accumulate(&value);
+                group.count += 1;
+                let new_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
+                let new_score = match impact {
+                    ImpactType::Penalty => -new_base,
+                    ImpactType::Reward => new_base,
+                };
+                (Sc::zero(), new_score)
             }
         };
 
-        // Accumulate and compute new score
-        acc.accumulate(&value);
-        let new_base = (self.weight_fn)(&acc.finish());
-        let new_score = match impact {
-            ImpactType::Penalty => -new_base,
-            ImpactType::Reward => new_base,
-        };
-
         // Track entity -> group mapping and cache value for correct retraction
-        self.entity_groups.insert(entity_index, key.clone());
+        self.entity_groups.insert(entity_index, entity_key);
         self.entity_values.insert(entity_index, value);
-        *self.group_counts.entry(key).or_insert(0) += 1;
 
         // Return delta (both scores computed fresh, no cloning)
         new_score - old
@@ -365,36 +375,26 @@ where
         };
         let impact = self.impact_type;
 
-        // Get the group accumulator
-        let Some(acc) = self.groups.get_mut(&key) else {
+        let weight_fn = &self.weight_fn;
+        let std::collections::hash_map::Entry::Occupied(mut entry) = self.groups.entry(key) else {
             return Sc::zero();
         };
 
-        // Compute old score from current state (inlined to avoid borrow conflict)
-        let old_base = (self.weight_fn)(&acc.finish());
+        let old_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
         let old = match impact {
             ImpactType::Penalty => -old_base,
             ImpactType::Reward => old_base,
         };
 
-        // Decrement group count; remove group if now empty
-        let is_empty = {
-            let cnt = self.group_counts.entry(key.clone()).or_insert(0);
-            *cnt = cnt.saturating_sub(1);
-            *cnt == 0
-        };
-        if is_empty {
-            self.group_counts.remove(&key);
-        }
-
-        // Retract and compute new score
-        acc.retract(&value);
+        let group = entry.get_mut();
+        group.accumulator.retract(&value);
+        group.count = group.count.saturating_sub(1);
+        let is_empty = group.count == 0;
         let new_score = if is_empty {
-            // Group is now empty; remove it and treat its contribution as zero
-            self.groups.remove(&key);
+            entry.remove();
             Sc::zero()
         } else {
-            let new_base = (self.weight_fn)(&acc.finish());
+            let new_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
             match impact {
                 ImpactType::Penalty => -new_base,
                 ImpactType::Reward => new_base,

@@ -120,6 +120,9 @@ pub enum ConstructionHeuristicType {
     // Cheapest insertion (greedy, scalar variables).
     CheapestInsertion,
 
+    // Coverage-first scalar construction over a named coverage group.
+    CoverageFirstFit,
+
     // Allocate entity from queue. Scalar-only; requires `construction_entity_order_key`.
     AllocateEntityFromQueue,
 

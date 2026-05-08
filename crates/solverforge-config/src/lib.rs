@@ -60,13 +60,14 @@ pub use error::ConfigError;
 pub use forager::{AcceptedCountForagerConfig, ForagerConfig};
 pub use move_selector::{
     CartesianProductConfig, ChangeMoveConfig, CompoundConflictRepairMoveSelectorConfig,
-    ConflictRepairMoveSelectorConfig, GroupedScalarMoveSelectorConfig, KOptMoveSelectorConfig,
-    LimitedNeighborhoodConfig, ListChangeMoveConfig, ListReverseMoveConfig,
-    ListRuinMoveSelectorConfig, ListSwapMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig,
-    NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, NearbySwapMoveConfig,
-    PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,
-    RuinRecreateMoveSelectorConfig, SublistChangeMoveConfig, SublistSwapMoveConfig, SwapMoveConfig,
-    UnionMoveSelectorConfig, UnionSelectionOrder, VariableTargetConfig,
+    ConflictRepairMoveSelectorConfig, CoverageRepairMoveSelectorConfig,
+    GroupedScalarMoveSelectorConfig, KOptMoveSelectorConfig, LimitedNeighborhoodConfig,
+    ListChangeMoveConfig, ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig,
+    MoveSelectorConfig, NearbyChangeMoveConfig, NearbyListChangeMoveConfig,
+    NearbyListSwapMoveConfig, NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig,
+    RecreateHeuristicType, RuinRecreateMoveSelectorConfig, SublistChangeMoveConfig,
+    SublistSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig, UnionSelectionOrder,
+    VariableTargetConfig,
 };
 pub use phase::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,

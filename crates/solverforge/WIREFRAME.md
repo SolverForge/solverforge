@@ -97,8 +97,6 @@ src/
 - `Analyzable` (trait)
 - `RepairLimits`
 - `ConflictRepair`
-- `CoverageGroup`
-- `CoverageGroupLimits`
 - `RepairCandidate`
 - `RepairProvider`
 - `ScalarCandidate`
@@ -134,10 +132,7 @@ Module: `solverforge::planning`
   multiple scalar targets for grouped scalar construction or local search.
 - Scalar helpers — `ScalarTarget<S>`, `ScalarEdit<S>`, `ScalarCandidate<S>`,
   `ScalarGroup<S>`, and `ScalarGroupLimits` describe public grouped-scalar
-  construction and local-search declarations.
-- Coverage helpers — `CoverageGroup<S>` and `CoverageGroupLimits` declare
-  required-slot coverage construction and repair. Runtime bindings remain hidden
-  under `solverforge::__internal`.
+  construction, stock scalar assignment, and local-search declarations.
 - Conflict-repair helpers — `ConflictRepair<S>`, `RepairCandidate<S>`, and
   `RepairLimits` describe domain-provided repair candidates while the framework
   owns filtering, scoring, hard-improvement gates, and selector telemetry.
@@ -170,8 +165,8 @@ pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     planning_entity, planning_model, planning_solution, problem_fact,
     BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet,
-    CoverageGroup, CoverageGroupLimits, Director, HardMediumSoftScore,
-    HardSoftDecimalScore, HardSoftScore, Projection, ProjectionSink,
+    Director, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore,
+    Projection, ProjectionSink,
     RepairCandidate, RepairLimits, ScalarCandidate, ScalarEdit, ScalarGroup,
     ScalarGroupLimits, ScalarTarget, Score, ScoreDirector, SoftScore,
 };
@@ -199,7 +194,7 @@ and `Runs`.
 ## Workspace Examples
 
 - `examples/scalar-graph-coloring` — scalar assignment using `planning_model!`, generated sources, `solver.toml`, and `SolverManager`
-- `examples/minimal-shift-scheduling` — compact public solver path using `CoverageGroup`, `consecutive_runs`, generated sources, `solver.toml`, and `SolverManager`
+- `examples/minimal-shift-scheduling` — compact public solver path using assignment-backed `ScalarGroup`, `consecutive_runs`, generated sources, `solver.toml`, and `SolverManager`
 - `examples/list-tsp` — list-variable route optimization
 - `examples/mixed-job-shop` — mixed scalar/list planning model
 - `examples/nqueens` — scalar assignment model

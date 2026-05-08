@@ -450,7 +450,7 @@ cargo run -p nqueens
 
 `minimal-shift-scheduling` is the compact public solver path: it uses
 `planning_model!`, generated collection sources, `solver.toml`,
-`CoverageGroup`, `consecutive_runs`, and `SolverManager`.
+assignment-backed `ScalarGroup`, `consecutive_runs`, and `SolverManager`.
 
 For project scaffolding and end-to-end application templates, use the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository: `cargo install solverforge-cli`, then `solverforge new ...`.
 

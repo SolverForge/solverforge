@@ -3,7 +3,7 @@ seconds_spent_limit = 5
 
 [[phases]]
 type = "construction_heuristic"
-construction_heuristic_type = "coverage_first_fit"
+construction_heuristic_type = "first_fit"
 construction_obligation = "assign_when_candidate_exists"
 group_name = "required_shift_assignment"
 value_candidate_limit = 8
@@ -16,7 +16,7 @@ type = "local_search"
 step_count_limit = 20
 
 [phases.move_selector]
-type = "coverage_repair_move_selector"
+type = "grouped_scalar_move_selector"
 group_name = "required_shift_assignment"
 max_moves_per_step = 64
 require_hard_improvement = true

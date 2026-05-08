@@ -5,7 +5,7 @@ use super::{Nurse, Shift};
 #[planning_solution(
     constraints = "define_constraints",
     solver_toml = "../../solver.toml",
-    coverage_groups = "coverage_groups"
+    scalar_groups = "scalar_groups"
 )]
 pub struct Schedule {
     #[problem_fact_collection]
@@ -78,13 +78,13 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
     )
 }
 
-pub(super) fn coverage_groups() -> Vec<CoverageGroup<Schedule>> {
+pub(super) fn scalar_groups() -> Vec<ScalarGroup<Schedule>> {
     vec![
-        CoverageGroup::new(
+        ScalarGroup::assignment(
             "required_shift_assignment",
             Schedule::shifts().scalar("nurse_idx"),
         )
-        .with_required_slot(required_shift)
+        .with_required_entity(required_shift)
         .with_capacity_key(nurse_day_capacity)
         .with_entity_order(shift_order)
         .with_value_order(nurse_preference),
@@ -97,17 +97,31 @@ fn required_shift(schedule: &Schedule, shift_idx: usize) -> bool {
 
 fn nurse_day_capacity(schedule: &Schedule, shift_idx: usize, nurse_idx: usize) -> Option<usize> {
     let shift = &schedule.shifts[shift_idx];
-    Some(shift.day as usize * schedule.nurses.len() + nurse_idx)
+    usize::try_from(shift.day)
+        .ok()
+        .and_then(|day| day.checked_mul(schedule.nurses.len()))
+        .and_then(|base| base.checked_add(nurse_idx))
 }
 
 fn shift_order(schedule: &Schedule, shift_idx: usize) -> i64 {
     let shift = &schedule.shifts[shift_idx];
-    shift.day * 10 + shift.slot as i64
+    let slot = match i64::try_from(shift.slot) {
+        Ok(slot) => slot,
+        Err(_) => return i64::MAX,
+    };
+    shift.day.saturating_mul(10).saturating_add(slot)
 }
 
 fn nurse_preference(schedule: &Schedule, shift_idx: usize, nurse_idx: usize) -> i64 {
     let shift = &schedule.shifts[shift_idx];
     let nurse_count = schedule.nurses.len();
-    let preferred = (shift.day as usize + shift.slot) % nurse_count;
-    ((nurse_idx + nurse_count - preferred) % nurse_count) as i64
+    let Ok(day) = usize::try_from(shift.day) else {
+        return i64::MAX;
+    };
+    let preferred = (day + shift.slot) % nurse_count;
+    let distance = (nurse_idx + nurse_count - preferred) % nurse_count;
+    match i64::try_from(distance) {
+        Ok(distance) => distance,
+        Err(_) => i64::MAX,
+    }
 }

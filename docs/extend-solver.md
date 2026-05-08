@@ -47,11 +47,11 @@ ad hoc special cases:
   `list_clarke_wright`, and `list_k_opt` are list-only. The runtime validates
   the required list hooks before phase build instead of failing deep inside the
   algorithm.
-- `coverage_first_fit` uses a named `CoverageGroup` for nullable scalar
-  assignments where some slots are required and capacity keys may block direct
-  assignment. Use this when the construction goal is "cover every required
-  slot that has a candidate"; use grouped scalar construction when the model
-  needs arbitrary multi-scalar candidates that are not coverage/capacity repair.
+- `first_fit` with `group_name` selects a named `ScalarGroup`. Candidate-backed
+  groups apply arbitrary compound scalar candidates atomically. Assignment-backed
+  groups use stock nullable scalar assignment: required entities first,
+  optional entities only when score-improving, and capacity blockers repaired
+  through bounded augmenting paths.
 
 ## Canonical selector defaults
 

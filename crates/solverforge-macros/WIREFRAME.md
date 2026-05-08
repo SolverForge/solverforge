@@ -78,7 +78,7 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support
 derive output. Accepted arguments are `serde`, `constraints = "path"`,
 `config = "path"`, `solver_toml = "path"`, `conflict_repairs = "path"`, and
-`scalar_groups = "path"`, and `coverage_groups = "path"`. Unknown or malformed
+`scalar_groups = "path"`. Unknown or malformed
 arguments are compile errors.
 The `constraints` flag embeds a `#[solverforge_constraints_path = "path"]`
 attribute for the derive to consume. The `config` flag embeds a
@@ -145,8 +145,7 @@ arguments are compile errors.
 - `#[solverforge_config_path = "path"]` — path to a config callback with signature `fn(&Solution, SolverConfig) -> SolverConfig`; called with the loaded `solver.toml` config (or defaults if the file is missing)
 - `#[solverforge_solver_toml_path = "path"]` — generated bridge attribute for an explicit solver TOML source
 - `#[solverforge_conflict_repairs_path = "path"]` — generated bridge attribute for the current conflict-repair provider function
-- `#[solverforge_scalar_groups_path = "path"]` — generated bridge attribute for grouped scalar declarations
-- `#[solverforge_coverage_groups_path = "path"]` — generated bridge attribute for coverage group declarations
+- `#[solverforge_scalar_groups_path = "path"]` — generated bridge attribute for scalar group declarations
 
 **`#[shadow_variable_updates]` parameters:**
 - `list_owner = "field"` — selects the `#[planning_entity_collection]` field whose entity owns the list shadow updates

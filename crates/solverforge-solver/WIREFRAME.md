@@ -46,8 +46,8 @@ src/
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
 │   ├── acceptor/tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
-│   ├── context.rs                       — RuntimeModel<S, V, DM, IDM>, VariableSlot<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar slots, internal ScalarGroupBinding<S>, internal CoverageGroupBinding<S>, grouped scalar candidate metadata, expanded scalar/list construction capability hooks
-│   ├── context/*.rs                     — Model, list, conflict-repair, coverage, and scalar slot implementation chunks
+│   ├── context.rs                       — RuntimeModel<S, V, DM, IDM>, VariableSlot<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar slots, internal ScalarGroupBinding<S>, scalar assignment metadata, expanded scalar/list construction capability hooks
+│   ├── context/*.rs                     — Model, list, conflict-repair, and scalar slot implementation chunks
 │   ├── context/scalar/mod.rs            — Scalar slot module root and internal re-exports
 │   ├── context/scalar/*.rs              — Scalar value-source, scalar variable-slot, and grouped scalar binding definitions
 │   ├── scalar_selector.rs               — Canonical scalar selector assembly over index-addressed scalar slots, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
@@ -204,10 +204,8 @@ src/
 │   │   ├── placer/tests.rs              — Tests
 │   │   ├── slot.rs                      — ConstructionSlotId, exact-keyed ConstructionGroupSlotId, ConstructionGroupSlotKey, and ConstructionListElementId for construction frontier tracking
 │   │   ├── capabilities.rs              — Shared heuristic-to-capability routing and early validation for scalar/list/grouped-scalar construction
-│   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroup candidates bound to runtime scalar slots
-│   │   ├── grouped_scalar/*.rs          — Grouped construction candidate normalization, selection semantics, compound move building, and phase loop
-│   │   ├── coverage/mod.rs              — Coverage-first construction module root over declared CoverageGroup bindings
-│   │   ├── coverage/*.rs                — Required/optional coverage candidate construction, augmenting-path capacity repair, and phase loop
+│   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroup candidates and assignment groups bound to runtime scalar slots
+│   │   ├── grouped_scalar/*.rs          — Grouped construction candidate normalization, assignment candidate generation, selection semantics, compound move building, and phase loop
 │   │   ├── engine.rs                    — Canonical generic scalar/list/mixed construction engine used by runtime assembly
 │   │   └── engine/*.rs                  — Generic construction candidate, scan, commit, and target-matching chunks
 │   ├── localsearch/
@@ -732,13 +730,13 @@ framework normalization, while grouped local search passes
 slot key when supplied; otherwise it keys frontier completion by the exact
 sorted set of scalar target slots touched by the candidate.
 
-**`CoverageGroup<S>` / `CoverageGroupBinding<S>`** — `planning/coverage.rs`
-and `builder/context/coverage.rs`. `CoverageGroup<S>` is the public
-model-owned declaration for coverage-first construction and coverage repair
-selectors over one nullable scalar target. It declares required-slot,
-capacity-key, entity-order, value-order, and limit hooks. Macro/runtime
-assembly binds public `CoverageGroup<S>` values to internal
-`CoverageGroupBinding<S>` values before phase or selector construction.
+**Assignment-backed `ScalarGroup<S>` / `ScalarAssignmentBinding<S>`** —
+`planning/scalar.rs` and `builder/context/scalar/group.rs`.
+`ScalarGroup::assignment` is the stock nullable scalar assignment declaration
+over one scalar target. It declares required-entity, capacity-key,
+position-key, sequence-key, entity-order, value-order, and limit hooks.
+Macro/runtime assembly binds public `ScalarGroup<S>` values to internal scalar
+group bindings before phase or selector construction.
 
 **`IntraDistanceAdapter<T>`** — `builder/context.rs`. Newtype wrapping `T: CrossEntityDistanceMeter<S>`. Implements `ListPositionDistanceMeter<S>` by forwarding to `T::distance` with `src_entity_idx == dst_entity_idx`. Used by `ListMoveSelectorBuilder::push_kopt` when `max_nearby > 0`.
 
@@ -753,7 +751,7 @@ assembly binds public `CoverageGroup<S>` values to internal
 Runtime routing is capability-driven:
 - scalar-only `FirstFit` and `CheapestInsertion` use the descriptor boundary
 - named grouped scalar construction uses explicit `ScalarGroup` declarations bound to runtime scalar slots and applies all candidate edits atomically
-- `CoverageFirstFit` uses explicit `CoverageGroup` declarations to cover required nullable scalar slots before optional slots
+- assignment-backed `ScalarGroup` declarations cover required nullable scalar slots before optional slots under `first_fit`
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
 - list-only heuristics validate required `cw_*` or `k_opt_*` hooks before phase build
 - generic mixed construction stays in the canonical engine
@@ -773,18 +771,19 @@ When `GroupedScalarMoveSelectorConfig.require_hard_improvement` is true, those
 candidates carry the shared hard-improvement requirement enforced by local
 search, VND, and cartesian composition.
 
-Coverage-first construction generates compound scalar moves from a named
-coverage group. Required slots are handled before optional slots; required
-assignments may displace optional occupants or move required blockers through a
-bounded augmenting path. With `construction_obligation =
-assign_when_candidate_exists`, required coverage construction commits the first
-doable candidate even when the uncovered baseline scores better. Optional
-coverage assignments remain score-improving only.
+Assignment-backed scalar construction generates compound scalar moves from a
+named scalar group. Required entities are handled before optional entities;
+required assignments may displace optional occupants or move required blockers
+through a bounded augmenting path. With `construction_obligation =
+assign_when_candidate_exists`, required assignment construction commits the
+first doable candidate even when the unassigned baseline scores better.
+Optional assignments remain score-improving only.
 
-Coverage repair selectors emit `CompoundScalarMove` candidates for uncovered
-required slots and capacity conflicts from a named coverage group. The selector
-uses `max_moves_per_step`, `value_candidate_limit`, and
-`require_hard_improvement` from `CoverageRepairMoveSelectorConfig`.
+Assignment-backed grouped scalar selectors emit `CompoundScalarMove`
+candidates for unassigned required entities, capacity conflicts, bounded
+reassignments, and bounded sequence/position rematches. The selector uses
+`max_moves_per_step`, `value_candidate_limit`, and
+`require_hard_improvement` from `GroupedScalarMoveSelectorConfig`.
 
 Construction foragers:
 
@@ -995,10 +994,10 @@ Human-facing `moves/s` is derived only at log/console formatting edges.
 acceptor-rejected, forager-ignored, hard-improving/neutral/worse, conflict
 repair provider/filter/exposure counters, `construction_slots_assigned`,
 `construction_slots_kept`, `construction_slots_no_doable`, and
-`coverage_required_remaining`, which
+`scalar_assignment_required_remaining`, which
 distinguish scalar construction slots that received a candidate, legally kept
 their current unassigned value, had no doable candidate, or remain uncovered
-after coverage-first construction. Grouped scalar
+after scalar assignment construction. Grouped scalar
 construction records completion against the exact grouped slot and also marks
 every scalar slot covered by the grouped decision, so later construction phases
 cannot fill those members one by one. `SelectorTelemetry` exposes

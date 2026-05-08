@@ -128,16 +128,17 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 `entity_class = "..."` and `variable_name = "..."` keys when targeting one
 planning variable family.
 
-`construction_obligation` controls nullable scalar construction only. The
-default `preserve_unassigned` allows an optional scalar slot to remain
-unassigned when the current unassigned state is legal. `assign_when_candidate_exists`
-forces construction to assign a candidate whenever a doable candidate exists,
-even if the unassigned baseline scores better.
+`construction_obligation` controls nullable scalar construction and required
+coverage construction. The default `preserve_unassigned` allows an optional
+scalar slot to remain unassigned when the current unassigned state is legal.
+`assign_when_candidate_exists` forces construction to assign a doable candidate
+when one exists, even if the unassigned or uncovered baseline scores better.
 
-`group_name` opts scalar construction into a named model-provided scalar group.
-When set, grouped construction evaluates and applies each candidate's scalar
-edits atomically; `group_candidate_limit` caps normalized candidates after
-framework legality, duplicate, frontier, and no-op filtering. Grouped
+`group_name` selects a named model-provided group. For grouped scalar
+construction it selects a `ScalarGroup`; for `coverage_first_fit` it selects a
+`CoverageGroup`. Grouped construction evaluates and applies each candidate's
+scalar edits atomically; `group_candidate_limit` caps normalized candidates
+after framework legality, duplicate, frontier, and no-op filtering. Grouped
 construction passes `value_candidate_limit` through to the provider for
 per-entity or per-slot value capping. Grouped local-search selectors do not use
 `group_candidate_limit`; they use
@@ -473,6 +474,22 @@ generated for one selector step. When `require_hard_improvement` is true,
 each emitted grouped compound move carries the shared hard-improvement gate
 used by compound repair and cartesian moves.
 
+### `CoverageRepairMoveSelectorConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `group_name` | `String` | required |
+| `value_candidate_limit` | `Option<usize>` | `None` |
+| `max_moves_per_step` | `usize` | `256` |
+| `require_hard_improvement` | `bool` | `false` |
+
+`coverage_repair_move_selector` emits compound scalar repair moves from a
+named coverage group. It tries uncovered required slots first, then capacity
+conflicts. When `require_hard_improvement` is true, emitted moves carry the
+same hard-improvement gate used by other compound repair selectors.
+
 ### `LimitedNeighborhoodConfig`
 
 Derives: `Debug, Clone, Deserialize, Serialize`.
@@ -627,6 +644,7 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 | `StrongestFit` | Specialized scalar-only strongest-fit heuristic; validates `construction_value_order_key` |
 | `StrongestFitDecreasing` | Specialized scalar-only strongest-fit-by-difficulty heuristic; validates both scalar order-key hooks |
 | `CheapestInsertion` | Generic best-score construction over mixed or list-bearing runtime plans; scalar-only targets reuse the descriptor path |
+| `CoverageFirstFit` | Coverage-first scalar construction over a named `CoverageGroup`; requires `group_name` |
 | `AllocateEntityFromQueue` | Specialized scalar-only queue-driven allocation; validates `construction_entity_order_key` |
 | `AllocateToValueFromQueue` | Specialized scalar-only value-queue allocation; validates `construction_value_order_key` |
 | `ListRoundRobin` | Specialized list-only even distribution; validates the targeted list variable exists before phase build |
@@ -649,7 +667,7 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 | Variant | Note |
 |---------|------|
 | `PreserveUnassigned` | **Default.** Nullable scalar construction may keep the current unassigned value when legal |
-| `AssignWhenCandidateExists` | Nullable scalar construction must assign a doable candidate when one exists |
+| `AssignWhenCandidateExists` | Nullable scalar construction and required coverage construction must assign a doable candidate when one exists |
 
 ### `AcceptorConfig`
 
@@ -688,6 +706,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `PillarSwapMoveSelector` | `PillarSwapMoveConfig` |
 | `RuinRecreateMoveSelector` | `RuinRecreateMoveSelectorConfig` |
 | `GroupedScalarMoveSelector` | `GroupedScalarMoveSelectorConfig` |
+| `CoverageRepairMoveSelector` | `CoverageRepairMoveSelectorConfig` |
 | `ListChangeMoveSelector` | `ListChangeMoveConfig` |
 | `NearbyListChangeMoveSelector` | `NearbyListChangeMoveConfig` |
 | `ListSwapMoveSelector` | `ListSwapMoveConfig` |

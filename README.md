@@ -626,6 +626,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 - **Facade configuration exports are complete**: solver configuration controls such as `AcceptorConfig`, `PhaseConfig`, `MoveSelectorConfig`, `ForagerConfig`, `SolverConfigOverride`, and related enums are available directly from the `solverforge` facade crate, matching the documented single-dependency workflow.
 - **Recording score directors are available from the facade**: `RecordingDirector` is re-exported beside `Director` and `ScoreDirector` for extension code that needs trial-move rollback without depending on the scoring crate directly.
+- **Coverage groups support required-slot construction and repair**: model-owned `CoverageGroup` declarations can drive `coverage_first_fit` construction and `coverage_repair_move_selector` local search for nullable scalar assignments that must cover required slots while respecting capacity keys.
 
 ### What's New in 0.11.0
 

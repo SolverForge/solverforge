@@ -97,6 +97,8 @@ src/
 - `Analyzable` (trait)
 - `RepairLimits`
 - `ConflictRepair`
+- `CoverageGroup`
+- `CoverageGroupLimits`
 - `RepairCandidate`
 - `RepairProvider`
 - `ScalarCandidate`
@@ -130,6 +132,9 @@ Module: `solverforge::planning`
   planning entity sources. `scalar(&self, variable_name)` borrows the source
   and returns a `ScalarTarget<S>`, so one bound generated source can declare
   multiple scalar targets for grouped scalar construction or local search.
+- Coverage helpers — `CoverageGroup<S>` is the public model-owned declaration
+  for required-slot coverage construction and repair. Runtime bindings remain
+  hidden under `solverforge::__internal`.
 
 ### CVRP Domain Helpers (from `solverforge-cvrp`)
 

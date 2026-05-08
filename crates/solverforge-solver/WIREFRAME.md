@@ -25,10 +25,10 @@ src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
 ├── runtime.rs                           — Runtime assembly and target matching over `RuntimeModel`; routes scalar-only construction through the descriptor boundary, routes named grouped scalar construction through the atomic grouped-scalar builder, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
-├── model_support.rs                     — Hidden `PlanningModelSupport` trait implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model validation, and shadow updates
+├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, coverage group attachment, model validation, and shadow updates
 ├── runtime/
 │   ├── tests.rs                         — Runtime construction routing and target-validation tests
-│   ├── tests/*.rs                       — Runtime test fixtures split by scalar, queue, revision, multi-owner, and mixed-target behavior
+│   ├── tests/*.rs                       — Runtime test fixtures split by scalar, queue, revision, multi-owner, mixed-target, grouped-scalar, and coverage behavior
 │   └── list_tests.rs                    — Specialized list-construction runtime tests
 ├── descriptor.rs                        — Re-exports descriptor bindings, selectors, move types, and internal construction/runtime helpers
 ├── descriptor/
@@ -46,15 +46,15 @@ src/
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
 │   ├── acceptor/tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
-│   ├── context.rs                       — RuntimeModel<S, V, DM, IDM>, VariableSlot<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar slots, internal ScalarGroupBinding<S>, grouped scalar candidate metadata, expanded scalar/list construction capability hooks
-│   ├── context/*.rs                     — Model, list, conflict-repair, and scalar slot implementation chunks
+│   ├── context.rs                       — RuntimeModel<S, V, DM, IDM>, VariableSlot<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar slots, internal ScalarGroupBinding<S>, internal CoverageGroupBinding<S>, grouped scalar candidate metadata, expanded scalar/list construction capability hooks
+│   ├── context/*.rs                     — Model, list, conflict-repair, coverage, and scalar slot implementation chunks
 │   ├── context/scalar/mod.rs            — Scalar slot module root and internal re-exports
 │   ├── context/scalar/*.rs              — Scalar value-source, scalar variable-slot, and grouped scalar binding definitions
 │   ├── scalar_selector.rs               — Canonical scalar selector assembly over index-addressed scalar slots, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
 │   ├── scalar_selector/*.rs             — Scalar value, leaf, dispatch, and build chunks
 │   ├── scalar_selector/tests.rs         — Scalar selector test root with change/swap, nearby/ruin, pillar, and cartesian chunks
 │   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published RuntimeModel variable slots
-│   ├── selector/*.rs                    — Mixed scalar/list neighborhood move, grouped scalar selector, conflict repair selector, family classification, and builder chunks
+│   ├── selector/*.rs                    — Mixed scalar/list neighborhood move, grouped scalar selector, coverage repair selector, conflict repair selector, family classification, and builder chunks
 │   ├── selector/types/*.rs              — Neighborhood leaf, composite, cursor, and union types used by selector assembly
 │   ├── selector/tests.rs                — Mixed selector test root with support, defaults, grouped scalar, cartesian, and phase chunks
 │   ├── list_selector.rs                 — Re-exports list selector leaf and builder modules
@@ -206,6 +206,8 @@ src/
 │   │   ├── capabilities.rs              — Shared heuristic-to-capability routing and early validation for scalar/list/grouped-scalar construction
 │   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroup candidates bound to runtime scalar slots
 │   │   ├── grouped_scalar/*.rs          — Grouped construction candidate normalization, selection semantics, compound move building, and phase loop
+│   │   ├── coverage/mod.rs              — Coverage-first construction module root over declared CoverageGroup bindings
+│   │   ├── coverage/*.rs                — Required/optional coverage candidate construction, augmenting-path capacity repair, and phase loop
 │   │   ├── engine.rs                    — Canonical generic scalar/list/mixed construction engine used by runtime assembly
 │   │   └── engine/*.rs                  — Generic construction candidate, scan, commit, and target-matching chunks
 │   ├── localsearch/
@@ -730,6 +732,14 @@ framework normalization, while grouped local search passes
 slot key when supplied; otherwise it keys frontier completion by the exact
 sorted set of scalar target slots touched by the candidate.
 
+**`CoverageGroup<S>` / `CoverageGroupBinding<S>`** — `planning/coverage.rs`
+and `builder/context/coverage.rs`. `CoverageGroup<S>` is the public
+model-owned declaration for coverage-first construction and coverage repair
+selectors over one nullable scalar target. It declares required-slot,
+capacity-key, entity-order, value-order, and limit hooks. Macro/runtime
+assembly binds public `CoverageGroup<S>` values to internal
+`CoverageGroupBinding<S>` values before phase or selector construction.
+
 **`IntraDistanceAdapter<T>`** — `builder/context.rs`. Newtype wrapping `T: CrossEntityDistanceMeter<S>`. Implements `ListPositionDistanceMeter<S>` by forwarding to `T::distance` with `src_entity_idx == dst_entity_idx`. Used by `ListMoveSelectorBuilder::push_kopt` when `max_nearby > 0`.
 
 **`MimicRecorder`** — Shared state for recording/replaying entity selections. Methods: `new(id)`, `get_has_next()`, `get_recorded_entity()`, `reset()`.
@@ -743,6 +753,7 @@ sorted set of scalar target slots touched by the candidate.
 Runtime routing is capability-driven:
 - scalar-only `FirstFit` and `CheapestInsertion` use the descriptor boundary
 - named grouped scalar construction uses explicit `ScalarGroup` declarations bound to runtime scalar slots and applies all candidate edits atomically
+- `CoverageFirstFit` uses explicit `CoverageGroup` declarations to cover required nullable scalar slots before optional slots
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
 - list-only heuristics validate required `cw_*` or `k_opt_*` hooks before phase build
 - generic mixed construction stays in the canonical engine
@@ -761,6 +772,19 @@ Grouped scalar local-search selectors emit `CompoundScalarMove` candidates.
 When `GroupedScalarMoveSelectorConfig.require_hard_improvement` is true, those
 candidates carry the shared hard-improvement requirement enforced by local
 search, VND, and cartesian composition.
+
+Coverage-first construction generates compound scalar moves from a named
+coverage group. Required slots are handled before optional slots; required
+assignments may displace optional occupants or move required blockers through a
+bounded augmenting path. With `construction_obligation =
+assign_when_candidate_exists`, required coverage construction commits the first
+doable candidate even when the uncovered baseline scores better. Optional
+coverage assignments remain score-improving only.
+
+Coverage repair selectors emit `CompoundScalarMove` candidates for uncovered
+required slots and capacity conflicts from a named coverage group. The selector
+uses `max_moves_per_step`, `value_candidate_limit`, and
+`require_hard_improvement` from `CoverageRepairMoveSelectorConfig`.
 
 Construction foragers:
 
@@ -970,9 +994,11 @@ Human-facing `moves/s` is derived only at log/console formatting edges.
 `SolverTelemetry` snapshots expose the same counters plus not-doable,
 acceptor-rejected, forager-ignored, hard-improving/neutral/worse, conflict
 repair provider/filter/exposure counters, `construction_slots_assigned`,
-`construction_slots_kept`, and `construction_slots_no_doable`, which
+`construction_slots_kept`, `construction_slots_no_doable`, and
+`coverage_required_remaining`, which
 distinguish scalar construction slots that received a candidate, legally kept
-their current unassigned value, or had no doable candidate. Grouped scalar
+their current unassigned value, had no doable candidate, or remain uncovered
+after coverage-first construction. Grouped scalar
 construction records completion against the exact grouped slot and also marks
 every scalar slot covered by the grouped decision, so later construction phases
 cannot fill those members one by one. `SelectorTelemetry` exposes

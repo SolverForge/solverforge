@@ -78,7 +78,8 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support
 derive output. Accepted arguments are `serde`, `constraints = "path"`,
 `config = "path"`, `solver_toml = "path"`, `conflict_repairs = "path"`, and
-`scalar_groups = "path"`. Unknown or malformed arguments are compile errors.
+`scalar_groups = "path"`, and `coverage_groups = "path"`. Unknown or malformed
+arguments are compile errors.
 The `constraints` flag embeds a `#[solverforge_constraints_path = "path"]`
 attribute for the derive to consume. The `config` flag embeds a
 `#[solverforge_config_path = "path"]` attribute for the derive to consume; the
@@ -145,6 +146,7 @@ arguments are compile errors.
 - `#[solverforge_solver_toml_path = "path"]` — generated bridge attribute for an explicit solver TOML source
 - `#[solverforge_conflict_repairs_path = "path"]` — generated bridge attribute for the current conflict-repair provider function
 - `#[solverforge_scalar_groups_path = "path"]` — generated bridge attribute for grouped scalar declarations
+- `#[solverforge_coverage_groups_path = "path"]` — generated bridge attribute for coverage group declarations
 
 **`#[shadow_variable_updates]` parameters:**
 - `list_owner = "field"` — selects the `#[planning_entity_collection]` field whose entity owns the list shadow updates
@@ -172,7 +174,7 @@ arguments are compile errors.
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>)` delegates to `solve_internal()`
 - `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` with canonical shadow support and returns `ScoreAnalysis`
-- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `RuntimeModel` containing scalar slots plus zero or more owner-specific list slots, delegate scalar hook attachment to the `planning_model!` support impl, sort those variable slots to the descriptor-backed variable order emitted by the macros, compute hidden shape-aware solve-start telemetry (`__solverforge_total_list_elements()` for list models and `__solverforge_scalar_candidate_count()` for scalar models), and then call hidden `build_phases(config, &descriptor, &model)`
+- `fn solve_internal(self, runtime: SolverRuntime<Self>)` (when constraints path specified) — calls `run_solver()` for macro-generated solving, or loads `solver.toml` and passes it through the configured `config = "..."` callback before calling `run_solver_with_config()`; generated runtime helpers build one `RuntimeModel` containing scalar slots plus zero or more owner-specific list slots, delegate scalar hook, scalar group, and coverage group attachment to the `planning_model!` support impl, sort those variable slots to the descriptor-backed variable order emitted by the macros, compute hidden shape-aware solve-start telemetry (`__solverforge_total_list_elements()` for list models and `__solverforge_scalar_candidate_count()` for scalar models), and then call hidden `build_phases(config, &descriptor, &model)`
 - Public solution source methods for all `#[planning_entity_collection]`, `#[problem_fact_collection]`, and streamable `#[planning_list_element_collection]` fields. Each method is inherent on the solution type, for example `Plan::tasks()`, returns `impl solverforge::stream::CollectionExtract<Plan, Item = Task>`, and carries hidden `ChangeSource::Descriptor(idx)` for planning entities or `ChangeSource::Static` for facts and list elements. User constraints call `ConstraintFactory::new().for_each(Plan::tasks())`; there is still only one public stream-entry verb.
 
 ### Problem Fact Support Derive

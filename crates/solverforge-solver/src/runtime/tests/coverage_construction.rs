@@ -45,17 +45,15 @@ impl Director<CoveragePlan> for CoverageDirector {
     }
 
     fn calculate_score(&mut self) -> HardSoftScore {
-        let uncovered_required = self
-            .working_solution
-            .penalize_uncovered_required
-            .then(|| {
-                self.working_solution
-                    .slots
-                    .iter()
-                    .filter(|slot| slot.required && slot.assigned.is_none())
-                    .count()
-            })
-            .unwrap_or(0);
+        let uncovered_required = if self.working_solution.penalize_uncovered_required {
+            self.working_solution
+                .slots
+                .iter()
+                .filter(|slot| slot.required && slot.assigned.is_none())
+                .count()
+        } else {
+            0
+        };
         let uncovered_optional = self
             .working_solution
             .slots

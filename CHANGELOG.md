@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.12.0](///compare/v0.11.1...v0.12.0) (2026-05-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **scoring:** pass group keys to grouped weights
+* **macros:** generated public list helper methods are no longer part of the user-facing model API. Code that called list_len_static(), element_count(), assign_element(), owner-prefixed list helpers, or related generated list mutation methods must move off those hidden runtime operations and use the supported planning model, descriptor, stream source, or solver APIs instead.
+* **planning:** advanced direct users of solverforge-solver runtime assembly must migrate from ModelContext, VariableContext, ScalarVariableContext, ListVariableContext, ScalarGroupContext, ScalarGroupCandidate, ScalarGroupEdit, ConflictRepairProviderEntry, ConflictRepairSpec, and related provider names to RuntimeModel, VariableSlot, ScalarVariableSlot, ListVariableSlot, ScalarGroup/ScalarGroupBinding, ScalarCandidate, ScalarEdit, ConflictRepair, RepairCandidate, and RepairLimits. Macro users must use conflict_repairs = "path" instead of conflict_repair_providers = "path".
+
+* **macros:** remove generated list helper shims 3e99299
+* **scoring:** pass group keys to grouped weights df8b7bf
+
+
+### Features
+
+* **config:** add coverage phase and repair selector config 5566af8
+* **examples:** add minimal shift scheduling solver 2eee8f9
+* **planning:** publish declarative scalar planning contracts 649a7a0
+* **scoring:** add consecutive run collector 08d736f
+* **scoring:** clean public constraint stream surface d0232ce
+* **solver:** add coverage first-fit construction bb1ace8
+* **solver:** add coverage repair selector fe80935
+* **solver:** bind model-owned coverage groups 0d917e6
+
 ## [0.11.1](///compare/v0.11.0...v0.11.1) (2026-05-05)
 
 

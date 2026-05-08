@@ -90,11 +90,11 @@ pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
     analyze, run_solver, run_solver_with_config, Analyzable, ConflictRepair, ConstraintAnalysis,
-    RepairCandidate, RepairLimits, RepairProvider, ScalarCandidate, ScalarCandidateProvider,
-    ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget, ScoreAnalysis, SelectorTelemetry,
-    Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager,
-    SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
-    SolverTelemetry, SolverTerminalReason,
+    CoverageGroup, CoverageGroupLimits, RepairCandidate, RepairLimits, RepairProvider,
+    ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits,
+    ScalarTarget, ScoreAnalysis, SelectorTelemetry, Solvable, SolverEvent, SolverEventMetadata,
+    SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime, SolverSnapshot,
+    SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTerminalReason,
 };
 
 /* ============================================================================

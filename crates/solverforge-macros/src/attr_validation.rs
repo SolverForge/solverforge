@@ -64,6 +64,7 @@ const SOLUTION_ARGS: &[AttributeArgSpec] = &[
     AttributeArgSpec::string("solver_toml"),
     AttributeArgSpec::string("conflict_repairs"),
     AttributeArgSpec::string("scalar_groups"),
+    AttributeArgSpec::string("coverage_groups"),
 ];
 
 const PLANNING_VARIABLE_ARGS: &[AttributeArgSpec] = &[
@@ -127,7 +128,7 @@ pub(crate) fn parse_serde_flag(attr: TokenStream, macro_name: &str) -> Result<bo
 
 // Parses planning_solution attribute flags: serde, constraints = "path",
 // config = "path", solver_toml = "path", conflict_repairs = "path",
-// scalar_groups = "path".
+// scalar_groups = "path", coverage_groups = "path".
 #[derive(Debug, Default)]
 pub(crate) struct SolutionFlags {
     pub(crate) has_serde: bool,
@@ -136,6 +137,7 @@ pub(crate) struct SolutionFlags {
     pub(crate) solver_toml_path: Option<String>,
     pub(crate) conflict_repairs_path: Option<String>,
     pub(crate) scalar_groups_path: Option<String>,
+    pub(crate) coverage_groups_path: Option<String>,
 }
 
 pub(crate) fn parse_solution_flags(attr: TokenStream) -> Result<SolutionFlags, Error> {
@@ -166,6 +168,9 @@ pub(crate) fn parse_solution_flags(attr: TokenStream) -> Result<SolutionFlags, E
             }
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "scalar_groups") => {
                 flags.scalar_groups_path = lit_string_value(&nv.value);
+            }
+            Meta::NameValue(nv) if path_matches_ident(&nv.path, "coverage_groups") => {
+                flags.coverage_groups_path = lit_string_value(&nv.value);
             }
             _ => {}
         }

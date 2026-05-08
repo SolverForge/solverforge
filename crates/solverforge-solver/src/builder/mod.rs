@@ -13,9 +13,10 @@ pub mod selector;
 
 pub use acceptor::{AcceptorBuilder, AnyAcceptor};
 pub use context::{
-    bind_scalar_groups, ConflictRepair, IntraDistanceAdapter, ListVariableSlot, RepairCandidate,
-    RepairLimits, RuntimeModel, ScalarCandidate, ScalarEdit, ScalarGroupBinding, ScalarGroupLimits,
-    ScalarGroupMemberBinding, ScalarVariableSlot, ValueSource, VariableSlot,
+    bind_coverage_groups, bind_scalar_groups, ConflictRepair, CoverageGroupBinding,
+    IntraDistanceAdapter, ListVariableSlot, RepairCandidate, RepairLimits, RuntimeModel,
+    ScalarCandidate, ScalarEdit, ScalarGroupBinding, ScalarGroupLimits, ScalarGroupMemberBinding,
+    ScalarVariableSlot, ValueSource, VariableSlot,
 };
 pub use forager::{AnyForager, ForagerBuilder};
 pub use selector::{

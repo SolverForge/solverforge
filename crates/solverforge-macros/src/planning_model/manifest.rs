@@ -107,6 +107,7 @@ struct SolutionMetadata {
     collection_field_names: BTreeSet<String>,
     shadow_config: ShadowConfig,
     scalar_groups_path: Option<syn::Path>,
+    coverage_groups_path: Option<syn::Path>,
 }
 
 struct ModelMetadata {

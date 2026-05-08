@@ -35,9 +35,9 @@ pub mod termination;
 
 pub use builder::{
     build_local_search, build_move_selector, build_vnd, AcceptorBuilder, AnyAcceptor, AnyForager,
-    ForagerBuilder, IntraDistanceAdapter, ListVariableSlot, LocalSearch, Neighborhood,
-    NeighborhoodLeaf, NeighborhoodMove, RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding,
-    ScalarVariableSlot, Selector, ValueSource, VariableSlot, Vnd,
+    CoverageGroupBinding, ForagerBuilder, IntraDistanceAdapter, ListVariableSlot, LocalSearch,
+    Neighborhood, NeighborhoodLeaf, NeighborhoodMove, RuntimeModel, ScalarGroupBinding,
+    ScalarGroupMemberBinding, ScalarVariableSlot, Selector, ValueSource, VariableSlot, Vnd,
 };
 pub use descriptor::{
     build_descriptor_move_selector, descriptor_has_bindings, DescriptorConstruction,
@@ -135,8 +135,9 @@ pub use phase::{
     Phase,
 };
 pub use planning::{
-    ConflictRepair, RepairCandidate, RepairLimits, RepairProvider, ScalarCandidate,
-    ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget,
+    ConflictRepair, CoverageGroup, CoverageGroupLimits, RepairCandidate, RepairLimits,
+    RepairProvider, ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup,
+    ScalarGroupLimits, ScalarTarget,
 };
 pub use run::{log_solve_start, run_solver, run_solver_with_config};
 pub use runtime::{ListVariableEntity, ListVariableMetadata};

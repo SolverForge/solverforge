@@ -26,7 +26,7 @@ Publishing order: `core -> macros -> scoring -> config -> solver -> cvrp -> cons
 
 Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
 
-Current workspace release version: `0.11.1`.
+Current workspace release version: `0.12.0`.
 
 Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
 
@@ -38,7 +38,11 @@ solution files remain normal separate Rust modules listed in that manifest.
 
 Treat the repository documentation as a coordinated surface, not as isolated files.
 
-- `README.md` is the user-facing entry point. Update it when public workflows, naming, or extension guidance change.
+- `README.md` is the user-facing entry point. Keep the first screen oriented
+  to a first-time human user: what SolverForge is, when to use it, how to try
+  it with `solverforge-cli`, and where to go next. Do not turn the README into
+  a long release-history dump; use `CHANGELOG.md` for release history and
+  `RELEASE.md` for maintainer release operations.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps. Update them for any public surface change.
 - `docs/*.md` files capture focused extension and architecture guidance. When a refactor changes naming or explains an intentional boundary, update the relevant doc or add a dedicated audit note.
 - `docs/naming-charter.md` is the canonical naming contract for scalar/list terminology. Keep it in sync with any public rename or cleanup sweep.
@@ -162,7 +166,12 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
 ## Build And Validation
 
 - `make build`
+- `make examples`
 - `make test`
 - `make pre-release`
+
+`make examples` derives the package list from checked-in `examples/*/Cargo.toml`
+manifests, so every workspace example should be covered without a manually
+maintained package loop.
 
 Minimum supported Rust version: `1.95+`

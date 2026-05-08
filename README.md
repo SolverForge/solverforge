@@ -2,8 +2,8 @@
 
 <div align="center">
 
-[![CI](https://github.com/solverforge/solverforge/actions/workflows/ci.yml/badge.svg)](https://github.com/solverforge/solverforge/actions/workflows/ci.yml)
-[![Release](https://github.com/solverforge/solverforge/actions/workflows/release.yml/badge.svg)](https://github.com/solverforge/solverforge/actions/workflows/release.yml)
+[![CI](https://github.com/solverforge/solverforge-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/solverforge/solverforge-rs/actions/workflows/ci.yml)
+[![Release](https://github.com/solverforge/solverforge-rs/actions/workflows/release.yml/badge.svg)](https://github.com/solverforge/solverforge-rs/actions/workflows/release.yml)
 [![Crates.io](https://img.shields.io/crates/v/solverforge.svg)](https://crates.io/crates/solverforge)
 [![Documentation](https://docs.rs/solverforge/badge.svg)](https://docs.rs/solverforge)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -16,9 +16,18 @@
 >
 > "Working like a charm, A+" — *Dr. Fawaz Halwani, Pathologist, The Ottawa Hospital*
 
-A zero-erasure constraint solver in Rust.
+A Rust planning engine for problems where you need to assign scarce resources
+without breaking hard rules.
 
-SolverForge optimizes planning and scheduling problems using metaheuristic algorithms. It combines a declarative constraint API, retained projected scoring rows, bounded scalar neighborhoods, and incremental scoring to solve complex real-world problems like employee scheduling, vehicle routing, and resource allocation.
+Use SolverForge when the answer depends on many coupled decisions: who works
+which shift, which vehicle visits which stop, which task runs on which machine,
+or which resource should be reserved for which job. You describe the facts, the
+planning variables, and the constraints. SolverForge searches for a feasible,
+high-scoring solution while preserving concrete Rust types through the runtime.
+
+Most new projects should start with `solverforge-cli`. This repository contains
+the runtime crates, examples, and API references that the generated application
+uses after the scaffold exists.
 
 ## Get Started
 
@@ -34,26 +43,36 @@ solverforge server
 
 Open http://localhost:7860 to see your solver in action.
 
-Start new projects with the standalone [`solverforge-cli`](https://github.com/solverforge/solverforge-cli) repository. It scaffolds complete SolverForge applications and sample data, while this repository provides the runtime crates you extend once the scaffold exists.
+That sequence creates a complete local SolverForge application, adds a resource
+fact, adds a task planning entity, gives each task an optional scalar assignment,
+and starts the generated web server.
 
-The current CLI scaffolds a neutral shell via `solverforge new <name>`. You shape that shell afterward with `solverforge generate ...`, adding facts, entities, variables, constraints, and generated data as the domain becomes concrete. Generated applications can mix scalar planning variables with multiple independent planning lists, and the emitted code targets the same retained-runtime facade documented in this repository.
-The generated runtime builds one model-owned variable plan for every planning model. Scalar runtime metadata is ordered by descriptor index and variable name, with a compact generated index reserved for getter/setter dispatch, so module declaration order is not part of the user contract. Generic `FirstFit` and `CheapestInsertion` use the canonical construction engine when matching list work is present, while scalar-only construction uses the descriptor boundary. Canonical local search runs over that model-owned plan; descriptor selectors remain an explicit advanced boundary. Specialized list heuristics such as round-robin, regret insertion, Clarke-Wright, and list K-opt remain explicit opt-in phases.
-Scalar variables declared with `allows_unassigned = true` keep optional-assignment semantics in that runtime: stock construction can keep `None` when it is the best legal baseline, revision-advancing mutations reopen those completed optional slots for reconsideration, and stock local search can both assign and unassign.
-Scalar construction heuristics that sort entities or values declare those capabilities explicitly on `#[planning_variable]`: use `construction_entity_order_key = "fn_name"` for entity-priority ordering and `construction_value_order_key = "fn_name"` for weakest/strongest-fit and queue-style value ordering. Those hooks are evaluated against the live working solution at each construction step, not cached once at phase start, and they never reorder local-search scalar candidates.
-Generated applications and normal `solverforge` facade usage keep the same syntax. The recent construction unification only changes advanced direct `solverforge-solver` runtime assembly APIs.
+The CLI is intentionally neutral. `solverforge new <name>` gives you the shell;
+`solverforge generate ...` adds facts, entities, variables, constraints, and
+demo data as your domain becomes clearer. Generated applications can mix scalar
+planning variables with independent planning lists, and they use the same
+`solverforge` facade crate documented here.
 
 ## Extend the Scaffold
 
-- [Extend the solver](docs/extend-solver.md) when you need custom constraints, phases, selectors, termination, or solver configuration beyond the default scaffold.
-- [Extend the domain](docs/extend-domain.md) when you need more entities, facts, variables, scoring, or mixed scalar/list modeling inside the generated app.
+- [Extend the domain](docs/extend-domain.md) when you need more entities,
+  facts, variables, scoring, or mixed scalar/list modeling inside a generated
+  app.
+- [Extend the solver](docs/extend-solver.md) when you need custom phases,
+  selectors, termination, or solver configuration beyond the scaffold defaults.
 
 ## Documentation Map
 
-- `README.md` is the user-facing entry point for the workspace and generated-project integration model.
-- `docs/extend-solver.md` and `docs/extend-domain.md` cover scaffold extension workflows.
+- New users should start with this README and the complete packages under
+  [`examples/`](examples/).
+- Generated app work starts in the standalone
+  [`solverforge-cli`](https://github.com/solverforge/solverforge-cli)
+  repository, then continues against the runtime crates in this workspace.
+- `docs/extend-domain.md` and `docs/extend-solver.md` cover scaffold extension
+  workflows.
 - `docs/lifecycle-pause-resume-contract.md` defines the retained lifecycle contract, including exact pause/resume semantics, snapshot identity, and terminal-state cleanup rules.
 - `docs/naming-charter.md` is the canonical naming contract for scalar/list terminology and selector-family cleanup.
-- `docs/naming-contract-audit.md` records the current neutral selector and extractor naming model, including the `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector` surface adopted in `0.7.0`.
+- `docs/naming-contract-audit.md` records the current neutral selector and extractor naming model.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps for each crate.
 - `AGENTS.md` defines repository-level engineering and documentation expectations for coding agents.
 
@@ -114,11 +133,12 @@ ConstraintFactory::<Schedule, HardSoftScore>::new()
 
 ## Installation
 
-Add to your `Cargo.toml`:
+If you are building directly against the runtime crates instead of starting from
+`solverforge-cli`, add the facade crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-solverforge = { version = "0.11.1", features = ["console"] }
+solverforge = { version = "0.12.0", features = ["console"] }
 ```
 
 When `move_selector` is omitted from local search or VND, the canonical runtime
@@ -147,10 +167,6 @@ monomorphized.
 | `verbose-logging` | DEBUG-level progress updates (1/sec during local search) |
 | `decimal` | Decimal score support via `rust_decimal` |
 | `serde` | Serialization support for domain types |
-
-## Release Operations
-
-The workspace release checklist, publish order, and crate stability matrix live in [RELEASE.md](RELEASE.md). Version bumps are explicit release decisions, and `CHANGELOG.md` remains managed by the `commit-and-tag-version` workflow rather than hand-maintained in feature branches.
 
 ## Quick Start
 
@@ -420,7 +436,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.11.1 - Zero-Erasure Constraint Solver
+                   v0.12.0 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -618,12 +634,16 @@ Root workspace examples live under [`examples/`](examples/) as complete solver
 packages:
 
 ```bash
+make examples
 cargo run -p scalar-graph-coloring
 cargo run -p minimal-shift-scheduling
 cargo run -p list-tsp
 cargo run -p mixed-job-shop
 cargo run -p nqueens
 ```
+
+`make examples` builds every checked-in example package. Run an individual
+`cargo run -p ...` command when you want to inspect one model's behavior.
 
 `minimal-shift-scheduling` is the compact public solver path: it uses
 `planning_model!`, generated collection sources, `solver.toml`,
@@ -646,198 +666,30 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current Version**: 0.11.1
+**Current workspace version:** 0.12.0
 
-### What's New in 0.11.1
+The current checked-in workspace exposes:
 
-- **Facade configuration exports are complete**: solver configuration controls such as `AcceptorConfig`, `PhaseConfig`, `MoveSelectorConfig`, `ForagerConfig`, `SolverConfigOverride`, and related enums are available directly from the `solverforge` facade crate, matching the documented single-dependency workflow.
-- **Recording score directors are available from the facade**: `RecordingDirector` is re-exported beside `Director` and `ScoreDirector` for extension code that needs trial-move rollback without depending on the scoring crate directly.
-- **Coverage groups support required-slot construction and repair**: model-owned `CoverageGroup` declarations can drive `coverage_first_fit` construction and `coverage_repair_move_selector` local search for nullable scalar assignments that must cover required slots while respecting capacity keys.
+- the `solverforge` facade crate for application code;
+- `solverforge-cli` as the recommended first project path;
+- model-owned `planning_model!` domains with generated collection sources;
+- scalar, list, grouped-scalar, coverage, conflict-repair, ruin-recreate,
+  cartesian, and nearby neighborhoods;
+- retained `SolverManager` jobs with progress events, exact pause/resume,
+  snapshots, checkpoint status, telemetry, and snapshot-bound analysis;
+- TOML/YAML solver configuration plus programmatic overrides;
+- optional console rendering through the `console` feature; and
+- five workspace examples validated by `make examples`.
 
-### What's New in 0.11.0
+Release history belongs in [CHANGELOG.md](CHANGELOG.md). Maintainer release
+steps live in [RELEASE.md](RELEASE.md).
 
-- **Joined projected scoring rows use the existing `.project(...)` verb**: keyed cross joins can now project retained scoring rows directly with `.project(|left, right| Row { ... })`, while single-source `Projection` types keep the existing bounded multi-row path.
-- **Projected scoring paths no longer require cloned rows or keys**: projected outputs, projected self-join keys, and grouped collector values can be non-`Clone`, and retained projected state avoids row/key clones in scoring hot paths.
-- **Constraint identity is borrowed from the owning constraint**: metadata and analysis views now preserve package-qualified `ConstraintRef` identity without cloning it, so public reporting types carry borrowed lifetimes instead of owned constraint references.
+## Release Operations
 
-### What's New in 0.10.0
-
-- **Projected scoring rows keep coordinate-stable self-join order**: retained projected joins reuse sparse row storage without letting storage slots define pair orientation, so multi-output projections with order-sensitive filters stay incrementally consistent with full evaluation.
-- **Constraint metadata identity is package-aware**: scoring metadata deduplicates by full `ConstraintRef`, package-qualified constraints with the same short name stay distinct, and conflict-repair selectors resolve configured keys against that exact identity.
-- **Grouped scalar construction and search are explicit**: named `ScalarGroup` providers emit atomic `CompoundScalarMove` candidates for coupled nullable-scalar decisions, with separate construction and local-search limits.
-- **Hard-improvement gates are shared across compound moves**: grouped scalar, conflict-repair, cartesian, local-search, and VND paths now enforce the same hard-score improvement requirement when configured.
-- **Score level access is allocation-free by contract**: custom `Score` types implement `level_number()` as the required per-level accessor, and `to_level_numbers()` is the derived vector view for callers that need owned level data.
-- **Level-aware simulated annealing is production-ready**: simulated annealing uses per-score-level temperatures, hard-regression policy, calibration, and cooling into hill-climbing behavior for `HardSoftScore` and other multi-level scores.
-
-### What's New in 0.9.2
-
-- **Existence scoring now indexes exact `usize` keys internally**: direct and flattened `if_exists` / `if_not_exists` constraints keep the same public stream API, while exact `usize` join keys use dense vector bookkeeping and all other key types retain hashed storage.
-- **Local-search phase starts include the current score in console output**: solver telemetry emits the score on `phase_start`, and `solverforge-console` renders it when present so phase transitions preserve score context.
-
-### What's New in 0.9.0
-
-- **Scalar is now the canonical public name for non-list planning variables**: runtime metadata, macro-generated helpers, solve-shape output, and the coordinated docs surface now use `scalar` terminology consistently.
-- **`planning_model!` is the canonical domain manifest**: `src/domain/mod.rs`
-  lists normal Rust modules and exports, and the macro derives deterministic
-  model-owned metadata for scalar, list, and mixed models.
-- **Scalar runtime assembly is descriptor-addressed**: generated scalar helpers keep a compact `variable_index` for getter/setter dispatch, while runtime hook attachment and ordering use descriptor index plus variable name, so module declaration order is not a modeling contract.
-- **Scalar nearby selectors are bounded model-declared capabilities**: `#[planning_variable]` supports `candidate_values`, `nearby_value_candidates`, and `nearby_entity_candidates`; distance meters rank or filter those bounded candidates and are rejected as standalone discovery mechanisms.
-- **Scalar construction ordering is model-declared too**: `#[planning_variable]` now supports `construction_entity_order_key` and `construction_value_order_key`, and scalar-only construction heuristics validate those hooks before phase build. These hooks are construction-only and do not change local-search selector order.
-- **Construction routing is capability-driven**: scalar-only heuristics route through the descriptor boundary, list-only heuristics validate the existing list hook surface before build, and generic `FirstFit` / `CheapestInsertion` stay on the mixed engine when matching list work is present.
-- **Move selectors are cursor-based**: `open_cursor()` now yields stable candidate indices plus borrowable candidates, cartesian neighborhoods stay preview-safe and cursor-native, and ownership materializes only for the selected winner. Convenience owned-stream helpers such as `iter_moves()` and `append_moves()` are not a cartesian-safe contract.
-- **Large modules stay split by behavior**: solver, descriptor, runtime, construction, and macro-generated support code keep implementation and test chunks in adjacent subsystem files so each Rust source file stays below the 500 LOC maintenance boundary.
-- **Scalar solve startup telemetry now reports candidates instead of descriptor slots**: runtime logging estimates the average candidate count per scalar slot from range providers and countable ranges, and the console labels scalar solve startup scale as `candidates`.
-
-### What's New in 0.8.12
-
-- **Optional `FirstFit` now respects `None` as a real baseline**: optional scalar construction keeps `None` unless an assignment is strictly better, matching `CheapestInsertion` semantics while preserving `FirstFit`'s eager search order.
-- **Accepted-count local search now retains the best accepted candidates**: the accepted-count forager `limit` caps the retained accepted moves for final selection and no longer acts as an implicit early-exit threshold.
-- **Construction/runtime cleanup**: the canonical generic construction engine now lives under `phase/construction/engine.rs`, scalar-only construction uses the descriptor boundary, and round-robin list construction uses a single shared implementation for runtime and builder assembly.
-
-### What's New in 0.8.11
-
-- **Limited neighborhoods**: `limited_neighborhood` now carries move caps at the neighborhood level instead of exposing a selector decorator wrapper.
-- **Selector ownership is cursor-scoped**: selectors now keep candidate storage on the cursor side so search phases can evaluate borrowable candidates and materialize owned moves only when a forager commits to one.
-
-### What's New in 0.8.8
-
-- **Streaming-first default neighborhoods**: omitting `move_selector` now resolves to explicit streaming defaults instead of broad exhaustive search. Scalar models default to change plus swap; list models default to nearby change, nearby swap, and list reverse; mixed models concatenate the list defaults before the scalar defaults.
-- **Exact retained telemetry**: retained status/events now preserve generated/evaluated/accepted move counts and generation/evaluation `Duration`s through the solver pipeline. Human-facing `moves/s` remains an edge-derived display metric only.
-
-### What's New in 0.8.6
-
-- Fixed `ListRuinMove` undo bookkeeping for repeated same-entity reinsertion patterns so ruin-and-recreate neighborhoods restore list state exactly under interacting insertion positions.
-
-### What's New in 0.8.1
-
-- **Emerald build banner**: the root `Makefile` banner now uses the emerald truecolor accent so local build and validation commands match the current branded console presentation.
-
-### What's New in 0.8.0
-
-- **Retained runtime lifecycle contract**: `SolverManager` now models a retained job lifecycle around exact in-process checkpoints. `pause()` and `resume()` operate on runtime-owned checkpoints instead of restart-from-best semantics.
-- **Neutral lifecycle terminology**: public docs and APIs now speak in terms of jobs, snapshots, and checkpoints rather than schedule-specific runtime terms.
-- **Lifecycle-complete event stream**: retained jobs now emit `Progress`, `BestSolution`, `PauseRequested`, `Paused`, `Resumed`, `Completed`, `Cancelled`, and `Failed` with authoritative lifecycle metadata and monotonic `event_sequence` / `snapshot_revision`.
-- **Snapshot-bound analysis across retained states**: `analyze_snapshot()` is revision-specific and remains available for retained snapshots while a job is active or terminal. Analysis is informational, not a terminal-state signal.
-- **Breaking runtime entrypoint**: manual retained-runtime implementations now use `Solvable::solve(self, runtime: SolverRuntime<Self>)`, and `SolverManager::solve()` returns `(job_id, receiver)` so consumers can coordinate lifecycle state and snapshot analysis explicitly.
-
-### What's New in 0.7.0
-
-- Release notes are managed in `CHANGELOG.md` by commit-and-tag workflow.
-
-- **Modern CLI templates**: The standalone CLI introduced first-class application scaffolds around the retained `SolverManager` + `Solvable` + `solver.toml` API. The current CLI has since consolidated those starters behind the neutral `solverforge new ...` shell plus `solverforge generate ...` domain shaping. No manual solver loops, no sub-crate imports — only the `solverforge` facade crate.
-- **Generated model sources**: `#[planning_solution]` generates inherent source functions such as `Schedule::shifts()` and `Schedule::employees()` for use with `ConstraintFactory::for_each(...)`
-- **Ergonomic extractors**: `CollectionExtract<S>` trait accepts both `|s| s.field.as_slice()` and `|s| &s.field` (via `vec(|s| &s.field)`) — no forced `.as_slice()` at every call site
-- **Generated `.unassigned()` support**: entities with exactly one `Option` planning variable can call `.unassigned()` on streams created from model sources
-- **Projected scoring rows**: model source streams support `.project(...)` with named bounded projection types, creating scoring-only rows without materialized facts.
-- **Convenience scoring**: `penalize_hard()`, `penalize_soft()`, `reward_hard()`, `reward_soft()` on all stream types
-- **Single `.join(target)`**: one join method dispatching on argument type — `equal(|a| key)` for self-join, `(extractor_b, equal_bi(ka, kb))` for keyed cross-join, `(other_stream, |a, b| pred)` for predicate join
-- **`.named("name")`**: sole finalization method on all builders (replaces `as_constraint`)
-- **Score trait**: `one_hard()`, `one_soft()`, `one_medium()` default methods
-- **Joiners**: `equal`, `equal_bi`, `less_than`, `less_than_or_equal`, `greater_than`, `greater_than_or_equal`, `overlapping`, `filtering`, with `.and()` composition
-- **Conditional existence**: `if_exists(...)`, `if_not_exists(...)` over model-owned collection targets, including flattened collection existence for nested list membership
-
-### What's New in 0.5.15
-
-- `solverforge-cvrp` wired into the facade: `solverforge::cvrp::VrpSolution`, `ProblemData`, `MatrixDistanceMeter`, `MatrixIntraDistanceMeter`, and all CVRP free functions now accessible from the main crate
-- Fixed circular dependency: `solverforge-cvrp` now depends on `solverforge-solver` directly instead of the facade
-
-### What's New in 0.5.14
-
-- Added `ListKOptPhase`, `solverforge-cvrp` library, and fixed doctest signatures
-
-### What's New in 0.5.7
-
-- API cleanup: ~1500-1900 LOC removed across scoring and solver crates
-- Consolidated tri/quad/penta n-ary constraints and arity stream macros into shared macro files
-- Deleted `ShadowAwareScoreDirector`, `ScoreDirectorFactory` (dead wrappers)
-- Trimmed `ScoreDirector` trait: removed `variable_name` param, `before/after_entity_changed`, `trigger_variable_listeners`, `get_entity`; deleted dead pinning infrastructure
-- Eliminated `Box<dyn Acceptor<S>>` via `AnyAcceptor<S>` enum in `AcceptorBuilder`
-- Removed `run_solver_with_channel`; collapsed `scalar.rs` solve overloads
-- Deleted dead `termination_fn` field/methods from `SolverScope`
-- Added `WIREFRAME.md` canonical API references for all crates
-
-### What's New in 0.5.6
-
-- Fixed `GroupedUniConstraint` new-group `old_score` computation (was using `-weight(empty)` instead of `Sc::zero()`, causing phantom positive deltas)
-- Fixed `UniConstraintStream::group_by()` silently dropping accumulated filters (`.filter().group_by()` now works correctly)
-- Added `#[allow(too_many_arguments)]` on `GroupedUniConstraint::new` to suppress lint
-
-### What's New in 0.5.5
-
-- Fixed incremental scoring corruption when multiple entity classes are present — `on_insert`/`on_retract` notifications now filtered by `descriptor_index` in all constraint types (`IncrementalUniConstraint`, `GroupedUniConstraint`, all nary variants)
-- `UniConstraintStream::for_descriptor(idx)` exposed in stream builder API
-
-### What's New in 0.5.4
-
-- Deleted dynamic/cranelift and stub dotfile artifacts (internal cleanup)
-
-### What's New in 0.5.3
-
-- Move streaming for never-ending selectors: local search no longer stalls when selectors produce moves lazily without exhausting
-
-### What's New in 0.5.2
-
-**New Features:**
-- **Ruin-and-Recreate (LNS)**: `ListRuinMove` for Large Neighborhood Search on list variables
-- **Nearby Selection**: Proximity-based list change/swap selectors for improved VRP solving
-- **ScalarMoveUnion**: Monomorphized union of ChangeMove + SwapMove with `UnionMoveSelector` for mixed move neighborhoods
-- **Simulated Annealing**: Rewritten with true Boltzmann distribution
-- **Telemetry**: `SolveResult` with solve statistics (moves/sec, calc/sec, acceptance rate)
-- **Best Solution Callback**: `with_best_solution_callback()` on Solver for real-time progress streaming
-- **DiminishedReturns Termination**: Terminate when score improvement rate falls below threshold
-
-**Zero-Erasure Deepening:**
-- Eliminated all `Box<dyn Iterator>` from selectors via RPITIT (return-position impl Trait in trait)
-- Monomorphized `RecordingScoreDirector` and exhaustive search decider/bounder (no more vtable dispatch)
-- Replaced `Arc<RwLock>` in MimicRecorder with `Cell` + manual refcount
-- Removed `Rc` from SwapMoveSelector (eager triangular pairing)
-- `PhantomData<fn() -> T>` applied across all types to prevent inherited trait bounds
-
-**Performance:**
-- Eliminated Vec clones in KOptMove, SublistChangeMove, and SublistSwapMove hot paths
-- Fixed 6 hot-path regressions in local search and SA acceptor
-- Score macros (`impl_score_ops!`, `impl_score_scale!`, `impl_score_parse!`) reduce codegen
-
-**Fixes:**
-- Construction heuristic and local search producing 0 steps (entity_count wiring)
-- Overflow panics in IntegerRange, ValueRangeDef, and date evaluation
-- Correct `Acceptor::is_accepted` signature (`&mut self`)
-
-### What's New in 0.5.1
-
-- Removed the solution-aware filter helper in favor of shadow variables on entities
-
-### What's New in 0.5.0
-
-- Zero-erasure architecture across entire solver pipeline
-- ConstraintStream API with incremental SERIO scoring
-- Channel-based SolverManager API with `analyze()` for score analysis
-- Console output with tracing-based progress display
-- Solution-aware filter traits
-- Macro-based codegen for N-ary incremental constraints
-
-### Component Status
-
-| Component | Status |
-|-----------|--------|
-| Score types | Complete |
-| Domain model macros | Complete |
-| ConstraintStream API | Complete |
-| SERIO incremental scoring | Complete |
-| Construction heuristics (scalar, grouped-scalar, list, and mixed routing) | Complete |
-| Local search acceptors and foragers | Complete |
-| Exhaustive search | Complete |
-| Partitioned search | Complete |
-| VND | Complete |
-| Move system (scalar, list, grouped scalar, conflict repair, ruin-recreate, cartesian, and composite families) | Complete |
-| Nearby selection | Complete |
-| Ruin-and-recreate (LNS) | Complete |
-| Selector decorators and cursor-native composition | Complete |
-| Termination | Complete |
-| SolverManager | Complete |
-| Score Analysis (`analyze()`) | Complete |
-| Solve telemetry | Complete |
-| Console output | Complete |
+The workspace release checklist, publish order, and crate stability matrix live
+in [RELEASE.md](RELEASE.md). Version bumps are explicit release decisions, and
+`CHANGELOG.md` remains managed by the `commit-and-tag-version` workflow rather
+than hand-maintained in feature branches.
 
 ## Minimum Rust Version
 

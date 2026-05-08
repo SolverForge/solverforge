@@ -3,7 +3,7 @@
 Facade crate: re-exports the public API from all sub-crates under a single `solverforge` dependency.
 
 **Location:** `crates/solverforge/`
-**Workspace Release:** `0.11.1`
+**Workspace Release:** `0.12.0`
 
 The CLI lives in the standalone `solverforge-cli` repository and is not part of this workspace or facade crate.
 
@@ -33,7 +33,7 @@ src/
 ├── __internal.rs  — Hidden macro support re-exports and helpers
 ├── cvrp.rs        — CVRP facade re-exports
 ├── lib.rs         — Top-level crate re-exports and module declarations
-├── planning.rs    — Planning target helpers for grouped scalar declarations
+├── planning.rs    — Planning target helpers for scalar groups, coverage groups, and conflict repair
 ├── prelude.rs     — Prelude exports
 └── stream.rs      — Fluent constraint stream facade
 ```
@@ -132,9 +132,15 @@ Module: `solverforge::planning`
   planning entity sources. `scalar(&self, variable_name)` borrows the source
   and returns a `ScalarTarget<S>`, so one bound generated source can declare
   multiple scalar targets for grouped scalar construction or local search.
-- Coverage helpers — `CoverageGroup<S>` is the public model-owned declaration
-  for required-slot coverage construction and repair. Runtime bindings remain
-  hidden under `solverforge::__internal`.
+- Scalar helpers — `ScalarTarget<S>`, `ScalarEdit<S>`, `ScalarCandidate<S>`,
+  `ScalarGroup<S>`, and `ScalarGroupLimits` describe public grouped-scalar
+  construction and local-search declarations.
+- Coverage helpers — `CoverageGroup<S>` and `CoverageGroupLimits` declare
+  required-slot coverage construction and repair. Runtime bindings remain hidden
+  under `solverforge::__internal`.
+- Conflict-repair helpers — `ConflictRepair<S>`, `RepairCandidate<S>`, and
+  `RepairLimits` describe domain-provided repair candidates while the framework
+  owns filtering, scoring, hard-improvement gates, and selector telemetry.
 
 ### CVRP Domain Helpers (from `solverforge-cvrp`)
 
@@ -158,13 +164,16 @@ Module: `solverforge::cvrp`
 Convenient single import for user code:
 
 ```rust
+pub use crate::planning::EntitySourceTargetExt;
 pub use crate::stream::collector::{consecutive_runs, count, load_balance, sum, Run, Runs};
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     planning_entity, planning_model, planning_solution, problem_fact,
-    BendableScore, ConstraintMetadata, ConstraintSet, HardMediumSoftScore,
-    HardSoftDecimalScore, HardSoftScore, Projection, ProjectionSink, Score,
-    Director, SoftScore, ScoreDirector,
+    BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet,
+    CoverageGroup, CoverageGroupLimits, Director, HardMediumSoftScore,
+    HardSoftDecimalScore, HardSoftScore, Projection, ProjectionSink,
+    RepairCandidate, RepairLimits, ScalarCandidate, ScalarEdit, ScalarGroup,
+    ScalarGroupLimits, ScalarTarget, Score, ScoreDirector, SoftScore,
 };
 ```
 
@@ -181,7 +190,7 @@ pub use solverforge_scoring::stream::collector;
 pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollectionTarget};
 ```
 
-Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")` — no `as_constraint`, no `for_each_unique_pair`, no `join_self`/`join_keyed`. Use `.join(target)` for all join patterns (self-join, keyed, predicate).
+Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")`. Use `.join(target)` for all join patterns: self-join, keyed cross-join, and predicate cross-join.
 
 Collector helpers are available at `solverforge::stream::collector`, and the
 prelude re-exports `count`, `sum`, `load_balance`, `consecutive_runs`, `Run`,
@@ -277,5 +286,9 @@ construction and grouped local-search selectors.
   Construction order-key hooks are construction-only and do not reorder
   local-search scalar candidate neighborhoods.
 - **Retained lifecycle surface.** The facade re-exports the retained job / snapshot / checkpoint lifecycle contract from `solverforge-solver`, including exact pause/resume, lifecycle-complete events, and snapshot-bound analysis types.
-- **Prelude** provides the minimal set of types needed for defining domain models and constraints. Users import `use solverforge::prelude::*` and get attribute macros, score types, constraint traits, and the stream API.
+- **Prelude** provides the common surface for generated and hand-written
+  application code. Users import `use solverforge::prelude::*` and get
+  attribute macros, score types, constraint traits, stream entry points,
+  model-source scalar target helpers, and the public scalar/group/coverage
+  declaration types needed by generated applications.
 - **Feature flags** propagate to sub-crates: `decimal` → `solverforge-core/decimal`, `serde` → `solverforge-core/serde`.

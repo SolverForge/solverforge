@@ -12,6 +12,7 @@ members = [
     "crates/solverforge-test",
     "examples/scalar-graph-coloring",
     "examples/list-tsp",
+    "examples/minimal-shift-scheduling",
     "examples/mixed-job-shop",
     "examples/nqueens",
 ]

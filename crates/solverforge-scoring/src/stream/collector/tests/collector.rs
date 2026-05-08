@@ -5,6 +5,7 @@ Tests extracted from:
 */
 
 use super::super::load_balance::load_balance;
+use super::super::runs::consecutive_runs;
 use super::super::{Accumulator, UniCollector};
 
 /* ============================================================================
@@ -129,4 +130,132 @@ fn test_load_balance_standard_deviation() {
     // Retract A -> empty
     acc.retract(&collector.extract(&a));
     assert_eq!(acc.finish().unfairness(), 0);
+}
+
+/* ============================================================================
+Consecutive run collector tests
+============================================================================
+*/
+
+#[test]
+fn test_consecutive_runs_empty() {
+    let collector = consecutive_runs(|value: &i64| *value);
+    let acc = collector.create_accumulator();
+
+    let result = acc.finish();
+    assert!(result.is_empty());
+    assert_eq!(result.point_count(), 0);
+    assert_eq!(result.item_count(), 0);
+}
+
+#[test]
+fn test_consecutive_runs_one_run() {
+    let collector = consecutive_runs(|value: &i64| *value);
+    let mut acc = collector.create_accumulator();
+
+    for value in [3, 1, 2] {
+        acc.accumulate(&collector.extract(&value));
+    }
+
+    let result = acc.finish();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result.runs()[0].start(), 1);
+    assert_eq!(result.runs()[0].end(), 3);
+    assert_eq!(result.runs()[0].point_count(), 3);
+    assert_eq!(result.runs()[0].item_count(), 3);
+}
+
+#[test]
+fn test_consecutive_runs_multiple_runs() {
+    let collector = consecutive_runs(|value: &i64| *value);
+    let mut acc = collector.create_accumulator();
+
+    for value in [8, 1, 2, 4, 5, 10] {
+        acc.accumulate(&collector.extract(&value));
+    }
+
+    let result = acc.finish();
+    assert_eq!(result.len(), 4);
+    assert_eq!(result.runs()[0].start(), 1);
+    assert_eq!(result.runs()[0].end(), 2);
+    assert_eq!(result.runs()[1].start(), 4);
+    assert_eq!(result.runs()[1].end(), 5);
+    assert_eq!(result.runs()[2].start(), 8);
+    assert_eq!(result.runs()[2].end(), 8);
+    assert_eq!(result.runs()[3].start(), 10);
+    assert_eq!(result.runs()[3].end(), 10);
+}
+
+#[test]
+fn test_consecutive_runs_duplicates_count_items_not_points() {
+    let collector = consecutive_runs(|value: &i64| *value);
+    let mut acc = collector.create_accumulator();
+
+    for value in [1, 1, 2, 4, 4, 4] {
+        acc.accumulate(&collector.extract(&value));
+    }
+
+    let result = acc.finish();
+    assert_eq!(result.point_count(), 3);
+    assert_eq!(result.item_count(), 6);
+    assert_eq!(result.runs()[0].point_count(), 2);
+    assert_eq!(result.runs()[0].item_count(), 3);
+    assert_eq!(result.runs()[1].point_count(), 1);
+    assert_eq!(result.runs()[1].item_count(), 3);
+}
+
+#[test]
+fn test_consecutive_runs_negative_indexes() {
+    let collector = consecutive_runs(|value: &i64| *value);
+    let mut acc = collector.create_accumulator();
+
+    for value in [-3, -2, -1, 1] {
+        acc.accumulate(&collector.extract(&value));
+    }
+
+    let result = acc.finish();
+    assert_eq!(result.len(), 2);
+    assert_eq!(result.runs()[0].start(), -3);
+    assert_eq!(result.runs()[0].end(), -1);
+    assert_eq!(result.runs()[1].start(), 1);
+    assert_eq!(result.runs()[1].end(), 1);
+}
+
+#[test]
+fn test_consecutive_runs_i64_max_boundary() {
+    let collector = consecutive_runs(|value: &i64| *value);
+    let mut acc = collector.create_accumulator();
+
+    for value in [i64::MIN, i64::MAX - 1, i64::MAX] {
+        acc.accumulate(&collector.extract(&value));
+    }
+
+    let result = acc.finish();
+    assert_eq!(result.len(), 2);
+    assert_eq!(result.runs()[0].start(), i64::MIN);
+    assert_eq!(result.runs()[0].end(), i64::MIN);
+    assert_eq!(result.runs()[1].start(), i64::MAX - 1);
+    assert_eq!(result.runs()[1].end(), i64::MAX);
+}
+
+#[test]
+fn test_consecutive_runs_insert_retract_parity() {
+    let collector = consecutive_runs(|value: &i64| *value);
+    let mut acc = collector.create_accumulator();
+
+    for value in [1, 2, 2, 3, 7] {
+        acc.accumulate(&collector.extract(&value));
+    }
+
+    acc.retract(&collector.extract(&2));
+    let result = acc.finish();
+    assert_eq!(result.len(), 2);
+    assert_eq!(result.runs()[0].item_count(), 3);
+    assert_eq!(result.item_count(), 4);
+
+    acc.retract(&collector.extract(&2));
+    let result = acc.finish();
+    assert_eq!(result.len(), 3);
+    assert_eq!(result.point_count(), 3);
+    assert_eq!(result.item_count(), 3);
 }

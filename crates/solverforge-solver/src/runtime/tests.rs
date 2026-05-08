@@ -29,4 +29,5 @@ include!("tests/mixed_target_runtime.rs");
 include!("tests/coupled_scalar_runtime.rs");
 include!("tests/grouped_scalar_construction.rs");
 include!("tests/coverage_construction.rs");
+include!("tests/coverage_repair.rs");
 include!("tests/coverage_soft.rs");

@@ -11,7 +11,7 @@ use crate::heuristic::selector::move_selector::{
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
-use super::super::{ConflictRepairSelector, GroupedScalarSelector};
+use super::super::{ConflictRepairSelector, CoverageRepairSelector, GroupedScalarSelector};
 use super::move_union::NeighborhoodMove;
 
 pub enum NeighborhoodLeaf<S, V, DM, IDM>
@@ -24,6 +24,7 @@ where
     Scalar(ScalarLeafSelector<S>),
     List(ListLeafSelector<S, V, DM, IDM>),
     GroupedScalar(GroupedScalarSelector<S>),
+    CoverageRepair(CoverageRepairSelector<S>),
     ConflictRepair(ConflictRepairSelector<S>),
 }
 
@@ -86,6 +87,15 @@ where
             fn(ScalarMoveUnion<S, usize>) -> NeighborhoodMove<S, V>,
         >,
     ),
+    CoverageRepair(
+        MappedMoveCursor<
+            S,
+            ScalarMoveUnion<S, usize>,
+            NeighborhoodMove<S, V>,
+            <CoverageRepairSelector<S> as MoveSelector<S, ScalarMoveUnion<S, usize>>>::Cursor<'a>,
+            fn(ScalarMoveUnion<S, usize>) -> NeighborhoodMove<S, V>,
+        >,
+    ),
 }
 
 impl<S, V, DM, IDM> MoveCursor<S, NeighborhoodMove<S, V>>
@@ -102,6 +112,7 @@ where
             Self::List(cursor) => cursor.next_candidate(),
             Self::ConflictRepair(cursor) => cursor.next_candidate(),
             Self::GroupedScalar(cursor) => cursor.next_candidate(),
+            Self::CoverageRepair(cursor) => cursor.next_candidate(),
         }
     }
 
@@ -114,6 +125,7 @@ where
             Self::List(cursor) => cursor.candidate(index),
             Self::ConflictRepair(cursor) => cursor.candidate(index),
             Self::GroupedScalar(cursor) => cursor.candidate(index),
+            Self::CoverageRepair(cursor) => cursor.candidate(index),
         }
     }
 
@@ -123,6 +135,7 @@ where
             Self::List(cursor) => cursor.take_candidate(index),
             Self::ConflictRepair(cursor) => cursor.take_candidate(index),
             Self::GroupedScalar(cursor) => cursor.take_candidate(index),
+            Self::CoverageRepair(cursor) => cursor.take_candidate(index),
         }
     }
 
@@ -132,6 +145,7 @@ where
             Self::List(cursor) => cursor.selector_index(index),
             Self::ConflictRepair(cursor) => cursor.selector_index(index),
             Self::GroupedScalar(cursor) => cursor.selector_index(index),
+            Self::CoverageRepair(cursor) => cursor.selector_index(index),
         }
     }
 }
@@ -152,6 +166,9 @@ where
             }
             Self::GroupedScalar(selector) => {
                 write!(f, "NeighborhoodLeaf::GroupedScalar({selector:?})")
+            }
+            Self::CoverageRepair(selector) => {
+                write!(f, "NeighborhoodLeaf::CoverageRepair({selector:?})")
             }
         }
     }
@@ -188,6 +205,12 @@ where
                     wrap_scalar_neighborhood_move::<S, V>,
                 ))
             }
+            Self::CoverageRepair(selector) => {
+                NeighborhoodLeafCursor::CoverageRepair(MappedMoveCursor::new(
+                    selector.open_cursor(score_director),
+                    wrap_scalar_neighborhood_move::<S, V>,
+                ))
+            }
             Self::GroupedScalar(selector) => {
                 NeighborhoodLeafCursor::GroupedScalar(MappedMoveCursor::new(
                     selector.open_cursor(score_director),
@@ -203,6 +226,7 @@ where
             Self::List(selector) => selector.size(score_director),
             Self::ConflictRepair(selector) => selector.size(score_director),
             Self::GroupedScalar(selector) => selector.size(score_director),
+            Self::CoverageRepair(selector) => selector.size(score_director),
         }
     }
 

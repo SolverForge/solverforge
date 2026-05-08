@@ -25,6 +25,7 @@ use super::list_selector::ListMoveSelectorBuilder;
 use super::scalar_selector::build_scalar_flat_selector;
 
 include!("selector/conflict_repair.rs");
+include!("selector/coverage_repair.rs");
 include!("selector/grouped_scalar.rs");
 mod types;
 use types::LeafSelector;

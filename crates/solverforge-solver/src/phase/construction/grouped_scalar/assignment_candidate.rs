@@ -3,6 +3,9 @@ use std::collections::HashSet;
 use solverforge_core::domain::PlanningSolution;
 
 use super::assignment_path::{assignment_moves_for_entity, move_from_edits};
+use super::assignment_rematch::{
+    paired_reassignment_moves, rematch_assignment_moves, sequence_window_assignment_moves,
+};
 use super::assignment_state::ScalarAssignmentState;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
@@ -13,6 +16,7 @@ pub(crate) struct ScalarAssignmentMoveOptions {
     pub(crate) max_moves: usize,
     pub(crate) max_depth: usize,
     pub(crate) max_rematch_size: usize,
+    pub(crate) entity_offset: usize,
 }
 
 impl ScalarAssignmentMoveOptions {
@@ -22,6 +26,7 @@ impl ScalarAssignmentMoveOptions {
             max_moves: limits.group_candidate_limit.unwrap_or(usize::MAX),
             max_depth: limits.max_augmenting_depth.unwrap_or(3),
             max_rematch_size: limits.max_rematch_size.unwrap_or(4).max(2),
+            entity_offset: 0,
         }
     }
 
@@ -29,12 +34,14 @@ impl ScalarAssignmentMoveOptions {
         limits: crate::builder::ScalarGroupLimits,
         value_candidate_limit: Option<usize>,
         max_moves_per_step: usize,
+        entity_offset: usize,
     ) -> Self {
         Self {
             value_candidate_limit: value_candidate_limit.or(limits.value_candidate_limit),
             max_moves: max_moves_per_step,
             max_depth: limits.max_augmenting_depth.unwrap_or(3),
             max_rematch_size: limits.max_rematch_size.unwrap_or(4).max(2),
+            entity_offset,
         }
     }
 }
@@ -88,21 +95,23 @@ where
     S: PlanningSolution,
 {
     let state = ScalarAssignmentState::new(group, solution);
-    ordered_entities(group, solution, |entity_index| {
+    let mut entities = ordered_entities(group, solution, |entity_index| {
         state.is_required(entity_index) && state.current_value(entity_index).is_none()
-    })
-    .into_iter()
-    .flat_map(|entity_index| {
-        assignment_moves_for_entity(
-            group,
-            solution,
-            entity_index,
-            options,
-            AssignmentMoveIntent::required(),
-        )
-    })
-    .take(options.max_moves)
-    .collect()
+    });
+    rotate_entity_order(&mut entities, options.entity_offset);
+    entities
+        .into_iter()
+        .flat_map(|entity_index| {
+            assignment_moves_for_entity(
+                group,
+                solution,
+                entity_index,
+                options,
+                AssignmentMoveIntent::required(),
+            )
+        })
+        .take(options.max_moves)
+        .collect()
 }
 
 pub(crate) fn capacity_conflict_moves<S>(
@@ -161,21 +170,105 @@ where
     S: PlanningSolution,
 {
     let state = ScalarAssignmentState::new(group, solution);
-    ordered_entities(group, solution, |entity_index| {
+    let mut entities = ordered_entities(group, solution, |entity_index| {
         state.current_value(entity_index).is_some()
-    })
-    .into_iter()
-    .flat_map(|entity_index| {
-        assignment_moves_for_entity(
-            group,
-            solution,
-            entity_index,
-            options,
-            AssignmentMoveIntent::reassignment(),
-        )
-    })
-    .take(options.max_moves)
-    .collect()
+    });
+    rotate_entity_order(&mut entities, options.entity_offset);
+    entities
+        .into_iter()
+        .flat_map(|entity_index| {
+            assignment_moves_for_entity(
+                group,
+                solution,
+                entity_index,
+                options,
+                AssignmentMoveIntent::reassignment(),
+            )
+        })
+        .take(options.max_moves)
+        .collect()
+}
+
+pub(crate) fn selector_assignment_moves<S>(
+    group: &ScalarAssignmentBinding<S>,
+    solution: &S,
+    options: ScalarAssignmentMoveOptions,
+) -> Vec<CompoundScalarMove<S>>
+where
+    S: PlanningSolution,
+{
+    if options.max_moves == 0 {
+        return Vec::new();
+    }
+
+    let mut moves = Vec::new();
+    push_capped(
+        &mut moves,
+        options.max_moves,
+        required_assignment_moves(group, solution, options),
+    );
+    if moves.len() >= options.max_moves {
+        return moves;
+    }
+
+    push_capped(
+        &mut moves,
+        options.max_moves,
+        capacity_conflict_moves(group, solution, options),
+    );
+    if moves.len() >= options.max_moves {
+        return moves;
+    }
+
+    let paired_reassign_moves = paired_reassignment_moves(group, solution, options);
+    let sequence_window_moves = sequence_window_assignment_moves(group, solution, options);
+    let rematch_moves = rematch_assignment_moves(group, solution, options);
+    let reassign_moves = reassignment_moves(group, solution, options);
+    push_interleaved_capped(
+        &mut moves,
+        options.max_moves,
+        [
+            paired_reassign_moves.into_iter(),
+            sequence_window_moves.into_iter(),
+            rematch_moves.into_iter(),
+            reassign_moves.into_iter(),
+        ],
+    );
+    moves
+}
+
+fn push_capped<S, I>(moves: &mut Vec<CompoundScalarMove<S>>, max_moves: usize, candidates: I)
+where
+    I: IntoIterator<Item = CompoundScalarMove<S>>,
+{
+    for candidate in candidates {
+        if moves.len() >= max_moves {
+            return;
+        }
+        moves.push(candidate);
+    }
+}
+
+fn push_interleaved_capped<S, const N: usize>(
+    moves: &mut Vec<CompoundScalarMove<S>>,
+    max_moves: usize,
+    mut families: [std::vec::IntoIter<CompoundScalarMove<S>>; N],
+) {
+    loop {
+        let mut progressed = false;
+        for family in &mut families {
+            if moves.len() >= max_moves {
+                return;
+            }
+            if let Some(candidate) = family.next() {
+                progressed = true;
+                moves.push(candidate);
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
 }
 
 pub(super) fn ordered_entities<S, F>(
@@ -196,4 +289,12 @@ where
         )
     });
     entities
+}
+
+pub(super) fn rotate_entity_order(entities: &mut [usize], entity_offset: usize) {
+    if entities.is_empty() {
+        return;
+    }
+    let len = entities.len();
+    entities.rotate_left(entity_offset % len);
 }

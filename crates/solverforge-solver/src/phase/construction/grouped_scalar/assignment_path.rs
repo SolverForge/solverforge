@@ -4,8 +4,9 @@ use solverforge_core::domain::PlanningSolution;
 
 use super::assignment_candidate::{AssignmentMoveIntent, ScalarAssignmentMoveOptions};
 use super::assignment_state::ScalarAssignmentState;
+use super::move_build::compound_move_for_assignment_edits;
 use crate::builder::ScalarAssignmentBinding;
-use crate::heuristic::r#move::{CompoundScalarEdit, CompoundScalarMove};
+use crate::heuristic::r#move::CompoundScalarMove;
 use crate::planning::ScalarEdit;
 
 pub(super) fn assignment_moves_for_entity<S>(
@@ -186,28 +187,5 @@ pub(super) fn move_from_edits<S>(
 where
     S: PlanningSolution,
 {
-    if edits.is_empty() {
-        return None;
-    }
-    let mut targets = HashSet::new();
-    let mut compound_edits = Vec::with_capacity(edits.len());
-    for edit in edits {
-        if !targets.insert(edit.entity_index()) {
-            return None;
-        }
-        if !group.value_is_legal(solution, edit.entity_index(), edit.to_value()) {
-            return None;
-        }
-        compound_edits.push(CompoundScalarEdit {
-            descriptor_index: group.target.descriptor_index,
-            entity_index: edit.entity_index(),
-            variable_index: group.target.variable_index,
-            variable_name: group.target.variable_name,
-            to_value: edit.to_value(),
-            getter: group.target.getter,
-            setter: group.target.setter,
-            value_is_legal: None,
-        });
-    }
-    Some(CompoundScalarMove::new(reason, compound_edits))
+    compound_move_for_assignment_edits(group, solution, edits, reason)
 }

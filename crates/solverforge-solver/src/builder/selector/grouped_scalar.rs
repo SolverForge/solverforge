@@ -1,8 +1,11 @@
+use std::cell::Cell;
+
 pub struct GroupedScalarSelector<S> {
     group: crate::builder::context::ScalarGroupBinding<S>,
     value_candidate_limit: Option<usize>,
     max_moves_per_step: usize,
     require_hard_improvement: bool,
+    next_entity_offset: Cell<usize>,
 }
 
 impl<S> GroupedScalarSelector<S> {
@@ -22,7 +25,14 @@ impl<S> GroupedScalarSelector<S> {
             value_candidate_limit: effective_value_candidate_limit,
             max_moves_per_step: effective_max_moves_per_step,
             require_hard_improvement,
+            next_entity_offset: Cell::new(0),
         }
+    }
+
+    fn next_entity_offset(&self) -> usize {
+        let offset = self.next_entity_offset.get();
+        self.next_entity_offset.set(offset.wrapping_add(1));
+        offset
     }
 
     fn limits(&self) -> crate::builder::context::ScalarGroupLimits {
@@ -140,7 +150,12 @@ where
                 continue;
             }
 
-            let Some(mov) = compound_move_for_group_candidate(&self.group, solution, &candidate)
+            let Some(mov) =
+                crate::phase::construction::grouped_scalar::compound_move_for_group_candidate(
+                    &self.group,
+                    solution,
+                    &candidate,
+                )
             else {
                 continue;
             };
@@ -173,71 +188,33 @@ where
             self.group.limits,
             self.value_candidate_limit,
             self.max_moves_per_step,
+            self.next_entity_offset(),
         );
         let mut store = CandidateStore::with_capacity(self.max_moves_per_step);
-        for mov in crate::phase::construction::grouped_scalar::required_assignment_moves(
+        for mov in crate::phase::construction::grouped_scalar::selector_assignment_moves(
             &assignment,
             solution,
             options,
-        )
-        .into_iter()
-        .chain(crate::phase::construction::grouped_scalar::capacity_conflict_moves(
-            &assignment,
-            solution,
-            options,
-        ))
-        .chain(crate::phase::construction::grouped_scalar::reassignment_moves(
-            &assignment,
-            solution,
-            options,
-        ))
-        .chain(crate::phase::construction::grouped_scalar::rematch_assignment_moves(
-            &assignment,
-            solution,
-            options,
-        )) {
+        ) {
             if store.len() >= self.max_moves_per_step {
                 break;
             }
-            let mov = mov.with_require_hard_improvement(self.require_hard_improvement);
-            if mov.is_doable(score_director) {
-                store.push(ScalarMoveUnion::CompoundScalar(mov));
-            }
+            self.push_assignment_move(score_director, &mut store, mov);
         }
         GroupedScalarCursor::new(store)
     }
-}
 
-fn compound_move_for_group_candidate<S>(
-    group: &crate::builder::context::ScalarGroupBinding<S>,
-    solution: &S,
-    candidate: &crate::builder::context::ScalarCandidate<S>,
-) -> Option<crate::heuristic::r#move::CompoundScalarMove<S>>
-where
-    S: PlanningSolution + 'static,
-{
-    let reason = candidate.reason();
-    let mut edits = Vec::with_capacity(candidate.edits().len());
-    for edit in candidate.edits() {
-        let member = group.member_for_edit(edit)?;
-        if !member.value_is_legal(solution, edit.entity_index(), edit.to_value()) {
-            return None;
+    fn push_assignment_move<D>(
+        &self,
+        score_director: &D,
+        store: &mut CandidateStore<S, ScalarMoveUnion<S, usize>>,
+        mov: crate::heuristic::r#move::CompoundScalarMove<S>,
+    ) where
+        D: solverforge_scoring::Director<S>,
+    {
+        let mov = mov.with_require_hard_improvement(self.require_hard_improvement);
+        if mov.is_doable(score_director) {
+            store.push(ScalarMoveUnion::CompoundScalar(mov));
         }
-        edits.push(crate::heuristic::r#move::CompoundScalarEdit {
-            descriptor_index: member.descriptor_index,
-            entity_index: edit.entity_index(),
-            variable_index: member.variable_index,
-            variable_name: member.variable_name,
-            to_value: edit.to_value(),
-            getter: member.getter,
-            setter: member.setter,
-            value_is_legal: None,
-        });
     }
-
-    Some(crate::heuristic::r#move::CompoundScalarMove::with_label(
-        reason,
-        crate::heuristic::r#move::COMPOUND_SCALAR_VARIABLE,
-        edits,
-    ))
 }

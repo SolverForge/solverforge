@@ -187,6 +187,35 @@ fn scalar_assignment_selector_cap_overrides_group_cap() {
 }
 
 #[test]
+fn scalar_assignment_selector_cap_rotates_across_cursor_openings() {
+    let model = assignment_model_with_limits(ScalarGroupLimits {
+        max_moves_per_step: Some(1),
+        max_augmenting_depth: Some(3),
+        ..ScalarGroupLimits::new()
+    });
+    let plan = coverage_plan(
+        3,
+        vec![
+            coverage_slot(true, 0, None, &[0, 1, 2]),
+            coverage_slot(true, 1, None, &[0, 1, 2]),
+            coverage_slot(true, 2, None, &[0, 1, 2]),
+        ],
+    );
+    let selector = scalar_assignment_selector_with_model(model, None, None, false);
+
+    let first_results = repair_move_results(&plan, &selector);
+    let second_results = repair_move_results(&plan, &selector);
+    let third_results = repair_move_results(&plan, &selector);
+
+    assert_eq!(first_results.len(), 1);
+    assert_eq!(second_results.len(), 1);
+    assert_eq!(third_results.len(), 1);
+    assert_eq!(first_results[0].slots[0].assigned, Some(0));
+    assert_eq!(second_results[0].slots[1].assigned, Some(0));
+    assert_eq!(third_results[0].slots[2].assigned, Some(0));
+}
+
+#[test]
 fn scalar_assignment_rematch_emits_bounded_sequence_swap() {
     let model = assignment_model_with_limits(ScalarGroupLimits {
         max_rematch_size: Some(2),
@@ -205,6 +234,79 @@ fn scalar_assignment_rematch_emits_bounded_sequence_swap() {
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].slots[0].assigned, Some(1));
     assert_eq!(results[0].slots[1].assigned, Some(0));
+}
+
+#[test]
+fn scalar_assignment_sequence_window_exchanges_across_sequences() {
+    let model = assignment_model_with_limits(ScalarGroupLimits {
+        max_rematch_size: Some(2),
+        ..ScalarGroupLimits::new()
+    });
+    let plan = coverage_plan(
+        2,
+        vec![
+            coverage_slot(true, 0, Some(0), &[0, 1]),
+            coverage_slot(true, 1, Some(1), &[0, 1]),
+        ],
+    );
+    let selector = scalar_assignment_selector_with_model(model, None, Some(8), false);
+    let director = CoverageDirector {
+        working_solution: plan.clone(),
+        descriptor: coverage_plan_descriptor(),
+    };
+    let mut cursor = selector.open_cursor(&director);
+    let mut sequence_move = None;
+    while let Some(id) = cursor.next_candidate() {
+        let mov = cursor.take_candidate(id);
+        if format!("{mov:?}").contains("scalar_assignment_sequence_window") {
+            sequence_move = Some(mov);
+            break;
+        }
+    }
+    let mov = sequence_move.expect("position metadata should expose a sequence-window exchange");
+
+    let mut trial = CoverageDirector {
+        working_solution: plan,
+        descriptor: coverage_plan_descriptor(),
+    };
+    assert!(mov.is_doable(&trial));
+    mov.do_move(&mut trial);
+
+    assert_eq!(trial.working_solution.slots[0].assigned, Some(1));
+    assert_eq!(trial.working_solution.slots[1].assigned, Some(0));
+}
+
+#[test]
+fn scalar_assignment_selector_emits_independent_pair_reassignment() {
+    let plan = coverage_plan(
+        2,
+        vec![
+            coverage_slot(true, 0, Some(0), &[0, 1]),
+            coverage_slot(true, 1, Some(0), &[0, 1]),
+        ],
+    );
+    let selector = scalar_assignment_selector(None, Some(1), false);
+    let director = CoverageDirector {
+        working_solution: plan.clone(),
+        descriptor: coverage_plan_descriptor(),
+    };
+    let mut cursor = selector.open_cursor(&director);
+    let first = cursor
+        .next_candidate()
+        .expect("independent pair reassignment should be exposed");
+    assert!(cursor.next_candidate().is_none());
+    let mov = cursor.take_candidate(first);
+    assert!(format!("{mov:?}").contains("scalar_assignment_pair_reassignment"));
+
+    let mut trial = CoverageDirector {
+        working_solution: plan,
+        descriptor: coverage_plan_descriptor(),
+    };
+    assert!(mov.is_doable(&trial));
+    mov.do_move(&mut trial);
+
+    assert_eq!(trial.working_solution.slots[0].assigned, Some(1));
+    assert_eq!(trial.working_solution.slots[1].assigned, Some(1));
 }
 
 #[test]
@@ -231,6 +333,7 @@ fn scalar_assignment_rematch_orders_sequence_groups_deterministically() {
         model.scalar_groups()[0].limits,
         None,
         1,
+        0,
     );
     let moves = crate::phase::construction::grouped_scalar::rematch_assignment_moves(
         &assignment,

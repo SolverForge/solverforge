@@ -8,9 +8,10 @@ mod move_build;
 mod phase;
 mod selection;
 
-pub(crate) use assignment_candidate::{
-    capacity_conflict_moves, reassignment_moves, required_assignment_moves,
-    ScalarAssignmentMoveOptions,
-};
+#[cfg(test)]
+pub(crate) use assignment_candidate::required_assignment_moves;
+pub(crate) use assignment_candidate::{selector_assignment_moves, ScalarAssignmentMoveOptions};
+#[cfg(test)]
 pub(crate) use assignment_rematch::rematch_assignment_moves;
+pub(crate) use move_build::compound_move_for_group_candidate;
 pub(crate) use phase::solve_grouped_scalar_construction;

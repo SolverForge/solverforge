@@ -140,7 +140,7 @@ fn collapse_selectors(selectors: &mut Vec<MoveSelectorConfig>) -> Option<MoveSel
         1 => selectors.pop(),
         _ => Some(MoveSelectorConfig::UnionMoveSelector(
             UnionMoveSelectorConfig {
-                selection_order: UnionSelectionOrder::Sequential,
+                selection_order: UnionSelectionOrder::RoundRobin,
                 selectors: std::mem::take(selectors),
             },
         )),

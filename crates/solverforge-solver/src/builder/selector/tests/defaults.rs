@@ -12,6 +12,10 @@ fn default_scalar_selector_uses_plain_change_and_swap_without_nearby_hooks() {
     let selector = build_move_selector(None, &scalar_only_model(), None);
     let neighborhoods = selector.selectors();
 
+    assert_eq!(
+        selector.selection_order(),
+        solverforge_config::UnionSelectionOrder::RoundRobin
+    );
     assert_eq!(neighborhoods.len(), 2);
     assert!(matches!(
         &neighborhoods[0],
@@ -40,6 +44,10 @@ fn default_scalar_selector_uses_nearby_hooks_when_declared() {
     let selector = build_move_selector(None, &nearby_scalar_only_model(), None);
     let neighborhoods = selector.selectors();
 
+    assert_eq!(
+        selector.selection_order(),
+        solverforge_config::UnionSelectionOrder::RoundRobin
+    );
     assert_eq!(neighborhoods.len(), 4);
     assert!(matches!(
         &neighborhoods[0],
@@ -137,6 +145,10 @@ fn mixed_default_selector_puts_list_neighborhoods_before_scalar_defaults() {
     let selector = build_move_selector(None, &mixed_model(), None);
     let neighborhoods = selector.selectors();
 
+    assert_eq!(
+        selector.selection_order(),
+        solverforge_config::UnionSelectionOrder::RoundRobin
+    );
     assert_eq!(neighborhoods.len(), 8);
     assert!(matches!(
         &neighborhoods[0],

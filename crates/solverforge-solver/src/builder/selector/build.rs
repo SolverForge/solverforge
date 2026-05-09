@@ -215,16 +215,24 @@ where
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
     let mut neighborhoods = Vec::new();
-    collect_neighborhoods(config, model, random_seed, &mut neighborhoods);
+    let default_config;
+    let effective_config = match config {
+        Some(config) => Some(config),
+        None => {
+            default_config = crate::builder::search::defaults::default_move_selector_config(model);
+            default_config.as_ref()
+        }
+    };
+    collect_neighborhoods(effective_config, model, random_seed, &mut neighborhoods);
     assert!(
         !neighborhoods.is_empty(),
         "move selector configuration produced no neighborhoods \
          (scalar_slots_present={}, list_slots_present={}, requested_selector_family={})",
         model.scalar_variables().next().is_some(),
         model.has_list_variables(),
-        selector_family_name(config),
+        selector_family_name(effective_config),
     );
-    let selection_order = match config {
+    let selection_order = match effective_config {
         Some(MoveSelectorConfig::UnionMoveSelector(union)) => union.selection_order,
         _ => solverforge_config::UnionSelectionOrder::Sequential,
     };

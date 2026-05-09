@@ -20,7 +20,7 @@ fn default_scalar_local_search_uses_scalar_streaming_defaults() {
 }
 
 #[test]
-fn default_nearby_scalar_local_search_retains_more_accepted_candidates() {
+fn default_nearby_scalar_local_search_uses_short_accepted_count_horizon() {
     let phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
         None,
         &nearby_scalar_only_model(),

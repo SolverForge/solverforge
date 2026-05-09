@@ -25,10 +25,10 @@ src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
 ├── runtime.rs                           — Runtime assembly and target matching over `RuntimeModel`; routes scalar-only construction through the descriptor boundary, routes named grouped scalar construction through the atomic grouped-scalar builder, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
-├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, coverage group attachment, model validation, and shadow updates
+├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model validation, and shadow updates
 ├── runtime/
 │   ├── tests.rs                         — Runtime construction routing and target-validation tests
-│   ├── tests/*.rs                       — Runtime test fixtures split by scalar, queue, revision, multi-owner, mixed-target, grouped-scalar, and coverage behavior
+│   ├── tests/*.rs                       — Runtime test fixtures split by scalar, queue, revision, multi-owner, mixed-target, grouped-scalar, and scalar-assignment behavior
 │   └── list_tests.rs                    — Specialized list-construction runtime tests
 ├── descriptor.rs                        — Re-exports descriptor bindings, selectors, move types, and internal construction/runtime helpers
 ├── descriptor/
@@ -54,7 +54,7 @@ src/
 │   ├── scalar_selector/*.rs             — Scalar value, leaf, dispatch, and build chunks
 │   ├── scalar_selector/tests.rs         — Scalar selector test root with change/swap, nearby/ruin, pillar, and cartesian chunks
 │   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published RuntimeModel variable slots
-│   ├── selector/*.rs                    — Mixed scalar/list neighborhood move, grouped scalar selector, coverage repair selector, conflict repair selector, family classification, and builder chunks
+│   ├── selector/*.rs                    — Mixed scalar/list neighborhood move, grouped scalar selector, conflict repair selector, family classification, and builder chunks
 │   ├── selector/types/*.rs              — Neighborhood leaf, composite, cursor, and union types used by selector assembly
 │   ├── selector/tests.rs                — Mixed selector test root with support, defaults, grouped scalar, cartesian, and phase chunks
 │   ├── list_selector.rs                 — Re-exports list selector leaf and builder modules
@@ -205,7 +205,15 @@ src/
 │   │   ├── slot.rs                      — ConstructionSlotId, exact-keyed ConstructionGroupSlotId, ConstructionGroupSlotKey, and ConstructionListElementId for construction frontier tracking
 │   │   ├── capabilities.rs              — Shared heuristic-to-capability routing and early validation for scalar/list/grouped-scalar construction
 │   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroup candidates and assignment groups bound to runtime scalar slots
-│   │   ├── grouped_scalar/*.rs          — Grouped construction candidate normalization, assignment candidate generation, selection semantics, compound move building, and phase loop
+│   │   ├── grouped_scalar/assignment_candidate.rs — Assignment move options, required assignment moves, capacity-conflict moves, reassignment moves, and remaining-required telemetry
+│   │   ├── grouped_scalar/assignment_construction.rs — Assignment-backed grouped construction normalization
+│   │   ├── grouped_scalar/assignment_path.rs — Bounded augmenting-path move construction for required and optional scalar assignments
+│   │   ├── grouped_scalar/assignment_rematch.rs — Deterministic bounded sequence/position rematch move generation
+│   │   ├── grouped_scalar/assignment_state.rs — Assignment occupancy, capacity, rollback, and conflict bookkeeping
+│   │   ├── grouped_scalar/candidate.rs  — Provider-backed and assignment-backed candidate normalization into grouped construction slots
+│   │   ├── grouped_scalar/move_build.rs — CompoundScalarMove construction from public ScalarCandidate edits
+│   │   ├── grouped_scalar/phase.rs      — Grouped scalar construction phase loop and assignment-remaining telemetry
+│   │   ├── grouped_scalar/selection.rs  — Grouped slot and candidate selection semantics across supported construction heuristics
 │   │   ├── engine.rs                    — Canonical generic scalar/list/mixed construction engine used by runtime assembly
 │   │   └── engine/*.rs                  — Generic construction candidate, scan, commit, and target-matching chunks
 │   ├── localsearch/
@@ -719,10 +727,13 @@ applied as one `CompoundScalarMove<S>` after framework legality, duplicate, and
 not-doable checks. Grouped construction is opt-in by `ConstructionHeuristicConfig
 { group_name }`; without a group name scalar construction remains single-slot.
 `ScalarGroupLimits` separates `value_candidate_limit`,
-`group_candidate_limit`, and `max_moves_per_step`: grouped construction passes
-`value_candidate_limit` to providers and applies `group_candidate_limit` after
-framework normalization, while grouped local search passes
-`max_moves_per_step`.
+`group_candidate_limit`, and `max_moves_per_step`. Grouped construction uses
+config values first and falls back to model-owned `ScalarGroup::with_limits`
+values; it passes effective limits to providers or stock assignment candidate
+generation and applies `group_candidate_limit` after framework normalization.
+Grouped local search uses config values first, falls back to model-owned
+`value_candidate_limit` and `max_moves_per_step`, and does not apply
+construction-only `group_candidate_limit`.
 `ScalarCandidate` exposes construction metadata with
 `with_construction_slot_key(usize)`,
 `with_construction_entity_order_key(i64)`, and
@@ -736,7 +747,9 @@ sorted set of scalar target slots touched by the candidate.
 over one scalar target. It declares required-entity, capacity-key,
 position-key, sequence-key, entity-order, value-order, and limit hooks.
 Macro/runtime assembly binds public `ScalarGroup<S>` values to internal scalar
-group bindings before phase or selector construction.
+group bindings before phase or selector construction. Assignment-backed
+construction generates stock grouped candidates and uses the same grouped
+selection engine as candidate-backed groups.
 
 **`IntraDistanceAdapter<T>`** — `builder/context.rs`. Newtype wrapping `T: CrossEntityDistanceMeter<S>`. Implements `ListPositionDistanceMeter<S>` by forwarding to `T::distance` with `src_entity_idx == dst_entity_idx`. Used by `ListMoveSelectorBuilder::push_kopt` when `max_nearby > 0`.
 
@@ -751,7 +764,7 @@ group bindings before phase or selector construction.
 Runtime routing is capability-driven:
 - scalar-only `FirstFit` and `CheapestInsertion` use the descriptor boundary
 - named grouped scalar construction uses explicit `ScalarGroup` declarations bound to runtime scalar slots and applies all candidate edits atomically
-- assignment-backed `ScalarGroup` declarations cover required nullable scalar slots before optional slots under `first_fit`
+- assignment-backed `ScalarGroup` declarations generate stock nullable scalar candidates and cover required slots before optional slots
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
 - list-only heuristics validate required `cw_*` or `k_opt_*` hooks before phase build
 - generic mixed construction stays in the canonical engine
@@ -761,10 +774,13 @@ group slots, the next grouped slot is selected, and then a candidate inside
 that slot is chosen. Supported grouped scalar heuristics are `FirstFit`,
 `FirstFitDecreasing`, `CheapestInsertion`, `WeakestFit`,
 `WeakestFitDecreasing`, `StrongestFit`, and `StrongestFitDecreasing`. The
-decreasing variants require `construction_entity_order_key`; weakest and
-strongest variants require `construction_value_order_key`. Queue-based
-construction heuristics are rejected when `group_name` is set because they do
-not yet have a faithful grouped queue contract.
+decreasing variants require construction entity-order metadata; weakest and
+strongest variants require construction value-order metadata. Candidate-backed
+groups provide this metadata on `ScalarCandidate`; assignment-backed groups
+provide it through `ScalarGroup::with_entity_order` and
+`ScalarGroup::with_value_order`. Queue-based construction heuristics are
+rejected when `group_name` is set because they do not yet have a faithful
+grouped queue contract.
 
 Grouped scalar local-search selectors emit `CompoundScalarMove` candidates.
 When `GroupedScalarMoveSelectorConfig.require_hard_improvement` is true, those
@@ -774,16 +790,21 @@ search, VND, and cartesian composition.
 Assignment-backed scalar construction generates compound scalar moves from a
 named scalar group. Required entities are handled before optional entities;
 required assignments may displace optional occupants or move required blockers
-through a bounded augmenting path. With `construction_obligation =
-assign_when_candidate_exists`, required assignment construction commits the
-first doable candidate even when the unassigned baseline scores better.
-Optional assignments remain score-improving only.
+through a bounded augmenting path. Generated assignment candidates enter the
+same grouped construction selector as provider-backed candidates, so
+`cheapest_insertion` score-ranks candidates inside the selected assignment
+slot and weakest/strongest variants use the assignment value-order hook. With
+`construction_obligation = assign_when_candidate_exists`, required assignment
+construction may commit a doable candidate even when the unassigned baseline
+scores better. Optional assignments remain score-improving only.
 
 Assignment-backed grouped scalar selectors emit `CompoundScalarMove`
 candidates for unassigned required entities, capacity conflicts, bounded
 reassignments, and bounded sequence/position rematches. The selector uses
-`max_moves_per_step`, `value_candidate_limit`, and
-`require_hard_improvement` from `GroupedScalarMoveSelectorConfig`.
+`GroupedScalarMoveSelectorConfig` values first, falls back to model-owned
+`ScalarGroup::with_limits` values for `max_moves_per_step` and
+`value_candidate_limit`, and carries `require_hard_improvement` from selector
+config.
 
 Construction foragers:
 

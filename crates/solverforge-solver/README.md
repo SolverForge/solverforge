@@ -14,9 +14,16 @@ behavior remains the default whenever a construction heuristic has no
 Use grouped scalar construction when a model has nullable scalar variables that
 must change together before a hard-feasible state is reachable. A model declares
 named `ScalarGroup` entries, and a construction heuristic opts in with
-`group_name`. The grouped route evaluates a whole `ScalarCandidate` as one
-compound scalar move, applies all legal edits atomically, and marks every
-touched scalar slot complete through the normal committed mutation path.
+`group_name`. Candidate-backed groups evaluate a whole `ScalarCandidate` as one
+compound scalar move, apply all legal edits atomically, and mark every touched
+scalar slot complete through the normal committed mutation path.
+
+Assignment-backed groups are declared with `ScalarGroup::assignment(...)` over
+one nullable scalar target. They generate stock grouped construction candidates
+for required and optional scalar assignments, use the same grouped selection
+engine as candidate-backed groups, and support assignment-aware local-search
+moves for required slots, capacity conflicts, reassignments, and bounded
+sequence/position rematches.
 
 `GroupedScalarMoveSelector` exposes the same declared groups during local search.
 It is a first-class scalar neighborhood, not cartesian-product composition.

@@ -33,7 +33,7 @@ src/
 ├── __internal.rs  — Hidden macro support re-exports and helpers
 ├── cvrp.rs        — CVRP facade re-exports
 ├── lib.rs         — Top-level crate re-exports and module declarations
-├── planning.rs    — Planning target helpers for scalar groups, coverage groups, and conflict repair
+├── planning.rs    — Planning target helpers for scalar groups and conflict repair
 ├── prelude.rs     — Prelude exports
 └── stream.rs      — Fluent constraint stream facade
 ```
@@ -284,6 +284,6 @@ construction and grouped local-search selectors.
 - **Prelude** provides the common surface for generated and hand-written
   application code. Users import `use solverforge::prelude::*` and get
   attribute macros, score types, constraint traits, stream entry points,
-  model-source scalar target helpers, and the public scalar/group/coverage
-  declaration types needed by generated applications.
+  model-source scalar target helpers, and the public scalar-group and
+  conflict-repair declaration types needed by generated applications.
 - **Feature flags** propagate to sub-crates: `decimal` → `solverforge-core/decimal`, `serde` → `solverforge-core/serde`.

@@ -47,11 +47,13 @@ ad hoc special cases:
   `list_clarke_wright`, and `list_k_opt` are list-only. The runtime validates
   the required list hooks before phase build instead of failing deep inside the
   algorithm.
-- `first_fit` with `group_name` selects a named `ScalarGroup`. Candidate-backed
-  groups apply arbitrary compound scalar candidates atomically. Assignment-backed
-  groups use stock nullable scalar assignment: required entities first,
-  optional entities only when score-improving, and capacity blockers repaired
-  through bounded augmenting paths.
+- `group_name` selects a named `ScalarGroup` for grouped scalar construction.
+  Candidate-backed groups apply arbitrary compound scalar candidates atomically.
+  Assignment-backed groups generate stock nullable scalar candidates and feed
+  the same grouped construction heuristics: required entities first, optional
+  entities only when score-improving, and capacity blockers repaired through
+  bounded augmenting paths. Decreasing and strength-based assignment heuristics
+  require the corresponding `with_entity_order` and `with_value_order` hooks.
 
 ## Canonical selector defaults
 

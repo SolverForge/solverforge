@@ -97,6 +97,10 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list runtime plan when matching list work is present, plus descriptor construction routing for scalar-only targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
+  - Grouped scalar construction for named `ScalarGroup` declarations, including
+    candidate-backed compound edits and assignment-backed nullable scalar
+    construction with required-slot handling, capacity repair, and heuristic
+    ordering hooks
   - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, Diversified Late Acceptance)
   - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
   - Partitioned Search (multi-threaded via rayon)
@@ -207,9 +211,10 @@ Read the quickstart files in this order:
 - [`src/domain/shift.rs`](examples/minimal-shift-scheduling/src/domain/shift.rs)
   defines the planning entities and the `nurse_idx` planning variable.
 - [`src/domain/schedule.rs`](examples/minimal-shift-scheduling/src/domain/schedule.rs)
-  owns the solution, constraints, `solver.toml` link, and coverage group hooks.
+  owns the solution, constraints, `solver.toml` link, and assignment-backed
+  `ScalarGroup` hooks.
 - [`solver.toml`](examples/minimal-shift-scheduling/solver.toml) configures
-  coverage-first construction and local search.
+  required-shift assignment construction and grouped scalar local search.
 - [`src/main.rs`](examples/minimal-shift-scheduling/src/main.rs) builds a small
   schedule, starts `SolverManager`, consumes solver events, and prints the
   completed assignment.
@@ -476,8 +481,8 @@ The current checked-in workspace exposes:
 - the `solverforge` facade crate for application code;
 - `solverforge-cli` as the recommended first project path;
 - model-owned `planning_model!` domains with generated collection sources;
-- scalar, list, grouped-scalar, coverage, conflict-repair, ruin-recreate,
-  cartesian, and nearby neighborhoods;
+- scalar, list, grouped-scalar, assignment-backed scalar-group,
+  conflict-repair, ruin-recreate, cartesian, and nearby neighborhoods;
 - retained `SolverManager` jobs with progress events, exact pause/resume,
   snapshots, checkpoint status, telemetry, and snapshot-bound analysis;
 - TOML/YAML solver configuration plus programmatic overrides;

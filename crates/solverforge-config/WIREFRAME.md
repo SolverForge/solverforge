@@ -129,22 +129,23 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 planning variable family.
 
 `construction_obligation` controls nullable scalar construction and required
-coverage construction. The default `preserve_unassigned` allows an optional
-scalar slot to remain unassigned when the current unassigned state is legal.
-`assign_when_candidate_exists` forces construction to assign a doable candidate
-when one exists, even if the unassigned or uncovered baseline scores better.
+assignment-backed scalar construction. The default `preserve_unassigned` allows
+an optional scalar slot to remain unassigned when the current unassigned state
+is legal. `assign_when_candidate_exists` forces construction to assign a doable
+candidate when one exists, even if the unassigned baseline scores better.
 
 `group_name` selects a named model-provided `ScalarGroup`. Candidate-backed
 grouped construction evaluates and applies each candidate's scalar edits
-atomically; assignment-backed construction uses stock nullable scalar
-assignment mechanics. `group_candidate_limit` caps normalized candidates after
-framework legality, duplicate, frontier, and no-op filtering. Grouped
-construction passes `value_candidate_limit` through to the provider or
-assignment value source for
-per-entity or per-slot value capping. Grouped local-search selectors do not use
-`group_candidate_limit`; they use
-`max_moves_per_step` from `GroupedScalarMoveSelectorConfig` for the total
-provider cap.
+atomically; assignment-backed construction generates stock nullable scalar
+assignment candidates and routes them through the same grouped selection
+engine. Config limits override model-owned `ScalarGroup::with_limits` values;
+model-owned values apply when config omits the field. `group_candidate_limit`
+is construction-only: it is passed through in the effective grouped limits and
+caps normalized candidates after framework legality, duplicate, frontier, and
+no-op filtering. Grouped local-search selectors do not use
+`group_candidate_limit`; they use config `max_moves_per_step` first and then
+fall back to model-owned `ScalarGroup::with_limits` values for the total move
+cap.
 
 ### `LocalSearchConfig`
 
@@ -471,15 +472,18 @@ Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`.
 
 `value_candidate_limit` is provider-defined per assignment or value-source
 work, while `max_moves_per_step` caps the total grouped local-search moves
-generated for one selector step. When `require_hard_improvement` is true,
-each emitted grouped compound move carries the shared hard-improvement gate
-used by compound repair and cartesian moves.
+generated for one selector step. Config values override model-owned
+`ScalarGroup::with_limits` values for `value_candidate_limit` and
+`max_moves_per_step`; model-owned limits apply when config omits them. When
+`require_hard_improvement` is true, each emitted grouped compound move carries
+the shared hard-improvement gate used by compound repair and cartesian moves.
 
 Assignment-backed `grouped_scalar_move_selector` emits compound scalar
 assignment moves from a named scalar group. It tries unassigned required
-entities first, then capacity conflicts and bounded rematches. When
-`require_hard_improvement` is true, emitted moves carry the same
-hard-improvement gate used by other compound repair selectors.
+entities first, then capacity conflicts, bounded reassignments, and bounded
+sequence/position rematches. When `require_hard_improvement` is true, emitted
+moves carry the same hard-improvement gate used by other compound repair
+selectors.
 
 ### `LimitedNeighborhoodConfig`
 
@@ -646,6 +650,10 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 When `group_name` is set, grouped scalar construction supports
 `FirstFit`, `FirstFitDecreasing`, `CheapestInsertion`, `WeakestFit`,
 `WeakestFitDecreasing`, `StrongestFit`, and `StrongestFitDecreasing`.
+Candidate-backed groups provide ordering metadata on `ScalarCandidate` values.
+Assignment-backed groups use `ScalarGroup::with_entity_order` for decreasing
+variants and `ScalarGroup::with_value_order` for weakest/strongest variants;
+missing required hooks are rejected before phase execution.
 Grouped queue construction with `AllocateEntityFromQueue` or
 `AllocateToValueFromQueue` is rejected until the grouped queue contract is
 explicit.

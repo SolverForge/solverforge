@@ -20,7 +20,7 @@ fn default_scalar_local_search_uses_scalar_streaming_defaults() {
 }
 
 #[test]
-fn default_nearby_scalar_local_search_uses_short_accepted_count_horizon() {
+fn default_nearby_scalar_local_search_scans_deterministic_neighborhood() {
     let phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
         None,
         &nearby_scalar_only_model(),
@@ -29,7 +29,7 @@ fn default_nearby_scalar_local_search_uses_short_accepted_count_horizon() {
     let debug = format!("{phase:?}");
 
     assert!(debug.contains("SimulatedAnnealing"));
-    assert!(debug.contains("accepted_count_limit: 4"));
+    assert!(debug.contains("BestScoreForager"));
 }
 
 #[test]
@@ -42,6 +42,7 @@ fn default_search_profile_runs_vnd_before_acceptor_for_assignment_groups() {
     assert_eq!(phases.len(), 2);
     assert!(format!("{:?}", phases[0]).contains("VariableNeighborhoodDescent"));
     assert!(format!("{:?}", phases[1]).contains("AcceptorForager"));
+    assert!(format!("{:?}", phases[1]).contains("BestScoreForager"));
 }
 
 #[test]

@@ -253,6 +253,15 @@ pub(crate) fn default_local_search_forager<S, V, DM, IDM>(
 where
     S: PlanningSolution,
 {
+    if !model.has_list_variables()
+        && (model.has_nearby_scalar_change_variables()
+            || model.has_nearby_scalar_swap_variables()
+            || model.has_scalar_groups()
+            || model.has_conflict_repairs())
+    {
+        return ForagerBuilder::build(Some(&ForagerConfig::BestScore));
+    }
+
     let limit = if model.has_list_variables()
         || model.has_nearby_scalar_change_variables()
         || model.has_nearby_scalar_swap_variables()

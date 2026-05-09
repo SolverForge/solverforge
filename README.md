@@ -150,8 +150,16 @@ neighborhoods:
 
 - scalar-only models default to `ChangeMoveSelector` plus `SwapMoveSelector`
 - list-only models default to `NearbyListChangeMoveSelector(20)`,
-  `NearbyListSwapMoveSelector(20)`, and `ListReverseMoveSelector`
+  `NearbyListSwapMoveSelector(20)`, `SublistChangeMoveSelector`,
+  `SublistSwapMoveSelector`, and `ListReverseMoveSelector`, with k-opt and
+  list ruin enabled only when their hooks exist
 - mixed models concatenate the list defaults first, then the scalar defaults
+
+Those omitted-config defaults run as one streaming acceptor/forager local
+search phase after construction. Broad unions use fair selection order and
+finite accepted-count horizons; `limited_neighborhood` remains the explicit cap
+for configured exhaustive selectors. Variable Neighborhood Descent is never
+prepended implicitly.
 
 Variable Neighborhood Descent is configured as a local-search type:
 

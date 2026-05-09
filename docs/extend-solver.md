@@ -62,8 +62,16 @@ story:
 
 - scalar-only models default to `ChangeMoveSelector` plus `SwapMoveSelector`
 - list-only models default to `NearbyListChangeMoveSelector(20)`,
-  `NearbyListSwapMoveSelector(20)`, and `ListReverseMoveSelector`
+  `NearbyListSwapMoveSelector(20)`, `SublistChangeMoveSelector`,
+  `SublistSwapMoveSelector`, and `ListReverseMoveSelector`, with k-opt and
+  list ruin enabled only when their hooks exist
 - mixed models use the list defaults first, then the scalar defaults
+
+Omitted config builds construction plus one streaming local-search phase. Broad
+stock unions use fair ordering and finite accepted-count horizons; explicit
+`limited_neighborhood` remains the user-facing cap when a configured selector
+would otherwise be exhaustive. VND is still available, but only when the local
+search phase explicitly selects `variable_neighborhood_descent`.
 
 Nearby scalar selectors are explicit model capabilities. If the search policy
 uses `nearby_change_move_selector` or `nearby_swap_move_selector`, the matching

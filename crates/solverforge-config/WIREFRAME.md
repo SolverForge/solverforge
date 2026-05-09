@@ -508,7 +508,8 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 ### `UnionSelectionOrder`
 
-Enum: `Sequential` (default), `RoundRobin`.
+Enum: `Sequential` (default), `RoundRobin`, `RotatingRoundRobin`,
+`StratifiedRandom`.
 
 ### `CartesianProductConfig`
 

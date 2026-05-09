@@ -426,10 +426,23 @@ preview state; it is not the grouped atomic scalar-search primitive.
 |--------|-----------|
 | `Cursor<'a>` | `type Cursor<'a>: MoveCursor<S, M> + 'a where Self: 'a` |
 | `open_cursor` | `fn<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a>` |
+| `open_cursor_with_context` | `fn<'a, D: Director<S>>(&'a self, score_director: &D, context: MoveStreamContext) -> Self::Cursor<'a>` |
 | `iter_moves` | `fn<'a, D: Director<S>>(&'a self, score_director: &D) -> MoveSelectorIter<S, M, Self::Cursor<'a>>` |
 | `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
 | `append_moves` | `fn<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>)` |
 | `is_never_ending` | `fn(&self) -> bool` |
+
+`MoveStreamContext` is a small copy context passed by runtime streaming
+phases. It carries `step_index`, `step_seed`, and the finite
+`accepted_count_limit` when the forager has one. Canonical `open_cursor()`
+uses the default context for deterministic explicit scans; local search and
+explicit VND call `open_cursor_with_context()` so typed selectors can rotate
+entity/value/child order without boxing cursors or erasing selector types.
+
+`MoveCursor::selector_index()` reports the stable child index for telemetry
+through union selectors. Cursor implementations store only discovered
+candidates, and broad scalar/list selectors generate the next candidate from
+cursor-native loop state instead of prebuilding full move vectors.
 
 ### `ValueSelector<S: PlanningSolution, V>` — `value_selector.rs`
 
@@ -463,9 +476,15 @@ Requires: `Send + Debug`. Bounds: `S: PlanningSolution, M: Move<S>`.
 | Method | Signature |
 |--------|-----------|
 | `step_started` | `fn(&mut self, best_score: S::Score, last_step_score: S::Score)` |
-| `add_move_index` | `fn(&mut self, index: usize, score: S::Score)` |
+| `add_move_index` | `fn(&mut self, index: CandidateId, score: S::Score)` |
 | `is_quit_early` | `fn(&self) -> bool` |
-| `pick_move_index` | `fn(&mut self) -> Option<(usize, S::Score)>` |
+| `accepted_count_limit` | `fn(&self) -> Option<usize>` |
+| `pick_move_index` | `fn(&mut self) -> Option<(CandidateId, S::Score)>` |
+
+`AcceptedCountForager` is the default finite-horizon forager for broad stock
+models. It means "select the best among the first N accepted moves", not
+"scan the whole neighborhood and retain N". `BestScoreForager` remains
+available for explicit full-neighborhood scans.
 
 ### `EntityPlacer<S, M>` — `construction/placer.rs`
 
@@ -669,6 +688,7 @@ on a generic type-lifting map adapter.
 | Decorator | Type Params | Note |
 |-----------|-------------|------|
 | `UnionMoveSelector<S, M, A, B>` | Two selectors | Sequential combination |
+| `VecUnionSelector<S, M, Leaf>` | Any number of same-type selectors | Concrete child dispatch with `Sequential`, `RoundRobin`, `RotatingRoundRobin`, or `StratifiedRandom` order and stable selector-index telemetry |
 | `CartesianProductArena<S, M1, M2>` | Two move types | Cross-product iteration arena |
 | `CartesianProductCursor<S, M>` | One move type | Cursor-backed sequential preview rows with stable pair indices |
 | `CartesianProductSelector<S, M, Left, Right>` | Two selectors plus a wrapping function | Preview-state sequential composition with borrowable candidates, selected-winner materialization, optional hard-improvement gating, and pure upper-bound `size()` |
@@ -829,19 +849,19 @@ Entity placers:
 
 **`LocalSearchPhase<S, M, MS, A, Fo>`** — Bounds: `MS: MoveSelector<S, M>`, `A: Acceptor<S>`, `Fo: LocalSearchForager<S, M>`.
 
-Omitted local-search configuration resolves through the canonical model-aware
-search profile, which may emit more than one built-in search phase. Scalar
-models with nearby hooks, scalar groups, or conflict repairs receive a
-deterministic VND improvement pass before the streaming acceptor/forager phase.
-List variables receive nearby list change/swap, sublist
-change/swap, reverse, k-opt when k-opt hooks exist, and list ruin when the list
-runtime supports ruin moves. Scalar variables with nearby hooks receive targeted
-nearby scalar change/swap neighborhoods first; every scalar slot keeps targeted
-plain change/swap fallback neighborhoods after nearby coverage. Scalar groups add
-grouped-scalar neighborhoods, and registered conflict repair providers add
-compound conflict repair neighborhoods. Omitted acceptors and foragers are
-selected by the same model-aware profile; explicit local-search configs still
-own their acceptor, forager, selector, VND neighborhoods, and union order.
+Omitted runtime configuration builds state-aware construction followed by one
+model-aware streaming local-search phase. Omitted local-search configuration
+uses typed selector defaults: list variables receive nearby list change/swap,
+sublist change/swap, reverse, k-opt when k-opt hooks exist, and list ruin when
+the list runtime supports ruin moves. Scalar variables with nearby hooks receive
+targeted nearby scalar change/swap neighborhoods first; every scalar slot keeps
+targeted plain change/swap fallback neighborhoods after nearby coverage. Scalar
+groups add grouped-scalar neighborhoods, and registered conflict repair
+providers add compound conflict repair neighborhoods. Broad stock unions use
+fair selection order and finite accepted-count horizons so search can improve
+incumbents under short budgets. VND remains available only through explicit
+local-search config; explicit configs own their acceptor, forager, selector, VND
+neighborhoods, and union order exactly.
 
 Typed custom search is compiled into the solution, not loaded from a runtime
 registry. A solution can declare `#[planning_solution(search = "path::to::search")]`.
@@ -907,7 +927,10 @@ Score bounders: `SoftScoreBounder`, `FixedOffsetBounder<S>`, `()` (no-op).
 
 Variable Neighborhood Descent is an internal `local_search_type`, not a public
 standalone phase API. Configured runtime solving reaches it through
-`LocalSearchStrategy`.
+`LocalSearchStrategy`. It scans a neighborhood to completion only while no
+timeout, pause, or cancel is pending; interruption returns the last committed
+incumbent and never applies a partial best move discovered during the abandoned
+scan.
 
 ## Scope Hierarchy
 

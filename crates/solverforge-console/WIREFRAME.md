@@ -3,7 +3,7 @@
 Tracing-driven terminal output for SolverForge solve lifecycle and telemetry events.
 
 **Location:** `crates/solverforge-console/`
-**Workspace Release:** `0.12.1`
+**Workspace Release:** `0.13.0`
 
 ## Dependencies
 

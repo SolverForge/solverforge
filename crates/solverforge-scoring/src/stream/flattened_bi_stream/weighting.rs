@@ -6,7 +6,7 @@ use solverforge_core::ImpactType;
 
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::BiFilter;
-use super::super::weighting_support::fixed_weight_is_hard;
+use super::super::weighting_support::ConstraintWeight;
 use super::base::FlattenedBiConstraintStream;
 use super::builder::FlattenedBiConstraintBuilder;
 
@@ -71,10 +71,9 @@ where
         }
     }
 
-    // Penalizes each matching (A, C) pair with a fixed weight.
-    pub fn penalize(
+    pub fn penalize<W>(
         self,
-        weight: Sc,
+        weight: W,
     ) -> FlattenedBiConstraintBuilder<
         S,
         A,
@@ -94,75 +93,19 @@ where
         Sc,
     >
     where
-        Sc: Copy,
+        W: for<'w> ConstraintWeight<(&'w A, &'w C), Sc> + Send + Sync,
     {
+        let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |_: &A, _: &C| weight,
-            fixed_weight_is_hard(weight),
+            move |a: &A, c: &C| weight.score((a, c)),
+            is_hard,
         )
     }
 
-    // Penalizes each matching (A, C) pair with a dynamic weight.
-    pub fn penalize_with<W>(
+    pub fn reward<W>(
         self,
-        weight_fn: W,
-    ) -> FlattenedBiConstraintBuilder<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        W,
-        Sc,
-    >
-    where
-        W: Fn(&A, &C) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Penalty, weight_fn, false)
-    }
-
-    // Penalizes each matching (A, C) pair with a dynamic weight, explicitly marked as hard.
-    pub fn penalize_hard_with<W>(
-        self,
-        weight_fn: W,
-    ) -> FlattenedBiConstraintBuilder<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        W,
-        Sc,
-    >
-    where
-        W: Fn(&A, &C) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Penalty, weight_fn, true)
-    }
-
-    // Rewards each matching (A, C) pair with a fixed weight.
-    pub fn reward(
-        self,
-        weight: Sc,
+        weight: W,
     ) -> FlattenedBiConstraintBuilder<
         S,
         A,
@@ -182,148 +125,13 @@ where
         Sc,
     >
     where
-        Sc: Copy,
+        W: for<'w> ConstraintWeight<(&'w A, &'w C), Sc> + Send + Sync,
     {
+        let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |_: &A, _: &C| weight,
-            fixed_weight_is_hard(weight),
+            move |a: &A, c: &C| weight.score((a, c)),
+            is_hard,
         )
-    }
-
-    // Penalizes each matching (A, C) pair with one hard score unit.
-    pub fn penalize_hard(
-        self,
-    ) -> FlattenedBiConstraintBuilder<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        impl Fn(&A, &C) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.penalize(Sc::one_hard())
-    }
-
-    // Penalizes each matching (A, C) pair with one soft score unit.
-    pub fn penalize_soft(
-        self,
-    ) -> FlattenedBiConstraintBuilder<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        impl Fn(&A, &C) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.penalize(Sc::one_soft())
-    }
-
-    // Rewards each matching (A, C) pair with one hard score unit.
-    pub fn reward_hard(
-        self,
-    ) -> FlattenedBiConstraintBuilder<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        impl Fn(&A, &C) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.reward(Sc::one_hard())
-    }
-
-    // Rewards each matching (A, C) pair with one soft score unit.
-    pub fn reward_soft(
-        self,
-    ) -> FlattenedBiConstraintBuilder<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        impl Fn(&A, &C) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.reward(Sc::one_soft())
-    }
-
-    // Rewards each matching (A, C) pair with a dynamic weight.
-    pub fn reward_with<W>(
-        self,
-        weight_fn: W,
-    ) -> FlattenedBiConstraintBuilder<
-        S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        F,
-        W,
-        Sc,
-    >
-    where
-        W: Fn(&A, &C) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Reward, weight_fn, false)
     }
 }

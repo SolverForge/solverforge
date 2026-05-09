@@ -250,7 +250,7 @@ pub(super) fn projected_asymmetric_self_join_constraint(
         .project(OptionalSecondWorkEntry)
         .join(equal(|entry: &Entry| entry.bucket))
         .filter(|left: &Entry, right: &Entry| left.delta < right.delta)
-        .penalize_with(|left: &Entry, right: &Entry| SoftScore::of(left.delta * 10 + right.delta))
+        .penalize(|left: &Entry, right: &Entry| SoftScore::of(left.delta * 10 + right.delta))
         .named("projected asymmetric duplicate bucket")
 }
 

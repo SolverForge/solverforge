@@ -75,7 +75,7 @@ fn overlapping_lessons_constraint(
         .filter(|left: &AssignedLessonSlot, right: &AssignedLessonSlot| {
             left.lesson_idx != right.lesson_idx && left.start < right.end && right.start < left.end
         })
-        .penalize_with(|_left: &AssignedLessonSlot, _right: &AssignedLessonSlot| SoftScore::of(1))
+        .penalize(|_left: &AssignedLessonSlot, _right: &AssignedLessonSlot| SoftScore::of(1))
         .named("overlapping group lessons")
 }
 
@@ -101,7 +101,7 @@ fn assigned_lesson_penalty(
             start: timeslot.start,
             end: timeslot.end,
         })
-        .penalize_with(|_row: &AssignedLessonSlot| SoftScore::of(1))
+        .penalize(|_row: &AssignedLessonSlot| SoftScore::of(1))
         .named("assigned lesson slots")
 }
 

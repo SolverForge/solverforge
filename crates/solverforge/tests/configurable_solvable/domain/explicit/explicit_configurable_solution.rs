@@ -26,7 +26,7 @@ fn define_explicit_constraints(
     (
         ConstraintFactory::<ExplicitConfigurableSolution, HardSoftScore>::new()
             .for_each(ExplicitConfigurableSolution::entities())
-            .penalize_with(|_| HardSoftScore::of(0, 0))
+            .penalize(|_: &DummyEntity| HardSoftScore::of(0, 0))
             .named("noop"),
     )
 }

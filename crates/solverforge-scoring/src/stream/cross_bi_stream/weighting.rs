@@ -8,7 +8,7 @@ use crate::constraint::cross_bi_incremental::{IncrementalCrossBiConstraint, Pair
 
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::BiFilter;
-use super::super::weighting_support::fixed_weight_is_hard;
+use super::super::weighting_support::ConstraintWeight;
 use super::base::CrossBiConstraintStream;
 
 impl<S, A, B, K, EA, EB, KA, KB, F, Sc> CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>
@@ -46,10 +46,9 @@ where
         }
     }
 
-    // Penalizes each matching pair with a fixed weight.
-    pub fn penalize(
+    pub fn penalize<W>(
         self,
-        weight: Sc,
+        weight: W,
     ) -> CrossBiConstraintBuilder<
         S,
         A,
@@ -64,41 +63,19 @@ where
         Sc,
     >
     where
-        Sc: Copy,
+        W: for<'w> ConstraintWeight<(&'w A, &'w B), Sc> + Send + Sync,
     {
+        let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |_: &A, _: &B| weight,
-            fixed_weight_is_hard(weight),
+            move |a: &A, b: &B| weight.score((a, b)),
+            is_hard,
         )
     }
 
-    // Penalizes each matching pair with a dynamic weight.
-    pub fn penalize_with<W>(
+    pub fn reward<W>(
         self,
-        weight_fn: W,
-    ) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-    where
-        W: Fn(&A, &B) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Penalty, weight_fn, false)
-    }
-
-    // Penalizes each matching pair with a dynamic weight, explicitly marked as hard.
-    pub fn penalize_hard_with<W>(
-        self,
-        weight_fn: W,
-    ) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-    where
-        W: Fn(&A, &B) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Penalty, weight_fn, true)
-    }
-
-    // Rewards each matching pair with a fixed weight.
-    pub fn reward(
-        self,
-        weight: Sc,
+        weight: W,
     ) -> CrossBiConstraintBuilder<
         S,
         A,
@@ -113,123 +90,14 @@ where
         Sc,
     >
     where
-        Sc: Copy,
+        W: for<'w> ConstraintWeight<(&'w A, &'w B), Sc> + Send + Sync,
     {
+        let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |_: &A, _: &B| weight,
-            fixed_weight_is_hard(weight),
+            move |a: &A, b: &B| weight.score((a, b)),
+            is_hard,
         )
-    }
-
-    // Rewards each matching pair with a dynamic weight.
-    pub fn reward_with<W>(
-        self,
-        weight_fn: W,
-    ) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-    where
-        W: Fn(&A, &B) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Reward, weight_fn, false)
-    }
-
-    // Rewards each matching pair with a dynamic weight, explicitly marked as hard.
-    pub fn reward_hard_with<W>(
-        self,
-        weight_fn: W,
-    ) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-    where
-        W: Fn(&A, &B) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Reward, weight_fn, true)
-    }
-
-    // Penalizes each matching pair with one hard score unit.
-    pub fn penalize_hard(
-        self,
-    ) -> CrossBiConstraintBuilder<
-        S,
-        A,
-        B,
-        K,
-        EA,
-        EB,
-        KA,
-        KB,
-        F,
-        impl Fn(&A, &B) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.penalize(Sc::one_hard())
-    }
-
-    // Penalizes each matching pair with one soft score unit.
-    pub fn penalize_soft(
-        self,
-    ) -> CrossBiConstraintBuilder<
-        S,
-        A,
-        B,
-        K,
-        EA,
-        EB,
-        KA,
-        KB,
-        F,
-        impl Fn(&A, &B) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.penalize(Sc::one_soft())
-    }
-
-    // Rewards each matching pair with one hard score unit.
-    pub fn reward_hard(
-        self,
-    ) -> CrossBiConstraintBuilder<
-        S,
-        A,
-        B,
-        K,
-        EA,
-        EB,
-        KA,
-        KB,
-        F,
-        impl Fn(&A, &B) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.reward(Sc::one_hard())
-    }
-
-    // Rewards each matching pair with one soft score unit.
-    pub fn reward_soft(
-        self,
-    ) -> CrossBiConstraintBuilder<
-        S,
-        A,
-        B,
-        K,
-        EA,
-        EB,
-        KA,
-        KB,
-        F,
-        impl Fn(&A, &B) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.reward(Sc::one_soft())
     }
 }
 

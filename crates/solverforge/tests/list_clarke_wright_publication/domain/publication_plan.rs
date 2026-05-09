@@ -60,7 +60,7 @@ fn define_constraints() -> impl ConstraintSet<PublicationPlan, HardSoftScore> {
                 |assigned: &usize| *assigned,
             ),
         ))
-        .penalize_hard()
+        .penalize(HardSoftScore::ONE_HARD)
         .named("all_customers_assigned"),)
 }
 

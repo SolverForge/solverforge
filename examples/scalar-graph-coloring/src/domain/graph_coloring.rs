@@ -22,7 +22,7 @@ fn define_constraints() -> impl ConstraintSet<GraphColoring, HardSoftScore> {
     let unassigned = ConstraintFactory::<GraphColoring, HardSoftScore>::new()
         .for_each(GraphColoring::nodes())
         .unassigned()
-        .penalize_hard()
+        .penalize(HardSoftScore::ONE_HARD)
         .named("Unassigned color");
 
     let adjacent_same_color = ConstraintFactory::<GraphColoring, HardSoftScore>::new()
@@ -37,7 +37,7 @@ fn define_constraints() -> impl ConstraintSet<GraphColoring, HardSoftScore> {
                     && left.color_idx == right.color_idx
             },
         ))
-        .penalize_hard()
+        .penalize(HardSoftScore::ONE_HARD)
         .named("Adjacent color conflict");
 
     (unassigned, adjacent_same_color)

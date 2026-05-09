@@ -124,9 +124,9 @@ macro_rules! impl_nary_arity_stream_common {
                 }
             }
 
-            pub fn penalize(
+            pub fn penalize<W>(
                 self,
-                weight: Sc,
+                weight: W,
             ) -> $builder<
                 S,
                 A,
@@ -138,35 +138,24 @@ macro_rules! impl_nary_arity_stream_common {
                 Sc,
             >
             where
-                Sc: Copy,
+                W: for<'w> super::weighting_support::ConstraintWeight<
+                        ($(repeat_tokens!($entity => &'w A)),+),
+                        Sc,
+                    > + Send + Sync,
             {
+                let is_hard = weight.is_hard();
                 self.into_weighted_builder(
                     solverforge_core::ImpactType::Penalty,
                     move |$($entity: &A),+| {
-                        let _ = ($($entity),+);
-                        weight
+                        weight.score(($($entity),+))
                     },
-                    super::weighting_support::fixed_weight_is_hard(weight),
+                    is_hard,
                 )
             }
 
-            pub fn penalize_with<W>(self, weight_fn: W) -> $builder<S, A, K, E, KE, F, W, Sc>
-            where
-                W: Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
-            {
-                self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight_fn, false)
-            }
-
-            pub fn penalize_hard_with<W>(self, weight_fn: W) -> $builder<S, A, K, E, KE, F, W, Sc>
-            where
-                W: Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
-            {
-                self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight_fn, true)
-            }
-
-            pub fn reward(
+            pub fn reward<W>(
                 self,
-                weight: Sc,
+                weight: W,
             ) -> $builder<
                 S,
                 A,
@@ -178,102 +167,19 @@ macro_rules! impl_nary_arity_stream_common {
                 Sc,
             >
             where
-                Sc: Copy,
+                W: for<'w> super::weighting_support::ConstraintWeight<
+                        ($(repeat_tokens!($entity => &'w A)),+),
+                        Sc,
+                    > + Send + Sync,
             {
+                let is_hard = weight.is_hard();
                 self.into_weighted_builder(
                     solverforge_core::ImpactType::Reward,
                     move |$($entity: &A),+| {
-                        let _ = ($($entity),+);
-                        weight
+                        weight.score(($($entity),+))
                     },
-                    super::weighting_support::fixed_weight_is_hard(weight),
+                    is_hard,
                 )
-            }
-
-            pub fn reward_with<W>(self, weight_fn: W) -> $builder<S, A, K, E, KE, F, W, Sc>
-            where
-                W: Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
-            {
-                self.into_weighted_builder(solverforge_core::ImpactType::Reward, weight_fn, false)
-            }
-
-            pub fn reward_hard_with<W>(self, weight_fn: W) -> $builder<S, A, K, E, KE, F, W, Sc>
-            where
-                W: Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
-            {
-                self.into_weighted_builder(solverforge_core::ImpactType::Reward, weight_fn, true)
-            }
-
-            pub fn penalize_hard(
-                self,
-            ) -> $builder<
-                S,
-                A,
-                K,
-                E,
-                KE,
-                F,
-                impl Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
-                Sc,
-            >
-            where
-                Sc: Copy,
-            {
-                self.penalize(Sc::one_hard())
-            }
-
-            pub fn penalize_soft(
-                self,
-            ) -> $builder<
-                S,
-                A,
-                K,
-                E,
-                KE,
-                F,
-                impl Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
-                Sc,
-            >
-            where
-                Sc: Copy,
-            {
-                self.penalize(Sc::one_soft())
-            }
-
-            pub fn reward_hard(
-                self,
-            ) -> $builder<
-                S,
-                A,
-                K,
-                E,
-                KE,
-                F,
-                impl Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
-                Sc,
-            >
-            where
-                Sc: Copy,
-            {
-                self.reward(Sc::one_hard())
-            }
-
-            pub fn reward_soft(
-                self,
-            ) -> $builder<
-                S,
-                A,
-                K,
-                E,
-                KE,
-                F,
-                impl Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
-                Sc,
-            >
-            where
-                Sc: Copy,
-            {
-                self.reward(Sc::one_soft())
             }
         }
 

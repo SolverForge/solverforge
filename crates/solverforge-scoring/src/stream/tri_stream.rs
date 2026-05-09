@@ -218,7 +218,7 @@ mod doctests {
     .for_each(|s: &Solution| s.tasks.as_slice())
     .join(equal(|t: &Task| t.team))
     .join(equal(|t: &Task| t.team))
-    .penalize_with(|a: &Task, b: &Task, c: &Task| {
+    .penalize(|a: &Task, b: &Task, c: &Task| {
     SoftScore::of(a.cost + b.cost + c.cost)
     })
     .named("Team cost");

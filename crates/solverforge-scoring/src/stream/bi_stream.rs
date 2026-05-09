@@ -207,7 +207,7 @@ mod doctests {
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
     .for_each(|s: &Solution| s.tasks.as_slice())
     .join(equal(|t: &Task| t.team))
-    .penalize_with(|a: &Task, b: &Task| {
+    .penalize(|a: &Task, b: &Task| {
     SoftScore::of(a.cost + b.cost)
     })
     .named("Team cost");

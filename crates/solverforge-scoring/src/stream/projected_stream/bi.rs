@@ -6,6 +6,7 @@ use solverforge_core::score::Score;
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter, UniFilter};
 use crate::stream::uni_stream::UniConstraintStream;
+use crate::stream::weighting_support::ConstraintWeight;
 
 use super::source::{ProjectedSource, Projection, SingleProjectedSource};
 use super::uni::ProjectedConstraintStream;
@@ -81,24 +82,29 @@ where
         }
     }
 
-    pub fn penalize_with<W>(
+    pub fn penalize<W>(
         self,
         weight: W,
-    ) -> ProjectedBiConstraintBuilder<S, Out, K, Src, F, KF, PF, W, Sc>
+    ) -> ProjectedBiConstraintBuilder<
+        S,
+        Out,
+        K,
+        Src,
+        F,
+        KF,
+        PF,
+        impl Fn(&Out, &Out) -> Sc + Send + Sync,
+        Sc,
+    >
     where
-        W: Fn(&Out, &Out) -> Sc + Send + Sync,
+        W: for<'w> ConstraintWeight<(&'w Out, &'w Out), Sc> + Send + Sync,
     {
-        self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight, false)
-    }
-
-    pub fn penalize_hard_with<W>(
-        self,
-        weight: W,
-    ) -> ProjectedBiConstraintBuilder<S, Out, K, Src, F, KF, PF, W, Sc>
-    where
-        W: Fn(&Out, &Out) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight, true)
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            solverforge_core::ImpactType::Penalty,
+            move |left: &Out, right: &Out| weight.score((left, right)),
+            is_hard,
+        )
     }
 }
 

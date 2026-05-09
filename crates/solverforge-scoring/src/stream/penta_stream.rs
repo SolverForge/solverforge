@@ -154,7 +154,7 @@ mod doctests {
     .join(equal(|t: &Task| t.team))
     .join(equal(|t: &Task| t.team))
     .join(equal(|t: &Task| t.team))
-    .penalize_with(|a: &Task, b: &Task, c: &Task, d: &Task, e: &Task| {
+    .penalize(|a: &Task, b: &Task, c: &Task, d: &Task, e: &Task| {
     SoftScore::of(a.cost + b.cost + c.cost + d.cost + e.cost)
     })
     .named("Team cost");

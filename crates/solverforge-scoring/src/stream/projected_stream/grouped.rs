@@ -5,6 +5,7 @@ use solverforge_core::score::Score;
 
 use crate::stream::collector::UniCollector;
 use crate::stream::filter::UniFilter;
+use crate::stream::weighting_support::ConstraintWeight;
 
 use super::source::ProjectedSource;
 
@@ -54,24 +55,29 @@ where
         }
     }
 
-    pub fn penalize_hard_with<W>(
+    pub fn penalize<W>(
         self,
         weight_fn: W,
-    ) -> ProjectedGroupedConstraintBuilder<S, Out, K, Src, F, KF, C, W, Sc>
+    ) -> ProjectedGroupedConstraintBuilder<
+        S,
+        Out,
+        K,
+        Src,
+        F,
+        KF,
+        C,
+        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
+        Sc,
+    >
     where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+        W: for<'w> ConstraintWeight<(&'w K, &'w C::Result), Sc> + Send + Sync,
     {
-        self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight_fn, true)
-    }
-
-    pub fn penalize_with<W>(
-        self,
-        weight_fn: W,
-    ) -> ProjectedGroupedConstraintBuilder<S, Out, K, Src, F, KF, C, W, Sc>
-    where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight_fn, false)
+        let is_hard = weight_fn.is_hard();
+        self.into_weighted_builder(
+            solverforge_core::ImpactType::Penalty,
+            move |key: &K, result: &C::Result| weight_fn.score((key, result)),
+            is_hard,
+        )
     }
 }
 

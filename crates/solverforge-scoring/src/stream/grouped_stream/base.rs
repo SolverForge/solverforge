@@ -7,6 +7,7 @@ use super::super::collection_extract::CollectionExtract;
 use super::super::collector::UniCollector;
 use super::super::complemented_stream::ComplementedConstraintStream;
 use super::super::filter::UniFilter;
+use super::super::weighting_support::ConstraintWeight;
 
 /* Zero-erasure constraint stream over grouped entities.
 
@@ -71,53 +72,9 @@ where
         }
     }
 
-    /* Penalizes each group with a weight based on the group key and collector result. */
-    pub fn penalize_with<W>(
+    pub fn penalize<W>(
         self,
-        weight_fn: W,
-    ) -> super::weighting::GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
-    where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight_fn, false)
-    }
-
-    // Penalizes each group with a weight, explicitly marked as hard constraint.
-    pub fn penalize_hard_with<W>(
-        self,
-        weight_fn: W,
-    ) -> super::weighting::GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
-    where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(solverforge_core::ImpactType::Penalty, weight_fn, true)
-    }
-
-    // Rewards each group with a weight based on the group key and collector result.
-    pub fn reward_with<W>(
-        self,
-        weight_fn: W,
-    ) -> super::weighting::GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
-    where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(solverforge_core::ImpactType::Reward, weight_fn, false)
-    }
-
-    // Rewards each group with a weight, explicitly marked as hard constraint.
-    pub fn reward_hard_with<W>(
-        self,
-        weight_fn: W,
-    ) -> super::weighting::GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
-    where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(solverforge_core::ImpactType::Reward, weight_fn, true)
-    }
-
-    // Penalizes each group with one hard score unit.
-    pub fn penalize_hard(
-        self,
+        weight: W,
     ) -> super::weighting::GroupedConstraintBuilder<
         S,
         A,
@@ -130,15 +87,19 @@ where
         Sc,
     >
     where
-        Sc: Copy,
+        W: for<'w> ConstraintWeight<(&'w K, &'w C::Result), Sc> + Send + Sync,
     {
-        let w = Sc::one_hard();
-        self.penalize_hard_with(move |_: &K, _: &C::Result| w)
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            solverforge_core::ImpactType::Penalty,
+            move |key: &K, result: &C::Result| weight.score((key, result)),
+            is_hard,
+        )
     }
 
-    // Penalizes each group with one soft score unit.
-    pub fn penalize_soft(
+    pub fn reward<W>(
         self,
+        weight: W,
     ) -> super::weighting::GroupedConstraintBuilder<
         S,
         A,
@@ -151,52 +112,14 @@ where
         Sc,
     >
     where
-        Sc: Copy,
+        W: for<'w> ConstraintWeight<(&'w K, &'w C::Result), Sc> + Send + Sync,
     {
-        let w = Sc::one_soft();
-        self.penalize_with(move |_: &K, _: &C::Result| w)
-    }
-
-    // Rewards each group with one hard score unit.
-    pub fn reward_hard(
-        self,
-    ) -> super::weighting::GroupedConstraintBuilder<
-        S,
-        A,
-        K,
-        E,
-        Fi,
-        KF,
-        C,
-        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        let w = Sc::one_hard();
-        self.reward_hard_with(move |_: &K, _: &C::Result| w)
-    }
-
-    // Rewards each group with one soft score unit.
-    pub fn reward_soft(
-        self,
-    ) -> super::weighting::GroupedConstraintBuilder<
-        S,
-        A,
-        K,
-        E,
-        Fi,
-        KF,
-        C,
-        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        let w = Sc::one_soft();
-        self.reward_with(move |_: &K, _: &C::Result| w)
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            solverforge_core::ImpactType::Reward,
+            move |key: &K, result: &C::Result| weight.score((key, result)),
+            is_hard,
+        )
     }
 
     /* Adds complement entities with default values for missing keys. */

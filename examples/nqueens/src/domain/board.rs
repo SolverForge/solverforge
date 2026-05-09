@@ -22,7 +22,7 @@ fn define_constraints() -> impl ConstraintSet<Board, HardSoftScore> {
     let unassigned = ConstraintFactory::<Board, HardSoftScore>::new()
         .for_each(Board::queens())
         .unassigned()
-        .penalize_hard()
+        .penalize(HardSoftScore::ONE_HARD)
         .named("Unassigned queen");
 
     let conflict = ConstraintFactory::<Board, HardSoftScore>::new()
@@ -40,7 +40,7 @@ fn define_constraints() -> impl ConstraintSet<Board, HardSoftScore> {
                     || left_row.abs_diff(right_row) == left.column.abs_diff(right.column)
             },
         ))
-        .penalize_hard()
+        .penalize(HardSoftScore::ONE_HARD)
         .named("Queen conflict");
 
     (unassigned, conflict)

@@ -22,7 +22,7 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
     let unassigned_required = ConstraintFactory::<Schedule, HardSoftScore>::new()
         .for_each(Schedule::shifts())
         .filter(|shift: &Shift| shift.required && shift.nurse_idx.is_none())
-        .penalize_hard()
+        .penalize(HardSoftScore::ONE_HARD)
         .named("Unassigned required shift");
 
     let one_shift_per_nurse_day = ConstraintFactory::<Schedule, HardSoftScore>::new()
@@ -36,7 +36,7 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
                     && left.nurse_idx == right.nurse_idx
             },
         ))
-        .penalize_hard()
+        .penalize(HardSoftScore::ONE_HARD)
         .named("One shift per nurse day");
 
     let long_work_streaks = ConstraintFactory::<Schedule, HardSoftScore>::new()
@@ -46,7 +46,7 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
             |shift: &Shift| shift.nurse_idx.unwrap_or(usize::MAX),
             consecutive_runs(|shift: &Shift| shift.day),
         )
-        .penalize_with(|_nurse_idx: &usize, runs: &Runs| {
+        .penalize(|_nurse_idx: &usize, runs: &Runs| {
             let excess_days = runs
                 .runs()
                 .iter()
@@ -64,7 +64,7 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
             count::<Shift>(),
         )
         .complement(Schedule::nurses(), |nurse: &Nurse| nurse.id, |_nurse| 0usize)
-        .penalize_with(|_nurse_idx: &usize, count: &usize| {
+        .penalize(|_nurse_idx: &usize, count: &usize| {
             let target = 4i64;
             HardSoftScore::of_soft((*count as i64 - target).abs())
         })

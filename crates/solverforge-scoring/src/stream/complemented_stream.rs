@@ -12,6 +12,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use super::collection_extract::CollectionExtract;
 use super::collector::UniCollector;
+use super::weighting_support::ConstraintWeight;
 use crate::constraint::complemented::ComplementedGroupConstraint;
 
 /* Zero-erasure constraint stream with complemented groups.
@@ -66,7 +67,7 @@ let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
 |emp: &Employee| emp.id,
 |_emp: &Employee| 0usize,
 )
-.penalize_with(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+.penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
 .named("Shift count");
 
 let schedule = Schedule {
@@ -155,53 +156,9 @@ where
         }
     }
 
-    // Penalizes each complemented group with a weight based on the result.
-    pub fn penalize_with<W>(
+    pub fn penalize<W>(
         self,
-        weight_fn: W,
-    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
-    where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Penalty, weight_fn, false)
-    }
-
-    // Penalizes each complemented group, explicitly marked as hard constraint.
-    pub fn penalize_hard_with<W>(
-        self,
-        weight_fn: W,
-    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
-    where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Penalty, weight_fn, true)
-    }
-
-    // Rewards each complemented group with a weight based on the result.
-    pub fn reward_with<W>(
-        self,
-        weight_fn: W,
-    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
-    where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Reward, weight_fn, false)
-    }
-
-    // Rewards each complemented group, explicitly marked as hard constraint.
-    pub fn reward_hard_with<W>(
-        self,
-        weight_fn: W,
-    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
-    where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Reward, weight_fn, true)
-    }
-
-    // Penalizes each complemented group with one hard score unit.
-    pub fn penalize_hard(
-        self,
+        weight: W,
     ) -> ComplementedConstraintBuilder<
         S,
         A,
@@ -217,15 +174,19 @@ where
         Sc,
     >
     where
-        Sc: Copy,
+        W: for<'w> ConstraintWeight<(&'w K, &'w C::Result), Sc> + Send + Sync,
     {
-        let w = Sc::one_hard();
-        self.penalize_hard_with(move |_: &K, _: &C::Result| w)
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            ImpactType::Penalty,
+            move |key: &K, result: &C::Result| weight.score((key, result)),
+            is_hard,
+        )
     }
 
-    // Penalizes each complemented group with one soft score unit.
-    pub fn penalize_soft(
+    pub fn reward<W>(
         self,
+        weight: W,
     ) -> ComplementedConstraintBuilder<
         S,
         A,
@@ -241,58 +202,14 @@ where
         Sc,
     >
     where
-        Sc: Copy,
+        W: for<'w> ConstraintWeight<(&'w K, &'w C::Result), Sc> + Send + Sync,
     {
-        let w = Sc::one_soft();
-        self.penalize_with(move |_: &K, _: &C::Result| w)
-    }
-
-    // Rewards each complemented group with one hard score unit.
-    pub fn reward_hard(
-        self,
-    ) -> ComplementedConstraintBuilder<
-        S,
-        A,
-        B,
-        K,
-        EA,
-        EB,
-        KA,
-        KB,
-        C,
-        D,
-        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        let w = Sc::one_hard();
-        self.reward_hard_with(move |_: &K, _: &C::Result| w)
-    }
-
-    // Rewards each complemented group with one soft score unit.
-    pub fn reward_soft(
-        self,
-    ) -> ComplementedConstraintBuilder<
-        S,
-        A,
-        B,
-        K,
-        EA,
-        EB,
-        KA,
-        KB,
-        C,
-        D,
-        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        let w = Sc::one_soft();
-        self.reward_with(move |_: &K, _: &C::Result| w)
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            ImpactType::Reward,
+            move |key: &K, result: &C::Result| weight.score((key, result)),
+            is_hard,
+        )
     }
 }
 

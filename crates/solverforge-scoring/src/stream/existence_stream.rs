@@ -7,7 +7,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::constraint::exists::{IncrementalExistsConstraint, SelfFlatten};
 use crate::stream::collection_extract::{CollectionExtract, FlattenExtract};
 use crate::stream::filter::UniFilter;
-use crate::stream::weighting_support::fixed_weight_is_hard;
+use crate::stream::weighting_support::ConstraintWeight;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExistenceMode {
@@ -102,9 +102,9 @@ where
         }
     }
 
-    pub fn penalize(
+    pub fn penalize<W>(
         self,
-        weight: Sc,
+        weight: W,
     ) -> ExistsConstraintBuilder<
         S,
         A,
@@ -122,37 +122,19 @@ where
         Sc,
     >
     where
-        Sc: Copy,
+        W: for<'w> ConstraintWeight<(&'w A,), Sc> + Send + Sync,
     {
+        let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |_: &A| weight,
-            fixed_weight_is_hard(weight),
+            move |a: &A| weight.score((a,)),
+            is_hard,
         )
     }
 
-    pub fn penalize_with<W>(
+    pub fn reward<W>(
         self,
-        weight_fn: W,
-    ) -> ExistsConstraintBuilder<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>
-    where
-        W: Fn(&A) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Penalty, weight_fn, false)
-    }
-
-    pub fn penalize_hard_with<W>(
-        self,
-        weight_fn: W,
-    ) -> ExistsConstraintBuilder<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>
-    where
-        W: Fn(&A) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Penalty, weight_fn, true)
-    }
-
-    pub fn penalize_hard(
-        self,
+        weight: W,
     ) -> ExistsConstraintBuilder<
         S,
         A,
@@ -170,130 +152,10 @@ where
         Sc,
     >
     where
-        Sc: Copy,
+        W: for<'w> ConstraintWeight<(&'w A,), Sc> + Send + Sync,
     {
-        self.penalize(Sc::one_hard())
-    }
-
-    pub fn penalize_soft(
-        self,
-    ) -> ExistsConstraintBuilder<
-        S,
-        A,
-        P,
-        B,
-        K,
-        EA,
-        EP,
-        KA,
-        KB,
-        FA,
-        FP,
-        Flatten,
-        impl Fn(&A) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.penalize(Sc::one_soft())
-    }
-
-    pub fn reward(
-        self,
-        weight: Sc,
-    ) -> ExistsConstraintBuilder<
-        S,
-        A,
-        P,
-        B,
-        K,
-        EA,
-        EP,
-        KA,
-        KB,
-        FA,
-        FP,
-        Flatten,
-        impl Fn(&A) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.into_weighted_builder(
-            ImpactType::Reward,
-            move |_: &A| weight,
-            fixed_weight_is_hard(weight),
-        )
-    }
-
-    pub fn reward_with<W>(
-        self,
-        weight_fn: W,
-    ) -> ExistsConstraintBuilder<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>
-    where
-        W: Fn(&A) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Reward, weight_fn, false)
-    }
-
-    pub fn reward_hard_with<W>(
-        self,
-        weight_fn: W,
-    ) -> ExistsConstraintBuilder<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>
-    where
-        W: Fn(&A) -> Sc + Send + Sync,
-    {
-        self.into_weighted_builder(ImpactType::Reward, weight_fn, true)
-    }
-
-    pub fn reward_hard(
-        self,
-    ) -> ExistsConstraintBuilder<
-        S,
-        A,
-        P,
-        B,
-        K,
-        EA,
-        EP,
-        KA,
-        KB,
-        FA,
-        FP,
-        Flatten,
-        impl Fn(&A) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.reward(Sc::one_hard())
-    }
-
-    pub fn reward_soft(
-        self,
-    ) -> ExistsConstraintBuilder<
-        S,
-        A,
-        P,
-        B,
-        K,
-        EA,
-        EP,
-        KA,
-        KB,
-        FA,
-        FP,
-        Flatten,
-        impl Fn(&A) -> Sc + Send + Sync,
-        Sc,
-    >
-    where
-        Sc: Copy,
-    {
-        self.reward(Sc::one_soft())
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(ImpactType::Reward, move |a: &A| weight.score((a,)), is_hard)
     }
 }
 

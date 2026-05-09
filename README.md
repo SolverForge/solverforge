@@ -124,7 +124,7 @@ ConstraintFactory::<Schedule, HardSoftScore>::new()
         |shift: &Shift| shift.nurse_idx.unwrap_or(usize::MAX),
         consecutive_runs(|shift: &Shift| shift.day),
     )
-    .penalize_with(|_nurse_idx: &usize, runs: &Runs| {
+    .penalize(|_nurse_idx: &usize, runs: &Runs| {
         let excess_days = runs
             .runs()
             .iter()

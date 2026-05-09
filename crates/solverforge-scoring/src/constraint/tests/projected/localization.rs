@@ -12,7 +12,7 @@ fn projected_retracts_previous_outputs_before_update() {
             |entry: &Entry| entry.bucket,
             sum(|entry: &Entry| entry.delta),
         )
-        .penalize_with(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
+        .penalize(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
         .named("demand");
 
     let mut plan = Plan {
@@ -46,9 +46,7 @@ fn projected_grouped_weight_can_use_key() {
             |entry: &Entry| entry.bucket,
             sum(|entry: &Entry| entry.delta),
         )
-        .penalize_with(|bucket: &usize, delta: &i64| {
-            SoftScore::of((*bucket as i64) + (*delta).max(0))
-        })
+        .penalize(|bucket: &usize, delta: &i64| SoftScore::of((*bucket as i64) + (*delta).max(0)))
         .named("key weighted demand");
 
     let plan = Plan {
@@ -79,7 +77,7 @@ fn projected_updates_only_the_changed_descriptor_entity() {
             ChangeSource::Descriptor(0),
         ))
         .project(CountedProjection)
-        .penalize_with(|entry: &Entry| SoftScore::of(entry.delta))
+        .penalize(|entry: &Entry| SoftScore::of(entry.delta))
         .named("counted");
 
     let mut plan = Plan {

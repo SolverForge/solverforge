@@ -408,7 +408,7 @@ Constraints own their `ConstraintRef` once. Metadata and analysis types borrow t
 - Generated solution source methods pass `for_each()` hidden descriptor/static source metadata.
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
-- Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `ProjectedConstraintStream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `ProjectedConstraintStream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 - Unfiltered `UniConstraintStream<..., TrueFilter, ...>` implements `CollectionExtract` by delegating to its source extractor. This lets keyed cross-join targets use generated model sources directly, preserving hidden source metadata.
 - `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
@@ -420,7 +420,7 @@ Constraints own their `ConstraintRef` once. Metadata and analysis types borrow t
 **`ProjectionSink<Out>`** — Emission sink used by `Projection<A>` implementations. `emit(output)` is the only projection output channel.
 
 **`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Scoring rows from one or more source streams. Single-source output type is inferred from the named projection type passed to `project(...)`; keyed cross joins use `CrossBiConstraintStream::project(|left, right| row)` and emit exactly one scoring row per retained joined pair. Retained rows are cached by `ProjectedRowCoordinate` and indexed by one or two `ProjectedRowOwner` values. Single-source projected rows update incrementally from their source owner; joined-pair projected rows update incrementally from either joined source when that source is descriptor-localized. Projected self-join pair order follows `ProjectedRowCoordinate` ordering; retained storage row IDs are internal and never semantic. Projected rows can be self-joined by `equal(|row| key)` without materialized facts, and projected output rows plus projected self-join keys do not need `Clone`. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
-- Operations: `filter()`, `merge(other)`, `group_by()`, `join(equal(...))`, `penalize_with()`, `penalize_hard_with()`
+- Operations: `filter()`, `merge(other)`, `group_by()`, `join(equal(...))`, `penalize(weight_or_fn)`
 
 **`ProjectedRowCoordinate`** — Hidden support coordinate for projected rows:
 `{ primary_owner, secondary_owner, emit_index }`. `primary_owner` is always
@@ -451,37 +451,37 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
     .project(AssignmentLoadEntries)
 ```
 
-**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()`, `count()`, and `consecutive_runs()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and recomputes key/value on retract. Grouped weights use the canonical `penalize_with(|key, result| ...)` / `penalize_hard_with(|key, result| ...)` shape. `named()` → `ProjectedGroupedConstraint`.
+**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()`, `count()`, and `consecutive_runs()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and recomputes key/value on retract. Grouped weights use the canonical `penalize(|key, result| ...)` shape. `named()` → `ProjectedGroupedConstraint`.
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
-- Operations: `filter()`, `join()` → TriStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`
+- Operations: `filter()`, `join()` → TriStream, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 
 **`BiConstraintBuilder<S, A, K, E, KE, F, W, Sc>`** — `named()` → `IncrementalBiConstraint`
 
-**`TriConstraintStream/Builder`** — Same pattern, tri-arity. `join()` → QuadStream. Same convenience methods.
+**`TriConstraintStream/Builder`** — Same pattern, tri-arity. `join()` → QuadStream.
 
-**`QuadConstraintStream/Builder`** — Same pattern, quad-arity. `join()` → PentaStream. Same convenience methods.
+**`QuadConstraintStream/Builder`** — Same pattern, quad-arity. `join()` → PentaStream.
 
-**`PentaConstraintStream/Builder`** — Same pattern, penta-arity. Terminal (no further joins). Same convenience methods.
+**`PentaConstraintStream/Builder`** — Same pattern, penta-arity. Terminal (no further joins).
 
 **`CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>`** — Cross-collection bi stream.
-- Operations: `filter()`, `project(|left, right| row)` → ProjectedConstraintStream, `penalize()`, `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`, `flatten_last()` → FlattenedBiStream
+- Operations: `filter()`, `project(|left, right| row)` → ProjectedConstraintStream, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `flatten_last()` → FlattenedBiStream
 
 **`CrossBiConstraintBuilder`** — `named()` → `IncrementalCrossBiConstraint`
 
 **`GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>`** — Grouped stream.
-- Operations: `penalize_with()`, `penalize_hard_with()`, `penalize_hard()`, `penalize_soft()`, `reward_with()`, `reward_hard_with()`, `reward_hard()`, `reward_soft()`, `complement()`, `complement_with_key()` → ComplementedStream
-- Weighted operations use one canonical key-aware closure shape: `Fn(&K, &C::Result) -> Sc`.
+- Operations: `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `complement()`, `complement_with_key()` → ComplementedStream
+- Dynamic weighted operations use one canonical key-aware closure shape: `Fn(&K, &C::Result) -> Sc`.
 
 **`GroupedConstraintBuilder`** — `named()` → `GroupedUniConstraint`
 
-**`BalanceConstraintStream/Builder`** — Balance stream. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `BalanceConstraint`
+**`BalanceConstraintStream/Builder`** — Balance stream. `penalize(weight)`, `reward(weight)`, `named()` → `BalanceConstraint`
 
-**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward_with()`, `reward_hard()`, `reward_soft()`, `named()` → `ComplementedGroupConstraint`. Weighted operations receive the real or complemented key as `Fn(&K, &C::Result) -> Sc`.
+**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `ComplementedGroupConstraint`. Dynamic weighted operations receive the real or complemented key as `Fn(&K, &C::Result) -> Sc`.
 
-**`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize()`, `penalize_with()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `FlattenedBiConstraint`
+**`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `FlattenedBiConstraint`
 
-**`ExistsConstraintStream/ExistsConstraintBuilder`** — Existence stream over source-aware direct or flattened collection targets. `penalize()`, `penalize_hard()`, `penalize_soft()`, `reward()`, `reward_hard()`, `reward_soft()`, `named()` → `IncrementalExistsConstraint`. There is no separate public indexed existence stream; storage selection is internal to `IncrementalExistsConstraint`.
+**`ExistsConstraintStream/ExistsConstraintBuilder`** — Existence stream over source-aware direct or flattened collection targets. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `IncrementalExistsConstraint`. There is no separate public indexed existence stream; storage selection is internal to `IncrementalExistsConstraint`.
 
 ### Extractor Types
 

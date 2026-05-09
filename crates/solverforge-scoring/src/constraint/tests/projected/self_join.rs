@@ -8,7 +8,7 @@ fn projected_allows_zero_and_multiple_outputs() {
             ChangeSource::Descriptor(0),
         ))
         .project(WorkTwoEntries)
-        .penalize_with(|entry: &Entry| SoftScore::of(entry.delta))
+        .penalize(|entry: &Entry| SoftScore::of(entry.delta))
         .named("projected work");
 
     let plan = Plan {
@@ -51,7 +51,7 @@ fn projected_grouping_merges_multiple_sources() {
             |entry: &Entry| entry.bucket,
             sum(|entry: &Entry| entry.delta),
         )
-        .penalize_with(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
+        .penalize(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
         .named("capacity shortage");
 
     let plan = Plan {
@@ -93,7 +93,7 @@ fn projected_rows_can_self_join_by_key() {
         .project(WorkEntryProjection)
         .join(equal(|entry: &Entry| entry.bucket))
         .filter(|left: &Entry, right: &Entry| left.delta < right.delta)
-        .penalize_with(|_left: &Entry, _right: &Entry| SoftScore::of(1))
+        .penalize(|_left: &Entry, _right: &Entry| SoftScore::of(1))
         .named("projected duplicate bucket");
 
     let mut plan = Plan {
@@ -140,7 +140,7 @@ fn projected_self_join_reuses_row_slots_after_repeated_updates() {
         .project(WorkEntryProjection)
         .join(equal(|entry: &Entry| entry.bucket))
         .filter(|left: &Entry, right: &Entry| left.delta < right.delta)
-        .penalize_with(|_left: &Entry, _right: &Entry| SoftScore::of(1))
+        .penalize(|_left: &Entry, _right: &Entry| SoftScore::of(1))
         .named("projected duplicate bucket");
 
     let mut plan = Plan {
@@ -189,7 +189,7 @@ fn projected_self_join_preserves_projection_order_when_reusing_slots() {
         .project(OrderedWorkEntries)
         .join(equal(|entry: &Entry| entry.bucket))
         .filter(|left: &Entry, right: &Entry| left.delta < right.delta)
-        .penalize_with(|left: &Entry, right: &Entry| SoftScore::of(left.delta * 10 + right.delta))
+        .penalize(|left: &Entry, right: &Entry| SoftScore::of(left.delta * 10 + right.delta))
         .named("projected ordered duplicate bucket");
 
     let plan = Plan {
@@ -227,7 +227,7 @@ fn projected_self_join_reuses_slots_across_cardinality_changes() {
         .project(OptionalSecondWorkEntry)
         .join(equal(|entry: &Entry| entry.bucket))
         .filter(|left: &Entry, right: &Entry| left.delta < right.delta)
-        .penalize_with(|left: &Entry, right: &Entry| SoftScore::of(left.delta * 10 + right.delta))
+        .penalize(|left: &Entry, right: &Entry| SoftScore::of(left.delta * 10 + right.delta))
         .named("projected cardinality changing duplicate bucket");
 
     let mut plan = Plan {
@@ -270,7 +270,7 @@ fn projected_self_join_accepts_non_clone_rows_and_keys() {
         .project(NonCloneWorkEntryProjection)
         .join(equal(|entry: &NonCloneEntry| NonCloneBucket(entry.bucket)))
         .filter(|left: &NonCloneEntry, right: &NonCloneEntry| left.delta < right.delta)
-        .penalize_with(|_left: &NonCloneEntry, _right: &NonCloneEntry| SoftScore::of(1))
+        .penalize(|_left: &NonCloneEntry, _right: &NonCloneEntry| SoftScore::of(1))
         .named("projected non-clone duplicate bucket");
 
     let mut plan = Plan {
@@ -314,7 +314,7 @@ fn projected_group_by_accepts_non_clone_collector_values() {
         ))
         .project(WorkEntryProjection)
         .group_by(|entry: &Entry| entry.bucket, NonCloneDeltaCollector)
-        .penalize_with(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
+        .penalize(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
         .named("projected non-clone collector value");
 
     let mut plan = Plan {

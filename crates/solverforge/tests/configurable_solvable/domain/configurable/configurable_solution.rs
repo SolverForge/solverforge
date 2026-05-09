@@ -24,7 +24,7 @@ fn define_constraints() -> impl ConstraintSet<ConfigurableSolution, HardSoftScor
     (
         ConstraintFactory::<ConfigurableSolution, HardSoftScore>::new()
             .for_each(ConfigurableSolution::entities())
-            .penalize_with(|_| HardSoftScore::of(0, 0))
+            .penalize(|_: &DummyEntity| HardSoftScore::of(0, 0))
             .named("noop"),
     )
 }

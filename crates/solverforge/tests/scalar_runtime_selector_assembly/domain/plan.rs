@@ -21,6 +21,6 @@ pub struct Plan {
 fn define_constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
     (ConstraintFactory::<Plan, HardSoftScore>::new()
         .for_each(Plan::tasks())
-        .penalize_with(|_| HardSoftScore::of(0, 0))
+        .penalize(|_: &Task| HardSoftScore::of(0, 0))
         .named("noop"),)
 }

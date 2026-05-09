@@ -116,38 +116,6 @@ where
         self.into_builder(ImpactType::Penalty, base_score)
     }
 
-    // Penalizes imbalanced distribution with one hard score unit per unit std_dev.
-    pub fn penalize_hard(self) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc>
-    where
-        Sc: Copy,
-    {
-        self.penalize(Sc::one_hard())
-    }
-
-    // Penalizes imbalanced distribution with one soft score unit per unit std_dev.
-    pub fn penalize_soft(self) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc>
-    where
-        Sc: Copy,
-    {
-        self.penalize(Sc::one_soft())
-    }
-
-    // Rewards imbalanced distribution with one hard score unit per unit std_dev.
-    pub fn reward_hard(self) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc>
-    where
-        Sc: Copy,
-    {
-        self.reward(Sc::one_hard())
-    }
-
-    // Rewards imbalanced distribution with one soft score unit per unit std_dev.
-    pub fn reward_soft(self) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc>
-    where
-        Sc: Copy,
-    {
-        self.reward(Sc::one_soft())
-    }
-
     /* Rewards imbalanced distribution with the given base score per unit std_dev.
 
     The final score is `base_score.multiply(std_dev)`.

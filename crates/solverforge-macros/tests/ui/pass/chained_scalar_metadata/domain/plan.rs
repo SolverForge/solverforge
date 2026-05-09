@@ -18,6 +18,6 @@ pub struct Plan {
 fn constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
     (ConstraintFactory::<Plan, HardSoftScore>::new()
         .for_each(Plan::tasks())
-        .penalize_soft()
+        .penalize(HardSoftScore::ONE_SOFT)
         .named("penalize_tasks"),)
 }

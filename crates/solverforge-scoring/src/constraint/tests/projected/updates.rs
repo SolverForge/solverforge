@@ -109,7 +109,7 @@ fn projected_merged_descriptor_sources_update_only_owning_slot() {
             |entry: &Entry| entry.bucket,
             sum(|entry: &Entry| entry.delta),
         )
-        .penalize_with(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
+        .penalize(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
         .named("capacity shortage");
 
     let mut plan = Plan {
@@ -151,7 +151,7 @@ fn projected_merged_descriptor_sources_keep_same_entity_index_slots_distinct() {
                 ))
                 .project(CapacityEntryProjection),
         )
-        .penalize_with(|entry: &Entry| SoftScore::of(entry.delta))
+        .penalize(|entry: &Entry| SoftScore::of(entry.delta))
         .named("merged projected rows");
 
     let mut plan = Plan {
@@ -183,7 +183,7 @@ fn projected_unknown_source_panics_on_localized_callback() {
     let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(work as fn(&Plan) -> &[Work])
         .project(WorkEntryProjection)
-        .penalize_with(|entry: &Entry| SoftScore::of(entry.delta))
+        .penalize(|entry: &Entry| SoftScore::of(entry.delta))
         .named("unknown projected");
 
     let plan = Plan {

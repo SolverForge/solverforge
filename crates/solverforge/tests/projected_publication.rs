@@ -111,7 +111,7 @@ fn projected_stream_is_public_and_infers_output_type() {
             |entry: &CapacityEntry| entry.bucket,
             sum(|entry: &CapacityEntry| entry.delta),
         )
-        .penalize_hard_with(|_bucket: &usize, delta: &i64| HardSoftScore::of_hard((*delta).max(0)))
+        .penalize(|_bucket: &usize, delta: &i64| HardSoftScore::of_hard((*delta).max(0)))
         .named("capacity shortage");
 
     let plan = Plan {
@@ -149,7 +149,7 @@ fn cross_join_project_is_public_and_infers_output_type() {
                 capacity: capacity.amount,
             },
         )
-        .penalize_hard_with(|row: &AssignmentCapacity| {
+        .penalize(|row: &AssignmentCapacity| {
             HardSoftScore::of_hard((row.demand - row.capacity).max(0))
         })
         .named("assignment capacity shortage");

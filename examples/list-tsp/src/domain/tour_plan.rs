@@ -31,12 +31,12 @@ fn define_constraints() -> impl ConstraintSet<TourPlan, HardSoftScore> {
                 .flattened(|route: &Route| &route.visits),
             equal_bi(|visit: &Visit| visit.id, |assigned: &usize| *assigned),
         ))
-        .penalize_hard()
+        .penalize(HardSoftScore::ONE_HARD)
         .named("All visits assigned");
 
     let compact_route = ConstraintFactory::<TourPlan, HardSoftScore>::new()
         .for_each(TourPlan::routes())
-        .penalize_with(|route: &Route| HardSoftScore::of_soft(route.visits.len() as i64))
+        .penalize(|route: &Route| HardSoftScore::of_soft(route.visits.len() as i64))
         .named("Route length");
 
     (all_visits_assigned, compact_route)

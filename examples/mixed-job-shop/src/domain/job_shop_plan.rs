@@ -29,7 +29,7 @@ fn define_constraints() -> impl ConstraintSet<JobShopPlan, HardSoftScore> {
     let unassigned_machine = ConstraintFactory::<JobShopPlan, HardSoftScore>::new()
         .for_each(JobShopPlan::operations())
         .unassigned()
-        .penalize_hard()
+        .penalize(HardSoftScore::ONE_HARD)
         .named("Unassigned operation machine");
 
     let unscheduled_operation = ConstraintFactory::<JobShopPlan, HardSoftScore>::new()
@@ -43,7 +43,7 @@ fn define_constraints() -> impl ConstraintSet<JobShopPlan, HardSoftScore> {
                 |assigned: &usize| *assigned,
             ),
         ))
-        .penalize_hard()
+        .penalize(HardSoftScore::ONE_HARD)
         .named("Unscheduled operation");
 
     let same_job_same_machine = ConstraintFactory::<JobShopPlan, HardSoftScore>::new()
@@ -58,7 +58,7 @@ fn define_constraints() -> impl ConstraintSet<JobShopPlan, HardSoftScore> {
                     && left.machine_idx == right.machine_idx
             },
         ))
-        .penalize_soft()
+        .penalize(HardSoftScore::ONE_SOFT)
         .named("Same job machine reuse");
 
     (

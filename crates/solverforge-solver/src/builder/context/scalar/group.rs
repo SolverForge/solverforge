@@ -262,6 +262,21 @@ impl<S> ScalarAssignmentBinding<S> {
             value,
         )
     }
+
+    pub fn remaining_required_count(&self, solution: &S) -> u64 {
+        (0..self.entity_count(solution))
+            .filter(|entity_index| {
+                self.is_required(solution, *entity_index)
+                    && self.current_value(solution, *entity_index).is_none()
+            })
+            .fold(0_u64, |count, _| count.saturating_add(1))
+    }
+
+    pub fn unassigned_count(&self, solution: &S) -> u64 {
+        (0..self.entity_count(solution))
+            .filter(|entity_index| self.current_value(solution, *entity_index).is_none())
+            .fold(0_u64, |count, _| count.saturating_add(1))
+    }
 }
 
 impl<S> ScalarGroupBinding<S> {
@@ -313,6 +328,13 @@ impl<S> ScalarGroupBinding<S> {
             member.descriptor_index == edit.descriptor_index()
                 && member.variable_name == edit.variable_name()
         })
+    }
+
+    pub fn assignment(&self) -> Option<&ScalarAssignmentBinding<S>> {
+        match &self.kind {
+            ScalarGroupBindingKind::Assignment(assignment) => Some(assignment),
+            ScalarGroupBindingKind::Candidates { .. } => None,
+        }
     }
 }
 

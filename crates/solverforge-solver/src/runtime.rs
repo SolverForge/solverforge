@@ -16,6 +16,9 @@ use crate::phase::construction::{select_construction_capabilities, ConstructionR
 use crate::phase::{sequence::PhaseSequence, Phase};
 use crate::scope::{ProgressCallback, SolverScope};
 
+#[path = "runtime/defaults.rs"]
+mod defaults;
+
 #[cfg(test)]
 mod tests;
 
@@ -121,6 +124,7 @@ where
 
     fn solve_list<D, ProgressCb>(
         &self,
+        config: &ConstructionHeuristicConfig,
         solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
         list_variables: &[crate::builder::ListVariableSlot<S, V, DM, IDM>],
     ) -> bool
@@ -128,9 +132,6 @@ where
         D: solverforge_scoring::Director<S>,
         ProgressCb: ProgressCallback<S>,
     {
-        let Some(config) = self.config.as_ref() else {
-            panic!("specialized list construction requires explicit configuration");
-        };
         if list_variables.is_empty() {
             panic!("list construction configured against a scalar-only model");
         }
@@ -141,6 +142,73 @@ where
             solver_scope,
             list_variables,
         )
+    }
+
+    pub(super) fn solve_configured<D, ProgressCb>(
+        &self,
+        config: Option<&ConstructionHeuristicConfig>,
+        solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
+    ) -> bool
+    where
+        S: PlanningSolution + 'static,
+        S::Score: Score + Copy,
+        DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
+        IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
+        D: solverforge_scoring::Director<S>,
+        ProgressCb: ProgressCallback<S>,
+    {
+        let capabilities = select_construction_capabilities(config, &self.descriptor, &self.model);
+
+        match capabilities.route {
+            ConstructionRoute::SpecializedList => {
+                let Some(config) = config else {
+                    panic!("specialized list construction requires explicit configuration");
+                };
+                self.solve_list(config, solver_scope, &capabilities.list_variables)
+            }
+            ConstructionRoute::Descriptor => {
+                let scalar_remaining = scalar_work_remaining_with_frontier(
+                    &self.descriptor,
+                    solver_scope.construction_frontier(),
+                    solver_scope.solution_revision(),
+                    capabilities.entity_class.as_deref(),
+                    capabilities.variable_name.as_deref(),
+                    solver_scope.working_solution(),
+                );
+                if scalar_remaining {
+                    build_descriptor_construction_from_bindings(
+                        config,
+                        &self.descriptor,
+                        capabilities.scalar_bindings.clone(),
+                    )
+                    .solve(solver_scope);
+                    true
+                } else {
+                    false
+                }
+            }
+            ConstructionRoute::GroupedScalar => {
+                let Some((group_index, group)) = capabilities.scalar_group.as_ref() else {
+                    unreachable!("grouped scalar route requires a selected scalar group");
+                };
+                let ran_child_phase = crate::phase::construction::solve_grouped_scalar_construction(
+                    config,
+                    *group_index,
+                    group,
+                    &capabilities.scalar_bindings,
+                    solver_scope,
+                );
+                ran_child_phase
+            }
+            ConstructionRoute::GenericMixed => {
+                let ran_child_phase = crate::phase::construction::solve_construction(
+                    config,
+                    &self.model,
+                    solver_scope,
+                );
+                ran_child_phase
+            }
+        }
     }
 }
 
@@ -170,61 +238,12 @@ where
     ProgressCb: ProgressCallback<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
-        let config = self.config.as_ref();
-        let capabilities = select_construction_capabilities(config, &self.descriptor, &self.model);
-
-        match capabilities.route {
-            ConstructionRoute::SpecializedList => {
-                let ran_child_phase = self.solve_list(solver_scope, &capabilities.list_variables);
-                if !ran_child_phase {
-                    finalize_noop_construction(solver_scope);
-                }
-            }
-            ConstructionRoute::Descriptor => {
-                let scalar_remaining = scalar_work_remaining_with_frontier(
-                    &self.descriptor,
-                    solver_scope.construction_frontier(),
-                    solver_scope.solution_revision(),
-                    capabilities.entity_class.as_deref(),
-                    capabilities.variable_name.as_deref(),
-                    solver_scope.working_solution(),
-                );
-                if scalar_remaining {
-                    build_descriptor_construction_from_bindings(
-                        config,
-                        &self.descriptor,
-                        capabilities.scalar_bindings.clone(),
-                    )
-                    .solve(solver_scope);
-                } else {
-                    finalize_noop_construction(solver_scope);
-                }
-            }
-            ConstructionRoute::GroupedScalar => {
-                let Some((group_index, group)) = capabilities.scalar_group.as_ref() else {
-                    unreachable!("grouped scalar route requires a selected scalar group");
-                };
-                let ran_child_phase = crate::phase::construction::solve_grouped_scalar_construction(
-                    config,
-                    *group_index,
-                    group,
-                    &capabilities.scalar_bindings,
-                    solver_scope,
-                );
-                if !ran_child_phase {
-                    finalize_noop_construction(solver_scope);
-                }
-            }
-            ConstructionRoute::GenericMixed => {
-                let ran_child_phase = crate::phase::construction::solve_construction(
-                    config,
-                    &self.model,
-                    solver_scope,
-                );
-                if !ran_child_phase {
-                    finalize_noop_construction(solver_scope);
-                }
-            }
+        let ran_child_phase = match self.config.as_ref() {
+            None => defaults::solve_default_construction(self, solver_scope),
+            Some(config) => self.solve_configured(Some(config), solver_scope),
+        };
+        if !ran_child_phase {
+            finalize_noop_construction(solver_scope);
         }
     }
 

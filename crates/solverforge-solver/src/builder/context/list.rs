@@ -162,6 +162,34 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         entity_class.is_none_or(|name| name == self.entity_type_name)
             && variable_name.is_none_or(|name| name == self.variable_name)
     }
+
+    pub fn has_unassigned_elements(&self, solution: &S) -> bool {
+        (self.assigned_elements)(solution).len() < (self.element_count)(solution)
+    }
+
+    pub fn has_list_content(&self, solution: &S) -> bool {
+        (0..(self.entity_count)(solution))
+            .any(|entity_index| (self.list_len)(solution, entity_index) > 0)
+    }
+
+    pub fn supports_clarke_wright(&self) -> bool {
+        self.cw_depot_fn.is_some()
+            && self.cw_distance_fn.is_some()
+            && self.cw_element_load_fn.is_some()
+            && self.cw_capacity_fn.is_some()
+            && self.cw_assign_route_fn.is_some()
+    }
+
+    pub fn supports_k_opt(&self) -> bool {
+        self.k_opt_get_route.is_some()
+            && self.k_opt_set_route.is_some()
+            && self.k_opt_depot_fn.is_some()
+            && self.k_opt_distance_fn.is_some()
+    }
+
+    pub fn supports_ruin(&self) -> bool {
+        true
+    }
 }
 
 impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for ListVariableSlot<S, V, DM, IDM> {

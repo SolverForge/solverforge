@@ -76,12 +76,7 @@ impl AssignmentMoveIntent {
 }
 
 pub(crate) fn remaining_required_count<S>(group: &ScalarAssignmentBinding<S>, solution: &S) -> u64 {
-    (0..group.entity_count(solution))
-        .filter(|entity_index| {
-            group.is_required(solution, *entity_index)
-                && group.current_value(solution, *entity_index).is_none()
-        })
-        .fold(0_u64, |count, _| count.saturating_add(1))
+    group.remaining_required_count(solution)
 }
 
 pub(crate) fn required_assignment_moves<S>(

@@ -1,7 +1,10 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use super::{ConflictRepair, ListVariableSlot, ScalarGroupBinding, ScalarVariableSlot};
+use super::{
+    ConflictRepair, ListVariableSlot, ScalarGroupBinding, ScalarGroupBindingKind,
+    ScalarVariableSlot,
+};
 
 pub enum VariableSlot<S, V, DM, IDM> {
     Scalar(ScalarVariableSlot<S>),
@@ -84,6 +87,25 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
         self.variables
             .iter()
             .any(|variable| matches!(variable, VariableSlot::List(_)))
+    }
+
+    pub fn has_scalar_variables(&self) -> bool {
+        self.variables
+            .iter()
+            .any(|variable| matches!(variable, VariableSlot::Scalar(_)))
+    }
+
+    pub fn assignment_scalar_groups(
+        &self,
+    ) -> impl Iterator<Item = (usize, &ScalarGroupBinding<S>)> {
+        self.scalar_groups
+            .iter()
+            .enumerate()
+            .filter(|(_, group)| matches!(group.kind, ScalarGroupBindingKind::Assignment(_)))
+    }
+
+    pub fn has_conflict_repairs(&self) -> bool {
+        !self.conflict_repairs.is_empty()
     }
 
     pub fn scalar_variables(&self) -> impl Iterator<Item = &ScalarVariableSlot<S>> {

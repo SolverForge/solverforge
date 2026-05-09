@@ -70,8 +70,10 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::SublistSwapMove;
 
 use super::entity::EntitySelector;
-use super::list_support::collect_selected_entities;
-use super::move_selector::{ArenaMoveCursor, MoveSelector};
+use super::list_support::{collect_selected_entities, ordered_index};
+use super::move_selector::{
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+};
 use super::sublist_support::{count_intra_sublist_swap_moves_for_len, count_sublist_segments};
 
 /// A move selector that generates sublist swap moves.
@@ -96,6 +98,203 @@ pub struct SublistSwapMoveSelector<S, V, ES> {
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
+}
+
+#[derive(Clone, Copy)]
+struct ListSegment {
+    start: usize,
+    end: usize,
+}
+
+pub struct SublistSwapMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    store: CandidateStore<S, SublistSwapMove<S, V>>,
+    entities: Vec<usize>,
+    segments_by_entity: Vec<Vec<ListSegment>>,
+    entity_a_idx: usize,
+    segment_a_idx: usize,
+    entity_b_idx: usize,
+    segment_b_idx: usize,
+    list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
+    sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
+    sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+    variable_name: &'static str,
+    descriptor_index: usize,
+}
+
+impl<S, V> SublistSwapMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        entities: Vec<usize>,
+        segments_by_entity: Vec<Vec<ListSegment>>,
+        list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
+        sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
+        sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+        variable_name: &'static str,
+        descriptor_index: usize,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            entities,
+            segments_by_entity,
+            entity_a_idx: 0,
+            segment_a_idx: 0,
+            entity_b_idx: 0,
+            segment_b_idx: 0,
+            list_len,
+            list_get,
+            sublist_remove,
+            sublist_insert,
+            variable_name,
+            descriptor_index,
+        }
+    }
+
+    fn push_move(
+        &mut self,
+        entity_a: usize,
+        first: ListSegment,
+        entity_b: usize,
+        second: ListSegment,
+    ) -> CandidateId {
+        self.store.push(SublistSwapMove::new(
+            entity_a,
+            first.start,
+            first.end,
+            entity_b,
+            second.start,
+            second.end,
+            self.list_len,
+            self.list_get,
+            self.sublist_remove,
+            self.sublist_insert,
+            self.variable_name,
+            self.descriptor_index,
+        ))
+    }
+}
+
+impl<S, V> MoveCursor<S, SublistSwapMove<S, V>> for SublistSwapMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        loop {
+            if self.entity_a_idx >= self.entities.len() {
+                return None;
+            }
+            if self.segment_a_idx >= self.segments_by_entity[self.entity_a_idx].len() {
+                self.entity_a_idx += 1;
+                self.segment_a_idx = 0;
+                self.entity_b_idx = self.entity_a_idx;
+                self.segment_b_idx = 0;
+                continue;
+            }
+
+            let entity_a = self.entities[self.entity_a_idx];
+            let first = self.segments_by_entity[self.entity_a_idx][self.segment_a_idx];
+            if self.entity_b_idx < self.entity_a_idx {
+                self.entity_b_idx = self.entity_a_idx;
+                self.segment_b_idx = 0;
+            }
+
+            while self.entity_b_idx < self.entities.len() {
+                let entity_b = self.entities[self.entity_b_idx];
+                while self.segment_b_idx < self.segments_by_entity[self.entity_b_idx].len() {
+                    let second = self.segments_by_entity[self.entity_b_idx][self.segment_b_idx];
+                    self.segment_b_idx += 1;
+                    if self.entity_a_idx == self.entity_b_idx {
+                        if second.start < first.end {
+                            continue;
+                        }
+                        if first.start == second.start && first.end == second.end {
+                            continue;
+                        }
+                    }
+                    return Some(self.push_move(entity_a, first, entity_b, second));
+                }
+                self.entity_b_idx += 1;
+                self.segment_b_idx = 0;
+            }
+
+            self.segment_a_idx += 1;
+            self.entity_b_idx = self.entity_a_idx;
+            self.segment_b_idx = 0;
+        }
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, SublistSwapMove<S, V>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> SublistSwapMove<S, V> {
+        self.store.take_candidate(id)
+    }
+}
+
+impl<S, V> Iterator for SublistSwapMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    type Item = SublistSwapMove<S, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
+    }
+}
+
+fn build_segments_for_entity(
+    entity: usize,
+    route_len: usize,
+    min_seg: usize,
+    max_seg: usize,
+    context: MoveStreamContext,
+    descriptor_index: usize,
+) -> Vec<ListSegment> {
+    if route_len < min_seg {
+        return Vec::new();
+    }
+
+    let mut segments = Vec::new();
+    for start_offset in 0..route_len {
+        let start = ordered_index(
+            start_offset,
+            route_len,
+            context,
+            0x5B15_75A0_9000_0002 ^ entity as u64 ^ descriptor_index as u64,
+        );
+        let max_valid = max_seg.min(route_len - start);
+        if max_valid < min_seg {
+            continue;
+        }
+        let size_count = max_valid - min_seg + 1;
+        for size_offset in 0..size_count {
+            let segment_size = min_seg
+                + ordered_index(
+                    size_offset,
+                    size_count,
+                    context,
+                    0x5B15_75A0_9000_0003 ^ entity as u64 ^ start as u64,
+                );
+            segments.push(ListSegment {
+                start,
+                end: start + segment_size,
+            });
+        }
+    }
+    segments
 }
 
 impl<S, V: Debug, ES: Debug> Debug for SublistSwapMoveSelector<S, V, ES> {
@@ -165,104 +364,55 @@ where
     ES: EntitySelector<S>,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, SublistSwapMove<S, V>>
+        = SublistSwapMoveCursor<S, V>
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let list_len = self.list_len;
-        let sublist_remove = self.sublist_remove;
-        let sublist_insert = self.sublist_insert;
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         let min_seg = self.min_sublist_size;
         let max_seg = self.max_sublist_size;
 
-        let selected = collect_selected_entities(&self.entity_selector, score_director, list_len);
-        let entities = selected.entities;
-        let route_lens = selected.route_lens;
-        let mut moves = Vec::new();
-        let list_get = self.list_get;
+        let mut selected =
+            collect_selected_entities(&self.entity_selector, score_director, self.list_len);
+        selected.apply_stream_order(
+            context,
+            0x5B15_75A0_9000_0001 ^ self.descriptor_index as u64,
+        );
+        let segments_by_entity = selected
+            .route_lens
+            .iter()
+            .enumerate()
+            .map(|(entity_offset, &route_len)| {
+                let entity = selected.entities[entity_offset];
+                build_segments_for_entity(
+                    entity,
+                    route_len,
+                    min_seg,
+                    max_seg,
+                    context,
+                    self.descriptor_index,
+                )
+            })
+            .collect();
 
-        for (i, &entity_a) in entities.iter().enumerate() {
-            let len_a = route_lens[i];
-
-            for first_start in 0..len_a {
-                for first_size in min_seg..=max_seg {
-                    let first_end = first_start + first_size;
-                    if first_end > len_a {
-                        break;
-                    }
-
-                    for second_start in first_end..len_a {
-                        for second_size in min_seg..=max_seg {
-                            let second_end = second_start + second_size;
-                            if second_end > len_a {
-                                break;
-                            }
-                            moves.push(SublistSwapMove::new(
-                                entity_a,
-                                first_start,
-                                first_end,
-                                entity_a,
-                                second_start,
-                                second_end,
-                                list_len,
-                                list_get,
-                                sublist_remove,
-                                sublist_insert,
-                                variable_name,
-                                descriptor_index,
-                            ));
-                        }
-                    }
-                }
-            }
-
-            for (j, &entity_b) in entities.iter().enumerate() {
-                if j <= i {
-                    continue;
-                }
-                let len_b = route_lens[j];
-                if len_b == 0 {
-                    continue;
-                }
-
-                for first_start in 0..len_a {
-                    for first_size in min_seg..=max_seg {
-                        let first_end = first_start + first_size;
-                        if first_end > len_a {
-                            break;
-                        }
-
-                        for second_start in 0..len_b {
-                            for second_size in min_seg..=max_seg {
-                                let second_end = second_start + second_size;
-                                if second_end > len_b {
-                                    break;
-                                }
-                                moves.push(SublistSwapMove::new(
-                                    entity_a,
-                                    first_start,
-                                    first_end,
-                                    entity_b,
-                                    second_start,
-                                    second_end,
-                                    list_len,
-                                    list_get,
-                                    sublist_remove,
-                                    sublist_insert,
-                                    variable_name,
-                                    descriptor_index,
-                                ));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        ArenaMoveCursor::from_moves(moves)
+        SublistSwapMoveCursor::new(
+            selected.entities,
+            segments_by_entity,
+            self.list_len,
+            self.list_get,
+            self.sublist_remove,
+            self.sublist_insert,
+            self.variable_name,
+            self.descriptor_index,
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

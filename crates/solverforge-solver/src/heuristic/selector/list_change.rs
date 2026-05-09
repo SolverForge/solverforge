@@ -54,8 +54,10 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::ListChangeMove;
 
 use super::entity::EntitySelector;
-use super::list_support::collect_selected_entities;
-use super::move_selector::{ArenaMoveCursor, MoveSelector};
+use super::list_support::{collect_selected_entities, ordered_index};
+use super::move_selector::{
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+};
 
 /// A move selector that generates list change moves.
 ///
@@ -89,6 +91,208 @@ pub struct ListChangeMoveSelector<S, V, ES> {
     // Entity descriptor index.
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
+}
+
+enum ListChangeStage {
+    Intra,
+    Inter,
+}
+
+pub struct ListChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    store: CandidateStore<S, ListChangeMove<S, V>>,
+    entities: Vec<usize>,
+    route_lens: Vec<usize>,
+    context: MoveStreamContext,
+    src_idx: usize,
+    src_pos_offset: usize,
+    stage: ListChangeStage,
+    intra_dst_offset: usize,
+    dst_idx: usize,
+    inter_dst_pos_offset: usize,
+    list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
+    list_remove: fn(&mut S, usize, usize) -> Option<V>,
+    list_insert: fn(&mut S, usize, usize, V),
+    variable_name: &'static str,
+    descriptor_index: usize,
+}
+
+impl<S, V> ListChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        entities: Vec<usize>,
+        route_lens: Vec<usize>,
+        context: MoveStreamContext,
+        list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
+        list_remove: fn(&mut S, usize, usize) -> Option<V>,
+        list_insert: fn(&mut S, usize, usize, V),
+        variable_name: &'static str,
+        descriptor_index: usize,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            entities,
+            route_lens,
+            context,
+            src_idx: 0,
+            src_pos_offset: 0,
+            stage: ListChangeStage::Intra,
+            intra_dst_offset: 0,
+            dst_idx: 0,
+            inter_dst_pos_offset: 0,
+            list_len,
+            list_get,
+            list_remove,
+            list_insert,
+            variable_name,
+            descriptor_index,
+        }
+    }
+
+    fn current_source(&self) -> Option<(usize, usize, usize)> {
+        let src_entity = *self.entities.get(self.src_idx)?;
+        let src_len = self.route_lens[self.src_idx];
+        if src_len == 0 {
+            return Some((src_entity, src_len, 0));
+        }
+        let src_pos = ordered_index(
+            self.src_pos_offset,
+            src_len,
+            self.context,
+            0x1157_C4A4_6E00_0002 ^ src_entity as u64 ^ self.descriptor_index as u64,
+        );
+        Some((src_entity, src_len, src_pos))
+    }
+
+    fn advance_source_position(&mut self) {
+        self.src_pos_offset += 1;
+        self.stage = ListChangeStage::Intra;
+        self.intra_dst_offset = 0;
+        self.dst_idx = 0;
+        self.inter_dst_pos_offset = 0;
+
+        while self.src_idx < self.route_lens.len()
+            && self.src_pos_offset >= self.route_lens[self.src_idx]
+        {
+            self.src_idx += 1;
+            self.src_pos_offset = 0;
+        }
+    }
+
+    fn push_move(
+        &mut self,
+        src_entity: usize,
+        src_pos: usize,
+        dst_entity: usize,
+        dst_pos: usize,
+    ) -> CandidateId {
+        self.store.push(ListChangeMove::new(
+            src_entity,
+            src_pos,
+            dst_entity,
+            dst_pos,
+            self.list_len,
+            self.list_get,
+            self.list_remove,
+            self.list_insert,
+            self.variable_name,
+            self.descriptor_index,
+        ))
+    }
+}
+
+impl<S, V> MoveCursor<S, ListChangeMove<S, V>> for ListChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        loop {
+            let (src_entity, src_len, src_pos) = self.current_source()?;
+            if src_len == 0 {
+                self.src_idx += 1;
+                continue;
+            }
+
+            match self.stage {
+                ListChangeStage::Intra => {
+                    while self.intra_dst_offset < src_len {
+                        let dst_pos = ordered_index(
+                            self.intra_dst_offset,
+                            src_len,
+                            self.context,
+                            0x1157_C4A4_6E00_0003 ^ src_entity as u64 ^ src_pos as u64,
+                        );
+                        self.intra_dst_offset += 1;
+                        if src_pos == dst_pos || dst_pos == src_pos + 1 {
+                            continue;
+                        }
+                        return Some(self.push_move(src_entity, src_pos, src_entity, dst_pos));
+                    }
+                    self.stage = ListChangeStage::Inter;
+                    self.dst_idx = 0;
+                    self.inter_dst_pos_offset = 0;
+                }
+                ListChangeStage::Inter => {
+                    while self.dst_idx < self.entities.len() {
+                        if self.dst_idx == self.src_idx {
+                            self.dst_idx += 1;
+                            self.inter_dst_pos_offset = 0;
+                            continue;
+                        }
+                        let dst_entity = self.entities[self.dst_idx];
+                        let dst_len = self.route_lens[self.dst_idx];
+                        if self.inter_dst_pos_offset <= dst_len {
+                            let dst_pos = ordered_index(
+                                self.inter_dst_pos_offset,
+                                dst_len + 1,
+                                self.context,
+                                0x1157_C4A4_6E00_0004
+                                    ^ src_entity as u64
+                                    ^ dst_entity as u64
+                                    ^ src_pos as u64,
+                            );
+                            self.inter_dst_pos_offset += 1;
+                            return Some(self.push_move(src_entity, src_pos, dst_entity, dst_pos));
+                        }
+                        self.dst_idx += 1;
+                        self.inter_dst_pos_offset = 0;
+                    }
+                    self.advance_source_position();
+                }
+            }
+        }
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, ListChangeMove<S, V>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> ListChangeMove<S, V> {
+        self.store.take_candidate(id)
+    }
+}
+
+impl<S, V> Iterator for ListChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    type Item = ListChangeMove<S, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
+    }
 }
 
 impl<S, V: Debug, ES: Debug> Debug for ListChangeMoveSelector<S, V, ES> {
@@ -140,83 +344,36 @@ where
     ES: EntitySelector<S>,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, ListChangeMove<S, V>>
+        = ListChangeMoveCursor<S, V>
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let list_len = self.list_len;
-        let list_get = self.list_get;
-        let list_remove = self.list_remove;
-        let list_insert = self.list_insert;
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
 
-        let selected = collect_selected_entities(&self.entity_selector, score_director, list_len);
-        let move_capacity = selected.list_change_move_capacity();
-        let entities = selected.entities;
-        let route_lens = selected.route_lens;
-
-        let mut moves = Vec::with_capacity(move_capacity);
-
-        for (src_idx, &src_entity) in entities.iter().enumerate() {
-            let src_len = route_lens[src_idx];
-            if src_len == 0 {
-                continue;
-            }
-
-            for src_pos in 0..src_len {
-                // Intra-entity moves
-                for dst_pos in 0..src_len {
-                    /* Skip no-op moves:
-                    - Same position is obviously a no-op
-                    - Forward by 1 is a no-op due to index adjustment during do_move
-                    */
-                    if src_pos == dst_pos || dst_pos == src_pos + 1 {
-                        continue;
-                    }
-
-                    moves.push(ListChangeMove::new(
-                        src_entity,
-                        src_pos,
-                        src_entity,
-                        dst_pos,
-                        list_len,
-                        list_get,
-                        list_remove,
-                        list_insert,
-                        variable_name,
-                        descriptor_index,
-                    ));
-                }
-
-                // Inter-entity moves
-                for (dst_idx, &dst_entity) in entities.iter().enumerate() {
-                    if dst_idx == src_idx {
-                        continue;
-                    }
-
-                    let dst_len = route_lens[dst_idx];
-                    // Can insert at any position from 0 to dst_len inclusive
-                    for dst_pos in 0..=dst_len {
-                        moves.push(ListChangeMove::new(
-                            src_entity,
-                            src_pos,
-                            dst_entity,
-                            dst_pos,
-                            list_len,
-                            list_get,
-                            list_remove,
-                            list_insert,
-                            variable_name,
-                            descriptor_index,
-                        ));
-                    }
-                }
-            }
-        }
-
-        ArenaMoveCursor::from_moves(moves)
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
+        let mut selected =
+            collect_selected_entities(&self.entity_selector, score_director, self.list_len);
+        selected.apply_stream_order(
+            context,
+            0x1157_C4A4_6E00_0001 ^ self.descriptor_index as u64,
+        );
+        ListChangeMoveCursor::new(
+            selected.entities,
+            selected.route_lens,
+            context,
+            self.list_len,
+            self.list_get,
+            self.list_remove,
+            self.list_insert,
+            self.variable_name,
+            self.descriptor_index,
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

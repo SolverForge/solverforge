@@ -99,8 +99,10 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::ListChangeMove;
 
 use super::entity::EntitySelector;
-use super::list_support::collect_selected_entities;
-use super::move_selector::{ArenaMoveCursor, MoveSelector};
+use super::list_support::{collect_selected_entities, ordered_index};
+use super::move_selector::{
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+};
 use super::nearby_list_support::{sort_and_limit_nearby_candidates, NearbyCandidate};
 
 /// Measures distance between two list positions, potentially across different entities.
@@ -182,6 +184,111 @@ pub struct NearbyListChangeMoveSelector<S, V, D, ES> {
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
+struct NearbyListChangeSource {
+    src_entity: usize,
+    src_pos: usize,
+    destinations: Vec<(usize, usize)>,
+}
+
+pub struct NearbyListChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    store: CandidateStore<S, ListChangeMove<S, V>>,
+    sources: Vec<NearbyListChangeSource>,
+    source_offset: usize,
+    destination_offset: usize,
+    list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
+    list_remove: fn(&mut S, usize, usize) -> Option<V>,
+    list_insert: fn(&mut S, usize, usize, V),
+    variable_name: &'static str,
+    descriptor_index: usize,
+}
+
+impl<S, V> NearbyListChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        sources: Vec<NearbyListChangeSource>,
+        list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
+        list_remove: fn(&mut S, usize, usize) -> Option<V>,
+        list_insert: fn(&mut S, usize, usize, V),
+        variable_name: &'static str,
+        descriptor_index: usize,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            sources,
+            source_offset: 0,
+            destination_offset: 0,
+            list_len,
+            list_get,
+            list_remove,
+            list_insert,
+            variable_name,
+            descriptor_index,
+        }
+    }
+}
+
+impl<S, V> MoveCursor<S, ListChangeMove<S, V>> for NearbyListChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        loop {
+            let source = self.sources.get(self.source_offset)?;
+            if self.destination_offset >= source.destinations.len() {
+                self.source_offset += 1;
+                self.destination_offset = 0;
+                continue;
+            }
+            let (dst_entity, dst_pos) = source.destinations[self.destination_offset];
+            self.destination_offset += 1;
+            return Some(self.store.push(ListChangeMove::new(
+                source.src_entity,
+                source.src_pos,
+                dst_entity,
+                dst_pos,
+                self.list_len,
+                self.list_get,
+                self.list_remove,
+                self.list_insert,
+                self.variable_name,
+                self.descriptor_index,
+            )));
+        }
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, ListChangeMove<S, V>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> ListChangeMove<S, V> {
+        self.store.take_candidate(id)
+    }
+}
+
+impl<S, V> Iterator for NearbyListChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    type Item = ListChangeMove<S, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
+    }
+}
+
 impl<S, V: Debug, D, ES: Debug> Debug for NearbyListChangeMoveSelector<S, V, D, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NearbyListChangeMoveSelector")
@@ -243,25 +350,32 @@ where
     ES: EntitySelector<S>,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, ListChangeMove<S, V>>
+        = NearbyListChangeMoveCursor<S, V>
     where
         Self: 'a;
 
     fn open_cursor<'a, SD: Director<S>>(&'a self, score_director: &SD) -> Self::Cursor<'a> {
-        let list_len = self.list_len;
-        let list_get = self.list_get;
-        let list_remove = self.list_remove;
-        let list_insert = self.list_insert;
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, SD: Director<S>>(
+        &'a self,
+        score_director: &SD,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         let max_nearby = self.max_nearby;
         let solution = score_director.working_solution();
 
-        let selected = collect_selected_entities(&self.entity_selector, score_director, list_len);
+        let mut selected =
+            collect_selected_entities(&self.entity_selector, score_director, self.list_len);
+        selected.apply_stream_order(
+            context,
+            0xA1EA_2B17_C4A4_0001 ^ self.descriptor_index as u64,
+        );
         let entities = selected.entities;
         let route_lens = selected.route_lens;
 
-        let mut moves = Vec::new();
+        let mut sources = Vec::new();
         let mut candidates: Vec<NearbyCandidate> = Vec::new();
 
         for (src_idx, &src_entity) in entities.iter().enumerate() {
@@ -270,7 +384,13 @@ where
                 continue;
             }
 
-            for src_pos in 0..src_len {
+            for src_pos_offset in 0..src_len {
+                let src_pos = ordered_index(
+                    src_pos_offset,
+                    src_len,
+                    context,
+                    0xA1EA_2B17_C4A4_0002 ^ src_entity as u64 ^ self.descriptor_index as u64,
+                );
                 candidates.clear();
 
                 // Intra-entity candidates
@@ -307,24 +427,26 @@ where
 
                 sort_and_limit_nearby_candidates(&mut candidates, max_nearby);
 
-                for &(dst_entity, dst_pos, _) in &candidates {
-                    moves.push(ListChangeMove::new(
-                        src_entity,
-                        src_pos,
-                        dst_entity,
-                        dst_pos,
-                        list_len,
-                        list_get,
-                        list_remove,
-                        list_insert,
-                        variable_name,
-                        descriptor_index,
-                    ));
-                }
+                sources.push(NearbyListChangeSource {
+                    src_entity,
+                    src_pos,
+                    destinations: candidates
+                        .iter()
+                        .map(|&(dst_entity, dst_pos, _)| (dst_entity, dst_pos))
+                        .collect(),
+                });
             }
         }
 
-        ArenaMoveCursor::from_moves(moves)
+        NearbyListChangeMoveCursor::new(
+            sources,
+            self.list_len,
+            self.list_get,
+            self.list_remove,
+            self.list_insert,
+            self.variable_name,
+            self.descriptor_index,
+        )
     }
 
     fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {

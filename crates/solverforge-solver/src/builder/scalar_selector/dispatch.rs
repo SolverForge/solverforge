@@ -28,6 +28,9 @@ where
             fn(ChangeMove<S, usize>) -> ScalarMoveUnion<S, usize>,
         >,
     ),
+    Swap(SwapLeafCursor<S>),
+    NearbyChange(NearbyChangeLeafCursor<S>),
+    NearbySwap(NearbySwapLeafCursor<S>),
     Direct(ArenaMoveCursor<S, ScalarMoveUnion<S, usize>>),
 }
 
@@ -38,6 +41,9 @@ where
     fn next_candidate(&mut self) -> Option<CandidateId> {
         match self {
             Self::Change(cursor) => cursor.next_candidate(),
+            Self::Swap(cursor) => cursor.next_candidate(),
+            Self::NearbyChange(cursor) => cursor.next_candidate(),
+            Self::NearbySwap(cursor) => cursor.next_candidate(),
             Self::Direct(cursor) => cursor.next_candidate(),
         }
     }
@@ -48,6 +54,9 @@ where
     ) -> Option<MoveCandidateRef<'_, S, ScalarMoveUnion<S, usize>>> {
         match self {
             Self::Change(cursor) => cursor.candidate(index),
+            Self::Swap(cursor) => cursor.candidate(index),
+            Self::NearbyChange(cursor) => cursor.candidate(index),
+            Self::NearbySwap(cursor) => cursor.candidate(index),
             Self::Direct(cursor) => cursor.candidate(index),
         }
     }
@@ -55,6 +64,9 @@ where
     fn take_candidate(&mut self, index: CandidateId) -> ScalarMoveUnion<S, usize> {
         match self {
             Self::Change(cursor) => cursor.take_candidate(index),
+            Self::Swap(cursor) => cursor.take_candidate(index),
+            Self::NearbyChange(cursor) => cursor.take_candidate(index),
+            Self::NearbySwap(cursor) => cursor.take_candidate(index),
             Self::Direct(cursor) => cursor.take_candidate(index),
         }
     }
@@ -62,6 +74,9 @@ where
     fn selector_index(&self, index: CandidateId) -> Option<usize> {
         match self {
             Self::Change(cursor) => cursor.selector_index(index),
+            Self::Swap(cursor) => cursor.selector_index(index),
+            Self::NearbyChange(cursor) => cursor.selector_index(index),
+            Self::NearbySwap(cursor) => cursor.selector_index(index),
             Self::Direct(cursor) => cursor.selector_index(index),
         }
     }
@@ -141,12 +156,20 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         match self {
             Self::Leaf(selector) => {
-                ScalarSelectorCursor::Leaf(selector.open_cursor(score_director))
+                ScalarSelectorCursor::Leaf(selector.open_cursor_with_context(score_director, context))
             }
             Self::Cartesian(selector) => {
-                ScalarSelectorCursor::Cartesian(selector.open_cursor(score_director))
+                ScalarSelectorCursor::Cartesian(selector.open_cursor_with_context(score_director, context))
             }
         }
     }
@@ -195,26 +218,36 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         match self {
             Self::Change(selector) => ScalarLeafCursor::Change(MappedMoveCursor::new(
-                selector.open_cursor(score_director),
+                selector.open_cursor_with_context(score_director, context),
                 wrap_scalar_change_move::<S>,
             )),
-            Self::Swap(selector) => ScalarLeafCursor::Direct(selector.open_cursor(score_director)),
-            Self::NearbyChange(selector) => {
-                ScalarLeafCursor::Direct(selector.open_cursor(score_director))
+            Self::Swap(selector) => {
+                ScalarLeafCursor::Swap(selector.open_cursor_with_context(score_director, context))
             }
-            Self::NearbySwap(selector) => {
-                ScalarLeafCursor::Direct(selector.open_cursor(score_director))
-            }
+            Self::NearbyChange(selector) => ScalarLeafCursor::NearbyChange(
+                selector.open_cursor_with_context(score_director, context),
+            ),
+            Self::NearbySwap(selector) => ScalarLeafCursor::NearbySwap(
+                selector.open_cursor_with_context(score_director, context),
+            ),
             Self::PillarChange(selector) => {
-                ScalarLeafCursor::Direct(selector.open_cursor(score_director))
+                ScalarLeafCursor::Direct(selector.open_cursor_with_context(score_director, context))
             }
             Self::PillarSwap(selector) => {
-                ScalarLeafCursor::Direct(selector.open_cursor(score_director))
+                ScalarLeafCursor::Direct(selector.open_cursor_with_context(score_director, context))
             }
             Self::RuinRecreate(selector) => {
-                ScalarLeafCursor::Direct(selector.open_cursor(score_director))
+                ScalarLeafCursor::Direct(selector.open_cursor_with_context(score_director, context))
             }
         }
     }

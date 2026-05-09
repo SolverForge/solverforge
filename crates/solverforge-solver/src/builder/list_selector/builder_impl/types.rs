@@ -97,10 +97,20 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         match self {
-            Self::Leaf(selector) => ListSelectorCursor::Leaf(selector.open_cursor(score_director)),
+            Self::Leaf(selector) => {
+                ListSelectorCursor::Leaf(selector.open_cursor_with_context(score_director, context))
+            }
             Self::Cartesian(selector) => {
-                ListSelectorCursor::Cartesian(selector.open_cursor(score_director))
+                ListSelectorCursor::Cartesian(selector.open_cursor_with_context(score_director, context))
             }
         }
     }

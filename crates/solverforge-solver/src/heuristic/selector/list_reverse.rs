@@ -62,7 +62,10 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::ListReverseMove;
 
 use super::entity::EntitySelector;
-use super::move_selector::{ArenaMoveCursor, MoveSelector};
+use super::list_support::ordered_index;
+use super::move_selector::{
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+};
 
 /// A move selector that generates 2-opt segment reversal moves.
 ///
@@ -81,6 +84,139 @@ pub struct ListReverseMoveSelector<S, V, ES> {
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
+}
+
+pub struct ListReverseMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    store: CandidateStore<S, ListReverseMove<S, V>>,
+    entities: Vec<usize>,
+    route_lens: Vec<usize>,
+    context: MoveStreamContext,
+    entity_idx: usize,
+    start_offset: usize,
+    end_offset: usize,
+    list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
+    list_reverse: fn(&mut S, usize, usize, usize),
+    variable_name: &'static str,
+    descriptor_index: usize,
+}
+
+impl<S, V> ListReverseMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        entities: Vec<usize>,
+        route_lens: Vec<usize>,
+        context: MoveStreamContext,
+        list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
+        list_reverse: fn(&mut S, usize, usize, usize),
+        variable_name: &'static str,
+        descriptor_index: usize,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            entities,
+            route_lens,
+            context,
+            entity_idx: 0,
+            start_offset: 0,
+            end_offset: 0,
+            list_len,
+            list_get,
+            list_reverse,
+            variable_name,
+            descriptor_index,
+        }
+    }
+
+    fn push_move(&mut self, entity: usize, start: usize, end: usize) -> CandidateId {
+        self.store.push(ListReverseMove::new(
+            entity,
+            start,
+            end,
+            self.list_len,
+            self.list_get,
+            self.list_reverse,
+            self.variable_name,
+            self.descriptor_index,
+        ))
+    }
+}
+
+impl<S, V> MoveCursor<S, ListReverseMove<S, V>> for ListReverseMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        loop {
+            let entity = *self.entities.get(self.entity_idx)?;
+            let len = self.route_lens[self.entity_idx];
+            if len < 2 {
+                self.entity_idx += 1;
+                self.start_offset = 0;
+                self.end_offset = 0;
+                continue;
+            }
+
+            while self.start_offset < len {
+                let start = ordered_index(
+                    self.start_offset,
+                    len,
+                    self.context,
+                    0x1157_2A07_0000_0002 ^ entity as u64 ^ self.descriptor_index as u64,
+                );
+                let end_count = len.saturating_sub(start + 1);
+                if self.end_offset < end_count {
+                    let end = start
+                        + 2
+                        + ordered_index(
+                            self.end_offset,
+                            end_count,
+                            self.context,
+                            0x1157_2A07_0000_0003 ^ entity as u64 ^ start as u64,
+                        );
+                    self.end_offset += 1;
+                    return Some(self.push_move(entity, start, end));
+                }
+                self.start_offset += 1;
+                self.end_offset = 0;
+            }
+
+            self.entity_idx += 1;
+            self.start_offset = 0;
+            self.end_offset = 0;
+        }
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, ListReverseMove<S, V>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> ListReverseMove<S, V> {
+        self.store.take_candidate(id)
+    }
+}
+
+impl<S, V> Iterator for ListReverseMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    type Item = ListReverseMove<S, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
+    }
 }
 
 impl<S, V: Debug, ES: Debug> Debug for ListReverseMoveSelector<S, V, ES> {
@@ -129,52 +265,46 @@ where
     ES: EntitySelector<S>,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, ListReverseMove<S, V>>
+        = ListReverseMoveCursor<S, V>
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let solution = score_director.working_solution();
-        let list_len = self.list_len;
-        let list_get = self.list_get;
-        let list_reverse = self.list_reverse;
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
 
-        let entities: Vec<usize> = self
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
+        let mut entities: Vec<usize> = self
             .entity_selector
             .iter(score_director)
             .map(|r| r.entity_index)
             .collect();
+        let entity_start = context.start_offset(
+            entities.len(),
+            0x1157_2A07_0000_0001 ^ self.descriptor_index as u64,
+        );
+        entities.rotate_left(entity_start);
 
-        let mut moves = Vec::new();
+        let solution = score_director.working_solution();
+        let route_lens = entities
+            .iter()
+            .map(|&entity| (self.list_len)(solution, entity))
+            .collect();
 
-        for &entity in &entities {
-            let len = list_len(solution, entity);
-            if len < 2 {
-                continue;
-            }
-
-            // Enumerate all (start, end) pairs where end > start + 1
-            // This covers all 2-opt reversals within this entity's list
-            for start in 0..len {
-                // end is exclusive; minimum valid end = start + 2
-                for end in (start + 2)..=len {
-                    moves.push(ListReverseMove::new(
-                        entity,
-                        start,
-                        end,
-                        list_len,
-                        list_get,
-                        list_reverse,
-                        variable_name,
-                        descriptor_index,
-                    ));
-                }
-            }
-        }
-
-        ArenaMoveCursor::from_moves(moves)
+        ListReverseMoveCursor::new(
+            entities,
+            route_lens,
+            context,
+            self.list_len,
+            self.list_get,
+            self.list_reverse,
+            self.variable_name,
+            self.descriptor_index,
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

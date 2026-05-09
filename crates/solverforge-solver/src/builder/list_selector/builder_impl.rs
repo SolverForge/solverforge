@@ -11,7 +11,7 @@ use crate::heuristic::selector::decorator::{
 use crate::heuristic::selector::k_opt::KOptConfig;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::{
-    move_selector::{CandidateId, MoveCandidateRef, MoveCursor},
+    move_selector::{CandidateId, MoveCandidateRef, MoveCursor, MoveStreamContext},
     FromSolutionEntitySelector, MoveSelector,
 };
 

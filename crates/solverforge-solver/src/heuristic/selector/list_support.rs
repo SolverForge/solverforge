@@ -2,6 +2,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::entity::EntitySelector;
+use super::move_selector::MoveStreamContext;
 
 pub(crate) struct SelectedEntities {
     pub(crate) entities: Vec<usize>,
@@ -9,6 +10,12 @@ pub(crate) struct SelectedEntities {
 }
 
 impl SelectedEntities {
+    pub(crate) fn apply_stream_order(&mut self, context: MoveStreamContext, salt: u64) {
+        let start = context.start_offset(self.entities.len(), salt);
+        self.entities.rotate_left(start);
+        self.route_lens.rotate_left(start);
+    }
+
     pub(crate) fn total_elements(&self) -> usize {
         self.route_lens.iter().sum()
     }
@@ -41,6 +48,22 @@ impl SelectedEntities {
             .sum();
         intra + inter
     }
+}
+
+pub(crate) fn ordered_index(
+    offset: usize,
+    len: usize,
+    context: MoveStreamContext,
+    salt: u64,
+) -> usize {
+    debug_assert!(offset < len);
+    if len <= 1 {
+        return 0;
+    }
+
+    let start = context.start_offset(len, salt);
+    let stride = context.stride(len, salt ^ 0xD1B5_4A32_D192_ED03);
+    (start + offset * stride) % len
 }
 
 pub(crate) fn collect_selected_entities<S, D, ES>(

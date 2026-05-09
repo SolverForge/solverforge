@@ -10,7 +10,7 @@ use crate::heuristic::r#move::{
 use crate::heuristic::selector::decorator::MappedMoveCursor;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::{
-    move_selector::{CandidateId, MoveCandidateRef, MoveCursor},
+    move_selector::{CandidateId, MoveCandidateRef, MoveCursor, MoveStreamContext},
     FromSolutionEntitySelector, KOptMoveSelector, ListChangeMoveSelector, ListReverseMoveSelector,
     ListRuinMoveSelector, ListSwapMoveSelector, MoveSelector, NearbyKOptMoveSelector,
     NearbyListChangeMoveSelector, NearbyListSwapMoveSelector, SublistChangeMoveSelector,
@@ -316,45 +316,53 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         match self {
             Self::NearbyListChange(s) => ListLeafCursor::NearbyListChange(MappedMoveCursor::new(
-                s.open_cursor(score_director),
+                s.open_cursor_with_context(score_director, context),
                 wrap_list_change_move::<S, V>,
             )),
             Self::NearbyListSwap(s) => ListLeafCursor::NearbyListSwap(MappedMoveCursor::new(
-                s.open_cursor(score_director),
+                s.open_cursor_with_context(score_director, context),
                 wrap_list_swap_move::<S, V>,
             )),
             Self::ListReverse(s) => ListLeafCursor::ListReverse(MappedMoveCursor::new(
-                s.open_cursor(score_director),
+                s.open_cursor_with_context(score_director, context),
                 wrap_list_reverse_move::<S, V>,
             )),
             Self::SublistChange(s) => ListLeafCursor::SublistChange(MappedMoveCursor::new(
-                s.open_cursor(score_director),
+                s.open_cursor_with_context(score_director, context),
                 wrap_sublist_change_move::<S, V>,
             )),
             Self::KOpt(s) => ListLeafCursor::KOpt(MappedMoveCursor::new(
-                s.open_cursor(score_director),
+                s.open_cursor_with_context(score_director, context),
                 wrap_k_opt_move::<S, V>,
             )),
             Self::NearbyKOpt(s) => ListLeafCursor::NearbyKOpt(MappedMoveCursor::new(
-                s.open_cursor(score_director),
+                s.open_cursor_with_context(score_director, context),
                 wrap_k_opt_move::<S, V>,
             )),
             Self::ListRuin(s) => ListLeafCursor::ListRuin(MappedMoveCursor::new(
-                s.open_cursor(score_director),
+                s.open_cursor_with_context(score_director, context),
                 wrap_list_ruin_move::<S, V>,
             )),
             Self::ListChange(s) => ListLeafCursor::ListChange(MappedMoveCursor::new(
-                s.open_cursor(score_director),
+                s.open_cursor_with_context(score_director, context),
                 wrap_list_change_move::<S, V>,
             )),
             Self::ListSwap(s) => ListLeafCursor::ListSwap(MappedMoveCursor::new(
-                s.open_cursor(score_director),
+                s.open_cursor_with_context(score_director, context),
                 wrap_list_swap_move::<S, V>,
             )),
             Self::SublistSwap(s) => ListLeafCursor::SublistSwap(MappedMoveCursor::new(
-                s.open_cursor(score_director),
+                s.open_cursor_with_context(score_director, context),
                 wrap_sublist_swap_move::<S, V>,
             )),
         }

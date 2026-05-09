@@ -45,8 +45,8 @@ pub use list_ruin::ListRuinMoveSelector;
 pub use list_swap::ListSwapMoveSelector;
 pub use mimic::{MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector};
 pub use move_selector::{
-    ChangeMoveSelector, MoveSelector, ScalarChangeMoveSelector, ScalarSwapMoveSelector,
-    SwapMoveSelector,
+    ChangeMoveSelector, MoveSelector, MoveStreamContext, ScalarChangeMoveSelector,
+    ScalarSwapMoveSelector, SwapMoveSelector,
 };
 pub use nearby::{NearbyDistanceMeter, NearbyEntitySelector, NearbySelectionConfig};
 pub use nearby_list_change::{

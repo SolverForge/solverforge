@@ -4,9 +4,96 @@ Tests extracted from:
 - load_balance.rs (6 tests)
 */
 
+use super::super::collect_vec::collect_vec;
 use super::super::load_balance::load_balance;
 use super::super::runs::consecutive_runs;
 use super::super::{Accumulator, UniCollector};
+
+/* ============================================================================
+CollectVec collector tests
+============================================================================
+*/
+
+#[test]
+fn test_collect_vec_empty_returns_empty_vec() {
+    let collector = collect_vec(|value: &i32| *value);
+    let acc = collector.create_accumulator();
+
+    assert_eq!(acc.finish(), Vec::<i32>::new());
+}
+
+#[test]
+fn test_collect_vec_accumulates_copied_values() {
+    let collector = collect_vec(|value: &i32| *value + 1);
+    let mut acc = collector.create_accumulator();
+
+    for value in [1, 2, 3] {
+        acc.accumulate(&collector.extract(&value));
+    }
+
+    assert_eq!(acc.finish(), vec![2, 3, 4]);
+}
+
+#[test]
+fn test_collect_vec_retains_duplicate_values() {
+    let collector = collect_vec(|value: &i32| *value);
+    let mut acc = collector.create_accumulator();
+
+    for value in [1, 1, 2] {
+        acc.accumulate(&collector.extract(&value));
+    }
+
+    assert_eq!(acc.finish(), vec![1, 1, 2]);
+}
+
+#[test]
+fn test_collect_vec_retract_removes_exactly_one_duplicate() {
+    let collector = collect_vec(|value: &i32| *value);
+    let mut acc = collector.create_accumulator();
+
+    for value in [1, 1, 2] {
+        acc.accumulate(&collector.extract(&value));
+    }
+    acc.retract(&collector.extract(&1));
+
+    assert_eq!(acc.finish(), vec![1, 2]);
+}
+
+#[test]
+fn test_collect_vec_reset_clears_state() {
+    let collector = collect_vec(|value: &i32| *value);
+    let mut acc = collector.create_accumulator();
+
+    acc.accumulate(&collector.extract(&1));
+    acc.accumulate(&collector.extract(&2));
+    acc.reset();
+
+    assert_eq!(acc.finish(), Vec::<i32>::new());
+}
+
+#[test]
+fn test_collect_vec_incremental_retract_matches_rebuilt_collection() {
+    let collector = collect_vec(|value: &i32| *value);
+    let mut incremental = collector.create_accumulator();
+
+    for value in [4, 1, 2, 1, 3] {
+        incremental.accumulate(&collector.extract(&value));
+    }
+    incremental.retract(&collector.extract(&1));
+    incremental.retract(&collector.extract(&4));
+
+    let mut rebuilt = collector.create_accumulator();
+    for value in [2, 1, 3] {
+        rebuilt.accumulate(&collector.extract(&value));
+    }
+
+    let mut incremental_values = incremental.finish();
+    let mut rebuilt_values = rebuilt.finish();
+    incremental_values.sort_unstable();
+    rebuilt_values.sort_unstable();
+
+    assert_eq!(incremental_values, rebuilt_values);
+}
 
 /* ============================================================================
 LoadBalance collector tests

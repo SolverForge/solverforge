@@ -56,16 +56,17 @@ mod improving;
 
 pub use improving::{FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager};
 
-/// A forager that retains up to `N` accepted moves and picks the best.
+/// A forager that stops after `N` accepted moves and picks the best of them.
 ///
-/// This forager does **not** quit early. The limit controls retained
-/// accepted candidates, not neighborhood traversal. Early-exit behavior
-/// belongs to the explicit `First*Improving` foragers.
+/// The limit is the step evaluation horizon, not a storage cap for a full
+/// neighborhood scan. `AcceptedCountForager(1)` therefore behaves like first
+/// accepted selection, while larger limits select the best candidate among the
+/// first `N` accepted moves.
 pub struct AcceptedCountForager<S>
 where
     S: PlanningSolution,
 {
-    // Maximum number of accepted moves to retain.
+    // Number of accepted moves to collect before ending the step.
     accepted_count_limit: usize,
     // Collected move indices with their scores.
     accepted_moves: Vec<(CandidateId, S::Score)>,
@@ -83,7 +84,7 @@ where
     /// evaluating any move, silently skipping every step.
     ///
     /// # Arguments
-    /// * `accepted_count_limit` - Retain up to this many accepted moves
+    /// * `accepted_count_limit` - Collect this many accepted moves before quitting early
     pub fn new(accepted_count_limit: usize) -> Self {
         assert!(
             accepted_count_limit > 0,
@@ -132,27 +133,14 @@ where
     }
 
     fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
-        if self.accepted_moves.len() < self.accepted_count_limit {
-            self.accepted_moves.push((index, score));
+        if self.accepted_moves.len() >= self.accepted_count_limit {
             return;
         }
-
-        let mut worst_idx = 0;
-        let mut worst_score = self.accepted_moves[0].1;
-        for (i, &(_, retained_score)) in self.accepted_moves.iter().enumerate().skip(1) {
-            if retained_score < worst_score {
-                worst_idx = i;
-                worst_score = retained_score;
-            }
-        }
-
-        if score > worst_score {
-            self.accepted_moves[worst_idx] = (index, score);
-        }
+        self.accepted_moves.push((index, score));
     }
 
     fn is_quit_early(&self) -> bool {
-        false
+        self.accepted_moves.len() >= self.accepted_count_limit
     }
 
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
@@ -258,14 +246,14 @@ where
 
 /// A forager that evaluates all accepted moves and picks the best.
 ///
-/// Unlike `AcceptedCountForager(N)`, this forager never quits early — it
+/// Unlike `AcceptedCountForager(N)`, this forager never quits early - it
 /// always evaluates the full move space before selecting the best score.
 pub struct BestScoreForager<S>
 where
     S: PlanningSolution,
 {
-    // Collected move indices with their scores.
-    accepted_moves: Vec<(CandidateId, S::Score)>,
+    // Best accepted move index and score seen in the current step.
+    best_move: Option<(CandidateId, S::Score)>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -275,7 +263,7 @@ where
 {
     pub fn new() -> Self {
         Self {
-            accepted_moves: Vec::new(),
+            best_move: None,
             _phantom: PhantomData,
         }
     }
@@ -296,7 +284,7 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BestScoreForager")
-            .field("accepted_count", &self.accepted_moves.len())
+            .field("has_move", &self.best_move.is_some())
             .finish()
     }
 }
@@ -307,7 +295,7 @@ where
 {
     fn clone(&self) -> Self {
         Self {
-            accepted_moves: Vec::new(),
+            best_move: None,
             _phantom: PhantomData,
         }
     }
@@ -319,11 +307,14 @@ where
     M: Move<S>,
 {
     fn step_started(&mut self, _best_score: S::Score, _last_step_score: S::Score) {
-        self.accepted_moves.clear();
+        self.best_move = None;
     }
 
     fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
-        self.accepted_moves.push((index, score));
+        match self.best_move {
+            Some((_, best_score)) if best_score >= score => {}
+            _ => self.best_move = Some((index, score)),
+        }
     }
 
     fn is_quit_early(&self) -> bool {
@@ -331,18 +322,7 @@ where
     }
 
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
-        if self.accepted_moves.is_empty() {
-            return None;
-        }
-        let mut best_idx = 0;
-        let mut best_score = self.accepted_moves[0].1;
-        for (i, &(_, score)) in self.accepted_moves.iter().enumerate().skip(1) {
-            if score > best_score {
-                best_idx = i;
-                best_score = score;
-            }
-        }
-        Some(self.accepted_moves.swap_remove(best_idx))
+        self.best_move.take()
     }
 }
 

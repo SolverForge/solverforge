@@ -14,12 +14,12 @@ use crate::phase::localsearch::{
 
 /* A concrete enum over all built-in forager types.
 
-Returned by [`ForagerBuilder::build`] to avoid `Box<dyn LocalSearchForager<S, M>>`.
+Returned by [`ForagerBuilder::build`] to keep forager dispatch statically typed.
 Dispatches to the inner forager via `match` — fully monomorphized.
 */
 #[allow(clippy::large_enum_variant)] // Inline storage keeps forager dispatch zero-erasure.
 pub enum AnyForager<S: PlanningSolution> {
-    // Retains up to `N` accepted moves, picks the best.
+    // Stops after `N` accepted moves, picks the best among them.
     AcceptedCount(AcceptedCountForager<S>),
     // Picks the first accepted move.
     FirstAccepted(FirstAcceptedForager<S>),

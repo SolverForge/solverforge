@@ -857,9 +857,9 @@ Local search foragers:
 
 | Forager | Strategy |
 |---------|----------|
-| `AcceptedCountForager<S>` | Best of retained accepted moves; no implicit early exit |
+| `AcceptedCountForager<S>` | Stop after N accepted moves and pick the best among them |
 | `FirstAcceptedForager<S>` | First accepted |
-| `BestScoreForager<S>` | Best overall score |
+| `BestScoreForager<S>` | Full-neighborhood greedy best accepted move |
 | `FirstBestScoreImprovingForager<S>` | First improving best |
 | `FirstLastStepScoreImprovingForager<S>` | First improving last step |
 

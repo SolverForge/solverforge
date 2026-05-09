@@ -195,7 +195,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 
 | Variant | Payload | Note |
 |---------|---------|------|
-| `AcceptedCount` | `AcceptedCountForagerConfig` | Retain up to `limit` accepted moves and pick the best |
+| `AcceptedCount` | `AcceptedCountForagerConfig` | Stop after `limit` accepted moves and pick the best among them |
 | `BestScore` | — | Evaluate the full neighborhood and pick the best accepted move |
 | `FirstAccepted` | — | Stop on the first accepted move |
 | `FirstBestScoreImproving` | — | Stop on the first move improving the phase-best score |
@@ -209,8 +209,9 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 |-------|------|---------|
 | `limit` | `Option<usize>` | `None` |
 
-The accepted-count forager keeps up to `limit` accepted moves for final
-selection. It does not imply early neighborhood exit.
+The accepted-count forager stops the current step after collecting `limit`
+accepted moves, then selects the best candidate among that step horizon.
+Use `BestScore` for a full-neighborhood greedy scan.
 
 ### `TabuSearchConfig`
 

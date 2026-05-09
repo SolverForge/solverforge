@@ -28,7 +28,7 @@ fn zero() -> SoftScore {
 }
 
 #[test]
-fn test_accepted_count_forager_never_quits_early() {
+fn test_accepted_count_forager_quits_at_limit() {
     let mut forager = AcceptedCountForager::<DummySolution>::new(3);
     <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(
         &mut forager,
@@ -64,14 +64,14 @@ fn test_accepted_count_forager_never_quits_early() {
         SoftScore::of(-8),
     );
     assert!(
-        !<AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(
+        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(
             &forager,
         )
     );
 }
 
 #[test]
-fn test_accepted_count_forager_retains_best_n_moves() {
+fn test_accepted_count_forager_picks_best_of_first_n_accepted_moves() {
     let mut forager = AcceptedCountForager::<DummySolution>::new(2);
     <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(
         &mut forager,
@@ -105,8 +105,37 @@ fn test_accepted_count_forager_retains_best_n_moves() {
         TestMove,
     >>::pick_move_index(&mut forager)
     .unwrap();
-    assert_eq!(index.index(), 3);
-    assert_eq!(score, SoftScore::of(-1));
+    assert_eq!(index.index(), 1);
+    assert_eq!(score, SoftScore::of(-5));
+}
+
+#[test]
+fn test_accepted_count_forager_ignores_candidates_after_limit() {
+    let mut forager = AcceptedCountForager::<DummySolution>::new(1);
+    <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(
+        &mut forager,
+        zero(),
+        zero(),
+    );
+
+    <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(
+        &mut forager,
+        CandidateId::new(0),
+        SoftScore::of(-10),
+    );
+    <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(
+        &mut forager,
+        CandidateId::new(1),
+        SoftScore::of(-1),
+    );
+
+    let (index, score) = <AcceptedCountForager<DummySolution> as LocalSearchForager<
+        DummySolution,
+        TestMove,
+    >>::pick_move_index(&mut forager)
+    .unwrap();
+    assert_eq!(index.index(), 0);
+    assert_eq!(score, SoftScore::of(-10));
 }
 
 #[test]
@@ -199,6 +228,55 @@ fn test_first_accepted_forager() {
     .unwrap();
     assert_eq!(index.index(), 0);
     assert_eq!(score, SoftScore::of(-10));
+}
+
+#[test]
+fn test_accepted_count_one_matches_first_accepted_horizon() {
+    let mut accepted_count = AcceptedCountForager::<DummySolution>::new(1);
+    let mut first_accepted = FirstAcceptedForager::<DummySolution>::new();
+    <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(
+        &mut accepted_count,
+        zero(),
+        zero(),
+    );
+    <FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::step_started(
+        &mut first_accepted,
+        zero(),
+        zero(),
+    );
+
+    <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(
+        &mut accepted_count,
+        CandidateId::new(0),
+        SoftScore::of(-10),
+    );
+    <FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::add_move_index(
+        &mut first_accepted,
+        CandidateId::new(0),
+        SoftScore::of(-10),
+    );
+
+    assert!(
+        <AcceptedCountForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(
+            &accepted_count,
+        )
+    );
+    assert!(
+        <FirstAcceptedForager<DummySolution> as LocalSearchForager<DummySolution, TestMove>>::is_quit_early(
+            &first_accepted,
+        )
+    );
+
+    assert_eq!(
+        <AcceptedCountForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::pick_move_index(&mut accepted_count),
+        <FirstAcceptedForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::pick_move_index(&mut first_accepted)
+    );
 }
 
 #[test]

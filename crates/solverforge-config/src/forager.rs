@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ForagerConfig {
-    // Retain up to N accepted candidates and pick the best.
+    // Stop after N accepted candidates and pick the best among them.
     AcceptedCount(AcceptedCountForagerConfig),
 
     // Evaluate the full neighborhood and pick the best accepted move.

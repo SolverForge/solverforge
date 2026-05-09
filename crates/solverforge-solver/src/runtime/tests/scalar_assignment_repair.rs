@@ -208,6 +208,50 @@ fn scalar_assignment_rematch_emits_bounded_sequence_swap() {
 }
 
 #[test]
+fn scalar_assignment_rematch_orders_sequence_groups_deterministically() {
+    let model = assignment_model_with_limits(ScalarGroupLimits {
+        max_rematch_size: Some(2),
+        ..ScalarGroupLimits::new()
+    });
+    let crate::builder::ScalarGroupBindingKind::Assignment(assignment) =
+        model.scalar_groups()[0].kind
+    else {
+        panic!("test model should contain an assignment-backed scalar group");
+    };
+    let plan = coverage_plan(
+        2,
+        vec![
+            coverage_slot(true, 1, Some(0), &[0, 1]),
+            coverage_slot(true, 1, Some(1), &[0, 1]),
+            coverage_slot(true, 0, Some(0), &[0, 1]),
+            coverage_slot(true, 0, Some(1), &[0, 1]),
+        ],
+    );
+    let options = crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_selector(
+        model.scalar_groups()[0].limits,
+        None,
+        1,
+    );
+    let moves = crate::phase::construction::grouped_scalar::rematch_assignment_moves(
+        &assignment,
+        &plan,
+        options,
+    );
+    assert_eq!(moves.len(), 1);
+
+    let mut trial = CoverageDirector {
+        working_solution: plan,
+        descriptor: coverage_plan_descriptor(),
+    };
+    moves[0].do_move(&mut trial);
+
+    assert_eq!(trial.working_solution.slots[0].assigned, Some(0));
+    assert_eq!(trial.working_solution.slots[1].assigned, Some(1));
+    assert_eq!(trial.working_solution.slots[2].assigned, Some(1));
+    assert_eq!(trial.working_solution.slots[3].assigned, Some(0));
+}
+
+#[test]
 fn scalar_assignment_reassignment_emits_bounded_direct_moves() {
     let plan = coverage_plan(
         3,

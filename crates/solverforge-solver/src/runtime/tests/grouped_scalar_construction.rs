@@ -1,6 +1,13 @@
 fn coupled_model_with_group_provider(
     provider: crate::builder::context::ScalarCandidateProvider<CoupledScalarPlan>,
 ) -> RuntimeModel<CoupledScalarPlan, usize, DefaultMeter, DefaultMeter> {
+    coupled_model_with_group_provider_and_limits(provider, ScalarGroupLimits::new())
+}
+
+fn coupled_model_with_group_provider_and_limits(
+    provider: crate::builder::context::ScalarCandidateProvider<CoupledScalarPlan>,
+    limits: ScalarGroupLimits,
+) -> RuntimeModel<CoupledScalarPlan, usize, DefaultMeter, DefaultMeter> {
     let variables = vec![
         VariableSlot::Scalar(ScalarVariableSlot::new(
             0,
@@ -51,15 +58,18 @@ fn coupled_model_with_group_provider(
         .collect::<Vec<_>>();
 
     RuntimeModel::new(variables).with_scalar_groups(bind_scalar_groups(
-        vec![ScalarGroup::candidates(
-            "coupled_assignment",
-            vec![
-                ScalarTarget::from_descriptor_index(0, "first"),
-                ScalarTarget::from_descriptor_index(0, "second"),
-                ScalarTarget::from_descriptor_index(0, "third"),
-            ],
-            provider,
-        )],
+        vec![
+            ScalarGroup::candidates(
+                "coupled_assignment",
+                vec![
+                    ScalarTarget::from_descriptor_index(0, "first"),
+                    ScalarTarget::from_descriptor_index(0, "second"),
+                    ScalarTarget::from_descriptor_index(0, "third"),
+                ],
+                provider,
+            )
+            .with_limits(limits),
+        ],
         &scalar_slots,
     ))
 }
@@ -127,11 +137,32 @@ fn assigned_then_open_group_candidates(
     _plan: &CoupledScalarPlan,
     limits: ScalarGroupLimits,
 ) -> Vec<ScalarCandidate<CoupledScalarPlan>> {
-    assert_eq!(limits.group_candidate_limit, None);
+    assert_eq!(limits.group_candidate_limit, Some(1));
     vec![
         coupled_edit_candidate_for_entity("assigned", 0, 0),
         coupled_edit_candidate_for_entity("open", 1, 1),
     ]
+}
+
+fn model_limited_group_candidates(
+    _plan: &CoupledScalarPlan,
+    limits: ScalarGroupLimits,
+) -> Vec<ScalarCandidate<CoupledScalarPlan>> {
+    assert_eq!(limits.value_candidate_limit, Some(7));
+    assert_eq!(limits.group_candidate_limit, Some(1));
+    vec![
+        coupled_edit_candidate("worse", 0),
+        coupled_edit_candidate("better", 1),
+    ]
+}
+
+fn config_overrides_model_limited_group_candidates(
+    _plan: &CoupledScalarPlan,
+    limits: ScalarGroupLimits,
+) -> Vec<ScalarCandidate<CoupledScalarPlan>> {
+    assert_eq!(limits.value_candidate_limit, Some(3));
+    assert_eq!(limits.group_candidate_limit, Some(2));
+    Vec::new()
 }
 
 #[test]
@@ -316,4 +347,67 @@ fn grouped_scalar_construction_applies_group_candidate_limit_separately() {
 
     let choice = &solver_scope.working_solution().choices[0];
     assert_eq!((choice.first, choice.second, choice.third), (None, None, None));
+}
+
+#[test]
+fn grouped_scalar_construction_uses_model_owned_candidate_limits() {
+    let descriptor = coupled_plan_descriptor();
+    let director = CoupledScalarDirector {
+        working_solution: coupled_empty_plan(),
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = Construction::new(
+        Some(grouped_config(
+            ConstructionHeuristicType::FirstFit,
+            ConstructionObligation::PreserveUnassigned,
+        )),
+        descriptor,
+        coupled_model_with_group_provider_and_limits(
+            model_limited_group_candidates,
+            ScalarGroupLimits {
+                value_candidate_limit: Some(7),
+                group_candidate_limit: Some(1),
+                ..ScalarGroupLimits::new()
+            },
+        ),
+    );
+    phase.solve(&mut solver_scope);
+
+    let choice = &solver_scope.working_solution().choices[0];
+    assert_eq!((choice.first, choice.second, choice.third), (None, None, None));
+}
+
+#[test]
+fn grouped_scalar_construction_config_limits_override_model_limits() {
+    let descriptor = coupled_plan_descriptor();
+    let director = CoupledScalarDirector {
+        working_solution: coupled_empty_plan(),
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let mut phase = Construction::new(
+        Some(ConstructionHeuristicConfig {
+            value_candidate_limit: Some(3),
+            group_candidate_limit: Some(2),
+            ..grouped_config(
+                ConstructionHeuristicType::FirstFit,
+                ConstructionObligation::PreserveUnassigned,
+            )
+        }),
+        descriptor,
+        coupled_model_with_group_provider_and_limits(
+            config_overrides_model_limited_group_candidates,
+            ScalarGroupLimits {
+                value_candidate_limit: Some(7),
+                group_candidate_limit: Some(1),
+                ..ScalarGroupLimits::new()
+            },
+        ),
+    );
+    phase.solve(&mut solver_scope);
 }

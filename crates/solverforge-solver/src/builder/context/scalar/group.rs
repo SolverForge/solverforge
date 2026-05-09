@@ -1,5 +1,4 @@
 use std::fmt;
-use std::sync::Arc;
 
 use crate::planning::{
     ScalarAssignmentDeclaration, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupKind,
@@ -133,7 +132,7 @@ impl<S> fmt::Debug for ScalarGroupMemberBinding<S> {
 
 pub struct ScalarGroupBinding<S> {
     pub group_name: &'static str,
-    pub members: Arc<[ScalarGroupMemberBinding<S>]>,
+    pub members: Vec<ScalarGroupMemberBinding<S>>,
     pub kind: ScalarGroupBindingKind<S>,
     pub limits: ScalarGroupLimits,
 }
@@ -303,7 +302,7 @@ impl<S> ScalarGroupBinding<S> {
 
         Self {
             group_name: group.group_name(),
-            members: Arc::from(members),
+            members,
             kind,
             limits: group.limits(),
         }
@@ -321,7 +320,7 @@ impl<S> Clone for ScalarGroupBinding<S> {
     fn clone(&self) -> Self {
         Self {
             group_name: self.group_name,
-            members: Arc::clone(&self.members),
+            members: self.members.clone(),
             kind: self.kind,
             limits: self.limits,
         }

@@ -8,10 +8,11 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::CompoundScalarMove;
 use crate::scope::{PhaseScope, ProgressCallback};
 
-use super::candidate::NormalizedGroupedCandidate;
+use super::candidate::{CandidateAcceptance, NormalizedGroupedCandidate};
 use crate::phase::construction::decision::keep_current_allowed;
 use crate::phase::construction::evaluation::evaluate_trial_move;
 use crate::phase::construction::{ConstructionGroupSlotId, ConstructionSlotId};
+use crate::phase::hard_delta::{hard_score_delta, HardScoreDelta};
 
 pub(super) enum GroupedSelection<S>
 where
@@ -105,19 +106,21 @@ where
     ProgressCb: ProgressCallback<S>,
 {
     let baseline_score =
-        keep_current_allowed(candidates[0].keep_current_legal, construction_obligation)
-            .then(|| phase_scope.calculate_score());
+        baseline_score_for_candidate(phase_scope, &candidates[0], construction_obligation);
     for idx in 0..candidates.len() {
         let score = evaluate_candidate(phase_scope, &candidates[idx].mov);
-        if baseline_score.is_none_or(|baseline| score > baseline) {
+        if candidate_accepts_score(
+            &candidates[idx],
+            baseline_score,
+            score,
+            construction_obligation,
+        ) {
             let candidate = candidates.remove(idx);
             return Some(commit(candidate, score));
         }
     }
-    Some(complete_only(
-        candidates.remove(0),
-        baseline_score.is_some(),
-    ))
+    let kept = completion_keeps_current(&candidates[0], construction_obligation);
+    Some(complete_only(candidates.remove(0), kept))
 }
 
 fn select_best_score<S, D, ProgressCb>(
@@ -132,8 +135,7 @@ where
     ProgressCb: ProgressCallback<S>,
 {
     let baseline_score =
-        keep_current_allowed(candidates[0].keep_current_legal, construction_obligation)
-            .then(|| phase_scope.calculate_score());
+        baseline_score_for_candidate(phase_scope, &candidates[0], construction_obligation);
     let mut best = None;
     for (idx, candidate) in candidates.iter().enumerate() {
         let score = evaluate_candidate(phase_scope, &candidate.mov);
@@ -145,10 +147,16 @@ where
     let Some((best_idx, best_score)) = best else {
         return Some(complete_only(candidates.remove(0), false));
     };
-    if baseline_score.is_none_or(|baseline| best_score > baseline) {
+    if candidate_accepts_score(
+        &candidates[best_idx],
+        baseline_score,
+        best_score,
+        construction_obligation,
+    ) {
         Some(commit(candidates.remove(best_idx), best_score))
     } else {
-        Some(complete_only(candidates.remove(0), true))
+        let kept = completion_keeps_current(&candidates[0], construction_obligation);
+        Some(complete_only(candidates.remove(0), kept))
     }
 }
 
@@ -191,15 +199,113 @@ where
         .map(|(idx, _)| idx)?;
 
     let score = evaluate_candidate(phase_scope, &candidates[selected_idx].mov);
-    let baseline_score = keep_current_allowed(
-        candidates[selected_idx].keep_current_legal,
+    let baseline_score = baseline_score_for_candidate(
+        phase_scope,
+        &candidates[selected_idx],
         construction_obligation,
-    )
-    .then(|| phase_scope.calculate_score());
-    if baseline_score.is_none_or(|baseline| score > baseline) {
+    );
+    if candidate_accepts_score(
+        &candidates[selected_idx],
+        baseline_score,
+        score,
+        construction_obligation,
+    ) {
         Some(commit(candidates.remove(selected_idx), score))
     } else {
-        Some(complete_only(candidates.remove(selected_idx), true))
+        let kept = completion_keeps_current(&candidates[selected_idx], construction_obligation);
+        Some(complete_only(candidates.remove(selected_idx), kept))
+    }
+}
+
+fn baseline_score_for_candidate<S, D, ProgressCb>(
+    phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
+    candidate: &NormalizedGroupedCandidate<S>,
+    construction_obligation: ConstructionObligation,
+) -> Option<S::Score>
+where
+    S: PlanningSolution,
+    S::Score: Score + Copy,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    candidate_needs_baseline(candidate, construction_obligation)
+        .then(|| phase_scope.calculate_score())
+}
+
+fn candidate_needs_baseline<S>(
+    candidate: &NormalizedGroupedCandidate<S>,
+    construction_obligation: ConstructionObligation,
+) -> bool
+where
+    S: PlanningSolution,
+{
+    match candidate.acceptance {
+        CandidateAcceptance::Provider => {
+            keep_current_allowed(candidate.keep_current_legal, construction_obligation)
+        }
+        CandidateAcceptance::RequiredAssignment => {
+            matches!(
+                construction_obligation,
+                ConstructionObligation::PreserveUnassigned
+            )
+        }
+        CandidateAcceptance::OptionalAssignment => candidate.keep_current_legal,
+    }
+}
+
+fn candidate_accepts_score<S>(
+    candidate: &NormalizedGroupedCandidate<S>,
+    baseline_score: Option<S::Score>,
+    score: S::Score,
+    construction_obligation: ConstructionObligation,
+) -> bool
+where
+    S: PlanningSolution,
+    S::Score: Score + Copy,
+{
+    match candidate.acceptance {
+        CandidateAcceptance::Provider => baseline_score.is_none_or(|baseline| score > baseline),
+        CandidateAcceptance::RequiredAssignment
+            if matches!(
+                construction_obligation,
+                ConstructionObligation::AssignWhenCandidateExists
+            ) =>
+        {
+            true
+        }
+        CandidateAcceptance::RequiredAssignment => {
+            let Some(current) = baseline_score else {
+                return false;
+            };
+            let hard_delta = hard_score_delta(current, score);
+            hard_delta != Some(HardScoreDelta::Worse)
+                && (hard_delta == Some(HardScoreDelta::Improving) || score >= current)
+        }
+        CandidateAcceptance::OptionalAssignment => {
+            baseline_score.is_some_and(|current| score > current)
+        }
+    }
+}
+
+fn completion_keeps_current<S>(
+    candidate: &NormalizedGroupedCandidate<S>,
+    construction_obligation: ConstructionObligation,
+) -> bool
+where
+    S: PlanningSolution,
+{
+    match candidate.acceptance {
+        CandidateAcceptance::Provider => {
+            keep_current_allowed(candidate.keep_current_legal, construction_obligation)
+        }
+        CandidateAcceptance::RequiredAssignment => {
+            candidate.keep_current_legal
+                && matches!(
+                    construction_obligation,
+                    ConstructionObligation::PreserveUnassigned
+                )
+        }
+        CandidateAcceptance::OptionalAssignment => candidate.keep_current_legal,
     }
 }
 
@@ -285,7 +391,7 @@ fn validate_heuristic_metadata<S>(
             .any(|candidate| candidate.entity_order_key.is_none())
     {
         panic!(
-            "grouped scalar construction heuristic {:?} requires ScalarCandidate::with_construction_entity_order_key",
+            "grouped scalar construction heuristic {:?} requires construction entity order metadata",
             construction_type
         );
     }
@@ -295,7 +401,7 @@ fn validate_heuristic_metadata<S>(
             .any(|candidate| candidate.value_order_key.is_none())
     {
         panic!(
-            "grouped scalar construction heuristic {:?} requires ScalarCandidate::with_construction_value_order_key",
+            "grouped scalar construction heuristic {:?} requires construction value order metadata",
             construction_type
         );
     }

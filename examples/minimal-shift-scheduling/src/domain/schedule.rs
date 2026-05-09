@@ -120,8 +120,5 @@ fn nurse_preference(schedule: &Schedule, shift_idx: usize, nurse_idx: usize) -> 
     };
     let preferred = (day + shift.slot) % nurse_count;
     let distance = (nurse_idx + nurse_count - preferred) % nurse_count;
-    match i64::try_from(distance) {
-        Ok(distance) => distance,
-        Err(_) => i64::MAX,
-    }
+    i64::try_from(distance).unwrap_or(i64::MAX)
 }

@@ -12,12 +12,14 @@ impl<S> GroupedScalarSelector<S> {
         max_moves_per_step: Option<usize>,
         require_hard_improvement: bool,
     ) -> Self {
+        let effective_value_candidate_limit =
+            value_candidate_limit.or(group.limits.value_candidate_limit);
         let effective_max_moves_per_step = max_moves_per_step
             .or(group.limits.max_moves_per_step)
             .unwrap_or(256);
         Self {
             group,
-            value_candidate_limit,
+            value_candidate_limit: effective_value_candidate_limit,
             max_moves_per_step: effective_max_moves_per_step,
             require_hard_improvement,
         }
@@ -216,8 +218,8 @@ where
 {
     let reason = candidate.reason();
     let mut edits = Vec::with_capacity(candidate.edits().len());
-    for edit in candidate.edits().iter().copied() {
-        let member = group.member_for_edit(&edit)?;
+    for edit in candidate.edits() {
+        let member = group.member_for_edit(edit)?;
         if !member.value_is_legal(solution, edit.entity_index(), edit.to_value()) {
             return None;
         }

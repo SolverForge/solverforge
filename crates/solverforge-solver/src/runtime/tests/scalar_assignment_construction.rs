@@ -234,10 +234,7 @@ fn coverage_entity_order(solution: &CoveragePlan, entity_index: usize) -> i64 {
 }
 
 fn coverage_value_order(_solution: &CoveragePlan, _entity_index: usize, value: usize) -> i64 {
-    match i64::try_from(value) {
-        Ok(value) => value,
-        Err(_) => i64::MAX,
-    }
+    i64::try_from(value).unwrap_or(i64::MAX)
 }
 
 fn assignment_model() -> RuntimeModel<CoveragePlan, usize, DefaultMeter, DefaultMeter> {
@@ -353,8 +350,6 @@ fn scalar_assignment_construction_ignores_repair_move_cap() {
     };
     let options = crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_construction(
         model.scalar_groups()[0].limits,
-        None,
-        None,
     );
     let moves = crate::phase::construction::grouped_scalar::required_assignment_moves(
         &assignment,
@@ -447,4 +442,45 @@ fn scalar_assignment_construction_reports_remaining_required_slots_without_panic
         Some(HardSoftScore::of(-1, 0))
     );
     assert_eq!(solver_scope.stats().scalar_assignment_required_remaining, 1);
+}
+
+#[test]
+fn scalar_assignment_best_solution_callback_reports_current_remaining_required_slots() {
+    let best_remaining = std::sync::Mutex::new(Vec::new());
+    {
+        let descriptor = coverage_plan_descriptor();
+        let director = CoverageDirector {
+            working_solution: soft_preferred_coverage_plan(
+                1,
+                vec![
+                    coverage_slot(false, 0, Some(0), &[0]),
+                    coverage_slot(true, 0, None, &[0]),
+                ],
+            ),
+            descriptor: descriptor.clone(),
+        };
+        let callback = |progress: crate::scope::SolverProgressRef<'_, CoveragePlan>| {
+            if progress.kind == crate::scope::SolverProgressKind::BestSolution {
+                best_remaining
+                    .lock()
+                    .expect("best-solution telemetry capture should not be poisoned")
+                    .push(progress.telemetry.scalar_assignment_required_remaining);
+            }
+        };
+        let mut solver_scope = SolverScope::new(director).with_progress_callback(callback);
+        solver_scope.start_solving();
+        let mut config = assignment_config();
+        config.construction_obligation = ConstructionObligation::PreserveUnassigned;
+        let mut phase = Construction::new(Some(config), descriptor, assignment_model());
+
+        phase.solve(&mut solver_scope);
+
+        assert_eq!(solver_scope.working_solution().slots[1].assigned, None);
+        assert_eq!(solver_scope.stats().scalar_assignment_required_remaining, 1);
+    }
+
+    let best_remaining = best_remaining
+        .into_inner()
+        .expect("best-solution telemetry capture should not be poisoned");
+    assert_eq!(best_remaining.as_slice(), &[1]);
 }

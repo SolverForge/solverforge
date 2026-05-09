@@ -29,5 +29,6 @@ include!("tests/mixed_target_runtime.rs");
 include!("tests/coupled_scalar_runtime.rs");
 include!("tests/grouped_scalar_construction.rs");
 include!("tests/scalar_assignment_construction.rs");
+include!("tests/scalar_assignment_grouped_heuristics.rs");
 include!("tests/scalar_assignment_repair.rs");
 include!("tests/scalar_assignment_soft.rs");

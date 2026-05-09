@@ -6,12 +6,13 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 use tracing::info;
 
-use crate::builder::context::{ScalarGroupBinding, ScalarGroupLimits};
+use crate::builder::context::{ScalarAssignmentBinding, ScalarGroupBinding, ScalarGroupLimits};
 use crate::builder::ScalarGroupBindingKind;
 use crate::descriptor::ResolvedVariableBinding;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second};
 
+use super::assignment_candidate::remaining_required_count;
 use super::candidate::normalize_grouped_candidates;
 use super::selection::{select_candidate_for_next_group_slot, GroupedSelection};
 
@@ -28,33 +29,17 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    match group.kind {
-        ScalarGroupBindingKind::Assignment(assignment) => {
-            return super::assignment_phase::solve_scalar_assignment_construction(
-                config,
-                group.group_name,
-                assignment,
-                group.limits,
-                solver_scope,
-            );
-        }
-        ScalarGroupBindingKind::Candidates { .. } => {}
-    }
-
     let construction_type = config
         .map(|cfg| cfg.construction_heuristic_type)
         .unwrap_or(ConstructionHeuristicType::FirstFit);
     let construction_obligation = config
         .map(|cfg| cfg.construction_obligation)
         .unwrap_or_default();
-    let limits = ScalarGroupLimits {
-        value_candidate_limit: config.and_then(|cfg| cfg.value_candidate_limit),
-        group_candidate_limit: None,
-        max_moves_per_step: None,
-        max_augmenting_depth: None,
-        max_rematch_size: None,
+    let limits = effective_group_limits(config, group.limits);
+    let assignment = match group.kind {
+        ScalarGroupBindingKind::Assignment(assignment) => Some(assignment),
+        ScalarGroupBindingKind::Candidates { .. } => None,
     };
-    let group_candidate_limit = config.and_then(|cfg| cfg.group_candidate_limit);
 
     let phase_name = "Grouped Scalar Construction";
     let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, phase_name);
@@ -74,6 +59,7 @@ where
         phase_index = phase_index,
         score = start_score,
     );
+    record_assignment_remaining(&mut phase_scope, group.group_name, assignment);
     phase_scope.solver_scope().report_progress();
 
     loop {
@@ -84,14 +70,8 @@ where
             break;
         }
 
-        let candidates = normalize_grouped_candidates(
-            &phase_scope,
-            group_index,
-            group,
-            scalar_bindings,
-            limits,
-            group_candidate_limit,
-        );
+        let candidates =
+            normalize_grouped_candidates(&phase_scope, group_index, group, scalar_bindings, limits);
         let Some(selection) = select_candidate_for_next_group_slot(
             &mut phase_scope,
             candidates,
@@ -128,6 +108,11 @@ where
                     .record_construction_slot_assigned();
                 step_scope.set_step_score(score);
                 step_scope.complete();
+                record_assignment_remaining(
+                    step_scope.phase_scope_mut(),
+                    group.group_name,
+                    assignment,
+                );
                 if last_progress_time.elapsed().as_secs() >= 1 {
                     step_scope.phase_scope().solver_scope().report_progress();
                     last_progress_time = Instant::now();
@@ -159,6 +144,11 @@ where
                 let score = step_scope.calculate_score();
                 step_scope.set_step_score(score);
                 step_scope.complete();
+                record_assignment_remaining(
+                    step_scope.phase_scope_mut(),
+                    group.group_name,
+                    assignment,
+                );
                 if last_progress_time.elapsed().as_secs() >= 1 {
                     step_scope.phase_scope().solver_scope().report_progress();
                     last_progress_time = Instant::now();
@@ -167,6 +157,7 @@ where
         }
     }
 
+    record_assignment_remaining(&mut phase_scope, group.group_name, assignment);
     if ran_step {
         phase_scope.update_best_solution();
     }
@@ -200,4 +191,37 @@ where
     );
 
     ran_step
+}
+
+fn effective_group_limits(
+    config: Option<&ConstructionHeuristicConfig>,
+    group_limits: ScalarGroupLimits,
+) -> ScalarGroupLimits {
+    ScalarGroupLimits {
+        value_candidate_limit: config
+            .and_then(|cfg| cfg.value_candidate_limit)
+            .or(group_limits.value_candidate_limit),
+        group_candidate_limit: config
+            .and_then(|cfg| cfg.group_candidate_limit)
+            .or(group_limits.group_candidate_limit),
+        max_moves_per_step: group_limits.max_moves_per_step,
+        max_augmenting_depth: group_limits.max_augmenting_depth,
+        max_rematch_size: group_limits.max_rematch_size,
+    }
+}
+
+fn record_assignment_remaining<S, D, ProgressCb>(
+    phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
+    group_name: &'static str,
+    assignment: Option<ScalarAssignmentBinding<S>>,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    if let Some(assignment) = assignment {
+        let remaining =
+            remaining_required_count(&assignment, phase_scope.score_director().working_solution());
+        phase_scope.record_scalar_assignment_required_remaining(group_name, remaining);
+    }
 }

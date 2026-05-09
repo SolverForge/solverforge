@@ -10,10 +10,19 @@ use crate::descriptor::ResolvedVariableBinding;
 use crate::heuristic::r#move::{CompoundScalarMove, Move};
 use crate::scope::{PhaseScope, ProgressCallback};
 
+use super::assignment_candidate::ScalarAssignmentMoveOptions;
+use super::assignment_construction::normalize_assignment_candidates;
 use super::move_build::compound_move_for_group_candidate;
 use crate::phase::construction::{
     ConstructionGroupSlotId, ConstructionGroupSlotKey, ConstructionSlotId,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum CandidateAcceptance {
+    Provider,
+    RequiredAssignment,
+    OptionalAssignment,
+}
 
 pub(super) struct NormalizedGroupedCandidate<S>
 where
@@ -25,6 +34,7 @@ where
     pub(super) keep_current_legal: bool,
     pub(super) entity_order_key: Option<i64>,
     pub(super) value_order_key: Option<i64>,
+    pub(super) acceptance: CandidateAcceptance,
     pub(super) mov: CompoundScalarMove<S>,
 }
 
@@ -34,7 +44,38 @@ pub(super) fn normalize_grouped_candidates<S, D, ProgressCb>(
     group: &ScalarGroupBinding<S>,
     scalar_bindings: &[ResolvedVariableBinding<S>],
     limits: ScalarGroupLimits,
-    group_candidate_limit: Option<usize>,
+) -> Vec<NormalizedGroupedCandidate<S>>
+where
+    S: PlanningSolution + 'static,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    match group.kind {
+        ScalarGroupBindingKind::Candidates { candidate_provider } => normalize_provider_candidates(
+            phase_scope,
+            group_index,
+            group,
+            scalar_bindings,
+            candidate_provider,
+            limits,
+        ),
+        ScalarGroupBindingKind::Assignment(assignment) => normalize_assignment_candidates(
+            phase_scope,
+            group_index,
+            assignment,
+            scalar_bindings,
+            ScalarAssignmentMoveOptions::for_construction(limits),
+        ),
+    }
+}
+
+fn normalize_provider_candidates<S, D, ProgressCb>(
+    phase_scope: &PhaseScope<'_, '_, S, D, ProgressCb>,
+    group_index: usize,
+    group: &ScalarGroupBinding<S>,
+    scalar_bindings: &[ResolvedVariableBinding<S>],
+    candidate_provider: crate::builder::context::ScalarCandidateProvider<S>,
+    limits: ScalarGroupLimits,
 ) -> Vec<NormalizedGroupedCandidate<S>>
 where
     S: PlanningSolution + 'static,
@@ -42,14 +83,8 @@ where
     ProgressCb: ProgressCallback<S>,
 {
     let solution = phase_scope.score_director().working_solution();
-    let ScalarGroupBindingKind::Candidates { candidate_provider } = group.kind else {
-        panic!(
-            "candidate-backed grouped scalar construction requires ScalarGroup::candidates for `{}`",
-            group.group_name
-        );
-    };
     let raw_candidates = candidate_provider(solution, limits);
-    let total_limit = group_candidate_limit.unwrap_or(usize::MAX);
+    let total_limit = limits.group_candidate_limit.unwrap_or(usize::MAX);
     if total_limit == 0 {
         return Vec::new();
     }
@@ -97,6 +132,7 @@ where
             keep_current_legal,
             entity_order_key,
             value_order_key,
+            acceptance: CandidateAcceptance::Provider,
             mov,
         });
         seen_candidates.push(candidate);

@@ -5,7 +5,7 @@ use solverforge_config::{ConstructionHeuristicConfig, ConstructionHeuristicType}
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::domain::SolutionDescriptor;
 
-use crate::builder::{ListVariableSlot, RuntimeModel, ScalarGroupBinding};
+use crate::builder::{ListVariableSlot, RuntimeModel, ScalarGroupBinding, ScalarGroupBindingKind};
 use crate::descriptor::{collect_bindings, find_resolved_binding, ResolvedVariableBinding};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
@@ -103,7 +103,10 @@ where
             .iter()
             .enumerate()
             .find(|(_, group)| group.group_name == name)
-            .map(|(index, group)| (index, group.clone()))
+            .map(|(index, group)| {
+                validate_grouped_scalar_group(name, heuristic, group);
+                (index, group.clone())
+            })
             .unwrap_or_else(|| panic!("grouped scalar construction configured for `{name}`, but no matching scalar group was registered"))
     });
 
@@ -157,6 +160,47 @@ where
         entity_class,
         variable_name,
     }
+}
+
+fn validate_grouped_scalar_group<S>(
+    group_name: &str,
+    heuristic: ConstructionHeuristicType,
+    group: &ScalarGroupBinding<S>,
+) {
+    let ScalarGroupBindingKind::Assignment(assignment) = group.kind else {
+        return;
+    };
+    if grouped_heuristic_requires_entity_order(heuristic) && assignment.entity_order.is_none() {
+        panic!(
+            "assignment-backed grouped scalar construction group_name `{group_name}` with heuristic {:?} requires ScalarGroup::with_entity_order",
+            heuristic
+        );
+    }
+    if grouped_heuristic_requires_value_order(heuristic) && assignment.value_order.is_none() {
+        panic!(
+            "assignment-backed grouped scalar construction group_name `{group_name}` with heuristic {:?} requires ScalarGroup::with_value_order",
+            heuristic
+        );
+    }
+}
+
+fn grouped_heuristic_requires_entity_order(heuristic: ConstructionHeuristicType) -> bool {
+    matches!(
+        heuristic,
+        ConstructionHeuristicType::FirstFitDecreasing
+            | ConstructionHeuristicType::WeakestFitDecreasing
+            | ConstructionHeuristicType::StrongestFitDecreasing
+    )
+}
+
+fn grouped_heuristic_requires_value_order(heuristic: ConstructionHeuristicType) -> bool {
+    matches!(
+        heuristic,
+        ConstructionHeuristicType::WeakestFit
+            | ConstructionHeuristicType::WeakestFitDecreasing
+            | ConstructionHeuristicType::StrongestFit
+            | ConstructionHeuristicType::StrongestFitDecreasing
+    )
 }
 
 fn resolve_scalar_bindings<S, V, DM, IDM>(

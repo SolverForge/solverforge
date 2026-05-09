@@ -297,6 +297,7 @@ where
     if trivial {
         let mut solver_scope = SolverScope::new(director);
         solver_scope = solver_scope.with_runtime(Some(runtime));
+        solver_scope = solver_scope.with_environment_mode(config.environment_mode);
         if let Some(seed) = config.random_seed {
             solver_scope = solver_scope.with_seed(seed);
         }

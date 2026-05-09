@@ -9,6 +9,7 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     total_step_count: u64,
     terminate: Option<&'t AtomicBool>,
     runtime: Option<SolverRuntime<S>>,
+    environment_mode: EnvironmentMode,
     stats: SolverStats,
     time_limit: Option<Duration>,
     progress_callback: ProgressCb,
@@ -44,6 +45,7 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             total_step_count: 0,
             terminate: None,
             runtime: None,
+            environment_mode: EnvironmentMode::default(),
             stats: SolverStats::default(),
             time_limit: None,
             progress_callback: (),
@@ -80,6 +82,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             total_step_count: 0,
             terminate,
             runtime,
+            environment_mode: EnvironmentMode::default(),
             stats: SolverStats::default(),
             time_limit: None,
             progress_callback: callback,
@@ -104,6 +107,11 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self
     }
 
+    pub fn with_environment_mode(mut self, environment_mode: EnvironmentMode) -> Self {
+        self.environment_mode = environment_mode;
+        self
+    }
+
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.rng = StdRng::seed_from_u64(seed);
         self
@@ -124,6 +132,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             total_step_count: self.total_step_count,
             terminate: self.terminate,
             runtime: self.runtime,
+            environment_mode: self.environment_mode,
             stats: self.stats,
             time_limit: self.time_limit,
             progress_callback: callback,
@@ -197,7 +206,21 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.stats.record_score_calculation();
         let score = self.score_director.calculate_score();
         self.current_score = Some(score);
+        self.assert_score_consistent("calculate_score", score);
         score
+    }
+
+    pub(crate) fn assert_score_consistent(&self, context: &str, score: S::Score) {
+        if self.environment_mode != EnvironmentMode::FullAssert {
+            return;
+        }
+        let Some(fresh_score) = self.score_director.fresh_score() else {
+            return;
+        };
+        assert_eq!(
+            score, fresh_score,
+            "score director drift after {context}: cached score {score:?} != fresh score {fresh_score:?}"
+        );
     }
 
     pub fn initialize_working_solution_as_best(&mut self) -> S::Score {

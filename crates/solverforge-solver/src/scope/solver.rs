@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
+use solverforge_config::EnvironmentMode;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{Director, RecordingDirector};
 

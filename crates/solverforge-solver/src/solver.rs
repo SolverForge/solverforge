@@ -298,6 +298,9 @@ macro_rules! impl_solver {
                     terminate,
                     runtime,
                 );
+                if let Some(environment_mode) = config.as_ref().map(|cfg| cfg.environment_mode) {
+                    solver_scope = solver_scope.with_environment_mode(environment_mode);
+                }
                 if let Some(seed) = config.as_ref().and_then(|cfg| cfg.random_seed) {
                     solver_scope = solver_scope.with_seed(seed);
                 }

@@ -35,6 +35,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub fn update_best_solution(&mut self) {
         let current_score = self.score_director.calculate_score();
         self.current_score = Some(current_score);
+        self.assert_score_consistent("update_best_solution", current_score);
         let is_better = match &self.best_score {
             None => true,
             Some(best) => current_score > *best,

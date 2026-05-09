@@ -171,6 +171,8 @@ pub enum UnionSelectionOrder {
     #[default]
     Sequential,
     RoundRobin,
+    RotatingRoundRobin,
+    StratifiedRandom,
 }
 
 // Ruin-and-recreate move configuration.

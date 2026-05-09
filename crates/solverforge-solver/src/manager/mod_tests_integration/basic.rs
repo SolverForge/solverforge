@@ -182,15 +182,18 @@ fn test_solver_factory_with_multiple_phases() {
 }
 
 #[test]
-fn test_construction_and_local_search_types_exist() {
+fn test_construction_and_local_acceptor_types_exist() {
     assert_eq!(ConstructionType::default(), ConstructionType::FirstFit);
-    assert_eq!(LocalSearchType::default(), LocalSearchType::HillClimbing);
+    assert_eq!(
+        LocalSearchAcceptorType::default(),
+        LocalSearchAcceptorType::HillClimbing
+    );
 
-    let _tabu = LocalSearchType::TabuSearch { tabu_size: 10 };
-    let _sa = LocalSearchType::SimulatedAnnealing {
+    let _tabu = LocalSearchAcceptorType::TabuSearch { tabu_size: 10 };
+    let _sa = LocalSearchAcceptorType::SimulatedAnnealing {
         starting_temp: 1.0,
         decay_rate: 0.99,
     };
-    let _la = LocalSearchType::LateAcceptance { size: 100 };
+    let _la = LocalSearchAcceptorType::LateAcceptance { size: 100 };
     let _bf = ConstructionType::BestFit;
 }

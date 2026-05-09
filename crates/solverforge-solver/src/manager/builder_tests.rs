@@ -6,7 +6,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
-use super::{ConstructionType, LocalSearchType, SolverFactoryBuilder};
+use super::{ConstructionType, LocalSearchAcceptorType, SolverFactoryBuilder};
 
 #[derive(Clone, Debug)]
 struct TestSolution {
@@ -68,22 +68,25 @@ fn test_builder_with_step_limit() {
 }
 
 #[test]
-fn test_local_search_types() {
-    assert_eq!(LocalSearchType::default(), LocalSearchType::HillClimbing);
+fn test_local_acceptor_types() {
+    assert_eq!(
+        LocalSearchAcceptorType::default(),
+        LocalSearchAcceptorType::HillClimbing
+    );
 
-    let tabu = LocalSearchType::TabuSearch { tabu_size: 10 };
+    let tabu = LocalSearchAcceptorType::TabuSearch { tabu_size: 10 };
     assert!(matches!(
         tabu,
-        LocalSearchType::TabuSearch { tabu_size: 10 }
+        LocalSearchAcceptorType::TabuSearch { tabu_size: 10 }
     ));
 
-    let sa = LocalSearchType::SimulatedAnnealing {
+    let sa = LocalSearchAcceptorType::SimulatedAnnealing {
         starting_temp: 1.0,
         decay_rate: 0.99,
     };
     assert!(matches!(
         sa,
-        LocalSearchType::SimulatedAnnealing {
+        LocalSearchAcceptorType::SimulatedAnnealing {
             starting_temp: 1.0,
             decay_rate: 0.99
         }

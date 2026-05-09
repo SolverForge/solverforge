@@ -23,7 +23,7 @@ mod mod_tests;
 mod mod_tests_integration;
 
 pub use builder::{SolverBuildError, SolverFactoryBuilder};
-pub use config::{ConstructionType, LocalSearchType, PhaseConfig};
+pub use config::{ConstructionType, LocalSearchAcceptorType, PhaseConfig};
 pub(crate) use phase_factory::solve_specialized_list_construction;
 pub use phase_factory::{
     ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListCheapestInsertionPhase,

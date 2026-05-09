@@ -101,10 +101,11 @@ pub use heuristic::{
 pub use manager::{
     analyze, Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
     KOptPhaseBuilder, ListCheapestInsertionPhase, ListClarkeWrightPhase, ListConstructionPhase,
-    ListConstructionPhaseBuilder, ListKOptPhase, ListRegretInsertionPhase, LocalSearchPhaseFactory,
-    LocalSearchType, PhaseFactory, ScoreAnalysis, Solvable, SolverEvent, SolverEventMetadata,
-    SolverFactory, SolverFactoryBuilder, SolverLifecycleState, SolverManager, SolverManagerError,
-    SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTerminalReason,
+    ListConstructionPhaseBuilder, ListKOptPhase, ListRegretInsertionPhase, LocalSearchAcceptorType,
+    LocalSearchPhaseFactory, PhaseFactory, ScoreAnalysis, Solvable, SolverEvent,
+    SolverEventMetadata, SolverFactory, SolverFactoryBuilder, SolverLifecycleState, SolverManager,
+    SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
+    SolverTerminalReason,
 };
 pub use model_support::PlanningModelSupport;
 pub use phase::{

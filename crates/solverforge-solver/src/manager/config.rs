@@ -2,14 +2,14 @@
 
 This module contains enums for configuring different types of solver phases:
 
-- [`LocalSearchType`]: Algorithm selection for local search phases
+- [`LocalSearchAcceptorType`]: Acceptor policy selection for local search phases
 - [`ConstructionType`]: Algorithm selection for construction heuristic phases
 - [`PhaseConfig`]: Complete phase configuration
 */
 
-/* Type of local search algorithm to use.
+/* Type of acceptor policy to use in acceptor/forager local search.
 
-Different local search algorithms have different characteristics:
+Different acceptor policies have different characteristics:
 
 - [`HillClimbing`](Self::HillClimbing): Simple, fast, but can get stuck in local optima
 - [`TabuSearch`](Self::TabuSearch): Avoids revisiting recent states
@@ -19,27 +19,27 @@ Different local search algorithms have different characteristics:
 # Examples
 
 ```
-use solverforge_solver::manager::LocalSearchType;
+use solverforge_solver::manager::LocalSearchAcceptorType;
 
 // Hill climbing - simplest approach
-let hill = LocalSearchType::HillClimbing;
-assert_eq!(hill, LocalSearchType::default());
+let hill = LocalSearchAcceptorType::HillClimbing;
+assert_eq!(hill, LocalSearchAcceptorType::default());
 
 // Tabu search with memory of 10 recent moves
-let tabu = LocalSearchType::TabuSearch { tabu_size: 10 };
+let tabu = LocalSearchAcceptorType::TabuSearch { tabu_size: 10 };
 
 // Simulated annealing with temperature decay
-let sa = LocalSearchType::SimulatedAnnealing {
+let sa = LocalSearchAcceptorType::SimulatedAnnealing {
 starting_temp: 1.0,
 decay_rate: 0.995,
 };
 
 // Late acceptance comparing to 100 steps ago
-let late = LocalSearchType::LateAcceptance { size: 100 };
+let late = LocalSearchAcceptorType::LateAcceptance { size: 100 };
 ```
 */
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub enum LocalSearchType {
+pub enum LocalSearchAcceptorType {
     /* Hill climbing: only accept improving moves.
 
     This is the simplest local search strategy. It only accepts moves
@@ -48,9 +48,9 @@ pub enum LocalSearchType {
     # Example
 
     ```
-    use solverforge_solver::manager::LocalSearchType;
+    use solverforge_solver::manager::LocalSearchAcceptorType;
 
-    let acceptor = LocalSearchType::HillClimbing;
+    let acceptor = LocalSearchAcceptorType::HillClimbing;
     ```
     */
     #[default]
@@ -64,10 +64,10 @@ pub enum LocalSearchType {
     # Example
 
     ```
-    use solverforge_solver::manager::LocalSearchType;
+    use solverforge_solver::manager::LocalSearchAcceptorType;
 
     // Keep last 7 moves in tabu list
-    let tabu = LocalSearchType::TabuSearch { tabu_size: 7 };
+    let tabu = LocalSearchAcceptorType::TabuSearch { tabu_size: 7 };
     ```
     */
     TabuSearch {
@@ -84,10 +84,10 @@ pub enum LocalSearchType {
     # Example
 
     ```
-    use solverforge_solver::manager::LocalSearchType;
+    use solverforge_solver::manager::LocalSearchAcceptorType;
 
     // Start with temperature 1.0, decay by 0.1% per step
-    let sa = LocalSearchType::SimulatedAnnealing {
+    let sa = LocalSearchAcceptorType::SimulatedAnnealing {
     starting_temp: 1.0,
     decay_rate: 0.999,
     };
@@ -108,10 +108,10 @@ pub enum LocalSearchType {
     # Example
 
     ```
-    use solverforge_solver::manager::LocalSearchType;
+    use solverforge_solver::manager::LocalSearchAcceptorType;
 
     // Compare against score from 400 steps ago
-    let late = LocalSearchType::LateAcceptance { size: 400 };
+    let late = LocalSearchAcceptorType::LateAcceptance { size: 400 };
     ```
     */
     LateAcceptance {
@@ -128,10 +128,10 @@ pub enum LocalSearchType {
     # Example
 
     ```
-    use solverforge_solver::manager::LocalSearchType;
+    use solverforge_solver::manager::LocalSearchAcceptorType;
 
     // Forbid last 5 assigned values
-    let value_tabu = LocalSearchType::ValueTabuSearch { value_tabu_size: 5 };
+    let value_tabu = LocalSearchAcceptorType::ValueTabuSearch { value_tabu_size: 5 };
     ```
     */
     ValueTabuSearch {
@@ -148,10 +148,10 @@ pub enum LocalSearchType {
     # Example
 
     ```
-    use solverforge_solver::manager::LocalSearchType;
+    use solverforge_solver::manager::LocalSearchAcceptorType;
 
     // Forbid last 10 moves, with aspiration enabled
-    let move_tabu = LocalSearchType::MoveTabuSearch {
+    let move_tabu = LocalSearchAcceptorType::MoveTabuSearch {
     move_tabu_size: 10,
     aspiration_enabled: true,
     };
@@ -229,7 +229,7 @@ Use this with the builder to configure your solving strategy.
 # Examples
 
 ```
-use solverforge_solver::manager::{PhaseConfig, ConstructionType, LocalSearchType};
+use solverforge_solver::manager::{PhaseConfig, ConstructionType, LocalSearchAcceptorType};
 
 // Construction phase configuration
 let construction = PhaseConfig::ConstructionHeuristic {
@@ -238,7 +238,7 @@ construction_type: ConstructionType::BestFit,
 
 // Local search phase with step limit
 let local_search = PhaseConfig::LocalSearch {
-search_type: LocalSearchType::TabuSearch { tabu_size: 7 },
+acceptor_type: LocalSearchAcceptorType::TabuSearch { tabu_size: 7 },
 step_limit: Some(1000),
 };
 ```
@@ -272,17 +272,17 @@ pub enum PhaseConfig {
     # Example
 
     ```
-    use solverforge_solver::manager::{PhaseConfig, LocalSearchType};
+    use solverforge_solver::manager::{PhaseConfig, LocalSearchAcceptorType};
 
     let config = PhaseConfig::LocalSearch {
-    search_type: LocalSearchType::HillClimbing,
+    acceptor_type: LocalSearchAcceptorType::HillClimbing,
     step_limit: Some(500),
     };
     ```
     */
     LocalSearch {
         // Type of local search.
-        search_type: LocalSearchType,
+        acceptor_type: LocalSearchAcceptorType,
         // Optional step limit for this phase.
         step_limit: Option<u64>,
     },

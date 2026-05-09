@@ -214,8 +214,16 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         let solution = score_director.working_solution();
-        let entity_values = self
+        let mut entity_values: Vec<_> = self
             .entity_selector
             .iter(score_director)
             .map(|entity_ref| {
@@ -237,6 +245,23 @@ where
                 }
             })
             .collect();
+        for entity_values in &mut entity_values {
+            let start = context.start_offset(
+                entity_values.values.len(),
+                0xC4A4_6E00_0000_0000
+                    ^ entity_values.entity_ref.entity_index as u64
+                    ^ ((self.descriptor_index as u64) << 32)
+                    ^ self.variable_index as u64,
+            );
+            entity_values.values.rotate_left(start);
+        }
+        let entity_start = context.start_offset(
+            entity_values.len(),
+            0xC4A4_6E00_0000_0001
+                ^ ((self.descriptor_index as u64) << 32)
+                ^ self.variable_index as u64,
+        );
+        entity_values.rotate_left(entity_start);
         ChangeMoveCursor::new(
             entity_values,
             self.getter,

@@ -6,7 +6,7 @@ use crate::heuristic::selector::decorator::{
     CartesianProductCursor, CartesianProductSelector, LimitedMoveCursor,
 };
 use crate::heuristic::selector::move_selector::{
-    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
+    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
@@ -201,18 +201,28 @@ where
         &'a self,
         score_director: &D,
     ) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: solverforge_scoring::Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         match self {
-            Self::Flat(selector) => NeighborhoodCursor::Flat(selector.open_cursor(score_director)),
+            Self::Flat(selector) => {
+                NeighborhoodCursor::Flat(selector.open_cursor_with_context(score_director, context))
+            }
             Self::Limited {
                 selector,
                 selected_count_limit,
             } => NeighborhoodCursor::Limited(LimitedMoveCursor::new(
-                selector.open_cursor(score_director),
+                selector.open_cursor_with_context(score_director, context),
                 *selected_count_limit,
             )),
-            Self::Cartesian(selector) => {
-                NeighborhoodCursor::Cartesian(selector.open_cursor(score_director))
-            }
+            Self::Cartesian(selector) => NeighborhoodCursor::Cartesian(
+                selector.open_cursor_with_context(score_director, context),
+            ),
         }
     }
 
@@ -267,15 +277,23 @@ where
         &'a self,
         score_director: &D,
     ) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: solverforge_scoring::Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         match self {
-            Self::Flat(selector) => {
-                CartesianChildCursor::Flat(selector.open_cursor(score_director))
-            }
+            Self::Flat(selector) => CartesianChildCursor::Flat(
+                selector.open_cursor_with_context(score_director, context),
+            ),
             Self::Limited {
                 selector,
                 selected_count_limit,
             } => CartesianChildCursor::Limited(LimitedMoveCursor::new(
-                selector.open_cursor(score_director),
+                selector.open_cursor_with_context(score_director, context),
                 *selected_count_limit,
             )),
         }

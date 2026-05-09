@@ -17,7 +17,8 @@ use crate::heuristic::selector::decorator::{
 };
 use crate::heuristic::selector::{
     move_selector::{
-        collect_cursor_indices, ArenaMoveCursor, CandidateId, MoveCandidateRef, MoveCursor,
+        collect_cursor_indices, ArenaMoveCursor, CandidateId, CandidateStore, MoveCandidateRef,
+        MoveCursor, MoveStreamContext,
     },
     nearby_support::truncate_nearby_candidates,
     pillar_support::{intersect_legal_values_for_pillar, pillars_are_swap_compatible, PillarGroup},

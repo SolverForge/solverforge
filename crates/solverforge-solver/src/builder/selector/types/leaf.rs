@@ -8,6 +8,7 @@ use crate::heuristic::r#move::{ListMoveUnion, MoveArena, ScalarMoveUnion};
 use crate::heuristic::selector::decorator::MappedMoveCursor;
 use crate::heuristic::selector::move_selector::{
     collect_cursor_indices, CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
+    MoveStreamContext,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
@@ -173,24 +174,32 @@ where
         &'a self,
         score_director: &D,
     ) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: solverforge_scoring::Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         match self {
             Self::Scalar(selector) => NeighborhoodLeafCursor::Scalar(MappedMoveCursor::new(
-                selector.open_cursor(score_director),
+                selector.open_cursor_with_context(score_director, context),
                 wrap_scalar_neighborhood_move::<S, V>,
             )),
             Self::List(selector) => NeighborhoodLeafCursor::List(MappedMoveCursor::new(
-                selector.open_cursor(score_director),
+                selector.open_cursor_with_context(score_director, context),
                 wrap_list_neighborhood_move::<S, V>,
             )),
             Self::ConflictRepair(selector) => {
                 NeighborhoodLeafCursor::ConflictRepair(MappedMoveCursor::new(
-                    selector.open_cursor(score_director),
+                    selector.open_cursor_with_context(score_director, context),
                     wrap_scalar_neighborhood_move::<S, V>,
                 ))
             }
             Self::GroupedScalar(selector) => {
                 NeighborhoodLeafCursor::GroupedScalar(MappedMoveCursor::new(
-                    selector.open_cursor(score_director),
+                    selector.open_cursor_with_context(score_director, context),
                     wrap_scalar_neighborhood_move::<S, V>,
                 ))
             }

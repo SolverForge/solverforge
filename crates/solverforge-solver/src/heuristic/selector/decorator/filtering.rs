@@ -10,7 +10,9 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, MoveSelector};
+use crate::heuristic::selector::move_selector::{
+    MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+};
 
 use super::indexed_cursor::IndexedMoveCursor;
 
@@ -106,7 +108,15 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let mut inner = self.inner.open_cursor(score_director);
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
+        let mut inner = self.inner.open_cursor_with_context(score_director, context);
         let predicate = self.predicate;
         let mut indices = Vec::new();
         while let Some(child_index) = inner.next_candidate() {

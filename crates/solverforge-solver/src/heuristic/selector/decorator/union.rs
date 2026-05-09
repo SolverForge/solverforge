@@ -11,7 +11,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{
-    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
+    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
 
 /// Combines moves from two selectors into a single stream.
@@ -91,9 +91,18 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         UnionMoveCursor::new(
-            self.first.open_cursor(score_director),
-            self.second.open_cursor(score_director),
+            self.first.open_cursor_with_context(score_director, context),
+            self.second
+                .open_cursor_with_context(score_director, context),
         )
     }
 

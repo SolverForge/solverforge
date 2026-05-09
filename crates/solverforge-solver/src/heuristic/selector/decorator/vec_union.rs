@@ -15,7 +15,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{
-    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
+    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
 
 /// Combines moves from an arbitrary number of leaf selectors into a single stream.
@@ -75,12 +75,21 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         VecUnionMoveCursor::new(
             self.selectors
                 .iter()
-                .map(|selector| selector.open_cursor(score_director))
+                .map(|selector| selector.open_cursor_with_context(score_director, context))
                 .collect(),
             self.selection_order,
+            context,
         )
     }
 
@@ -101,6 +110,8 @@ where
     exhausted: Vec<bool>,
     live_cursor_count: usize,
     discovered: Vec<(usize, CandidateId)>,
+    cursor_offset: usize,
+    cursor_stride: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
@@ -110,15 +121,39 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    fn new(cursors: Vec<C>, selection_order: UnionSelectionOrder) -> Self {
+    fn new(
+        cursors: Vec<C>,
+        selection_order: UnionSelectionOrder,
+        context: MoveStreamContext,
+    ) -> Self {
         let live_cursor_count = cursors.len();
+        let cursor_offset = match selection_order {
+            UnionSelectionOrder::RotatingRoundRobin | UnionSelectionOrder::StratifiedRandom => {
+                context.start_offset(live_cursor_count, 0xA11C_E5E1_EC70_0001)
+            }
+            UnionSelectionOrder::Sequential | UnionSelectionOrder::RoundRobin => 0,
+        };
+        let cursor_stride = match selection_order {
+            UnionSelectionOrder::StratifiedRandom => {
+                context.stride(live_cursor_count, 0xA11C_E5E1_EC70_0002)
+            }
+            UnionSelectionOrder::Sequential
+            | UnionSelectionOrder::RoundRobin
+            | UnionSelectionOrder::RotatingRoundRobin => 1,
+        };
+        let current_cursor = match selection_order {
+            UnionSelectionOrder::StratifiedRandom => 0,
+            _ => cursor_offset,
+        };
         Self {
             cursors,
-            current_cursor: 0,
+            current_cursor,
             selection_order,
             exhausted: vec![false; live_cursor_count],
             live_cursor_count,
             discovered: Vec::new(),
+            cursor_offset,
+            cursor_stride,
             _phantom: PhantomData,
         }
     }
@@ -142,7 +177,31 @@ where
 
         while self.live_cursor_count > 0 {
             let cursor_index = self.current_cursor % self.cursors.len();
-            self.current_cursor = (cursor_index + 1) % self.cursors.len();
+            self.current_cursor = (self.current_cursor + 1) % self.cursors.len();
+            if self.exhausted[cursor_index] {
+                continue;
+            }
+
+            if let Some(child_index) = self.cursors[cursor_index].next_candidate() {
+                return Some(self.push_discovered(cursor_index, child_index));
+            }
+
+            self.exhausted[cursor_index] = true;
+            self.live_cursor_count -= 1;
+        }
+
+        None
+    }
+
+    fn next_stratified_candidate(&mut self) -> Option<CandidateId> {
+        if self.live_cursor_count == 0 {
+            return None;
+        }
+
+        while self.live_cursor_count > 0 {
+            let cursor_index = (self.cursor_offset + self.current_cursor * self.cursor_stride)
+                % self.cursors.len();
+            self.current_cursor = (self.current_cursor + 1) % self.cursors.len();
             if self.exhausted[cursor_index] {
                 continue;
             }
@@ -177,7 +236,10 @@ where
     fn next_candidate(&mut self) -> Option<CandidateId> {
         match self.selection_order {
             UnionSelectionOrder::Sequential => self.next_sequential_candidate(),
-            UnionSelectionOrder::RoundRobin => self.next_round_robin_candidate(),
+            UnionSelectionOrder::RoundRobin | UnionSelectionOrder::RotatingRoundRobin => {
+                self.next_round_robin_candidate()
+            }
+            UnionSelectionOrder::StratifiedRandom => self.next_stratified_candidate(),
         }
     }
 

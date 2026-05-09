@@ -19,7 +19,7 @@ use crate::heuristic::r#move::{
 };
 use crate::heuristic::selector::move_selector::{
     collect_cursor_indices, CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
-    MoveSelectorIter,
+    MoveSelectorIter, MoveStreamContext,
 };
 
 /// Holds two owned move arenas and provides indexed pair iteration.
@@ -162,6 +162,7 @@ where
         mut left_cursor: LeftCursor,
         right_selector: &Right,
         score_director: &D,
+        context: MoveStreamContext,
     ) -> Self
     where
         LeftCursor: MoveCursor<S, M>,
@@ -187,7 +188,7 @@ where
             if left_move.is_doable(score_director) {
                 let mut preview = SequentialPreviewDirector::from_director(score_director);
                 left_move.do_move(&mut preview);
-                let mut right_cursor = right_selector.open_cursor(&preview);
+                let mut right_cursor = right_selector.open_cursor_with_context(&preview, context);
                 for right_index in collect_cursor_indices::<S, M, _>(&mut right_cursor) {
                     let right_signature = right_cursor
                         .candidate(right_index)
@@ -379,12 +380,21 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         CartesianProductCursor::new(
             self.wrap,
             self.require_hard_improvement,
-            self.left.open_cursor(score_director),
+            self.left.open_cursor_with_context(score_director, context),
             &self.right,
             score_director,
+            context,
         )
     }
 

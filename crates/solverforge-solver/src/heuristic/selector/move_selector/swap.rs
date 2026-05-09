@@ -186,8 +186,21 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let right_entities: Vec<_> = self.right_entity_selector.iter(score_director).collect();
-        let left_entities: Vec<_> = self.left_entity_selector.iter(score_director).collect();
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
+        let mut right_entities: Vec<_> = self.right_entity_selector.iter(score_director).collect();
+        let mut left_entities: Vec<_> = self.left_entity_selector.iter(score_director).collect();
+        let salt = ((self.descriptor_index as u64) << 32) ^ self.variable_index as u64;
+        let left_start = context.start_offset(left_entities.len(), 0x5A09_0000_0000_0001 ^ salt);
+        let right_start = context.start_offset(right_entities.len(), 0x5A09_0000_0000_0002 ^ salt);
+        left_entities.rotate_left(left_start);
+        right_entities.rotate_left(right_start);
         SwapMoveCursor::new(
             left_entities,
             right_entities,

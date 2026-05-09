@@ -9,7 +9,7 @@ use crate::heuristic::selector::decorator::MappedMoveCursor;
 
 use super::super::entity::{EntitySelector, FromSolutionEntitySelector};
 use super::super::value_selector::{StaticValueSelector, ValueSelector};
-use super::{ChangeMoveSelector, MoveSelector, SwapMoveSelector};
+use super::{ChangeMoveSelector, MoveSelector, MoveStreamContext, SwapMoveSelector};
 
 pub struct ScalarChangeMoveSelector<S, V, ES, VS> {
     inner: ChangeMoveSelector<S, V, ES, VS>,
@@ -73,8 +73,16 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         MappedMoveCursor::new(
-            self.inner.open_cursor(score_director),
+            self.inner.open_cursor_with_context(score_director, context),
             wrap_change_move::<S, V>,
         )
     }
@@ -145,8 +153,16 @@ where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         MappedMoveCursor::new(
-            self.inner.open_cursor(score_director),
+            self.inner.open_cursor_with_context(score_director, context),
             wrap_swap_move::<S, V>,
         )
     }

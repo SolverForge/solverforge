@@ -1,6 +1,7 @@
 use super::*;
 
 use std::any::TypeId;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -11,7 +12,7 @@ use solverforge_core::score::SoftScore;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::ArenaMoveCursor;
+use crate::heuristic::selector::move_selector::{ArenaMoveCursor, MoveStreamContext};
 use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector};
 use crate::phase::localsearch::{AcceptedCountForager, BestScoreForager, HillClimbingAcceptor};
 use crate::test_utils::{
@@ -419,6 +420,46 @@ impl ScoreFieldSelector {
     }
 }
 
+#[derive(Debug)]
+struct ContextSpySelector {
+    saw_context: &'static AtomicBool,
+    step_index: &'static AtomicU64,
+    accepted_limit: &'static AtomicUsize,
+}
+
+impl MoveSelector<TestSolution, ScoreFieldMove> for ContextSpySelector {
+    type Cursor<'a>
+        = ArenaMoveCursor<TestSolution, ScoreFieldMove>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<TestSolution>>(
+        &'a self,
+        _score_director: &D,
+    ) -> Self::Cursor<'a> {
+        ArenaMoveCursor::from_moves([ScoreFieldMove(1)])
+    }
+
+    fn open_cursor_with_context<'a, D: Director<TestSolution>>(
+        &'a self,
+        _score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
+        self.saw_context.store(true, Ordering::SeqCst);
+        self.step_index
+            .store(context.step_index(), Ordering::SeqCst);
+        self.accepted_limit.store(
+            context.accepted_count_limit().unwrap_or(usize::MAX),
+            Ordering::SeqCst,
+        );
+        ArenaMoveCursor::from_moves([ScoreFieldMove(1)])
+    }
+
+    fn size<D: Director<TestSolution>>(&self, _score_director: &D) -> usize {
+        1
+    }
+}
+
 impl MoveSelector<TestSolution, ScoreFieldMove> for ScoreFieldSelector {
     type Cursor<'a>
         = ArenaMoveCursor<TestSolution, ScoreFieldMove>
@@ -434,6 +475,85 @@ impl MoveSelector<TestSolution, ScoreFieldMove> for ScoreFieldSelector {
 
     fn size<D: Director<TestSolution>>(&self, _score_director: &D) -> usize {
         self.scores.len()
+    }
+}
+
+#[derive(Debug)]
+struct CancelOnDoableMove {
+    score: i64,
+    terminate: &'static AtomicBool,
+}
+
+impl Move<TestSolution> for CancelOnDoableMove {
+    fn is_doable<D: Director<TestSolution>>(&self, _score_director: &D) -> bool {
+        self.terminate.store(true, Ordering::SeqCst);
+        true
+    }
+
+    fn do_move<D: Director<TestSolution>>(&self, score_director: &mut D) {
+        let old_score = score_director.working_solution().score;
+        score_director.before_variable_changed(0, 0);
+        score_director.working_solution_mut().score = Some(SoftScore::of(self.score));
+        score_director.register_undo(Box::new(move |solution| {
+            solution.score = old_score;
+        }));
+        score_director.after_variable_changed(0, 0);
+    }
+
+    fn descriptor_index(&self) -> usize {
+        0
+    }
+
+    fn entity_indices(&self) -> &[usize] {
+        &[0]
+    }
+
+    fn variable_name(&self) -> &str {
+        "score"
+    }
+
+    fn tabu_signature<D: Director<TestSolution>>(
+        &self,
+        _score_director: &D,
+    ) -> crate::heuristic::r#move::MoveTabuSignature {
+        let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "score");
+        crate::heuristic::r#move::MoveTabuSignature::new(
+            scope,
+            smallvec::smallvec![self.score as u64],
+            smallvec::smallvec![self.score as u64],
+        )
+    }
+}
+
+#[derive(Debug)]
+struct CancelOnDoableSelector {
+    terminate: &'static AtomicBool,
+}
+
+impl MoveSelector<TestSolution, CancelOnDoableMove> for CancelOnDoableSelector {
+    type Cursor<'a>
+        = ArenaMoveCursor<TestSolution, CancelOnDoableMove>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<TestSolution>>(
+        &'a self,
+        _score_director: &D,
+    ) -> Self::Cursor<'a> {
+        ArenaMoveCursor::from_moves([
+            CancelOnDoableMove {
+                score: 1,
+                terminate: self.terminate,
+            },
+            CancelOnDoableMove {
+                score: 3,
+                terminate: self.terminate,
+            },
+        ])
+    }
+
+    fn size<D: Director<TestSolution>>(&self, _score_director: &D) -> usize {
+        2
     }
 }
 
@@ -456,6 +576,32 @@ fn test_local_search_records_selector_open_time_as_generation_time() {
 }
 
 #[test]
+fn local_search_opens_selector_with_stream_context() {
+    let director = ScoreFieldDirector::new();
+    let mut solver_scope = SolverScope::new(director).with_seed(7);
+    solver_scope.start_solving();
+
+    let saw_context = Box::leak(Box::new(AtomicBool::new(false)));
+    let step_index = Box::leak(Box::new(AtomicU64::new(u64::MAX)));
+    let accepted_limit = Box::leak(Box::new(AtomicUsize::new(usize::MAX)));
+    let move_selector = ContextSpySelector {
+        saw_context,
+        step_index,
+        accepted_limit,
+    };
+    let acceptor = HillClimbingAcceptor::new();
+    let forager: AcceptedCountForager<_> = AcceptedCountForager::new(2);
+    let mut phase: LocalSearchPhase<_, ScoreFieldMove, _, _, _> =
+        LocalSearchPhase::new(move_selector, acceptor, forager, Some(1));
+
+    phase.solve(&mut solver_scope);
+
+    assert!(saw_context.load(Ordering::SeqCst));
+    assert_eq!(step_index.load(Ordering::SeqCst), 0);
+    assert_eq!(accepted_limit.load(Ordering::SeqCst), 2);
+}
+
+#[test]
 fn accepted_count_one_evaluates_one_accepted_move_per_step() {
     let director = ScoreFieldDirector::new();
     let mut solver_scope = SolverScope::new(director);
@@ -474,6 +620,29 @@ fn accepted_count_one_evaluates_one_accepted_move_per_step() {
     assert_eq!(
         solver_scope.working_solution().score,
         Some(SoftScore::of(1))
+    );
+}
+
+#[test]
+fn cancellation_before_next_candidate_does_not_commit_selected_move() {
+    let terminate = Box::leak(Box::new(AtomicBool::new(false)));
+    let director = ScoreFieldDirector::new();
+    let mut solver_scope = SolverScope::new(director).with_terminate(Some(terminate));
+    solver_scope.start_solving();
+
+    let move_selector = CancelOnDoableSelector { terminate };
+    let acceptor = HillClimbingAcceptor::new();
+    let forager: AcceptedCountForager<_> = AcceptedCountForager::new(2);
+    let mut phase: LocalSearchPhase<_, CancelOnDoableMove, _, _, _> =
+        LocalSearchPhase::new(move_selector, acceptor, forager, Some(1));
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.stats().moves_evaluated, 1);
+    assert_eq!(solver_scope.stats().moves_applied, 0);
+    assert_eq!(
+        solver_scope.working_solution().score,
+        Some(SoftScore::of(0))
     );
 }
 

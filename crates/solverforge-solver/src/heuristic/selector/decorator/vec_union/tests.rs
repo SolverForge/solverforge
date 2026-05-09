@@ -104,6 +104,7 @@ fn sequential_drains_each_child_before_next_child() {
     let cursor = VecUnionMoveCursor::new(
         vec![TestCursor::new([1, 2, 3]), TestCursor::new([10, 11])],
         UnionSelectionOrder::Sequential,
+        MoveStreamContext::default(),
     );
 
     assert_eq!(drain_values(cursor), vec![1, 2, 3, 10, 11]);
@@ -119,6 +120,7 @@ fn round_robin_interleaves_uneven_child_lengths_and_skips_empty_children() {
             TestCursor::new([20, 21]),
         ],
         UnionSelectionOrder::RoundRobin,
+        MoveStreamContext::default(),
     );
 
     assert_eq!(drain_values(cursor), vec![1, 10, 20, 2, 21, 3]);
@@ -129,6 +131,7 @@ fn round_robin_candidates_remain_borrowable_and_takeable_after_interleaving() {
     let mut cursor = VecUnionMoveCursor::new(
         vec![TestCursor::new([1, 2]), TestCursor::new([10, 11])],
         UnionSelectionOrder::RoundRobin,
+        MoveStreamContext::default(),
     );
 
     let first = cursor.next_candidate().unwrap();
@@ -142,4 +145,46 @@ fn round_robin_candidates_remain_borrowable_and_takeable_after_interleaving() {
     assert_eq!(cursor.take_candidate(second), TestMove(10));
     assert_eq!(cursor.take_candidate(first), TestMove(1));
     assert_eq!(cursor.take_candidate(third), TestMove(2));
+}
+
+#[test]
+fn rotating_round_robin_uses_stream_context_offset_without_changing_child_order() {
+    let context = MoveStreamContext::new(0, 2, Some(4));
+    let cursor = VecUnionMoveCursor::new(
+        vec![
+            TestCursor::new([1, 2]),
+            TestCursor::new([10, 11]),
+            TestCursor::new([20, 21]),
+        ],
+        UnionSelectionOrder::RotatingRoundRobin,
+        context,
+    );
+
+    let offset = context.start_offset(3, 0xA11C_E5E1_EC70_0001);
+    let expected = match offset {
+        0 => vec![1, 10, 20, 2, 11, 21],
+        1 => vec![10, 20, 1, 11, 21, 2],
+        2 => vec![20, 1, 10, 21, 2, 11],
+        _ => unreachable!(),
+    };
+    assert_eq!(drain_values(cursor), expected);
+}
+
+#[test]
+fn stratified_random_keeps_each_child_live_without_materializing_child_moves() {
+    let cursor = VecUnionMoveCursor::new(
+        vec![
+            TestCursor::new([1, 2]),
+            TestCursor::new([10, 11]),
+            TestCursor::new([20, 21]),
+        ],
+        UnionSelectionOrder::StratifiedRandom,
+        MoveStreamContext::new(3, 42, Some(4)),
+    );
+
+    let values = drain_values(cursor);
+    assert_eq!(values.len(), 6);
+    assert!(values.contains(&1));
+    assert!(values.contains(&10));
+    assert!(values.contains(&20));
 }

@@ -106,6 +106,68 @@ fn test_union_selection_order_roundtrip() {
 }
 
 #[test]
+fn test_union_rotating_round_robin_selection_order_roundtrip() {
+    let toml = r#"
+        [[phases]]
+        type = "local_search"
+
+        [phases.move_selector]
+        type = "union_move_selector"
+        selection_order = "rotating_round_robin"
+
+        [[phases.move_selector.selectors]]
+        type = "change_move_selector"
+        entity_class = "Shift"
+        variable_name = "employee_id"
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    let encoded = toml::to_string(&config).unwrap();
+    let reparsed = SolverConfig::from_toml_str(&encoded).unwrap();
+    let PhaseConfig::LocalSearch(local_search) = &reparsed.phases[0] else {
+        panic!("phase should be local_search");
+    };
+    let Some(MoveSelectorConfig::UnionMoveSelector(union)) = &local_search.move_selector else {
+        panic!("local search should have a union move selector");
+    };
+    assert_eq!(
+        union.selection_order,
+        crate::move_selector::UnionSelectionOrder::RotatingRoundRobin
+    );
+}
+
+#[test]
+fn test_union_stratified_selection_order_roundtrip() {
+    let toml = r#"
+        [[phases]]
+        type = "local_search"
+
+        [phases.move_selector]
+        type = "union_move_selector"
+        selection_order = "stratified_random"
+
+        [[phases.move_selector.selectors]]
+        type = "change_move_selector"
+        entity_class = "Shift"
+        variable_name = "employee_id"
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    let encoded = toml::to_string(&config).unwrap();
+    let reparsed = SolverConfig::from_toml_str(&encoded).unwrap();
+    let PhaseConfig::LocalSearch(local_search) = &reparsed.phases[0] else {
+        panic!("phase should be local_search");
+    };
+    let Some(MoveSelectorConfig::UnionMoveSelector(union)) = &local_search.move_selector else {
+        panic!("local search should have a union move selector");
+    };
+    assert_eq!(
+        union.selection_order,
+        crate::move_selector::UnionSelectionOrder::StratifiedRandom
+    );
+}
+
+#[test]
 fn test_simulated_annealing_level_aware_config_roundtrip() {
     let toml = r#"
         [[phases]]

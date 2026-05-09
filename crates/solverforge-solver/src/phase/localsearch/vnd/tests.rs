@@ -105,7 +105,11 @@ impl Move<InterruptPlan> for InterruptMove {
     }
 
     fn do_move<D: Director<InterruptPlan>>(&self, score_director: &mut D) {
+        let previous = score_director.working_solution().value;
         score_director.working_solution_mut().value = self.score;
+        score_director.register_undo(Box::new(move |solution| {
+            solution.value = previous;
+        }));
     }
 
     fn descriptor_index(&self) -> usize {
@@ -234,6 +238,39 @@ fn vnd_single_neighborhood_applies_best_improving_move() {
     assert_eq!(
         solver_scope.current_score().copied(),
         Some(SoftScore::of(2))
+    );
+}
+
+#[test]
+fn vnd_cancel_mid_neighborhood_does_not_commit_partial_best() {
+    let terminate = Arc::new(AtomicBool::new(false));
+    let director = InterruptDirector::new();
+    let mut solver_scope = SolverScope::new(director).with_terminate(Some(terminate.as_ref()));
+    solver_scope.start_solving();
+
+    let mut phase = VndPhase::<InterruptPlan, InterruptMove, FlaggingSelector>::new(
+        vec![FlaggingSelector {
+            moves: vec![
+                InterruptMove {
+                    doable: true,
+                    score: 1,
+                },
+                InterruptMove {
+                    doable: true,
+                    score: 2,
+                },
+            ],
+            terminate: terminate.clone(),
+            trigger_index: 1,
+        }],
+        None,
+    );
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().value, 0);
+    assert_eq!(
+        solver_scope.terminal_reason(),
+        SolverTerminalReason::Cancelled
     );
 }
 

@@ -4,7 +4,7 @@ use crate::phase::Phase;
 use crate::scope::SolverScope;
 use crate::DefaultCrossEntityDistanceMeter;
 use solverforge_config::{
-    ConstructionHeuristicConfig, ConstructionHeuristicType, VariableTargetConfig,
+    ConstructionHeuristicConfig, ConstructionHeuristicType, SolverConfig, VariableTargetConfig,
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
@@ -261,4 +261,22 @@ fn generic_list_only_cheapest_insertion_uses_global_best_score() {
     let solution = solve_generic_list(ConstructionHeuristicType::CheapestInsertion);
 
     assert_eq!(solution.routes, vec![Vec::<usize>::new(), vec![10]]);
+}
+
+#[test]
+fn empty_list_runtime_builds_construction_plus_streaming_local_search() {
+    let descriptor = generic_list_descriptor();
+    let model = generic_list_model();
+    let config = SolverConfig::default();
+
+    let phases = super::build_phases(&config, &descriptor, &model);
+    let debug = format!("{phases:?}");
+
+    assert_eq!(phases.phases().len(), 2);
+    assert!(debug.contains("RuntimePhase::Construction"));
+    assert!(debug.contains("RuntimePhase::LocalSearch"));
+    assert!(debug.contains("AcceptorForager"));
+    assert!(debug.contains("LateAcceptance"));
+    assert!(debug.contains("accepted_count_limit: 128"));
+    assert!(!debug.contains("VariableNeighborhoodDescent"));
 }

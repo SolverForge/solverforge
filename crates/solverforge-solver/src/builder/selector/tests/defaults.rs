@@ -14,7 +14,7 @@ fn default_scalar_selector_uses_plain_change_and_swap_without_nearby_hooks() {
 
     assert_eq!(
         selector.selection_order(),
-        solverforge_config::UnionSelectionOrder::RoundRobin
+        solverforge_config::UnionSelectionOrder::StratifiedRandom
     );
     assert_eq!(neighborhoods.len(), 2);
     assert!(matches!(
@@ -46,7 +46,7 @@ fn default_scalar_selector_uses_nearby_hooks_when_declared() {
 
     assert_eq!(
         selector.selection_order(),
-        solverforge_config::UnionSelectionOrder::RoundRobin
+        solverforge_config::UnionSelectionOrder::StratifiedRandom
     );
     assert_eq!(neighborhoods.len(), 4);
     assert!(matches!(
@@ -72,11 +72,15 @@ fn default_scalar_selector_uses_nearby_hooks_when_declared() {
     assert!(selector.size(&director) > 0);
 
     let mut cursor = selector.open_cursor(&director);
-    let first = cursor
-        .next_candidate()
-        .expect("nearby default should expose at least one move");
-    let mov = cursor.take_candidate(first);
-    assert!(mov.is_doable(&director));
+    let mut found_doable = false;
+    while let Some(candidate) = cursor.next_candidate() {
+        let mov = cursor.take_candidate(candidate);
+        if mov.is_doable(&director) {
+            found_doable = true;
+            break;
+        }
+    }
+    assert!(found_doable);
 }
 
 #[test]
@@ -107,6 +111,10 @@ fn default_list_selector_uses_capability_gated_neighborhoods() {
     let selector = build_move_selector(None, &list_only_model(), None);
     let neighborhoods = selector.selectors();
 
+    assert_eq!(
+        selector.selection_order(),
+        solverforge_config::UnionSelectionOrder::StratifiedRandom
+    );
     assert_eq!(neighborhoods.len(), 6);
     assert!(matches!(
         &neighborhoods[0],
@@ -147,7 +155,7 @@ fn mixed_default_selector_puts_list_neighborhoods_before_scalar_defaults() {
 
     assert_eq!(
         selector.selection_order(),
-        solverforge_config::UnionSelectionOrder::RoundRobin
+        solverforge_config::UnionSelectionOrder::StratifiedRandom
     );
     assert_eq!(neighborhoods.len(), 8);
     assert!(matches!(

@@ -280,6 +280,51 @@ fn test_accepted_count_one_matches_first_accepted_horizon() {
 }
 
 #[test]
+fn foragers_report_stream_horizon_only_for_finite_accepted_counts() {
+    let accepted_count = AcceptedCountForager::<DummySolution>::new(4);
+    let first_accepted = FirstAcceptedForager::<DummySolution>::new();
+    let best_score = BestScoreForager::<DummySolution>::new();
+    let first_best = FirstBestScoreImprovingForager::<DummySolution>::new();
+    let first_last = FirstLastStepScoreImprovingForager::<DummySolution>::new();
+
+    assert_eq!(
+        <AcceptedCountForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::accepted_count_limit(&accepted_count),
+        Some(4)
+    );
+    assert_eq!(
+        <FirstAcceptedForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::accepted_count_limit(&first_accepted),
+        Some(1)
+    );
+    assert_eq!(
+        <BestScoreForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::accepted_count_limit(&best_score),
+        None
+    );
+    assert_eq!(
+        <FirstBestScoreImprovingForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::accepted_count_limit(&first_best),
+        None
+    );
+    assert_eq!(
+        <FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::accepted_count_limit(&first_last),
+        None
+    );
+}
+
+#[test]
 fn test_forager_resets_on_step() {
     let mut forager = AcceptedCountForager::<DummySolution>::new(3);
 

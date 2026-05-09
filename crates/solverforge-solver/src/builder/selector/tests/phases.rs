@@ -20,7 +20,7 @@ fn default_scalar_local_search_uses_scalar_streaming_defaults() {
 }
 
 #[test]
-fn default_nearby_scalar_local_search_scans_deterministic_neighborhood() {
+fn default_nearby_scalar_local_search_uses_stream_horizon() {
     let phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
         None,
         &nearby_scalar_only_model(),
@@ -29,20 +29,21 @@ fn default_nearby_scalar_local_search_scans_deterministic_neighborhood() {
     let debug = format!("{phase:?}");
 
     assert!(debug.contains("SimulatedAnnealing"));
-    assert!(debug.contains("BestScoreForager"));
+    assert!(debug.contains("accepted_count_limit: 128"));
 }
 
 #[test]
-fn default_search_profile_runs_vnd_before_acceptor_for_assignment_groups() {
+fn default_search_profile_uses_one_streaming_phase_for_assignment_groups() {
     let phases = crate::builder::search::defaults::default_local_search_phases(
         &assignment_scalar_model(),
         Some(7),
     );
 
-    assert_eq!(phases.len(), 2);
-    assert!(format!("{:?}", phases[0]).contains("VariableNeighborhoodDescent"));
-    assert!(format!("{:?}", phases[1]).contains("AcceptorForager"));
-    assert!(format!("{:?}", phases[1]).contains("BestScoreForager"));
+    assert_eq!(phases.len(), 1);
+    let debug = format!("{:?}", phases[0]);
+    assert!(debug.contains("AcceptorForager"));
+    assert!(!debug.contains("VariableNeighborhoodDescent"));
+    assert!(debug.contains("accepted_count_limit: 128"));
 }
 
 #[test]
@@ -65,13 +66,13 @@ fn default_list_and_mixed_local_search_use_list_streaming_defaults() {
     );
     let list_debug = format!("{list_phase:?}");
     assert!(list_debug.contains("LateAcceptance"));
-    assert!(list_debug.contains("accepted_count_limit: 4"));
+    assert!(list_debug.contains("accepted_count_limit: 128"));
 
     let mixed_phase =
         build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(None, &mixed_model(), None);
     let mixed_debug = format!("{mixed_phase:?}");
     assert!(mixed_debug.contains("LateAcceptance"));
-    assert!(mixed_debug.contains("accepted_count_limit: 4"));
+    assert!(mixed_debug.contains("accepted_count_limit: 128"));
 }
 
 #[test]

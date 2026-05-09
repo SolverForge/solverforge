@@ -2,16 +2,17 @@ use std::fmt::{self, Debug};
 use std::marker::PhantomData;
 use std::time::Instant;
 
+use rand::RngExt;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 use tracing::info;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::{CandidateId, MoveCursor};
+use crate::heuristic::selector::move_selector::{CandidateId, MoveCursor, MoveStreamContext};
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::control::{
-    settle_search_interrupt, should_interrupt_evaluation, should_interrupt_generation,
-    StepInterrupt,
+    settle_search_interrupt, should_interrupt_after_step, should_interrupt_before_candidate,
+    should_interrupt_before_evaluation, StepInterrupt,
 };
 use crate::phase::localsearch::evaluation::{
     evaluate_candidate, record_evaluated_move, CandidateEvaluation,
@@ -82,7 +83,17 @@ where
             }
 
             let mut step_scope = StepScope::new(&mut phase_scope);
-            let mut cursor = self.neighborhoods[k].open_cursor(step_scope.score_director());
+            let stream_context = MoveStreamContext::new(
+                step_scope.step_index(),
+                step_scope
+                    .phase_scope_mut()
+                    .solver_scope_mut()
+                    .rng()
+                    .random::<u64>(),
+                None,
+            );
+            let mut cursor = self.neighborhoods[k]
+                .open_cursor_with_context(step_scope.score_director(), stream_context);
 
             match find_best_improving_move(
                 &mut cursor,
@@ -168,10 +179,8 @@ where
 {
     let mut best: Option<(CandidateId, S::Score)> = None;
 
-    let mut generated = 0usize;
-    let mut evaluated = 0usize;
     loop {
-        if should_interrupt_generation(step_scope, generated) {
+        if should_interrupt_before_candidate(step_scope) {
             return MoveSearchResult::Interrupted;
         }
         let generation_started = Instant::now();
@@ -179,7 +188,6 @@ where
             break;
         };
         let generation_elapsed = generation_started.elapsed();
-        generated += 1;
         let mov = cursor
             .candidate(candidate_index)
             .expect("discovered candidate id must remain borrowable");
@@ -200,10 +208,9 @@ where
         }
         progress.record_generated();
 
-        if should_interrupt_evaluation(step_scope, evaluated) {
+        if should_interrupt_before_evaluation(step_scope) {
             return MoveSearchResult::Interrupted;
         }
-        evaluated += 1;
         let evaluation_started = Instant::now();
         let move_score = match evaluate_candidate(
             &mov,
@@ -233,6 +240,10 @@ where
                 _ => {}
             }
         }
+    }
+
+    if should_interrupt_after_step(step_scope) {
+        return MoveSearchResult::Interrupted;
     }
 
     match best {

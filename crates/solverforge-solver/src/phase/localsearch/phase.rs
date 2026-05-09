@@ -4,16 +4,17 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::time::Instant;
 
+use rand::RngExt;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 use tracing::{debug, info, trace};
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor};
+use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, MoveStreamContext};
 use crate::heuristic::selector::MoveSelector;
 use crate::phase::control::{
-    settle_search_interrupt, should_interrupt_evaluation, should_interrupt_generation,
-    StepInterrupt,
+    settle_search_interrupt, should_interrupt_after_step, should_interrupt_before_candidate,
+    should_interrupt_before_evaluation, StepInterrupt,
 };
 use crate::phase::localsearch::evaluation::{
     evaluate_candidate, record_evaluated_move, CandidateEvaluation,
@@ -175,17 +176,29 @@ where
             let requires_move_signatures = self.acceptor.requires_move_signatures();
 
             let mut interrupted_step = false;
-            let mut generated_moves = 0usize;
-            let mut evaluated_moves = 0usize;
             let mut accepted_moves_this_step = 0u64;
+            if should_interrupt_before_candidate(&step_scope) {
+                interrupted_step = true;
+            }
             let generation_started = Instant::now();
-            let mut cursor = self.move_selector.open_cursor(step_scope.score_director());
+            let stream_context = MoveStreamContext::new(
+                step_scope.step_index(),
+                step_scope
+                    .phase_scope_mut()
+                    .solver_scope_mut()
+                    .rng()
+                    .random::<u64>(),
+                self.forager.accepted_count_limit(),
+            );
+            let mut cursor = self
+                .move_selector
+                .open_cursor_with_context(step_scope.score_director(), stream_context);
             step_scope
                 .phase_scope_mut()
                 .record_generation_time(generation_started.elapsed());
 
             while !self.forager.is_quit_early() {
-                if should_interrupt_generation(&step_scope, generated_moves) {
+                if interrupted_step || should_interrupt_before_candidate(&step_scope) {
                     interrupted_step = true;
                     break;
                 }
@@ -200,7 +213,6 @@ where
                     .expect("discovered candidate id must remain borrowable");
                 let selector_label = selector_index.map(|_| candidate_selector_label(&mov));
                 let generation_elapsed = generation_started.elapsed();
-                generated_moves += 1;
                 local_moves_generated += 1;
                 if let Some(selector_index) = selector_index {
                     step_scope
@@ -216,11 +228,10 @@ where
                         .record_generated_move(generation_elapsed);
                 }
 
-                if should_interrupt_evaluation(&step_scope, evaluated_moves) {
+                if should_interrupt_before_evaluation(&step_scope) {
                     interrupted_step = true;
                     break;
                 }
-                evaluated_moves += 1;
                 local_moves_evaluated += 1;
 
                 if local_moves_evaluated & 0x1FFF == 0 {
@@ -305,6 +316,10 @@ where
                 if accepted {
                     self.forager.add_move_index(candidate_id, move_score);
                 }
+            }
+
+            if !interrupted_step && should_interrupt_after_step(&step_scope) {
+                interrupted_step = true;
             }
 
             if interrupted_step {

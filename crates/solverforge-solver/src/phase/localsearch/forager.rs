@@ -45,6 +45,10 @@ where
     // wants to stop evaluating more.
     fn is_quit_early(&self) -> bool;
 
+    fn accepted_count_limit(&self) -> Option<usize> {
+        None
+    }
+
     /* Picks the best move index from those collected.
 
     Returns None if no moves were accepted.
@@ -143,6 +147,10 @@ where
         self.accepted_moves.len() >= self.accepted_count_limit
     }
 
+    fn accepted_count_limit(&self) -> Option<usize> {
+        Some(self.accepted_count_limit)
+    }
+
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
         if self.accepted_moves.is_empty() {
             return None;
@@ -237,6 +245,10 @@ where
 
     fn is_quit_early(&self) -> bool {
         self.accepted_move.is_some()
+    }
+
+    fn accepted_count_limit(&self) -> Option<usize> {
+        Some(1)
     }
 
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {

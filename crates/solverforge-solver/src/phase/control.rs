@@ -41,20 +41,15 @@ where
     has_pending_control(step_scope)
 }
 
-pub(crate) fn should_interrupt_generation<'t, 'a, 'b, S, D, ProgressCb>(
+pub(crate) fn should_interrupt_before_candidate<'t, 'a, 'b, S, D, ProgressCb>(
     step_scope: &StepScope<'t, 'a, 'b, S, D, ProgressCb>,
-    generated: usize,
 ) -> bool
 where
     S: PlanningSolution,
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    if generated == 0 {
-        return has_pending_control(step_scope);
-    }
-
-    generated.is_multiple_of(GENERATION_POLL_INTERVAL) && has_pending_control(step_scope)
+    has_pending_control(step_scope)
 }
 
 pub(crate) fn should_interrupt_evaluation<'t, 'a, 'b, S, D, ProgressCb>(
@@ -69,6 +64,28 @@ where
     evaluated != 0
         && evaluated.is_multiple_of(EVALUATION_POLL_INTERVAL)
         && has_pending_control(step_scope)
+}
+
+pub(crate) fn should_interrupt_before_evaluation<'t, 'a, 'b, S, D, ProgressCb>(
+    step_scope: &StepScope<'t, 'a, 'b, S, D, ProgressCb>,
+) -> bool
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    has_pending_control(step_scope)
+}
+
+pub(crate) fn should_interrupt_after_step<'t, 'a, 'b, S, D, ProgressCb>(
+    step_scope: &StepScope<'t, 'a, 'b, S, D, ProgressCb>,
+) -> bool
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    has_pending_control(step_scope)
 }
 
 pub(crate) fn settle_search_interrupt<'t, 'a, 'b, S, D, ProgressCb>(

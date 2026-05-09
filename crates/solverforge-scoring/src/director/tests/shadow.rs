@@ -7,7 +7,7 @@ use crate::constraint::incremental::IncrementalUniConstraint;
 use crate::director::score_director::ScoreDirector;
 use crate::stream::collection_extract::{source, ChangeSource, SourceExtract};
 
-use solverforge_test::shadow::ShadowSolution;
+use super::fixtures::ShadowSolution;
 
 // Creates a constraint that penalizes when cached_sum exceeds 100.
 fn make_sum_constraint() -> IncrementalUniConstraint<

@@ -16,7 +16,6 @@ solverforge (facade + re-exports)
     |-- solverforge-config   - TOML/YAML configuration
     |-- solverforge-console  - Tracing-driven console output and progress formatting
     |-- solverforge-cvrp     - CVRP domain helpers and distance utilities
-    |-- solverforge-test     - Shared test utilities for workspace crates
     |-- solverforge-macros   - planning_model!, #[planning_solution], #[planning_entity], #[problem_fact]
     |
     `-> solverforge-core     - Score types, domain traits, descriptors
@@ -64,7 +63,6 @@ Current wireframes:
 - `crates/solverforge-config/WIREFRAME.md`
 - `crates/solverforge-console/WIREFRAME.md`
 - `crates/solverforge-cvrp/WIREFRAME.md`
-- `crates/solverforge-test/WIREFRAME.md`
 
 When public surface changes, update the matching wireframe in the same change:
 

@@ -7,10 +7,11 @@ use crate::{ConstraintAnalysis, ConstraintMetadata, ConstraintResult, Constraint
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_core::ConstraintRef;
-use solverforge_test::nqueens::{
+use std::any::TypeId;
+
+use super::fixtures::{
     create_nqueens_descriptor, get_queen_row, set_queen_row, NQueensSolution, Queen,
 };
-use std::any::TypeId;
 
 fn create_inner(queens: Vec<Queen>) -> ScoreDirector<NQueensSolution, ()> {
     let descriptor = create_nqueens_descriptor();

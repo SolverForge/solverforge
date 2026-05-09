@@ -9,7 +9,6 @@ Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 
 - `solverforge-core` (path) — Score types, domain traits, descriptors, ConstraintRef, ImpactType
 - `thiserror` (workspace) — error derive macros
-- `solverforge-test` (dev, workspace) — test utilities
 
 ## File Map
 

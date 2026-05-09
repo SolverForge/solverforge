@@ -348,7 +348,6 @@ models show average `candidates`.
 | `solverforge-console` | Tracing-based console output with banner and progress display |
 | `solverforge-macros` | Procedural macros for domain model |
 | `solverforge-cvrp` | CVRP domain helpers: `VrpSolution`, `ProblemData`, distance meters, feasibility functions |
-| `solverforge-test` | Shared test fixtures for workspace crates |
 
 ## Score Types
 

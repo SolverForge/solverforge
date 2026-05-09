@@ -9,7 +9,6 @@ members = [
     "crates/solverforge-console",
     "crates/solverforge",
     "crates/solverforge-cvrp",
-    "crates/solverforge-test",
     "examples/scalar-graph-coloring",
     "examples/list-tsp",
     "examples/minimal-shift-scheduling",
@@ -34,7 +33,6 @@ solverforge-config = { path = "crates/solverforge-config" }
 solverforge = { path = "crates/solverforge" }
 solverforge-console = { path = "crates/solverforge-console" }
 solverforge-cvrp = { path = "crates/solverforge-cvrp" }
-solverforge-test = { path = "crates/solverforge-test" }
 
 # External dependencies
 thiserror = "2.0.18"

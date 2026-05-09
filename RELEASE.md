@@ -14,13 +14,11 @@ Release reference for the `release/0.6.0` line and later patch releases.
 | `solverforge` | Stable | Publish on every coordinated release | Public facade crate and primary library entry point |
 | `solverforge-cvrp` | Beta | Publish on every facade version change | Required by the facade's exact-version dependency set |
 | `solverforge-console` | Beta | Publish on every facade version change | Required for the facade's exact-version optional `console` feature |
-| `solverforge-test` | Internal | Do not publish | Shared test fixtures only |
 
 Status definitions:
 
 - `Stable`: public API expected to remain coherent across the release line; regressions block release.
 - `Beta`: supported and versioned, but still more likely to receive usability and coverage fixes between patch releases.
-- `Internal`: workspace-only support crate; not part of the published product surface.
 
 ## Publish Order
 
@@ -34,7 +32,6 @@ When versions change across the workspace, publish crates in dependency order:
 6. `solverforge-cvrp`
 7. `solverforge-console`
 8. `solverforge`
-`solverforge-test` stays unpublished.
 
 ## Release Checklist
 

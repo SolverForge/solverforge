@@ -21,6 +21,3 @@ rayon.workspace = true
 smallvec.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["sync"] }
-
-[dev-dependencies]
-solverforge-test = { workspace = true }

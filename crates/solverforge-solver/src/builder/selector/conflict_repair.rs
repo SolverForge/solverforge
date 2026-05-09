@@ -174,22 +174,64 @@ where
         &'a self,
         score_director: &D,
     ) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: solverforge_scoring::Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         self.validate_constraint_hardness(score_director);
         let solution = score_director.working_solution();
         let limits = self.limits();
+        if limits.max_moves_per_step == 0
+            || limits.max_matches_per_step == 0
+            || limits.max_repairs_per_match == 0
+        {
+            return ConflictRepairCursor::new(CandidateStore::new());
+        }
+
         let mut store = CandidateStore::with_capacity(self.config.max_moves_per_step);
         let mut seen = HashSet::new();
+        let mut provider_invocations = 0usize;
+        let mut constraint_indices = (0..self.config.constraints.len()).collect::<Vec<_>>();
+        let constraint_offset = context.start_offset(
+            constraint_indices.len(),
+            0xC0AF_11C7_0000_0001 ^ self.config.max_moves_per_step as u64,
+        );
+        constraint_indices.rotate_left(constraint_offset);
 
-        for constraint_name in &self.config.constraints {
-            for repair in self
+        for constraint_index in constraint_indices {
+            let constraint_name = &self.config.constraints[constraint_index];
+            let mut repair_indices = self
                 .repairs
                 .iter()
-                .filter(|repair| repair.constraint_name() == constraint_name)
-            {
-                for spec in (repair.provider())(solution, limits)
-                    .into_iter()
-                    .take(self.config.max_repairs_per_match)
+                .enumerate()
+                .filter_map(|(index, repair)| {
+                    (repair.constraint_name() == constraint_name).then_some(index)
+                })
+                .collect::<Vec<_>>();
+            let repair_offset = context.start_offset(
+                repair_indices.len(),
+                0xC0AF_11C7_0000_0002 ^ constraint_index as u64,
+            );
+            repair_indices.rotate_left(repair_offset);
+            for repair_index in repair_indices {
+                if store.len() >= self.config.max_moves_per_step
+                    || provider_invocations >= self.config.max_matches_per_step
                 {
+                    return ConflictRepairCursor::new(store);
+                }
+                provider_invocations += 1;
+                let repair = &self.repairs[repair_index];
+                let mut specs = (repair.provider())(solution, limits);
+                let spec_offset = context.start_offset(
+                    specs.len(),
+                    0xC0AF_11C7_0000_0003 ^ repair_index as u64,
+                );
+                specs.rotate_left(spec_offset);
+                for spec in specs.into_iter().take(self.config.max_repairs_per_match) {
                     if store.len() >= self.config.max_moves_per_step {
                         return ConflictRepairCursor::new(store);
                     }

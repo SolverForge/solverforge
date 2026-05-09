@@ -38,7 +38,7 @@ impl<S> GroupedScalarSelector<S> {
     fn limits(&self) -> crate::builder::context::ScalarGroupLimits {
         crate::builder::context::ScalarGroupLimits {
             value_candidate_limit: self.value_candidate_limit,
-            group_candidate_limit: None,
+            group_candidate_limit: Some(self.max_moves_per_step),
             max_moves_per_step: Some(self.max_moves_per_step),
             max_augmenting_depth: None,
             max_rematch_size: None,
@@ -115,12 +115,24 @@ where
         &'a self,
         score_director: &D,
     ) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: solverforge_scoring::Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
+        if self.max_moves_per_step == 0 {
+            return GroupedScalarCursor::new(CandidateStore::new());
+        }
+
         let candidate_provider = match self.group.kind {
             crate::builder::ScalarGroupBindingKind::Candidates { candidate_provider } => {
                 candidate_provider
             }
             crate::builder::ScalarGroupBindingKind::Assignment(assignment) => {
-                return self.open_assignment_cursor(score_director, assignment);
+                return self.open_assignment_cursor(score_director, assignment, context);
             }
         };
         let solution = score_director.working_solution();
@@ -128,7 +140,13 @@ where
         let mut seen_candidates = Vec::new();
         let mut targets = std::collections::HashSet::new();
 
-        for candidate in candidate_provider(solution, self.limits()) {
+        let mut candidates = candidate_provider(solution, self.limits());
+        let offset = context.start_offset(
+            candidates.len(),
+            0xC0A1_E5CE_AAA0_0001 ^ self.group.group_name.len() as u64,
+        );
+        candidates.rotate_left(offset);
+        for candidate in candidates {
             if store.len() >= self.max_moves_per_step {
                 break;
             }
@@ -182,13 +200,21 @@ where
         &self,
         score_director: &D,
         assignment: crate::builder::ScalarAssignmentBinding<S>,
+        context: MoveStreamContext,
     ) -> GroupedScalarCursor<S> {
+        if self.max_moves_per_step == 0 {
+            return GroupedScalarCursor::new(CandidateStore::new());
+        }
+
         let solution = score_director.working_solution();
+        let entity_offset = self.next_entity_offset().wrapping_add(context.offset_seed(
+            0xC0A1_E5CE_AAA0_0002 ^ self.group.group_name.len() as u64,
+        ));
         let options = crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_selector(
             self.group.limits,
             self.value_candidate_limit,
             self.max_moves_per_step,
-            self.next_entity_offset(),
+            entity_offset,
         );
         let mut store = CandidateStore::with_capacity(self.max_moves_per_step);
         for mov in crate::phase::construction::grouped_scalar::selector_assignment_moves(

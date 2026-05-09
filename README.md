@@ -101,10 +101,9 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
     candidate-backed compound edits and assignment-backed nullable scalar
     construction with required-slot handling, capacity repair, and heuristic
     ordering hooks
-  - Local Search (Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, Diversified Late Acceptance)
+  - Local Search (`acceptor_forager` with Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, and Diversified Late Acceptance; or `variable_neighborhood_descent` with ordered neighborhoods)
   - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
   - Partitioned Search (multi-threaded via rayon)
-  - VND (Variable Neighborhood Descent)
 - **Move System**: Zero-allocation moves with cursor-scoped ownership and selected-winner materialization
   - Scalar: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
   - List: ListChangeMove, ListSwapMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
@@ -145,13 +144,25 @@ If you are building directly against the runtime crates instead of starting from
 solverforge = { version = "0.12.1", features = ["console"] }
 ```
 
-When `move_selector` is omitted from local search or VND, the canonical runtime
-uses explicit streaming defaults instead of broad exhaustive neighborhoods:
+When `move_selector` is omitted from `acceptor_forager` local search, the
+canonical runtime uses explicit streaming defaults instead of broad exhaustive
+neighborhoods:
 
 - scalar-only models default to `ChangeMoveSelector` plus `SwapMoveSelector`
 - list-only models default to `NearbyListChangeMoveSelector(20)`,
   `NearbyListSwapMoveSelector(20)`, and `ListReverseMoveSelector`
 - mixed models concatenate the list defaults first, then the scalar defaults
+
+Variable Neighborhood Descent is configured as a local-search type:
+
+```toml
+[[phases]]
+type = "local_search"
+local_search_type = "variable_neighborhood_descent"
+
+[[phases.neighborhoods]]
+type = "change_move_selector"
+```
 
 Runtime telemetry now preserves exact counts and `Duration`s through the whole
 pipeline. Retained status/events expose generated, evaluated, and accepted move

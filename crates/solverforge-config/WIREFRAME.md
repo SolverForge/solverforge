@@ -23,7 +23,7 @@ src/
 ├── error.rs         — ConfigError
 ├── forager.rs       — ForagerConfig and AcceptedCountForagerConfig
 ├── move_selector.rs — MoveSelectorConfig and selector-specific config structs
-├── phase.rs         — PhaseConfig plus construction/local-search/VND/exhaustive configs
+├── phase.rs         — PhaseConfig plus construction/local-search/exhaustive configs
 ├── solver_config.rs — SolverConfig, SolverConfigOverride, environment/thread settings
 ├── termination.rs   — TerminationConfig
 └── tests.rs         — Test module root
@@ -153,13 +153,20 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type |
 |-------|------|
+| `local_search_type` | `LocalSearchType` |
 | `acceptor` | `Option<AcceptorConfig>` |
 | `forager` | `Option<ForagerConfig>` |
 | `move_selector` | `Option<MoveSelectorConfig>` |
+| `neighborhoods` | `Vec<MoveSelectorConfig>` |
 | `termination` | `Option<TerminationConfig>` |
 
-When `move_selector` is omitted, the canonical runtime resolves explicit
-streaming defaults rather than broad exhaustive search:
+`local_search_type` defaults to `AcceptorForager`. `AcceptorForager` uses
+`acceptor`, `forager`, and `move_selector`, and rejects `neighborhoods`.
+`VariableNeighborhoodDescent` uses ordered `neighborhoods`, and rejects
+`acceptor`, `forager`, and `move_selector`.
+
+When `move_selector` is omitted for `AcceptorForager`, the canonical runtime
+resolves explicit streaming defaults rather than broad exhaustive search:
 
 - scalar-only models: `ChangeMoveSelector`, then `SwapMoveSelector`
 - list-only models: `NearbyListChangeMoveSelector(20)`,
@@ -168,15 +175,6 @@ streaming defaults rather than broad exhaustive search:
 
 When `forager` is omitted, the canonical runtime uses the accepted-count
 forager with `limit = 1`.
-
-### `VndConfig`
-
-Derives: `Debug, Clone, Default, Deserialize, Serialize`.
-
-| Field | Type |
-|-------|------|
-| `neighborhoods` | `Vec<MoveSelectorConfig>` |
-| `termination` | `Option<TerminationConfig>` |
 
 ### `VariableTargetConfig`
 
@@ -621,7 +619,6 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 |---------|---------|
 | `ConstructionHeuristic` | `ConstructionHeuristicConfig` |
 | `LocalSearch` | `LocalSearchConfig` |
-| `Vnd` | `VndConfig` |
 | `ExhaustiveSearch` | `ExhaustiveSearchConfig` |
 | `PartitionedSearch` | `PartitionedSearchConfig` |
 | `Custom` | `CustomPhaseConfig` |

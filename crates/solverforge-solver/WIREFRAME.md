@@ -265,17 +265,15 @@ src/
 │   │   ├── phase.rs                    — PartitionedSearchPhase<P, Part>
 │   │   └── phase_tests.rs              — Tests
 │   ├── sequence.rs                      — PhaseSequence<P>
-│   ├── dynamic_vnd.rs                   — DynamicVndPhase<S, M, MS>
-│   ├── dynamic_vnd_tests.rs             — Dynamic VND tests, including progress, selector telemetry, prompt settlement, and hard-improvement gating
-│   └── vnd/
-│       ├── mod.rs                       — Re-exports
-│       ├── phase.rs                     — VndPhase, impl_vnd_phase! macro (up to 8 neighborhoods)
+│   └── localsearch/vnd/
+│       ├── mod.rs                       — Internal VND module declarations
+│       ├── phase.rs                     — Internal Vec-backed VndPhase used by LocalSearchStrategy
 │       ├── telemetry.rs                 — Internal VND progress and selector-label helpers
-│       └── phase_tests.rs               — Tests
+│       └── tests.rs                     — Internal VND tests
 │
 ├── manager/
 │   ├── mod.rs                           — PhaseFactory trait, re-exports
-│   ├── config.rs                        — LocalSearchType, ConstructionType, PhaseConfig enums
+│   ├── config.rs                        — LocalSearchAcceptorType, ConstructionType, PhaseConfig enums
 │   ├── builder.rs                       — SolverFactoryBuilder, SolverBuildError
 │   ├── solver_factory.rs               — SolverFactory, solver_factory_builder() free fn
 │   ├── solver_manager.rs               — Re-exports retained lifecycle manager surface
@@ -879,9 +877,11 @@ Score bounders: `SoftScoreBounder`, `FixedOffsetBounder<S>`, `()` (no-op).
 
 **`ThreadCount`** — `Auto`, `Unlimited`, `Specific(usize)`. `PartitionedSearchPhase` solves child partitions sequentially when the resolved count is `1`, otherwise it installs a dedicated Rayon pool whose worker count matches the resolved value.
 
-### VND (Variable Neighborhood Descent)
+### Variable Neighborhood Descent
 
-**`VndPhase<T, M>`** — Wraps tuple of move selectors. `impl_vnd_phase!` macro generates Phase impls for tuples up to 8 neighborhoods.
+Variable Neighborhood Descent is an internal `local_search_type`, not a public
+standalone phase API. Configured runtime solving reaches it through
+`LocalSearchStrategy`.
 
 ## Scope Hierarchy
 
@@ -1031,7 +1031,8 @@ selector diagnosis.
 
 Runtime helpers:
 
-- `RuntimePhase<C, LS, VND>` — generic runtime phase enum with `Construction`, `LocalSearch`, `Vnd`
+- `RuntimePhase<C, LS>` — generic runtime phase enum with `Construction` and `LocalSearch`
+- `LocalSearchStrategy<S, V, DM, IDM>` — runtime local-search wrapper for `acceptor_forager` and `variable_neighborhood_descent`
 - `Construction<S, V, DM, IDM>` — runtime construction phase over one `RuntimeModel`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, use the descriptor boundary for scalar-only targets, use grouped scalar construction when `group_name` selects a registered `ScalarGroup`, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations. Grouped construction receives all resolved scalar bindings for legality even when the phase target narrows which members must still need work.
 - `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
@@ -1073,7 +1074,7 @@ Canonical solve entrypoints used by macro-generated solving. They accept generat
 - **Function pointer storage.** Moves and selectors store index-aware `fn` pointers (e.g., `fn(&S, usize, usize) -> Option<V>`) instead of trait objects for solution access.
 - **PhantomData<fn() -> T>** pattern used in all move types to avoid inheriting Clone/Send/Sync bounds from phantom type parameters.
 - **SmallVec<[usize; 8]>** used in RuinMove and ListRuinMove for stack-allocated small ruin counts.
-- **Tuple-based composition.** Phases, terminations, and VND neighborhoods compose via nested tuples with macro-generated impls, avoiding `Vec<Box<dyn Phase>>`.
+- **Tuple-based composition.** Phases and terminations compose via nested tuples with macro-generated impls, avoiding `Vec<Box<dyn Phase>>`.
 - **Intentional `dyn` boundaries.** `DynDistanceMeter` in `nearby.rs` and `DefaultPillarSelector` value extractor closures are intentional type-erasure points to avoid monomorphization bloat.
 - **`ProblemChange::apply` uses `&mut dyn Director<S>`** — intentional type erasure at the real-time planning boundary.
 - **Arena-based move ownership.** Moves are pushed into `MoveArena`, evaluated by index, and taken (moved out) when selected. Never cloned.

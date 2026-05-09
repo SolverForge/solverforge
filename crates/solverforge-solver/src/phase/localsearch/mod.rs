@@ -5,8 +5,10 @@ that are accepted according to an acceptance criterion.
 */
 
 mod acceptor;
+mod evaluation;
 mod forager;
 mod phase;
+pub(crate) mod vnd;
 
 pub(crate) use acceptor::TabuSearchPolicy;
 pub use acceptor::{
@@ -19,3 +21,4 @@ pub use forager::{
     FirstLastStepScoreImprovingForager, LocalSearchForager,
 };
 pub use phase::LocalSearchPhase;
+pub(crate) use vnd::VndPhase;

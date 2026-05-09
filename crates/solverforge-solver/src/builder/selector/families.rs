@@ -9,8 +9,92 @@ pub type LocalSearch<S, V, DM, IDM> = LocalSearchPhase<
     AnyForager<S>,
 >;
 
-pub type Vnd<S, V, DM, IDM> =
-    DynamicVndPhase<S, NeighborhoodMove<S, V>, Neighborhood<S, V, DM, IDM>>;
+pub struct LocalSearchStrategy<S, V, DM, IDM>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+{
+    inner: LocalSearchStrategyInner<S, V, DM, IDM>,
+}
+
+#[allow(clippy::large_enum_variant)] // Inline storage keeps local-search phases zero-erasure.
+enum LocalSearchStrategyInner<S, V, DM, IDM>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+{
+    AcceptorForager(LocalSearch<S, V, DM, IDM>),
+    VariableNeighborhoodDescent(VndPhase<S, NeighborhoodMove<S, V>, Neighborhood<S, V, DM, IDM>>),
+}
+
+impl<S, V, DM, IDM> LocalSearchStrategy<S, V, DM, IDM>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+{
+    fn acceptor_forager(phase: LocalSearch<S, V, DM, IDM>) -> Self {
+        Self {
+            inner: LocalSearchStrategyInner::AcceptorForager(phase),
+        }
+    }
+
+    fn variable_neighborhood_descent(
+        phase: VndPhase<S, NeighborhoodMove<S, V>, Neighborhood<S, V, DM, IDM>>,
+    ) -> Self {
+        Self {
+            inner: LocalSearchStrategyInner::VariableNeighborhoodDescent(phase),
+        }
+    }
+}
+
+impl<S, V, DM, IDM> Debug for LocalSearchStrategy<S, V, DM, IDM>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.inner {
+            LocalSearchStrategyInner::AcceptorForager(phase) => f
+                .debug_tuple("LocalSearchStrategy::AcceptorForager")
+                .field(phase)
+                .finish(),
+            LocalSearchStrategyInner::VariableNeighborhoodDescent(phase) => f
+                .debug_tuple("LocalSearchStrategy::VariableNeighborhoodDescent")
+                .field(phase)
+                .finish(),
+        }
+    }
+}
+
+impl<S, V, DM, IDM, D, ProgressCb> Phase<S, D, ProgressCb>
+    for LocalSearchStrategy<S, V, DM, IDM>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    D: solverforge_scoring::Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
+        match &mut self.inner {
+            LocalSearchStrategyInner::AcceptorForager(phase) => phase.solve(solver_scope),
+            LocalSearchStrategyInner::VariableNeighborhoodDescent(phase) => phase.solve(solver_scope),
+        }
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "LocalSearch"
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SelectorFamily {

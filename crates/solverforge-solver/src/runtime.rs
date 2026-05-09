@@ -6,7 +6,7 @@ use solverforge_config::{ConstructionHeuristicConfig, PhaseConfig, SolverConfig}
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
 
-use crate::builder::{build_local_search, build_vnd, LocalSearch, RuntimeModel, Vnd};
+use crate::builder::{build_local_search, LocalSearchStrategy, RuntimeModel};
 use crate::descriptor::{
     build_descriptor_construction_from_bindings, scalar_work_remaining_with_frontier,
 };
@@ -191,22 +191,16 @@ where
                 let Some((group_index, group)) = capabilities.scalar_group.as_ref() else {
                     unreachable!("grouped scalar route requires a selected scalar group");
                 };
-                let ran_child_phase = crate::phase::construction::solve_grouped_scalar_construction(
+                crate::phase::construction::solve_grouped_scalar_construction(
                     config,
                     *group_index,
                     group,
                     &capabilities.scalar_bindings,
                     solver_scope,
-                );
-                ran_child_phase
+                )
             }
             ConstructionRoute::GenericMixed => {
-                let ran_child_phase = crate::phase::construction::solve_construction(
-                    config,
-                    &self.model,
-                    solver_scope,
-                );
-                ran_child_phase
+                crate::phase::construction::solve_construction(config, &self.model, solver_scope)
             }
         }
     }
@@ -266,41 +260,36 @@ fn finalize_noop_construction<S, D, ProgressCb>(
     }
 }
 
-pub enum RuntimePhase<C, LS, VND> {
+pub enum RuntimePhase<C, LS> {
     Construction(C),
     LocalSearch(LS),
-    Vnd(VND),
 }
 
-impl<C, LS, VND> Debug for RuntimePhase<C, LS, VND>
+impl<C, LS> Debug for RuntimePhase<C, LS>
 where
     C: Debug,
     LS: Debug,
-    VND: Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Construction(phase) => write!(f, "RuntimePhase::Construction({phase:?})"),
             Self::LocalSearch(phase) => write!(f, "RuntimePhase::LocalSearch({phase:?})"),
-            Self::Vnd(phase) => write!(f, "RuntimePhase::Vnd({phase:?})"),
         }
     }
 }
 
-impl<S, D, ProgressCb, C, LS, VND> Phase<S, D, ProgressCb> for RuntimePhase<C, LS, VND>
+impl<S, D, ProgressCb, C, LS> Phase<S, D, ProgressCb> for RuntimePhase<C, LS>
 where
     S: PlanningSolution,
     D: solverforge_scoring::Director<S>,
     ProgressCb: ProgressCallback<S>,
     C: Phase<S, D, ProgressCb> + Debug,
     LS: Phase<S, D, ProgressCb> + Debug,
-    VND: Phase<S, D, ProgressCb> + Debug,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
         match self {
             Self::Construction(phase) => phase.solve(solver_scope),
             Self::LocalSearch(phase) => phase.solve(solver_scope),
-            Self::Vnd(phase) => phase.solve(solver_scope),
         }
     }
 
@@ -313,9 +302,7 @@ pub fn build_phases<S, V, DM, IDM>(
     config: &SolverConfig,
     descriptor: &SolutionDescriptor,
     model: &RuntimeModel<S, V, DM, IDM>,
-) -> PhaseSequence<
-    RuntimePhase<Construction<S, V, DM, IDM>, LocalSearch<S, V, DM, IDM>, Vnd<S, V, DM, IDM>>,
->
+) -> PhaseSequence<RuntimePhase<Construction<S, V, DM, IDM>, LocalSearchStrategy<S, V, DM, IDM>>>
 where
     S: PlanningSolution + 'static,
     S::Score: Score + ParseableScore,
@@ -354,9 +341,6 @@ where
                     model,
                     config.random_seed,
                 )));
-            }
-            PhaseConfig::Vnd(vnd) => {
-                phases.push(RuntimePhase::Vnd(build_vnd(vnd, model, config.random_seed)));
             }
             _ => {
                 panic!("unsupported phase in the runtime");

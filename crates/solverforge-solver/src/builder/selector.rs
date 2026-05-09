@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use solverforge_config::{
-    AcceptorConfig, ChangeMoveConfig, ListReverseMoveConfig, LocalSearchConfig, MoveSelectorConfig,
-    NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, VariableTargetConfig, VndConfig,
+    AcceptorConfig, ChangeMoveConfig, ListReverseMoveConfig, LocalSearchConfig, LocalSearchType,
+    MoveSelectorConfig, NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, VariableTargetConfig,
 };
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
@@ -13,10 +13,12 @@ use crate::heuristic::selector::move_selector::{
     CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-use crate::phase::dynamic_vnd::DynamicVndPhase;
+use crate::phase::localsearch::VndPhase;
 use crate::phase::localsearch::{
     AcceptedCountForager, LocalSearchPhase, SimulatedAnnealingAcceptor,
 };
+use crate::phase::Phase;
+use crate::scope::{ProgressCallback, SolverScope};
 
 use super::acceptor::{AcceptorBuilder, AnyAcceptor};
 use super::context::RuntimeModel;

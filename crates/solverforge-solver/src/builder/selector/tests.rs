@@ -3,7 +3,7 @@ use std::any::TypeId;
 use solverforge_config::{
     AcceptorConfig, CartesianProductConfig, ChangeMoveConfig, ForagerConfig, LateAcceptanceConfig,
     LimitedNeighborhoodConfig, ListChangeMoveConfig, ListReverseMoveConfig,
-    ListRuinMoveSelectorConfig, LocalSearchConfig, MoveSelectorConfig,
+    ListRuinMoveSelectorConfig, LocalSearchConfig, LocalSearchType, MoveSelectorConfig,
     RuinRecreateMoveSelectorConfig, SwapMoveConfig, TerminationConfig, UnionMoveSelectorConfig,
     VariableTargetConfig,
 };

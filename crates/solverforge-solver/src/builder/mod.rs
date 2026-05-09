@@ -20,6 +20,6 @@ pub use context::{
 };
 pub use forager::{AnyForager, ForagerBuilder};
 pub use selector::{
-    build_local_search, build_move_selector, build_vnd, LocalSearch, Neighborhood,
-    NeighborhoodLeaf, NeighborhoodMove, Selector, Vnd,
+    build_local_search, build_move_selector, LocalSearch, LocalSearchStrategy, Neighborhood,
+    NeighborhoodLeaf, NeighborhoodMove, Selector,
 };

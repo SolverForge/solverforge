@@ -65,7 +65,7 @@ fn test_builder() {
 }
 
 #[test]
-fn test_target_and_vnd_parsing() {
+fn local_search_variable_neighborhood_descent_parsing() {
     let toml = r#"
         [[phases]]
         type = "construction_heuristic"
@@ -74,7 +74,8 @@ fn test_target_and_vnd_parsing() {
         variable_name = "employee_id"
 
         [[phases]]
-        type = "vnd"
+        type = "local_search"
+        local_search_type = "variable_neighborhood_descent"
 
         [[phases.neighborhoods]]
         type = "change_move_selector"
@@ -103,18 +104,23 @@ fn test_target_and_vnd_parsing() {
         Some("employee_id")
     );
 
-    let PhaseConfig::Vnd(vnd) = &config.phases[1] else {
-        panic!("second phase should be vnd");
+    let PhaseConfig::LocalSearch(local_search) = &config.phases[1] else {
+        panic!("second phase should be local_search");
     };
-    assert_eq!(vnd.neighborhoods.len(), 2);
+    assert_eq!(
+        local_search.local_search_type,
+        LocalSearchType::VariableNeighborhoodDescent
+    );
+    assert_eq!(local_search.neighborhoods.len(), 2);
 
-    let MoveSelectorConfig::ChangeMoveSelector(change) = &vnd.neighborhoods[0] else {
+    let MoveSelectorConfig::ChangeMoveSelector(change) = &local_search.neighborhoods[0] else {
         panic!("first neighborhood should be change selector");
     };
     assert_eq!(change.target.entity_class.as_deref(), Some("Shift"));
     assert_eq!(change.target.variable_name.as_deref(), Some("employee_id"));
 
-    let MoveSelectorConfig::ListChangeMoveSelector(list_change) = &vnd.neighborhoods[1] else {
+    let MoveSelectorConfig::ListChangeMoveSelector(list_change) = &local_search.neighborhoods[1]
+    else {
         panic!("second neighborhood should be list change selector");
     };
     assert_eq!(list_change.target.entity_class.as_deref(), Some("Vehicle"));

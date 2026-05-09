@@ -232,7 +232,7 @@ Used exclusively by macro-generated code. Not public API.
 - `SolvableSolution`
 
 **Solver infrastructure (from `solverforge-solver`):**
-- `ListVariableSlot`, `LocalSearch`, `RuntimeModel`, `ScalarGroupBinding`, `ScalarGroupMemberBinding`, `ScalarVariableSlot`, `ValueSource`, `VariableSlot`, `Vnd`
+- `ListVariableSlot`, `LocalSearch`, `LocalSearchStrategy`, `RuntimeModel`, `ScalarGroupBinding`, `ScalarGroupMemberBinding`, `ScalarVariableSlot`, `ValueSource`, `VariableSlot`
 - `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
 - `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`
 - `PhaseFactory`, `SolverFactory`

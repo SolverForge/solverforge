@@ -299,13 +299,7 @@ pub(super) fn generate_runtime_phase_support(
                             #cross_enum_ident,
                             #intra_enum_ident
                         >,
-                        ::solverforge::__internal::LocalSearch<
-                            #solution_name,
-                            usize,
-                            #cross_enum_ident,
-                            #intra_enum_ident
-                        >,
-                        ::solverforge::__internal::Vnd<
+                        ::solverforge::__internal::LocalSearchStrategy<
                             #solution_name,
                             usize,
                             #cross_enum_ident,
@@ -423,13 +417,7 @@ pub(super) fn generate_runtime_phase_support(
                         ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
                         ::solverforge::__internal::DefaultCrossEntityDistanceMeter
                     >,
-                    ::solverforge::__internal::LocalSearch<
-                        #solution_name,
-                        usize,
-                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
-                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter
-                    >,
-                    ::solverforge::__internal::Vnd<
+                    ::solverforge::__internal::LocalSearchStrategy<
                         #solution_name,
                         usize,
                         ::solverforge::__internal::DefaultCrossEntityDistanceMeter,

@@ -40,11 +40,13 @@ fn default_list_and_mixed_local_search_use_list_streaming_defaults() {
 #[test]
 fn explicit_acceptor_and_forager_configs_override_defaults() {
     let config = LocalSearchConfig {
+        local_search_type: LocalSearchType::AcceptorForager,
         acceptor: Some(AcceptorConfig::LateAcceptance(LateAcceptanceConfig {
             late_acceptance_size: Some(17),
         })),
         forager: Some(ForagerConfig::FirstBestScoreImproving),
         move_selector: None,
+        neighborhoods: Vec::new(),
         termination: None,
     };
 
@@ -63,9 +65,11 @@ fn explicit_acceptor_and_forager_configs_override_defaults() {
 #[test]
 fn local_search_phase_uses_configured_step_count_limit() {
     let config = LocalSearchConfig {
+        local_search_type: LocalSearchType::AcceptorForager,
         acceptor: None,
         forager: None,
         move_selector: None,
+        neighborhoods: Vec::new(),
         termination: Some(TerminationConfig {
             step_count_limit: Some(3),
             ..TerminationConfig::default()
@@ -80,4 +84,101 @@ fn local_search_phase_uses_configured_step_count_limit() {
     let debug = format!("{phase:?}");
 
     assert!(debug.contains("step_limit: Some(3)"));
+}
+
+#[test]
+fn local_search_type_defaults_to_acceptor_forager() {
+    let config = LocalSearchConfig::default();
+    let phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        Some(&config),
+        &scalar_only_model(),
+        Some(7),
+    );
+    let debug = format!("{phase:?}");
+
+    assert!(debug.contains("AcceptorForager"));
+    assert!(debug.contains("SimulatedAnnealing"));
+}
+
+#[test]
+fn variable_neighborhood_descent_type_dispatches_under_local_search() {
+    let config = LocalSearchConfig {
+        local_search_type: LocalSearchType::VariableNeighborhoodDescent,
+        neighborhoods: vec![MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+            value_candidate_limit: None,
+            target: VariableTargetConfig::default(),
+        })],
+        termination: Some(TerminationConfig {
+            step_count_limit: Some(4),
+            ..TerminationConfig::default()
+        }),
+        ..LocalSearchConfig::default()
+    };
+
+    let phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        Some(&config),
+        &scalar_only_model(),
+        None,
+    );
+    let debug = format!("{phase:?}");
+
+    assert!(debug.contains("VariableNeighborhoodDescent"));
+    assert!(debug.contains("step_limit: Some(4)"));
+}
+
+#[test]
+#[should_panic(expected = "acceptor_forager local_search uses move_selector")]
+fn acceptor_forager_local_search_rejects_neighborhoods() {
+    let config = LocalSearchConfig {
+        neighborhoods: vec![MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+            value_candidate_limit: None,
+            target: VariableTargetConfig::default(),
+        })],
+        ..LocalSearchConfig::default()
+    };
+
+    let _ = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        Some(&config),
+        &scalar_only_model(),
+        None,
+    );
+}
+
+#[test]
+#[should_panic(expected = "variable_neighborhood_descent local_search uses neighborhoods")]
+fn variable_neighborhood_descent_rejects_acceptor_forager_fields() {
+    let config = LocalSearchConfig {
+        local_search_type: LocalSearchType::VariableNeighborhoodDescent,
+        acceptor: Some(AcceptorConfig::LateAcceptance(LateAcceptanceConfig {
+            late_acceptance_size: Some(17),
+        })),
+        neighborhoods: vec![MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+            value_candidate_limit: None,
+            target: VariableTargetConfig::default(),
+        })],
+        ..LocalSearchConfig::default()
+    };
+
+    let _ = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        Some(&config),
+        &scalar_only_model(),
+        None,
+    );
+}
+
+#[test]
+#[should_panic(
+    expected = "variable_neighborhood_descent local_search requires at least one [[phases.neighborhoods]] block"
+)]
+fn variable_neighborhood_descent_requires_neighborhoods() {
+    let config = LocalSearchConfig {
+        local_search_type: LocalSearchType::VariableNeighborhoodDescent,
+        ..LocalSearchConfig::default()
+    };
+
+    let _ = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        Some(&config),
+        &scalar_only_model(),
+        None,
+    );
 }

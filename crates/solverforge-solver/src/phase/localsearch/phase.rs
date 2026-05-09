@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 use tracing::{debug, info, trace};
 
 use crate::heuristic::r#move::Move;
@@ -15,7 +15,9 @@ use crate::phase::control::{
     settle_search_interrupt, should_interrupt_evaluation, should_interrupt_generation,
     StepInterrupt,
 };
-use crate::phase::hard_delta::{hard_score_delta, HardScoreDelta};
+use crate::phase::localsearch::evaluation::{
+    evaluate_candidate, record_evaluated_move, CandidateEvaluation,
+};
 use crate::phase::localsearch::{Acceptor, LocalSearchForager};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
@@ -250,66 +252,17 @@ where
                 }
 
                 let evaluation_started = Instant::now();
-                if !mov.is_doable(step_scope.score_director()) {
-                    if let Some(selector_index) = selector_index {
-                        step_scope.phase_scope_mut().record_selector_evaluated_move(
-                            selector_index,
-                            evaluation_started.elapsed(),
-                        );
-                        step_scope
-                            .phase_scope_mut()
-                            .record_selector_move_not_doable(selector_index);
-                    } else {
-                        step_scope
-                            .phase_scope_mut()
-                            .record_evaluated_move(evaluation_started.elapsed());
-                        step_scope.phase_scope_mut().record_move_not_doable();
-                    }
-                    continue;
-                }
-
-                let move_score = {
-                    let mut recording = RecordingDirector::new(step_scope.score_director_mut());
-                    mov.do_move(&mut recording);
-                    let score = recording.calculate_score();
-                    recording.undo_changes();
-                    score
+                let move_score = match evaluate_candidate(
+                    &mov,
+                    &mut step_scope,
+                    last_step_score,
+                    selector_index,
+                    evaluation_started,
+                ) {
+                    CandidateEvaluation::Scored(score) => score,
+                    CandidateEvaluation::NotDoable
+                    | CandidateEvaluation::RejectedByHardImprovement => continue,
                 };
-
-                step_scope.phase_scope_mut().record_score_calculation();
-
-                let hard_delta = hard_score_delta(last_step_score, move_score);
-                match hard_delta {
-                    Some(HardScoreDelta::Improving) => {
-                        step_scope.phase_scope_mut().record_move_hard_improving();
-                    }
-                    Some(HardScoreDelta::Neutral) => {
-                        step_scope.phase_scope_mut().record_move_hard_neutral();
-                    }
-                    Some(HardScoreDelta::Worse) => {
-                        step_scope.phase_scope_mut().record_move_hard_worse();
-                    }
-                    None => {}
-                }
-
-                if mov.requires_hard_improvement() && hard_delta != Some(HardScoreDelta::Improving)
-                {
-                    if let Some(selector_index) = selector_index {
-                        step_scope.phase_scope_mut().record_selector_evaluated_move(
-                            selector_index,
-                            evaluation_started.elapsed(),
-                        );
-                        step_scope
-                            .phase_scope_mut()
-                            .record_selector_move_acceptor_rejected(selector_index);
-                    } else {
-                        step_scope
-                            .phase_scope_mut()
-                            .record_evaluated_move(evaluation_started.elapsed());
-                        step_scope.phase_scope_mut().record_move_acceptor_rejected();
-                    }
-                    continue;
-                }
 
                 let move_signature = if requires_move_signatures {
                     Some(mov.tabu_signature(step_scope.score_director()))
@@ -323,16 +276,7 @@ where
                     move_signature.as_ref(),
                 );
 
-                if let Some(selector_index) = selector_index {
-                    step_scope.phase_scope_mut().record_selector_evaluated_move(
-                        selector_index,
-                        evaluation_started.elapsed(),
-                    );
-                } else {
-                    step_scope
-                        .phase_scope_mut()
-                        .record_evaluated_move(evaluation_started.elapsed());
-                }
+                record_evaluated_move(&mut step_scope, selector_index, evaluation_started);
                 if accepted {
                     if let Some(selector_index) = selector_index {
                         step_scope

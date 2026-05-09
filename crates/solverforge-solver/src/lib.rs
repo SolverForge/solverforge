@@ -34,10 +34,10 @@ pub mod stats;
 pub mod termination;
 
 pub use builder::{
-    build_local_search, build_move_selector, build_vnd, AcceptorBuilder, AnyAcceptor, AnyForager,
-    ForagerBuilder, IntraDistanceAdapter, ListVariableSlot, LocalSearch, Neighborhood,
-    NeighborhoodLeaf, NeighborhoodMove, RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding,
-    ScalarVariableSlot, Selector, ValueSource, VariableSlot, Vnd,
+    build_local_search, build_move_selector, AcceptorBuilder, AnyAcceptor, AnyForager,
+    ForagerBuilder, IntraDistanceAdapter, ListVariableSlot, LocalSearch, LocalSearchStrategy,
+    Neighborhood, NeighborhoodLeaf, NeighborhoodMove, RuntimeModel, ScalarGroupBinding,
+    ScalarGroupMemberBinding, ScalarVariableSlot, Selector, ValueSource, VariableSlot,
 };
 pub use descriptor::{
     build_descriptor_move_selector, descriptor_has_bindings, DescriptorConstruction,
@@ -114,7 +114,6 @@ pub use phase::{
         ConstructionHeuristicPhase, EntityPlacer, FirstFeasibleForager, FirstFitForager,
         ForagerType, Placement, QueuedEntityPlacer,
     },
-    dynamic_vnd::DynamicVndPhase,
     exhaustive::{
         BounderType, ExhaustiveSearchConfig, ExhaustiveSearchDecider, ExhaustiveSearchNode,
         ExhaustiveSearchPhase, ExplorationType, FixedOffsetBounder, MoveSequence, ScoreBounder,
@@ -132,7 +131,6 @@ pub use phase::{
         SolutionPartitioner, ThreadCount,
     },
     sequence::PhaseSequence,
-    vnd::VndPhase,
     Phase,
 };
 pub use planning::{

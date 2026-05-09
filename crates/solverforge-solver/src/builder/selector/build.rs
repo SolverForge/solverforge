@@ -307,7 +307,7 @@ where
     VecUnionSelector::with_selection_order(neighborhoods, selection_order)
 }
 
-pub fn build_local_search<S, V, DM, IDM>(
+fn build_acceptor_forager_local_search<S, V, DM, IDM>(
     config: Option<&LocalSearchConfig>,
     model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
@@ -319,6 +319,13 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
+    if let Some(config) = config {
+        assert!(
+            config.neighborhoods.is_empty(),
+            "acceptor_forager local_search uses move_selector; neighborhoods are only valid with local_search_type = \"variable_neighborhood_descent\""
+        );
+    }
+
     let acceptor = config
         .and_then(|ls| ls.acceptor.as_ref())
         .map(|cfg| AcceptorBuilder::build_with_seed::<S>(cfg, random_seed))
@@ -362,11 +369,11 @@ where
     LocalSearchPhase::new(move_selector, acceptor, forager, step_limit)
 }
 
-pub fn build_vnd<S, V, DM, IDM>(
-    config: &VndConfig,
+fn build_variable_neighborhood_descent<S, V, DM, IDM>(
+    config: &LocalSearchConfig,
     model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
-) -> Vnd<S, V, DM, IDM>
+) -> VndPhase<S, NeighborhoodMove<S, V>, Neighborhood<S, V, DM, IDM>>
 where
     S: PlanningSolution + 'static,
     S::Score: Score + ParseableScore,
@@ -374,23 +381,64 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
-    let neighborhoods = if config.neighborhoods.is_empty() {
-        let mut neighborhoods = Vec::new();
-        collect_neighborhoods(None, model, random_seed, &mut neighborhoods);
-        neighborhoods
-    } else {
-        config
-            .neighborhoods
-            .iter()
-            .flat_map(|selector| {
-                let mut neighborhoods = Vec::new();
-                collect_neighborhoods(Some(selector), model, random_seed, &mut neighborhoods);
-                neighborhoods
-            })
-            .collect()
-    };
+    assert!(
+        config.acceptor.is_none() && config.forager.is_none() && config.move_selector.is_none(),
+        "variable_neighborhood_descent local_search uses neighborhoods; acceptor, forager, and move_selector are only valid with local_search_type = \"acceptor_forager\""
+    );
+    assert!(
+        !config.neighborhoods.is_empty(),
+        "variable_neighborhood_descent local_search requires at least one [[phases.neighborhoods]] block"
+    );
 
-    DynamicVndPhase::new(neighborhoods)
+    let neighborhoods = config
+        .neighborhoods
+        .iter()
+        .flat_map(|selector| {
+            let mut neighborhoods = Vec::new();
+            collect_neighborhoods(Some(selector), model, random_seed, &mut neighborhoods);
+            neighborhoods
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !neighborhoods.is_empty(),
+        "variable_neighborhood_descent local_search neighborhoods produced no move selectors"
+    );
+
+    let step_limit = config
+        .termination
+        .as_ref()
+        .and_then(|termination| termination.step_count_limit);
+
+    VndPhase::new(neighborhoods, step_limit)
+}
+
+pub fn build_local_search<S, V, DM, IDM>(
+    config: Option<&LocalSearchConfig>,
+    model: &RuntimeModel<S, V, DM, IDM>,
+    random_seed: Option<u64>,
+) -> LocalSearchStrategy<S, V, DM, IDM>
+where
+    S: PlanningSolution + 'static,
+    S::Score: Score + ParseableScore,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+{
+    match config.map(|ls| ls.local_search_type).unwrap_or_default() {
+        LocalSearchType::AcceptorForager => LocalSearchStrategy::acceptor_forager(
+            build_acceptor_forager_local_search(config, model, random_seed),
+        ),
+        LocalSearchType::VariableNeighborhoodDescent => {
+            let config = config.expect(
+                "variable_neighborhood_descent local_search requires an explicit local_search phase",
+            );
+            LocalSearchStrategy::variable_neighborhood_descent(build_variable_neighborhood_descent(
+                config,
+                model,
+                random_seed,
+            ))
+        }
+    }
 }
 
 #[cfg(test)]

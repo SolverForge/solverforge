@@ -123,8 +123,8 @@ impl Move<InterruptPlan> for InterruptMove {
     fn tabu_signature<D: Director<InterruptPlan>>(&self, _score_director: &D) -> MoveTabuSignature {
         MoveTabuSignature::new(
             MoveTabuScope::new(0, "interrupt_move"),
-            smallvec![hash_str("dynamic_vnd_interrupt_move")],
-            smallvec![hash_str("dynamic_vnd_interrupt_move")],
+            smallvec![hash_str("vnd_interrupt_move")],
+            smallvec![hash_str("vnd_interrupt_move")],
         )
     }
 }
@@ -205,16 +205,49 @@ fn selector_with_non_doable_tail(terminate: Arc<AtomicBool>) -> FlaggingSelector
     }
 }
 
+fn selector_from_scores(scores: &[i64]) -> FlaggingSelector {
+    FlaggingSelector {
+        moves: scores
+            .iter()
+            .map(|score| InterruptMove {
+                doable: true,
+                score: *score,
+            })
+            .collect(),
+        terminate: Arc::new(AtomicBool::new(false)),
+        trigger_index: usize::MAX,
+    }
+}
+
 #[test]
-fn dynamic_vnd_polling_advances_through_non_doable_tail_after_cancel_request() {
+fn vnd_single_neighborhood_applies_best_improving_move() {
+    let director = InterruptDirector::new();
+    let mut solver_scope = SolverScope::new(director);
+
+    let mut phase = VndPhase::<InterruptPlan, InterruptMove, FlaggingSelector>::new(
+        vec![selector_from_scores(&[-1, 1, 2])],
+        None,
+    );
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().value, 2);
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(SoftScore::of(2))
+    );
+}
+
+#[test]
+fn vnd_polling_advances_through_non_doable_tail_after_cancel_request() {
     let terminate = Arc::new(AtomicBool::new(false));
     let director = InterruptDirector::new();
     let mut solver_scope = SolverScope::new(director).with_terminate(Some(terminate.as_ref()));
     solver_scope.start_solving();
 
-    let mut phase = DynamicVndPhase::<InterruptPlan, InterruptMove, FlaggingSelector>::new(vec![
-        selector_with_non_doable_tail(terminate.clone()),
-    ]);
+    let mut phase = VndPhase::<InterruptPlan, InterruptMove, FlaggingSelector>::new(
+        vec![selector_with_non_doable_tail(terminate.clone())],
+        None,
+    );
     phase.solve(&mut solver_scope);
 
     assert_eq!(
@@ -347,8 +380,8 @@ impl Move<HardRepairPlan> for HardRepairMove {
     ) -> MoveTabuSignature {
         MoveTabuSignature::new(
             MoveTabuScope::new(0, "hard_repair_move"),
-            smallvec![hash_str("dynamic_vnd_hard_repair_move")],
-            smallvec![hash_str("dynamic_vnd_hard_repair_move")],
+            smallvec![hash_str("vnd_hard_repair_move")],
+            smallvec![hash_str("vnd_hard_repair_move")],
         )
     }
 }
@@ -377,19 +410,19 @@ impl MoveSelector<HardRepairPlan, HardRepairMove> for HardRepairSelector {
 }
 
 #[test]
-fn dynamic_vnd_rejects_hard_neutral_repair_move_when_hard_improvement_required() {
+fn vnd_rejects_hard_neutral_repair_move_when_hard_improvement_required() {
     let director = HardRepairDirector::new();
     let mut solver_scope = SolverScope::new(director);
-    let mut phase =
-        DynamicVndPhase::<HardRepairPlan, HardRepairMove, HardRepairSelector>::new(vec![
-            HardRepairSelector {
-                moves: vec![HardRepairMove {
-                    hard: -1,
-                    soft: 10,
-                    require_hard: true,
-                }],
-            },
-        ]);
+    let mut phase = VndPhase::<HardRepairPlan, HardRepairMove, HardRepairSelector>::new(
+        vec![HardRepairSelector {
+            moves: vec![HardRepairMove {
+                hard: -1,
+                soft: 10,
+                require_hard: true,
+            }],
+        }],
+        None,
+    );
 
     phase.solve(&mut solver_scope);
 

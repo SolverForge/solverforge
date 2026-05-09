@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 use tracing::info;
 
 use crate::heuristic::r#move::Move;
@@ -13,35 +13,40 @@ use crate::phase::control::{
     settle_search_interrupt, should_interrupt_evaluation, should_interrupt_generation,
     StepInterrupt,
 };
-use crate::phase::hard_delta::{hard_score_delta, HardScoreDelta};
-use crate::phase::vnd::telemetry::{candidate_selector_label, VndProgress};
+use crate::phase::localsearch::evaluation::{
+    evaluate_candidate, record_evaluated_move, CandidateEvaluation,
+};
+use crate::phase::localsearch::vnd::telemetry::{candidate_selector_label, VndProgress};
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second};
 
-pub struct DynamicVndPhase<S, M, MS> {
+pub(crate) struct VndPhase<S, M, MS> {
     neighborhoods: Vec<MS>,
+    step_limit: Option<u64>,
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
-impl<S, M, MS> DynamicVndPhase<S, M, MS> {
-    pub fn new(neighborhoods: Vec<MS>) -> Self {
+impl<S, M, MS> VndPhase<S, M, MS> {
+    pub(crate) fn new(neighborhoods: Vec<MS>, step_limit: Option<u64>) -> Self {
         Self {
             neighborhoods,
+            step_limit,
             _phantom: PhantomData,
         }
     }
 }
 
-impl<S, M, MS: Debug> Debug for DynamicVndPhase<S, M, MS> {
+impl<S, M, MS: Debug> Debug for VndPhase<S, M, MS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DynamicVndPhase")
+        f.debug_struct("VndPhase")
             .field("neighborhoods", &self.neighborhoods)
+            .field("step_limit", &self.step_limit)
             .finish()
     }
 }
 
-impl<S, D, ProgressCb, M, MS> Phase<S, D, ProgressCb> for DynamicVndPhase<S, M, MS>
+impl<S, D, ProgressCb, M, MS> Phase<S, D, ProgressCb> for VndPhase<S, M, MS>
 where
     S: PlanningSolution,
     D: Director<S>,
@@ -66,6 +71,16 @@ where
         phase_scope.solver_scope().report_progress();
 
         while k < self.neighborhoods.len() {
+            if phase_scope.solver_scope_mut().should_terminate() {
+                break;
+            }
+
+            if let Some(limit) = self.step_limit {
+                if phase_scope.step_count() >= limit {
+                    break;
+                }
+            }
+
             let mut step_scope = StepScope::new(&mut phase_scope);
             let mut cursor = self.neighborhoods[k].open_cursor(step_scope.score_director());
 
@@ -190,73 +205,22 @@ where
         }
         evaluated += 1;
         let evaluation_started = Instant::now();
-        if !mov.is_doable(step_scope.score_director()) {
-            if let Some(selector_index) = selector_index {
-                step_scope
-                    .phase_scope_mut()
-                    .record_selector_evaluated_move(selector_index, evaluation_started.elapsed());
-                step_scope
-                    .phase_scope_mut()
-                    .record_selector_move_not_doable(selector_index);
-            } else {
-                step_scope
-                    .phase_scope_mut()
-                    .record_evaluated_move(evaluation_started.elapsed());
-                step_scope.phase_scope_mut().record_move_not_doable();
+        let move_score = match evaluate_candidate(
+            &mov,
+            step_scope,
+            *current_score,
+            selector_index,
+            evaluation_started,
+        ) {
+            CandidateEvaluation::Scored(score) => score,
+            CandidateEvaluation::NotDoable | CandidateEvaluation::RejectedByHardImprovement => {
+                progress.record_evaluated();
+                progress.maybe_report(step_scope, current_score);
+                continue;
             }
-            progress.record_evaluated();
-            progress.maybe_report(step_scope, current_score);
-            continue;
-        }
+        };
 
-        let mut recording = RecordingDirector::new(step_scope.score_director_mut());
-        mov.do_move(&mut recording);
-        let move_score = recording.calculate_score();
-        recording.undo_changes();
-        step_scope.phase_scope_mut().record_score_calculation();
-
-        let hard_delta = hard_score_delta(*current_score, move_score);
-        match hard_delta {
-            Some(HardScoreDelta::Improving) => {
-                step_scope.phase_scope_mut().record_move_hard_improving();
-            }
-            Some(HardScoreDelta::Neutral) => {
-                step_scope.phase_scope_mut().record_move_hard_neutral();
-            }
-            Some(HardScoreDelta::Worse) => {
-                step_scope.phase_scope_mut().record_move_hard_worse();
-            }
-            None => {}
-        }
-
-        if mov.requires_hard_improvement() && hard_delta != Some(HardScoreDelta::Improving) {
-            if let Some(selector_index) = selector_index {
-                step_scope
-                    .phase_scope_mut()
-                    .record_selector_evaluated_move(selector_index, evaluation_started.elapsed());
-                step_scope
-                    .phase_scope_mut()
-                    .record_selector_move_acceptor_rejected(selector_index);
-            } else {
-                step_scope
-                    .phase_scope_mut()
-                    .record_evaluated_move(evaluation_started.elapsed());
-                step_scope.phase_scope_mut().record_move_acceptor_rejected();
-            }
-            progress.record_evaluated();
-            progress.maybe_report(step_scope, current_score);
-            continue;
-        }
-
-        if let Some(selector_index) = selector_index {
-            step_scope
-                .phase_scope_mut()
-                .record_selector_evaluated_move(selector_index, evaluation_started.elapsed());
-        } else {
-            step_scope
-                .phase_scope_mut()
-                .record_evaluated_move(evaluation_started.elapsed());
-        }
+        record_evaluated_move(step_scope, selector_index, evaluation_started);
         progress.record_evaluated();
         progress.maybe_report(step_scope, current_score);
 
@@ -281,5 +245,5 @@ where
 }
 
 #[cfg(test)]
-#[path = "dynamic_vnd_tests.rs"]
+#[path = "tests.rs"]
 mod tests;

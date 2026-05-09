@@ -9,22 +9,25 @@ use crate::heuristic::r#move::metadata::{hash_str, MoveTabuScope};
 use crate::heuristic::r#move::{Move, MoveTabuSignature};
 use crate::heuristic::selector::move_selector::ArenaMoveCursor;
 use crate::heuristic::selector::MoveSelector;
+use crate::phase::localsearch::VndPhase;
 use crate::phase::traits::Phase;
-use crate::phase::vnd::VndPhase;
 use crate::scope::SolverScope;
 
 #[test]
 fn vnd_accepts_required_repair_that_improves_later_hard_level() {
     let director = BendableRepairDirector::new();
     let mut solver_scope = SolverScope::new(director);
-    let mut phase = VndPhase::<_, BendableRepairMove>::new((BendableRepairSelector {
-        moves: vec![BendableRepairMove {
-            first_hard: 0,
-            second_hard: -5,
-            soft: -100,
-            require_hard: true,
+    let mut phase = VndPhase::<BendableRepairPlan, BendableRepairMove, BendableRepairSelector>::new(
+        vec![BendableRepairSelector {
+            moves: vec![BendableRepairMove {
+                first_hard: 0,
+                second_hard: -5,
+                soft: -100,
+                require_hard: true,
+            }],
         }],
-    },));
+        None,
+    );
 
     phase.solve(&mut solver_scope);
 

@@ -15,9 +15,6 @@ pub enum PhaseConfig {
     // Local search phase.
     LocalSearch(LocalSearchConfig),
 
-    // Variable neighborhood descent phase.
-    Vnd(VndConfig),
-
     // Exhaustive search phase.
     ExhaustiveSearch(ExhaustiveSearchConfig),
 
@@ -147,10 +144,26 @@ pub enum ConstructionHeuristicType {
     ListKOpt,
 }
 
+// Local search type.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LocalSearchType {
+    // Standard acceptor/forager local search.
+    #[default]
+    AcceptorForager,
+
+    // Variable Neighborhood Descent over ordered neighborhoods.
+    VariableNeighborhoodDescent,
+}
+
 // Local search configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct LocalSearchConfig {
+    // Local search type.
+    #[serde(default)]
+    pub local_search_type: LocalSearchType,
+
     // Acceptor configuration.
     pub acceptor: Option<AcceptorConfig>,
 
@@ -160,15 +173,7 @@ pub struct LocalSearchConfig {
     // Move selector configuration.
     pub move_selector: Option<MoveSelectorConfig>,
 
-    // Phase termination configuration.
-    pub termination: Option<TerminationConfig>,
-}
-
-// VND configuration.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct VndConfig {
-    // Ordered neighborhood selectors.
+    // Ordered neighborhood selectors for Variable Neighborhood Descent.
     #[serde(default)]
     pub neighborhoods: Vec<MoveSelectorConfig>,
 

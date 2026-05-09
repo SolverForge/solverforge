@@ -34,6 +34,11 @@ pub trait Director<S: PlanningSolution>: Send {
     // Calculates and returns the current score.
     fn calculate_score(&mut self) -> S::Score;
 
+    // Calculates the current score from scratch without mutating the committed score state.
+    fn fresh_score(&self) -> Option<S::Score> {
+        None
+    }
+
     // Returns the solution descriptor for this solution type.
     fn solution_descriptor(&self) -> &SolutionDescriptor;
 

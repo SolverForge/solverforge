@@ -148,6 +148,12 @@ where
         self.cached_score
     }
 
+    pub(crate) fn fresh_score_impl(&self) -> S::Score {
+        let mut solution = self.working_solution.clone();
+        solution.update_all_shadows();
+        self.constraints.evaluate_all(&solution)
+    }
+
     pub(crate) fn before_variable_changed_impl(
         &mut self,
         descriptor_index: usize,

@@ -38,6 +38,10 @@ where
         self.calculate_score_impl()
     }
 
+    fn fresh_score(&self) -> Option<S::Score> {
+        Some(self.fresh_score_impl())
+    }
+
     fn solution_descriptor(&self) -> &SolutionDescriptor {
         &self.solution_descriptor
     }

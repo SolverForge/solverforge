@@ -3,7 +3,7 @@
 Shared test fixtures for SolverForge workspace crates.
 
 **Location:** `crates/solverforge-test/`
-**Workspace Release:** `0.12.0`
+**Workspace Release:** `0.12.1`
 
 This crate is intended for workspace and downstream test code. It is not part of
 the runtime facade API.

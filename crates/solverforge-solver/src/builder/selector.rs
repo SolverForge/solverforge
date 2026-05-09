@@ -7,7 +7,7 @@ use solverforge_core::score::{ParseableScore, Score};
 use crate::heuristic::r#move::{Move, ScalarMoveUnion, SequentialCompositeMove};
 use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
 use crate::heuristic::selector::move_selector::{
-    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
+    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::localsearch::LocalSearchPhase;

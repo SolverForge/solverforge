@@ -3,10 +3,10 @@ use std::fmt::Debug;
 use solverforge_config::{
     AcceptedCountForagerConfig, ChangeMoveConfig, CompoundConflictRepairMoveSelectorConfig,
     ForagerConfig, GroupedScalarMoveSelectorConfig, KOptMoveSelectorConfig, ListReverseMoveConfig,
-    ListRuinMoveSelectorConfig, LocalSearchConfig, LocalSearchType, MoveSelectorConfig,
-    NearbyChangeMoveConfig, NearbyListChangeMoveConfig, NearbyListSwapMoveConfig,
-    NearbySwapMoveConfig, SublistChangeMoveConfig, SublistSwapMoveConfig, UnionMoveSelectorConfig,
-    UnionSelectionOrder, VariableTargetConfig,
+    ListRuinMoveSelectorConfig, MoveSelectorConfig, NearbyChangeMoveConfig,
+    NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, NearbySwapMoveConfig,
+    SublistChangeMoveConfig, SublistSwapMoveConfig, UnionMoveSelectorConfig, UnionSelectionOrder,
+    VariableTargetConfig,
 };
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
@@ -20,7 +20,7 @@ use crate::phase::localsearch::{LateAcceptanceAcceptor, SimulatedAnnealingAccept
 const DEFAULT_SCALAR_NEARBY_LIMIT: usize = 10;
 const DEFAULT_LIST_NEARBY_LIMIT: usize = 20;
 const DEFAULT_LOCAL_SEARCH_LATE_ACCEPTANCE_SIZE: usize = 400;
-const DEFAULT_LOCAL_SEARCH_ACCEPTED_COUNT: usize = 4;
+const DEFAULT_LOCAL_SEARCH_ACCEPTED_COUNT: usize = 128;
 const DEFAULT_SIMULATED_ANNEALING_DECAY_RATE: f64 = 0.999985;
 
 fn scalar_target<S>(variable: &crate::builder::ScalarVariableSlot<S>) -> VariableTargetConfig {
@@ -140,7 +140,7 @@ fn collapse_selectors(selectors: &mut Vec<MoveSelectorConfig>) -> Option<MoveSel
         1 => selectors.pop(),
         _ => Some(MoveSelectorConfig::UnionMoveSelector(
             UnionMoveSelectorConfig {
-                selection_order: UnionSelectionOrder::RoundRobin,
+                selection_order: UnionSelectionOrder::StratifiedRandom,
                 selectors: std::mem::take(selectors),
             },
         )),
@@ -182,17 +182,6 @@ fn append_scalar_selectors<S, V, DM, IDM>(
     for variable in model.scalar_variables() {
         selectors.push(default_scalar_swap_selector(variable));
     }
-}
-
-fn default_scalar_improvement_selector_config<S, V, DM, IDM>(
-    model: &RuntimeModel<S, V, DM, IDM>,
-) -> Option<MoveSelectorConfig>
-where
-    S: PlanningSolution,
-{
-    let mut selectors = Vec::new();
-    append_scalar_selectors(model, &mut selectors);
-    collapse_selectors(&mut selectors)
 }
 
 pub(crate) fn default_move_selector_config<S, V, DM, IDM>(
@@ -253,15 +242,6 @@ pub(crate) fn default_local_search_forager<S, V, DM, IDM>(
 where
     S: PlanningSolution,
 {
-    if !model.has_list_variables()
-        && (model.has_nearby_scalar_change_variables()
-            || model.has_nearby_scalar_swap_variables()
-            || model.has_scalar_groups()
-            || model.has_conflict_repairs())
-    {
-        return ForagerBuilder::build(Some(&ForagerConfig::BestScore));
-    }
-
     let limit = if model.has_list_variables()
         || model.has_nearby_scalar_change_variables()
         || model.has_nearby_scalar_swap_variables()
@@ -278,40 +258,6 @@ where
     )))
 }
 
-fn should_run_default_scalar_vnd<S, V, DM, IDM>(model: &RuntimeModel<S, V, DM, IDM>) -> bool {
-    model.has_nearby_scalar_change_variables()
-        || model.has_nearby_scalar_swap_variables()
-        || model.has_scalar_groups()
-        || model.has_conflict_repairs()
-}
-
-fn default_scalar_vnd_config<S, V, DM, IDM>(
-    model: &RuntimeModel<S, V, DM, IDM>,
-) -> Option<LocalSearchConfig>
-where
-    S: PlanningSolution,
-{
-    if !should_run_default_scalar_vnd(model) {
-        return None;
-    }
-
-    let selector = default_scalar_improvement_selector_config(model)?;
-    let neighborhoods = match selector {
-        MoveSelectorConfig::UnionMoveSelector(union) => union.selectors,
-        single => vec![single],
-    };
-
-    if neighborhoods.is_empty() {
-        return None;
-    }
-
-    Some(LocalSearchConfig {
-        local_search_type: LocalSearchType::VariableNeighborhoodDescent,
-        neighborhoods,
-        ..LocalSearchConfig::default()
-    })
-}
-
 pub(crate) fn default_local_search_phases<S, V, DM, IDM>(
     model: &RuntimeModel<S, V, DM, IDM>,
     random_seed: Option<u64>,
@@ -323,16 +269,5 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
-    let mut phases = Vec::with_capacity(2);
-
-    if let Some(config) = default_scalar_vnd_config(model) {
-        phases.push(crate::builder::build_local_search(
-            Some(&config),
-            model,
-            random_seed,
-        ));
-    }
-
-    phases.push(crate::builder::build_local_search(None, model, random_seed));
-    phases
+    vec![crate::builder::build_local_search(None, model, random_seed)]
 }

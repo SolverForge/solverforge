@@ -134,89 +134,6 @@ where
     NeighborhoodMove::Composite(mov)
 }
 
-fn default_scalar_change_selector() -> MoveSelectorConfig {
-    MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
-        value_candidate_limit: None,
-        target: VariableTargetConfig::default(),
-    })
-}
-
-fn default_scalar_swap_selector() -> MoveSelectorConfig {
-    MoveSelectorConfig::SwapMoveSelector(solverforge_config::SwapMoveConfig {
-        target: VariableTargetConfig::default(),
-    })
-}
-
-fn default_nearby_list_change_selector() -> MoveSelectorConfig {
-    MoveSelectorConfig::NearbyListChangeMoveSelector(NearbyListChangeMoveConfig {
-        max_nearby: 20,
-        target: VariableTargetConfig::default(),
-    })
-}
-
-fn default_nearby_list_swap_selector() -> MoveSelectorConfig {
-    MoveSelectorConfig::NearbyListSwapMoveSelector(NearbyListSwapMoveConfig {
-        max_nearby: 20,
-        target: VariableTargetConfig::default(),
-    })
-}
-
-fn default_list_reverse_selector() -> MoveSelectorConfig {
-    MoveSelectorConfig::ListReverseMoveSelector(ListReverseMoveConfig {
-        target: VariableTargetConfig::default(),
-    })
-}
-
-fn collect_default_neighborhoods<S, V, DM, IDM>(
-    model: &RuntimeModel<S, V, DM, IDM>,
-    random_seed: Option<u64>,
-    out: &mut Vec<Neighborhood<S, V, DM, IDM>>,
-) where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-{
-    if model.has_list_variables() {
-        let list_change = default_nearby_list_change_selector();
-        out.push(Neighborhood::Flat(build_leaf_selector(
-            Some(&list_change),
-            model,
-            random_seed,
-        )));
-
-        let list_swap = default_nearby_list_swap_selector();
-        out.push(Neighborhood::Flat(build_leaf_selector(
-            Some(&list_swap),
-            model,
-            random_seed,
-        )));
-
-        let list_reverse = default_list_reverse_selector();
-        out.push(Neighborhood::Flat(build_leaf_selector(
-            Some(&list_reverse),
-            model,
-            random_seed,
-        )));
-    }
-
-    if model.scalar_variables().next().is_some() {
-        let scalar_change = default_scalar_change_selector();
-        out.push(Neighborhood::Flat(build_leaf_selector(
-            Some(&scalar_change),
-            model,
-            random_seed,
-        )));
-
-        let scalar_swap = default_scalar_swap_selector();
-        out.push(Neighborhood::Flat(build_leaf_selector(
-            Some(&scalar_swap),
-            model,
-            random_seed,
-        )));
-    }
-}
-
 fn collect_neighborhoods<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
     model: &RuntimeModel<S, V, DM, IDM>,
@@ -229,7 +146,14 @@ fn collect_neighborhoods<S, V, DM, IDM>(
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
     match config {
-        None => collect_default_neighborhoods(model, random_seed, out),
+        None => {
+            let Some(default_config) =
+                crate::builder::search::defaults::default_move_selector_config(model)
+            else {
+                return;
+            };
+            collect_neighborhoods(Some(&default_config), model, random_seed, out);
+        }
         Some(MoveSelectorConfig::UnionMoveSelector(union)) => {
             for child in &union.selectors {
                 collect_neighborhoods(Some(child), model, random_seed, out);
@@ -330,18 +254,7 @@ where
         .and_then(|ls| ls.acceptor.as_ref())
         .map(|cfg| AcceptorBuilder::build_with_seed::<S>(cfg, random_seed))
         .unwrap_or_else(|| {
-            if model.has_list_variables() {
-                AnyAcceptor::LateAcceptance(
-                    crate::phase::localsearch::LateAcceptanceAcceptor::<S>::new(400),
-                )
-            } else {
-                match random_seed {
-                    Some(seed) => AnyAcceptor::SimulatedAnnealing(
-                        SimulatedAnnealingAcceptor::auto_calibrate_with_seed(0.999985, seed),
-                    ),
-                    None => AnyAcceptor::SimulatedAnnealing(SimulatedAnnealingAcceptor::default()),
-                }
-            }
+            crate::builder::search::defaults::default_local_search_acceptor(model, random_seed)
         });
     let forager = config
         .and_then(|ls| ls.forager.as_ref())
@@ -353,8 +266,7 @@ where
             if is_tabu {
                 AnyForager::BestScore(crate::phase::localsearch::BestScoreForager::new())
             } else {
-                let accepted = if model.has_list_variables() { 4 } else { 1 };
-                AnyForager::AcceptedCount(AcceptedCountForager::new(accepted))
+                crate::builder::search::defaults::default_local_search_forager(model)
             }
         });
     let move_selector = build_move_selector(

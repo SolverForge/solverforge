@@ -18,6 +18,10 @@ impl<P> PhaseSequence<P> {
     pub fn phases(&self) -> &[P] {
         &self.phases
     }
+
+    pub fn into_phases(self) -> Vec<P> {
+        self.phases
+    }
 }
 
 impl<P: Debug> Debug for PhaseSequence<P> {

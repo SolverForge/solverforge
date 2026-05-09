@@ -10,7 +10,7 @@ use crate::attr_validation::{
 
 use super::config::{
     parse_config_path, parse_conflict_repairs_path, parse_constraints_path,
-    parse_scalar_groups_path, parse_shadow_config, parse_solver_toml_path,
+    parse_scalar_groups_path, parse_search_path, parse_shadow_config, parse_solver_toml_path,
 };
 use super::list_operations::generate_list_operations;
 use super::runtime::{
@@ -118,6 +118,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
     let constraints_path = parse_constraints_path(&input.attrs);
     let config_path = parse_config_path(&input.attrs);
     let solver_toml_path = parse_solver_toml_path(&input.attrs);
+    let search_path = parse_search_path(&input.attrs);
     let conflict_repairs_path = parse_conflict_repairs_path(&input.attrs);
     let scalar_groups_path = parse_scalar_groups_path(&input.attrs);
     let entity_count_arms: Vec<_> = fields
@@ -169,6 +170,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         &constraints_path,
         &conflict_repairs_path,
         &scalar_groups_path,
+        &search_path,
         name,
     );
     let runtime_solve_internal =

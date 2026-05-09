@@ -1,7 +1,7 @@
 use solverforge_config::{
     CartesianProductConfig, ChangeMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig,
     NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,
-    RuinRecreateMoveSelectorConfig, SwapMoveConfig, VariableTargetConfig,
+    RuinRecreateMoveSelectorConfig, SwapMoveConfig, UnionMoveSelectorConfig, VariableTargetConfig,
 };
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,

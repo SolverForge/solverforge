@@ -53,8 +53,10 @@ src/
 │   ├── scalar_selector.rs               — Canonical scalar selector assembly over index-addressed scalar slots, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
 │   ├── scalar_selector/*.rs             — Scalar value, leaf, dispatch, and build chunks
 │   ├── scalar_selector/tests.rs         — Scalar selector test root with change/swap, nearby/ruin, pillar, and cartesian chunks
+│   ├── search.rs                        — Typed custom-search surface: SearchContext, Search, CustomSearchPhase, local_search(), and typed custom phase registration
+│   ├── search/*.rs                      — Model-aware default search profile and recursive typed custom phase registry
 │   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published RuntimeModel variable slots
-│   ├── selector/*.rs                    — Mixed scalar/list neighborhood move, grouped scalar selector, conflict repair selector, family classification, and builder chunks
+│   ├── selector/*.rs                    — Mixed scalar/list neighborhood move, grouped scalar selector, conflict repair selector, family classification, and explicit selector builder chunks
 │   ├── selector/types/*.rs              — Neighborhood leaf, composite, cursor, and union types used by selector assembly
 │   ├── selector/tests.rs                — Mixed selector test root with support, defaults, grouped scalar, cartesian, and phase chunks
 │   ├── list_selector.rs                 — Re-exports list selector leaf and builder modules
@@ -798,7 +800,7 @@ scores better. Optional assignments remain score-improving only.
 
 Assignment-backed grouped scalar selectors emit `CompoundScalarMove`
 candidates for unassigned required entities, capacity conflicts, bounded
-reassignments, and bounded sequence/position rematches. The selector uses
+same-sequence rematches, and bounded reassignments. The selector uses
 `GroupedScalarMoveSelectorConfig` values first, falls back to model-owned
 `ScalarGroup::with_limits` values for `max_moves_per_step` and
 `value_candidate_limit`, and carries `require_hard_improvement` from selector
@@ -826,6 +828,30 @@ Entity placers:
 ### Local Search
 
 **`LocalSearchPhase<S, M, MS, A, Fo>`** — Bounds: `MS: MoveSelector<S, M>`, `A: Acceptor<S>`, `Fo: LocalSearchForager<S, M>`.
+
+Omitted local-search configuration resolves through the canonical model-aware
+search profile, which may emit more than one built-in search phase. Scalar
+models with nearby hooks, scalar groups, or conflict repairs receive a
+deterministic VND improvement pass before the streaming acceptor/forager phase.
+List variables receive nearby list change/swap, sublist
+change/swap, reverse, k-opt when k-opt hooks exist, and list ruin when the list
+runtime supports ruin moves. Scalar variables with nearby hooks receive targeted
+nearby scalar change/swap neighborhoods first; every scalar slot keeps targeted
+plain change/swap fallback neighborhoods after nearby coverage. Scalar groups add
+grouped-scalar neighborhoods, and registered conflict repair providers add
+compound conflict repair neighborhoods. Omitted acceptors and foragers are
+selected by the same model-aware profile; explicit local-search configs still
+own their acceptor, forager, selector, VND neighborhoods, and union order.
+
+Typed custom search is compiled into the solution, not loaded from a runtime
+registry. A solution can declare `#[planning_solution(search = "path::to::search")]`.
+The search function receives a `SearchContext<S, V, DM, IDM>`, calls
+`ctx.defaults()`, and registers named phases with `.phase("name", |ctx| ...)`.
+TOML can then order those compiled-in names with `[[phases]] type = "custom"
+name = "..."`. Custom phases implement `CustomSearchPhase<S>` or use the
+typed `local_search(selector, acceptor, forager)` helper. Generated code lowers
+the result into concrete enums over known phase types; there is no
+`Box<dyn Phase>` registry.
 
 Local search foragers:
 

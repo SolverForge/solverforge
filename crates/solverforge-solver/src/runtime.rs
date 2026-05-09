@@ -318,11 +318,11 @@ where
             descriptor.clone(),
             model.clone(),
         )));
-        phases.push(RuntimePhase::LocalSearch(build_local_search(
-            None,
-            model,
-            config.random_seed,
-        )));
+        for phase in
+            crate::builder::search::defaults::default_local_search_phases(model, config.random_seed)
+        {
+            phases.push(RuntimePhase::LocalSearch(phase));
+        }
         return PhaseSequence::new(phases);
     }
 
@@ -341,6 +341,12 @@ where
                     model,
                     config.random_seed,
                 )));
+            }
+            PhaseConfig::Custom(custom) => {
+                panic!(
+                    "custom phase `{}` requires a typed solution search function",
+                    custom.name
+                );
             }
             _ => {
                 panic!("unsupported phase in the runtime");

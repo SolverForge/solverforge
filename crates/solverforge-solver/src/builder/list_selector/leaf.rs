@@ -100,7 +100,7 @@ where
     ListMoveUnion::SublistSwap(mov)
 }
 
-#[allow(clippy::large_enum_variant)]
+#[allow(clippy::large_enum_variant)] // Inline storage keeps list cursor dispatch zero-erasure.
 pub enum ListLeafCursor<'a, S, V, DM, IDM>
 where
     S: PlanningSolution,

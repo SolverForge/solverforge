@@ -9,6 +9,7 @@ pub mod context;
 pub mod forager;
 mod list_selector;
 mod scalar_selector;
+pub mod search;
 pub mod selector;
 
 pub use acceptor::{AcceptorBuilder, AnyAcceptor};
@@ -19,6 +20,7 @@ pub use context::{
     ScalarVariableSlot, ValueSource, VariableSlot,
 };
 pub use forager::{AnyForager, ForagerBuilder};
+pub use search::{build_search, local_search, CustomSearchPhase, Search, SearchContext};
 pub use selector::{
     build_local_search, build_move_selector, LocalSearch, LocalSearchStrategy, Neighborhood,
     NeighborhoodLeaf, NeighborhoodMove, Selector,

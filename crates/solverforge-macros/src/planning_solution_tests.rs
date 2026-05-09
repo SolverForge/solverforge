@@ -82,6 +82,31 @@ fn golden_solution_expansion_embeds_explicit_solver_toml_source() {
 }
 
 #[test]
+fn golden_solution_expansion_binds_typed_custom_search_path() {
+    let input = parse_quote! {
+        #[solverforge_constraints_path = "crate::constraints::create_constraints"]
+        #[solverforge_search_path = "crate::search::search"]
+        struct Plan {
+            #[planning_entity_collection]
+            tasks: Vec<Task>,
+            #[planning_score]
+            score: Option<HardSoftScore>,
+        }
+    };
+
+    let expanded = expand_derive(input)
+        .expect("solution expansion should succeed")
+        .to_string();
+
+    assert!(expanded.contains("crate :: search :: search"));
+    assert!(expanded.contains("SearchContext :: new"));
+    assert!(expanded.contains("build_search :: < Plan"));
+    assert!(!expanded.contains("Box < dyn"));
+    assert!(!expanded.contains("dyn Phase"));
+    assert!(!expanded.contains("custom_phase_class"));
+}
+
+#[test]
 fn golden_solution_expansion_binds_conflict_repairs_path() {
     let input = parse_quote! {
         #[solverforge_constraints_path = "crate::constraints::create_constraints"]

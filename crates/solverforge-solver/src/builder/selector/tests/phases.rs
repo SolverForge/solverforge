@@ -20,6 +20,42 @@ fn default_scalar_local_search_uses_scalar_streaming_defaults() {
 }
 
 #[test]
+fn default_nearby_scalar_local_search_retains_more_accepted_candidates() {
+    let phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        None,
+        &nearby_scalar_only_model(),
+        Some(7),
+    );
+    let debug = format!("{phase:?}");
+
+    assert!(debug.contains("SimulatedAnnealing"));
+    assert!(debug.contains("accepted_count_limit: 4"));
+}
+
+#[test]
+fn default_search_profile_runs_vnd_before_acceptor_for_assignment_groups() {
+    let phases = crate::builder::search::defaults::default_local_search_phases(
+        &assignment_scalar_model(),
+        Some(7),
+    );
+
+    assert_eq!(phases.len(), 2);
+    assert!(format!("{:?}", phases[0]).contains("VariableNeighborhoodDescent"));
+    assert!(format!("{:?}", phases[1]).contains("AcceptorForager"));
+}
+
+#[test]
+fn default_search_profile_keeps_plain_scalar_to_one_streaming_phase() {
+    let phases = crate::builder::search::defaults::default_local_search_phases(
+        &scalar_only_model(),
+        Some(7),
+    );
+
+    assert_eq!(phases.len(), 1);
+    assert!(format!("{:?}", phases[0]).contains("AcceptorForager"));
+}
+
+#[test]
 fn default_list_and_mixed_local_search_use_list_streaming_defaults() {
     let list_phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
         None,
@@ -98,6 +134,23 @@ fn local_search_type_defaults_to_acceptor_forager() {
 
     assert!(debug.contains("AcceptorForager"));
     assert!(debug.contains("SimulatedAnnealing"));
+}
+
+#[test]
+fn omitted_and_empty_local_search_configs_share_defaults() {
+    let config = LocalSearchConfig::default();
+    let omitted = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        None,
+        &nearby_scalar_only_model(),
+        Some(7),
+    );
+    let empty = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        Some(&config),
+        &nearby_scalar_only_model(),
+        Some(7),
+    );
+
+    assert_eq!(format!("{omitted:?}"), format!("{empty:?}"));
 }
 
 #[test]

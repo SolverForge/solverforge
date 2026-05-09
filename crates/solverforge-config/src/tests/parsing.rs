@@ -65,6 +65,32 @@ fn test_builder() {
 }
 
 #[test]
+fn custom_phase_parses_registered_name() {
+    let toml = r#"
+        [[phases]]
+        type = "custom"
+        name = "weekend_repair"
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    assert_eq!(config.phases.len(), 1);
+    let PhaseConfig::Custom(custom) = &config.phases[0] else {
+        panic!("phase should be custom");
+    };
+    assert_eq!(custom.name, "weekend_repair");
+}
+
+#[test]
+fn custom_phase_requires_registered_name() {
+    let toml = r#"
+        [[phases]]
+        type = "custom"
+    "#;
+
+    assert!(SolverConfig::from_toml_str(toml).is_err());
+}
+
+#[test]
 fn local_search_variable_neighborhood_descent_parsing() {
     let toml = r#"
         [[phases]]

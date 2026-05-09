@@ -1,6 +1,24 @@
 use super::*;
 
 #[test]
+fn test_custom_phase_name_roundtrip() {
+    let toml = r#"
+        [[phases]]
+        type = "custom"
+        name = "nurse_search"
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    let encoded = toml::to_string(&config).unwrap();
+    let reparsed = SolverConfig::from_toml_str(&encoded).unwrap();
+    let PhaseConfig::Custom(custom) = &reparsed.phases[0] else {
+        panic!("phase should be custom");
+    };
+
+    assert_eq!(custom.name, "nurse_search");
+}
+
+#[test]
 fn test_conflict_repair_selector_roundtrip() {
     let toml = r#"
         [[phases]]

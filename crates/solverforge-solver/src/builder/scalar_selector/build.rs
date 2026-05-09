@@ -426,12 +426,7 @@ fn collect_scalar_leaf_selectors<S>(
 
     match config {
         Some(cfg) => collect(cfg, scalar_variables, random_seed, leaves),
-        None => {
-            for ctx in scalar_variables {
-                push_change(ctx, None, leaves);
-                push_swap(ctx, leaves);
-            }
-        }
+        None => unreachable!("scalar defaults must be resolved by the canonical runtime builder"),
     }
 }
 

@@ -22,7 +22,7 @@ use crate::phase::localsearch::{
 Returned by [`AcceptorBuilder::build`] to avoid `Box<dyn Acceptor<S>>`.
 Dispatches to the inner acceptor via `match` — fully monomorphized.
 */
-#[allow(clippy::large_enum_variant)]
+#[allow(clippy::large_enum_variant)] // Inline storage keeps acceptor dispatch zero-erasure.
 pub enum AnyAcceptor<S: PlanningSolution> {
     // Hill climbing acceptor.
     HillClimbing(HillClimbingAcceptor),

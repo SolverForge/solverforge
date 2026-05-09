@@ -57,6 +57,9 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
     let solver_toml_attr = flags
         .solver_toml_path
         .map(|p| quote! { #[solverforge_solver_toml_path = #p] });
+    let search_attr = flags
+        .search_path
+        .map(|p| quote! { #[solverforge_search_path = #p] });
     let conflict_repairs_attr = flags
         .conflict_repairs_path
         .map(|p| quote! { #[solverforge_conflict_repairs_path = #p] });
@@ -69,6 +72,7 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
         #constraints_attr
         #config_attr
         #solver_toml_attr
+        #search_attr
         #conflict_repairs_attr
         #scalar_groups_attr
         #(#attrs)*

@@ -28,8 +28,9 @@ pub use tokio::sync::mpsc::UnboundedSender;
 
 // Solver infrastructure
 pub use solverforge_solver::builder::{
-    bind_scalar_groups, ListVariableSlot, LocalSearch, LocalSearchStrategy, RuntimeModel,
-    ScalarGroupBinding, ScalarGroupMemberBinding, ScalarVariableSlot, ValueSource, VariableSlot,
+    bind_scalar_groups, build_search, local_search, CustomSearchPhase, ListVariableSlot,
+    LocalSearch, LocalSearchStrategy, RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding,
+    ScalarVariableSlot, Search, SearchContext, ValueSource, VariableSlot,
 };
 pub use solverforge_solver::heuristic::selector::{
     DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, FromSolutionEntitySelector,
@@ -42,8 +43,8 @@ pub use solverforge_solver::runtime::{build_phases, Construction, RuntimePhase};
 pub use solverforge_solver::runtime::{ListVariableEntity, ListVariableMetadata};
 pub use solverforge_solver::scope::{ProgressCallback, SolverScope};
 pub use solverforge_solver::{
-    descriptor_has_bindings, log_solve_start, run_solver, run_solver_with_config, PhaseSequence,
-    SolverEvent, SolverRuntime, SolverTelemetry,
+    descriptor_has_bindings, log_solve_start, run_solver, run_solver_with_config, Phase,
+    PhaseSequence, SolverEvent, SolverRuntime, SolverTelemetry,
 };
 
 // Config

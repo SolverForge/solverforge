@@ -77,8 +77,8 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 
 Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support
 derive output. Accepted arguments are `serde`, `constraints = "path"`,
-`config = "path"`, `solver_toml = "path"`, `conflict_repairs = "path"`, and
-`scalar_groups = "path"`. Unknown or malformed
+`config = "path"`, `solver_toml = "path"`, `search = "path"`,
+`conflict_repairs = "path"`, and `scalar_groups = "path"`. Unknown or malformed
 arguments are compile errors.
 The `constraints` flag embeds a `#[solverforge_constraints_path = "path"]`
 attribute for the derive to consume. The `config` flag embeds a
@@ -144,6 +144,7 @@ arguments are compile errors.
 - `#[solverforge_constraints_path = "path"]` — path to constraint factory function
 - `#[solverforge_config_path = "path"]` — path to a config callback with signature `fn(&Solution, SolverConfig) -> SolverConfig`; called with the loaded `solver.toml` config (or defaults if the file is missing)
 - `#[solverforge_solver_toml_path = "path"]` — generated bridge attribute for an explicit solver TOML source
+- `#[solverforge_search_path = "path"]` — generated bridge attribute for a typed custom-search function consumed by runtime phase support
 - `#[solverforge_conflict_repairs_path = "path"]` — generated bridge attribute for the current conflict-repair provider function
 - `#[solverforge_scalar_groups_path = "path"]` — generated bridge attribute for scalar group declarations
 

@@ -119,6 +119,14 @@ impl<S> ScalarVariableSlot<S> {
             && variable_name.is_none_or(|name| name == self.variable_name)
     }
 
+    pub fn supports_nearby_change(&self) -> bool {
+        self.nearby_value_candidates.is_some()
+    }
+
+    pub fn supports_nearby_swap(&self) -> bool {
+        self.nearby_entity_candidates.is_some()
+    }
+
     pub fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize> {
         (self.getter)(solution, entity_index, self.variable_index)
     }

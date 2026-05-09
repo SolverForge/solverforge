@@ -220,6 +220,6 @@ pub struct PartitionedSearchConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct CustomPhaseConfig {
-    // Custom phase class name.
-    pub custom_phase_class: Option<String>,
+    // Compile-time registered custom phase name.
+    pub name: String,
 }

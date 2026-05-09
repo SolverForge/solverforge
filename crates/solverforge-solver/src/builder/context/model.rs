@@ -1,10 +1,7 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use super::{
-    ConflictRepair, ListVariableSlot, ScalarGroupBinding, ScalarGroupBindingKind,
-    ScalarVariableSlot,
-};
+use super::{ConflictRepair, ListVariableSlot, ScalarGroupBinding, ScalarVariableSlot};
 
 pub enum VariableSlot<S, V, DM, IDM> {
     Scalar(ScalarVariableSlot<S>),
@@ -95,13 +92,50 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
             .any(|variable| matches!(variable, VariableSlot::Scalar(_)))
     }
 
+    pub fn has_nearby_scalar_change_variables(&self) -> bool {
+        self.scalar_variables()
+            .any(ScalarVariableSlot::supports_nearby_change)
+    }
+
+    pub fn has_nearby_scalar_swap_variables(&self) -> bool {
+        self.scalar_variables()
+            .any(ScalarVariableSlot::supports_nearby_swap)
+    }
+
     pub fn assignment_scalar_groups(
         &self,
     ) -> impl Iterator<Item = (usize, &ScalarGroupBinding<S>)> {
         self.scalar_groups
             .iter()
             .enumerate()
-            .filter(|(_, group)| matches!(group.kind, ScalarGroupBindingKind::Assignment(_)))
+            .filter(|(_, group)| group.is_assignment())
+    }
+
+    pub fn has_scalar_groups(&self) -> bool {
+        !self.scalar_groups.is_empty()
+    }
+
+    pub fn has_assignment_scalar_groups(&self) -> bool {
+        self.assignment_scalar_groups().next().is_some()
+    }
+
+    pub fn candidate_scalar_groups(&self) -> impl Iterator<Item = (usize, &ScalarGroupBinding<S>)> {
+        self.scalar_groups
+            .iter()
+            .enumerate()
+            .filter(|(_, group)| group.is_candidate_group())
+    }
+
+    pub fn has_candidate_scalar_groups(&self) -> bool {
+        self.candidate_scalar_groups().next().is_some()
+    }
+
+    pub fn has_list_ruin_variables(&self) -> bool {
+        self.list_variables().any(ListVariableSlot::supports_ruin)
+    }
+
+    pub fn has_k_opt_variables(&self) -> bool {
+        self.list_variables().any(ListVariableSlot::supports_k_opt)
     }
 
     pub fn has_conflict_repairs(&self) -> bool {

@@ -1,5 +1,5 @@
 #[test]
-fn default_scalar_selector_uses_change_and_swap() {
+fn default_scalar_selector_uses_plain_change_and_swap_without_nearby_hooks() {
     let descriptor = descriptor(true);
     let director = create_director(
         MixedPlan {
@@ -13,19 +13,11 @@ fn default_scalar_selector_uses_change_and_swap() {
     let neighborhoods = selector.selectors();
 
     assert_eq!(neighborhoods.len(), 2);
-    match &neighborhoods[0] {
-        Neighborhood::Flat(leafs) => {
-            assert_eq!(leafs.selectors().len(), 1);
-            assert!(matches!(
-                &leafs.selectors()[0],
-                NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_))
-            ));
-        }
-        Neighborhood::Limited { .. } => panic!("default scalar selector must not wrap a limit"),
-        Neighborhood::Cartesian(_) => {
-            panic!("default scalar selector must not wrap a cartesian neighborhood")
-        }
-    }
+    assert!(matches!(
+        &neighborhoods[0],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_)))
+    ));
     assert!(matches!(
         &neighborhoods[1],
         Neighborhood::Flat(leafs)
@@ -35,11 +27,79 @@ fn default_scalar_selector_uses_change_and_swap() {
 }
 
 #[test]
-fn default_list_selector_uses_three_explicit_neighborhoods() {
-    let selector = build_move_selector(None, &list_only_model(), None);
+fn default_scalar_selector_uses_nearby_hooks_when_declared() {
+    let descriptor = descriptor(true);
+    let director = create_director(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+    );
+    let selector = build_move_selector(None, &nearby_scalar_only_model(), None);
+    let neighborhoods = selector.selectors();
+
+    assert_eq!(neighborhoods.len(), 4);
+    assert!(matches!(
+        &neighborhoods[0],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::NearbyChange(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[1],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::NearbySwap(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[2],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[3],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Swap(_)))
+    ));
+    assert!(selector.size(&director) > 0);
+
+    let mut cursor = selector.open_cursor(&director);
+    let first = cursor
+        .next_candidate()
+        .expect("nearby default should expose at least one move");
+    let mov = cursor.take_candidate(first);
+    assert!(mov.is_doable(&director));
+}
+
+#[test]
+fn default_scalar_selector_adds_grouped_assignment_when_registered() {
+    let selector = build_move_selector(None, &assignment_scalar_model(), None);
     let neighborhoods = selector.selectors();
 
     assert_eq!(neighborhoods.len(), 3);
+    assert!(matches!(
+        &neighborhoods[0],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::GroupedScalar(_))
+    ));
+    assert!(matches!(
+        &neighborhoods[1],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[2],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Swap(_)))
+    ));
+}
+
+#[test]
+fn default_list_selector_uses_capability_gated_neighborhoods() {
+    let selector = build_move_selector(None, &list_only_model(), None);
+    let neighborhoods = selector.selectors();
+
+    assert_eq!(neighborhoods.len(), 6);
     assert!(matches!(
         &neighborhoods[0],
         Neighborhood::Flat(leafs)
@@ -53,7 +113,22 @@ fn default_list_selector_uses_three_explicit_neighborhoods() {
     assert!(matches!(
         &neighborhoods[2],
         Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::SublistChange(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[3],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::SublistSwap(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[4],
+        Neighborhood::Flat(leafs)
             if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::ListReverse(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[5],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::ListRuin(_)))
     ));
 }
 
@@ -62,7 +137,7 @@ fn mixed_default_selector_puts_list_neighborhoods_before_scalar_defaults() {
     let selector = build_move_selector(None, &mixed_model(), None);
     let neighborhoods = selector.selectors();
 
-    assert_eq!(neighborhoods.len(), 5);
+    assert_eq!(neighborhoods.len(), 8);
     assert!(matches!(
         &neighborhoods[0],
         Neighborhood::Flat(leafs)
@@ -76,18 +151,61 @@ fn mixed_default_selector_puts_list_neighborhoods_before_scalar_defaults() {
     assert!(matches!(
         &neighborhoods[2],
         Neighborhood::Flat(leafs)
-            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::ListReverse(_)))
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::SublistChange(_)))
     ));
     assert!(matches!(
         &neighborhoods[3],
         Neighborhood::Flat(leafs)
-            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_)))
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::SublistSwap(_)))
     ));
     assert!(matches!(
         &neighborhoods[4],
         Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::ListReverse(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[5],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::ListRuin(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[6],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[7],
+        Neighborhood::Flat(leafs)
             if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Swap(_)))
     ));
+}
+
+#[test]
+fn default_selector_adds_compound_conflict_repair_when_repairs_registered() {
+    let descriptor = descriptor(true);
+    let director = create_director_with_constraint(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+        "testConstraint",
+        true,
+    );
+    let model = scalar_only_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new("testConstraint", repair_worker_to_one),
+    ]);
+    let selector = build_move_selector(None, &model, None);
+    let neighborhoods = selector.selectors();
+
+    assert_eq!(neighborhoods.len(), 3);
+    assert!(matches!(
+        &neighborhoods[0],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::ConflictRepair(_))
+    ));
+    assert!(selector.size(&director) > 0);
 }
 
 #[test]

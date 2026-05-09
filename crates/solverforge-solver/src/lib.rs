@@ -34,10 +34,11 @@ pub mod stats;
 pub mod termination;
 
 pub use builder::{
-    build_local_search, build_move_selector, AcceptorBuilder, AnyAcceptor, AnyForager,
-    ForagerBuilder, IntraDistanceAdapter, ListVariableSlot, LocalSearch, LocalSearchStrategy,
-    Neighborhood, NeighborhoodLeaf, NeighborhoodMove, RuntimeModel, ScalarGroupBinding,
-    ScalarGroupMemberBinding, ScalarVariableSlot, Selector, ValueSource, VariableSlot,
+    build_local_search, build_move_selector, local_search, AcceptorBuilder, AnyAcceptor,
+    AnyForager, CustomSearchPhase, ForagerBuilder, IntraDistanceAdapter, ListVariableSlot,
+    LocalSearch, LocalSearchStrategy, Neighborhood, NeighborhoodLeaf, NeighborhoodMove,
+    RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding, ScalarVariableSlot, Search,
+    SearchContext, Selector, ValueSource, VariableSlot,
 };
 pub use descriptor::{
     build_descriptor_move_selector, descriptor_has_bindings, DescriptorConstruction,

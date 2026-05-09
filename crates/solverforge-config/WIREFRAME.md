@@ -165,16 +165,20 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 `VariableNeighborhoodDescent` uses ordered `neighborhoods`, and rejects
 `acceptor`, `forager`, and `move_selector`.
 
-When `move_selector` is omitted for `AcceptorForager`, the canonical runtime
-resolves explicit streaming defaults rather than broad exhaustive search:
-
-- scalar-only models: `ChangeMoveSelector`, then `SwapMoveSelector`
-- list-only models: `NearbyListChangeMoveSelector(20)`,
-  `NearbyListSwapMoveSelector(20)`, `ListReverseMoveSelector`
-- mixed models: the list defaults first, then the scalar defaults
-
-When `forager` is omitted, the canonical runtime uses the accepted-count
-forager with `limit = 1`.
+When `phases` is omitted, the solver runtime uses the canonical model-aware
+default profile, including construction and any selected built-in search phases.
+When only `move_selector` is omitted for an explicit `AcceptorForager` local
+search phase, the canonical runtime resolves model-aware selector defaults from
+declared runtime capabilities. Nearby scalar
+change/swap selectors are used before plain scalar fallback selectors when the
+model declares nearby hooks, and plain scalar fallback remains present for every
+scalar slot. Scalar groups add grouped-scalar selectors. List
+models use nearby list change/swap, sublist change/swap, reverse, k-opt when
+k-opt hooks exist, and list ruin when the list runtime supports ruin moves.
+Conflict repair selectors are added only when repair providers are registered.
+Omitted acceptor and forager settings are selected by the same model-aware
+profile. Explicit `acceptor`, `forager`, `move_selector`, and VND
+`neighborhoods` remain exact user-owned configuration.
 
 ### `VariableTargetConfig`
 
@@ -572,7 +576,12 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type |
 |-------|------|
-| `custom_phase_class` | `Option<String>` |
+| `name` | `String` |
+
+`name` selects a custom phase that was compiled into the solution through its
+typed `search = "path::to::search"` function. Missing `name` is a TOML parse
+error. SolverForge does not load arbitrary runtime classes or maintain a
+string-to-erased-plugin registry.
 
 ### `SolverConfigOverride`
 

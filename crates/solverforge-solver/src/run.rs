@@ -12,7 +12,7 @@ use solverforge_scoring::{ConstraintSet, Director, ScoreDirector};
 use tracing::info;
 
 use crate::manager::{SolverRuntime, SolverTerminalReason};
-use crate::phase::{Phase, PhaseSequence};
+use crate::phase::Phase;
 use crate::scope::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 use crate::solver::{NoTermination, Solver};
 use crate::stats::{format_duration, whole_units_per_second};
@@ -230,7 +230,7 @@ fn load_solver_config() -> SolverConfig {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn run_solver<S, C, P>(
+pub fn run_solver<S, C, P, BuildPhases>(
     solution: S,
     constraints_fn: fn() -> C,
     descriptor: fn() -> SolutionDescriptor,
@@ -239,14 +239,14 @@ pub fn run_solver<S, C, P>(
     default_time_limit_secs: u64,
     is_trivial: fn(&S) -> bool,
     log_scale: fn(&S),
-    build_phases: fn(&SolverConfig) -> PhaseSequence<P>,
+    build_phases: BuildPhases,
 ) -> S
 where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
-    P: Send + std::fmt::Debug,
-    PhaseSequence<P>: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>>,
+    P: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>> + Send + std::fmt::Debug,
+    BuildPhases: Fn(&SolverConfig) -> P,
 {
     let config = load_solver_config();
     run_solver_with_config(
@@ -264,7 +264,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn run_solver_with_config<S, C, P>(
+pub fn run_solver_with_config<S, C, P, BuildPhases>(
     solution: S,
     constraints_fn: fn() -> C,
     descriptor: fn() -> SolutionDescriptor,
@@ -274,14 +274,14 @@ pub fn run_solver_with_config<S, C, P>(
     default_time_limit_secs: u64,
     is_trivial: fn(&S) -> bool,
     log_scale: fn(&S),
-    build_phases: fn(&SolverConfig) -> PhaseSequence<P>,
+    build_phases: BuildPhases,
 ) -> S
 where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
-    P: Send + std::fmt::Debug,
-    PhaseSequence<P>: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>>,
+    P: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>> + Send + std::fmt::Debug,
+    BuildPhases: Fn(&SolverConfig) -> P,
 {
     log_scale(&solution);
     let trivial = is_trivial(&solution);

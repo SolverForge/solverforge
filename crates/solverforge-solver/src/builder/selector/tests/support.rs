@@ -239,6 +239,32 @@ fn worker_candidate_values(
     &[0, 1]
 }
 
+fn nearby_shift_candidates(
+    _solution: &MixedPlan,
+    _entity_index: usize,
+    _variable_index: usize,
+) -> &'static [usize] {
+    &[0, 1]
+}
+
+fn nearby_worker_value_distance(
+    _solution: &MixedPlan,
+    entity_index: usize,
+    _variable_index: usize,
+    value: usize,
+) -> Option<f64> {
+    Some(entity_index.abs_diff(value) as f64)
+}
+
+fn nearby_worker_entity_distance(
+    _solution: &MixedPlan,
+    left_entity_index: usize,
+    right_entity_index: usize,
+    _variable_index: usize,
+) -> Option<f64> {
+    Some(left_entity_index.abs_diff(right_entity_index) as f64)
+}
+
 fn worker_count(solution: &MixedPlan, _provider_index: usize) -> usize {
     solution.shifts.len().max(1)
 }
@@ -340,6 +366,26 @@ fn scalar_slot() -> ScalarVariableSlot<MixedPlan> {
     .with_candidate_values(worker_candidate_values)
 }
 
+fn nearby_scalar_slot() -> ScalarVariableSlot<MixedPlan> {
+    scalar_slot()
+        .with_nearby_value_candidates(worker_candidate_values)
+        .with_nearby_value_distance_meter(nearby_worker_value_distance)
+        .with_nearby_entity_candidates(nearby_shift_candidates)
+        .with_nearby_entity_distance_meter(nearby_worker_entity_distance)
+}
+
+fn required_unassigned_shift(solution: &MixedPlan, entity_index: usize) -> bool {
+    solution.shifts[entity_index].worker.is_none()
+}
+
+fn worker_capacity_key(
+    _solution: &MixedPlan,
+    _entity_index: usize,
+    worker: usize,
+) -> Option<usize> {
+    Some(worker)
+}
+
 fn list_slot() -> ListVariableSlot<MixedPlan, usize, NoopMeter, NoopMeter> {
     ListVariableSlot::new(
         "Vehicle",
@@ -378,6 +424,30 @@ fn list_slot() -> ListVariableSlot<MixedPlan, usize, NoopMeter, NoopMeter> {
 
 fn scalar_only_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {
     RuntimeModel::new(vec![VariableSlot::Scalar(scalar_slot())])
+}
+
+fn nearby_scalar_only_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {
+    RuntimeModel::new(vec![VariableSlot::Scalar(nearby_scalar_slot())])
+}
+
+fn assignment_scalar_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {
+    let scalar_slot = scalar_slot();
+    let groups = bind_scalar_groups(
+        vec![
+            ScalarGroup::assignment(
+                "worker_assignment",
+                ScalarTarget::from_descriptor_index(0, "worker"),
+            )
+            .with_required_entity(required_unassigned_shift)
+            .with_capacity_key(worker_capacity_key)
+            .with_limits(ScalarGroupLimits {
+                max_moves_per_step: Some(7),
+                ..ScalarGroupLimits::new()
+            }),
+        ],
+        &[scalar_slot],
+    );
+    RuntimeModel::new(vec![VariableSlot::Scalar(scalar_slot)]).with_scalar_groups(groups)
 }
 
 fn list_only_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {

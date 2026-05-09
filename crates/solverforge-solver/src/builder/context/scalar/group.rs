@@ -336,6 +336,28 @@ impl<S> ScalarGroupBinding<S> {
             ScalarGroupBindingKind::Candidates { .. } => None,
         }
     }
+
+    pub fn is_assignment(&self) -> bool {
+        matches!(self.kind, ScalarGroupBindingKind::Assignment(_))
+    }
+
+    pub fn is_candidate_group(&self) -> bool {
+        matches!(self.kind, ScalarGroupBindingKind::Candidates { .. })
+    }
+
+    pub fn has_sequence_metadata(&self) -> bool {
+        self.assignment()
+            .is_some_and(|assignment| assignment.sequence_key.is_some())
+    }
+
+    pub fn has_position_metadata(&self) -> bool {
+        self.assignment()
+            .is_some_and(|assignment| assignment.position_key.is_some())
+    }
+
+    pub fn default_max_moves_per_step(&self) -> Option<usize> {
+        self.limits.max_moves_per_step
+    }
 }
 
 impl<S> Clone for ScalarGroupBinding<S> {

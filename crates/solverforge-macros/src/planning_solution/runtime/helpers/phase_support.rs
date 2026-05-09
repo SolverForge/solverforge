@@ -3,6 +3,7 @@ pub(super) fn generate_runtime_phase_support(
     constraints_path: &Option<String>,
     conflict_repairs_path: &Option<String>,
     scalar_groups_path: &Option<String>,
+    search_path: &Option<String>,
     solution_name: &Ident,
 ) -> TokenStream {
     if constraints_path.is_none() {
@@ -51,6 +52,9 @@ pub(super) fn generate_runtime_phase_support(
                 )
             }
         });
+    let search_fn = search_path.as_ref().map(|path| {
+        syn::parse_str::<syn::Path>(path).expect("search path must be a valid Rust path")
+    });
     let scalar_candidate_count_helper =
         generate_scalar_candidate_count_helper(fields, solution_name);
 
@@ -190,6 +194,17 @@ pub(super) fn generate_runtime_phase_support(
             })
             .collect();
 
+        let build_phases_fn = generate_list_build_phases_fn(ListBuildPhasesInput {
+            solution_name,
+            cross_enum_ident: &cross_enum_ident,
+            intra_enum_ident: &intra_enum_ident,
+            scalar_setup: &scalar_setup,
+            list_runtime_setup: &list_runtime_setup,
+            scalar_groups_expr: &scalar_groups_expr,
+            conflict_repair_expr: &conflict_repair_expr,
+            search_fn: search_fn.as_ref(),
+        });
+
         return quote! {
             #[derive(Clone, Debug)]
             enum #cross_enum_ident {
@@ -289,93 +304,18 @@ pub(super) fn generate_runtime_phase_support(
                     }
                 }
 
-                fn __solverforge_build_phases(
-                    config: &::solverforge::__internal::SolverConfig,
-                ) -> ::solverforge::__internal::PhaseSequence<
-                    ::solverforge::__internal::RuntimePhase<
-                        ::solverforge::__internal::Construction<
-                            #solution_name,
-                            usize,
-                            #cross_enum_ident,
-                            #intra_enum_ident
-                        >,
-                        ::solverforge::__internal::LocalSearchStrategy<
-                            #solution_name,
-                            usize,
-                            #cross_enum_ident,
-                            #intra_enum_ident
-                        >
-                    >
-                > {
-                    let descriptor = Self::descriptor();
-                    #scalar_setup
-                    #(#list_runtime_setup)*
-                    let __solverforge_descriptor_variable_order =
-                        |descriptor_index: usize, variable_name: &str| {
-                            descriptor
-                                .entity_descriptors
-                                .get(descriptor_index)
-                                .and_then(|entity| {
-                                    entity
-                                        .variable_descriptors
-                                        .iter()
-                                        .position(|descriptor_var| {
-                                            descriptor_var.name == variable_name
-                                        })
-                                })
-                                .unwrap_or(::core::usize::MAX)
-                        };
-                    __solverforge_variables.sort_by_key(|variable| {
-                        match variable {
-                            ::solverforge::__internal::VariableSlot::Scalar(ctx) => {
-                                (
-                                    ctx.descriptor_index,
-                                    __solverforge_descriptor_variable_order(
-                                        ctx.descriptor_index,
-                                        ctx.variable_name,
-                                    ),
-                                )
-                            }
-                            ::solverforge::__internal::VariableSlot::List(ctx) => {
-                                (
-                                    ctx.descriptor_index,
-                                    __solverforge_descriptor_variable_order(
-                                        ctx.descriptor_index,
-                                        ctx.variable_name,
-                                    ),
-                                )
-                            }
-                        }
-                    });
-                    let __solverforge_scalar_slots = __solverforge_variables
-                        .iter()
-                        .filter_map(|variable| match variable {
-                            ::solverforge::__internal::VariableSlot::Scalar(ctx) => {
-                                ::core::option::Option::Some(*ctx)
-                            }
-                            ::solverforge::__internal::VariableSlot::List(_) => {
-                                ::core::option::Option::None
-                            }
-                        })
-                        .collect::<::std::vec::Vec<_>>();
-                    let __solverforge_scalar_groups = #scalar_groups_expr;
-                    let model = ::solverforge::__internal::RuntimeModel::<
-                        #solution_name,
-                        usize,
-                        #cross_enum_ident,
-                        #intra_enum_ident
-                    >::new(__solverforge_variables)
-                    .with_scalar_groups(__solverforge_scalar_groups)
-                    #conflict_repair_expr;
-                    ::solverforge::__internal::build_phases(
-                        config,
-                        &descriptor,
-                        &model,
-                    )
-                }
+                #build_phases_fn
             }
         };
     }
+
+    let build_phases_fn = generate_scalar_build_phases_fn(
+        solution_name,
+        &scalar_setup,
+        &scalar_groups_expr,
+        &conflict_repair_expr,
+        search_fn.as_ref(),
+    );
 
     quote! {
         impl #solution_name {
@@ -407,52 +347,7 @@ pub(super) fn generate_runtime_phase_support(
                 );
             }
 
-            fn __solverforge_build_phases(
-                config: &::solverforge::__internal::SolverConfig,
-            ) -> ::solverforge::__internal::PhaseSequence<
-                ::solverforge::__internal::RuntimePhase<
-                    ::solverforge::__internal::Construction<
-                        #solution_name,
-                        usize,
-                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
-                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter
-                    >,
-                    ::solverforge::__internal::LocalSearchStrategy<
-                        #solution_name,
-                        usize,
-                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
-                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter
-                    >
-                >
-            > {
-                let descriptor = Self::descriptor();
-                #scalar_setup
-                let __solverforge_scalar_slots = __solverforge_variables
-                    .iter()
-                    .filter_map(|variable| match variable {
-                        ::solverforge::__internal::VariableSlot::Scalar(ctx) => {
-                            ::core::option::Option::Some(*ctx)
-                        }
-                        ::solverforge::__internal::VariableSlot::List(_) => {
-                            ::core::option::Option::None
-                        }
-                    })
-                    .collect::<::std::vec::Vec<_>>();
-                let __solverforge_scalar_groups = #scalar_groups_expr;
-                let model = ::solverforge::__internal::RuntimeModel::<
-                    #solution_name,
-                    usize,
-                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
-                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter
-                >::new(__solverforge_variables)
-                .with_scalar_groups(__solverforge_scalar_groups)
-                #conflict_repair_expr;
-                ::solverforge::__internal::build_phases(
-                    config,
-                    &descriptor,
-                    &model,
-                )
-            }
+            #build_phases_fn
         }
     }
 }

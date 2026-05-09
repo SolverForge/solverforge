@@ -121,6 +121,10 @@ src/
 - `ConstraintAnalysis` (solver-level serializable analysis)
 - `DefaultDistanceMeter`
 - `CrossEntityDistanceMeter`
+- `Search`
+- `SearchContext`
+- `CustomSearchPhase`
+- `local_search`
 
 ### Planning Helpers
 
@@ -159,18 +163,50 @@ Module: `solverforge::cvrp`
 Convenient single import for user code:
 
 ```rust
+pub use crate::local_search;
 pub use crate::planning::EntitySourceTargetExt;
-pub use crate::stream::collector::{consecutive_runs, count, load_balance, sum, Run, Runs};
+pub use crate::stream::collector::{collect_vec, consecutive_runs, count, load_balance, sum, Run, Runs};
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     planning_entity, planning_model, planning_solution, problem_fact,
-    BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet,
+    BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, CustomSearchPhase,
     Director, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore,
     Projection, ProjectionSink,
     RepairCandidate, RepairLimits, ScalarCandidate, ScalarEdit, ScalarGroup,
-    ScalarGroupLimits, ScalarTarget, Score, ScoreDirector, SoftScore,
+    ScalarGroupLimits, ScalarTarget, Score, ScoreDirector, Search, SearchContext, SoftScore,
 };
 ```
+
+## Typed Custom Search
+
+Solutions can compile in custom search code with
+`#[planning_solution(search = "search::search")]`. The search function returns
+`impl Search<...>` and registers typed phases by name:
+
+```rust
+pub fn search<DM, IDM>(
+    ctx: SearchContext<Schedule, usize, DM, IDM>,
+) -> impl Search<Schedule, usize, DM, IDM>
+where
+    DM: CrossEntityDistanceMeter<Schedule> + Clone + std::fmt::Debug + Send + 'static,
+    IDM: CrossEntityDistanceMeter<Schedule> + Clone + std::fmt::Debug + Send + 'static,
+{
+    ctx.defaults()
+        .phase("weekend_repair", |ctx| WeekendRepair::new(ctx.model()))
+        .phase("nurse_search", |ctx| {
+            local_search(
+                NurseMoves::new(ctx.model()),
+                NurseAcceptor::new(ctx.seed()),
+                NurseForager::new(),
+            )
+        })
+}
+```
+
+TOML can order those compiled-in names with
+`[[phases]] type = "custom" name = "weekend_repair"`. Custom phases implement
+`CustomSearchPhase<S>`. SolverForge does not load arbitrary runtime classes or
+use erased phase registries.
 
 ## `stream` Module
 

@@ -31,7 +31,20 @@ fn builds_solution_count_scalar_selectors_without_descriptor_bindings() {
         true,
     )];
 
-    let selector = build_scalar_move_selector::<Schedule>(None, &scalar_variables, None);
+    let config = MoveSelectorConfig::UnionMoveSelector(UnionMoveSelectorConfig {
+        selection_order: solverforge_config::UnionSelectionOrder::Sequential,
+        selectors: vec![
+            MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: None,
+                target: VariableTargetConfig::default(),
+            }),
+            MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+                target: VariableTargetConfig::default(),
+            }),
+        ],
+    });
+
+    let selector = build_scalar_move_selector::<Schedule>(Some(&config), &scalar_variables, None);
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 9);

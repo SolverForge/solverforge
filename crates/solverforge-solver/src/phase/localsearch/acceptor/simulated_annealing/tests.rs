@@ -244,8 +244,20 @@ fn sampled_calibration_derives_temperatures_per_level() {
 #[test]
 fn seeded_auto_calibration_starts_with_same_temperatures() {
     let initial = HardSoftScore::of(-576, -1000);
-    let mut first = SimulatedAnnealingAcceptor::auto_calibrate_with_seed(0.999, 42);
-    let mut second = SimulatedAnnealingAcceptor::auto_calibrate_with_seed(0.999, 42);
+    let mut first = SimulatedAnnealingAcceptor::with_calibration_and_seed(
+        0.999,
+        DEFAULT_HILL_CLIMBING_TEMPERATURE,
+        HardRegressionPolicy::TemperatureControlled,
+        SimulatedAnnealingCalibration::default(),
+        42,
+    );
+    let mut second = SimulatedAnnealingAcceptor::with_calibration_and_seed(
+        0.999,
+        DEFAULT_HILL_CLIMBING_TEMPERATURE,
+        HardRegressionPolicy::TemperatureControlled,
+        SimulatedAnnealingCalibration::default(),
+        42,
+    );
 
     Acceptor::<HardSoftSol>::phase_started(&mut first, &initial);
     Acceptor::<HardSoftSol>::phase_started(&mut second, &initial);

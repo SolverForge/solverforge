@@ -17,7 +17,7 @@ use crate::phase::localsearch::{
 Returned by [`ForagerBuilder::build`] to avoid `Box<dyn LocalSearchForager<S, M>>`.
 Dispatches to the inner forager via `match` — fully monomorphized.
 */
-#[allow(clippy::large_enum_variant)]
+#[allow(clippy::large_enum_variant)] // Inline storage keeps forager dispatch zero-erasure.
 pub enum AnyForager<S: PlanningSolution> {
     // Retains up to `N` accepted moves, picks the best.
     AcceptedCount(AcceptedCountForager<S>),

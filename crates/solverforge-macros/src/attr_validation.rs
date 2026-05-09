@@ -62,6 +62,7 @@ const SOLUTION_ARGS: &[AttributeArgSpec] = &[
     AttributeArgSpec::string("constraints"),
     AttributeArgSpec::string("config"),
     AttributeArgSpec::string("solver_toml"),
+    AttributeArgSpec::string("search"),
     AttributeArgSpec::string("conflict_repairs"),
     AttributeArgSpec::string("scalar_groups"),
 ];
@@ -126,14 +127,15 @@ pub(crate) fn parse_serde_flag(attr: TokenStream, macro_name: &str) -> Result<bo
 }
 
 // Parses planning_solution attribute flags: serde, constraints = "path",
-// config = "path", solver_toml = "path", conflict_repairs = "path",
-// scalar_groups = "path".
+// config = "path", solver_toml = "path", search = "path",
+// conflict_repairs = "path", scalar_groups = "path".
 #[derive(Debug, Default)]
 pub(crate) struct SolutionFlags {
     pub(crate) has_serde: bool,
     pub(crate) constraints_path: Option<String>,
     pub(crate) config_path: Option<String>,
     pub(crate) solver_toml_path: Option<String>,
+    pub(crate) search_path: Option<String>,
     pub(crate) conflict_repairs_path: Option<String>,
     pub(crate) scalar_groups_path: Option<String>,
 }
@@ -161,6 +163,12 @@ pub(crate) fn parse_solution_flags(attr: TokenStream) -> Result<SolutionFlags, E
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "solver_toml") => {
                 flags.solver_toml_path = lit_string_value(&nv.value);
             }
+            Meta::NameValue(nv) if path_matches_ident(&nv.path, "search") => {
+                if let Some(path) = lit_string_value(&nv.value) {
+                    validate_rust_path("search", &path, &nv)?;
+                    flags.search_path = Some(path);
+                }
+            }
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "conflict_repairs") => {
                 flags.conflict_repairs_path = lit_string_value(&nv.value);
             }
@@ -172,6 +180,15 @@ pub(crate) fn parse_solution_flags(attr: TokenStream) -> Result<SolutionFlags, E
     }
 
     Ok(flags)
+}
+
+fn validate_rust_path(arg_name: &str, path: &str, meta: &syn::MetaNameValue) -> Result<(), Error> {
+    syn::parse_str::<syn::Path>(path).map(|_| ()).map_err(|_| {
+        Error::new_spanned(
+            meta,
+            format!("planning_solution argument `{arg_name}` must be a valid Rust path string"),
+        )
+    })
 }
 
 pub(crate) fn validate_planning_entity_attribute(attr: &Attribute) -> Result<(), Error> {
@@ -351,6 +368,7 @@ mod tests {
             constraints = "constraints",
             config = "config",
             solver_toml = "solver.toml",
+            search = "search::search",
             conflict_repairs = "repairs",
             scalar_groups = "groups"
         })
@@ -360,6 +378,7 @@ mod tests {
         assert_eq!(flags.constraints_path.as_deref(), Some("constraints"));
         assert_eq!(flags.config_path.as_deref(), Some("config"));
         assert_eq!(flags.solver_toml_path.as_deref(), Some("solver.toml"));
+        assert_eq!(flags.search_path.as_deref(), Some("search::search"));
         assert_eq!(flags.conflict_repairs_path.as_deref(), Some("repairs"));
         assert_eq!(flags.scalar_groups_path.as_deref(), Some("groups"));
     }
@@ -382,6 +401,16 @@ mod tests {
         assert!(error
             .to_string()
             .contains("planning_solution argument `conflict_repairs` must be a string literal"));
+    }
+
+    #[test]
+    fn parse_solution_flags_rejects_invalid_search_path() {
+        let error = parse_solution_flags(quote! { search = "search::" })
+            .expect_err("invalid search path strings should fail");
+
+        assert!(error
+            .to_string()
+            .contains("planning_solution argument `search` must be a valid Rust path string"));
     }
 
     #[test]

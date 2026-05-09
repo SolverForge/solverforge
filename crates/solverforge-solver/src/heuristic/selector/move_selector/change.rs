@@ -11,6 +11,129 @@ pub struct ChangeMoveSelector<S, V, ES, VS> {
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
+struct ChangeEntityValues<V> {
+    entity_ref: super::entity::EntityReference,
+    values: Vec<V>,
+    current_assigned: bool,
+}
+
+pub struct ChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    store: CandidateStore<S, ChangeMove<S, V>>,
+    entity_values: Vec<ChangeEntityValues<V>>,
+    entity_offset: usize,
+    value_offset: usize,
+    getter: fn(&S, usize, usize) -> Option<V>,
+    setter: fn(&mut S, usize, usize, Option<V>),
+    descriptor_index: usize,
+    variable_index: usize,
+    variable_name: &'static str,
+    allows_unassigned: bool,
+}
+
+impl<S, V> ChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn new(
+        entity_values: Vec<ChangeEntityValues<V>>,
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
+        descriptor_index: usize,
+        variable_index: usize,
+        variable_name: &'static str,
+        allows_unassigned: bool,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            entity_values,
+            entity_offset: 0,
+            value_offset: 0,
+            getter,
+            setter,
+            descriptor_index,
+            variable_index,
+            variable_name,
+            allows_unassigned,
+        }
+    }
+}
+
+impl<S, V> MoveCursor<S, ChangeMove<S, V>> for ChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        while self.entity_offset < self.entity_values.len() {
+            let entity_values = &self.entity_values[self.entity_offset];
+            if self.value_offset < entity_values.values.len() {
+                let value = entity_values.values[self.value_offset].clone();
+                self.value_offset += 1;
+                return Some(self.store.push(ChangeMove::new(
+                    entity_values.entity_ref.entity_index,
+                    Some(value),
+                    self.getter,
+                    self.setter,
+                    self.variable_index,
+                    self.variable_name,
+                    self.descriptor_index,
+                )));
+            }
+
+            let to_none_offset = entity_values.values.len();
+            if self.allows_unassigned
+                && entity_values.current_assigned
+                && self.value_offset == to_none_offset
+            {
+                self.value_offset += 1;
+                return Some(self.store.push(ChangeMove::new(
+                    entity_values.entity_ref.entity_index,
+                    None,
+                    self.getter,
+                    self.setter,
+                    self.variable_index,
+                    self.variable_name,
+                    self.descriptor_index,
+                )));
+            }
+
+            self.entity_offset += 1;
+            self.value_offset = 0;
+        }
+
+        None
+    }
+
+    fn candidate(
+        &self,
+        id: CandidateId,
+    ) -> Option<MoveCandidateRef<'_, S, ChangeMove<S, V>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> ChangeMove<S, V> {
+        self.store.take_candidate(id)
+    }
+}
+
+impl<S, V> Iterator for ChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    type Item = ChangeMove<S, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
+    }
+}
+
 impl<S, V: Debug, ES: Debug, VS: Debug> Debug for ChangeMoveSelector<S, V, ES, VS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ChangeMoveSelector")
@@ -86,64 +209,43 @@ where
     VS: ValueSelector<S, V>,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, ChangeMove<S, V>>
+        = ChangeMoveCursor<S, V>
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let descriptor_index = self.descriptor_index;
-        let variable_index = self.variable_index;
-        let variable_name = self.variable_name;
-        let getter = self.getter;
-        let setter = self.setter;
-        let allows_unassigned = self.allows_unassigned;
-        let value_selector = &self.value_selector;
         let solution = score_director.working_solution();
-        let entity_values: Vec<_> = self
+        let entity_values = self
             .entity_selector
             .iter(score_director)
             .map(|entity_ref| {
-                let current_assigned =
-                    getter(solution, entity_ref.entity_index, variable_index).is_some();
-                let values = value_selector.iter(
+                let current_assigned = (self.getter)(
+                    solution,
+                    entity_ref.entity_index,
+                    self.variable_index,
+                )
+                .is_some();
+                let values = self.value_selector.iter(
                     score_director,
                     entity_ref.descriptor_index,
                     entity_ref.entity_index,
-                );
-                (entity_ref, values, current_assigned)
+                ).collect();
+                ChangeEntityValues {
+                    entity_ref,
+                    values,
+                    current_assigned,
+                }
             })
             .collect();
-
-        let iter =
-            entity_values
-                .into_iter()
-                .flat_map(move |(entity_ref, values, current_assigned)| {
-                    let to_none = (allows_unassigned && current_assigned).then(|| {
-                        ChangeMove::new(
-                            entity_ref.entity_index,
-                            None,
-                            getter,
-                            setter,
-                            variable_index,
-                            variable_name,
-                            descriptor_index,
-                        )
-                    });
-                    values
-                        .map(move |value| {
-                            ChangeMove::new(
-                                entity_ref.entity_index,
-                                Some(value),
-                                getter,
-                                setter,
-                                variable_index,
-                                variable_name,
-                                descriptor_index,
-                            )
-                        })
-                        .chain(to_none)
-                });
-        ArenaMoveCursor::from_moves(iter)
+        ChangeMoveCursor::new(
+            entity_values,
+            self.getter,
+            self.setter,
+            self.descriptor_index,
+            self.variable_index,
+            self.variable_name,
+            self.allows_unassigned,
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -167,4 +269,3 @@ where
             .sum()
     }
 }
-

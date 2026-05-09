@@ -4,10 +4,12 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ScalarMoveUnion;
+use crate::heuristic::r#move::{ChangeMove, SwapMove};
+use crate::heuristic::selector::decorator::MappedMoveCursor;
 
 use super::super::entity::{EntitySelector, FromSolutionEntitySelector};
 use super::super::value_selector::{StaticValueSelector, ValueSelector};
-use super::{ArenaMoveCursor, ChangeMoveSelector, MoveSelector, SwapMoveSelector};
+use super::{ChangeMoveSelector, MoveSelector, SwapMoveSelector};
 
 pub struct ScalarChangeMoveSelector<S, V, ES, VS> {
     inner: ChangeMoveSelector<S, V, ES, VS>,
@@ -45,6 +47,13 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
     }
 }
 
+fn wrap_change_move<S, V>(mov: ChangeMove<S, V>) -> ScalarMoveUnion<S, V>
+where
+    S: PlanningSolution,
+{
+    ScalarMoveUnion::Change(mov)
+}
+
 impl<S, V, ES, VS> MoveSelector<S, ScalarMoveUnion<S, V>> for ScalarChangeMoveSelector<S, V, ES, VS>
 where
     S: PlanningSolution,
@@ -53,15 +62,20 @@ where
     VS: ValueSelector<S, V>,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, ScalarMoveUnion<S, V>>
+        = MappedMoveCursor<
+        S,
+        ChangeMove<S, V>,
+        ScalarMoveUnion<S, V>,
+        <ChangeMoveSelector<S, V, ES, VS> as MoveSelector<S, ChangeMove<S, V>>>::Cursor<'a>,
+        fn(ChangeMove<S, V>) -> ScalarMoveUnion<S, V>,
+    >
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        ArenaMoveCursor::from_moves(
-            self.inner
-                .iter_moves(score_director)
-                .map(ScalarMoveUnion::Change),
+        MappedMoveCursor::new(
+            self.inner.open_cursor(score_director),
+            wrap_change_move::<S, V>,
         )
     }
 
@@ -104,6 +118,13 @@ impl<S: PlanningSolution, V>
     }
 }
 
+fn wrap_swap_move<S, V>(mov: SwapMove<S, V>) -> ScalarMoveUnion<S, V>
+where
+    S: PlanningSolution,
+{
+    ScalarMoveUnion::Swap(mov)
+}
+
 impl<S, V, LES, RES> MoveSelector<S, ScalarMoveUnion<S, V>>
     for ScalarSwapMoveSelector<S, V, LES, RES>
 where
@@ -113,15 +134,20 @@ where
     RES: EntitySelector<S>,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, ScalarMoveUnion<S, V>>
+        = MappedMoveCursor<
+        S,
+        SwapMove<S, V>,
+        ScalarMoveUnion<S, V>,
+        <SwapMoveSelector<S, V, LES, RES> as MoveSelector<S, SwapMove<S, V>>>::Cursor<'a>,
+        fn(SwapMove<S, V>) -> ScalarMoveUnion<S, V>,
+    >
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        ArenaMoveCursor::from_moves(
-            self.inner
-                .iter_moves(score_director)
-                .map(ScalarMoveUnion::Swap),
+        MappedMoveCursor::new(
+            self.inner.open_cursor(score_director),
+            wrap_swap_move::<S, V>,
         )
     }
 

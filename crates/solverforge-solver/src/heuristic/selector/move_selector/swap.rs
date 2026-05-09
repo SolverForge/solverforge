@@ -10,6 +10,111 @@ pub struct SwapMoveSelector<S, V, LES, RES> {
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
+pub struct SwapMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    store: CandidateStore<S, SwapMove<S, V>>,
+    left_entities: Vec<super::entity::EntityReference>,
+    right_entities: Vec<super::entity::EntityReference>,
+    left_offset: usize,
+    right_offset: usize,
+    getter: fn(&S, usize, usize) -> Option<V>,
+    setter: fn(&mut S, usize, usize, Option<V>),
+    descriptor_index: usize,
+    variable_index: usize,
+    variable_name: &'static str,
+}
+
+impl<S, V> SwapMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn new(
+        left_entities: Vec<super::entity::EntityReference>,
+        right_entities: Vec<super::entity::EntityReference>,
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
+        descriptor_index: usize,
+        variable_index: usize,
+        variable_name: &'static str,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            left_entities,
+            right_entities,
+            left_offset: 0,
+            right_offset: 0,
+            getter,
+            setter,
+            descriptor_index,
+            variable_index,
+            variable_name,
+        }
+    }
+}
+
+impl<S, V> MoveCursor<S, SwapMove<S, V>> for SwapMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        while self.left_offset < self.left_entities.len() {
+            while self.right_offset < self.right_entities.len() {
+                let left_entity_ref = self.left_entities[self.left_offset];
+                let right_entity_ref = self.right_entities[self.right_offset];
+                self.right_offset += 1;
+
+                if left_entity_ref.entity_index >= right_entity_ref.entity_index {
+                    continue;
+                }
+
+                return Some(self.store.push(SwapMove::new(
+                    left_entity_ref.entity_index,
+                    right_entity_ref.entity_index,
+                    self.getter,
+                    self.setter,
+                    self.variable_index,
+                    self.variable_name,
+                    self.descriptor_index,
+                )));
+            }
+
+            self.left_offset += 1;
+            self.right_offset = 0;
+        }
+
+        None
+    }
+
+    fn candidate(
+        &self,
+        id: CandidateId,
+    ) -> Option<MoveCandidateRef<'_, S, SwapMove<S, V>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> SwapMove<S, V> {
+        self.store.take_candidate(id)
+    }
+}
+
+impl<S, V> Iterator for SwapMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    type Item = SwapMove<S, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
+    }
+}
+
 impl<S, V, LES: Debug, RES: Debug> Debug for SwapMoveSelector<S, V, LES, RES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SwapMoveSelector")
@@ -76,34 +181,22 @@ where
     RES: EntitySelector<S>,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, SwapMove<S, V>>
+        = SwapMoveCursor<S, V>
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let getter = self.getter;
-        let setter = self.setter;
-        let variable_index = self.variable_index;
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
         let right_entities: Vec<_> = self.right_entity_selector.iter(score_director).collect();
-        let mut moves = Vec::new();
-        for left_entity_ref in self.left_entity_selector.iter(score_director) {
-            for right_entity_ref in &right_entities {
-                if left_entity_ref.entity_index < right_entity_ref.entity_index {
-                    moves.push(SwapMove::new(
-                        left_entity_ref.entity_index,
-                        right_entity_ref.entity_index,
-                        getter,
-                        setter,
-                        variable_index,
-                        variable_name,
-                        descriptor_index,
-                    ));
-                }
-            }
-        }
-        ArenaMoveCursor::from_moves(moves)
+        let left_entities: Vec<_> = self.left_entity_selector.iter(score_director).collect();
+        SwapMoveCursor::new(
+            left_entities,
+            right_entities,
+            self.getter,
+            self.setter,
+            self.descriptor_index,
+            self.variable_index,
+            self.variable_name,
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

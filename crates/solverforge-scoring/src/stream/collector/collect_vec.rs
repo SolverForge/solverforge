@@ -66,7 +66,7 @@ where
 
     #[inline]
     fn finish(&self) -> Vec<T> {
-        self.values.iter().copied().collect()
+        self.values.to_vec()
     }
 
     #[inline]

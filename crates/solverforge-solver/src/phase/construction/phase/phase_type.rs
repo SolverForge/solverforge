@@ -74,9 +74,9 @@ where
     S::Score: Copy,
     D: Director<S>,
     BestCb: ProgressCallback<S>,
-    M: Move<S> + 'static,
+    M: Move<S>,
     P: EntityPlacer<S, M>,
-    Fo: ConstructionForager<S, M> + 'static,
+    Fo: ConstructionForager<S, M>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         let mut phase_scope = PhaseScope::new(solver_scope, 0);
@@ -144,14 +144,13 @@ where
             let mut step_scope = StepScope::new(&mut phase_scope);
 
             // Use forager to pick the best move index for this placement
-            let selection = match select_move_index(
-                &self.forager,
+            let selection = match self.forager.select_move_index(
                 &placement,
                 self.construction_obligation,
                 &mut step_scope,
             ) {
-                ConstructionSelection::Selected(selection) => selection,
-                ConstructionSelection::Interrupted => {
+                Some(selection) => selection,
+                None => {
                     match settle_construction_interrupt(&mut step_scope) {
                         StepInterrupt::Restart => {
                             if !self.refresh_placements_each_step {

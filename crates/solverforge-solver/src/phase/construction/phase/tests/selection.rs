@@ -206,6 +206,46 @@ fn first_fit_required_construction_still_selects_first_doable_candidate() {
     assert_eq!(solver_scope.stats().step_count, 1);
 }
 
+#[derive(Debug)]
+struct ReferencingConstructionForager<'a> {
+    tail_offset: &'a usize,
+}
+
+impl<'a> ConstructionForager<ConstructionPauseSolution, ConstructionPauseMove>
+    for ReferencingConstructionForager<'a>
+{
+    fn pick_move_index<D: Director<ConstructionPauseSolution>>(
+        &self,
+        placement: &Placement<ConstructionPauseSolution, ConstructionPauseMove>,
+        _score_director: &mut D,
+    ) -> ConstructionChoice {
+        placement
+            .moves
+            .len()
+            .checked_sub(self.tail_offset.saturating_add(1))
+            .map(ConstructionChoice::Select)
+            .unwrap_or(ConstructionChoice::KeepCurrent)
+    }
+}
+
+#[test]
+fn construction_phase_accepts_custom_forager_without_static_router() {
+    let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let offset = 0;
+    let placer = ScoredConstructionPlacer::new(vec![3, 5, 8], false);
+    let forager = ReferencingConstructionForager {
+        tail_offset: &offset,
+    };
+    let mut phase = ConstructionHeuristicPhase::new(placer, forager);
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().entities[0].value, Some(8));
+}
+
 #[test]
 fn best_fit_prefers_equal_score_candidate_over_keep_current() {
     let director = ConstructionPauseDirector::new(ConstructionPauseSolution::new(None));

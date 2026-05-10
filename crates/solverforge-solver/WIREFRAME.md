@@ -200,7 +200,9 @@ src/
 │   │   ├── phase.rs                     — ConstructionHeuristicPhase<S, M, P, Fo>
 │   │   ├── phase/*.rs                   — Construction phase type and selection helpers
 │   │   ├── phase/tests.rs               — Construction phase test root with support, selection, and lifecycle chunks
-│   │   ├── forager.rs                   — ConstructionChoice enum, ConstructionForager trait, FirstFit/BestFit/FirstFeasible/WeakestFit/StrongestFit foragers
+│   │   ├── forager.rs                   — ConstructionChoice enum, ConstructionForager trait, FirstFit/BestFit/FirstFeasible/WeakestFit/StrongestFit forager types
+│   │   ├── forager_impl.rs              — Stock construction forager strategy implementations
+│   │   ├── forager_step.rs              — Step-aware stock construction selection with telemetry and prompt/control polling
 │   │   ├── forager/tests.rs             — Tests
 │   │   ├── placer.rs                    — EntityPlacer trait, Placement, QueuedEntityPlacer, SortedEntityPlacer; queued placements expose optional keep-current legality
 │   │   ├── placer/tests.rs              — Tests
@@ -464,6 +466,12 @@ Requires: `Send + Debug`. Bounds: `S: PlanningSolution, M: Move<S>`.
 | Method | Signature |
 |--------|-----------|
 | `pick_move_index` | `fn<D: Director<S>>(&self, placement: &Placement<S, M>, score_director: &mut D) -> ConstructionChoice` |
+| `select_move_index` | `fn<D, BestCb>(&self, placement: &Placement<S, M>, construction_obligation: ConstructionObligation, step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>) -> Option<ConstructionChoice>` |
+
+`select_move_index` has a default implementation that delegates to
+`pick_move_index`. Stock construction foragers override it so
+`ConstructionHeuristicPhase` gets telemetry-aware evaluation polling through
+static dispatch without runtime type inspection.
 
 ### `LocalSearchForager<S, M>` — `localsearch/forager.rs`
 
@@ -781,7 +789,7 @@ selection engine as candidate-backed groups.
 
 ### Construction Heuristic
 
-**`ConstructionHeuristicPhase<S, M, P, Fo>`** — Bounds: `P: EntityPlacer<S, M>`, `Fo: ConstructionForager<S, M>`. `with_live_placement_refresh()` switches order-sensitive scalar heuristics from phase-start placement snapshots to per-step recomputation.
+**`ConstructionHeuristicPhase<S, M, P, Fo>`** — Bounds: `P: EntityPlacer<S, M>`, `Fo: ConstructionForager<S, M>`. `with_live_placement_refresh()` switches order-sensitive scalar heuristics from phase-start placement snapshots to per-step recomputation. Forager step selection is dispatched through the concrete `Fo` type; stock foragers provide prompt/control-aware selection without `dyn Any` routing.
 
 Runtime routing is capability-driven:
 - scalar-only `FirstFit` and `CheapestInsertion` use the descriptor boundary

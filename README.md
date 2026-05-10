@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="assets/solverforge-mascot.png" alt="SolverForge mascot" width="180">
+
 [![CI](https://github.com/SolverForge/solverforge/actions/workflows/ci.yml/badge.svg)](https://github.com/SolverForge/solverforge/actions/workflows/ci.yml)
 [![Release](https://github.com/SolverForge/solverforge/actions/workflows/release.yml/badge.svg)](https://github.com/SolverForge/solverforge/actions/workflows/release.yml)
 [![Crates.io](https://img.shields.io/crates/v/solverforge.svg)](https://crates.io/crates/solverforge)

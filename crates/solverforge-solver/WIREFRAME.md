@@ -208,14 +208,12 @@ src/
 │   │   ├── capabilities.rs              — Shared heuristic-to-capability routing and early validation for scalar/list/grouped-scalar construction
 │   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroup candidates and assignment groups bound to runtime scalar slots
 │   │   ├── grouped_scalar/assignment_candidate.rs — Assignment move options, required assignment moves, capacity-conflict moves, reassignment moves, and remaining-required telemetry
-│   │   ├── grouped_scalar/assignment_construction.rs — Assignment-backed grouped construction normalization
 │   │   ├── grouped_scalar/assignment_path.rs — Bounded augmenting-path move construction for required and optional scalar assignments
 │   │   ├── grouped_scalar/assignment_rematch.rs — Deterministic bounded sequence/position rematch move generation
 │   │   ├── grouped_scalar/assignment_state.rs — Assignment occupancy, capacity, rollback, and conflict bookkeeping
-│   │   ├── grouped_scalar/candidate.rs  — Provider-backed and assignment-backed candidate normalization into grouped construction slots
 │   │   ├── grouped_scalar/move_build.rs — CompoundScalarMove construction from public ScalarCandidate edits
-│   │   ├── grouped_scalar/phase.rs      — Grouped scalar construction phase loop and assignment-remaining telemetry
-│   │   ├── grouped_scalar/selection.rs  — Grouped slot and candidate selection semantics across supported construction heuristics
+│   │   ├── grouped_scalar/phase.rs      — ScalarGroupConstruction builder that feeds grouped scalar placements into stock ConstructionHeuristicPhase
+│   │   ├── grouped_scalar/placer.rs     — ScalarGroupPlacer adapter that emits stock Placement<CompoundScalarMove> values for provider and assignment groups
 │   │   ├── engine.rs                    — Canonical generic scalar/list/mixed construction engine used by runtime assembly
 │   │   └── engine/*.rs                  — Generic construction candidate, scan, commit, and target-matching chunks
 │   ├── localsearch/
@@ -249,11 +247,9 @@ src/
 │   │   ├── mod.rs                       — ExhaustiveSearchPhase, ExhaustiveSearchConfig, ExplorationType
 │   │   ├── bounder.rs                   — ScoreBounder trait, SoftScoreBounder, FixedOffsetBounder
 │   │   ├── bounder_tests.rs             — Tests
-│   │   ├── config.rs                    — ExhaustiveSearchConfig
-│   │   ├── decider.rs                   — ExhaustiveSearchDecider trait, SimpleDecider
+│   │   ├── decider.rs                   — ExhaustiveSearchDecider trait and SimpleDecider
 │   │   ├── decider_tests.rs             — Tests
-│   │   ├── exploration_type.rs          — ExplorationType
-│   │   ├── node.rs                      — ExhaustiveSearchNode, MoveSequence
+│   │   ├── node.rs                      — ExhaustiveSearchNode
 │   │   ├── node_tests.rs                — Tests
 │   │   ├── phase.rs                     — ExhaustiveSearchPhase<Dec>
 │   │   ├── phase_tests.rs               — Tests
@@ -510,6 +506,8 @@ Requires: `Send + Debug`. Bounds: `S: PlanningSolution, D: Director<S>`.
 | Method | Signature |
 |--------|-----------|
 | `expand` | `fn(&self, parent_index: usize, parent: &ExhaustiveSearchNode<S>, score_director: &mut D) -> Vec<ExhaustiveSearchNode<S>>` |
+| `reset_assignments` | `fn(&self, score_director: &mut D)` |
+| `apply_assignment` | `fn(&self, node: &ExhaustiveSearchNode<S>, score_director: &mut D)` |
 | `total_entities` | `fn(&self, score_director: &D) -> usize` |
 
 ### `SolutionPartitioner<S>` — `partitioned/partitioner.rs`
@@ -737,7 +735,7 @@ ordinary local-search change, pillar, and ruin/recreate selectors use canonical
 bounded candidate order and do not reorder candidates from
 `construction_value_order_key`.
 
-**`ScalarGroup<S>` / `ScalarGroupBinding<S>`** — `planning/scalar.rs` and
+**`ScalarGroup<S>` / `ScalarGroupBinding<S>`** — `planning/scalar/*` and
 `builder/context.rs`. `ScalarGroup<S>` is the public model-owned declaration
 used by grouped construction and grouped local-search selectors. It declares
 real scalar targets through `ScalarTarget<S>` and a candidate provider returning
@@ -762,10 +760,14 @@ slot key when supplied; otherwise it keys frontier completion by the exact
 sorted set of scalar target slots touched by the candidate.
 
 **Assignment-backed `ScalarGroup<S>` / `ScalarAssignmentBinding<S>`** —
-`planning/scalar.rs` and `builder/context/scalar/group.rs`.
+`planning/scalar/assignment.rs`, `planning/scalar/group.rs`, and
+`builder/context/scalar/group.rs`.
 `ScalarGroup::assignment` is the stock nullable scalar assignment declaration
 over one scalar target. It declares required-entity, capacity-key,
-position-key, sequence-key, entity-order, value-order, and limit hooks.
+assignment-rule, position-key, sequence-key, entity-order, value-order, and
+limit hooks. Assignment rules are adjacent-edge checks over post-edit
+assignment pairs; tentative assignment topology stays internal to grouped
+assignment state.
 Macro/runtime assembly binds public `ScalarGroup<S>` values to internal scalar
 group bindings before phase or selector construction. Assignment-backed
 construction generates stock grouped candidates and uses the same grouped
@@ -784,7 +786,7 @@ selection engine as candidate-backed groups.
 Runtime routing is capability-driven:
 - scalar-only `FirstFit` and `CheapestInsertion` use the descriptor boundary
 - named grouped scalar construction uses explicit `ScalarGroup` declarations bound to runtime scalar slots and applies all candidate edits atomically
-- assignment-backed `ScalarGroup` declarations generate stock nullable scalar candidates and cover required slots before optional slots
+- assignment-backed `ScalarGroup` declarations run hard-first required assignment allocation before optional slots
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
 - list-only heuristics validate required `cw_*` or `k_opt_*` hooks before phase build
 - generic mixed construction stays in the canonical engine
@@ -808,12 +810,13 @@ candidates carry the shared hard-improvement requirement enforced by local
 search, VND, and cartesian composition.
 
 Assignment-backed scalar construction generates compound scalar moves from a
-named scalar group. Required entities are handled before optional entities;
-required assignments may displace optional occupants or move required blockers
-through a bounded augmenting path. Generated assignment candidates enter the
-same grouped construction selector as provider-backed candidates, so
-`cheapest_insertion` score-ranks candidates inside the selected assignment
-slot and weakest/strongest variants use the assignment value-order hook. With
+named scalar group. Required entities are handled before optional entities. A
+required assignment pass builds one hard-first allocation candidate for dense
+multi-slot coverage, while single-slot required construction still exposes
+bounded candidates to the grouped selector so `cheapest_insertion` and
+weakest/strongest variants preserve their scoring and value-order semantics.
+Required assignments may displace optional occupants, move required blockers,
+and use assignment-rule legality through the shared assignment state. With
 `construction_obligation = assign_when_candidate_exists`, required assignment
 construction may commit a doable candidate even when the unassigned baseline
 scores better. Optional assignments remain score-improving only.
@@ -907,9 +910,9 @@ Local search foragers:
 
 **`ExhaustiveSearchConfig`** — `{ exploration_type, node_limit, depth_limit, enable_pruning }`.
 
-**`ExhaustiveSearchNode<S>`** — Tree node: depth, score, optimistic_bound, entity/value indices, parent_index.
+`ExhaustiveSearchPhase` is cooperative with solver lifecycle control: every explored node advances the phase step count and the frontier loop polls pause, cancel, time, and in-phase limits before applying the next partial assignment. Finite `node_limit` or `depth_limit` bounds that leave frontier work unexplored terminate as `TerminatedByConfig`; an exhausted frontier remains `Completed`.
 
-**`MoveSequence<S, M>`** — Stack of moves for branch reconstruction.
+**`ExhaustiveSearchNode<S>`** — Tree node: depth, score, optimistic_bound, descriptor/variable/entity/candidate indices, parent_index. A node can reconstruct its scalar assignment path from stored parent indices.
 
 **`SimpleDecider<S, V, B>`** — Generic decider with values and optional bounder.
 
@@ -917,7 +920,7 @@ Score bounders: `SoftScoreBounder`, `FixedOffsetBounder<S>`, `()` (no-op).
 
 ### Partitioned Search
 
-**`PartitionedSearchPhase<S, D, PD, Part, SDF, PF, CP>`** — Generic over partitioner, score director factory, phase factory, child phases.
+**`PartitionedSearchPhase<S, PD, Part, SDF, PF, CP>`** — Generic over partitioner, score director factory, phase factory, child phases. Child scopes inherit runtime control, environment mode, remaining time limit, in-phase limits, and deterministic child seeds, but retained-job publication stays on the parent scope. Pause checkpoints are emitted only from the parent full-solution boundary; child pause/cancel/config termination outcomes prevent partition merge.
 
 **`FunctionalPartitioner<S, PF, MF>`** — Closure-based partitioner.
 

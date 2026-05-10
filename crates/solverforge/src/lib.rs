@@ -70,8 +70,9 @@ Constraint API
 */
 
 pub use solverforge_scoring::{
-    ConstraintMetadata, ConstraintSet, IncrementalBiConstraint, IncrementalConstraint,
-    IncrementalUniConstraint, Projection, ProjectionSink,
+    fixed_weight, hard_weight, ConstraintMetadata, ConstraintSet, FixedWeight, HardWeight,
+    IncrementalBiConstraint, IncrementalConstraint, IncrementalUniConstraint, Projection,
+    ProjectionSink,
 };
 
 /* ============================================================================
@@ -90,11 +91,14 @@ pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
     analyze, local_search, run_solver, run_solver_with_config, Analyzable, ConflictRepair,
-    ConstraintAnalysis, CustomSearchPhase, RepairCandidate, RepairLimits, RepairProvider,
-    ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits,
-    ScalarTarget, ScoreAnalysis, Search, SearchContext, SelectorTelemetry, Solvable, SolverEvent,
+    ConstraintAnalysis, CustomSearchPhase, ExhaustiveSearchConfig, ExhaustiveSearchPhase,
+    ExplorationType, FunctionalPartitioner, PartitionedSearchPhase, RepairCandidate, RepairLimits,
+    RepairProvider, ScalarAssignmentRule, ScalarCandidate, ScalarCandidateProvider, ScalarEdit,
+    ScalarGroup, ScalarGroupLimits, ScalarTarget, ScoreAnalysis, Search, SearchContext,
+    SelectorTelemetry, SimpleDecider, SolutionPartitioner, Solvable, SolverEvent,
     SolverEventMetadata, SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime,
     SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTerminalReason,
+    ThreadCount,
 };
 
 /* ============================================================================

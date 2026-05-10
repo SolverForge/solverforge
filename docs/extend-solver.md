@@ -101,6 +101,34 @@ runtime only materializes the selected winning composite move by ownership after
 forager choice. Left children that require full score evaluation during preview
 are rejected up front.
 
+## Exact typed phases
+
+Exact tree search is available as a typed extension point, not as a runtime
+fallback built from generated scalar slots. If a model needs exact search, add a
+custom phase that owns its concrete decider and register it through the typed
+search function. Assignment-backed scalar variables still belong to their
+`ScalarGroup`; exact scalar assignment should not be configured as a second
+path beside grouped assignment.
+
+## Partitioned search
+
+Use `partitioned_search` only when the application can provide a typed
+`SolutionPartitioner` that splits and merges independent subproblems. SolverForge
+does not infer partitions from a count and does not claim transparent parallel
+solving for globally coupled models.
+
+Partitioned search is a poor fit when hard constraints couple entities across
+partition boundaries, when merge cost dominates child solving, or when child
+solutions need global coordination to stay feasible. Typed search registration
+must name the partitioner explicitly; unregistered config fails at build time.
+
+Partition children are internal compute scopes, not retained-job publication
+owners. They inherit cancellation, environment mode, remaining time limit,
+in-phase limits, and deterministic seeds, but pause checkpoints are emitted only
+by the parent scope while it still owns a full public solution. If a child yields
+to pause, cancel, or configured termination, partitioned search abandons the
+partial child results instead of merging them.
+
 ## Practical path
 
 1. Start from the scaffolded project.

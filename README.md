@@ -93,7 +93,7 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
 ## Features
 
 - **Score Types**: SoftScore, HardSoftScore, HardMediumSoftScore, BendableScore, HardSoftDecimalScore
-- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, existence checks, joins, grouping, `consecutive_runs`, and balance/complemented streams
+- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, existence checks, joins, grouping, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list runtime plan when matching list work is present, plus descriptor construction routing for scalar-only targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
@@ -102,8 +102,8 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
     construction with required-slot handling, capacity repair, and heuristic
     ordering hooks
   - Local Search (`acceptor_forager` with Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, and Diversified Late Acceptance; or `variable_neighborhood_descent` with ordered neighborhoods)
-  - Exhaustive Search (Branch and Bound with DFS/BFS/Score-First)
-  - Partitioned Search (multi-threaded via rayon)
+  - Exhaustive Search for exact small finite scalar spaces
+  - Partitioned Search for explicit user-defined decomposition with optional Rayon parallelism
 - **Move System**: Zero-allocation moves with cursor-scoped ownership and selected-winner materialization
   - Scalar: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
   - List: ListChangeMove, ListSwapMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove

@@ -1,3 +1,8 @@
 [[phases]]
 type = "construction_heuristic"
 construction_heuristic_type = "first_fit"
+entity_class = "Node"
+variable_name = "color_idx"
+
+[[phases]]
+type = "local_search"

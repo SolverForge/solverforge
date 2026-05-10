@@ -99,6 +99,7 @@ src/
 - `ConflictRepair`
 - `RepairCandidate`
 - `RepairProvider`
+- `ScalarAssignmentRule`
 - `ScalarCandidate`
 - `ScalarEdit`
 - `ScalarGroup`
@@ -135,8 +136,9 @@ Module: `solverforge::planning`
   and returns a `ScalarTarget<S>`, so one bound generated source can declare
   multiple scalar targets for grouped scalar construction or local search.
 - Scalar helpers — `ScalarTarget<S>`, `ScalarEdit<S>`, `ScalarCandidate<S>`,
-  `ScalarGroup<S>`, and `ScalarGroupLimits` describe public grouped-scalar
-  construction, stock scalar assignment, and local-search declarations.
+  `ScalarAssignmentRule<S>`, `ScalarGroup<S>`, and `ScalarGroupLimits`
+  describe public grouped-scalar construction, stock scalar
+  assignment, and local-search declarations.
 - Conflict-repair helpers — `ConflictRepair<S>`, `RepairCandidate<S>`, and
   `RepairLimits` describe domain-provided repair candidates while the framework
   owns filtering, scoring, hard-improvement gates, and selector telemetry.
@@ -165,15 +167,16 @@ Convenient single import for user code:
 ```rust
 pub use crate::local_search;
 pub use crate::planning::EntitySourceTargetExt;
-pub use crate::stream::collector::{collect_vec, consecutive_runs, count, load_balance, sum, Run, Runs};
+pub use crate::stream::collector::{collect_vec, consecutive_runs, count, indexed_presence, load_balance, sum, IndexedPresence, Run, Runs};
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     planning_entity, planning_model, planning_solution, problem_fact,
     BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, CustomSearchPhase,
     Director, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore,
     Projection, ProjectionSink,
-    RepairCandidate, RepairLimits, ScalarCandidate, ScalarEdit, ScalarGroup,
-    ScalarGroupLimits, ScalarTarget, Score, ScoreDirector, Search, SearchContext, SoftScore,
+    RepairCandidate, RepairLimits, ScalarAssignmentRule, ScalarCandidate,
+    ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget,
+    Score, ScoreDirector, Search, SearchContext, SoftScore,
 };
 ```
 
@@ -280,8 +283,9 @@ Used exclusively by macro-generated code. Not public API.
 - `PlanningModelSupport`
 
 Grouped scalar re-exports include the construction metadata surface on
-`ScalarCandidate` and the split `ScalarGroupLimits` fields used by grouped
-construction and grouped local-search selectors.
+`ScalarCandidate`, `ScalarAssignmentRule`, and the split
+`ScalarGroupLimits` fields used by grouped construction and grouped
+local-search selectors.
 
 **Config (from `solverforge-config`):**
 - `PhaseConfig`, `SolverConfig`

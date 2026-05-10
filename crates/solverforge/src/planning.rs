@@ -1,8 +1,9 @@
 use crate::stream::CollectionExtract;
 
 pub use solverforge_solver::{
-    ConflictRepair, RepairCandidate, RepairLimits, RepairProvider, ScalarCandidate,
-    ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget,
+    ConflictRepair, RepairCandidate, RepairLimits, RepairProvider, ScalarAssignmentRule,
+    ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits,
+    ScalarTarget,
 };
 
 pub trait EntitySourceTargetExt<S>: CollectionExtract<S> {

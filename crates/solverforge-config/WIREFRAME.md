@@ -554,23 +554,17 @@ Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`. Manual `Default`
 | `require_hard_improvement` | `bool` | `true` |
 | `include_soft_matches` | `bool` | `false` |
 
-### `ExhaustiveSearchConfig`
+### `PartitionedSearchConfig`
 
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `exhaustive_search_type` | `ExhaustiveSearchType` | `BranchAndBound` |
+| `partitioner` | `Option<String>` | `None` |
+| `thread_count` | `MoveThreadCount` | `Auto` |
+| `log_progress` | `bool` | `false` |
+| `child_phases` | `Vec<PhaseConfig>` | `[]` |
 | `termination` | `Option<TerminationConfig>` | `None` |
-
-### `PartitionedSearchConfig`
-
-Derives: `Debug, Clone, Default, Deserialize, Serialize`.
-
-| Field | Type |
-|-------|------|
-| `partition_count` | `Option<usize>` |
-| `termination` | `Option<TerminationConfig>` |
 
 ### `CustomPhaseConfig`
 
@@ -630,7 +624,6 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 |---------|---------|
 | `ConstructionHeuristic` | `ConstructionHeuristicConfig` |
 | `LocalSearch` | `LocalSearchConfig` |
-| `ExhaustiveSearch` | `ExhaustiveSearchConfig` |
 | `PartitionedSearch` | `PartitionedSearchConfig` |
 | `Custom` | `CustomPhaseConfig` |
 
@@ -688,15 +681,6 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `LateAcceptance` | `LateAcceptanceConfig` |
 | `DiversifiedLateAcceptance` | `DiversifiedLateAcceptanceConfig` |
 | `GreatDeluge` | `GreatDelugeConfig` |
-
-### `ExhaustiveSearchType`
-
-Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
-
-| Variant | Note |
-|---------|------|
-| `BranchAndBound` | **Default** |
-| `BruteForce` | |
 
 ### `MoveSelectorConfig`
 

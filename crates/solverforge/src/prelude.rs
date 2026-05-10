@@ -1,13 +1,17 @@
 pub use crate::local_search;
 pub use crate::planning::EntitySourceTargetExt;
 pub use crate::stream::collector::{
-    collect_vec, consecutive_runs, count, load_balance, sum, Run, Runs,
+    collect_vec, consecutive_runs, count, indexed_presence, load_balance, sum, IndexedPresence,
+    Run, Runs,
 };
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
-    planning_entity, planning_model, planning_solution, problem_fact, BendableScore,
-    ConflictRepair, ConstraintMetadata, ConstraintSet, CustomSearchPhase, Director,
-    HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Projection, ProjectionSink,
-    RepairCandidate, RepairLimits, ScalarCandidate, ScalarEdit, ScalarGroup, ScalarGroupLimits,
-    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SoftScore,
+    fixed_weight, hard_weight, planning_entity, planning_model, planning_solution, problem_fact,
+    BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, CustomSearchPhase, Director,
+    ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType, FixedWeight,
+    FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, HardWeight,
+    PartitionedSearchPhase, Projection, ProjectionSink, RepairCandidate, RepairLimits,
+    ScalarAssignmentRule, ScalarCandidate, ScalarEdit, ScalarGroup, ScalarGroupLimits,
+    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SimpleDecider, SoftScore,
+    SolutionPartitioner, ThreadCount,
 };

@@ -156,6 +156,7 @@ src/
 │       ├── sum.rs                                  — SumCollector, SumAccumulator, sum()
 │       ├── load_balance.rs                         — LoadBalanceCollector, LoadBalanceAccumulator, LoadBalance, load_balance()
 │       ├── runs.rs                                 — RunsCollector, RunsAccumulator, Run, Runs, consecutive_runs()
+│       ├── indexed_presence.rs                     — IndexedPresenceCollector, IndexedPresenceAccumulator, IndexedPresence, indexed_presence()
 │       └── tests/
 │           ├── mod.rs                              — Test module declarations
 │           └── collector.rs                        — Collector tests
@@ -191,11 +192,11 @@ pub use api::analysis::{
 
 // Fluent Stream API
 pub use stream::{
-    BiConstraintBuilder, BiConstraintStream, ConstraintFactory, GroupedConstraintBuilder,
-    GroupedConstraintStream, ProjectedBiConstraintBuilder, ProjectedBiConstraintStream,
-    ProjectedConstraintBuilder, ProjectedConstraintStream, ProjectedGroupedConstraintBuilder,
-    ProjectedGroupedConstraintStream, Projection, ProjectionSink, UniConstraintBuilder,
-    UniConstraintStream,
+    fixed_weight, hard_weight, BiConstraintBuilder, BiConstraintStream, ConstraintFactory,
+    FixedWeight, GroupedConstraintBuilder, GroupedConstraintStream, HardWeight,
+    ProjectedBiConstraintBuilder, ProjectedBiConstraintStream, ProjectedConstraintBuilder,
+    ProjectedConstraintStream, ProjectedGroupedConstraintBuilder, ProjectedGroupedConstraintStream,
+    Projection, ProjectionSink, UniConstraintBuilder, UniConstraintStream,
 };
 ```
 
@@ -400,6 +401,12 @@ Constraints own their `ConstraintRef` once. Metadata and analysis types borrow t
 **`ConstraintWeightOverrides<Sc: Score>`** — `{ weights: HashMap<String, Sc> }`
 - Methods: `new()`, `from_pairs()`, `put()`, `remove()`, `get_or_default()`, `get()`, `contains()`, `len()`, `is_empty()`, `clear()`, `into_arc()`
 
+**`FixedWeight<Sc>` / `fixed_weight(score)`** — Public zero-erasure wrapper for custom fixed score weights. Use `penalize(fixed_weight(custom_score))` or `reward(fixed_weight(custom_score))` when `Sc` is user-defined.
+
+**`HardWeight<W>` / `hard_weight(weight)`** — Public zero-erasure wrapper that forces hard constraint metadata while delegating scoring to the wrapped fixed or dynamic weight.
+
+Dynamic closure weights are non-hard metadata by default, even when their score type has a hard level. Wrap with `hard_weight(...)` when analysis metadata must report the constraint as hard.
+
 ### Stream Builders (Fluent API)
 
 **`ConstraintFactory<S, Sc: Score>`** — Entry point.
@@ -450,7 +457,7 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
     .project(AssignmentLoadEntries)
 ```
 
-**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()`, `count()`, and `consecutive_runs()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and recomputes key/value on retract. Grouped weights use the canonical `penalize(|key, result| ...)` shape. `named()` → `ProjectedGroupedConstraint`.
+**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()`, `count()`, `consecutive_runs()`, and `indexed_presence()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and recomputes key/value on retract. Grouped weights use the canonical `penalize(|key, result| ...)` shape. `named()` → `ProjectedGroupedConstraint`.
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
 - Operations: `filter()`, `join()` → TriStream, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
@@ -571,6 +578,10 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 - Factory: `consecutive_runs(index_fn)`
 - `Run` exposes `start()`, `end()`, `point_count()`, and `item_count()`.
 - `Runs` exposes `runs()`, `point_count()`, `item_count()`, `len()`, and `is_empty()`.
+
+**`IndexedPresenceCollector<A, F>`** / **`IndexedPresenceAccumulator`** / **`IndexedPresence`** — Generic ordinal presence with active and complement runs.
+- Factory: `indexed_presence(index_fn)`
+- `IndexedPresence` exposes `runs()`, `complement_runs(range)`, `contains(index)`, `count()`, `item_count()`, `any_in(range)`, and `count_in(range)`.
 
 ## Architectural Notes
 

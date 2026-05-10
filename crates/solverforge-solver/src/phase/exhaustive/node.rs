@@ -3,9 +3,6 @@
 Each node represents a partial solution state in the search tree.
 */
 
-use std::marker::PhantomData;
-
-use crate::heuristic::Move;
 use solverforge_core::domain::PlanningSolution;
 
 /* A node in the exhaustive search tree.
@@ -14,9 +11,9 @@ Each node represents a partial solution state, containing:
 - The depth in the search tree (number of variables assigned)
 - The score at this node
 - An optimistic bound (best possible score from this node)
-- The move sequence to reach this node from the root
+- The scalar assignment index tuple to reach this node from its parent
 */
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct ExhaustiveSearchNode<S: PlanningSolution> {
     // Depth in the search tree (0 = root, number of assignments made).
     depth: usize,
@@ -28,11 +25,17 @@ pub struct ExhaustiveSearchNode<S: PlanningSolution> {
     // Used for pruning branches that cannot improve on the best solution.
     optimistic_bound: Option<S::Score>,
 
+    // Descriptor index of the scalar entity collection being assigned.
+    descriptor_index: Option<usize>,
+
+    // Variable index within the descriptor being assigned.
+    variable_index: Option<usize>,
+
     // Index of the entity being assigned at this node.
     entity_index: Option<usize>,
 
-    // Index of the value assigned at this node.
-    value_index: Option<usize>,
+    // Index of the candidate value assigned at this node.
+    candidate_value_index: Option<usize>,
 
     // Parent node index in the node list (None for root).
     parent_index: Option<usize>,
@@ -47,8 +50,10 @@ impl<S: PlanningSolution> ExhaustiveSearchNode<S> {
             depth: 0,
             score,
             optimistic_bound: None,
+            descriptor_index: None,
+            variable_index: None,
             entity_index: None,
-            value_index: None,
+            candidate_value_index: None,
             parent_index: None,
             expanded: false,
         }
@@ -58,15 +63,19 @@ impl<S: PlanningSolution> ExhaustiveSearchNode<S> {
         parent_index: usize,
         depth: usize,
         score: S::Score,
+        descriptor_index: usize,
+        variable_index: usize,
         entity_index: usize,
-        value_index: usize,
+        candidate_value_index: usize,
     ) -> Self {
         Self {
             depth,
             score,
             optimistic_bound: None,
+            descriptor_index: Some(descriptor_index),
+            variable_index: Some(variable_index),
             entity_index: Some(entity_index),
-            value_index: Some(value_index),
+            candidate_value_index: Some(candidate_value_index),
             parent_index: Some(parent_index),
             expanded: false,
         }
@@ -96,13 +105,23 @@ impl<S: PlanningSolution> ExhaustiveSearchNode<S> {
     }
 
     #[inline]
+    pub fn descriptor_index(&self) -> Option<usize> {
+        self.descriptor_index
+    }
+
+    #[inline]
+    pub fn variable_index(&self) -> Option<usize> {
+        self.variable_index
+    }
+
+    #[inline]
     pub fn entity_index(&self) -> Option<usize> {
         self.entity_index
     }
 
     #[inline]
-    pub fn value_index(&self) -> Option<usize> {
-        self.value_index
+    pub fn candidate_value_index(&self) -> Option<usize> {
+        self.candidate_value_index
     }
 
     #[inline]
@@ -131,79 +150,20 @@ impl<S: PlanningSolution> ExhaustiveSearchNode<S> {
             None => false,
         }
     }
-}
 
-/* Tracks the move sequence to reconstruct a solution path.
+    pub fn assignment_path<'a>(&'a self, all_nodes: &'a [Self]) -> Vec<&'a Self> {
+        let mut path = Vec::with_capacity(self.depth);
+        let mut current = Some(self);
 
-# Type Parameters
-* `S` - The planning solution type
-* `M` - The move type
-*/
-#[derive(Debug, Clone)]
-pub struct MoveSequence<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
-    // The sequence of moves from root to current node.
-    moves: Vec<M>,
-    _phantom: PhantomData<fn() -> S>,
-}
-
-impl<S, M> MoveSequence<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
-    pub fn new() -> Self {
-        Self {
-            moves: Vec::new(),
-            _phantom: PhantomData,
+        while let Some(node) = current {
+            if node.parent_index.is_some() {
+                path.push(node);
+            }
+            current = node.parent_index.and_then(|index| all_nodes.get(index));
         }
-    }
 
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            moves: Vec::with_capacity(capacity),
-            _phantom: PhantomData,
-        }
-    }
-
-    pub fn push(&mut self, m: M) {
-        self.moves.push(m);
-    }
-
-    /// Removes and returns the last move.
-    pub fn pop(&mut self) -> Option<M> {
-        self.moves.pop()
-    }
-
-    pub fn len(&self) -> usize {
-        self.moves.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.moves.is_empty()
-    }
-
-    /// Returns an iterator over the moves.
-    pub fn iter(&self) -> impl Iterator<Item = &M> {
-        self.moves.iter()
-    }
-
-    /// Clears all moves from the sequence.
-    pub fn clear(&mut self) {
-        self.moves.clear();
-    }
-}
-
-impl<S, M> Default for MoveSequence<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
-    fn default() -> Self {
-        Self::new()
+        path.reverse();
+        path
     }
 }
 

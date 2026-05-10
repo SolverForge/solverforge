@@ -24,5 +24,5 @@ pub use bounder::{BounderType, FixedOffsetBounder, ScoreBounder, SoftScoreBounde
 pub use config::ExhaustiveSearchConfig;
 pub use decider::{ExhaustiveSearchDecider, SimpleDecider};
 pub use exploration_type::ExplorationType;
-pub use node::{ExhaustiveSearchNode, MoveSequence};
+pub use node::ExhaustiveSearchNode;
 pub use phase::ExhaustiveSearchPhase;

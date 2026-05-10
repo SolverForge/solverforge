@@ -106,6 +106,24 @@ impl<Dec> ExhaustiveSearchPhase<Dec> {
     pub fn phase_type_name(&self) -> &'static str {
         "ExhaustiveSearch"
     }
+
+    fn apply_node_path<'t, 'a, S, D, BestCb>(
+        &self,
+        phase_scope: &mut PhaseScope<'t, 'a, S, D, BestCb>,
+        all_nodes: &[ExhaustiveSearchNode<S>],
+        node: &ExhaustiveSearchNode<S>,
+    ) where
+        S: PlanningSolution,
+        D: Director<S>,
+        BestCb: ProgressCallback<S>,
+        Dec: ExhaustiveSearchDecider<S, D>,
+    {
+        let score_director = phase_scope.score_director_mut();
+        self.decider.reset_assignments(score_director);
+        for assignment in node.assignment_path(all_nodes) {
+            self.decider.apply_assignment(assignment, score_director);
+        }
+    }
 }
 
 impl<S, D, BestCb, Dec> Phase<S, D, BestCb> for ExhaustiveSearchPhase<Dec>
@@ -116,7 +134,11 @@ where
     Dec: ExhaustiveSearchDecider<S, D>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
-        let mut phase_scope = PhaseScope::new(solver_scope, 0);
+        let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, "ExhaustiveSearch");
+
+        if phase_scope.solver_scope_mut().should_terminate() {
+            return;
+        }
 
         // Get total entities
         let total_entities = self.decider.total_entities(phase_scope.score_director());
@@ -133,6 +155,7 @@ where
         // Initialize best score
         let mut best_score: Option<S::Score> = None;
         let mut nodes_explored: u64 = 0;
+        let mut bounded = false;
 
         // Priority queue for node exploration
         let mut frontier: BinaryHeap<PriorityNode<S>> = BinaryHeap::new();
@@ -142,19 +165,25 @@ where
         let mut all_nodes: Vec<ExhaustiveSearchNode<S>> = Vec::new();
 
         while let Some(priority_node) = frontier.pop() {
+            if phase_scope.solver_scope_mut().should_terminate() {
+                return;
+            }
+
             let node = priority_node.node;
             let node_index = all_nodes.len();
 
             // Check node limit
             if let Some(limit) = self.config.node_limit {
                 if nodes_explored >= limit {
+                    bounded = true;
                     break;
                 }
             }
 
             // Check depth limit
             if let Some(limit) = self.config.depth_limit {
-                if node.depth() >= limit {
+                if node.depth() >= limit && !node.is_leaf(total_entities) {
+                    bounded = true;
                     continue;
                 }
             }
@@ -169,16 +198,21 @@ where
             }
 
             nodes_explored += 1;
+            phase_scope.increment_step_count();
+            self.apply_node_path(&mut phase_scope, &all_nodes, &node);
+            let current_score = phase_scope.calculate_score();
+            let mut node = node;
+            node.set_score(current_score);
 
             // Check if this is a complete solution (leaf node)
             if node.is_leaf(total_entities) {
                 let is_better = match &best_score {
                     None => true,
-                    Some(best) => node.score() > best,
+                    Some(best) => current_score > *best,
                 };
 
                 if is_better {
-                    best_score = Some(*node.score());
+                    best_score = Some(current_score);
                     phase_scope.update_best_solution();
                 }
 
@@ -212,6 +246,10 @@ where
                     self.config.exploration_type,
                 ));
             }
+        }
+
+        if bounded {
+            phase_scope.solver_scope_mut().mark_terminated_by_config();
         }
     }
 

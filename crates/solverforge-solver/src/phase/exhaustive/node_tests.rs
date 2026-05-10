@@ -1,10 +1,8 @@
 use super::*;
-use crate::heuristic::r#move::ChangeMove;
 use solverforge_core::score::SoftScore;
 
 #[derive(Clone, Debug)]
 struct TestSolution {
-    values: Vec<Option<i32>>,
     score: Option<SoftScore>,
 }
 
@@ -17,16 +15,6 @@ impl PlanningSolution for TestSolution {
 
     fn set_score(&mut self, score: Option<Self::Score>) {
         self.score = score;
-    }
-}
-
-fn get_value(s: &TestSolution, idx: usize, _variable_index: usize) -> Option<i32> {
-    s.values.get(idx).copied().flatten()
-}
-
-fn set_value(s: &mut TestSolution, idx: usize, _variable_index: usize, v: Option<i32>) {
-    if let Some(val) = s.values.get_mut(idx) {
-        *val = v;
     }
 }
 
@@ -44,19 +32,21 @@ fn test_root_node() {
 #[test]
 fn test_child_node() {
     let node: ExhaustiveSearchNode<TestSolution> =
-        ExhaustiveSearchNode::child(0, 1, SoftScore::of(-1), 0, 2);
+        ExhaustiveSearchNode::child(0, 1, SoftScore::of(-1), 3, 4, 0, 2);
 
     assert_eq!(node.depth(), 1);
     assert_eq!(node.score(), &SoftScore::of(-1));
     assert_eq!(node.parent_index(), Some(0));
+    assert_eq!(node.descriptor_index(), Some(3));
+    assert_eq!(node.variable_index(), Some(4));
     assert_eq!(node.entity_index(), Some(0));
-    assert_eq!(node.value_index(), Some(2));
+    assert_eq!(node.candidate_value_index(), Some(2));
 }
 
 #[test]
 fn test_is_leaf() {
     let node: ExhaustiveSearchNode<TestSolution> =
-        ExhaustiveSearchNode::child(0, 4, SoftScore::of(0), 3, 1);
+        ExhaustiveSearchNode::child(0, 4, SoftScore::of(0), 0, 0, 3, 1);
 
     assert!(node.is_leaf(4));
     assert!(!node.is_leaf(5));
@@ -76,27 +66,18 @@ fn test_optimistic_bound_pruning() {
     assert!(!node.can_prune(&SoftScore::of(0)));
 }
 
-type TestMove = ChangeMove<TestSolution, i32>;
-
 #[test]
-fn test_move_sequence() {
-    let mut seq: MoveSequence<TestSolution, TestMove> = MoveSequence::new();
+fn assignment_path_returns_root_to_leaf_assignments() {
+    let root: ExhaustiveSearchNode<TestSolution> = ExhaustiveSearchNode::root(SoftScore::of(0));
+    let first = ExhaustiveSearchNode::child(0, 1, SoftScore::of(-1), 0, 0, 0, 2);
+    let second = ExhaustiveSearchNode::child(1, 2, SoftScore::of(0), 0, 0, 1, 3);
+    let all_nodes = vec![root, first];
 
-    assert!(seq.is_empty());
-    assert_eq!(seq.len(), 0);
+    let path = second.assignment_path(&all_nodes);
 
-    seq.push(ChangeMove::new(
-        0,
-        Some(42),
-        get_value,
-        set_value,
-        0,
-        "test",
-        0,
-    ));
-    assert_eq!(seq.len(), 1);
-
-    let m = seq.pop();
-    assert!(m.is_some());
-    assert!(seq.is_empty());
+    assert_eq!(path.len(), 2);
+    assert_eq!(path[0].entity_index(), Some(0));
+    assert_eq!(path[0].candidate_value_index(), Some(2));
+    assert_eq!(path[1].entity_index(), Some(1));
+    assert_eq!(path[1].candidate_value_index(), Some(3));
 }

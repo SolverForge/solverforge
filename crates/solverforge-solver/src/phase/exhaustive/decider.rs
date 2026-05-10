@@ -30,6 +30,10 @@ pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: Director<S>>: Send + D
         score_director: &mut D,
     ) -> Vec<ExhaustiveSearchNode<S>>;
 
+    fn reset_assignments(&self, score_director: &mut D);
+
+    fn apply_assignment(&self, node: &ExhaustiveSearchNode<S>, score_director: &mut D);
+
     fn total_entities(&self, score_director: &D) -> usize;
 }
 
@@ -46,6 +50,8 @@ pub struct SimpleDecider<S: PlanningSolution, V: Clone + Send + Sync + 'static, 
     descriptor_index: usize,
     // Variable name to assign.
     variable_name: String,
+    // Variable index within the descriptor.
+    variable_index: usize,
     // Possible values to try.
     values: Vec<V>,
     // Score bounder for optimistic bounds (None = no bounding).
@@ -71,6 +77,7 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + 'static> SimpleDecider<S, V, 
         Self {
             descriptor_index,
             variable_name: variable_name.into(),
+            variable_index: 0,
             values,
             bounder: None,
             setter,
@@ -83,10 +90,16 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + 'static, B> SimpleDecider<S, 
         SimpleDecider {
             descriptor_index: self.descriptor_index,
             variable_name: self.variable_name,
+            variable_index: self.variable_index,
             values: self.values,
             bounder: Some(bounder),
             setter: self.setter,
         }
+    }
+
+    pub fn with_variable_index(mut self, variable_index: usize) -> Self {
+        self.variable_index = variable_index;
+        self
     }
 }
 
@@ -97,6 +110,7 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static, B: Debug> De
         f.debug_struct("SimpleDecider")
             .field("descriptor_index", &self.descriptor_index)
             .field("variable_name", &self.variable_name)
+            .field("variable_index", &self.variable_index)
             .field("value_count", &self.values.len())
             .finish()
     }
@@ -146,6 +160,8 @@ where
                 parent_index,
                 new_depth,
                 score,
+                self.descriptor_index,
+                self.variable_index,
                 entity_index,
                 value_index,
             );
@@ -168,6 +184,48 @@ where
         }
 
         children
+    }
+
+    fn reset_assignments(&self, score_director: &mut D) {
+        for entity_index in 0..self.total_entities(score_director) {
+            score_director.before_variable_changed(self.descriptor_index, entity_index);
+            (self.setter)(score_director.working_solution_mut(), entity_index, None);
+            score_director.after_variable_changed(self.descriptor_index, entity_index);
+        }
+    }
+
+    fn apply_assignment(&self, node: &ExhaustiveSearchNode<S>, score_director: &mut D) {
+        let Some(descriptor_index) = node.descriptor_index() else {
+            return;
+        };
+        let Some(variable_index) = node.variable_index() else {
+            return;
+        };
+        let Some(entity_index) = node.entity_index() else {
+            return;
+        };
+        let Some(candidate_value_index) = node.candidate_value_index() else {
+            return;
+        };
+
+        assert_eq!(descriptor_index, self.descriptor_index);
+        assert_eq!(variable_index, self.variable_index);
+
+        let value = self
+            .values
+            .get(candidate_value_index)
+            .unwrap_or_else(|| {
+                panic!("candidate value index {candidate_value_index} is out of range")
+            })
+            .clone();
+
+        score_director.before_variable_changed(self.descriptor_index, entity_index);
+        (self.setter)(
+            score_director.working_solution_mut(),
+            entity_index,
+            Some(value),
+        );
+        score_director.after_variable_changed(self.descriptor_index, entity_index);
     }
 
     fn total_entities(&self, score_director: &D) -> usize {

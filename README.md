@@ -80,11 +80,11 @@ planning variables with independent planning lists, and they use the same
 
 ## Zero-Erasure Architecture
 
-SolverForge preserves concrete types through the entire solver pipeline:
+SolverForge preserves concrete types through the hot solver and scoring pipeline:
 
-- **No trait objects** (`Box<dyn Trait>`, `Arc<dyn Trait>`)
-- **No runtime dispatch** - all generics resolved at compile time
-- **No hidden allocations** - moves, scores, and constraints are stack-allocated
+- **No trait objects in hot dispatch** (`Box<dyn Trait>`, `Arc<dyn Trait>`)
+- **No runtime dispatch in hot loops** - solver and scoring generics resolve at compile time
+- **No trait-object allocation in retained scoring state** - moves stay arena-owned, scoring pipelines stay monomorphized, and retained collector state is explicit
 - **Deterministic neighborhood order** - canonical list, nearby-list, and sublist selector enumeration keeps seeded local search reproducible
 - **Predictable performance** - no GC pauses, no vtable lookups
 
@@ -95,7 +95,7 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
 ## Features
 
 - **Score Types**: SoftScore, HardSoftScore, HardMediumSoftScore, BendableScore, HardSoftDecimalScore
-- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, existence checks, joins, grouping, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
+- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, existence checks, joins, grouping, `collect_vec`, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list runtime plan when matching list work is present, plus descriptor construction routing for scalar-only targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
@@ -135,6 +135,10 @@ ConstraintFactory::<Schedule, HardSoftScore>::new()
     })
     .named("Long work streaks");
 ```
+
+Collectors retain mapped values by ownership. `collect_vec` exposes a
+`CollectedVec<T>` result view, so grouped payloads such as `String` labels do
+not need `Copy`, `Clone`, or `PartialEq` just to be collected.
 
 ## Installation
 
@@ -488,7 +492,7 @@ SolverForge leverages Rust's zero-cost abstractions:
 - **Incremental Scoring**: SERIO propagates only changed constraints
 - **No GC**: Predictable latency without garbage collection
 - **Cache-friendly**: Contiguous memory layouts for hot paths
-- **No vtable dispatch**: Monomorphized score directors, deciders, and bounders
+- **No vtable dispatch in hot execution**: Monomorphized score directors, deciders, and bounders
 
 Typical throughput: 300k-1M moves/second depending on constraint complexity for scheduling; 2.5M+ moves/second on VRP
 

@@ -58,6 +58,10 @@ src/
 
 ### Constraint API (from `solverforge-scoring`)
 
+- `fixed_weight`
+- `hard_weight`
+- `FixedWeight`
+- `HardWeight`
 - `ConstraintSet` (trait)
 - `ConstraintMetadata<'a>` (borrowed constraint identity view)
 - `IncrementalConstraint` (trait)
@@ -125,6 +129,14 @@ src/
 - `Search`
 - `SearchContext`
 - `CustomSearchPhase`
+- `ExhaustiveSearchConfig`
+- `ExhaustiveSearchPhase`
+- `ExplorationType`
+- `FunctionalPartitioner`
+- `PartitionedSearchPhase`
+- `SimpleDecider`
+- `SolutionPartitioner`
+- `ThreadCount`
 - `local_search`
 
 ### Planning Helpers
@@ -167,16 +179,17 @@ Convenient single import for user code:
 ```rust
 pub use crate::local_search;
 pub use crate::planning::EntitySourceTargetExt;
-pub use crate::stream::collector::{collect_vec, consecutive_runs, count, indexed_presence, load_balance, sum, IndexedPresence, Run, Runs};
+pub use crate::stream::collector::{collect_vec, consecutive_runs, count, indexed_presence, load_balance, sum, CollectedVec, IndexedPresence, Run, Runs};
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
-    planning_entity, planning_model, planning_solution, problem_fact,
-    BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, CustomSearchPhase,
-    Director, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore,
-    Projection, ProjectionSink,
-    RepairCandidate, RepairLimits, ScalarAssignmentRule, ScalarCandidate,
-    ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget,
-    Score, ScoreDirector, Search, SearchContext, SoftScore,
+    fixed_weight, hard_weight, planning_entity, planning_model, planning_solution, problem_fact,
+    BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, CustomSearchPhase, Director,
+    ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType, FixedWeight,
+    FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, HardWeight,
+    PartitionedSearchPhase, Projection, ProjectionSink, RepairCandidate, RepairLimits,
+    ScalarAssignmentRule, ScalarCandidate, ScalarEdit, ScalarGroup, ScalarGroupLimits,
+    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SimpleDecider, SoftScore,
+    SolutionPartitioner, ThreadCount,
 };
 ```
 
@@ -227,8 +240,10 @@ pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollec
 Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")`. Use `.join(target)` for all join patterns: self-join, keyed cross-join, and predicate cross-join.
 
 Collector helpers are available at `solverforge::stream::collector`, and the
-prelude re-exports `count`, `sum`, `load_balance`, `consecutive_runs`, `Run`,
-and `Runs`.
+prelude re-exports `collect_vec`, `count`, `sum`, `load_balance`,
+`consecutive_runs`, `indexed_presence`, `CollectedVec`, `IndexedPresence`,
+`Run`, and `Runs`. `collect_vec` owns mapped values once and exposes them as
+`CollectedVec<T>`; `T` does not need `Copy`, `Clone`, or `PartialEq`.
 
 ## Workspace Examples
 
@@ -271,13 +286,14 @@ Used exclusively by macro-generated code. Not public API.
 - `SolvableSolution`
 
 **Solver infrastructure (from `solverforge-solver`):**
+- `bind_scalar_groups`, `build_search`, `local_search`, `CustomSearchPhase`, `Search`, `SearchContext`
 - `ListVariableSlot`, `LocalSearch`, `LocalSearchStrategy`, `RuntimeModel`, `ScalarGroupBinding`, `ScalarGroupMemberBinding`, `ScalarVariableSlot`, `ValueSource`, `VariableSlot`
 - `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
 - `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`
 - `PhaseFactory`, `SolverFactory`
 - `Construction`, `PhaseSequence`, `RuntimePhase`
 - `ProgressCallback`, `SolverScope`
-- `SolverRuntime`, `SolverEvent`, `SolverTelemetry`
+- `Phase`, `SolverRuntime`, `SolverEvent`, `SolverTelemetry`
 - `build_phases`, `descriptor_has_bindings`, `log_solve_start`, `run_solver`, `run_solver_with_config`
 - `ListVariableEntity`, `ListVariableMetadata`
 - `PlanningModelSupport`

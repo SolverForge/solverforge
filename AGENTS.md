@@ -108,6 +108,20 @@ Clone is acceptable only for:
 
 1. Solution snapshots sent through channels.
 2. Partitioned search creating partition copies.
+3. Explicit user-owned result snapshots outside retained scoring state, such as
+   `CollectedVec::to_vec()` when the caller deliberately asks for an owned
+   `Vec<T>`.
+
+### Collector Ownership
+
+Grouped collectors own extracted values. `Accumulator::accumulate(value)` takes
+the mapped value by ownership and returns a retraction token; grouped,
+projected-grouped, and complemented-grouped constraints cache that token for
+exact retraction after entity mutation. Do not restore a borrowed
+`accumulate(&value)` / `retract(&value)` protocol, and do not require
+`Copy`, `Clone`, or `PartialEq` for payloads solely so `collect_vec` can retain
+them. `collect_vec` returns a `CollectedVec<T>` result view, not an owned
+`Vec<T>` scoring result.
 
 ### Neighborhood Hot Paths
 

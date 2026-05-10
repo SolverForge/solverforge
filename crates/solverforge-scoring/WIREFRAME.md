@@ -157,6 +157,7 @@ src/
 │       ├── load_balance.rs                         — LoadBalanceCollector, LoadBalanceAccumulator, LoadBalance, load_balance()
 │       ├── runs.rs                                 — RunsCollector, RunsAccumulator, Run, Runs, consecutive_runs()
 │       ├── indexed_presence.rs                     — IndexedPresenceCollector, IndexedPresenceAccumulator, IndexedPresence, indexed_presence()
+│       ├── collect_vec.rs                          — CollectVecCollector, CollectVecAccumulator, CollectedVec, collect_vec()
 │       └── tests/
 │           ├── mod.rs                              — Test module declarations
 │           └── collector.rs                        — Collector tests
@@ -303,7 +304,7 @@ All `Send + Sync`:
 | Associated Type | Bound | Note |
 |-----------------|-------|------|
 | `Value` | — | Extracted value type |
-| `Result` | `Clone + Send + Sync` | Finalized result type |
+| `Result` | `Send + Sync` | Borrowed result view type |
 | `Accumulator` | `Accumulator<Self::Value, Self::Result>` | Stateful accumulator |
 
 | Method | Signature | Note |
@@ -313,12 +314,22 @@ All `Send + Sync`:
 
 **`Accumulator<V, R>` — `Send + Sync`**
 
+| Associated Type | Bound | Note |
+|-----------------|-------|------|
+| `Retraction` | `Send + Sync` | Token returned by accumulation and cached for exact retraction |
+
 | Method | Signature | Note |
 |--------|-----------|------|
-| `accumulate` | `fn accumulate(&mut self, value: &V)` | Add value |
-| `retract` | `fn retract(&mut self, value: &V)` | Remove value |
-| `finish` | `fn finish(&self) -> R` | Produce result |
+| `accumulate` | `fn accumulate(&mut self, value: V) -> Self::Retraction` | Add owned value and return retraction token |
+| `retract` | `fn retract(&mut self, retraction: Self::Retraction)` | Remove exactly the retained value represented by the token |
+| `with_result` | `fn with_result<T>(&self, f: impl FnOnce(&R) -> T) -> T` | Expose current result without forcing an owned clone |
+| `finish` | `fn finish(&self) -> R where R: Clone` | Convenience owned snapshot for cloneable results |
 | `reset` | `fn reset(&mut self)` | Clear state |
+
+Stock collectors include `count()`, `sum()`, `load_balance()`,
+`consecutive_runs()`, `indexed_presence()`, and `collect_vec()`.
+`collect_vec()` owns mapped values once and exposes them as `CollectedVec<T>`;
+`T` does not need `Copy`, `Clone`, or `PartialEq`.
 
 ## Public Structs
 
@@ -457,7 +468,7 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
     .project(AssignmentLoadEntries)
 ```
 
-**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()`, `count()`, `consecutive_runs()`, and `indexed_presence()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and recomputes key/value on retract. Grouped weights use the canonical `penalize(|key, result| ...)` shape. `named()` → `ProjectedGroupedConstraint`.
+**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()`, `count()`, `collect_vec()`, `consecutive_runs()`, and `indexed_presence()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and caches accumulator retraction tokens for exact retracts. Grouped weights use the canonical `penalize(|key, result| ...)` shape. `named()` → `ProjectedGroupedConstraint`.
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
 - Operations: `filter()`, `join()` → TriStream, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
@@ -582,6 +593,10 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 **`IndexedPresenceCollector<A, F>`** / **`IndexedPresenceAccumulator`** / **`IndexedPresence`** — Generic ordinal presence with active and complement runs.
 - Factory: `indexed_presence(index_fn)`
 - `IndexedPresence` exposes `runs()`, `complement_runs(range)`, `contains(index)`, `count()`, `item_count()`, `any_in(range)`, and `count_in(range)`.
+
+**`CollectVecCollector<A, T, F>`** / **`CollectVecAccumulator<T>`** / **`CollectedVec<T>`** — Retains mapped values once and exposes them through an insertion-order iterable view.
+- Factory: `collect_vec(mapper)`
+- `CollectedVec<T>` exposes `iter()`, `len()`, `is_empty()`, and `to_vec()` when `T: Clone`.
 
 ## Architectural Notes
 

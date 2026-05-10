@@ -20,7 +20,7 @@ members = [
 version = "0.13.0"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/solverforge/solverforge-rs"
+repository = "https://github.com/SolverForge/solverforge"
 rust-version = "1.95"
 
 [workspace.dependencies]

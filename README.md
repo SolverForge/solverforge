@@ -2,8 +2,8 @@
 
 <div align="center">
 
-[![CI](https://github.com/solverforge/solverforge-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/solverforge/solverforge-rs/actions/workflows/ci.yml)
-[![Release](https://github.com/solverforge/solverforge-rs/actions/workflows/release.yml/badge.svg)](https://github.com/solverforge/solverforge-rs/actions/workflows/release.yml)
+[![CI](https://github.com/SolverForge/solverforge/actions/workflows/ci.yml/badge.svg)](https://github.com/SolverForge/solverforge/actions/workflows/ci.yml)
+[![Release](https://github.com/SolverForge/solverforge/actions/workflows/release.yml/badge.svg)](https://github.com/SolverForge/solverforge/actions/workflows/release.yml)
 [![Crates.io](https://img.shields.io/crates/v/solverforge.svg)](https://crates.io/crates/solverforge)
 [![Documentation](https://docs.rs/solverforge/badge.svg)](https://docs.rs/solverforge)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)

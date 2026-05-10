@@ -7,11 +7,28 @@ pub(crate) fn fixed_weight_is_hard<Sc: Score>(weight: Sc) -> bool {
     Sc::levels_count() > 0 && weight.level_number(0) != 0
 }
 
+/// Public wrapper for fixed score weights that are not one of the built-in score types.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FixedWeight<Sc> {
+    score: Sc,
+}
+
+/// Wraps a fixed score weight while preserving static dispatch.
 #[inline]
-pub(crate) fn dynamic_weight_is_hard<Sc: Score>() -> bool {
-    Sc::levels_count() == 1
-        || (0..Sc::levels_count())
-            .any(|index| Sc::level_label(index) == solverforge_core::score::ScoreLevel::Hard)
+pub const fn fixed_weight<Sc>(score: Sc) -> FixedWeight<Sc> {
+    FixedWeight { score }
+}
+
+/// Public wrapper that marks a fixed or dynamic weight as hard metadata.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HardWeight<W> {
+    weight: W,
+}
+
+/// Wraps a weight and forces hard constraint metadata while preserving static dispatch.
+#[inline]
+pub const fn hard_weight<W>(weight: W) -> HardWeight<W> {
+    HardWeight { weight }
 }
 
 #[doc(hidden)]
@@ -19,6 +36,153 @@ pub trait ConstraintWeight<Args, Sc: Score>: Send + Sync {
     fn score(&self, args: Args) -> Sc;
 
     fn is_hard(&self) -> bool;
+}
+
+impl<'a, A, Sc: Score + Copy> ConstraintWeight<(&'a A,), Sc> for FixedWeight<Sc> {
+    #[inline]
+    fn score(&self, _args: (&'a A,)) -> Sc {
+        self.score
+    }
+
+    #[inline]
+    fn is_hard(&self) -> bool {
+        fixed_weight_is_hard(self.score)
+    }
+}
+
+impl<'a, A, B, Sc: Score + Copy> ConstraintWeight<(&'a A, &'a B), Sc> for FixedWeight<Sc> {
+    #[inline]
+    fn score(&self, _args: (&'a A, &'a B)) -> Sc {
+        self.score
+    }
+
+    #[inline]
+    fn is_hard(&self) -> bool {
+        fixed_weight_is_hard(self.score)
+    }
+}
+
+impl<'a, A, B, C, Sc: Score + Copy> ConstraintWeight<(&'a A, &'a B, &'a C), Sc>
+    for FixedWeight<Sc>
+{
+    #[inline]
+    fn score(&self, _args: (&'a A, &'a B, &'a C)) -> Sc {
+        self.score
+    }
+
+    #[inline]
+    fn is_hard(&self) -> bool {
+        fixed_weight_is_hard(self.score)
+    }
+}
+
+impl<'a, A, B, C, D, Sc: Score + Copy> ConstraintWeight<(&'a A, &'a B, &'a C, &'a D), Sc>
+    for FixedWeight<Sc>
+{
+    #[inline]
+    fn score(&self, _args: (&'a A, &'a B, &'a C, &'a D)) -> Sc {
+        self.score
+    }
+
+    #[inline]
+    fn is_hard(&self) -> bool {
+        fixed_weight_is_hard(self.score)
+    }
+}
+
+impl<'a, A, B, C, D, E, Sc: Score + Copy> ConstraintWeight<(&'a A, &'a B, &'a C, &'a D, &'a E), Sc>
+    for FixedWeight<Sc>
+{
+    #[inline]
+    fn score(&self, _args: (&'a A, &'a B, &'a C, &'a D, &'a E)) -> Sc {
+        self.score
+    }
+
+    #[inline]
+    fn is_hard(&self) -> bool {
+        fixed_weight_is_hard(self.score)
+    }
+}
+
+impl<'a, A, W, Sc> ConstraintWeight<(&'a A,), Sc> for HardWeight<W>
+where
+    W: ConstraintWeight<(&'a A,), Sc>,
+    Sc: Score,
+{
+    #[inline]
+    fn score(&self, args: (&'a A,)) -> Sc {
+        self.weight.score(args)
+    }
+
+    #[inline]
+    fn is_hard(&self) -> bool {
+        true
+    }
+}
+
+impl<'a, A, B, W, Sc> ConstraintWeight<(&'a A, &'a B), Sc> for HardWeight<W>
+where
+    W: ConstraintWeight<(&'a A, &'a B), Sc>,
+    Sc: Score,
+{
+    #[inline]
+    fn score(&self, args: (&'a A, &'a B)) -> Sc {
+        self.weight.score(args)
+    }
+
+    #[inline]
+    fn is_hard(&self) -> bool {
+        true
+    }
+}
+
+impl<'a, A, B, C, W, Sc> ConstraintWeight<(&'a A, &'a B, &'a C), Sc> for HardWeight<W>
+where
+    W: ConstraintWeight<(&'a A, &'a B, &'a C), Sc>,
+    Sc: Score,
+{
+    #[inline]
+    fn score(&self, args: (&'a A, &'a B, &'a C)) -> Sc {
+        self.weight.score(args)
+    }
+
+    #[inline]
+    fn is_hard(&self) -> bool {
+        true
+    }
+}
+
+impl<'a, A, B, C, D, W, Sc> ConstraintWeight<(&'a A, &'a B, &'a C, &'a D), Sc> for HardWeight<W>
+where
+    W: ConstraintWeight<(&'a A, &'a B, &'a C, &'a D), Sc>,
+    Sc: Score,
+{
+    #[inline]
+    fn score(&self, args: (&'a A, &'a B, &'a C, &'a D)) -> Sc {
+        self.weight.score(args)
+    }
+
+    #[inline]
+    fn is_hard(&self) -> bool {
+        true
+    }
+}
+
+impl<'a, A, B, C, D, E, W, Sc> ConstraintWeight<(&'a A, &'a B, &'a C, &'a D, &'a E), Sc>
+    for HardWeight<W>
+where
+    W: ConstraintWeight<(&'a A, &'a B, &'a C, &'a D, &'a E), Sc>,
+    Sc: Score,
+{
+    #[inline]
+    fn score(&self, args: (&'a A, &'a B, &'a C, &'a D, &'a E)) -> Sc {
+        self.weight.score(args)
+    }
+
+    #[inline]
+    fn is_hard(&self) -> bool {
+        true
+    }
 }
 
 macro_rules! impl_fixed_score_weight {
@@ -175,7 +339,7 @@ where
 
     #[inline]
     fn is_hard(&self) -> bool {
-        dynamic_weight_is_hard::<Sc>()
+        false
     }
 }
 
@@ -191,7 +355,7 @@ where
 
     #[inline]
     fn is_hard(&self) -> bool {
-        dynamic_weight_is_hard::<Sc>()
+        false
     }
 }
 
@@ -207,7 +371,7 @@ where
 
     #[inline]
     fn is_hard(&self) -> bool {
-        dynamic_weight_is_hard::<Sc>()
+        false
     }
 }
 
@@ -223,7 +387,7 @@ where
 
     #[inline]
     fn is_hard(&self) -> bool {
-        dynamic_weight_is_hard::<Sc>()
+        false
     }
 }
 
@@ -239,6 +403,6 @@ where
 
     #[inline]
     fn is_hard(&self) -> bool {
-        dynamic_weight_is_hard::<Sc>()
+        false
     }
 }

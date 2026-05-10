@@ -86,6 +86,9 @@ mod unassigned;
 mod uni_stream;
 mod weighting_support;
 
+#[cfg(test)]
+mod tests;
+
 pub use balance_stream::{BalanceConstraintBuilder, BalanceConstraintStream};
 pub use bi_stream::{BiConstraintBuilder, BiConstraintStream};
 pub use collection_extract::{
@@ -112,3 +115,4 @@ pub use tri_stream::{TriConstraintBuilder, TriConstraintStream};
 #[doc(hidden)]
 pub use unassigned::UnassignedEntity;
 pub use uni_stream::{UniConstraintBuilder, UniConstraintStream};
+pub use weighting_support::{fixed_weight, hard_weight, FixedWeight, HardWeight};

@@ -1,8 +1,8 @@
 use std::fmt;
 
 use crate::planning::{
-    ScalarAssignmentDeclaration, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupKind,
-    ScalarGroupLimits,
+    ScalarAssignmentDeclaration, ScalarAssignmentRule, ScalarCandidateProvider, ScalarEdit,
+    ScalarGroup, ScalarGroupKind, ScalarGroupLimits,
 };
 
 use super::value_source::ValueSource;
@@ -160,6 +160,7 @@ pub struct ScalarAssignmentBinding<S> {
     pub sequence_key: Option<fn(&S, usize, usize) -> Option<usize>>,
     pub entity_order: Option<fn(&S, usize) -> i64>,
     pub value_order: Option<fn(&S, usize, usize) -> i64>,
+    pub assignment_rule: Option<ScalarAssignmentRule<S>>,
 }
 
 impl<S> Clone for ScalarAssignmentBinding<S> {
@@ -187,6 +188,10 @@ impl<S> ScalarAssignmentBinding<S> {
             "assignment scalar group `{group_name}` target {}.{} must allow unassigned values",
             target.entity_type_name, target.variable_name,
         );
+        assert!(
+            declaration.assignment_rule.is_none() || declaration.sequence_key.is_some(),
+            "assignment scalar group `{group_name}` with an assignment rule must declare a sequence key",
+        );
         Self {
             target,
             required_entity: declaration.required_entity,
@@ -195,6 +200,7 @@ impl<S> ScalarAssignmentBinding<S> {
             sequence_key: declaration.sequence_key,
             entity_order: declaration.entity_order,
             value_order: declaration.value_order,
+            assignment_rule: declaration.assignment_rule,
         }
     }
 
@@ -235,6 +241,21 @@ impl<S> ScalarAssignmentBinding<S> {
     pub fn value_order_key(&self, solution: &S, entity_index: usize, value: usize) -> Option<i64> {
         self.value_order
             .map(|value_order| value_order(solution, entity_index, value))
+    }
+
+    pub fn assignment_edge_allowed(
+        &self,
+        solution: &S,
+        left_entity: usize,
+        left_value: usize,
+        right_entity: usize,
+        right_value: usize,
+    ) -> bool {
+        self.assignment_rule
+            .map(|assignment_rule| {
+                assignment_rule(solution, left_entity, left_value, right_entity, right_value)
+            })
+            .unwrap_or(true)
     }
 
     pub fn candidate_values(

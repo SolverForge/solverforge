@@ -117,8 +117,8 @@ pub use phase::{
     },
     exhaustive::{
         BounderType, ExhaustiveSearchConfig, ExhaustiveSearchDecider, ExhaustiveSearchNode,
-        ExhaustiveSearchPhase, ExplorationType, FixedOffsetBounder, MoveSequence, ScoreBounder,
-        SimpleDecider, SoftScoreBounder,
+        ExhaustiveSearchPhase, ExplorationType, FixedOffsetBounder, ScoreBounder, SimpleDecider,
+        SoftScoreBounder,
     },
     localsearch::{
         AcceptedCountForager, Acceptor, BestScoreForager, DiversifiedLateAcceptanceAcceptor,
@@ -135,8 +135,9 @@ pub use phase::{
     Phase,
 };
 pub use planning::{
-    ConflictRepair, RepairCandidate, RepairLimits, RepairProvider, ScalarCandidate,
-    ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget,
+    ConflictRepair, RepairCandidate, RepairLimits, RepairProvider, ScalarAssignmentRule,
+    ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits,
+    ScalarTarget,
 };
 pub use run::{log_solve_start, run_solver, run_solver_with_config};
 pub use runtime::{ListVariableEntity, ListVariableMetadata};

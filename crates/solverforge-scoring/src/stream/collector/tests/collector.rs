@@ -5,6 +5,7 @@ Tests extracted from:
 */
 
 use super::super::collect_vec::collect_vec;
+use super::super::indexed_presence::indexed_presence;
 use super::super::load_balance::load_balance;
 use super::super::runs::consecutive_runs;
 use super::super::{Accumulator, UniCollector};
@@ -289,6 +290,72 @@ fn test_consecutive_runs_duplicates_count_items_not_points() {
     assert_eq!(result.runs()[0].item_count(), 3);
     assert_eq!(result.runs()[1].point_count(), 1);
     assert_eq!(result.runs()[1].item_count(), 3);
+}
+
+#[test]
+fn test_indexed_presence_active_runs_and_membership() {
+    let collector = indexed_presence(|value: &i64| *value);
+    let mut acc = collector.create_accumulator();
+
+    for value in [4, 2, 3, 7, 7] {
+        acc.accumulate(&collector.extract(&value));
+    }
+
+    let result = acc.finish();
+    assert!(result.contains(3));
+    assert!(!result.contains(5));
+    assert_eq!(result.count(), 4);
+    assert_eq!(result.item_count(), 5);
+    assert_eq!(result.count_in(2..5), 3);
+    assert!(result.any_in(7..8));
+
+    let runs = result.runs();
+    assert_eq!(runs.runs().len(), 2);
+    assert_eq!(runs.runs()[0].start(), 2);
+    assert_eq!(runs.runs()[0].end(), 4);
+    assert_eq!(runs.runs()[1].start(), 7);
+    assert_eq!(runs.runs()[1].item_count(), 2);
+}
+
+#[test]
+fn test_indexed_presence_complement_runs() {
+    let collector = indexed_presence(|value: &i64| *value);
+    let mut acc = collector.create_accumulator();
+
+    for value in [0, 2, 5] {
+        acc.accumulate(&collector.extract(&value));
+    }
+
+    let result = acc.finish();
+    let complement = result.complement_runs(0..7);
+    assert_eq!(complement.runs().len(), 3);
+    assert_eq!(complement.runs()[0].start(), 1);
+    assert_eq!(complement.runs()[0].end(), 1);
+    assert_eq!(complement.runs()[1].start(), 3);
+    assert_eq!(complement.runs()[1].end(), 4);
+    assert_eq!(complement.runs()[2].start(), 6);
+    assert_eq!(complement.runs()[2].end(), 6);
+}
+
+#[test]
+fn test_indexed_presence_retract_and_reset() {
+    let collector = indexed_presence(|value: &i64| *value);
+    let mut acc = collector.create_accumulator();
+
+    acc.accumulate(&collector.extract(&-1));
+    acc.accumulate(&collector.extract(&-1));
+    acc.accumulate(&collector.extract(&0));
+    acc.retract(&collector.extract(&-1));
+
+    let result = acc.finish();
+    assert!(result.contains(-1));
+    assert_eq!(result.item_count(), 2);
+
+    acc.retract(&collector.extract(&-1));
+    assert!(!acc.finish().contains(-1));
+
+    acc.reset();
+    assert!(acc.finish().is_empty());
 }
 
 #[test]

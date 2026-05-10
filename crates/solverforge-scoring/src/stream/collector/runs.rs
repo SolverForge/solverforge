@@ -154,61 +154,65 @@ impl Accumulator<i64, Runs> for RunsAccumulator {
     }
 
     fn finish(&self) -> Runs {
-        let point_count = self.points.len();
-        let item_count = self.points.values().sum();
-        let mut runs = Vec::new();
-
-        let mut current_start = None;
-        let mut previous = 0;
-        let mut current_point_count = 0;
-        let mut current_item_count = 0;
-
-        for (&point, &count) in &self.points {
-            match current_start {
-                None => {
-                    current_start = Some(point);
-                    previous = point;
-                    current_point_count = 1;
-                    current_item_count = count;
-                }
-                Some(_) if previous.checked_add(1) == Some(point) => {
-                    previous = point;
-                    current_point_count += 1;
-                    current_item_count += count;
-                }
-                Some(start) => {
-                    runs.push(Run::new(
-                        start,
-                        previous,
-                        current_point_count,
-                        current_item_count,
-                    ));
-                    current_start = Some(point);
-                    previous = point;
-                    current_point_count = 1;
-                    current_item_count = count;
-                }
-            }
-        }
-
-        if let Some(start) = current_start {
-            runs.push(Run::new(
-                start,
-                previous,
-                current_point_count,
-                current_item_count,
-            ));
-        }
-
-        Runs {
-            runs,
-            point_count,
-            item_count,
-        }
+        runs_from_counts(&self.points)
     }
 
     #[inline]
     fn reset(&mut self) {
         self.points.clear();
+    }
+}
+
+pub(crate) fn runs_from_counts(points: &BTreeMap<i64, usize>) -> Runs {
+    let point_count = points.len();
+    let item_count = points.values().sum();
+    let mut runs = Vec::new();
+
+    let mut current_start = None;
+    let mut previous = 0;
+    let mut current_point_count = 0;
+    let mut current_item_count = 0;
+
+    for (&point, &count) in points {
+        match current_start {
+            None => {
+                current_start = Some(point);
+                previous = point;
+                current_point_count = 1;
+                current_item_count = count;
+            }
+            Some(_) if previous.checked_add(1) == Some(point) => {
+                previous = point;
+                current_point_count += 1;
+                current_item_count += count;
+            }
+            Some(start) => {
+                runs.push(Run::new(
+                    start,
+                    previous,
+                    current_point_count,
+                    current_item_count,
+                ));
+                current_start = Some(point);
+                previous = point;
+                current_point_count = 1;
+                current_item_count = count;
+            }
+        }
+    }
+
+    if let Some(start) = current_start {
+        runs.push(Run::new(
+            start,
+            previous,
+            current_point_count,
+            current_item_count,
+        ));
+    }
+
+    Runs {
+        runs,
+        point_count,
+        item_count,
     }
 }

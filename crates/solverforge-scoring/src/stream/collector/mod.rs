@@ -2,6 +2,7 @@
 
 mod collect_vec;
 mod count;
+mod indexed_presence;
 mod load_balance;
 mod runs;
 mod sum;
@@ -12,6 +13,9 @@ mod tests;
 
 pub use collect_vec::{collect_vec, CollectVecAccumulator, CollectVecCollector};
 pub use count::{count, CountAccumulator, CountCollector};
+pub use indexed_presence::{
+    indexed_presence, IndexedPresence, IndexedPresenceAccumulator, IndexedPresenceCollector,
+};
 pub use load_balance::{load_balance, LoadBalance, LoadBalanceAccumulator, LoadBalanceCollector};
 pub use runs::{consecutive_runs, Run, Runs, RunsAccumulator, RunsCollector};
 pub use sum::{sum, SumAccumulator, SumCollector};

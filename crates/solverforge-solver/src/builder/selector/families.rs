@@ -196,6 +196,15 @@ fn push_scalar_selector<S, V, DM, IDM>(
     if scalar_variables.is_empty() {
         return;
     }
+    if let Some(config) = config {
+        if let Some(variable) = assignment_owned_scalar_target(config, model) {
+            panic!(
+                "scalar move selector targets assignment-owned scalar variable {}.{}; use the owning grouped scalar assignment selector instead",
+                variable.entity_type_name,
+                variable.variable_name
+            );
+        }
+    }
     let selector = build_scalar_flat_selector(config, &scalar_variables, random_seed);
     out.extend(
         selector
@@ -203,6 +212,53 @@ fn push_scalar_selector<S, V, DM, IDM>(
             .into_iter()
             .map(NeighborhoodLeaf::Scalar),
     );
+}
+
+fn assignment_owned_scalar_target<S, V, DM, IDM>(
+    config: &MoveSelectorConfig,
+    model: &RuntimeModel<S, V, DM, IDM>,
+) -> Option<crate::builder::ScalarVariableSlot<S>> {
+    match config {
+        MoveSelectorConfig::ChangeMoveSelector(config) => {
+            target_assignment_owner(&config.target, model)
+        }
+        MoveSelectorConfig::SwapMoveSelector(config) => target_assignment_owner(&config.target, model),
+        MoveSelectorConfig::NearbyChangeMoveSelector(config) => {
+            target_assignment_owner(&config.target, model)
+        }
+        MoveSelectorConfig::NearbySwapMoveSelector(config) => {
+            target_assignment_owner(&config.target, model)
+        }
+        MoveSelectorConfig::PillarChangeMoveSelector(config) => {
+            target_assignment_owner(&config.target, model)
+        }
+        MoveSelectorConfig::PillarSwapMoveSelector(config) => {
+            target_assignment_owner(&config.target, model)
+        }
+        MoveSelectorConfig::RuinRecreateMoveSelector(config) => {
+            target_assignment_owner(&config.target, model)
+        }
+        MoveSelectorConfig::LimitedNeighborhood(limit) => {
+            assignment_owned_scalar_target(limit.selector.as_ref(), model)
+        }
+        MoveSelectorConfig::UnionMoveSelector(union) => union
+            .selectors
+            .iter()
+            .find_map(|selector| assignment_owned_scalar_target(selector, model)),
+        _ => None,
+    }
+}
+
+fn target_assignment_owner<S, V, DM, IDM>(
+    target: &solverforge_config::VariableTargetConfig,
+    model: &RuntimeModel<S, V, DM, IDM>,
+) -> Option<crate::builder::ScalarVariableSlot<S>> {
+    model.scalar_variables().copied().find(|variable| {
+        variable.matches_target(
+            target.entity_class.as_deref(),
+            target.variable_name.as_deref(),
+        ) && model.assignment_group_covers_scalar_variable(variable)
+    })
 }
 
 fn push_list_selector<S, V, DM, IDM>(

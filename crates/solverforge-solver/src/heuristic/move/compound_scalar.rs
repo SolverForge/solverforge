@@ -44,6 +44,7 @@ pub struct CompoundScalarMove<S> {
     edits: Vec<CompoundScalarEdit<S>>,
     entity_indices: Vec<usize>,
     require_hard_improvement: bool,
+    construction_value_order_key: Option<i64>,
 }
 
 impl<S> CompoundScalarMove<S> {
@@ -68,12 +69,22 @@ impl<S> CompoundScalarMove<S> {
             edits,
             entity_indices,
             require_hard_improvement: false,
+            construction_value_order_key: None,
         }
     }
 
     pub fn with_require_hard_improvement(mut self, require_hard_improvement: bool) -> Self {
         self.require_hard_improvement = require_hard_improvement;
         self
+    }
+
+    pub(crate) fn with_construction_value_order_key(mut self, order_key: Option<i64>) -> Self {
+        self.construction_value_order_key = order_key;
+        self
+    }
+
+    pub(crate) fn construction_value_order_key(&self) -> Option<i64> {
+        self.construction_value_order_key
     }
 
     pub fn edits(&self) -> &[CompoundScalarEdit<S>] {
@@ -92,6 +103,10 @@ impl<S> Debug for CompoundScalarMove<S> {
             .field("variable_label", &self.variable_label)
             .field("edits", &self.edits)
             .field("require_hard_improvement", &self.require_hard_improvement)
+            .field(
+                "construction_value_order_key",
+                &self.construction_value_order_key,
+            )
             .finish()
     }
 }

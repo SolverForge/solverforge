@@ -184,7 +184,9 @@ fn validate_grouped_scalar_group<S>(
     }
 }
 
-fn grouped_heuristic_requires_entity_order(heuristic: ConstructionHeuristicType) -> bool {
+pub(crate) fn grouped_heuristic_requires_entity_order(
+    heuristic: ConstructionHeuristicType,
+) -> bool {
     matches!(
         heuristic,
         ConstructionHeuristicType::FirstFitDecreasing
@@ -193,7 +195,7 @@ fn grouped_heuristic_requires_entity_order(heuristic: ConstructionHeuristicType)
     )
 }
 
-fn grouped_heuristic_requires_value_order(heuristic: ConstructionHeuristicType) -> bool {
+pub(crate) fn grouped_heuristic_requires_value_order(heuristic: ConstructionHeuristicType) -> bool {
     matches!(
         heuristic,
         ConstructionHeuristicType::WeakestFit

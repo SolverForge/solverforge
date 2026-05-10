@@ -8,7 +8,7 @@ use solverforge_config::{
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
-use crate::builder::{RuntimeModel, ScalarVariableSlot};
+use crate::builder::RuntimeModel;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::scope::{ProgressCallback, SolverScope};
 
@@ -30,7 +30,7 @@ where
     let mut ran_child_phase = false;
 
     for config in list_construction_configs(&construction.model, solver_scope.working_solution()) {
-        ran_child_phase |= construction.solve_configured(Some(&config), solver_scope);
+        ran_child_phase |= construction.solve_configured(Some(&config), solver_scope, false);
     }
 
     for group_index in assignment_group_indices(&construction.model) {
@@ -42,12 +42,13 @@ where
             (assignment.remaining_required_count(solver_scope.working_solution()) > 0).then(|| {
                 assignment_group_config(
                     group.group_name,
+                    ConstructionHeuristicType::FirstFit,
                     ConstructionObligation::AssignWhenCandidateExists,
                 )
             })
         };
         if let Some(config) = config {
-            ran_child_phase |= construction.solve_configured(Some(&config), solver_scope);
+            ran_child_phase |= construction.solve_configured(Some(&config), solver_scope, true);
         }
     }
 
@@ -57,24 +58,27 @@ where
             let Some(assignment) = group.assignment() else {
                 continue;
             };
-            (assignment.unassigned_count(solver_scope.working_solution()) > 0).then(|| {
-                assignment_group_config(
-                    group.group_name,
-                    ConstructionObligation::PreserveUnassigned,
-                )
-            })
+            (assignment.remaining_required_count(solver_scope.working_solution()) == 0
+                && assignment.unassigned_count(solver_scope.working_solution()) > 0)
+                .then(|| {
+                    assignment_group_config(
+                        group.group_name,
+                        ConstructionHeuristicType::CheapestInsertion,
+                        ConstructionObligation::AssignWhenCandidateExists,
+                    )
+                })
         };
         if let Some(config) = config {
-            ran_child_phase |= construction.solve_configured(Some(&config), solver_scope);
+            ran_child_phase |= construction.solve_configured(Some(&config), solver_scope, false);
         }
     }
 
     for config in descriptor_scalar_configs(&construction.model) {
-        ran_child_phase |= construction.solve_configured(Some(&config), solver_scope);
+        ran_child_phase |= construction.solve_configured(Some(&config), solver_scope, false);
     }
 
     for config in list_k_opt_configs(&construction.model, solver_scope.working_solution()) {
-        ran_child_phase |= construction.solve_configured(Some(&config), solver_scope);
+        ran_child_phase |= construction.solve_configured(Some(&config), solver_scope, false);
     }
 
     ran_child_phase
@@ -124,7 +128,7 @@ fn descriptor_scalar_configs<S, V, DM, IDM>(
 ) -> Vec<ConstructionHeuristicConfig> {
     model
         .scalar_variables()
-        .filter(|variable| !assignment_group_covers_variable(model, variable))
+        .filter(|variable| !model.assignment_group_covers_scalar_variable(variable))
         .map(|variable| {
             let target = VariableTargetConfig {
                 entity_class: Some(variable.entity_type_name.to_string()),
@@ -139,18 +143,6 @@ fn descriptor_scalar_configs<S, V, DM, IDM>(
         .collect()
 }
 
-fn assignment_group_covers_variable<S, V, DM, IDM>(
-    model: &RuntimeModel<S, V, DM, IDM>,
-    variable: &ScalarVariableSlot<S>,
-) -> bool {
-    model.assignment_scalar_groups().any(|(_, group)| {
-        group.members.iter().any(|member| {
-            member.descriptor_index == variable.descriptor_index
-                && member.variable_index == variable.variable_index
-        })
-    })
-}
-
 fn assignment_group_indices<S, V, DM, IDM>(model: &RuntimeModel<S, V, DM, IDM>) -> Vec<usize> {
     model
         .assignment_scalar_groups()
@@ -160,10 +152,11 @@ fn assignment_group_indices<S, V, DM, IDM>(model: &RuntimeModel<S, V, DM, IDM>) 
 
 fn assignment_group_config(
     group_name: &'static str,
+    construction_heuristic_type: ConstructionHeuristicType,
     construction_obligation: ConstructionObligation,
 ) -> ConstructionHeuristicConfig {
     ConstructionHeuristicConfig {
-        construction_heuristic_type: ConstructionHeuristicType::CheapestInsertion,
+        construction_heuristic_type,
         construction_obligation,
         group_name: Some(group_name.to_string()),
         ..ConstructionHeuristicConfig::default()

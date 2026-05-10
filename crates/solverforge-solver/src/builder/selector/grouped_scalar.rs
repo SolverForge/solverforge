@@ -3,7 +3,7 @@ use std::cell::Cell;
 pub struct GroupedScalarSelector<S> {
     group: crate::builder::context::ScalarGroupBinding<S>,
     value_candidate_limit: Option<usize>,
-    max_moves_per_step: usize,
+    max_moves_per_step: Option<usize>,
     require_hard_improvement: bool,
     next_entity_offset: Cell<usize>,
 }
@@ -17,9 +17,7 @@ impl<S> GroupedScalarSelector<S> {
     ) -> Self {
         let effective_value_candidate_limit =
             value_candidate_limit.or(group.limits.value_candidate_limit);
-        let effective_max_moves_per_step = max_moves_per_step
-            .or(group.limits.max_moves_per_step)
-            .unwrap_or(256);
+        let effective_max_moves_per_step = max_moves_per_step.or(group.limits.max_moves_per_step);
         Self {
             group,
             value_candidate_limit: effective_value_candidate_limit,
@@ -35,13 +33,29 @@ impl<S> GroupedScalarSelector<S> {
         offset
     }
 
-    fn limits(&self) -> crate::builder::context::ScalarGroupLimits {
+    fn effective_max_moves_per_step(&self, solution: &S) -> usize {
+        if let Some(max_moves_per_step) = self.max_moves_per_step {
+            return max_moves_per_step;
+        }
+        match self.group.kind {
+            crate::builder::ScalarGroupBindingKind::Assignment(assignment) => {
+                let max_rematch_size = self.group.limits.max_rematch_size.unwrap_or(4).max(2);
+                assignment
+                    .entity_count(solution)
+                    .saturating_mul(max_rematch_size)
+                    .clamp(256, 4096)
+            }
+            crate::builder::ScalarGroupBindingKind::Candidates { .. } => 256,
+        }
+    }
+
+    fn limits(&self, max_moves_per_step: usize) -> crate::builder::context::ScalarGroupLimits {
         crate::builder::context::ScalarGroupLimits {
             value_candidate_limit: self.value_candidate_limit,
-            group_candidate_limit: Some(self.max_moves_per_step),
-            max_moves_per_step: Some(self.max_moves_per_step),
-            max_augmenting_depth: None,
-            max_rematch_size: None,
+            group_candidate_limit: Some(max_moves_per_step),
+            max_moves_per_step: Some(max_moves_per_step),
+            max_augmenting_depth: self.group.limits.max_augmenting_depth,
+            max_rematch_size: self.group.limits.max_rematch_size,
         }
     }
 }
@@ -63,6 +77,9 @@ where
 {
     store: CandidateStore<S, ScalarMoveUnion<S, usize>>,
     next_index: usize,
+    assignment_cursor:
+        Option<crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor<S>>,
+    require_hard_improvement: bool,
 }
 
 impl<S> GroupedScalarCursor<S>
@@ -73,6 +90,21 @@ where
         Self {
             store,
             next_index: 0,
+            assignment_cursor: None,
+            require_hard_improvement: false,
+        }
+    }
+
+    fn assignment(
+        assignment_cursor: crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor<S>,
+        require_hard_improvement: bool,
+        capacity: usize,
+    ) -> Self {
+        Self {
+            store: CandidateStore::with_capacity(capacity),
+            next_index: 0,
+            assignment_cursor: Some(assignment_cursor),
+            require_hard_improvement,
         }
     }
 }
@@ -82,11 +114,17 @@ where
     S: PlanningSolution + 'static,
 {
     fn next_candidate(&mut self) -> Option<CandidateId> {
-        if self.next_index >= self.store.len() {
-            return None;
+        if self.next_index < self.store.len() {
+            let id = CandidateId::new(self.next_index);
+            self.next_index += 1;
+            return Some(id);
         }
-        let id = CandidateId::new(self.next_index);
-        self.next_index += 1;
+        let assignment_cursor = self.assignment_cursor.as_mut()?;
+        let mov = assignment_cursor
+            .next_move()?
+            .with_require_hard_improvement(self.require_hard_improvement);
+        let id = self.store.push(ScalarMoveUnion::CompoundScalar(mov));
+        self.next_index = id.index() + 1;
         Some(id)
     }
 
@@ -123,7 +161,9 @@ where
         score_director: &D,
         context: MoveStreamContext,
     ) -> Self::Cursor<'a> {
-        if self.max_moves_per_step == 0 {
+        let solution = score_director.working_solution();
+        let max_moves_per_step = self.effective_max_moves_per_step(solution);
+        if max_moves_per_step == 0 {
             return GroupedScalarCursor::new(CandidateStore::new());
         }
 
@@ -132,22 +172,26 @@ where
                 candidate_provider
             }
             crate::builder::ScalarGroupBindingKind::Assignment(assignment) => {
-                return self.open_assignment_cursor(score_director, assignment, context);
+                return self.open_assignment_cursor(
+                    score_director,
+                    assignment,
+                    context,
+                    max_moves_per_step,
+                );
             }
         };
-        let solution = score_director.working_solution();
-        let mut store = CandidateStore::with_capacity(self.max_moves_per_step);
+        let mut store = CandidateStore::with_capacity(max_moves_per_step);
         let mut seen_candidates = Vec::new();
         let mut targets = std::collections::HashSet::new();
 
-        let mut candidates = candidate_provider(solution, self.limits());
+        let mut candidates = candidate_provider(solution, self.limits(max_moves_per_step));
         let offset = context.start_offset(
             candidates.len(),
             0xC0A1_E5CE_AAA0_0001 ^ self.group.group_name.len() as u64,
         );
         candidates.rotate_left(offset);
         for candidate in candidates {
-            if store.len() >= self.max_moves_per_step {
+            if store.len() >= max_moves_per_step {
                 break;
             }
             if candidate.edits().is_empty()
@@ -187,8 +231,8 @@ where
         GroupedScalarCursor::new(store)
     }
 
-    fn size<D: solverforge_scoring::Director<S>>(&self, _score_director: &D) -> usize {
-        self.max_moves_per_step
+    fn size<D: solverforge_scoring::Director<S>>(&self, score_director: &D) -> usize {
+        self.effective_max_moves_per_step(score_director.working_solution())
     }
 }
 
@@ -201,8 +245,9 @@ where
         score_director: &D,
         assignment: crate::builder::ScalarAssignmentBinding<S>,
         context: MoveStreamContext,
+        max_moves_per_step: usize,
     ) -> GroupedScalarCursor<S> {
-        if self.max_moves_per_step == 0 {
+        if max_moves_per_step == 0 {
             return GroupedScalarCursor::new(CandidateStore::new());
         }
 
@@ -213,34 +258,19 @@ where
         let options = crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_selector(
             self.group.limits,
             self.value_candidate_limit,
-            self.max_moves_per_step,
+            max_moves_per_step,
             entity_offset,
         );
-        let mut store = CandidateStore::with_capacity(self.max_moves_per_step);
-        for mov in crate::phase::construction::grouped_scalar::selector_assignment_moves(
-            &assignment,
-            solution,
-            options,
-        ) {
-            if store.len() >= self.max_moves_per_step {
-                break;
-            }
-            self.push_assignment_move(score_director, &mut store, mov);
-        }
-        GroupedScalarCursor::new(store)
-    }
-
-    fn push_assignment_move<D>(
-        &self,
-        score_director: &D,
-        store: &mut CandidateStore<S, ScalarMoveUnion<S, usize>>,
-        mov: crate::heuristic::r#move::CompoundScalarMove<S>,
-    ) where
-        D: solverforge_scoring::Director<S>,
-    {
-        let mov = mov.with_require_hard_improvement(self.require_hard_improvement);
-        if mov.is_doable(score_director) {
-            store.push(ScalarMoveUnion::CompoundScalar(mov));
-        }
+        let assignment_cursor =
+            crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::new(
+                assignment,
+                solution.clone(),
+                options,
+            );
+        GroupedScalarCursor::assignment(
+            assignment_cursor,
+            self.require_hard_improvement,
+            max_moves_per_step,
+        )
     }
 }

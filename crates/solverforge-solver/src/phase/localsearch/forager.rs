@@ -339,4 +339,6 @@ where
 }
 
 #[cfg(test)]
+mod any_tests;
+#[cfg(test)]
 mod tests;

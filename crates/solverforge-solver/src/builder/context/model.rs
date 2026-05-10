@@ -92,6 +92,10 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
             .any(|variable| matches!(variable, VariableSlot::Scalar(_)))
     }
 
+    pub fn is_scalar_only(&self) -> bool {
+        self.has_scalar_variables() && !self.has_list_variables()
+    }
+
     pub fn has_nearby_scalar_change_variables(&self) -> bool {
         self.scalar_variables()
             .any(ScalarVariableSlot::supports_nearby_change)
@@ -109,6 +113,18 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
             .iter()
             .enumerate()
             .filter(|(_, group)| group.is_assignment())
+    }
+
+    pub fn assignment_group_covers_scalar_variable(
+        &self,
+        variable: &ScalarVariableSlot<S>,
+    ) -> bool {
+        self.assignment_scalar_groups().any(|(_, group)| {
+            group.members.iter().any(|member| {
+                member.descriptor_index == variable.descriptor_index
+                    && member.variable_index == variable.variable_index
+            })
+        })
     }
 
     pub fn has_scalar_groups(&self) -> bool {
@@ -147,6 +163,60 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
             VariableSlot::Scalar(ctx) => Some(ctx),
             VariableSlot::List(_) => None,
         })
+    }
+
+    pub fn scalar_variable_target(
+        &self,
+        entity_class: Option<&str>,
+        variable_name: Option<&str>,
+    ) -> Result<ScalarVariableSlot<S>, String> {
+        let mut matches = self
+            .scalar_variables()
+            .filter(|slot| slot.matches_target(entity_class, variable_name));
+        let Some(first) = matches.next().copied() else {
+            return Err(match (entity_class, variable_name) {
+                (Some(entity), Some(variable)) => {
+                    format!("no scalar variable `{entity}.{variable}` exists in the runtime model")
+                }
+                (Some(entity), None) => {
+                    format!("no scalar variable for entity `{entity}` exists in the runtime model")
+                }
+                (None, Some(variable)) => {
+                    format!("no scalar variable named `{variable}` exists in the runtime model")
+                }
+                (None, None) => {
+                    "exhaustive search requires exactly one scalar variable or an explicit target"
+                        .to_string()
+                }
+            });
+        };
+        if matches.next().is_some() {
+            return Err(
+                "exhaustive search target is ambiguous; specify entity_class and variable_name"
+                    .to_string(),
+            );
+        }
+        Ok(first)
+    }
+
+    pub fn finite_scalar_candidate_space_estimate(
+        &self,
+        solution: &S,
+        slot: ScalarVariableSlot<S>,
+        value_candidate_limit: Option<usize>,
+    ) -> Option<usize> {
+        let entity_count = (slot.entity_count)(solution);
+        let mut total: usize = 1;
+        for entity_index in 0..entity_count {
+            let candidate_count = slot
+                .candidate_values_for_entity(solution, entity_index, value_candidate_limit)
+                .len();
+            if candidate_count == 0 {
+                return Some(0);
+            }
+            total = total.checked_mul(candidate_count)?;
+        }
+        Some(total)
     }
 
     pub fn list_variables(&self) -> impl Iterator<Item = &ListVariableSlot<S, V, DM, IDM>> {

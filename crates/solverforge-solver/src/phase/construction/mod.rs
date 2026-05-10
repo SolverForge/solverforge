@@ -24,8 +24,9 @@ pub use forager::{
     StrongestFitForager, WeakestFitForager,
 };
 pub(crate) use frontier::ConstructionFrontier;
-pub(crate) use grouped_scalar::solve_grouped_scalar_construction;
+pub(crate) use grouped_scalar::build_scalar_group_construction;
 pub use phase::ConstructionHeuristicPhase;
+pub(crate) use placer::ConstructionTarget;
 pub use placer::{EntityPlacer, Placement, QueuedEntityPlacer, SortedEntityPlacer};
 pub(crate) use slot::{
     ConstructionGroupSlotId, ConstructionGroupSlotKey, ConstructionListElementId,

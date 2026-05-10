@@ -277,6 +277,102 @@ fn scalar_assignment_sequence_window_exchanges_across_sequences() {
 }
 
 #[test]
+fn scalar_assignment_augmenting_rematch_emits_bounded_rotation() {
+    let model = assignment_model_with_limits(ScalarGroupLimits {
+        max_rematch_size: Some(3),
+        ..ScalarGroupLimits::new()
+    });
+    let plan = coverage_plan(
+        3,
+        vec![
+            coverage_slot(true, 0, Some(0), &[0, 1, 2]),
+            coverage_slot(true, 1, Some(1), &[0, 1, 2]),
+            coverage_slot(true, 2, Some(2), &[0, 1, 2]),
+        ],
+    );
+    let selector = scalar_assignment_selector_with_model(model, None, Some(16), false);
+    let director = CoverageDirector {
+        working_solution: plan.clone(),
+        descriptor: coverage_plan_descriptor(),
+    };
+    let mut cursor = selector.open_cursor(&director);
+    let mut rematch_move = None;
+    while let Some(id) = cursor.next_candidate() {
+        let mov = cursor.take_candidate(id);
+        if format!("{mov:?}").contains("scalar_assignment_augmenting_rematch") {
+            rematch_move = Some(mov);
+            break;
+        }
+    }
+    let mov = rematch_move.expect("bounded augmenting rematch should expose a rotation");
+
+    let mut trial = CoverageDirector {
+        working_solution: plan,
+        descriptor: coverage_plan_descriptor(),
+    };
+    assert!(mov.is_doable(&trial));
+    mov.do_move(&mut trial);
+    assert_eq!(trial.working_solution.slots[0].assigned, Some(1));
+    assert_eq!(trial.working_solution.slots[1].assigned, Some(2));
+    assert_eq!(trial.working_solution.slots[2].assigned, Some(0));
+}
+
+#[test]
+fn scalar_assignment_ejection_reinsert_emits_bounded_multi_slot_rebuild() {
+    let model = assignment_model_with_limits(ScalarGroupLimits {
+        max_augmenting_depth: Some(3),
+        max_rematch_size: Some(3),
+        ..ScalarGroupLimits::new()
+    });
+    let plan = coverage_plan(
+        3,
+        vec![
+            coverage_slot(true, 0, Some(0), &[0, 1, 2]),
+            coverage_slot(true, 1, Some(1), &[0, 1, 2]),
+            coverage_slot(true, 2, Some(2), &[0, 1, 2]),
+        ],
+    );
+    let selector = scalar_assignment_selector_with_model(model, None, Some(32), false);
+    let director = CoverageDirector {
+        working_solution: plan.clone(),
+        descriptor: coverage_plan_descriptor(),
+    };
+    let mut cursor = selector.open_cursor(&director);
+    let mut ejection_move = None;
+    while let Some(id) = cursor.next_candidate() {
+        let mov = cursor.take_candidate(id);
+        if format!("{mov:?}").contains("scalar_assignment_ejection_reinsert") {
+            ejection_move = Some(mov);
+            break;
+        }
+    }
+    let mov = ejection_move.expect("grouped assignment should expose bounded ejection/reinsert");
+
+    let mut trial = CoverageDirector {
+        working_solution: plan.clone(),
+        descriptor: coverage_plan_descriptor(),
+    };
+    assert!(mov.is_doable(&trial));
+    mov.do_move(&mut trial);
+    let changed = trial
+        .working_solution
+        .slots
+        .iter()
+        .zip(plan.slots.iter())
+        .filter(|(left, right)| left.assigned != right.assigned)
+        .count();
+
+    assert!(changed >= 2);
+    assert!(
+        trial
+            .working_solution
+            .slots
+            .iter()
+            .all(|slot| slot.assigned.is_some())
+    );
+}
+
+#[test]
 fn scalar_assignment_selector_emits_independent_pair_reassignment() {
     let plan = coverage_plan(
         2,

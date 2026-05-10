@@ -9,19 +9,21 @@ use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 use crate::planning::ScalarEdit;
 
-pub(super) fn assignment_moves_for_entity<S>(
+pub(super) fn assignment_move_for_entity_value<S>(
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
+    state: &mut ScalarAssignmentState,
     entity_index: usize,
+    value: usize,
     options: ScalarAssignmentMoveOptions,
     intent: AssignmentMoveIntent,
-) -> Vec<CompoundScalarMove<S>>
+) -> Option<CompoundScalarMove<S>>
 where
     S: PlanningSolution,
 {
-    let values = group.candidate_values(solution, entity_index, options.value_candidate_limit);
-    let mut moves = Vec::new();
-    let mut state = ScalarAssignmentState::new(group, solution);
+    if state.current_value(entity_index) == Some(value) {
+        return None;
+    }
     let mut changes = Vec::new();
     let mut edits = Vec::new();
     let mut visiting = HashSet::new();
@@ -31,37 +33,24 @@ where
         allow_optional_displacement: intent.allow_optional_displacement,
         value_candidate_limit: options.value_candidate_limit,
     };
-    for value in values {
-        if state.current_value(entity_index) == Some(value) {
-            continue;
-        }
-        let change_checkpoint = changes.len();
-        let edit_checkpoint = edits.len();
-        visiting.clear();
-        if search.assign(
-            &mut state,
-            AssignmentRequest {
-                entity_index,
-                value,
-                depth: options.max_depth,
-            },
-            &mut visiting,
-            &mut changes,
-            &mut edits,
-        ) {
-            if let Some(mov) =
-                move_from_edits(group, solution, &edits[edit_checkpoint..], intent.reason)
-            {
-                moves.push(mov);
-            }
-        }
-        state.rollback(group, solution, &mut changes, change_checkpoint);
-        edits.truncate(edit_checkpoint);
-        if moves.len() >= options.max_moves {
-            break;
-        }
-    }
-    moves
+    let produced = search.assign(
+        state,
+        AssignmentRequest {
+            entity_index,
+            value,
+            depth: options.max_depth,
+        },
+        &mut visiting,
+        &mut changes,
+        &mut edits,
+    );
+    let mov = if produced && state.scalar_edits_feasible(group, solution, &edits) {
+        move_from_edits(group, solution, &edits, intent.reason)
+    } else {
+        None
+    };
+    state.rollback(group, solution, &mut changes, 0);
+    mov
 }
 
 #[derive(Clone, Copy)]
@@ -111,6 +100,12 @@ impl<S> AugmentingPathSearch<'_, S> {
             blockers = state.blockers(self.group, self.solution, entity_index, value);
         }
 
+        if blockers.is_empty()
+            && !state.assignment_allowed(self.group, self.solution, entity_index, value)
+        {
+            return false;
+        }
+
         if blockers.is_empty() {
             state.set_value_recording(
                 self.group,
@@ -154,10 +149,16 @@ impl<S> AugmentingPathSearch<'_, S> {
                 visiting,
                 changes,
                 edits,
-            ) && state
-                .blockers(self.group, self.solution, entity_index, value)
-                .is_empty()
-            {
+            ) {
+                let blockers_after_reassignment =
+                    state.blockers(self.group, self.solution, entity_index, value);
+                if !blockers_after_reassignment.is_empty()
+                    || !state.assignment_allowed(self.group, self.solution, entity_index, value)
+                {
+                    state.rollback(self.group, self.solution, changes, change_checkpoint);
+                    edits.truncate(edit_checkpoint);
+                    continue;
+                }
                 state.set_value_recording(
                     self.group,
                     self.solution,

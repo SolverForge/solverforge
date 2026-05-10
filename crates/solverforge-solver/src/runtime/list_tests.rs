@@ -277,6 +277,6 @@ fn empty_list_runtime_builds_construction_plus_streaming_local_search() {
     assert!(debug.contains("RuntimePhase::LocalSearch"));
     assert!(debug.contains("AcceptorForager"));
     assert!(debug.contains("LateAcceptance"));
-    assert!(debug.contains("accepted_count_limit: 128"));
+    assert!(debug.contains("accepted_count_limit: 256"));
     assert!(!debug.contains("VariableNeighborhoodDescent"));
 }

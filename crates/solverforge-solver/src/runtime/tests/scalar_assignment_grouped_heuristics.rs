@@ -50,9 +50,8 @@ fn assignment_model_with_order_hooks(
     if include_value_order {
         group = group.with_value_order(coverage_value_order);
     }
-    RuntimeModel::new(vec![VariableSlot::Scalar(scalar_slot)]).with_scalar_groups(
-        bind_scalar_groups(vec![group], &[scalar_slot]),
-    )
+    RuntimeModel::new(vec![VariableSlot::Scalar(scalar_slot)])
+        .with_scalar_groups(bind_scalar_groups(vec![group], &[scalar_slot]))
 }
 
 #[test]
@@ -63,6 +62,29 @@ fn scalar_assignment_cheapest_insertion_scores_required_assignment_values() {
             vec![
                 coverage_slot(true, 0, None, &[0, 1]),
                 coverage_slot(false, 0, Some(0), &[0]),
+            ],
+        ),
+        assignment_config_with_heuristic(ConstructionHeuristicType::CheapestInsertion),
+        assignment_model(),
+    );
+
+    let slots = &solver_scope.working_solution().slots;
+    assert_eq!(slots[0].assigned, Some(1));
+    assert_eq!(slots[1].assigned, Some(0));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(HardSoftScore::of(0, 0))
+    );
+}
+
+#[test]
+fn scalar_assignment_cheapest_insertion_scores_multi_required_allocations() {
+    let solver_scope = solve_assignment_with_config_and_model(
+        coverage_plan(
+            2,
+            vec![
+                coverage_slot_with_worker_penalties(true, 0, None, &[0, 1], &[10, 0]),
+                coverage_slot_with_worker_penalties(true, 0, None, &[0, 1], &[0, 10]),
             ],
         ),
         assignment_config_with_heuristic(ConstructionHeuristicType::CheapestInsertion),
@@ -90,6 +112,25 @@ fn scalar_assignment_weakest_fit_uses_assignment_value_order() {
 }
 
 #[test]
+fn scalar_assignment_weakest_fit_orders_multi_required_allocations() {
+    let solver_scope = solve_assignment_with_config_and_model(
+        coverage_plan(
+            2,
+            vec![
+                coverage_slot(true, 0, None, &[1, 0]),
+                coverage_slot(true, 0, None, &[1, 0]),
+            ],
+        ),
+        assignment_config_with_heuristic(ConstructionHeuristicType::WeakestFit),
+        assignment_model(),
+    );
+
+    let slots = &solver_scope.working_solution().slots;
+    assert_eq!(slots[0].assigned, Some(0));
+    assert_eq!(slots[1].assigned, Some(1));
+}
+
+#[test]
 fn scalar_assignment_strongest_fit_uses_assignment_value_order() {
     let solver_scope = solve_assignment_with_config_and_model(
         coverage_plan(2, vec![coverage_slot(true, 0, None, &[0, 1])]),
@@ -98,6 +139,25 @@ fn scalar_assignment_strongest_fit_uses_assignment_value_order() {
     );
 
     assert_eq!(solver_scope.working_solution().slots[0].assigned, Some(1));
+}
+
+#[test]
+fn scalar_assignment_strongest_fit_orders_multi_required_allocations() {
+    let solver_scope = solve_assignment_with_config_and_model(
+        coverage_plan(
+            2,
+            vec![
+                coverage_slot(true, 0, None, &[0, 1]),
+                coverage_slot(true, 0, None, &[0, 1]),
+            ],
+        ),
+        assignment_config_with_heuristic(ConstructionHeuristicType::StrongestFit),
+        assignment_model(),
+    );
+
+    let slots = &solver_scope.working_solution().slots;
+    assert_eq!(slots[0].assigned, Some(1));
+    assert_eq!(slots[1].assigned, Some(0));
 }
 
 #[test]
@@ -122,12 +182,11 @@ fn scalar_assignment_decreasing_heuristics_validate_entity_order_hook() {
 
 #[test]
 fn scalar_assignment_optional_construction_remains_score_improving_only() {
+    let mut config = assignment_config();
+    config.construction_obligation = ConstructionObligation::PreserveUnassigned;
     let solver_scope = solve_assignment_with_config_and_model(
-        coverage_plan(
-            1,
-            vec![coverage_slot_with_penalty(false, 0, None, &[0], 5)],
-        ),
-        assignment_config(),
+        coverage_plan(1, vec![coverage_slot_with_penalty(false, 0, None, &[0], 5)]),
+        config,
         assignment_model(),
     );
 

@@ -148,6 +148,7 @@ where
         &self,
         config: Option<&ConstructionHeuristicConfig>,
         solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
+        required_only: bool,
     ) -> bool
     where
         S: PlanningSolution + 'static,
@@ -191,18 +192,54 @@ where
                 let Some((group_index, group)) = capabilities.scalar_group.as_ref() else {
                     unreachable!("grouped scalar route requires a selected scalar group");
                 };
-                crate::phase::construction::solve_grouped_scalar_construction(
+                if !scalar_group_work_remaining(group, solver_scope.working_solution()) {
+                    return false;
+                }
+                record_scalar_assignment_remaining(group, solver_scope);
+                let mut phase = crate::phase::construction::build_scalar_group_construction(
                     config,
                     *group_index,
-                    group,
-                    &capabilities.scalar_bindings,
-                    solver_scope,
-                )
+                    group.clone(),
+                    capabilities.scalar_bindings.clone(),
+                    required_only,
+                );
+                phase.solve(solver_scope);
+                record_scalar_assignment_remaining(group, solver_scope);
+                true
             }
             ConstructionRoute::GenericMixed => {
                 crate::phase::construction::solve_construction(config, &self.model, solver_scope)
             }
         }
+    }
+}
+
+fn scalar_group_work_remaining<S>(
+    group: &crate::builder::ScalarGroupBinding<S>,
+    solution: &S,
+) -> bool {
+    if let Some(assignment) = group.assignment() {
+        return assignment.unassigned_count(solution) > 0;
+    }
+    group.members.iter().any(|member| {
+        (0..member.entity_count(solution))
+            .any(|entity_index| member.current_value(solution, entity_index).is_none())
+    })
+}
+
+fn record_scalar_assignment_remaining<S, D, ProgressCb>(
+    group: &crate::builder::ScalarGroupBinding<S>,
+    solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
+) where
+    S: PlanningSolution,
+    D: solverforge_scoring::Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    if let Some(assignment) = group.assignment() {
+        let remaining = assignment.remaining_required_count(solver_scope.working_solution());
+        solver_scope
+            .stats_mut()
+            .record_scalar_assignment_required_remaining(group.group_name, remaining);
     }
 }
 
@@ -234,7 +271,7 @@ where
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
         let ran_child_phase = match self.config.as_ref() {
             None => defaults::solve_default_construction(self, solver_scope),
-            Some(config) => self.solve_configured(Some(config), solver_scope),
+            Some(config) => self.solve_configured(Some(config), solver_scope, false),
         };
         if !ran_child_phase {
             finalize_noop_construction(solver_scope);
@@ -348,8 +385,14 @@ where
                     custom.name
                 );
             }
-            _ => {
-                panic!("unsupported phase in the runtime");
+            PhaseConfig::PartitionedSearch(partitioned) => {
+                let name = partitioned
+                    .partitioner
+                    .as_deref()
+                    .unwrap_or("<missing partitioner>");
+                panic!(
+                    "partitioned_search partitioner `{name}` requires typed partitioner registration"
+                );
             }
         }
     }

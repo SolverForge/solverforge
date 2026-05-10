@@ -13,7 +13,43 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::{ChangeMove, Move};
 use crate::heuristic::selector::{EntityReference, EntitySelector, ValueSelector};
 
-use super::ConstructionSlotId;
+use super::{ConstructionGroupSlotId, ConstructionSlotId};
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ConstructionTarget {
+    scalar_slots: Vec<ConstructionSlotId>,
+    group_slot: Option<ConstructionGroupSlotId>,
+}
+
+impl ConstructionTarget {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn with_scalar_slots(mut self, mut scalar_slots: Vec<ConstructionSlotId>) -> Self {
+        scalar_slots.sort_unstable();
+        scalar_slots.dedup();
+        self.scalar_slots = scalar_slots;
+        self
+    }
+
+    pub(crate) fn with_group_slot(mut self, group_slot: ConstructionGroupSlotId) -> Self {
+        self.group_slot = Some(group_slot);
+        self
+    }
+
+    pub(crate) fn scalar_slots(&self) -> &[ConstructionSlotId] {
+        &self.scalar_slots
+    }
+
+    pub(crate) fn group_slot(&self) -> Option<&ConstructionGroupSlotId> {
+        self.group_slot.as_ref()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.scalar_slots.is_empty() && self.group_slot.is_none()
+    }
+}
 
 /// A placement represents an entity that needs a value assigned,
 /// along with the candidate moves to assign values.
@@ -32,7 +68,9 @@ where
     pub moves: Vec<M>,
     // Whether keeping the current value is a legal construction choice.
     keep_current_legal: bool,
-    slot_id: Option<ConstructionSlotId>,
+    target: ConstructionTarget,
+    move_targets: Vec<ConstructionTarget>,
+    construction_entity_order_key: Option<i64>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -46,7 +84,9 @@ where
             entity_ref,
             moves,
             keep_current_legal: false,
-            slot_id: None,
+            target: ConstructionTarget::new(),
+            move_targets: Vec::new(),
+            construction_entity_order_key: None,
             _phantom: PhantomData,
         }
     }
@@ -65,18 +105,63 @@ where
     }
 
     pub(crate) fn with_slot_id(mut self, slot_id: ConstructionSlotId) -> Self {
-        self.slot_id = Some(slot_id);
+        self.target = self.target.with_scalar_slots(vec![slot_id]);
         self
     }
 
-    pub(crate) fn slot_id(&self) -> Option<ConstructionSlotId> {
-        self.slot_id
+    pub(crate) fn with_scalar_slots(mut self, mut scalar_slots: Vec<ConstructionSlotId>) -> Self {
+        scalar_slots.sort_unstable();
+        scalar_slots.dedup();
+        self.target = self.target.with_scalar_slots(scalar_slots);
+        self
+    }
+
+    pub(crate) fn scalar_slots(&self) -> &[ConstructionSlotId] {
+        self.target.scalar_slots()
+    }
+
+    pub(crate) fn with_group_slot(mut self, group_slot: ConstructionGroupSlotId) -> Self {
+        self.target = self.target.with_group_slot(group_slot);
+        self
+    }
+
+    pub(crate) fn with_move_targets(mut self, move_targets: Vec<ConstructionTarget>) -> Self {
+        assert!(
+            move_targets.is_empty() || move_targets.len() == self.moves.len(),
+            "construction move targets must be empty or match the move count"
+        );
+        self.move_targets = move_targets;
+        self
+    }
+
+    pub(crate) fn group_slot(&self) -> Option<&ConstructionGroupSlotId> {
+        self.target.group_slot()
+    }
+
+    pub(crate) fn with_construction_entity_order_key(mut self, order_key: Option<i64>) -> Self {
+        self.construction_entity_order_key = order_key;
+        self
+    }
+
+    pub(crate) fn construction_entity_order_key(&self) -> Option<i64> {
+        self.construction_entity_order_key
+    }
+
+    pub(crate) fn construction_target(&self) -> &ConstructionTarget {
+        &self.target
+    }
+
+    pub(crate) fn construction_target_for_move(&self, move_index: usize) -> &ConstructionTarget {
+        self.move_targets.get(move_index).unwrap_or(&self.target)
     }
 
     /// Takes ownership of a move at the given index.
     ///
     /// Uses swap_remove for O(1) removal.
     pub fn take_move(&mut self, index: usize) -> M {
+        if !self.move_targets.is_empty() {
+            self.move_targets.swap_remove(index);
+        }
         self.moves.swap_remove(index)
     }
 }
@@ -91,7 +176,12 @@ where
             .field("entity_ref", &self.entity_ref)
             .field("move_count", &self.moves.len())
             .field("keep_current_legal", &self.keep_current_legal)
-            .field("slot_id", &self.slot_id)
+            .field("target", &self.target)
+            .field("move_target_count", &self.move_targets.len())
+            .field(
+                "construction_entity_order_key",
+                &self.construction_entity_order_key,
+            )
             .finish()
     }
 }
@@ -121,16 +211,14 @@ where
     ) -> Option<(Placement<S, M>, u64)>
     where
         D: Director<S>,
-        IsCompleted: FnMut(usize, usize) -> bool,
+        IsCompleted: FnMut(&Placement<S, M>) -> bool,
     {
         let mut selected = None;
         let mut generated_moves = 0u64;
 
         for placement in self.get_placements(score_director) {
-            if let Some(slot_id) = placement.slot_id() {
-                if is_completed(slot_id.binding_index(), slot_id.entity_index()) {
-                    continue;
-                }
+            if is_completed(&placement) {
+                continue;
             }
             generated_moves = generated_moves
                 .saturating_add(u64::try_from(placement.moves.len()).unwrap_or(u64::MAX));

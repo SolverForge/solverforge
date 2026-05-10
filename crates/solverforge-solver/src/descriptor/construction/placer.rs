@@ -314,18 +314,13 @@ where
     ) -> Option<(Placement<S, DescriptorMoveUnion<S>>, u64)>
     where
         D: Director<S>,
-        IsCompleted: FnMut(usize, usize) -> bool,
+        IsCompleted: FnMut(&Placement<S, DescriptorMoveUnion<S>>) -> bool,
     {
         let solution = score_director.working_solution();
         let erased_solution = solution as &dyn Any;
 
         for binding in &self.bindings {
             for entity_index in self.ordered_entity_indices(binding, score_director) {
-                let slot_id = binding.slot_id(entity_index);
-                if is_completed(slot_id.binding_index(), slot_id.entity_index()) {
-                    continue;
-                }
-
                 let entity = self
                     .solution_descriptor
                     .get_entity(erased_solution, binding.descriptor_index, entity_index)
@@ -336,6 +331,9 @@ where
 
                 if let Some(placement) = self.placement_for_entity(binding, solution, entity_index)
                 {
+                    if is_completed(&placement) {
+                        continue;
+                    }
                     let generated_moves = u64::try_from(placement.moves.len()).unwrap_or(u64::MAX);
                     return Some((placement, generated_moves));
                 }

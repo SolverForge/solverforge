@@ -18,8 +18,8 @@ use crate::phase::construction::decision::{
 };
 use crate::phase::construction::evaluation::evaluate_trial_move;
 use crate::phase::construction::{
-    BestFitForager, ConstructionChoice, ConstructionForager, EntityPlacer, FirstFeasibleForager,
-    FirstFitForager, Placement, StrongestFitForager, WeakestFitForager,
+    BestFitForager, ConstructionChoice, ConstructionForager, ConstructionTarget, EntityPlacer,
+    FirstFeasibleForager, FirstFitForager, Placement, StrongestFitForager, WeakestFitForager,
 };
 use crate::phase::control::{
     settle_construction_interrupt, should_interrupt_evaluation, StepInterrupt,

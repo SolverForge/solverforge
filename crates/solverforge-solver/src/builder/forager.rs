@@ -93,6 +93,16 @@ where
         }
     }
 
+    fn accepted_count_limit(&self) -> Option<usize> {
+        match self {
+            Self::AcceptedCount(f) => LocalSearchForager::<S, M>::accepted_count_limit(f),
+            Self::FirstAccepted(f) => LocalSearchForager::<S, M>::accepted_count_limit(f),
+            Self::BestScore(f) => LocalSearchForager::<S, M>::accepted_count_limit(f),
+            Self::BestScoreImproving(f) => LocalSearchForager::<S, M>::accepted_count_limit(f),
+            Self::LastStepScoreImproving(f) => LocalSearchForager::<S, M>::accepted_count_limit(f),
+        }
+    }
+
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
         match self {
             Self::AcceptedCount(f) => LocalSearchForager::<S, M>::pick_move_index(f),

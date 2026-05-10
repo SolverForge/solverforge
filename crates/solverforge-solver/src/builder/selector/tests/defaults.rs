@@ -84,26 +84,32 @@ fn default_scalar_selector_uses_nearby_hooks_when_declared() {
 }
 
 #[test]
-fn default_scalar_selector_adds_grouped_assignment_when_registered() {
+fn default_scalar_selector_uses_grouped_assignment_owner_when_registered() {
     let selector = build_move_selector(None, &assignment_scalar_model(), None);
     let neighborhoods = selector.selectors();
 
-    assert_eq!(neighborhoods.len(), 3);
+    assert_eq!(neighborhoods.len(), 1);
     assert!(matches!(
         &neighborhoods[0],
         Neighborhood::Flat(leafs)
             if matches!(&leafs.selectors()[0], NeighborhoodLeaf::GroupedScalar(_))
     ));
-    assert!(matches!(
-        &neighborhoods[1],
-        Neighborhood::Flat(leafs)
-            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Change(_)))
-    ));
-    assert!(matches!(
-        &neighborhoods[2],
-        Neighborhood::Flat(leafs)
-            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::Scalar(ScalarLeafSelector::Swap(_)))
-    ));
+}
+
+#[test]
+#[should_panic(
+    expected = "scalar move selector targets assignment-owned scalar variable Shift.worker"
+)]
+fn explicit_scalar_selector_rejects_assignment_owned_variable() {
+    let config = MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+        value_candidate_limit: None,
+        target: VariableTargetConfig {
+            entity_class: Some("Shift".to_string()),
+            variable_name: Some("worker".to_string()),
+        },
+    });
+
+    let _ = build_move_selector(Some(&config), &assignment_scalar_model(), None);
 }
 
 #[test]

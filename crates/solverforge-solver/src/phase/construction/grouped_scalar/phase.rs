@@ -1,196 +1,180 @@
-use std::time::Instant;
+use std::fmt::{self, Debug};
 
-use solverforge_config::{ConstructionHeuristicConfig, ConstructionHeuristicType};
+use solverforge_config::{
+    ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,
+};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
-use tracing::info;
 
-use crate::builder::context::{ScalarAssignmentBinding, ScalarGroupBinding, ScalarGroupLimits};
-use crate::builder::ScalarGroupBindingKind;
+use crate::builder::context::{ScalarGroupBinding, ScalarGroupLimits};
 use crate::descriptor::ResolvedVariableBinding;
-use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
-use crate::stats::{format_duration, whole_units_per_second};
+use crate::heuristic::r#move::CompoundScalarMove;
+use crate::phase::construction::{
+    BestFitForager, ConstructionForager, ConstructionHeuristicPhase, FirstFitForager,
+    StrongestFitForager, WeakestFitForager,
+};
+use crate::phase::Phase;
+use crate::scope::{ProgressCallback, SolverScope};
 
-use super::assignment_candidate::remaining_required_count;
-use super::candidate::normalize_grouped_candidates;
-use super::selection::{select_candidate_for_next_group_slot, GroupedSelection};
+use super::placer::ScalarGroupPlacer;
+use super::scalar_group_move_strength;
 
-pub(crate) fn solve_grouped_scalar_construction<S, D, ProgressCb>(
-    config: Option<&ConstructionHeuristicConfig>,
-    group_index: usize,
-    group: &ScalarGroupBinding<S>,
-    scalar_bindings: &[ResolvedVariableBinding<S>],
-    solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
-) -> bool
+pub(crate) enum ScalarGroupConstruction<S>
+where
+    S: PlanningSolution,
+{
+    FirstFit(
+        ConstructionHeuristicPhase<
+            S,
+            CompoundScalarMove<S>,
+            ScalarGroupPlacer<S>,
+            FirstFitForager<S, CompoundScalarMove<S>>,
+        >,
+    ),
+    BestFit(
+        ConstructionHeuristicPhase<
+            S,
+            CompoundScalarMove<S>,
+            ScalarGroupPlacer<S>,
+            BestFitForager<S, CompoundScalarMove<S>>,
+        >,
+    ),
+    WeakestFit(
+        ConstructionHeuristicPhase<
+            S,
+            CompoundScalarMove<S>,
+            ScalarGroupPlacer<S>,
+            WeakestFitForager<S, CompoundScalarMove<S>>,
+        >,
+    ),
+    StrongestFit(
+        ConstructionHeuristicPhase<
+            S,
+            CompoundScalarMove<S>,
+            ScalarGroupPlacer<S>,
+            StrongestFitForager<S, CompoundScalarMove<S>>,
+        >,
+    ),
+}
+
+impl<S> Debug for ScalarGroupConstruction<S>
+where
+    S: PlanningSolution,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FirstFit(phase) => write!(f, "ScalarGroupConstruction::FirstFit({phase:?})"),
+            Self::BestFit(phase) => write!(f, "ScalarGroupConstruction::BestFit({phase:?})"),
+            Self::WeakestFit(phase) => {
+                write!(f, "ScalarGroupConstruction::WeakestFit({phase:?})")
+            }
+            Self::StrongestFit(phase) => {
+                write!(f, "ScalarGroupConstruction::StrongestFit({phase:?})")
+            }
+        }
+    }
+}
+
+impl<S, D, ProgressCb> Phase<S, D, ProgressCb> for ScalarGroupConstruction<S>
 where
     S: PlanningSolution + 'static,
-    S::Score: Score + Copy,
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
+{
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
+        match self {
+            Self::FirstFit(phase) => phase.solve(solver_scope),
+            Self::BestFit(phase) => phase.solve(solver_scope),
+            Self::WeakestFit(phase) => phase.solve(solver_scope),
+            Self::StrongestFit(phase) => phase.solve(solver_scope),
+        }
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "ScalarGroupConstruction"
+    }
+}
+
+pub(crate) fn build_scalar_group_construction<S>(
+    config: Option<&ConstructionHeuristicConfig>,
+    group_index: usize,
+    group: ScalarGroupBinding<S>,
+    scalar_bindings: Vec<ResolvedVariableBinding<S>>,
+    required_only: bool,
+) -> ScalarGroupConstruction<S>
+where
+    S: PlanningSolution + 'static,
+    S::Score: Score,
 {
     let construction_type = config
         .map(|cfg| cfg.construction_heuristic_type)
         .unwrap_or(ConstructionHeuristicType::FirstFit);
     let construction_obligation = config
         .map(|cfg| cfg.construction_obligation)
-        .unwrap_or_default();
+        .unwrap_or(ConstructionObligation::default());
     let limits = effective_group_limits(config, group.limits);
-    let assignment = match group.kind {
-        ScalarGroupBindingKind::Assignment(assignment) => Some(assignment),
-        ScalarGroupBindingKind::Candidates { .. } => None,
-    };
-
-    let phase_name = "Grouped Scalar Construction";
-    let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, phase_name);
-    let phase_index = phase_scope.phase_index();
-    let start_score = phase_scope
-        .solver_scope()
-        .current_score()
-        .map(|score| score.to_string())
-        .unwrap_or_else(|| "none".to_string());
-    let mut ran_step = false;
-    let mut last_progress_time = Instant::now();
-
-    info!(
-        event = "phase_start",
-        phase = phase_name,
-        group = group.group_name,
-        phase_index = phase_index,
-        score = start_score,
-    );
-    record_assignment_remaining(&mut phase_scope, group.group_name, assignment);
-    phase_scope.solver_scope().report_progress();
-
-    loop {
-        if phase_scope
-            .solver_scope_mut()
-            .should_terminate_construction()
-        {
-            break;
-        }
-
-        let candidates =
-            normalize_grouped_candidates(&phase_scope, group_index, group, scalar_bindings, limits);
-        let Some(selection) = select_candidate_for_next_group_slot(
-            &mut phase_scope,
-            candidates,
-            construction_type,
-            construction_obligation,
-        ) else {
-            break;
-        };
-
-        ran_step = true;
-        match selection {
-            GroupedSelection::Commit {
-                group_slot,
-                scalar_slots,
-                mov,
-                score,
-            } => {
-                let mut step_scope = StepScope::new(&mut phase_scope);
-                step_scope.phase_scope_mut().record_move_accepted();
-                step_scope.apply_committed_move(&mov);
-                step_scope.phase_scope_mut().record_move_applied();
-                step_scope
-                    .phase_scope_mut()
-                    .solver_scope_mut()
-                    .mark_group_slot_completed(group_slot);
-                for slot in scalar_slots {
-                    step_scope
-                        .phase_scope_mut()
-                        .solver_scope_mut()
-                        .mark_scalar_slot_completed(slot);
-                }
-                step_scope
-                    .phase_scope_mut()
-                    .record_construction_slot_assigned();
-                step_scope.set_step_score(score);
-                step_scope.complete();
-                record_assignment_remaining(
-                    step_scope.phase_scope_mut(),
-                    group.group_name,
-                    assignment,
-                );
-                if last_progress_time.elapsed().as_secs() >= 1 {
-                    step_scope.phase_scope().solver_scope().report_progress();
-                    last_progress_time = Instant::now();
-                }
-            }
-            GroupedSelection::CompleteOnly {
-                group_slot,
-                scalar_slots,
-                kept,
-            } => {
-                let mut step_scope = StepScope::new(&mut phase_scope);
-                step_scope
-                    .phase_scope_mut()
-                    .solver_scope_mut()
-                    .mark_group_slot_completed(group_slot);
-                for slot in scalar_slots {
-                    step_scope
-                        .phase_scope_mut()
-                        .solver_scope_mut()
-                        .mark_scalar_slot_completed(slot);
-                }
-                if kept {
-                    step_scope.phase_scope_mut().record_construction_slot_kept();
-                } else {
-                    step_scope
-                        .phase_scope_mut()
-                        .record_construction_slot_no_doable();
-                }
-                let score = step_scope.calculate_score();
-                step_scope.set_step_score(score);
-                step_scope.complete();
-                record_assignment_remaining(
-                    step_scope.phase_scope_mut(),
-                    group.group_name,
-                    assignment,
-                );
-                if last_progress_time.elapsed().as_secs() >= 1 {
-                    step_scope.phase_scope().solver_scope().report_progress();
-                    last_progress_time = Instant::now();
-                }
-            }
-        }
-    }
-
-    record_assignment_remaining(&mut phase_scope, group.group_name, assignment);
-    if ran_step {
-        phase_scope.update_best_solution();
-    }
-
-    phase_scope.solver_scope().report_progress();
-    let best_score = phase_scope
-        .solver_scope()
-        .best_score()
-        .map(|score| score.to_string())
-        .unwrap_or_else(|| "none".to_string());
-    let duration = phase_scope.elapsed();
-    let steps = phase_scope.step_count();
-    let speed = whole_units_per_second(steps, duration);
-    let stats = phase_scope.stats();
-
-    info!(
-        event = "phase_end",
-        phase = phase_name,
-        group = group.group_name,
-        phase_index = phase_index,
-        duration = %format_duration(duration),
-        steps = steps,
-        moves_generated = stats.moves_generated,
-        moves_evaluated = stats.moves_evaluated,
-        moves_accepted = stats.moves_accepted,
-        score_calculations = stats.score_calculations,
-        generation_time = %format_duration(stats.generation_time()),
-        evaluation_time = %format_duration(stats.evaluation_time()),
-        speed = speed,
-        score = best_score,
+    let placer = ScalarGroupPlacer::new(
+        group_index,
+        group,
+        scalar_bindings,
+        limits,
+        construction_type,
+        construction_obligation,
+        required_only,
     );
 
-    ran_step
+    match construction_type {
+        ConstructionHeuristicType::FirstFit | ConstructionHeuristicType::FirstFitDecreasing => {
+            ScalarGroupConstruction::FirstFit(build_phase(
+                placer,
+                construction_obligation,
+                FirstFitForager::new(),
+            ))
+        }
+        ConstructionHeuristicType::CheapestInsertion => ScalarGroupConstruction::BestFit(
+            build_phase(placer, construction_obligation, BestFitForager::new()),
+        ),
+        ConstructionHeuristicType::WeakestFit | ConstructionHeuristicType::WeakestFitDecreasing => {
+            ScalarGroupConstruction::WeakestFit(build_phase(
+                placer,
+                construction_obligation,
+                WeakestFitForager::new(scalar_group_move_strength::<S>),
+            ))
+        }
+        ConstructionHeuristicType::StrongestFit
+        | ConstructionHeuristicType::StrongestFitDecreasing => {
+            ScalarGroupConstruction::StrongestFit(build_phase(
+                placer,
+                construction_obligation,
+                StrongestFitForager::new(scalar_group_move_strength::<S>),
+            ))
+        }
+        ConstructionHeuristicType::AllocateEntityFromQueue
+        | ConstructionHeuristicType::AllocateToValueFromQueue
+        | ConstructionHeuristicType::ListRoundRobin
+        | ConstructionHeuristicType::ListCheapestInsertion
+        | ConstructionHeuristicType::ListRegretInsertion
+        | ConstructionHeuristicType::ListClarkeWright
+        | ConstructionHeuristicType::ListKOpt => unreachable!(
+            "grouped scalar construction only handles scalar grouped heuristics, got {:?}",
+            construction_type
+        ),
+    }
+}
+
+fn build_phase<S, Fo>(
+    placer: ScalarGroupPlacer<S>,
+    construction_obligation: ConstructionObligation,
+    forager: Fo,
+) -> ConstructionHeuristicPhase<S, CompoundScalarMove<S>, ScalarGroupPlacer<S>, Fo>
+where
+    S: PlanningSolution + 'static,
+    Fo: ConstructionForager<S, CompoundScalarMove<S>>,
+{
+    ConstructionHeuristicPhase::new(placer, forager)
+        .with_construction_obligation(construction_obligation)
+        .with_live_placement_refresh()
 }
 
 fn effective_group_limits(
@@ -207,21 +191,5 @@ fn effective_group_limits(
         max_moves_per_step: group_limits.max_moves_per_step,
         max_augmenting_depth: group_limits.max_augmenting_depth,
         max_rematch_size: group_limits.max_rematch_size,
-    }
-}
-
-fn record_assignment_remaining<S, D, ProgressCb>(
-    phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
-    group_name: &'static str,
-    assignment: Option<ScalarAssignmentBinding<S>>,
-) where
-    S: PlanningSolution,
-    D: Director<S>,
-    ProgressCb: ProgressCallback<S>,
-{
-    if let Some(assignment) = assignment {
-        let remaining =
-            remaining_required_count(&assignment, phase_scope.score_director().working_solution());
-        phase_scope.record_scalar_assignment_required_remaining(group_name, remaining);
     }
 }

@@ -29,7 +29,7 @@ fn default_nearby_scalar_local_search_uses_stream_horizon() {
     let debug = format!("{phase:?}");
 
     assert!(debug.contains("SimulatedAnnealing"));
-    assert!(debug.contains("accepted_count_limit: 128"));
+    assert!(debug.contains("accepted_count_limit: 256"));
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn default_search_profile_uses_one_streaming_phase_for_assignment_groups() {
     let debug = format!("{:?}", phases[0]);
     assert!(debug.contains("AcceptorForager"));
     assert!(!debug.contains("VariableNeighborhoodDescent"));
-    assert!(debug.contains("accepted_count_limit: 128"));
+    assert!(debug.contains("accepted_count_limit: 256"));
 }
 
 #[test]
@@ -66,13 +66,13 @@ fn default_list_and_mixed_local_search_use_list_streaming_defaults() {
     );
     let list_debug = format!("{list_phase:?}");
     assert!(list_debug.contains("LateAcceptance"));
-    assert!(list_debug.contains("accepted_count_limit: 128"));
+    assert!(list_debug.contains("accepted_count_limit: 256"));
 
     let mixed_phase =
         build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(None, &mixed_model(), None);
     let mixed_debug = format!("{mixed_phase:?}");
     assert!(mixed_debug.contains("LateAcceptance"));
-    assert!(mixed_debug.contains("accepted_count_limit: 128"));
+    assert!(mixed_debug.contains("accepted_count_limit: 256"));
 }
 
 #[test]

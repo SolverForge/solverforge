@@ -120,14 +120,7 @@ where
                 let placement_generation_started = Instant::now();
                 let next_placement = self.placer.get_next_placement(
                     phase_scope.score_director(),
-                    |binding_index, entity_index| {
-                        phase_scope
-                            .solver_scope()
-                            .is_scalar_slot_completed(crate::phase::construction::ConstructionSlotId::new(
-                                binding_index,
-                                entity_index,
-                            ))
-                    },
+                    |placement| placement_completed(placement, phase_scope.solver_scope()),
                 );
                 let placement_generation_elapsed = placement_generation_started.elapsed();
                 if let Some((placement, generated_moves)) = next_placement {

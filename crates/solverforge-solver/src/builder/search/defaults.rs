@@ -20,7 +20,7 @@ use crate::phase::localsearch::{LateAcceptanceAcceptor, SimulatedAnnealingAccept
 const DEFAULT_SCALAR_NEARBY_LIMIT: usize = 10;
 const DEFAULT_LIST_NEARBY_LIMIT: usize = 20;
 const DEFAULT_LOCAL_SEARCH_LATE_ACCEPTANCE_SIZE: usize = 400;
-const DEFAULT_LOCAL_SEARCH_ACCEPTED_COUNT: usize = 128;
+const DEFAULT_LOCAL_SEARCH_ACCEPTED_COUNT: usize = 256;
 const DEFAULT_SIMULATED_ANNEALING_DECAY_RATE: f64 = 0.999985;
 
 fn scalar_target<S>(variable: &crate::builder::ScalarVariableSlot<S>) -> VariableTargetConfig {
@@ -156,6 +156,7 @@ fn append_scalar_selectors<S, V, DM, IDM>(
     for variable in model
         .scalar_variables()
         .filter(|variable| variable.supports_nearby_change())
+        .filter(|variable| !model.assignment_group_covers_scalar_variable(variable))
     {
         selectors.push(default_nearby_scalar_change_selector(variable));
     }
@@ -163,6 +164,7 @@ fn append_scalar_selectors<S, V, DM, IDM>(
     for variable in model
         .scalar_variables()
         .filter(|variable| variable.supports_nearby_swap())
+        .filter(|variable| !model.assignment_group_covers_scalar_variable(variable))
     {
         selectors.push(default_nearby_scalar_swap_selector(variable));
     }
@@ -175,11 +177,17 @@ fn append_scalar_selectors<S, V, DM, IDM>(
         selectors.push(default_compound_conflict_repair_selector(model));
     }
 
-    for variable in model.scalar_variables() {
+    for variable in model
+        .scalar_variables()
+        .filter(|variable| !model.assignment_group_covers_scalar_variable(variable))
+    {
         selectors.push(default_scalar_change_selector(variable));
     }
 
-    for variable in model.scalar_variables() {
+    for variable in model
+        .scalar_variables()
+        .filter(|variable| !model.assignment_group_covers_scalar_variable(variable))
+    {
         selectors.push(default_scalar_swap_selector(variable));
     }
 }

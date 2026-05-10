@@ -7,6 +7,7 @@ struct CoverageSlot {
     assigned: Option<usize>,
     values: Vec<usize>,
     assignment_penalty: i64,
+    worker_penalties: Vec<i64>,
 }
 
 #[derive(Clone, Debug)]
@@ -64,8 +65,11 @@ impl Director<CoveragePlan> for CoverageDirector {
             .working_solution
             .slots
             .iter()
-            .filter(|slot| slot.assigned.is_some())
-            .map(|slot| slot.assignment_penalty)
+            .filter_map(|slot| {
+                let worker = slot.assigned?;
+                let worker_penalty = slot.worker_penalties.get(worker).copied().unwrap_or(0);
+                Some(slot.assignment_penalty + worker_penalty)
+            })
             .sum::<i64>();
         let mut occupancy = HashMap::new();
         for slot in &self.working_solution.slots {
@@ -133,6 +137,24 @@ fn coverage_slot_with_penalty(
         assigned,
         values: values.to_vec(),
         assignment_penalty,
+        worker_penalties: Vec::new(),
+    }
+}
+
+fn coverage_slot_with_worker_penalties(
+    required: bool,
+    day: usize,
+    assigned: Option<usize>,
+    values: &[usize],
+    worker_penalties: &[i64],
+) -> CoverageSlot {
+    CoverageSlot {
+        required,
+        day,
+        assigned,
+        values: values.to_vec(),
+        assignment_penalty: 0,
+        worker_penalties: worker_penalties.to_vec(),
     }
 }
 
@@ -309,6 +331,45 @@ fn solve_assignment_with_config_and_model(
     solver_scope
 }
 
+fn solve_default_assignment(
+    plan: CoveragePlan,
+) -> SolverScope<'static, CoveragePlan, CoverageDirector> {
+    let descriptor = coverage_plan_descriptor();
+    let director = CoverageDirector {
+        working_solution: plan,
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+    let mut phase = Construction::new(None, descriptor, assignment_model());
+    phase.solve(&mut solver_scope);
+    solver_scope
+}
+
+fn selector_assignment_moves_for_plan(
+    plan: &CoveragePlan,
+    limits: ScalarGroupLimits,
+    max_moves: usize,
+) -> Vec<crate::heuristic::r#move::CompoundScalarMove<CoveragePlan>> {
+    let model = assignment_model_with_limits(limits);
+    let group = &model.scalar_groups()[0];
+    let crate::builder::ScalarGroupBindingKind::Assignment(assignment) = group.kind else {
+        panic!("test model should contain an assignment-backed scalar group");
+    };
+    let options =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_selector(
+            group.limits,
+            None,
+            max_moves,
+            0,
+        );
+    crate::phase::construction::grouped_scalar::selector_assignment_moves(
+        &assignment,
+        plan,
+        options,
+    )
+}
+
 #[test]
 fn scalar_assignment_construction_fills_required_slots_with_free_capacity() {
     let solver_scope = solve_assignment(coverage_plan(
@@ -326,6 +387,50 @@ fn scalar_assignment_construction_fills_required_slots_with_free_capacity() {
         solver_scope.current_score().copied(),
         Some(HardSoftScore::of(0, 0))
     );
+}
+
+#[test]
+fn scalar_assignment_live_construction_generates_only_current_assignment_placement() {
+    let slot_count = 12;
+    let solver_scope = solve_assignment(coverage_plan(
+        1,
+        (0..slot_count)
+            .map(|day| coverage_slot(true, day, None, &[0]))
+            .collect(),
+    ));
+
+    assert!(solver_scope
+        .working_solution()
+        .slots
+        .iter()
+        .all(|slot| slot.assigned.is_some()));
+    assert_eq!(solver_scope.stats().moves_generated, slot_count as u64);
+}
+
+#[test]
+fn scalar_assignment_first_fit_uses_cursor_default_for_assignment_alternatives() {
+    let slot_count = 3;
+    let values = (0..12).collect::<Vec<_>>();
+    let solver_scope = solve_assignment_with_config_and_model(
+        coverage_plan(
+            12,
+            (0..slot_count)
+                .map(|day| coverage_slot(true, day, None, &values))
+                .collect(),
+        ),
+        assignment_config(),
+        assignment_model_with_limits(ScalarGroupLimits {
+            max_rematch_size: Some(3),
+            ..ScalarGroupLimits::new()
+        }),
+    );
+
+    assert!(solver_scope
+        .working_solution()
+        .slots
+        .iter()
+        .all(|slot| slot.assigned.is_some()));
+    assert_eq!(solver_scope.stats().moves_generated, 36);
 }
 
 #[test]
@@ -348,139 +453,21 @@ fn scalar_assignment_construction_ignores_repair_move_cap() {
     else {
         panic!("test model should contain an assignment-backed scalar group");
     };
-    let options = crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_construction(
-        model.scalar_groups()[0].limits,
-    );
-    let moves = crate::phase::construction::grouped_scalar::required_assignment_moves(
-        &assignment,
-        &plan,
-        options,
-    );
-
-    assert_eq!(moves.len(), 2);
-}
-
-#[test]
-fn scalar_assignment_construction_assigns_optional_only_after_required_complete() {
-    let solver_scope = solve_assignment(coverage_plan(
-        1,
-        vec![
-            coverage_slot(false, 0, None, &[0]),
-            coverage_slot(true, 0, None, &[0]),
-        ],
-    ));
-
-    let slots = &solver_scope.working_solution().slots;
-    assert_eq!(slots[0].assigned, None);
-    assert_eq!(slots[1].assigned, Some(0));
-    assert_eq!(
-        solver_scope.current_score().copied(),
-        Some(HardSoftScore::of(0, -1))
-    );
-}
-
-#[test]
-fn scalar_assignment_construction_displaces_optional_occupant_for_required_slot() {
-    let solver_scope = solve_assignment(coverage_plan(
-        1,
-        vec![
-            coverage_slot(false, 0, Some(0), &[0]),
-            coverage_slot(true, 0, None, &[0]),
-        ],
-    ));
-
-    let slots = &solver_scope.working_solution().slots;
-    assert_eq!(slots[0].assigned, None);
-    assert_eq!(slots[1].assigned, Some(0));
-    assert_eq!(
-        solver_scope.current_score().copied(),
-        Some(HardSoftScore::of(0, -1))
-    );
-}
-
-#[test]
-fn scalar_assignment_construction_moves_required_blocker_through_augmenting_path() {
-    let solver_scope = solve_assignment(coverage_plan(
-        2,
-        vec![
-            coverage_slot(true, 0, None, &[0]),
-            coverage_slot(true, 0, Some(0), &[0, 1]),
-        ],
-    ));
-
-    let slots = &solver_scope.working_solution().slots;
-    assert_eq!(slots[0].assigned, Some(0));
-    assert_eq!(slots[1].assigned, Some(1));
-    assert_eq!(
-        solver_scope.current_score().copied(),
-        Some(HardSoftScore::of(0, 0))
-    );
-}
-
-#[test]
-fn scalar_assignment_construction_forces_required_assignment_when_hard_neutral_soft_worse() {
-    let solver_scope = solve_assignment(soft_preferred_coverage_plan(
-        1,
-        vec![coverage_slot_with_penalty(true, 0, None, &[0], 5)],
-    ));
-
-    assert_eq!(solver_scope.working_solution().slots[0].assigned, Some(0));
-    assert_eq!(
-        solver_scope.current_score().copied(),
-        Some(HardSoftScore::of(0, -5))
-    );
-    assert_eq!(solver_scope.stats().scalar_assignment_required_remaining, 0);
-}
-
-#[test]
-fn scalar_assignment_construction_reports_remaining_required_slots_without_panic() {
-    let solver_scope = solve_assignment(coverage_plan(1, vec![coverage_slot(true, 0, None, &[])]));
-
-    assert_eq!(solver_scope.working_solution().slots[0].assigned, None);
-    assert_eq!(
-        solver_scope.current_score().copied(),
-        Some(HardSoftScore::of(-1, 0))
-    );
-    assert_eq!(solver_scope.stats().scalar_assignment_required_remaining, 1);
-}
-
-#[test]
-fn scalar_assignment_best_solution_callback_reports_current_remaining_required_slots() {
-    let best_remaining = std::sync::Mutex::new(Vec::new());
-    {
-        let descriptor = coverage_plan_descriptor();
-        let director = CoverageDirector {
-            working_solution: soft_preferred_coverage_plan(
-                1,
-                vec![
-                    coverage_slot(false, 0, Some(0), &[0]),
-                    coverage_slot(true, 0, None, &[0]),
-                ],
-            ),
-            descriptor: descriptor.clone(),
-        };
-        let callback = |progress: crate::scope::SolverProgressRef<'_, CoveragePlan>| {
-            if progress.kind == crate::scope::SolverProgressKind::BestSolution {
-                best_remaining
-                    .lock()
-                    .expect("best-solution telemetry capture should not be poisoned")
-                    .push(progress.telemetry.scalar_assignment_required_remaining);
-            }
-        };
-        let mut solver_scope = SolverScope::new(director).with_progress_callback(callback);
-        solver_scope.start_solving();
-        let mut config = assignment_config();
-        config.construction_obligation = ConstructionObligation::PreserveUnassigned;
-        let mut phase = Construction::new(Some(config), descriptor, assignment_model());
-
-        phase.solve(&mut solver_scope);
-
-        assert_eq!(solver_scope.working_solution().slots[1].assigned, None);
-        assert_eq!(solver_scope.stats().scalar_assignment_required_remaining, 1);
+    let options =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_construction(
+            model.scalar_groups()[0].limits,
+        );
+    let mut cursor =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::required_construction(
+            assignment,
+            plan,
+            options,
+        );
+    let mut edited_slots = 0;
+    while let Some(mov) = cursor.next_move() {
+        edited_slots += mov.edits().len();
     }
 
-    let best_remaining = best_remaining
-        .into_inner()
-        .expect("best-solution telemetry capture should not be poisoned");
-    assert_eq!(best_remaining.as_slice(), &[1]);
+    assert_eq!(edited_slots, 2);
 }
+

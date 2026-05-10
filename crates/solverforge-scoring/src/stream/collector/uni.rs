@@ -1,7 +1,7 @@
 /* Collector traits for grouping and aggregating entities.
 
 Collectors aggregate entities within groups during `group_by()` operations.
-They maintain incremental state for O(1) insert/retract operations.
+They maintain incremental state for insert/retract operations.
 */
 
 /* A collector that aggregates entities of type `A` into a result of type `R`.
@@ -12,26 +12,27 @@ into summary values.
 # Zero-Erasure Design
 
 The collector owns any mapping functions and provides `extract()` to convert
-entities to values. The accumulator only works with extracted values, avoiding
-the need to clone mapping functions into each accumulator.
+entities to owned values. The accumulator owns retained values and returns
+lightweight retraction tokens, avoiding copied or cloned collector payloads in
+grouped state.
 
 # Incremental Protocol
 
 Collectors support incremental updates:
 1. `create_accumulator()` creates a fresh accumulator
 2. `extract(entity)` converts entity to accumulator value
-3. `accumulate(value)` adds value to accumulator
-4. `retract(value)` removes value from accumulator
-5. `finish()` produces the final result
+3. `accumulate(value)` moves value into accumulator and returns a retraction token
+4. `retract(token)` removes the retained value represented by that token
+5. `with_result()` exposes the current result without materializing an owned clone
 
-This enables O(1) score updates when entities are added/removed from groups.
+This enables incremental score updates when entities are added/removed from groups.
 */
 pub trait UniCollector<A>: Send + Sync {
     // The value type extracted from entities and passed to the accumulator.
     type Value;
 
     // The result type produced by this collector.
-    type Result: Clone + Send + Sync;
+    type Result: Send + Sync;
 
     // The accumulator type used during collection.
     type Accumulator: Accumulator<Self::Value, Self::Result>;
@@ -45,18 +46,29 @@ pub trait UniCollector<A>: Send + Sync {
 
 /* An accumulator that incrementally collects values.
 
-Values are extracted by the collector's `extract()` method before
-being passed to the accumulator by reference.
+Values are extracted by the collector's `extract()` method before being moved
+into the accumulator.
 */
 pub trait Accumulator<V, R>: Send + Sync {
-    // Adds a value to the accumulator.
-    fn accumulate(&mut self, value: &V);
+    // Retained handle needed to undo one accumulated value.
+    type Retraction: Send + Sync;
 
-    // Removes a value from the accumulator.
-    fn retract(&mut self, value: &V);
+    // Adds an owned value to the accumulator and returns its retraction handle.
+    fn accumulate(&mut self, value: V) -> Self::Retraction;
 
-    // Produces the final result.
-    fn finish(&self) -> R;
+    // Removes a value previously represented by the retraction handle.
+    fn retract(&mut self, retraction: Self::Retraction);
+
+    // Exposes the current result without forcing owned result materialization.
+    fn with_result<T>(&self, f: impl FnOnce(&R) -> T) -> T;
+
+    // Produces an owned result for cloneable result types.
+    fn finish(&self) -> R
+    where
+        R: Clone,
+    {
+        self.with_result(Clone::clone)
+    }
 
     // Resets the accumulator to its initial state.
     fn reset(&mut self);

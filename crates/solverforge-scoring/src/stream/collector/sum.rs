@@ -83,19 +83,22 @@ impl<T> Accumulator<T, T> for SumAccumulator<T>
 where
     T: Default + Copy + AddAssign + SubAssign + Send + Sync,
 {
+    type Retraction = T;
+
     #[inline]
-    fn accumulate(&mut self, value: &T) {
-        self.sum += *value;
+    fn accumulate(&mut self, value: T) -> Self::Retraction {
+        self.sum += value;
+        value
     }
 
     #[inline]
-    fn retract(&mut self, value: &T) {
-        self.sum -= *value;
+    fn retract(&mut self, value: Self::Retraction) {
+        self.sum -= value;
     }
 
     #[inline]
-    fn finish(&self) -> T {
-        self.sum
+    fn with_result<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        f(&self.sum)
     }
 
     #[inline]

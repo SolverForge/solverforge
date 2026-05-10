@@ -6,7 +6,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::grouped::GroupedUniConstraint;
 use crate::stream::collection_extract::{source, vec, ChangeSource};
-use crate::stream::collector::count;
+use crate::stream::collector::{collect_vec, count, CollectedVec};
 use crate::stream::filter::TrueFilter;
 
 #[derive(Clone)]
@@ -140,4 +140,28 @@ fn test_grouped_constraint_weight_can_use_key() {
     };
 
     assert_eq!(constraint.evaluate(&solution), SoftScore::of(-5));
+}
+
+#[test]
+fn test_grouped_constraint_collect_vec_accepts_owned_labels() {
+    let constraint = GroupedUniConstraint::new(
+        ConstraintRef::new("", "Grouped labels"),
+        ImpactType::Penalty,
+        vec(|s: &GroupedSolution| &s.shifts),
+        TrueFilter,
+        |shift: &GroupedShift| shift.employee_id,
+        collect_vec(|shift: &GroupedShift| format!("employee-{}", shift.employee_id)),
+        |_employee_id: &usize, labels: &CollectedVec<String>| SoftScore::of(labels.len() as i64),
+        false,
+    );
+
+    let solution = GroupedSolution {
+        shifts: vec![
+            GroupedShift { employee_id: 1 },
+            GroupedShift { employee_id: 1 },
+            GroupedShift { employee_id: 2 },
+        ],
+    };
+
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-3));
 }

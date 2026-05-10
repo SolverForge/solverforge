@@ -15,6 +15,11 @@ struct GroupState<Acc> {
     count: usize,
 }
 
+type CollectorRetraction<C, Out> = <<C as UniCollector<Out>>::Accumulator as Accumulator<
+    <C as UniCollector<Out>>::Value,
+    <C as UniCollector<Out>>::Result,
+>>::Retraction;
+
 pub struct ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, W, Sc>
 where
     Src: ProjectedSource<S, Out>,
@@ -32,6 +37,7 @@ where
     source_state: Option<Src::State>,
     groups: HashMap<K, GroupState<C::Accumulator>>,
     row_outputs: HashMap<ProjectedRowCoordinate, Out>,
+    row_retractions: HashMap<ProjectedRowCoordinate, CollectorRetraction<C, Out>>,
     rows_by_owner: HashMap<ProjectedRowOwner, Vec<ProjectedRowCoordinate>>,
     _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> Sc)>,
 }
@@ -74,6 +80,7 @@ where
             source_state: None,
             groups: HashMap::new(),
             row_outputs: HashMap::new(),
+            row_retractions: HashMap::new(),
             rows_by_owner: HashMap::new(),
             _phantom: PhantomData,
         }
@@ -115,25 +122,31 @@ where
         });
     }
 
-    fn insert_value(&mut self, key: K, value: &C::Value) -> Sc {
+    fn insert_value(&mut self, key: K, value: C::Value) -> (Sc, CollectorRetraction<C, Out>) {
         let impact = self.impact_type;
         let weight_fn = &self.weight_fn;
         match self.groups.entry(key) {
             Entry::Occupied(mut entry) => {
-                let old_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
+                let old_base = entry
+                    .get()
+                    .accumulator
+                    .with_result(|result| weight_fn(entry.key(), result));
                 let old = match impact {
                     ImpactType::Penalty => -old_base,
                     ImpactType::Reward => old_base,
                 };
                 let group = entry.get_mut();
-                group.accumulator.accumulate(value);
+                let retraction = group.accumulator.accumulate(value);
                 group.count += 1;
-                let new_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
+                let new_base = entry
+                    .get()
+                    .accumulator
+                    .with_result(|result| weight_fn(entry.key(), result));
                 let new_score = match impact {
                     ImpactType::Penalty => -new_base,
                     ImpactType::Reward => new_base,
                 };
-                new_score - old
+                (new_score - old, retraction)
             }
             Entry::Vacant(entry) => {
                 let mut entry = entry.insert_entry(GroupState {
@@ -141,36 +154,46 @@ where
                     count: 0,
                 });
                 let group = entry.get_mut();
-                group.accumulator.accumulate(value);
+                let retraction = group.accumulator.accumulate(value);
                 group.count += 1;
-                let new_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
-                match impact {
+                let new_base = entry
+                    .get()
+                    .accumulator
+                    .with_result(|result| weight_fn(entry.key(), result));
+                let score = match impact {
                     ImpactType::Penalty => -new_base,
                     ImpactType::Reward => new_base,
-                }
+                };
+                (score, retraction)
             }
         }
     }
 
-    fn retract_value(&mut self, key: K, value: &C::Value) -> Sc {
+    fn retract_value(&mut self, key: K, retraction: CollectorRetraction<C, Out>) -> Sc {
         let impact = self.impact_type;
         let weight_fn = &self.weight_fn;
         let Entry::Occupied(mut entry) = self.groups.entry(key) else {
             return Sc::zero();
         };
-        let old_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
+        let old_base = entry
+            .get()
+            .accumulator
+            .with_result(|result| weight_fn(entry.key(), result));
         let old = match impact {
             ImpactType::Penalty => -old_base,
             ImpactType::Reward => old_base,
         };
         let group = entry.get_mut();
-        group.accumulator.retract(value);
+        group.accumulator.retract(retraction);
         group.count = group.count.saturating_sub(1);
         let new_score = if group.count == 0 {
             entry.remove();
             Sc::zero()
         } else {
-            let new_base = weight_fn(entry.key(), &entry.get().accumulator.finish());
+            let new_base = entry
+                .get()
+                .accumulator
+                .with_result(|result| weight_fn(entry.key(), result));
             match impact {
                 ImpactType::Penalty => -new_base,
                 ImpactType::Reward => new_base,
@@ -186,8 +209,9 @@ where
         }
         let key = (self.key_fn)(&output);
         let value = self.collector.extract(&output);
-        let delta = self.insert_value(key, &value);
+        let (delta, retraction) = self.insert_value(key, value);
         self.row_outputs.insert(coordinate, output);
+        self.row_retractions.insert(coordinate, retraction);
         self.index_coordinate(coordinate);
         delta
     }
@@ -198,8 +222,10 @@ where
         };
         self.unindex_coordinate(coordinate);
         let key = (self.key_fn)(&output);
-        let value = self.collector.extract(&output);
-        self.retract_value(key, &value)
+        let Some(retraction) = self.row_retractions.remove(&coordinate) else {
+            return Sc::zero();
+        };
+        self.retract_value(key, retraction)
     }
 
     fn localized_owners(
@@ -268,10 +294,10 @@ where
             groups
                 .entry(key)
                 .or_insert_with(|| self.collector.create_accumulator())
-                .accumulate(&value);
+                .accumulate(value);
         });
         groups.iter().fold(Sc::zero(), |total, (key, acc)| {
-            total + self.compute_score(key, &acc.finish())
+            total + acc.with_result(|result| self.compute_score(key, result))
         })
     }
 
@@ -357,6 +383,7 @@ where
         self.source_state = None;
         self.groups.clear();
         self.row_outputs.clear();
+        self.row_retractions.clear();
         self.rows_by_owner.clear();
     }
 

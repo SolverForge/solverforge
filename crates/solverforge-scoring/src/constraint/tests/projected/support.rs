@@ -93,16 +93,19 @@ pub(super) struct NonCloneDeltaAccumulator {
 }
 
 impl Accumulator<NonCloneDelta, i64> for NonCloneDeltaAccumulator {
-    fn accumulate(&mut self, value: &NonCloneDelta) {
+    type Retraction = i64;
+
+    fn accumulate(&mut self, value: NonCloneDelta) -> Self::Retraction {
         self.total += value.0;
+        value.0
     }
 
-    fn retract(&mut self, value: &NonCloneDelta) {
-        self.total -= value.0;
+    fn retract(&mut self, value: Self::Retraction) {
+        self.total -= value;
     }
 
-    fn finish(&self) -> i64 {
-        self.total
+    fn with_result<T>(&self, f: impl FnOnce(&i64) -> T) -> T {
+        f(&self.total)
     }
 
     fn reset(&mut self) {

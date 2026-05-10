@@ -121,7 +121,7 @@ where
         KF: Fn(&A) -> K + Send + Sync,
         C: UniCollector<A> + Send + Sync + 'static,
         C::Accumulator: Send + Sync,
-        C::Result: Clone + Send + Sync,
+        C::Result: Send + Sync,
     {
         GroupedConstraintStream::new(self.extractor, self.filter, key_fn, collector)
     }

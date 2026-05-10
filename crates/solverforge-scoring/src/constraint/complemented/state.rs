@@ -14,6 +14,11 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::stream::collection_extract::ChangeSource;
 use crate::stream::collector::{Accumulator, UniCollector};
 
+type CollectorRetraction<C, A> = <<C as UniCollector<A>>::Accumulator as Accumulator<
+    <C as UniCollector<A>>::Value,
+    <C as UniCollector<A>>::Result,
+>>::Retraction;
+
 /* Zero-erasure constraint for complemented grouped results.
 
 Groups A entities by key, then iterates over B entities (complement source),
@@ -106,8 +111,8 @@ where
     pub(super) groups: HashMap<K, C::Accumulator>,
     // A entity index -> group key (for tracking which group each entity belongs to)
     pub(super) entity_groups: HashMap<usize, K>,
-    // A entity index -> extracted value (for correct retraction after entity mutation)
-    pub(super) entity_values: HashMap<usize, C::Value>,
+    // A entity index -> accumulator retraction token
+    pub(super) entity_retractions: HashMap<usize, CollectorRetraction<C, A>>,
     // B key -> B entity index (for looking up B entities by key)
     pub(super) b_by_key: HashMap<K, usize>,
     // B entity index -> B key (for localized B retraction)
@@ -127,7 +132,6 @@ where
     KA: Fn(&A) -> Option<K>,
     KB: Fn(&B) -> K,
     C: UniCollector<A>,
-    C::Result: Clone,
     D: Fn(&B) -> C::Result,
     W: Fn(&K, &C::Result) -> Sc,
     Sc: Score,
@@ -163,7 +167,7 @@ where
             b_source,
             groups: HashMap::new(),
             entity_groups: HashMap::new(),
-            entity_values: HashMap::new(),
+            entity_retractions: HashMap::new(),
             b_by_key: HashMap::new(),
             b_index_to_key: HashMap::new(),
             _phantom: PhantomData,
@@ -180,7 +184,7 @@ where
     }
 
     // Build grouped results from A entities.
-    pub(super) fn build_groups(&self, entities_a: &[A]) -> HashMap<K, C::Result> {
+    pub(super) fn build_groups(&self, entities_a: &[A]) -> HashMap<K, C::Accumulator> {
         let mut accumulators: HashMap<K, C::Accumulator> = HashMap::new();
 
         for a in entities_a {
@@ -192,12 +196,9 @@ where
             accumulators
                 .entry(key)
                 .or_insert_with(|| self.collector.create_accumulator())
-                .accumulate(&value);
+                .accumulate(value);
         }
 
         accumulators
-            .into_iter()
-            .map(|(k, acc)| (k, acc.finish()))
-            .collect()
     }
 }

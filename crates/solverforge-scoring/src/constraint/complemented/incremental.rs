@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::stream::collector::UniCollector;
+use crate::stream::collector::{Accumulator, UniCollector};
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
@@ -20,7 +20,7 @@ where
     KB: Fn(&B) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync,
     C::Accumulator: Send + Sync,
-    C::Result: Clone + Send + Sync,
+    C::Result: Send + Sync,
     C::Value: Send + Sync,
     D: Fn(&B) -> C::Result + Send + Sync,
     W: Fn(&K, &C::Result) -> Sc + Send + Sync,
@@ -37,7 +37,7 @@ where
             let key = (self.key_b)(b);
             total = total
                 + match groups.get(&key) {
-                    Some(result) => self.compute_score(&key, result),
+                    Some(acc) => acc.with_result(|result| self.compute_score(&key, result)),
                     None => {
                         let default_result = (self.default_fn)(b);
                         self.compute_score(&key, &default_result)
@@ -126,7 +126,7 @@ where
     fn reset(&mut self) {
         self.groups.clear();
         self.entity_groups.clear();
-        self.entity_values.clear();
+        self.entity_retractions.clear();
         self.b_by_key.clear();
         self.b_index_to_key.clear();
     }

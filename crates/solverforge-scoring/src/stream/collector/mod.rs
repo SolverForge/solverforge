@@ -11,7 +11,7 @@ mod uni;
 #[cfg(test)]
 mod tests;
 
-pub use collect_vec::{collect_vec, CollectVecAccumulator, CollectVecCollector};
+pub use collect_vec::{collect_vec, CollectVecAccumulator, CollectVecCollector, CollectedVec};
 pub use count::{count, CountAccumulator, CountCollector};
 pub use indexed_presence::{
     indexed_presence, IndexedPresence, IndexedPresenceAccumulator, IndexedPresenceCollector,

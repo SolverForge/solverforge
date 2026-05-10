@@ -115,27 +115,31 @@ impl IndexedPresenceAccumulator {
 }
 
 impl Accumulator<i64, IndexedPresence> for IndexedPresenceAccumulator {
+    type Retraction = i64;
+
     #[inline]
-    fn accumulate(&mut self, value: &i64) {
-        *self.points.entry(*value).or_insert(0) += 1;
+    fn accumulate(&mut self, value: i64) -> Self::Retraction {
+        *self.points.entry(value).or_insert(0) += 1;
+        value
     }
 
     #[inline]
-    fn retract(&mut self, value: &i64) {
-        let Some(count) = self.points.get_mut(value) else {
+    fn retract(&mut self, value: Self::Retraction) {
+        let Some(count) = self.points.get_mut(&value) else {
             return;
         };
         *count = count.saturating_sub(1);
         if *count == 0 {
-            self.points.remove(value);
+            self.points.remove(&value);
         }
     }
 
-    fn finish(&self) -> IndexedPresence {
-        IndexedPresence {
+    fn with_result<T>(&self, f: impl FnOnce(&IndexedPresence) -> T) -> T {
+        let result = IndexedPresence {
             points: self.points.clone(),
             item_count: self.points.values().sum(),
-        }
+        };
+        f(&result)
     }
 
     #[inline]

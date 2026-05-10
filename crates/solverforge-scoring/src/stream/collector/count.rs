@@ -67,19 +67,21 @@ impl CountAccumulator {
 }
 
 impl Accumulator<(), usize> for CountAccumulator {
+    type Retraction = ();
+
     #[inline]
-    fn accumulate(&mut self, _: &()) {
+    fn accumulate(&mut self, _: ()) -> Self::Retraction {
         self.count += 1;
     }
 
     #[inline]
-    fn retract(&mut self, _: &()) {
+    fn retract(&mut self, _: Self::Retraction) {
         self.count = self.count.saturating_sub(1);
     }
 
     #[inline]
-    fn finish(&self) -> usize {
-        self.count
+    fn with_result<T>(&self, f: impl FnOnce(&usize) -> T) -> T {
+        f(&self.count)
     }
 
     #[inline]

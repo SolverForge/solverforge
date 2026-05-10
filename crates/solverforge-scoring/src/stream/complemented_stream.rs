@@ -109,7 +109,7 @@ where
     KB: Fn(&B) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
-    C::Result: Clone + Send + Sync,
+    C::Result: Send + Sync,
     D: Fn(&B) -> C::Result + Send + Sync,
     Sc: Score + 'static,
 {
@@ -251,7 +251,7 @@ where
     KB: Fn(&B) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
-    C::Result: Clone + Send + Sync,
+    C::Result: Send + Sync,
     D: Fn(&B) -> C::Result + Send + Sync,
     W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,

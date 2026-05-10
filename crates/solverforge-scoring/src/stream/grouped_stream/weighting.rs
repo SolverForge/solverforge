@@ -34,7 +34,7 @@ where
     KF: Fn(&A) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync + 'static,
     C::Accumulator: Send + Sync,
-    C::Result: Clone + Send + Sync,
+    C::Result: Send + Sync,
     W: Fn(&K, &C::Result) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {

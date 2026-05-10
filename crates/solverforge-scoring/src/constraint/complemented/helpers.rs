@@ -19,7 +19,7 @@ where
     KB: Fn(&B) -> K + Send + Sync,
     C: UniCollector<A> + Send + Sync,
     C::Accumulator: Send + Sync,
-    C::Result: Clone + Send + Sync,
+    C::Result: Send + Sync,
     C::Value: Send + Sync,
     D: Fn(&B) -> C::Result + Send + Sync,
     W: Fn(&K, &C::Result) -> Sc + Send + Sync,
@@ -48,9 +48,9 @@ where
                 .groups
                 .entry(key.clone())
                 .or_insert_with(|| self.collector.create_accumulator());
-            acc.accumulate(&value);
+            let retraction = acc.accumulate(value);
             self.entity_groups.insert(entity_index, key);
-            self.entity_values.insert(entity_index, value);
+            self.entity_retractions.insert(entity_index, retraction);
             return Sc::zero();
         };
 
@@ -60,12 +60,14 @@ where
         let old_result = self
             .groups
             .get(&key)
-            .map(|acc| acc.finish())
-            .unwrap_or_else(|| (self.default_fn)(b));
-        let old_base = (self.weight_fn)(&key, &old_result);
+            .map(|acc| acc.with_result(|result| (self.weight_fn)(&key, result)))
+            .unwrap_or_else(|| {
+                let default_result = (self.default_fn)(b);
+                (self.weight_fn)(&key, &default_result)
+            });
         let old = match impact {
-            ImpactType::Penalty => -old_base,
-            ImpactType::Reward => old_base,
+            ImpactType::Penalty => -old_result,
+            ImpactType::Reward => old_result,
         };
 
         // Get or create accumulator and add value
@@ -73,11 +75,10 @@ where
             .groups
             .entry(key.clone())
             .or_insert_with(|| self.collector.create_accumulator());
-        acc.accumulate(&value);
+        let retraction = acc.accumulate(value);
 
         // Compute new score
-        let new_result = acc.finish();
-        let new_base = (self.weight_fn)(&key, &new_result);
+        let new_base = acc.with_result(|result| (self.weight_fn)(&key, result));
         let new_score = match impact {
             ImpactType::Penalty => -new_base,
             ImpactType::Reward => new_base,
@@ -85,7 +86,7 @@ where
 
         // Track entity -> key mapping and cache value for correct retraction
         self.entity_groups.insert(entity_index, key);
-        self.entity_values.insert(entity_index, value);
+        self.entity_retractions.insert(entity_index, retraction);
 
         // Return delta
         new_score - old
@@ -99,9 +100,11 @@ where
         let result = self
             .groups
             .get(key)
-            .map(|acc| acc.finish())
-            .unwrap_or_else(|| (self.default_fn)(b));
-        self.compute_score(key, &result)
+            .map(|acc| acc.with_result(|result| self.compute_score(key, result)));
+        result.unwrap_or_else(|| {
+            let default_result = (self.default_fn)(b);
+            self.compute_score(key, &default_result)
+        })
     }
 
     pub(super) fn insert_b(&mut self, entities_b: &[B], b_idx: usize) -> Sc {
@@ -134,8 +137,8 @@ where
             return Sc::zero();
         };
 
-        // Use cached value (entity may have been mutated since insert)
-        let Some(value) = self.entity_values.remove(&entity_index) else {
+        // Use cached retraction token (entity may have been mutated since insert)
+        let Some(retraction) = self.entity_retractions.remove(&entity_index) else {
             return Sc::zero();
         };
         let impact = self.impact_type;
@@ -145,7 +148,7 @@ where
         if b_idx.is_none() {
             // No B entity for this key - just update accumulator, no score delta
             if let Some(acc) = self.groups.get_mut(&key) {
-                acc.retract(&value);
+                acc.retract(retraction);
             }
             return Sc::zero();
         }
@@ -156,19 +159,17 @@ where
         };
 
         // Compute old score
-        let old_result = acc.finish();
-        let old_base = (self.weight_fn)(&key, &old_result);
+        let old_base = acc.with_result(|result| (self.weight_fn)(&key, result));
         let old = match impact {
             ImpactType::Penalty => -old_base,
             ImpactType::Reward => old_base,
         };
 
         // Retract value
-        acc.retract(&value);
+        acc.retract(retraction);
 
         // Compute new score
-        let new_result = acc.finish();
-        let new_base = (self.weight_fn)(&key, &new_result);
+        let new_base = acc.with_result(|result| (self.weight_fn)(&key, result));
         let new_score = match impact {
             ImpactType::Penalty => -new_base,
             ImpactType::Reward => new_base,

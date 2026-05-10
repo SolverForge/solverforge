@@ -20,19 +20,45 @@ fn test_collect_vec_empty_returns_empty_vec() {
     let collector = collect_vec(|value: &i32| *value);
     let acc = collector.create_accumulator();
 
-    assert_eq!(acc.finish(), Vec::<i32>::new());
+    assert_eq!(acc.with_result(|values| values.to_vec()), Vec::<i32>::new());
 }
 
 #[test]
-fn test_collect_vec_accumulates_copied_values() {
+fn test_collect_vec_accumulates_mapped_values() {
     let collector = collect_vec(|value: &i32| *value + 1);
     let mut acc = collector.create_accumulator();
 
     for value in [1, 2, 3] {
-        acc.accumulate(&collector.extract(&value));
+        acc.accumulate(collector.extract(&value));
     }
 
-    assert_eq!(acc.finish(), vec![2, 3, 4]);
+    assert_eq!(acc.with_result(|values| values.to_vec()), vec![2, 3, 4]);
+}
+
+#[test]
+fn test_collect_vec_accumulates_owned_non_copy_values() {
+    struct LabeledItem {
+        label: &'static str,
+    }
+
+    let collector = collect_vec(|item: &LabeledItem| format!("{}-label", item.label));
+    let mut acc = collector.create_accumulator();
+    let mut first_alpha = None;
+
+    for label in ["alpha", "beta", "alpha"] {
+        let item = LabeledItem { label };
+        let token = acc.accumulate(collector.extract(&item));
+        if label == "alpha" && first_alpha.is_none() {
+            first_alpha = Some(token);
+        }
+    }
+
+    acc.retract(first_alpha.expect("first alpha token"));
+
+    assert_eq!(
+        acc.with_result(|values| values.to_vec()),
+        vec![String::from("beta-label"), String::from("alpha-label")]
+    );
 }
 
 #[test]
@@ -41,23 +67,27 @@ fn test_collect_vec_retains_duplicate_values() {
     let mut acc = collector.create_accumulator();
 
     for value in [1, 1, 2] {
-        acc.accumulate(&collector.extract(&value));
+        acc.accumulate(collector.extract(&value));
     }
 
-    assert_eq!(acc.finish(), vec![1, 1, 2]);
+    assert_eq!(acc.with_result(|values| values.to_vec()), vec![1, 1, 2]);
 }
 
 #[test]
 fn test_collect_vec_retract_removes_exactly_one_duplicate() {
     let collector = collect_vec(|value: &i32| *value);
     let mut acc = collector.create_accumulator();
+    let mut first_one = None;
 
     for value in [1, 1, 2] {
-        acc.accumulate(&collector.extract(&value));
+        let token = acc.accumulate(collector.extract(&value));
+        if value == 1 && first_one.is_none() {
+            first_one = Some(token);
+        }
     }
-    acc.retract(&collector.extract(&1));
+    acc.retract(first_one.expect("first one token"));
 
-    assert_eq!(acc.finish(), vec![1, 2]);
+    assert_eq!(acc.with_result(|values| values.to_vec()), vec![1, 2]);
 }
 
 #[test]
@@ -65,31 +95,39 @@ fn test_collect_vec_reset_clears_state() {
     let collector = collect_vec(|value: &i32| *value);
     let mut acc = collector.create_accumulator();
 
-    acc.accumulate(&collector.extract(&1));
-    acc.accumulate(&collector.extract(&2));
+    acc.accumulate(collector.extract(&1));
+    acc.accumulate(collector.extract(&2));
     acc.reset();
 
-    assert_eq!(acc.finish(), Vec::<i32>::new());
+    assert_eq!(acc.with_result(|values| values.to_vec()), Vec::<i32>::new());
 }
 
 #[test]
 fn test_collect_vec_incremental_retract_matches_rebuilt_collection() {
     let collector = collect_vec(|value: &i32| *value);
     let mut incremental = collector.create_accumulator();
+    let mut first_one = None;
+    let mut four = None;
 
     for value in [4, 1, 2, 1, 3] {
-        incremental.accumulate(&collector.extract(&value));
+        let token = incremental.accumulate(collector.extract(&value));
+        if value == 1 && first_one.is_none() {
+            first_one = Some(token);
+        }
+        if value == 4 {
+            four = Some(token);
+        }
     }
-    incremental.retract(&collector.extract(&1));
-    incremental.retract(&collector.extract(&4));
+    incremental.retract(first_one.expect("first one token"));
+    incremental.retract(four.expect("four token"));
 
     let mut rebuilt = collector.create_accumulator();
     for value in [2, 1, 3] {
-        rebuilt.accumulate(&collector.extract(&value));
+        rebuilt.accumulate(collector.extract(&value));
     }
 
-    let mut incremental_values = incremental.finish();
-    let mut rebuilt_values = rebuilt.finish();
+    let mut incremental_values = incremental.with_result(|values| values.to_vec());
+    let mut rebuilt_values = rebuilt.with_result(|values| values.to_vec());
     incremental_values.sort_unstable();
     rebuilt_values.sort_unstable();
 
@@ -107,8 +145,8 @@ fn test_perfectly_balanced() {
     let mut acc = collector.create_accumulator();
 
     // Two items with equal load
-    acc.accumulate(&collector.extract(&0));
-    acc.accumulate(&collector.extract(&1));
+    acc.accumulate(collector.extract(&0));
+    acc.accumulate(collector.extract(&1));
 
     let result = acc.finish();
     assert_eq!(result.unfairness(), 0);
@@ -120,9 +158,9 @@ fn test_unbalanced() {
     let mut acc = collector.create_accumulator();
 
     // Item 0 has 2 load, Item 1 has 1 load
-    acc.accumulate(&collector.extract(&0));
-    acc.accumulate(&collector.extract(&0));
-    acc.accumulate(&collector.extract(&1));
+    acc.accumulate(collector.extract(&0));
+    acc.accumulate(collector.extract(&0));
+    acc.accumulate(collector.extract(&1));
 
     let result = acc.finish();
     /* For loads [2, 1], mean = 1.5
@@ -137,12 +175,12 @@ fn test_retract() {
     let collector = load_balance(|x: &i32| *x, |_| 1i64);
     let mut acc = collector.create_accumulator();
 
-    acc.accumulate(&collector.extract(&0));
-    acc.accumulate(&collector.extract(&0));
-    acc.accumulate(&collector.extract(&1));
+    acc.accumulate(collector.extract(&0));
+    acc.accumulate(collector.extract(&0));
+    acc.accumulate(collector.extract(&1));
 
     // Remove one from item 0 -> now balanced
-    acc.retract(&collector.extract(&0));
+    acc.retract(collector.extract(&0));
 
     let result = acc.finish();
     assert_eq!(result.unfairness(), 0);
@@ -162,9 +200,9 @@ fn test_single_item() {
     let collector = load_balance(|x: &i32| *x, |_| 1i64);
     let mut acc = collector.create_accumulator();
 
-    acc.accumulate(&collector.extract(&0));
-    acc.accumulate(&collector.extract(&0));
-    acc.accumulate(&collector.extract(&0));
+    acc.accumulate(collector.extract(&0));
+    acc.accumulate(collector.extract(&0));
+    acc.accumulate(collector.extract(&0));
 
     let result = acc.finish();
     // Single item always has 0 variance from mean (it IS the mean)
@@ -191,7 +229,7 @@ fn test_load_balance_standard_deviation() {
         value: "A",
         metric: 2,
     };
-    acc.accumulate(&collector.extract(&a));
+    acc.accumulate(collector.extract(&a));
     assert_eq!(acc.finish().unfairness(), 0); // Single item
 
     // Add B with metric 1 -> A=2, B=1
@@ -199,24 +237,24 @@ fn test_load_balance_standard_deviation() {
         value: "B",
         metric: 1,
     };
-    acc.accumulate(&collector.extract(&b));
+    acc.accumulate(collector.extract(&b));
     // sqrt((2-1.5)^2 + (1-1.5)^2) = sqrt(0.5) ~ 0.707 -> rounds to 1
     assert_eq!(acc.finish().unfairness(), 1);
 
     // Add another B -> A=2, B=2 -> perfectly balanced
-    acc.accumulate(&collector.extract(&b));
+    acc.accumulate(collector.extract(&b));
     assert_eq!(acc.finish().unfairness(), 0);
 
     // Retract B -> A=2, B=1 again
-    acc.retract(&collector.extract(&b));
+    acc.retract(collector.extract(&b));
     assert_eq!(acc.finish().unfairness(), 1);
 
     // Retract B completely -> only A left
-    acc.retract(&collector.extract(&b));
+    acc.retract(collector.extract(&b));
     assert_eq!(acc.finish().unfairness(), 0);
 
     // Retract A -> empty
-    acc.retract(&collector.extract(&a));
+    acc.retract(collector.extract(&a));
     assert_eq!(acc.finish().unfairness(), 0);
 }
 
@@ -242,7 +280,7 @@ fn test_consecutive_runs_one_run() {
     let mut acc = collector.create_accumulator();
 
     for value in [3, 1, 2] {
-        acc.accumulate(&collector.extract(&value));
+        acc.accumulate(collector.extract(&value));
     }
 
     let result = acc.finish();
@@ -259,7 +297,7 @@ fn test_consecutive_runs_multiple_runs() {
     let mut acc = collector.create_accumulator();
 
     for value in [8, 1, 2, 4, 5, 10] {
-        acc.accumulate(&collector.extract(&value));
+        acc.accumulate(collector.extract(&value));
     }
 
     let result = acc.finish();
@@ -280,7 +318,7 @@ fn test_consecutive_runs_duplicates_count_items_not_points() {
     let mut acc = collector.create_accumulator();
 
     for value in [1, 1, 2, 4, 4, 4] {
-        acc.accumulate(&collector.extract(&value));
+        acc.accumulate(collector.extract(&value));
     }
 
     let result = acc.finish();
@@ -298,7 +336,7 @@ fn test_indexed_presence_active_runs_and_membership() {
     let mut acc = collector.create_accumulator();
 
     for value in [4, 2, 3, 7, 7] {
-        acc.accumulate(&collector.extract(&value));
+        acc.accumulate(collector.extract(&value));
     }
 
     let result = acc.finish();
@@ -323,7 +361,7 @@ fn test_indexed_presence_complement_runs() {
     let mut acc = collector.create_accumulator();
 
     for value in [0, 2, 5] {
-        acc.accumulate(&collector.extract(&value));
+        acc.accumulate(collector.extract(&value));
     }
 
     let result = acc.finish();
@@ -342,16 +380,16 @@ fn test_indexed_presence_retract_and_reset() {
     let collector = indexed_presence(|value: &i64| *value);
     let mut acc = collector.create_accumulator();
 
-    acc.accumulate(&collector.extract(&-1));
-    acc.accumulate(&collector.extract(&-1));
-    acc.accumulate(&collector.extract(&0));
-    acc.retract(&collector.extract(&-1));
+    acc.accumulate(collector.extract(&-1));
+    acc.accumulate(collector.extract(&-1));
+    acc.accumulate(collector.extract(&0));
+    acc.retract(collector.extract(&-1));
 
     let result = acc.finish();
     assert!(result.contains(-1));
     assert_eq!(result.item_count(), 2);
 
-    acc.retract(&collector.extract(&-1));
+    acc.retract(collector.extract(&-1));
     assert!(!acc.finish().contains(-1));
 
     acc.reset();
@@ -364,7 +402,7 @@ fn test_consecutive_runs_negative_indexes() {
     let mut acc = collector.create_accumulator();
 
     for value in [-3, -2, -1, 1] {
-        acc.accumulate(&collector.extract(&value));
+        acc.accumulate(collector.extract(&value));
     }
 
     let result = acc.finish();
@@ -381,7 +419,7 @@ fn test_consecutive_runs_i64_max_boundary() {
     let mut acc = collector.create_accumulator();
 
     for value in [i64::MIN, i64::MAX - 1, i64::MAX] {
-        acc.accumulate(&collector.extract(&value));
+        acc.accumulate(collector.extract(&value));
     }
 
     let result = acc.finish();
@@ -398,16 +436,16 @@ fn test_consecutive_runs_insert_retract_parity() {
     let mut acc = collector.create_accumulator();
 
     for value in [1, 2, 2, 3, 7] {
-        acc.accumulate(&collector.extract(&value));
+        acc.accumulate(collector.extract(&value));
     }
 
-    acc.retract(&collector.extract(&2));
+    acc.retract(collector.extract(&2));
     let result = acc.finish();
     assert_eq!(result.len(), 2);
     assert_eq!(result.runs()[0].item_count(), 3);
     assert_eq!(result.item_count(), 4);
 
-    acc.retract(&collector.extract(&2));
+    acc.retract(collector.extract(&2));
     let result = acc.finish();
     assert_eq!(result.len(), 3);
     assert_eq!(result.point_count(), 3);

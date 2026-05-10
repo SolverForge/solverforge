@@ -189,41 +189,45 @@ impl<K: Clone + Eq + Hash> LoadBalanceAccumulator<K> {
 impl<K: Clone + Eq + Hash + Send + Sync> Accumulator<(K, i64), LoadBalance<K>>
     for LoadBalanceAccumulator<K>
 {
+    type Retraction = (K, i64);
+
     #[inline]
-    fn accumulate(&mut self, value: &(K, i64)) {
+    fn accumulate(&mut self, value: (K, i64)) -> Self::Retraction {
         let (key, metric) = value;
-        if *metric == 0 {
-            return; // Skip zero-metric entries (e.g., unassigned shifts)
+        if metric == 0 {
+            return (key, metric); // Skip zero-metric entries (e.g., unassigned shifts)
         }
         let count = self.item_counts.entry(key.clone()).or_insert(0);
         *count += 1;
-        self.add_to_metric(key, *metric);
+        self.add_to_metric(&key, metric);
+        (key, metric)
     }
 
     #[inline]
-    fn retract(&mut self, value: &(K, i64)) {
+    fn retract(&mut self, value: Self::Retraction) {
         let (key, metric) = value;
-        if *metric == 0 {
+        if metric == 0 {
             return; // Skip zero-metric entries
         }
-        if let Some(count) = self.item_counts.get_mut(key) {
+        if let Some(count) = self.item_counts.get_mut(&key) {
             if *count > 0 {
                 *count -= 1;
                 if *count == 0 {
-                    self.item_counts.remove(key);
-                    self.reset_metric(key);
+                    self.item_counts.remove(&key);
+                    self.reset_metric(&key);
                 } else {
-                    self.add_to_metric(key, -*metric);
+                    self.add_to_metric(&key, -metric);
                 }
             }
         }
     }
 
-    fn finish(&self) -> LoadBalance<K> {
-        LoadBalance {
+    fn with_result<T>(&self, f: impl FnOnce(&LoadBalance<K>) -> T) -> T {
+        let result = LoadBalance {
             loads: self.loads.clone(),
             unfairness: self.compute_unfairness(),
-        }
+        };
+        f(&result)
     }
 
     fn reset(&mut self) {

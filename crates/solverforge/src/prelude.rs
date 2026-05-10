@@ -1,8 +1,8 @@
 pub use crate::local_search;
 pub use crate::planning::EntitySourceTargetExt;
 pub use crate::stream::collector::{
-    collect_vec, consecutive_runs, count, indexed_presence, load_balance, sum, IndexedPresence,
-    Run, Runs,
+    collect_vec, consecutive_runs, count, indexed_presence, load_balance, sum, CollectedVec,
+    IndexedPresence, Run, Runs,
 };
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{

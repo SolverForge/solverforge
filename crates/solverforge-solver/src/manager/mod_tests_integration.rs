@@ -6,6 +6,7 @@ mod common;
 mod gates;
 mod lifecycle_solutions;
 mod lifecycle_tests;
+mod partitioned_lifecycle_tests;
 mod prompt_support;
 mod prompt_tests;
 mod resume_support;

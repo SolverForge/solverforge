@@ -18,7 +18,9 @@ use super::{LocalSearchStrategy, RuntimeModel};
 mod custom;
 pub(crate) mod defaults;
 
-pub use custom::{CustomPhaseNode, CustomSearchPhase, NoCustomPhase, NoCustomPhases};
+pub use custom::{
+    CustomPhaseNode, CustomSearchPhase, NoCustomPhase, NoCustomPhases, PartitionedPhaseNode,
+};
 
 pub struct SearchContext<
     S,
@@ -122,12 +124,34 @@ where
         P: CustomSearchPhase<S> + 'static,
     {
         assert!(
-            !self.custom_phases.contains(name),
+            !self.custom_phases.contains(name) && !self.custom_phases.contains_partitioned(name),
             "custom phase `{name}` was registered more than once",
         );
         SearchBuilder {
             context: self.context,
             custom_phases: CustomPhaseNode::new(self.custom_phases, name, builder),
+        }
+    }
+
+    pub fn partitioned_phase<P, F>(
+        self,
+        name: &'static str,
+        builder: F,
+    ) -> SearchBuilder<S, V, DM, IDM, PartitionedPhaseNode<CustomPhases, F, P>>
+    where
+        F: Fn(&SearchContext<S, V, DM, IDM>, &solverforge_config::PartitionedSearchConfig) -> P
+            + Send
+            + Sync
+            + 'static,
+        P: CustomSearchPhase<S> + 'static,
+    {
+        assert!(
+            !self.custom_phases.contains(name) && !self.custom_phases.contains_partitioned(name),
+            "partitioned_search partitioner `{name}` was registered more than once",
+        );
+        SearchBuilder {
+            context: self.context,
+            custom_phases: PartitionedPhaseNode::new(self.custom_phases, name, builder),
         }
     }
 }
@@ -183,10 +207,21 @@ where
                         });
                     phases.push(SearchRuntimePhase::Custom(phase));
                 }
-                PhaseConfig::ConstructionHeuristic(_)
-                | PhaseConfig::LocalSearch(_)
-                | PhaseConfig::ExhaustiveSearch(_)
-                | PhaseConfig::PartitionedSearch(_) => {
+                PhaseConfig::PartitionedSearch(partitioned) => {
+                    let name = partitioned.partitioner.as_deref().unwrap_or_else(|| {
+                        panic!("partitioned_search requires a `partitioner` name")
+                    });
+                    let phase = self
+                        .custom_phases
+                        .build_partitioned_named(name, partitioned, &self.context)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "partitioned_search partitioner `{name}` was not registered by the solution search function"
+                            )
+                        });
+                    phases.push(SearchRuntimePhase::Custom(phase));
+                }
+                PhaseConfig::ConstructionHeuristic(_) | PhaseConfig::LocalSearch(_) => {
                     let mut single = config.clone();
                     single.phases = vec![phase.clone()];
                     let mut built =

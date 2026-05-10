@@ -11,7 +11,7 @@ mod solver;
 mod step;
 
 pub use phase::PhaseScope;
-pub(crate) use solver::PendingControl;
+pub(crate) use solver::{PendingControl, SolverScopeChildConfig};
 pub use solver::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 pub use step::StepScope;
 

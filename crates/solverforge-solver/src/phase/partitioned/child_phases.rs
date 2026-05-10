@@ -29,7 +29,13 @@ macro_rules! impl_child_phases_tuple {
         {
             fn solve_all(&mut self, solver_scope: &mut SolverScope<S, D>) {
                 $(
+                    if solver_scope.should_terminate() {
+                        return;
+                    }
                     self.$idx.solve(solver_scope);
+                    if solver_scope.should_terminate() {
+                        return;
+                    }
                 )+
             }
         }

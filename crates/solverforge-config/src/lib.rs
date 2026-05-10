@@ -70,8 +70,7 @@ pub use move_selector::{
 };
 pub use phase::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,
-    CustomPhaseConfig, ExhaustiveSearchConfig, ExhaustiveSearchType, LocalSearchConfig,
-    LocalSearchType, PartitionedSearchConfig, PhaseConfig,
+    CustomPhaseConfig, LocalSearchConfig, LocalSearchType, PartitionedSearchConfig, PhaseConfig,
 };
 pub use solver_config::{EnvironmentMode, MoveThreadCount, SolverConfig, SolverConfigOverride};
 pub use termination::TerminationConfig;

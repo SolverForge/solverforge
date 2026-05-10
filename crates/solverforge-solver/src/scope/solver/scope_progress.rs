@@ -85,6 +85,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub fn increment_step_count(&mut self) -> u64 {
         self.total_step_count += 1;
         self.stats.record_step();
+        if let Some(phase_budget) = self.phase_budget {
+            phase_budget.record_step();
+        }
         self.total_step_count
     }
 
@@ -148,6 +151,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         if self.time_limit_reached() {
             return PendingControl::ConfigTerminationRequested;
         }
+        if self.phase_budget_reached() {
+            return PendingControl::ConfigTerminationRequested;
+        }
         PendingControl::Continue
     }
 
@@ -178,6 +184,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 
     pub fn should_terminate_construction(&mut self) -> bool {
         self.settle_pause_if_requested();
+        if self.yielded_to_parent {
+            return true;
+        }
         if self.is_terminate_early() {
             self.mark_cancelled();
             return true;
@@ -186,16 +195,27 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             self.mark_terminated_by_config();
             return true;
         }
+        if self.phase_budget_reached() {
+            self.mark_terminated_by_config();
+            return true;
+        }
         false
     }
 
     pub fn should_terminate(&mut self) -> bool {
         self.settle_pause_if_requested();
+        if self.yielded_to_parent {
+            return true;
+        }
         if self.is_terminate_early() {
             self.mark_cancelled();
             return true;
         }
         if self.time_limit_reached() {
+            self.mark_terminated_by_config();
+            return true;
+        }
+        if self.phase_budget_reached() {
             self.mark_terminated_by_config();
             return true;
         }
@@ -238,6 +258,27 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         &mut self.stats
     }
 
+    pub(crate) fn record_evaluated_move(&mut self, duration: Duration) {
+        self.stats.record_evaluated_move(duration);
+        if let Some(phase_budget) = self.phase_budget {
+            phase_budget.record_evaluated_move();
+        }
+    }
+
+    pub(crate) fn record_selector_evaluated(&mut self, selector_index: usize, duration: Duration) {
+        self.stats.record_selector_evaluated(selector_index, duration);
+        if let Some(phase_budget) = self.phase_budget {
+            phase_budget.record_evaluated_move();
+        }
+    }
+
+    pub(crate) fn record_score_calculation(&mut self) {
+        self.stats.record_score_calculation();
+        if let Some(phase_budget) = self.phase_budget {
+            phase_budget.record_score_calculation();
+        }
+    }
+
     fn progress_state(&self) -> SolverLifecycleState {
         self.runtime
             .map(|runtime| {
@@ -252,14 +293,33 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 
     fn settle_pause_if_requested(&mut self) {
         if let Some(runtime) = self.runtime {
-            runtime.pause_if_requested(self);
+            if !runtime.is_pause_requested() || self.is_terminate_early() {
+                return;
+            }
+            match self.publication {
+                Publication::Enabled => runtime.pause_if_requested(self),
+                Publication::Disabled => {
+                    self.yielded_to_parent = true;
+                }
+            }
         }
     }
 
     fn time_limit_reached(&self) -> bool {
+        if self
+            .time_deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            return true;
+        }
         self.time_limit
             .zip(self.elapsed())
             .is_some_and(|(limit, elapsed)| elapsed >= limit)
+    }
+
+    fn phase_budget_reached(&self) -> bool {
+        self.phase_budget
+            .is_some_and(|phase_budget| phase_budget.limit_reached())
     }
 
     fn advance_solution_revision(&mut self) {

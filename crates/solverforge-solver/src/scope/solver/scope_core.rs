@@ -9,18 +9,139 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     total_step_count: u64,
     terminate: Option<&'t AtomicBool>,
     runtime: Option<SolverRuntime<S>>,
+    publication: Publication,
+    yielded_to_parent: bool,
     environment_mode: EnvironmentMode,
     stats: SolverStats,
     time_limit: Option<Duration>,
+    time_deadline: Option<Instant>,
     progress_callback: ProgressCb,
     terminal_reason: Option<SolverTerminalReason>,
     last_best_elapsed: Option<Duration>,
     best_solution_revision: Option<u64>,
     solution_revision: u64,
     construction_frontier: ConstructionFrontier,
+    phase_budget: Option<&'t PhaseBudget>,
     pub inphase_step_count_limit: Option<u64>,
     pub inphase_move_count_limit: Option<u64>,
     pub inphase_score_calc_count_limit: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Publication {
+    Enabled,
+    Disabled,
+}
+
+pub(crate) struct PhaseBudget {
+    step_count_limit: Option<u64>,
+    move_count_limit: Option<u64>,
+    score_calc_count_limit: Option<u64>,
+    step_count: AtomicU64,
+    moves_evaluated: AtomicU64,
+    score_calculations: AtomicU64,
+}
+
+impl PhaseBudget {
+    fn from_scope<S, D, ProgressCb>(scope: &SolverScope<'_, S, D, ProgressCb>) -> Self
+    where
+        S: PlanningSolution,
+        D: Director<S>,
+        ProgressCb: ProgressCallback<S>,
+    {
+        Self {
+            step_count_limit: remaining_limit(
+                scope.inphase_step_count_limit,
+                scope.total_step_count,
+            ),
+            move_count_limit: remaining_limit(
+                scope.inphase_move_count_limit,
+                scope.stats.moves_evaluated,
+            ),
+            score_calc_count_limit: remaining_limit(
+                scope.inphase_score_calc_count_limit,
+                scope.stats.score_calculations,
+            ),
+            step_count: AtomicU64::new(0),
+            moves_evaluated: AtomicU64::new(0),
+            score_calculations: AtomicU64::new(0),
+        }
+    }
+
+    fn has_limits(&self) -> bool {
+        self.step_count_limit.is_some()
+            || self.move_count_limit.is_some()
+            || self.score_calc_count_limit.is_some()
+    }
+
+    fn record_step(&self) {
+        self.step_count.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn record_evaluated_move(&self) {
+        self.moves_evaluated.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn record_score_calculation(&self) {
+        self.score_calculations.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn limit_reached(&self) -> bool {
+        limit_reached(self.step_count_limit, self.step_count.load(Ordering::SeqCst))
+            || limit_reached(
+                self.move_count_limit,
+                self.moves_evaluated.load(Ordering::SeqCst),
+            )
+            || limit_reached(
+                self.score_calc_count_limit,
+                self.score_calculations.load(Ordering::SeqCst),
+            )
+    }
+}
+
+fn remaining_limit(limit: Option<u64>, used: u64) -> Option<u64> {
+    limit.map(|limit| limit.saturating_sub(used))
+}
+
+fn limit_reached(limit: Option<u64>, used: u64) -> bool {
+    limit.is_some_and(|limit| used >= limit)
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct SolverScopeChildConfig<'t, S: PlanningSolution> {
+    terminate: Option<&'t AtomicBool>,
+    runtime: Option<SolverRuntime<S>>,
+    environment_mode: EnvironmentMode,
+    time_deadline: Option<Instant>,
+    phase_budget: Option<&'t PhaseBudget>,
+    inphase_step_count_limit: Option<u64>,
+    inphase_move_count_limit: Option<u64>,
+    inphase_score_calc_count_limit: Option<u64>,
+}
+
+impl<'t, S: PlanningSolution> SolverScopeChildConfig<'t, S> {
+    pub(crate) fn build_scope<PD>(&self, score_director: PD, seed: u64) -> SolverScope<'t, S, PD>
+    where
+        PD: Director<S>,
+    {
+        let terminate = self
+            .terminate
+            .or_else(|| self.runtime.map(|runtime| runtime.cancel_flag()));
+        let mut scope = SolverScope::new(score_director)
+            .with_terminate(terminate)
+            .with_runtime(self.runtime)
+            .without_publication()
+            .with_environment_mode(self.environment_mode)
+            .with_seed(seed);
+        scope.time_deadline = self.time_deadline;
+        scope.phase_budget = self.phase_budget;
+        if self.phase_budget.is_none() {
+            scope.inphase_step_count_limit = self.inphase_step_count_limit;
+            scope.inphase_move_count_limit = self.inphase_move_count_limit;
+            scope.inphase_score_calc_count_limit = self.inphase_score_calc_count_limit;
+        }
+        scope
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,15 +166,19 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             total_step_count: 0,
             terminate: None,
             runtime: None,
+            publication: Publication::Enabled,
+            yielded_to_parent: false,
             environment_mode: EnvironmentMode::default(),
             stats: SolverStats::default(),
             time_limit: None,
+            time_deadline: None,
             progress_callback: (),
             terminal_reason: None,
             last_best_elapsed: None,
             best_solution_revision: None,
             solution_revision: 1,
             construction_frontier,
+            phase_budget: None,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -82,15 +207,19 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             total_step_count: 0,
             terminate,
             runtime,
+            publication: Publication::Enabled,
+            yielded_to_parent: false,
             environment_mode: EnvironmentMode::default(),
             stats: SolverStats::default(),
             time_limit: None,
+            time_deadline: None,
             progress_callback: callback,
             terminal_reason: None,
             last_best_elapsed: None,
             best_solution_revision: None,
             solution_revision: 1,
             construction_frontier,
+            phase_budget: None,
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
@@ -107,6 +236,15 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self
     }
 
+    pub(crate) fn without_publication(mut self) -> Self {
+        self.publication = Publication::Disabled;
+        self
+    }
+
+    pub(crate) fn yielded_to_parent(&self) -> bool {
+        self.yielded_to_parent
+    }
+
     pub fn with_environment_mode(mut self, environment_mode: EnvironmentMode) -> Self {
         self.environment_mode = environment_mode;
         self
@@ -115,6 +253,39 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.rng = StdRng::seed_from_u64(seed);
         self
+    }
+
+    pub(crate) fn child_phase_budget(&self) -> PhaseBudget {
+        PhaseBudget::from_scope(self)
+    }
+
+    pub(crate) fn child_config<'a>(
+        &'a self,
+        phase_budget: Option<&'a PhaseBudget>,
+    ) -> SolverScopeChildConfig<'a, S> {
+        let phase_budget = self
+            .phase_budget
+            .or_else(|| phase_budget.filter(|budget| budget.has_limits()));
+        SolverScopeChildConfig {
+            terminate: self.terminate,
+            runtime: self.runtime,
+            environment_mode: self.environment_mode,
+            time_deadline: self.child_time_deadline(),
+            phase_budget,
+            inphase_step_count_limit: self.inphase_step_count_limit,
+            inphase_move_count_limit: self.inphase_move_count_limit,
+            inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
+        }
+    }
+
+    fn child_time_deadline(&self) -> Option<Instant> {
+        self.time_deadline.or_else(|| {
+            self.time_limit.map(|limit| {
+                self.start_time
+                    .map(|start| start + limit)
+                    .unwrap_or_else(|| Instant::now() + limit)
+            })
+        })
     }
 
     pub fn with_progress_callback<F: ProgressCallback<S>>(
@@ -132,15 +303,19 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             total_step_count: self.total_step_count,
             terminate: self.terminate,
             runtime: self.runtime,
+            publication: self.publication,
+            yielded_to_parent: self.yielded_to_parent,
             environment_mode: self.environment_mode,
             stats: self.stats,
             time_limit: self.time_limit,
+            time_deadline: self.time_deadline,
             progress_callback: callback,
             terminal_reason: self.terminal_reason,
             last_best_elapsed: self.last_best_elapsed,
             best_solution_revision: self.best_solution_revision,
             solution_revision: self.solution_revision,
             construction_frontier: self.construction_frontier,
+            phase_budget: self.phase_budget,
             inphase_step_count_limit: self.inphase_step_count_limit,
             inphase_move_count_limit: self.inphase_move_count_limit,
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
@@ -153,6 +328,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.total_step_count = 0;
         self.terminal_reason = None;
         self.last_best_elapsed = None;
+        self.yielded_to_parent = false;
         self.best_solution_revision = None;
         self.solution_revision = 1;
         self.construction_frontier.reset();
@@ -203,7 +379,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub fn calculate_score(&mut self) -> S::Score {
-        self.stats.record_score_calculation();
+        self.record_score_calculation();
         let score = self.score_director.calculate_score();
         self.current_score = Some(score);
         self.assert_score_consistent("calculate_score", score);

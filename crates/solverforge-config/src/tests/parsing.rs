@@ -91,6 +91,25 @@ fn custom_phase_requires_registered_name() {
 }
 
 #[test]
+fn search_mode_phase_configs_parse_current_fields() {
+    let toml = r#"
+        [[phases]]
+        type = "partitioned_search"
+        partitioner = "by_vehicle"
+        thread_count = "none"
+        log_progress = true
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    let PhaseConfig::PartitionedSearch(partitioned) = &config.phases[0] else {
+        panic!("phase should be partitioned_search");
+    };
+    assert_eq!(partitioned.partitioner.as_deref(), Some("by_vehicle"));
+    assert_eq!(partitioned.thread_count, MoveThreadCount::None);
+    assert!(partitioned.log_progress);
+}
+
+#[test]
 fn local_search_variable_neighborhood_descent_parsing() {
     let toml = r#"
         [[phases]]

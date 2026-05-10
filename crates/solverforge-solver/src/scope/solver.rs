@@ -1,6 +1,6 @@
 // Solver-level scope.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use rand::rngs::StdRng;

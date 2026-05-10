@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use solverforge_config::{CustomPhaseConfig, PhaseConfig, SolverConfig};
+use solverforge_config::{CustomPhaseConfig, PartitionedSearchConfig, PhaseConfig, SolverConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
@@ -68,6 +68,16 @@ fn custom_config(names: &[&str]) -> SolverConfig {
     }
 }
 
+fn partitioned_config(name: &str) -> SolverConfig {
+    SolverConfig {
+        phases: vec![PhaseConfig::PartitionedSearch(PartitionedSearchConfig {
+            partitioner: Some(name.to_string()),
+            ..Default::default()
+        })],
+        ..SolverConfig::default()
+    }
+}
+
 #[test]
 fn custom_search_builds_registered_names_in_configured_order() {
     let search = search_context()
@@ -113,11 +123,55 @@ fn custom_search_rejects_unregistered_configured_name() {
 }
 
 #[test]
+fn partitioned_search_builds_registered_partitioner_name() {
+    let search = search_context()
+        .defaults()
+        .partitioned_phase("by_task", |_context, config| {
+            assert_eq!(config.partitioner.as_deref(), Some("by_task"));
+            MarkerPhase("by_task")
+        });
+    let phases = Search::<TestSolution>::build::<
+        ScoreDirector<TestSolution, ()>,
+        ChannelProgressCallback<TestSolution>,
+    >(search, &partitioned_config("by_task"));
+    let debug = format!("{phases:?}");
+
+    assert!(debug.contains("by_task"));
+}
+
+#[test]
+#[should_panic(
+    expected = "partitioned_search partitioner `missing` was not registered by the solution search function"
+)]
+fn partitioned_search_rejects_unregistered_partitioner_name() {
+    let search = search_context()
+        .defaults()
+        .partitioned_phase("registered", |_context, _config| MarkerPhase("registered"));
+    let _ = Search::<TestSolution>::build::<
+        ScoreDirector<TestSolution, ()>,
+        ChannelProgressCallback<TestSolution>,
+    >(search, &partitioned_config("missing"));
+}
+
+#[test]
 #[should_panic(expected = "custom phase `missing` requires a typed solution search function")]
 fn stock_runtime_rejects_custom_phase_without_search_registration() {
     let context = search_context();
     let _ = crate::runtime::build_phases(
         &custom_config(&["missing"]),
+        context.descriptor(),
+        context.model(),
+    );
+}
+
+#[test]
+#[should_panic(
+    expected = "partitioned_search partitioner `missing` requires typed partitioner registration"
+)]
+fn stock_runtime_rejects_partitioned_search_without_registration() {
+    let context = search_context();
+    let _ = crate::runtime::build_phases(
+        &partitioned_config("missing"),
         context.descriptor(),
         context.model(),
     );

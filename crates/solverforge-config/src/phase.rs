@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::acceptor::AcceptorConfig;
 use crate::forager::ForagerConfig;
 use crate::move_selector::{MoveSelectorConfig, VariableTargetConfig};
+use crate::solver_config::MoveThreadCount;
 use crate::termination::TerminationConfig;
 
 // Phase configuration.
@@ -14,9 +15,6 @@ pub enum PhaseConfig {
 
     // Local search phase.
     LocalSearch(LocalSearchConfig),
-
-    // Exhaustive search phase.
-    ExhaustiveSearch(ExhaustiveSearchConfig),
 
     // Partitioned search phase.
     PartitionedSearch(PartitionedSearchConfig),
@@ -181,36 +179,24 @@ pub struct LocalSearchConfig {
     pub termination: Option<TerminationConfig>,
 }
 
-// Exhaustive search configuration.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct ExhaustiveSearchConfig {
-    // Exhaustive search type.
-    #[serde(default)]
-    pub exhaustive_search_type: ExhaustiveSearchType,
-
-    // Phase termination configuration.
-    pub termination: Option<TerminationConfig>,
-}
-
-// Exhaustive search types.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ExhaustiveSearchType {
-    // Branch and bound.
-    #[default]
-    BranchAndBound,
-
-    // Brute force.
-    BruteForce,
-}
-
 // Partitioned search configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PartitionedSearchConfig {
-    // Number of partitions.
-    pub partition_count: Option<usize>,
+    // Compile-time registered partitioner name.
+    pub partitioner: Option<String>,
+
+    // Thread count for child partitions.
+    #[serde(default)]
+    pub thread_count: MoveThreadCount,
+
+    // Whether to log partition progress.
+    #[serde(default)]
+    pub log_progress: bool,
+
+    // Optional child phase list to run inside each partition.
+    #[serde(default)]
+    pub child_phases: Vec<PhaseConfig>,
 
     // Phase termination configuration.
     pub termination: Option<TerminationConfig>,

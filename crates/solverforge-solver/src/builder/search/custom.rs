@@ -1,12 +1,14 @@
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
 
+use solverforge_config::PartitionedSearchConfig;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::MoveSelector;
 use crate::phase::localsearch::{Acceptor, LocalSearchForager, LocalSearchPhase};
+use crate::phase::partitioned::{ChildPhases, PartitionedSearchPhase, SolutionPartitioner};
 use crate::phase::Phase;
 use crate::scope::{ProgressCallback, SolverScope};
 
@@ -47,6 +49,29 @@ where
     }
 }
 
+impl<S, PD, Part, SDF, PF, CP> CustomSearchPhase<S>
+    for PartitionedSearchPhase<S, PD, Part, SDF, PF, CP>
+where
+    S: PlanningSolution + 'static,
+    PD: Director<S> + 'static,
+    Part: SolutionPartitioner<S>,
+    SDF: Fn(S) -> PD + Send + Sync,
+    PF: Fn() -> CP + Send + Sync,
+    CP: ChildPhases<S, PD> + Send,
+{
+    fn solve<D, ProgressCb>(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>)
+    where
+        D: Director<S>,
+        ProgressCb: ProgressCallback<S>,
+    {
+        Phase::solve(self, solver_scope);
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "PartitionedSearch"
+    }
+}
+
 pub trait CustomPhaseRegistry<S, V, DM, IDM>
 where
     S: PlanningSolution,
@@ -58,6 +83,15 @@ where
     fn build_named(
         &self,
         name: &str,
+        context: &SearchContext<S, V, DM, IDM>,
+    ) -> Option<Self::Phase>;
+
+    fn contains_partitioned(&self, name: &str) -> bool;
+
+    fn build_partitioned_named(
+        &self,
+        name: &str,
+        config: &PartitionedSearchConfig,
         context: &SearchContext<S, V, DM, IDM>,
     ) -> Option<Self::Phase>;
 }
@@ -77,6 +111,19 @@ where
     fn build_named(
         &self,
         _name: &str,
+        _context: &SearchContext<S, V, DM, IDM>,
+    ) -> Option<Self::Phase> {
+        None
+    }
+
+    fn contains_partitioned(&self, _name: &str) -> bool {
+        false
+    }
+
+    fn build_partitioned_named(
+        &self,
+        _name: &str,
+        _config: &PartitionedSearchConfig,
         _context: &SearchContext<S, V, DM, IDM>,
     ) -> Option<Self::Phase> {
         None
@@ -129,6 +176,24 @@ pub struct CustomPhaseNode<Previous, Builder, Phase> {
     name: &'static str,
     builder: Builder,
     _marker: PhantomData<fn() -> Phase>,
+}
+
+pub struct PartitionedPhaseNode<Previous, Builder, Phase> {
+    previous: Previous,
+    name: &'static str,
+    builder: Builder,
+    _marker: PhantomData<fn() -> Phase>,
+}
+
+impl<Previous, Builder, Phase> PartitionedPhaseNode<Previous, Builder, Phase> {
+    pub fn new(previous: Previous, name: &'static str, builder: Builder) -> Self {
+        Self {
+            previous,
+            name,
+            builder,
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<Previous, Builder, Phase> CustomPhaseNode<Previous, Builder, Phase> {
@@ -223,6 +288,64 @@ where
         }
         self.previous
             .build_named(name, context)
+            .map(CustomPhaseUnion::Previous)
+    }
+
+    fn contains_partitioned(&self, name: &str) -> bool {
+        self.previous.contains_partitioned(name)
+    }
+
+    fn build_partitioned_named(
+        &self,
+        name: &str,
+        config: &PartitionedSearchConfig,
+        context: &SearchContext<S, V, DM, IDM>,
+    ) -> Option<Self::Phase> {
+        self.previous
+            .build_partitioned_named(name, config, context)
+            .map(CustomPhaseUnion::Previous)
+    }
+}
+
+impl<S, V, DM, IDM, Previous, Builder, CurrentPhase> CustomPhaseRegistry<S, V, DM, IDM>
+    for PartitionedPhaseNode<Previous, Builder, CurrentPhase>
+where
+    S: PlanningSolution,
+    Previous: CustomPhaseRegistry<S, V, DM, IDM>,
+    Builder: Fn(&SearchContext<S, V, DM, IDM>, &PartitionedSearchConfig) -> CurrentPhase,
+    CurrentPhase: CustomSearchPhase<S>,
+{
+    type Phase = CustomPhaseUnion<Previous::Phase, CurrentPhase>;
+
+    fn contains(&self, name: &str) -> bool {
+        self.previous.contains(name)
+    }
+
+    fn build_named(
+        &self,
+        name: &str,
+        context: &SearchContext<S, V, DM, IDM>,
+    ) -> Option<Self::Phase> {
+        self.previous
+            .build_named(name, context)
+            .map(CustomPhaseUnion::Previous)
+    }
+
+    fn contains_partitioned(&self, name: &str) -> bool {
+        self.name == name || self.previous.contains_partitioned(name)
+    }
+
+    fn build_partitioned_named(
+        &self,
+        name: &str,
+        config: &PartitionedSearchConfig,
+        context: &SearchContext<S, V, DM, IDM>,
+    ) -> Option<Self::Phase> {
+        if self.name == name {
+            return Some(CustomPhaseUnion::Current((self.builder)(context, config)));
+        }
+        self.previous
+            .build_partitioned_named(name, config, context)
             .map(CustomPhaseUnion::Previous)
     }
 }

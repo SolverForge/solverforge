@@ -188,16 +188,13 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
 
     pub fn record_evaluated_move(&mut self, duration: Duration) {
         self.stats.record_evaluated_move(duration);
-        self.solver_scope
-            .stats_mut()
-            .record_evaluated_move(duration);
+        self.solver_scope.record_evaluated_move(duration);
     }
 
     pub fn record_selector_evaluated_move(&mut self, selector_index: usize, duration: Duration) {
         self.stats
             .record_selector_evaluated(selector_index, duration);
         self.solver_scope
-            .stats_mut()
             .record_selector_evaluated(selector_index, duration);
     }
 
@@ -275,7 +272,7 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
 
     pub fn record_score_calculation(&mut self) {
         self.stats.record_score_calculation();
-        self.solver_scope.stats_mut().record_score_calculation();
+        self.solver_scope.record_score_calculation();
     }
 
     pub fn record_construction_slot_assigned(&mut self) {

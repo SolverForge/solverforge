@@ -16,63 +16,6 @@ use crate::heuristic::selector::EntityReference;
 use crate::phase::construction::capabilities::grouped_heuristic_requires_entity_order;
 use crate::phase::construction::Placement;
 
-pub(super) struct ScalarGroupPlacementGenerator<'a, S, D, IsCompleted>
-where
-    S: PlanningSolution + 'static,
-    D: Director<S>,
-    IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
-{
-    pub(super) score_director: &'a D,
-    pub(super) is_completed: &'a mut IsCompleted,
-    pub(super) generated_moves: u64,
-    pub(super) kind: ScalarGroupPlacementKind<S>,
-}
-
-impl<S, D, IsCompleted> ScalarGroupPlacementGenerator<'_, S, D, IsCompleted>
-where
-    S: PlanningSolution + 'static,
-    D: Director<S>,
-    IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
-{
-    pub(super) fn next_placement(&mut self) -> Option<ScalarGroupPlacement<S>> {
-        match &mut self.kind {
-            ScalarGroupPlacementKind::Candidates(generator) => next_candidate_placement(
-                generator,
-                &mut self.generated_moves,
-                &mut *self.is_completed,
-            ),
-            ScalarGroupPlacementKind::Assignment(generator) => next_assignment_placement(
-                generator,
-                self.score_director,
-                &mut self.generated_moves,
-                &mut *self.is_completed,
-            ),
-            ScalarGroupPlacementKind::Empty => None,
-        }
-    }
-
-    pub(super) fn collect_placements(mut self) -> Vec<ScalarGroupPlacement<S>> {
-        let mut placements = Vec::new();
-        while let Some(placement) = self.next_placement() {
-            placements.push(placement);
-        }
-        placements
-    }
-
-    pub(super) fn generated_moves(&self) -> u64 {
-        self.generated_moves
-    }
-}
-
-pub(super) enum ScalarGroupPlacementKind<S>
-where
-    S: PlanningSolution + 'static,
-{
-    Candidates(CandidatePlacementGenerator<S>),
-    Assignment(AssignmentPlacementGenerator<S>),
-    Empty,
-}
-
 pub(super) struct CandidatePlacementGenerator<S>
 where
     S: PlanningSolution + 'static,
@@ -93,7 +36,7 @@ where
     pub(super) accepted: usize,
 }
 
-fn next_candidate_placement<S, IsCompleted>(
+pub(super) fn next_candidate_placement<S, IsCompleted>(
     generator: &mut CandidatePlacementGenerator<S>,
     generated_moves: &mut u64,
     is_completed: &mut IsCompleted,
@@ -113,7 +56,7 @@ where
     None
 }
 
-fn next_assignment_placement<S, D, IsCompleted>(
+pub(super) fn next_assignment_placement<S, D, IsCompleted>(
     generator: &mut AssignmentPlacementGenerator<S>,
     score_director: &D,
     generated_moves: &mut u64,
@@ -126,11 +69,8 @@ where
 {
     let solution = score_director.working_solution();
     while generator.accepted < generator.options.max_moves {
-        let Some((entity_index, mov)) =
-            next_assignment_move_for_placement(generator, score_director, is_completed)
-        else {
-            return None;
-        };
+        let (entity_index, mov) =
+            next_assignment_move_for_placement(generator, score_director, is_completed)?;
         *generated_moves = generated_moves.saturating_add(1);
         let group_slot = assignment_group_slot(generator.group_index, entity_index);
         let mut moves = vec![assignment_move_with_order_key(

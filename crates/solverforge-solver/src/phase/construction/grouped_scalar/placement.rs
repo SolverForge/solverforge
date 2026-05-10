@@ -146,11 +146,11 @@ pub(super) fn assignment_move_target<S>(
     let scalar_slots = mov
         .edits()
         .iter()
-        .filter_map(|edit| {
-            (edit.descriptor_index == target_binding.descriptor_index
-                && edit.variable_index == target_binding.variable_index)
-                .then(|| target_binding.slot_id(edit.entity_index))
+        .filter(|edit| {
+            edit.descriptor_index == target_binding.descriptor_index
+                && edit.variable_index == target_binding.variable_index
         })
+        .map(|edit| target_binding.slot_id(edit.entity_index))
         .collect::<Vec<_>>();
     ConstructionTarget::new()
         .with_scalar_slots(scalar_slots)

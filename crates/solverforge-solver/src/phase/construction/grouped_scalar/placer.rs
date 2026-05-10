@@ -13,8 +13,8 @@ use super::placement::{
     push_or_merge_placement, scalar_slots_for_candidate,
 };
 use super::placer_stream::{
-    assignment_placement_move_limit, sort_grouped_placements, AssignmentPlacementGenerator,
-    CandidatePlacementGenerator, ScalarGroupPlacementGenerator, ScalarGroupPlacementKind,
+    assignment_placement_move_limit, next_assignment_placement, next_candidate_placement,
+    sort_grouped_placements, AssignmentPlacementGenerator, CandidatePlacementGenerator,
 };
 use crate::builder::context::{
     ScalarAssignmentBinding, ScalarGroupBinding, ScalarGroupBindingKind, ScalarGroupLimits,
@@ -96,8 +96,34 @@ where
 {
     fn get_placements<D: Director<S>>(&self, score_director: &D) -> Vec<ScalarGroupPlacement<S>> {
         let mut keep = never_completed::<S>;
-        self.placement_generator(score_director, &mut keep)
-            .collect_placements()
+        let mut generated_moves = 0;
+        let mut placements = Vec::new();
+        match self.group.kind {
+            ScalarGroupBindingKind::Candidates { candidate_provider } => {
+                let mut generator =
+                    self.candidate_placement_generator(score_director, candidate_provider);
+                while let Some(placement) =
+                    next_candidate_placement(&mut generator, &mut generated_moves, &mut keep)
+                {
+                    placements.push(placement);
+                }
+            }
+            ScalarGroupBindingKind::Assignment(assignment) => {
+                if let Some(mut generator) =
+                    self.assignment_placement_generator(score_director, assignment)
+                {
+                    while let Some(placement) = next_assignment_placement(
+                        &mut generator,
+                        score_director,
+                        &mut generated_moves,
+                        &mut keep,
+                    ) {
+                        placements.push(placement);
+                    }
+                }
+            }
+        }
+        placements
     }
 
     fn get_next_placement<D, IsCompleted>(
@@ -109,10 +135,25 @@ where
         D: Director<S>,
         IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
     {
-        let mut generator = self.placement_generator(score_director, &mut is_completed);
-        generator
-            .next_placement()
-            .map(|placement| (placement, generator.generated_moves()))
+        let mut generated_moves = 0;
+        let placement = match self.group.kind {
+            ScalarGroupBindingKind::Candidates { candidate_provider } => {
+                let mut generator =
+                    self.candidate_placement_generator(score_director, candidate_provider);
+                next_candidate_placement(&mut generator, &mut generated_moves, &mut is_completed)
+            }
+            ScalarGroupBindingKind::Assignment(assignment) => {
+                let mut generator =
+                    self.assignment_placement_generator(score_director, assignment)?;
+                next_assignment_placement(
+                    &mut generator,
+                    score_director,
+                    &mut generated_moves,
+                    &mut is_completed,
+                )
+            }
+        };
+        placement.map(|placement| (placement, generated_moves))
     }
 }
 
@@ -120,34 +161,6 @@ impl<S> ScalarGroupPlacer<S>
 where
     S: PlanningSolution + 'static,
 {
-    fn placement_generator<'a, D, IsCompleted>(
-        &'a self,
-        score_director: &'a D,
-        is_completed: &'a mut IsCompleted,
-    ) -> ScalarGroupPlacementGenerator<'a, S, D, IsCompleted>
-    where
-        D: Director<S>,
-        IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
-    {
-        let kind = match self.group.kind {
-            ScalarGroupBindingKind::Candidates { candidate_provider } => {
-                ScalarGroupPlacementKind::Candidates(
-                    self.candidate_placement_generator(score_director, candidate_provider),
-                )
-            }
-            ScalarGroupBindingKind::Assignment(assignment) => {
-                self.assignment_placement_generator(score_director, assignment)
-            }
-        };
-
-        ScalarGroupPlacementGenerator {
-            score_director,
-            is_completed,
-            generated_moves: 0,
-            kind,
-        }
-    }
-
     fn candidate_placement_generator<D>(
         &self,
         score_director: &D,
@@ -242,7 +255,7 @@ where
         &self,
         score_director: &D,
         assignment: ScalarAssignmentBinding<S>,
-    ) -> ScalarGroupPlacementKind<S>
+    ) -> Option<AssignmentPlacementGenerator<S>>
     where
         D: Director<S>,
     {
@@ -256,12 +269,12 @@ where
         };
         let options = ScalarAssignmentMoveOptions::for_construction(self.limits);
         if options.max_moves == 0 {
-            return ScalarGroupPlacementKind::Empty;
+            return None;
         }
 
         let required_remaining = remaining_required_count(&assignment, solution);
         if self.required_only && required_remaining == 0 {
-            return ScalarGroupPlacementKind::Empty;
+            return None;
         }
         let target_required = self.required_only || required_remaining > 0;
         let max_moves = assignment_placement_move_limit(
@@ -280,7 +293,7 @@ where
             ScalarAssignmentMoveCursor::optional_construction(assignment, solution.clone(), options)
         };
 
-        ScalarGroupPlacementKind::Assignment(AssignmentPlacementGenerator {
+        Some(AssignmentPlacementGenerator {
             group_index: self.group_index,
             assignment,
             target_binding: target_binding.clone(),

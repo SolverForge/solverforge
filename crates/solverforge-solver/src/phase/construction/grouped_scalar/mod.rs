@@ -1,7 +1,9 @@
 mod assignment_candidate;
 mod assignment_cycle;
+mod assignment_edge;
 mod assignment_entity;
 mod assignment_family;
+mod assignment_index;
 mod assignment_pair;
 mod assignment_path;
 mod assignment_state;

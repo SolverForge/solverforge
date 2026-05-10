@@ -3,6 +3,9 @@ use std::collections::{HashMap, HashSet};
 use crate::builder::ScalarAssignmentBinding;
 use crate::planning::ScalarEdit;
 
+use super::assignment_edge::{ForcedAssignment, SequenceEdge};
+use super::assignment_index::{push_indexed_entity, remove_indexed_entity};
+
 pub(super) struct ScalarAssignmentState {
     values: Vec<Option<usize>>,
     required: Vec<bool>,
@@ -247,15 +250,15 @@ impl ScalarAssignmentState {
             return true;
         };
         let mut checked = HashSet::new();
+        let forced = ForcedAssignment {
+            entity_index,
+            value,
+        };
         if let Some(previous_sequence) = sequence_key.checked_sub(1) {
             if !self.assignment_rule_allows_sequence_edge(
                 group,
                 solution,
-                value,
-                previous_sequence,
-                sequence_key,
-                None,
-                Some((entity_index, value)),
+                SequenceEdge::new(value, previous_sequence, sequence_key).with_forced_right(forced),
                 &mut checked,
             ) {
                 return false;
@@ -265,11 +268,7 @@ impl ScalarAssignmentState {
             if !self.assignment_rule_allows_sequence_edge(
                 group,
                 solution,
-                value,
-                sequence_key,
-                next_sequence,
-                Some((entity_index, value)),
-                None,
+                SequenceEdge::new(value, sequence_key, next_sequence).with_forced_left(forced),
                 &mut checked,
             ) {
                 return false;
@@ -298,11 +297,7 @@ impl ScalarAssignmentState {
                     if !self.assignment_rule_allows_sequence_edge(
                         group,
                         solution,
-                        value,
-                        previous_sequence,
-                        sequence_key,
-                        None,
-                        None,
+                        SequenceEdge::new(value, previous_sequence, sequence_key),
                         &mut checked,
                     ) {
                         return false;
@@ -312,11 +307,7 @@ impl ScalarAssignmentState {
                     if !self.assignment_rule_allows_sequence_edge(
                         group,
                         solution,
-                        value,
-                        sequence_key,
-                        next_sequence,
-                        None,
-                        None,
+                        SequenceEdge::new(value, sequence_key, next_sequence),
                         &mut checked,
                     ) {
                         return false;
@@ -331,36 +322,32 @@ impl ScalarAssignmentState {
         &self,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
-        value: usize,
-        left_sequence: usize,
-        right_sequence: usize,
-        forced_left: Option<(usize, usize)>,
-        forced_right: Option<(usize, usize)>,
+        edge: SequenceEdge,
         checked: &mut HashSet<(usize, usize)>,
     ) -> bool {
         let mut left_scratch = [0usize; 1];
         let mut right_scratch = [0usize; 1];
-        let left_entities = match forced_left {
-            Some((entity_index, forced_value)) if forced_value == value => {
-                left_scratch[0] = entity_index;
+        let left_entities = match edge.forced_left {
+            Some(forced) if forced.value == edge.value => {
+                left_scratch[0] = forced.entity_index;
                 &left_scratch[..]
             }
             Some(_) => &[][..],
             None => self
                 .assigned_by_sequence
-                .get(&(value, left_sequence))
+                .get(&(edge.value, edge.left_sequence))
                 .map(Vec::as_slice)
                 .unwrap_or(&[]),
         };
-        let right_entities = match forced_right {
-            Some((entity_index, forced_value)) if forced_value == value => {
-                right_scratch[0] = entity_index;
+        let right_entities = match edge.forced_right {
+            Some(forced) if forced.value == edge.value => {
+                right_scratch[0] = forced.entity_index;
                 &right_scratch[..]
             }
             Some(_) => &[][..],
             None => self
                 .assigned_by_sequence
-                .get(&(value, right_sequence))
+                .get(&(edge.value, edge.right_sequence))
                 .map(Vec::as_slice)
                 .unwrap_or(&[]),
         };
@@ -370,7 +357,7 @@ impl ScalarAssignmentState {
                 if left == right || !checked.insert((*left, *right)) {
                     continue;
                 }
-                if !group.assignment_edge_allowed(solution, *left, value, *right, value) {
+                if !group.assignment_edge_allowed(solution, *left, edge.value, *right, edge.value) {
                     return false;
                 }
             }
@@ -474,26 +461,4 @@ fn adjacent_sequences(sequence_key: usize) -> impl Iterator<Item = usize> {
     [sequence_key.checked_sub(1), sequence_key.checked_add(1)]
         .into_iter()
         .flatten()
-}
-
-fn push_indexed_entity<K>(index: &mut HashMap<K, Vec<usize>>, key: K, entity_index: usize)
-where
-    K: Eq + std::hash::Hash,
-{
-    let entities = index.entry(key).or_default();
-    if !entities.contains(&entity_index) {
-        entities.push(entity_index);
-    }
-}
-
-fn remove_indexed_entity<K>(index: &mut HashMap<K, Vec<usize>>, key: K, entity_index: usize)
-where
-    K: Eq + std::hash::Hash,
-{
-    if let Some(entities) = index.get_mut(&key) {
-        entities.retain(|occupant| *occupant != entity_index);
-        if entities.is_empty() {
-            index.remove(&key);
-        }
-    }
 }

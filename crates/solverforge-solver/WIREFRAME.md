@@ -210,12 +210,19 @@ src/
 │   │   ├── capabilities.rs              — Shared heuristic-to-capability routing and early validation for scalar/list/grouped-scalar construction
 │   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroup candidates and assignment groups bound to runtime scalar slots
 │   │   ├── grouped_scalar/assignment_candidate.rs — Assignment move options, required assignment moves, capacity-conflict moves, reassignment moves, and remaining-required telemetry
+│   │   ├── grouped_scalar/assignment_cycle.rs — Bounded augmenting cycle and ejection/reinsert move construction
+│   │   ├── grouped_scalar/assignment_edge.rs — Small value objects for assignment-rule sequence-edge checks
+│   │   ├── grouped_scalar/assignment_entity.rs — Entity-local required, optional, capacity, and reassignment move construction
+│   │   ├── grouped_scalar/assignment_family.rs — Shared assignment candidate-family deduplication
+│   │   ├── grouped_scalar/assignment_index.rs — Indexed assignment-state map helpers
+│   │   ├── grouped_scalar/assignment_pair.rs — Deterministic bounded pair, rematch, and sequence-window move generation
 │   │   ├── grouped_scalar/assignment_path.rs — Bounded augmenting-path move construction for required and optional scalar assignments
-│   │   ├── grouped_scalar/assignment_rematch.rs — Deterministic bounded sequence/position rematch move generation
 │   │   ├── grouped_scalar/assignment_state.rs — Assignment occupancy, capacity, rollback, and conflict bookkeeping
+│   │   ├── grouped_scalar/assignment_stream.rs — Cursor-backed assignment move streaming for construction and selectors
 │   │   ├── grouped_scalar/move_build.rs — CompoundScalarMove construction from public ScalarCandidate edits
 │   │   ├── grouped_scalar/phase.rs      — ScalarGroupConstruction builder that feeds grouped scalar placements into stock ConstructionHeuristicPhase
 │   │   ├── grouped_scalar/placer.rs     — ScalarGroupPlacer adapter that emits stock Placement<CompoundScalarMove> values for provider and assignment groups
+│   │   ├── grouped_scalar/placer_stream.rs — Concrete candidate and assignment placement stream helpers
 │   │   ├── engine.rs                    — Canonical generic scalar/list/mixed construction engine used by runtime assembly
 │   │   └── engine/*.rs                  — Generic construction candidate, scan, commit, and target-matching chunks
 │   ├── localsearch/

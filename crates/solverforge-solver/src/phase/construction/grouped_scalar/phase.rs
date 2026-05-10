@@ -24,7 +24,7 @@ pub(crate) enum ScalarGroupConstruction<S>
 where
     S: PlanningSolution,
 {
-    FirstFit(
+    First(
         ConstructionHeuristicPhase<
             S,
             CompoundScalarMove<S>,
@@ -32,7 +32,7 @@ where
             FirstFitForager<S, CompoundScalarMove<S>>,
         >,
     ),
-    BestFit(
+    Best(
         ConstructionHeuristicPhase<
             S,
             CompoundScalarMove<S>,
@@ -40,7 +40,7 @@ where
             BestFitForager<S, CompoundScalarMove<S>>,
         >,
     ),
-    WeakestFit(
+    Weakest(
         ConstructionHeuristicPhase<
             S,
             CompoundScalarMove<S>,
@@ -48,7 +48,7 @@ where
             WeakestFitForager<S, CompoundScalarMove<S>>,
         >,
     ),
-    StrongestFit(
+    Strongest(
         ConstructionHeuristicPhase<
             S,
             CompoundScalarMove<S>,
@@ -64,12 +64,12 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::FirstFit(phase) => write!(f, "ScalarGroupConstruction::FirstFit({phase:?})"),
-            Self::BestFit(phase) => write!(f, "ScalarGroupConstruction::BestFit({phase:?})"),
-            Self::WeakestFit(phase) => {
+            Self::First(phase) => write!(f, "ScalarGroupConstruction::FirstFit({phase:?})"),
+            Self::Best(phase) => write!(f, "ScalarGroupConstruction::BestFit({phase:?})"),
+            Self::Weakest(phase) => {
                 write!(f, "ScalarGroupConstruction::WeakestFit({phase:?})")
             }
-            Self::StrongestFit(phase) => {
+            Self::Strongest(phase) => {
                 write!(f, "ScalarGroupConstruction::StrongestFit({phase:?})")
             }
         }
@@ -84,10 +84,10 @@ where
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
         match self {
-            Self::FirstFit(phase) => phase.solve(solver_scope),
-            Self::BestFit(phase) => phase.solve(solver_scope),
-            Self::WeakestFit(phase) => phase.solve(solver_scope),
-            Self::StrongestFit(phase) => phase.solve(solver_scope),
+            Self::First(phase) => phase.solve(solver_scope),
+            Self::Best(phase) => phase.solve(solver_scope),
+            Self::Weakest(phase) => phase.solve(solver_scope),
+            Self::Strongest(phase) => phase.solve(solver_scope),
         }
     }
 
@@ -112,7 +112,7 @@ where
         .unwrap_or(ConstructionHeuristicType::FirstFit);
     let construction_obligation = config
         .map(|cfg| cfg.construction_obligation)
-        .unwrap_or(ConstructionObligation::default());
+        .unwrap_or_default();
     let limits = effective_group_limits(config, group.limits);
     let placer = ScalarGroupPlacer::new(
         group_index,
@@ -126,17 +126,19 @@ where
 
     match construction_type {
         ConstructionHeuristicType::FirstFit | ConstructionHeuristicType::FirstFitDecreasing => {
-            ScalarGroupConstruction::FirstFit(build_phase(
+            ScalarGroupConstruction::First(build_phase(
                 placer,
                 construction_obligation,
                 FirstFitForager::new(),
             ))
         }
-        ConstructionHeuristicType::CheapestInsertion => ScalarGroupConstruction::BestFit(
-            build_phase(placer, construction_obligation, BestFitForager::new()),
-        ),
+        ConstructionHeuristicType::CheapestInsertion => ScalarGroupConstruction::Best(build_phase(
+            placer,
+            construction_obligation,
+            BestFitForager::new(),
+        )),
         ConstructionHeuristicType::WeakestFit | ConstructionHeuristicType::WeakestFitDecreasing => {
-            ScalarGroupConstruction::WeakestFit(build_phase(
+            ScalarGroupConstruction::Weakest(build_phase(
                 placer,
                 construction_obligation,
                 WeakestFitForager::new(scalar_group_move_strength::<S>),
@@ -144,7 +146,7 @@ where
         }
         ConstructionHeuristicType::StrongestFit
         | ConstructionHeuristicType::StrongestFitDecreasing => {
-            ScalarGroupConstruction::StrongestFit(build_phase(
+            ScalarGroupConstruction::Strongest(build_phase(
                 placer,
                 construction_obligation,
                 StrongestFitForager::new(scalar_group_move_strength::<S>),

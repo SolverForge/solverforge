@@ -17,6 +17,8 @@
 > **Used in Production**
 >
 > "Working like a charm, A+" — *Dr. Fawaz Halwani, Pathologist, The Ottawa Hospital*
+>
+> "High-level abstractions, zero-cost implementation. A masterclass in Rust architecture." — *Prof. Benjamin Abel, Computer Science, Côte d’Azur University, Nice*
 
 A Rust planning engine for problems where you need to assign scarce resources
 without breaking hard rules.

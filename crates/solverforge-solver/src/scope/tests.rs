@@ -3,6 +3,7 @@
 use std::any::TypeId;
 
 use super::*;
+use crate::manager::SolverTerminalReason;
 use crate::phase::construction::{ConstructionListElementId, ConstructionSlotId};
 use crate::test_utils::create_simple_nqueens_director;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
@@ -38,6 +39,42 @@ fn test_solver_scope_step_count() {
     assert_eq!(scope.increment_step_count(), 1);
     assert_eq!(scope.increment_step_count(), 2);
     assert_eq!(scope.total_step_count(), 2);
+}
+
+#[test]
+fn inphase_best_score_limit_requests_search_config_termination() {
+    let director = create_simple_nqueens_director(2);
+    let mut scope = SolverScope::new(director);
+    scope.start_solving();
+    scope.install_inphase_best_score_limit(SoftScore::of(0));
+    let solution = scope.score_director().clone_working_solution();
+    scope.set_best_solution(solution, SoftScore::of(0));
+
+    assert_eq!(
+        scope.pending_control(),
+        PendingControl::ConfigTerminationRequested
+    );
+    assert!(scope.should_terminate());
+    assert_eq!(
+        scope.terminal_reason(),
+        SolverTerminalReason::TerminatedByConfig
+    );
+}
+
+#[test]
+fn inphase_best_score_limit_requests_construction_config_termination() {
+    let director = create_simple_nqueens_director(2);
+    let mut scope = SolverScope::new(director);
+    scope.start_solving();
+    scope.install_inphase_best_score_limit(SoftScore::of(0));
+    let solution = scope.score_director().clone_working_solution();
+    scope.set_best_solution(solution, SoftScore::of(0));
+
+    assert!(scope.should_terminate_construction());
+    assert_eq!(
+        scope.terminal_reason(),
+        SolverTerminalReason::TerminatedByConfig
+    );
 }
 
 #[test]

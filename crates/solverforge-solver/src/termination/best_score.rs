@@ -49,6 +49,10 @@ where
             .map(|score| *score >= self.target_score)
             .unwrap_or(false)
     }
+
+    fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
+        solver_scope.install_inphase_best_score_limit(self.target_score);
+    }
 }
 
 /// Terminates when the best score becomes feasible.

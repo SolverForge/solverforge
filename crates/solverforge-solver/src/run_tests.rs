@@ -1,7 +1,15 @@
 use super::{build_termination, load_solver_config_from, log_solve_start, AnyTermination};
+use crate::manager::SolverTerminalReason;
+use crate::phase::Phase;
+use crate::scope::{ProgressCallback, SolverScope};
+use crate::solver::Solver;
 use solverforge_config::SolverConfig;
-use solverforge_core::domain::PlanningSolution;
+use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
+use solverforge_scoring::{
+    ConstraintAnalysis, ConstraintMetadata, ConstraintResult, ConstraintSet, ScoreDirector,
+};
+use std::any::TypeId;
 use std::fs;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -19,6 +27,100 @@ impl PlanningSolution for TestSolution {
 
     fn set_score(&mut self, score: Option<Self::Score>) {
         self.score = score;
+    }
+}
+
+#[derive(Debug)]
+struct ScoreFromSolutionConstraints;
+
+impl ConstraintSet<TestSolution, SoftScore> for ScoreFromSolutionConstraints {
+    fn evaluate_all(&self, solution: &TestSolution) -> SoftScore {
+        solution.score.unwrap_or(SoftScore::ZERO)
+    }
+
+    fn constraint_count(&self) -> usize {
+        0
+    }
+
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+        Vec::new()
+    }
+
+    fn evaluate_each<'a>(
+        &'a self,
+        _solution: &TestSolution,
+    ) -> Vec<ConstraintResult<'a, SoftScore>> {
+        Vec::new()
+    }
+
+    fn evaluate_detailed<'a>(
+        &'a self,
+        _solution: &TestSolution,
+    ) -> Vec<ConstraintAnalysis<'a, SoftScore>> {
+        Vec::new()
+    }
+
+    fn initialize_all(&mut self, solution: &TestSolution) -> SoftScore {
+        self.evaluate_all(solution)
+    }
+
+    fn on_insert_all(
+        &mut self,
+        solution: &TestSolution,
+        _entity_index: usize,
+        _descriptor_index: usize,
+    ) -> SoftScore {
+        self.evaluate_all(solution)
+    }
+
+    fn on_retract_all(
+        &mut self,
+        solution: &TestSolution,
+        _entity_index: usize,
+        _descriptor_index: usize,
+    ) -> SoftScore {
+        -self.evaluate_all(solution)
+    }
+
+    fn reset_all(&mut self) {}
+}
+
+#[derive(Debug)]
+struct IncrementScorePhase {
+    max_score: i64,
+}
+
+impl<ProgressCb>
+    Phase<TestSolution, ScoreDirector<TestSolution, ScoreFromSolutionConstraints>, ProgressCb>
+    for IncrementScorePhase
+where
+    ProgressCb: ProgressCallback<TestSolution>,
+{
+    fn solve(
+        &mut self,
+        solver_scope: &mut SolverScope<
+            TestSolution,
+            ScoreDirector<TestSolution, ScoreFromSolutionConstraints>,
+            ProgressCb,
+        >,
+    ) {
+        for next_score in 1..=self.max_score {
+            if solver_scope.should_terminate() {
+                break;
+            }
+            solver_scope.mutate(|score_director| {
+                score_director.before_variable_changed(0, 0);
+                score_director.working_solution_mut().score = Some(SoftScore::of(next_score));
+                score_director.after_variable_changed(0, 0);
+            });
+            solver_scope.increment_step_count();
+            solver_scope.calculate_score();
+            solver_scope.update_best_solution();
+        }
+    }
+
+    fn phase_type_name(&self) -> &'static str {
+        "IncrementScore"
     }
 }
 
@@ -87,6 +189,44 @@ fn build_termination_returns_fallback_time_for_best_score_limit() {
 
     assert!(matches!(termination, AnyTermination::WithBestScore(_)));
     assert_eq!(time_limit, Some(Duration::from_secs(180)));
+}
+
+#[test]
+fn config_best_score_limit_stops_active_phase_loop() {
+    let config = SolverConfig {
+        termination: Some(solverforge_config::TerminationConfig {
+            best_score_limit: Some("2".to_string()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let (termination, time_limit) =
+        build_termination::<TestSolution, ScoreFromSolutionConstraints>(&config, 180);
+    let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
+    let director = ScoreDirector::with_descriptor(
+        TestSolution {
+            score: Some(SoftScore::of(0)),
+        },
+        ScoreFromSolutionConstraints,
+        descriptor,
+        |_, _| 1,
+    );
+
+    let mut solver = Solver::new((IncrementScorePhase { max_score: 5 },))
+        .with_config(config)
+        .with_termination(termination);
+    if let Some(time_limit) = time_limit {
+        solver = solver.with_time_limit(time_limit);
+    }
+
+    let result = solver.solve(director);
+
+    assert_eq!(
+        result.terminal_reason(),
+        SolverTerminalReason::TerminatedByConfig
+    );
+    assert_eq!(*result.best_score(), SoftScore::of(2));
+    assert_eq!(result.step_count(), 2);
 }
 
 #[test]

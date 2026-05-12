@@ -154,6 +154,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         if self.phase_budget_reached() {
             return PendingControl::ConfigTerminationRequested;
         }
+        if self.inphase_best_score_limit_reached() {
+            return PendingControl::ConfigTerminationRequested;
+        }
         PendingControl::Continue
     }
 
@@ -162,6 +165,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             || self.is_terminate_early()
             || self.time_limit_reached()
             || self.phase_budget_reached()
+            || self.inphase_best_score_limit_reached()
     }
 
     pub fn set_time_limit(&mut self, limit: Duration) {
@@ -206,6 +210,10 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             self.mark_terminated_by_config();
             return true;
         }
+        if self.inphase_best_score_limit_reached() {
+            self.mark_terminated_by_config();
+            return true;
+        }
         false
     }
 
@@ -223,6 +231,10 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             return true;
         }
         if self.phase_budget_reached() {
+            self.mark_terminated_by_config();
+            return true;
+        }
+        if self.inphase_best_score_limit_reached() {
             self.mark_terminated_by_config();
             return true;
         }
@@ -255,6 +267,14 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub fn mark_terminated_by_config(&mut self) {
         self.terminal_reason
             .get_or_insert(SolverTerminalReason::TerminatedByConfig);
+    }
+
+    pub(crate) fn install_inphase_best_score_limit(&mut self, target_score: S::Score) {
+        let target_score = match self.inphase_best_score_limit {
+            Some(existing) => existing.min(target_score),
+            None => target_score,
+        };
+        self.inphase_best_score_limit = Some(target_score);
     }
 
     pub fn stats(&self) -> &SolverStats {
@@ -327,6 +347,12 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     fn phase_budget_reached(&self) -> bool {
         self.phase_budget
             .is_some_and(|phase_budget| phase_budget.limit_reached())
+    }
+
+    fn inphase_best_score_limit_reached(&self) -> bool {
+        self.inphase_best_score_limit
+            .zip(self.best_score)
+            .is_some_and(|(target, best)| best >= target)
     }
 
     fn advance_solution_revision(&mut self) {

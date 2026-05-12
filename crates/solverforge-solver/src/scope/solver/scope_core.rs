@@ -25,6 +25,7 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     pub inphase_step_count_limit: Option<u64>,
     pub inphase_move_count_limit: Option<u64>,
     pub inphase_score_calc_count_limit: Option<u64>,
+    inphase_best_score_limit: Option<S::Score>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,6 +118,7 @@ pub(crate) struct SolverScopeChildConfig<'t, S: PlanningSolution> {
     inphase_step_count_limit: Option<u64>,
     inphase_move_count_limit: Option<u64>,
     inphase_score_calc_count_limit: Option<u64>,
+    inphase_best_score_limit: Option<S::Score>,
 }
 
 impl<'t, S: PlanningSolution> SolverScopeChildConfig<'t, S> {
@@ -140,6 +142,7 @@ impl<'t, S: PlanningSolution> SolverScopeChildConfig<'t, S> {
             scope.inphase_move_count_limit = self.inphase_move_count_limit;
             scope.inphase_score_calc_count_limit = self.inphase_score_calc_count_limit;
         }
+        scope.inphase_best_score_limit = self.inphase_best_score_limit;
         scope
     }
 }
@@ -182,6 +185,7 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
+            inphase_best_score_limit: None,
         }
     }
 }
@@ -223,6 +227,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             inphase_step_count_limit: None,
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
+            inphase_best_score_limit: None,
         }
     }
 
@@ -275,6 +280,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             inphase_step_count_limit: self.inphase_step_count_limit,
             inphase_move_count_limit: self.inphase_move_count_limit,
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
+            inphase_best_score_limit: self.inphase_best_score_limit,
         }
     }
 
@@ -319,6 +325,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             inphase_step_count_limit: self.inphase_step_count_limit,
             inphase_move_count_limit: self.inphase_move_count_limit,
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
+            inphase_best_score_limit: self.inphase_best_score_limit,
         }
     }
 

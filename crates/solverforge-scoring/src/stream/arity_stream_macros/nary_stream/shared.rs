@@ -210,7 +210,7 @@ macro_rules! impl_nary_arity_stream_common {
             S: Send + Sync + 'static,
             A: Clone + Send + Sync + 'static,
             K: Eq + std::hash::Hash + Clone + Send + Sync,
-            E: super::collection_extract::CollectionExtract<S, Item = A> + Clone,
+            E: super::collection_extract::CollectionExtract<S, Item = A>,
             KE: super::key_extract::KeyExtract<S, A, K>,
             F: super::filter::$filter_trait<S, $(repeat_tokens!($entity => A)),+>,
             W: Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
@@ -232,7 +232,11 @@ macro_rules! impl_nary_arity_stream_common {
                 ) -> bool
                        + Send
                        + Sync,
-                impl Fn(&S, $(repeat_tokens!($weight_idx => usize)),+) -> Sc + Send + Sync,
+                impl Fn(
+                    &S,
+                    &[A],
+                    $(repeat_tokens!($weight_idx => usize)),+
+                ) -> Sc + Send + Sync,
                 Sc,
             > {
                 let filter = self.filter;
@@ -241,13 +245,8 @@ macro_rules! impl_nary_arity_stream_common {
                         filter.test(s, $($entity),+ $(, $filter_idx)*)
                     };
 
-                let extractor_for_weight = self.extractor.clone();
                 let user_weight = self.weight;
-                let adapted_weight = move |solution: &S, $($weight_idx: usize),+| {
-                    let entities = super::collection_extract::CollectionExtract::extract(
-                        &extractor_for_weight,
-                        solution,
-                    );
+                let adapted_weight = move |_solution: &S, entities: &[A], $($weight_idx: usize),+| {
                     user_weight($(&entities[$weight_idx]),+)
                 };
 

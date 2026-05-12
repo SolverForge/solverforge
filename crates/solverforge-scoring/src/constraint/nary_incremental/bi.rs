@@ -36,7 +36,7 @@ macro_rules! impl_incremental_bi_constraint {
             E: $crate::stream::collection_extract::CollectionExtract<S, Item = A>,
             KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
             F: Fn(&S, &A, &A, usize, usize) -> bool,
-            W: Fn(&S, usize, usize) -> Sc,
+            W: Fn(&S, &[A], usize, usize) -> Sc,
             Sc: Score,
         {
             pub fn new(
@@ -67,8 +67,8 @@ macro_rules! impl_incremental_bi_constraint {
             }
 
             #[inline]
-            fn compute_score(&self, solution: &S, a_idx: usize, b_idx: usize) -> Sc {
-                let base = (self.weight)(solution, a_idx, b_idx);
+            fn compute_score(&self, solution: &S, entities: &[A], a_idx: usize, b_idx: usize) -> Sc {
+                let base = (self.weight)(solution, entities, a_idx, b_idx);
                 match self.impact_type {
                     ImpactType::Penalty => -base,
                     ImpactType::Reward => base,
@@ -115,7 +115,7 @@ macro_rules! impl_incremental_bi_constraint {
                             if matches.insert(pair) {
                                 entity_to_matches.entry(low_idx).or_default().insert(pair);
                                 entity_to_matches.entry(high_idx).or_default().insert(pair);
-                                let base = weight(solution, low_idx, high_idx);
+                                let base = weight(solution, entities, low_idx, high_idx);
                                 let score = match impact_type {
                                     ImpactType::Penalty => -base,
                                     ImpactType::Reward => base,
@@ -157,7 +157,7 @@ macro_rules! impl_incremental_bi_constraint {
 
                     let (low_idx, high_idx) = pair;
                     if low_idx < entities.len() && high_idx < entities.len() {
-                        let score = self.compute_score(solution, low_idx, high_idx);
+                        let score = self.compute_score(solution, entities, low_idx, high_idx);
                         total = total - score;
                     }
                 }
@@ -175,7 +175,7 @@ macro_rules! impl_incremental_bi_constraint {
             E: $crate::stream::collection_extract::CollectionExtract<S, Item = A>,
             KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
             F: Fn(&S, &A, &A, usize, usize) -> bool + Send + Sync,
-            W: Fn(&S, usize, usize) -> Sc + Send + Sync,
+            W: Fn(&S, &[A], usize, usize) -> Sc + Send + Sync,
             Sc: Score,
         {
             fn evaluate(&self, solution: &S) -> Sc {
@@ -196,7 +196,7 @@ macro_rules! impl_incremental_bi_constraint {
                             let a = &entities[low];
                             let b = &entities[high];
                             if (self.filter)(solution, a, b, low, high) {
-                                total = total + self.compute_score(solution, low, high);
+                                total = total + self.compute_score(solution, entities, low, high);
                             }
                         }
                     }

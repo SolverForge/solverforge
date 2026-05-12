@@ -60,7 +60,7 @@ macro_rules! impl_get_matches_nary {
                             EntityRef::new(a),
                             EntityRef::new(b),
                         ]);
-                        let score = $self.compute_score($solution, idx_a, idx_b);
+                        let score = $self.compute_score($solution, entities, idx_a, idx_b);
                         matches.push(DetailedConstraintMatch::new(cref, score, justification));
                     }
                 }
@@ -108,7 +108,7 @@ macro_rules! impl_get_matches_nary {
                                 EntityRef::new(b),
                                 EntityRef::new(c),
                             ]);
-                            let score = $self.compute_score($solution, i, j, k);
+                            let score = $self.compute_score($solution, entities, i, j, k);
                             matches.push(DetailedConstraintMatch::new(cref, score, justification));
                         }
                     }
@@ -161,7 +161,7 @@ macro_rules! impl_get_matches_nary {
                                     EntityRef::new(c),
                                     EntityRef::new(d),
                                 ]);
-                                let score = $self.compute_score($solution, i, j, k, l);
+                                let score = $self.compute_score($solution, entities, i, j, k, l);
                                 matches.push(DetailedConstraintMatch::new(
                                     cref,
                                     score,
@@ -223,7 +223,8 @@ macro_rules! impl_get_matches_nary {
                                         EntityRef::new(d),
                                         EntityRef::new(e),
                                     ]);
-                                    let score = $self.compute_score($solution, i, j, k, l, m);
+                                    let score =
+                                        $self.compute_score($solution, entities, i, j, k, l, m);
                                     matches.push(DetailedConstraintMatch::new(
                                         cref,
                                         score,

@@ -31,7 +31,13 @@ fn test_penta_constraint_evaluate() {
         ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(1),
+        |_s: &Solution,
+         _entities: &[Task],
+         _a: usize,
+         _b: usize,
+         _c: usize,
+         _d: usize,
+         _e: usize| { SoftScore::of(1) },
         false,
     );
 
@@ -61,7 +67,13 @@ fn test_penta_constraint_multiple_pentas() {
         ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(1),
+        |_s: &Solution,
+         _entities: &[Task],
+         _a: usize,
+         _b: usize,
+         _c: usize,
+         _d: usize,
+         _e: usize| { SoftScore::of(1) },
         false,
     );
 
@@ -91,7 +103,13 @@ fn test_penta_constraint_incremental() {
         ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(1),
+        |_s: &Solution,
+         _entities: &[Task],
+         _a: usize,
+         _b: usize,
+         _c: usize,
+         _d: usize,
+         _e: usize| { SoftScore::of(1) },
         false,
     );
 
@@ -131,7 +149,13 @@ fn test_penta_constraint_reward() {
         ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
         |_s: &Solution, _a: &Task, _b: &Task, _c: &Task, _d: &Task, _e: &Task| true,
-        |_s: &Solution, _a: usize, _b: usize, _c: usize, _d: usize, _e: usize| SoftScore::of(5),
+        |_s: &Solution,
+         _entities: &[Task],
+         _a: usize,
+         _b: usize,
+         _c: usize,
+         _d: usize,
+         _e: usize| { SoftScore::of(5) },
         false,
     );
 

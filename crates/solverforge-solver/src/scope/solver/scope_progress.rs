@@ -157,6 +157,13 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         PendingControl::Continue
     }
 
+    pub(crate) fn work_should_stop(&self) -> bool {
+        self.yielded_to_parent
+            || self.is_terminate_early()
+            || self.time_limit_reached()
+            || self.phase_budget_reached()
+    }
+
     pub fn set_time_limit(&mut self, limit: Duration) {
         self.time_limit = Some(limit);
     }

@@ -132,7 +132,7 @@ pub(super) fn generate_constraint_stream_extensions(
             &mut impl_methods,
             solution_name,
             field_name,
-            &element_type,
+            element_type,
             change_source,
         );
     }
@@ -153,7 +153,7 @@ pub(super) fn generate_constraint_stream_extensions(
             &mut impl_methods,
             solution_name,
             field_name,
-            &element_type,
+            element_type,
             change_source,
         );
     }

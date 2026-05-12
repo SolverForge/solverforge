@@ -143,7 +143,7 @@ fn bench_incremental_moves() {
         |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
             a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
         },
-        |_s: &Schedule, _a_idx: usize, _b_idx: usize| SoftScore::of(10),
+        |_s: &Schedule, _shifts: &[Shift], _a_idx: usize, _b_idx: usize| SoftScore::of(10),
         false,
     );
 
@@ -221,7 +221,7 @@ fn bench_compare_approaches() {
             |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
                 a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
             },
-            |_s: &Schedule, _a_idx: usize, _b_idx: usize| SoftScore::of(10),
+            |_s: &Schedule, _shifts: &[Shift], _a_idx: usize, _b_idx: usize| SoftScore::of(10),
             false,
         );
 

@@ -139,8 +139,9 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                 &self,
                 solution: &S,
                 entities: &[A],
-                $($match_idx: usize),+
+                match_indices: ($(repeat_nary_constraint_tokens!($match_idx => usize)),+),
             ) -> Sc {
+                let ($($match_idx),+) = match_indices;
                 let base = (self.weight)(solution, entities, $($match_idx),+);
                 match self.impact_type {
                     ImpactType::Penalty => -base,
@@ -248,7 +249,7 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                     }
 
                     if true $(&& $match_idx < entities.len())* {
-                        let score = self.compute_score(solution, entities, $($match_idx),+);
+                        let score = self.compute_score(solution, entities, match_tuple);
                         total = total - score;
                     }
                 }
@@ -285,7 +286,7 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                         {
                             $(let $entity = &entities[$combo_value];)+
                             if (self.filter)(solution, $($entity),+) {
-                                total = total + self.compute_score(solution, entities, $($combo_value),+);
+                                total = total + self.compute_score(solution, entities, ($($combo_value),+));
                             }
                         }
                     );

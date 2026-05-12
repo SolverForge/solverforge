@@ -110,10 +110,11 @@ pub struct NearbyChangeMoveConfig {
 
 impl Default for NearbyChangeMoveConfig {
     fn default() -> Self {
+        let (max_nearby, target) = default_nearby_target_config();
         Self {
-            max_nearby: 10,
+            max_nearby,
             value_candidate_limit: None,
-            target: VariableTargetConfig::default(),
+            target,
         }
     }
 }
@@ -129,10 +130,8 @@ pub struct NearbySwapMoveConfig {
 
 impl Default for NearbySwapMoveConfig {
     fn default() -> Self {
-        Self {
-            max_nearby: 10,
-            target: VariableTargetConfig::default(),
-        }
+        let (max_nearby, target) = default_nearby_target_config();
+        Self { max_nearby, target }
     }
 }
 
@@ -232,10 +231,8 @@ pub struct NearbyListChangeMoveConfig {
 
 impl Default for NearbyListChangeMoveConfig {
     fn default() -> Self {
-        Self {
-            max_nearby: 10,
-            target: VariableTargetConfig::default(),
-        }
+        let (max_nearby, target) = default_nearby_target_config();
+        Self { max_nearby, target }
     }
 }
 
@@ -259,10 +256,8 @@ pub struct NearbyListSwapMoveConfig {
 
 impl Default for NearbyListSwapMoveConfig {
     fn default() -> Self {
-        Self {
-            max_nearby: 10,
-            target: VariableTargetConfig::default(),
-        }
+        let (max_nearby, target) = default_nearby_target_config();
+        Self { max_nearby, target }
     }
 }
 
@@ -280,10 +275,11 @@ pub struct SublistChangeMoveConfig {
 
 impl Default for SublistChangeMoveConfig {
     fn default() -> Self {
+        let (min_sublist_size, max_sublist_size, target) = default_sublist_target_config();
         Self {
-            min_sublist_size: 1,
-            max_sublist_size: 3,
-            target: VariableTargetConfig::default(),
+            min_sublist_size,
+            max_sublist_size,
+            target,
         }
     }
 }
@@ -302,10 +298,11 @@ pub struct SublistSwapMoveConfig {
 
 impl Default for SublistSwapMoveConfig {
     fn default() -> Self {
+        let (min_sublist_size, max_sublist_size, target) = default_sublist_target_config();
         Self {
-            min_sublist_size: 1,
-            max_sublist_size: 3,
-            target: VariableTargetConfig::default(),
+            min_sublist_size,
+            max_sublist_size,
+            target,
         }
     }
 }
@@ -473,4 +470,12 @@ fn default_conflict_repair_max_moves() -> usize {
 
 fn default_require_hard_improvement() -> bool {
     true
+}
+
+fn default_nearby_target_config() -> (usize, VariableTargetConfig) {
+    (10, VariableTargetConfig::default())
+}
+
+fn default_sublist_target_config() -> (usize, usize, VariableTargetConfig) {
+    (1, 3, VariableTargetConfig::default())
 }

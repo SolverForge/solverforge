@@ -296,7 +296,11 @@ fn push_conflict_repair_selector<S, V, DM, IDM>(
     if config.constraints.is_empty() {
         panic!("conflict_repair_move_selector requires at least one constraint");
     }
-    let scalar_variables = model.scalar_variables().copied().collect::<Vec<_>>();
+    let scalar_variables = model
+        .scalar_variables()
+        .filter(|variable| !model.assignment_group_covers_scalar_variable(variable))
+        .copied()
+        .collect::<Vec<_>>();
     let repairs = model
         .conflict_repairs()
         .iter()
@@ -334,7 +338,11 @@ fn push_compound_conflict_repair_selector<S, V, DM, IDM>(
     if config.constraints.is_empty() {
         panic!("compound_conflict_repair_move_selector requires at least one constraint");
     }
-    let scalar_variables = model.scalar_variables().copied().collect::<Vec<_>>();
+    let scalar_variables = model
+        .scalar_variables()
+        .filter(|variable| !model.assignment_group_covers_scalar_variable(variable))
+        .copied()
+        .collect::<Vec<_>>();
     let repairs = model
         .conflict_repairs()
         .iter()

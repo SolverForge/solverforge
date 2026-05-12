@@ -51,6 +51,16 @@ where
         entity_class.as_deref(),
         variable_name.as_deref(),
     );
+    if group_name.is_none() && explicit_target {
+        if let Some(variable) =
+            assignment_owned_scalar_target(entity_class.as_deref(), variable_name.as_deref(), model)
+        {
+            panic!(
+                "construction heuristic targets assignment-owned scalar variable {}.{}; use grouped scalar construction with the owning group_name instead",
+                variable.entity_type_name, variable.variable_name
+            );
+        }
+    }
     let scalar_bindings = if group_name.is_some() {
         resolved_scalar_bindings.clone()
     } else {
@@ -160,6 +170,20 @@ where
         entity_class,
         variable_name,
     }
+}
+
+fn assignment_owned_scalar_target<S, V, DM, IDM>(
+    entity_class: Option<&str>,
+    variable_name: Option<&str>,
+    model: &RuntimeModel<S, V, DM, IDM>,
+) -> Option<crate::builder::ScalarVariableSlot<S>>
+where
+    S: PlanningSolution + 'static,
+{
+    model.scalar_variables().copied().find(|variable| {
+        variable.matches_target(entity_class, variable_name)
+            && model.assignment_group_covers_scalar_variable(variable)
+    })
 }
 
 fn validate_grouped_scalar_group<S>(

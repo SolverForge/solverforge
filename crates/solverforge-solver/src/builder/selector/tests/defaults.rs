@@ -443,6 +443,42 @@ fn conflict_repair_selector_builds_executable_registered_repairs() {
 }
 
 #[test]
+fn conflict_repair_selector_does_not_edit_assignment_owned_scalars() {
+    let descriptor = descriptor(true);
+    let director = create_director_with_constraint(
+        MixedPlan {
+            shifts: vec![Shift { worker: Some(0) }, Shift { worker: Some(1) }],
+            vehicles: vec![],
+            score: None,
+        },
+        descriptor,
+        "testConstraint",
+        true,
+    );
+    let model = assignment_scalar_model().with_conflict_repairs(vec![
+        crate::builder::ConflictRepair::new("testConstraint", repair_worker_to_one),
+    ]);
+    let config = MoveSelectorConfig::ConflictRepairMoveSelector(
+        solverforge_config::ConflictRepairMoveSelectorConfig {
+            constraints: vec!["testConstraint".to_string()],
+            max_matches_per_step: 2,
+            max_repairs_per_match: 3,
+            max_moves_per_step: 4,
+            require_hard_improvement: false,
+            include_soft_matches: false,
+        },
+    );
+
+    let selector = build_move_selector(Some(&config), &model, None);
+    let mut cursor = selector.open_cursor(&director);
+
+    assert!(
+        cursor.next_candidate().is_none(),
+        "assignment-owned scalar repairs must stay on the grouped assignment path"
+    );
+}
+
+#[test]
 #[should_panic(
     expected = "conflict_repair_move_selector configured for non-hard constraint `testConstraint` while include_soft_matches is false"
 )]

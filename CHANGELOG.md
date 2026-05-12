@@ -2,6 +2,59 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.13.0](///compare/v0.12.1...v0.13.0) (2026-05-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* **scoring:** constraint streams no longer expose penalize_with, penalize_hard_with, penalize_hard, penalize_soft, reward_with, reward_hard_with, reward_hard, or reward_soft. Use penalize(HardSoftScore::ONE_HARD), penalize(HardSoftScore::ONE_SOFT), reward(score), or typed dynamic closures such as penalize(|task: &Task| HardSoftScore::of_soft(task.cost)).
+
+* **scoring:** collapse constraint weighting methods 214f5b5
+
+
+### Features
+
+* **config:** add fair union selector ordering 748f6a8
+* **facade:** export CollectedVec in the prelude 6aaa07d
+* **macros:** restore constraint stream convenience traits e8cad8a
+* **scoring:** add collect_vec collector 4a1b845
+* **scoring:** add indexed presence collector c27725a
+* **scoring:** expose explicit score weight wrappers 5b81e5c
+* **scoring:** expose fresh score calculation e3501d5
+* **scoring:** own collector values with retraction tokens 0332eca
+* **solver:** add typed model-aware search defaults 0f588fc
+* **solver:** assert cached scores in full assert mode 2371496
+* **solver:** broaden grouped scalar assignment repairs 744a9de
+* **solver:** interleave grouped assignment neighborhoods daa0137
+* **solver:** make grouped assignment the scalar owner 4d81ed5
+* **solver:** make grouped scalar and conflict repair streams bounded 036f882
+* **solver:** make scalar and list selectors lazy under stream context 09e2c3c
+* **solver:** route partitioned search through typed registration 4ef9935
+* **solver:** synthesize default construction phases 99c824e
+* **solver:** thread typed move stream context through selectors 2c9ef0d
+* **solver:** tune grouped assignment default search e4b0ae9
+* **solver:** use edge-local scalar assignment rules 094d9d7
+
+
+### Bug Fixes
+
+* **construction:** stop while generating live placements 2024a9e
+* **macros:** reject non-usize scalar planning variables 4baba41
+* **scoring:** align n-ary score helpers with tuple indices 1af54f6
+* **scoring:** maintain collector item counts incrementally a3e9a06
+* **scoring:** remove extractor clone from self joins 9e92e84
+* **scoring:** support non-copy collect_vec elements 1341423
+* **solver:** avoid accepted-count prefix bias in scalar defaults 3b9d80e
+* **solver:** honor best score limit during active phases dde96b9
+* **solver:** keep assignment scalars on grouped paths d5aad15
+* **solver:** keep grouped scalar cleanup monomorphic 0ba2859
+* **solver:** make accepted-count forager a horizon 098475c
+* **solver:** make stock default search streaming-first 49f3f4b
+* **solver:** preserve strict timeout semantics in local search 37e622d
+* **solver:** replay exhaustive assignment paths cb61bc8
+* **solver:** route omitted selectors through stock defaults 24e6387
+* **solver:** score default grouped assignment construction 0d6592e
+
 ## [0.12.1](///compare/v0.12.0...v0.12.1) (2026-05-09)
 
 

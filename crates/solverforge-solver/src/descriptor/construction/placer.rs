@@ -307,20 +307,25 @@ where
         placements
     }
 
-    fn get_next_placement<D, IsCompleted>(
+    fn get_next_placement<D, IsCompleted, ShouldStop>(
         &self,
         score_director: &D,
         mut is_completed: IsCompleted,
+        mut should_stop: ShouldStop,
     ) -> Option<(Placement<S, DescriptorMoveUnion<S>>, u64)>
     where
         D: Director<S>,
         IsCompleted: FnMut(&Placement<S, DescriptorMoveUnion<S>>) -> bool,
+        ShouldStop: FnMut() -> bool,
     {
         let solution = score_director.working_solution();
         let erased_solution = solution as &dyn Any;
 
         for binding in &self.bindings {
             for entity_index in self.ordered_entity_indices(binding, score_director) {
+                if should_stop() {
+                    return None;
+                }
                 let entity = self
                     .solution_descriptor
                     .get_entity(erased_solution, binding.descriptor_index, entity_index)

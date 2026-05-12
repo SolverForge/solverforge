@@ -96,15 +96,19 @@ where
 {
     fn get_placements<D: Director<S>>(&self, score_director: &D) -> Vec<ScalarGroupPlacement<S>> {
         let mut keep = never_completed::<S>;
+        let mut never_stop = || false;
         let mut generated_moves = 0;
         let mut placements = Vec::new();
         match self.group.kind {
             ScalarGroupBindingKind::Candidates { candidate_provider } => {
                 let mut generator =
                     self.candidate_placement_generator(score_director, candidate_provider);
-                while let Some(placement) =
-                    next_candidate_placement(&mut generator, &mut generated_moves, &mut keep)
-                {
+                while let Some(placement) = next_candidate_placement(
+                    &mut generator,
+                    &mut generated_moves,
+                    &mut keep,
+                    &mut never_stop,
+                ) {
                     placements.push(placement);
                 }
             }
@@ -117,6 +121,7 @@ where
                         score_director,
                         &mut generated_moves,
                         &mut keep,
+                        &mut never_stop,
                     ) {
                         placements.push(placement);
                     }
@@ -126,21 +131,28 @@ where
         placements
     }
 
-    fn get_next_placement<D, IsCompleted>(
+    fn get_next_placement<D, IsCompleted, ShouldStop>(
         &self,
         score_director: &D,
         mut is_completed: IsCompleted,
+        mut should_stop: ShouldStop,
     ) -> Option<(ScalarGroupPlacement<S>, u64)>
     where
         D: Director<S>,
         IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
+        ShouldStop: FnMut() -> bool,
     {
         let mut generated_moves = 0;
         let placement = match self.group.kind {
             ScalarGroupBindingKind::Candidates { candidate_provider } => {
                 let mut generator =
                     self.candidate_placement_generator(score_director, candidate_provider);
-                next_candidate_placement(&mut generator, &mut generated_moves, &mut is_completed)
+                next_candidate_placement(
+                    &mut generator,
+                    &mut generated_moves,
+                    &mut is_completed,
+                    &mut should_stop,
+                )
             }
             ScalarGroupBindingKind::Assignment(assignment) => {
                 let mut generator =
@@ -150,6 +162,7 @@ where
                     score_director,
                     &mut generated_moves,
                     &mut is_completed,
+                    &mut should_stop,
                 )
             }
         };

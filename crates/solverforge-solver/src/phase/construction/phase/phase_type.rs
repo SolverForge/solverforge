@@ -121,6 +121,7 @@ where
                 let next_placement = self.placer.get_next_placement(
                     phase_scope.score_director(),
                     |placement| placement_completed(placement, phase_scope.solver_scope()),
+                    || phase_scope.solver_scope().work_should_stop(),
                 );
                 let placement_generation_elapsed = placement_generation_started.elapsed();
                 if let Some((placement, generated_moves)) = next_placement {
@@ -129,6 +130,9 @@ where
 
                     placement
                 } else {
+                    phase_scope
+                        .solver_scope_mut()
+                        .should_terminate_construction();
                     break;
                 }
             } else {

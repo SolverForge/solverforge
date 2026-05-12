@@ -36,16 +36,21 @@ where
     pub(super) accepted: usize,
 }
 
-pub(super) fn next_candidate_placement<S, IsCompleted>(
+pub(super) fn next_candidate_placement<S, IsCompleted, ShouldStop>(
     generator: &mut CandidatePlacementGenerator<S>,
     generated_moves: &mut u64,
     is_completed: &mut IsCompleted,
+    should_stop: &mut ShouldStop,
 ) -> Option<ScalarGroupPlacement<S>>
 where
     S: PlanningSolution + 'static,
     IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
+    ShouldStop: FnMut() -> bool,
 {
     for placement in generator.placements.by_ref() {
+        if should_stop() {
+            return None;
+        }
         *generated_moves = generated_moves
             .saturating_add(u64::try_from(placement.moves.len()).unwrap_or(u64::MAX));
         if is_completed(&placement) {
@@ -56,21 +61,30 @@ where
     None
 }
 
-pub(super) fn next_assignment_placement<S, D, IsCompleted>(
+pub(super) fn next_assignment_placement<S, D, IsCompleted, ShouldStop>(
     generator: &mut AssignmentPlacementGenerator<S>,
     score_director: &D,
     generated_moves: &mut u64,
     is_completed: &mut IsCompleted,
+    should_stop: &mut ShouldStop,
 ) -> Option<ScalarGroupPlacement<S>>
 where
     S: PlanningSolution + 'static,
     D: Director<S>,
     IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
+    ShouldStop: FnMut() -> bool,
 {
     let solution = score_director.working_solution();
     while generator.accepted < generator.options.max_moves {
-        let (entity_index, mov) =
-            next_assignment_move_for_placement(generator, score_director, is_completed)?;
+        if should_stop() {
+            return None;
+        }
+        let (entity_index, mov) = next_assignment_move_for_placement(
+            generator,
+            score_director,
+            is_completed,
+            should_stop,
+        )?;
         *generated_moves = generated_moves.saturating_add(1);
         let group_slot = assignment_group_slot(generator.group_index, entity_index);
         let mut moves = vec![assignment_move_with_order_key(
@@ -80,9 +94,15 @@ where
             mov,
         )];
         while generator.accepted + moves.len() < generator.options.max_moves {
-            let Some((next_entity, next_move)) =
-                next_assignment_move_for_placement(generator, score_director, is_completed)
-            else {
+            if should_stop() {
+                break;
+            }
+            let Some((next_entity, next_move)) = next_assignment_move_for_placement(
+                generator,
+                score_director,
+                is_completed,
+                should_stop,
+            ) else {
                 break;
             };
             if next_entity != entity_index {
@@ -134,17 +154,22 @@ where
     None
 }
 
-fn next_assignment_move_for_placement<S, D, IsCompleted>(
+fn next_assignment_move_for_placement<S, D, IsCompleted, ShouldStop>(
     generator: &mut AssignmentPlacementGenerator<S>,
     score_director: &D,
     is_completed: &mut IsCompleted,
+    should_stop: &mut ShouldStop,
 ) -> Option<(usize, CompoundScalarMove<S>)>
 where
     S: PlanningSolution + 'static,
     D: Director<S>,
     IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
+    ShouldStop: FnMut() -> bool,
 {
     loop {
+        if should_stop() {
+            return None;
+        }
         let mov = if let Some(mov) = generator.pending.take() {
             mov
         } else {

@@ -204,19 +204,24 @@ where
 
     // Returns the next live placement and the number of candidate moves generated
     // while finding it. The default preserves the eager construction behavior.
-    fn get_next_placement<D, IsCompleted>(
+    fn get_next_placement<D, IsCompleted, ShouldStop>(
         &self,
         score_director: &D,
         mut is_completed: IsCompleted,
+        mut should_stop: ShouldStop,
     ) -> Option<(Placement<S, M>, u64)>
     where
         D: Director<S>,
         IsCompleted: FnMut(&Placement<S, M>) -> bool,
+        ShouldStop: FnMut() -> bool,
     {
         let mut selected = None;
         let mut generated_moves = 0u64;
 
         for placement in self.get_placements(score_director) {
+            if should_stop() {
+                return None;
+            }
             if is_completed(&placement) {
                 continue;
             }

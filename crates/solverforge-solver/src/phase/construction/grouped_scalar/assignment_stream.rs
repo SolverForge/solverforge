@@ -26,16 +26,21 @@ where
     group: ScalarAssignmentBinding<S>,
     solution: S,
     options: ScalarAssignmentMoveOptions,
-    family: AssignmentMoveFamily,
-    stop_after: AssignmentMoveFamily,
-    spread_budget: bool,
-    batch_required: bool,
     state: ScalarAssignmentState,
-    active: AssignmentFamilyCursor<S>,
-    active_limit: usize,
-    active_yielded: usize,
+    batch_required: bool,
+    family_slots: Vec<AssignmentFamilySlot<S>>,
+    family_pos: usize,
     seen: HashSet<AssignmentMoveKey>,
     yielded: usize,
+}
+
+struct AssignmentFamilySlot<S>
+where
+    S: PlanningSolution,
+{
+    family: AssignmentMoveFamily,
+    cursor: AssignmentFamilyCursor<S>,
+    exhausted: bool,
 }
 
 impl<S> ScalarAssignmentMoveCursor<S>
@@ -115,18 +120,26 @@ where
         spread_budget: bool,
         batch_required: bool,
     ) -> Self {
+        let families = if spread_budget {
+            AssignmentMoveFamily::range(family, stop_after)
+        } else {
+            vec![family]
+        };
         Self {
             state: ScalarAssignmentState::new(&group, &solution),
             group,
             solution,
             options,
-            family,
-            stop_after,
-            spread_budget,
             batch_required,
-            active: AssignmentFamilyCursor::Empty,
-            active_limit: 0,
-            active_yielded: 0,
+            family_slots: families
+                .into_iter()
+                .map(|family| AssignmentFamilySlot {
+                    family,
+                    cursor: AssignmentFamilyCursor::Empty,
+                    exhausted: false,
+                })
+                .collect(),
+            family_pos: 0,
             seen: HashSet::new(),
             yielded: 0,
         }
@@ -137,135 +150,144 @@ where
             return None;
         }
 
-        loop {
-            if self.active_yielded >= self.active_limit {
-                self.active = AssignmentFamilyCursor::Empty;
+        let mut exhausted_turns = 0;
+        while exhausted_turns < self.family_slots.len() {
+            let slot_index = self.family_pos % self.family_slots.len();
+            self.family_pos = (slot_index + 1) % self.family_slots.len();
+            if self.family_slots[slot_index].exhausted {
+                exhausted_turns += 1;
+                continue;
             }
-            if let Some(candidate) = self.next_family_move() {
-                if !self.seen.insert(normalized_move_key(&candidate)) {
-                    continue;
-                }
-                self.active_yielded += 1;
-                self.yielded += 1;
-                return Some(candidate);
+            let Some(candidate) = self.next_slot_move(slot_index) else {
+                exhausted_turns += 1;
+                continue;
+            };
+            exhausted_turns = 0;
+            if !self.seen.insert(normalized_move_key(&candidate)) {
+                continue;
             }
-            if !self.load_next_family() {
+            self.yielded += 1;
+            return Some(candidate);
+        }
+        None
+    }
+
+    fn next_slot_move(&mut self, slot_index: usize) -> Option<CompoundScalarMove<S>> {
+        if matches!(
+            self.family_slots[slot_index].cursor,
+            AssignmentFamilyCursor::Empty
+        ) {
+            let family = self.family_slots[slot_index].family;
+            self.family_slots[slot_index].cursor = self.open_family_cursor(family, self.options);
+            if matches!(
+                self.family_slots[slot_index].cursor,
+                AssignmentFamilyCursor::Empty
+            ) {
+                self.family_slots[slot_index].exhausted = true;
                 return None;
             }
         }
+
+        let candidate = {
+            let cursor = &mut self.family_slots[slot_index].cursor;
+            next_family_move(cursor, &self.group, &self.solution, &mut self.state)
+        };
+        if candidate.is_none() {
+            self.family_slots[slot_index].exhausted = true;
+        }
+        candidate
     }
 
-    fn load_next_family(&mut self) -> bool {
-        while let Some(family) = self.family.take_next() {
-            let remaining = self.options.max_moves.saturating_sub(self.yielded);
-            if remaining == 0 {
-                return false;
-            }
-            if family == self.stop_after {
-                self.family = AssignmentMoveFamily::Done;
-            }
-            let family_limit =
-                if self.spread_budget && self.options.max_moves > AssignmentMoveFamily::COUNT {
-                    remaining.min(
-                        self.options
-                            .max_moves
-                            .div_ceil(AssignmentMoveFamily::COUNT)
-                            .max(1),
-                    )
-                } else {
-                    remaining
-                };
-            let options = self.options.with_max_moves(family_limit);
-            self.active_limit = family_limit;
-            self.active_yielded = 0;
-            self.active = match family {
-                AssignmentMoveFamily::Required => {
-                    if self.batch_required {
-                        if let Some(mov) = self.required_batch_move(options) {
-                            AssignmentFamilyCursor::Single(Some(mov))
-                        } else {
-                            AssignmentFamilyCursor::required_entity_values(
-                                &self.group,
-                                &self.solution,
-                                &self.state,
-                                options,
-                            )
-                        }
+    fn open_family_cursor(
+        &mut self,
+        family: AssignmentMoveFamily,
+        options: ScalarAssignmentMoveOptions,
+    ) -> AssignmentFamilyCursor<S> {
+        match family {
+            AssignmentMoveFamily::Required => {
+                if self.batch_required {
+                    if let Some(mov) = self.required_batch_move(options) {
+                        AssignmentFamilyCursor::Single(Some(mov))
                     } else {
-                        AssignmentFamilyCursor::entity_values(
-                            ordered_entities(&self.group, &self.solution, |entity_index| {
-                                self.state.is_required(entity_index)
-                                    && self.state.current_value(entity_index).is_none()
-                            }),
+                        AssignmentFamilyCursor::required_entity_values(
+                            &self.group,
+                            &self.solution,
+                            &self.state,
                             options,
-                            AssignmentMoveKind::Required,
                         )
                     }
-                }
-                AssignmentMoveFamily::OptionalAssign => AssignmentFamilyCursor::entity_values(
-                    ordered_entities(&self.group, &self.solution, |entity_index| {
-                        !self.state.is_required(entity_index)
-                            && self.state.current_value(entity_index).is_none()
-                    }),
-                    options,
-                    AssignmentMoveKind::Optional,
-                ),
-                AssignmentMoveFamily::SequenceWindow => AssignmentFamilyCursor::PairWindow(
-                    PairWindowCursor::sequence_window(&self.group, &self.solution, options),
-                ),
-                AssignmentMoveFamily::Rematch => AssignmentFamilyCursor::PairWindow(
-                    PairWindowCursor::rematch(&self.group, &self.solution, &self.state, options),
-                ),
-                AssignmentMoveFamily::AugmentingRematch => {
-                    AssignmentFamilyCursor::CycleWindow(CycleWindowCursor::augmenting(
+                } else {
+                    AssignmentFamilyCursor::required_entity_values(
                         &self.group,
                         &self.solution,
                         &self.state,
                         options,
-                    ))
+                    )
                 }
-                AssignmentMoveFamily::Swap => AssignmentFamilyCursor::PairWindow(
-                    PairWindowCursor::swap(&self.group, &self.solution, &self.state, options),
-                ),
-                AssignmentMoveFamily::PairedReassignment => AssignmentFamilyCursor::PairWindow(
-                    PairWindowCursor::paired(&self.group, &self.solution, &self.state, options),
-                ),
-                AssignmentMoveFamily::Reassignment => AssignmentFamilyCursor::entity_values(
-                    ordered_entities(&self.group, &self.solution, |entity_index| {
-                        self.state.current_value(entity_index).is_some()
-                    }),
-                    options,
-                    AssignmentMoveKind::Reassignment,
-                ),
-                AssignmentMoveFamily::OptionalTransfer => {
-                    AssignmentFamilyCursor::OptionalAdjustment(OptionalAdjustmentCursor::transfer(
-                        &self.group,
-                        &self.solution,
-                        &self.state,
-                        options,
-                    ))
-                }
-                AssignmentMoveFamily::OptionalRelease => {
-                    AssignmentFamilyCursor::OptionalAdjustment(OptionalAdjustmentCursor::release(
-                        &self.group,
-                        &self.solution,
-                        &self.state,
-                        options,
-                    ))
-                }
-                AssignmentMoveFamily::EjectionReinsert => AssignmentFamilyCursor::CycleWindow(
-                    CycleWindowCursor::ejection(&self.group, &self.solution, &self.state, options),
-                ),
-                AssignmentMoveFamily::Capacity => AssignmentFamilyCursor::Capacity(
-                    CapacityCursor::new(&self.group, &self.solution, &self.state, options),
-                ),
-                AssignmentMoveFamily::Done => AssignmentFamilyCursor::Empty,
-            };
-            if !matches!(self.active, AssignmentFamilyCursor::Empty) {
-                return true;
             }
+            AssignmentMoveFamily::OptionalAssign => AssignmentFamilyCursor::entity_values(
+                ordered_entities(&self.group, &self.solution, |entity_index| {
+                    !self.state.is_required(entity_index)
+                        && self.state.current_value(entity_index).is_none()
+                }),
+                options,
+                AssignmentMoveKind::Optional,
+            ),
+            AssignmentMoveFamily::SequenceWindow => AssignmentFamilyCursor::PairWindow(
+                PairWindowCursor::sequence_window(&self.group, &self.solution, options),
+            ),
+            AssignmentMoveFamily::Rematch => AssignmentFamilyCursor::PairWindow(
+                PairWindowCursor::rematch(&self.group, &self.solution, &self.state, options),
+            ),
+            AssignmentMoveFamily::AugmentingRematch => AssignmentFamilyCursor::CycleWindow(
+                CycleWindowCursor::augmenting(&self.group, &self.solution, &self.state, options),
+            ),
+            AssignmentMoveFamily::Swap => AssignmentFamilyCursor::PairWindow(
+                PairWindowCursor::swap(&self.group, &self.solution, &self.state, options),
+            ),
+            AssignmentMoveFamily::PairedReassignment => AssignmentFamilyCursor::PairWindow(
+                PairWindowCursor::paired(&self.group, &self.solution, &self.state, options),
+            ),
+            AssignmentMoveFamily::Reassignment => AssignmentFamilyCursor::entity_values(
+                {
+                    let mut entities =
+                        ordered_entities(&self.group, &self.solution, |entity_index| {
+                            self.state.current_value(entity_index).is_some()
+                        });
+                    self.state.sort_entities_by_current_value_pressure(
+                        &self.group,
+                        &self.solution,
+                        &mut entities,
+                    );
+                    entities
+                },
+                options,
+                AssignmentMoveKind::Reassignment,
+            ),
+            AssignmentMoveFamily::OptionalTransfer => {
+                AssignmentFamilyCursor::OptionalAdjustment(OptionalAdjustmentCursor::transfer(
+                    &self.group,
+                    &self.solution,
+                    &self.state,
+                    options,
+                ))
+            }
+            AssignmentMoveFamily::OptionalRelease => {
+                AssignmentFamilyCursor::OptionalAdjustment(OptionalAdjustmentCursor::release(
+                    &self.group,
+                    &self.solution,
+                    &self.state,
+                    options,
+                ))
+            }
+            AssignmentMoveFamily::EjectionReinsert => AssignmentFamilyCursor::CycleWindow(
+                CycleWindowCursor::ejection(&self.group, &self.solution, &self.state, options),
+            ),
+            AssignmentMoveFamily::Capacity => AssignmentFamilyCursor::Capacity(
+                CapacityCursor::new(&self.group, &self.solution, &self.state, options),
+            ),
+            AssignmentMoveFamily::Done => AssignmentFamilyCursor::Empty,
         }
-        false
     }
 
     fn required_batch_move(
@@ -337,11 +359,7 @@ where
                 break;
             }
         }
-        if scalar_edits.is_empty()
-            || !self
-                .state
-                .scalar_edits_feasible(&self.group, &self.solution, &scalar_edits)
-        {
+        if scalar_edits.is_empty() {
             return None;
         }
         move_from_edits(
@@ -351,53 +369,61 @@ where
             "scalar_assignment_required",
         )
     }
+}
 
-    fn next_family_move(&mut self) -> Option<CompoundScalarMove<S>> {
-        match &mut self.active {
-            AssignmentFamilyCursor::Single(mov) => {
-                let candidate = mov.take();
-                if candidate.is_none() {
-                    self.active = AssignmentFamilyCursor::Empty;
-                }
-                candidate
+fn next_family_move<S>(
+    cursor: &mut AssignmentFamilyCursor<S>,
+    group: &ScalarAssignmentBinding<S>,
+    solution: &S,
+    state: &mut ScalarAssignmentState,
+) -> Option<CompoundScalarMove<S>>
+where
+    S: PlanningSolution,
+{
+    match cursor {
+        AssignmentFamilyCursor::Single(mov) => {
+            let candidate = mov.take();
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
             }
-            AssignmentFamilyCursor::EntityValues(cursor) => {
-                let candidate = cursor.next(&self.group, &self.solution, &mut self.state);
-                if candidate.is_none() {
-                    self.active = AssignmentFamilyCursor::Empty;
-                }
-                candidate
-            }
-            AssignmentFamilyCursor::Capacity(cursor) => {
-                let candidate = cursor.next(&self.group, &self.solution, &mut self.state);
-                if candidate.is_none() {
-                    self.active = AssignmentFamilyCursor::Empty;
-                }
-                candidate
-            }
-            AssignmentFamilyCursor::OptionalAdjustment(cursor) => {
-                let candidate = cursor.next(&self.group, &self.solution, &mut self.state);
-                if candidate.is_none() {
-                    self.active = AssignmentFamilyCursor::Empty;
-                }
-                candidate
-            }
-            AssignmentFamilyCursor::PairWindow(cursor) => {
-                let candidate = cursor.next(&self.group, &self.solution, &mut self.state);
-                if candidate.is_none() {
-                    self.active = AssignmentFamilyCursor::Empty;
-                }
-                candidate
-            }
-            AssignmentFamilyCursor::CycleWindow(cursor) => {
-                let candidate = cursor.next(&self.group, &self.solution, &mut self.state);
-                if candidate.is_none() {
-                    self.active = AssignmentFamilyCursor::Empty;
-                }
-                candidate
-            }
-            AssignmentFamilyCursor::Empty => None,
+            candidate
         }
+        AssignmentFamilyCursor::EntityValues(entity_cursor) => {
+            let candidate = entity_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
+        AssignmentFamilyCursor::Capacity(capacity_cursor) => {
+            let candidate = capacity_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
+        AssignmentFamilyCursor::OptionalAdjustment(optional_cursor) => {
+            let candidate = optional_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
+        AssignmentFamilyCursor::PairWindow(pair_cursor) => {
+            let candidate = pair_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
+        AssignmentFamilyCursor::CycleWindow(cycle_cursor) => {
+            let candidate = cycle_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
+        AssignmentFamilyCursor::Empty => None,
     }
 }
 

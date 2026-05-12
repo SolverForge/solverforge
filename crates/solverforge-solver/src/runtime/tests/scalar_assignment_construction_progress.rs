@@ -69,6 +69,25 @@ fn scalar_assignment_selector_prioritizes_required_work() {
 }
 
 #[test]
+fn scalar_assignment_selector_interleaves_later_assignment_families() {
+    let plan = coverage_plan(
+        3,
+        vec![
+            coverage_slot(true, 0, None, &[0, 1, 2]),
+            coverage_slot(true, 1, None, &[0, 1, 2]),
+            coverage_slot(true, 2, None, &[0, 1, 2]),
+            coverage_slot(true, 3, Some(0), &[0, 1, 2]),
+            coverage_slot(true, 4, Some(1), &[0, 1, 2]),
+        ],
+    );
+    let moves = selector_assignment_moves_for_plan(&plan, ScalarGroupLimits::new(), 2);
+
+    assert_eq!(moves.len(), 2);
+    assert_eq!(moves[0].reason(), "scalar_assignment_required");
+    assert_ne!(moves[1].reason(), "scalar_assignment_required");
+}
+
+#[test]
 fn scalar_assignment_selector_repairs_capacity_conflicts_without_losing_required() {
     let plan = coverage_plan(
         1,

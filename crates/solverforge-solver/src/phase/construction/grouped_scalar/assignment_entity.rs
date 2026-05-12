@@ -47,6 +47,13 @@ impl EntityValueCursor {
                         &self.value_degrees,
                         &mut self.values,
                     );
+                } else {
+                    state.sort_values_by_target_pressure(
+                        group,
+                        solution,
+                        entity_index,
+                        &mut self.values,
+                    );
                 }
                 self.value_pos = 0;
             }
@@ -203,6 +210,7 @@ impl OptionalAdjustmentCursor {
         let mut targets = ordered_entities(group, solution, |entity_index| {
             !state.is_required(entity_index) && state.current_value(entity_index).is_some()
         });
+        state.sort_entities_by_current_value_pressure(group, solution, &mut targets);
         rotate_entity_order(&mut targets, options.entity_offset);
         Self {
             kind: OptionalAdjustmentKind::Release,
@@ -225,6 +233,7 @@ impl OptionalAdjustmentCursor {
         let mut sources = ordered_entities(group, solution, |entity_index| {
             !state.is_required(entity_index) && state.current_value(entity_index).is_some()
         });
+        state.sort_entities_by_current_value_pressure(group, solution, &mut sources);
         rotate_entity_order(&mut targets, options.entity_offset);
         rotate_entity_order(&mut sources, options.entity_offset);
         Self {

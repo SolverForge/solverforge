@@ -88,8 +88,6 @@ pub(super) enum AssignmentMoveFamily {
 }
 
 impl AssignmentMoveFamily {
-    pub(super) const COUNT: usize = 12;
-
     pub(super) fn take_next(&mut self) -> Option<Self> {
         let current = *self;
         *self = match current {
@@ -107,5 +105,17 @@ impl AssignmentMoveFamily {
             Self::EjectionReinsert | Self::Done => Self::Done,
         };
         (current != Self::Done).then_some(current)
+    }
+
+    pub(super) fn range(start: Self, stop_after: Self) -> Vec<Self> {
+        let mut cursor = start;
+        let mut families = Vec::new();
+        while let Some(family) = cursor.take_next() {
+            families.push(family);
+            if family == stop_after {
+                break;
+            }
+        }
+        families
     }
 }

@@ -126,12 +126,14 @@ where
 // Incremental accumulator for consecutive runs.
 pub struct RunsAccumulator {
     points: BTreeMap<i64, usize>,
+    item_count: usize,
 }
 
 impl RunsAccumulator {
     fn new() -> Self {
         Self {
             points: BTreeMap::new(),
+            item_count: 0,
         }
     }
 }
@@ -142,6 +144,7 @@ impl Accumulator<i64, Runs> for RunsAccumulator {
     #[inline]
     fn accumulate(&mut self, value: i64) -> Self::Retraction {
         *self.points.entry(value).or_insert(0) += 1;
+        self.item_count += 1;
         value
     }
 
@@ -151,25 +154,30 @@ impl Accumulator<i64, Runs> for RunsAccumulator {
             return;
         };
         *count = count.saturating_sub(1);
+        self.item_count = self.item_count.saturating_sub(1);
         if *count == 0 {
             self.points.remove(&value);
         }
     }
 
     fn with_result<T>(&self, f: impl FnOnce(&Runs) -> T) -> T {
-        let result = runs_from_counts(&self.points);
+        let result = runs_from_counts_and_item_count(&self.points, self.item_count);
         f(&result)
     }
 
     #[inline]
     fn reset(&mut self) {
         self.points.clear();
+        self.item_count = 0;
     }
 }
 
 pub(crate) fn runs_from_counts(points: &BTreeMap<i64, usize>) -> Runs {
+    runs_from_counts_and_item_count(points, points.values().sum())
+}
+
+fn runs_from_counts_and_item_count(points: &BTreeMap<i64, usize>, item_count: usize) -> Runs {
     let point_count = points.len();
-    let item_count = points.values().sum();
     let mut runs = Vec::new();
 
     let mut current_start = None;

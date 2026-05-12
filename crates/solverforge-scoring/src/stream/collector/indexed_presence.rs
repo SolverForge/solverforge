@@ -103,13 +103,13 @@ impl IndexedPresence {
 }
 
 pub struct IndexedPresenceAccumulator {
-    points: BTreeMap<i64, usize>,
+    presence: IndexedPresence,
 }
 
 impl IndexedPresenceAccumulator {
     fn new() -> Self {
         Self {
-            points: BTreeMap::new(),
+            presence: IndexedPresence::default(),
         }
     }
 }
@@ -119,31 +119,30 @@ impl Accumulator<i64, IndexedPresence> for IndexedPresenceAccumulator {
 
     #[inline]
     fn accumulate(&mut self, value: i64) -> Self::Retraction {
-        *self.points.entry(value).or_insert(0) += 1;
+        *self.presence.points.entry(value).or_insert(0) += 1;
+        self.presence.item_count += 1;
         value
     }
 
     #[inline]
     fn retract(&mut self, value: Self::Retraction) {
-        let Some(count) = self.points.get_mut(&value) else {
+        let Some(count) = self.presence.points.get_mut(&value) else {
             return;
         };
         *count = count.saturating_sub(1);
+        self.presence.item_count = self.presence.item_count.saturating_sub(1);
         if *count == 0 {
-            self.points.remove(&value);
+            self.presence.points.remove(&value);
         }
     }
 
     fn with_result<T>(&self, f: impl FnOnce(&IndexedPresence) -> T) -> T {
-        let result = IndexedPresence {
-            points: self.points.clone(),
-            item_count: self.points.values().sum(),
-        };
-        f(&result)
+        f(&self.presence)
     }
 
     #[inline]
     fn reset(&mut self) {
-        self.points.clear();
+        self.presence.points.clear();
+        self.presence.item_count = 0;
     }
 }

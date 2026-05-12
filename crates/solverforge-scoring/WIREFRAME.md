@@ -77,14 +77,14 @@ src/
 │   ├── score_director.rs                           — Re-exports ScoreDirector pieces
 │   │   ├── score_director/incremental.rs           — ScoreDirector<S,C> (zero-erasure incremental)
 │   │   └── score_director/adapters.rs              — Debug and Director trait impls for ScoreDirector
-│   ├── recording.rs                                — RecordingDirector<'a,S,D> (automatic undo tracking)
 │   ├── shadow_aware.rs                             — SolvableSolution trait and shadow lifecycle notes
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
 │       ├── bench.rs                                — Benchmark test module declarations
 │       ├── benchmarks.rs                           — Performance comparison tests
+│       ├── fixtures.rs                             — ScoreDirector fixtures
+│       ├── fixtures_tests.rs                       — ScoreDirector fixture tests
 │       ├── score_director.rs                       — ScoreDirector tests
-│       ├── recording.rs                            — RecordingDirector tests
 │       └── shadow.rs                               — Shadow-aware director tests
 
 ├── stream/
@@ -181,9 +181,7 @@ pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 // Score Directors
 pub use director::score_director::ScoreDirector;
-pub use director::{
-    RecordingDirector, Director, DirectorScoreState, SolvableSolution,
-};
+pub use director::{Director, DirectorScoreState, SolvableSolution};
 
 // Analysis
 pub use api::analysis::{
@@ -222,7 +220,6 @@ pub use stream::{
 | `snapshot_score_state` | `fn snapshot_score_state(&self) -> DirectorScoreState<S::Score>` | Snapshot committed score state for speculative evaluation |
 | `restore_score_state` | `fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>)` | Restore a previously snapshotted committed score state |
 | `reset` | `fn reset(&mut self)` | Default: no-op |
-| `register_undo` | `fn register_undo(&mut self, _undo: Box<dyn FnOnce(&mut S) + Send>)` | Default: no-op |
 
 ### `DirectorScoreState<Sc>`
 
@@ -341,13 +338,6 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
 - Returns borrowed constraint metadata views from the monomorphized `ConstraintSet` on demand.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
-- Implements `Director<S>`
-
-**`RecordingDirector<'a, S, D>`** where `S: PlanningSolution`, `D: Director<S>`
-- Wraps any director with automatic undo tracking.
-- Restores the wrapped director's committed score state after speculative
-  evaluation and undo.
-- Key methods: `new()`, `undo_changes()`, `reset()`, `change_count()`, `is_empty()`
 - Implements `Director<S>`
 
 ### Constraint Types

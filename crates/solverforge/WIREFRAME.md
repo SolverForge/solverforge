@@ -74,7 +74,6 @@ src/
 
 - `Director` (trait)
 - `ScoreDirector`
-- `RecordingDirector`
 
 ### Configuration (from `solverforge-config`)
 

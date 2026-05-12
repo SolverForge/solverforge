@@ -195,7 +195,7 @@ src/
 │   │   ├── mod.rs                       — Construction module declarations and re-exports
 │   │   ├── config.rs                    — ForagerType enum and ConstructionHeuristicConfig
 │   │   ├── decision.rs                  — Shared baseline/tie-breaking helpers for construction choice resolution
-│   │   ├── evaluation.rs                — Trial-move evaluation via RecordingDirector with exact rollback
+│   │   ├── evaluation.rs                — Trial-move evaluation via typed move undo and score-state snapshots
 │   │   ├── frontier.rs                  — Revision-scoped ConstructionFrontier shared by generic scalar and list work
 │   │   ├── phase.rs                     — ConstructionHeuristicPhase<S, M, P, Fo>
 │   │   ├── phase/*.rs                   — Construction phase type and selection helpers
@@ -352,10 +352,12 @@ src/
 
 Requires: `Send + Sync + Debug`.
 
-| Method | Signature |
-|--------|-----------|
+| Item | Signature |
+|------|-----------|
+| `type Undo` | `Send` |
 | `is_doable` | `fn<D: Director<S>>(&self, score_director: &D) -> bool` |
-| `do_move` | `fn<D: Director<S>>(&self, score_director: &mut D)` |
+| `do_move` | `fn<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo` |
+| `undo_move` | `fn<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo)` |
 | `descriptor_index` | `fn(&self) -> usize` |
 | `entity_indices` | `fn(&self) -> &[usize]` |
 | `variable_name` | `fn(&self) -> &str` |
@@ -363,6 +365,10 @@ Requires: `Send + Sync + Debug`.
 | `for_each_affected_entity` | `fn(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>))` |
 
 Moves are **never cloned**. Ownership transfers via `MoveArena` indices.
+Move rollback is move-owned and typed: speculative evaluation snapshots the
+director score state, calls `do_move`, scores the trial state, calls
+`undo_move` with the returned `Self::Undo`, then restores the score-state
+snapshot.
 
 **`MoveAffectedEntity<'a>`** — `{ descriptor_index, entity_index, variable_name }`. Multi-edit moves report each edited descriptor/entity/variable pair directly instead of compressing metadata into a single descriptor scope.
 
@@ -960,17 +966,17 @@ Sealed trait for zero-allocation callback dispatch. Implemented for `()` (no-op)
 
 Top-level scope for a retained solve. Holds score director, current score, best solution, best score, RNG, active timing, stats, runtime bridge, terminal reason, and termination state.
 
-Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `score_director()`, `working_solution()`, `trial(...)`, `mutate(...)`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. The current implementation also tracks a working-solution revision for built-in descriptor-driven construction completion; committed mutation goes through `mutate(...)` (or the equivalent crate-private step boundary), which clears `current_score` and advances that revision exactly once. `trial(...)` wraps a `RecordingDirector` and restores both solution values and committed score state after speculative work. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination.
+Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `score_director()`, `working_solution()`, `mutate(...)`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. The current implementation also tracks a working-solution revision for built-in descriptor-driven construction completion; committed mutation goes through `mutate(...)` (or the equivalent crate-private step boundary), which clears `current_score` and advances that revision exactly once. Speculative phase evaluation uses `Move::do_move`, the returned typed undo value, `Move::undo_move`, and `DirectorScoreState` snapshots to restore both solution values and committed score state after scoring a candidate. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination.
 
 Public fields: `inphase_step_count_limit`, `inphase_move_count_limit`, `inphase_score_calc_count_limit`.
 
 ### `PhaseScope<'t, 'a, S, D, BestCb = ()>`
 
-Borrows `&mut SolverScope`. Tracks per-phase state: phase_index, starting_score, step_count, PhaseStats. Public mutation and speculative work delegate to `mutate(...)` and `trial(...)` on the parent solver scope.
+Borrows `&mut SolverScope`. Tracks per-phase state: phase_index, starting_score, step_count, PhaseStats. Public committed mutation delegates to `mutate(...)` on the parent solver scope; speculative candidate evaluation is handled by phase evaluation helpers using typed move undo.
 
 ### `StepScope<'t, 'a, 'b, S, D, BestCb = ()>`
 
-Borrows `&mut PhaseScope`. Tracks per-step state: step_index, step_score. `complete()` records step in stats, while public speculative and committed work delegate to the same `trial(...)` and `mutate(...)` boundary used by `SolverScope`.
+Borrows `&mut PhaseScope`. Tracks per-step state: step_index, step_score. `complete()` records step in stats, while public committed mutation delegates to the same `mutate(...)` boundary used by `SolverScope`. Crate-private committed move helpers apply selected moves by ownership after candidate evaluation has used typed undo for rollback.
 
 ## Termination Types
 

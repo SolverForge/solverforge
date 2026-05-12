@@ -31,6 +31,13 @@ fn golden_solution_expansion_emits_model_sources_and_descriptor() {
     assert!(expanded.contains("pub fn __solverforge_entity_tasks"));
     assert!(expanded.contains("pub fn __solverforge_collection_tasks"));
     assert!(expanded.contains("create_constraints"));
+    assert!(expanded.contains("pub trait PlanConstraintStreams"));
+    assert!(expanded.contains(
+        "impl < Sc : :: solverforge :: Score + 'static > PlanConstraintStreams < Sc > for :: solverforge :: stream :: ConstraintFactory < Plan , Sc >"
+    ));
+    assert!(expanded
+        .contains("fn workers (self) -> :: solverforge :: __internal :: UniConstraintStream"));
+    assert!(expanded.contains(":: solverforge :: stream :: ConstraintFactory :: for_each"));
 }
 
 #[test]

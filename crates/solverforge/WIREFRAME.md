@@ -237,7 +237,7 @@ pub use solverforge_scoring::stream::collector;
 pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollectionTarget};
 ```
 
-Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")`. Use `.join(target)` for all join patterns: self-join, keyed cross-join, and predicate cross-join.
+Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")`. Use `.join(target)` for all join patterns: self-join, keyed cross-join, and predicate cross-join. `#[planning_solution]` also generates a solution-named convenience trait, such as `PlanConstraintStreams`, so callers can import the trait and write `ConstraintFactory::new().assignments()` for the same concrete source stream.
 
 Collector helpers are available at `solverforge::stream::collector`, and the
 prelude re-exports `collect_vec`, `count`, `sum`, `load_balance`,
@@ -265,7 +265,7 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 ))
 ```
 
-Generated existence ergonomics: there is one public `ConstraintFactory::for_each(...)`. `#[planning_solution]` generates inherent source methods such as `Plan::assignments()` and `Plan::furnaces()` with hidden descriptor/static metadata so localized incremental callbacks use entity indexes only for the owning planning-entity collection. Raw facade `for_each(...)` extractors do not carry localized source ownership. Flattened existence targets use `.flattened(...)` and `FlattenedCollectionTarget`.
+Generated existence ergonomics: `#[planning_solution]` generates inherent source methods such as `Plan::assignments()` and `Plan::furnaces()` with hidden descriptor/static metadata, plus the matching `PlanConstraintStreams` convenience trait. Localized incremental callbacks use entity indexes only for the owning planning-entity collection. Raw facade `for_each(...)` extractors do not carry localized source ownership. Flattened existence targets use `.flattened(...)` and `FlattenedCollectionTarget`.
 
 Projected scoring ergonomics: `ConstraintFactory::new().for_each(Plan::assignments()).project(TaskShiftWorkEntries)` creates bounded scoring rows from a named `Projection<A>` type without materializing facts or entities. Keyed cross joins use `.project(|assignment, capacity| Row { ... })` to emit one scoring row per retained joined pair. Projected streams can be filtered, self-joined, merged, grouped, and weighted like normal scoring state. Single-source projection implementations emit through `ProjectionSink` and declare `MAX_EMITS`; joined-pair closures do not need a helper type. Projected output rows, projected self-join keys, and grouped collector values do not need `Clone`. Projected self-join ordering is coordinate-stable by `ProjectedRowCoordinate`, not sparse storage row id.
 

@@ -252,7 +252,9 @@ The important boundary is that SolverForge model metadata is owned by the model,
 not by detached helper imports. The domain manifest lists normal Rust modules;
 the `#[planning_solution]` macro generates collection source functions such as
 `Schedule::shifts()`, and constraints use those functions through
-`ConstraintFactory::for_each(...)`.
+`ConstraintFactory::for_each(...)`. It also generates a matching
+`ScheduleConstraintStreams` trait for shorthand calls such as
+`ConstraintFactory::new().shifts()` when the trait is imported.
 
 For a new application, start with `solverforge-cli` so the file layout,
 `solver.toml`, model manifest, constraints, and frontend handoff are generated

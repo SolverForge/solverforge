@@ -2,13 +2,14 @@
 // and canonical score-weighted penalize() calls.
 
 use solverforge::prelude::*;
+use solverforge::stream::joiner::equal;
 use solverforge::stream::{CollectionExtract, ConstraintFactory};
 use solverforge::IncrementalConstraint;
 
 #[path = "constraint_accessors/domain/mod.rs"]
 mod domain;
 
-use domain::Schedule;
+use domain::{Schedule, ScheduleConstraintStreams};
 
 #[test]
 fn test_one_hard_returns_correct_score() {
@@ -37,6 +38,39 @@ fn test_constraint_stream_accessors_compile() {
 
     let factory2 = ConstraintFactory::<Schedule, HardSoftScore>::new();
     let _employees_stream = factory2.for_each(Schedule::employees());
+}
+
+#[test]
+fn generated_constraint_stream_trait_compiles_and_scores_self_join() {
+    let constraint = ConstraintFactory::<Schedule, HardSoftScore>::new()
+        .shifts()
+        .join(equal(|shift: &domain::Shift| shift.employee))
+        .penalize(HardSoftScore::ONE_HARD)
+        .named("same employee");
+
+    let schedule = Schedule {
+        employees: vec![domain::Employee {
+            id: 1,
+            name: "Ada".to_string(),
+        }],
+        shifts: vec![
+            domain::Shift {
+                id: 1,
+                employee: Some(0),
+            },
+            domain::Shift {
+                id: 2,
+                employee: Some(0),
+            },
+            domain::Shift {
+                id: 3,
+                employee: None,
+            },
+        ],
+        score: None,
+    };
+
+    assert_eq!(constraint.evaluate(&schedule), HardSoftScore::of(-1, 0));
 }
 
 #[test]

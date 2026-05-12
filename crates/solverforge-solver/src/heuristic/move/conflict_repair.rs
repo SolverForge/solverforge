@@ -69,12 +69,18 @@ impl<S> Move<S> for ConflictRepairMove<S>
 where
     S: PlanningSolution,
 {
+    type Undo = <CompoundScalarMove<S> as Move<S>>::Undo;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         self.compound.is_doable(score_director)
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
-        self.compound.do_move(score_director);
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
+        self.compound.do_move(score_director)
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        self.compound.undo_move(score_director, undo);
     }
 
     fn descriptor_index(&self) -> usize {

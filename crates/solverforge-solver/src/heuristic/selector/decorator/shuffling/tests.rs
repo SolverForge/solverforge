@@ -1,15 +1,9 @@
 use super::super::test_utils::{create_director, get_priority, set_priority, Task};
 use super::*;
-use crate::heuristic::r#move::{ScalarMoveUnion, SequentialCompositeMove};
+use crate::heuristic::r#move::ScalarMoveUnion;
 use crate::heuristic::selector::decorator::{test_utils::TaskSolution, CartesianProductSelector};
 use crate::heuristic::selector::move_selector::{collect_cursor_indices, MoveCandidateRef};
 use crate::heuristic::selector::{ChangeMoveSelector, ScalarChangeMoveSelector};
-
-fn wrap_scalar_composite(
-    mov: SequentialCompositeMove<TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
-) -> ScalarMoveUnion<TaskSolution, i32> {
-    ScalarMoveUnion::Composite(mov)
-}
 
 fn composite_pair(
     candidate: MoveCandidateRef<'_, TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
@@ -142,7 +136,7 @@ fn shuffles_cartesian_candidates_without_dropping_borrowable_access() {
         "priority",
         vec![30, 40],
     );
-    let cartesian = CartesianProductSelector::new(left, right, wrap_scalar_composite);
+    let cartesian = CartesianProductSelector::new(left, right);
     let shuffled = ShufflingMoveSelector::with_seed(cartesian, 17);
 
     let mut cursor = shuffled.open_cursor(&director);
@@ -164,5 +158,7 @@ fn shuffles_cartesian_candidates_without_dropping_borrowable_access() {
     assert!(pairs.contains(&(10, 40)));
     assert!(pairs.contains(&(20, 30)));
     assert!(pairs.contains(&(20, 40)));
-    assert!(cursor.take_candidate(indices[0]).is_doable(&director));
+    assert!(cursor
+        .candidate(indices[0])
+        .is_some_and(|candidate| candidate.is_doable(&director)));
 }

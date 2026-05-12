@@ -291,16 +291,6 @@ where
     }
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
-fn wrap_scalar_composite<S>(
-    mov: SequentialCompositeMove<S, ScalarMoveUnion<S, usize>>,
-) -> ScalarMoveUnion<S, usize>
-where
-    S: PlanningSolution,
-{
-    ScalarMoveUnion::Composite(mov)
-}
-
 pub(super) fn build_scalar_flat_selector<S>(
     config: Option<&MoveSelectorConfig>,
     scalar_variables: &[ScalarVariableSlot<S>],

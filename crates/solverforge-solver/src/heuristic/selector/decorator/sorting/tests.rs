@@ -1,6 +1,6 @@
 use super::super::test_utils::{create_director, get_priority, set_priority, Task, TaskSolution};
 use super::*;
-use crate::heuristic::r#move::{ChangeMove, ScalarMoveUnion, SequentialCompositeMove};
+use crate::heuristic::r#move::{ChangeMove, ScalarMoveUnion};
 use crate::heuristic::selector::decorator::CartesianProductSelector;
 use crate::heuristic::selector::move_selector::{collect_cursor_indices, MoveCandidateRef};
 use crate::heuristic::selector::{ChangeMoveSelector, ScalarChangeMoveSelector};
@@ -22,12 +22,6 @@ fn by_value_desc(
     b: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>,
 ) -> Ordering {
     by_value_asc(b, a)
-}
-
-fn wrap_scalar_composite(
-    mov: SequentialCompositeMove<TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
-) -> ScalarMoveUnion<TaskSolution, i32> {
-    ScalarMoveUnion::Composite(mov)
 }
 
 fn composite_second_value_desc(
@@ -124,7 +118,7 @@ fn sorts_cartesian_candidates_by_borrowed_preview_data() {
         "priority",
         vec![30, 40],
     );
-    let cartesian = CartesianProductSelector::new(left, right, wrap_scalar_composite);
+    let cartesian = CartesianProductSelector::new(left, right);
     let sorted = SortingMoveSelector::new(cartesian, composite_second_value_desc);
 
     let mut cursor = sorted.open_cursor(&director);
@@ -145,5 +139,7 @@ fn sorts_cartesian_candidates_by_borrowed_preview_data() {
     assert!(cursor
         .candidate(indices[0])
         .is_some_and(|candidate| candidate.is_doable(&director)));
-    assert!(cursor.take_candidate(indices[0]).is_doable(&director));
+    assert!(cursor
+        .candidate(indices[0])
+        .is_some_and(|candidate| candidate.is_doable(&director)));
 }

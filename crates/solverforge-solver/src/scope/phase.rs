@@ -4,7 +4,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 
 use super::solver::ProgressCallback;
 use super::SolverScope;
@@ -102,13 +102,6 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
 
     pub(crate) fn score_director_mut(&mut self) -> &mut D {
         self.solver_scope.score_director_mut()
-    }
-
-    pub fn trial<T, F>(&mut self, trial: F) -> T
-    where
-        F: FnOnce(&mut RecordingDirector<'_, S, D>) -> T,
-    {
-        self.solver_scope.trial(trial)
     }
 
     pub fn mutate<T, F>(&mut self, mutate: F) -> T

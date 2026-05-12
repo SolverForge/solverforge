@@ -1,6 +1,6 @@
 use super::super::test_utils::{create_director, get_priority, set_priority, Task, TaskSolution};
 use super::*;
-use crate::heuristic::r#move::{ChangeMove, ScalarMoveUnion, SequentialCompositeMove};
+use crate::heuristic::r#move::{ChangeMove, ScalarMoveUnion};
 use crate::heuristic::selector::decorator::CartesianProductSelector;
 use crate::heuristic::selector::move_selector::{collect_cursor_indices, MoveCandidateRef};
 use crate::heuristic::selector::{ChangeMoveSelector, ScalarChangeMoveSelector};
@@ -11,12 +11,6 @@ fn uniform_weight(_: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution,
 
 fn zero_weight(_: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>) -> f64 {
     0.0
-}
-
-fn wrap_scalar_composite(
-    mov: SequentialCompositeMove<TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
-) -> ScalarMoveUnion<TaskSolution, i32> {
-    ScalarMoveUnion::Composite(mov)
 }
 
 fn biased_cartesian_weight(
@@ -128,7 +122,7 @@ fn probabilistic_filter_keeps_cartesian_candidates_borrowable() {
         "priority",
         vec![30, 40],
     );
-    let cartesian = CartesianProductSelector::new(left, right, wrap_scalar_composite);
+    let cartesian = CartesianProductSelector::new(left, right);
     let probabilistic = ProbabilityMoveSelector::with_seed(cartesian, biased_cartesian_weight, 9);
 
     let mut cursor = probabilistic.open_cursor(&director);
@@ -139,5 +133,7 @@ fn probabilistic_filter_keeps_cartesian_candidates_borrowable() {
     assert!(indices.iter().all(|&index| cursor
         .candidate(index)
         .is_some_and(|candidate| candidate.is_doable(&director))));
-    assert!(cursor.take_candidate(indices[0]).is_doable(&director));
+    assert!(cursor
+        .candidate(indices[0])
+        .is_some_and(|candidate| candidate.is_doable(&director)));
 }

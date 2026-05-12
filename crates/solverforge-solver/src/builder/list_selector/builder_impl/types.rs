@@ -133,14 +133,3 @@ where
         }
     }
 }
-
-#[cfg_attr(not(test), allow(dead_code))]
-fn wrap_list_composite<S, V>(
-    mov: SequentialCompositeMove<S, ListMoveUnion<S, V>>,
-) -> ListMoveUnion<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-{
-    ListMoveUnion::Composite(mov)
-}

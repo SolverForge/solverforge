@@ -80,7 +80,7 @@ Score Director
 ============================================================================
 */
 
-pub use solverforge_scoring::{Director, RecordingDirector, ScoreDirector};
+pub use solverforge_scoring::{Director, ScoreDirector};
 
 /* ============================================================================
 Solver

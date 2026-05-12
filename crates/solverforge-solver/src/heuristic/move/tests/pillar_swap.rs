@@ -85,13 +85,13 @@ fn test_pillar_swap_all_entities() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        assert_eq!(get_shift(recording.working_solution(), 0, 0), Some(2));
-        assert_eq!(get_shift(recording.working_solution(), 1, 0), Some(2));
-        assert_eq!(get_shift(recording.working_solution(), 2, 0), Some(1));
-        assert_eq!(get_shift(recording.working_solution(), 3, 0), Some(1));
+        assert_eq!(get_shift(director.working_solution(), 0, 0), Some(2));
+        assert_eq!(get_shift(director.working_solution(), 1, 0), Some(2));
+        assert_eq!(get_shift(director.working_solution(), 2, 0), Some(1));
+        assert_eq!(get_shift(director.working_solution(), 3, 0), Some(1));
 
         recording.undo_changes();
     }
@@ -168,7 +168,7 @@ fn pillar_swap_tabu_identity_is_direction_stable() {
     let forward_signature = forward.tabu_signature(&director);
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         forward.do_move(&mut recording);
     }
 

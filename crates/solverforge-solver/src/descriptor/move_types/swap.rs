@@ -59,6 +59,8 @@ impl<S> Move<S> for DescriptorSwapMove<S>
 where
     S: PlanningSolution + 'static,
 {
+    type Undo = (Option<usize>, Option<usize>);
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
         self.left_entity_index != self.right_entity_index
@@ -67,7 +69,7 @@ where
             && self.current_value(solution, self.right_entity_index) == self.right_value
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let left_value =
             self.current_value(score_director.working_solution(), self.left_entity_index);
         let right_value =
@@ -103,28 +105,36 @@ where
         score_director
             .after_variable_changed(self.binding.descriptor_index, self.right_entity_index);
 
-        let descriptor = self.solution_descriptor.clone();
-        let binding = self.binding.clone();
-        let left_entity_index = self.left_entity_index;
-        let right_entity_index = self.right_entity_index;
-        score_director.register_undo(Box::new(move |solution: &mut S| {
-            let left_entity = descriptor
-                .get_entity_mut(
-                    solution as &mut dyn Any,
-                    binding.descriptor_index,
-                    left_entity_index,
-                )
-                .expect("entity lookup failed for descriptor swap undo");
-            (binding.setter)(left_entity, left_value);
-            let right_entity = descriptor
-                .get_entity_mut(
-                    solution as &mut dyn Any,
-                    binding.descriptor_index,
-                    right_entity_index,
-                )
-                .expect("entity lookup failed for descriptor swap undo");
-            (binding.setter)(right_entity, right_value);
-        }));
+        (left_value, right_value)
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        score_director
+            .before_variable_changed(self.binding.descriptor_index, self.left_entity_index);
+        score_director
+            .before_variable_changed(self.binding.descriptor_index, self.right_entity_index);
+        let left_entity = self
+            .solution_descriptor
+            .get_entity_mut(
+                score_director.working_solution_mut() as &mut dyn Any,
+                self.binding.descriptor_index,
+                self.left_entity_index,
+            )
+            .expect("entity lookup failed for descriptor swap undo");
+        (self.binding.setter)(left_entity, undo.0);
+        let right_entity = self
+            .solution_descriptor
+            .get_entity_mut(
+                score_director.working_solution_mut() as &mut dyn Any,
+                self.binding.descriptor_index,
+                self.right_entity_index,
+            )
+            .expect("entity lookup failed for descriptor swap undo");
+        (self.binding.setter)(right_entity, undo.1);
+        score_director
+            .after_variable_changed(self.binding.descriptor_index, self.left_entity_index);
+        score_director
+            .after_variable_changed(self.binding.descriptor_index, self.right_entity_index);
     }
 
     fn descriptor_index(&self) -> usize {
@@ -167,4 +177,3 @@ where
             ])
     }
 }
-

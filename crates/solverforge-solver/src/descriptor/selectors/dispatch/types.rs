@@ -150,13 +150,3 @@ where
         }
     }
 }
-
-fn wrap_descriptor_composite<S>(
-    mov: crate::heuristic::r#move::SequentialCompositeMove<S, DescriptorMoveUnion<S>>,
-) -> DescriptorMoveUnion<S>
-where
-    S: PlanningSolution + 'static,
-    S::Score: Score,
-{
-    DescriptorMoveUnion::Composite(mov)
-}

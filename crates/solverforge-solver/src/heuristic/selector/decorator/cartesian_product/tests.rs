@@ -117,12 +117,6 @@ impl MoveSelector<Sol, ScalarMoveUnion<Sol, i32>> for TestSelector {
     }
 }
 
-fn wrap_scalar_composite(
-    mov: crate::heuristic::r#move::SequentialCompositeMove<Sol, ScalarMoveUnion<Sol, i32>>,
-) -> ScalarMoveUnion<Sol, i32> {
-    ScalarMoveUnion::Composite(mov)
-}
-
 fn collect_indices<C>(cursor: &mut C) -> Vec<CandidateId>
 where
     C: MoveCursor<Sol, ScalarMoveUnion<Sol, i32>>,
@@ -225,7 +219,6 @@ fn cartesian_product_skips_rows_with_illegal_left_moves() {
         TestSelector {
             build: right_y_to_ten,
         },
-        wrap_scalar_composite,
     );
 
     let mut cursor = selector.open_cursor(&director);
@@ -259,7 +252,6 @@ fn cartesian_product_skips_pairs_with_illegal_right_moves() {
         TestSelector {
             build: right_x_to_one,
         },
-        wrap_scalar_composite,
     );
 
     let mut cursor = selector.open_cursor(&director);
@@ -296,7 +288,6 @@ fn cartesian_product_preview_updates_shadows_before_building_right_row() {
         TestSelector {
             build: right_shadow_backed_y,
         },
-        wrap_scalar_composite,
     );
 
     let mut cursor = selector.open_cursor(&director);
@@ -335,7 +326,6 @@ fn cartesian_product_moves_remain_stable_after_selector_reuse() {
         TestSelector {
             build: right_shadow_backed_y,
         },
-        wrap_scalar_composite,
     );
 
     let mut first_cursor = selector.open_cursor(&director);
@@ -398,7 +388,7 @@ fn cartesian_product_size_does_not_open_child_cursors() {
     }]);
     let left = CountingSelector::new();
     let right = CountingSelector::new();
-    let selector = CartesianProductSelector::new(left, right, wrap_scalar_composite);
+    let selector = CartesianProductSelector::new(left, right);
 
     assert_eq!(selector.size(&director), 4);
     assert_eq!(selector.left.open_count.get(), 0);
@@ -419,12 +409,13 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
         TestSelector {
             build: |_| vec![y_move(10)],
         },
-        wrap_scalar_composite,
     );
 
     let mut forward_cursor = forward_selector.open_cursor(&director);
     let forward_index = collect_indices(&mut forward_cursor)[0];
-    let forward_move = forward_cursor.take_candidate(forward_index);
+    let forward_move = forward_cursor
+        .candidate(forward_index)
+        .expect("forward cartesian candidate must remain valid");
     let forward_signature = forward_move.tabu_signature(&director);
     forward_move.do_move(&mut director);
 
@@ -435,7 +426,6 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
         TestSelector {
             build: |_| vec![x_move(0)],
         },
-        wrap_scalar_composite,
     );
 
     let mut reverse_cursor = reverse_selector.open_cursor(&director);

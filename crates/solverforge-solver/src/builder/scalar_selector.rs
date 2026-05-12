@@ -10,7 +10,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{
     ChangeMove, Move, MoveArena, PillarChangeMove, PillarSwapMove, RuinRecreateMove,
-    ScalarMoveUnion, ScalarRecreateValueSource, SequentialCompositeMove,
+    ScalarMoveUnion, ScalarRecreateValueSource,
 };
 use crate::heuristic::selector::decorator::{
     CartesianProductCursor, CartesianProductSelector, MappedMoveCursor, VecUnionSelector,

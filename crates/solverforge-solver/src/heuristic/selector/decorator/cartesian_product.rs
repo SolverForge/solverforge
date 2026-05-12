@@ -14,8 +14,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::metadata::compose_sequential_tabu_signature;
 use crate::heuristic::r#move::{
-    Move, MoveArena, MoveTabuSignature, SequentialCompositeMove, SequentialCompositeMoveRef,
-    SequentialPreviewDirector,
+    Move, MoveArena, MoveTabuSignature, SequentialCompositeMoveRef, SequentialPreviewDirector,
 };
 use crate::heuristic::selector::move_selector::{
     collect_cursor_indices, CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
@@ -141,13 +140,11 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    wrap: fn(SequentialCompositeMove<S, M>) -> M,
     require_hard_improvement: bool,
     left_moves: Vec<Option<M>>,
     rows: Vec<CartesianRow<M>>,
     pairs: Vec<CartesianPair>,
     next_pair: usize,
-    selected: bool,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -157,7 +154,6 @@ where
     M: Move<S>,
 {
     fn new<LeftCursor, Right, D>(
-        wrap: fn(SequentialCompositeMove<S, M>) -> M,
         require_hard_improvement: bool,
         mut left_cursor: LeftCursor,
         right_selector: &Right,
@@ -223,13 +219,11 @@ where
         }
 
         Self {
-            wrap,
             require_hard_improvement,
             left_moves,
             rows,
             pairs,
             next_pair: 0,
-            selected: false,
             _phantom: PhantomData,
         }
     }
@@ -275,36 +269,10 @@ where
     }
 
     fn take_candidate(&mut self, index: CandidateId) -> M {
-        assert!(
-            !self.selected,
-            "cartesian product cursors only support materializing one selected winner",
+        let _ = index;
+        panic!(
+            "cartesian product cursors expose borrowed sequential candidates; apply the selected candidate before dropping the cursor",
         );
-        let pair = &self.pairs[index.index()];
-        let left = self.left_moves[pair.left_index]
-            .take()
-            .expect("selected left cartesian move must remain valid");
-        let row = &mut self.rows[pair.left_index];
-        let right = row.right_moves[pair.right_index]
-            .take()
-            .expect("selected right cartesian move must remain valid");
-        self.selected = true;
-
-        let variable_name = if left.variable_name() == right.variable_name() {
-            left.variable_name().to_string()
-        } else {
-            "cartesian_product".to_string()
-        };
-        (self.wrap)(
-            SequentialCompositeMove::new(
-                left,
-                right,
-                pair.tabu_signature.scope.descriptor_index,
-                pair.entity_indices.clone(),
-                variable_name,
-                pair.tabu_signature.clone(),
-            )
-            .with_require_hard_improvement(self.require_hard_improvement),
-        )
     }
 }
 
@@ -323,9 +291,8 @@ fn combined_entity_indices(left: &[usize], right: &[usize]) -> SmallVec<[usize; 
 pub struct CartesianProductSelector<S, M, Left, Right> {
     left: Left,
     right: Right,
-    wrap: fn(SequentialCompositeMove<S, M>) -> M,
     require_hard_improvement: bool,
-    _phantom: PhantomData<fn() -> S>,
+    _phantom: PhantomData<fn() -> (S, M)>,
 }
 
 impl<S, M, Left, Right> CartesianProductSelector<S, M, Left, Right>
@@ -335,11 +302,10 @@ where
     Left: MoveSelector<S, M>,
     Right: MoveSelector<S, M>,
 {
-    pub fn new(left: Left, right: Right, wrap: fn(SequentialCompositeMove<S, M>) -> M) -> Self {
+    pub fn new(left: Left, right: Right) -> Self {
         Self {
             left,
             right,
-            wrap,
             require_hard_improvement: false,
             _phantom: PhantomData,
         }
@@ -389,7 +355,6 @@ where
         context: MoveStreamContext,
     ) -> Self::Cursor<'a> {
         CartesianProductCursor::new(
-            self.wrap,
             self.require_hard_improvement,
             self.left.open_cursor_with_context(score_director, context),
             &self.right,
@@ -403,7 +368,7 @@ where
         _score_director: &D,
     ) -> MoveSelectorIter<S, M, Self::Cursor<'a>> {
         panic!(
-            "cartesian selectors do not support owned iter_moves(); use open_cursor() and take_candidate() to materialize only the selected winner",
+            "cartesian selectors do not support owned iter_moves(); use open_cursor() and candidate() to evaluate or commit the selected borrowed sequential candidate",
         );
     }
 
@@ -415,7 +380,7 @@ where
 
     fn append_moves<D: Director<S>>(&self, _score_director: &D, _arena: &mut MoveArena<M>) {
         panic!(
-            "cartesian selectors do not support append_moves(); use open_cursor() and take_candidate() to materialize only the selected winner",
+            "cartesian selectors do not support append_moves(); use open_cursor() and candidate() to evaluate or commit the selected borrowed sequential candidate",
         );
     }
 }

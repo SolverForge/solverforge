@@ -67,12 +67,12 @@ fn ruin_single_entity() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        assert_eq!(get_assigned(recording.working_solution(), 0, 0), Some(1));
-        assert_eq!(get_assigned(recording.working_solution(), 1, 0), None);
-        assert_eq!(get_assigned(recording.working_solution(), 2, 0), Some(3));
+        assert_eq!(get_assigned(director.working_solution(), 0, 0), Some(1));
+        assert_eq!(get_assigned(director.working_solution(), 1, 0), None);
+        assert_eq!(get_assigned(director.working_solution(), 2, 0), Some(3));
 
         recording.undo_changes();
     }
@@ -91,13 +91,13 @@ fn ruin_multiple_entities() {
     assert_eq!(m.ruin_count(), 3);
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        assert_eq!(get_assigned(recording.working_solution(), 0, 0), None);
-        assert_eq!(get_assigned(recording.working_solution(), 1, 0), Some(2));
-        assert_eq!(get_assigned(recording.working_solution(), 2, 0), None);
-        assert_eq!(get_assigned(recording.working_solution(), 3, 0), None);
+        assert_eq!(get_assigned(director.working_solution(), 0, 0), None);
+        assert_eq!(get_assigned(director.working_solution(), 1, 0), Some(2));
+        assert_eq!(get_assigned(director.working_solution(), 2, 0), None);
+        assert_eq!(get_assigned(director.working_solution(), 3, 0), None);
 
         recording.undo_changes();
     }

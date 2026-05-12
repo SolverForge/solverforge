@@ -29,64 +29,59 @@ fn projected_self_join_score_director_cached_score_matches_fresh_after_updates()
 }
 
 #[test]
-fn projected_self_join_nested_recording_director_undo_restores_cached_score() {
+fn projected_self_join_nested_typed_undo_restores_cached_score() {
     let initial_plan = projected_asymmetric_self_join_plan();
-    let mut inner = ScoreDirector::new(
+    let mut director = ScoreDirector::new(
         initial_plan.clone(),
         (projected_asymmetric_self_join_constraint(),),
     );
-    assert_projected_director_matches_fresh(&mut inner);
+    assert_projected_director_matches_fresh(&mut director);
 
+    let outer_score_state = director.snapshot_score_state();
+    let old_outer_work = director.working_solution().work[1].clone();
+    director.before_variable_changed(0, 1);
     {
-        let mut outer = RecordingDirector::new(&mut inner);
-        let old_outer_work = outer.working_solution().work[1].clone();
-        outer.before_variable_changed(0, 1);
-        {
-            let work = &mut outer.working_solution_mut().work[1];
-            work.bucket = 0;
-            work.demand = 5;
-            work.enabled = true;
-        }
-        outer.after_variable_changed(0, 1);
-        outer.register_undo(Box::new(move |plan: &mut Plan| {
-            plan.work[1] = old_outer_work;
-        }));
-        assert_eq!(
-            outer.calculate_score(),
-            fresh_projected_asymmetric_self_join_score(outer.working_solution())
-        );
-
-        {
-            let mut nested = RecordingDirector::new(&mut outer);
-            let old_nested_work = nested.working_solution().work[2].clone();
-            nested.before_variable_changed(0, 2);
-            {
-                let work = &mut nested.working_solution_mut().work[2];
-                work.bucket = 0;
-                work.demand = 30;
-                work.enabled = false;
-            }
-            nested.after_variable_changed(0, 2);
-            nested.register_undo(Box::new(move |plan: &mut Plan| {
-                plan.work[2] = old_nested_work;
-            }));
-
-            assert_eq!(
-                nested.calculate_score(),
-                fresh_projected_asymmetric_self_join_score(nested.working_solution())
-            );
-            nested.undo_changes();
-        }
-
-        assert_eq!(
-            outer.calculate_score(),
-            fresh_projected_asymmetric_self_join_score(outer.working_solution())
-        );
-        outer.undo_changes();
+        let work = &mut director.working_solution_mut().work[1];
+        work.bucket = 0;
+        work.demand = 5;
+        work.enabled = true;
     }
+    director.after_variable_changed(0, 1);
+    assert_eq!(
+        director.calculate_score(),
+        fresh_projected_asymmetric_self_join_score(director.working_solution())
+    );
 
-    assert_eq!(inner.working_solution().work, initial_plan.work);
-    assert_projected_director_matches_fresh(&mut inner);
+    let nested_score_state = director.snapshot_score_state();
+    let old_nested_work = director.working_solution().work[2].clone();
+    director.before_variable_changed(0, 2);
+    {
+        let work = &mut director.working_solution_mut().work[2];
+        work.bucket = 0;
+        work.demand = 30;
+        work.enabled = false;
+    }
+    director.after_variable_changed(0, 2);
+    assert_eq!(
+        director.calculate_score(),
+        fresh_projected_asymmetric_self_join_score(director.working_solution())
+    );
+
+    director.before_variable_changed(0, 2);
+    director.working_solution_mut().work[2] = old_nested_work;
+    director.after_variable_changed(0, 2);
+    director.restore_score_state(nested_score_state);
+    assert_eq!(
+        director.calculate_score(),
+        fresh_projected_asymmetric_self_join_score(director.working_solution())
+    );
+
+    director.before_variable_changed(0, 1);
+    director.working_solution_mut().work[1] = old_outer_work;
+    director.after_variable_changed(0, 1);
+    director.restore_score_state(outer_score_state);
+    assert_eq!(director.working_solution().work, initial_plan.work);
+    assert_projected_director_matches_fresh(&mut director);
 }
 
 #[test]

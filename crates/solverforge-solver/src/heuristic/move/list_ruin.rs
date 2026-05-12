@@ -188,6 +188,8 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
+    type Undo = SmallVec<[(usize, usize); 8]>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         if self.element_indices.is_empty() {
             return false;
@@ -197,7 +199,7 @@ where
         self.element_indices.iter().all(|&idx| idx < len)
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
         let list_len = self.list_len;
@@ -278,50 +280,44 @@ where
         which are exactly the later orig_indices — so we insert at orig_indices[k] + k
         to account for the k prior insertions that each shifted by 1.
         */
-        let orig_entity = src;
-        let orig_indices: SmallVec<[usize; 8]> = self.element_indices.clone();
+        placements
+    }
 
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            let n = placements.len();
-            let mut current_pos = final_positions_after_insertions(&placements);
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, placements: Self::Undo) {
+        let n = placements.len();
+        let mut current_pos = final_positions_after_insertions(&placements);
+        let mut vals: SmallVec<[V; 8]> = SmallVec::with_capacity(n);
 
-            /* Remove in reverse insertion order (i = n-1 downto 0).
-            When removing element i, elements j > i have already been removed.
-            Any earlier element in the same entity that currently sits after the
-            removed position shifts left by one.
-            */
-            let mut vals: SmallVec<[V; 8]> = SmallVec::with_capacity(n);
-            for i in (0..n).rev() {
-                let (e_i, _) = placements[i];
-                let actual_pos = current_pos[i];
-                vals.push(list_remove(s, e_i, actual_pos));
+        for i in (0..n).rev() {
+            let (entity_index, _) = placements[i];
+            let actual_pos = current_pos[i];
+            score_director.before_variable_changed(self.descriptor_index, entity_index);
+            vals.push((self.list_remove)(
+                score_director.working_solution_mut(),
+                entity_index,
+                actual_pos,
+            ));
+            score_director.after_variable_changed(self.descriptor_index, entity_index);
 
-                for j in 0..i {
-                    let (e_j, _) = placements[j];
-                    if e_j == e_i && current_pos[j] > actual_pos {
-                        current_pos[j] -= 1;
-                    }
+            for j in 0..i {
+                let (other_entity, _) = placements[j];
+                if other_entity == entity_index && current_pos[j] > actual_pos {
+                    current_pos[j] -= 1;
                 }
             }
-            // vals is in reverse original order; reverse to get forward original order.
-            vals.reverse();
+        }
+        vals.reverse();
 
-            /* Reinsert at original positions (ascending, sorted).
-            orig_indices[k] is the position in the pre-ruin source entity.
-            Inserting at orig_indices[k] shifts all positions > orig_indices[k] right.
-            Since orig_indices is sorted ascending, each insertion k shifts positions
-            that are >= orig_indices[k], which includes orig_indices[k+1..] only if
-            they are >= orig_indices[k]. They are (sorted), so each later index needs
-            +k adjustment (k prior insertions each shifted it once).
-            But orig_indices[k] itself does not shift — we insert at the exact original
-            index before any of the k prior insertions were accounted for.
-            Actually: after k insertions at positions orig_indices[0..k] (all <= orig_indices[k]
-            since sorted), orig_indices[k]'s effective position has shifted by k.
-            */
-            for (&idx, val) in orig_indices.iter().zip(vals) {
-                list_insert(s, orig_entity, idx, val);
-            }
-        }));
+        score_director.before_variable_changed(self.descriptor_index, self.entity_index);
+        for (&idx, val) in self.element_indices.iter().zip(vals) {
+            (self.list_insert)(
+                score_director.working_solution_mut(),
+                self.entity_index,
+                idx,
+                val,
+            );
+        }
+        score_director.after_variable_changed(self.descriptor_index, self.entity_index);
     }
 
     fn descriptor_index(&self) -> usize {

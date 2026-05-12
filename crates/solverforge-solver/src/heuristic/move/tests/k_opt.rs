@@ -111,10 +111,10 @@ mod k_opt_tests {
         assert_eq!(m.k(), 3);
 
         {
-            let mut recording = RecordingDirector::new(&mut director);
+            let mut recording = SnapshotDirector::new(&mut director);
             m.do_move(&mut recording);
 
-            let cities = &recording.working_solution().tours[0].cities;
+            let cities = &director.working_solution().tours[0].cities;
             assert_eq!(cities, &[1, 2, 5, 6, 3, 4, 7, 8]);
 
             recording.undo_changes();
@@ -152,10 +152,10 @@ mod k_opt_tests {
         assert!(m.is_doable(&director));
 
         {
-            let mut recording = RecordingDirector::new(&mut director);
+            let mut recording = SnapshotDirector::new(&mut director);
             m.do_move(&mut recording);
 
-            let cities = &recording.working_solution().tours[0].cities;
+            let cities = &director.working_solution().tours[0].cities;
             assert_eq!(cities, &[1, 2, 4, 3, 5, 6, 7, 8]);
 
             recording.undo_changes();

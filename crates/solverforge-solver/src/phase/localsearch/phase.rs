@@ -202,6 +202,14 @@ where
                     interrupted_step = true;
                     break;
                 }
+                if step_scope
+                    .phase_scope_mut()
+                    .solver_scope_mut()
+                    .should_terminate()
+                {
+                    interrupted_step = true;
+                    break;
+                }
 
                 let generation_started = Instant::now();
                 let Some(candidate_id) = cursor.next_candidate() else {
@@ -229,6 +237,14 @@ where
                 }
 
                 if should_interrupt_before_evaluation(&step_scope) {
+                    interrupted_step = true;
+                    break;
+                }
+                if step_scope
+                    .phase_scope_mut()
+                    .solver_scope_mut()
+                    .should_terminate()
+                {
                     interrupted_step = true;
                     break;
                 }
@@ -333,7 +349,9 @@ where
             let mut accepted_move_signature = None;
             if let Some((selected_index, selected_score)) = self.forager.pick_move_index() {
                 let selector_index = cursor.selector_index(selected_index);
-                let selected_move = cursor.take_candidate(selected_index);
+                let selected_move = cursor
+                    .candidate(selected_index)
+                    .expect("selected candidate id must remain borrowable until commit");
                 if requires_move_signatures {
                     accepted_move_signature =
                         Some(selected_move.tabu_signature(step_scope.score_director()));

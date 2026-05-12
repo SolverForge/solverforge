@@ -21,7 +21,8 @@ All moves are fully monomorphized with inline value storage for maximum performa
 - `RuinMove<S, V>` - unassigns multiple entities (for Large Neighborhood Search)
 - `ListRuinMove<S, V>` - removes elements from a list (for LNS on list variables)
 
-Undo is handled by `RecordingDirector`, not by moves returning undo data.
+Each move returns typed undo data from `do_move` and restores itself through
+`undo_move`; speculative evaluation does not use boxed callbacks.
 
 # Arena Allocation
 

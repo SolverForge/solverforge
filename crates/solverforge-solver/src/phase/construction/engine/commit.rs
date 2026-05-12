@@ -117,22 +117,22 @@ where
     let generation_started = Instant::now();
     phase_scope.record_generated_move(generation_started.elapsed());
 
-    let mut recording = RecordingDirector::new(phase_scope.score_director_mut());
+    let score_director = phase_scope.score_director_mut();
+    let score_state = score_director.snapshot_score_state();
     let evaluation_started = Instant::now();
-    recording.before_variable_changed(ctx.descriptor_index, entity_index);
+    score_director.before_variable_changed(ctx.descriptor_index, entity_index);
     (ctx.list_insert)(
-        recording.working_solution_mut(),
+        score_director.working_solution_mut(),
         entity_index,
         position,
         element,
     );
-    recording.after_variable_changed(ctx.descriptor_index, entity_index);
-    let remove = ctx.construction_list_remove;
-    recording.register_undo(Box::new(move |solution: &mut S| {
-        remove(solution, entity_index, position);
-    }));
-    let score = recording.calculate_score();
-    recording.undo_changes();
+    score_director.after_variable_changed(ctx.descriptor_index, entity_index);
+    let score = score_director.calculate_score();
+    score_director.before_variable_changed(ctx.descriptor_index, entity_index);
+    (ctx.construction_list_remove)(score_director.working_solution_mut(), entity_index, position);
+    score_director.after_variable_changed(ctx.descriptor_index, entity_index);
+    score_director.restore_score_state(score_state);
     phase_scope.record_score_calculation();
     phase_scope.record_evaluated_move(evaluation_started.elapsed());
     score

@@ -179,6 +179,8 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
+    type Undo = ();
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
@@ -221,7 +223,7 @@ where
         true
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         // Notify before changes
         score_director.before_variable_changed(self.descriptor_index, self.source_entity_index);
         if !self.is_intra_list() {
@@ -256,20 +258,34 @@ where
         if !self.is_intra_list() {
             score_director.after_variable_changed(self.descriptor_index, self.dest_entity_index);
         }
+    }
 
-        // Register undo - reverse the operation
-        let list_remove = self.list_remove;
-        let list_insert = self.list_insert;
-        let src_entity = self.source_entity_index;
-        let src_pos = self.source_position;
-        let dest_entity = self.dest_entity_index;
-
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            // Remove from where we inserted
-            let removed = list_remove(s, dest_entity, adjusted_dest).unwrap();
-            // Insert back at original source position
-            list_insert(s, src_entity, src_pos, removed);
-        }));
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, (): Self::Undo) {
+        let adjusted_dest = if self.is_intra_list() && self.dest_position > self.source_position {
+            self.dest_position - 1
+        } else {
+            self.dest_position
+        };
+        score_director.before_variable_changed(self.descriptor_index, self.dest_entity_index);
+        if !self.is_intra_list() {
+            score_director.before_variable_changed(self.descriptor_index, self.source_entity_index);
+        }
+        let removed = (self.list_remove)(
+            score_director.working_solution_mut(),
+            self.dest_entity_index,
+            adjusted_dest,
+        )
+        .expect("undo destination position should contain moved element");
+        (self.list_insert)(
+            score_director.working_solution_mut(),
+            self.source_entity_index,
+            self.source_position,
+            removed,
+        );
+        score_director.after_variable_changed(self.descriptor_index, self.dest_entity_index);
+        if !self.is_intra_list() {
+            score_director.after_variable_changed(self.descriptor_index, self.source_entity_index);
+        }
     }
 
     fn descriptor_index(&self) -> usize {

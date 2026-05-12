@@ -33,11 +33,15 @@ impl PlanningSolution for TestSolution {
 struct TestMove;
 
 impl Move<TestSolution> for TestMove {
+    type Undo = ();
+
     fn is_doable<D: Director<TestSolution>>(&self, _score_director: &D) -> bool {
         true
     }
 
-    fn do_move<D: Director<TestSolution>>(&self, _score_director: &mut D) {}
+    fn do_move<D: Director<TestSolution>>(&self, _score_director: &mut D) -> Self::Undo {}
+
+    fn undo_move<D: Director<TestSolution>>(&self, _score_director: &mut D, _undo: Self::Undo) {}
 
     fn descriptor_index(&self) -> usize {
         0

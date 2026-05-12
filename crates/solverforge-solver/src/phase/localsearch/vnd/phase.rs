@@ -101,7 +101,10 @@ where
                 &current_score,
                 &mut progress,
             ) {
-                MoveSearchResult::Found(selected_move, selected_score, selector_index) => {
+                MoveSearchResult::Found(selected_index, selected_score, selector_index) => {
+                    let selected_move = cursor
+                        .candidate(selected_index)
+                        .expect("selected VND candidate id must remain borrowable until commit");
                     step_scope.apply_committed_move(&selected_move);
                     if let Some(selector_index) = selector_index {
                         step_scope
@@ -158,8 +161,8 @@ where
     }
 }
 
-enum MoveSearchResult<M, Sc> {
-    Found(M, Sc, Option<usize>),
+enum MoveSearchResult<Sc> {
+    Found(CandidateId, Sc, Option<usize>),
     NotFound,
     Interrupted,
 }
@@ -169,7 +172,7 @@ fn find_best_improving_move<S, D, ProgressCb, M, C>(
     step_scope: &mut StepScope<'_, '_, '_, S, D, ProgressCb>,
     current_score: &S::Score,
     progress: &mut VndProgress,
-) -> MoveSearchResult<M, S::Score>
+) -> MoveSearchResult<S::Score>
 where
     S: PlanningSolution,
     D: Director<S>,
@@ -249,7 +252,7 @@ where
     match best {
         Some((index, score)) => {
             let selector_index = cursor.selector_index(index);
-            MoveSearchResult::Found(cursor.take_candidate(index), score, selector_index)
+            MoveSearchResult::Found(index, score, selector_index)
         }
         None => MoveSearchResult::NotFound,
     }

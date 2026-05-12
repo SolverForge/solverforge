@@ -86,12 +86,12 @@ fn test_pillar_change_all_entities() {
     assert_eq!(m.pillar_size(), 2);
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        assert_eq!(get_shift(recording.working_solution(), 0, 0), Some(5));
-        assert_eq!(get_shift(recording.working_solution(), 1, 0), Some(5));
-        assert_eq!(get_shift(recording.working_solution(), 2, 0), Some(2));
+        assert_eq!(get_shift(director.working_solution(), 0, 0), Some(5));
+        assert_eq!(get_shift(director.working_solution(), 1, 0), Some(5));
+        assert_eq!(get_shift(director.working_solution(), 2, 0), Some(2));
 
         recording.undo_changes();
     }

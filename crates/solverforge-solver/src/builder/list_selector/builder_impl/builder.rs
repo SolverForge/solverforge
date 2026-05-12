@@ -76,7 +76,7 @@ impl ListMoveSelectorBuilder {
                         random_seed,
                     );
                     nodes.push(ListSelectorNode::Cartesian(
-                        CartesianProductSelector::new(left, right, wrap_list_composite::<S, V>)
+                        CartesianProductSelector::new(left, right)
                             .with_require_hard_improvement(cartesian.require_hard_improvement),
                     ));
                 }

@@ -4,7 +4,7 @@ use smallvec::{smallvec, SmallVec};
 use solverforge_config::RecreateHeuristicType;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 
 use super::metadata::{
     encode_option_usize, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
@@ -240,10 +240,11 @@ where
         S: PlanningSolution,
         S::Score: Score,
     {
-        let mut recording = RecordingDirector::new(score_director);
-        mov.do_move(&mut recording);
-        let score = recording.calculate_score();
-        recording.undo_changes();
+        let score_state = score_director.snapshot_score_state();
+        let undo = mov.do_move(score_director);
+        let score = score_director.calculate_score();
+        mov.undo_move(score_director, undo);
+        score_director.restore_score_state(score_state);
         score
     }
 
@@ -350,6 +351,8 @@ where
     S: PlanningSolution,
     S::Score: Score,
 {
+    type Undo = SmallVec<[(usize, Option<usize>); 8]>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
         self.required_assignments_can_be_recreated(solution)
@@ -358,9 +361,9 @@ where
             })
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         if !self.is_doable(score_director) {
-            return;
+            return SmallVec::new();
         }
 
         let old_values: SmallVec<[(usize, Option<usize>); 8]> = self
@@ -407,13 +410,24 @@ where
             }
         }
 
-        let setter = self.setter;
-        let variable_index = self.variable_index;
-        score_director.register_undo(Box::new(move |solution: &mut S| {
-            for (entity_index, old_value) in old_values {
-                setter(solution, entity_index, variable_index, old_value);
-            }
-        }));
+        old_values
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        for (entity_index, _) in &undo {
+            score_director.before_variable_changed(self.descriptor_index, *entity_index);
+        }
+        for (entity_index, old_value) in undo {
+            (self.setter)(
+                score_director.working_solution_mut(),
+                entity_index,
+                self.variable_index,
+                old_value,
+            );
+        }
+        for &entity_index in &self.entity_indices {
+            score_director.after_variable_changed(self.descriptor_index, entity_index);
+        }
     }
 
     fn descriptor_index(&self) -> usize {

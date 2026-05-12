@@ -137,6 +137,8 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
+    type Undo = SmallVec<[(usize, Option<V>); 8]>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         // At least one entity must be currently assigned
         let solution = score_director.working_solution();
@@ -145,7 +147,7 @@ where
             .any(|&idx| (self.getter)(solution, idx, self.variable_index).is_some())
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let getter = self.getter;
         let setter = self.setter;
         let descriptor = self.descriptor_index;
@@ -173,12 +175,24 @@ where
             score_director.after_variable_changed(descriptor, idx);
         }
 
-        // Register undo to restore old values
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            for (idx, old_value) in old_values {
-                setter(s, idx, variable_index, old_value);
-            }
-        }));
+        old_values
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        for (idx, _) in &undo {
+            score_director.before_variable_changed(self.descriptor_index, *idx);
+        }
+        for (idx, old_value) in undo {
+            (self.setter)(
+                score_director.working_solution_mut(),
+                idx,
+                self.variable_index,
+                old_value,
+            );
+        }
+        for &idx in &self.entity_indices {
+            score_director.after_variable_changed(self.descriptor_index, idx);
+        }
     }
 
     fn descriptor_index(&self) -> usize {

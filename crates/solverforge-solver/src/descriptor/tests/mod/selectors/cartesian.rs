@@ -38,7 +38,10 @@ fn descriptor_cartesian_builds_composite_moves() {
         cursor.candidate(index),
         Some(MoveCandidateRef::Sequential(_))
     )));
-    let signature = cursor.take_candidate(indices[0]).tabu_signature(&director);
+    let signature = cursor
+        .candidate(indices[0])
+        .expect("descriptor cartesian candidate must remain valid")
+        .tabu_signature(&director);
     assert!(!signature.move_id.is_empty());
     assert!(!signature.entity_tokens.is_empty());
 }
@@ -89,7 +92,9 @@ fn descriptor_cartesian_selector_survives_filtering_wrapper() {
         cursor.candidate(index),
         Some(MoveCandidateRef::Sequential(_))
     )));
-    assert!(cursor.take_candidate(indices[0]).is_doable(&director));
+    assert!(cursor
+        .candidate(indices[0])
+        .is_some_and(|mov| mov.is_doable(&director)));
 }
 
 #[test]

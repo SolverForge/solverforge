@@ -23,7 +23,7 @@ use super::{Move, MoveTabuSignature};
 /// A move that assigns a value to all entities in a pillar.
 ///
 /// Stores entity indices and concrete function pointers for zero-erasure access.
-/// Undo is handled by `RecordingDirector`, not by this move.
+/// `do_move` returns the previous pillar values as typed undo data.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -110,6 +110,8 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
+    type Undo = Vec<(usize, Option<V>)>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         if self.entity_indices.is_empty() {
             return false;
@@ -139,7 +141,7 @@ where
         }
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         // Capture old values using concrete getter - zero erasure
         let old_values: Vec<(usize, Option<V>)> = self
             .entity_indices
@@ -172,14 +174,24 @@ where
             score_director.after_variable_changed(self.descriptor_index, idx);
         }
 
-        // Register concrete undo closure
-        let setter = self.setter;
-        let variable_index = self.variable_index;
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            for (idx, old_value) in old_values {
-                setter(s, idx, variable_index, old_value);
-            }
-        }));
+        old_values
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        for (idx, _) in &undo {
+            score_director.before_variable_changed(self.descriptor_index, *idx);
+        }
+        for (idx, old_value) in undo {
+            (self.setter)(
+                score_director.working_solution_mut(),
+                idx,
+                self.variable_index,
+                old_value,
+            );
+        }
+        for &idx in &self.entity_indices {
+            score_director.after_variable_changed(self.descriptor_index, idx);
+        }
     }
 
     fn descriptor_index(&self) -> usize {

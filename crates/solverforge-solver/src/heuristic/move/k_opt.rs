@@ -262,6 +262,8 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
+    type Undo = Vec<V>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
         let k = self.cut_count as usize;
@@ -300,7 +302,7 @@ where
         true
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let k = self.cut_count as usize;
         let entity = self.entity_index;
 
@@ -356,7 +358,6 @@ where
         }
 
         // Insert reordered elements back
-        let new_len = new_elements.len();
         (self.sublist_insert)(
             score_director.working_solution_mut(),
             entity,
@@ -367,16 +368,25 @@ where
         // Notify after change
         score_director.after_variable_changed(self.descriptor_index, entity);
 
-        // Register undo - need to restore original order
-        let sublist_remove = self.sublist_remove;
-        let sublist_insert = self.sublist_insert;
+        all_elements
+    }
 
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            // Remove current elements
-            let _ = sublist_remove(s, entity, 0, new_len);
-            // Insert original elements
-            sublist_insert(s, entity, 0, all_elements);
-        }));
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        score_director.before_variable_changed(self.descriptor_index, self.entity_index);
+        let len = (self.list_len)(score_director.working_solution(), self.entity_index);
+        let _ = (self.sublist_remove)(
+            score_director.working_solution_mut(),
+            self.entity_index,
+            0,
+            len,
+        );
+        (self.sublist_insert)(
+            score_director.working_solution_mut(),
+            self.entity_index,
+            0,
+            undo,
+        );
+        score_director.after_variable_changed(self.descriptor_index, self.entity_index);
     }
 
     fn descriptor_index(&self) -> usize {

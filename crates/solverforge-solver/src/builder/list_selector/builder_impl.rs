@@ -4,7 +4,7 @@ use solverforge_config::MoveSelectorConfig;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{ListMoveUnion, MoveArena, SequentialCompositeMove};
+use crate::heuristic::r#move::{ListMoveUnion, MoveArena};
 use crate::heuristic::selector::decorator::{
     CartesianProductCursor, CartesianProductSelector, VecUnionSelector,
 };

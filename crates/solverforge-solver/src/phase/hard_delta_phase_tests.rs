@@ -144,11 +144,13 @@ struct BendableRepairMove {
 }
 
 impl Move<BendableRepairPlan> for BendableRepairMove {
+    type Undo = (i64, i64, i64, Option<BendableScore<2, 1>>);
+
     fn is_doable<D: Director<BendableRepairPlan>>(&self, _score_director: &D) -> bool {
         true
     }
 
-    fn do_move<D: Director<BendableRepairPlan>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<BendableRepairPlan>>(&self, score_director: &mut D) -> Self::Undo {
         let previous_first_hard = score_director.working_solution().first_hard;
         let previous_second_hard = score_director.working_solution().second_hard;
         let previous_soft = score_director.working_solution().soft;
@@ -157,12 +159,20 @@ impl Move<BendableRepairPlan> for BendableRepairMove {
         solution.first_hard = self.first_hard;
         solution.second_hard = self.second_hard;
         solution.soft = self.soft;
-        score_director.register_undo(Box::new(move |solution: &mut BendableRepairPlan| {
-            solution.first_hard = previous_first_hard;
-            solution.second_hard = previous_second_hard;
-            solution.soft = previous_soft;
-            solution.score = previous_score;
-        }));
+        (
+            previous_first_hard,
+            previous_second_hard,
+            previous_soft,
+            previous_score,
+        )
+    }
+
+    fn undo_move<D: Director<BendableRepairPlan>>(&self, score_director: &mut D, undo: Self::Undo) {
+        let solution = score_director.working_solution_mut();
+        solution.first_hard = undo.0;
+        solution.second_hard = undo.1;
+        solution.soft = undo.2;
+        solution.score = undo.3;
     }
 
     fn descriptor_index(&self) -> usize {

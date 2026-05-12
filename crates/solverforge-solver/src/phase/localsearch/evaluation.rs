@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::MoveCandidateRef;
@@ -40,13 +40,13 @@ where
         return CandidateEvaluation::NotDoable;
     }
 
-    let move_score = {
-        let mut recording = RecordingDirector::new(step_scope.score_director_mut());
-        mov.do_move(&mut recording);
-        let score = recording.calculate_score();
-        recording.undo_changes();
-        score
-    };
+    let score_state = step_scope.score_director().snapshot_score_state();
+    let undo = mov.do_move(step_scope.score_director_mut());
+    let move_score = step_scope.score_director_mut().calculate_score();
+    mov.undo_move(step_scope.score_director_mut(), undo);
+    step_scope
+        .score_director_mut()
+        .restore_score_state(score_state);
 
     step_scope.phase_scope_mut().record_score_calculation();
 

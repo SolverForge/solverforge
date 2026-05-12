@@ -151,6 +151,8 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
+    type Undo = ();
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
@@ -168,7 +170,7 @@ where
         true
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         // Notify before change
         score_director.before_variable_changed(self.descriptor_index, self.entity_index);
 
@@ -182,16 +184,10 @@ where
 
         // Notify after change
         score_director.after_variable_changed(self.descriptor_index, self.entity_index);
+    }
 
-        // Register undo - reversing twice restores original
-        let list_reverse = self.list_reverse;
-        let entity = self.entity_index;
-        let start = self.start;
-        let end = self.end;
-
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            list_reverse(s, entity, start, end);
-        }));
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, (): Self::Undo) {
+        self.do_move(score_director);
     }
 
     fn descriptor_index(&self) -> usize {

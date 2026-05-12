@@ -1,5 +1,5 @@
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 
 /* Common fields for scored list construction phases.
 
@@ -33,22 +33,22 @@ where
         pos: usize,
         score_director: &mut D,
     ) -> Option<S::Score> {
-        let list_insert = self.list_insert;
-        let list_remove = self.list_remove;
         let descriptor_index = self.descriptor_index;
 
-        let mut recording = RecordingDirector::new(score_director);
-
-        recording.before_variable_changed(descriptor_index, entity_idx);
-        list_insert(recording.working_solution_mut(), entity_idx, pos, element);
-        recording.after_variable_changed(descriptor_index, entity_idx);
-
-        recording.register_undo(Box::new(move |s: &mut S| {
-            list_remove(s, entity_idx, pos);
-        }));
-
-        let score = recording.calculate_score();
-        recording.undo_changes();
+        let score_state = score_director.snapshot_score_state();
+        score_director.before_variable_changed(descriptor_index, entity_idx);
+        (self.list_insert)(
+            score_director.working_solution_mut(),
+            entity_idx,
+            pos,
+            element,
+        );
+        score_director.after_variable_changed(descriptor_index, entity_idx);
+        let score = score_director.calculate_score();
+        score_director.before_variable_changed(descriptor_index, entity_idx);
+        (self.list_remove)(score_director.working_solution_mut(), entity_idx, pos);
+        score_director.after_variable_changed(descriptor_index, entity_idx);
+        score_director.restore_score_state(score_state);
 
         Some(score)
     }

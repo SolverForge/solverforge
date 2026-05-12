@@ -251,5 +251,7 @@ fn scalar_builder_cartesian_selector_survives_filtering_wrapper() {
         cursor.candidate(index),
         Some(MoveCandidateRef::Sequential(_))
     )));
-    assert!(cursor.take_candidate(indices[0]).is_doable(&director));
+    assert!(cursor
+        .candidate(indices[0])
+        .is_some_and(|mov| mov.is_doable(&director)));
 }

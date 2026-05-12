@@ -100,10 +100,10 @@ fn intra_list_move_forward() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        let visits = &recording.working_solution().vehicles[0].visits;
+        let visits = &director.working_solution().vehicles[0].visits;
         assert_eq!(visits, &[1, 4, 5, 6, 2, 3]);
 
         recording.undo_changes();
@@ -137,10 +137,10 @@ fn intra_list_move_backward() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        let visits = &recording.working_solution().vehicles[0].visits;
+        let visits = &director.working_solution().vehicles[0].visits;
         assert_eq!(visits, &[1, 4, 5, 2, 3, 6]);
 
         recording.undo_changes();
@@ -179,10 +179,10 @@ fn inter_list_move() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        let sol = recording.working_solution();
+        let sol = director.working_solution();
         assert_eq!(sol.vehicles[0].visits, vec![1, 4]);
         assert_eq!(sol.vehicles[1].visits, vec![10, 2, 3, 20]);
 
@@ -289,7 +289,7 @@ fn intra_list_rightward_tabu_inverse_matches_reverse_move() {
     let signature = m.tabu_signature(&director);
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
         let reverse = SublistChangeMove::<RoutingSolution, i32>::new(
@@ -305,9 +305,9 @@ fn intra_list_rightward_tabu_inverse_matches_reverse_move() {
             "visits",
             0,
         );
-        assert!(reverse.is_doable(&recording));
+        assert!(reverse.is_doable(&director));
 
-        let reverse_signature = reverse.tabu_signature(&recording);
+        let reverse_signature = reverse.tabu_signature(&director);
         assert_ne!(signature.move_id, signature.undo_move_id);
         assert_eq!(signature.undo_move_id, reverse_signature.move_id);
 
@@ -348,7 +348,7 @@ fn inter_list_tabu_inverse_matches_reverse_move() {
     let signature = m.tabu_signature(&director);
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
         let reverse = SublistChangeMove::<RoutingSolution, i32>::new(
@@ -364,9 +364,9 @@ fn inter_list_tabu_inverse_matches_reverse_move() {
             "visits",
             0,
         );
-        assert!(reverse.is_doable(&recording));
+        assert!(reverse.is_doable(&director));
 
-        let reverse_signature = reverse.tabu_signature(&recording);
+        let reverse_signature = reverse.tabu_signature(&director);
         assert_ne!(signature.move_id, signature.undo_move_id);
         assert_eq!(signature.undo_move_id, reverse_signature.move_id);
 

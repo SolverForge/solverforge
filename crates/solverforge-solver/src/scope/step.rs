@@ -1,7 +1,7 @@
 // Step-level scope.
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 
@@ -74,13 +74,6 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
 
     pub(crate) fn score_director_mut(&mut self) -> &mut D {
         self.phase_scope.score_director_mut()
-    }
-
-    pub fn trial<T, F>(&mut self, trial: F) -> T
-    where
-        F: FnOnce(&mut RecordingDirector<'_, S, D>) -> T,
-    {
-        self.phase_scope.trial(trial)
     }
 
     pub fn mutate<T, F>(&mut self, mutate: F) -> T

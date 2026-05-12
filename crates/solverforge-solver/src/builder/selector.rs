@@ -4,7 +4,7 @@ use solverforge_config::{AcceptorConfig, LocalSearchConfig, LocalSearchType, Mov
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 
-use crate::heuristic::r#move::{Move, ScalarMoveUnion, SequentialCompositeMove};
+use crate::heuristic::r#move::{Move, ScalarMoveUnion};
 use crate::heuristic::selector::decorator::{CartesianProductSelector, VecUnionSelector};
 use crate::heuristic::selector::move_selector::{
     CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,

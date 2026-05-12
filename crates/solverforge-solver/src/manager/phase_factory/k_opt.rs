@@ -8,7 +8,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::MoveArena;
 use crate::heuristic::selector::k_opt::{KOptConfig, KOptMoveSelector};
@@ -247,23 +247,21 @@ where
                     continue;
                 }
 
-                // Use RecordingDirector for automatic undo
+                let score_state = step_scope.score_director().snapshot_score_state();
+                let undo = mv.do_move(step_scope.score_director_mut());
+                let move_score = step_scope.calculate_score();
+
+                if move_score > last_step_score
+                    && best_score.as_ref().is_none_or(|b| move_score > *b)
                 {
-                    let mut recording = RecordingDirector::new(step_scope.score_director_mut());
-                    mv.do_move(&mut recording);
-                    let move_score = recording.calculate_score();
-
-                    // Accept if improving over last step
-                    if move_score > last_step_score
-                        && best_score.as_ref().is_none_or(|b| move_score > *b)
-                    {
-                        best_score = Some(move_score);
-                        best_move_idx = Some(idx);
-                    }
-
-                    // Undo the move
-                    recording.undo_changes();
+                    best_score = Some(move_score);
+                    best_move_idx = Some(idx);
                 }
+
+                mv.undo_move(step_scope.score_director_mut(), undo);
+                step_scope
+                    .score_director_mut()
+                    .restore_score_state(score_state);
             }
 
             if interrupted_step {

@@ -80,7 +80,7 @@ where
         arena_1: &MoveArena<M1>,
         arena_2: &MoveArena<M2>,
         score_director: &mut D,
-    ) {
+    ) -> (M1::Undo, M2::Undo) {
         let m1 = arena_1
             .get(self.index_1)
             .expect("composite move first arena index must remain valid");
@@ -88,8 +88,9 @@ where
             .get(self.index_2)
             .expect("composite move second arena index must remain valid");
 
-        m1.do_move(score_director);
-        m2.do_move(score_director);
+        let first = m1.do_move(score_director);
+        let second = m2.do_move(score_director);
+        (first, second)
     }
 }
 
@@ -209,8 +210,6 @@ impl<S: PlanningSolution> Director<S> for SequentialPreviewDirector<'_, S> {
     fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>) {
         self.working_solution.set_score(state.solution_score);
     }
-
-    fn register_undo(&mut self, _undo: Box<dyn FnOnce(&mut S) + Send>) {}
 }
 
 /// A cached sequential composite that owns both child moves.
@@ -361,19 +360,27 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
+    type Undo = (M::Undo, M::Undo);
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         if !self.first.is_doable(score_director) {
             return false;
         }
 
         let mut preview = SequentialPreviewDirector::from_director(score_director);
-        self.first.do_move(&mut preview);
+        let _ = self.first.do_move(&mut preview);
         self.second.is_doable(&preview)
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
-        self.first.do_move(score_director);
-        self.second.do_move(score_director);
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
+        let first = self.first.do_move(score_director);
+        let second = self.second.do_move(score_director);
+        (first, second)
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        self.second.undo_move(score_director, undo.1);
+        self.first.undo_move(score_director, undo.0);
     }
 
     fn descriptor_index(&self) -> usize {
@@ -436,6 +443,8 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
+    type Undo = (M::Undo, M::Undo);
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let first = self.first_move();
         if !first.is_doable(score_director) {
@@ -443,13 +452,19 @@ where
         }
 
         let mut preview = SequentialPreviewDirector::from_director(score_director);
-        first.do_move(&mut preview);
+        let _ = first.do_move(&mut preview);
         self.second_move().is_doable(&preview)
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
-        self.first_move().do_move(score_director);
-        self.second_move().do_move(score_director);
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
+        let first = self.first_move().do_move(score_director);
+        let second = self.second_move().do_move(score_director);
+        (first, second)
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        self.second_move().undo_move(score_director, undo.1);
+        self.first_move().undo_move(score_director, undo.0);
     }
 
     fn descriptor_index(&self) -> usize {

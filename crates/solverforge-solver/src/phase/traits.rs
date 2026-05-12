@@ -23,9 +23,8 @@ pub trait Phase<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>
     /* Executes this phase.
 
     The phase should inspect the current state through immutable accessors,
-    use `trial(...)` for speculative work, use `mutate(...)` for committed
-    arbitrary changes, and update the best solution when improvements are
-    found.
+    use typed move undo for speculative work, use `mutate(...)` for committed
+    arbitrary changes, and update the best solution when improvements are found.
     */
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>);
 

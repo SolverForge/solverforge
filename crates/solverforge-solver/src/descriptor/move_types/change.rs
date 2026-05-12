@@ -80,11 +80,13 @@ impl<S> Move<S> for DescriptorChangeMove<S>
 where
     S: PlanningSolution + 'static,
 {
+    type Undo = Option<usize>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         self.current_value(score_director.working_solution()) != self.to_value
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let old_value = self.current_value(score_director.working_solution());
         score_director.before_variable_changed(self.binding.descriptor_index, self.entity_index);
         let entity = self
@@ -98,19 +100,21 @@ where
         (self.binding.setter)(entity, self.to_value);
         score_director.after_variable_changed(self.binding.descriptor_index, self.entity_index);
 
-        let descriptor = self.solution_descriptor.clone();
-        let binding = self.binding.clone();
-        let entity_index = self.entity_index;
-        score_director.register_undo(Box::new(move |solution: &mut S| {
-            let entity = descriptor
-                .get_entity_mut(
-                    solution as &mut dyn Any,
-                    binding.descriptor_index,
-                    entity_index,
-                )
-                .expect("entity lookup failed for descriptor change undo");
-            (binding.setter)(entity, old_value);
-        }));
+        old_value
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        score_director.before_variable_changed(self.binding.descriptor_index, self.entity_index);
+        let entity = self
+            .solution_descriptor
+            .get_entity_mut(
+                score_director.working_solution_mut() as &mut dyn Any,
+                self.binding.descriptor_index,
+                self.entity_index,
+            )
+            .expect("entity lookup failed for descriptor change undo");
+        (self.binding.setter)(entity, undo);
+        score_director.after_variable_changed(self.binding.descriptor_index, self.entity_index);
     }
 
     fn descriptor_index(&self) -> usize {
@@ -154,4 +158,3 @@ where
         .with_destination_value_tokens([scope.value_token(to_id)])
     }
 }
-

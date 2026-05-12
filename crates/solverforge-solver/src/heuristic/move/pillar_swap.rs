@@ -24,7 +24,7 @@ use super::{Move, MoveTabuSignature};
 /// A move that swaps values between two pillars.
 ///
 /// Stores pillar indices and concrete function pointers for zero-erasure access.
-/// Undo is handled by `RecordingDirector`, not by this move.
+/// `do_move` returns the previous pillar values as typed undo data.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -111,6 +111,8 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
+    type Undo = (Vec<(usize, Option<V>)>, Vec<(usize, Option<V>)>);
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         if self.left_indices.is_empty() || self.right_indices.is_empty() {
             return false;
@@ -139,7 +141,7 @@ where
         left_val != right_val
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         // Capture all old values using concrete getter - zero erasure
         let left_old: Vec<(usize, Option<V>)> = self
             .left_indices
@@ -195,17 +197,24 @@ where
             score_director.after_variable_changed(self.descriptor_index, idx);
         }
 
-        // Register concrete undo closure - restore all original values
-        let setter = self.setter;
-        let variable_index = self.variable_index;
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            for (idx, old_value) in left_old {
-                setter(s, idx, variable_index, old_value);
-            }
-            for (idx, old_value) in right_old {
-                setter(s, idx, variable_index, old_value);
-            }
-        }));
+        (left_old, right_old)
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        for (idx, _) in undo.0.iter().chain(&undo.1) {
+            score_director.before_variable_changed(self.descriptor_index, *idx);
+        }
+        for (idx, old_value) in undo.0.into_iter().chain(undo.1) {
+            (self.setter)(
+                score_director.working_solution_mut(),
+                idx,
+                self.variable_index,
+                old_value,
+            );
+        }
+        for &idx in self.left_indices.iter().chain(&self.right_indices) {
+            score_director.after_variable_changed(self.descriptor_index, idx);
+        }
     }
 
     fn descriptor_index(&self) -> usize {

@@ -120,6 +120,8 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
+    type Undo = Option<V>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         // Get current value using concrete getter - no boxing, no downcast
         let current = (self.getter)(
@@ -136,7 +138,7 @@ where
         }
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         // Capture old value using concrete getter - zero erasure
         let old_value = (self.getter)(
             score_director.working_solution(),
@@ -158,13 +160,18 @@ where
         // Notify after change
         score_director.after_variable_changed(self.descriptor_index, self.entity_index);
 
-        // Register concrete undo closure - zero erasure
-        let setter = self.setter;
-        let idx = self.entity_index;
-        let variable_index = self.variable_index;
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            setter(s, idx, variable_index, old_value);
-        }));
+        old_value
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        score_director.before_variable_changed(self.descriptor_index, self.entity_index);
+        (self.setter)(
+            score_director.working_solution_mut(),
+            self.entity_index,
+            self.variable_index,
+            undo,
+        );
+        score_director.after_variable_changed(self.descriptor_index, self.entity_index);
     }
 
     fn descriptor_index(&self) -> usize {

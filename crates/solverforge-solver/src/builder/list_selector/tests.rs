@@ -312,7 +312,7 @@ fn public_list_builder_supports_cartesian_product() {
         Some(MoveCandidateRef::Sequential(_))
     )));
     assert!(matches!(
-        cursor.take_candidate(indices[0]),
-        crate::heuristic::r#move::ListMoveUnion::Composite(_)
+        cursor.candidate(indices[0]),
+        Some(MoveCandidateRef::Sequential(_))
     ));
 }

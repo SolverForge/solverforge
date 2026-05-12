@@ -4,7 +4,7 @@ use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
 use solverforge_core::score::SoftScore;
-use solverforge_scoring::{Director, RecordingDirector, ScoreDirector};
+use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -357,15 +357,13 @@ fn test_change_do_and_undo() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
-        m.do_move(&mut recording);
+        let undo = m.do_move(&mut director);
 
         // Verify change using concrete getter - zero erasure
-        let val = get_priority(recording.working_solution(), 0, 0);
+        let val = get_priority(director.working_solution(), 0, 0);
         assert_eq!(val, Some(99));
 
-        // Undo
-        recording.undo_changes();
+        m.undo_move(&mut director, undo);
     }
 
     // Verify restored using concrete getter
@@ -395,17 +393,15 @@ fn test_swap_do_and_undo() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
-        m.do_move(&mut recording);
+        let undo = m.do_move(&mut director);
 
         // Verify swap using concrete getter
-        let val0 = get_priority(recording.working_solution(), 0, 0);
-        let val1 = get_priority(recording.working_solution(), 1, 0);
+        let val0 = get_priority(director.working_solution(), 0, 0);
+        let val1 = get_priority(director.working_solution(), 1, 0);
         assert_eq!(val0, Some(20));
         assert_eq!(val1, Some(10));
 
-        // Undo
-        recording.undo_changes();
+        m.undo_move(&mut director, undo);
     }
 
     // Verify restored using concrete getter

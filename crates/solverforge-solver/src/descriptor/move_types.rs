@@ -6,7 +6,7 @@ use smallvec::{smallvec, SmallVec};
 use solverforge_config::RecreateHeuristicType;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 
 use crate::builder::context::ConstructionValueOrderKey;
 use crate::heuristic::r#move::metadata::{
@@ -14,7 +14,7 @@ use crate::heuristic::r#move::metadata::{
     ordered_coordinate_pair, scoped_move_identity, MoveTabuScope, ScopedEntityTabuToken,
     TABU_OP_PILLAR_SWAP, TABU_OP_SWAP,
 };
-use crate::heuristic::r#move::{Move, MoveTabuSignature, SequentialCompositeMove};
+use crate::heuristic::r#move::{Move, MoveTabuSignature};
 
 use super::bindings::VariableBinding;
 

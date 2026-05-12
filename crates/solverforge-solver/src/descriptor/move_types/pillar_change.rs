@@ -51,6 +51,8 @@ impl<S> Move<S> for DescriptorPillarChangeMove<S>
 where
     S: PlanningSolution + 'static,
 {
+    type Undo = Vec<(usize, Option<usize>)>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         if self.entity_indices.is_empty() {
             return false;
@@ -69,7 +71,7 @@ where
         })
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let old_values: Vec<(usize, Option<usize>)> = self
             .entity_indices
             .iter()
@@ -99,20 +101,27 @@ where
             score_director.after_variable_changed(self.binding.descriptor_index, entity_index);
         }
 
-        let descriptor = self.solution_descriptor.clone();
-        let binding = self.binding.clone();
-        score_director.register_undo(Box::new(move |solution: &mut S| {
-            for (entity_index, old_value) in old_values {
-                let entity = descriptor
-                    .get_entity_mut(
-                        solution as &mut dyn Any,
-                        binding.descriptor_index,
-                        entity_index,
-                    )
-                    .expect("entity lookup failed for descriptor pillar change undo");
-                (binding.setter)(entity, old_value);
-            }
-        }));
+        old_values
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        for (entity_index, _) in &undo {
+            score_director.before_variable_changed(self.binding.descriptor_index, *entity_index);
+        }
+        for (entity_index, old_value) in undo {
+            let entity = self
+                .solution_descriptor
+                .get_entity_mut(
+                    score_director.working_solution_mut() as &mut dyn Any,
+                    self.binding.descriptor_index,
+                    entity_index,
+                )
+                .expect("entity lookup failed for descriptor pillar change undo");
+            (self.binding.setter)(entity, old_value);
+        }
+        for &entity_index in &self.entity_indices {
+            score_director.after_variable_changed(self.binding.descriptor_index, entity_index);
+        }
     }
 
     fn descriptor_index(&self) -> usize {
@@ -168,4 +177,3 @@ where
             .with_destination_value_tokens([scope.value_token(to_id)])
     }
 }
-

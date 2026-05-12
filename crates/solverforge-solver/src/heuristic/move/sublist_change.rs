@@ -204,6 +204,8 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
+    type Undo = ();
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
@@ -244,7 +246,7 @@ where
         true
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let layout = derive_segment_relocation_layout(
             self.source_entity_index,
             self.source_start,
@@ -283,21 +285,38 @@ where
         if !self.is_intra_list() {
             score_director.after_variable_changed(self.descriptor_index, self.dest_entity_index);
         }
+    }
 
-        // Register undo
-        let sublist_remove = self.sublist_remove;
-        let sublist_insert = self.sublist_insert;
-        let inverse = layout.inverse;
-
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            let removed = sublist_remove(
-                s,
-                inverse.source_entity_index,
-                inverse.source_range.start,
-                inverse.source_range.end,
-            );
-            sublist_insert(s, inverse.dest_entity_index, inverse.dest_position, removed);
-        }));
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, (): Self::Undo) {
+        let inverse = derive_segment_relocation_layout(
+            self.source_entity_index,
+            self.source_start,
+            self.source_end,
+            self.dest_entity_index,
+            self.dest_position,
+        )
+        .inverse;
+        score_director.before_variable_changed(self.descriptor_index, inverse.source_entity_index);
+        if inverse.source_entity_index != inverse.dest_entity_index {
+            score_director
+                .before_variable_changed(self.descriptor_index, inverse.dest_entity_index);
+        }
+        let removed = (self.sublist_remove)(
+            score_director.working_solution_mut(),
+            inverse.source_entity_index,
+            inverse.source_range.start,
+            inverse.source_range.end,
+        );
+        (self.sublist_insert)(
+            score_director.working_solution_mut(),
+            inverse.dest_entity_index,
+            inverse.dest_position,
+            removed,
+        );
+        score_director.after_variable_changed(self.descriptor_index, inverse.source_entity_index);
+        if inverse.source_entity_index != inverse.dest_entity_index {
+            score_director.after_variable_changed(self.descriptor_index, inverse.dest_entity_index);
+        }
     }
 
     fn descriptor_index(&self) -> usize {

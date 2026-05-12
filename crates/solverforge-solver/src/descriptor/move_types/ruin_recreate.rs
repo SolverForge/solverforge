@@ -91,16 +91,12 @@ where
     where
         S::Score: Score,
     {
-        let mut recording = RecordingDirector::new(score_director);
-        DescriptorChangeMove::new(
-            self.binding.clone(),
-            entity_index,
-            Some(value),
-            self.solution_descriptor.clone(),
-        )
-        .do_move(&mut recording);
-        let score = recording.calculate_score();
-        recording.undo_changes();
+        let old_value = self.current_value(score_director.working_solution(), entity_index);
+        let score_state = score_director.snapshot_score_state();
+        self.apply_value(score_director, entity_index, Some(value));
+        let score = score_director.calculate_score();
+        self.apply_value(score_director, entity_index, old_value);
+        score_director.restore_score_state(score_state);
         score
     }
 
@@ -178,6 +174,8 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
+    type Undo = SmallVec<[(usize, Option<usize>); 8]>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
         self.required_assignments_can_be_recreated(solution)
@@ -187,9 +185,9 @@ where
                 .any(|&entity_index| self.current_value(solution, entity_index).is_some())
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         if !self.is_doable(score_director) {
-            return;
+            return SmallVec::new();
         }
 
         let old_values: SmallVec<[(usize, Option<usize>); 8]> = self
@@ -212,20 +210,27 @@ where
             }
         }
 
-        let descriptor = self.solution_descriptor.clone();
-        let binding = self.binding.clone();
-        score_director.register_undo(Box::new(move |solution: &mut S| {
-            for (entity_index, old_value) in old_values {
-                let entity = descriptor
-                    .get_entity_mut(
-                        solution as &mut dyn Any,
-                        binding.descriptor_index,
-                        entity_index,
-                    )
-                    .expect("entity lookup failed for descriptor ruin_recreate undo");
-                (binding.setter)(entity, old_value);
-            }
-        }));
+        old_values
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        for (entity_index, _) in &undo {
+            score_director.before_variable_changed(self.binding.descriptor_index, *entity_index);
+        }
+        for (entity_index, old_value) in undo {
+            let entity = self
+                .solution_descriptor
+                .get_entity_mut(
+                    score_director.working_solution_mut() as &mut dyn Any,
+                    self.binding.descriptor_index,
+                    entity_index,
+                )
+                .expect("entity lookup failed for descriptor ruin_recreate undo");
+            (self.binding.setter)(entity, old_value);
+        }
+        for &entity_index in &self.entity_indices {
+            score_director.after_variable_changed(self.binding.descriptor_index, entity_index);
+        }
     }
 
     fn descriptor_index(&self) -> usize {

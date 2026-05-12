@@ -217,6 +217,8 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
+    type Undo = ();
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
@@ -249,7 +251,7 @@ where
         true
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let layout = derive_segment_swap_layout(
             self.first_entity_index,
             self.first_start,
@@ -305,23 +307,6 @@ where
                 new_late_pos,
                 early_elements,
             );
-
-            // Register undo - swap back
-            let sublist_remove = self.sublist_remove;
-            let sublist_insert = self.sublist_insert;
-            let entity = self.first_entity_index;
-            let inverse = layout.inverse;
-
-            score_director.register_undo(Box::new(move |s: &mut S| {
-                let (early_range, late_range) = inverse.ordered_ranges();
-                let late_elements = sublist_remove(s, entity, late_range.start, late_range.end);
-                let early_elements = sublist_remove(s, entity, early_range.start, early_range.end);
-                let late_len = late_range.len();
-                let early_len = early_range.len();
-                sublist_insert(s, entity, early_range.start, late_elements);
-                let new_late_pos = late_range.start - early_len + late_len;
-                sublist_insert(s, entity, new_late_pos, early_elements);
-            }));
         } else {
             // Inter-list swap: simpler, no index interaction between lists
             let first_elements = (self.sublist_remove)(
@@ -352,44 +337,91 @@ where
                 self.second_start,
                 first_elements,
             );
-
-            // Register undo
-            let sublist_remove = self.sublist_remove;
-            let sublist_insert = self.sublist_insert;
-            let inverse = layout.inverse;
-
-            score_director.register_undo(Box::new(move |s: &mut S| {
-                let first_elements = sublist_remove(
-                    s,
-                    inverse.first_entity_index,
-                    inverse.first_range.start,
-                    inverse.first_range.end,
-                );
-                let second_elements = sublist_remove(
-                    s,
-                    inverse.second_entity_index,
-                    inverse.second_range.start,
-                    inverse.second_range.end,
-                );
-                sublist_insert(
-                    s,
-                    inverse.first_entity_index,
-                    inverse.first_range.start,
-                    second_elements,
-                );
-                sublist_insert(
-                    s,
-                    inverse.second_entity_index,
-                    inverse.second_range.start,
-                    first_elements,
-                );
-            }));
         }
 
         // Notify after changes
         score_director.after_variable_changed(self.descriptor_index, self.first_entity_index);
         if !self.is_intra_list() {
             score_director.after_variable_changed(self.descriptor_index, self.second_entity_index);
+        }
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, (): Self::Undo) {
+        let inverse = derive_segment_swap_layout(
+            self.first_entity_index,
+            self.first_start,
+            self.first_end,
+            self.second_entity_index,
+            self.second_start,
+            self.second_end,
+        )
+        .inverse;
+        score_director.before_variable_changed(self.descriptor_index, inverse.first_entity_index);
+        if inverse.first_entity_index != inverse.second_entity_index {
+            score_director
+                .before_variable_changed(self.descriptor_index, inverse.second_entity_index);
+        }
+
+        if inverse.first_entity_index == inverse.second_entity_index {
+            let (early_range, late_range) = inverse.ordered_ranges();
+            let late_elements = (self.sublist_remove)(
+                score_director.working_solution_mut(),
+                inverse.first_entity_index,
+                late_range.start,
+                late_range.end,
+            );
+            let early_elements = (self.sublist_remove)(
+                score_director.working_solution_mut(),
+                inverse.first_entity_index,
+                early_range.start,
+                early_range.end,
+            );
+            let late_len = late_range.len();
+            let early_len = early_range.len();
+            (self.sublist_insert)(
+                score_director.working_solution_mut(),
+                inverse.first_entity_index,
+                early_range.start,
+                late_elements,
+            );
+            let new_late_pos = late_range.start - early_len + late_len;
+            (self.sublist_insert)(
+                score_director.working_solution_mut(),
+                inverse.first_entity_index,
+                new_late_pos,
+                early_elements,
+            );
+        } else {
+            let first_elements = (self.sublist_remove)(
+                score_director.working_solution_mut(),
+                inverse.first_entity_index,
+                inverse.first_range.start,
+                inverse.first_range.end,
+            );
+            let second_elements = (self.sublist_remove)(
+                score_director.working_solution_mut(),
+                inverse.second_entity_index,
+                inverse.second_range.start,
+                inverse.second_range.end,
+            );
+            (self.sublist_insert)(
+                score_director.working_solution_mut(),
+                inverse.first_entity_index,
+                inverse.first_range.start,
+                second_elements,
+            );
+            (self.sublist_insert)(
+                score_director.working_solution_mut(),
+                inverse.second_entity_index,
+                inverse.second_range.start,
+                first_elements,
+            );
+        }
+
+        score_director.after_variable_changed(self.descriptor_index, inverse.first_entity_index);
+        if inverse.first_entity_index != inverse.second_entity_index {
+            score_director
+                .after_variable_changed(self.descriptor_index, inverse.second_entity_index);
         }
     }
 

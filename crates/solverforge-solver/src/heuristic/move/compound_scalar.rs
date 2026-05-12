@@ -115,6 +115,8 @@ impl<S> Move<S> for CompoundScalarMove<S>
 where
     S: PlanningSolution,
 {
+    type Undo = Vec<Option<usize>>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         if self.edits.is_empty() {
             return false;
@@ -140,13 +142,15 @@ where
         changes_value
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
+        let mut undo = Vec::with_capacity(self.edits.len());
         for edit in &self.edits {
             let old_value = (edit.getter)(
                 score_director.working_solution(),
                 edit.entity_index,
                 edit.variable_index,
             );
+            undo.push(old_value);
             score_director.before_variable_changed(edit.descriptor_index, edit.entity_index);
             (edit.setter)(
                 score_director.working_solution_mut(),
@@ -155,13 +159,24 @@ where
                 edit.to_value,
             );
             score_director.after_variable_changed(edit.descriptor_index, edit.entity_index);
+        }
+        undo
+    }
 
-            let setter = edit.setter;
-            let entity_index = edit.entity_index;
-            let variable_index = edit.variable_index;
-            score_director.register_undo(Box::new(move |solution: &mut S| {
-                setter(solution, entity_index, variable_index, old_value);
-            }));
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        for edit in &self.edits {
+            score_director.before_variable_changed(edit.descriptor_index, edit.entity_index);
+        }
+        for (edit, old_value) in self.edits.iter().zip(undo) {
+            (edit.setter)(
+                score_director.working_solution_mut(),
+                edit.entity_index,
+                edit.variable_index,
+                old_value,
+            );
+        }
+        for edit in self.edits.iter().rev() {
+            score_director.after_variable_changed(edit.descriptor_index, edit.entity_index);
         }
     }
 

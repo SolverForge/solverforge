@@ -7,7 +7,7 @@ use solverforge_config::{
 };
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 use tracing::info;
 
 use crate::builder::context::{ScalarGetter, ScalarSetter};

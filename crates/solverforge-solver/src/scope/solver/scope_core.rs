@@ -368,16 +368,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.score_director.working_solution()
     }
 
-    pub fn trial<T, F>(&mut self, trial: F) -> T
-    where
-        F: FnOnce(&mut RecordingDirector<'_, S, D>) -> T,
-    {
-        let mut recording = RecordingDirector::new(&mut self.score_director);
-        let output = trial(&mut recording);
-        recording.undo_changes();
-        output
-    }
-
     pub fn mutate<T, F>(&mut self, mutate: F) -> T
     where
         F: FnOnce(&mut D) -> T,

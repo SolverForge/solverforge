@@ -23,7 +23,7 @@ use super::{Move, MoveTabuSignature};
 /// A move that swaps values between two entities.
 ///
 /// Stores entity indices and concrete function pointers for zero-erasure access.
-/// Undo is handled by `RecordingDirector`, not by this move.
+/// `do_move` returns the two previous values as typed undo data.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -130,6 +130,8 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
+    type Undo = (Option<V>, Option<V>);
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         // Can't swap with self
         if self.left_entity_index == self.right_entity_index {
@@ -152,7 +154,7 @@ where
         left_val != right_val
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         // Get both values using concrete getter - zero erasure
         let left_value = (self.getter)(
             score_director.working_solution(),
@@ -187,16 +189,26 @@ where
         score_director.after_variable_changed(self.descriptor_index, self.left_entity_index);
         score_director.after_variable_changed(self.descriptor_index, self.right_entity_index);
 
-        // Register concrete undo closure - swap back
-        let setter = self.setter;
-        let left_idx = self.left_entity_index;
-        let right_idx = self.right_entity_index;
-        let variable_index = self.variable_index;
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            // Restore original values
-            setter(s, left_idx, variable_index, left_value);
-            setter(s, right_idx, variable_index, right_value);
-        }));
+        (left_value, right_value)
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        score_director.before_variable_changed(self.descriptor_index, self.left_entity_index);
+        score_director.before_variable_changed(self.descriptor_index, self.right_entity_index);
+        (self.setter)(
+            score_director.working_solution_mut(),
+            self.left_entity_index,
+            self.variable_index,
+            undo.0,
+        );
+        (self.setter)(
+            score_director.working_solution_mut(),
+            self.right_entity_index,
+            self.variable_index,
+            undo.1,
+        );
+        score_director.after_variable_changed(self.descriptor_index, self.left_entity_index);
+        score_director.after_variable_changed(self.descriptor_index, self.right_entity_index);
     }
 
     fn descriptor_index(&self) -> usize {

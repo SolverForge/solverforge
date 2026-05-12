@@ -279,6 +279,8 @@ impl ConstructionPauseMove {
 }
 
 impl Move<ConstructionPauseSolution> for ConstructionPauseMove {
+    type Undo = Option<i64>;
+
     fn is_doable<D: Director<ConstructionPauseSolution>>(&self, _score_director: &D) -> bool {
         if let Some(gate) = &self.eval_gate {
             gate.on_evaluation();
@@ -286,14 +288,18 @@ impl Move<ConstructionPauseSolution> for ConstructionPauseMove {
         self.doable
     }
 
-    fn do_move<D: Director<ConstructionPauseSolution>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<ConstructionPauseSolution>>(&self, score_director: &mut D) -> Self::Undo {
         let old_value = score_director.working_solution().entities[self.entity_index].value;
         score_director.working_solution_mut().entities[self.entity_index].value = Some(self.value);
+        old_value
+    }
 
-        let entity_index = self.entity_index;
-        score_director.register_undo(Box::new(move |solution: &mut ConstructionPauseSolution| {
-            solution.entities[entity_index].value = old_value;
-        }));
+    fn undo_move<D: Director<ConstructionPauseSolution>>(
+        &self,
+        score_director: &mut D,
+        undo: Self::Undo,
+    ) {
+        score_director.working_solution_mut().entities[self.entity_index].value = undo;
     }
 
     fn descriptor_index(&self) -> usize {

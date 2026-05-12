@@ -17,17 +17,18 @@ pub struct MoveAffectedEntity<'a> {
 /// A move that modifies one or more planning variables.
 ///
 /// Moves are fully monomorphized for maximum performance - no boxing, no virtual dispatch.
-/// Undo is handled by `RecordingDirector`, not by move return values.
+/// Undo is handled by move-owned typed data, not boxed director callbacks.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
 ///
 /// # Implementation Notes
 /// - Moves should be lightweight
-/// - Use `RecordingDirector` to wrap the score director for automatic undo
 /// - Moves are NEVER cloned - ownership transfers via arena indices
-/// - Methods are generic over D to allow use with both concrete directors and RecordingDirector
+/// - Methods are generic over D to allow use with concrete directors
 pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
+    type Undo: Send;
+
     /* Returns true if this move can be executed in the current state.
 
     A move is not doable if:
@@ -40,9 +41,11 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
     /* Executes this move, modifying the working solution.
 
     This method modifies the planning variables through the score director.
-    Use `RecordingDirector` to enable automatic undo via `undo_changes()`.
+    Returns concrete undo data that can be passed back to `undo_move`.
     */
-    fn do_move<D: Director<S>>(&self, score_director: &mut D);
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo;
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo);
 
     fn descriptor_index(&self) -> usize;
 

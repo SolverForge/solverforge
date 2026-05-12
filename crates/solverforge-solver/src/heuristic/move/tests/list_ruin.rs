@@ -95,14 +95,14 @@ fn ruin_single_element() {
     assert_eq!(m.ruin_count(), 1);
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
         /* After ruin-and-recreate: element 3 (was at index 2) is reinserted.
         With constant score=0, first tried position wins: (entity=0, pos=0).
         Route contains same elements, just possibly reordered.
         */
-        let stops = &recording.working_solution().routes[0].stops;
+        let stops = &director.working_solution().routes[0].stops;
         assert_eq!(stops.len(), 5);
         let mut sorted = stops.clone();
         sorted.sort();
@@ -136,12 +136,12 @@ fn ruin_multiple_elements() {
     assert_eq!(m.ruin_count(), 2);
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
         // After ruin-and-recreate: elements 2 and 4 removed then reinserted.
         // Same elements, possibly reordered.
-        let stops = &recording.working_solution().routes[0].stops;
+        let stops = &director.working_solution().routes[0].stops;
         assert_eq!(stops.len(), 5);
         let mut sorted = stops.clone();
         sorted.sort();
@@ -171,11 +171,11 @@ fn ruin_unordered_indices() {
     );
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
         // Indices sorted internally: removes index 1 and 3 (values 2 and 4).
-        let stops = &recording.working_solution().routes[0].stops;
+        let stops = &director.working_solution().routes[0].stops;
         assert_eq!(stops.len(), 5);
         let mut sorted = stops.clone();
         sorted.sort();

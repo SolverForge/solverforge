@@ -92,15 +92,4 @@ pub trait Director<S: PlanningSolution>: Send {
 
     // Resets the score director state.
     fn reset(&mut self) {}
-
-    /* Registers a concrete undo closure.
-
-    Called by moves after applying changes to enable automatic undo.
-    The closure will be called in reverse order during `undo_changes()`.
-
-    Default implementation does nothing (for non-recording directors).
-    */
-    fn register_undo(&mut self, _undo: Box<dyn FnOnce(&mut S) + Send>) {
-        // Default: no-op - only RecordingDirector stores undo closures
-    }
 }

@@ -99,11 +99,11 @@ fn compound_scalar_applies_and_undoes_multiple_edits_atomically() {
         ],
     );
 
-    let mut recording = RecordingDirector::new(&mut director);
-    assert!(mov.is_doable(&recording));
+    let mut recording = SnapshotDirector::new(&mut director);
+    assert!(mov.is_doable(&director));
     mov.do_move(&mut recording);
-    assert_eq!(recording.working_solution().left[0], Some(2));
-    assert_eq!(recording.working_solution().right[0], Some(3));
+    assert_eq!(director.working_solution().left[0], Some(2));
+    assert_eq!(director.working_solution().right[0], Some(3));
     recording.undo_changes();
 
     assert_eq!(director.working_solution().left[0], Some(0));

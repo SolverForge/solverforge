@@ -100,16 +100,20 @@ struct InterruptMove {
 }
 
 impl Move<InterruptPlan> for InterruptMove {
+    type Undo = i64;
+
     fn is_doable<D: Director<InterruptPlan>>(&self, _score_director: &D) -> bool {
         self.doable
     }
 
-    fn do_move<D: Director<InterruptPlan>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<InterruptPlan>>(&self, score_director: &mut D) -> Self::Undo {
         let previous = score_director.working_solution().value;
         score_director.working_solution_mut().value = self.score;
-        score_director.register_undo(Box::new(move |solution| {
-            solution.value = previous;
-        }));
+        previous
+    }
+
+    fn undo_move<D: Director<InterruptPlan>>(&self, score_director: &mut D, undo: Self::Undo) {
+        score_director.working_solution_mut().value = undo;
     }
 
     fn descriptor_index(&self) -> usize {
@@ -379,20 +383,25 @@ struct HardRepairMove {
 }
 
 impl Move<HardRepairPlan> for HardRepairMove {
+    type Undo = (i64, i64);
+
     fn is_doable<D: Director<HardRepairPlan>>(&self, _score_director: &D) -> bool {
         true
     }
 
-    fn do_move<D: Director<HardRepairPlan>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<HardRepairPlan>>(&self, score_director: &mut D) -> Self::Undo {
         let previous_hard = score_director.working_solution().hard;
         let previous_soft = score_director.working_solution().soft;
         let solution = score_director.working_solution_mut();
         solution.hard = self.hard;
         solution.soft = self.soft;
-        score_director.register_undo(Box::new(move |solution: &mut HardRepairPlan| {
-            solution.hard = previous_hard;
-            solution.soft = previous_soft;
-        }));
+        (previous_hard, previous_soft)
+    }
+
+    fn undo_move<D: Director<HardRepairPlan>>(&self, score_director: &mut D, undo: Self::Undo) {
+        let solution = score_director.working_solution_mut();
+        solution.hard = undo.0;
+        solution.soft = undo.1;
     }
 
     fn descriptor_index(&self) -> usize {

@@ -51,6 +51,8 @@ impl<S> Move<S> for DescriptorPillarSwapMove<S>
 where
     S: PlanningSolution + 'static,
 {
+    type Undo = (Vec<(usize, Option<usize>)>, Vec<(usize, Option<usize>)>);
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let Some(&left_index) = self.left_indices.first() else {
             return false;
@@ -91,7 +93,7 @@ where
         })
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let left_old: Vec<(usize, Option<usize>)> = self
             .left_indices
             .iter()
@@ -144,20 +146,27 @@ where
             score_director.after_variable_changed(self.binding.descriptor_index, entity_index);
         }
 
-        let descriptor = self.solution_descriptor.clone();
-        let binding = self.binding.clone();
-        score_director.register_undo(Box::new(move |solution: &mut S| {
-            for (entity_index, old_value) in left_old.iter().chain(&right_old) {
-                let entity = descriptor
-                    .get_entity_mut(
-                        solution as &mut dyn Any,
-                        binding.descriptor_index,
-                        *entity_index,
-                    )
-                    .expect("entity lookup failed for descriptor pillar swap undo");
-                (binding.setter)(entity, *old_value);
-            }
-        }));
+        (left_old, right_old)
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        for (entity_index, _) in undo.0.iter().chain(&undo.1) {
+            score_director.before_variable_changed(self.binding.descriptor_index, *entity_index);
+        }
+        for (entity_index, old_value) in undo.0.into_iter().chain(undo.1) {
+            let entity = self
+                .solution_descriptor
+                .get_entity_mut(
+                    score_director.working_solution_mut() as &mut dyn Any,
+                    self.binding.descriptor_index,
+                    entity_index,
+                )
+                .expect("entity lookup failed for descriptor pillar swap undo");
+            (self.binding.setter)(entity, old_value);
+        }
+        for &entity_index in self.left_indices.iter().chain(&self.right_indices) {
+            score_director.after_variable_changed(self.binding.descriptor_index, entity_index);
+        }
     }
 
     fn descriptor_index(&self) -> usize {
@@ -207,4 +216,3 @@ where
             ])
     }
 }
-

@@ -5,12 +5,18 @@ where
     S: PlanningSolution,
     M: Move<S> + ?Sized,
 {
+    type Undo = M::Undo;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         (**self).is_doable(score_director)
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         (**self).do_move(score_director)
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        (**self).undo_move(score_director, undo);
     }
 
     fn descriptor_index(&self) -> usize {
@@ -53,6 +59,11 @@ where
     Sequential(SequentialCompositeMoveRef<'a, S, M>),
 }
 
+pub enum MoveCandidateUndo<U> {
+    Borrowed(U),
+    Sequential { first: U, second: U },
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CandidateId(usize);
 
@@ -84,6 +95,8 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
+    type Undo = MoveCandidateUndo<M::Undo>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         match self {
             Self::Borrowed(mov) => mov.is_doable(score_director),
@@ -91,10 +104,27 @@ where
         }
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         match self {
-            Self::Borrowed(mov) => mov.do_move(score_director),
-            Self::Sequential(mov) => mov.do_move(score_director),
+            Self::Borrowed(mov) => MoveCandidateUndo::Borrowed(mov.do_move(score_director)),
+            Self::Sequential(mov) => {
+                let first = mov.first().do_move(score_director);
+                let second = mov.second().do_move(score_director);
+                MoveCandidateUndo::Sequential { first, second }
+            }
+        }
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        match (self, undo) {
+            (Self::Borrowed(mov), MoveCandidateUndo::Borrowed(undo)) => {
+                mov.undo_move(score_director, undo);
+            }
+            (Self::Sequential(mov), MoveCandidateUndo::Sequential { first, second }) => {
+                mov.second().undo_move(score_director, second);
+                mov.first().undo_move(score_director, first);
+            }
+            _ => panic!("move candidate undo shape must match candidate shape"),
         }
     }
 

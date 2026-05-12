@@ -257,11 +257,15 @@ fn test_local_search_step_limit() {
 struct NoopMove;
 
 impl Move<TestSolution> for NoopMove {
+    type Undo = ();
+
     fn is_doable<D: Director<TestSolution>>(&self, _score_director: &D) -> bool {
         true
     }
 
-    fn do_move<D: Director<TestSolution>>(&self, _score_director: &mut D) {}
+    fn do_move<D: Director<TestSolution>>(&self, _score_director: &mut D) -> Self::Undo {}
+
+    fn undo_move<D: Director<TestSolution>>(&self, _score_director: &mut D, _undo: Self::Undo) {}
 
     fn descriptor_index(&self) -> usize {
         0
@@ -368,17 +372,23 @@ impl Director<TestSolution> for ScoreFieldDirector {
 struct ScoreFieldMove(i64);
 
 impl Move<TestSolution> for ScoreFieldMove {
+    type Undo = Option<SoftScore>;
+
     fn is_doable<D: Director<TestSolution>>(&self, _score_director: &D) -> bool {
         true
     }
 
-    fn do_move<D: Director<TestSolution>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<TestSolution>>(&self, score_director: &mut D) -> Self::Undo {
         let old_score = score_director.working_solution().score;
         score_director.before_variable_changed(0, 0);
         score_director.working_solution_mut().score = Some(SoftScore::of(self.0));
-        score_director.register_undo(Box::new(move |solution| {
-            solution.score = old_score;
-        }));
+        score_director.after_variable_changed(0, 0);
+        old_score
+    }
+
+    fn undo_move<D: Director<TestSolution>>(&self, score_director: &mut D, undo: Self::Undo) {
+        score_director.before_variable_changed(0, 0);
+        score_director.working_solution_mut().score = undo;
         score_director.after_variable_changed(0, 0);
     }
 
@@ -485,18 +495,24 @@ struct CancelOnDoableMove {
 }
 
 impl Move<TestSolution> for CancelOnDoableMove {
+    type Undo = Option<SoftScore>;
+
     fn is_doable<D: Director<TestSolution>>(&self, _score_director: &D) -> bool {
         self.terminate.store(true, Ordering::SeqCst);
         true
     }
 
-    fn do_move<D: Director<TestSolution>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<TestSolution>>(&self, score_director: &mut D) -> Self::Undo {
         let old_score = score_director.working_solution().score;
         score_director.before_variable_changed(0, 0);
         score_director.working_solution_mut().score = Some(SoftScore::of(self.score));
-        score_director.register_undo(Box::new(move |solution| {
-            solution.score = old_score;
-        }));
+        score_director.after_variable_changed(0, 0);
+        old_score
+    }
+
+    fn undo_move<D: Director<TestSolution>>(&self, score_director: &mut D, undo: Self::Undo) {
+        score_director.before_variable_changed(0, 0);
+        score_director.working_solution_mut().score = undo;
         score_director.after_variable_changed(0, 0);
     }
 

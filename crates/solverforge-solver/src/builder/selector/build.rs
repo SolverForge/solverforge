@@ -124,16 +124,6 @@ where
     }
 }
 
-fn wrap_neighborhood_composite<S, V>(
-    mov: SequentialCompositeMove<S, NeighborhoodMove<S, V>>,
-) -> NeighborhoodMove<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-{
-    NeighborhoodMove::Composite(mov)
-}
-
 fn collect_neighborhoods<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
     model: &RuntimeModel<S, V, DM, IDM>,
@@ -191,7 +181,7 @@ fn collect_neighborhoods<S, V, DM, IDM>(
             let left = build_cartesian_child_selector(&cartesian.selectors[0], model, random_seed);
             let right = build_cartesian_child_selector(&cartesian.selectors[1], model, random_seed);
             out.push(Neighborhood::Cartesian(
-                CartesianProductSelector::new(left, right, wrap_neighborhood_composite::<S, V>)
+                CartesianProductSelector::new(left, right)
                     .with_require_hard_improvement(cartesian.require_hard_improvement),
             ));
         }

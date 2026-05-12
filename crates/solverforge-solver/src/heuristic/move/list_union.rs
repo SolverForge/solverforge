@@ -11,7 +11,7 @@ use solverforge_scoring::Director;
 
 use super::{
     KOptMove, ListChangeMove, ListReverseMove, ListRuinMove, ListSwapMove, Move, MoveTabuSignature,
-    SequentialCompositeMove, SublistChangeMove, SublistSwapMove,
+    SublistChangeMove, SublistSwapMove,
 };
 
 /// A monomorphized union of all list-variable move types.
@@ -19,8 +19,8 @@ use super::{
 /// Implements `Move<S>` by delegating to the inner variant.
 /// Enables combining `ListChangeMoveSelector`, `ListSwapMoveSelector`,
 /// `SublistChangeMoveSelector`, `SublistSwapMoveSelector`,
-/// `ListReverseMoveSelector`, `KOptMoveSelector`, `ListRuinMoveSelector`, and
-/// cartesian composites without type erasure.
+/// `ListReverseMoveSelector`, `KOptMoveSelector`, and
+/// `ListRuinMoveSelector` without type erasure.
 ///
 /// # Example
 ///
@@ -36,7 +36,20 @@ pub enum ListMoveUnion<S, V> {
     ListReverse(ListReverseMove<S, V>),
     KOpt(KOptMove<S, V>),
     ListRuin(ListRuinMove<S, V>),
-    Composite(SequentialCompositeMove<S, ListMoveUnion<S, V>>),
+}
+
+pub enum ListMoveUnionUndo<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    ListChange(<ListChangeMove<S, V> as Move<S>>::Undo),
+    ListSwap(<ListSwapMove<S, V> as Move<S>>::Undo),
+    SublistChange(<SublistChangeMove<S, V> as Move<S>>::Undo),
+    SublistSwap(<SublistSwapMove<S, V> as Move<S>>::Undo),
+    ListReverse(<ListReverseMove<S, V> as Move<S>>::Undo),
+    KOpt(<KOptMove<S, V> as Move<S>>::Undo),
+    ListRuin(<ListRuinMove<S, V> as Move<S>>::Undo),
 }
 
 impl<S, V> Clone for ListMoveUnion<S, V>
@@ -53,7 +66,6 @@ where
             Self::ListReverse(m) => Self::ListReverse(*m),
             Self::KOpt(m) => Self::KOpt(m.clone()),
             Self::ListRuin(m) => Self::ListRuin(m.clone()),
-            Self::Composite(m) => Self::Composite(m.clone()),
         }
     }
 }
@@ -72,7 +84,6 @@ where
             Self::ListReverse(m) => m.fmt(f),
             Self::KOpt(m) => m.fmt(f),
             Self::ListRuin(m) => m.fmt(f),
-            Self::Composite(m) => m.fmt(f),
         }
     }
 }
@@ -82,6 +93,8 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
+    type Undo = ListMoveUnionUndo<S, V>;
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         match self {
             Self::ListChange(m) => m.is_doable(score_director),
@@ -91,20 +104,58 @@ where
             Self::ListReverse(m) => m.is_doable(score_director),
             Self::KOpt(m) => m.is_doable(score_director),
             Self::ListRuin(m) => m.is_doable(score_director),
-            Self::Composite(m) => m.is_doable(score_director),
         }
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         match self {
-            Self::ListChange(m) => m.do_move(score_director),
-            Self::ListSwap(m) => m.do_move(score_director),
-            Self::SublistChange(m) => m.do_move(score_director),
-            Self::SublistSwap(m) => m.do_move(score_director),
-            Self::ListReverse(m) => m.do_move(score_director),
-            Self::KOpt(m) => m.do_move(score_director),
-            Self::ListRuin(m) => m.do_move(score_director),
-            Self::Composite(m) => m.do_move(score_director),
+            Self::ListChange(m) => {
+                m.do_move(score_director);
+                ListMoveUnionUndo::ListChange(())
+            }
+            Self::ListSwap(m) => {
+                m.do_move(score_director);
+                ListMoveUnionUndo::ListSwap(())
+            }
+            Self::SublistChange(m) => {
+                m.do_move(score_director);
+                ListMoveUnionUndo::SublistChange(())
+            }
+            Self::SublistSwap(m) => {
+                m.do_move(score_director);
+                ListMoveUnionUndo::SublistSwap(())
+            }
+            Self::ListReverse(m) => {
+                m.do_move(score_director);
+                ListMoveUnionUndo::ListReverse(())
+            }
+            Self::KOpt(m) => ListMoveUnionUndo::KOpt(m.do_move(score_director)),
+            Self::ListRuin(m) => ListMoveUnionUndo::ListRuin(m.do_move(score_director)),
+        }
+    }
+
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
+        match (self, undo) {
+            (Self::ListChange(m), ListMoveUnionUndo::ListChange(undo)) => {
+                m.undo_move(score_director, undo)
+            }
+            (Self::ListSwap(m), ListMoveUnionUndo::ListSwap(undo)) => {
+                m.undo_move(score_director, undo)
+            }
+            (Self::SublistChange(m), ListMoveUnionUndo::SublistChange(undo)) => {
+                m.undo_move(score_director, undo)
+            }
+            (Self::SublistSwap(m), ListMoveUnionUndo::SublistSwap(undo)) => {
+                m.undo_move(score_director, undo)
+            }
+            (Self::ListReverse(m), ListMoveUnionUndo::ListReverse(undo)) => {
+                m.undo_move(score_director, undo)
+            }
+            (Self::KOpt(m), ListMoveUnionUndo::KOpt(undo)) => m.undo_move(score_director, undo),
+            (Self::ListRuin(m), ListMoveUnionUndo::ListRuin(undo)) => {
+                m.undo_move(score_director, undo)
+            }
+            _ => panic!("list move undo shape must match move shape"),
         }
     }
 
@@ -117,7 +168,6 @@ where
             Self::ListReverse(m) => m.descriptor_index(),
             Self::KOpt(m) => m.descriptor_index(),
             Self::ListRuin(m) => m.descriptor_index(),
-            Self::Composite(m) => m.descriptor_index(),
         }
     }
 
@@ -130,7 +180,6 @@ where
             Self::ListReverse(m) => m.entity_indices(),
             Self::KOpt(m) => m.entity_indices(),
             Self::ListRuin(m) => m.entity_indices(),
-            Self::Composite(m) => m.entity_indices(),
         }
     }
 
@@ -143,7 +192,6 @@ where
             Self::ListReverse(m) => m.variable_name(),
             Self::KOpt(m) => m.variable_name(),
             Self::ListRuin(m) => m.variable_name(),
-            Self::Composite(m) => m.variable_name(),
         }
     }
 
@@ -156,7 +204,6 @@ where
             Self::ListReverse(m) => m.tabu_signature(score_director),
             Self::KOpt(m) => m.tabu_signature(score_director),
             Self::ListRuin(m) => m.tabu_signature(score_director),
-            Self::Composite(m) => m.tabu_signature(score_director),
         }
     }
 }

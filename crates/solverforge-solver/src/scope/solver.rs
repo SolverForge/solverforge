@@ -8,7 +8,7 @@ use rand::SeedableRng;
 
 use solverforge_config::EnvironmentMode;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::{Director, RecordingDirector};
+use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 use crate::manager::{SolverLifecycleState, SolverRuntime, SolverTerminalReason};

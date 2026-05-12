@@ -81,10 +81,10 @@ fn reverse_segment() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        let cities = &recording.working_solution().tours[0].cities;
+        let cities = &director.working_solution().tours[0].cities;
         assert_eq!(cities, &[1, 4, 3, 2, 5]);
 
         recording.undo_changes();
@@ -115,10 +115,10 @@ fn reverse_entire_list() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        let cities = &recording.working_solution().tours[0].cities;
+        let cities = &director.working_solution().tours[0].cities;
         assert_eq!(cities, &[4, 3, 2, 1]);
 
         recording.undo_changes();
@@ -189,7 +189,7 @@ fn list_reverse_tabu_identity_is_direction_stable() {
     let forward_signature = forward.tabu_signature(&director);
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         forward.do_move(&mut recording);
     }
 

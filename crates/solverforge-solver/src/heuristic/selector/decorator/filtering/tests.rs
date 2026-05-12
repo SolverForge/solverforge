@@ -1,6 +1,6 @@
 use super::super::test_utils::{create_director, get_priority, set_priority, Task, TaskSolution};
 use super::*;
-use crate::heuristic::r#move::{ScalarMoveUnion, SequentialCompositeMove};
+use crate::heuristic::r#move::ScalarMoveUnion;
 use crate::heuristic::selector::decorator::CartesianProductSelector;
 use crate::heuristic::selector::move_selector::{collect_cursor_indices, MoveCandidateRef};
 use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector, ScalarChangeMoveSelector};
@@ -13,12 +13,6 @@ fn high_value_filter(
     >,
 ) -> bool {
     matches!(candidate, MoveCandidateRef::Borrowed(m) if m.to_value().is_some_and(|v| *v > 50))
-}
-
-fn wrap_scalar_composite(
-    mov: SequentialCompositeMove<TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
-) -> ScalarMoveUnion<TaskSolution, i32> {
-    ScalarMoveUnion::Composite(mov)
 }
 
 fn composite_values(
@@ -97,7 +91,7 @@ fn filters_cartesian_candidates_without_materializing_the_full_stream() {
         "priority",
         vec![30, 40],
     );
-    let cartesian = CartesianProductSelector::new(left, right, wrap_scalar_composite);
+    let cartesian = CartesianProductSelector::new(left, right);
     let filtered = FilteringMoveSelector::new(cartesian, keep_first_value_10);
 
     let mut cursor = filtered.open_cursor(&director);
@@ -112,5 +106,7 @@ fn filters_cartesian_candidates_without_materializing_the_full_stream() {
     assert!(cursor
         .candidate(indices[0])
         .is_some_and(|candidate| candidate.is_doable(&director)));
-    assert!(cursor.take_candidate(indices[0]).is_doable(&director));
+    assert!(cursor
+        .candidate(indices[0])
+        .is_some_and(|candidate| candidate.is_doable(&director)));
 }

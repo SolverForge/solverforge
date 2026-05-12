@@ -78,10 +78,10 @@ fn intra_list_swap() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        let visits = &recording.working_solution().vehicles[0].visits;
+        let visits = &director.working_solution().vehicles[0].visits;
         assert_eq!(visits, &[1, 4, 3, 2, 5]);
 
         recording.undo_changes();
@@ -110,10 +110,10 @@ fn inter_list_swap() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        let sol = recording.working_solution();
+        let sol = director.working_solution();
         assert_eq!(sol.vehicles[0].visits, vec![1, 30, 3]);
         assert_eq!(sol.vehicles[1].visits, vec![10, 20, 2]);
 
@@ -184,7 +184,7 @@ fn list_swap_tabu_identity_is_direction_stable() {
     let forward_signature = forward.tabu_signature(&director);
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         forward.do_move(&mut recording);
     }
 

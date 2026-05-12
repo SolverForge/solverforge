@@ -49,8 +49,8 @@ fn cartesian_scalar_selector_builds_composite_moves() {
         .candidate(index)
         .is_some_and(|mov| mov.is_doable(&director))));
     assert!(matches!(
-        cursor.take_candidate(indices[0]),
-        NeighborhoodMove::Composite(_)
+        cursor.candidate(indices[0]),
+        Some(MoveCandidateRef::Sequential(_))
     ));
 }
 
@@ -88,8 +88,8 @@ fn cartesian_scalar_selector_can_require_hard_improvement() {
         .candidate(indices[0])
         .is_some_and(|mov| mov.requires_hard_improvement()));
     assert!(cursor
-        .take_candidate(indices[0])
-        .requires_hard_improvement());
+        .candidate(indices[0])
+        .is_some_and(|mov| mov.requires_hard_improvement()));
 }
 
 #[test]
@@ -326,8 +326,8 @@ fn cartesian_list_selector_builds_composite_moves() {
         .candidate(index)
         .is_some_and(|mov| mov.is_doable(&director))));
     assert!(matches!(
-        cursor.take_candidate(indices[0]),
-        NeighborhoodMove::Composite(_)
+        cursor.candidate(indices[0]),
+        Some(MoveCandidateRef::Sequential(_))
     ));
 }
 
@@ -383,8 +383,8 @@ fn cartesian_mixed_selector_supports_limited_children() {
             .is_some_and(|mov| mov.variable_name() == "cartesian_product")
     }));
     assert!(matches!(
-        cursor.take_candidate(indices[0]),
-        NeighborhoodMove::Composite(_)
+        cursor.candidate(indices[0]),
+        Some(MoveCandidateRef::Sequential(_))
     ));
 }
 
@@ -433,7 +433,9 @@ fn mixed_builder_cartesian_selector_survives_filtering_wrapper() {
         cursor.candidate(index),
         Some(MoveCandidateRef::Sequential(_))
     )));
-    assert!(cursor.take_candidate(indices[0]).is_doable(&director));
+    assert!(cursor
+        .candidate(indices[0])
+        .is_some_and(|mov| mov.is_doable(&director)));
 }
 
 #[test]

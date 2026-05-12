@@ -8,7 +8,7 @@ use crate::phase::construction::{ConstructionListElementId, ConstructionSlotId};
 use crate::test_utils::create_simple_nqueens_director;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
-use solverforge_scoring::{Director, ScoreDirector};
+use solverforge_scoring::ScoreDirector;
 
 #[test]
 fn test_solver_scope_creation() {
@@ -169,35 +169,6 @@ fn test_solver_scope_promotes_current_solution_on_score_tie() {
             .marker,
         7
     );
-}
-
-#[test]
-fn test_solver_scope_trial_rolls_back_without_advancing_revision() {
-    let descriptor = SolutionDescriptor::new("TieSolution", TypeId::of::<TieSolution>());
-    let director = ScoreDirector::simple(
-        TieSolution {
-            marker: 0,
-            score: None,
-        },
-        descriptor,
-        |_solution, _descriptor_index| 0,
-    );
-    let mut scope = SolverScope::new(director);
-    scope.start_solving();
-
-    let initial_revision = scope.solution_revision();
-
-    scope.trial(|recording| {
-        let old_marker = recording.working_solution().marker;
-        recording.working_solution_mut().marker = 9;
-        recording.register_undo(Box::new(move |solution: &mut TieSolution| {
-            solution.marker = old_marker;
-        }));
-        recording.calculate_score()
-    });
-
-    assert_eq!(scope.solution_revision(), initial_revision);
-    assert_eq!(scope.working_solution().marker, 0);
 }
 
 #[test]

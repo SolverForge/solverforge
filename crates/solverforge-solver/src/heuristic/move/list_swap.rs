@@ -172,6 +172,8 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
+    type Undo = ();
+
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         let solution = score_director.working_solution();
 
@@ -199,7 +201,7 @@ where
         first_val != second_val
     }
 
-    fn do_move<D: Director<S>>(&self, score_director: &mut D) {
+    fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         // Get both values
         let first_val = (self.list_get)(
             score_director.working_solution(),
@@ -240,19 +242,10 @@ where
         if !self.is_intra_list() {
             score_director.after_variable_changed(self.descriptor_index, self.second_entity_index);
         }
+    }
 
-        // Register undo - swap back
-        let list_set = self.list_set;
-        let first_entity = self.first_entity_index;
-        let first_pos = self.first_position;
-        let second_entity = self.second_entity_index;
-        let second_pos = self.second_position;
-
-        score_director.register_undo(Box::new(move |s: &mut S| {
-            // Restore original values
-            list_set(s, first_entity, first_pos, first_val);
-            list_set(s, second_entity, second_pos, second_val);
-        }));
+    fn undo_move<D: Director<S>>(&self, score_director: &mut D, (): Self::Undo) {
+        self.do_move(score_director);
     }
 
     fn descriptor_index(&self) -> usize {

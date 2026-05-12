@@ -78,11 +78,11 @@ fn test_swap_move_do_and_undo() {
     assert!(m.is_doable(&director));
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         m.do_move(&mut recording);
 
-        assert_eq!(get_priority(recording.working_solution(), 0, 0), Some(5));
-        assert_eq!(get_priority(recording.working_solution(), 1, 0), Some(1));
+        assert_eq!(get_priority(director.working_solution(), 0, 0), Some(5));
+        assert_eq!(get_priority(director.working_solution(), 1, 0), Some(1));
 
         recording.undo_changes();
     }
@@ -154,7 +154,7 @@ fn swap_tabu_identity_is_direction_stable() {
     let forward_signature = forward.tabu_signature(&director);
 
     {
-        let mut recording = RecordingDirector::new(&mut director);
+        let mut recording = SnapshotDirector::new(&mut director);
         forward.do_move(&mut recording);
     }
 

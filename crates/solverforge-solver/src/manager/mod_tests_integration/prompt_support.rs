@@ -135,14 +135,23 @@ impl NoOpMove {
 }
 
 impl Move<PromptControlSolution> for NoOpMove {
+    type Undo = ();
+
     fn is_doable<D: Director<PromptControlSolution>>(&self, _score_director: &D) -> bool {
         true
     }
 
-    fn do_move<D: Director<PromptControlSolution>>(&self, _score_director: &mut D) {
+    fn do_move<D: Director<PromptControlSolution>>(&self, _score_director: &mut D) -> Self::Undo {
         if let Some(gate) = &self.eval_gate {
             gate.on_evaluation();
         }
+    }
+
+    fn undo_move<D: Director<PromptControlSolution>>(
+        &self,
+        _score_director: &mut D,
+        _undo: Self::Undo,
+    ) {
     }
 
     fn descriptor_index(&self) -> usize {

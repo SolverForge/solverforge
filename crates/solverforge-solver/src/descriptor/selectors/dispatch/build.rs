@@ -364,7 +364,7 @@ where
                     random_seed,
                 );
                 nodes.push(DescriptorSelectorNode::Cartesian(
-                    CartesianProductSelector::new(left, right, wrap_descriptor_composite::<S>)
+                    CartesianProductSelector::new(left, right)
                         .with_require_hard_improvement(cartesian.require_hard_improvement),
                 ));
             }

@@ -4,7 +4,7 @@ pub(super) use solverforge_core::score::SoftScore;
 
 pub(super) use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 pub(super) use crate::director::score_director::ScoreDirector;
-pub(super) use crate::director::{Director, RecordingDirector};
+pub(super) use crate::director::Director;
 pub(super) use crate::stream::collection_extract::{source, ChangeSource};
 pub(super) use crate::stream::collector::{sum, Accumulator, UniCollector};
 pub(super) use crate::stream::joiner::equal;

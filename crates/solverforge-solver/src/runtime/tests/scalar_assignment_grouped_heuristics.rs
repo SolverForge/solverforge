@@ -78,6 +78,25 @@ fn scalar_assignment_cheapest_insertion_scores_required_assignment_values() {
 }
 
 #[test]
+fn default_scalar_assignment_construction_scores_required_assignment_values() {
+    let solver_scope = solve_default_assignment(coverage_plan(
+        2,
+        vec![
+            coverage_slot(true, 0, None, &[0, 1]),
+            coverage_slot(false, 0, Some(0), &[0]),
+        ],
+    ));
+
+    let slots = &solver_scope.working_solution().slots;
+    assert_eq!(slots[0].assigned, Some(1));
+    assert_eq!(slots[1].assigned, Some(0));
+    assert_eq!(
+        solver_scope.current_score().copied(),
+        Some(HardSoftScore::of(0, 0))
+    );
+}
+
+#[test]
 fn scalar_assignment_cheapest_insertion_scores_multi_required_allocations() {
     let solver_scope = solve_assignment_with_config_and_model(
         coverage_plan(

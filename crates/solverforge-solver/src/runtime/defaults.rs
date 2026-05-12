@@ -42,7 +42,7 @@ where
             (assignment.remaining_required_count(solver_scope.working_solution()) > 0).then(|| {
                 assignment_group_config(
                     group.group_name,
-                    ConstructionHeuristicType::FirstFit,
+                    ConstructionHeuristicType::CheapestInsertion,
                     ConstructionObligation::AssignWhenCandidateExists,
                 )
             })
@@ -63,7 +63,7 @@ where
                 .then(|| {
                     assignment_group_config(
                         group.group_name,
-                        ConstructionHeuristicType::FirstFit,
+                        ConstructionHeuristicType::CheapestInsertion,
                         ConstructionObligation::AssignWhenCandidateExists,
                     )
                 })

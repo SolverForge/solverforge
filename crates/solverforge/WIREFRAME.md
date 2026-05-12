@@ -332,7 +332,8 @@ local-search selectors.
 - **Shape-aware startup telemetry.** Hidden runtime logging helpers under `__internal` emit `element_count` for list solves and average `candidate_count` for scalar solves so console startup output can label the scale correctly.
 - **Macro-built runtime slots stay model-owned.** `planning_model!` generates
   the hidden `PlanningModelSupport` impl that attaches nearby hooks plus scalar
-  construction order-key hooks from `#[planning_variable]`, while list
+  construction order-key hooks from `#[planning_variable]` `Option<usize>`
+  fields, while list
   construction capabilities continue to come from `#[planning_list_variable]`.
   Construction order-key hooks are construction-only and do not reorder
   local-search scalar candidate neighborhoods.

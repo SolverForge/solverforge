@@ -96,7 +96,7 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 
 **Consumed attributes on fields:**
 - `#[planning_id]` — marks the unique ID field
-- `#[planning_variable(allows_unassigned = bool, chained = bool, value_range_provider = "name")]` — genuine planning variable
+- `#[planning_variable(allows_unassigned = bool, chained = bool, value_range_provider = "name")]` — genuine planning variable on an `Option<usize>` field. The stored value is a candidate index into the declared value range, not an external domain ID.
   canonical scalar candidate and nearby hooks are declared here as well:
   `candidate_values = "fn_name"`, `nearby_value_candidates = "fn_name"`,
   `nearby_entity_candidates = "fn_name"`,
@@ -113,8 +113,9 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 - `#[next_element_shadow_variable(source_variable_name = "field")]` — next element shadow
 - `#[cascading_update_shadow_variable]` — cascading update shadow
 
-Unknown or malformed user-authored field arguments are compile errors. Current
-valid syntax is unchanged by strict validation.
+Unknown or malformed user-authored field arguments are compile errors.
+Non-`Option<usize>` scalar planning variables are compile errors because the
+runtime scalar surface is candidate-index based.
 
 **Generated code:**
 - `impl PlanningEntity for T` — `is_pinned()`, `as_any()`, `as_any_mut()`

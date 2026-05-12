@@ -114,6 +114,8 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
   - Scalar ruin-recreate, composite moves, cartesian composition, and nearby selection for scalar and list neighborhoods
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Model Macros**: `planning_model!`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
+- **Scalar Variables**: `#[planning_variable]` fields store candidate indexes
+  as `Option<usize>`; keep external IDs on facts or entities.
 - **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, grouped scalar move selectors, conflict-repair selectors, selector telemetry, and level-aware simulated annealing configuration
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
 

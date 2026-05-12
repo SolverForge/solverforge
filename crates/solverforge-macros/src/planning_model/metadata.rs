@@ -97,10 +97,13 @@ fn parse_entity(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Entit
             let Some(field_ident) = field.ident.as_ref() else {
                 continue;
             };
-            if !field_is_option_usize(&field.ty) {
-                continue;
-            }
             let attr = get_attribute(&field.attrs, "planning_variable").unwrap();
+            if !field_is_option_usize(&field.ty) {
+                return Err(Error::new_spanned(
+                    field,
+                    "#[planning_variable] fields must be Option<usize>; scalar variables store candidate indexes, not external IDs",
+                ));
+            }
             if parse_attribute_bool(attr, "chained").unwrap_or(false) {
                 continue;
             }

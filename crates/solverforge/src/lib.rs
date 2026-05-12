@@ -19,8 +19,8 @@ pub name: String,
 pub struct Shift {
 #[planning_id]
 pub id: i64,
-#[planning_variable]
-pub employee: Option<i64>,
+#[planning_variable(value_range_provider = "employees", allows_unassigned = true)]
+pub employee_idx: Option<usize>,
 }
 
 #[planning_solution]

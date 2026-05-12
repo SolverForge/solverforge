@@ -67,3 +67,18 @@ fn validate_scalar_hook_targets(planning_variables: &[&syn::Field]) -> Result<()
 
     Ok(())
 }
+
+pub(super) fn validate_planning_variable_types(
+    planning_variables: &[&syn::Field],
+) -> Result<(), Error> {
+    for field in planning_variables {
+        if !field_is_option_usize(&field.ty) {
+            return Err(Error::new_spanned(
+                *field,
+                "#[planning_variable] fields must be Option<usize>; scalar variables store candidate indexes, not external IDs",
+            ));
+        }
+    }
+
+    Ok(())
+}

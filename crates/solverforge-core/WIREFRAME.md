@@ -495,6 +495,9 @@ Constructors: `genuine(&str)`, `chained(&str)`, `list(&str)`, `shadow(&str, Shad
 Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_candidate_values()`, `with_nearby_value_candidates()`, `with_nearby_entity_candidates()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`, `with_construction_entity_order_key()`, `with_construction_value_order_key()`
 
 Scalar hook type aliases:
+Scalar planning variables use `Option<usize>` candidate indexes. Domain IDs can
+use other Rust types on entities or facts, but the runtime scalar getter/setter
+surface is index-based.
 
 | Alias | Signature | Note |
 |-------|-----------|------|

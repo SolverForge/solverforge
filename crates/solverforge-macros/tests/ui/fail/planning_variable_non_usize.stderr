@@ -1,0 +1,6 @@
+error: #[planning_variable] fields must be Option<usize>; scalar variables store candidate indexes, not external IDs
+ --> tests/ui/fail/planning_variable_non_usize.rs:8:5
+  |
+8 | /     #[planning_variable(value_range_provider = "employees", allows_unassigned = true)]
+9 | |     pub employee_idx: Option<u32>,
+  | |_________________________________^

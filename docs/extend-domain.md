@@ -7,6 +7,9 @@ Use the scaffold as a thin starter, then model the real problem in your app.
 - Add entities, problem facts, and planning variables for the real data shape.
 - Use field metadata to model scalar variables and one or more independent
   list owners in the same project when needed.
+- Scalar `#[planning_variable]` fields are candidate indexes and must be
+  `Option<usize>`. Keep external IDs on problem facts or entities, and map them
+  through the value range provider collection.
 - Keep `src/domain/mod.rs` as a `solverforge::planning_model!` manifest with
   `root = "src/domain"`, normal `mod name;` declarations, and the public
   exports for the model. Entity, fact, and solution files stay separate.

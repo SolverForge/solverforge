@@ -6,5 +6,5 @@ pub struct Shift {
     pub id: i64,
 
     #[planning_variable]
-    pub employee: Option<i64>,
+    pub employee: Option<usize>,
 }

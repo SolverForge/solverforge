@@ -41,6 +41,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .collect();
     validate_planning_entity_field_attributes(fields)?;
     validate_scalar_hook_targets(&planning_variables)?;
+    validate_planning_variable_types(&planning_variables)?;
     let scalar_helpers = generate_scalar_helpers(name, fields, &planning_variables)?;
     let list_variables: Vec<_> = fields
         .iter()

@@ -6,8 +6,8 @@ pub struct Shift {
     pub id: i64,
 
     #[planning_variable]
-    pub primary: Option<i64>,
+    pub primary: Option<usize>,
 
     #[planning_variable]
-    pub secondary: Option<i64>,
+    pub secondary: Option<usize>,
 }

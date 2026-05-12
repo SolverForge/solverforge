@@ -63,7 +63,7 @@ where
                 .then(|| {
                     assignment_group_config(
                         group.group_name,
-                        ConstructionHeuristicType::CheapestInsertion,
+                        ConstructionHeuristicType::FirstFit,
                         ConstructionObligation::AssignWhenCandidateExists,
                     )
                 })

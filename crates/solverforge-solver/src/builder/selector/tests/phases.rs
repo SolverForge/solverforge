@@ -43,6 +43,7 @@ fn default_search_profile_uses_one_streaming_phase_for_assignment_groups() {
     let debug = format!("{:?}", phases[0]);
     assert!(debug.contains("AcceptorForager"));
     assert!(!debug.contains("VariableNeighborhoodDescent"));
+    assert!(debug.contains("DiversifiedLateAcceptance"));
     assert!(debug.contains("accepted_count_limit: 256"));
 }
 

@@ -15,7 +15,9 @@ use crate::builder::acceptor::AnyAcceptor;
 use crate::builder::forager::{AnyForager, ForagerBuilder};
 use crate::builder::{LocalSearchStrategy, RuntimeModel};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-use crate::phase::localsearch::{LateAcceptanceAcceptor, SimulatedAnnealingAcceptor};
+use crate::phase::localsearch::{
+    DiversifiedLateAcceptanceAcceptor, LateAcceptanceAcceptor, SimulatedAnnealingAcceptor,
+};
 
 const DEFAULT_SCALAR_NEARBY_LIMIT: usize = 10;
 const DEFAULT_LIST_NEARBY_LIMIT: usize = 20;
@@ -231,6 +233,14 @@ where
         return AnyAcceptor::LateAcceptance(LateAcceptanceAcceptor::<S>::new(
             DEFAULT_LOCAL_SEARCH_LATE_ACCEPTANCE_SIZE,
         ));
+    }
+
+    if model.has_scalar_groups() {
+        return AnyAcceptor::DiversifiedLateAcceptance(
+            DiversifiedLateAcceptanceAcceptor::<S>::with_default_tolerance(
+                DEFAULT_LOCAL_SEARCH_LATE_ACCEPTANCE_SIZE,
+            ),
+        );
     }
 
     match random_seed {

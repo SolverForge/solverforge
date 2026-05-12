@@ -470,4 +470,3 @@ fn scalar_assignment_construction_ignores_repair_move_cap() {
 
     assert_eq!(edited_slots, 2);
 }
-

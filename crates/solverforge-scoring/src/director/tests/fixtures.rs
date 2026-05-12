@@ -1,8 +1,5 @@
-use solverforge_core::domain::{
-    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
-};
+use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
-use std::any::TypeId;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Queen {
@@ -56,14 +53,6 @@ impl PlanningSolution for NQueensSolution {
     }
 }
 
-pub fn get_queens(s: &NQueensSolution) -> &Vec<Queen> {
-    &s.queens
-}
-
-pub fn get_queens_mut(s: &mut NQueensSolution) -> &mut Vec<Queen> {
-    &mut s.queens
-}
-
 pub fn get_queen_row(s: &NQueensSolution, idx: usize, _variable_index: usize) -> Option<i64> {
     s.queens.get(idx).and_then(|q| q.row)
 }
@@ -72,20 +61,6 @@ pub fn set_queen_row(s: &mut NQueensSolution, idx: usize, _variable_index: usize
     if let Some(queen) = s.queens.get_mut(idx) {
         queen.row = v;
     }
-}
-
-pub fn create_nqueens_descriptor() -> SolutionDescriptor {
-    let extractor = Box::new(EntityCollectionExtractor::new(
-        "Queen",
-        "queens",
-        get_queens,
-        get_queens_mut,
-    ));
-    let entity_desc =
-        EntityDescriptor::new("Queen", TypeId::of::<Queen>(), "queens").with_extractor(extractor);
-
-    SolutionDescriptor::new("NQueensSolution", TypeId::of::<NQueensSolution>())
-        .with_entity(entity_desc)
 }
 
 #[derive(Clone, Debug)]

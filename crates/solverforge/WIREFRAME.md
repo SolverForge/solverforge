@@ -149,7 +149,10 @@ Module: `solverforge::planning`
 - Scalar helpers — `ScalarTarget<S>`, `ScalarEdit<S>`, `ScalarCandidate<S>`,
   `ScalarAssignmentRule<S>`, `ScalarGroup<S>`, and `ScalarGroupLimits`
   describe public grouped-scalar construction, stock scalar
-  assignment, and local-search declarations.
+  assignment, and local-search declarations. Assignment-backed scalar targets
+  are owned by their named `ScalarGroup`; construction and local search reach
+  those slots through grouped scalar configuration instead of generic scalar
+  selectors.
 - Conflict-repair helpers — `ConflictRepair<S>`, `RepairCandidate<S>`, and
   `RepairLimits` describe domain-provided repair candidates while the framework
   owns filtering, scoring, hard-improvement gates, and selector telemetry.

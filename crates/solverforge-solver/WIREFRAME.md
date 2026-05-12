@@ -807,7 +807,12 @@ selection engine as candidate-backed groups.
 Runtime routing is capability-driven:
 - scalar-only `FirstFit` and `CheapestInsertion` use the descriptor boundary
 - named grouped scalar construction uses explicit `ScalarGroup` declarations bound to runtime scalar slots and applies all candidate edits atomically
-- assignment-backed `ScalarGroup` declarations run hard-first required assignment allocation before optional slots
+- assignment-backed `ScalarGroup` declarations run hard-first required
+  assignment allocation before optional slots; omitted-phase defaults use
+  grouped `CheapestInsertion` for both assignment passes
+- explicit scalar construction targets that name assignment-owned scalar
+  variables must use the owning `group_name`; ungrouped construction for those
+  targets is rejected before phase execution
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
 - list-only heuristics validate required `cw_*` or `k_opt_*` hooks before phase build
 - generic mixed construction stays in the canonical engine
@@ -878,14 +883,21 @@ model-aware streaming local-search phase. Omitted local-search configuration
 uses typed selector defaults: list variables receive nearby list change/swap,
 sublist change/swap, reverse, k-opt when k-opt hooks exist, and list ruin when
 the list runtime supports ruin moves. Scalar variables with nearby hooks receive
-targeted nearby scalar change/swap neighborhoods first; every scalar slot keeps
-targeted plain change/swap fallback neighborhoods after nearby coverage. Scalar
-groups add grouped-scalar neighborhoods, and registered conflict repair
+targeted nearby scalar change/swap neighborhoods first; every
+non-assignment-owned scalar slot keeps targeted plain change/swap fallback
+neighborhoods after nearby coverage. Scalar groups add grouped-scalar
+neighborhoods, and registered conflict repair
 providers add compound conflict repair neighborhoods. Broad stock unions use
 fair selection order and finite accepted-count horizons so search can improve
 incumbents under short budgets. VND remains available only through explicit
 local-search config; explicit configs own their acceptor, forager, selector, VND
 neighborhoods, and union order exactly.
+
+Assignment-owned scalar variables stay on the grouped scalar path. Default
+plain scalar neighborhoods and default conflict-repair neighborhoods exclude
+scalar slots covered by assignment-backed `ScalarGroup` declarations, and
+explicit scalar selector targets that name an assignment-owned variable are
+rejected with a diagnostic pointing at the owning grouped scalar selector.
 
 Typed custom search is compiled into the solution, not loaded from a runtime
 registry. A solution can declare `#[planning_solution(search = "path::to::search")]`.
@@ -1115,7 +1127,7 @@ Runtime helpers:
   runtime scalar hooks, scalar groups, validate the manifest-backed model, and delegate
   list-shadow updates without proc-macro registries
 
-Scalar-only, list-only, and mixed planning models now target the same canonical runtime layer through `RuntimeModel`. Generic construction order is the descriptor-backed variable order emitted by the macros, and scalar runtime assembly does not depend on Rust module declaration order. Scalar construction is single-slot by default; grouped scalar construction is explicit, named, and atomic. Specialized list heuristics remain explicit non-generic phases.
+Scalar-only, list-only, and mixed planning models now target the same canonical runtime layer through `RuntimeModel`. Generic construction order is the descriptor-backed variable order emitted by the macros, and scalar runtime assembly does not depend on Rust module declaration order. Scalar construction is single-slot by default for non-assignment-owned slots; grouped scalar construction is explicit, named, and atomic. Assignment-owned scalar slots are constructed and searched only through their owning grouped scalar path. Specialized list heuristics remain explicit non-generic phases.
 
 ### `AnyTermination` / `build_termination()` — `run.rs`
 

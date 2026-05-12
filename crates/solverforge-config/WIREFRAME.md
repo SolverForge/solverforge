@@ -23,7 +23,7 @@ src/
 ├── error.rs         — ConfigError
 ├── forager.rs       — ForagerConfig and AcceptedCountForagerConfig
 ├── move_selector.rs — MoveSelectorConfig and selector-specific config structs
-├── phase.rs         — PhaseConfig plus construction/local-search/exhaustive configs
+├── phase.rs         — PhaseConfig plus construction/local-search/partitioned/custom configs
 ├── solver_config.rs — SolverConfig, SolverConfigOverride, environment/thread settings
 ├── termination.rs   — TerminationConfig
 └── tests.rs         — Test module root
@@ -147,6 +147,12 @@ no-op filtering. Grouped local-search selectors do not use
 fall back to model-owned `ScalarGroup::with_limits` values for the total move
 cap.
 
+When a scalar target belongs to an assignment-backed `ScalarGroup`, runtime
+construction rejects explicit scalar construction targets that omit the owning
+`group_name`. Use grouped scalar construction for assignment-owned scalar
+slots; generic scalar construction remains single-slot and only covers
+non-assignment-owned scalar variables.
+
 ### `LocalSearchConfig`
 
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
@@ -172,10 +178,12 @@ search phase, the canonical runtime resolves model-aware selector defaults from
 declared runtime capabilities. Nearby scalar
 change/swap selectors are used before plain scalar fallback selectors when the
 model declares nearby hooks, and plain scalar fallback remains present for every
-scalar slot. Scalar groups add grouped-scalar selectors. List
+non-assignment-owned scalar slot. Scalar groups add grouped-scalar selectors. List
 models use nearby list change/swap, sublist change/swap, reverse, k-opt when
 k-opt hooks exist, and list ruin when the list runtime supports ruin moves.
 Conflict repair selectors are added only when repair providers are registered.
+Assignment-owned scalar variables stay on their grouped scalar selector path:
+plain scalar selector defaults and conflict-repair defaults exclude them.
 Omitted acceptor and forager settings are selected by the same model-aware
 profile. Explicit `acceptor`, `forager`, `move_selector`, and VND
 `neighborhoods` remain exact user-owned configuration.
@@ -539,7 +547,12 @@ Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`. Manual `Default`
 | `require_hard_improvement` | `bool` | `false` |
 | `include_soft_matches` | `bool` | `false` |
 
-Runtime note: configured constraints must match scoring constraint metadata before providers are invoked. With `include_soft_matches = false`, non-hard scoring constraints are rejected; setting it to `true` explicitly allows soft repair providers.
+Runtime note: configured constraints must match scoring constraint metadata
+before providers are invoked. With `include_soft_matches = false`, non-hard
+scoring constraints are rejected; setting it to `true` explicitly allows soft
+repair providers. Conflict repair moves operate only on
+non-assignment-owned scalar variables; assignment-backed scalar slots must be
+repaired through their owning grouped scalar selector.
 
 ### `CompoundConflictRepairMoveSelectorConfig`
 

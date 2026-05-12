@@ -27,6 +27,8 @@ sequence/position rematches.
 
 `GroupedScalarMoveSelector` exposes the same declared groups during local search.
 It is a first-class scalar neighborhood, not cartesian-product composition.
+Assignment-owned scalar slots stay on this grouped path: ungrouped scalar
+construction targets and generic scalar repair selectors do not edit them.
 
 ## Compound Conflict Repair
 

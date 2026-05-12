@@ -158,7 +158,12 @@ When `move_selector` is omitted from `acceptor_forager` local search, the
 canonical runtime uses explicit streaming defaults instead of broad exhaustive
 neighborhoods:
 
-- scalar-only models default to `ChangeMoveSelector` plus `SwapMoveSelector`
+- scalar models default to nearby scalar change/swap selectors when hooks are
+  declared, then plain `ChangeMoveSelector` plus `SwapMoveSelector` fallback
+  selectors for every non-assignment-owned scalar slot
+- assignment-backed scalar groups are edited through their owning grouped
+  scalar selector; generic scalar selectors and conflict-repair defaults leave
+  those group-owned slots on the grouped path
 - list-only models default to `NearbyListChangeMoveSelector(20)`,
   `NearbyListSwapMoveSelector(20)`, `SublistChangeMoveSelector`,
   `SublistSwapMoveSelector`, and `ListReverseMoveSelector`, with k-opt and
@@ -170,6 +175,14 @@ search phase after construction. Broad unions use fair selection order and
 finite accepted-count horizons; `limited_neighborhood` remains the explicit cap
 for configured exhaustive selectors. Variable Neighborhood Descent is never
 prepended implicitly.
+
+When full `phases` are omitted, construction runs model-aware defaults before
+that local search: list variables use the matching specialized list
+construction, assignment-backed scalar groups run named grouped
+`CheapestInsertion` passes for required and optional slots, and remaining
+non-assignment-owned scalar variables use descriptor scalar construction.
+Explicit scalar construction targets that name an assignment-owned variable
+must use the owning `group_name`.
 
 Variable Neighborhood Descent is configured as a local-search type:
 

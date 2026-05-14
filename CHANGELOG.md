@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.13.1](///compare/v0.13.0...v0.13.1) (2026-05-14)
+
+
+### Features
+
+* **scoring:** generalize grouped collectors 8e7cce3
+
+
+### Bug Fixes
+
+* **scoring:** preserve joined filter source indexes e70880f
+
 ## [0.13.0](///compare/v0.12.1...v0.13.0) (2026-05-12)
 
 

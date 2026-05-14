@@ -25,7 +25,7 @@ Publishing order: `core -> macros -> scoring -> config -> solver -> cvrp -> cons
 
 Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
 
-Current workspace release version: `0.13.0`.
+Current workspace release version: `0.13.1`.
 
 Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
 
@@ -116,12 +116,12 @@ Clone is acceptable only for:
 
 Grouped collectors own extracted values. `Accumulator::accumulate(value)` takes
 the mapped value by ownership and returns a retraction token; grouped,
-projected-grouped, and complemented-grouped constraints cache that token for
-exact retraction after entity mutation. Do not restore a borrowed
-`accumulate(&value)` / `retract(&value)` protocol, and do not require
-`Copy`, `Clone`, or `PartialEq` for payloads solely so `collect_vec` can retain
-them. `collect_vec` returns a `CollectedVec<T>` result view, not an owned
-`Vec<T>` scoring result.
+cross-grouped, projected-grouped, complemented-grouped, and projected
+complemented-grouped constraints cache that token for exact retraction after
+entity mutation. Do not restore a borrowed `accumulate(&value)` /
+`retract(&value)` protocol, and do not require `Copy`, `Clone`, or `PartialEq`
+for payloads solely so `collect_vec` can retain them. `collect_vec` returns a
+`CollectedVec<T>` result view, not an owned `Vec<T>` scoring result.
 
 ### Neighborhood Hot Paths
 

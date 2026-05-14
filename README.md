@@ -97,7 +97,7 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
 ## Features
 
 - **Score Types**: SoftScore, HardSoftScore, HardMediumSoftScore, BendableScore, HardSoftDecimalScore
-- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, existence checks, joins, grouping, `collect_vec`, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
+- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, direct cross-join grouping, projected grouped complements, existence checks, joins, grouping, `collect_vec`, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list runtime plan when matching list work is present, plus descriptor construction routing for scalar-only targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
@@ -140,7 +140,10 @@ ConstraintFactory::<Schedule, HardSoftScore>::new()
     .named("Long work streaks");
 ```
 
-Collectors retain mapped values by ownership. `collect_vec` exposes a
+Collectors retain mapped values by ownership. The same collector protocol covers
+unary rows and joined pairs: direct cross-join grouping passes `(&A, &B)` to the
+collector mapper, while projected grouped streams can continue into
+`complement(...)` for supply/demand-style scoring. `collect_vec` exposes a
 `CollectedVec<T>` result view, so grouped payloads such as `String` labels do
 not need `Copy`, `Clone`, or `PartialEq` just to be collected.
 
@@ -151,7 +154,7 @@ If you are building directly against the runtime crates instead of starting from
 
 ```toml
 [dependencies]
-solverforge = { version = "0.13.0", features = ["console"] }
+solverforge = { version = "0.13.1", features = ["console"] }
 ```
 
 When `move_selector` is omitted from `acceptor_forager` local search, the
@@ -288,7 +291,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.13.0 - Zero-Erasure Constraint Solver
+                   v0.13.1 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -517,7 +520,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current workspace version:** 0.13.0
+**Current workspace version:** 0.13.1
 
 The current checked-in workspace exposes:
 

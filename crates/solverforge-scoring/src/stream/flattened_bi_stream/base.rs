@@ -142,7 +142,7 @@ where
         Flatten,
         CKeyFn,
         ALookup,
-        AndBiFilter<F, FnBiFilter<impl Fn(&S, &A, &C) -> bool + Send + Sync>>,
+        AndBiFilter<F, FnBiFilter<impl Fn(&S, &A, &C, usize, usize) -> bool + Send + Sync>>,
         Sc,
     >
     where
@@ -158,7 +158,9 @@ where
             a_lookup_fn: self.a_lookup_fn,
             filter: AndBiFilter::new(
                 self.filter,
-                FnBiFilter::new(move |_s: &S, a: &A, c: &C| predicate(a, c)),
+                FnBiFilter::new(move |_s: &S, a: &A, c: &C, _a_idx: usize, _b_idx: usize| {
+                    predicate(a, c)
+                }),
             ),
             _phantom: PhantomData,
         }

@@ -9,7 +9,7 @@ macro_rules! impl_tri_arity_stream {
             fn_filter = FnTriFilter,
             entities = [a, b, c],
             weight_indices = [a_idx, b_idx, c_idx],
-            filter_indices = []
+            filter_indices = [a_idx, b_idx, c_idx]
         );
     };
 }

@@ -9,7 +9,7 @@ macro_rules! impl_quad_arity_stream {
             fn_filter = FnQuadFilter,
             entities = [a, b, c, d],
             weight_indices = [a_idx, b_idx, c_idx, d_idx],
-            filter_indices = []
+            filter_indices = [a_idx, b_idx, c_idx, d_idx]
         );
     };
 }

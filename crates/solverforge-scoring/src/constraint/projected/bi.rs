@@ -86,7 +86,28 @@ where
         }
     }
 
-    fn score_ordered_rows(
+    fn score_outputs(
+        &self,
+        solution: &S,
+        left: &Out,
+        right: &Out,
+        left_idx: usize,
+        right_idx: usize,
+    ) -> Sc {
+        if !self
+            .pair_filter
+            .test(solution, left, right, left_idx, right_idx)
+        {
+            return Sc::zero();
+        }
+        self.compute_score(left, right)
+    }
+
+    fn filter_index(coordinate: ProjectedRowCoordinate) -> usize {
+        coordinate.primary_owner.entity_index
+    }
+
+    fn score_retained_rows(
         &self,
         solution: &S,
         first: &ProjectedJoinRow<Out>,
@@ -97,13 +118,13 @@ where
         } else {
             (second, first)
         };
-        if !self
-            .pair_filter
-            .test(solution, &left.output, &right.output, 0, 1)
-        {
-            return Sc::zero();
-        }
-        self.compute_score(&left.output, &right.output)
+        self.score_outputs(
+            solution,
+            &left.output,
+            &right.output,
+            Self::filter_index(left.coordinate),
+            Self::filter_index(right.coordinate),
+        )
     }
 
     fn score_candidate_row(
@@ -113,15 +134,22 @@ where
         candidate_coordinate: ProjectedRowCoordinate,
         other: &ProjectedJoinRow<Out>,
     ) -> Sc {
-        let (left, right) = if candidate_coordinate <= other.coordinate {
-            (candidate_output, &other.output)
+        let (left, right, left_idx, right_idx) = if candidate_coordinate <= other.coordinate {
+            (
+                candidate_output,
+                &other.output,
+                Self::filter_index(candidate_coordinate),
+                Self::filter_index(other.coordinate),
+            )
         } else {
-            (&other.output, candidate_output)
+            (
+                &other.output,
+                candidate_output,
+                Self::filter_index(other.coordinate),
+                Self::filter_index(candidate_coordinate),
+            )
         };
-        if !self.pair_filter.test(solution, left, right, 0, 1) {
-            return Sc::zero();
-        }
-        self.compute_score(left, right)
+        self.score_outputs(solution, left, right, left_idx, right_idx)
     }
 
     fn score_pair(&self, solution: &S, first_id: usize, second_id: usize) -> Sc {
@@ -131,7 +159,7 @@ where
         let Some(second) = self.rows.get(second_id).and_then(Option::as_ref) else {
             return Sc::zero();
         };
-        self.score_ordered_rows(solution, first, second)
+        self.score_retained_rows(solution, first, second)
     }
 
     fn ensure_source_state(&mut self, solution: &S) {
@@ -239,7 +267,18 @@ where
         second: &ProjectedJoinRow<Out>,
     ) -> Sc {
         if (self.key_fn)(&first.output) == (self.key_fn)(&second.output) {
-            self.score_ordered_rows(solution, first, second)
+            let (left, right) = if first.coordinate <= second.coordinate {
+                (first, second)
+            } else {
+                (second, first)
+            };
+            self.score_outputs(
+                solution,
+                &left.output,
+                &right.output,
+                Self::filter_index(left.coordinate),
+                Self::filter_index(right.coordinate),
+            )
         } else {
             Sc::zero()
         }
@@ -259,8 +298,13 @@ where
         } else {
             (second, first)
         };
-        self.pair_filter
-            .test(solution, &left.output, &right.output, 0, 1)
+        self.pair_filter.test(
+            solution,
+            &left.output,
+            &right.output,
+            Self::filter_index(left.coordinate),
+            Self::filter_index(right.coordinate),
+        )
     }
 
     fn localized_owners(

@@ -218,6 +218,64 @@ fn projected_self_join_preserves_projection_order_when_reusing_slots() {
 }
 
 #[test]
+fn projected_self_join_pair_filter_uses_stable_owner_indexes_after_slot_reuse() {
+    let projected = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(WorkEntryProjection);
+    let mut constraint = ProjectedBiConstraintStream {
+        source: projected.source,
+        filter: projected.filter,
+        key_fn: |entry: &Entry| entry.bucket,
+        pair_filter: FnBiFilter::new(
+            |_plan: &Plan, _left: &Entry, _right: &Entry, left_idx: usize, right_idx: usize| {
+                left_idx == 0 && right_idx == 1
+            },
+        ),
+        _phantom: PhantomData,
+    }
+    .penalize(|left: &Entry, right: &Entry| SoftScore::of(left.delta * 10 + right.delta))
+    .named("projected indexed duplicate bucket");
+
+    let plan = Plan {
+        work: vec![
+            Work {
+                bucket: 0,
+                demand: 1,
+                enabled: true,
+            },
+            Work {
+                bucket: 0,
+                demand: 2,
+                enabled: true,
+            },
+            Work {
+                bucket: 0,
+                demand: 3,
+                enabled: true,
+            },
+        ],
+        capacity: Vec::new(),
+    };
+
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(total, SoftScore::of(-12));
+
+    total = total + constraint.on_retract(&plan, 0, 0);
+    total = total + constraint.on_retract(&plan, 1, 0);
+    assert_eq!(total, SoftScore::ZERO);
+
+    total = total + constraint.on_insert(&plan, 0, 0);
+    assert_eq!(total, SoftScore::ZERO);
+    total = total + constraint.on_insert(&plan, 1, 0);
+
+    assert_eq!(total, SoftScore::of(-12));
+    assert_eq!(total, constraint.evaluate(&plan));
+}
+
+#[test]
 fn projected_self_join_reuses_slots_across_cardinality_changes() {
     let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(source(

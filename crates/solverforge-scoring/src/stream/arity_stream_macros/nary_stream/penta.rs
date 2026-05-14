@@ -9,7 +9,7 @@ macro_rules! impl_penta_arity_stream {
             fn_filter = FnPentaFilter,
             entities = [a, b, c, d, e],
             weight_indices = [a_idx, b_idx, c_idx, d_idx, e_idx],
-            filter_indices = []
+            filter_indices = [a_idx, b_idx, c_idx, d_idx, e_idx]
         );
     };
 }

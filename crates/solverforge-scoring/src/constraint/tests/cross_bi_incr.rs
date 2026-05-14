@@ -7,8 +7,9 @@ use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::IncrementalCrossBiConstraint;
 use crate::stream::collection_extract::{source, ChangeSource, CollectionExtract};
 use crate::stream::collector::sum;
+use crate::stream::filter::FnBiFilter;
 use crate::stream::joiner::equal_bi;
-use crate::stream::ConstraintFactory;
+use crate::stream::{ConstraintFactory, CrossBiConstraintStream};
 use solverforge_core::score::{Score, SoftScore};
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -80,7 +81,11 @@ fn create_unavailable_employee_constraint() -> impl IncrementalConstraint<Schedu
         ),
         |shift: &Shift| shift.employee_id,
         |employee: &Employee| Some(employee.id),
-        |_schedule: &Schedule, shift: &Shift, employee: &Employee| {
+        |_schedule: &Schedule,
+         shift: &Shift,
+         employee: &Employee,
+         _shift_idx: usize,
+         _employee_idx: usize| {
             shift.employee_id.is_some() && employee.unavailable_days.contains(&shift.day)
         },
         |_schedule: &Schedule, _shift_idx: usize, _employee_idx: usize| SoftScore::of(1),
@@ -172,7 +177,11 @@ fn cross_bi_unrelated_insert_skips_extractors() {
         },
         |shift: &Shift| shift.employee_id,
         |employee: &Employee| Some(employee.id),
-        |_schedule: &Schedule, shift: &Shift, employee: &Employee| {
+        |_schedule: &Schedule,
+         shift: &Shift,
+         employee: &Employee,
+         _shift_idx: usize,
+         _employee_idx: usize| {
             shift.employee_id.is_some() && employee.unavailable_days.contains(&shift.day)
         },
         |_schedule: &Schedule, _shift_idx: usize, _employee_idx: usize| SoftScore::of(1),
@@ -295,6 +304,69 @@ fn cross_bi_group_by_incremental_updates_join_groups() {
 }
 
 #[test]
+fn cross_bi_direct_path_preserves_filter_source_indexes() {
+    let constraint = CrossBiConstraintStream::new_with_filter(
+        source(
+            (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            (|schedule: &Schedule| schedule.employees.as_slice()) as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
+        |shift: &Shift| shift.employee_id,
+        |employee: &Employee| Some(employee.id),
+        FnBiFilter::new(
+            |_schedule: &Schedule,
+             _shift: &Shift,
+             _employee: &Employee,
+             shift_idx: usize,
+             employee_idx: usize| { shift_idx == 1 && employee_idx == 0 },
+        ),
+    )
+    .penalize(|shift: &Shift, _employee: &Employee| SoftScore::of(shift.day as i64))
+    .named("indexed cross path");
+
+    let schedule = two_employee_schedule();
+
+    assert_eq!(constraint.match_count(&schedule), 1);
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-6));
+}
+
+#[test]
+fn cross_bi_group_by_preserves_filter_source_indexes() {
+    let constraint = CrossBiConstraintStream::new_with_filter(
+        source(
+            (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            (|schedule: &Schedule| schedule.employees.as_slice()) as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
+        |shift: &Shift| shift.employee_id,
+        |employee: &Employee| Some(employee.id),
+        FnBiFilter::new(
+            |_schedule: &Schedule,
+             _shift: &Shift,
+             _employee: &Employee,
+             shift_idx: usize,
+             employee_idx: usize| { shift_idx == 1 && employee_idx == 0 },
+        ),
+    )
+    .group_by(
+        |_shift: &Shift, employee: &Employee| employee.id,
+        sum(|(shift, _employee): (&Shift, &Employee)| shift.day as i64),
+    )
+    .penalize(|_employee_id: &usize, total_day: &i64| SoftScore::of(*total_day))
+    .named("indexed grouped cross path");
+
+    let schedule = two_employee_schedule();
+
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-6));
+}
+
+#[test]
 fn cross_bi_unrelated_descriptor_is_noop() {
     let mut constraint = create_unavailable_employee_constraint();
     let schedule = sample_schedule();
@@ -319,7 +391,11 @@ fn cross_bi_unknown_source_panics_on_localized_callback() {
         ),
         |shift: &Shift| shift.employee_id,
         |employee: &Employee| Some(employee.id),
-        |_schedule: &Schedule, shift: &Shift, employee: &Employee| {
+        |_schedule: &Schedule,
+         shift: &Shift,
+         employee: &Employee,
+         _shift_idx: usize,
+         _employee_idx: usize| {
             shift.employee_id.is_some() && employee.unavailable_days.contains(&shift.day)
         },
         |_schedule: &Schedule, _shift_idx: usize, _employee_idx: usize| SoftScore::of(1),

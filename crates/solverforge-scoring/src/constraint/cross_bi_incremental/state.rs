@@ -66,7 +66,7 @@ where
     EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K,
     KB: Fn(&B) -> K,
-    F: Fn(&S, &A, &B) -> bool,
+    F: Fn(&S, &A, &B, usize, usize) -> bool,
     W: Fn(&S, usize, usize) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -114,7 +114,7 @@ where
     EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K,
     KB: Fn(&B) -> K,
-    F: Fn(&S, &A, &B) -> bool,
+    F: Fn(&S, &A, &B, usize, usize) -> bool,
     W: Fn(&A, &B) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -155,7 +155,7 @@ where
     EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K,
     KB: Fn(&B) -> K,
-    F: Fn(&S, &A, &B) -> bool,
+    F: Fn(&S, &A, &B, usize, usize) -> bool,
     W: CrossBiWeight<S, A, B, Sc>,
     Sc: Score,
 {
@@ -265,7 +265,7 @@ where
         }
         let a = &entities_a[a_idx];
         let b = &entities_b[b_idx];
-        if !(self.filter)(solution, a, b) {
+        if !(self.filter)(solution, a, b, a_idx, b_idx) {
             return Sc::zero();
         }
         let score = self.compute_score(solution, entities_a, entities_b, a_idx, b_idx);

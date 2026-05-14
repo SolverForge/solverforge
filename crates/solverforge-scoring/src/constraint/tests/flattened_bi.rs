@@ -38,7 +38,7 @@ fn create_test_constraint() -> FlattenedBiConstraint<
     impl Fn(&Employee) -> &[u32],
     impl Fn(&u32) -> u32,
     impl Fn(&Shift) -> u32,
-    impl Fn(&Schedule, &Shift, &u32) -> bool,
+    impl Fn(&Schedule, &Shift, &u32, usize, usize) -> bool,
     impl Fn(&Shift, &u32) -> SoftScore,
     SoftScore,
 > {
@@ -58,7 +58,9 @@ fn create_test_constraint() -> FlattenedBiConstraint<
         |emp: &Employee| emp.unavailable_days.as_slice(),
         |day: &u32| *day,
         |shift: &Shift| shift.day,
-        |_s: &Schedule, shift: &Shift, day: &u32| shift.employee_id.is_some() && shift.day == *day,
+        |_s: &Schedule, shift: &Shift, day: &u32, _shift_idx: usize, _employee_idx: usize| {
+            shift.employee_id.is_some() && shift.day == *day
+        },
         |_shift: &Shift, _day: &u32| SoftScore::of(1),
         false,
     )
@@ -137,6 +139,52 @@ fn test_incremental() {
     // Re-insert it
     let delta = constraint.on_insert(&schedule, 0, 0);
     assert_eq!(delta, SoftScore::of(-1)); // Adding penalty back
+}
+
+#[test]
+fn flattened_filter_receives_a_index_and_owner_b_index() {
+    let mut constraint = FlattenedBiConstraint::new(
+        ConstraintRef::new("", "Indexed unavailable employee"),
+        ImpactType::Penalty,
+        source(
+            (|s: &Schedule| s.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            (|s: &Schedule| s.employees.as_slice()) as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
+        |shift: &Shift| shift.employee_id,
+        |emp: &Employee| Some(emp.id),
+        |emp: &Employee| emp.unavailable_days.as_slice(),
+        |day: &u32| *day,
+        |shift: &Shift| shift.day,
+        |_s: &Schedule, _shift: &Shift, _day: &u32, shift_idx: usize, employee_idx: usize| {
+            shift_idx == 0 && employee_idx == 1
+        },
+        |_shift: &Shift, _day: &u32| SoftScore::of(1),
+        false,
+    );
+    let schedule = Schedule {
+        shifts: vec![Shift {
+            employee_id: Some(0),
+            day: 5,
+        }],
+        employees: vec![
+            Employee {
+                id: 0,
+                unavailable_days: vec![4],
+            },
+            Employee {
+                id: 0,
+                unavailable_days: vec![5],
+            },
+        ],
+    };
+
+    assert_eq!(constraint.match_count(&schedule), 1);
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
+    assert_eq!(constraint.initialize(&schedule), SoftScore::of(-1));
 }
 
 #[test]

@@ -1,3 +1,4 @@
+pub(super) use std::marker::PhantomData;
 pub(super) use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub(super) use solverforge_core::score::SoftScore;
@@ -7,8 +8,11 @@ pub(super) use crate::director::score_director::ScoreDirector;
 pub(super) use crate::director::Director;
 pub(super) use crate::stream::collection_extract::{source, ChangeSource};
 pub(super) use crate::stream::collector::{sum, Accumulator, Collector};
+pub(super) use crate::stream::filter::FnBiFilter;
 pub(super) use crate::stream::joiner::equal;
-pub(super) use crate::stream::{ConstraintFactory, Projection, ProjectionSink};
+pub(super) use crate::stream::{
+    ConstraintFactory, ProjectedBiConstraintStream, Projection, ProjectionSink,
+};
 use solverforge_core::domain::PlanningSolution;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -74,7 +78,7 @@ pub(super) struct NonCloneDelta(pub(super) i64);
 
 pub(super) struct NonCloneDeltaCollector;
 
-impl<'i> Collector<&'i Entry> for NonCloneDeltaCollector {
+impl Collector<&Entry> for NonCloneDeltaCollector {
     type Value = NonCloneDelta;
     type Result = i64;
     type Accumulator = NonCloneDeltaAccumulator;

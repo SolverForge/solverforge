@@ -32,30 +32,66 @@ pub trait UniFilter<S, A>: Send + Sync {
     fn test(&self, solution: &S, a: &A) -> bool;
 }
 
-/* A filter over pairs of entities.
-Indices (a_idx, b_idx) are the positions in the entity slice, passed
-through from the constraint so JIT closures can use them directly
-for flat-buffer access without HashMap lookups.
+/* A filter over pairs of stream rows.
+Indices are the row positions in the joined sources, passed through from the
+constraint so low-level filters can use index-addressed side data without
+HashMap lookups.
 */
 pub trait BiFilter<S, A, B>: Send + Sync {
     // Returns true if the pair passes the filter.
     fn test(&self, solution: &S, a: &A, b: &B, a_idx: usize, b_idx: usize) -> bool;
 }
 
-// A filter over triples of entities.
+// A filter over triples of stream rows.
 pub trait TriFilter<S, A, B, C>: Send + Sync {
     // Returns true if the triple passes the filter.
-    fn test(&self, solution: &S, a: &A, b: &B, c: &C) -> bool;
+    #[allow(clippy::too_many_arguments)]
+    fn test(
+        &self,
+        solution: &S,
+        a: &A,
+        b: &B,
+        c: &C,
+        a_idx: usize,
+        b_idx: usize,
+        c_idx: usize,
+    ) -> bool;
 }
 
-// A filter over quadruples of entities.
+// A filter over quadruples of stream rows.
 pub trait QuadFilter<S, A, B, C, D>: Send + Sync {
     // Returns true if the quadruple passes the filter.
-    fn test(&self, solution: &S, a: &A, b: &B, c: &C, d: &D) -> bool;
+    #[allow(clippy::too_many_arguments)]
+    fn test(
+        &self,
+        solution: &S,
+        a: &A,
+        b: &B,
+        c: &C,
+        d: &D,
+        a_idx: usize,
+        b_idx: usize,
+        c_idx: usize,
+        d_idx: usize,
+    ) -> bool;
 }
 
-// A filter over quintuples of entities.
+// A filter over quintuples of stream rows.
 pub trait PentaFilter<S, A, B, C, D, E>: Send + Sync {
     // Returns true if the quintuple passes the filter.
-    fn test(&self, solution: &S, a: &A, b: &B, c: &C, d: &D, e: &E) -> bool;
+    #[allow(clippy::too_many_arguments)]
+    fn test(
+        &self,
+        solution: &S,
+        a: &A,
+        b: &B,
+        c: &C,
+        d: &D,
+        e: &E,
+        a_idx: usize,
+        b_idx: usize,
+        c_idx: usize,
+        d_idx: usize,
+        e_idx: usize,
+    ) -> bool;
 }

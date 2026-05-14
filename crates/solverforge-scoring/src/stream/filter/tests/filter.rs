@@ -29,7 +29,7 @@ fn test_fn_uni_filter() {
 
 #[test]
 fn test_fn_bi_filter() {
-    let f = FnBiFilter::new(|_: &(), a: &i32, b: &i32| a + b > 10);
+    let f = FnBiFilter::new(|_: &(), a: &i32, b: &i32, _a_idx: usize, _b_idx: usize| a + b > 10);
     assert!(f.test(&(), &7, &8, 0, 0));
     assert!(!f.test(&(), &3, &4, 0, 0));
 }
@@ -46,10 +46,20 @@ fn test_and_uni_filter() {
 
 #[test]
 fn test_and_bi_filter() {
-    let f1 = FnBiFilter::new(|_: &(), a: &i32, _b: &i32| *a > 0);
-    let f2 = FnBiFilter::new(|_: &(), _a: &i32, b: &i32| *b > 0);
+    let f1 = FnBiFilter::new(|_: &(), a: &i32, _b: &i32, _a_idx: usize, _b_idx: usize| *a > 0);
+    let f2 = FnBiFilter::new(|_: &(), _a: &i32, b: &i32, _a_idx: usize, _b_idx: usize| *b > 0);
     let combined = AndBiFilter::new(f1, f2);
     assert!(combined.test(&(), &1, &2, 0, 0));
     assert!(!combined.test(&(), &-1, &2, 0, 0));
     assert!(!combined.test(&(), &1, &-2, 0, 0));
+}
+
+#[test]
+fn test_fn_bi_filter_receives_indexes() {
+    let f = FnBiFilter::new(|_: &(), _a: &i32, _b: &i32, a_idx: usize, b_idx: usize| {
+        a_idx == 2 && b_idx == 4
+    });
+
+    assert!(f.test(&(), &7, &8, 2, 4));
+    assert!(!f.test(&(), &7, &8, 4, 2));
 }

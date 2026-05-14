@@ -123,6 +123,23 @@ entity mutation. Do not restore a borrowed `accumulate(&value)` /
 for payloads solely so `collect_vec` can retain them. `collect_vec` returns a
 `CollectedVec<T>` result view, not an owned `Vec<T>` scoring result.
 
+### Joined Filter Indexes
+
+Low-level joined filter traits receive the semantic source indexes for the rows
+being tested. Do not replace them with placeholder values in builders,
+finalizers, or grouped/projection paths.
+
+- Self-join `BiFilter`/`TriFilter`/`QuadFilter`/`PentaFilter` indexes are the
+  same-source entity indexes in canonical tuple order.
+- Cross-bi filters use the left and right source slice indexes.
+- Flattened-bi filters use the A source index and the owning B source index for
+  the flattened C row.
+- Projected-bi filters use the projected row's primary owner entity index; row
+  orientation is still determined by `ProjectedRowCoordinate`, and retained
+  storage row IDs are never semantic.
+- Public fluent `.filter(...)` methods stay entity/value-only and adapt to the
+  indexed trait shape internally.
+
 ### Neighborhood Hot Paths
 
 List, nearby-list, and sublist selector cursor paths are production hot loops.

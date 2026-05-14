@@ -24,7 +24,7 @@ where
     Flatten: Fn(&B) -> &[C] + Send + Sync,
     CKeyFn: Fn(&C) -> CK + Send + Sync,
     ALookup: Fn(&A) -> CK + Send + Sync,
-    F: Fn(&S, &A, &C) -> bool + Send + Sync,
+    F: Fn(&S, &A, &C, usize, usize) -> bool + Send + Sync,
     W: Fn(&A, &C) -> Sc + Send + Sync,
     Sc: Score,
 {
@@ -46,13 +46,13 @@ where
             }
         }
 
-        for a in entities_a {
+        for (a_idx, a) in entities_a.iter().enumerate() {
             let join_key = (self.key_a)(a);
             let lookup_key = (self.a_lookup_fn)(a);
 
             if let Some(matches) = temp_index.get(&(join_key, lookup_key)) {
-                for (_b_idx, c) in matches {
-                    if (self.filter)(solution, a, c) {
+                for (b_idx, c) in matches {
+                    if (self.filter)(solution, a, c, a_idx, *b_idx) {
                         total = total + self.compute_score(a, c);
                     }
                 }
@@ -80,13 +80,13 @@ where
             }
         }
 
-        for a in entities_a {
+        for (a_idx, a) in entities_a.iter().enumerate() {
             let join_key = (self.key_a)(a);
             let lookup_key = (self.a_lookup_fn)(a);
 
             if let Some(matches) = temp_index.get(&(join_key, lookup_key)) {
-                for (_b_idx, c) in matches {
-                    if (self.filter)(solution, a, c) {
+                for (b_idx, c) in matches {
+                    if (self.filter)(solution, a, c, a_idx, *b_idx) {
                         count += 1;
                     }
                 }

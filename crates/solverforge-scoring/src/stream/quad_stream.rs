@@ -121,8 +121,18 @@ where
         F: 'static,
     {
         let filter = self.filter;
-        let combined_filter = move |s: &S, a: &A, b: &A, c: &A, d: &A, e: &A| {
-            filter.test(s, a, b, c, d) && joiner.matches(a, e)
+        let combined_filter = move |s: &S,
+                                    a: &A,
+                                    b: &A,
+                                    c: &A,
+                                    d: &A,
+                                    e: &A,
+                                    a_idx: usize,
+                                    b_idx: usize,
+                                    c_idx: usize,
+                                    d_idx: usize,
+                                    _e_idx: usize| {
+            filter.test(s, a, b, c, d, a_idx, b_idx, c_idx, d_idx) && joiner.matches(a, e)
         };
 
         PentaConstraintStream::new_self_join_with_filter(

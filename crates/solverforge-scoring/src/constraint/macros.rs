@@ -102,7 +102,7 @@ macro_rules! impl_get_matches_nary {
                         let a = &entities[i];
                         let b = &entities[j];
                         let c = &entities[k];
-                        if ($self.filter)($solution, a, b, c) {
+                        if ($self.filter)($solution, a, b, c, i, j, k) {
                             let justification = ConstraintJustification::new(vec![
                                 EntityRef::new(a),
                                 EntityRef::new(b),
@@ -154,7 +154,7 @@ macro_rules! impl_get_matches_nary {
                             let b = &entities[j];
                             let c = &entities[k];
                             let d = &entities[l];
-                            if ($self.filter)($solution, a, b, c, d) {
+                            if ($self.filter)($solution, a, b, c, d, i, j, k, l) {
                                 let justification = ConstraintJustification::new(vec![
                                     EntityRef::new(a),
                                     EntityRef::new(b),
@@ -215,7 +215,7 @@ macro_rules! impl_get_matches_nary {
                                 let c = &entities[k];
                                 let d = &entities[l];
                                 let e = &entities[m];
-                                if ($self.filter)($solution, a, b, c, d, e) {
+                                if ($self.filter)($solution, a, b, c, d, e, i, j, k, l, m) {
                                     let justification = ConstraintJustification::new(vec![
                                         EntityRef::new(a),
                                         EntityRef::new(b),

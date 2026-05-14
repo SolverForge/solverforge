@@ -103,7 +103,11 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
             K: Eq + Hash + Clone,
             E: $crate::stream::collection_extract::CollectionExtract<S, Item = A>,
             KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
-            F: Fn(&S, $(repeat_nary_constraint_tokens!($entity => &A)),+) -> bool,
+	            F: Fn(
+	                &S,
+	                $(repeat_nary_constraint_tokens!($entity => &A)),+,
+	                $(repeat_nary_constraint_tokens!($match_idx => usize)),+
+	            ) -> bool,
             W: Fn(&S, &[A], $(repeat_nary_constraint_tokens!($match_idx => usize)),+) -> Sc,
             Sc: Score,
         {
@@ -203,7 +207,7 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
 
                         $(let $entity = &entities[$match_idx];)+
 
-                        if filter(solution, $($entity),+) && matches.insert(match_tuple) {
+	                        if filter(solution, $($entity),+, $($match_idx),+) && matches.insert(match_tuple) {
                             $(entity_to_matches.entry($match_idx).or_default().insert(match_tuple);)+
                             let base = weight(solution, entities, $($match_idx),+);
                             let score = match impact_type {
@@ -266,7 +270,11 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
             K: Eq + Hash + Clone + Send + Sync,
             E: $crate::stream::collection_extract::CollectionExtract<S, Item = A>,
             KE: $crate::stream::key_extract::KeyExtract<S, A, K>,
-            F: Fn(&S, $(repeat_nary_constraint_tokens!($entity => &A)),+) -> bool + Send + Sync,
+	            F: Fn(
+	                &S,
+	                $(repeat_nary_constraint_tokens!($entity => &A)),+,
+	                $(repeat_nary_constraint_tokens!($match_idx => usize)),+
+	            ) -> bool + Send + Sync,
             W: Fn(&S, &[A], $(repeat_nary_constraint_tokens!($match_idx => usize)),+) -> Sc + Send + Sync,
             Sc: Score,
         {
@@ -285,7 +293,7 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                         values = [$($combo_value),+],
                         {
                             $(let $entity = &entities[$combo_value];)+
-                            if (self.filter)(solution, $($entity),+) {
+	                            if (self.filter)(solution, $($entity),+, $($combo_value),+) {
                                 total = total + self.compute_score(solution, entities, ($($combo_value),+));
                             }
                         }
@@ -309,7 +317,7 @@ macro_rules! impl_incremental_higher_arity_constraint_common {
                         positions = [$($combo_pos),+],
                         values = [$($combo_value),+],
                         {
-                            if (self.filter)(solution, $(&entities[$combo_value]),+) {
+	                            if (self.filter)(solution, $(&entities[$combo_value]),+, $($combo_value),+) {
                                 count += 1;
                             }
                         }

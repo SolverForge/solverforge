@@ -176,7 +176,7 @@ where
     Flatten: Fn(&B) -> &[C],
     CKeyFn: Fn(&C) -> CK,
     ALookup: Fn(&A) -> CK,
-    F: Fn(&S, &A, &C) -> bool,
+    F: Fn(&S, &A, &C, usize, usize) -> bool,
     W: Fn(&A, &C) -> Sc,
     Sc: Score,
 {
@@ -266,7 +266,7 @@ where
     }
 
     // Compute score for entity A using O(1) index lookup.
-    fn compute_a_score(&self, solution: &S, a: &A) -> Sc {
+    fn compute_a_score(&self, solution: &S, a: &A, a_idx: usize) -> Sc {
         let join_key = (self.key_a)(a);
         let lookup_key = (self.a_lookup_fn)(a);
 
@@ -281,7 +281,7 @@ where
 
         let mut total = Sc::zero();
         for entry in matches {
-            if (self.filter)(solution, a, &entry.value) {
+            if (self.filter)(solution, a, &entry.value, a_idx, entry.b_idx) {
                 total = total + self.compute_score(a, &entry.value);
             }
         }
@@ -331,7 +331,7 @@ where
         let pos = indices.len();
         indices.push(a_idx);
         self.a_index_to_bucket.insert(a_idx, ASlot { bucket, pos });
-        let score = self.compute_a_score(solution, a);
+        let score = self.compute_a_score(solution, a, a_idx);
 
         if score != Sc::zero() {
             self.a_scores.insert(a_idx, score);
@@ -373,7 +373,7 @@ where
             return Sc::zero();
         }
         let old_score = self.a_scores.remove(&a_idx).unwrap_or_else(Sc::zero);
-        let new_score = self.compute_a_score(solution, &entities_a[a_idx]);
+        let new_score = self.compute_a_score(solution, &entities_a[a_idx], a_idx);
         if new_score != Sc::zero() {
             self.a_scores.insert(a_idx, new_score);
         }

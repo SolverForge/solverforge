@@ -20,7 +20,7 @@ where
     EB: CollectionExtract<S, Item = B> + Send + Sync,
     KA: Fn(&A) -> K + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    F: Fn(&S, &A, &B) -> bool + Send + Sync,
+    F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
     W: CrossBiWeight<S, A, B, Sc>,
     Sc: Score,
 {
@@ -33,7 +33,7 @@ where
         for (a_idx, a) in entities_a.iter().enumerate() {
             for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
                 let b = &entities_b[b_idx];
-                if (self.filter)(solution, a, b) {
+                if (self.filter)(solution, a, b, a_idx, b_idx) {
                     total =
                         total + self.compute_score(solution, entities_a, entities_b, a_idx, b_idx);
                 }
@@ -49,10 +49,10 @@ where
         let b_by_key = self.b_index_for(entities_b);
         let mut count = 0;
 
-        for a in entities_a {
+        for (a_idx, a) in entities_a.iter().enumerate() {
             for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
                 let b = &entities_b[b_idx];
-                if (self.filter)(solution, a, b) {
+                if (self.filter)(solution, a, b, a_idx, b_idx) {
                     count += 1;
                 }
             }
@@ -161,7 +161,7 @@ where
         for (a_idx, a) in entities_a.iter().enumerate() {
             for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
                 let b = &entities_b[b_idx];
-                if (self.filter)(solution, a, b) {
+                if (self.filter)(solution, a, b, a_idx, b_idx) {
                     let entity_a = EntityRef::new(a);
                     let entity_b = EntityRef::new(b);
                     let justification = ConstraintJustification::new(vec![entity_a, entity_b]);

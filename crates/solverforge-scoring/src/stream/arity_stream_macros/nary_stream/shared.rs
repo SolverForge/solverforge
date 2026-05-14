@@ -100,13 +100,17 @@ macro_rules! impl_nary_arity_stream_common {
                 K,
                 E,
                 KE,
-                super::filter::$and_filter<
-                    F,
-                    super::filter::$fn_filter<
-                        impl Fn(&S, $(repeat_tokens!($entity => &A)),+) -> bool + Send + Sync,
-                    >,
-                >,
-                Sc,
+	                super::filter::$and_filter<
+	                    F,
+	                    super::filter::$fn_filter<
+	                        impl Fn(
+	                            &S,
+	                            $(repeat_tokens!($entity => &A)),+
+	                            $(, repeat_tokens!($filter_idx => usize))*
+	                        ) -> bool + Send + Sync,
+	                    >,
+	                >,
+	                Sc,
             >
             where
                 P: Fn($(repeat_tokens!($entity => &A)),+) -> bool + Send + Sync + 'static,
@@ -115,12 +119,17 @@ macro_rules! impl_nary_arity_stream_common {
                     extractor: self.extractor,
                     key_extractor: self.key_extractor,
                     filter: super::filter::$and_filter::new(
-                        self.filter,
-                        super::filter::$fn_filter::new(
-                            move |_s: &S, $($entity: &A),+| predicate($($entity),+),
-                        ),
-                    ),
-                    _phantom: std::marker::PhantomData,
+	                        self.filter,
+	                        super::filter::$fn_filter::new(
+	                            move |_s: &S,
+	                                  $($entity: &A),+
+	                                  $(, $filter_idx: usize)*| {
+	                                let _ = ($($filter_idx),*);
+	                                predicate($($entity),+)
+	                            },
+	                        ),
+	                    ),
+	                    _phantom: std::marker::PhantomData,
                 }
             }
 

@@ -21,7 +21,7 @@ where
     EB: CollectionExtract<S, Item = B> + Send + Sync,
     KA: Fn(&A) -> JK + Send + Sync,
     KB: Fn(&B) -> JK + Send + Sync,
-    F: Fn(&S, &A, &B) -> bool + Send + Sync,
+    F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
     GF: Fn(&A, &B) -> GK + Send + Sync,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc> + Send + Sync,
     V: Send + Sync,
@@ -45,7 +45,7 @@ where
 
         let a = &entities_a[a_idx];
         let b = &entities_b[b_idx];
-        if !(self.filter)(solution, a, b) {
+        if !(self.filter)(solution, a, b, a_idx, b_idx) {
             return Sc::zero();
         }
 
@@ -240,7 +240,7 @@ where
     EB: CollectionExtract<S, Item = B> + Send + Sync,
     KA: Fn(&A) -> JK + Send + Sync,
     KB: Fn(&B) -> JK + Send + Sync,
-    F: Fn(&S, &A, &B) -> bool + Send + Sync,
+    F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
     GF: Fn(&A, &B) -> GK + Send + Sync,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc> + Send + Sync,
     V: Send + Sync,
@@ -255,10 +255,10 @@ where
         let b_by_key = self.b_index_for(entities_b);
         let mut groups = HashMap::<GK, Acc>::new();
 
-        for a in entities_a {
+        for (a_idx, a) in entities_a.iter().enumerate() {
             for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
                 let b = &entities_b[b_idx];
-                if !(self.filter)(solution, a, b) {
+                if !(self.filter)(solution, a, b, a_idx, b_idx) {
                     continue;
                 }
                 let key = (self.group_key_fn)(a, b);
@@ -281,10 +281,10 @@ where
         let b_by_key = self.b_index_for(entities_b);
         let mut groups = HashMap::<GK, ()>::new();
 
-        for a in entities_a {
+        for (a_idx, a) in entities_a.iter().enumerate() {
             for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
                 let b = &entities_b[b_idx];
-                if (self.filter)(solution, a, b) {
+                if (self.filter)(solution, a, b, a_idx, b_idx) {
                     groups.insert((self.group_key_fn)(a, b), ());
                 }
             }

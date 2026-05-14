@@ -95,7 +95,7 @@ where
         EB,
         KA,
         KB,
-        AndBiFilter<F, FnBiFilter<impl Fn(&S, &A, &B) -> bool + Send + Sync>>,
+        AndBiFilter<F, FnBiFilter<impl Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync>>,
         Sc,
     >
     where
@@ -108,7 +108,9 @@ where
             key_b: self.key_b,
             filter: AndBiFilter::new(
                 self.filter,
-                FnBiFilter::new(move |_s: &S, a: &A, b: &B| predicate(a, b)),
+                FnBiFilter::new(move |_s: &S, a: &A, b: &B, _a_idx: usize, _b_idx: usize| {
+                    predicate(a, b)
+                }),
             ),
             _phantom: PhantomData,
         }

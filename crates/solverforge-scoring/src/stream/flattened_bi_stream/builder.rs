@@ -106,12 +106,14 @@ where
         Flatten,
         CKeyFn,
         ALookup,
-        impl Fn(&S, &A, &C) -> bool + Send + Sync,
+        impl Fn(&S, &A, &C, usize, usize) -> bool + Send + Sync,
         W,
         Sc,
     > {
         let filter = self.filter;
-        let combined_filter = move |s: &S, a: &A, c: &C| filter.test(s, a, c, 0, 0);
+        let combined_filter = move |s: &S, a: &A, c: &C, a_idx: usize, b_idx: usize| {
+            filter.test(s, a, c, a_idx, b_idx)
+        };
 
         FlattenedBiConstraint::new(
             ConstraintRef::new("", name),

@@ -144,12 +144,14 @@ where
         EB,
         KA,
         KB,
-        impl Fn(&S, &A, &B) -> bool + Send + Sync,
+        impl Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
         PairWeight<W>,
         Sc,
     > {
         let filter = self.filter;
-        let combined_filter = move |s: &S, a: &A, b: &B| filter.test(s, a, b, 0, 0);
+        let combined_filter = move |s: &S, a: &A, b: &B, a_idx: usize, b_idx: usize| {
+            filter.test(s, a, b, a_idx, b_idx)
+        };
 
         IncrementalCrossBiConstraint::new_pair_weight(
             ConstraintRef::new("", name),

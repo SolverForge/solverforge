@@ -73,7 +73,7 @@ where
     EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> JK,
     KB: Fn(&B) -> JK,
-    F: Fn(&S, &A, &B) -> bool,
+    F: Fn(&S, &A, &B, usize, usize) -> bool,
     GF: Fn(&A, &B) -> GK,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc>,
     Acc: Accumulator<V, R>,

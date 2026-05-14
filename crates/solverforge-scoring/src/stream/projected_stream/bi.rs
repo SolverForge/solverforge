@@ -43,7 +43,7 @@ where
         Src,
         F,
         KF,
-        AndBiFilter<PF, FnBiFilter<impl Fn(&S, &Out, &Out) -> bool + Send + Sync>>,
+        AndBiFilter<PF, FnBiFilter<impl Fn(&S, &Out, &Out, usize, usize) -> bool + Send + Sync>>,
         Sc,
     >
     where
@@ -55,7 +55,11 @@ where
             key_fn: self.key_fn,
             pair_filter: AndBiFilter::new(
                 self.pair_filter,
-                FnBiFilter::new(move |_s: &S, left: &Out, right: &Out| predicate(left, right)),
+                FnBiFilter::new(
+                    move |_s: &S, left: &Out, right: &Out, _left_idx: usize, _right_idx: usize| {
+                        predicate(left, right)
+                    },
+                ),
             ),
             _phantom: PhantomData,
         }

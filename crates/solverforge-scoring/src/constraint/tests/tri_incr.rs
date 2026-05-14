@@ -30,7 +30,13 @@ fn test_tri_constraint_evaluate() {
             ChangeSource::Descriptor(0),
         ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
-        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution,
+         _a: &Task,
+         _b: &Task,
+         _c: &Task,
+         _a_idx: usize,
+         _b_idx: usize,
+         _c_idx: usize| true,
         |_s: &Solution, _entities: &[Task], _a_idx: usize, _b_idx: usize, _c_idx: usize| {
             SoftScore::of(1)
         },
@@ -60,7 +66,13 @@ fn test_tri_constraint_multiple_triples() {
             ChangeSource::Descriptor(0),
         ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
-        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution,
+         _a: &Task,
+         _b: &Task,
+         _c: &Task,
+         _a_idx: usize,
+         _b_idx: usize,
+         _c_idx: usize| true,
         |_s: &Solution, _entities: &[Task], _a_idx: usize, _b_idx: usize, _c_idx: usize| {
             SoftScore::of(1)
         },
@@ -90,7 +102,13 @@ fn test_tri_constraint_incremental() {
             ChangeSource::Descriptor(0),
         ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
-        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution,
+         _a: &Task,
+         _b: &Task,
+         _c: &Task,
+         _a_idx: usize,
+         _b_idx: usize,
+         _c_idx: usize| true,
         |_s: &Solution, _entities: &[Task], _a_idx: usize, _b_idx: usize, _c_idx: usize| {
             SoftScore::of(1)
         },
@@ -117,6 +135,42 @@ fn test_tri_constraint_incremental() {
 }
 
 #[test]
+fn tri_filter_receives_source_indexes() {
+    let mut constraint = IncrementalTriConstraint::new(
+        ConstraintRef::new("", "Indexed cluster"),
+        ImpactType::Penalty,
+        source(
+            tasks as fn(&Solution) -> &[Task],
+            ChangeSource::Descriptor(0),
+        ),
+        |_s: &Solution, t: &Task, _idx: usize| t.team,
+        |_s: &Solution,
+         _a: &Task,
+         _b: &Task,
+         _c: &Task,
+         a_idx: usize,
+         b_idx: usize,
+         c_idx: usize| { (a_idx, b_idx, c_idx) == (1, 2, 3) },
+        |_s: &Solution, _entities: &[Task], _a_idx: usize, _b_idx: usize, _c_idx: usize| {
+            SoftScore::of(1)
+        },
+        false,
+    );
+    let solution = Solution {
+        tasks: vec![
+            Task { team: 1 },
+            Task { team: 1 },
+            Task { team: 1 },
+            Task { team: 1 },
+        ],
+    };
+
+    assert_eq!(constraint.match_count(&solution), 1);
+    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
+    assert_eq!(constraint.initialize(&solution), SoftScore::of(-1));
+}
+
+#[test]
 fn test_tri_constraint_reward() {
     let constraint = IncrementalTriConstraint::new(
         ConstraintRef::new("", "Team bonus"),
@@ -126,7 +180,13 @@ fn test_tri_constraint_reward() {
             ChangeSource::Descriptor(0),
         ),
         |_s: &Solution, t: &Task, _idx: usize| t.team,
-        |_s: &Solution, _a: &Task, _b: &Task, _c: &Task| true,
+        |_s: &Solution,
+         _a: &Task,
+         _b: &Task,
+         _c: &Task,
+         _a_idx: usize,
+         _b_idx: usize,
+         _c_idx: usize| true,
         |_s: &Solution, _entities: &[Task], _a_idx: usize, _b_idx: usize, _c_idx: usize| {
             SoftScore::of(5)
         },

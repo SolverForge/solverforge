@@ -13,7 +13,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::stream::collector::{Accumulator, UniCollector};
+use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
 
 struct GroupState<Acc> {
@@ -21,10 +21,7 @@ struct GroupState<Acc> {
     count: usize,
 }
 
-type CollectorRetraction<C, A> = <<C as UniCollector<A>>::Accumulator as Accumulator<
-    <C as UniCollector<A>>::Value,
-    <C as UniCollector<A>>::Result,
->>::Retraction;
+type CollectorRetraction<Acc, V, R> = <Acc as Accumulator<V, R>>::Retraction;
 
 /* Zero-erasure constraint that groups entities by key and scores based on collector results.
 
@@ -70,7 +67,7 @@ ImpactType::Penalty,
 |s: &Solution| &s.shifts,
 TrueFilter,
 |shift: &Shift| shift.employee_id,
-count::<Shift>(),
+    count(),
 |_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64),
 false,
 );
@@ -90,9 +87,9 @@ Shift { employee_id: 2 },
 assert_eq!(constraint.evaluate(&solution), SoftScore::of(-10));
 ```
 */
-pub struct GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
+pub struct GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
-    C: UniCollector<A>,
+    Acc: Accumulator<V, R>,
     Sc: Score,
 {
     constraint_ref: ConstraintRef,
@@ -105,15 +102,23 @@ where
     is_hard: bool,
     change_source: crate::stream::collection_extract::ChangeSource,
     // Group key -> accumulator plus count (scores computed on-the-fly, no cloning)
-    groups: HashMap<K, GroupState<C::Accumulator>>,
+    groups: HashMap<K, GroupState<Acc>>,
     // Entity index -> group key (for tracking which group an entity belongs to)
     entity_groups: HashMap<usize, K>,
     // Entity index -> accumulator retraction token
-    entity_retractions: HashMap<usize, CollectorRetraction<C, A>>,
-    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
+    entity_retractions: HashMap<usize, CollectorRetraction<Acc, V, R>>,
+    _phantom: PhantomData<(
+        fn() -> S,
+        fn() -> A,
+        fn() -> V,
+        fn() -> R,
+        fn() -> Acc,
+        fn() -> Sc,
+    )>,
 }
 
-impl<S, A, K, E, Fi, KF, C, W, Sc> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
+    GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -121,10 +126,11 @@ where
     E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
-    C: UniCollector<A> + Send + Sync + 'static,
-    C::Accumulator: Send + Sync,
-    C::Result: Send + Sync,
-    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
+    V: Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    Acc: Accumulator<V, R> + Send + Sync + 'static,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     /* Creates a new zero-erasure grouped constraint.
@@ -170,7 +176,7 @@ where
     }
 
     // Computes the score contribution for a group's result.
-    fn compute_score(&self, key: &K, result: &C::Result) -> Sc {
+    fn compute_score(&self, key: &K, result: &R) -> Sc {
         let base = (self.weight_fn)(key, result);
         match self.impact_type {
             ImpactType::Penalty => -base,
@@ -179,8 +185,8 @@ where
     }
 }
 
-impl<S, A, K, E, Fi, KF, C, W, Sc> IncrementalConstraint<S, Sc>
-    for GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> IncrementalConstraint<S, Sc>
+    for GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -188,18 +194,18 @@ where
     E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
-    C: UniCollector<A> + Send + Sync + 'static,
-    C::Accumulator: Send + Sync,
-    C::Result: Send + Sync,
-    C::Value: Send + Sync,
-    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
+    V: Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    Acc: Accumulator<V, R> + Send + Sync + 'static,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     fn evaluate(&self, solution: &S) -> Sc {
         let entities = self.extractor.extract(solution);
 
         // Group entities by key, applying filter
-        let mut groups: HashMap<K, C::Accumulator> = HashMap::new();
+        let mut groups: HashMap<K, Acc> = HashMap::new();
 
         for entity in entities {
             if !self.filter.test(solution, entity) {
@@ -303,7 +309,8 @@ where
     }
 }
 
-impl<S, A, K, E, Fi, KF, C, W, Sc> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
+    GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -311,11 +318,11 @@ where
     E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
-    C: UniCollector<A> + Send + Sync + 'static,
-    C::Accumulator: Send + Sync,
-    C::Result: Send + Sync,
-    C::Value: Send + Sync,
-    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
+    V: Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    Acc: Accumulator<V, R> + Send + Sync + 'static,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     fn insert_entity(&mut self, _entities: &[A], entity_index: usize, entity: &A) -> Sc {
@@ -426,10 +433,10 @@ where
     }
 }
 
-impl<S, A, K, E, Fi, KF, C, W, Sc> std::fmt::Debug
-    for GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> std::fmt::Debug
+    for GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
-    C: UniCollector<A>,
+    Acc: Accumulator<V, R>,
     Sc: Score,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

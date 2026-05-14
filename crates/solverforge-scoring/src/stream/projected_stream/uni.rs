@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
 
-use crate::stream::collector::UniCollector;
+use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter};
 use crate::stream::joiner::EqualJoiner;
 use crate::stream::weighting_support::ConstraintWeight;
@@ -86,18 +86,21 @@ where
         }
     }
 
-    pub fn group_by<K, KF, C>(
+    pub fn group_by<K, KF, C, V, R, Acc>(
         self,
         key_fn: KF,
         collector: C,
-    ) -> ProjectedGroupedConstraintStream<S, Out, K, Src, F, KF, C, Sc>
+    ) -> ProjectedGroupedConstraintStream<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
     where
         K: Eq + Hash + Send + Sync + 'static,
         KF: Fn(&Out) -> K + Send + Sync,
-        C: UniCollector<Out> + Send + Sync + 'static,
-        C::Accumulator: Send + Sync,
-        C::Value: Send + Sync,
-        C::Result: Send + Sync,
+        C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc>
+            + Send
+            + Sync
+            + 'static,
+        V: Send + Sync + 'static,
+        R: Send + Sync + 'static,
+        Acc: Accumulator<V, R> + Send + Sync + 'static,
     {
         ProjectedGroupedConstraintStream {
             source: self.source,

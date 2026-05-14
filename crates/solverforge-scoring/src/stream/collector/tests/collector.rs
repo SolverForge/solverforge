@@ -8,7 +8,7 @@ use super::super::collect_vec::collect_vec;
 use super::super::indexed_presence::indexed_presence;
 use super::super::load_balance::load_balance;
 use super::super::runs::consecutive_runs;
-use super::super::{Accumulator, UniCollector};
+use super::super::{Accumulator, Collector};
 
 /* ============================================================================
 CollectVec collector tests

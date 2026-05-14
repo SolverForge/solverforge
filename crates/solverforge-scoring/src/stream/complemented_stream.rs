@@ -11,7 +11,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use super::collection_extract::CollectionExtract;
-use super::collector::UniCollector;
+use super::collector::{Accumulator, Collector};
 use super::weighting_support::ConstraintWeight;
 use crate::constraint::complemented::ComplementedGroupConstraint;
 
@@ -83,7 +83,7 @@ Shift { employee_id: 0 },
 assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
 ```
 */
-pub struct ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, D, Sc>
+pub struct ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc>
 where
     Sc: Score,
 {
@@ -93,11 +93,20 @@ where
     key_b: KB,
     collector: C,
     default_fn: D,
-    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Sc)>,
+    _phantom: PhantomData<(
+        fn() -> S,
+        fn() -> A,
+        fn() -> B,
+        fn() -> K,
+        fn() -> V,
+        fn() -> R,
+        fn() -> Acc,
+        fn() -> Sc,
+    )>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, C, D, Sc>
-    ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, D, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc>
+    ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -107,10 +116,11 @@ where
     EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> Option<K> + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    C: UniCollector<A> + Send + Sync + 'static,
-    C::Accumulator: Send + Sync,
-    C::Result: Send + Sync,
-    D: Fn(&B) -> C::Result + Send + Sync,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
+    V: Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    Acc: Accumulator<V, R> + Send + Sync + 'static,
+    D: Fn(&B) -> R + Send + Sync,
     Sc: Score + 'static,
 {
     fn into_weighted_builder<W>(
@@ -118,9 +128,9 @@ where
         impact_type: ImpactType,
         weight_fn: W,
         is_hard: bool,
-    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
+    ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
     where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+        W: Fn(&K, &R) -> Sc + Send + Sync,
     {
         ComplementedConstraintBuilder {
             extractor_a: self.extractor_a,
@@ -169,17 +179,20 @@ where
         KA,
         KB,
         C,
+        V,
+        R,
+        Acc,
         D,
-        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
+        impl Fn(&K, &R) -> Sc + Send + Sync,
         Sc,
     >
     where
-        W: for<'w> ConstraintWeight<(&'w K, &'w C::Result), Sc> + Send + Sync,
+        W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
     {
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Penalty,
-            move |key: &K, result: &C::Result| weight.score((key, result)),
+            move |key: &K, result: &R| weight.score((key, result)),
             is_hard,
         )
     }
@@ -197,24 +210,27 @@ where
         KA,
         KB,
         C,
+        V,
+        R,
+        Acc,
         D,
-        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
+        impl Fn(&K, &R) -> Sc + Send + Sync,
         Sc,
     >
     where
-        W: for<'w> ConstraintWeight<(&'w K, &'w C::Result), Sc> + Send + Sync,
+        W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
     {
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             ImpactType::Reward,
-            move |key: &K, result: &C::Result| weight.score((key, result)),
+            move |key: &K, result: &R| weight.score((key, result)),
             is_hard,
         )
     }
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, C, D, Sc: Score> std::fmt::Debug
-    for ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, D, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc: Score> std::fmt::Debug
+    for ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ComplementedConstraintStream").finish()
@@ -222,7 +238,7 @@ impl<S, A, B, K, EA, EB, KA, KB, C, D, Sc: Score> std::fmt::Debug
 }
 
 // Zero-erasure builder for finalizing a complemented constraint.
-pub struct ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
+pub struct ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     Sc: Score,
 {
@@ -235,11 +251,20 @@ where
     impact_type: ImpactType,
     weight_fn: W,
     is_hard: bool,
-    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Sc)>,
+    _phantom: PhantomData<(
+        fn() -> S,
+        fn() -> A,
+        fn() -> B,
+        fn() -> K,
+        fn() -> V,
+        fn() -> R,
+        fn() -> Acc,
+        fn() -> Sc,
+    )>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
-    ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+    ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -249,17 +274,18 @@ where
     EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> Option<K> + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    C: UniCollector<A> + Send + Sync + 'static,
-    C::Accumulator: Send + Sync,
-    C::Result: Send + Sync,
-    D: Fn(&B) -> C::Result + Send + Sync,
-    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
+    V: Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    Acc: Accumulator<V, R> + Send + Sync + 'static,
+    D: Fn(&B) -> R + Send + Sync,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     pub fn named(
         self,
         name: &str,
-    ) -> ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc> {
+    ) -> ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc> {
         ComplementedGroupConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
@@ -277,8 +303,8 @@ where
     // Finalizes the builder into a `ComplementedGroupConstraint`.
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc: Score> std::fmt::Debug
-    for ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc: Score> std::fmt::Debug
+    for ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ComplementedConstraintBuilder")

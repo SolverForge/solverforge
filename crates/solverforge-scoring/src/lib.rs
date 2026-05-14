@@ -26,9 +26,10 @@ Zero-Erasure Incremental Constraints
 */
 
 pub use constraint::{
-    GroupedUniConstraint, IncrementalBiConstraint, IncrementalCrossBiConstraint,
-    IncrementalPentaConstraint, IncrementalQuadConstraint, IncrementalTriConstraint,
-    IncrementalUniConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
+    CrossGroupedConstraint, GroupedUniConstraint, IncrementalBiConstraint,
+    IncrementalCrossBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
+    IncrementalTriConstraint, IncrementalUniConstraint, ProjectedComplementedGroupedConstraint,
+    ProjectedGroupedConstraint, ProjectedUniConstraint,
 };
 
 /* ============================================================================
@@ -66,8 +67,10 @@ Fluent Constraint Stream API
 
 pub use stream::{
     fixed_weight, hard_weight, BiConstraintBuilder, BiConstraintStream, ConstraintFactory,
-    FixedWeight, GroupedConstraintBuilder, GroupedConstraintStream, HardWeight,
-    ProjectedBiConstraintBuilder, ProjectedBiConstraintStream, ProjectedConstraintBuilder,
+    CrossGroupedConstraintBuilder, CrossGroupedConstraintStream, FixedWeight,
+    GroupedConstraintBuilder, GroupedConstraintStream, HardWeight, ProjectedBiConstraintBuilder,
+    ProjectedBiConstraintStream, ProjectedComplementedGroupedConstraintBuilder,
+    ProjectedComplementedGroupedConstraintStream, ProjectedConstraintBuilder,
     ProjectedConstraintStream, ProjectedGroupedConstraintBuilder, ProjectedGroupedConstraintStream,
     Projection, ProjectionSink, UniConstraintBuilder, UniConstraintStream,
 };

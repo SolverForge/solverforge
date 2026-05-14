@@ -19,6 +19,7 @@ pub mod nary_incremental;
 pub mod balance;
 pub mod complemented;
 pub mod cross_bi_incremental;
+pub mod cross_grouped;
 pub mod exists;
 pub mod flattened_bi;
 pub mod grouped;
@@ -32,6 +33,7 @@ mod tests;
 pub use balance::BalanceConstraint;
 pub use complemented::ComplementedGroupConstraint;
 pub use cross_bi_incremental::IncrementalCrossBiConstraint;
+pub use cross_grouped::CrossGroupedConstraint;
 pub use exists::IncrementalExistsConstraint;
 pub use flattened_bi::FlattenedBiConstraint;
 pub use grouped::GroupedUniConstraint;
@@ -40,4 +42,6 @@ pub use nary_incremental::{
     IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
     IncrementalTriConstraint,
 };
-pub use projected::{ProjectedGroupedConstraint, ProjectedUniConstraint};
+pub use projected::{
+    ProjectedComplementedGroupedConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
+};

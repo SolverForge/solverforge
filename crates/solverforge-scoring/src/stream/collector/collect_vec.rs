@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use super::{Accumulator, UniCollector};
+use super::{Accumulator, Collector};
 
 #[derive(Debug)]
 pub struct CollectedVec<T> {
@@ -100,11 +100,10 @@ impl<'a, T> IntoIterator for &'a CollectedVec<T> {
 /// The returned view preserves the accumulator's current insertion order, but that ordering is
 /// not a semantic guarantee. Consumers that depend on ordering must sort the collected values
 /// before scoring.
-pub fn collect_vec<A, T, F>(mapper: F) -> CollectVecCollector<A, T, F>
+pub fn collect_vec<T, F>(mapper: F) -> CollectVecCollector<T, F>
 where
-    A: Send + Sync + 'static,
     T: Send + Sync + 'static,
-    F: Fn(&A) -> T + Send + Sync + 'static,
+    F: Send + Sync + 'static,
 {
     CollectVecCollector {
         mapper,
@@ -112,24 +111,24 @@ where
     }
 }
 
-pub struct CollectVecCollector<A, T, F> {
+pub struct CollectVecCollector<T, F> {
     mapper: F,
-    _phantom: PhantomData<fn(&A) -> T>,
+    _phantom: PhantomData<fn() -> T>,
 }
 
-impl<A, T, F> UniCollector<A> for CollectVecCollector<A, T, F>
+impl<Input, T, F> Collector<Input> for CollectVecCollector<T, F>
 where
-    A: Send + Sync + 'static,
+    Input: Send + Sync,
     T: Send + Sync + 'static,
-    F: Fn(&A) -> T + Send + Sync + 'static,
+    F: Fn(Input) -> T + Send + Sync + 'static,
 {
     type Value = T;
     type Result = CollectedVec<T>;
     type Accumulator = CollectVecAccumulator<T>;
 
     #[inline]
-    fn extract(&self, entity: &A) -> T {
-        (self.mapper)(entity)
+    fn extract(&self, input: Input) -> T {
+        (self.mapper)(input)
     }
 
     fn create_accumulator(&self) -> Self::Accumulator {

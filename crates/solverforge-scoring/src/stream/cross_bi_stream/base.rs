@@ -7,6 +7,7 @@ use super::super::collection_extract::CollectionExtract;
 use super::super::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter};
 use super::super::flattened_bi_stream::FlattenedBiConstraintStream;
 use super::super::projected_stream::{JoinedProjectedSource, ProjectedConstraintStream};
+use super::grouped::CrossGroupedConstraintStream;
 
 /* Zero-erasure constraint stream over cross-entity pairs.
 
@@ -152,6 +153,38 @@ where
             c_key_fn,
             a_lookup_fn,
         )
+    }
+
+    pub fn group_by<GK, GF, C, V, R, Acc>(
+        self,
+        group_key_fn: GF,
+        collector: C,
+    ) -> CrossGroupedConstraintStream<S, A, B, K, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
+    where
+        GK: Eq + Hash + Clone + Send + Sync + 'static,
+        GF: Fn(&A, &B) -> GK + Send + Sync,
+        C: for<'i> super::super::collector::Collector<
+                (&'i A, &'i B),
+                Value = V,
+                Result = R,
+                Accumulator = Acc,
+            > + Send
+            + Sync
+            + 'static,
+        V: Send + Sync + 'static,
+        R: Send + Sync + 'static,
+        Acc: super::super::collector::Accumulator<V, R> + Send + Sync + 'static,
+    {
+        CrossGroupedConstraintStream {
+            extractor_a: self.extractor_a,
+            extractor_b: self.extractor_b,
+            key_a: self.key_a,
+            key_b: self.key_b,
+            filter: self.filter,
+            group_key_fn,
+            collector,
+            _phantom: PhantomData,
+        }
     }
 }
 

@@ -6,6 +6,7 @@ use std::sync::{
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::IncrementalCrossBiConstraint;
 use crate::stream::collection_extract::{source, ChangeSource, CollectionExtract};
+use crate::stream::collector::sum;
 use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
 use solverforge_core::score::{Score, SoftScore};
@@ -87,6 +88,31 @@ fn create_unavailable_employee_constraint() -> impl IncrementalConstraint<Schedu
     )
 }
 
+fn create_grouped_shift_count_constraint() -> impl IncrementalConstraint<Schedule, SoftScore> {
+    ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
+            (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ))
+        .join((
+            source(
+                (|schedule: &Schedule| schedule.employees.as_slice())
+                    as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            equal_bi(
+                |shift: &Shift| shift.employee_id,
+                |employee: &Employee| Some(employee.id),
+            ),
+        ))
+        .group_by(
+            |_shift: &Shift, employee: &Employee| employee.id,
+            sum(|(_shift, _employee): (&Shift, &Employee)| 1i64),
+        )
+        .penalize(|_employee_id: &usize, count: &i64| SoftScore::of(count * count))
+        .named("grouped assigned shift count")
+}
+
 fn sample_schedule() -> Schedule {
     Schedule {
         shifts: vec![
@@ -103,6 +129,31 @@ fn sample_schedule() -> Schedule {
             id: 0,
             unavailable_days: vec![5],
         }],
+    }
+}
+
+fn two_employee_schedule() -> Schedule {
+    Schedule {
+        shifts: vec![
+            Shift {
+                employee_id: Some(0),
+                day: 5,
+            },
+            Shift {
+                employee_id: Some(0),
+                day: 6,
+            },
+        ],
+        employees: vec![
+            Employee {
+                id: 0,
+                unavailable_days: Vec::new(),
+            },
+            Employee {
+                id: 1,
+                unavailable_days: Vec::new(),
+            },
+        ],
     }
 }
 
@@ -215,6 +266,31 @@ fn cross_bi_b_side_retract_and_insert_update_matches() {
     total = total + constraint.on_insert(&schedule, 0, 1);
 
     assert_eq!(total, SoftScore::of(-1));
+    assert_eq!(total, constraint.evaluate(&schedule));
+}
+
+#[test]
+fn cross_bi_group_by_scores_joined_pairs_without_projection() {
+    let constraint = create_grouped_shift_count_constraint();
+    let schedule = two_employee_schedule();
+
+    assert_eq!(constraint.match_count(&schedule), 1);
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-4));
+}
+
+#[test]
+fn cross_bi_group_by_incremental_updates_join_groups() {
+    let mut constraint = create_grouped_shift_count_constraint();
+    let mut schedule = two_employee_schedule();
+
+    let mut total = constraint.initialize(&schedule);
+    assert_eq!(total, SoftScore::of(-4));
+
+    total = total + constraint.on_retract(&schedule, 1, 0);
+    schedule.shifts[1].employee_id = Some(1);
+    total = total + constraint.on_insert(&schedule, 1, 0);
+
+    assert_eq!(total, SoftScore::of(-2));
     assert_eq!(total, constraint.evaluate(&schedule));
 }
 

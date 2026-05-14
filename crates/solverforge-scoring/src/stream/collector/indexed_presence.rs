@@ -3,12 +3,11 @@ use std::marker::PhantomData;
 use std::ops::Range;
 
 use super::runs::{runs_from_counts, Runs};
-use super::{Accumulator, UniCollector};
+use super::{Accumulator, Collector};
 
-pub fn indexed_presence<A, F>(index_fn: F) -> IndexedPresenceCollector<A, F>
+pub fn indexed_presence<F>(index_fn: F) -> IndexedPresenceCollector<F>
 where
-    A: Send + Sync,
-    F: Fn(&A) -> i64 + Send + Sync,
+    F: Send + Sync,
 {
     IndexedPresenceCollector {
         index_fn,
@@ -16,23 +15,23 @@ where
     }
 }
 
-pub struct IndexedPresenceCollector<A, F> {
+pub struct IndexedPresenceCollector<F> {
     index_fn: F,
-    _phantom: PhantomData<fn(&A)>,
+    _phantom: PhantomData<fn()>,
 }
 
-impl<A, F> UniCollector<A> for IndexedPresenceCollector<A, F>
+impl<Input, F> Collector<Input> for IndexedPresenceCollector<F>
 where
-    A: Send + Sync,
-    F: Fn(&A) -> i64 + Send + Sync,
+    Input: Send + Sync,
+    F: Fn(Input) -> i64 + Send + Sync,
 {
     type Value = i64;
     type Result = IndexedPresence;
     type Accumulator = IndexedPresenceAccumulator;
 
     #[inline]
-    fn extract(&self, entity: &A) -> Self::Value {
-        (self.index_fn)(entity)
+    fn extract(&self, input: Input) -> Self::Value {
+        (self.index_fn)(input)
     }
 
     fn create_accumulator(&self) -> Self::Accumulator {

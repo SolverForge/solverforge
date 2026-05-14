@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
-use super::{Accumulator, UniCollector};
+use super::{Accumulator, Collector};
 
 /* A consecutive run of unique integer points.
 
@@ -87,10 +87,9 @@ impl Runs {
 Duplicate points increase the `item_count` of their run but count as one unique
 point for `point_count`.
 */
-pub fn consecutive_runs<A, F>(index_fn: F) -> RunsCollector<A, F>
+pub fn consecutive_runs<F>(index_fn: F) -> RunsCollector<F>
 where
-    A: Send + Sync,
-    F: Fn(&A) -> i64 + Send + Sync,
+    F: Send + Sync,
 {
     RunsCollector {
         index_fn,
@@ -99,23 +98,23 @@ where
 }
 
 // Collector for consecutive runs over concrete i64 indexes.
-pub struct RunsCollector<A, F> {
+pub struct RunsCollector<F> {
     index_fn: F,
-    _phantom: PhantomData<fn(&A)>,
+    _phantom: PhantomData<fn()>,
 }
 
-impl<A, F> UniCollector<A> for RunsCollector<A, F>
+impl<Input, F> Collector<Input> for RunsCollector<F>
 where
-    A: Send + Sync,
-    F: Fn(&A) -> i64 + Send + Sync,
+    Input: Send + Sync,
+    F: Fn(Input) -> i64 + Send + Sync,
 {
     type Value = i64;
     type Result = Runs;
     type Accumulator = RunsAccumulator;
 
     #[inline]
-    fn extract(&self, entity: &A) -> Self::Value {
-        (self.index_fn)(entity)
+    fn extract(&self, input: Input) -> Self::Value {
+        (self.index_fn)(input)
     }
 
     fn create_accumulator(&self) -> Self::Accumulator {

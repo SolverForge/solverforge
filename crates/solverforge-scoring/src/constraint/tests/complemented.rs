@@ -46,7 +46,7 @@ fn test_complemented_evaluate() {
         ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
-        count::<Shift>(),
+        count(),
         |_emp: &Employee| 0usize,
         |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
@@ -84,7 +84,7 @@ fn test_complemented_skips_none_keys() {
         ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
-        count::<Shift>(),
+        count(),
         |_emp: &Employee| 0usize,
         |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
@@ -126,7 +126,7 @@ fn test_complemented_incremental() {
         ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
-        count::<Shift>(),
+        count(),
         |_emp: &Employee| 0usize,
         |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
@@ -182,7 +182,7 @@ fn test_complemented_incremental_with_none_keys() {
         ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
-        count::<Shift>(),
+        count(),
         |_emp: &Employee| 0usize,
         |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
@@ -225,7 +225,7 @@ fn test_complemented_with_default() {
         employees,
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
-        count::<Shift>(),
+        count(),
         |_emp: &Employee| 0usize,
         |_employee_id: &usize, count: &usize| SoftScore::of((*count as i64).pow(2)),
         false,
@@ -269,7 +269,7 @@ fn test_complemented_incremental_matches_evaluate() {
         ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
-        count::<Shift>(),
+        count(),
         |_emp: &Employee| 0usize,
         |_employee_id: &usize, count: &usize| SoftScore::of((*count as i64).pow(2)),
         false,
@@ -328,7 +328,7 @@ fn test_complemented_b_side_insert_and_retract() {
         ),
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
-        count::<Shift>(),
+        count(),
         |_emp: &Employee| 0usize,
         |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
@@ -361,7 +361,7 @@ fn test_complemented_missing_group_weight_can_use_complement_key() {
         employees,
         |shift: &Shift| shift.employee_id,
         |emp: &Employee| emp.id,
-        count::<Shift>(),
+        count(),
         |_emp: &Employee| 0usize,
         |employee_id: &usize, count: &usize| SoftScore::of((*employee_id as i64) + (*count as i64)),
         false,
@@ -375,4 +375,51 @@ fn test_complemented_missing_group_weight_can_use_complement_key() {
     };
 
     assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-5));
+}
+
+#[test]
+fn test_complemented_duplicate_complement_keys_match_incremental() {
+    let mut constraint = ComplementedGroupConstraint::new(
+        ConstraintRef::new("", "Duplicate complement key shift count"),
+        ImpactType::Penalty,
+        source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ),
+        source(
+            employees as fn(&Schedule) -> &[Employee],
+            ChangeSource::Descriptor(1),
+        ),
+        |shift: &Shift| shift.employee_id,
+        |emp: &Employee| emp.id,
+        count(),
+        |_emp: &Employee| 5usize,
+        |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
+        false,
+    );
+
+    let mut schedule = Schedule {
+        employees: vec![Employee { id: 0 }, Employee { id: 0 }, Employee { id: 1 }],
+        shifts: vec![Shift {
+            employee_id: Some(0),
+        }],
+    };
+
+    let mut running_total = constraint.initialize(&schedule);
+    assert_eq!(running_total, SoftScore::of(-7));
+    assert_eq!(running_total, constraint.evaluate(&schedule));
+
+    running_total = running_total + constraint.on_retract(&schedule, 0, 0);
+    schedule.shifts[0].employee_id = None;
+    running_total = running_total + constraint.on_insert(&schedule, 0, 0);
+
+    assert_eq!(running_total, SoftScore::of(-15));
+    assert_eq!(running_total, constraint.evaluate(&schedule));
+
+    running_total = running_total + constraint.on_retract(&schedule, 0, 0);
+    schedule.shifts[0].employee_id = Some(0);
+    running_total = running_total + constraint.on_insert(&schedule, 0, 0);
+
+    assert_eq!(running_total, SoftScore::of(-7));
+    assert_eq!(running_total, constraint.evaluate(&schedule));
 }

@@ -1,12 +1,13 @@
-use crate::stream::collector::UniCollector;
+use crate::stream::collector::{Accumulator, Collector};
 use solverforge_core::score::Score;
 
 use super::ComplementedGroupConstraint;
 
-impl<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc> std::fmt::Debug
-    for ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc> std::fmt::Debug
+    for ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
-    C: UniCollector<A>,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc>,
+    Acc: Accumulator<V, R>,
     Sc: Score,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

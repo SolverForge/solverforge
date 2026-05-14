@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-use super::{Accumulator, UniCollector};
+use super::{Accumulator, Collector};
 
 /* Result of load balancing - tracks loads per item and computes unfairness.
 
@@ -37,7 +37,7 @@ impl<K> LoadBalance<K> {
 # Example
 
 ```
-use solverforge_scoring::stream::collector::{load_balance, UniCollector, Accumulator};
+use solverforge_scoring::stream::collector::{load_balance, Accumulator, Collector};
 
 struct Shift { employee_id: usize }
 
@@ -47,20 +47,20 @@ let collector = load_balance(
 );
 
 let mut acc = collector.create_accumulator();
-acc.accumulate(&collector.extract(&Shift { employee_id: 0 }));
-acc.accumulate(&collector.extract(&Shift { employee_id: 0 }));
-acc.accumulate(&collector.extract(&Shift { employee_id: 1 }));
+acc.accumulate(collector.extract(&Shift { employee_id: 0 }));
+acc.accumulate(collector.extract(&Shift { employee_id: 0 }));
+acc.accumulate(collector.extract(&Shift { employee_id: 1 }));
 
 let result = acc.finish();
 // Employee 0 has 2, Employee 1 has 1 → unfairness = sqrt(0.5) ≈ 1
 assert_eq!(result.unfairness(), 1);
 ```
 */
-pub fn load_balance<A, K, F, M>(key_fn: F, metric_fn: M) -> LoadBalanceCollector<A, K, F, M>
+pub fn load_balance<K, F, M>(key_fn: F, metric_fn: M) -> LoadBalanceCollector<K, F, M>
 where
     K: Clone + Eq + Hash + Send + Sync,
-    F: Fn(&A) -> K + Send + Sync,
-    M: Fn(&A) -> i64 + Send + Sync,
+    F: Send + Sync,
+    M: Send + Sync,
 {
     LoadBalanceCollector {
         key_fn,
@@ -70,26 +70,26 @@ where
 }
 
 // Collector for computing load balance unfairness.
-pub struct LoadBalanceCollector<A, K, F, M> {
+pub struct LoadBalanceCollector<K, F, M> {
     key_fn: F,
     metric_fn: M,
-    _phantom: PhantomData<fn(&A) -> K>,
+    _phantom: PhantomData<fn() -> K>,
 }
 
-impl<A, K, F, M> UniCollector<A> for LoadBalanceCollector<A, K, F, M>
+impl<Input, K, F, M> Collector<Input> for LoadBalanceCollector<K, F, M>
 where
-    A: Send + Sync,
+    Input: Copy + Send + Sync,
     K: Clone + Eq + Hash + Send + Sync,
-    F: Fn(&A) -> K + Send + Sync,
-    M: Fn(&A) -> i64 + Send + Sync,
+    F: Fn(Input) -> K + Send + Sync,
+    M: Fn(Input) -> i64 + Send + Sync,
 {
     type Value = (K, i64);
     type Result = LoadBalance<K>;
     type Accumulator = LoadBalanceAccumulator<K>;
 
     #[inline]
-    fn extract(&self, entity: &A) -> Self::Value {
-        ((self.key_fn)(entity), (self.metric_fn)(entity))
+    fn extract(&self, input: Input) -> Self::Value {
+        ((self.key_fn)(input), (self.metric_fn)(input))
     }
 
     fn create_accumulator(&self) -> Self::Accumulator {

@@ -61,7 +61,7 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
         .filter(|shift: &Shift| shift.nurse_idx.is_some())
         .group_by(
             |shift: &Shift| shift.nurse_idx.unwrap_or(usize::MAX),
-            count::<Shift>(),
+            count(),
         )
         .complement(Schedule::nurses(), |nurse: &Nurse| nurse.id, |_nurse| 0usize)
         .penalize(|_nurse_idx: &usize, count: &usize| {

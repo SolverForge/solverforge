@@ -1,52 +1,46 @@
-// Count collector for counting entities.
+// Count collector for counting stream matches.
 
-use std::marker::PhantomData;
+use super::{Accumulator, Collector};
 
-use super::{Accumulator, UniCollector};
-
-/* Creates a collector that counts entities.
+/* Creates a collector that counts stream matches.
 
 # Example
 
 ```
-use solverforge_scoring::stream::collector::{count, UniCollector, Accumulator};
+use solverforge_scoring::stream::collector::{count, Accumulator, Collector};
 
-let collector = count::<i32>();
+let collector = count();
 let mut acc = collector.create_accumulator();
 
-acc.accumulate(&collector.extract(&1));
-acc.accumulate(&collector.extract(&2));
-acc.accumulate(&collector.extract(&3));
+acc.accumulate(collector.extract(&1));
+let second = acc.accumulate(collector.extract(&2));
+acc.accumulate(collector.extract(&3));
 assert_eq!(acc.get(), 3);
 
-acc.retract(&collector.extract(&2));
+acc.retract(second);
 assert_eq!(acc.get(), 2);
 ```
 */
-pub fn count<A>() -> CountCollector<A> {
-    CountCollector {
-        _phantom: PhantomData,
-    }
+pub const fn count() -> CountCollector {
+    CountCollector
 }
 
-/* A collector that counts entities.
+/* A collector that counts stream matches.
 
 Created by the [`count()`] function.
 */
-pub struct CountCollector<A> {
-    _phantom: PhantomData<fn(&A)>,
-}
+pub struct CountCollector;
 
-impl<A> UniCollector<A> for CountCollector<A>
+impl<Input> Collector<Input> for CountCollector
 where
-    A: Send + Sync,
+    Input: Send + Sync,
 {
     type Value = ();
     type Result = usize;
     type Accumulator = CountAccumulator;
 
     #[inline]
-    fn extract(&self, _entity: &A) {}
+    fn extract(&self, _input: Input) {}
 
     fn create_accumulator(&self) -> Self::Accumulator {
         CountAccumulator { count: 0 }

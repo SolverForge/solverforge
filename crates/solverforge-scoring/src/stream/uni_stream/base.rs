@@ -5,7 +5,7 @@ use solverforge_core::score::Score;
 
 use super::super::balance_stream::BalanceConstraintStream;
 use super::super::collection_extract::{ChangeSource, CollectionExtract, FlattenVecExtract};
-use super::super::collector::UniCollector;
+use super::super::collector::{Accumulator, Collector};
 use super::super::existence_stream::ExistenceMode;
 use super::super::existence_target::ExistenceTarget;
 use super::super::existence_target::FlattenedCollectionTarget;
@@ -111,17 +111,21 @@ where
     }
 
     /* Groups entities by key and aggregates with a collector. */
-    pub fn group_by<K, KF, C>(
+    pub fn group_by<K, KF, C, V, R, Acc>(
         self,
         key_fn: KF,
         collector: C,
-    ) -> GroupedConstraintStream<S, A, K, E, F, KF, C, Sc>
+    ) -> GroupedConstraintStream<S, A, K, E, F, KF, C, V, R, Acc, Sc>
     where
         K: Clone + Eq + Hash + Send + Sync + 'static,
         KF: Fn(&A) -> K + Send + Sync,
-        C: UniCollector<A> + Send + Sync + 'static,
-        C::Accumulator: Send + Sync,
-        C::Result: Send + Sync,
+        C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc>
+            + Send
+            + Sync
+            + 'static,
+        V: Send + Sync + 'static,
+        R: Send + Sync + 'static,
+        Acc: Accumulator<V, R> + Send + Sync + 'static,
     {
         GroupedConstraintStream::new(self.extractor, self.filter, key_fn, collector)
     }

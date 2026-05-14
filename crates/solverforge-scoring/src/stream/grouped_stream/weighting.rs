@@ -6,11 +6,11 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use super::super::super::constraint::grouped::GroupedUniConstraint;
 use super::super::collection_extract::CollectionExtract;
-use super::super::collector::UniCollector;
+use super::super::collector::{Accumulator, Collector};
 use super::super::filter::UniFilter;
 
 // Zero-erasure builder for finalizing a grouped constraint.
-pub struct GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
+pub struct GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     Sc: Score,
 {
@@ -21,10 +21,19 @@ where
     pub(super) impact_type: ImpactType,
     pub(super) weight_fn: W,
     pub(super) is_hard: bool,
-    pub(super) _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
+    pub(super) _phantom: PhantomData<(
+        fn() -> S,
+        fn() -> A,
+        fn() -> K,
+        fn() -> V,
+        fn() -> R,
+        fn() -> Acc,
+        fn() -> Sc,
+    )>,
 }
 
-impl<S, A, K, E, Fi, KF, C, W, Sc> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
+    GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -32,14 +41,18 @@ where
     E: CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
-    C: UniCollector<A> + Send + Sync + 'static,
-    C::Accumulator: Send + Sync,
-    C::Result: Send + Sync,
-    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
+    V: Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    Acc: Accumulator<V, R> + Send + Sync + 'static,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     /* Finalizes the builder into a zero-erasure `GroupedUniConstraint`. */
-    pub fn named(self, name: &str) -> GroupedUniConstraint<S, A, K, E, Fi, KF, C, W, Sc> {
+    pub fn named(
+        self,
+        name: &str,
+    ) -> GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> {
         GroupedUniConstraint::new(
             ConstraintRef::new("", name),
             self.impact_type,
@@ -53,8 +66,8 @@ where
     }
 }
 
-impl<S, A, K, E, Fi, KF, C, W, Sc: Score> std::fmt::Debug
-    for GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc: Score> std::fmt::Debug
+    for GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GroupedConstraintBuilder")

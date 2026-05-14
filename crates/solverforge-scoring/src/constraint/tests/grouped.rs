@@ -30,7 +30,7 @@ fn test_grouped_constraint_evaluate() {
         ),
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
-        count::<GroupedShift>(),
+        count(),
         |_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64),
         false,
     );
@@ -62,7 +62,7 @@ fn test_grouped_constraint_incremental() {
         ),
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
-        count::<GroupedShift>(),
+        count(),
         |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
     );
@@ -102,7 +102,7 @@ fn test_grouped_constraint_reward() {
         vec(|s: &GroupedSolution| &s.shifts),
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
-        count::<GroupedShift>(),
+        count(),
         |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
         false,
     );
@@ -126,7 +126,7 @@ fn test_grouped_constraint_weight_can_use_key() {
         vec(|s: &GroupedSolution| &s.shifts),
         TrueFilter,
         |shift: &GroupedShift| shift.employee_id,
-        count::<GroupedShift>(),
+        count(),
         |employee_id: &usize, count: &usize| SoftScore::of((*employee_id as i64) * (*count as i64)),
         false,
     );

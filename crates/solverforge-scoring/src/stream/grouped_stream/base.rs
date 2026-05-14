@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 
 use super::super::collection_extract::CollectionExtract;
-use super::super::collector::UniCollector;
+use super::super::collector::{Accumulator, Collector};
 use super::super::complemented_stream::ComplementedConstraintStream;
 use super::super::filter::UniFilter;
 use super::super::weighting_support::ConstraintWeight;
@@ -16,7 +16,7 @@ and operates on (key, collector_result) tuples.
 
 All type parameters are concrete - no trait objects, no Arc allocations.
 */
-pub struct GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>
+pub struct GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>
 where
     Sc: Score,
 {
@@ -24,10 +24,19 @@ where
     pub(super) filter: Fi,
     pub(super) key_fn: KF,
     pub(super) collector: C,
-    pub(super) _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
+    pub(super) _phantom: PhantomData<(
+        fn() -> S,
+        fn() -> A,
+        fn() -> K,
+        fn() -> V,
+        fn() -> R,
+        fn() -> Acc,
+        fn() -> Sc,
+    )>,
 }
 
-impl<S, A, K, E, Fi, KF, C, Sc> GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>
+    GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -35,9 +44,10 @@ where
     E: CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
-    C: UniCollector<A> + Send + Sync + 'static,
-    C::Accumulator: Send + Sync,
-    C::Result: Send + Sync,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
+    V: Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    Acc: Accumulator<V, R> + Send + Sync + 'static,
     Sc: Score + 'static,
 {
     fn into_weighted_builder<W>(
@@ -45,9 +55,9 @@ where
         impact_type: solverforge_core::ImpactType,
         weight_fn: W,
         is_hard: bool,
-    ) -> super::weighting::GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, W, Sc>
+    ) -> super::weighting::GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
     where
-        W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+        W: Fn(&K, &R) -> Sc + Send + Sync,
     {
         super::weighting::GroupedConstraintBuilder {
             extractor: self.extractor,
@@ -83,16 +93,19 @@ where
         Fi,
         KF,
         C,
-        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
+        V,
+        R,
+        Acc,
+        impl Fn(&K, &R) -> Sc + Send + Sync,
         Sc,
     >
     where
-        W: for<'w> ConstraintWeight<(&'w K, &'w C::Result), Sc> + Send + Sync,
+        W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
     {
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Penalty,
-            move |key: &K, result: &C::Result| weight.score((key, result)),
+            move |key: &K, result: &R| weight.score((key, result)),
             is_hard,
         )
     }
@@ -108,16 +121,19 @@ where
         Fi,
         KF,
         C,
-        impl Fn(&K, &C::Result) -> Sc + Send + Sync,
+        V,
+        R,
+        Acc,
+        impl Fn(&K, &R) -> Sc + Send + Sync,
         Sc,
     >
     where
-        W: for<'w> ConstraintWeight<(&'w K, &'w C::Result), Sc> + Send + Sync,
+        W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
     {
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Reward,
-            move |key: &K, result: &C::Result| weight.score((key, result)),
+            move |key: &K, result: &R| weight.score((key, result)),
             is_hard,
         )
     }
@@ -138,6 +154,9 @@ where
         impl Fn(&A) -> Option<K> + Send + Sync,
         KB,
         C,
+        V,
+        R,
+        Acc,
         D,
         Sc,
     >
@@ -145,7 +164,7 @@ where
         B: Clone + Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B>,
         KB: Fn(&B) -> K + Send + Sync,
-        D: Fn(&B) -> C::Result + Send + Sync,
+        D: Fn(&B) -> R + Send + Sync,
     {
         let key_fn = self.key_fn;
         let wrapped_key_fn = move |a: &A| Some((key_fn)(a));
@@ -166,13 +185,13 @@ where
         key_a: KA2,
         key_b: KB,
         default_fn: D,
-    ) -> ComplementedConstraintStream<S, A, B, K, E, EB, KA2, KB, C, D, Sc>
+    ) -> ComplementedConstraintStream<S, A, B, K, E, EB, KA2, KB, C, V, R, Acc, D, Sc>
     where
         B: Clone + Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B>,
         KA2: Fn(&A) -> Option<K> + Send + Sync,
         KB: Fn(&B) -> K + Send + Sync,
-        D: Fn(&B) -> C::Result + Send + Sync,
+        D: Fn(&B) -> R + Send + Sync,
     {
         ComplementedConstraintStream::new(
             self.extractor,
@@ -185,8 +204,8 @@ where
     }
 }
 
-impl<S, A, K, E, Fi, KF, C, Sc: Score> std::fmt::Debug
-    for GroupedConstraintStream<S, A, K, E, Fi, KF, C, Sc>
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, Sc: Score> std::fmt::Debug
+    for GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GroupedConstraintStream").finish()

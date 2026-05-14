@@ -12,12 +12,14 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::stream::collection_extract::ChangeSource;
-use crate::stream::collector::{Accumulator, UniCollector};
+use crate::stream::collector::{Accumulator, Collector};
 
-type CollectorRetraction<C, A> = <<C as UniCollector<A>>::Accumulator as Accumulator<
-    <C as UniCollector<A>>::Value,
-    <C as UniCollector<A>>::Result,
->>::Retraction;
+type CollectorRetraction<Acc, V, R> = <Acc as Accumulator<V, R>>::Retraction;
+
+pub(super) struct GroupState<Acc> {
+    pub(super) accumulator: Acc,
+    pub(super) count: usize,
+}
 
 /* Zero-erasure constraint for complemented grouped results.
 
@@ -90,9 +92,9 @@ Shift { employee_id: None },  // Skipped - no key
 assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
 ```
 */
-pub struct ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
+pub struct ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
-    C: UniCollector<A>,
+    Acc: Accumulator<V, R>,
     Sc: Score,
 {
     pub(super) constraint_ref: ConstraintRef,
@@ -108,20 +110,28 @@ where
     pub(super) a_source: ChangeSource,
     pub(super) b_source: ChangeSource,
     // Group key -> accumulator for incremental scoring
-    pub(super) groups: HashMap<K, C::Accumulator>,
+    pub(super) groups: HashMap<K, GroupState<Acc>>,
     // A entity index -> group key (for tracking which group each entity belongs to)
     pub(super) entity_groups: HashMap<usize, K>,
     // A entity index -> accumulator retraction token
-    pub(super) entity_retractions: HashMap<usize, CollectorRetraction<C, A>>,
-    // B key -> B entity index (for looking up B entities by key)
-    pub(super) b_by_key: HashMap<K, usize>,
+    pub(super) entity_retractions: HashMap<usize, CollectorRetraction<Acc, V, R>>,
+    // B key -> B entity indexes (for looking up all complement rows by key)
+    pub(super) b_by_key: HashMap<K, Vec<usize>>,
     // B entity index -> B key (for localized B retraction)
     pub(super) b_index_to_key: HashMap<usize, K>,
-    pub(super) _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> Sc)>,
+    pub(super) _phantom: PhantomData<(
+        fn() -> S,
+        fn() -> A,
+        fn() -> B,
+        fn() -> V,
+        fn() -> R,
+        fn() -> Acc,
+        fn() -> Sc,
+    )>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
-    ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+    ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: 'static,
     A: Clone + 'static,
@@ -131,9 +141,10 @@ where
     EB: crate::stream::collection_extract::CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> Option<K>,
     KB: Fn(&B) -> K,
-    C: UniCollector<A>,
-    D: Fn(&B) -> C::Result,
-    W: Fn(&K, &C::Result) -> Sc,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc>,
+    Acc: Accumulator<V, R>,
+    D: Fn(&B) -> R,
+    W: Fn(&K, &R) -> Sc,
     Sc: Score,
 {
     // Creates a new complemented group constraint.
@@ -175,7 +186,7 @@ where
     }
 
     #[inline]
-    pub(super) fn compute_score(&self, key: &K, result: &C::Result) -> Sc {
+    pub(super) fn compute_score(&self, key: &K, result: &R) -> Sc {
         let base = (self.weight_fn)(key, result);
         match self.impact_type {
             ImpactType::Penalty => -base,
@@ -184,8 +195,8 @@ where
     }
 
     // Build grouped results from A entities.
-    pub(super) fn build_groups(&self, entities_a: &[A]) -> HashMap<K, C::Accumulator> {
-        let mut accumulators: HashMap<K, C::Accumulator> = HashMap::new();
+    pub(super) fn build_groups(&self, entities_a: &[A]) -> HashMap<K, Acc> {
+        let mut accumulators: HashMap<K, Acc> = HashMap::new();
 
         for a in entities_a {
             // Skip entities with no key (e.g., unassigned shifts)

@@ -6,7 +6,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::stream::collector::{Accumulator, UniCollector};
+use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
 use crate::stream::{ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource};
 
@@ -15,15 +15,12 @@ struct GroupState<Acc> {
     count: usize,
 }
 
-type CollectorRetraction<C, Out> = <<C as UniCollector<Out>>::Accumulator as Accumulator<
-    <C as UniCollector<Out>>::Value,
-    <C as UniCollector<Out>>::Result,
->>::Retraction;
+type CollectorRetraction<Acc, V, R> = <Acc as Accumulator<V, R>>::Retraction;
 
-pub struct ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, W, Sc>
+pub struct ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
     Src: ProjectedSource<S, Out>,
-    C: UniCollector<Out>,
+    Acc: Accumulator<V, R>,
     Sc: Score,
 {
     constraint_ref: ConstraintRef,
@@ -35,14 +32,22 @@ where
     weight_fn: W,
     is_hard: bool,
     source_state: Option<Src::State>,
-    groups: HashMap<K, GroupState<C::Accumulator>>,
+    groups: HashMap<K, GroupState<Acc>>,
     row_outputs: HashMap<ProjectedRowCoordinate, Out>,
-    row_retractions: HashMap<ProjectedRowCoordinate, CollectorRetraction<C, Out>>,
+    row_retractions: HashMap<ProjectedRowCoordinate, CollectorRetraction<Acc, V, R>>,
     rows_by_owner: HashMap<ProjectedRowOwner, Vec<ProjectedRowCoordinate>>,
-    _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> Sc)>,
+    _phantom: PhantomData<(
+        fn() -> S,
+        fn() -> Out,
+        fn() -> V,
+        fn() -> R,
+        fn() -> Acc,
+        fn() -> Sc,
+    )>,
 }
 
-impl<S, Out, K, Src, F, KF, C, W, Sc> ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, W, Sc>
+impl<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
+    ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
@@ -50,11 +55,11 @@ where
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
-    C: UniCollector<Out> + Send + Sync + 'static,
-    C::Accumulator: Send + Sync,
-    C::Result: Send + Sync,
-    C::Value: Send + Sync,
-    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+    C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
+    V: Send + Sync,
+    R: Send + Sync,
+    Acc: Accumulator<V, R> + Send + Sync,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     #[allow(clippy::too_many_arguments)]
@@ -86,7 +91,7 @@ where
         }
     }
 
-    fn compute_score(&self, key: &K, result: &C::Result) -> Sc {
+    fn compute_score(&self, key: &K, result: &R) -> Sc {
         let base = (self.weight_fn)(key, result);
         match self.impact_type {
             ImpactType::Penalty => -base,
@@ -122,7 +127,7 @@ where
         });
     }
 
-    fn insert_value(&mut self, key: K, value: C::Value) -> (Sc, CollectorRetraction<C, Out>) {
+    fn insert_value(&mut self, key: K, value: V) -> (Sc, CollectorRetraction<Acc, V, R>) {
         let impact = self.impact_type;
         let weight_fn = &self.weight_fn;
         match self.groups.entry(key) {
@@ -169,7 +174,7 @@ where
         }
     }
 
-    fn retract_value(&mut self, key: K, retraction: CollectorRetraction<C, Out>) -> Sc {
+    fn retract_value(&mut self, key: K, retraction: CollectorRetraction<Acc, V, R>) -> Sc {
         let impact = self.impact_type;
         let weight_fn = &self.weight_fn;
         let Entry::Occupied(mut entry) = self.groups.entry(key) else {
@@ -266,8 +271,8 @@ where
     }
 }
 
-impl<S, Out, K, Src, F, KF, C, W, Sc> IncrementalConstraint<S, Sc>
-    for ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, W, Sc>
+impl<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc> IncrementalConstraint<S, Sc>
+    for ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
@@ -275,16 +280,16 @@ where
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
-    C: UniCollector<Out> + Send + Sync + 'static,
-    C::Accumulator: Send + Sync,
-    C::Result: Send + Sync,
-    C::Value: Send + Sync,
-    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+    C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
+    V: Send + Sync,
+    R: Send + Sync,
+    Acc: Accumulator<V, R> + Send + Sync,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     fn evaluate(&self, solution: &S) -> Sc {
         let state = self.source.build_state(solution);
-        let mut groups: HashMap<K, C::Accumulator> = HashMap::new();
+        let mut groups: HashMap<K, Acc> = HashMap::new();
         self.source.collect_all(solution, &state, |_, output| {
             if !self.filter.test(solution, &output) {
                 return;

@@ -130,6 +130,134 @@ fn projected_merged_descriptor_sources_update_only_owning_slot() {
     assert_eq!(total, constraint.evaluate(&plan));
 }
 
+fn projected_demand_complement_constraint() -> impl IncrementalConstraint<Plan, SoftScore> {
+    ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(WorkEntryProjection)
+        .group_by(
+            |entry: &Entry| entry.bucket,
+            sum(|entry: &Entry| entry.delta),
+        )
+        .complement(
+            source(
+                capacity as fn(&Plan) -> &[Capacity],
+                ChangeSource::Descriptor(1),
+            ),
+            |capacity: &Capacity| capacity.bucket,
+            |_capacity: &Capacity| 3i64,
+        )
+        .penalize(|bucket: &usize, demand: &i64| SoftScore::of((*bucket as i64 * 10) + *demand))
+        .named("projected demand by capacity bucket")
+}
+
+fn projected_demand_complement_plan() -> Plan {
+    Plan {
+        work: vec![Work {
+            bucket: 0,
+            demand: 5,
+            enabled: true,
+        }],
+        capacity: vec![
+            Capacity {
+                bucket: 0,
+                capacity: 0,
+            },
+            Capacity {
+                bucket: 1,
+                capacity: 0,
+            },
+        ],
+    }
+}
+
+#[test]
+fn projected_group_by_complement_scores_missing_projected_keys() {
+    let constraint = projected_demand_complement_constraint();
+    let plan = projected_demand_complement_plan();
+
+    assert_eq!(constraint.match_count(&plan), 2);
+    assert_eq!(constraint.evaluate(&plan), SoftScore::of(-18));
+}
+
+#[test]
+fn projected_group_by_complement_updates_projected_rows() {
+    let mut constraint = projected_demand_complement_constraint();
+    let mut plan = projected_demand_complement_plan();
+
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(total, SoftScore::of(-18));
+
+    total = total + constraint.on_retract(&plan, 0, 0);
+    plan.work[0].demand = 7;
+    total = total + constraint.on_insert(&plan, 0, 0);
+
+    assert_eq!(total, SoftScore::of(-20));
+    assert_eq!(total, constraint.evaluate(&plan));
+}
+
+#[test]
+fn projected_group_by_complement_updates_complement_keys() {
+    let mut constraint = projected_demand_complement_constraint();
+    let mut plan = projected_demand_complement_plan();
+
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(total, SoftScore::of(-18));
+
+    total = total + constraint.on_retract(&plan, 1, 1);
+    plan.capacity[1].bucket = 2;
+    total = total + constraint.on_insert(&plan, 1, 1);
+
+    assert_eq!(total, SoftScore::of(-28));
+    assert_eq!(total, constraint.evaluate(&plan));
+}
+
+#[test]
+fn projected_group_by_complement_duplicate_complement_keys_match_incremental() {
+    let mut constraint = projected_demand_complement_constraint();
+    let mut plan = Plan {
+        work: vec![Work {
+            bucket: 0,
+            demand: 5,
+            enabled: true,
+        }],
+        capacity: vec![
+            Capacity {
+                bucket: 0,
+                capacity: 0,
+            },
+            Capacity {
+                bucket: 0,
+                capacity: 0,
+            },
+            Capacity {
+                bucket: 1,
+                capacity: 0,
+            },
+        ],
+    };
+
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(total, SoftScore::of(-23));
+    assert_eq!(total, constraint.evaluate(&plan));
+
+    total = total + constraint.on_retract(&plan, 0, 0);
+    plan.work[0].demand = 7;
+    total = total + constraint.on_insert(&plan, 0, 0);
+
+    assert_eq!(total, SoftScore::of(-27));
+    assert_eq!(total, constraint.evaluate(&plan));
+
+    total = total + constraint.on_retract(&plan, 1, 1);
+    plan.capacity[1].bucket = 2;
+    total = total + constraint.on_insert(&plan, 1, 1);
+
+    assert_eq!(total, SoftScore::of(-43));
+    assert_eq!(total, constraint.evaluate(&plan));
+}
+
 #[test]
 fn projected_merged_descriptor_sources_keep_same_entity_index_slots_distinct() {
     let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()

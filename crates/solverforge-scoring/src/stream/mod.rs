@@ -95,7 +95,10 @@ pub use collection_extract::{
     source, ChangeSource, CollectionExtract, FlattenExtract, SourceExtract, VecExtract,
 };
 pub use complemented_stream::{ComplementedConstraintBuilder, ComplementedConstraintStream};
-pub use cross_bi_stream::{CrossBiConstraintBuilder, CrossBiConstraintStream};
+pub use cross_bi_stream::{
+    CrossBiConstraintBuilder, CrossBiConstraintStream, CrossGroupedConstraintBuilder,
+    CrossGroupedConstraintStream,
+};
 pub use existence_stream::{ExistenceMode, ExistsConstraintBuilder, ExistsConstraintStream};
 pub use existence_target::{ExistenceTarget, FlattenedCollectionTarget};
 pub use factory::ConstraintFactory;
@@ -106,6 +109,7 @@ pub use key_extract::{EntityKeyAdapter, KeyExtract};
 pub use penta_stream::{PentaConstraintBuilder, PentaConstraintStream};
 pub use projected_stream::{
     JoinedProjectedSource, ProjectedBiConstraintBuilder, ProjectedBiConstraintStream,
+    ProjectedComplementedGroupedConstraintBuilder, ProjectedComplementedGroupedConstraintStream,
     ProjectedConstraintBuilder, ProjectedConstraintStream, ProjectedGroupedConstraintBuilder,
     ProjectedGroupedConstraintStream, ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource,
     Projection, ProjectionSink,

@@ -1,14 +1,14 @@
 use std::hash::Hash;
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::stream::collector::{Accumulator, UniCollector};
+use crate::stream::collector::{Accumulator, Collector};
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
 use super::ComplementedGroupConstraint;
 
-impl<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc> IncrementalConstraint<S, Sc>
-    for ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, D, W, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc> IncrementalConstraint<S, Sc>
+    for ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -18,12 +18,12 @@ where
     EB: crate::stream::collection_extract::CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> Option<K> + Send + Sync,
     KB: Fn(&B) -> K + Send + Sync,
-    C: UniCollector<A> + Send + Sync,
-    C::Accumulator: Send + Sync,
-    C::Result: Send + Sync,
-    C::Value: Send + Sync,
-    D: Fn(&B) -> C::Result + Send + Sync,
-    W: Fn(&K, &C::Result) -> Sc + Send + Sync,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync,
+    V: Send + Sync,
+    R: Send + Sync,
+    Acc: Accumulator<V, R> + Send + Sync,
+    D: Fn(&B) -> R + Send + Sync,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score,
 {
     fn evaluate(&self, solution: &S) -> Sc {
@@ -62,7 +62,7 @@ where
         // Build B key -> index mapping
         for (idx, b) in entities_b.iter().enumerate() {
             let key = (self.key_b)(b);
-            self.b_by_key.insert(key.clone(), idx);
+            self.b_by_key.entry(key.clone()).or_default().push(idx);
             self.b_index_to_key.insert(idx, key);
         }
 

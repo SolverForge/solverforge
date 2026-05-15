@@ -42,6 +42,8 @@ src/
 │   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
 │   ├── cross_grouped.rs                            — CrossGroupedConstraint module root and re-exports
 │   ├── cross_grouped/*.rs                          — Retained cross-join grouped state and incremental callbacks
+│   ├── cross_complemented_grouped.rs               — CrossComplementedGroupedConstraint module root and re-exports
+│   ├── cross_complemented_grouped/*.rs             — Retained direct cross-join grouped complement state and incremental callbacks
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
 │   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
@@ -68,6 +70,7 @@ src/
 │       ├── grouped.rs                              — GroupedUniConstraint tests
 │       ├── balance.rs                              — BalanceConstraint tests
 │       ├── complemented.rs                         — ComplementedGroupConstraint tests
+│       ├── cross_complemented_grouped.rs           — Direct cross-join grouped complement tests
 │       ├── flattened_bi.rs                         — FlattenedBiConstraint tests
 │       ├── exists.rs                               — IncrementalExistsConstraint update tests
 │       ├── exists_storage.rs                       — Existence storage selection and parity tests
@@ -108,6 +111,7 @@ src/
 │   ├── cross_bi_stream.rs                          — Re-exports
 │   ├── cross_bi_stream/base.rs                     — CrossBiConstraintStream
 │   ├── cross_bi_stream/grouped.rs                  — CrossGroupedConstraintStream and builder
+│   ├── cross_bi_stream/complemented_grouped.rs     — CrossComplementedGroupedConstraintStream and builder
 │   ├── cross_bi_stream/weighting.rs                — CrossBiConstraintBuilder
 │   ├── flattened_bi_stream.rs                      — Re-exports
 │   ├── flattened_bi_stream/base.rs                 — FlattenedBiConstraintStream
@@ -173,10 +177,10 @@ src/
 ```rust
 // Constraints
 pub use constraint::{
-    CrossGroupedConstraint, GroupedUniConstraint, IncrementalBiConstraint,
-    IncrementalCrossBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
-    IncrementalTriConstraint, IncrementalUniConstraint, ProjectedComplementedGroupedConstraint,
-    ProjectedGroupedConstraint, ProjectedUniConstraint,
+    CrossComplementedGroupedConstraint, CrossGroupedConstraint, GroupedUniConstraint,
+    IncrementalBiConstraint, IncrementalCrossBiConstraint, IncrementalPentaConstraint,
+    IncrementalQuadConstraint, IncrementalTriConstraint, IncrementalUniConstraint,
+    ProjectedComplementedGroupedConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
 };
 
 // Constraint Set
@@ -198,6 +202,7 @@ pub use api::analysis::{
 // Fluent Stream API
 pub use stream::{
     fixed_weight, hard_weight, BiConstraintBuilder, BiConstraintStream, ConstraintFactory,
+    CrossComplementedGroupedConstraintBuilder, CrossComplementedGroupedConstraintStream,
     CrossGroupedConstraintBuilder, CrossGroupedConstraintStream, FixedWeight,
     GroupedConstraintBuilder, GroupedConstraintStream, HardWeight, ProjectedBiConstraintBuilder,
     ProjectedBiConstraintStream, ProjectedComplementedGroupedConstraintBuilder,
@@ -382,6 +387,8 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint. It keeps keyed join indexes and collector retraction tokens without projecting joined pairs first.
 
+**`CrossComplementedGroupedConstraint<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint complemented against a second collection. It keeps joined-pair collector retraction tokens and scores every complement row using either the retained grouped result or the provided default result.
+
 **`BalanceConstraint<S, A, K, E, F, KF, Sc>`** — Load balancing using sum-of-squared-deviations.
 
 **`ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&A>` — Group-by complemented against a second collection (for supply vs demand).
@@ -513,7 +520,9 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 
 **`CrossBiConstraintBuilder`** — `named()` → `IncrementalCrossBiConstraint`
 
-**`CrossGroupedConstraintStream/Builder`** — Direct grouped cross-join stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `CrossGroupedConstraint`. Collectors receive the joined pair shape as `(&A, &B)`.
+**`CrossGroupedConstraintStream/Builder`** — Direct grouped cross-join stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `CrossGroupedConstraint`. `complement(source, key, default)` → `CrossComplementedGroupedConstraintStream`. Collectors receive the joined pair shape as `(&A, &B)`.
+
+**`CrossComplementedGroupedConstraintStream/Builder`** — Direct grouped cross-join complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `CrossComplementedGroupedConstraint`. Complement defaults are produced from the complement entity and weighted by key plus collector result.
 
 **`GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>`** — Grouped stream.
 - Operations: `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `complement()`, `complement_with_key()` → ComplementedStream

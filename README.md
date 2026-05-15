@@ -97,7 +97,7 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
 ## Features
 
 - **Score Types**: SoftScore, HardSoftScore, HardMediumSoftScore, BendableScore, HardSoftDecimalScore
-- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, direct cross-join grouping, projected grouped complements, existence checks, joins, grouping, `collect_vec`, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
+- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, single-source and cross-join projected scoring rows, direct cross-join grouping and grouped complements, projected grouped complements, existence checks, joins, grouping, `collect_vec`, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list runtime plan when matching list work is present, plus descriptor construction routing for scalar-only targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
@@ -142,8 +142,9 @@ ConstraintFactory::<Schedule, HardSoftScore>::new()
 
 Collectors retain mapped values by ownership. The same collector protocol covers
 unary rows and joined pairs: direct cross-join grouping passes `(&A, &B)` to the
-collector mapper, while projected grouped streams can continue into
-`complement(...)` for supply/demand-style scoring. `collect_vec` exposes a
+collector mapper, while both direct cross-join grouped streams and projected
+grouped streams can continue into `complement(...)` for supply/demand-style
+scoring. `collect_vec` exposes a
 `CollectedVec<T>` result view, so grouped payloads such as `String` labels do
 not need `Copy`, `Clone`, or `PartialEq` just to be collected.
 

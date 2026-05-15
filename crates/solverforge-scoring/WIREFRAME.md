@@ -127,7 +127,7 @@ src/
 │   ├── projected_stream/source/joined.rs           — Cross-join `.project(...)` projected source
 │   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata, VecExtract wrapper, vec() constructor
 │   ├── unassigned.rs                               — Hidden UnassignedEntity hook and `.unassigned()` stream method
-│   ├── join_target.rs                              — JoinTarget trait + 3 impls (self-join, keyed cross-join, predicate cross-join)
+│   ├── join_target.rs                              — JoinTarget trait impls for self-join, keyed cross-join, stream-target keyed cross-join, and predicate cross-join
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/
 │   │   ├── mod.rs                                  — impl_arity_stream! dispatcher macro
@@ -199,8 +199,8 @@ pub use api::analysis::{
 pub use stream::{
     fixed_weight, hard_weight, BiConstraintBuilder, BiConstraintStream, ConstraintFactory,
     CrossGroupedConstraintBuilder, CrossGroupedConstraintStream, FixedWeight,
-    GroupedConstraintBuilder, GroupedConstraintStream, HardWeight, ProjectedBiConstraintBuilder,
-    ProjectedBiConstraintStream, ProjectedComplementedGroupedConstraintBuilder,
+    GroupedConstraintBuilder, GroupedConstraintStream, HardWeight,
+    ProjectedBiConstraintBuilder, ProjectedBiConstraintStream, ProjectedComplementedGroupedConstraintBuilder,
     ProjectedComplementedGroupedConstraintStream, ProjectedConstraintBuilder,
     ProjectedConstraintStream, ProjectedGroupedConstraintBuilder, ProjectedGroupedConstraintStream,
     Projection, ProjectionSink, UniConstraintBuilder, UniConstraintStream,
@@ -446,7 +446,8 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
 - Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `ProjectedConstraintStream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
-- Unfiltered `UniConstraintStream<..., TrueFilter, ...>` implements `CollectionExtract` by delegating to its source extractor. This lets keyed cross-join targets use generated model sources directly, preserving hidden source metadata.
+- Unfiltered `UniConstraintStream<..., TrueFilter, ...>` implements `CollectionExtract` by delegating to its source extractor.
+- Stream targets preserve their own source filters when passed to keyed or predicate cross-joins. This lets `.join((ConstraintFactory::new().for_each(source).filter(pred), equal_bi(...)))` keep the right-side source predicate inside the joined stream.
 - `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
@@ -548,7 +549,7 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 .join((vec(|s: &Schedule| &s.employees), equal_bi(...)))
 ```
 
-**`CollectionExtract<S>`** — Public low-level source contract accepted by `ConstraintFactory::for_each(...)`. Macro-generated solution source functions return `impl CollectionExtract<S, Item = T>` so users do not import generated helper traits.
+**`CollectionExtract<S>`** — Public low-level source contract accepted by `ConstraintFactory::for_each(...)`. Macro-generated solution source functions return the concrete hidden `SourceExtract<fn(&S) -> &[T]>` wrapper, which satisfies `CollectionExtract<S>` and preserves source metadata for raw keyed joins.
 
 **`ChangeSource`** — Hidden enum describing whether a stream source can localize descriptor-owned incremental callbacks: `Unknown`, `Static`, or `Descriptor(idx)`. `Descriptor(idx)` owns localized events for that descriptor. `Static` never localizes. `Unknown` is non-localized metadata for raw/manual extraction: it is valid for `evaluate()` and `initialize()`, but localized `on_insert(...)` / `on_retract(...)` callbacks panic because the entity index cannot be safely mapped to a source.
 
@@ -565,7 +566,7 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 ### Join Support Types
 
 **`JoinTarget<S, A, E, F, Sc>`** — Trait for `.join()` dispatch on `UniConstraintStream`.
-- Three impls: `EqualJoiner<KA, KA, K>` (self-join), `(EB, EqualJoiner<KA, KB, K>)` (keyed cross-join), `(UniConstraintStream<...>, P)` (predicate cross-join)
+- Impl groups: `EqualJoiner<KA, KA, K>` (self-join), raw closure/`VecExtract`/`SourceExtract` targets with `EqualJoiner<KA, KB, K>` (keyed cross-join), `(UniConstraintStream<...>, EqualJoiner<KA, KB, K>)` (keyed cross-join with filtered stream target), and `(UniConstraintStream<...>, P)` (predicate cross-join with filtered stream target).
 
 **`KeyExtract<S, A, K>`** — Trait for key extraction. Blanket impl for `Fn(&S, &A, usize) -> K + Send + Sync`. Used as the bound on `KE` type params in nary stream/constraint macros.
 - Method: `fn extract(&self, s: &S, a: &A, idx: usize) -> K`

@@ -37,7 +37,7 @@ pub(super) fn generate_collection_source_methods(
         let descriptor_index_lit = syn::Index::from(descriptor_index);
 
         source_methods.push(quote! {
-            pub fn #field_name() -> impl ::solverforge::stream::CollectionExtract<Self, Item = #element_type> {
+            pub fn #field_name() -> ::solverforge::__internal::SourceExtract<fn(&Self) -> &[#element_type]> {
                 ::solverforge::__internal::source(
                     (|s: &Self| s.#field_name.as_slice()) as fn(&Self) -> &[#element_type],
                     ::solverforge::__internal::ChangeSource::Descriptor(#descriptor_index_lit),
@@ -57,7 +57,7 @@ pub(super) fn generate_collection_source_methods(
         };
 
         source_methods.push(quote! {
-            pub fn #field_name() -> impl ::solverforge::stream::CollectionExtract<Self, Item = #element_type> {
+            pub fn #field_name() -> ::solverforge::__internal::SourceExtract<fn(&Self) -> &[#element_type]> {
                 ::solverforge::__internal::source(
                     (|s: &Self| s.#field_name.as_slice()) as fn(&Self) -> &[#element_type],
                     ::solverforge::__internal::ChangeSource::Static,
@@ -77,7 +77,7 @@ pub(super) fn generate_collection_source_methods(
         };
 
         source_methods.push(quote! {
-            pub fn #field_name() -> impl ::solverforge::stream::CollectionExtract<Self, Item = #element_type> {
+            pub fn #field_name() -> ::solverforge::__internal::SourceExtract<fn(&Self) -> &[#element_type]> {
                 ::solverforge::__internal::source(
                     (|s: &Self| s.#field_name.as_slice()) as fn(&Self) -> &[#element_type],
                     ::solverforge::__internal::ChangeSource::Static,

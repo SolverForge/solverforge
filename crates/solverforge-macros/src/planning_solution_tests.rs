@@ -20,10 +20,12 @@ fn golden_solution_expansion_emits_model_sources_and_descriptor() {
         .to_string();
 
     assert!(expanded.contains("impl :: solverforge :: __internal :: PlanningSolution for Plan"));
-    assert!(expanded
-        .contains("pub fn workers () -> impl :: solverforge :: stream :: CollectionExtract < Self , Item = Worker >"));
-    assert!(expanded
-        .contains("pub fn tasks () -> impl :: solverforge :: stream :: CollectionExtract < Self , Item = Task >"));
+    assert!(expanded.contains(
+        "pub fn workers () -> :: solverforge :: __internal :: SourceExtract < fn (& Self) -> & [Worker] >"
+    ));
+    assert!(expanded.contains(
+        "pub fn tasks () -> :: solverforge :: __internal :: SourceExtract < fn (& Self) -> & [Task] >"
+    ));
     assert!(expanded.contains("ChangeSource :: Static"));
     assert!(expanded.contains("ChangeSource :: Descriptor (0)"));
     assert!(expanded

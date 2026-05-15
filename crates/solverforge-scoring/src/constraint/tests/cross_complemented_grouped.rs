@@ -74,6 +74,34 @@ fn complemented_shift_count_constraint() -> impl IncrementalConstraint<Schedule,
         .named("complemented cross grouped shift count")
 }
 
+fn filtered_stream_complemented_shift_count_constraint(
+) -> impl IncrementalConstraint<Schedule, SoftScore> {
+    ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(shift_source())
+        .join((
+            ConstraintFactory::<Schedule, SoftScore>::new()
+                .for_each(employee_source())
+                .filter(|employee: &Employee| employee.id != 0),
+            equal_bi(
+                |shift: &Shift| shift.employee_id,
+                |employee: &Employee| Some(employee.id),
+            ),
+        ))
+        .group_by(
+            |_shift: &Shift, employee: &Employee| employee.id,
+            sum(|(_shift, _employee): (&Shift, &Employee)| 1i64),
+        )
+        .complement(
+            ConstraintFactory::<Schedule, SoftScore>::new()
+                .for_each(target_source())
+                .filter(|target: &Target| target.employee_id != 2),
+            |target: &Target| target.employee_id,
+            |_| 5i64,
+        )
+        .penalize(|_employee_id: &usize, count: &i64| SoftScore::of(*count))
+        .named("filtered complemented cross grouped shift count")
+}
+
 fn two_employee_schedule() -> Schedule {
     Schedule {
         shifts: vec![
@@ -86,6 +114,25 @@ fn two_employee_schedule() -> Schedule {
         ],
         employees: vec![Employee { id: 0 }, Employee { id: 1 }],
         targets: vec![Target { employee_id: 0 }, Target { employee_id: 1 }],
+    }
+}
+
+fn three_target_schedule() -> Schedule {
+    Schedule {
+        shifts: vec![
+            Shift {
+                employee_id: Some(0),
+            },
+            Shift {
+                employee_id: Some(1),
+            },
+        ],
+        employees: vec![Employee { id: 0 }, Employee { id: 1 }],
+        targets: vec![
+            Target { employee_id: 0 },
+            Target { employee_id: 1 },
+            Target { employee_id: 2 },
+        ],
     }
 }
 
@@ -140,5 +187,24 @@ fn cross_bi_group_by_complement_incrementally_updates_complement_source() {
     total = total + constraint.on_insert(&schedule, 2, 2);
 
     assert_eq!(total, SoftScore::of(-12));
+    assert_eq!(total, constraint.evaluate(&schedule));
+}
+
+#[test]
+fn cross_bi_group_by_complement_honors_filtered_join_and_complement_sources() {
+    let mut constraint = filtered_stream_complemented_shift_count_constraint();
+    let mut schedule = three_target_schedule();
+
+    assert_eq!(constraint.match_count(&schedule), 2);
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-6));
+
+    let mut total = constraint.initialize(&schedule);
+    assert_eq!(total, SoftScore::of(-6));
+
+    total = total + constraint.on_retract(&schedule, 1, 1);
+    schedule.employees[1].id = 0;
+    total = total + constraint.on_insert(&schedule, 1, 1);
+
+    assert_eq!(total, SoftScore::of(-10));
     assert_eq!(total, constraint.evaluate(&schedule));
 }

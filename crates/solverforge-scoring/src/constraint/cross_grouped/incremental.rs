@@ -45,6 +45,9 @@ where
 
         let a = &entities_a[a_idx];
         let b = &entities_b[b_idx];
+        if !self.extractor_a.contains(solution, a) || !self.extractor_b.contains(solution, b) {
+            return Sc::zero();
+        }
         if !(self.filter)(solution, a, b, a_idx, b_idx) {
             return Sc::zero();
         }
@@ -159,6 +162,9 @@ where
         }
 
         let a = &entities_a[a_idx];
+        if !self.extractor_a.contains(solution, a) {
+            return Sc::zero();
+        }
         let key = (self.key_a)(a);
         self.a_index_to_key.insert(a_idx, key.clone());
         self.a_by_key.entry(key.clone()).or_default().push(a_idx);
@@ -199,6 +205,9 @@ where
         }
 
         let b = &entities_b[b_idx];
+        if !self.extractor_b.contains(solution, b) {
+            return Sc::zero();
+        }
         let key = (self.key_b)(b);
         self.b_index_to_key.insert(b_idx, key.clone());
         self.b_by_key.entry(key.clone()).or_default().push(b_idx);
@@ -252,10 +261,13 @@ where
     fn evaluate(&self, solution: &S) -> Sc {
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
-        let b_by_key = self.b_index_for(entities_b);
+        let b_by_key = self.b_index_for(solution, entities_b);
         let mut groups = HashMap::<GK, Acc>::new();
 
         for (a_idx, a) in entities_a.iter().enumerate() {
+            if !self.extractor_a.contains(solution, a) {
+                continue;
+            }
             for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
                 let b = &entities_b[b_idx];
                 if !(self.filter)(solution, a, b, a_idx, b_idx) {
@@ -278,10 +290,13 @@ where
     fn match_count(&self, solution: &S) -> usize {
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
-        let b_by_key = self.b_index_for(entities_b);
+        let b_by_key = self.b_index_for(solution, entities_b);
         let mut groups = HashMap::<GK, ()>::new();
 
         for (a_idx, a) in entities_a.iter().enumerate() {
+            if !self.extractor_a.contains(solution, a) {
+                continue;
+            }
             for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
                 let b = &entities_b[b_idx];
                 if (self.filter)(solution, a, b, a_idx, b_idx) {
@@ -297,10 +312,13 @@ where
         self.reset();
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
-        self.build_indexes(entities_a, entities_b);
+        self.build_indexes(solution, entities_a, entities_b);
 
         let mut total = Sc::zero();
         for a_idx in 0..entities_a.len() {
+            if !self.extractor_a.contains(solution, &entities_a[a_idx]) {
+                continue;
+            }
             let key = (self.key_a)(&entities_a[a_idx]);
             let b_indices = self.b_by_key.get(&key).cloned().unwrap_or_default();
             for b_idx in b_indices {

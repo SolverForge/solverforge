@@ -132,26 +132,35 @@ where
         }
     }
 
-    pub(super) fn b_index_for(&self, entities_b: &[B]) -> HashMap<JK, Vec<usize>> {
+    pub(super) fn b_index_for(&self, solution: &S, entities_b: &[B]) -> HashMap<JK, Vec<usize>> {
         let mut b_by_key = HashMap::<JK, Vec<usize>>::new();
         for (b_idx, b) in entities_b.iter().enumerate() {
+            if !self.extractor_b.contains(solution, b) {
+                continue;
+            }
             let key = (self.key_b)(b);
             b_by_key.entry(key).or_default().push(b_idx);
         }
         b_by_key
     }
 
-    pub(super) fn build_indexes(&mut self, entities_a: &[A], entities_b: &[B]) {
+    pub(super) fn build_indexes(&mut self, solution: &S, entities_a: &[A], entities_b: &[B]) {
         self.a_by_key.clear();
         self.b_by_key.clear();
         self.a_index_to_key.clear();
         self.b_index_to_key.clear();
         for (a_idx, a) in entities_a.iter().enumerate() {
+            if !self.extractor_a.contains(solution, a) {
+                continue;
+            }
             let key = (self.key_a)(a);
             self.a_index_to_key.insert(a_idx, key.clone());
             self.a_by_key.entry(key).or_default().push(a_idx);
         }
         for (b_idx, b) in entities_b.iter().enumerate() {
+            if !self.extractor_b.contains(solution, b) {
+                continue;
+            }
             let key = (self.key_b)(b);
             self.b_index_to_key.insert(b_idx, key.clone());
             self.b_by_key.entry(key).or_default().push(b_idx);

@@ -13,7 +13,7 @@ use solverforge_core::score::Score;
 use super::bi_stream::BiConstraintStream;
 use super::collection_extract::CollectionExtract;
 use super::cross_bi_stream::CrossBiConstraintStream;
-use super::filter::{UniFilter, UniLeftBiFilter, UniLeftPredBiFilter};
+use super::filter::{PairFilter, UniBiFilter, UniFilter, UniLeftBiFilter};
 use super::joiner::EqualJoiner;
 use super::key_extract::EntityKeyAdapter;
 use super::UniConstraintStream;
@@ -44,12 +44,12 @@ where
     KA: Fn(&A) -> K + Send + Sync,
     Sc: Score + 'static,
 {
-    type Output = BiConstraintStream<S, A, K, E, EntityKeyAdapter<KA>, UniLeftBiFilter<F, A>, Sc>;
+    type Output = BiConstraintStream<S, A, K, E, EntityKeyAdapter<KA>, UniBiFilter<F, A>, Sc>;
 
     fn apply(self, extractor_a: E, filter_a: F) -> Self::Output {
         let (key_fn, _) = self.into_keys();
         let key_extractor = EntityKeyAdapter::new(key_fn);
-        let bi_filter = UniLeftBiFilter::new(filter_a);
+        let bi_filter = UniBiFilter::new(filter_a);
         BiConstraintStream::new_self_join_with_filter(extractor_a, key_extractor, bi_filter)
     }
 }
@@ -101,14 +101,14 @@ where
         EB,
         fn(&A) -> u8,
         fn(&B) -> u8,
-        UniLeftPredBiFilter<F, P, A>,
+        PairFilter<F, FB, P>,
         Sc,
     >;
 
     fn apply(self, extractor_a: E, filter_a: F) -> Self::Output {
         let (other_stream, predicate) = self;
-        let (extractor_b, _filter_b) = other_stream.into_parts();
-        let combined_filter = UniLeftPredBiFilter::new(filter_a, predicate);
+        let (extractor_b, filter_b) = other_stream.into_parts();
+        let combined_filter = PairFilter::new(filter_a, filter_b, predicate);
         CrossBiConstraintStream::new_with_filter(
             extractor_a,
             extractor_b,

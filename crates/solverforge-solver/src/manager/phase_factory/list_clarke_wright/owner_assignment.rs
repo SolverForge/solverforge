@@ -18,6 +18,28 @@ where
         .collect()
 }
 
+pub(crate) fn feasible_owners_for_scored_route<S>(
+    solution: &S,
+    available_entity_slots: &[usize],
+    route: &[usize],
+    scored_owner: Option<usize>,
+    feasible: fn(&S, usize, &[usize]) -> bool,
+) -> Vec<usize>
+where
+    S: PlanningSolution,
+{
+    match scored_owner {
+        Some(owner_idx) => {
+            if available_entity_slots.contains(&owner_idx) && feasible(solution, owner_idx, route) {
+                vec![owner_idx]
+            } else {
+                Vec::new()
+            }
+        }
+        None => feasible_owners(solution, available_entity_slots, route, feasible),
+    }
+}
+
 pub(crate) fn match_route_owners(feasible_sets: &[Vec<usize>]) -> Vec<Option<usize>> {
     let mut route_order: Vec<usize> = (0..feasible_sets.len()).collect();
     route_order.sort_by_key(|&route_idx| (feasible_sets[route_idx].len(), route_idx));

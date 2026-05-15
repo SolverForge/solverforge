@@ -6,6 +6,8 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
+mod owner_binding;
+
 #[derive(Clone, Debug)]
 struct Route {
     visits: Vec<usize>,

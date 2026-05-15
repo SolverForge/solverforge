@@ -19,9 +19,11 @@ use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
 mod owner_assignment;
+mod route_state;
 mod savings;
 
-use owner_assignment::{feasible_owners, match_route_owners};
+use owner_assignment::{feasible_owners_for_scored_route, match_route_owners};
+use route_state::{route_values, routes_match_owners_after_merge, ConstructedRoute};
 use savings::{sort_savings, SavingsEntry};
 
 /// List construction phase using Clarke-Wright savings algorithm.
@@ -230,7 +232,10 @@ where
 
         // Initialize singleton routes before savings generation so we can always
         // commit a meaningful partial construction if termination fires mid-phase.
-        let mut routes: Vec<Vec<usize>> = unassigned_indices.iter().map(|&i| vec![i]).collect();
+        let mut routes: Vec<ConstructedRoute> = unassigned_indices
+            .iter()
+            .map(|&i| ConstructedRoute::singleton(i))
+            .collect();
 
         // Map collection index -> route index.
         let mut route_of: Vec<Option<usize>> = vec![None; n_elements];
@@ -313,21 +318,29 @@ where
             }
 
             // i must be an endpoint of ri
-            let i_is_endpoint = routes[ri].first() == Some(&i) || routes[ri].last() == Some(&i);
+            if !routes[ri].can_merge_for_owner(entry.owner_idx)
+                || !routes[rj].can_merge_for_owner(entry.owner_idx)
+            {
+                continue;
+            }
+
+            let i_is_endpoint =
+                routes[ri].visits.first() == Some(&i) || routes[ri].visits.last() == Some(&i);
             if !i_is_endpoint {
                 continue;
             }
             // j must be an endpoint of rj
-            let j_is_endpoint = routes[rj].first() == Some(&j) || routes[rj].last() == Some(&j);
+            let j_is_endpoint =
+                routes[rj].visits.first() == Some(&j) || routes[rj].visits.last() == Some(&j);
             if !j_is_endpoint {
                 continue;
             }
 
-            let mut test_ri = routes[ri].clone();
+            let mut test_ri = routes[ri].visits.clone();
             if test_ri.first() == Some(&i) {
                 test_ri.reverse();
             }
-            let mut test_rj = routes[rj].clone();
+            let mut test_rj = routes[rj].visits.clone();
             if test_rj.last() == Some(&j) {
                 test_rj.reverse();
             }
@@ -335,14 +348,7 @@ where
             let candidate_indices: Vec<usize> = test_ri.iter().chain(&test_rj).copied().collect();
             let solution = phase_scope.score_director().working_solution();
             let candidate_route = route_values(solution, index_to_element, &candidate_indices);
-            if feasible_owners(
-                solution,
-                &available_entity_slots,
-                &candidate_route,
-                self.feasible_fn,
-            )
-            .is_empty()
-            {
+            if !(self.feasible_fn)(solution, entry.owner_idx, &candidate_route) {
                 continue;
             }
             if !routes_match_owners_after_merge(
@@ -351,6 +357,7 @@ where
                 ri,
                 rj,
                 &candidate_indices,
+                entry.owner_idx,
                 &available_entity_slots,
                 index_to_element,
                 self.feasible_fn,
@@ -358,24 +365,35 @@ where
                 continue;
             }
 
-            routes[ri] = test_ri;
-            routes[rj].clear();
+            routes[ri].visits = test_ri;
+            routes[ri].scored_owner = Some(entry.owner_idx);
+            routes[rj].visits.clear();
+            routes[rj].scored_owner = None;
             for &c in &test_rj {
                 route_of[c] = Some(ri);
             }
-            routes[ri].extend(test_rj);
+            routes[ri].visits.extend(test_rj);
         }
 
         // Assign all constructed routes in one step so an interrupted construction
         // still commits a coherent partial solution instead of leaving the working
         // solution empty.
-        let non_empty: Vec<Vec<usize>> = routes.into_iter().filter(|r| !r.is_empty()).collect();
+        let non_empty: Vec<ConstructedRoute> = routes
+            .into_iter()
+            .filter(|route| !route.visits.is_empty())
+            .collect();
         let solution = phase_scope.score_director().working_solution();
         let feasible_sets: Vec<Vec<usize>> = non_empty
             .iter()
             .map(|route| {
-                let values = route_values(solution, index_to_element, route);
-                feasible_owners(solution, &available_entity_slots, &values, self.feasible_fn)
+                let values = route_values(solution, index_to_element, &route.visits);
+                feasible_owners_for_scored_route(
+                    solution,
+                    &available_entity_slots,
+                    &values,
+                    route.scored_owner,
+                    self.feasible_fn,
+                )
             })
             .collect();
         let route_to_owner = match_route_owners(&feasible_sets);
@@ -407,7 +425,8 @@ where
                         continue;
                     };
                     sd.before_variable_changed(descriptor_index, entity_idx);
-                    let route = route_values(sd.working_solution(), index_to_element, &index_route);
+                    let route =
+                        route_values(sd.working_solution(), index_to_element, &index_route.visits);
                     assign_route(sd.working_solution_mut(), entity_idx, route);
                     sd.after_variable_changed(descriptor_index, entity_idx);
                 }
@@ -424,61 +443,6 @@ where
     fn phase_type_name(&self) -> &'static str {
         "ListClarkeWright"
     }
-}
-
-fn route_values<S, E>(
-    solution: &S,
-    index_to_element: fn(&S, usize) -> E,
-    route: &[usize],
-) -> Vec<usize>
-where
-    E: Copy + Into<usize>,
-{
-    route
-        .iter()
-        .map(|&idx| index_to_element(solution, idx).into())
-        .collect()
-}
-
-#[allow(clippy::too_many_arguments)]
-fn routes_match_owners_after_merge<S, E>(
-    solution: &S,
-    routes: &[Vec<usize>],
-    merged_route_idx: usize,
-    removed_route_idx: usize,
-    candidate_route: &[usize],
-    available_entity_slots: &[usize],
-    index_to_element: fn(&S, usize) -> E,
-    feasible: fn(&S, usize, &[usize]) -> bool,
-) -> bool
-where
-    S: PlanningSolution,
-    E: Copy + Into<usize>,
-{
-    let mut feasible_sets = Vec::new();
-    for (route_idx, route) in routes.iter().enumerate() {
-        let route = if route_idx == merged_route_idx {
-            candidate_route
-        } else if route_idx == removed_route_idx || route.is_empty() {
-            continue;
-        } else {
-            route.as_slice()
-        };
-        let values = route_values(solution, index_to_element, route);
-        let feasible_owners = feasible_owners(solution, available_entity_slots, &values, feasible);
-        if feasible_owners.is_empty() {
-            return false;
-        }
-        feasible_sets.push(feasible_owners);
-    }
-
-    if feasible_sets.len() > available_entity_slots.len() {
-        return true;
-    }
-
-    match_route_owners(&feasible_sets)
-        .iter()
-        .all(Option::is_some)
 }
 
 #[cfg(test)]

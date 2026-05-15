@@ -3,6 +3,7 @@
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::flattened_bi::FlattenedBiConstraint;
 use crate::stream::collection_extract::{source, ChangeSource, SourceExtract};
+use crate::stream::{joiner, ConstraintFactory};
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -234,4 +235,68 @@ fn test_unassigned_shift() {
 
     // Unassigned shift doesn't match
     assert_eq!(constraint.evaluate(&schedule), SoftScore::of(0));
+}
+
+#[test]
+fn flattened_keyed_join_honors_filtered_target_stream() {
+    let mut constraint = ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
+            (|s: &Schedule| s.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ))
+        .join((
+            ConstraintFactory::<Schedule, SoftScore>::new()
+                .for_each(source(
+                    (|s: &Schedule| s.employees.as_slice()) as fn(&Schedule) -> &[Employee],
+                    ChangeSource::Descriptor(1),
+                ))
+                .filter(|employee: &Employee| employee.id == 1),
+            joiner::equal_bi(
+                |shift: &Shift| shift.employee_id,
+                |employee: &Employee| Some(employee.id),
+            ),
+        ))
+        .flatten_last(
+            |employee: &Employee| employee.unavailable_days.as_slice(),
+            |day: &u32| *day,
+            |shift: &Shift| shift.day,
+        )
+        .penalize(SoftScore::of(1))
+        .named("filtered target flattened join");
+
+    let mut schedule = Schedule {
+        shifts: vec![
+            Shift {
+                employee_id: Some(0),
+                day: 5,
+            },
+            Shift {
+                employee_id: Some(1),
+                day: 5,
+            },
+        ],
+        employees: vec![
+            Employee {
+                id: 0,
+                unavailable_days: vec![5],
+            },
+            Employee {
+                id: 1,
+                unavailable_days: vec![5],
+            },
+        ],
+    };
+
+    assert_eq!(constraint.match_count(&schedule), 1);
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
+
+    let mut total = constraint.initialize(&schedule);
+    assert_eq!(total, SoftScore::of(-1));
+
+    total = total + constraint.on_retract(&schedule, 1, 1);
+    schedule.employees[1].id = 2;
+    total = total + constraint.on_insert(&schedule, 1, 1);
+
+    assert_eq!(total, SoftScore::of(0));
+    assert_eq!(total, constraint.evaluate(&schedule));
 }

@@ -36,6 +36,9 @@ where
         // Build temporary index for standalone evaluation
         let mut temp_index: HashMap<(K, CK), Vec<(usize, C)>> = HashMap::new();
         for (b_idx, b) in entities_b.iter().enumerate() {
+            if !self.extractor_b.contains(solution, b) {
+                continue;
+            }
             let join_key = (self.key_b)(b);
             for c in (self.flatten)(b) {
                 let c_key = (self.c_key_fn)(c);
@@ -47,6 +50,9 @@ where
         }
 
         for (a_idx, a) in entities_a.iter().enumerate() {
+            if !self.extractor_a.contains(solution, a) {
+                continue;
+            }
             let join_key = (self.key_a)(a);
             let lookup_key = (self.a_lookup_fn)(a);
 
@@ -70,6 +76,9 @@ where
         // Build temporary index
         let mut temp_index: HashMap<(K, CK), Vec<(usize, C)>> = HashMap::new();
         for (b_idx, b) in entities_b.iter().enumerate() {
+            if !self.extractor_b.contains(solution, b) {
+                continue;
+            }
             let join_key = (self.key_b)(b);
             for c in (self.flatten)(b) {
                 let c_key = (self.c_key_fn)(c);
@@ -81,6 +90,9 @@ where
         }
 
         for (a_idx, a) in entities_a.iter().enumerate() {
+            if !self.extractor_a.contains(solution, a) {
+                continue;
+            }
             let join_key = (self.key_a)(a);
             let lookup_key = (self.a_lookup_fn)(a);
 
@@ -103,7 +115,7 @@ where
         let entities_b = self.extractor_b.extract(solution);
 
         // Build C index once: O(B × C)
-        self.build_c_index(entities_b);
+        self.build_c_index(solution, entities_b);
 
         // Insert all A entities: O(A) with O(1) lookups each
         let mut total = Sc::zero();

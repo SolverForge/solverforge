@@ -233,11 +233,14 @@ where
     }
 
     // Build C index: (join_key, c_key) → list of (b_idx, c_value)
-    pub(super) fn build_c_index(&mut self, entities_b: &[B]) {
+    pub(super) fn build_c_index(&mut self, solution: &S, entities_b: &[B]) {
         self.bucket_by_key.clear();
         self.c_index.clear();
         self.b_entries.clear();
         for (b_idx, b) in entities_b.iter().enumerate() {
+            if !self.extractor_b.contains(solution, b) {
+                continue;
+            }
             let join_key = (self.key_b)(b);
             let mut entries = Vec::new();
             for c in (self.flatten)(b) {
@@ -326,6 +329,9 @@ where
         }
 
         let a = &entities_a[a_idx];
+        if !self.extractor_a.contains(solution, a) {
+            return Sc::zero();
+        }
         let bucket = self.bucket_for_key((self.key_a)(a), (self.a_lookup_fn)(a));
         let indices = self.a_by_bucket.entry(bucket).or_default();
         let pos = indices.len();
@@ -391,6 +397,9 @@ where
             return Sc::zero();
         }
         let b = &entities_b[b_idx];
+        if !self.extractor_b.contains(solution, b) {
+            return Sc::zero();
+        }
         let join_key = (self.key_b)(b);
         let mut entries = Vec::new();
         let mut total = Sc::zero();

@@ -5,6 +5,9 @@ pub(crate) fn problem_data_for_entity<S: VrpSolution>(
     plan: &S,
     entity_idx: usize,
 ) -> Option<&ProblemData> {
+    if entity_idx >= plan.vehicle_count() {
+        return None;
+    }
     let ptr = plan.vehicle_data_ptr(entity_idx);
     assert!(
         !ptr.is_null(),
@@ -15,33 +18,13 @@ pub(crate) fn problem_data_for_entity<S: VrpSolution>(
     unsafe { ptr.as_ref() }
 }
 
-#[inline]
-fn first_problem_data<S: VrpSolution>(plan: &S) -> Option<&ProblemData> {
-    if plan.vehicle_count() == 0 {
-        return None;
-    }
-    problem_data_for_entity(plan, 0)
+pub fn depot_for_entity<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
+    problem_data_for_entity(plan, entity_idx).map_or(0, |data| data.depot)
 }
 
-/// Distance between two element indices using the first vehicle's data pointer.
-pub fn distance<S: VrpSolution>(plan: &S, i: usize, j: usize) -> i64 {
-    first_problem_data(plan).map_or(0, |data| data.distance_matrix[i][j])
-}
-
-pub fn depot_for_entity<S: VrpSolution>(plan: &S, _entity_idx: usize) -> usize {
-    first_problem_data(plan).map_or(0, |data| data.depot)
-}
-
-pub fn depot_for_cw<S: VrpSolution>(plan: &S) -> usize {
-    first_problem_data(plan).map_or(0, |data| data.depot)
-}
-
-pub fn element_load<S: VrpSolution>(plan: &S, elem: usize) -> i64 {
-    first_problem_data(plan).map_or(0, |data| data.demands[elem] as i64)
-}
-
-pub fn capacity<S: VrpSolution>(plan: &S) -> i64 {
-    first_problem_data(plan).map_or(i64::MAX, |data| data.capacity)
+/// Distance between two element indices for the route owner.
+pub fn route_distance<S: VrpSolution>(plan: &S, entity_idx: usize, from: usize, to: usize) -> i64 {
+    problem_data_for_entity(plan, entity_idx).map_or(0, |data| data.distance_matrix[from][to])
 }
 
 /// Replaces the current route for entity `entity_idx`.
@@ -58,21 +41,23 @@ pub fn get_route<S: VrpSolution>(plan: &S, entity_idx: usize) -> Vec<usize> {
     plan.vehicle_visits(entity_idx).to_vec()
 }
 
-/// Returns `true` if the route satisfies all time-window constraints.
-pub fn is_time_feasible<S: VrpSolution>(plan: &S, route: &[usize]) -> bool {
+/// Returns `true` if the route satisfies capacity and time-window constraints.
+pub fn route_feasible<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool {
     if route.is_empty() {
         return true;
     }
-    match first_problem_data(plan) {
-        Some(data) => check_time_feasible(route, data),
+    match problem_data_for_entity(plan, entity_idx) {
+        Some(data) => check_capacity_feasible(route, data) && check_time_feasible(route, data),
         None => true,
     }
 }
 
-/// K-opt feasibility gate: returns `true` if the route satisfies all time-window constraints.
-/// The `entity_idx` parameter is ignored — time windows are uniform across vehicles.
-pub fn is_kopt_feasible<S: VrpSolution>(plan: &S, _entity_idx: usize, route: &[usize]) -> bool {
-    is_time_feasible(plan, route)
+fn check_capacity_feasible(route: &[usize], data: &ProblemData) -> bool {
+    route
+        .iter()
+        .map(|&visit| data.demands[visit] as i64)
+        .sum::<i64>()
+        <= data.capacity
 }
 
 fn check_time_feasible(route: &[usize], data: &ProblemData) -> bool {

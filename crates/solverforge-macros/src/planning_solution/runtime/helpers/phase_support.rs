@@ -175,17 +175,11 @@ pub(super) fn generate_runtime_phase_support(
                                     #intra_enum_ident::#variant(metadata.intra_distance_meter.clone()),
                                     #list_trait::LIST_VARIABLE_NAME,
                                     #descriptor_index_lit,
-                                    metadata.merge_feasible_fn,
-                                    metadata.cw_depot_fn,
-                                    metadata.cw_distance_fn,
-                                    metadata.cw_element_load_fn,
-                                    metadata.cw_capacity_fn,
-                                    metadata.cw_assign_route_fn,
-                                    metadata.k_opt_get_route,
-                                    metadata.k_opt_set_route,
-                                    metadata.k_opt_depot_fn,
-                                    metadata.k_opt_distance_fn,
-                                    metadata.k_opt_feasible_fn,
+                                    metadata.route_get_fn,
+                                    metadata.route_set_fn,
+                                    metadata.route_depot_fn,
+                                    metadata.route_distance_fn,
+                                    metadata.route_feasible_fn,
                                 )
                             )
                         );

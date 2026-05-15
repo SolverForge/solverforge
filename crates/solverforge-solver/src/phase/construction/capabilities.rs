@@ -276,34 +276,31 @@ fn validate_list_route<S, V, DM, IDM>(
         let mut required = Vec::new();
         match heuristic {
             ConstructionHeuristicType::ListClarkeWright => {
-                if ctx.cw_depot_fn.is_none() {
-                    required.push("cw_depot_fn");
+                if ctx.route_set_fn.is_none() {
+                    required.push("route_set_fn");
                 }
-                if ctx.cw_distance_fn.is_none() {
-                    required.push("cw_distance_fn");
+                if ctx.route_depot_fn.is_none() {
+                    required.push("route_depot_fn");
                 }
-                if ctx.cw_element_load_fn.is_none() {
-                    required.push("cw_element_load_fn");
+                if ctx.route_distance_fn.is_none() {
+                    required.push("route_distance_fn");
                 }
-                if ctx.cw_capacity_fn.is_none() {
-                    required.push("cw_capacity_fn");
-                }
-                if ctx.cw_assign_route_fn.is_none() {
-                    required.push("cw_assign_route_fn");
+                if ctx.route_feasible_fn.is_none() {
+                    required.push("route_feasible_fn");
                 }
             }
             ConstructionHeuristicType::ListKOpt => {
-                if ctx.k_opt_get_route.is_none() {
-                    required.push("k_opt_get_route");
+                if ctx.route_get_fn.is_none() {
+                    required.push("route_get_fn");
                 }
-                if ctx.k_opt_set_route.is_none() {
-                    required.push("k_opt_set_route");
+                if ctx.route_set_fn.is_none() {
+                    required.push("route_set_fn");
                 }
-                if ctx.k_opt_depot_fn.is_none() {
-                    required.push("k_opt_depot_fn");
+                if ctx.route_depot_fn.is_none() {
+                    required.push("route_depot_fn");
                 }
-                if ctx.k_opt_distance_fn.is_none() {
-                    required.push("k_opt_distance_fn");
+                if ctx.route_distance_fn.is_none() {
+                    required.push("route_distance_fn");
                 }
             }
             _ => {}

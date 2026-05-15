@@ -54,7 +54,7 @@ use crate::scope::{PhaseScope, SolverScope, StepScope};
 ///     |p, entity_idx| p.vehicles[entity_idx].route.clone(),
 ///     |p, entity_idx, route| { p.vehicles[entity_idx].route = route; },
 ///     |_p, entity_idx| 0,   // depot index
-///     |_p, i, j| (i as i64 - j as i64).abs(),
+///     |_p, _entity_idx, i, j| (i as i64 - j as i64).abs(),
 ///     None,                  // no extra feasibility check
 ///     0,
 /// );
@@ -69,7 +69,7 @@ where
     get_route: fn(&S, usize) -> Vec<usize>,
     set_route: fn(&mut S, usize, Vec<usize>),
     depot_fn: fn(&S, usize) -> usize,
-    distance_fn: fn(&S, usize, usize) -> i64,
+    distance_fn: fn(&S, usize, usize, usize) -> i64,
     feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
     descriptor_index: usize,
     _marker: PhantomData<fn() -> (S, E)>,
@@ -99,7 +99,7 @@ where
     * `get_route` — returns the route for entity at given index as element indices
     * `set_route` — replaces the route for entity at given index
     * `depot_fn` — returns the depot element index for a given entity
-    * `distance_fn` — distance between two element indices
+    * `distance_fn` — distance between two element indices for the given entity
     * `feasible_fn` — optional feasibility gate; receives solution, entity index, and
     candidate route after tentative reversal; return `false` to reject the move
     * `descriptor_index` — entity descriptor index for change notification
@@ -111,7 +111,7 @@ where
         get_route: fn(&S, usize) -> Vec<usize>,
         set_route: fn(&mut S, usize, Vec<usize>),
         depot_fn: fn(&S, usize) -> usize,
-        distance_fn: fn(&S, usize, usize) -> i64,
+        distance_fn: fn(&S, usize, usize, usize) -> i64,
         feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
         descriptor_index: usize,
     ) -> Self {
@@ -192,8 +192,10 @@ where
                         let e = if j + 1 < n { route[j + 1] } else { depot };
                         // Accept if reversing [i..=j] reduces distance
                         let solution = phase_scope.score_director().working_solution();
-                        if distance_fn(solution, a, c) + distance_fn(solution, b, e)
-                            < distance_fn(solution, a, b) + distance_fn(solution, c, e)
+                        if distance_fn(solution, entity_idx, a, c)
+                            + distance_fn(solution, entity_idx, b, e)
+                            < distance_fn(solution, entity_idx, a, b)
+                                + distance_fn(solution, entity_idx, c, e)
                         {
                             route[i..=j].reverse();
                             // Check optional feasibility gate; revert if infeasible
@@ -232,5 +234,185 @@ where
 
     fn phase_type_name(&self) -> &'static str {
         "ListKOpt"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::any::TypeId;
+    use std::sync::{Mutex, OnceLock};
+
+    use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+    use solverforge_core::score::SoftScore;
+    use solverforge_scoring::ScoreDirector;
+
+    #[derive(Clone, Debug)]
+    struct Route {
+        visits: Vec<usize>,
+    }
+
+    #[derive(Clone, Debug)]
+    struct Plan {
+        routes: Vec<Route>,
+        score: Option<SoftScore>,
+    }
+
+    impl PlanningSolution for Plan {
+        type Score = SoftScore;
+
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
+    }
+
+    fn entity_count(plan: &Plan) -> usize {
+        plan.routes.len()
+    }
+
+    fn get_route(plan: &Plan, entity_idx: usize) -> Vec<usize> {
+        plan.routes[entity_idx].visits.clone()
+    }
+
+    fn set_route(plan: &mut Plan, entity_idx: usize, route: Vec<usize>) {
+        plan.routes[entity_idx].visits = route;
+    }
+
+    fn depot(_: &Plan, _: usize) -> usize {
+        0
+    }
+
+    fn line_distance(_: &Plan, _: usize, left: usize, right: usize) -> i64 {
+        (left as i64 - right as i64).abs()
+    }
+
+    fn owner_distance_calls() -> &'static Mutex<Vec<usize>> {
+        static CALLS: OnceLock<Mutex<Vec<usize>>> = OnceLock::new();
+        CALLS.get_or_init(|| Mutex::new(Vec::new()))
+    }
+
+    fn recording_line_distance(_: &Plan, entity_idx: usize, left: usize, right: usize) -> i64 {
+        owner_distance_calls()
+            .lock()
+            .expect("owner distance recorder should lock")
+            .push(entity_idx);
+        (left as i64 - right as i64).abs()
+    }
+
+    fn keep_original_middle_pair(_: &Plan, _: usize, route: &[usize]) -> bool {
+        route.get(1) == Some(&3) && route.get(2) == Some(&2)
+    }
+
+    fn director(plan: Plan) -> ScoreDirector<Plan, ()> {
+        ScoreDirector::simple(
+            plan,
+            SolutionDescriptor::new("Plan", TypeId::of::<Plan>()),
+            |s, descriptor_index| {
+                if descriptor_index == 0 {
+                    s.routes.len()
+                } else {
+                    0
+                }
+            },
+        )
+    }
+
+    #[test]
+    fn list_k_opt_improves_route_with_unified_route_hooks() {
+        let plan = Plan {
+            routes: vec![Route {
+                visits: vec![1, 3, 2, 4],
+            }],
+            score: None,
+        };
+        let mut solver_scope = SolverScope::new(director(plan));
+        let mut phase = ListKOptPhase::<Plan, usize>::new(
+            2,
+            entity_count,
+            get_route,
+            set_route,
+            depot,
+            line_distance,
+            None,
+            0,
+        );
+
+        phase.solve(&mut solver_scope);
+
+        assert_eq!(
+            solver_scope.working_solution().routes[0].visits,
+            vec![1, 2, 3, 4]
+        );
+    }
+
+    #[test]
+    fn list_k_opt_feasibility_hook_rejects_improving_reversal() {
+        let plan = Plan {
+            routes: vec![Route {
+                visits: vec![1, 3, 2, 4],
+            }],
+            score: None,
+        };
+        let mut solver_scope = SolverScope::new(director(plan));
+        let mut phase = ListKOptPhase::<Plan, usize>::new(
+            2,
+            entity_count,
+            get_route,
+            set_route,
+            depot,
+            line_distance,
+            Some(keep_original_middle_pair),
+            0,
+        );
+
+        phase.solve(&mut solver_scope);
+
+        assert_eq!(
+            solver_scope.working_solution().routes[0].visits,
+            vec![1, 3, 2, 4]
+        );
+    }
+
+    #[test]
+    fn list_k_opt_uses_owner_specific_distance_hook() {
+        owner_distance_calls()
+            .lock()
+            .expect("owner distance recorder should lock")
+            .clear();
+        let plan = Plan {
+            routes: vec![
+                Route {
+                    visits: vec![1, 3, 2, 4],
+                },
+                Route {
+                    visits: vec![2, 4, 3, 5],
+                },
+            ],
+            score: None,
+        };
+        let mut solver_scope = SolverScope::new(director(plan));
+        let mut phase = ListKOptPhase::<Plan, usize>::new(
+            2,
+            entity_count,
+            get_route,
+            set_route,
+            depot,
+            recording_line_distance,
+            None,
+            0,
+        );
+
+        phase.solve(&mut solver_scope);
+
+        let calls = owner_distance_calls()
+            .lock()
+            .expect("owner distance recorder should lock")
+            .clone();
+        assert!(calls.contains(&0));
+        assert!(calls.contains(&1));
     }
 }

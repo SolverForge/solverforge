@@ -163,9 +163,11 @@ arguments are compile errors.
 - `element_collection = "field"` — solution field with all list elements
 - `distance_meter = "path"` — optional cross-entity distance meter type
 - `intra_distance_meter = "path"` — optional intra-entity distance meter type
-- `merge_feasible_fn = "path"` — optional Clarke-Wright feasibility gate
-- `cw_depot_fn`, `cw_distance_fn`, `cw_element_load_fn`, `cw_capacity_fn`, `cw_assign_route_fn` — Clarke-Wright hooks
-- `k_opt_get_route`, `k_opt_set_route`, `k_opt_depot_fn`, `k_opt_distance_fn`, `k_opt_feasible_fn` — K-opt hooks
+- `route_get_fn = "path"` — optional route reader, `fn(&Solution, entity_idx) -> Vec<usize>`
+- `route_set_fn = "path"` — optional route writer, `fn(&mut Solution, entity_idx, route)`
+- `route_depot_fn = "path"` — optional owner-aware depot hook, `fn(&Solution, entity_idx) -> usize`
+- `route_distance_fn = "path"` — optional owner-aware distance hook, `fn(&Solution, entity_idx, from, to) -> i64`
+- `route_feasible_fn = "path"` — optional owner-aware feasibility hook, `fn(&Solution, entity_idx, route) -> bool`; this is the route-level gate used to express capacity, time-window, vehicle compatibility, and other hard feasibility rules for Clarke-Wright and k-opt
 
 **Generated code:**
 - `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, plus `update_entity_shadows()` / `update_all_shadows()` overrides when shadow updates are configured

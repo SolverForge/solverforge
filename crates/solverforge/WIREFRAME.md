@@ -166,9 +166,7 @@ Module: `solverforge::cvrp`
 - `MatrixDistanceMeter`
 - `MatrixIntraDistanceMeter`
 - `replace_route`, `get_route`
-- `capacity`, `depot_for_cw`, `depot_for_entity`
-- `distance`, `element_load`
-- `is_kopt_feasible`, `is_time_feasible`
+- `depot_for_entity`, `route_distance`, `route_feasible`
 
 ### Console (feature-gated)
 

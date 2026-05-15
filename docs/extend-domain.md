@@ -32,7 +32,10 @@ Use the scaffold as a thin starter, then model the real problem in your app.
   `construction_entity_order_key = "fn_name"` and/or
   `construction_value_order_key = "fn_name"`.
 - Keep list construction capabilities on `#[planning_list_variable]`. Clarke-Wright
-  and k-opt construction do not infer scalar order keys or alternate list hooks.
+  and k-opt construction consume the same owner-aware route hooks:
+  `route_get_fn`, `route_set_fn`, `route_depot_fn`, `route_distance_fn`, and
+  `route_feasible_fn`. They do not infer scalar order keys or alternate list
+  hooks.
 - Add derived fields, validation helpers, and sample data beside the domain
   model, not in the scaffold templates.
 

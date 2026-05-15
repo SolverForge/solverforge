@@ -814,7 +814,7 @@ Runtime routing is capability-driven:
   variables must use the owning `group_name`; ungrouped construction for those
   targets is rejected before phase execution
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
-- list-only heuristics validate required `cw_*` or `k_opt_*` hooks before phase build
+- list-only route heuristics validate required owner-aware route hooks before phase build
 - generic mixed construction stays in the canonical engine
 
 Grouped scalar construction is slot-first: candidates are normalized into exact
@@ -1062,7 +1062,8 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 | `ListClarkeWrightPhase<S, E>` | Self (implements Phase directly) |
 | `KOptPhaseBuilder<S, V>` | `KOptPhase` |
 
-`ListClarkeWrightPhase<S, E>` preserves preassigned routes by pairing its route-construction hooks with an explicit per-entity route-length callback when filling remaining work.
+`ListClarkeWrightPhase<S, E>` preserves preassigned routes by filling only empty entities, computes owner-aware savings through `route_depot_fn` and `route_distance_fn`, and assigns constructed routes through deterministic matching against `route_feasible_fn`.
+`ListKOptPhase<S, E>` uses the same route hooks for per-route 2-opt polishing: `route_get_fn` reads the route, `route_set_fn` writes an accepted route, `route_depot_fn` supplies the owner depot, `route_distance_fn` scores reversals for that owner, and optional `route_feasible_fn` rejects infeasible improvements.
 
 ## Real-Time Planning
 

@@ -54,59 +54,29 @@ pub(super) fn generate_list_metadata(
     let solution_where_clause = solution_trait_bound
         .as_ref()
         .map(|bound| quote! { where Solution: #bound });
-    let merge_feasible = option_fn_expr(
-        parse_attribute_string(attr, "merge_feasible_fn"),
-        "merge_feasible_fn",
+    let route_get = option_fn_expr(
+        parse_attribute_string(attr, "route_get_fn"),
+        "route_get_fn",
         field,
     )?;
-    let cw_depot = option_fn_expr(
-        parse_attribute_string(attr, "cw_depot_fn"),
-        "cw_depot_fn",
+    let route_set = option_fn_expr(
+        parse_attribute_string(attr, "route_set_fn"),
+        "route_set_fn",
         field,
     )?;
-    let cw_dist = option_fn_expr(
-        parse_attribute_string(attr, "cw_distance_fn"),
-        "cw_distance_fn",
+    let route_depot = option_fn_expr(
+        parse_attribute_string(attr, "route_depot_fn"),
+        "route_depot_fn",
         field,
     )?;
-    let cw_load = option_fn_expr(
-        parse_attribute_string(attr, "cw_element_load_fn"),
-        "cw_element_load_fn",
+    let route_distance = option_fn_expr(
+        parse_attribute_string(attr, "route_distance_fn"),
+        "route_distance_fn",
         field,
     )?;
-    let cw_cap = option_fn_expr(
-        parse_attribute_string(attr, "cw_capacity_fn"),
-        "cw_capacity_fn",
-        field,
-    )?;
-    let cw_assign = option_fn_expr(
-        parse_attribute_string(attr, "cw_assign_route_fn"),
-        "cw_assign_route_fn",
-        field,
-    )?;
-    let k_opt_get = option_fn_expr(
-        parse_attribute_string(attr, "k_opt_get_route"),
-        "k_opt_get_route",
-        field,
-    )?;
-    let k_opt_set = option_fn_expr(
-        parse_attribute_string(attr, "k_opt_set_route"),
-        "k_opt_set_route",
-        field,
-    )?;
-    let k_opt_depot = option_fn_expr(
-        parse_attribute_string(attr, "k_opt_depot_fn"),
-        "k_opt_depot_fn",
-        field,
-    )?;
-    let k_opt_dist = option_fn_expr(
-        parse_attribute_string(attr, "k_opt_distance_fn"),
-        "k_opt_distance_fn",
-        field,
-    )?;
-    let k_opt_feasible = option_fn_expr(
-        parse_attribute_string(attr, "k_opt_feasible_fn"),
-        "k_opt_feasible_fn",
+    let route_feasible = option_fn_expr(
+        parse_attribute_string(attr, "route_feasible_fn"),
+        "route_feasible_fn",
         field,
     )?;
     Ok(quote! {
@@ -137,17 +107,11 @@ pub(super) fn generate_list_metadata(
             ::solverforge::__internal::ListVariableMetadata::new(
                 #cross_dm_expr,
                 #intra_dm_expr,
-                #merge_feasible,
-                #cw_depot,
-                #cw_dist,
-                #cw_load,
-                #cw_cap,
-                #cw_assign,
-                #k_opt_get,
-                #k_opt_set,
-                #k_opt_depot,
-                #k_opt_dist,
-                #k_opt_feasible,
+                #route_get,
+                #route_set,
+                #route_depot,
+                #route_distance,
+                #route_feasible,
             )
         }
 
@@ -191,12 +155,6 @@ pub(super) fn generate_list_trait_impl(
                     ::solverforge::__internal::ListVariableMetadata::new(
                         ::solverforge::__internal::DefaultCrossEntityDistanceMeter::default(),
                         ::solverforge::__internal::DefaultCrossEntityDistanceMeter::default(),
-                        ::core::option::Option::None,
-                        ::core::option::Option::None,
-                        ::core::option::Option::None,
-                        ::core::option::Option::None,
-                        ::core::option::Option::None,
-                        ::core::option::Option::None,
                         ::core::option::Option::None,
                         ::core::option::Option::None,
                         ::core::option::Option::None,

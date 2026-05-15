@@ -89,12 +89,11 @@ where
                 .solve(solver_scope);
             }
             ConstructionHeuristicType::ListClarkeWright => {
-                let (Some(depot), Some(dist), Some(load), Some(cap), Some(assign)) = (
-                    ctx.cw_depot_fn,
-                    ctx.cw_distance_fn,
-                    ctx.cw_element_load_fn,
-                    ctx.cw_capacity_fn,
-                    ctx.cw_assign_route_fn,
+                let (Some(set_route), Some(depot), Some(dist), Some(feasible)) = (
+                    ctx.route_set_fn,
+                    ctx.route_depot_fn,
+                    ctx.route_distance_fn,
+                    ctx.route_feasible_fn,
                 ) else {
                     unreachable!("validated list_clarke_wright hooks must be present");
                 };
@@ -103,23 +102,21 @@ where
                     ctx.assigned_elements,
                     ctx.entity_count,
                     ctx.list_len,
-                    assign,
+                    set_route,
                     ctx.index_to_element,
                     depot,
                     dist,
-                    load,
-                    cap,
-                    ctx.merge_feasible_fn,
+                    feasible,
                     ctx.descriptor_index,
                 )
                 .solve(solver_scope);
             }
             ConstructionHeuristicType::ListKOpt => {
-                let (Some(get_route), Some(set_route), Some(ko_depot), Some(ko_dist)) = (
-                    ctx.k_opt_get_route,
-                    ctx.k_opt_set_route,
-                    ctx.k_opt_depot_fn,
-                    ctx.k_opt_distance_fn,
+                let (Some(get_route), Some(set_route), Some(route_depot), Some(route_dist)) = (
+                    ctx.route_get_fn,
+                    ctx.route_set_fn,
+                    ctx.route_depot_fn,
+                    ctx.route_distance_fn,
                 ) else {
                     unreachable!("validated list_k_opt hooks must be present");
                 };
@@ -128,9 +125,9 @@ where
                     ctx.entity_count,
                     get_route,
                     set_route,
-                    ko_depot,
-                    ko_dist,
-                    ctx.k_opt_feasible_fn,
+                    route_depot,
+                    route_dist,
+                    ctx.route_feasible_fn,
                     ctx.descriptor_index,
                 )
                 .solve(solver_scope);

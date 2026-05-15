@@ -34,17 +34,11 @@ pub struct ListVariableSlot<S, V, DM, IDM> {
     pub intra_distance_meter: IDM,
     pub variable_name: &'static str,
     pub descriptor_index: usize,
-    pub merge_feasible_fn: Option<fn(&S, &[usize]) -> bool>,
-    pub cw_depot_fn: Option<fn(&S) -> usize>,
-    pub cw_distance_fn: Option<fn(&S, usize, usize) -> i64>,
-    pub cw_element_load_fn: Option<fn(&S, usize) -> i64>,
-    pub cw_capacity_fn: Option<fn(&S) -> i64>,
-    pub cw_assign_route_fn: Option<fn(&mut S, usize, Vec<V>)>,
-    pub k_opt_get_route: Option<fn(&S, usize) -> Vec<usize>>,
-    pub k_opt_set_route: Option<fn(&mut S, usize, Vec<usize>)>,
-    pub k_opt_depot_fn: Option<fn(&S, usize) -> usize>,
-    pub k_opt_distance_fn: Option<fn(&S, usize, usize) -> i64>,
-    pub k_opt_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
+    pub route_get_fn: Option<fn(&S, usize) -> Vec<usize>>,
+    pub route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>,
+    pub route_depot_fn: Option<fn(&S, usize) -> usize>,
+    pub route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
+    pub route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
@@ -71,17 +65,11 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
             intra_distance_meter: self.intra_distance_meter.clone(),
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
-            merge_feasible_fn: self.merge_feasible_fn,
-            cw_depot_fn: self.cw_depot_fn,
-            cw_distance_fn: self.cw_distance_fn,
-            cw_element_load_fn: self.cw_element_load_fn,
-            cw_capacity_fn: self.cw_capacity_fn,
-            cw_assign_route_fn: self.cw_assign_route_fn,
-            k_opt_get_route: self.k_opt_get_route,
-            k_opt_set_route: self.k_opt_set_route,
-            k_opt_depot_fn: self.k_opt_depot_fn,
-            k_opt_distance_fn: self.k_opt_distance_fn,
-            k_opt_feasible_fn: self.k_opt_feasible_fn,
+            route_get_fn: self.route_get_fn,
+            route_set_fn: self.route_set_fn,
+            route_depot_fn: self.route_depot_fn,
+            route_distance_fn: self.route_distance_fn,
+            route_feasible_fn: self.route_feasible_fn,
             _phantom: PhantomData,
         }
     }
@@ -110,17 +98,11 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         intra_distance_meter: IDM,
         variable_name: &'static str,
         descriptor_index: usize,
-        merge_feasible_fn: Option<fn(&S, &[usize]) -> bool>,
-        cw_depot_fn: Option<fn(&S) -> usize>,
-        cw_distance_fn: Option<fn(&S, usize, usize) -> i64>,
-        cw_element_load_fn: Option<fn(&S, usize) -> i64>,
-        cw_capacity_fn: Option<fn(&S) -> i64>,
-        cw_assign_route_fn: Option<fn(&mut S, usize, Vec<V>)>,
-        k_opt_get_route: Option<fn(&S, usize) -> Vec<usize>>,
-        k_opt_set_route: Option<fn(&mut S, usize, Vec<usize>)>,
-        k_opt_depot_fn: Option<fn(&S, usize) -> usize>,
-        k_opt_distance_fn: Option<fn(&S, usize, usize) -> i64>,
-        k_opt_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
+        route_get_fn: Option<fn(&S, usize) -> Vec<usize>>,
+        route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>,
+        route_depot_fn: Option<fn(&S, usize) -> usize>,
+        route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
+        route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
     ) -> Self {
         Self {
             entity_type_name,
@@ -143,17 +125,11 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             intra_distance_meter,
             variable_name,
             descriptor_index,
-            merge_feasible_fn,
-            cw_depot_fn,
-            cw_distance_fn,
-            cw_element_load_fn,
-            cw_capacity_fn,
-            cw_assign_route_fn,
-            k_opt_get_route,
-            k_opt_set_route,
-            k_opt_depot_fn,
-            k_opt_distance_fn,
-            k_opt_feasible_fn,
+            route_get_fn,
+            route_set_fn,
+            route_depot_fn,
+            route_distance_fn,
+            route_feasible_fn,
             _phantom: PhantomData,
         }
     }
@@ -173,18 +149,17 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
     }
 
     pub fn supports_clarke_wright(&self) -> bool {
-        self.cw_depot_fn.is_some()
-            && self.cw_distance_fn.is_some()
-            && self.cw_element_load_fn.is_some()
-            && self.cw_capacity_fn.is_some()
-            && self.cw_assign_route_fn.is_some()
+        self.route_set_fn.is_some()
+            && self.route_depot_fn.is_some()
+            && self.route_distance_fn.is_some()
+            && self.route_feasible_fn.is_some()
     }
 
     pub fn supports_k_opt(&self) -> bool {
-        self.k_opt_get_route.is_some()
-            && self.k_opt_set_route.is_some()
-            && self.k_opt_depot_fn.is_some()
-            && self.k_opt_distance_fn.is_some()
+        self.route_get_fn.is_some()
+            && self.route_set_fn.is_some()
+            && self.route_depot_fn.is_some()
+            && self.route_distance_fn.is_some()
     }
 
     pub fn supports_ruin(&self) -> bool {

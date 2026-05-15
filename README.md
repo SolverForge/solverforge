@@ -100,7 +100,7 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
 - **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, filtered join sources, single-source and cross-join projected scoring rows, direct cross-join grouping and grouped complements, projected grouped complements, existence checks, joins, grouping, `collect_vec`, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
-  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list runtime plan when matching list work is present, plus descriptor construction routing for scalar-only targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, `ListClarkeWright`, `ListKOpt`)
+  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list runtime plan when matching list work is present, plus descriptor construction routing for scalar-only targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, owner-aware `ListClarkeWright`, `ListKOpt`)
   - Grouped scalar construction for named `ScalarGroup` declarations, including
     candidate-backed compound edits and assignment-backed nullable scalar
     construction with required-slot handling, capacity repair, and heuristic

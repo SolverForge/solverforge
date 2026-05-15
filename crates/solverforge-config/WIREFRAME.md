@@ -658,8 +658,8 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 | `ListRoundRobin` | Specialized list-only even distribution; validates the targeted list variable exists before phase build |
 | `ListCheapestInsertion` | Specialized list-only score-minimizing insertion; validates the targeted list variable exists before phase build |
 | `ListRegretInsertion` | Specialized list-only highest-regret insertion; validates the targeted list variable exists before phase build |
-| `ListClarkeWright` | Specialized list-only greedy route merging by savings; validates required `cw_*` hooks before phase build |
-| `ListKOpt` | Specialized list-only per-route k-opt polishing (k=2 = 2-opt); validates required `k_opt_*` hooks before phase build |
+| `ListClarkeWright` | Specialized list-only greedy route merging by savings; validates `route_set_fn`, `route_depot_fn`, `route_distance_fn`, and `route_feasible_fn` before phase build |
+| `ListKOpt` | Specialized list-only per-route k-opt polishing (k=2 = 2-opt); validates `route_get_fn`, `route_set_fn`, `route_depot_fn`, and `route_distance_fn` before phase build |
 
 When `group_name` is set, grouped scalar construction supports
 `FirstFit`, `FirstFitDecreasing`, `CheapestInsertion`, `WeakestFit`,

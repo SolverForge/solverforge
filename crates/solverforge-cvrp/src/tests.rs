@@ -2,41 +2,52 @@ use super::*;
 use solverforge_solver::CrossEntityDistanceMeter;
 
 struct TestSolution {
-    data: Box<ProblemData>,
+    data: Vec<ProblemData>,
     routes: Vec<Vec<usize>>,
 }
 
 impl TestSolution {
     fn new(routes: Vec<Vec<usize>>) -> Self {
+        let data = base_problem_data();
+        let vehicle_data = (0..routes.len()).map(|_| data.clone()).collect();
         Self {
-            data: Box::new(ProblemData {
-                capacity: 10,
-                depot: 0,
-                demands: vec![0, 2, 3, 4],
-                distance_matrix: vec![
-                    vec![0, 5, 7, 9],
-                    vec![5, 0, 4, 6],
-                    vec![7, 4, 0, 3],
-                    vec![9, 6, 3, 0],
-                ],
-                time_windows: vec![(0, 100), (0, 10), (7, 14), (0, 12)],
-                service_durations: vec![0, 2, 2, 3],
-                travel_times: vec![
-                    vec![0, 5, 7, 9],
-                    vec![5, 0, 4, 6],
-                    vec![7, 4, 0, 3],
-                    vec![9, 6, 3, 0],
-                ],
-                vehicle_departure_time: 0,
-            }),
+            data: vehicle_data,
             routes,
         }
+    }
+
+    fn with_data(routes: Vec<Vec<usize>>, data: Vec<ProblemData>) -> Self {
+        assert_eq!(routes.len(), data.len());
+        Self { data, routes }
+    }
+}
+
+fn base_problem_data() -> ProblemData {
+    ProblemData {
+        capacity: 10,
+        depot: 0,
+        demands: vec![0, 2, 3, 4],
+        distance_matrix: vec![
+            vec![0, 5, 7, 9],
+            vec![5, 0, 4, 6],
+            vec![7, 4, 0, 3],
+            vec![9, 6, 3, 0],
+        ],
+        time_windows: vec![(0, 100), (0, 10), (7, 14), (0, 12)],
+        service_durations: vec![0, 2, 2, 3],
+        travel_times: vec![
+            vec![0, 5, 7, 9],
+            vec![5, 0, 4, 6],
+            vec![7, 4, 0, 3],
+            vec![9, 6, 3, 0],
+        ],
+        vehicle_departure_time: 0,
     }
 }
 
 impl VrpSolution for TestSolution {
-    fn vehicle_data_ptr(&self, _entity_idx: usize) -> *const ProblemData {
-        self.data.as_ref() as *const ProblemData
+    fn vehicle_data_ptr(&self, entity_idx: usize) -> *const ProblemData {
+        &self.data[entity_idx] as *const ProblemData
     }
 
     fn vehicle_visits(&self, entity_idx: usize) -> &[usize] {
@@ -75,27 +86,28 @@ impl VrpSolution for NullDataSolution {
 }
 
 #[test]
-fn helpers_use_problem_data_from_first_vehicle() {
-    let solution = TestSolution::new(vec![vec![1, 2], vec![3]]);
+fn helpers_use_problem_data_for_route_owner() {
+    let mut owner_one_data = base_problem_data();
+    owner_one_data.depot = 3;
+    owner_one_data.distance_matrix[1][3] = 42;
+    let solution = TestSolution::with_data(
+        vec![vec![1, 2], vec![3]],
+        vec![base_problem_data(), owner_one_data],
+    );
 
-    assert_eq!(distance(&solution, 1, 3), 6);
-    assert_eq!(depot_for_entity(&solution, 1), 0);
-    assert_eq!(depot_for_cw(&solution), 0);
-    assert_eq!(element_load(&solution, 2), 3);
-    assert_eq!(capacity(&solution), 10);
+    assert_eq!(route_distance(&solution, 1, 1, 3), 42);
+    assert_eq!(depot_for_entity(&solution, 0), 0);
+    assert_eq!(depot_for_entity(&solution, 1), 3);
+    assert!(route_feasible(&solution, 0, &[1, 2]));
 }
 
 #[test]
 fn helpers_handle_empty_fleets() {
     let solution = TestSolution::new(vec![]);
 
-    assert_eq!(distance(&solution, 1, 2), 0);
+    assert_eq!(route_distance(&solution, 0, 1, 2), 0);
     assert_eq!(depot_for_entity(&solution, 0), 0);
-    assert_eq!(depot_for_cw(&solution), 0);
-    assert_eq!(element_load(&solution, 1), 0);
-    assert_eq!(capacity(&solution), i64::MAX);
-    assert!(is_time_feasible(&solution, &[1, 2]));
-    assert!(is_kopt_feasible(&solution, 0, &[1, 2]));
+    assert!(route_feasible(&solution, 0, &[1, 2]));
 }
 
 #[test]
@@ -105,7 +117,7 @@ fn helpers_reject_missing_problem_data_for_non_empty_fleets() {
         routes: vec![vec![1, 2]],
     };
 
-    let _ = distance(&solution, 1, 2);
+    let _ = route_distance(&solution, 0, 1, 2);
 }
 
 #[test]
@@ -125,14 +137,26 @@ fn time_feasibility_checks_waiting_and_deadlines() {
     let solution = TestSolution::new(vec![vec![1, 2], vec![3]]);
 
     assert!(
-        is_time_feasible(&solution, &[1, 2]),
+        route_feasible(&solution, 0, &[1, 2]),
         "route should wait for customer 2 and still finish in time"
     );
     assert!(
-        !is_time_feasible(&solution, &[2, 3]),
+        !route_feasible(&solution, 0, &[2, 3]),
         "route should miss customer 3's latest end"
     );
-    assert!(is_kopt_feasible(&solution, 1, &[1, 2]));
+}
+
+#[test]
+fn route_feasibility_checks_owner_capacity() {
+    let mut owner_one_data = base_problem_data();
+    owner_one_data.capacity = 4;
+    let solution = TestSolution::with_data(
+        vec![vec![1, 2], vec![3]],
+        vec![base_problem_data(), owner_one_data],
+    );
+
+    assert!(route_feasible(&solution, 0, &[1, 2]));
+    assert!(!route_feasible(&solution, 1, &[1, 2]));
 }
 
 #[test]

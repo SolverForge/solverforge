@@ -306,12 +306,6 @@ fn revision_model() -> RuntimeModel<RevisionPlan, usize, DefaultMeter, DefaultMe
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
         )),
     ])
 }

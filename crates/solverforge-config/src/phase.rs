@@ -134,11 +134,11 @@ pub enum ConstructionHeuristicType {
     ListRegretInsertion,
 
     // List Clarke-Wright savings: greedy route merging by savings value; requires the declared
-    // `cw_*` list hooks and validates them before phase build.
+    // owner-aware route hooks and validates them before phase build.
     ListClarkeWright,
 
     // List k-opt: per-route k-opt polishing (k=2 is exact 2-opt); requires the declared
-    // `k_opt_*` list hooks and validates them before phase build.
+    // owner-aware route hooks and validates them before phase build.
     ListKOpt,
 }
 

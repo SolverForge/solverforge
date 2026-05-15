@@ -1,4 +1,4 @@
-error: unsupported planning_list_variable argument `unexpected`; supported arguments are element_collection, distance_meter, intra_distance_meter, merge_feasible_fn, cw_depot_fn, cw_distance_fn, cw_element_load_fn, cw_capacity_fn, cw_assign_route_fn, k_opt_get_route, k_opt_set_route, k_opt_depot_fn, k_opt_distance_fn, k_opt_feasible_fn, solution_trait
+error: unsupported planning_list_variable argument `unexpected`; supported arguments are element_collection, distance_meter, intra_distance_meter, route_get_fn, route_set_fn, route_depot_fn, route_distance_fn, route_feasible_fn, solution_trait
  --> tests/ui/fail/planning_list_variable_unknown_argument.rs:8:61
   |
 8 |     #[planning_list_variable(element_collection = "visits", unexpected = "value")]

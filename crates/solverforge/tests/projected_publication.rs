@@ -97,6 +97,16 @@ impl Projection<Capacity> for CapacityEntries {
     }
 }
 
+struct CustomCapacityExtract;
+
+impl solverforge::stream::CollectionExtract<Plan> for CustomCapacityExtract {
+    type Item = Capacity;
+
+    fn extract<'s>(&self, plan: &'s Plan) -> &'s [Capacity] {
+        plan.capacities.as_slice()
+    }
+}
+
 #[test]
 fn projected_stream_is_public_and_infers_output_type() {
     let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
@@ -169,6 +179,39 @@ fn cross_join_project_is_public_and_infers_output_type() {
     };
 
     assert_eq!(constraint.evaluate(&plan), HardSoftScore::of(-2, 0));
+}
+
+#[test]
+fn cross_join_accepts_custom_collection_extract_target() {
+    let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
+        .for_each(Plan::assignments())
+        .join((
+            CustomCapacityExtract,
+            joiner::equal_bi(
+                |assignment: &Assignment| assignment.bucket,
+                |capacity: &Capacity| capacity.bucket,
+            ),
+        ))
+        .penalize(|_assignment: &Assignment, capacity: &Capacity| {
+            HardSoftScore::of_hard(capacity.amount)
+        })
+        .named("custom capacity target");
+
+    let plan = Plan {
+        capacities: vec![Capacity {
+            id: 0,
+            bucket: 0,
+            amount: 3,
+        }],
+        assignments: vec![Assignment {
+            id: 0,
+            bucket: 0,
+            demand: 5,
+        }],
+        score: None,
+    };
+
+    assert_eq!(constraint.evaluate(&plan), HardSoftScore::of(-3, 0));
 }
 
 #[test]

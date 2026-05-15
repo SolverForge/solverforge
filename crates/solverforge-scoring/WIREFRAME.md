@@ -446,7 +446,7 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
 - Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `ProjectedConstraintStream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
-- Unfiltered `UniConstraintStream<..., TrueFilter, ...>` implements `CollectionExtract` by delegating to its source extractor.
+- `UniConstraintStream` implements `CollectionExtract` by delegating extraction to its source and applying its accumulated filter through `contains(...)`.
 - Stream targets preserve their own source filters when passed to keyed or predicate cross-joins. This lets `.join((ConstraintFactory::new().for_each(source).filter(pred), equal_bi(...)))` keep the right-side source predicate inside the joined stream.
 - `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
@@ -537,6 +537,7 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 **`CollectionExtract<S>`** — Trait for extracting an entity slice from the solution. All `E`/`EA`/`EB` type params in streams and constraints are bounded by `CollectionExtract<S, Item = A>` rather than raw `Fn(&S) -> &[A]`, allowing both closure forms.
 - Associated type: `type Item` — the entity type yielded.
 - Method: `fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]`
+- Method: `fn contains(&self, s: &S, item: &Self::Item) -> bool` — source-level membership predicate; plain extractors default to `true`, while `UniConstraintStream` delegates to its accumulated source filter.
 - Blanket impl for `Fn(&S) -> &[A] + Send + Sync` — plain slice closures `|s| s.field.as_slice()` work directly.
 
 **`VecExtract<F>`** — Wraps `Fn(&S) -> &Vec<A>` closures so they satisfy `CollectionExtract<S>`. Construct via `vec(f)`.
@@ -566,7 +567,7 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 ### Join Support Types
 
 **`JoinTarget<S, A, E, F, Sc>`** — Trait for `.join()` dispatch on `UniConstraintStream`.
-- Impl groups: `EqualJoiner<KA, KA, K>` (self-join), raw closure/`VecExtract`/`SourceExtract` targets with `EqualJoiner<KA, KB, K>` (keyed cross-join), `(UniConstraintStream<...>, EqualJoiner<KA, KB, K>)` (keyed cross-join with filtered stream target), and `(UniConstraintStream<...>, P)` (predicate cross-join with filtered stream target).
+- Impl groups: `EqualJoiner<KA, KA, K>` (self-join), any `CollectionExtract` target with `EqualJoiner<KA, KB, K>` (keyed cross-join, including filtered `UniConstraintStream` targets), and `(UniConstraintStream<...>, P)` (predicate cross-join with filtered stream target).
 
 **`KeyExtract<S, A, K>`** — Trait for key extraction. Blanket impl for `Fn(&S, &A, usize) -> K + Send + Sync`. Used as the bound on `KE` type params in nary stream/constraint macros.
 - Method: `fn extract(&self, s: &S, a: &A, idx: usize) -> K`

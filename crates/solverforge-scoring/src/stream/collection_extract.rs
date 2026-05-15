@@ -33,6 +33,11 @@ pub trait CollectionExtract<S>: Send + Sync {
     // Extracts the entity slice from the solution.
     fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item];
 
+    // Reports whether this extractor's own source-level predicate accepts an item.
+    fn contains(&self, _s: &S, _item: &Self::Item) -> bool {
+        true
+    }
+
     // Identifies whether the solution source owns descriptor-scoped localized updates.
     // Plain extractors are non-localized. Macro-generated solution source methods
     // attach descriptor/static metadata through hidden internal support.
@@ -162,6 +167,11 @@ where
     #[inline]
     fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item] {
         self.extractor.extract(s)
+    }
+
+    #[inline]
+    fn contains(&self, s: &S, item: &Self::Item) -> bool {
+        self.extractor.contains(s, item)
     }
 
     fn change_source(&self) -> ChangeSource {

@@ -345,6 +345,18 @@ where
             {
                 continue;
             }
+            if !routes_match_owners_after_merge(
+                solution,
+                &routes,
+                ri,
+                rj,
+                &candidate_indices,
+                &available_entity_slots,
+                index_to_element,
+                self.feasible_fn,
+            ) {
+                continue;
+            }
 
             routes[ri] = test_ri;
             routes[rj].clear();
@@ -426,6 +438,47 @@ where
         .iter()
         .map(|&idx| index_to_element(solution, idx).into())
         .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn routes_match_owners_after_merge<S, E>(
+    solution: &S,
+    routes: &[Vec<usize>],
+    merged_route_idx: usize,
+    removed_route_idx: usize,
+    candidate_route: &[usize],
+    available_entity_slots: &[usize],
+    index_to_element: fn(&S, usize) -> E,
+    feasible: fn(&S, usize, &[usize]) -> bool,
+) -> bool
+where
+    S: PlanningSolution,
+    E: Copy + Into<usize>,
+{
+    let mut feasible_sets = Vec::new();
+    for (route_idx, route) in routes.iter().enumerate() {
+        let route = if route_idx == merged_route_idx {
+            candidate_route
+        } else if route_idx == removed_route_idx || route.is_empty() {
+            continue;
+        } else {
+            route.as_slice()
+        };
+        let values = route_values(solution, index_to_element, route);
+        let feasible_owners = feasible_owners(solution, available_entity_slots, &values, feasible);
+        if feasible_owners.is_empty() {
+            return false;
+        }
+        feasible_sets.push(feasible_owners);
+    }
+
+    if feasible_sets.len() > available_entity_slots.len() {
+        return true;
+    }
+
+    match_route_owners(&feasible_sets)
+        .iter()
+        .all(Option::is_some)
 }
 
 #[cfg(test)]

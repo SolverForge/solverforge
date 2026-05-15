@@ -147,6 +147,29 @@ fn capacity_feasible(_: &Plan, _: usize, route: &[usize]) -> bool {
     route.iter().sum::<usize>() <= 30
 }
 
+fn scarce_owner_distance(_: &Plan, _: usize, a: usize, b: usize) -> i64 {
+    if a == 0 || b == 0 {
+        100
+    } else {
+        match (a.min(b), a.max(b)) {
+            (1, 2) => 0,
+            (2, 3) => 1,
+            _ => 100,
+        }
+    }
+}
+
+fn scarce_owner_feasible(_: &Plan, entity_idx: usize, route: &[usize]) -> bool {
+    let mut sorted = route.to_vec();
+    sorted.sort_unstable();
+    match entity_idx {
+        0 => sorted == [4] || sorted == [1, 2, 3],
+        1 => sorted == [3],
+        2 => sorted == [1, 2],
+        _ => false,
+    }
+}
+
 #[test]
 fn clarke_wright_hooks_receive_actual_list_values() {
     observed_actual_value_hook_values()
@@ -395,4 +418,60 @@ fn clarke_wright_uses_owner_depots_for_savings() {
 
     assert!(observed.contains(&(0, 100, 10)));
     assert!(observed.contains(&(1, 101, 10)));
+}
+
+#[test]
+fn clarke_wright_skips_merge_that_breaks_global_owner_matching() {
+    let plan = Plan {
+        customer_values: vec![1, 2, 3, 4],
+        routes: vec![
+            Route { visits: Vec::new() },
+            Route { visits: Vec::new() },
+            Route { visits: Vec::new() },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(
+        plan,
+        SolutionDescriptor::new("Plan", TypeId::of::<Plan>()),
+        |s, descriptor_index| {
+            if descriptor_index == 0 {
+                s.routes.len()
+            } else {
+                0
+            }
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    let mut phase = ListClarkeWrightPhase::new(
+        element_count,
+        get_assigned,
+        entity_count,
+        route_len,
+        assign_route,
+        index_to_element,
+        depot,
+        scarce_owner_distance,
+        scarce_owner_feasible,
+        0,
+    );
+
+    phase.solve(&mut solver_scope);
+
+    let solution = solver_scope.working_solution();
+    let mut assigned: Vec<_> = solution
+        .routes
+        .iter()
+        .flat_map(|route| route.visits.iter().copied())
+        .collect();
+    assigned.sort_unstable();
+
+    assert_eq!(assigned, vec![1, 2, 3, 4]);
+    assert!(solution.routes.iter().any(|route| {
+        let mut visits = route.visits.clone();
+        visits.sort_unstable();
+        visits == [1, 2]
+    }));
+    assert!(solution.routes.iter().any(|route| route.visits == [3]));
+    assert!(solution.routes.iter().any(|route| route.visits == [4]));
 }

@@ -6,9 +6,13 @@ preserved at compile time - no Arc, no dyn, fully monomorphized.
 */
 
 mod base;
+mod complemented_grouped;
 mod grouped;
 mod weighting;
 
 pub use base::CrossBiConstraintStream;
+pub use complemented_grouped::{
+    CrossComplementedGroupedConstraintBuilder, CrossComplementedGroupedConstraintStream,
+};
 pub use grouped::{CrossGroupedConstraintBuilder, CrossGroupedConstraintStream};
 pub use weighting::CrossBiConstraintBuilder;

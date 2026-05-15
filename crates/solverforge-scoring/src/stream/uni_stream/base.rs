@@ -190,11 +190,12 @@ impl<S, A, E, F, Sc: Score> std::fmt::Debug for UniConstraintStream<S, A, E, F, 
     }
 }
 
-impl<S, A, E, Sc> CollectionExtract<S> for UniConstraintStream<S, A, E, TrueFilter, Sc>
+impl<S, A, E, F, Sc> CollectionExtract<S> for UniConstraintStream<S, A, E, F, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
+    F: UniFilter<S, A>,
     Sc: Score + 'static,
 {
     type Item = A;
@@ -202,6 +203,11 @@ where
     #[inline]
     fn extract<'s>(&self, s: &'s S) -> &'s [A] {
         self.extractor.extract(s)
+    }
+
+    #[inline]
+    fn contains(&self, s: &S, item: &A) -> bool {
+        self.filter.test(s, item)
     }
 
     #[inline]

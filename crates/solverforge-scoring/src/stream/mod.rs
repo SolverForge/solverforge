@@ -96,7 +96,8 @@ pub use collection_extract::{
 };
 pub use complemented_stream::{ComplementedConstraintBuilder, ComplementedConstraintStream};
 pub use cross_bi_stream::{
-    CrossBiConstraintBuilder, CrossBiConstraintStream, CrossGroupedConstraintBuilder,
+    CrossBiConstraintBuilder, CrossBiConstraintStream, CrossComplementedGroupedConstraintBuilder,
+    CrossComplementedGroupedConstraintStream, CrossGroupedConstraintBuilder,
     CrossGroupedConstraintStream,
 };
 pub use existence_stream::{ExistenceMode, ExistsConstraintBuilder, ExistsConstraintStream};

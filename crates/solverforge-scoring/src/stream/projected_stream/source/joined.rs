@@ -129,9 +129,15 @@ where
     fn build_state(&self, solution: &S) -> Self::State {
         let mut state = JoinedProjectedState::default();
         for (idx, entity) in self.extractor_a.extract(solution).iter().enumerate() {
+            if !self.extractor_a.contains(solution, entity) {
+                continue;
+            }
             state.insert_left(idx, (self.key_a)(entity));
         }
         for (idx, entity) in self.extractor_b.extract(solution).iter().enumerate() {
+            if !self.extractor_b.contains(solution, entity) {
+                continue;
+            }
             state.insert_right(idx, (self.key_b)(entity));
         }
         state
@@ -144,6 +150,9 @@ where
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
         for (a_idx, entity) in entities_a.iter().enumerate() {
+            if !self.extractor_a.contains(solution, entity) {
+                continue;
+            }
             let key = (self.key_a)(entity);
             let Some(b_indices) = state.b_by_key.get(&key) else {
                 continue;
@@ -171,6 +180,9 @@ where
                 let Some(entity) = entities_a.get(entity_index) else {
                     return;
                 };
+                if !self.extractor_a.contains(solution, entity) {
+                    return;
+                }
                 let key = (self.key_a)(entity);
                 let Some(b_indices) = state.b_by_key.get(&key) else {
                     return;
@@ -190,6 +202,9 @@ where
                 let Some(entity) = entities_b.get(entity_index) else {
                     return;
                 };
+                if !self.extractor_b.contains(solution, entity) {
+                    return;
+                }
                 let key = (self.key_b)(entity);
                 let Some(a_indices) = state.a_by_key.get(&key) else {
                     return;
@@ -219,11 +234,17 @@ where
         match slot {
             0 => {
                 if let Some(entity) = self.extractor_a.extract(solution).get(entity_index) {
+                    if !self.extractor_a.contains(solution, entity) {
+                        return;
+                    }
                     state.insert_left(entity_index, (self.key_a)(entity));
                 }
             }
             1 => {
                 if let Some(entity) = self.extractor_b.extract(solution).get(entity_index) {
+                    if !self.extractor_b.contains(solution, entity) {
+                        return;
+                    }
                     state.insert_right(entity_index, (self.key_b)(entity));
                 }
             }
@@ -257,6 +278,8 @@ where
 impl<S, A, B, K, EA, EB, KA, KB, F, P, Out>
     JoinedProjectedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>
 where
+    EA: CollectionExtract<S, Item = A>,
+    EB: CollectionExtract<S, Item = B>,
     F: BiFilter<S, A, B>,
     P: Fn(&A, &B) -> Out + Send + Sync,
 {
@@ -277,6 +300,9 @@ where
         let Some(b) = entities_b.get(b_idx) else {
             return;
         };
+        if !self.extractor_a.contains(solution, a) || !self.extractor_b.contains(solution, b) {
+            return;
+        }
         if !self.filter.test(solution, a, b, a_idx, b_idx) {
             return;
         }

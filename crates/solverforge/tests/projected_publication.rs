@@ -97,6 +97,16 @@ impl Projection<Capacity> for CapacityEntries {
     }
 }
 
+struct CustomCapacityExtract;
+
+impl solverforge::stream::CollectionExtract<Plan> for CustomCapacityExtract {
+    type Item = Capacity;
+
+    fn extract<'s>(&self, plan: &'s Plan) -> &'s [Capacity] {
+        plan.capacities.as_slice()
+    }
+}
+
 #[test]
 fn projected_stream_is_public_and_infers_output_type() {
     let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
@@ -172,6 +182,114 @@ fn cross_join_project_is_public_and_infers_output_type() {
 }
 
 #[test]
+fn cross_join_accepts_custom_collection_extract_target() {
+    let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
+        .for_each(Plan::assignments())
+        .join((
+            CustomCapacityExtract,
+            joiner::equal_bi(
+                |assignment: &Assignment| assignment.bucket,
+                |capacity: &Capacity| capacity.bucket,
+            ),
+        ))
+        .penalize(|_assignment: &Assignment, capacity: &Capacity| {
+            HardSoftScore::of_hard(capacity.amount)
+        })
+        .named("custom capacity target");
+
+    let plan = Plan {
+        capacities: vec![Capacity {
+            id: 0,
+            bucket: 0,
+            amount: 3,
+        }],
+        assignments: vec![Assignment {
+            id: 0,
+            bucket: 0,
+            demand: 5,
+        }],
+        score: None,
+    };
+
+    assert_eq!(constraint.evaluate(&plan), HardSoftScore::of(-3, 0));
+}
+
+#[test]
+fn cross_join_accepts_filtered_source_stream_target() {
+    let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
+        .for_each(Plan::assignments())
+        .join((
+            ConstraintFactory::<Plan, HardSoftScore>::new()
+                .for_each(Plan::capacities())
+                .filter(|capacity: &Capacity| capacity.amount > 5),
+            joiner::equal_bi(
+                |assignment: &Assignment| assignment.bucket,
+                |capacity: &Capacity| capacity.bucket,
+            ),
+        ))
+        .penalize(|_assignment: &Assignment, capacity: &Capacity| {
+            HardSoftScore::of_hard(capacity.amount)
+        })
+        .named("filtered capacity target");
+
+    let plan = Plan {
+        capacities: vec![
+            Capacity {
+                id: 0,
+                bucket: 0,
+                amount: 3,
+            },
+            Capacity {
+                id: 1,
+                bucket: 0,
+                amount: 8,
+            },
+        ],
+        assignments: vec![Assignment {
+            id: 0,
+            bucket: 0,
+            demand: 5,
+        }],
+        score: None,
+    };
+
+    assert_eq!(constraint.evaluate(&plan), HardSoftScore::of(-8, 0));
+}
+
+#[test]
+fn cross_join_accepts_generated_source_target() {
+    let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
+        .for_each(Plan::assignments())
+        .join((
+            Plan::capacities(),
+            joiner::equal_bi(
+                |assignment: &Assignment| assignment.bucket,
+                |capacity: &Capacity| capacity.bucket,
+            ),
+        ))
+        .penalize(|_assignment: &Assignment, capacity: &Capacity| {
+            HardSoftScore::of_hard(capacity.amount)
+        })
+        .named("generated capacity target");
+
+    let plan = Plan {
+        capacities: vec![Capacity {
+            id: 0,
+            bucket: 0,
+            amount: 3,
+        }],
+        assignments: vec![Assignment {
+            id: 0,
+            bucket: 0,
+            demand: 5,
+        }],
+        score: None,
+    };
+
+    assert_eq!(constraint.evaluate(&plan), HardSoftScore::of(-3, 0));
+}
+
+#[test]
 fn cross_join_group_by_is_public_without_projecting_first() {
     let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
         .for_each(Plan::assignments())
@@ -204,6 +322,57 @@ fn cross_join_group_by_is_public_without_projecting_first() {
     };
 
     assert_eq!(constraint.evaluate(&plan), HardSoftScore::of(-1, 0));
+}
+
+#[test]
+fn cross_join_group_by_complement_is_public_without_projecting_first() {
+    let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
+        .for_each(Plan::assignments())
+        .join((
+            ConstraintFactory::<Plan, HardSoftScore>::new().for_each(Plan::capacities()),
+            joiner::equal_bi(
+                |assignment: &Assignment| assignment.bucket,
+                |capacity: &Capacity| capacity.bucket,
+            ),
+        ))
+        .group_by(
+            |_assignment: &Assignment, capacity: &Capacity| capacity.bucket,
+            sum(|(assignment, capacity): (&Assignment, &Capacity)| {
+                assignment.demand - capacity.amount
+            }),
+        )
+        .complement(
+            Plan::capacities(),
+            |capacity: &Capacity| capacity.bucket,
+            |_| 0i64,
+        )
+        .penalize(|bucket: &usize, delta: &i64| {
+            HardSoftScore::of_hard((*bucket as i64 * 10) + *delta)
+        })
+        .named("direct grouped assignment capacity shortage including empty capacity");
+
+    let plan = Plan {
+        capacities: vec![
+            Capacity {
+                id: 0,
+                bucket: 0,
+                amount: 3,
+            },
+            Capacity {
+                id: 1,
+                bucket: 1,
+                amount: 4,
+            },
+        ],
+        assignments: vec![Assignment {
+            id: 0,
+            bucket: 0,
+            demand: 5,
+        }],
+        score: None,
+    };
+
+    assert_eq!(constraint.evaluate(&plan), HardSoftScore::of(-12, 0));
 }
 
 #[test]

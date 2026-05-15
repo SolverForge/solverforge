@@ -42,6 +42,8 @@ src/
 │   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
 │   ├── cross_grouped.rs                            — CrossGroupedConstraint module root and re-exports
 │   ├── cross_grouped/*.rs                          — Retained cross-join grouped state and incremental callbacks
+│   ├── cross_complemented_grouped.rs               — CrossComplementedGroupedConstraint module root and re-exports
+│   ├── cross_complemented_grouped/*.rs             — Retained direct cross-join grouped complement state, updates, and incremental callbacks
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
 │   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
@@ -68,6 +70,7 @@ src/
 │       ├── grouped.rs                              — GroupedUniConstraint tests
 │       ├── balance.rs                              — BalanceConstraint tests
 │       ├── complemented.rs                         — ComplementedGroupConstraint tests
+│       ├── cross_complemented_grouped.rs           — Direct cross-join grouped complement tests
 │       ├── flattened_bi.rs                         — FlattenedBiConstraint tests
 │       ├── exists.rs                               — IncrementalExistsConstraint update tests
 │       ├── exists_storage.rs                       — Existence storage selection and parity tests
@@ -108,6 +111,7 @@ src/
 │   ├── cross_bi_stream.rs                          — Re-exports
 │   ├── cross_bi_stream/base.rs                     — CrossBiConstraintStream
 │   ├── cross_bi_stream/grouped.rs                  — CrossGroupedConstraintStream and builder
+│   ├── cross_bi_stream/complemented_grouped.rs     — CrossComplementedGroupedConstraintStream and builder
 │   ├── cross_bi_stream/weighting.rs                — CrossBiConstraintBuilder
 │   ├── flattened_bi_stream.rs                      — Re-exports
 │   ├── flattened_bi_stream/base.rs                 — FlattenedBiConstraintStream
@@ -127,7 +131,7 @@ src/
 │   ├── projected_stream/source/joined.rs           — Cross-join `.project(...)` projected source
 │   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata, VecExtract wrapper, vec() constructor
 │   ├── unassigned.rs                               — Hidden UnassignedEntity hook and `.unassigned()` stream method
-│   ├── join_target.rs                              — JoinTarget trait + 3 impls (self-join, keyed cross-join, predicate cross-join)
+│   ├── join_target.rs                              — JoinTarget trait impls for self-join, keyed cross-join, and predicate cross-join
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/
 │   │   ├── mod.rs                                  — impl_arity_stream! dispatcher macro
@@ -142,7 +146,7 @@ src/
 │   │   ├── mod.rs                                  — Re-exports filter types
 │   │   ├── traits.rs                               — UniFilter, BiFilter, TriFilter, QuadFilter, PentaFilter traits
 │   │   ├── wrappers.rs                             — TrueFilter, FnUniFilter, FnBiFilter, FnTriFilter, FnQuadFilter, FnPentaFilter
-│   │   ├── adapters.rs                             — UniBiFilter, UniLeftBiFilter, UniLeftPredBiFilter adapters
+│   │   ├── adapters.rs                             — UniBiFilter, UniLeftBiFilter, and hidden PairFilter adapters
 │   │   ├── composition.rs                          — AndUniFilter, AndBiFilter, AndTriFilter, AndQuadFilter, AndPentaFilter
 │   │   └── tests/
 │   │       ├── mod.rs                              — Test module declarations
@@ -173,10 +177,10 @@ src/
 ```rust
 // Constraints
 pub use constraint::{
-    CrossGroupedConstraint, GroupedUniConstraint, IncrementalBiConstraint,
-    IncrementalCrossBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
-    IncrementalTriConstraint, IncrementalUniConstraint, ProjectedComplementedGroupedConstraint,
-    ProjectedGroupedConstraint, ProjectedUniConstraint,
+    CrossComplementedGroupedConstraint, CrossGroupedConstraint, GroupedUniConstraint,
+    IncrementalBiConstraint, IncrementalCrossBiConstraint, IncrementalPentaConstraint,
+    IncrementalQuadConstraint, IncrementalTriConstraint, IncrementalUniConstraint,
+    ProjectedComplementedGroupedConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
 };
 
 // Constraint Set
@@ -198,9 +202,10 @@ pub use api::analysis::{
 // Fluent Stream API
 pub use stream::{
     fixed_weight, hard_weight, BiConstraintBuilder, BiConstraintStream, ConstraintFactory,
+    CrossComplementedGroupedConstraintBuilder, CrossComplementedGroupedConstraintStream,
     CrossGroupedConstraintBuilder, CrossGroupedConstraintStream, FixedWeight,
-    GroupedConstraintBuilder, GroupedConstraintStream, HardWeight, ProjectedBiConstraintBuilder,
-    ProjectedBiConstraintStream, ProjectedComplementedGroupedConstraintBuilder,
+    GroupedConstraintBuilder, GroupedConstraintStream, HardWeight,
+    ProjectedBiConstraintBuilder, ProjectedBiConstraintStream, ProjectedComplementedGroupedConstraintBuilder,
     ProjectedComplementedGroupedConstraintStream, ProjectedConstraintBuilder,
     ProjectedConstraintStream, ProjectedGroupedConstraintBuilder, ProjectedGroupedConstraintStream,
     Projection, ProjectionSink, UniConstraintBuilder, UniConstraintStream,
@@ -382,6 +387,8 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint. It keeps keyed join indexes and collector retraction tokens without projecting joined pairs first.
 
+**`CrossComplementedGroupedConstraint<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint complemented against a second collection. It keeps joined-pair collector retraction tokens and scores every complement row using either the retained grouped result or the provided default result.
+
 **`BalanceConstraint<S, A, K, E, F, KF, Sc>`** — Load balancing using sum-of-squared-deviations.
 
 **`ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&A>` — Group-by complemented against a second collection (for supply vs demand).
@@ -446,7 +453,8 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
 - Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `ProjectedConstraintStream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
-- Unfiltered `UniConstraintStream<..., TrueFilter, ...>` implements `CollectionExtract` by delegating to its source extractor. This lets keyed cross-join targets use generated model sources directly, preserving hidden source metadata.
+- `UniConstraintStream` implements `CollectionExtract` by delegating extraction to its source and applying its accumulated filter through `contains(...)`.
+- Stream targets preserve their own source filters when passed to keyed or predicate cross-joins. This lets `.join((ConstraintFactory::new().for_each(source).filter(pred), equal_bi(...)))` keep the right-side source predicate inside the joined stream.
 - `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
@@ -513,7 +521,9 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 
 **`CrossBiConstraintBuilder`** — `named()` → `IncrementalCrossBiConstraint`
 
-**`CrossGroupedConstraintStream/Builder`** — Direct grouped cross-join stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `CrossGroupedConstraint`. Collectors receive the joined pair shape as `(&A, &B)`.
+**`CrossGroupedConstraintStream/Builder`** — Direct grouped cross-join stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `CrossGroupedConstraint`. `complement(source, key, default)` → `CrossComplementedGroupedConstraintStream`. Collectors receive the joined pair shape as `(&A, &B)`.
+
+**`CrossComplementedGroupedConstraintStream/Builder`** — Direct grouped cross-join complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `CrossComplementedGroupedConstraint`. Complement defaults are produced from the complement entity and weighted by key plus collector result. Complement sources use the same `CollectionExtract::contains(...)` membership contract as joined sources.
 
 **`GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>`** — Grouped stream.
 - Operations: `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `complement()`, `complement_with_key()` → ComplementedStream
@@ -536,6 +546,7 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 **`CollectionExtract<S>`** — Trait for extracting an entity slice from the solution. All `E`/`EA`/`EB` type params in streams and constraints are bounded by `CollectionExtract<S, Item = A>` rather than raw `Fn(&S) -> &[A]`, allowing both closure forms.
 - Associated type: `type Item` — the entity type yielded.
 - Method: `fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]`
+- Method: `fn contains(&self, s: &S, item: &Self::Item) -> bool` — source-level membership predicate; plain extractors default to `true`, while `UniConstraintStream` delegates to its accumulated source filter.
 - Blanket impl for `Fn(&S) -> &[A] + Send + Sync` — plain slice closures `|s| s.field.as_slice()` work directly.
 
 **`VecExtract<F>`** — Wraps `Fn(&S) -> &Vec<A>` closures so they satisfy `CollectionExtract<S>`. Construct via `vec(f)`.
@@ -548,7 +559,7 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 .join((vec(|s: &Schedule| &s.employees), equal_bi(...)))
 ```
 
-**`CollectionExtract<S>`** — Public low-level source contract accepted by `ConstraintFactory::for_each(...)`. Macro-generated solution source functions return `impl CollectionExtract<S, Item = T>` so users do not import generated helper traits.
+**`CollectionExtract<S>`** — Public low-level source contract accepted by `ConstraintFactory::for_each(...)`. Macro-generated solution source functions return the concrete hidden `SourceExtract<fn(&S) -> &[T]>` wrapper, which satisfies `CollectionExtract<S>` and preserves source metadata for raw keyed joins.
 
 **`ChangeSource`** — Hidden enum describing whether a stream source can localize descriptor-owned incremental callbacks: `Unknown`, `Static`, or `Descriptor(idx)`. `Descriptor(idx)` owns localized events for that descriptor. `Static` never localizes. `Unknown` is non-localized metadata for raw/manual extraction: it is valid for `evaluate()` and `initialize()`, but localized `on_insert(...)` / `on_retract(...)` callbacks panic because the entity index cannot be safely mapped to a source.
 
@@ -565,7 +576,7 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 ### Join Support Types
 
 **`JoinTarget<S, A, E, F, Sc>`** — Trait for `.join()` dispatch on `UniConstraintStream`.
-- Three impls: `EqualJoiner<KA, KA, K>` (self-join), `(EB, EqualJoiner<KA, KB, K>)` (keyed cross-join), `(UniConstraintStream<...>, P)` (predicate cross-join)
+- Impl groups: `EqualJoiner<KA, KA, K>` (self-join), any `CollectionExtract` target with `EqualJoiner<KA, KB, K>` (keyed cross-join, including filtered `UniConstraintStream` targets), and `(UniConstraintStream<...>, P)` (predicate cross-join with filtered stream target).
 
 **`KeyExtract<S, A, K>`** — Trait for key extraction. Blanket impl for `Fn(&S, &A, usize) -> K + Send + Sync`. Used as the bound on `KE` type params in nary stream/constraint macros.
 - Method: `fn extract(&self, s: &S, a: &A, idx: usize) -> K`
@@ -585,7 +596,7 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 
 **`UniLeftBiFilter<F, B>`** — Adapts UniFilter to BiFilter (tests left arg only).
 
-**`UniLeftPredBiFilter<F, P, A>`** — Combines UniFilter (left element) and predicate `Fn(&A, &B) -> bool`. Used in the predicate cross-join case to avoid `impl Trait` in associated type position.
+**`PairFilter<L, R, P>`** — Hidden internal adapter that composes the left stream filter, right stream filter, and user pair predicate for predicate joins.
 
 ### Joiner Types
 

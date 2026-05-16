@@ -58,7 +58,6 @@ pub struct ProjectedComplementedGroupedConstraint<
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    constraint_ref: ConstraintRef,
     is_hard: bool,
     inner: Inner<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>,
     _phantom: PhantomData<fn() -> (Out, B, V, R, Acc)>,
@@ -69,8 +68,8 @@ impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
@@ -107,10 +106,8 @@ where
             collector,
             default_fn,
         );
-        let scorer =
-            GroupedTerminalScorer::new(constraint_ref.clone(), impact_type, weight_fn, is_hard);
+        let scorer = GroupedTerminalScorer::new(constraint_ref, impact_type, weight_fn, is_hard);
         Self {
-            constraint_ref,
             is_hard,
             inner: SharedProjectedComplementedGroupedConstraintSet::new(state, scorer),
             _phantom: PhantomData,
@@ -196,8 +193,8 @@ impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc> IncrementalConstr
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
@@ -241,7 +238,7 @@ where
     }
 
     fn constraint_ref(&self) -> &ConstraintRef {
-        &self.constraint_ref
+        self.inner.primary_constraint_ref()
     }
 
     fn is_hard(&self) -> bool {

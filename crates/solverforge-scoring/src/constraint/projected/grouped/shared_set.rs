@@ -22,6 +22,7 @@ where
 {
     state: ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>,
     scorers: Scorers,
+    cached_score: Sc,
     _phantom: PhantomData<fn() -> Sc>,
 }
 
@@ -33,6 +34,7 @@ where
 {
     state: ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>,
     scorers: Scorers,
+    cached_score: Sc,
     impact_type: ImpactType,
     weight_fn: W,
     is_hard: bool,
@@ -44,7 +46,7 @@ impl<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
@@ -62,6 +64,7 @@ where
         Self {
             state,
             scorers,
+            cached_score: Sc::zero(),
             _phantom: PhantomData,
         }
     }
@@ -82,6 +85,7 @@ where
         ProjectedGroupedConstraintSetBuilder {
             state: self.state,
             scorers: self.scorers,
+            cached_score: self.cached_score,
             impact_type,
             weight_fn,
             is_hard,
@@ -153,7 +157,7 @@ impl<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
@@ -188,7 +192,12 @@ where
             self.weight_fn,
             self.is_hard,
         );
-        SharedProjectedGroupedConstraintSet::new(self.state, (self.scorers, scorer))
+        SharedProjectedGroupedConstraintSet {
+            state: self.state,
+            scorers: (self.scorers, scorer),
+            cached_score: self.cached_score,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -197,7 +206,7 @@ impl<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc> ConstraintSet<S, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
@@ -233,27 +242,41 @@ where
 
     fn initialize_all(&mut self, solution: &S) -> Sc {
         self.state.initialize(solution);
-        self.scorers.initialize(&self.state)
+        self.cached_score = self.scorers.initialize(&self.state);
+        self.cached_score
     }
 
     fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
         self.state
             .on_insert(solution, entity_index, descriptor_index);
-        let changed_keys = self.state.take_changed_keys();
-        self.scorers
-            .refresh_changed_keys(&self.state, &changed_keys)
+        self.refresh_from_state()
     }
 
     fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
         self.state
             .on_retract(solution, entity_index, descriptor_index);
-        let changed_keys = self.state.take_changed_keys();
-        self.scorers
-            .refresh_changed_keys(&self.state, &changed_keys)
+        self.refresh_from_state()
     }
 
     fn reset_all(&mut self) {
         self.state.reset();
         self.scorers.reset();
+        self.cached_score = Sc::zero();
+    }
+}
+
+impl<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
+    SharedProjectedGroupedConstraintSet<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
+where
+    Src: ProjectedSource<S, Out>,
+    Acc: Accumulator<V, R>,
+    Scorers: GroupedScorerSet<K, R, Sc>,
+    K: Eq + Hash,
+    Sc: Score,
+{
+    fn refresh_from_state(&mut self) -> Sc {
+        let delta = self.scorers.refresh_changed(&self.state);
+        self.cached_score = self.cached_score + delta;
+        delta
     }
 }

@@ -1,7 +1,7 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SharedNodeId(pub usize);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum SharedNodeOperation {
     Grouped,
     ProjectedGrouped,
@@ -10,7 +10,7 @@ pub enum SharedNodeOperation {
     ProjectedComplementedGrouped,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SharedNodeDiagnostics {
     pub id: SharedNodeId,
     pub fingerprint: String,

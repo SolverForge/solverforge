@@ -344,7 +344,7 @@ macro_rules! impl_constraint_set_for_tuple {
     };
 }
 
-fn push_constraint_metadata<'a>(
+pub(super) fn push_constraint_metadata<'a>(
     metadata: &mut Vec<ConstraintMetadata<'a>>,
     candidate: ConstraintMetadata<'a>,
 ) {

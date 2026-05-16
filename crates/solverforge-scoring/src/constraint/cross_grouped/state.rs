@@ -1,21 +1,23 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-use crate::constraint::grouped::GroupedStateView;
 use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::collector::{Accumulator, Collector};
 
+use super::indexes::{key_hash, matching_indexed_indices};
+
 pub(super) type CollectorRetraction<Acc, V, R> = <Acc as Accumulator<V, R>>::Retraction;
 
-pub(super) struct GroupState<Acc> {
+pub(super) struct GroupState<K, Acc> {
+    pub(super) key: K,
     pub(super) accumulator: Acc,
     pub(super) count: usize,
 }
 
-pub(super) struct MatchRow<GK, Retraction> {
+pub(super) struct MatchRow<Retraction> {
     pub(super) pair: (usize, usize),
-    pub(super) group_key: GK,
+    pub(super) group_id: usize,
     pub(super) retraction: Retraction,
     pub(super) a_pos: usize,
     pub(super) b_pos: usize,
@@ -35,15 +37,16 @@ where
     pub(super) a_source: ChangeSource,
     pub(super) b_source: ChangeSource,
     pub(super) matches: HashMap<(usize, usize), usize>,
-    pub(super) match_rows: Vec<MatchRow<GK, CollectorRetraction<Acc, V, R>>>,
+    pub(super) match_rows: Vec<MatchRow<CollectorRetraction<Acc, V, R>>>,
     pub(super) a_to_matches: HashMap<usize, Vec<usize>>,
     pub(super) b_to_matches: HashMap<usize, Vec<usize>>,
-    pub(super) a_by_key: HashMap<JK, Vec<usize>>,
-    pub(super) b_by_key: HashMap<JK, Vec<usize>>,
+    pub(super) a_by_hash: HashMap<u64, Vec<usize>>,
+    pub(super) b_by_hash: HashMap<u64, Vec<usize>>,
     pub(super) a_index_to_key: HashMap<usize, JK>,
     pub(super) b_index_to_key: HashMap<usize, JK>,
-    pub(super) groups: HashMap<GK, GroupState<Acc>>,
-    pub(super) changed_keys: Vec<GK>,
+    pub(super) groups: Vec<GroupState<GK, Acc>>,
+    pub(super) groups_by_hash: HashMap<u64, Vec<usize>>,
+    pub(super) changed_groups: Vec<usize>,
     pub(super) update_count: usize,
     pub(super) changed_key_count: usize,
     _phantom: PhantomData<(
@@ -60,18 +63,18 @@ pub struct CrossGroupedEvaluationState<GK, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
 {
-    groups: HashMap<GK, Acc>,
-    _phantom: PhantomData<(fn() -> V, fn() -> R)>,
+    pub(super) groups: HashMap<GK, Acc>,
+    pub(super) _phantom: PhantomData<(fn() -> V, fn() -> R)>,
 }
 
 impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
     CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    JK: Eq + Hash + Clone + Send + Sync,
-    GK: Eq + Hash + Clone + Send + Sync,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    JK: Eq + Hash + Send + Sync,
+    GK: Eq + Hash + Send + Sync,
     EA: CollectionExtract<S, Item = A> + Send + Sync,
     EB: CollectionExtract<S, Item = B> + Send + Sync,
     KA: Fn(&A) -> JK + Send + Sync,
@@ -109,12 +112,13 @@ where
             match_rows: Vec::new(),
             a_to_matches: HashMap::new(),
             b_to_matches: HashMap::new(),
-            a_by_key: HashMap::new(),
-            b_by_key: HashMap::new(),
+            a_by_hash: HashMap::new(),
+            b_by_hash: HashMap::new(),
             a_index_to_key: HashMap::new(),
             b_index_to_key: HashMap::new(),
-            groups: HashMap::new(),
-            changed_keys: Vec::new(),
+            groups: Vec::new(),
+            groups_by_hash: HashMap::new(),
+            changed_groups: Vec::new(),
             update_count: 0,
             changed_key_count: 0,
             _phantom: PhantomData,
@@ -162,12 +166,12 @@ where
                 continue;
             }
             let key = (self.key_a)(&entities_a[a_idx]);
-            let b_indices = self.b_by_key.get(&key).cloned().unwrap_or_default();
+            let b_indices = self.matching_indexed_b_indices(&key);
             for b_idx in b_indices {
                 self.add_match(solution, entities_a, entities_b, a_idx, b_idx);
             }
         }
-        self.changed_keys.clear();
+        self.changed_groups.clear();
     }
 
     pub fn on_insert(
@@ -177,7 +181,7 @@ where
         descriptor_index: usize,
         node_name: &str,
     ) {
-        self.changed_keys.clear();
+        self.changed_groups.clear();
         let a_changed = self.a_source.assert_localizes(descriptor_index, node_name);
         let b_changed = self.b_source.assert_localizes(descriptor_index, node_name);
         if !a_changed && !b_changed {
@@ -193,11 +197,11 @@ where
             self.insert_b(solution, entities_a, entities_b, entity_index);
         }
         self.update_count += 1;
-        self.changed_key_count += self.changed_keys.len();
+        self.changed_key_count += self.changed_groups.len();
     }
 
     pub fn on_retract(&mut self, entity_index: usize, descriptor_index: usize, node_name: &str) {
-        self.changed_keys.clear();
+        self.changed_groups.clear();
         let a_changed = self.a_source.assert_localizes(descriptor_index, node_name);
         let b_changed = self.b_source.assert_localizes(descriptor_index, node_name);
         if !a_changed && !b_changed {
@@ -211,7 +215,7 @@ where
             self.retract_b(entity_index);
         }
         self.update_count += 1;
-        self.changed_key_count += self.changed_keys.len();
+        self.changed_key_count += self.changed_groups.len();
     }
 
     pub fn reset(&mut self) {
@@ -219,12 +223,13 @@ where
         self.match_rows.clear();
         self.a_to_matches.clear();
         self.b_to_matches.clear();
-        self.a_by_key.clear();
-        self.b_by_key.clear();
+        self.a_by_hash.clear();
+        self.b_by_hash.clear();
         self.a_index_to_key.clear();
         self.b_index_to_key.clear();
         self.groups.clear();
-        self.changed_keys.clear();
+        self.groups_by_hash.clear();
+        self.changed_groups.clear();
     }
 
     pub fn update_count(&self) -> usize {
@@ -235,13 +240,9 @@ where
         self.changed_key_count
     }
 
-    pub fn take_changed_keys(&mut self) -> Vec<GK> {
-        std::mem::take(&mut self.changed_keys)
-    }
-
-    pub(super) fn mark_changed(&mut self, key: GK) {
-        if !self.changed_keys.contains(&key) {
-            self.changed_keys.push(key);
+    pub(super) fn mark_changed(&mut self, group_id: usize) {
+        if !self.changed_groups.contains(&group_id) {
+            self.changed_groups.push(group_id);
         }
     }
 
@@ -258,8 +259,8 @@ where
     }
 
     fn build_indexes(&mut self, solution: &S, entities_a: &[A], entities_b: &[B]) {
-        self.a_by_key.clear();
-        self.b_by_key.clear();
+        self.a_by_hash.clear();
+        self.b_by_hash.clear();
         self.a_index_to_key.clear();
         self.b_index_to_key.clear();
         for (a_idx, a) in entities_a.iter().enumerate() {
@@ -267,16 +268,18 @@ where
                 continue;
             }
             let key = (self.key_a)(a);
-            self.a_index_to_key.insert(a_idx, key.clone());
-            self.a_by_key.entry(key).or_default().push(a_idx);
+            let hash = key_hash(&key);
+            self.a_by_hash.entry(hash).or_default().push(a_idx);
+            self.a_index_to_key.insert(a_idx, key);
         }
         for (b_idx, b) in entities_b.iter().enumerate() {
             if !self.extractor_b.contains(solution, b) {
                 continue;
             }
             let key = (self.key_b)(b);
-            self.b_index_to_key.insert(b_idx, key.clone());
-            self.b_by_key.entry(key).or_default().push(b_idx);
+            let hash = key_hash(&key);
+            self.b_by_hash.entry(hash).or_default().push(b_idx);
+            self.b_index_to_key.insert(b_idx, key);
         }
     }
 
@@ -289,107 +292,70 @@ where
         b_by_key.get(&key).map_or(&[], Vec::as_slice)
     }
 
-    pub(super) fn insert_value(&mut self, key: GK, value: V) -> CollectorRetraction<Acc, V, R> {
-        match self.groups.entry(key) {
-            Entry::Occupied(mut entry) => {
-                let group = entry.get_mut();
-                let retraction = group.accumulator.accumulate(value);
-                group.count += 1;
-                retraction
-            }
-            Entry::Vacant(entry) => {
-                let group = entry.insert(GroupState {
-                    accumulator: self.collector.create_accumulator(),
-                    count: 0,
-                });
-                let retraction = group.accumulator.accumulate(value);
-                group.count += 1;
-                retraction
-            }
-        }
+    pub(super) fn matching_indexed_a_indices(&self, key: &JK) -> Vec<usize> {
+        matching_indexed_indices(&self.a_by_hash, &self.a_index_to_key, key)
     }
 
-    pub(super) fn retract_value(&mut self, key: GK, retraction: CollectorRetraction<Acc, V, R>) {
-        let Entry::Occupied(mut entry) = self.groups.entry(key.clone()) else {
+    pub(super) fn matching_indexed_b_indices(&self, key: &JK) -> Vec<usize> {
+        matching_indexed_indices(&self.b_by_hash, &self.b_index_to_key, key)
+    }
+
+    pub(super) fn insert_value(
+        &mut self,
+        key: GK,
+        value: V,
+    ) -> (usize, CollectorRetraction<Acc, V, R>) {
+        let group_id = self.group_id_for_key(key);
+        let group = &mut self.groups[group_id];
+        if group.count == 0 {
+            group.accumulator.reset();
+        }
+        let retraction = group.accumulator.accumulate(value);
+        group.count += 1;
+        self.mark_changed(group_id);
+        (group_id, retraction)
+    }
+
+    pub(super) fn retract_value(
+        &mut self,
+        group_id: usize,
+        retraction: CollectorRetraction<Acc, V, R>,
+    ) {
+        let Some(group) = self.groups.get_mut(group_id) else {
             return;
         };
-        let group = entry.get_mut();
         group.accumulator.retract(retraction);
         group.count = group.count.saturating_sub(1);
-        if group.count == 0 {
-            entry.remove();
+        self.mark_changed(group_id);
+    }
+
+    fn group_id_for_key(&mut self, key: GK) -> usize {
+        let hash = key_hash(&key);
+        if let Some(group_id) = self.find_group(hash, &key) {
+            return group_id;
         }
-        self.mark_changed(key);
+        let group_id = self.groups.len();
+        self.groups.push(GroupState {
+            key,
+            accumulator: self.collector.create_accumulator(),
+            count: 0,
+        });
+        self.groups_by_hash.entry(hash).or_default().push(group_id);
+        group_id
     }
 }
 
-impl<GK, V, R, Acc> GroupedStateView<GK, R> for CrossGroupedEvaluationState<GK, V, R, Acc>
+impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
+    CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
-    GK: Eq + Hash,
     Acc: Accumulator<V, R>,
-{
-    fn for_each_group_result<Visit>(&self, mut visit: Visit)
-    where
-        Visit: FnMut(&GK, &R),
-    {
-        for (key, accumulator) in &self.groups {
-            accumulator.with_result(|result| visit(key, result));
-        }
-    }
-
-    fn with_group_result<T, Present, Missing>(
-        &self,
-        key: &GK,
-        present: Present,
-        missing: Missing,
-    ) -> T
-    where
-        Present: FnOnce(&R) -> T,
-        Missing: FnOnce() -> T,
-    {
-        match self.groups.get(key) {
-            Some(accumulator) => accumulator.with_result(present),
-            None => missing(),
-        }
-    }
-
-    fn group_count(&self) -> usize {
-        self.groups.len()
-    }
-}
-
-impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc> GroupedStateView<GK, R>
-    for CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
-where
     GK: Eq + Hash,
-    Acc: Accumulator<V, R>,
 {
-    fn for_each_group_result<Visit>(&self, mut visit: Visit)
-    where
-        Visit: FnMut(&GK, &R),
-    {
-        for (key, group) in &self.groups {
-            group.accumulator.with_result(|result| visit(key, result));
-        }
-    }
-
-    fn with_group_result<T, Present, Missing>(
-        &self,
-        key: &GK,
-        present: Present,
-        missing: Missing,
-    ) -> T
-    where
-        Present: FnOnce(&R) -> T,
-        Missing: FnOnce() -> T,
-    {
-        match self.groups.get(key) {
-            Some(group) => group.accumulator.with_result(present),
-            None => missing(),
-        }
-    }
-
-    fn group_count(&self) -> usize {
-        self.groups.len()
+    pub(super) fn find_group(&self, hash: u64, key: &GK) -> Option<usize> {
+        let group_ids = self.groups_by_hash.get(&hash)?;
+        group_ids
+            .iter()
+            .copied()
+            .find(|group_id| self.groups[*group_id].key == *key)
     }
 }

@@ -19,6 +19,9 @@ pub use analysis::{
     ConstraintAnalysis, ConstraintJustification, DetailedConstraintEvaluation,
     DetailedConstraintMatch, EntityRef, Indictment, IndictmentMap, ScoreExplanation,
 };
-pub use constraint_set::{ConstraintMetadata, ConstraintSet, IncrementalConstraint};
+pub use constraint_set::{
+    ConstraintMetadata, ConstraintSet, ConstraintSetChain, ConstraintSetSource,
+    IncrementalConstraint, OrderedConstraintSetChain,
+};
 pub use node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
 pub use weight_overrides::{ConstraintWeightOverrides, WeightProvider};

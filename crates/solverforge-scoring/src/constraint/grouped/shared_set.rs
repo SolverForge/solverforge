@@ -18,9 +18,9 @@ where
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    node_name: String,
     state: GroupedNodeState<S, A, K, E, Fi, KF, C, V, R, Acc>,
     scorers: Scorers,
+    cached_score: Sc,
     _phantom: PhantomData<fn() -> Sc>,
 }
 
@@ -29,9 +29,9 @@ where
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    node_name: String,
     state: GroupedNodeState<S, A, K, E, Fi, KF, C, V, R, Acc>,
     scorers: Scorers,
+    cached_score: Sc,
     impact_type: ImpactType,
     weight_fn: W,
     is_hard: bool,
@@ -42,8 +42,8 @@ impl<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, Sc>
     SharedGroupedConstraintSet<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    K: Clone + Eq + std::hash::Hash + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    K: Eq + std::hash::Hash + Send + Sync + 'static,
     E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
@@ -55,20 +55,23 @@ where
     Sc: Score + 'static,
 {
     pub fn new(
-        node_name: impl Into<String>,
         state: GroupedNodeState<S, A, K, E, Fi, KF, C, V, R, Acc>,
         scorers: Scorers,
     ) -> Self {
         Self {
-            node_name: node_name.into(),
             state,
             scorers,
+            cached_score: Sc::zero(),
             _phantom: PhantomData,
         }
     }
 
     pub fn state(&self) -> &GroupedNodeState<S, A, K, E, Fi, KF, C, V, R, Acc> {
         &self.state
+    }
+
+    pub(crate) fn primary_constraint_ref(&self) -> &ConstraintRef {
+        self.scorers.primary_constraint_ref()
     }
 
     fn into_weighted_builder<W>(
@@ -81,9 +84,9 @@ where
         W: Fn(&K, &R) -> Sc + Send + Sync,
     {
         GroupedConstraintSetBuilder {
-            node_name: self.node_name,
             state: self.state,
             scorers: self.scorers,
+            cached_score: self.cached_score,
             impact_type,
             weight_fn,
             is_hard,
@@ -154,8 +157,8 @@ impl<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, W, Sc>
     GroupedConstraintSetBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    K: Clone + Eq + std::hash::Hash + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    K: Eq + std::hash::Hash + Send + Sync + 'static,
     E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
@@ -190,7 +193,12 @@ where
             self.weight_fn,
             self.is_hard,
         );
-        SharedGroupedConstraintSet::new(self.node_name, self.state, (self.scorers, scorer))
+        SharedGroupedConstraintSet {
+            state: self.state,
+            scorers: (self.scorers, scorer),
+            cached_score: self.cached_score,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -198,8 +206,8 @@ impl<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, Sc> ConstraintSet<S, Sc>
     for SharedGroupedConstraintSet<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    K: Clone + Eq + std::hash::Hash + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    K: Eq + std::hash::Hash + Send + Sync + 'static,
     E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
@@ -235,27 +243,42 @@ where
 
     fn initialize_all(&mut self, solution: &S) -> Sc {
         self.state.initialize(solution);
-        self.scorers.initialize(&self.state)
+        self.cached_score = self.scorers.initialize(&self.state);
+        self.cached_score
     }
 
     fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        let node_name = &self.scorers.primary_constraint_ref().name;
         self.state
-            .on_insert(solution, entity_index, descriptor_index, &self.node_name);
-        let changed_keys = self.state.take_changed_keys();
-        self.scorers
-            .refresh_changed_keys(&self.state, &changed_keys)
+            .on_insert(solution, entity_index, descriptor_index, node_name);
+        self.refresh_from_state()
     }
 
     fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        let node_name = &self.scorers.primary_constraint_ref().name;
         self.state
-            .on_retract(solution, entity_index, descriptor_index, &self.node_name);
-        let changed_keys = self.state.take_changed_keys();
-        self.scorers
-            .refresh_changed_keys(&self.state, &changed_keys)
+            .on_retract(solution, entity_index, descriptor_index, node_name);
+        self.refresh_from_state()
     }
 
     fn reset_all(&mut self) {
         self.state.reset();
         self.scorers.reset();
+        self.cached_score = Sc::zero();
+    }
+}
+
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, Sc>
+    SharedGroupedConstraintSet<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, Sc>
+where
+    Acc: Accumulator<V, R>,
+    Scorers: GroupedScorerSet<K, R, Sc>,
+    K: Eq + std::hash::Hash,
+    Sc: Score,
+{
+    fn refresh_from_state(&mut self) -> Sc {
+        let delta = self.scorers.refresh_changed(&self.state);
+        self.cached_score = self.cached_score + delta;
+        delta
     }
 }

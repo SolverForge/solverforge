@@ -1,7 +1,9 @@
+mod indexes;
 mod scorer;
 mod shared_set;
 mod state;
 mod terminal;
+mod view;
 
 #[doc(hidden)]
 pub use scorer::ProjectedComplementedGroupedTerminalScorer;

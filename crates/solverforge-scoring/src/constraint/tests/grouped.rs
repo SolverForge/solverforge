@@ -194,7 +194,7 @@ fn test_shared_grouped_constraint_set_updates_one_node_for_multiple_terminals() 
             false,
         ),
     );
-    let mut constraints = SharedGroupedConstraintSet::new("sharedWorkload", state, scorers);
+    let mut constraints = SharedGroupedConstraintSet::new(state, scorers);
     let solution = GroupedSolution {
         shifts: vec![
             GroupedShift { employee_id: 1 },
@@ -293,7 +293,7 @@ fn test_shared_grouped_constraint_set_refreshes_only_dirty_keys() {
             false,
         ),
     );
-    let mut constraints = SharedGroupedConstraintSet::new("sharedWorkload", state, scorers);
+    let mut constraints = SharedGroupedConstraintSet::new(state, scorers);
     let solution = GroupedSolution {
         shifts: vec![
             GroupedShift { employee_id: 1 },

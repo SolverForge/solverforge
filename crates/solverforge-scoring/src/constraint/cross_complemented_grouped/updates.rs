@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use std::hash::Hash;
 
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 
+use super::indexes::{key_hash, remove_index_from_group_bucket, remove_index_from_hash_bucket};
 use super::state::CrossComplementedGroupedNodeState;
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
@@ -30,11 +30,11 @@ impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
     >
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    T: Clone + Send + Sync + 'static,
-    JK: Eq + Hash + Clone + Send + Sync,
-    GK: Eq + Hash + Clone + Send + Sync,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    T: Send + Sync + 'static,
+    JK: Eq + Hash + Send + Sync,
+    GK: Eq + Hash + Send + Sync,
     EA: CollectionExtract<S, Item = A> + Send + Sync,
     EB: CollectionExtract<S, Item = B> + Send + Sync,
     ET: CollectionExtract<S, Item = T> + Send + Sync,
@@ -73,7 +73,7 @@ where
 
         let group_key = (self.group_key_fn)(a, b);
         let value = self.collector.extract((a, b));
-        let retraction = self.insert_value(group_key.clone(), value);
+        let (group_id, retraction) = self.insert_value(group_key, value);
         let row_idx = self.match_rows.len();
         let a_bucket = self.a_to_matches.entry(a_idx).or_default();
         let a_pos = a_bucket.len();
@@ -83,7 +83,7 @@ where
         b_bucket.push(row_idx);
         self.match_rows.push(super::state::MatchRow {
             pair,
-            group_key,
+            group_id,
             retraction,
             a_pos,
             b_pos,
@@ -116,7 +116,7 @@ where
             }
         }
 
-        self.retract_value(row.group_key, row.retraction);
+        self.retract_value(row.group_id, row.retraction);
     }
 
     pub(super) fn remove_from_a_bucket(&mut self, a_idx: usize, row_idx: usize, pos: usize) {
@@ -163,23 +163,6 @@ where
         }
     }
 
-    fn remove_index_from_join_key_bucket(
-        indexes_by_key: &mut HashMap<JK, Vec<usize>>,
-        key: &JK,
-        idx: usize,
-    ) {
-        let mut remove_bucket = false;
-        if let Some(indices) = indexes_by_key.get_mut(key) {
-            if let Some(pos) = indices.iter().position(|candidate| *candidate == idx) {
-                indices.swap_remove(pos);
-            }
-            remove_bucket = indices.is_empty();
-        }
-        if remove_bucket {
-            indexes_by_key.remove(key);
-        }
-    }
-
     pub(super) fn insert_a(
         &mut self,
         solution: &S,
@@ -196,18 +179,19 @@ where
             return;
         }
         let key = (self.key_a)(a);
-        self.a_index_to_key.insert(a_idx, key.clone());
-        self.a_by_key.entry(key.clone()).or_default().push(a_idx);
+        let b_indices = self.matching_indexed_b_indices(&key);
+        let hash = key_hash(&key);
+        self.a_by_hash.entry(hash).or_default().push(a_idx);
+        self.a_index_to_key.insert(a_idx, key);
 
-        let b_indices = self.b_by_key.get(&key).cloned().unwrap_or_default();
         for b_idx in b_indices {
             self.add_match(solution, entities_a, entities_b, a_idx, b_idx);
         }
     }
 
-    pub(super) fn retract_a(&mut self, _entities_t: &[T], a_idx: usize) {
+    pub(super) fn retract_a(&mut self, a_idx: usize) {
         if let Some(key) = self.a_index_to_key.remove(&a_idx) {
-            Self::remove_index_from_join_key_bucket(&mut self.a_by_key, &key, a_idx);
+            remove_index_from_hash_bucket(&mut self.a_by_hash, &key, a_idx);
         }
         while let Some(row_idx) = self
             .a_to_matches
@@ -235,18 +219,19 @@ where
             return;
         }
         let key = (self.key_b)(b);
-        self.b_index_to_key.insert(b_idx, key.clone());
-        self.b_by_key.entry(key.clone()).or_default().push(b_idx);
+        let a_indices = self.matching_indexed_a_indices(&key);
+        let hash = key_hash(&key);
+        self.b_by_hash.entry(hash).or_default().push(b_idx);
+        self.b_index_to_key.insert(b_idx, key);
 
-        let a_indices = self.a_by_key.get(&key).cloned().unwrap_or_default();
         for a_idx in a_indices {
             self.add_match(solution, entities_a, entities_b, a_idx, b_idx);
         }
     }
 
-    pub(super) fn retract_b(&mut self, _entities_t: &[T], b_idx: usize) {
+    pub(super) fn retract_b(&mut self, b_idx: usize) {
         if let Some(key) = self.b_index_to_key.remove(&b_idx) {
-            Self::remove_index_from_join_key_bucket(&mut self.b_by_key, &key, b_idx);
+            remove_index_from_hash_bucket(&mut self.b_by_hash, &key, b_idx);
         }
         while let Some(row_idx) = self
             .b_to_matches
@@ -267,25 +252,19 @@ where
             return;
         }
         let key = (self.key_t)(complement);
-        self.t_entities.insert(t_idx, complement.clone());
-        self.index_complement(key, t_idx);
+        let default_result = (self.default_fn)(complement);
+        let group_id = self.group_id_for_key(key);
+        self.t_defaults.insert(t_idx, default_result);
+        self.index_complement(group_id, t_idx);
     }
 
     pub(super) fn retract_complement(&mut self, t_idx: usize) {
-        let Some(key) = self.t_index_to_key.remove(&t_idx) else {
+        let Some(group_id) = self.t_index_to_group.remove(&t_idx) else {
             return;
         };
-        self.t_entities.remove(&t_idx);
-        let mut remove_bucket = false;
-        if let Some(indices) = self.t_by_key.get_mut(&key) {
-            if let Some(pos) = indices.iter().position(|candidate| *candidate == t_idx) {
-                indices.swap_remove(pos);
-            }
-            remove_bucket = indices.is_empty();
-        }
-        if remove_bucket {
-            self.t_by_key.remove(&key);
-        }
-        self.mark_changed(key);
+        self.t_defaults.remove(&t_idx);
+        remove_index_from_group_bucket(&mut self.t_by_group, group_id, t_idx);
+        self.mark_complement_changed(t_idx);
+        self.mark_changed(group_id);
     }
 }

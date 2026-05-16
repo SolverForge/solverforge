@@ -319,17 +319,17 @@ fn projected_self_join_reuses_slots_across_cardinality_changes() {
 }
 
 #[test]
-fn projected_self_join_accepts_non_clone_rows_and_keys() {
+fn projected_self_join_accepts_move_only_rows_and_keys() {
     let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(source(
             work as fn(&Plan) -> &[Work],
             ChangeSource::Descriptor(0),
         ))
-        .project(NonCloneWorkEntryProjection)
-        .join(equal(|entry: &NonCloneEntry| NonCloneBucket(entry.bucket)))
-        .filter(|left: &NonCloneEntry, right: &NonCloneEntry| left.delta < right.delta)
-        .penalize(|_left: &NonCloneEntry, _right: &NonCloneEntry| SoftScore::of(1))
-        .named("projected non-clone duplicate bucket");
+        .project(MoveOnlyWorkEntryProjection)
+        .join(equal(|entry: &MoveOnlyEntry| MoveOnlyBucket(entry.bucket)))
+        .filter(|left: &MoveOnlyEntry, right: &MoveOnlyEntry| left.delta < right.delta)
+        .penalize(|_left: &MoveOnlyEntry, _right: &MoveOnlyEntry| SoftScore::of(1))
+        .named("projected move-only duplicate bucket");
 
     let mut plan = Plan {
         work: vec![
@@ -364,16 +364,58 @@ fn projected_self_join_accepts_non_clone_rows_and_keys() {
 }
 
 #[test]
-fn projected_group_by_accepts_non_clone_collector_values() {
+fn projected_group_by_accepts_move_only_collector_values() {
     let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(source(
             work as fn(&Plan) -> &[Work],
             ChangeSource::Descriptor(0),
         ))
         .project(WorkEntryProjection)
-        .group_by(|entry: &Entry| entry.bucket, NonCloneDeltaCollector)
+        .group_by(|entry: &Entry| entry.bucket, MoveOnlyDeltaCollector)
         .penalize(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
-        .named("projected non-clone collector value");
+        .named("projected move-only collector value");
+
+    let mut plan = Plan {
+        work: vec![
+            Work {
+                bucket: 0,
+                demand: 5,
+                enabled: true,
+            },
+            Work {
+                bucket: 0,
+                demand: 7,
+                enabled: true,
+            },
+        ],
+        capacity: Vec::new(),
+    };
+
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(total, SoftScore::of(-12));
+
+    total = total + constraint.on_retract(&plan, 1, 0);
+    plan.work[1].demand = -3;
+    total = total + constraint.on_insert(&plan, 1, 0);
+
+    assert_eq!(total, SoftScore::of(-2));
+    assert_eq!(total, constraint.evaluate(&plan));
+}
+
+#[test]
+fn projected_group_by_accepts_move_only_keys() {
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(MoveOnlyWorkEntryProjection)
+        .group_by(
+            |entry: &MoveOnlyEntry| MoveOnlyBucket(entry.bucket),
+            MoveOnlyDeltaCollector,
+        )
+        .penalize(|_bucket: &MoveOnlyBucket, delta: &i64| SoftScore::of((*delta).max(0)))
+        .named("projected move-only key");
 
     let mut plan = Plan {
         work: vec![

@@ -1,5 +1,3 @@
-use std::hash::Hash;
-
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
@@ -18,11 +16,17 @@ pub trait GroupedScorerSet<K, R, Sc: Score>: Send + Sync {
     where
         State: GroupedStateView<K, R>;
 
-    fn refresh_changed_keys<State>(&mut self, state: &State, changed_keys: &[K]) -> Sc
+    fn refresh_all<State>(&mut self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>;
+
+    fn refresh_changed<State>(&mut self, state: &State) -> Sc
     where
         State: GroupedStateView<K, R>;
 
     fn constraint_count(&self) -> usize;
+
+    fn primary_constraint_ref(&self) -> &ConstraintRef;
 
     fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>;
 
@@ -39,7 +43,6 @@ pub trait GroupedScorerSet<K, R, Sc: Score>: Send + Sync {
 
 impl<K, R, W, Sc> GroupedScorerSet<K, R, Sc> for GroupedTerminalScorer<K, R, W, Sc>
 where
-    K: Clone + Eq + Hash + Send + Sync + 'static,
     R: Send + Sync + 'static,
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
@@ -58,15 +61,26 @@ where
         self.initialize(state)
     }
 
-    fn refresh_changed_keys<State>(&mut self, state: &State, changed_keys: &[K]) -> Sc
+    fn refresh_all<State>(&mut self, state: &State) -> Sc
     where
         State: GroupedStateView<K, R>,
     {
-        self.refresh_changed_keys(state, changed_keys)
+        self.refresh_all(state)
+    }
+
+    fn refresh_changed<State>(&mut self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>,
+    {
+        self.refresh_changed(state)
     }
 
     fn constraint_count(&self) -> usize {
         1
+    }
+
+    fn primary_constraint_ref(&self) -> &ConstraintRef {
+        self.constraint_ref()
     }
 
     fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
@@ -130,7 +144,6 @@ macro_rules! impl_grouped_scorer_set_for_tuple {
     ($($idx:tt: $T:ident),+) => {
         impl<K, R, Sc, $($T),+> GroupedScorerSet<K, R, Sc> for ($($T,)+)
         where
-            K: Clone + Eq + Hash + Send + Sync + 'static,
             R: Send + Sync + 'static,
             Sc: Score + 'static,
             $($T: GroupedScorerSet<K, R, Sc>,)+
@@ -153,12 +166,21 @@ macro_rules! impl_grouped_scorer_set_for_tuple {
                 total
             }
 
-            fn refresh_changed_keys<State>(&mut self, state: &State, changed_keys: &[K]) -> Sc
+            fn refresh_all<State>(&mut self, state: &State) -> Sc
             where
                 State: GroupedStateView<K, R>,
             {
                 let mut total = Sc::zero();
-                $(total = total + self.$idx.refresh_changed_keys(state, changed_keys);)+
+                $(total = total + self.$idx.refresh_all(state);)+
+                total
+            }
+
+            fn refresh_changed<State>(&mut self, state: &State) -> Sc
+            where
+                State: GroupedStateView<K, R>,
+            {
+                let mut total = Sc::zero();
+                $(total = total + self.$idx.refresh_changed(state);)+
                 total
             }
 
@@ -166,6 +188,10 @@ macro_rules! impl_grouped_scorer_set_for_tuple {
                 let mut count = 0;
                 $(let _ = &self.$idx; count += self.$idx.constraint_count();)+
                 count
+            }
+
+            fn primary_constraint_ref(&self) -> &ConstraintRef {
+                self.0.primary_constraint_ref()
             }
 
             fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {

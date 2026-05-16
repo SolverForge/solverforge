@@ -7,17 +7,14 @@ use crate::stream::collector::sum;
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-#[derive(Clone)]
 struct Employee {
     id: usize,
 }
 
-#[derive(Clone)]
 struct Shift {
     employee_id: Option<usize>,
 }
 
-#[derive(Clone)]
 struct Schedule {
     shifts: Vec<Shift>,
     employees: Vec<Employee>,
@@ -72,8 +69,7 @@ fn shared_cross_grouped_set_updates_one_join_node_for_multiple_terminals() {
             false,
         ),
     );
-    let mut constraints =
-        SharedCrossGroupedConstraintSet::new("shared assigned shift count", state, scorers);
+    let mut constraints = SharedCrossGroupedConstraintSet::new(state, scorers);
     let plan = schedule();
 
     assert_eq!(constraints.evaluate_all(&plan), SoftScore::of(-6));

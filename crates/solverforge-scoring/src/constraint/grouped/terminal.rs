@@ -35,7 +35,6 @@ where
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    constraint_ref: ConstraintRef,
     is_hard: bool,
     inner: Inner<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>,
     _phantom: PhantomData<fn() -> (S, A, V, R, Acc)>,
@@ -45,8 +44,8 @@ impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
     GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
@@ -68,14 +67,11 @@ where
         weight_fn: W,
         is_hard: bool,
     ) -> Self {
-        let node_name = constraint_ref.name.clone();
         let state = GroupedNodeState::new(extractor, filter, key_fn, collector);
-        let scorer =
-            GroupedTerminalScorer::new(constraint_ref.clone(), impact_type, weight_fn, is_hard);
+        let scorer = GroupedTerminalScorer::new(constraint_ref, impact_type, weight_fn, is_hard);
         Self {
-            constraint_ref,
             is_hard,
-            inner: SharedGroupedConstraintSet::new(node_name, state, scorer),
+            inner: SharedGroupedConstraintSet::new(state, scorer),
             _phantom: PhantomData,
         }
     }
@@ -133,8 +129,8 @@ impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> IncrementalConstraint<S, Sc>
     for GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     E: CollectionExtract<S, Item = A>,
     Fi: UniFilter<S, A>,
     KF: Fn(&A) -> K + Send + Sync,
@@ -182,7 +178,7 @@ where
     }
 
     fn constraint_ref(&self) -> &ConstraintRef {
-        &self.constraint_ref
+        self.inner.primary_constraint_ref()
     }
 
     fn is_hard(&self) -> bool {

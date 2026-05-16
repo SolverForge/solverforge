@@ -39,6 +39,7 @@ pub struct SharedProjectedComplementedGroupedConstraintSet<
 {
     state: ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>,
     scorers: Scorers,
+    cached_score: Sc,
     _phantom: PhantomData<fn() -> Sc>,
 }
 
@@ -67,6 +68,7 @@ pub struct ProjectedComplementedGroupedConstraintSetBuilder<
 {
     state: ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>,
     scorers: Scorers,
+    cached_score: Sc,
     impact_type: ImpactType,
     weight_fn: W,
     is_hard: bool,
@@ -95,8 +97,8 @@ impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
@@ -132,6 +134,7 @@ where
         Self {
             state,
             scorers,
+            cached_score: Sc::zero(),
             _phantom: PhantomData,
         }
     }
@@ -141,6 +144,10 @@ where
     ) -> &ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
     {
         &self.state
+    }
+
+    pub(crate) fn primary_constraint_ref(&self) -> &ConstraintRef {
+        self.scorers.primary_constraint_ref()
     }
 
     fn into_weighted_builder<W>(
@@ -173,6 +180,7 @@ where
         ProjectedComplementedGroupedConstraintSetBuilder {
             state: self.state,
             scorers: self.scorers,
+            cached_score: self.cached_score,
             impact_type,
             weight_fn,
             is_hard,
@@ -270,8 +278,8 @@ impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
@@ -313,7 +321,12 @@ where
             self.weight_fn,
             self.is_hard,
         );
-        SharedProjectedComplementedGroupedConstraintSet::new(self.state, (self.scorers, scorer))
+        SharedProjectedComplementedGroupedConstraintSet {
+            state: self.state,
+            scorers: (self.scorers, scorer),
+            cached_score: self.cached_score,
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -339,8 +352,8 @@ impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, Sc> ConstraintS
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
@@ -379,27 +392,58 @@ where
 
     fn initialize_all(&mut self, solution: &S) -> Sc {
         self.state.initialize(solution);
-        self.scorers.initialize(&self.state)
+        self.cached_score = self.scorers.initialize(&self.state);
+        self.cached_score
     }
 
     fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
         self.state
             .on_insert(solution, entity_index, descriptor_index);
-        let changed_keys = self.state.take_changed_keys();
-        self.scorers
-            .refresh_changed_keys(&self.state, &changed_keys)
+        self.refresh_from_state()
     }
 
     fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
         self.state
             .on_retract(solution, entity_index, descriptor_index);
-        let changed_keys = self.state.take_changed_keys();
-        self.scorers
-            .refresh_changed_keys(&self.state, &changed_keys)
+        self.refresh_from_state()
     }
 
     fn reset_all(&mut self) {
         self.state.reset();
         self.scorers.reset();
+        self.cached_score = Sc::zero();
+    }
+}
+
+impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, Sc>
+    SharedProjectedComplementedGroupedConstraintSet<
+        S,
+        Out,
+        B,
+        K,
+        Src,
+        EB,
+        F,
+        KA,
+        KB,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        Scorers,
+        Sc,
+    >
+where
+    Src: ProjectedSource<S, Out>,
+    Acc: Accumulator<V, R>,
+    Scorers: ComplementedGroupedScorerSet<K, R, Sc>,
+    K: Eq + Hash,
+    Sc: Score,
+{
+    fn refresh_from_state(&mut self) -> Sc {
+        let delta = self.scorers.refresh_changed(&self.state);
+        self.cached_score = self.cached_score + delta;
+        delta
     }
 }

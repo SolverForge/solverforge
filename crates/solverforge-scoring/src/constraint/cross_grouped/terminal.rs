@@ -40,7 +40,6 @@ where
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    constraint_ref: ConstraintRef,
     is_hard: bool,
     inner: Inner<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>,
     _phantom: PhantomData<fn() -> (A, B, V, R, Acc)>,
@@ -50,10 +49,10 @@ impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
     CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    JK: Eq + Hash + Clone + Send + Sync + 'static,
-    GK: Eq + Hash + Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    JK: Eq + Hash + Send + Sync + 'static,
+    GK: Eq + Hash + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A> + Send + Sync,
     EB: CollectionExtract<S, Item = B> + Send + Sync,
     KA: Fn(&A) -> JK + Send + Sync,
@@ -81,7 +80,6 @@ where
         weight_fn: W,
         is_hard: bool,
     ) -> Self {
-        let node_name = constraint_ref.name.clone();
         let state = CrossGroupedNodeState::new(
             extractor_a,
             extractor_b,
@@ -91,12 +89,10 @@ where
             group_key_fn,
             collector,
         );
-        let scorer =
-            GroupedTerminalScorer::new(constraint_ref.clone(), impact_type, weight_fn, is_hard);
+        let scorer = GroupedTerminalScorer::new(constraint_ref, impact_type, weight_fn, is_hard);
         Self {
-            constraint_ref,
             is_hard,
-            inner: SharedCrossGroupedConstraintSet::new(node_name, state, scorer),
+            inner: SharedCrossGroupedConstraintSet::new(state, scorer),
             _phantom: PhantomData,
         }
     }
@@ -164,10 +160,10 @@ impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc> IncrementalCon
     for CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    JK: Eq + Hash + Clone + Send + Sync + 'static,
-    GK: Eq + Hash + Clone + Send + Sync + 'static,
+    A: Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    JK: Eq + Hash + Send + Sync + 'static,
+    GK: Eq + Hash + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A> + Send + Sync,
     EB: CollectionExtract<S, Item = B> + Send + Sync,
     KA: Fn(&A) -> JK + Send + Sync,
@@ -211,7 +207,7 @@ where
     }
 
     fn constraint_ref(&self) -> &ConstraintRef {
-        &self.constraint_ref
+        self.inner.primary_constraint_ref()
     }
 
     fn is_hard(&self) -> bool {

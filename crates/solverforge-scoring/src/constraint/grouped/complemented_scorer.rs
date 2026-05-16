@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::hash::Hash;
-
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
@@ -13,6 +10,14 @@ pub trait ComplementedGroupedStateView<K, R> {
     fn for_each_complement_result<Visit>(&self, visit: Visit)
     where
         Visit: FnMut(&K, &R);
+
+    fn for_each_complement_slot_result<Visit>(&self, visit: Visit)
+    where
+        Visit: FnMut(usize, Option<(&K, &R)>);
+
+    fn for_each_changed_complement_slot_result<Visit>(&self, visit: Visit)
+    where
+        Visit: FnMut(usize, Option<(&K, &R)>);
 
     fn for_each_key_result<Visit>(&self, key: &K, visit: Visit)
     where
@@ -30,11 +35,17 @@ pub trait ComplementedGroupedScorerSet<K, R, Sc: Score>: Send + Sync {
     where
         State: ComplementedGroupedStateView<K, R>;
 
-    fn refresh_changed_keys<State>(&mut self, state: &State, changed_keys: &[K]) -> Sc
+    fn refresh_all<State>(&mut self, state: &State) -> Sc
+    where
+        State: ComplementedGroupedStateView<K, R>;
+
+    fn refresh_changed<State>(&mut self, state: &State) -> Sc
     where
         State: ComplementedGroupedStateView<K, R>;
 
     fn constraint_count(&self) -> usize;
+
+    fn primary_constraint_ref(&self) -> &ConstraintRef;
 
     fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>;
 
@@ -49,30 +60,8 @@ pub trait ComplementedGroupedScorerSet<K, R, Sc: Score>: Send + Sync {
     fn reset(&mut self);
 }
 
-impl<K, R, W, Sc> GroupedTerminalScorer<K, R, W, Sc>
-where
-    K: Clone + Eq + Hash + Send + Sync + 'static,
-    R: Send + Sync + 'static,
-    W: Fn(&K, &R) -> Sc + Send + Sync,
-    Sc: Score + 'static,
-{
-    fn complemented_score_key<State>(&self, state: &State, key: &K) -> (usize, Sc)
-    where
-        State: ComplementedGroupedStateView<K, R>,
-    {
-        let mut count = 0;
-        let mut total = Sc::zero();
-        state.for_each_key_result(key, |result| {
-            count += 1;
-            total = total + self.compute_score(key, result);
-        });
-        (count, total)
-    }
-}
-
 impl<K, R, W, Sc> ComplementedGroupedScorerSet<K, R, Sc> for GroupedTerminalScorer<K, R, W, Sc>
 where
-    K: Clone + Eq + Hash + Send + Sync + 'static,
     R: Send + Sync + 'static,
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
@@ -92,41 +81,50 @@ where
     where
         State: ComplementedGroupedStateView<K, R>,
     {
-        self.prior_scores.clear();
-        self.match_count = state.complement_count();
-        let mut totals = HashMap::<K, Sc>::new();
-        state.for_each_complement_result(|key, result| {
-            let score = self.compute_score(key, result);
-            let total = totals.entry(key.clone()).or_insert_with(Sc::zero);
-            *total = *total + score;
+        self.reset_incremental_cache(state.complement_count());
+        let mut total = Sc::zero();
+        state.for_each_complement_slot_result(|slot, entry| {
+            let score = self.score_entry(entry);
+            self.replace_cached_score(slot, score);
+            total = total + score;
         });
-        let total_score = totals
-            .values()
-            .fold(Sc::zero(), |total, score| total + *score);
-        self.prior_scores = totals;
-        total_score
+        total
     }
 
-    fn refresh_changed_keys<State>(&mut self, state: &State, changed_keys: &[K]) -> Sc
+    fn refresh_all<State>(&mut self, state: &State) -> Sc
     where
         State: ComplementedGroupedStateView<K, R>,
     {
+        self.mark_incremental_refresh(state.complement_count());
+        self.clear_incremental_scores();
+        let mut total = Sc::zero();
+        state.for_each_complement_slot_result(|slot, entry| {
+            let score = self.score_entry(entry);
+            self.replace_cached_score(slot, score);
+            total = total + score;
+        });
+        total
+    }
+
+    fn refresh_changed<State>(&mut self, state: &State) -> Sc
+    where
+        State: ComplementedGroupedStateView<K, R>,
+    {
+        self.mark_incremental_refresh(state.complement_count());
         let mut delta = Sc::zero();
-        for key in changed_keys {
-            let old = self.prior_scores.remove(key).unwrap_or_else(Sc::zero);
-            let (count, new_score) = self.complemented_score_key(state, key);
-            if count > 0 {
-                self.prior_scores.insert(key.clone(), new_score);
-            }
-            delta = delta + (new_score - old);
-            self.refresh_count += 1;
-        }
-        self.match_count = state.complement_count();
+        state.for_each_changed_complement_slot_result(|slot, entry| {
+            let score = self.score_entry(entry);
+            delta = delta + self.replace_cached_score(slot, score);
+        });
         delta
     }
 
     fn constraint_count(&self) -> usize {
         1
+    }
+
+    fn primary_constraint_ref(&self) -> &ConstraintRef {
+        self.constraint_ref()
     }
 
     fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
@@ -190,7 +188,6 @@ macro_rules! impl_complemented_grouped_scorer_set_for_tuple {
     ($($idx:tt: $T:ident),+) => {
         impl<K, R, Sc, $($T),+> ComplementedGroupedScorerSet<K, R, Sc> for ($($T,)+)
         where
-            K: Clone + Eq + Hash + Send + Sync + 'static,
             R: Send + Sync + 'static,
             Sc: Score + 'static,
             $($T: ComplementedGroupedScorerSet<K, R, Sc>,)+
@@ -213,12 +210,21 @@ macro_rules! impl_complemented_grouped_scorer_set_for_tuple {
                 total
             }
 
-            fn refresh_changed_keys<State>(&mut self, state: &State, changed_keys: &[K]) -> Sc
+            fn refresh_all<State>(&mut self, state: &State) -> Sc
             where
                 State: ComplementedGroupedStateView<K, R>,
             {
                 let mut total = Sc::zero();
-                $(total = total + ComplementedGroupedScorerSet::refresh_changed_keys(&mut self.$idx, state, changed_keys);)+
+                $(total = total + ComplementedGroupedScorerSet::refresh_all(&mut self.$idx, state);)+
+                total
+            }
+
+            fn refresh_changed<State>(&mut self, state: &State) -> Sc
+            where
+                State: ComplementedGroupedStateView<K, R>,
+            {
+                let mut total = Sc::zero();
+                $(total = total + ComplementedGroupedScorerSet::refresh_changed(&mut self.$idx, state);)+
                 total
             }
 
@@ -226,6 +232,10 @@ macro_rules! impl_complemented_grouped_scorer_set_for_tuple {
                 let mut count = 0;
                 $(let _ = &self.$idx; count += ComplementedGroupedScorerSet::constraint_count(&self.$idx);)+
                 count
+            }
+
+            fn primary_constraint_ref(&self) -> &ConstraintRef {
+                self.0.primary_constraint_ref()
             }
 
             fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {

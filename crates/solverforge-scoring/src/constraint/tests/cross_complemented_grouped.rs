@@ -242,11 +242,7 @@ fn shared_cross_bi_group_by_complement_updates_one_node_for_multiple_terminals()
             false,
         ),
     );
-    let mut constraints = SharedCrossComplementedGroupedConstraintSet::new(
-        "shared complemented counts",
-        state,
-        scorers,
-    );
+    let mut constraints = SharedCrossComplementedGroupedConstraintSet::new(state, scorers);
     let mut schedule = two_employee_schedule();
 
     let mut total = constraints.initialize_all(&schedule);

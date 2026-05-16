@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
@@ -15,15 +13,14 @@ where
     pub(super) impact_type: ImpactType,
     pub(super) weight_fn: W,
     pub(super) is_hard: bool,
-    pub(super) prior_scores: HashMap<K, Sc>,
     pub(super) match_count: usize,
     pub(super) refresh_count: usize,
-    _phantom: PhantomData<fn() -> R>,
+    cached_scores: Vec<Sc>,
+    _phantom: PhantomData<fn() -> (K, R, Sc)>,
 }
 
 impl<K, R, W, Sc> GroupedTerminalScorer<K, R, W, Sc>
 where
-    K: Clone + Eq + Hash + Send + Sync + 'static,
     R: Send + Sync + 'static,
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
@@ -39,9 +36,9 @@ where
             impact_type,
             weight_fn,
             is_hard,
-            prior_scores: HashMap::new(),
             match_count: 0,
             refresh_count: 0,
+            cached_scores: Vec::new(),
             _phantom: PhantomData,
         }
     }
@@ -61,45 +58,52 @@ where
     where
         State: GroupedStateView<K, R>,
     {
-        self.prior_scores.clear();
-        self.match_count = 0;
+        self.match_count = state.group_count();
+        self.refresh_count = 0;
+        self.cached_scores.clear();
         let mut total = Sc::zero();
-        state.for_each_group_result(|key, result| {
-            let score = self.compute_score(key, result);
-            self.prior_scores.insert(key.clone(), score);
-            self.match_count += 1;
+        state.for_each_group_slot_result(|group_id, entry| {
+            let score = self.score_entry(entry);
+            self.replace_cached_score(group_id, score);
             total = total + score;
         });
         total
     }
 
-    pub fn refresh_changed_keys<State>(&mut self, state: &State, changed_keys: &[K]) -> Sc
+    pub fn refresh_all<State>(&mut self, state: &State) -> Sc
     where
         State: GroupedStateView<K, R>,
     {
+        self.match_count = state.group_count();
+        self.refresh_count += 1;
+        self.cached_scores.clear();
+        let mut total = Sc::zero();
+        state.for_each_group_slot_result(|group_id, entry| {
+            let score = self.score_entry(entry);
+            self.replace_cached_score(group_id, score);
+            total = total + score;
+        });
+        total
+    }
+
+    pub fn refresh_changed<State>(&mut self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>,
+    {
+        self.match_count = state.group_count();
+        self.refresh_count += 1;
         let mut delta = Sc::zero();
-        for key in changed_keys {
-            let old = self.prior_scores.remove(key).unwrap_or_else(Sc::zero);
-            let maybe_new = state.with_group_result(
-                key,
-                |result| Some(self.compute_score(key, result)),
-                || None,
-            );
-            let new_score = maybe_new.unwrap_or_else(Sc::zero);
-            if let Some(score) = maybe_new {
-                self.prior_scores.insert(key.clone(), score);
-            }
-            delta = delta + (new_score - old);
-            self.refresh_count += 1;
-        }
-        self.match_count = self.prior_scores.len();
+        state.for_each_changed_group_slot_result(|group_id, entry| {
+            let score = self.score_entry(entry);
+            delta = delta + self.replace_cached_score(group_id, score);
+        });
         delta
     }
 
     pub fn reset(&mut self) {
-        self.prior_scores.clear();
         self.match_count = 0;
         self.refresh_count = 0;
+        self.cached_scores.clear();
     }
 
     pub fn constraint_ref(&self) -> &ConstraintRef {
@@ -129,6 +133,37 @@ where
             ImpactType::Penalty => -base,
             ImpactType::Reward => base,
         }
+    }
+
+    pub(crate) fn score_entry(&self, entry: Option<(&K, &R)>) -> Sc {
+        match entry {
+            Some((key, result)) => self.compute_score(key, result),
+            None => Sc::zero(),
+        }
+    }
+
+    pub(crate) fn replace_cached_score(&mut self, slot: usize, score: Sc) -> Sc {
+        while self.cached_scores.len() <= slot {
+            self.cached_scores.push(Sc::zero());
+        }
+        let previous = self.cached_scores[slot];
+        self.cached_scores[slot] = score;
+        score - previous
+    }
+
+    pub(crate) fn reset_incremental_cache(&mut self, match_count: usize) {
+        self.match_count = match_count;
+        self.refresh_count = 0;
+        self.cached_scores.clear();
+    }
+
+    pub(crate) fn mark_incremental_refresh(&mut self, match_count: usize) {
+        self.match_count = match_count;
+        self.refresh_count += 1;
+    }
+
+    pub(crate) fn clear_incremental_scores(&mut self) {
+        self.cached_scores.clear();
     }
 }
 

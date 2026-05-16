@@ -166,6 +166,7 @@ arguments are compile errors.
 - `route_get_fn = "path"` — optional route reader, `fn(&Solution, entity_idx) -> Vec<usize>`
 - `route_set_fn = "path"` — optional route writer, `fn(&mut Solution, entity_idx, route)`
 - `route_depot_fn = "path"` — optional owner-aware depot hook, `fn(&Solution, entity_idx) -> usize`
+- `route_metric_class_fn = "path"` — optional Clarke-Wright metric class hook, `fn(&Solution, entity_idx) -> usize`; owners in the same class must share depot and route-distance behavior
 - `route_distance_fn = "path"` — optional owner-aware distance hook, `fn(&Solution, entity_idx, from, to) -> i64`
 - `route_feasible_fn = "path"` — optional owner-aware feasibility hook, `fn(&Solution, entity_idx, route) -> bool`; this is the route-level gate used to express capacity, time-window, vehicle compatibility, and other hard feasibility rules for Clarke-Wright and k-opt
 

@@ -13,6 +13,7 @@ pub struct Route {
         route_get_fn = "solverforge::cvrp::get_route",
         route_set_fn = "solverforge::cvrp::replace_route",
         route_depot_fn = "solverforge::cvrp::depot_for_entity",
+        route_metric_class_fn = "solverforge::cvrp::route_metric_class",
         route_distance_fn = "solverforge::cvrp::route_distance",
         route_feasible_fn = "solverforge::cvrp::route_feasible"
     )]

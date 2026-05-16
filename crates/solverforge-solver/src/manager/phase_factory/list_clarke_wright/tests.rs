@@ -7,6 +7,7 @@ use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
 mod owner_binding;
+mod metric_class;
 
 #[derive(Clone, Debug)]
 struct Route {

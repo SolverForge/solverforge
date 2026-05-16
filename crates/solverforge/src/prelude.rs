@@ -12,6 +12,6 @@ pub use crate::{
     FixedWeight, FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore,
     HardWeight, PartitionedSearchPhase, Projection, ProjectionSink, RepairCandidate, RepairLimits,
     ScalarAssignmentRule, ScalarCandidate, ScalarEdit, ScalarGroup, ScalarGroupLimits,
-    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SimpleDecider, SoftScore,
-    SolutionPartitioner, ThreadCount,
+    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SharedNodeDiagnostics, SharedNodeId,
+    SharedNodeOperation, SimpleDecider, SoftScore, SolutionPartitioner, ThreadCount,
 };

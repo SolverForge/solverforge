@@ -26,14 +26,10 @@ Zero-Erasure Incremental Constraints
 */
 
 pub use constraint::{
-    grouped_penalty_terminal, grouped_reward_terminal, CrossComplementedGroupedConstraint,
-    CrossGroupedConstraint, CrossGroupedNodeState, CrossGroupedTerminalScorer, GroupedNodeState,
-    GroupedTerminalScorer, GroupedUniConstraint, IncrementalBiConstraint,
-    IncrementalCrossBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
-    IncrementalTriConstraint, IncrementalUniConstraint, ProjectedComplementedGroupedConstraint,
-    ProjectedGroupedConstraint, ProjectedGroupedNodeState, ProjectedGroupedTerminalScorer,
-    ProjectedUniConstraint, SharedCrossGroupedConstraintSet, SharedGroupedConstraintSet,
-    SharedProjectedGroupedConstraintSet,
+    CrossComplementedGroupedConstraint, CrossGroupedConstraint, GroupedUniConstraint,
+    IncrementalBiConstraint, IncrementalCrossBiConstraint, IncrementalPentaConstraint,
+    IncrementalQuadConstraint, IncrementalTriConstraint, IncrementalUniConstraint,
+    ProjectedComplementedGroupedConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
 };
 
 /* ============================================================================
@@ -44,6 +40,7 @@ Constraint Set (Tuple-Based, Zero-Erasure)
 pub use api::constraint_set::{
     ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
 };
+pub use api::node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 /* ============================================================================

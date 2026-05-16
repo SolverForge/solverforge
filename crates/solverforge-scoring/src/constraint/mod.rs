@@ -35,22 +35,15 @@ pub use balance::BalanceConstraint;
 pub use complemented::ComplementedGroupConstraint;
 pub use cross_bi_incremental::IncrementalCrossBiConstraint;
 pub use cross_complemented_grouped::CrossComplementedGroupedConstraint;
-pub use cross_grouped::{
-    CrossGroupedConstraint, CrossGroupedNodeState, CrossGroupedTerminalScorer,
-    SharedCrossGroupedConstraintSet,
-};
+pub use cross_grouped::CrossGroupedConstraint;
 pub use exists::IncrementalExistsConstraint;
 pub use flattened_bi::FlattenedBiConstraint;
-pub use grouped::{
-    grouped_penalty_terminal, grouped_reward_terminal, GroupedNodeState, GroupedTerminalScorer,
-    GroupedUniConstraint, SharedGroupedConstraintSet,
-};
+pub use grouped::GroupedUniConstraint;
 pub use incremental::IncrementalUniConstraint;
 pub use nary_incremental::{
     IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
     IncrementalTriConstraint,
 };
 pub use projected::{
-    ProjectedComplementedGroupedConstraint, ProjectedGroupedConstraint, ProjectedGroupedNodeState,
-    ProjectedGroupedTerminalScorer, ProjectedUniConstraint, SharedProjectedGroupedConstraintSet,
+    ProjectedComplementedGroupedConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
 };

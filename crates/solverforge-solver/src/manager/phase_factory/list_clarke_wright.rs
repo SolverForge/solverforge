@@ -376,17 +376,21 @@ where
             let candidate_indices: Vec<usize> = test_ri.iter().chain(&test_rj).copied().collect();
             let solution = phase_scope.score_director().working_solution();
             let candidate_route = route_values(solution, index_to_element, &candidate_indices);
-            if feasible_owners_for_scored_route(
+            let candidate_feasible_owners = feasible_owners_for_scored_route(
                 solution,
                 &owner_slots,
                 &candidate_route,
                 Some(entry.metric_class),
                 self.feasible_fn,
-            )
-            .is_empty()
-            {
+            );
+            if candidate_feasible_owners.is_empty() {
                 continue;
             }
+            let candidate_feasible_for_all_metric_class_owners = candidate_feasible_owners.len()
+                == owner_slots
+                    .iter()
+                    .filter(|slot| slot.metric_class == entry.metric_class)
+                    .count();
             if !routes_match_owners_after_merge(
                 solution,
                 &routes,
@@ -394,6 +398,7 @@ where
                 rj,
                 &candidate_indices,
                 entry.metric_class,
+                candidate_feasible_for_all_metric_class_owners,
                 &owner_slots,
                 index_to_element,
                 self.feasible_fn,
@@ -404,9 +409,12 @@ where
             routes[ri].visits = test_ri;
             routes[ri].scored_metric_class = Some(entry.metric_class);
             routes[ri].feasible_for_all_owners = false;
+            routes[ri].feasible_for_all_metric_class_owners =
+                candidate_feasible_for_all_metric_class_owners;
             routes[rj].visits.clear();
             routes[rj].scored_metric_class = None;
             routes[rj].feasible_for_all_owners = false;
+            routes[rj].feasible_for_all_metric_class_owners = false;
             for &c in &test_rj {
                 route_of[c] = Some(ri);
             }

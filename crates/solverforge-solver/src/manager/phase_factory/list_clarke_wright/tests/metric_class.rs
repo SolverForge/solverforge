@@ -21,6 +21,18 @@ fn simple_distance(_: &Plan, _: usize, a: usize, b: usize) -> i64 {
     (a as i64 - b as i64).abs()
 }
 
+fn conflict_distance(_: &Plan, _: usize, a: usize, b: usize) -> i64 {
+    if a == 0 || b == 0 {
+        100
+    } else {
+        match (a.min(b), a.max(b)) {
+            (3, 4) => 0,
+            (1, 2) => 1,
+            _ => 100,
+        }
+    }
+}
+
 fn grouped_owner_feasible(_: &Plan, entity_idx: usize, route: &[usize]) -> bool {
     let mut sorted = route.to_vec();
     sorted.sort_unstable();
@@ -28,6 +40,17 @@ fn grouped_owner_feasible(_: &Plan, entity_idx: usize, route: &[usize]) -> bool 
     match entity_idx {
         0 => route.len() <= 1,
         1 => route.len() <= 1 || sorted == [1, 2],
+        _ => false,
+    }
+}
+
+fn conflicting_shared_class_feasible(_: &Plan, entity_idx: usize, route: &[usize]) -> bool {
+    let mut sorted = route.to_vec();
+    sorted.sort_unstable();
+
+    match sorted.as_slice() {
+        [1, 2] | [3, 4] => entity_idx == 0,
+        [1] | [2] | [3] | [4] => true,
         _ => false,
     }
 }
@@ -121,4 +144,64 @@ fn clarke_wright_keeps_feasibility_owner_specific_with_shared_metric_class() {
     let mut owner_one_visits = solution.routes[1].visits.clone();
     owner_one_visits.sort_unstable();
     assert_eq!(owner_one_visits, vec![1, 2]);
+}
+
+#[test]
+fn clarke_wright_checks_owner_matching_inside_shared_metric_class() {
+    let plan = Plan {
+        customer_values: vec![1, 2, 3, 4],
+        routes: vec![
+            Route { visits: Vec::new() },
+            Route { visits: Vec::new() },
+            Route { visits: Vec::new() },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(
+        plan,
+        SolutionDescriptor::new("Plan", TypeId::of::<Plan>()),
+        |s, descriptor_index| {
+            if descriptor_index == 0 {
+                s.routes.len()
+            } else {
+                0
+            }
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    let mut phase = ListClarkeWrightPhase::new(
+        element_count,
+        get_assigned,
+        entity_count,
+        route_len,
+        assign_route,
+        index_to_element,
+        depot,
+        conflict_distance,
+        conflicting_shared_class_feasible,
+        0,
+    )
+    .with_metric_class_fn(shared_metric_class);
+
+    phase.solve(&mut solver_scope);
+
+    let solution = solver_scope.working_solution();
+    let mut assigned: Vec<_> = solution
+        .routes
+        .iter()
+        .flat_map(|route| route.visits.iter().copied())
+        .collect();
+    assigned.sort_unstable();
+
+    assert_eq!(assigned, vec![1, 2, 3, 4]);
+    assert!(solution.routes.iter().any(|route| {
+        let mut visits = route.visits.clone();
+        visits.sort_unstable();
+        visits == [3, 4]
+    }));
+    assert!(!solution.routes.iter().any(|route| {
+        let mut visits = route.visits.clone();
+        visits.sort_unstable();
+        visits == [1, 2]
+    }));
 }

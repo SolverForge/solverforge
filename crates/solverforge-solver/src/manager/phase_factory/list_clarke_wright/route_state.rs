@@ -6,6 +6,7 @@ pub(crate) struct ConstructedRoute {
     pub(crate) visits: Vec<usize>,
     pub(crate) scored_metric_class: Option<usize>,
     pub(crate) feasible_for_all_owners: bool,
+    pub(crate) feasible_for_all_metric_class_owners: bool,
 }
 
 impl ConstructedRoute {
@@ -14,6 +15,7 @@ impl ConstructedRoute {
             visits: vec![element_idx],
             scored_metric_class: None,
             feasible_for_all_owners,
+            feasible_for_all_metric_class_owners: false,
         }
     }
 
@@ -45,6 +47,7 @@ pub(crate) fn routes_match_owners_after_merge<S, E>(
     removed_route_idx: usize,
     candidate_route: &[usize],
     candidate_metric_class: usize,
+    candidate_feasible_for_all_metric_class_owners: bool,
     owner_slots: &[OwnerSlot],
     index_to_element: fn(&S, usize) -> E,
     feasible: fn(&S, usize, &[usize]) -> bool,
@@ -58,6 +61,7 @@ where
         merged_route_idx,
         removed_route_idx,
         candidate_metric_class,
+        candidate_feasible_for_all_metric_class_owners,
         owner_slots,
     ) {
         return true;
@@ -100,6 +104,7 @@ fn routes_match_owners_by_metric_class(
     merged_route_idx: usize,
     removed_route_idx: usize,
     candidate_metric_class: usize,
+    candidate_feasible_for_all_metric_class_owners: bool,
     owner_slots: &[OwnerSlot],
 ) -> bool {
     let mut route_count_by_metric_class = std::collections::BTreeMap::new();
@@ -118,17 +123,27 @@ fn routes_match_owners_by_metric_class(
         }
 
         non_empty_route_count += 1;
-        let scored_metric_class = if route_idx == merged_route_idx {
-            Some(candidate_metric_class)
-        } else {
-            route.scored_metric_class
-        };
+        let (scored_metric_class, feasible_for_all_metric_class_owners) =
+            if route_idx == merged_route_idx {
+                (
+                    Some(candidate_metric_class),
+                    candidate_feasible_for_all_metric_class_owners,
+                )
+            } else {
+                (
+                    route.scored_metric_class,
+                    route.feasible_for_all_metric_class_owners,
+                )
+            };
 
         match scored_metric_class {
-            Some(metric_class) => {
+            Some(metric_class) if feasible_for_all_metric_class_owners => {
                 *route_count_by_metric_class
                     .entry(metric_class)
                     .or_insert(0usize) += 1;
+            }
+            Some(_) => {
+                return false;
             }
             None if route.feasible_for_all_owners => {}
             None => return false,

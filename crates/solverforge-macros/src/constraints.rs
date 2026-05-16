@@ -1,7 +1,5 @@
 mod ast;
 mod emit;
-mod fingerprint;
-mod normalize;
 mod parse;
 mod plan;
 
@@ -13,7 +11,6 @@ use syn::ItemFn;
 
 pub(crate) fn expand(input: ItemFn) -> syn::Result<TokenStream> {
     let parsed = parse::parse_constraint_function(input)?;
-    let normalized = normalize::normalize(parsed);
-    let planned = plan::plan(normalized);
+    let planned = plan::plan(parsed);
     emit::emit(planned)
 }

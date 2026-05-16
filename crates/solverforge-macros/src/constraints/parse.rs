@@ -1,70 +1,89 @@
-use syn::{Expr, ExprMethodCall, ExprPath, Ident, ItemFn, Stmt};
+use quote::quote;
+use syn::{Expr, ExprMethodCall, ExprPath, ItemFn, Stmt};
 
 use super::ast::{
-    ConstraintFunction, ImpactKind, NodeId, StreamNode, TerminalConstraint, TerminalKind,
-    TerminalSource,
+    ConstraintFunction, ImpactKind, StreamNode, TailMember, TerminalConstraint, TerminalKind,
 };
-use super::fingerprint::expression_fingerprint;
 
-pub(crate) fn parse_constraint_function(item: ItemFn) -> syn::Result<ConstraintFunction> {
+pub(crate) fn parse_constraint_function(mut item: ItemFn) -> syn::Result<ConstraintFunction> {
+    let statements = std::mem::take(&mut item.block.stmts);
     let mut prefix_statements = Vec::new();
     let mut stream_nodes = Vec::new();
     let mut original_tail = None;
 
-    for statement in &item.block.stmts {
+    let statement_count = statements.len();
+    for (statement_index, statement) in statements.into_iter().enumerate() {
         match statement {
             Stmt::Local(local) => {
-                if let Some((ident, expression)) = stream_let(local) {
-                    let id = NodeId(stream_nodes.len());
-                    stream_nodes.push(StreamNode {
-                        id,
-                        binding: ident.clone(),
-                        expression: expression.clone(),
-                        fingerprint: expression_fingerprint(expression),
-                    });
+                if let Some(node) = stream_let(&local) {
+                    stream_nodes.push(node);
                 }
-                prefix_statements.push(statement.clone());
+                prefix_statements.push(Stmt::Local(local));
+            }
+            Stmt::Expr(expr, None) if statement_index + 1 == statement_count => {
+                original_tail = Some(expr);
             }
             Stmt::Expr(expr, None) => {
-                original_tail = Some(expr.clone());
+                prefix_statements.push(Stmt::Expr(expr, None));
             }
-            Stmt::Expr(_, Some(_)) | Stmt::Item(_) | Stmt::Macro(_) => {
-                prefix_statements.push(statement.clone());
+            Stmt::Expr(expr, semicolon) => {
+                prefix_statements.push(Stmt::Expr(expr, semicolon));
+            }
+            Stmt::Item(item) => {
+                prefix_statements.push(Stmt::Item(item));
+            }
+            Stmt::Macro(item) => {
+                prefix_statements.push(Stmt::Macro(item));
             }
         }
     }
 
-    let terminals = original_tail
+    let tail_members = original_tail
         .as_ref()
-        .map(parse_tail_terminals)
+        .map(parse_tail_members)
         .transpose()?
         .unwrap_or_default();
 
     Ok(ConstraintFunction {
         item,
         prefix_statements,
+        tail: original_tail,
         stream_nodes,
-        terminals,
+        tail_members,
     })
 }
 
-fn stream_let(local: &syn::Local) -> Option<(Ident, &Expr)> {
+fn stream_let(local: &syn::Local) -> Option<StreamNode> {
     let syn::Pat::Ident(binding) = &local.pat else {
         return None;
     };
     let init = local.init.as_ref()?;
-    Some((binding.ident.clone(), &init.expr))
+    Some(StreamNode {
+        binding: binding.ident.to_string(),
+        supports_grouped_sharing: source_supports_grouped_sharing(&init.expr),
+    })
 }
 
-fn parse_tail_terminals(expr: &Expr) -> syn::Result<Vec<TerminalConstraint>> {
+fn parse_tail_members(expr: &Expr) -> syn::Result<Vec<TailMember>> {
     match expr {
-        Expr::Tuple(tuple) => tuple
-            .elems
-            .iter()
-            .enumerate()
-            .filter_map(|(order, expr)| parse_terminal(expr, order).transpose())
-            .collect(),
-        _ => parse_terminal(expr, 0).map(|terminal| terminal.into_iter().collect()),
+        Expr::Tuple(tuple) => {
+            let mut members = Vec::new();
+            for (order, expr) in tuple.elems.iter().enumerate() {
+                if let Some(terminal) = parse_terminal(expr, order)? {
+                    members.push(TailMember::Terminal(terminal));
+                } else {
+                    members.push(TailMember::Other(quote! { #expr }));
+                }
+            }
+            Ok(members)
+        }
+        _ => {
+            let members = parse_terminal(expr, 0)?
+                .map(TailMember::Terminal)
+                .into_iter()
+                .collect();
+            Ok(members)
+        }
     }
 }
 
@@ -75,12 +94,16 @@ fn parse_terminal(expr: &Expr, order: usize) -> syn::Result<Option<TerminalConst
     if named.method != "named" {
         return Ok(None);
     }
-    let Some(name) = named.args.first().and_then(lit_str_arg) else {
+    if named.args.len() != 1 {
         return Err(syn::Error::new_spanned(
             named,
-            "terminal constraints inside #[solverforge_constraints] must use .named(\"...\")",
+            "terminal constraints inside #[solverforge_constraints] must use exactly one .named(\"...\") argument",
         ));
-    };
+    }
+    let name = named
+        .args
+        .first()
+        .expect("named arity was checked before reading the name expression");
 
     let Expr::MethodCall(score) = named.receiver.as_ref() else {
         return Ok(None);
@@ -90,16 +113,26 @@ fn parse_terminal(expr: &Expr, order: usize) -> syn::Result<Option<TerminalConst
         "reward" => ImpactKind::Reward,
         _ => return Ok(None),
     };
-    let Some(weight) = score.args.first().cloned() else {
+    if score.args.len() != 1 {
+        return Err(syn::Error::new_spanned(
+            score,
+            "penalize/reward terminals inside #[solverforge_constraints] must use exactly one weight argument",
+        ));
+    }
+    let Some(weight) = score.args.first() else {
         return Err(syn::Error::new_spanned(
             score,
             "penalize/reward terminal is missing a weight expression",
         ));
     };
-    let source = receiver_source(score);
+    let Some(source_binding) = receiver_binding(score) else {
+        return Ok(None);
+    };
+    let name = quote! { #name };
+    let weight = quote! { #weight };
 
     Ok(Some(TerminalConstraint {
-        source,
+        source_binding,
         impact,
         weight,
         name,
@@ -108,24 +141,50 @@ fn parse_terminal(expr: &Expr, order: usize) -> syn::Result<Option<TerminalConst
     }))
 }
 
-fn receiver_source(method: &ExprMethodCall) -> TerminalSource {
+fn receiver_binding(method: &ExprMethodCall) -> Option<String> {
     match method.receiver.as_ref() {
         Expr::Path(ExprPath { path, .. }) if path.segments.len() == 1 => {
-            TerminalSource::Binding(path.segments[0].ident.clone())
+            Some(path.segments[0].ident.to_string())
         }
-        expression => TerminalSource::Inline {
-            expression: expression.clone(),
-            fingerprint: expression_fingerprint(expression),
-        },
+        _ => None,
     }
 }
 
-fn lit_str_arg(expr: &Expr) -> Option<syn::LitStr> {
-    let Expr::Lit(expr_lit) = expr else {
-        return None;
+fn source_supports_grouped_sharing(expression: &Expr) -> bool {
+    let Expr::MethodCall(method) = expression else {
+        return false;
     };
-    let syn::Lit::Str(lit) = &expr_lit.lit else {
-        return None;
-    };
-    Some(lit.clone())
+    if method.method == "group_by" {
+        return true;
+    }
+    if method.method == "complement" || method.method == "complement_with_key" {
+        return complemented_source_supports_grouped_sharing(method.receiver.as_ref());
+    }
+    false
+}
+
+fn complemented_source_supports_grouped_sharing(expression: &Expr) -> bool {
+    let mut current = expression;
+    loop {
+        let Expr::MethodCall(method) = current else {
+            return false;
+        };
+        if method.method == "group_by" {
+            return chain_contains_project_or_join(method.receiver.as_ref());
+        }
+        current = method.receiver.as_ref();
+    }
+}
+
+fn chain_contains_project_or_join(expression: &Expr) -> bool {
+    let mut current = expression;
+    loop {
+        let Expr::MethodCall(method) = current else {
+            return false;
+        };
+        if method.method == "project" || method.method == "join" {
+            return true;
+        }
+        current = method.receiver.as_ref();
+    }
 }

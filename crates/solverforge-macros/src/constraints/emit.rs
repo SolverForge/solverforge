@@ -1,81 +1,146 @@
-use quote::quote;
-use std::collections::HashSet;
+use quote::{format_ident, quote};
 
-use super::ast::{ConstraintProgram, SharedGroupedProgram, TerminalKind, TerminalSource};
+use super::ast::{
+    ConstraintFunction, ConstraintProgram, SharedGroupedProgram, TailMember, TerminalConstraint,
+    TerminalKind,
+};
 
 pub(crate) fn emit(program: ConstraintProgram) -> syn::Result<proc_macro2::TokenStream> {
     match program {
-        ConstraintProgram::Passthrough(item) => {
-            let item = *item;
-            Ok(quote! { #item })
-        }
-        ConstraintProgram::SharedGrouped(program) => {
-            let SharedGroupedProgram {
-                item,
-                prefix_statements,
-                node,
-                terminals,
-                materialize_node,
-            } = *program;
-            let mut item = *item;
-            let binding = &node.binding;
-            let _node_id = &node.id;
-            let node_expression = &node.expression;
-            let _node_fingerprint = &node.fingerprint;
-            let skip_bindings = redundant_terminal_bindings(&terminals, binding, materialize_node);
-            let emitted_prefix_statements = prefix_statements
-                .iter()
-                .filter(|statement| !is_skipped_local(statement, &skip_bindings));
-            let node_materialization = materialize_node.then(|| {
-                quote! {
-                    let #binding = #node_expression;
-                }
-            });
-            let fluent_chain = terminals
-                .iter()
-                .fold(quote! { #binding }, |chain, terminal| {
-                    debug_assert_eq!(terminal.kind, TerminalKind::GroupedScore);
-                    let method = terminal.impact.method_ident();
-                    let weight = &terminal.weight;
-                    let name = &terminal.name;
-                    let _order = terminal.order;
-                    quote! {
-                        #chain.#method(#weight).named(#name)
-                    }
-                });
-            *item.block = syn::parse_quote!({
-                #(#emitted_prefix_statements)*
-                #node_materialization
-                #fluent_chain
-            });
-            Ok(quote! { #item })
-        }
+        ConstraintProgram::Passthrough(function) => emit_passthrough(function),
+        ConstraintProgram::SharedGrouped(program) => emit_shared_grouped(program),
     }
 }
 
-fn redundant_terminal_bindings(
-    terminals: &[super::ast::TerminalConstraint],
-    selected: &syn::Ident,
-    materialize_node: bool,
-) -> HashSet<String> {
-    if materialize_node {
-        return HashSet::new();
+fn emit_passthrough(function: ConstraintFunction) -> syn::Result<proc_macro2::TokenStream> {
+    let ConstraintFunction {
+        mut item,
+        prefix_statements,
+        tail,
+        ..
+    } = function;
+    let emitted_prefix_statements = prefix_statements.iter();
+    if let Some(tail) = tail.as_ref() {
+        *item.block = syn::parse_quote!({
+            #(#emitted_prefix_statements)*
+            #tail
+        });
+    } else {
+        *item.block = syn::parse_quote!({
+            #(#emitted_prefix_statements)*
+        });
     }
-    terminals
+    Ok(quote! { #item })
+}
+
+fn emit_shared_grouped(program: SharedGroupedProgram) -> syn::Result<proc_macro2::TokenStream> {
+    let SharedGroupedProgram {
+        mut item,
+        prefix_statements,
+        bindings,
+        tail_members,
+    } = program;
+    let emitted_prefix_statements = prefix_statements.iter();
+    let member_refs = tail_members.iter().collect::<Vec<_>>();
+    let combined = emit_member_set(&member_refs, &bindings);
+
+    *item.block = syn::parse_quote!({
+        #(#emitted_prefix_statements)*
+        #combined
+    });
+    Ok(quote! { #item })
+}
+
+fn emit_member_set(members: &[&TailMember], bindings: &[String]) -> proc_macro2::TokenStream {
+    let Some((binding, remaining_bindings)) = bindings.split_first() else {
+        let mut sets = Vec::new();
+        for &member in members {
+            match member {
+                TailMember::Terminal(terminal) => {
+                    let terminal = emit_terminal(terminal);
+                    sets.push(quote! { (#terminal,) });
+                }
+                TailMember::Other(tokens) => {
+                    sets.push(quote! { (#tokens,) });
+                }
+            }
+        }
+        return combine_constraint_sets(sets);
+    };
+
+    let left = emit_shared_binding_chain(members, binding);
+    let mut right_members = Vec::new();
+    let mut order = Vec::new();
+    for &member in members {
+        if member_matches_binding(member, binding) {
+            order.push(quote! { ::solverforge::__internal::ConstraintSetSource::Left });
+        } else {
+            order.push(quote! { ::solverforge::__internal::ConstraintSetSource::Right });
+            right_members.push(member);
+        }
+    }
+
+    if right_members.is_empty() {
+        return left;
+    }
+
+    let right = emit_member_set(&right_members, remaining_bindings);
+    quote! {
+        ::solverforge::__internal::OrderedConstraintSetChain::new(
+            #left,
+            #right,
+            &[#(#order),*],
+        )
+    }
+}
+
+fn emit_shared_binding_chain(members: &[&TailMember], binding: &str) -> proc_macro2::TokenStream {
+    let binding_ident = format_ident!("{binding}");
+    members
         .iter()
-        .filter_map(|terminal| match &terminal.source {
-            TerminalSource::Binding(binding) if binding != selected => Some(binding.to_string()),
+        .filter_map(|&member| match member {
+            TailMember::Terminal(terminal) if terminal.source_binding.as_str() == binding => {
+                Some(terminal)
+            }
             _ => None,
         })
-        .collect()
+        .fold(quote! { #binding_ident }, |chain, terminal| {
+            emit_terminal_chain(chain, terminal)
+        })
 }
 
-fn is_skipped_local(statement: &syn::Stmt, skip_bindings: &HashSet<String>) -> bool {
-    let syn::Stmt::Local(local) = statement else {
-        return false;
+fn member_matches_binding(member: &TailMember, binding: &str) -> bool {
+    matches!(member, TailMember::Terminal(terminal) if terminal.source_binding.as_str() == binding)
+}
+
+fn combine_constraint_sets(sets: Vec<proc_macro2::TokenStream>) -> proc_macro2::TokenStream {
+    let mut sets = sets.into_iter();
+    let Some(mut combined) = sets.next() else {
+        return quote! { () };
     };
-    let syn::Pat::Ident(binding) = &local.pat else {
-        return false;
-    };
-    skip_bindings.contains(&binding.ident.to_string())
+    for set in sets {
+        combined = quote! {
+            ::solverforge::__internal::ConstraintSetChain::new(#combined, #set)
+        };
+    }
+    combined
+}
+
+fn emit_terminal(terminal: &TerminalConstraint) -> proc_macro2::TokenStream {
+    let binding = format_ident!("{}", terminal.source_binding);
+    emit_terminal_chain(quote! { #binding }, terminal)
+}
+
+fn emit_terminal_chain(
+    chain: proc_macro2::TokenStream,
+    terminal: &TerminalConstraint,
+) -> proc_macro2::TokenStream {
+    debug_assert_eq!(terminal.kind, TerminalKind::GroupedScore);
+    let method = terminal.impact.method_ident();
+    let weight = &terminal.weight;
+    let name = &terminal.name;
+    let _order = terminal.order;
+    quote! {
+        #chain.#method(#weight).named(#name)
+    }
 }

@@ -17,7 +17,8 @@ src/
 ├── lib.rs           — Module exports and public re-exports
 ├── meters.rs        — Distance meter implementations
 ├── problem_data.rs  — `ProblemData`
-└── solution.rs      — `VrpSolution`
+├── solution.rs      — `VrpSolution`
+└── tests.rs         — CVRP helper and route-feasibility tests
 ```
 
 ## Types

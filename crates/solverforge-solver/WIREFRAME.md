@@ -361,6 +361,7 @@ Requires: `Send + Sync + Debug`.
 | `descriptor_index` | `fn(&self) -> usize` |
 | `entity_indices` | `fn(&self) -> &[usize]` |
 | `variable_name` | `fn(&self) -> &str` |
+| `requires_hard_improvement` | `fn(&self) -> bool` |
 | `tabu_signature` | `fn<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature` |
 | `for_each_affected_entity` | `fn(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>))` |
 
@@ -648,9 +649,11 @@ All moves are generic over `S` (solution) and `V` (value). All use concrete `fn`
 
 **`MoveArena<M>`** — O(1) arena allocator. `push()`, `take(index)`, `reset()`, `shuffle()`, `extend()`. Panics on double-take.
 
-**`MoveCursor<S, M>`** — cursor contract with `next_candidate()`, `candidate(index)`, and `take_candidate(index)`.
+**`MoveCursor<S, M>`** — cursor contract with `next_candidate()`, `candidate(id)`, `take_candidate(id)`, and optional `selector_index(id)`.
 
 **`MoveCandidateRef<'a, S, M>`** — borrowable move view: either `Borrowed(&M)` or `Sequential(SequentialCompositeMoveRef<'a, S, M>)`.
+
+**`MoveStreamContext`** — `{ step_index, step_seed, accepted_count_limit }`. Methods: `new()`, `step_index()`, `step_seed()`, `accepted_count_limit()`, `start_offset()`, `stride()`, and `offset_seed()`.
 
 **`CutPoint`** — `{ entity_index: usize, position: usize }`. Derives: Clone, Copy, Debug, Default, PartialEq, Eq.
 
@@ -674,6 +677,8 @@ All moves are generic over `S` (solution) and `V` (value). All use concrete `fn`
 |----------|------|
 | `StaticValueSelector<S, V>` | Fixed value list |
 | `FromSolutionValueSelector<S, V>` | Extracts values from solution via `fn(&S) -> Vec<V>` |
+| `PerEntityValueSelector<S, V>` | Extracts owned per-entity values via `fn(&S, usize) -> Vec<V>` |
+| `PerEntitySliceValueSelector<S, V>` | Extracts copyable per-entity values via `for<'a> fn(&'a S, usize) -> &'a [V]` |
 | `RangeValueSelector<S>` | Generates 0..count_fn(solution) |
 
 ### Move Selectors
@@ -930,7 +935,7 @@ Local search foragers:
 | `EntityTabuAcceptor` | — | `entity_tabu_size` |
 | `ValueTabuAcceptor` | — | `value_tabu_size` |
 | `MoveTabuAcceptor` | — | `move_tabu_size`, `aspiration_enabled` |
-| `GreatDelugeAcceptor<S>` | `S: PlanningSolution` | `rain_speed` |
+| `GreatDelugeAcceptor<S>` | `S: PlanningSolution` | `water_level_increase_ratio` |
 | `StepCountingHillClimbingAcceptor<S>` | `S: PlanningSolution` | `step_count_limit` |
 | `DiversifiedLateAcceptanceAcceptor<S>` | `S: PlanningSolution` | `late_acceptance_size`, `tolerance` |
 | `AnyAcceptor<S>` | `S: PlanningSolution` | Enum over all built-in acceptors; returned by `AcceptorBuilder::build()` |

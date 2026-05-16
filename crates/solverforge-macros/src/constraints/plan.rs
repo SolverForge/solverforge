@@ -1,68 +1,51 @@
-use quote::format_ident;
-
 use super::ast::{
-    ConstraintFunction, ConstraintProgram, SharedGroupedProgram, StreamNode, TerminalSource,
+    ConstraintFunction, ConstraintProgram, SharedGroupedProgram, StreamNode, TailMember,
 };
-use super::normalize::nodes_by_binding;
 
 pub(crate) fn plan(function: ConstraintFunction) -> ConstraintProgram {
-    let Some(first_terminal) = function.terminals.first() else {
-        return ConstraintProgram::Passthrough(Box::new(function.item));
-    };
-    if function.terminals.len() < 2 {
-        return ConstraintProgram::Passthrough(Box::new(function.item));
-    }
-    let nodes = nodes_by_binding(&function.stream_nodes);
-    let Some(first_key) = terminal_source_key(&first_terminal.source, &nodes) else {
-        return ConstraintProgram::Passthrough(Box::new(function.item));
-    };
-
-    if !function
-        .terminals
-        .iter()
-        .all(|terminal| terminal_source_key(&terminal.source, &nodes).as_ref() == Some(&first_key))
-    {
-        return ConstraintProgram::Passthrough(Box::new(function.item));
+    let bindings = repeated_grouped_bindings(&function);
+    if bindings.is_empty() {
+        return ConstraintProgram::Passthrough(function);
     }
 
-    let (node, materialize_node) = match &first_terminal.source {
-        TerminalSource::Binding(binding) => {
-            let Some(node) = nodes.get(&binding.to_string()).cloned() else {
-                return ConstraintProgram::Passthrough(Box::new(function.item));
-            };
-            (node, false)
-        }
-        TerminalSource::Inline {
-            expression,
-            fingerprint,
-        } => (
-            StreamNode {
-                id: super::ast::NodeId(function.stream_nodes.len()),
-                binding: format_ident!("__solverforge_shared_node_0"),
-                expression: expression.clone(),
-                fingerprint: fingerprint.clone(),
-            },
-            true,
-        ),
-    };
-
-    ConstraintProgram::SharedGrouped(Box::new(SharedGroupedProgram {
-        item: Box::new(function.item),
+    ConstraintProgram::SharedGrouped(SharedGroupedProgram {
+        item: function.item,
         prefix_statements: function.prefix_statements,
-        node,
-        terminals: function.terminals,
-        materialize_node,
-    }))
+        tail_members: function.tail_members,
+        bindings,
+    })
 }
 
-fn terminal_source_key(
-    source: &TerminalSource,
-    nodes: &std::collections::HashMap<String, StreamNode>,
-) -> Option<String> {
-    match source {
-        TerminalSource::Binding(binding) => nodes
-            .get(&binding.to_string())
-            .map(|node| format!("node:{}", node.fingerprint)),
-        TerminalSource::Inline { fingerprint, .. } => Some(format!("inline:{fingerprint}")),
+fn repeated_grouped_bindings(function: &ConstraintFunction) -> Vec<String> {
+    let mut bindings = Vec::new();
+    for member in &function.tail_members {
+        let TailMember::Terminal(candidate) = member else {
+            continue;
+        };
+        let binding = &candidate.source_binding;
+        if bindings.iter().any(|existing| existing == binding) {
+            continue;
+        }
+        let Some(node) = node_by_binding(&function.stream_nodes, binding) else {
+            continue;
+        };
+        if !node.supports_grouped_sharing {
+            continue;
+        }
+        let count = function
+            .tail_members
+            .iter()
+            .filter(|member| {
+                matches!(member, TailMember::Terminal(terminal) if &terminal.source_binding == binding)
+            })
+            .count();
+        if count >= 2 {
+            bindings.push(binding.to_string());
+        }
     }
+    bindings
+}
+
+fn node_by_binding<'a>(nodes: &'a [StreamNode], binding: &str) -> Option<&'a StreamNode> {
+    nodes.iter().rev().find(|node| node.binding == binding)
 }

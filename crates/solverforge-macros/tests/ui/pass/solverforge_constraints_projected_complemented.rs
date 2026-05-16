@@ -5,6 +5,10 @@ struct Entry {
     delta: i64,
 }
 
+struct Employee {
+    id: usize,
+}
+
 struct WorkEntryProjection;
 
 impl Projection<(usize, i64)> for WorkEntryProjection {
@@ -24,10 +28,15 @@ impl Projection<(usize, i64)> for WorkEntryProjection {
 
 struct Plan {
     work: Vec<(usize, i64)>,
+    employees: Vec<Employee>,
 }
 
 fn work(plan: &Plan) -> &[(usize, i64)] {
     plan.work.as_slice()
+}
+
+fn employees(plan: &Plan) -> &[Employee] {
+    plan.employees.as_slice()
 }
 
 #[solverforge_constraints]
@@ -36,7 +45,12 @@ fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let demand_by_bucket = g
         .for_each(work as fn(&Plan) -> &[(usize, i64)])
         .project(WorkEntryProjection)
-        .group_by(|entry: &Entry| entry.bucket, sum(|entry: &Entry| entry.delta));
+        .group_by(|entry: &Entry| entry.bucket, sum(|entry: &Entry| entry.delta))
+        .complement(
+            employees as fn(&Plan) -> &[Employee],
+            |employee: &Employee| employee.id,
+            |_employee: &Employee| 0i64,
+        );
 
     (
         demand_by_bucket
@@ -52,6 +66,7 @@ fn main() {
     let mut constraints = constraints();
     let plan = Plan {
         work: vec![(0, 2), (0, 3)],
+        employees: vec![Employee { id: 0 }, Employee { id: 1 }],
     };
 
     assert_eq!(constraints.initialize_all(&plan), SoftScore::of(-30));

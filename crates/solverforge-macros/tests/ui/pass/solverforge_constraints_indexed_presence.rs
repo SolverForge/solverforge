@@ -1,18 +1,10 @@
 use solverforge::prelude::*;
 
-#[derive(Clone)]
-struct Shift {
-    nurse_id: usize,
-    day: i64,
-    assigned: bool,
-}
-
-#[derive(Clone)]
 struct Plan {
-    shifts: Vec<Shift>,
+    shifts: Vec<(usize, i64, bool)>,
 }
 
-fn shifts(plan: &Plan) -> &[Shift] {
+fn shifts(plan: &Plan) -> &[(usize, i64, bool)] {
     plan.shifts.as_slice()
 }
 
@@ -20,11 +12,11 @@ fn shifts(plan: &Plan) -> &[Shift] {
 fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let g = ConstraintFactory::<Plan, SoftScore>::new();
     let nurse_presence = g
-        .for_each(shifts as fn(&Plan) -> &[Shift])
-        .filter(|shift: &Shift| shift.assigned)
+        .for_each(shifts as fn(&Plan) -> &[(usize, i64, bool)])
+        .filter(|shift: &(usize, i64, bool)| shift.2)
         .group_by(
-            |shift: &Shift| shift.nurse_id,
-            indexed_presence(|shift: &Shift| shift.day),
+            |shift: &(usize, i64, bool)| shift.0,
+            indexed_presence(|shift: &(usize, i64, bool)| shift.1),
         );
 
     (
@@ -63,23 +55,7 @@ fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
 fn main() {
     let mut constraints = constraints();
     let plan = Plan {
-        shifts: vec![
-            Shift {
-                nurse_id: 0,
-                day: 0,
-                assigned: true,
-            },
-            Shift {
-                nurse_id: 0,
-                day: 1,
-                assigned: true,
-            },
-            Shift {
-                nurse_id: 0,
-                day: 2,
-                assigned: true,
-            },
-        ],
+        shifts: vec![(0, 0, true), (0, 1, true), (0, 2, true)],
     };
 
     assert_eq!(constraints.initialize_all(&plan), SoftScore::of(-2));

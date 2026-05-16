@@ -1,4 +1,8 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use solverforge::prelude::*;
+
+static VALIDATED: AtomicUsize = AtomicUsize::new(0);
 
 struct Plan {
     shifts: Vec<usize>,
@@ -10,6 +14,9 @@ fn shifts(plan: &Plan) -> &[usize] {
 
 #[solverforge_constraints]
 fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
+    if cfg!(debug_assertions) {
+        VALIDATED.fetch_add(1, Ordering::SeqCst);
+    }
     let g = ConstraintFactory::<Plan, SoftScore>::new();
     let by_employee = g
         .for_each(shifts as fn(&Plan) -> &[usize])
@@ -28,7 +35,9 @@ fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
 }
 
 fn main() {
+    VALIDATED.store(0, Ordering::SeqCst);
     let mut constraints = constraints();
+    assert_eq!(VALIDATED.load(Ordering::SeqCst), 1);
     let plan = Plan {
         shifts: vec![0, 0, 1],
     };

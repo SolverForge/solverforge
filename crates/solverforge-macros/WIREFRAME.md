@@ -20,7 +20,7 @@ src/
 ├── attr_parse.rs          — Shared attribute parsing helpers
 ├── attr_validation.rs     — Strict user-authored attribute argument contracts and diagnostics
 ├── constraints.rs          — `#[solverforge_constraints]` compiler module root
-├── constraints/*.rs        — Constraint function AST, parse, fingerprint, normalize, plan, emit, and tests
+├── constraints/*.rs        — Constraint function AST, parse, plan, emit, and tests
 ├── entrypoints.rs          — Shared proc-macro wrapper logic used by the crate root
 ├── lib.rs                  — Crate root; required proc-macro entry points only
 ├── planning_model.rs       — `planning_model!` manifest parser, file reader, metadata validator, and model-support generator
@@ -95,23 +95,23 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 ### `#[solverforge_constraints]`
 
 Applies to a constraint factory function. The function remains normal fluent
-Rust, but the macro parses the whole body before type checking so repeated or
-provably identical grouped stream chains can become one shared incremental node
-with multiple terminal scorers. Accepted sharing shapes are:
+Rust, but the macro parses the whole body before type checking so repeated
+same-binding grouped stream terminals can become one shared incremental node
+with multiple terminal scorers. Accepted sharing shape:
 
 - A `let`-bound grouped, projected grouped, direct cross grouped, or
   complemented grouped stream whose final tuple contains multiple
   `.penalize(...).named("...")` or `.reward(...).named("...")` terminal calls on
   that same binding.
-- Distinct stream bindings or inline fluent chains with token-normalized
-  identical grouped source expressions inside the same annotated function.
 
 The macro preserves terminal order, names, impact direction, and hard metadata.
 Supported shared terminals are emitted back through the ordinary fluent
 terminal path as a single chained stream finalization; the macro does not call
-parallel shared-node constructors. Unsupported, mixed, or opaque tuples stay on
-the existing Rust path; the compiler never adds a public `share`, `derive`,
-prefix, or suffix API.
+parallel shared-node constructors. Tuple members that are not part of the
+repeated same-binding group are preserved and combined with the shared terminal
+set through monomorphized `ConstraintSet` composition. Opaque tuples without a
+repeated same-binding grouped terminal stay on the existing Rust path; the
+compiler never adds a public `share`, `derive`, prefix, or suffix API.
 
 Internal module responsibilities:
 
@@ -119,9 +119,7 @@ Internal module responsibilities:
 |--------|----------------|
 | `constraints/ast.rs` | Compiler-internal nodes, terminal constraints, impact kinds, and final program shape |
 | `constraints/parse.rs` | Parses supported fluent terminals, `let` stream bindings, tuple tails, and `.named(...)` requirements |
-| `constraints/fingerprint.rs` | Computes normalized token fingerprints for deterministic structural comparison |
-| `constraints/normalize.rs` | Resolves local stream bindings for same-binding reuse |
-| `constraints/plan.rs` | Selects shared grouped plans by binding and structural fingerprint while preserving terminal order |
+| `constraints/plan.rs` | Selects shared grouped plans by repeated binding while preserving terminal order |
 | `constraints/emit.rs` | Emits concrete shared-node code against `::solverforge::__internal::*` helpers |
 
 ## Derive Macros (proc_macro_derive)

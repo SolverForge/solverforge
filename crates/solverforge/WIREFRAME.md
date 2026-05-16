@@ -280,9 +280,9 @@ for constraint factory functions. It preserves fluent stream syntax and gives
 the macro crate a whole-function boundary for node sharing. Reusing the same
 grouped stream binding across multiple `.penalize(...).named(...)` or
 `.reward(...).named(...)` terminals emits one shared grouped node with separate
-terminal scorers. Separately written grouped chains also share when the macro
-can prove equivalence from the token-normalized stream expression inside the
-annotated function.
+terminal scorers. The macro does not share separately written bindings by
+source-text equivalence; reuse must be through the same local grouped-stream
+binding inside the annotated function.
 
 ## `__internal` Module (`#[doc(hidden)]`)
 
@@ -299,7 +299,8 @@ Used exclusively by macro-generated code. Not public API.
 **Scoring (from `solverforge-scoring`):**
 - `Director`, `ScoreDirector`
 - `SolvableSolution`
-- Hidden macro support: `ConstraintWeight`, `ConstraintRef`, `ImpactType`,
+- Hidden macro support: `ConstraintSetChain`, `OrderedConstraintSetChain`,
+  `ConstraintSetSource`, `ConstraintWeight`, `ConstraintRef`, `ImpactType`,
   concrete stream source/filter types, and solver runtime helpers. Node sharing
   is finalized through the same fluent `.penalize(...).named(...)` /
   `.reward(...).named(...)` path as ordinary constraints; internal shared

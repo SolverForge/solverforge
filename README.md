@@ -150,11 +150,10 @@ not need `Copy`, `Clone`, or `PartialEq` just to be collected.
 
 Constraint functions should be annotated with `#[solverforge_constraints]`.
 The attribute keeps the same fluent Rust authoring style while giving
-SolverForge a whole-function compiler boundary. When a grouped stream binding
-is reused by multiple terminal constraints, or when separately written grouped
-chains are provably identical from their syntax, the compiler builds one shared
-incremental node through the same fluent terminal path and keeps each terminal
-constraint separately named:
+SolverForge a whole-function compiler boundary. When the same grouped stream
+binding is reused by multiple terminal constraints, the compiler builds one
+shared incremental node through the same fluent terminal path and keeps each
+terminal constraint separately named:
 
 ```rust
 #[solverforge_constraints]
@@ -182,9 +181,8 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
 }
 ```
 
-Repeated grouped bindings and provably identical grouped chains share
-incremental grouped work. Terminal identity, ordering, metadata, and score
-explanation remain independent.
+Repeated same-binding grouped terminals share incremental grouped work.
+Terminal identity, ordering, metadata, and score explanation remain independent.
 
 ## Installation
 

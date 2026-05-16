@@ -20,8 +20,8 @@ src/
 │   ├── analysis.rs                                 — ScoreExplanation, ConstraintAnalysis, Indictment, IndictmentMap, DetailedConstraintMatch, etc.
 │   ├── node_sharing.rs                             — SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation
 │   ├── constraint_set/
-│   │   ├── mod.rs                                  — Re-exports ConstraintSet, IncrementalConstraint, ConstraintMetadata, ConstraintResult
-│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, tuple impls (0..32)
+│   │   ├── mod.rs                                  — Re-exports ConstraintSet, ConstraintSetChain, OrderedConstraintSetChain, ConstraintSetSource, IncrementalConstraint, ConstraintMetadata, ConstraintResult
+│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, chain combiners, tuple impls (0..32)
 │   │   └── tests/
 │   │       ├── mod.rs                              — Test module declarations
 │   │       └── constraint_set.rs                   — ConstraintSet tuple tests
@@ -275,7 +275,7 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 | `on_retract_all` | `fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental retract all |
 | `reset_all` | `fn reset_all(&mut self)` | Reset all |
 
-Implemented for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: IncrementalConstraint<S, Sc>`. Tuple metadata deduplicates repeated full `ConstraintRef`s when hardness agrees and panics when the same full ref has conflicting hard/non-hard metadata. Package-qualified constraints that share a short name remain distinct.
+Implemented for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: IncrementalConstraint<S, Sc>`. `ConstraintSetChain<Left, Right>` composes two existing `ConstraintSet` values without erasing either concrete type. `OrderedConstraintSetChain<Left, Right>` uses `ConstraintSetSource` entries to preserve user-authored result ordering when macro-generated node sharing combines one shared set with surrounding constraints. Tuple metadata deduplicates repeated full `ConstraintRef`s when hardness agrees and panics when the same full ref has conflicting hard/non-hard metadata. Package-qualified constraints that share a short name remain distinct.
 
 ### Shadow Lifecycle on `PlanningSolution`
 

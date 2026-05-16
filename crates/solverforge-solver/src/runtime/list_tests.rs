@@ -222,6 +222,7 @@ fn generic_list_model() -> RuntimeModel<GenericListPlan, usize, DefaultMeter, De
         None,
         None,
         None,
+        None,
     ))])
 }
 

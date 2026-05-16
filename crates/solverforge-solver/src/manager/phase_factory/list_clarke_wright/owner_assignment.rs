@@ -2,42 +2,73 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use solverforge_core::domain::PlanningSolution;
 
-pub(crate) fn feasible_owners<S>(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OwnerSlot {
+    pub(crate) owner_idx: usize,
+    pub(crate) metric_class: usize,
+}
+
+pub(crate) fn owner_slots<S>(
     solution: &S,
     available_entity_slots: &[usize],
+    metric_class: fn(&S, usize) -> usize,
+) -> Vec<OwnerSlot> {
+    available_entity_slots
+        .iter()
+        .copied()
+        .map(|owner_idx| OwnerSlot {
+            owner_idx,
+            metric_class: metric_class(solution, owner_idx),
+        })
+        .collect()
+}
+
+pub(crate) fn representative_owner_slots(owner_slots: &[OwnerSlot]) -> Vec<OwnerSlot> {
+    let mut representatives = BTreeMap::new();
+    for &slot in owner_slots {
+        representatives
+            .entry(slot.metric_class)
+            .or_insert(slot.owner_idx);
+    }
+
+    representatives
+        .into_iter()
+        .map(|(metric_class, owner_idx)| OwnerSlot {
+            owner_idx,
+            metric_class,
+        })
+        .collect()
+}
+
+pub(crate) fn feasible_owners<S>(
+    solution: &S,
+    owner_slots: &[OwnerSlot],
     route: &[usize],
+    metric_class: Option<usize>,
     feasible: fn(&S, usize, &[usize]) -> bool,
 ) -> Vec<usize>
 where
     S: PlanningSolution,
 {
-    available_entity_slots
+    owner_slots
         .iter()
-        .copied()
+        .filter(|slot| metric_class.is_none_or(|class| slot.metric_class == class))
+        .map(|slot| slot.owner_idx)
         .filter(|&entity_idx| feasible(solution, entity_idx, route))
         .collect()
 }
 
 pub(crate) fn feasible_owners_for_scored_route<S>(
     solution: &S,
-    available_entity_slots: &[usize],
+    owner_slots: &[OwnerSlot],
     route: &[usize],
-    scored_owner: Option<usize>,
+    scored_metric_class: Option<usize>,
     feasible: fn(&S, usize, &[usize]) -> bool,
 ) -> Vec<usize>
 where
     S: PlanningSolution,
 {
-    match scored_owner {
-        Some(owner_idx) => {
-            if available_entity_slots.contains(&owner_idx) && feasible(solution, owner_idx, route) {
-                vec![owner_idx]
-            } else {
-                Vec::new()
-            }
-        }
-        None => feasible_owners(solution, available_entity_slots, route, feasible),
-    }
+    feasible_owners(solution, owner_slots, route, scored_metric_class, feasible)
 }
 
 pub(crate) fn match_route_owners(feasible_sets: &[Vec<usize>]) -> Vec<Option<usize>> {

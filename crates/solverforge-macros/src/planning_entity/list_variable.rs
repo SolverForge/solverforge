@@ -69,6 +69,11 @@ pub(super) fn generate_list_metadata(
         "route_depot_fn",
         field,
     )?;
+    let route_metric_class = option_fn_expr(
+        parse_attribute_string(attr, "route_metric_class_fn"),
+        "route_metric_class_fn",
+        field,
+    )?;
     let route_distance = option_fn_expr(
         parse_attribute_string(attr, "route_distance_fn"),
         "route_distance_fn",
@@ -110,6 +115,7 @@ pub(super) fn generate_list_metadata(
                 #route_get,
                 #route_set,
                 #route_depot,
+                #route_metric_class,
                 #route_distance,
                 #route_feasible,
             )
@@ -155,6 +161,7 @@ pub(super) fn generate_list_trait_impl(
                     ::solverforge::__internal::ListVariableMetadata::new(
                         ::solverforge::__internal::DefaultCrossEntityDistanceMeter::default(),
                         ::solverforge::__internal::DefaultCrossEntityDistanceMeter::default(),
+                        ::core::option::Option::None,
                         ::core::option::Option::None,
                         ::core::option::Option::None,
                         ::core::option::Option::None,

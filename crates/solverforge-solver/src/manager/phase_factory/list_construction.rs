@@ -97,7 +97,7 @@ where
                 ) else {
                     unreachable!("validated list_clarke_wright hooks must be present");
                 };
-                ListClarkeWrightPhase::new(
+                let mut phase = ListClarkeWrightPhase::new(
                     ctx.element_count,
                     ctx.assigned_elements,
                     ctx.entity_count,
@@ -108,8 +108,11 @@ where
                     dist,
                     feasible,
                     ctx.descriptor_index,
-                )
-                .solve(solver_scope);
+                );
+                if let Some(metric_class) = ctx.route_metric_class_fn {
+                    phase = phase.with_metric_class_fn(metric_class);
+                }
+                phase.solve(solver_scope);
             }
             ConstructionHeuristicType::ListKOpt => {
                 let (Some(get_route), Some(set_route), Some(route_depot), Some(route_dist)) = (

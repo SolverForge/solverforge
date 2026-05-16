@@ -178,6 +178,7 @@ pub(super) fn generate_runtime_phase_support(
                                     metadata.route_get_fn,
                                     metadata.route_set_fn,
                                     metadata.route_depot_fn,
+                                    metadata.route_metric_class_fn,
                                     metadata.route_distance_fn,
                                     metadata.route_feasible_fn,
                                 )

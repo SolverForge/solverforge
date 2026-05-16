@@ -51,15 +51,18 @@ pub(crate) struct ConstraintFunction {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct SharedGroupedProgram {
+    pub(crate) item: Box<ItemFn>,
+    pub(crate) prefix_statements: Vec<Stmt>,
+    pub(crate) node: StreamNode,
+    pub(crate) terminals: Vec<TerminalConstraint>,
+    pub(crate) materialize_node: bool,
+}
+
+#[derive(Clone, Debug)]
 pub(crate) enum ConstraintProgram {
-    Passthrough(ItemFn),
-    SharedGrouped {
-        item: ItemFn,
-        prefix_statements: Vec<Stmt>,
-        node: StreamNode,
-        terminals: Vec<TerminalConstraint>,
-        materialize_node: bool,
-    },
+    Passthrough(Box<ItemFn>),
+    SharedGrouped(Box<SharedGroupedProgram>),
 }
 
 impl ImpactKind {

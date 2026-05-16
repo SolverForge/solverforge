@@ -6,7 +6,9 @@ pub(super) use solverforge_core::{ConstraintRef, ImpactType};
 
 pub(super) use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 pub(super) use crate::constraint::projected::{
-    ProjectedGroupedNodeState, ProjectedGroupedTerminalScorer, SharedProjectedGroupedConstraintSet,
+    ProjectedComplementedGroupedNodeState, ProjectedComplementedGroupedTerminalScorer,
+    ProjectedGroupedNodeState, ProjectedGroupedTerminalScorer,
+    SharedProjectedComplementedGroupedConstraintSet, SharedProjectedGroupedConstraintSet,
 };
 pub(super) use crate::director::score_director::ScoreDirector;
 pub(super) use crate::director::Director;

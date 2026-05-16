@@ -94,6 +94,40 @@ where
         )
     }
 
+    #[doc(hidden)]
+    pub fn into_shared_constraint_set<Scorers>(
+        self,
+        node_name: impl Into<String>,
+        scorers: Scorers,
+    ) -> crate::constraint::cross_grouped::SharedCrossGroupedConstraintSet<
+        S,
+        A,
+        B,
+        JK,
+        GK,
+        EA,
+        EB,
+        KA,
+        KB,
+        impl Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
+        GF,
+        C,
+        V,
+        R,
+        Acc,
+        Scorers,
+        Sc,
+    >
+    where
+        Scorers: crate::constraint::grouped::GroupedScorerSet<GK, R, Sc>,
+    {
+        crate::constraint::cross_grouped::SharedCrossGroupedConstraintSet::new(
+            node_name,
+            self.into_shared_node_state(),
+            scorers,
+        )
+    }
+
     fn into_weighted_builder<W>(
         self,
         impact_type: ImpactType,

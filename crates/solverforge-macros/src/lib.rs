@@ -4,6 +4,7 @@ use proc_macro::TokenStream;
 
 mod attr_parse;
 mod attr_validation;
+mod constraints;
 mod entrypoints;
 mod planning_entity;
 mod planning_model;
@@ -23,6 +24,11 @@ pub fn planning_solution(attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn problem_fact(attr: TokenStream, item: TokenStream) -> TokenStream {
     entrypoints::problem_fact_attr(attr, item)
+}
+
+#[proc_macro_attribute]
+pub fn solverforge_constraints(attr: TokenStream, item: TokenStream) -> TokenStream {
+    entrypoints::solverforge_constraints_attr(attr, item)
 }
 
 #[proc_macro]

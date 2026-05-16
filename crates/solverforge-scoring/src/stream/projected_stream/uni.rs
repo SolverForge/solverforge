@@ -92,7 +92,7 @@ where
         collector: C,
     ) -> ProjectedGroupedConstraintStream<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
     where
-        K: Eq + Hash + Send + Sync + 'static,
+        K: Clone + Eq + Hash + Send + Sync + 'static,
         KF: Fn(&Out) -> K + Send + Sync,
         C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc>
             + Send

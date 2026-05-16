@@ -13,13 +13,13 @@ pub struct GroupedTerminalScorer<K, R, W, Sc>
 where
     Sc: Score,
 {
-    constraint_ref: ConstraintRef,
-    impact_type: ImpactType,
-    weight_fn: W,
-    is_hard: bool,
-    prior_scores: HashMap<K, Sc>,
-    match_count: usize,
-    refresh_count: usize,
+    pub(super) constraint_ref: ConstraintRef,
+    pub(super) impact_type: ImpactType,
+    pub(super) weight_fn: W,
+    pub(super) is_hard: bool,
+    pub(super) prior_scores: HashMap<K, Sc>,
+    pub(super) match_count: usize,
+    pub(super) refresh_count: usize,
     _phantom: PhantomData<fn() -> R>,
 }
 
@@ -125,7 +125,7 @@ where
     }
 
     #[inline]
-    fn compute_score(&self, key: &K, result: &R) -> Sc {
+    pub(super) fn compute_score(&self, key: &K, result: &R) -> Sc {
         let base = (self.weight_fn)(key, result);
         match self.impact_type {
             ImpactType::Penalty => -base,

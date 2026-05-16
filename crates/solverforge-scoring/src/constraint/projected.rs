@@ -5,5 +5,8 @@ mod uni;
 
 pub use bi::ProjectedBiConstraint;
 pub use complemented_grouped::ProjectedComplementedGroupedConstraint;
-pub use grouped::ProjectedGroupedConstraint;
+pub use grouped::{
+    ProjectedGroupedConstraint, ProjectedGroupedNodeState, ProjectedGroupedTerminalScorer,
+    SharedProjectedGroupedConstraintSet,
+};
 pub use uni::ProjectedUniConstraint;

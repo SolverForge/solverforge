@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.14.0](///compare/v0.13.1...v0.14.0) (2026-05-16)
+
+
+### Features
+
+* **scoring:** complement direct cross-join groups 088f19b, closes #60
+* **solver:** unify owner-aware route hooks e4a9c0c
+
+
+### Bug Fixes
+
+* **scoring:** allow filtered join source streams bd9e227
+* **scoring:** merge issue 60 and 61 stream fixes 36e3668, closes #60 #61
+* **scoring:** preserve custom keyed join extractors 1a090ae
+* **scoring:** preserve filtered flattened join targets ([#65](undefined/undefined/undefined/issues/65)) 5e260b4
+* **solver:** bind Clarke-Wright merges to scored owner 338807d
+* **solver:** preserve owner matching during route merges 7e71bc1
+
 ## [0.13.1](///compare/v0.13.0...v0.13.1) (2026-05-14)
 
 

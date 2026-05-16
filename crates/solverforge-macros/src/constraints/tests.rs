@@ -1,6 +1,9 @@
 use quote::quote;
 
-use super::{ast::ConstraintProgram, parse, plan};
+use super::{
+    ast::{ConstraintProgram, TerminalSource},
+    parse, plan,
+};
 
 #[test]
 fn parser_detects_same_binding_grouped_terminals_in_order() {
@@ -18,10 +21,10 @@ fn parser_detects_same_binding_grouped_terminals_in_order() {
 
     let parsed = parse::parse_constraint_function(function).expect("parse");
     assert_eq!(parsed.terminals.len(), 2);
-    assert_eq!(
-        parsed.terminals[0].stream_binding.to_string(),
-        "by_employee"
-    );
+    match &parsed.terminals[0].source {
+        TerminalSource::Binding(binding) => assert_eq!(binding.to_string(), "by_employee"),
+        TerminalSource::Inline { .. } => panic!("expected binding terminal source"),
+    }
     assert_eq!(parsed.terminals[0].order, 0);
     assert_eq!(parsed.terminals[1].order, 1);
 }
@@ -62,6 +65,59 @@ fn planner_leaves_mixed_tuple_unchanged() {
     let parsed = parse::parse_constraint_function(function).expect("parse");
     let planned = plan::plan(parsed);
     assert!(matches!(planned, ConstraintProgram::Passthrough(_)));
+}
+
+#[test]
+fn planner_shares_distinct_bindings_with_identical_fingerprints() {
+    let function: syn::ItemFn = syn::parse_quote! {
+        fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
+            let first = ConstraintFactory::<Plan, SoftScore>::new()
+                .for_each(shifts)
+                .group_by(employee, count());
+            let second = ConstraintFactory::<Plan, SoftScore>::new()
+                .for_each(shifts)
+                .group_by(employee, count());
+
+            (
+                first.penalize(linear).named("linear"),
+                second.penalize(square).named("square"),
+            )
+        }
+    };
+
+    let parsed = parse::parse_constraint_function(function).expect("parse");
+    let planned = plan::plan(parsed);
+    assert!(matches!(planned, ConstraintProgram::SharedGrouped { .. }));
+}
+
+#[test]
+fn planner_shares_identical_inline_chains() {
+    let function: syn::ItemFn = syn::parse_quote! {
+        fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
+            (
+                ConstraintFactory::<Plan, SoftScore>::new()
+                    .for_each(shifts)
+                    .group_by(employee, count())
+                    .penalize(linear)
+                    .named("linear"),
+                ConstraintFactory::<Plan, SoftScore>::new()
+                    .for_each(shifts)
+                    .group_by(employee, count())
+                    .reward(square)
+                    .named("square"),
+            )
+        }
+    };
+
+    let parsed = parse::parse_constraint_function(function).expect("parse");
+    let planned = plan::plan(parsed);
+    assert!(matches!(
+        planned,
+        ConstraintProgram::SharedGrouped {
+            materialize_node: true,
+            ..
+        }
+    ));
 }
 
 #[test]

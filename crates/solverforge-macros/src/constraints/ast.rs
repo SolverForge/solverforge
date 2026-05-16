@@ -24,8 +24,17 @@ pub(crate) enum TerminalKind {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) enum TerminalSource {
+    Binding(Ident),
+    Inline {
+        expression: Expr,
+        fingerprint: String,
+    },
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct TerminalConstraint {
-    pub(crate) stream_binding: Ident,
+    pub(crate) source: TerminalSource,
     pub(crate) impact: ImpactKind,
     pub(crate) weight: Expr,
     pub(crate) name: LitStr,
@@ -49,6 +58,7 @@ pub(crate) enum ConstraintProgram {
         prefix_statements: Vec<Stmt>,
         node: StreamNode,
         terminals: Vec<TerminalConstraint>,
+        materialize_node: bool,
     },
 }
 

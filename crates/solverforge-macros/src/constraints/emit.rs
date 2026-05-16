@@ -1,6 +1,7 @@
 use quote::quote;
+use std::collections::HashSet;
 
-use super::ast::{ConstraintProgram, TerminalKind};
+use super::ast::{ConstraintProgram, TerminalKind, TerminalSource};
 
 pub(crate) fn emit(program: ConstraintProgram) -> syn::Result<proc_macro2::TokenStream> {
     match program {
@@ -10,11 +11,21 @@ pub(crate) fn emit(program: ConstraintProgram) -> syn::Result<proc_macro2::Token
             prefix_statements,
             node,
             terminals,
+            materialize_node,
         } => {
             let binding = &node.binding;
             let _node_id = &node.id;
-            let _node_expression = &node.expression;
+            let node_expression = &node.expression;
             let _node_fingerprint = &node.fingerprint;
+            let skip_bindings = redundant_terminal_bindings(&terminals, binding, materialize_node);
+            let emitted_prefix_statements = prefix_statements
+                .iter()
+                .filter(|statement| !is_skipped_local(statement, &skip_bindings));
+            let node_materialization = materialize_node.then(|| {
+                quote! {
+                    let #binding = #node_expression;
+                }
+            });
             let scorers = terminals.iter().map(|terminal| {
                 debug_assert_eq!(terminal.kind, TerminalKind::GroupedScore);
                 let helper = terminal.impact.helper_path();
@@ -26,7 +37,8 @@ pub(crate) fn emit(program: ConstraintProgram) -> syn::Result<proc_macro2::Token
                 }
             });
             item.block = Box::new(syn::parse_quote!({
-                #(#prefix_statements)*
+                #(#emitted_prefix_statements)*
+                #node_materialization
                 #binding.into_shared_constraint_set(
                     stringify!(#binding),
                     (#(#scorers,)*)
@@ -35,4 +47,31 @@ pub(crate) fn emit(program: ConstraintProgram) -> syn::Result<proc_macro2::Token
             Ok(quote! { #item })
         }
     }
+}
+
+fn redundant_terminal_bindings(
+    terminals: &[super::ast::TerminalConstraint],
+    selected: &syn::Ident,
+    materialize_node: bool,
+) -> HashSet<String> {
+    if materialize_node {
+        return HashSet::new();
+    }
+    terminals
+        .iter()
+        .filter_map(|terminal| match &terminal.source {
+            TerminalSource::Binding(binding) if binding != selected => Some(binding.to_string()),
+            _ => None,
+        })
+        .collect()
+}
+
+fn is_skipped_local(statement: &syn::Stmt, skip_bindings: &HashSet<String>) -> bool {
+    let syn::Stmt::Local(local) = statement else {
+        return false;
+    };
+    let syn::Pat::Ident(binding) = &local.pat else {
+        return false;
+    };
+    skip_bindings.contains(&binding.ident.to_string())
 }

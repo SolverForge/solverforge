@@ -14,13 +14,13 @@ pub struct ConstraintSetChain<Left, Right> {
 
 pub enum ConstraintSetSource {
     Left,
-    Right,
+    Right(usize),
 }
 
 pub struct OrderedConstraintSetChain<Left, Right> {
     left: Left,
     right: Right,
-    order: &'static [ConstraintSetSource],
+    order: Vec<ConstraintSetSource>,
 }
 
 impl<Left, Right> ConstraintSetChain<Left, Right> {
@@ -30,7 +30,7 @@ impl<Left, Right> ConstraintSetChain<Left, Right> {
 }
 
 impl<Left, Right> OrderedConstraintSetChain<Left, Right> {
-    pub fn new(left: Left, right: Right, order: &'static [ConstraintSetSource]) -> Self {
+    pub fn new(left: Left, right: Right, order: Vec<ConstraintSetSource>) -> Self {
         Self { left, right, order }
     }
 }
@@ -123,15 +123,28 @@ where
         let mut left = VecDeque::from(self.left.constraint_metadata());
         let mut right = VecDeque::from(self.right.constraint_metadata());
         let mut metadata = Vec::new();
-        for source in self.order {
-            let candidate = match source {
-                ConstraintSetSource::Left => left.pop_front(),
-                ConstraintSetSource::Right => right.pop_front(),
-            };
-            if let Some(candidate) = candidate {
-                push_constraint_metadata(&mut metadata, candidate);
+        for source in &self.order {
+            match source {
+                ConstraintSetSource::Left => {
+                    let Some(candidate) = left.pop_front() else {
+                        panic!("ordered constraint set source order does not match metadata");
+                    };
+                    push_constraint_metadata(&mut metadata, candidate);
+                }
+                ConstraintSetSource::Right(count) => {
+                    for _ in 0..*count {
+                        let Some(candidate) = right.pop_front() else {
+                            panic!("ordered constraint set source order does not match metadata");
+                        };
+                        push_constraint_metadata(&mut metadata, candidate);
+                    }
+                }
             }
         }
+        assert!(
+            left.is_empty() && right.is_empty(),
+            "ordered constraint set source order does not consume every metadata entry"
+        );
         metadata
     }
 
@@ -139,15 +152,27 @@ where
         let mut left = VecDeque::from(self.left.evaluate_each(solution));
         let mut right = VecDeque::from(self.right.evaluate_each(solution));
         let mut results = Vec::with_capacity(self.constraint_count());
-        for source in self.order {
-            let result = match source {
-                ConstraintSetSource::Left => left.pop_front(),
-                ConstraintSetSource::Right => right.pop_front(),
-            };
-            let Some(result) = result else {
-                panic!("ordered constraint set source order does not match constraint results");
-            };
-            results.push(result);
+        for source in &self.order {
+            match source {
+                ConstraintSetSource::Left => {
+                    let Some(result) = left.pop_front() else {
+                        panic!(
+                            "ordered constraint set source order does not match constraint results"
+                        );
+                    };
+                    results.push(result);
+                }
+                ConstraintSetSource::Right(count) => {
+                    for _ in 0..*count {
+                        let Some(result) = right.pop_front() else {
+                            panic!(
+                                "ordered constraint set source order does not match constraint results"
+                            );
+                        };
+                        results.push(result);
+                    }
+                }
+            }
         }
         assert!(
             left.is_empty() && right.is_empty(),
@@ -160,15 +185,25 @@ where
         let mut left = VecDeque::from(self.left.evaluate_detailed(solution));
         let mut right = VecDeque::from(self.right.evaluate_detailed(solution));
         let mut analyses = Vec::with_capacity(self.constraint_count());
-        for source in self.order {
-            let analysis = match source {
-                ConstraintSetSource::Left => left.pop_front(),
-                ConstraintSetSource::Right => right.pop_front(),
-            };
-            let Some(analysis) = analysis else {
-                panic!("ordered constraint set source order does not match constraint analyses");
-            };
-            analyses.push(analysis);
+        for source in &self.order {
+            match source {
+                ConstraintSetSource::Left => {
+                    let Some(analysis) = left.pop_front() else {
+                        panic!("ordered constraint set source order does not match constraint analyses");
+                    };
+                    analyses.push(analysis);
+                }
+                ConstraintSetSource::Right(count) => {
+                    for _ in 0..*count {
+                        let Some(analysis) = right.pop_front() else {
+                            panic!(
+                                "ordered constraint set source order does not match constraint analyses"
+                            );
+                        };
+                        analyses.push(analysis);
+                    }
+                }
+            }
         }
         assert!(
             left.is_empty() && right.is_empty(),

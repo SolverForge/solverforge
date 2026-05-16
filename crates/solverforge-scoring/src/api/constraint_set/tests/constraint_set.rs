@@ -1,6 +1,8 @@
 // Tests for constraint set types.
 
-use super::super::{ConstraintSet, IncrementalConstraint};
+use super::super::{
+    ConstraintSet, ConstraintSetSource, IncrementalConstraint, OrderedConstraintSetChain,
+};
 use solverforge_core::score::SoftScore;
 use solverforge_core::ConstraintRef;
 
@@ -192,6 +194,67 @@ fn test_two_constraints() {
     // c2: 1 high value (-2)
     assert_eq!(constraints.evaluate_all(&solution), SoftScore::of(-3));
     assert_eq!(constraints.constraint_count(), 2);
+}
+
+#[test]
+fn ordered_constraint_set_chain_accounts_for_multi_constraint_right_blocks() {
+    let left_first = CountingConstraint::new(
+        "left_first",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_none(),
+        1,
+    );
+    let left_second = CountingConstraint::new(
+        "left_second",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_some_and(|v| v > 5),
+        2,
+    );
+    let middle_first = CountingConstraint::new(
+        "middle_first",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_some_and(|v| v == 3),
+        3,
+    );
+    let middle_second = CountingConstraint::new(
+        "middle_second",
+        entity_count,
+        |s: &TestSolution, i| s.values[i].is_some_and(|v| v == 10),
+        4,
+    );
+    let constraints = OrderedConstraintSetChain::new(
+        (left_first, left_second),
+        (middle_first, middle_second),
+        vec![
+            ConstraintSetSource::Left,
+            ConstraintSetSource::Right(2),
+            ConstraintSetSource::Left,
+        ],
+    );
+    let solution = TestSolution {
+        values: vec![Some(10), None, Some(3)],
+    };
+
+    let results = constraints.evaluate_each(&solution);
+    assert_eq!(results.len(), 4);
+    assert_eq!(results[0].name, "left_first");
+    assert_eq!(results[1].name, "middle_first");
+    assert_eq!(results[2].name, "middle_second");
+    assert_eq!(results[3].name, "left_second");
+
+    let analyses = constraints.evaluate_detailed(&solution);
+    assert_eq!(analyses.len(), 4);
+    assert_eq!(analyses[0].constraint_ref.name, "left_first");
+    assert_eq!(analyses[1].constraint_ref.name, "middle_first");
+    assert_eq!(analyses[2].constraint_ref.name, "middle_second");
+    assert_eq!(analyses[3].constraint_ref.name, "left_second");
+
+    let metadata = constraints.constraint_metadata();
+    assert_eq!(metadata.len(), 4);
+    assert_eq!(metadata[0].name(), "left_first");
+    assert_eq!(metadata[1].name(), "middle_first");
+    assert_eq!(metadata[2].name(), "middle_second");
+    assert_eq!(metadata[3].name(), "left_second");
 }
 
 #[test]

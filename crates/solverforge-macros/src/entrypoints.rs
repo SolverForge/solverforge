@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, ItemStruct};
+use syn::{parse_macro_input, DeriveInput, ItemFn, ItemStruct};
 
 use crate::attr_validation::{parse_serde_flag, parse_solution_flags};
 
@@ -105,6 +105,21 @@ pub(crate) fn problem_fact_attr(attr: TokenStream, item: TokenStream) -> TokenSt
         #vis struct #name #generics #fields
     };
     expanded.into()
+}
+
+pub(crate) fn solverforge_constraints_attr(attr: TokenStream, item: TokenStream) -> TokenStream {
+    if !attr.is_empty() {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "solverforge_constraints does not accept arguments",
+        )
+        .to_compile_error()
+        .into();
+    }
+    let input = parse_macro_input!(item as ItemFn);
+    crate::constraints::expand(input)
+        .unwrap_or_else(|e| e.to_compile_error())
+        .into()
 }
 
 pub(crate) fn planning_model_macro(input: TokenStream) -> TokenStream {

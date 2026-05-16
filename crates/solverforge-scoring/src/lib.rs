@@ -26,10 +26,14 @@ Zero-Erasure Incremental Constraints
 */
 
 pub use constraint::{
-    CrossComplementedGroupedConstraint, CrossGroupedConstraint, GroupedUniConstraint,
-    IncrementalBiConstraint, IncrementalCrossBiConstraint, IncrementalPentaConstraint,
-    IncrementalQuadConstraint, IncrementalTriConstraint, IncrementalUniConstraint,
-    ProjectedComplementedGroupedConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
+    grouped_penalty_terminal, grouped_reward_terminal, CrossComplementedGroupedConstraint,
+    CrossGroupedConstraint, CrossGroupedNodeState, CrossGroupedTerminalScorer, GroupedNodeState,
+    GroupedTerminalScorer, GroupedUniConstraint, IncrementalBiConstraint,
+    IncrementalCrossBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
+    IncrementalTriConstraint, IncrementalUniConstraint, ProjectedComplementedGroupedConstraint,
+    ProjectedGroupedConstraint, ProjectedGroupedNodeState, ProjectedGroupedTerminalScorer,
+    ProjectedUniConstraint, SharedCrossGroupedConstraintSet, SharedGroupedConstraintSet,
+    SharedProjectedGroupedConstraintSet,
 };
 
 /* ============================================================================

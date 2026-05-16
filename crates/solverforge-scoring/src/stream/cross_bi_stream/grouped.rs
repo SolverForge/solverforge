@@ -59,6 +59,41 @@ where
     Acc: Accumulator<V, R> + Send + Sync + 'static,
     Sc: Score + 'static,
 {
+    #[doc(hidden)]
+    pub fn into_shared_node_state(
+        self,
+    ) -> crate::constraint::cross_grouped::CrossGroupedNodeState<
+        S,
+        A,
+        B,
+        JK,
+        GK,
+        EA,
+        EB,
+        KA,
+        KB,
+        impl Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
+        GF,
+        C,
+        V,
+        R,
+        Acc,
+    > {
+        let filter = self.filter;
+        let combined_filter = move |s: &S, a: &A, b: &B, a_idx: usize, b_idx: usize| {
+            filter.test(s, a, b, a_idx, b_idx)
+        };
+        crate::constraint::cross_grouped::CrossGroupedNodeState::new(
+            self.extractor_a,
+            self.extractor_b,
+            self.key_a,
+            self.key_b,
+            combined_filter,
+            self.group_key_fn,
+            self.collector,
+        )
+    }
+
     fn into_weighted_builder<W>(
         self,
         impact_type: ImpactType,

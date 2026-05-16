@@ -45,7 +45,7 @@ fn planner_shares_only_when_all_terminals_use_one_binding() {
 
     let parsed = parse::parse_constraint_function(function).expect("parse");
     let planned = plan::plan(parsed);
-    assert!(matches!(planned, ConstraintProgram::SharedGrouped { .. }));
+    assert!(matches!(planned, ConstraintProgram::SharedGrouped(_)));
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn planner_shares_distinct_bindings_with_identical_fingerprints() {
 
     let parsed = parse::parse_constraint_function(function).expect("parse");
     let planned = plan::plan(parsed);
-    assert!(matches!(planned, ConstraintProgram::SharedGrouped { .. }));
+    assert!(matches!(planned, ConstraintProgram::SharedGrouped(_)));
 }
 
 #[test]
@@ -111,13 +111,10 @@ fn planner_shares_identical_inline_chains() {
 
     let parsed = parse::parse_constraint_function(function).expect("parse");
     let planned = plan::plan(parsed);
-    assert!(matches!(
-        planned,
-        ConstraintProgram::SharedGrouped {
-            materialize_node: true,
-            ..
-        }
-    ));
+    let ConstraintProgram::SharedGrouped(program) = planned else {
+        panic!("expected shared grouped program");
+    };
+    assert!(program.materialize_node);
 }
 
 #[test]

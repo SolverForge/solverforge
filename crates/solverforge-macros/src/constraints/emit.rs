@@ -1,18 +1,23 @@
 use quote::quote;
 use std::collections::HashSet;
 
-use super::ast::{ConstraintProgram, TerminalKind, TerminalSource};
+use super::ast::{ConstraintProgram, SharedGroupedProgram, TerminalKind, TerminalSource};
 
 pub(crate) fn emit(program: ConstraintProgram) -> syn::Result<proc_macro2::TokenStream> {
     match program {
-        ConstraintProgram::Passthrough(item) => Ok(quote! { #item }),
-        ConstraintProgram::SharedGrouped {
-            mut item,
-            prefix_statements,
-            node,
-            terminals,
-            materialize_node,
-        } => {
+        ConstraintProgram::Passthrough(item) => {
+            let item = *item;
+            Ok(quote! { #item })
+        }
+        ConstraintProgram::SharedGrouped(program) => {
+            let SharedGroupedProgram {
+                item,
+                prefix_statements,
+                node,
+                terminals,
+                materialize_node,
+            } = *program;
+            let mut item = *item;
             let binding = &node.binding;
             let _node_id = &node.id;
             let node_expression = &node.expression;
@@ -36,14 +41,14 @@ pub(crate) fn emit(program: ConstraintProgram) -> syn::Result<proc_macro2::Token
                     #helper(#name, #weight)
                 }
             });
-            item.block = Box::new(syn::parse_quote!({
+            *item.block = syn::parse_quote!({
                 #(#emitted_prefix_statements)*
                 #node_materialization
                 #binding.into_shared_constraint_set(
                     stringify!(#binding),
                     (#(#scorers,)*)
                 )
-            }));
+            });
             Ok(quote! { #item })
         }
     }

@@ -3,12 +3,11 @@ use std::hash::Hash;
 
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
-use solverforge_core::score::Score;
 
-use super::CrossComplementedGroupedConstraint;
+use super::state::CrossComplementedGroupedNodeState;
 
-impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>
-    CrossComplementedGroupedConstraint<
+impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
+    CrossComplementedGroupedNodeState<
         S,
         A,
         B,
@@ -28,8 +27,6 @@ impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>
         R,
         Acc,
         D,
-        W,
-        Sc,
     >
 where
     S: Send + Sync + 'static,
@@ -51,35 +48,32 @@ where
     R: Send + Sync,
     Acc: Accumulator<V, R> + Send + Sync,
     D: Fn(&T) -> R + Send + Sync,
-    W: Fn(&GK, &R) -> Sc + Send + Sync,
-    Sc: Score,
 {
     pub(super) fn add_match(
         &mut self,
         solution: &S,
         entities_a: &[A],
         entities_b: &[B],
-        entities_t: &[T],
         a_idx: usize,
         b_idx: usize,
-    ) -> Sc {
+    ) {
         let pair = (a_idx, b_idx);
         if self.matches.contains_key(&pair) {
-            return Sc::zero();
+            return;
         }
 
         let a = &entities_a[a_idx];
         let b = &entities_b[b_idx];
         if !self.extractor_a.contains(solution, a) || !self.extractor_b.contains(solution, b) {
-            return Sc::zero();
+            return;
         }
         if !(self.filter)(solution, a, b, a_idx, b_idx) {
-            return Sc::zero();
+            return;
         }
 
         let group_key = (self.group_key_fn)(a, b);
         let value = self.collector.extract((a, b));
-        let (delta, retraction) = self.insert_value(entities_t, group_key.clone(), value);
+        let retraction = self.insert_value(group_key.clone(), value);
         let row_idx = self.match_rows.len();
         let a_bucket = self.a_to_matches.entry(a_idx).or_default();
         let a_pos = a_bucket.len();
@@ -95,12 +89,11 @@ where
             b_pos,
         });
         self.matches.insert(pair, row_idx);
-        delta
     }
 
-    pub(super) fn remove_match_at(&mut self, entities_t: &[T], row_idx: usize) -> Sc {
+    pub(super) fn remove_match_at(&mut self, row_idx: usize) {
         if row_idx >= self.match_rows.len() {
-            return Sc::zero();
+            return;
         }
 
         let pair = self.match_rows[row_idx].pair;
@@ -123,7 +116,7 @@ where
             }
         }
 
-        self.retract_value(entities_t, row.group_key, row.retraction)
+        self.retract_value(row.group_key, row.retraction);
     }
 
     pub(super) fn remove_from_a_bucket(&mut self, a_idx: usize, row_idx: usize, pos: usize) {
@@ -192,44 +185,38 @@ where
         solution: &S,
         entities_a: &[A],
         entities_b: &[B],
-        entities_t: &[T],
         a_idx: usize,
-    ) -> Sc {
+    ) {
         if a_idx >= entities_a.len() {
-            return Sc::zero();
+            return;
         }
 
         let a = &entities_a[a_idx];
         if !self.extractor_a.contains(solution, a) {
-            return Sc::zero();
+            return;
         }
         let key = (self.key_a)(a);
         self.a_index_to_key.insert(a_idx, key.clone());
         self.a_by_key.entry(key.clone()).or_default().push(a_idx);
 
         let b_indices = self.b_by_key.get(&key).cloned().unwrap_or_default();
-        let mut total = Sc::zero();
         for b_idx in b_indices {
-            total =
-                total + self.add_match(solution, entities_a, entities_b, entities_t, a_idx, b_idx);
+            self.add_match(solution, entities_a, entities_b, a_idx, b_idx);
         }
-        total
     }
 
-    pub(super) fn retract_a(&mut self, entities_t: &[T], a_idx: usize) -> Sc {
+    pub(super) fn retract_a(&mut self, _entities_t: &[T], a_idx: usize) {
         if let Some(key) = self.a_index_to_key.remove(&a_idx) {
             Self::remove_index_from_join_key_bucket(&mut self.a_by_key, &key, a_idx);
         }
-        let mut total = Sc::zero();
         while let Some(row_idx) = self
             .a_to_matches
             .get(&a_idx)
             .and_then(|matches| matches.last())
             .copied()
         {
-            total = total + self.remove_match_at(entities_t, row_idx);
+            self.remove_match_at(row_idx);
         }
-        total
     }
 
     pub(super) fn insert_b(
@@ -237,64 +224,58 @@ where
         solution: &S,
         entities_a: &[A],
         entities_b: &[B],
-        entities_t: &[T],
         b_idx: usize,
-    ) -> Sc {
+    ) {
         if b_idx >= entities_b.len() {
-            return Sc::zero();
+            return;
         }
 
         let b = &entities_b[b_idx];
         if !self.extractor_b.contains(solution, b) {
-            return Sc::zero();
+            return;
         }
         let key = (self.key_b)(b);
         self.b_index_to_key.insert(b_idx, key.clone());
         self.b_by_key.entry(key.clone()).or_default().push(b_idx);
 
         let a_indices = self.a_by_key.get(&key).cloned().unwrap_or_default();
-        let mut total = Sc::zero();
         for a_idx in a_indices {
-            total =
-                total + self.add_match(solution, entities_a, entities_b, entities_t, a_idx, b_idx);
+            self.add_match(solution, entities_a, entities_b, a_idx, b_idx);
         }
-        total
     }
 
-    pub(super) fn retract_b(&mut self, entities_t: &[T], b_idx: usize) -> Sc {
+    pub(super) fn retract_b(&mut self, _entities_t: &[T], b_idx: usize) {
         if let Some(key) = self.b_index_to_key.remove(&b_idx) {
             Self::remove_index_from_join_key_bucket(&mut self.b_by_key, &key, b_idx);
         }
-        let mut total = Sc::zero();
         while let Some(row_idx) = self
             .b_to_matches
             .get(&b_idx)
             .and_then(|matches| matches.last())
             .copied()
         {
-            total = total + self.remove_match_at(entities_t, row_idx);
+            self.remove_match_at(row_idx);
         }
-        total
     }
 
-    pub(super) fn insert_complement(&mut self, solution: &S, entities_t: &[T], t_idx: usize) -> Sc {
+    pub(super) fn insert_complement(&mut self, solution: &S, entities_t: &[T], t_idx: usize) {
         if t_idx >= entities_t.len() {
-            return Sc::zero();
+            return;
         }
         let complement = &entities_t[t_idx];
         if !self.extractor_t.contains(solution, complement) {
-            return Sc::zero();
+            return;
         }
         let key = (self.key_t)(complement);
-        self.index_complement(key.clone(), t_idx);
-        self.complement_score_for_index(entities_t, &key, t_idx)
+        self.t_entities.insert(t_idx, complement.clone());
+        self.index_complement(key, t_idx);
     }
 
-    pub(super) fn retract_complement(&mut self, entities_t: &[T], t_idx: usize) -> Sc {
+    pub(super) fn retract_complement(&mut self, t_idx: usize) {
         let Some(key) = self.t_index_to_key.remove(&t_idx) else {
-            return Sc::zero();
+            return;
         };
-        let delta = -self.complement_score_for_index(entities_t, &key, t_idx);
+        self.t_entities.remove(&t_idx);
         let mut remove_bucket = false;
         if let Some(indices) = self.t_by_key.get_mut(&key) {
             if let Some(pos) = indices.iter().position(|candidate| *candidate == t_idx) {
@@ -305,6 +286,6 @@ where
         if remove_bucket {
             self.t_by_key.remove(&key);
         }
-        delta
+        self.mark_changed(key);
     }
 }

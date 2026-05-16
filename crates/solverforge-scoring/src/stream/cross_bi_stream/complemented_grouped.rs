@@ -106,6 +106,86 @@ where
     D: Fn(&T) -> R + Send + Sync,
     Sc: Score + 'static,
 {
+    #[doc(hidden)]
+    pub fn into_shared_node_state(
+        self,
+    ) -> crate::constraint::cross_complemented_grouped::CrossComplementedGroupedNodeState<
+        S,
+        A,
+        B,
+        T,
+        JK,
+        GK,
+        EA,
+        EB,
+        ET,
+        KA,
+        KB,
+        impl Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
+        GF,
+        KT,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+    > {
+        let filter = self.filter;
+        let combined_filter = move |s: &S, a: &A, b: &B, a_idx: usize, b_idx: usize| {
+            filter.test(s, a, b, a_idx, b_idx)
+        };
+        crate::constraint::cross_complemented_grouped::CrossComplementedGroupedNodeState::new(
+            self.extractor_a,
+            self.extractor_b,
+            self.extractor_t,
+            self.key_a,
+            self.key_b,
+            combined_filter,
+            self.group_key_fn,
+            self.key_t,
+            self.collector,
+            self.default_fn,
+        )
+    }
+
+    #[doc(hidden)]
+    pub fn into_shared_constraint_set<Scorers>(
+        self,
+        node_name: impl Into<String>,
+        scorers: Scorers,
+    ) -> crate::constraint::cross_complemented_grouped::SharedCrossComplementedGroupedConstraintSet<
+        S,
+        A,
+        B,
+        T,
+        JK,
+        GK,
+        EA,
+        EB,
+        ET,
+        KA,
+        KB,
+        impl Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
+        GF,
+        KT,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        Scorers,
+        Sc,
+    >
+    where
+        Scorers: crate::constraint::grouped::ComplementedGroupedScorerSet<GK, R, Sc>,
+    {
+        crate::constraint::cross_complemented_grouped::SharedCrossComplementedGroupedConstraintSet::new(
+            node_name,
+            self.into_shared_node_state(),
+            scorers,
+        )
+    }
+
     fn into_weighted_builder<W>(
         self,
         impact_type: ImpactType,

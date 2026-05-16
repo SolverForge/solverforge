@@ -5,8 +5,6 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use crate::stream::ConstraintWeight;
-
 use super::state::GroupedStateView;
 
 pub struct GroupedTerminalScorer<K, R, W, Sc>
@@ -132,46 +130,6 @@ where
             ImpactType::Reward => base,
         }
     }
-}
-
-#[doc(hidden)]
-pub fn grouped_penalty_terminal<K, R, W, Sc>(
-    name: &str,
-    weight: W,
-) -> GroupedTerminalScorer<K, R, impl Fn(&K, &R) -> Sc + Send + Sync, Sc>
-where
-    K: Clone + Eq + Hash + Send + Sync + 'static,
-    R: Send + Sync + 'static,
-    W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
-    Sc: Score + 'static,
-{
-    let is_hard = weight.is_hard();
-    GroupedTerminalScorer::new(
-        ConstraintRef::new("", name),
-        ImpactType::Penalty,
-        move |key: &K, result: &R| weight.score((key, result)),
-        is_hard,
-    )
-}
-
-#[doc(hidden)]
-pub fn grouped_reward_terminal<K, R, W, Sc>(
-    name: &str,
-    weight: W,
-) -> GroupedTerminalScorer<K, R, impl Fn(&K, &R) -> Sc + Send + Sync, Sc>
-where
-    K: Clone + Eq + Hash + Send + Sync + 'static,
-    R: Send + Sync + 'static,
-    W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
-    Sc: Score + 'static,
-{
-    let is_hard = weight.is_hard();
-    GroupedTerminalScorer::new(
-        ConstraintRef::new("", name),
-        ImpactType::Reward,
-        move |key: &K, result: &R| weight.score((key, result)),
-        is_hard,
-    )
 }
 
 impl<K, R, W, Sc> std::fmt::Debug for GroupedTerminalScorer<K, R, W, Sc>

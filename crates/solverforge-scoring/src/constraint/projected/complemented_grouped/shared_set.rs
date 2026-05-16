@@ -2,13 +2,15 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
+use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::analysis::ConstraintAnalysis;
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintResult, ConstraintSet};
-use crate::constraint::grouped::ComplementedGroupedScorerSet;
+use crate::constraint::grouped::{ComplementedGroupedScorerSet, GroupedTerminalScorer};
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
+use crate::stream::ConstraintWeight;
 use crate::stream::ProjectedSource;
 
 use super::state::ProjectedComplementedGroupedNodeState;
@@ -37,6 +39,37 @@ pub struct SharedProjectedComplementedGroupedConstraintSet<
 {
     state: ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>,
     scorers: Scorers,
+    _phantom: PhantomData<fn() -> Sc>,
+}
+
+pub struct ProjectedComplementedGroupedConstraintSetBuilder<
+    S,
+    Out,
+    B,
+    K,
+    Src,
+    EB,
+    F,
+    KA,
+    KB,
+    C,
+    V,
+    R,
+    Acc,
+    D,
+    Scorers,
+    W,
+    Sc,
+> where
+    Src: ProjectedSource<S, Out>,
+    Acc: Accumulator<V, R>,
+    Sc: Score,
+{
+    state: ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>,
+    scorers: Scorers,
+    impact_type: ImpactType,
+    weight_fn: W,
+    is_hard: bool,
     _phantom: PhantomData<fn() -> Sc>,
 }
 
@@ -108,6 +141,179 @@ where
     ) -> &ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
     {
         &self.state
+    }
+
+    fn into_weighted_builder<W>(
+        self,
+        impact_type: ImpactType,
+        weight_fn: W,
+        is_hard: bool,
+    ) -> ProjectedComplementedGroupedConstraintSetBuilder<
+        S,
+        Out,
+        B,
+        K,
+        Src,
+        EB,
+        F,
+        KA,
+        KB,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        Scorers,
+        W,
+        Sc,
+    >
+    where
+        W: Fn(&K, &R) -> Sc + Send + Sync,
+    {
+        ProjectedComplementedGroupedConstraintSetBuilder {
+            state: self.state,
+            scorers: self.scorers,
+            impact_type,
+            weight_fn,
+            is_hard,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn penalize<W>(
+        self,
+        weight: W,
+    ) -> ProjectedComplementedGroupedConstraintSetBuilder<
+        S,
+        Out,
+        B,
+        K,
+        Src,
+        EB,
+        F,
+        KA,
+        KB,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        Scorers,
+        impl Fn(&K, &R) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    {
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            ImpactType::Penalty,
+            move |key: &K, result: &R| weight.score((key, result)),
+            is_hard,
+        )
+    }
+
+    pub fn reward<W>(
+        self,
+        weight: W,
+    ) -> ProjectedComplementedGroupedConstraintSetBuilder<
+        S,
+        Out,
+        B,
+        K,
+        Src,
+        EB,
+        F,
+        KA,
+        KB,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        Scorers,
+        impl Fn(&K, &R) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    {
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            ImpactType::Reward,
+            move |key: &K, result: &R| weight.score((key, result)),
+            is_hard,
+        )
+    }
+}
+
+impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, W, Sc>
+    ProjectedComplementedGroupedConstraintSetBuilder<
+        S,
+        Out,
+        B,
+        K,
+        Src,
+        EB,
+        F,
+        KA,
+        KB,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        Scorers,
+        W,
+        Sc,
+    >
+where
+    S: Send + Sync + 'static,
+    Out: Send + Sync + 'static,
+    B: Clone + Send + Sync + 'static,
+    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Src: ProjectedSource<S, Out>,
+    EB: CollectionExtract<S, Item = B>,
+    F: UniFilter<S, Out>,
+    KA: Fn(&Out) -> Option<K> + Send + Sync,
+    KB: Fn(&B) -> K + Send + Sync,
+    C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync,
+    V: Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    Acc: Accumulator<V, R> + Send + Sync + 'static,
+    D: Fn(&B) -> R + Send + Sync,
+    Scorers: ComplementedGroupedScorerSet<K, R, Sc>,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
+    Sc: Score + 'static,
+{
+    pub fn named(
+        self,
+        name: &str,
+    ) -> SharedProjectedComplementedGroupedConstraintSet<
+        S,
+        Out,
+        B,
+        K,
+        Src,
+        EB,
+        F,
+        KA,
+        KB,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        (Scorers, GroupedTerminalScorer<K, R, W, Sc>),
+        Sc,
+    > {
+        let scorer = GroupedTerminalScorer::new(
+            ConstraintRef::new("", name),
+            self.impact_type,
+            self.weight_fn,
+            self.is_hard,
+        );
+        SharedProjectedComplementedGroupedConstraintSet::new(self.state, (self.scorers, scorer))
     }
 }
 

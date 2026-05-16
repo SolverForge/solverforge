@@ -52,15 +52,6 @@ pub use solverforge_config::{PhaseConfig, SolverConfig};
 
 // Stream types needed for macro-generated source methods
 pub use solverforge_core::{ConstraintRef, ImpactType};
-pub use solverforge_scoring::constraint::cross_complemented_grouped::SharedCrossComplementedGroupedConstraintSet;
-pub use solverforge_scoring::constraint::cross_grouped::SharedCrossGroupedConstraintSet;
-pub use solverforge_scoring::constraint::grouped::{
-    grouped_penalty_terminal, grouped_reward_terminal, GroupedNodeState, GroupedTerminalScorer,
-    SharedGroupedConstraintSet,
-};
-pub use solverforge_scoring::constraint::projected::{
-    SharedProjectedComplementedGroupedConstraintSet, SharedProjectedGroupedConstraintSet,
-};
 pub use solverforge_scoring::stream::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter};
 pub use solverforge_scoring::stream::ConstraintWeight;
 pub use solverforge_scoring::stream::{

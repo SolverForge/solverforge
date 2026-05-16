@@ -10,6 +10,7 @@ use crate::constraint::grouped::{
 use crate::stream::collection_extract::{source, vec, ChangeSource};
 use crate::stream::collector::{collect_vec, count, CollectedVec};
 use crate::stream::filter::TrueFilter;
+use crate::stream::ConstraintFactory;
 
 #[derive(Clone)]
 struct GroupedShift {
@@ -222,6 +223,49 @@ fn test_shared_grouped_constraint_set_updates_one_node_for_multiple_terminals() 
     );
     assert_eq!(constraints.state().update_count(), 2);
     assert_eq!(constraints.state().changed_key_count(), 2);
+}
+
+#[test]
+fn test_grouped_fluent_chain_appends_terminals_to_one_node() {
+    let mut constraints = ConstraintFactory::<GroupedSolution, SoftScore>::new()
+        .for_each(source(
+            vec(|s: &GroupedSolution| &s.shifts),
+            ChangeSource::Descriptor(0),
+        ))
+        .group_by(|shift: &GroupedShift| shift.employee_id, count())
+        .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+        .named("Linear workload")
+        .penalize(|_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64))
+        .named("Squared workload")
+        .reward(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+        .named("Coverage reward");
+
+    let solution = GroupedSolution {
+        shifts: vec![
+            GroupedShift { employee_id: 1 },
+            GroupedShift { employee_id: 1 },
+            GroupedShift { employee_id: 2 },
+        ],
+    };
+
+    assert_eq!(constraints.evaluate_all(&solution), SoftScore::of(-5));
+    assert_eq!(constraints.constraint_count(), 3);
+    let metadata = constraints.constraint_metadata();
+    assert_eq!(metadata[0].name(), "Linear workload");
+    assert_eq!(metadata[1].name(), "Squared workload");
+    assert_eq!(metadata[2].name(), "Coverage reward");
+
+    assert_eq!(constraints.initialize_all(&solution), SoftScore::of(-5));
+    assert_eq!(
+        constraints.on_retract_all(&solution, 0, 0),
+        SoftScore::of(3)
+    );
+    assert_eq!(constraints.state().update_count(), 1);
+    assert_eq!(
+        constraints.on_insert_all(&solution, 0, 0),
+        SoftScore::of(-3)
+    );
+    assert_eq!(constraints.state().update_count(), 2);
 }
 
 #[test]

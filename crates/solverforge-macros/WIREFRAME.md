@@ -107,8 +107,11 @@ with multiple terminal scorers. Accepted sharing shapes are:
   identical grouped source expressions inside the same annotated function.
 
 The macro preserves terminal order, names, impact direction, and hard metadata.
-Unsupported, mixed, or opaque tuples stay on the existing Rust path; the
-compiler never adds a public `share`, `derive`, prefix, or suffix API.
+Supported shared terminals are emitted back through the ordinary fluent
+terminal path as a single chained stream finalization; the macro does not call
+parallel shared-node constructors. Unsupported, mixed, or opaque tuples stay on
+the existing Rust path; the compiler never adds a public `share`, `derive`,
+prefix, or suffix API.
 
 Internal module responsibilities:
 

@@ -82,47 +82,6 @@ where
         }
     }
 
-    #[doc(hidden)]
-    pub fn into_shared_node_state(
-        self,
-    ) -> crate::constraint::grouped::GroupedNodeState<S, A, K, E, Fi, KF, C, V, R, Acc> {
-        crate::constraint::grouped::GroupedNodeState::new(
-            self.extractor,
-            self.filter,
-            self.key_fn,
-            self.collector,
-        )
-    }
-
-    #[doc(hidden)]
-    pub fn into_shared_constraint_set<Scorers>(
-        self,
-        node_name: impl Into<String>,
-        scorers: Scorers,
-    ) -> crate::constraint::grouped::SharedGroupedConstraintSet<
-        S,
-        A,
-        K,
-        E,
-        Fi,
-        KF,
-        C,
-        V,
-        R,
-        Acc,
-        Scorers,
-        Sc,
-    >
-    where
-        Scorers: crate::constraint::grouped::GroupedScorerSet<K, R, Sc>,
-    {
-        crate::constraint::grouped::SharedGroupedConstraintSet::new(
-            node_name,
-            self.into_shared_node_state(),
-            scorers,
-        )
-    }
-
     pub fn penalize<W>(
         self,
         weight: W,

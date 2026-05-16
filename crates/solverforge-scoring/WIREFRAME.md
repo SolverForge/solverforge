@@ -44,7 +44,7 @@ src/
 │   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
 │   ├── cross_grouped.rs                            — CrossGroupedConstraint module root and re-exports
 │   ├── cross_grouped/*.rs                          — CrossGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
-│   ├── cross_complemented_grouped.rs               — CrossComplementedGroupedConstraint module root and hidden shared-node re-exports
+│   ├── cross_complemented_grouped.rs               — CrossComplementedGroupedConstraint module root and internal shared engine re-exports
 │   ├── cross_complemented_grouped/*.rs             — CrossComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
 │   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors
@@ -395,6 +395,9 @@ The grouped engine is split into `GroupedNodeState` plus
 `GroupedTerminalScorer` collections. `SharedGroupedConstraintSet` updates the
 node once and refreshes all terminal scorers from changed group keys.
 `GroupedUniConstraint` is the one-terminal wrapper around that shared engine.
+Additional grouped terminals append through the same fluent
+`.penalize(...).named(...)` / `.reward(...).named(...)` finalization chain,
+so macro-generated sharing does not use a separate stream construction path.
 
 **`CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint. It keeps keyed join indexes and collector retraction tokens without projecting joined pairs first.
 

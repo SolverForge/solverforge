@@ -299,13 +299,11 @@ Used exclusively by macro-generated code. Not public API.
 **Scoring (from `solverforge-scoring`):**
 - `Director`, `ScoreDirector`
 - `SolvableSolution`
-- Hidden shared-node compiler support: `ConstraintWeight`,
-  `grouped_penalty_terminal`, `grouped_reward_terminal`,
-  `SharedGroupedConstraintSet`, `SharedProjectedGroupedConstraintSet`,
-  `SharedCrossGroupedConstraintSet`,
-  `SharedCrossComplementedGroupedConstraintSet`,
-  `SharedProjectedComplementedGroupedConstraintSet`, `GroupedNodeState`,
-  `GroupedTerminalScorer`, `ConstraintRef`, `ImpactType`
+- Hidden macro support: `ConstraintWeight`, `ConstraintRef`, `ImpactType`,
+  concrete stream source/filter types, and solver runtime helpers. Node sharing
+  is finalized through the same fluent `.penalize(...).named(...)` /
+  `.reward(...).named(...)` path as ordinary constraints; internal shared
+  node-state types are not facade exports.
 
 **Solver infrastructure (from `solverforge-solver`):**
 - `bind_scalar_groups`, `build_search`, `local_search`, `CustomSearchPhase`, `Search`, `SearchContext`

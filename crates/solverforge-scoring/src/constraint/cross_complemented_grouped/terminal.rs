@@ -9,6 +9,7 @@ use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 use crate::constraint::grouped::GroupedTerminalScorer;
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
+use crate::stream::ConstraintWeight;
 
 use super::shared_set::SharedCrossComplementedGroupedConstraintSet;
 use super::state::CrossComplementedGroupedNodeState;
@@ -155,6 +156,72 @@ where
             inner: SharedCrossComplementedGroupedConstraintSet::new(node_name, state, scorer),
             _phantom: PhantomData,
         }
+    }
+
+    pub fn penalize<W2>(
+        self,
+        weight: W2,
+    ) -> super::shared_set::CrossComplementedGroupedConstraintSetBuilder<
+        S,
+        A,
+        B,
+        T,
+        JK,
+        GK,
+        EA,
+        EB,
+        ET,
+        KA,
+        KB,
+        F,
+        GF,
+        KT,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        GroupedTerminalScorer<GK, R, W, Sc>,
+        impl Fn(&GK, &R) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W2: for<'w> ConstraintWeight<(&'w GK, &'w R), Sc> + Send + Sync,
+    {
+        self.inner.penalize(weight)
+    }
+
+    pub fn reward<W2>(
+        self,
+        weight: W2,
+    ) -> super::shared_set::CrossComplementedGroupedConstraintSetBuilder<
+        S,
+        A,
+        B,
+        T,
+        JK,
+        GK,
+        EA,
+        EB,
+        ET,
+        KA,
+        KB,
+        F,
+        GF,
+        KT,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        GroupedTerminalScorer<GK, R, W, Sc>,
+        impl Fn(&GK, &R) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W2: for<'w> ConstraintWeight<(&'w GK, &'w R), Sc> + Send + Sync,
+    {
+        self.inner.reward(weight)
     }
 }
 

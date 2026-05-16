@@ -8,7 +8,7 @@ mod terminal;
 #[doc(hidden)]
 pub use complemented_scorer::{ComplementedGroupedScorerSet, ComplementedGroupedStateView};
 #[doc(hidden)]
-pub use scorer::{grouped_penalty_terminal, grouped_reward_terminal, GroupedTerminalScorer};
+pub use scorer::GroupedTerminalScorer;
 #[doc(hidden)]
 pub use scorer_set::GroupedScorerSet;
 #[doc(hidden)]

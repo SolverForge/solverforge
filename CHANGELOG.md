@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.14.1](///compare/v0.14.0...v0.14.1) (2026-05-16)
+
+
+### Features
+
+* **cvrp:** expose route metric classes for shared data bda7882
+* **solver:** group Clarke-Wright savings by route metric class e633242
+
+
+### Bug Fixes
+
+* **solver:** match shared metric-class routes by owner feasibility 47edcf5
+
 ## [0.14.0](///compare/v0.13.1...v0.14.0) (2026-05-16)
 
 

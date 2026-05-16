@@ -66,6 +66,7 @@ All functions are generic over `S: VrpSolution`.
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `depot_for_entity` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize` | Depot index for the route owner |
+| `route_metric_class` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize` | Clarke-Wright metric class for owners that share backing `ProblemData` |
 | `route_distance` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, from: usize, to: usize) -> i64` | Distance between two element indices for the route owner |
 | `route_feasible` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool` | True if the route satisfies the owner's capacity and time-window constraints |
 | `replace_route` | `fn<S: VrpSolution>(plan: &mut S, entity_idx: usize, route: Vec<usize>)` | Replace the current route for an entity |
@@ -78,6 +79,7 @@ All functions are generic over `S: VrpSolution`.
     route_get_fn      = "solverforge_cvrp::get_route",
     route_set_fn      = "solverforge_cvrp::replace_route",
     route_depot_fn    = "solverforge_cvrp::depot_for_entity",
+    route_metric_class_fn = "solverforge_cvrp::route_metric_class",
     route_distance_fn = "solverforge_cvrp::route_distance",
     route_feasible_fn = "solverforge_cvrp::route_feasible",
     // ...

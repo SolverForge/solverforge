@@ -1067,7 +1067,7 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 | `ListClarkeWrightPhase<S, E>` | Self (implements Phase directly) |
 | `KOptPhaseBuilder<S, V>` | `KOptPhase` |
 
-`ListClarkeWrightPhase<S, E>` preserves preassigned routes by filling only empty entities, computes owner-aware savings through `route_depot_fn` and `route_distance_fn`, and assigns constructed routes through deterministic matching against `route_feasible_fn`.
+`ListClarkeWrightPhase<S, E>` preserves preassigned routes by filling only empty entities, computes savings per optional `route_metric_class_fn` class through `route_depot_fn` and `route_distance_fn`, and assigns constructed routes through deterministic matching against owner-specific `route_feasible_fn`.
 `ListKOptPhase<S, E>` uses the same route hooks for per-route 2-opt polishing: `route_get_fn` reads the route, `route_set_fn` writes an accepted route, `route_depot_fn` supplies the owner depot, `route_distance_fn` scores reversals for that owner, and optional `route_feasible_fn` rejects infeasible improvements.
 
 ## Real-Time Planning

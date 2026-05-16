@@ -2,6 +2,7 @@ use syn::{Expr, ExprMethodCall, ExprPath, Ident, ItemFn, Stmt};
 
 use super::ast::{
     ConstraintFunction, ImpactKind, NodeId, StreamNode, TerminalConstraint, TerminalKind,
+    TerminalSource,
 };
 use super::fingerprint::expression_fingerprint;
 
@@ -95,12 +96,10 @@ fn parse_terminal(expr: &Expr, order: usize) -> syn::Result<Option<TerminalConst
             "penalize/reward terminal is missing a weight expression",
         ));
     };
-    let Some(stream_binding) = receiver_ident(score) else {
-        return Ok(None);
-    };
+    let source = receiver_source(score);
 
     Ok(Some(TerminalConstraint {
-        stream_binding,
+        source,
         impact,
         weight,
         name,
@@ -109,12 +108,15 @@ fn parse_terminal(expr: &Expr, order: usize) -> syn::Result<Option<TerminalConst
     }))
 }
 
-fn receiver_ident(method: &ExprMethodCall) -> Option<Ident> {
+fn receiver_source(method: &ExprMethodCall) -> TerminalSource {
     match method.receiver.as_ref() {
         Expr::Path(ExprPath { path, .. }) if path.segments.len() == 1 => {
-            Some(path.segments[0].ident.clone())
+            TerminalSource::Binding(path.segments[0].ident.clone())
         }
-        _ => None,
+        expression => TerminalSource::Inline {
+            expression: expression.clone(),
+            fingerprint: expression_fingerprint(expression),
+        },
     }
 }
 

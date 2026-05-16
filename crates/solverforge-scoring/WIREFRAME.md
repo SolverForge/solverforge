@@ -16,8 +16,9 @@ Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 src/
 ├── lib.rs                                          — Crate root; re-exports from all modules
 ├── api/
-│   ├── mod.rs                                      — Re-exports analysis, constraint_set, weight_overrides
+│   ├── mod.rs                                      — Re-exports analysis, constraint_set, node_sharing, weight_overrides
 │   ├── analysis.rs                                 — ScoreExplanation, ConstraintAnalysis, Indictment, IndictmentMap, DetailedConstraintMatch, etc.
+│   ├── node_sharing.rs                             — SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation
 │   ├── constraint_set/
 │   │   ├── mod.rs                                  — Re-exports ConstraintSet, IncrementalConstraint, ConstraintMetadata, ConstraintResult
 │   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, tuple impls (0..32)
@@ -34,14 +35,15 @@ src/
 │   ├── macros.rs                                   — impl_get_matches_nary! macro for detailed match generation
 │   ├── shared.rs                                   — compute_hash<T>() utility function
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
-│   ├── grouped.rs                                  — GroupedUniConstraint<S,A,K,E,Fi,KF,C,V,R,Acc,W,Sc>
+│   ├── grouped.rs                                  — Grouped module root: legacy terminal wrapper, shared node state, terminal scorers, scorer sets, shared set
+│   ├── grouped/*.rs                                — GroupedNodeState, GroupedTerminalScorer, GroupedScorerSet, SharedGroupedConstraintSet, one-terminal wrapper
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
 │   ├── complemented.rs                             — ComplementedGroupConstraint module root and re-exports
 │   ├── complemented/*.rs                           — Retained complemented state, incremental callbacks, helpers, and debug accessors
 │   ├── cross_bi_incremental.rs                     — IncrementalCrossBiConstraint module root and re-exports
 │   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
 │   ├── cross_grouped.rs                            — CrossGroupedConstraint module root and re-exports
-│   ├── cross_grouped/*.rs                          — Retained cross-join grouped state and incremental callbacks
+│   ├── cross_grouped/*.rs                          — CrossGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
 │   ├── cross_complemented_grouped.rs               — CrossComplementedGroupedConstraint module root and re-exports
 │   ├── cross_complemented_grouped/*.rs             — Retained direct cross-join grouped complement state, updates, and incremental callbacks
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
@@ -50,7 +52,8 @@ src/
 │   ├── exists/
 │   │   └── key_state.rs                            — Internal hashed/indexed key bookkeeping for existence constraints
 │   ├── projected.rs                                — Projected retained scoring-row constraint module root and re-exports
-│   ├── projected/*.rs                              — Projected uni, bi, grouped, and complemented-grouped constraints
+│   ├── projected/*.rs                              — Projected uni, bi, grouped module root, and complemented-grouped constraints
+│   ├── projected/grouped/*.rs                      — ProjectedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
 │   ├── projected/complemented_grouped/*.rs         — Retained projected grouped complement state and incremental callbacks
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
@@ -67,7 +70,8 @@ src/
 │       ├── tri_incr.rs                             — IncrementalTriConstraint tests
 │       ├── quad_incr.rs                            — IncrementalQuadConstraint tests
 │       ├── penta_incr.rs                           — IncrementalPentaConstraint tests
-│       ├── grouped.rs                              — GroupedUniConstraint tests
+│       ├── grouped.rs                              — GroupedUniConstraint and shared grouped node tests
+│       ├── cross_grouped.rs                        — Shared direct cross grouped node tests
 │       ├── balance.rs                              — BalanceConstraint tests
 │       ├── complemented.rs                         — ComplementedGroupConstraint tests
 │       ├── cross_complemented_grouped.rs           — Direct cross-join grouped complement tests
@@ -187,6 +191,7 @@ pub use constraint::{
 pub use api::constraint_set::{
     ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
 };
+pub use api::node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 // Score Directors
@@ -386,7 +391,17 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&A>` — Group-by with collector and weight on `(&K, &R)`.
 
+The grouped engine is split into `GroupedNodeState` plus
+`GroupedTerminalScorer` collections. `SharedGroupedConstraintSet` updates the
+node once and refreshes all terminal scorers from changed group keys.
+`GroupedUniConstraint` is the one-terminal wrapper around that shared engine.
+
 **`CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint. It keeps keyed join indexes and collector retraction tokens without projecting joined pairs first.
+
+Direct cross grouped constraints use `CrossGroupedNodeState` for join indexes,
+match rows, group accumulators, retraction tokens, and changed-key reporting.
+`SharedCrossGroupedConstraintSet` lets multiple terminal scorers consume that
+state while preserving independent terminal metadata.
 
 **`CrossComplementedGroupedConstraint<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint complemented against a second collection. It keeps joined-pair collector retraction tokens and scores every complement row using either the retained grouped result or the provided default result.
 
@@ -399,6 +414,11 @@ All implement `IncrementalConstraint<S, Sc>`.
 **`ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc>`** — Self-join constraint over retained projected rows. Pair ordering is coordinate-stable by `ProjectedRowCoordinate`; pair-filter indexes are the projected rows' primary owner entity indexes, never retained storage row IDs.
 
 **`ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&Out>` — Grouped retained projected rows.
+
+Projected grouped constraints use `ProjectedGroupedNodeState` for projected
+source state, row outputs, owner indexes, retraction tokens, group accumulators,
+and changed-key reporting. `SharedProjectedGroupedConstraintSet` shares that
+projected grouped state across multiple terminal scorers.
 
 **`ProjectedComplementedGroupedConstraint<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&Out>` — Projected grouped rows complemented against a second collection, including `join(...).project(...).group_by(...).complement(...)` chains.
 

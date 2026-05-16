@@ -113,7 +113,7 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
   - List: ListChangeMove, ListSwapMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
   - Scalar ruin-recreate, composite moves, cartesian composition, and nearby selection for scalar and list neighborhoods
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
-- **Model Macros**: `planning_model!`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
+- **Model Macros**: `planning_model!`, `#[solverforge_constraints]`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
 - **Scalar Variables**: `#[planning_variable]` fields store candidate indexes
   as `Option<usize>`; keep external IDs on facts or entities.
 - **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, grouped scalar move selectors, conflict-repair selectors, selector telemetry, and level-aware simulated annealing configuration
@@ -147,6 +147,41 @@ grouped streams can continue into `complement(...)` for supply/demand-style
 scoring. `collect_vec` exposes a
 `CollectedVec<T>` result view, so grouped payloads such as `String` labels do
 not need `Copy`, `Clone`, or `PartialEq` just to be collected.
+
+Constraint functions should be annotated with `#[solverforge_constraints]`.
+The attribute keeps the same fluent Rust authoring style while giving
+SolverForge a whole-function compiler boundary. When a grouped stream binding
+is reused by multiple terminal constraints, the compiler builds one shared
+incremental node and keeps each terminal constraint separately named:
+
+```rust
+#[solverforge_constraints]
+fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
+    let g = ConstraintFactory::<Schedule, HardSoftScore>::new();
+    let nurse_presence = g
+        .for_each(Schedule::shifts())
+        .filter(|shift: &Shift| shift.nurse_idx.is_some())
+        .group_by(
+            |shift: &Shift| shift.nurse_idx.unwrap_or(usize::MAX),
+            indexed_presence(|shift: &Shift| shift.day),
+        );
+
+    (
+        nurse_presence
+            .penalize(consecutive_work_bounds)
+            .named("consecutiveWorkBounds"),
+        nurse_presence
+            .penalize(consecutive_off_bounds)
+            .named("consecutiveOffBounds"),
+        nurse_presence
+            .penalize(working_weekends)
+            .named("workingWeekends"),
+    )
+}
+```
+
+Repeated grouped bindings share incremental grouped work. Terminal identity,
+ordering, metadata, and score explanation remain independent.
 
 ## Installation
 

@@ -43,6 +43,7 @@ src/
 ### Model Macros (from `solverforge-macros`)
 
 - `planning_model`
+- `solverforge_constraints`
 - `planning_entity`
 - `planning_solution`
 - `problem_fact`
@@ -64,6 +65,7 @@ src/
 - `HardWeight`
 - `ConstraintSet` (trait)
 - `ConstraintMetadata<'a>` (borrowed constraint identity view)
+- `SharedNodeDiagnostics`, `SharedNodeId`, `SharedNodeOperation`
 - `IncrementalConstraint` (trait)
 - `IncrementalUniConstraint`
 - `IncrementalBiConstraint`
@@ -183,6 +185,7 @@ pub use crate::stream::collector::{collect_vec, consecutive_runs, count, indexed
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     fixed_weight, hard_weight, planning_entity, planning_model, planning_solution, problem_fact,
+    solverforge_constraints,
     BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, CustomSearchPhase, Director,
     ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType, FixedWeight,
     FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, HardWeight,
@@ -272,6 +275,13 @@ Generated existence ergonomics: `#[planning_solution]` generates inherent source
 
 Projected scoring ergonomics: `ConstraintFactory::new().for_each(Plan::assignments()).project(TaskShiftWorkEntries)` creates bounded scoring rows from a named `Projection<A>` type without materializing facts or entities. Keyed cross joins can group joined pairs directly with `.group_by(|left, right| key, collector)` and complement the grouped result, or project them with `.project(|assignment, capacity| Row { ... })` to emit one scoring row per retained joined pair. Projected streams can be filtered, self-joined, merged, grouped, complemented after grouping, and weighted as retained scoring state. Single-source projection implementations emit through `ProjectionSink` and declare `MAX_EMITS`; joined-pair closures do not need a helper type. Projected output rows, projected self-join keys, and grouped collector values do not need `Clone`. Projected self-join ordering is coordinate-stable by `ProjectedRowCoordinate`; low-level pair-filter indexes are primary owner entity indexes, not sparse storage row IDs.
 
+Constraint authoring: `#[solverforge_constraints]` is the canonical attribute
+for constraint factory functions. It preserves fluent stream syntax and gives
+the macro crate a whole-function boundary for node sharing. Reusing the same
+grouped stream binding across multiple `.penalize(...).named(...)` or
+`.reward(...).named(...)` terminals emits one shared grouped node with separate
+terminal scorers.
+
 ## `__internal` Module (`#[doc(hidden)]`)
 
 Used exclusively by macro-generated code. Not public API.
@@ -287,6 +297,11 @@ Used exclusively by macro-generated code. Not public API.
 **Scoring (from `solverforge-scoring`):**
 - `Director`, `ScoreDirector`
 - `SolvableSolution`
+- Hidden shared-node compiler support: `ConstraintWeight`,
+  `grouped_penalty_terminal`, `grouped_reward_terminal`,
+  `SharedGroupedConstraintSet`, `SharedProjectedGroupedConstraintSet`,
+  `SharedCrossGroupedConstraintSet`, `GroupedNodeState`,
+  `GroupedTerminalScorer`, `ConstraintRef`, `ImpactType`
 
 **Solver infrastructure (from `solverforge-solver`):**
 - `bind_scalar_groups`, `build_search`, `local_search`, `CustomSearchPhase`, `Search`, `SearchContext`

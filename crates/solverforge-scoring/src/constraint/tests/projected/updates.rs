@@ -322,6 +322,65 @@ fn projected_group_by_complement_duplicate_complement_keys_match_incremental() {
 }
 
 #[test]
+fn shared_projected_group_by_complement_updates_one_node_for_multiple_terminals() {
+    let complemented = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(WorkEntryProjection)
+        .group_by(
+            |entry: &Entry| entry.bucket,
+            sum(|entry: &Entry| entry.delta),
+        )
+        .complement(
+            source(
+                capacity as fn(&Plan) -> &[Capacity],
+                ChangeSource::Descriptor(1),
+            ),
+            |capacity: &Capacity| capacity.bucket,
+            |_capacity: &Capacity| 3i64,
+        );
+    let state = ProjectedComplementedGroupedNodeState::new(
+        complemented.source,
+        complemented.extractor_b,
+        complemented.filter,
+        complemented.key_a,
+        complemented.key_b,
+        complemented.collector,
+        complemented.default_fn,
+    );
+    let scorers = (
+        ProjectedComplementedGroupedTerminalScorer::new(
+            ConstraintRef::new("", "projected demand"),
+            ImpactType::Penalty,
+            |bucket: &usize, demand: &i64| SoftScore::of((*bucket as i64 * 10) + *demand),
+            false,
+        ),
+        ProjectedComplementedGroupedTerminalScorer::new(
+            ConstraintRef::new("", "double projected demand"),
+            ImpactType::Penalty,
+            |_bucket: &usize, demand: &i64| SoftScore::of(*demand * 2),
+            false,
+        ),
+    );
+    let mut constraints = SharedProjectedComplementedGroupedConstraintSet::new(state, scorers);
+    let mut plan = projected_demand_complement_plan();
+
+    let mut total = constraints.initialize_all(&plan);
+    assert_eq!(total, SoftScore::of(-34));
+
+    total = total + constraints.on_retract_all(&plan, 0, 0);
+    plan.work[0].demand = 7;
+    total = total + constraints.on_insert_all(&plan, 0, 0);
+
+    assert_eq!(constraints.state().update_count(), 2);
+    assert_eq!(total, SoftScore::of(-40));
+    assert_eq!(total, constraints.evaluate_all(&plan));
+    assert_eq!(constraints.evaluate_each(&plan).len(), 2);
+}
+
+#[test]
 fn projected_merged_descriptor_sources_keep_same_entity_index_slots_distinct() {
     let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(source(

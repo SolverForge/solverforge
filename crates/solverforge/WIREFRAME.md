@@ -280,7 +280,9 @@ for constraint factory functions. It preserves fluent stream syntax and gives
 the macro crate a whole-function boundary for node sharing. Reusing the same
 grouped stream binding across multiple `.penalize(...).named(...)` or
 `.reward(...).named(...)` terminals emits one shared grouped node with separate
-terminal scorers.
+terminal scorers. Separately written grouped chains also share when the macro
+can prove equivalence from the token-normalized stream expression inside the
+annotated function.
 
 ## `__internal` Module (`#[doc(hidden)]`)
 
@@ -300,7 +302,9 @@ Used exclusively by macro-generated code. Not public API.
 - Hidden shared-node compiler support: `ConstraintWeight`,
   `grouped_penalty_terminal`, `grouped_reward_terminal`,
   `SharedGroupedConstraintSet`, `SharedProjectedGroupedConstraintSet`,
-  `SharedCrossGroupedConstraintSet`, `GroupedNodeState`,
+  `SharedCrossGroupedConstraintSet`,
+  `SharedCrossComplementedGroupedConstraintSet`,
+  `SharedProjectedComplementedGroupedConstraintSet`, `GroupedNodeState`,
   `GroupedTerminalScorer`, `ConstraintRef`, `ImpactType`
 
 **Solver infrastructure (from `solverforge-solver`):**

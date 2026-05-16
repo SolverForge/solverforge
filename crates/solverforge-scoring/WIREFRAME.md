@@ -44,8 +44,8 @@ src/
 │   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
 │   ├── cross_grouped.rs                            — CrossGroupedConstraint module root and re-exports
 │   ├── cross_grouped/*.rs                          — CrossGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
-│   ├── cross_complemented_grouped.rs               — CrossComplementedGroupedConstraint module root and re-exports
-│   ├── cross_complemented_grouped/*.rs             — Retained direct cross-join grouped complement state, updates, and incremental callbacks
+│   ├── cross_complemented_grouped.rs               — CrossComplementedGroupedConstraint module root and hidden shared-node re-exports
+│   ├── cross_complemented_grouped/*.rs             — CrossComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
 │   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
@@ -54,7 +54,7 @@ src/
 │   ├── projected.rs                                — Projected retained scoring-row constraint module root and re-exports
 │   ├── projected/*.rs                              — Projected uni, bi, grouped module root, and complemented-grouped constraints
 │   ├── projected/grouped/*.rs                      — ProjectedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
-│   ├── projected/complemented_grouped/*.rs         — Retained projected grouped complement state and incremental callbacks
+│   ├── projected/complemented_grouped/*.rs         — ProjectedComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
@@ -403,7 +403,7 @@ match rows, group accumulators, retraction tokens, and changed-key reporting.
 `SharedCrossGroupedConstraintSet` lets multiple terminal scorers consume that
 state while preserving independent terminal metadata.
 
-**`CrossComplementedGroupedConstraint<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint complemented against a second collection. It keeps joined-pair collector retraction tokens and scores every complement row using either the retained grouped result or the provided default result.
+**`CrossComplementedGroupedConstraint<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint complemented against a second collection. `CrossComplementedGroupedNodeState` keeps join indexes, joined-pair collector retraction tokens, complement target indexes, group accumulators, and changed-key reporting; `SharedCrossComplementedGroupedConstraintSet` lets multiple terminal scorers consume each complement row using either the retained grouped result or the provided default result.
 
 **`BalanceConstraint<S, A, K, E, F, KF, Sc>`** — Load balancing using sum-of-squared-deviations.
 
@@ -420,7 +420,7 @@ source state, row outputs, owner indexes, retraction tokens, group accumulators,
 and changed-key reporting. `SharedProjectedGroupedConstraintSet` shares that
 projected grouped state across multiple terminal scorers.
 
-**`ProjectedComplementedGroupedConstraint<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&Out>` — Projected grouped rows complemented against a second collection, including `join(...).project(...).group_by(...).complement(...)` chains.
+**`ProjectedComplementedGroupedConstraint<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&Out>` — Projected grouped rows complemented against a second collection, including `join(...).project(...).group_by(...).complement(...)` chains. `ProjectedComplementedGroupedNodeState` retains projected source state, row ownership indexes, complement target rows, group accumulators, and changed-key reporting for shared terminal scorers.
 
 **`FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>`** — Cross-collection with nested collection flattening. Filters receive the A source index and the owning B source index for each flattened C row.
 

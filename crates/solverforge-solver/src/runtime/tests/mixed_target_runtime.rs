@@ -333,6 +333,7 @@ fn mixed_target_model() -> RuntimeModel<MixedTargetPlan, usize, DefaultMeter, De
             None,
             None,
             None,
+            None,
         )),
     ])
 }

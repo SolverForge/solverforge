@@ -22,9 +22,15 @@ mod owner_assignment;
 mod route_state;
 mod savings;
 
-use owner_assignment::{feasible_owners_for_scored_route, match_route_owners};
+use owner_assignment::{
+    feasible_owners_for_scored_route, match_route_owners, owner_slots, representative_owner_slots,
+};
 use route_state::{route_values, routes_match_owners_after_merge, ConstructedRoute};
 use savings::{sort_savings, SavingsEntry};
+
+fn unique_metric_class<S>(_: &S, owner_idx: usize) -> usize {
+    owner_idx
+}
 
 /// List construction phase using Clarke-Wright savings algorithm.
 ///
@@ -100,6 +106,7 @@ where
     assign_route: fn(&mut S, usize, Vec<usize>),
     index_to_element: fn(&S, usize) -> E,
     depot_fn: fn(&S, usize) -> usize,
+    metric_class_fn: fn(&S, usize) -> usize,
     distance_fn: fn(&S, usize, usize, usize) -> i64,
     feasible_fn: fn(&S, usize, &[usize]) -> bool,
     descriptor_index: usize,
@@ -159,11 +166,22 @@ where
             assign_route,
             index_to_element,
             depot_fn,
+            metric_class_fn: unique_metric_class::<S>,
             distance_fn,
             feasible_fn,
             descriptor_index,
             _marker: PhantomData,
         }
+    }
+
+    /* Configures the construction metric class hook.
+
+    Owners in the same class must produce identical depot and route-distance
+    values. Feasibility remains owner-specific.
+    */
+    pub fn with_metric_class_fn(mut self, metric_class_fn: fn(&S, usize) -> usize) -> Self {
+        self.metric_class_fn = metric_class_fn;
+        self
     }
 }
 
@@ -215,6 +233,8 @@ where
             .iter()
             .map(|&entity_idx| (self.depot_fn)(solution, entity_idx))
             .collect();
+        let owner_slots = owner_slots(solution, &available_entity_slots, self.metric_class_fn);
+        let representative_owner_slots = representative_owner_slots(&owner_slots);
         let assigned_set: HashSet<E> = assigned.into_iter().collect();
         let unassigned_indices: Vec<usize> = (0..n_elements)
             .filter(|&i| {
@@ -234,7 +254,14 @@ where
         // commit a meaningful partial construction if termination fires mid-phase.
         let mut routes: Vec<ConstructedRoute> = unassigned_indices
             .iter()
-            .map(|&i| ConstructedRoute::singleton(i))
+            .map(|&i| {
+                let value = index_to_element(solution, i).into();
+                let singleton = [value];
+                let feasible_for_all_owners = owner_slots
+                    .iter()
+                    .all(|slot| (self.feasible_fn)(solution, slot.owner_idx, &singleton));
+                ConstructedRoute::singleton(i, feasible_for_all_owners)
+            })
             .collect();
 
         // Map collection index -> route index.
@@ -249,10 +276,11 @@ where
         let mut savings: Vec<SavingsEntry> = Vec::with_capacity(
             n.saturating_mul(n.saturating_sub(1))
                 .saturating_div(2)
-                .saturating_mul(available_entity_slots.len()),
+                .saturating_mul(representative_owner_slots.len()),
         );
         let mut construction_interrupted = false;
-        'savings_generation: for &owner_idx in &available_entity_slots {
+        'savings_generation: for owner_slot in &representative_owner_slots {
+            let owner_idx = owner_slot.owner_idx;
             for a in 0..n {
                 if (a & 0x1F) == 0
                     && phase_scope
@@ -274,7 +302,7 @@ where
                         - distance_fn(solution, owner_idx, left_value, right_value);
                     savings.push(SavingsEntry {
                         saving,
-                        owner_idx,
+                        metric_class: owner_slot.metric_class,
                         left_idx,
                         right_idx,
                     });
@@ -318,8 +346,8 @@ where
             }
 
             // i must be an endpoint of ri
-            if !routes[ri].can_merge_for_owner(entry.owner_idx)
-                || !routes[rj].can_merge_for_owner(entry.owner_idx)
+            if !routes[ri].can_merge_for_metric_class(entry.metric_class)
+                || !routes[rj].can_merge_for_metric_class(entry.metric_class)
             {
                 continue;
             }
@@ -348,7 +376,15 @@ where
             let candidate_indices: Vec<usize> = test_ri.iter().chain(&test_rj).copied().collect();
             let solution = phase_scope.score_director().working_solution();
             let candidate_route = route_values(solution, index_to_element, &candidate_indices);
-            if !(self.feasible_fn)(solution, entry.owner_idx, &candidate_route) {
+            if feasible_owners_for_scored_route(
+                solution,
+                &owner_slots,
+                &candidate_route,
+                Some(entry.metric_class),
+                self.feasible_fn,
+            )
+            .is_empty()
+            {
                 continue;
             }
             if !routes_match_owners_after_merge(
@@ -357,8 +393,8 @@ where
                 ri,
                 rj,
                 &candidate_indices,
-                entry.owner_idx,
-                &available_entity_slots,
+                entry.metric_class,
+                &owner_slots,
                 index_to_element,
                 self.feasible_fn,
             ) {
@@ -366,9 +402,11 @@ where
             }
 
             routes[ri].visits = test_ri;
-            routes[ri].scored_owner = Some(entry.owner_idx);
+            routes[ri].scored_metric_class = Some(entry.metric_class);
+            routes[ri].feasible_for_all_owners = false;
             routes[rj].visits.clear();
-            routes[rj].scored_owner = None;
+            routes[rj].scored_metric_class = None;
+            routes[rj].feasible_for_all_owners = false;
             for &c in &test_rj {
                 route_of[c] = Some(ri);
             }
@@ -389,9 +427,9 @@ where
                 let values = route_values(solution, index_to_element, &route.visits);
                 feasible_owners_for_scored_route(
                     solution,
-                    &available_entity_slots,
+                    &owner_slots,
                     &values,
-                    route.scored_owner,
+                    route.scored_metric_class,
                     self.feasible_fn,
                 )
             })

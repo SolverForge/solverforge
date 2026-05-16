@@ -201,6 +201,7 @@ fn nearby_list_swap_uses_cross_entity_meter() {
         None,
         None,
         None,
+        None,
     );
     let config = MoveSelectorConfig::NearbyListSwapMoveSelector(NearbyListSwapMoveConfig {
         max_nearby: 4,
@@ -258,6 +259,7 @@ fn public_list_builder_supports_cartesian_product() {
         intra_meter,
         "visits",
         0,
+        None,
         None,
         None,
         None,

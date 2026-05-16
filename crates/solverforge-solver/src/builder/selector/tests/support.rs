@@ -413,6 +413,7 @@ fn list_slot() -> ListVariableSlot<MixedPlan, usize, NoopMeter, NoopMeter> {
         None,
         None,
         None,
+        None,
     )
 }
 

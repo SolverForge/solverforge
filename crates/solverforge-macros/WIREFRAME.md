@@ -95,16 +95,20 @@ Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support d
 ### `#[solverforge_constraints]`
 
 Applies to a constraint factory function. The function remains normal fluent
-Rust, but the macro parses the whole body before type checking so repeated
-grouped stream bindings can become one shared incremental node with multiple
-terminal scorers. Current accepted sharing shape is a `let`-bound grouped,
-projected grouped, or direct cross grouped stream whose final tuple contains
-multiple `.penalize(...).named("...")` or `.reward(...).named("...")` terminal
-calls on that same binding.
+Rust, but the macro parses the whole body before type checking so repeated or
+provably identical grouped stream chains can become one shared incremental node
+with multiple terminal scorers. Accepted sharing shapes are:
+
+- A `let`-bound grouped, projected grouped, direct cross grouped, or
+  complemented grouped stream whose final tuple contains multiple
+  `.penalize(...).named("...")` or `.reward(...).named("...")` terminal calls on
+  that same binding.
+- Distinct stream bindings or inline fluent chains with token-normalized
+  identical grouped source expressions inside the same annotated function.
 
 The macro preserves terminal order, names, impact direction, and hard metadata.
-Unsupported or mixed tuples stay on the existing Rust path; the compiler never
-adds a public `share`, `derive`, prefix, or suffix API.
+Unsupported, mixed, or opaque tuples stay on the existing Rust path; the
+compiler never adds a public `share`, `derive`, prefix, or suffix API.
 
 Internal module responsibilities:
 
@@ -114,7 +118,7 @@ Internal module responsibilities:
 | `constraints/parse.rs` | Parses supported fluent terminals, `let` stream bindings, tuple tails, and `.named(...)` requirements |
 | `constraints/fingerprint.rs` | Computes normalized token fingerprints for deterministic structural comparison |
 | `constraints/normalize.rs` | Resolves local stream bindings for same-binding reuse |
-| `constraints/plan.rs` | Selects shared grouped plans while preserving terminal order |
+| `constraints/plan.rs` | Selects shared grouped plans by binding and structural fingerprint while preserving terminal order |
 | `constraints/emit.rs` | Emits concrete shared-node code against `::solverforge::__internal::*` helpers |
 
 ## Derive Macros (proc_macro_derive)

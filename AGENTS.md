@@ -123,6 +123,15 @@ entity mutation. Do not restore a borrowed `accumulate(&value)` /
 for payloads solely so `collect_vec` can retain them. `collect_vec` returns a
 `CollectedVec<T>` result view, not an owned `Vec<T>` scoring result.
 
+### Constraint Node Sharing
+
+Constraint-stream node sharing belongs in the `#[solverforge_constraints]`
+compiler and the shared grouped node-state engine. Do not implement sharing as
+ad hoc runtime caches, global memoization, interior-mutability shortcuts, or
+public `share`/`derive` modeling APIs. Shared grouped, projected grouped, and
+cross grouped nodes own the retained incremental state once; terminal scorers
+remain independent for identity, ordering, metadata, and explanation.
+
 ### Joined Filter Indexes
 
 Low-level joined filter traits receive the semantic source indexes for the rows

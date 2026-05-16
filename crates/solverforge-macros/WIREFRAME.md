@@ -19,6 +19,8 @@ No solverforge crate dependencies. Generated code references `::solverforge::__i
 src/
 ├── attr_parse.rs          — Shared attribute parsing helpers
 ├── attr_validation.rs     — Strict user-authored attribute argument contracts and diagnostics
+├── constraints.rs          — `#[solverforge_constraints]` compiler module root
+├── constraints/*.rs        — Constraint function AST, parse, fingerprint, normalize, plan, emit, and tests
 ├── entrypoints.rs          — Shared proc-macro wrapper logic used by the crate root
 ├── lib.rs                  — Crate root; required proc-macro entry points only
 ├── planning_model.rs       — `planning_model!` manifest parser, file reader, metadata validator, and model-support generator
@@ -89,6 +91,31 @@ decorates the loaded `solver.toml` config instead of replacing it.
 ### `#[problem_fact]` / `#[problem_fact(serde)]`
 
 Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support derive output. Optionally adds serde derives.
+
+### `#[solverforge_constraints]`
+
+Applies to a constraint factory function. The function remains normal fluent
+Rust, but the macro parses the whole body before type checking so repeated
+grouped stream bindings can become one shared incremental node with multiple
+terminal scorers. Current accepted sharing shape is a `let`-bound grouped,
+projected grouped, or direct cross grouped stream whose final tuple contains
+multiple `.penalize(...).named("...")` or `.reward(...).named("...")` terminal
+calls on that same binding.
+
+The macro preserves terminal order, names, impact direction, and hard metadata.
+Unsupported or mixed tuples stay on the existing Rust path; the compiler never
+adds a public `share`, `derive`, prefix, or suffix API.
+
+Internal module responsibilities:
+
+| Module | Responsibility |
+|--------|----------------|
+| `constraints/ast.rs` | Compiler-internal nodes, terminal constraints, impact kinds, and final program shape |
+| `constraints/parse.rs` | Parses supported fluent terminals, `let` stream bindings, tuple tails, and `.named(...)` requirements |
+| `constraints/fingerprint.rs` | Computes normalized token fingerprints for deterministic structural comparison |
+| `constraints/normalize.rs` | Resolves local stream bindings for same-binding reuse |
+| `constraints/plan.rs` | Selects shared grouped plans while preserving terminal order |
+| `constraints/emit.rs` | Emits concrete shared-node code against `::solverforge::__internal::*` helpers |
 
 ## Derive Macros (proc_macro_derive)
 

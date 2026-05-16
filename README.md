@@ -155,7 +155,7 @@ If you are building directly against the runtime crates instead of starting from
 
 ```toml
 [dependencies]
-solverforge = { version = "0.14.0", features = ["console"] }
+solverforge = { version = "0.14.1", features = ["console"] }
 ```
 
 When `move_selector` is omitted from `acceptor_forager` local search, the
@@ -292,7 +292,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.14.0 - Zero-Erasure Constraint Solver
+                   v0.14.1 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -521,7 +521,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current workspace version:** 0.14.0
+**Current workspace version:** 0.14.1
 
 The current checked-in workspace exposes:
 

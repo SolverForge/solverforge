@@ -3,7 +3,7 @@
 Proc-macro crate providing attribute macros and derive macros for SolverForge domain model structs.
 
 **Location:** `crates/solverforge-macros/`
-**Workspace Release:** `0.13.1`
+**Workspace Release:** `0.14.0`
 
 ## Dependencies
 

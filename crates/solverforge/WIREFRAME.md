@@ -3,7 +3,7 @@
 Facade crate: re-exports the public API from all sub-crates under a single `solverforge` dependency.
 
 **Location:** `crates/solverforge/`
-**Workspace Release:** `0.13.1`
+**Workspace Release:** `0.14.0`
 
 The CLI lives in the standalone `solverforge-cli` repository and is not part of this workspace or facade crate.
 

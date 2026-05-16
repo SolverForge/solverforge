@@ -82,6 +82,18 @@ where
         }
     }
 
+    #[doc(hidden)]
+    pub fn into_shared_node_state(
+        self,
+    ) -> crate::constraint::grouped::GroupedNodeState<S, A, K, E, Fi, KF, C, V, R, Acc> {
+        crate::constraint::grouped::GroupedNodeState::new(
+            self.extractor,
+            self.filter,
+            self.key_fn,
+            self.collector,
+        )
+    }
+
     pub fn penalize<W>(
         self,
         weight: W,

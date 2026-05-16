@@ -10,7 +10,9 @@ mod meters;
 mod problem_data;
 mod solution;
 
-pub use helpers::{depot_for_entity, get_route, replace_route, route_distance, route_feasible};
+pub use helpers::{
+    depot_for_entity, get_route, replace_route, route_distance, route_feasible, route_metric_class,
+};
 pub use meters::{MatrixDistanceMeter, MatrixIntraDistanceMeter};
 pub use problem_data::ProblemData;
 pub use solution::VrpSolution;

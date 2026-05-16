@@ -6,6 +6,11 @@ struct TestSolution {
     routes: Vec<Vec<usize>>,
 }
 
+struct SharedDataSolution {
+    data: ProblemData,
+    routes: Vec<Vec<usize>>,
+}
+
 impl TestSolution {
     fn new(routes: Vec<Vec<usize>>) -> Self {
         let data = base_problem_data();
@@ -48,6 +53,24 @@ fn base_problem_data() -> ProblemData {
 impl VrpSolution for TestSolution {
     fn vehicle_data_ptr(&self, entity_idx: usize) -> *const ProblemData {
         &self.data[entity_idx] as *const ProblemData
+    }
+
+    fn vehicle_visits(&self, entity_idx: usize) -> &[usize] {
+        &self.routes[entity_idx]
+    }
+
+    fn vehicle_visits_mut(&mut self, entity_idx: usize) -> &mut Vec<usize> {
+        &mut self.routes[entity_idx]
+    }
+
+    fn vehicle_count(&self) -> usize {
+        self.routes.len()
+    }
+}
+
+impl VrpSolution for SharedDataSolution {
+    fn vehicle_data_ptr(&self, _entity_idx: usize) -> *const ProblemData {
+        &self.data as *const ProblemData
     }
 
     fn vehicle_visits(&self, entity_idx: usize) -> &[usize] {
@@ -107,7 +130,35 @@ fn helpers_handle_empty_fleets() {
 
     assert_eq!(route_distance(&solution, 0, 1, 2), 0);
     assert_eq!(depot_for_entity(&solution, 0), 0);
+    assert_eq!(route_metric_class(&solution, 3), 3);
     assert!(route_feasible(&solution, 0, &[1, 2]));
+}
+
+#[test]
+fn route_metric_class_groups_shared_problem_data() {
+    let solution = SharedDataSolution {
+        data: base_problem_data(),
+        routes: vec![vec![1], vec![2], vec![3]],
+    };
+
+    assert_eq!(
+        route_metric_class(&solution, 0),
+        route_metric_class(&solution, 1)
+    );
+    assert_eq!(
+        route_metric_class(&solution, 1),
+        route_metric_class(&solution, 2)
+    );
+}
+
+#[test]
+fn route_metric_class_separates_distinct_problem_data() {
+    let solution = TestSolution::new(vec![vec![1], vec![2]]);
+
+    assert_ne!(
+        route_metric_class(&solution, 0),
+        route_metric_class(&solution, 1)
+    );
 }
 
 #[test]

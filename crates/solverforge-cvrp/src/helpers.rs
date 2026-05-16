@@ -22,6 +22,23 @@ pub fn depot_for_entity<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
     problem_data_for_entity(plan, entity_idx).map_or(0, |data| data.depot)
 }
 
+/// Construction metric class for the route owner.
+///
+/// Owners that share the same `ProblemData` pointer share depot and distance
+/// behavior, so Clarke-Wright can compute their savings rows once.
+pub fn route_metric_class<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
+    if entity_idx >= plan.vehicle_count() {
+        return entity_idx;
+    }
+
+    let ptr = plan.vehicle_data_ptr(entity_idx);
+    assert!(
+        !ptr.is_null(),
+        "VrpSolution::vehicle_data_ptr({entity_idx}) returned null for a non-empty fleet"
+    );
+    ptr as usize
+}
+
 /// Distance between two element indices for the route owner.
 pub fn route_distance<S: VrpSolution>(plan: &S, entity_idx: usize, from: usize, to: usize) -> i64 {
     problem_data_for_entity(plan, entity_idx).map_or(0, |data| data.distance_matrix[from][to])

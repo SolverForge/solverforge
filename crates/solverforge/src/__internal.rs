@@ -24,7 +24,7 @@ pub use solverforge_core::domain::{
 
 // Scoring
 pub use solverforge_scoring::api::{
-    ConstraintSetChain, ConstraintSetSource, OrderedConstraintSetChain,
+    ConstraintSet, ConstraintSetChain, ConstraintSetSource, OrderedConstraintSetChain,
 };
 pub use solverforge_scoring::{Director, ScoreDirector, SolvableSolution};
 pub use tokio::sync::mpsc::UnboundedSender;

@@ -1,9 +1,16 @@
 use quote::{format_ident, quote};
 
 use super::ast::{
-    ConstraintFunction, ConstraintProgram, SharedGroupedProgram, TailMember, TerminalConstraint,
-    TerminalKind,
+    ConstraintFunction, ConstraintProgram, OtherMemberKind, SharedGroupedProgram, TailMember,
+    TerminalConstraint, TerminalKind,
 };
+
+struct EmittedMember<'a> {
+    terminal: Option<&'a TerminalConstraint>,
+    set: proc_macro2::TokenStream,
+    count: proc_macro2::TokenStream,
+    preamble: proc_macro2::TokenStream,
+}
 
 pub(crate) fn emit(program: ConstraintProgram) -> syn::Result<proc_macro2::TokenStream> {
     match program {
@@ -41,30 +48,70 @@ fn emit_shared_grouped(program: SharedGroupedProgram) -> syn::Result<proc_macro2
         tail_members,
     } = program;
     let emitted_prefix_statements = prefix_statements.iter();
-    let member_refs = tail_members.iter().collect::<Vec<_>>();
+    let emitted_members = tail_members
+        .iter()
+        .enumerate()
+        .map(|(index, member)| emit_member(index, member))
+        .collect::<Vec<_>>();
+    let emitted_member_preambles = emitted_members.iter().map(|member| &member.preamble);
+    let member_refs = emitted_members.iter().collect::<Vec<_>>();
     let combined = emit_member_set(&member_refs, &bindings);
 
     *item.block = syn::parse_quote!({
         #(#emitted_prefix_statements)*
+        #(#emitted_member_preambles)*
         #combined
     });
     Ok(quote! { #item })
 }
 
-fn emit_member_set(members: &[&TailMember], bindings: &[String]) -> proc_macro2::TokenStream {
-    let Some((binding, remaining_bindings)) = bindings.split_first() else {
-        let mut sets = Vec::new();
-        for &member in members {
-            match member {
-                TailMember::Terminal(terminal) => {
-                    let terminal = emit_terminal(terminal);
-                    sets.push(quote! { (#terminal,) });
+fn emit_member(index: usize, member: &TailMember) -> EmittedMember<'_> {
+    match member {
+        TailMember::Terminal(terminal) => EmittedMember {
+            terminal: Some(terminal),
+            set: emit_terminal(terminal),
+            count: quote! { 1usize },
+            preamble: quote! {},
+        },
+        TailMember::Other { tokens, kind } => {
+            let member_ident = format_ident!("__solverforge_member_{index}");
+            let count_ident = format_ident!("__solverforge_member_count_{index}");
+            let set = match kind {
+                OtherMemberKind::SingleConstraint => quote! { (#member_ident,) },
+                OtherMemberKind::ConstraintSet => quote! { #member_ident },
+            };
+            let count = match kind {
+                OtherMemberKind::SingleConstraint => quote! { 1usize },
+                OtherMemberKind::ConstraintSet => quote! { #count_ident },
+            };
+            let count_statement = match kind {
+                OtherMemberKind::SingleConstraint => quote! {},
+                OtherMemberKind::ConstraintSet => {
+                    quote! {
+                        let #count_ident =
+                            ::solverforge::__internal::ConstraintSet::constraint_count(&#member_ident);
+                    }
                 }
-                TailMember::Other(tokens) => {
-                    sets.push(quote! { (#tokens,) });
-                }
+            };
+            EmittedMember {
+                terminal: None,
+                set,
+                count,
+                preamble: quote! {
+                    let #member_ident = #tokens;
+                    #count_statement
+                },
             }
         }
+    }
+}
+
+fn emit_member_set(
+    members: &[&EmittedMember<'_>],
+    bindings: &[String],
+) -> proc_macro2::TokenStream {
+    let Some((binding, remaining_bindings)) = bindings.split_first() else {
+        let sets = members.iter().map(|member| &member.set).collect::<Vec<_>>();
         return combine_constraint_sets(sets);
     };
 
@@ -75,7 +122,8 @@ fn emit_member_set(members: &[&TailMember], bindings: &[String]) -> proc_macro2:
         if member_matches_binding(member, binding) {
             order.push(quote! { ::solverforge::__internal::ConstraintSetSource::Left });
         } else {
-            order.push(quote! { ::solverforge::__internal::ConstraintSetSource::Right });
+            let count = &member.count;
+            order.push(quote! { ::solverforge::__internal::ConstraintSetSource::Right(#count) });
             right_members.push(member);
         }
     }
@@ -85,39 +133,41 @@ fn emit_member_set(members: &[&TailMember], bindings: &[String]) -> proc_macro2:
     }
 
     let right = emit_member_set(&right_members, remaining_bindings);
-    quote! {
+    quote! {{
+        let mut __solverforge_order = ::std::vec::Vec::new();
+        #(__solverforge_order.push(#order);)*
         ::solverforge::__internal::OrderedConstraintSetChain::new(
             #left,
             #right,
-            &[#(#order),*],
+            __solverforge_order,
         )
-    }
+    }}
 }
 
-fn emit_shared_binding_chain(members: &[&TailMember], binding: &str) -> proc_macro2::TokenStream {
+fn emit_shared_binding_chain(
+    members: &[&EmittedMember<'_>],
+    binding: &str,
+) -> proc_macro2::TokenStream {
     let binding_ident = format_ident!("{binding}");
     members
         .iter()
-        .filter_map(|&member| match member {
-            TailMember::Terminal(terminal) if terminal.source_binding.as_str() == binding => {
-                Some(terminal)
-            }
-            _ => None,
-        })
+        .filter_map(|member| member.terminal)
+        .filter(|terminal| terminal.source_binding.as_str() == binding)
         .fold(quote! { #binding_ident }, |chain, terminal| {
             emit_terminal_chain(chain, terminal)
         })
 }
 
-fn member_matches_binding(member: &TailMember, binding: &str) -> bool {
-    matches!(member, TailMember::Terminal(terminal) if terminal.source_binding.as_str() == binding)
+fn member_matches_binding(member: &EmittedMember<'_>, binding: &str) -> bool {
+    matches!(member.terminal, Some(terminal) if terminal.source_binding.as_str() == binding)
 }
 
-fn combine_constraint_sets(sets: Vec<proc_macro2::TokenStream>) -> proc_macro2::TokenStream {
+fn combine_constraint_sets(sets: Vec<&proc_macro2::TokenStream>) -> proc_macro2::TokenStream {
     let mut sets = sets.into_iter();
-    let Some(mut combined) = sets.next() else {
+    let Some(combined) = sets.next() else {
         return quote! { () };
     };
+    let mut combined = quote! { #combined };
     for set in sets {
         combined = quote! {
             ::solverforge::__internal::ConstraintSetChain::new(#combined, #set)

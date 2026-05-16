@@ -31,23 +31,22 @@ pub(crate) fn emit(program: ConstraintProgram) -> syn::Result<proc_macro2::Token
                     let #binding = #node_expression;
                 }
             });
-            let scorers = terminals.iter().map(|terminal| {
-                debug_assert_eq!(terminal.kind, TerminalKind::GroupedScore);
-                let helper = terminal.impact.helper_path();
-                let weight = &terminal.weight;
-                let name = &terminal.name;
-                let _order = terminal.order;
-                quote! {
-                    #helper(#name, #weight)
-                }
-            });
+            let fluent_chain = terminals
+                .iter()
+                .fold(quote! { #binding }, |chain, terminal| {
+                    debug_assert_eq!(terminal.kind, TerminalKind::GroupedScore);
+                    let method = terminal.impact.method_ident();
+                    let weight = &terminal.weight;
+                    let name = &terminal.name;
+                    let _order = terminal.order;
+                    quote! {
+                        #chain.#method(#weight).named(#name)
+                    }
+                });
             *item.block = syn::parse_quote!({
                 #(#emitted_prefix_statements)*
                 #node_materialization
-                #binding.into_shared_constraint_set(
-                    stringify!(#binding),
-                    (#(#scorers,)*)
-                )
+                #fluent_chain
             });
             Ok(quote! { #item })
         }

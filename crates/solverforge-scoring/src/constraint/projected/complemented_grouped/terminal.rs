@@ -10,6 +10,7 @@ use crate::constraint::grouped::GroupedTerminalScorer;
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
+use crate::stream::ConstraintWeight;
 use crate::stream::ProjectedSource;
 
 use super::shared_set::SharedProjectedComplementedGroupedConstraintSet;
@@ -114,6 +115,62 @@ where
             inner: SharedProjectedComplementedGroupedConstraintSet::new(state, scorer),
             _phantom: PhantomData,
         }
+    }
+
+    pub fn penalize<W2>(
+        self,
+        weight: W2,
+    ) -> super::shared_set::ProjectedComplementedGroupedConstraintSetBuilder<
+        S,
+        Out,
+        B,
+        K,
+        Src,
+        EB,
+        F,
+        KA,
+        KB,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        GroupedTerminalScorer<K, R, W, Sc>,
+        impl Fn(&K, &R) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W2: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    {
+        self.inner.penalize(weight)
+    }
+
+    pub fn reward<W2>(
+        self,
+        weight: W2,
+    ) -> super::shared_set::ProjectedComplementedGroupedConstraintSetBuilder<
+        S,
+        Out,
+        B,
+        K,
+        Src,
+        EB,
+        F,
+        KA,
+        KB,
+        C,
+        V,
+        R,
+        Acc,
+        D,
+        GroupedTerminalScorer<K, R, W, Sc>,
+        impl Fn(&K, &R) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W2: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    {
+        self.inner.reward(weight)
     }
 }
 

@@ -153,7 +153,8 @@ The attribute keeps the same fluent Rust authoring style while giving
 SolverForge a whole-function compiler boundary. When a grouped stream binding
 is reused by multiple terminal constraints, or when separately written grouped
 chains are provably identical from their syntax, the compiler builds one shared
-incremental node and keeps each terminal constraint separately named:
+incremental node through the same fluent terminal path and keeps each terminal
+constraint separately named:
 
 ```rust
 #[solverforge_constraints]

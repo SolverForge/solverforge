@@ -1,10 +1,13 @@
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
+use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::analysis::ConstraintAnalysis;
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintResult, ConstraintSet};
+use crate::stream::ConstraintWeight;
 
+use super::scorer::GroupedTerminalScorer;
 use super::scorer_set::GroupedScorerSet;
 use super::state::GroupedNodeState;
 use crate::stream::collector::{Accumulator, Collector};
@@ -18,6 +21,20 @@ where
     node_name: String,
     state: GroupedNodeState<S, A, K, E, Fi, KF, C, V, R, Acc>,
     scorers: Scorers,
+    _phantom: PhantomData<fn() -> Sc>,
+}
+
+pub struct GroupedConstraintSetBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, W, Sc>
+where
+    Acc: Accumulator<V, R>,
+    Sc: Score,
+{
+    node_name: String,
+    state: GroupedNodeState<S, A, K, E, Fi, KF, C, V, R, Acc>,
+    scorers: Scorers,
+    impact_type: ImpactType,
+    weight_fn: W,
+    is_hard: bool,
     _phantom: PhantomData<fn() -> Sc>,
 }
 
@@ -52,6 +69,128 @@ where
 
     pub fn state(&self) -> &GroupedNodeState<S, A, K, E, Fi, KF, C, V, R, Acc> {
         &self.state
+    }
+
+    fn into_weighted_builder<W>(
+        self,
+        impact_type: ImpactType,
+        weight_fn: W,
+        is_hard: bool,
+    ) -> GroupedConstraintSetBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, W, Sc>
+    where
+        W: Fn(&K, &R) -> Sc + Send + Sync,
+    {
+        GroupedConstraintSetBuilder {
+            node_name: self.node_name,
+            state: self.state,
+            scorers: self.scorers,
+            impact_type,
+            weight_fn,
+            is_hard,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn penalize<W>(
+        self,
+        weight: W,
+    ) -> GroupedConstraintSetBuilder<
+        S,
+        A,
+        K,
+        E,
+        Fi,
+        KF,
+        C,
+        V,
+        R,
+        Acc,
+        Scorers,
+        impl Fn(&K, &R) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    {
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            ImpactType::Penalty,
+            move |key: &K, result: &R| weight.score((key, result)),
+            is_hard,
+        )
+    }
+
+    pub fn reward<W>(
+        self,
+        weight: W,
+    ) -> GroupedConstraintSetBuilder<
+        S,
+        A,
+        K,
+        E,
+        Fi,
+        KF,
+        C,
+        V,
+        R,
+        Acc,
+        Scorers,
+        impl Fn(&K, &R) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    {
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            ImpactType::Reward,
+            move |key: &K, result: &R| weight.score((key, result)),
+            is_hard,
+        )
+    }
+}
+
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, W, Sc>
+    GroupedConstraintSetBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, Scorers, W, Sc>
+where
+    S: Send + Sync + 'static,
+    A: Clone + Send + Sync + 'static,
+    K: Clone + Eq + std::hash::Hash + Send + Sync + 'static,
+    E: crate::stream::collection_extract::CollectionExtract<S, Item = A>,
+    Fi: UniFilter<S, A>,
+    KF: Fn(&A) -> K + Send + Sync,
+    C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
+    V: Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    Acc: Accumulator<V, R> + Send + Sync + 'static,
+    Scorers: GroupedScorerSet<K, R, Sc>,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
+    Sc: Score + 'static,
+{
+    pub fn named(
+        self,
+        name: &str,
+    ) -> SharedGroupedConstraintSet<
+        S,
+        A,
+        K,
+        E,
+        Fi,
+        KF,
+        C,
+        V,
+        R,
+        Acc,
+        (Scorers, GroupedTerminalScorer<K, R, W, Sc>),
+        Sc,
+    > {
+        let scorer = GroupedTerminalScorer::new(
+            ConstraintRef::new("", name),
+            self.impact_type,
+            self.weight_fn,
+            self.is_hard,
+        );
+        SharedGroupedConstraintSet::new(self.node_name, self.state, (self.scorers, scorer))
     }
 }
 

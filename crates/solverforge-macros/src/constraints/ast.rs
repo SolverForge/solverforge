@@ -1,4 +1,3 @@
-use proc_macro2::TokenStream;
 use syn::{Expr, Ident, ItemFn, LitStr, Stmt};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -66,14 +65,10 @@ pub(crate) enum ConstraintProgram {
 }
 
 impl ImpactKind {
-    pub(crate) fn helper_path(&self) -> TokenStream {
+    pub(crate) fn method_ident(&self) -> Ident {
         match self {
-            ImpactKind::Penalty => quote::quote! {
-                ::solverforge::__internal::grouped_penalty_terminal
-            },
-            ImpactKind::Reward => quote::quote! {
-                ::solverforge::__internal::grouped_reward_terminal
-            },
+            ImpactKind::Penalty => Ident::new("penalize", proc_macro2::Span::call_site()),
+            ImpactKind::Reward => Ident::new("reward", proc_macro2::Span::call_site()),
         }
     }
 }

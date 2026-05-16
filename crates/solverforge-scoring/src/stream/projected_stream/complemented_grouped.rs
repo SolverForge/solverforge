@@ -85,68 +85,6 @@ where
     D: Fn(&B) -> R + Send + Sync,
     Sc: Score + 'static,
 {
-    #[doc(hidden)]
-    pub fn into_shared_node_state(
-        self,
-    ) -> crate::constraint::projected::ProjectedComplementedGroupedNodeState<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-    > {
-        crate::constraint::projected::ProjectedComplementedGroupedNodeState::new(
-            self.source,
-            self.extractor_b,
-            self.filter,
-            self.key_a,
-            self.key_b,
-            self.collector,
-            self.default_fn,
-        )
-    }
-
-    #[doc(hidden)]
-    pub fn into_shared_constraint_set<Scorers>(
-        self,
-        _node_name: impl Into<String>,
-        scorers: Scorers,
-    ) -> crate::constraint::projected::SharedProjectedComplementedGroupedConstraintSet<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        Scorers,
-        Sc,
-    >
-    where
-        Scorers: crate::constraint::grouped::ComplementedGroupedScorerSet<K, R, Sc>,
-    {
-        crate::constraint::projected::SharedProjectedComplementedGroupedConstraintSet::new(
-            self.into_shared_node_state(),
-            scorers,
-        )
-    }
-
     fn into_weighted_builder<W>(
         self,
         impact_type: ImpactType,

@@ -2,12 +2,14 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
+use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::analysis::ConstraintAnalysis;
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintResult, ConstraintSet};
-use crate::constraint::grouped::GroupedScorerSet;
+use crate::constraint::grouped::{GroupedScorerSet, GroupedTerminalScorer};
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
+use crate::stream::ConstraintWeight;
 
 use super::state::CrossGroupedNodeState;
 
@@ -36,6 +38,38 @@ pub struct SharedCrossGroupedConstraintSet<
     node_name: String,
     state: CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>,
     scorers: Scorers,
+    _phantom: PhantomData<fn() -> Sc>,
+}
+
+pub struct CrossGroupedConstraintSetBuilder<
+    S,
+    A,
+    B,
+    JK,
+    GK,
+    EA,
+    EB,
+    KA,
+    KB,
+    F,
+    GF,
+    C,
+    V,
+    R,
+    Acc,
+    Scorers,
+    W,
+    Sc,
+> where
+    Acc: Accumulator<V, R>,
+    Sc: Score,
+{
+    node_name: String,
+    state: CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>,
+    scorers: Scorers,
+    impact_type: ImpactType,
+    weight_fn: W,
+    is_hard: bool,
     _phantom: PhantomData<fn() -> Sc>,
 }
 
@@ -95,6 +129,186 @@ where
         &self,
     ) -> &CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc> {
         &self.state
+    }
+
+    fn into_weighted_builder<W>(
+        self,
+        impact_type: ImpactType,
+        weight_fn: W,
+        is_hard: bool,
+    ) -> CrossGroupedConstraintSetBuilder<
+        S,
+        A,
+        B,
+        JK,
+        GK,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        GF,
+        C,
+        V,
+        R,
+        Acc,
+        Scorers,
+        W,
+        Sc,
+    >
+    where
+        W: Fn(&GK, &R) -> Sc + Send + Sync,
+    {
+        CrossGroupedConstraintSetBuilder {
+            node_name: self.node_name,
+            state: self.state,
+            scorers: self.scorers,
+            impact_type,
+            weight_fn,
+            is_hard,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn penalize<W>(
+        self,
+        weight: W,
+    ) -> CrossGroupedConstraintSetBuilder<
+        S,
+        A,
+        B,
+        JK,
+        GK,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        GF,
+        C,
+        V,
+        R,
+        Acc,
+        Scorers,
+        impl Fn(&GK, &R) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W: for<'w> ConstraintWeight<(&'w GK, &'w R), Sc> + Send + Sync,
+    {
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            ImpactType::Penalty,
+            move |key: &GK, result: &R| weight.score((key, result)),
+            is_hard,
+        )
+    }
+
+    pub fn reward<W>(
+        self,
+        weight: W,
+    ) -> CrossGroupedConstraintSetBuilder<
+        S,
+        A,
+        B,
+        JK,
+        GK,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        GF,
+        C,
+        V,
+        R,
+        Acc,
+        Scorers,
+        impl Fn(&GK, &R) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W: for<'w> ConstraintWeight<(&'w GK, &'w R), Sc> + Send + Sync,
+    {
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            ImpactType::Reward,
+            move |key: &GK, result: &R| weight.score((key, result)),
+            is_hard,
+        )
+    }
+}
+
+impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Scorers, W, Sc>
+    CrossGroupedConstraintSetBuilder<
+        S,
+        A,
+        B,
+        JK,
+        GK,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        GF,
+        C,
+        V,
+        R,
+        Acc,
+        Scorers,
+        W,
+        Sc,
+    >
+where
+    S: Send + Sync + 'static,
+    A: Clone + Send + Sync + 'static,
+    B: Clone + Send + Sync + 'static,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
+    GK: Eq + Hash + Clone + Send + Sync + 'static,
+    EA: CollectionExtract<S, Item = A> + Send + Sync,
+    EB: CollectionExtract<S, Item = B> + Send + Sync,
+    KA: Fn(&A) -> JK + Send + Sync,
+    KB: Fn(&B) -> JK + Send + Sync,
+    F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
+    GF: Fn(&A, &B) -> GK + Send + Sync,
+    C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc> + Send + Sync,
+    V: Send + Sync + 'static,
+    R: Send + Sync + 'static,
+    Acc: Accumulator<V, R> + Send + Sync + 'static,
+    Scorers: GroupedScorerSet<GK, R, Sc>,
+    W: Fn(&GK, &R) -> Sc + Send + Sync,
+    Sc: Score + 'static,
+{
+    pub fn named(
+        self,
+        name: &str,
+    ) -> SharedCrossGroupedConstraintSet<
+        S,
+        A,
+        B,
+        JK,
+        GK,
+        EA,
+        EB,
+        KA,
+        KB,
+        F,
+        GF,
+        C,
+        V,
+        R,
+        Acc,
+        (Scorers, GroupedTerminalScorer<GK, R, W, Sc>),
+        Sc,
+    > {
+        let scorer = GroupedTerminalScorer::new(
+            ConstraintRef::new("", name),
+            self.impact_type,
+            self.weight_fn,
+            self.is_hard,
+        );
+        SharedCrossGroupedConstraintSet::new(self.node_name, self.state, (self.scorers, scorer))
     }
 }
 

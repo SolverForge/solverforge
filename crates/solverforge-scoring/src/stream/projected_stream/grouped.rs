@@ -45,47 +45,6 @@ where
     Acc: Accumulator<V, R> + Send + Sync + 'static,
     Sc: Score + 'static,
 {
-    #[doc(hidden)]
-    pub fn into_shared_node_state(
-        self,
-    ) -> crate::constraint::projected::ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>
-    {
-        crate::constraint::projected::ProjectedGroupedNodeState::new(
-            self.source,
-            self.filter,
-            self.key_fn,
-            self.collector,
-        )
-    }
-
-    #[doc(hidden)]
-    pub fn into_shared_constraint_set<Scorers>(
-        self,
-        _node_name: impl Into<String>,
-        scorers: Scorers,
-    ) -> crate::constraint::projected::SharedProjectedGroupedConstraintSet<
-        S,
-        Out,
-        K,
-        Src,
-        F,
-        KF,
-        C,
-        V,
-        R,
-        Acc,
-        Scorers,
-        Sc,
-    >
-    where
-        Scorers: crate::constraint::grouped::GroupedScorerSet<K, R, Sc>,
-    {
-        crate::constraint::projected::SharedProjectedGroupedConstraintSet::new(
-            self.into_shared_node_state(),
-            scorers,
-        )
-    }
-
     fn into_weighted_builder<W>(
         self,
         impact_type: solverforge_core::ImpactType,

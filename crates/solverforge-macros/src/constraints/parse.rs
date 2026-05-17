@@ -2,8 +2,7 @@ use quote::quote;
 use syn::{Expr, ExprMethodCall, ExprPath, ItemFn, Stmt};
 
 use super::ast::{
-    ConstraintFunction, ImpactKind, OtherMemberKind, StreamNode, TailMember, TerminalConstraint,
-    TerminalKind,
+    ConstraintFunction, ImpactKind, StreamNode, TailMember, TerminalConstraint, TerminalKind,
 };
 
 pub(crate) fn parse_constraint_function(mut item: ItemFn) -> syn::Result<ConstraintFunction> {
@@ -89,13 +88,8 @@ fn parse_tail_members(expr: &Expr) -> syn::Result<Vec<TailMember>> {
 }
 
 fn other_tail_member(expr: &Expr) -> TailMember {
-    let kind = match expr {
-        Expr::Call(_) | Expr::Tuple(_) => OtherMemberKind::ConstraintSet,
-        _ => OtherMemberKind::SingleConstraint,
-    };
     TailMember::Other {
         tokens: quote! { #expr },
-        kind,
     }
 }
 

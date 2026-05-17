@@ -9,6 +9,9 @@ use solverforge_core::ConstraintRef;
 
 use super::super::analysis::{ConstraintAnalysis, DetailedConstraintMatch};
 
+#[doc(hidden)]
+pub trait IncrementalConstraintSealed {}
+
 /* A single constraint with incremental scoring capability.
 
 Unlike the trait-object `Constraint` trait, `IncrementalConstraint` is
@@ -25,7 +28,7 @@ The incremental methods allow delta-based score updates:
 
 This avoids full re-evaluation on every move.
 */
-pub trait IncrementalConstraint<S, Sc: Score>: Send + Sync {
+pub trait IncrementalConstraint<S, Sc: Score>: IncrementalConstraintSealed + Send + Sync {
     /* Full evaluation of this constraint.
 
     Iterates all entities and computes the total score impact.
@@ -142,8 +145,9 @@ impl<'a> ConstraintMetadata<'a> {
 
 /* A set of constraints that can be evaluated together.
 
-`ConstraintSet` is implemented for tuples of `IncrementalConstraint`,
-enabling fully monomorphized constraint evaluation without virtual dispatch.
+`ConstraintSet` is implemented for each `IncrementalConstraint` as a singleton
+set and for tuples of nested `ConstraintSet` values. This keeps composition
+fully monomorphized without virtual dispatch.
 */
 pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     // Evaluates all constraints and returns the total score.
@@ -152,8 +156,14 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     // Returns the number of constraints in this set.
     fn constraint_count(&self) -> usize;
 
-    // Returns immutable metadata for constraints in this set.
-    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>;
+    // Returns deduplicated immutable metadata for constraints in this set.
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+        deduplicate_constraint_metadata(self.constraint_metadata_entries())
+    }
+
+    // Returns one metadata entry per constraint in authored order.
+    #[doc(hidden)]
+    fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>>;
 
     /* Evaluates each constraint individually and returns per-constraint results.
 
@@ -201,6 +211,69 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     fn reset_all(&mut self);
 }
 
+impl<S, Sc, C> ConstraintSet<S, Sc> for C
+where
+    S: Send + Sync,
+    Sc: Score,
+    C: IncrementalConstraint<S, Sc>,
+{
+    #[inline]
+    fn evaluate_all(&self, solution: &S) -> Sc {
+        self.evaluate(solution)
+    }
+
+    #[inline]
+    fn constraint_count(&self) -> usize {
+        1
+    }
+
+    fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>> {
+        vec![ConstraintMetadata::new(
+            self.constraint_ref(),
+            self.is_hard(),
+        )]
+    }
+
+    fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>> {
+        vec![ConstraintResult {
+            name: self.name(),
+            score: self.evaluate(solution),
+            match_count: self.match_count(solution),
+            is_hard: self.is_hard(),
+        }]
+    }
+
+    fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>> {
+        vec![ConstraintAnalysis::new(
+            self.constraint_ref(),
+            self.weight(),
+            self.evaluate(solution),
+            self.get_matches(solution),
+            self.is_hard(),
+        )]
+    }
+
+    #[inline]
+    fn initialize_all(&mut self, solution: &S) -> Sc {
+        self.initialize(solution)
+    }
+
+    #[inline]
+    fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        self.on_insert(solution, entity_index, descriptor_index)
+    }
+
+    #[inline]
+    fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        self.on_retract(solution, entity_index, descriptor_index)
+    }
+
+    #[inline]
+    fn reset_all(&mut self) {
+        self.reset();
+    }
+}
+
 /* ============================================================================
 Tuple implementations
 ============================================================================
@@ -219,7 +292,7 @@ impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
     }
 
     #[inline]
-    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+    fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>> {
         Vec::new()
     }
 
@@ -269,76 +342,66 @@ macro_rules! impl_constraint_set_for_tuple {
         where
             S: Send + Sync,
             Sc: Score,
-            $($T: IncrementalConstraint<S, Sc>,)+
+            $($T: ConstraintSet<S, Sc>,)+
         {
             #[inline]
             fn evaluate_all(&self, solution: &S) -> Sc {
                 let mut total = Sc::zero();
-                $(total = total + self.$idx.evaluate(solution);)+
+                $(total = total + self.$idx.evaluate_all(solution);)+
                 total
             }
 
             #[inline]
             fn constraint_count(&self) -> usize {
                 let mut count = 0;
-                $(let _ = &self.$idx; count += 1;)+
+                $(count += self.$idx.constraint_count();)+
                 count
             }
 
-            fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+            fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>> {
                 let mut metadata = Vec::new();
                 $(
-                    push_constraint_metadata(
-                        &mut metadata,
-                        ConstraintMetadata::new(self.$idx.constraint_ref(), self.$idx.is_hard()),
-                    );
+                    metadata.extend(self.$idx.constraint_metadata_entries());
                 )+
                 metadata
             }
 
             fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>> {
-                vec![$(ConstraintResult {
-                    name: self.$idx.name(),
-                    score: self.$idx.evaluate(solution),
-                    match_count: self.$idx.match_count(solution),
-                    is_hard: self.$idx.is_hard(),
-                }),+]
+                let mut results = Vec::with_capacity(self.constraint_count());
+                $(results.extend(self.$idx.evaluate_each(solution));)+
+                results
             }
 
             fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>> {
-                vec![$(ConstraintAnalysis::new(
-                    self.$idx.constraint_ref(),
-                    self.$idx.weight(),
-                    self.$idx.evaluate(solution),
-                    self.$idx.get_matches(solution),
-                    self.$idx.is_hard(),
-                )),+]
+                let mut analyses = Vec::with_capacity(self.constraint_count());
+                $(analyses.extend(self.$idx.evaluate_detailed(solution));)+
+                analyses
             }
 
             #[inline]
             fn initialize_all(&mut self, solution: &S) -> Sc {
                 let mut total = Sc::zero();
-                $(total = total + self.$idx.initialize(solution);)+
+                $(total = total + self.$idx.initialize_all(solution);)+
                 total
             }
 
             #[inline]
             fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
                 let mut total = Sc::zero();
-                $(total = total + self.$idx.on_insert(solution, entity_index, descriptor_index);)+
+                $(total = total + self.$idx.on_insert_all(solution, entity_index, descriptor_index);)+
                 total
             }
 
             #[inline]
             fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
                 let mut total = Sc::zero();
-                $(total = total + self.$idx.on_retract(solution, entity_index, descriptor_index);)+
+                $(total = total + self.$idx.on_retract_all(solution, entity_index, descriptor_index);)+
                 total
             }
 
             #[inline]
             fn reset_all(&mut self) {
-                $(self.$idx.reset();)+
+                $(self.$idx.reset_all();)+
             }
         }
     };
@@ -361,6 +424,16 @@ pub(super) fn push_constraint_metadata<'a>(
         return;
     }
     metadata.push(candidate);
+}
+
+pub(super) fn deduplicate_constraint_metadata<'a>(
+    candidates: Vec<ConstraintMetadata<'a>>,
+) -> Vec<ConstraintMetadata<'a>> {
+    let mut metadata = Vec::new();
+    for candidate in candidates {
+        push_constraint_metadata(&mut metadata, candidate);
+    }
+    metadata
 }
 
 // Implement for tuples of size 1 through 32.

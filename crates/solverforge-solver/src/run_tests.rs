@@ -42,7 +42,7 @@ impl ConstraintSet<TestSolution, SoftScore> for ScoreFromSolutionConstraints {
         0
     }
 
-    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+    fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>> {
         Vec::new()
     }
 

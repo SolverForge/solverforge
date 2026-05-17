@@ -1,7 +1,8 @@
 // Tests for constraint set types.
 
 use super::super::{
-    ConstraintSet, ConstraintSetSource, IncrementalConstraint, OrderedConstraintSetChain,
+    ConstraintSet, ConstraintSetSource, IncrementalConstraint, IncrementalConstraintSealed,
+    OrderedConstraintSetChain,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_core::ConstraintRef;
@@ -62,6 +63,8 @@ where
         }
     }
 }
+
+impl<S, F> IncrementalConstraintSealed for CountingConstraint<S, F> {}
 
 impl<S, F> IncrementalConstraint<S, SoftScore> for CountingConstraint<S, F>
 where
@@ -171,6 +174,26 @@ fn test_single_constraint() {
 }
 
 #[test]
+fn tuple_elements_can_be_nested_constraint_sets() {
+    let c1 = CountingConstraint::new("first", entity_count, |_: &TestSolution, i| i == 0, 1);
+    let c2 = CountingConstraint::new("second", entity_count, |_: &TestSolution, i| i == 1, 2);
+    let c3 = CountingConstraint::new("third", entity_count, |_: &TestSolution, i| i == 2, 3);
+    let constraints = (c1, (c2, c3));
+    let solution = TestSolution {
+        values: vec![Some(10), Some(20), Some(30)],
+    };
+
+    assert_eq!(constraints.evaluate_all(&solution), SoftScore::of(-6));
+    assert_eq!(constraints.constraint_count(), 3);
+    let names = constraints
+        .evaluate_each(&solution)
+        .into_iter()
+        .map(|result| result.name)
+        .collect::<Vec<_>>();
+    assert_eq!(names, vec!["first", "second", "third"]);
+}
+
+#[test]
 fn test_two_constraints() {
     let c1 = CountingConstraint::new(
         "unassigned",
@@ -227,7 +250,10 @@ fn ordered_constraint_set_chain_accounts_for_multi_constraint_right_blocks() {
         (middle_first, middle_second),
         vec![
             ConstraintSetSource::Left,
-            ConstraintSetSource::Right(2),
+            ConstraintSetSource::Right {
+                constraint_count: 2,
+                metadata_entry_count: 2,
+            },
             ConstraintSetSource::Left,
         ],
     );

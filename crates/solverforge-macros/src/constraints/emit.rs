@@ -1,14 +1,15 @@
 use quote::{format_ident, quote};
 
 use super::ast::{
-    ConstraintFunction, ConstraintProgram, OtherMemberKind, SharedGroupedProgram, TailMember,
-    TerminalConstraint, TerminalKind,
+    ConstraintFunction, ConstraintProgram, SharedGroupedProgram, TailMember, TerminalConstraint,
+    TerminalKind,
 };
 
 struct EmittedMember<'a> {
     terminal: Option<&'a TerminalConstraint>,
     set: proc_macro2::TokenStream,
     count: proc_macro2::TokenStream,
+    metadata_entry_count: proc_macro2::TokenStream,
     preamble: proc_macro2::TokenStream,
 }
 
@@ -71,35 +72,25 @@ fn emit_member(index: usize, member: &TailMember) -> EmittedMember<'_> {
             terminal: Some(terminal),
             set: emit_terminal(terminal),
             count: quote! { 1usize },
+            metadata_entry_count: quote! { 1usize },
             preamble: quote! {},
         },
-        TailMember::Other { tokens, kind } => {
+        TailMember::Other { tokens } => {
             let member_ident = format_ident!("__solverforge_member_{index}");
             let count_ident = format_ident!("__solverforge_member_count_{index}");
-            let set = match kind {
-                OtherMemberKind::SingleConstraint => quote! { (#member_ident,) },
-                OtherMemberKind::ConstraintSet => quote! { #member_ident },
-            };
-            let count = match kind {
-                OtherMemberKind::SingleConstraint => quote! { 1usize },
-                OtherMemberKind::ConstraintSet => quote! { #count_ident },
-            };
-            let count_statement = match kind {
-                OtherMemberKind::SingleConstraint => quote! {},
-                OtherMemberKind::ConstraintSet => {
-                    quote! {
-                        let #count_ident =
-                            ::solverforge::__internal::ConstraintSet::constraint_count(&#member_ident);
-                    }
-                }
-            };
+            let metadata_entry_count_ident =
+                format_ident!("__solverforge_member_metadata_entry_count_{index}");
             EmittedMember {
                 terminal: None,
-                set,
-                count,
+                set: quote! { #member_ident },
+                count: quote! { #count_ident },
+                metadata_entry_count: quote! { #metadata_entry_count_ident },
                 preamble: quote! {
                     let #member_ident = #tokens;
-                    #count_statement
+                    let #count_ident =
+                        ::solverforge::__internal::ConstraintSet::constraint_count(&#member_ident);
+                    let #metadata_entry_count_ident =
+                        ::solverforge::__internal::ConstraintSet::constraint_metadata_entries(&#member_ident).len();
                 },
             }
         }
@@ -123,7 +114,13 @@ fn emit_member_set(
             order.push(quote! { ::solverforge::__internal::ConstraintSetSource::Left });
         } else {
             let count = &member.count;
-            order.push(quote! { ::solverforge::__internal::ConstraintSetSource::Right(#count) });
+            let metadata_entry_count = &member.metadata_entry_count;
+            order.push(quote! {
+                ::solverforge::__internal::ConstraintSetSource::Right {
+                    constraint_count: #count,
+                    metadata_entry_count: #metadata_entry_count,
+                }
+            });
             right_members.push(member);
         }
     }

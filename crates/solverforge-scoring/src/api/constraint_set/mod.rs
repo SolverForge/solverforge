@@ -7,4 +7,7 @@ mod incremental;
 mod tests;
 
 pub use chain::{ConstraintSetChain, ConstraintSetSource, OrderedConstraintSetChain};
-pub use incremental::{ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint};
+pub use incremental::{
+    ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
+    IncrementalConstraintSealed,
+};

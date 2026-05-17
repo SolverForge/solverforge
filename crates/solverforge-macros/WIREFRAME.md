@@ -109,7 +109,9 @@ Supported shared terminals are emitted back through the ordinary fluent
 terminal path as a single chained stream finalization; the macro does not call
 parallel shared-node constructors. Tuple members that are not part of the
 repeated same-binding group are preserved and combined with the shared terminal
-set through monomorphized `ConstraintSet` composition. Opaque tuples without a
+set through monomorphized `ConstraintSet` composition; the macro does not guess
+whether an opaque expression is a singleton constraint or a multi-constraint set
+from its syntax. Opaque tuples without a
 repeated same-binding grouped terminal stay on the existing Rust path; the
 compiler never adds a public `share`, `derive`, prefix, or suffix API.
 

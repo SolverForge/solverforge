@@ -21,7 +21,7 @@ pub use analysis::{
 };
 pub use constraint_set::{
     ConstraintMetadata, ConstraintSet, ConstraintSetChain, ConstraintSetSource,
-    IncrementalConstraint, OrderedConstraintSetChain,
+    IncrementalConstraint, IncrementalConstraintSealed, OrderedConstraintSetChain,
 };
 pub use node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
 pub use weight_overrides::{ConstraintWeightOverrides, WeightProvider};

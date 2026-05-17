@@ -29,18 +29,9 @@ pub(crate) struct TerminalConstraint {
 }
 
 #[derive(Debug)]
-pub(crate) enum OtherMemberKind {
-    SingleConstraint,
-    ConstraintSet,
-}
-
-#[derive(Debug)]
 pub(crate) enum TailMember {
     Terminal(TerminalConstraint),
-    Other {
-        tokens: TokenStream,
-        kind: OtherMemberKind,
-    },
+    Other { tokens: TokenStream },
 }
 
 #[derive(Debug)]

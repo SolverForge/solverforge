@@ -2,9 +2,7 @@ use std::collections::VecDeque;
 
 use solverforge_core::score::Score;
 
-use super::incremental::{
-    push_constraint_metadata, ConstraintMetadata, ConstraintResult, ConstraintSet,
-};
+use super::incremental::{ConstraintMetadata, ConstraintResult, ConstraintSet};
 use crate::api::analysis::ConstraintAnalysis;
 
 pub struct ConstraintSetChain<Left, Right> {
@@ -14,7 +12,10 @@ pub struct ConstraintSetChain<Left, Right> {
 
 pub enum ConstraintSetSource {
     Left,
-    Right(usize),
+    Right {
+        constraint_count: usize,
+        metadata_entry_count: usize,
+    },
 }
 
 pub struct OrderedConstraintSetChain<Left, Right> {
@@ -52,11 +53,9 @@ where
         self.left.constraint_count() + self.right.constraint_count()
     }
 
-    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
-        let mut metadata = self.left.constraint_metadata();
-        for candidate in self.right.constraint_metadata() {
-            push_constraint_metadata(&mut metadata, candidate);
-        }
+    fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>> {
+        let mut metadata = self.left.constraint_metadata_entries();
+        metadata.extend(self.right.constraint_metadata_entries());
         metadata
     }
 
@@ -119,9 +118,9 @@ where
         self.left.constraint_count() + self.right.constraint_count()
     }
 
-    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
-        let mut left = VecDeque::from(self.left.constraint_metadata());
-        let mut right = VecDeque::from(self.right.constraint_metadata());
+    fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>> {
+        let mut left = VecDeque::from(self.left.constraint_metadata_entries());
+        let mut right = VecDeque::from(self.right.constraint_metadata_entries());
         let mut metadata = Vec::new();
         for source in &self.order {
             match source {
@@ -129,14 +128,17 @@ where
                     let Some(candidate) = left.pop_front() else {
                         panic!("ordered constraint set source order does not match metadata");
                     };
-                    push_constraint_metadata(&mut metadata, candidate);
+                    metadata.push(candidate);
                 }
-                ConstraintSetSource::Right(count) => {
-                    for _ in 0..*count {
+                ConstraintSetSource::Right {
+                    metadata_entry_count,
+                    ..
+                } => {
+                    for _ in 0..*metadata_entry_count {
                         let Some(candidate) = right.pop_front() else {
                             panic!("ordered constraint set source order does not match metadata");
                         };
-                        push_constraint_metadata(&mut metadata, candidate);
+                        metadata.push(candidate);
                     }
                 }
             }
@@ -162,8 +164,10 @@ where
                     };
                     results.push(result);
                 }
-                ConstraintSetSource::Right(count) => {
-                    for _ in 0..*count {
+                ConstraintSetSource::Right {
+                    constraint_count, ..
+                } => {
+                    for _ in 0..*constraint_count {
                         let Some(result) = right.pop_front() else {
                             panic!(
                                 "ordered constraint set source order does not match constraint results"
@@ -193,8 +197,10 @@ where
                     };
                     analyses.push(analysis);
                 }
-                ConstraintSetSource::Right(count) => {
-                    for _ in 0..*count {
+                ConstraintSetSource::Right {
+                    constraint_count, ..
+                } => {
+                    for _ in 0..*constraint_count {
                         let Some(analysis) = right.pop_front() else {
                             panic!(
                                 "ordered constraint set source order does not match constraint analyses"

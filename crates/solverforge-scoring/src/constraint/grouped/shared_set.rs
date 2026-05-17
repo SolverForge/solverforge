@@ -227,7 +227,7 @@ where
         self.scorers.constraint_count()
     }
 
-    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+    fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>> {
         self.scorers.constraint_metadata()
     }
 

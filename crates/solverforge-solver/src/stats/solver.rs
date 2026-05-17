@@ -299,7 +299,7 @@ impl SolverStats {
             selector_telemetry: self.selector_stats.clone(),
             move_telemetry: self.move_stats.values().cloned().collect(),
             applied_move_trace: if include_applied_move_trace {
-                self.applied_move_trace.iter().copied().collect()
+                self.applied_move_trace.to_vec()
             } else {
                 Vec::new()
             },

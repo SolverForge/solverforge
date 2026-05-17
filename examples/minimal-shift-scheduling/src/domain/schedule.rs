@@ -18,6 +18,7 @@ pub struct Schedule {
     pub score: Option<HardSoftScore>,
 }
 
+#[solverforge_constraints]
 fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
     let unassigned_required = ConstraintFactory::<Schedule, HardSoftScore>::new()
         .for_each(Schedule::shifts())

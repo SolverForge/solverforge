@@ -40,7 +40,9 @@ Attribute Macros
 ============================================================================
 */
 
-pub use solverforge_macros::{planning_entity, planning_model, planning_solution, problem_fact};
+pub use solverforge_macros::{
+    planning_entity, planning_model, planning_solution, problem_fact, solverforge_constraints,
+};
 
 /* ============================================================================
 Score Types
@@ -71,8 +73,9 @@ Constraint API
 
 pub use solverforge_scoring::{
     fixed_weight, hard_weight, ConstraintMetadata, ConstraintSet, FixedWeight, HardWeight,
-    IncrementalBiConstraint, IncrementalConstraint, IncrementalUniConstraint, Projection,
-    ProjectionSink,
+    IncrementalBiConstraint, IncrementalConstraint, IncrementalConstraintSealed,
+    IncrementalUniConstraint, Projection, ProjectionSink, SharedNodeDiagnostics, SharedNodeId,
+    SharedNodeOperation,
 };
 
 /* ============================================================================

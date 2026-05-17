@@ -9,6 +9,7 @@ This module provides:
 
 pub mod analysis;
 pub mod constraint_set;
+pub mod node_sharing;
 pub mod weight_overrides;
 
 #[cfg(test)]
@@ -18,5 +19,9 @@ pub use analysis::{
     ConstraintAnalysis, ConstraintJustification, DetailedConstraintEvaluation,
     DetailedConstraintMatch, EntityRef, Indictment, IndictmentMap, ScoreExplanation,
 };
-pub use constraint_set::{ConstraintMetadata, ConstraintSet, IncrementalConstraint};
+pub use constraint_set::{
+    ConstraintMetadata, ConstraintSet, ConstraintSetChain, ConstraintSetSource,
+    IncrementalConstraint, IncrementalConstraintSealed, OrderedConstraintSetChain,
+};
+pub use node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
 pub use weight_overrides::{ConstraintWeightOverrides, WeightProvider};

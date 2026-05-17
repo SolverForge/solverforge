@@ -1,46 +1,27 @@
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
-
-use solverforge_core::score::Score;
-use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
 use crate::stream::{ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource};
 
+use super::indexes::key_hash;
+
 type CollectorRetraction<Acc, V, R> = <Acc as Accumulator<V, R>>::Retraction;
 
-pub(super) struct GroupState<Acc> {
-    accumulator: Acc,
-    count: usize,
+pub(super) struct GroupState<K, Acc> {
+    pub(super) key: K,
+    pub(super) accumulator: Acc,
+    pub(super) count: usize,
 }
 
-pub struct ProjectedComplementedGroupedConstraint<
-    S,
-    Out,
-    B,
-    K,
-    Src,
-    EB,
-    F,
-    KA,
-    KB,
-    C,
-    V,
-    R,
-    Acc,
-    D,
-    W,
-    Sc,
-> where
+pub struct ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
+where
     Src: ProjectedSource<S, Out>,
     Acc: Accumulator<V, R>,
-    Sc: Score,
 {
-    pub(super) constraint_ref: ConstraintRef,
-    pub(super) impact_type: ImpactType,
     pub(super) source: Src,
     pub(super) extractor_b: EB,
     pub(super) filter: F,
@@ -48,17 +29,20 @@ pub struct ProjectedComplementedGroupedConstraint<
     pub(super) key_b: KB,
     pub(super) collector: C,
     pub(super) default_fn: D,
-    pub(super) weight_fn: W,
-    pub(super) is_hard: bool,
     pub(super) b_source: ChangeSource,
     pub(super) source_state: Option<Src::State>,
-    pub(super) groups: HashMap<K, GroupState<Acc>>,
-    pub(super) row_outputs: HashMap<ProjectedRowCoordinate, Out>,
-    pub(super) row_keys: HashMap<ProjectedRowCoordinate, K>,
-    pub(super) row_retractions: HashMap<ProjectedRowCoordinate, CollectorRetraction<Acc, V, R>>,
-    pub(super) rows_by_owner: HashMap<ProjectedRowOwner, Vec<ProjectedRowCoordinate>>,
-    pub(super) b_by_key: HashMap<K, Vec<usize>>,
-    pub(super) b_index_to_key: HashMap<usize, K>,
+    pub(super) groups: Vec<GroupState<K, Acc>>,
+    pub(super) groups_by_hash: HashMap<u64, Vec<usize>>,
+    row_groups: HashMap<ProjectedRowCoordinate, usize>,
+    row_retractions: HashMap<ProjectedRowCoordinate, CollectorRetraction<Acc, V, R>>,
+    rows_by_owner: HashMap<ProjectedRowOwner, Vec<ProjectedRowCoordinate>>,
+    pub(super) complement_groups: HashMap<usize, usize>,
+    pub(super) complements_by_group: HashMap<usize, Vec<usize>>,
+    pub(super) complement_defaults: HashMap<usize, R>,
+    pub(super) changed_groups: Vec<usize>,
+    pub(super) changed_complements: Vec<usize>,
+    update_count: usize,
+    changed_key_count: usize,
     pub(super) _phantom: PhantomData<(
         fn() -> S,
         fn() -> Out,
@@ -66,17 +50,25 @@ pub struct ProjectedComplementedGroupedConstraint<
         fn() -> V,
         fn() -> R,
         fn() -> Acc,
-        fn() -> Sc,
     )>,
 }
 
-impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
-    ProjectedComplementedGroupedConstraint<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
+pub struct ProjectedComplementedGroupedEvaluationState<K, V, R, Acc>
+where
+    Acc: Accumulator<V, R>,
+{
+    pub(super) groups: HashMap<K, Acc>,
+    pub(super) complements: Vec<(K, R)>,
+    pub(super) _phantom: PhantomData<fn() -> V>,
+}
+
+impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
+    ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
@@ -87,13 +79,9 @@ where
     R: Send + Sync,
     Acc: Accumulator<V, R> + Send + Sync,
     D: Fn(&B) -> R + Send + Sync,
-    W: Fn(&K, &R) -> Sc + Send + Sync,
-    Sc: Score + 'static,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        constraint_ref: ConstraintRef,
-        impact_type: ImpactType,
         source: Src,
         extractor_b: EB,
         filter: F,
@@ -101,13 +89,9 @@ where
         key_b: KB,
         collector: C,
         default_fn: D,
-        weight_fn: W,
-        is_hard: bool,
     ) -> Self {
         let b_source = extractor_b.change_source();
         Self {
-            constraint_ref,
-            impact_type,
             source,
             extractor_b,
             filter,
@@ -115,119 +99,234 @@ where
             key_b,
             collector,
             default_fn,
-            weight_fn,
-            is_hard,
             b_source,
             source_state: None,
-            groups: HashMap::new(),
-            row_outputs: HashMap::new(),
-            row_keys: HashMap::new(),
+            groups: Vec::new(),
+            groups_by_hash: HashMap::new(),
+            row_groups: HashMap::new(),
             row_retractions: HashMap::new(),
             rows_by_owner: HashMap::new(),
-            b_by_key: HashMap::new(),
-            b_index_to_key: HashMap::new(),
+            complement_groups: HashMap::new(),
+            complements_by_group: HashMap::new(),
+            complement_defaults: HashMap::new(),
+            changed_groups: Vec::new(),
+            changed_complements: Vec::new(),
+            update_count: 0,
+            changed_key_count: 0,
             _phantom: PhantomData,
         }
     }
 
-    pub(super) fn compute_score(&self, key: &K, result: &R) -> Sc {
-        let base = (self.weight_fn)(key, result);
-        match self.impact_type {
-            ImpactType::Penalty => -base,
-            ImpactType::Reward => base,
+    pub fn evaluation_state(
+        &self,
+        solution: &S,
+    ) -> ProjectedComplementedGroupedEvaluationState<K, V, R, Acc> {
+        let entities_b = self.extractor_b.extract(solution);
+        let state = self.source.build_state(solution);
+        let mut groups = HashMap::<K, Acc>::new();
+        self.source.collect_all(solution, &state, |_, output| {
+            if !self.filter.test(solution, &output) {
+                return;
+            }
+            let Some(key) = (self.key_a)(&output) else {
+                return;
+            };
+            let value = self.collector.extract(&output);
+            groups
+                .entry(key)
+                .or_insert_with(|| self.collector.create_accumulator())
+                .accumulate(value);
+        });
+
+        let mut complements = Vec::new();
+        for entity in entities_b {
+            if self.extractor_b.contains(solution, entity) {
+                complements.push(((self.key_b)(entity), (self.default_fn)(entity)));
+            }
         }
-    }
-    fn b_score_for_index(&self, entities_b: &[B], key: &K, b_idx: usize) -> Sc {
-        if b_idx >= entities_b.len() {
-            return Sc::zero();
+        ProjectedComplementedGroupedEvaluationState {
+            groups,
+            complements,
+            _phantom: PhantomData,
         }
-        if let Some(group) = self.groups.get(key) {
-            return group
-                .accumulator
-                .with_result(|result| self.compute_score(key, result));
-        }
-        let default_result = (self.default_fn)(&entities_b[b_idx]);
-        self.compute_score(key, &default_result)
     }
 
-    fn key_score(&self, entities_b: &[B], key: &K) -> Sc {
-        let Some(indices) = self.b_by_key.get(key) else {
-            return Sc::zero();
-        };
-        indices.iter().fold(Sc::zero(), |total, &b_idx| {
-            total + self.b_score_for_index(entities_b, key, b_idx)
-        })
+    pub fn initialize(&mut self, solution: &S) {
+        self.reset();
+        let entities_b = self.extractor_b.extract(solution);
+        for idx in 0..entities_b.len() {
+            self.insert_b(solution, entities_b, idx);
+        }
+
+        let state = self.source.build_state(solution);
+        let mut rows = Vec::new();
+        self.source
+            .collect_all(solution, &state, |coordinate, output| {
+                rows.push((coordinate, output));
+            });
+        self.source_state = Some(state);
+        for (coordinate, output) in rows {
+            self.insert_row(solution, coordinate, output);
+        }
+        self.changed_groups.clear();
+        self.changed_complements.clear();
     }
 
-    fn remove_index_from_key_bucket(
-        indexes_by_key: &mut HashMap<K, Vec<usize>>,
-        key: &K,
-        idx: usize,
-    ) {
+    pub fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) {
+        self.changed_groups.clear();
+        self.changed_complements.clear();
+        let owners = self.localized_owners(descriptor_index, entity_index);
+        let b_changed = self
+            .b_source
+            .assert_localizes(descriptor_index, "projected complemented grouped");
+        let entities_b = self.extractor_b.extract(solution);
+
+        if !owners.is_empty() {
+            self.ensure_source_state(solution);
+            {
+                let state = self.source_state.as_mut().expect("projected source state");
+                for owner in &owners {
+                    self.source.insert_entity_state(
+                        solution,
+                        state,
+                        owner.source_slot,
+                        owner.entity_index,
+                    );
+                }
+            }
+            let mut rows = Vec::new();
+            let state = self.source_state.as_ref().expect("projected source state");
+            for owner in &owners {
+                self.source.collect_entity(
+                    solution,
+                    state,
+                    owner.source_slot,
+                    owner.entity_index,
+                    |coordinate, output| rows.push((coordinate, output)),
+                );
+            }
+            for (coordinate, output) in rows {
+                self.insert_row(solution, coordinate, output);
+            }
+        }
+        if b_changed {
+            self.insert_b(solution, entities_b, entity_index);
+        }
+        if !owners.is_empty() || b_changed {
+            self.update_count += 1;
+            self.changed_key_count += self.changed_groups.len();
+        }
+    }
+
+    pub fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) {
+        self.changed_groups.clear();
+        self.changed_complements.clear();
+        let owners = self.localized_owners(descriptor_index, entity_index);
+        let b_changed = self
+            .b_source
+            .assert_localizes(descriptor_index, "projected complemented grouped");
+
+        for coordinate in self.coordinates_for_owners(&owners) {
+            self.retract_row(coordinate);
+        }
+        if let Some(state) = self.source_state.as_mut() {
+            for owner in &owners {
+                self.source.retract_entity_state(
+                    solution,
+                    state,
+                    owner.source_slot,
+                    owner.entity_index,
+                );
+            }
+        }
+        if b_changed {
+            self.retract_b(entity_index);
+        }
+        if !owners.is_empty() || b_changed {
+            self.update_count += 1;
+            self.changed_key_count += self.changed_groups.len();
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.source_state = None;
+        self.groups.clear();
+        self.groups_by_hash.clear();
+        self.row_groups.clear();
+        self.row_retractions.clear();
+        self.rows_by_owner.clear();
+        self.complement_groups.clear();
+        self.complements_by_group.clear();
+        self.complement_defaults.clear();
+        self.changed_groups.clear();
+        self.changed_complements.clear();
+    }
+
+    pub fn update_count(&self) -> usize {
+        self.update_count
+    }
+
+    pub fn changed_key_count(&self) -> usize {
+        self.changed_key_count
+    }
+
+    fn mark_changed(&mut self, group_id: usize) {
+        if !self.changed_groups.contains(&group_id) {
+            self.changed_groups.push(group_id);
+        }
+    }
+
+    fn mark_complement_changed(&mut self, b_idx: usize) {
+        if !self.changed_complements.contains(&b_idx) {
+            self.changed_complements.push(b_idx);
+        }
+    }
+
+    fn remove_complement_from_group(&mut self, group_id: usize, b_idx: usize) {
         let mut remove_bucket = false;
-        if let Some(indices) = indexes_by_key.get_mut(key) {
-            if let Some(pos) = indices.iter().position(|candidate| *candidate == idx) {
+        if let Some(indices) = self.complements_by_group.get_mut(&group_id) {
+            if let Some(pos) = indices.iter().position(|candidate| *candidate == b_idx) {
                 indices.swap_remove(pos);
             }
             remove_bucket = indices.is_empty();
         }
         if remove_bucket {
-            indexes_by_key.remove(key);
+            self.complements_by_group.remove(&group_id);
         }
     }
 
-    fn index_b(&mut self, key: K, b_idx: usize) {
-        if let Some(old_key) = self.b_index_to_key.insert(b_idx, key.clone()) {
-            Self::remove_index_from_key_bucket(&mut self.b_by_key, &old_key, b_idx);
+    fn index_b(&mut self, group_id: usize, b_idx: usize) {
+        if let Some(old_group_id) = self.complement_groups.insert(b_idx, group_id) {
+            self.remove_complement_from_group(old_group_id, b_idx);
+            self.mark_changed(old_group_id);
         }
-        self.b_by_key.entry(key).or_default().push(b_idx);
+        self.complements_by_group
+            .entry(group_id)
+            .or_default()
+            .push(b_idx);
+        self.mark_complement_changed(b_idx);
+        self.mark_changed(group_id);
     }
 
-    fn insert_value(
-        &mut self,
-        entities_b: &[B],
-        key: K,
-        value: V,
-    ) -> (Sc, CollectorRetraction<Acc, V, R>) {
-        let old = self.key_score(entities_b, &key);
-        let retraction = match self.groups.entry(key.clone()) {
-            Entry::Occupied(mut entry) => {
-                let group = entry.get_mut();
-                let retraction = group.accumulator.accumulate(value);
-                group.count += 1;
-                retraction
-            }
-            Entry::Vacant(entry) => {
-                let group = entry.insert(GroupState {
-                    accumulator: self.collector.create_accumulator(),
-                    count: 0,
-                });
-                let retraction = group.accumulator.accumulate(value);
-                group.count += 1;
-                retraction
-            }
-        };
-        let new_score = self.key_score(entities_b, &key);
-        (new_score - old, retraction)
+    fn insert_value(&mut self, key: K, value: V) -> (usize, CollectorRetraction<Acc, V, R>) {
+        let group_id = self.group_id_for_key(key);
+        let group = &mut self.groups[group_id];
+        if group.count == 0 {
+            group.accumulator.reset();
+        }
+        let retraction = group.accumulator.accumulate(value);
+        group.count += 1;
+        self.mark_changed(group_id);
+        (group_id, retraction)
     }
-    fn retract_value(
-        &mut self,
-        entities_b: &[B],
-        key: K,
-        retraction: CollectorRetraction<Acc, V, R>,
-    ) -> Sc {
-        let old = self.key_score(entities_b, &key);
-        let Entry::Occupied(mut entry) = self.groups.entry(key.clone()) else {
-            return Sc::zero();
+
+    fn retract_value(&mut self, group_id: usize, retraction: CollectorRetraction<Acc, V, R>) {
+        let Some(group) = self.groups.get_mut(group_id) else {
+            return;
         };
-        let group = entry.get_mut();
         group.accumulator.retract(retraction);
         group.count = group.count.saturating_sub(1);
-        if group.count == 0 {
-            entry.remove();
-        }
-        let new_score = self.key_score(entities_b, &key);
-        new_score - old
+        self.mark_changed(group_id);
     }
 
     pub(super) fn ensure_source_state(&mut self, solution: &S) {
@@ -235,6 +334,7 @@ where
             self.source_state = Some(self.source.build_state(solution));
         }
     }
+
     fn index_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
         coordinate.for_each_owner(|owner| {
             self.rows_by_owner
@@ -260,41 +360,31 @@ where
     pub(super) fn insert_row(
         &mut self,
         solution: &S,
-        entities_b: &[B],
         coordinate: ProjectedRowCoordinate,
         output: Out,
-    ) -> Sc {
-        if self.row_outputs.contains_key(&coordinate) || !self.filter.test(solution, &output) {
-            return Sc::zero();
+    ) {
+        if self.row_groups.contains_key(&coordinate) || !self.filter.test(solution, &output) {
+            return;
         }
         let Some(key) = (self.key_a)(&output) else {
-            return Sc::zero();
+            return;
         };
         let value = self.collector.extract(&output);
-        let (delta, retraction) = self.insert_value(entities_b, key.clone(), value);
-        self.row_outputs.insert(coordinate, output);
-        self.row_keys.insert(coordinate, key);
+        let (group_id, retraction) = self.insert_value(key, value);
+        self.row_groups.insert(coordinate, group_id);
         self.row_retractions.insert(coordinate, retraction);
         self.index_coordinate(coordinate);
-        delta
     }
 
-    pub(super) fn retract_row(
-        &mut self,
-        entities_b: &[B],
-        coordinate: ProjectedRowCoordinate,
-    ) -> Sc {
-        let Some(_output) = self.row_outputs.remove(&coordinate) else {
-            return Sc::zero();
+    pub(super) fn retract_row(&mut self, coordinate: ProjectedRowCoordinate) {
+        let Some(group_id) = self.row_groups.remove(&coordinate) else {
+            return;
         };
         self.unindex_coordinate(coordinate);
-        let Some(key) = self.row_keys.remove(&coordinate) else {
-            return Sc::zero();
-        };
         let Some(retraction) = self.row_retractions.remove(&coordinate) else {
-            return Sc::zero();
+            return;
         };
-        self.retract_value(entities_b, key, retraction)
+        self.retract_value(group_id, retraction);
     }
 
     pub(super) fn localized_owners(
@@ -307,7 +397,7 @@ where
             if self
                 .source
                 .change_source(slot)
-                .assert_localizes(descriptor_index, &self.constraint_ref.name)
+                .assert_localizes(descriptor_index, "projected complemented grouped")
             {
                 owners.push(ProjectedRowOwner {
                     source_slot: slot,
@@ -337,21 +427,43 @@ where
         coordinates
     }
 
-    pub(super) fn insert_b(&mut self, entities_b: &[B], b_idx: usize) -> Sc {
+    pub(super) fn insert_b(&mut self, solution: &S, entities_b: &[B], b_idx: usize) {
         if b_idx >= entities_b.len() {
-            return Sc::zero();
+            return;
         }
-        let key = (self.key_b)(&entities_b[b_idx]);
-        self.index_b(key.clone(), b_idx);
-        self.b_score_for_index(entities_b, &key, b_idx)
+        let entity = &entities_b[b_idx];
+        if !self.extractor_b.contains(solution, entity) {
+            return;
+        }
+        let key = (self.key_b)(entity);
+        let default_result = (self.default_fn)(entity);
+        let group_id = self.group_id_for_key(key);
+        self.complement_defaults.insert(b_idx, default_result);
+        self.index_b(group_id, b_idx);
     }
 
-    pub(super) fn retract_b(&mut self, entities_b: &[B], b_idx: usize) -> Sc {
-        let Some(key) = self.b_index_to_key.remove(&b_idx) else {
-            return Sc::zero();
+    pub(super) fn retract_b(&mut self, b_idx: usize) {
+        let Some(group_id) = self.complement_groups.remove(&b_idx) else {
+            return;
         };
-        let delta = -self.b_score_for_index(entities_b, &key, b_idx);
-        Self::remove_index_from_key_bucket(&mut self.b_by_key, &key, b_idx);
-        delta
+        self.complement_defaults.remove(&b_idx);
+        self.remove_complement_from_group(group_id, b_idx);
+        self.mark_complement_changed(b_idx);
+        self.mark_changed(group_id);
+    }
+
+    fn group_id_for_key(&mut self, key: K) -> usize {
+        let hash = key_hash(&key);
+        if let Some(group_id) = self.find_group(hash, &key) {
+            return group_id;
+        }
+        let group_id = self.groups.len();
+        self.groups.push(GroupState {
+            key,
+            accumulator: self.collector.create_accumulator(),
+            count: 0,
+        });
+        self.groups_by_hash.entry(hash).or_default().push(group_id);
+        group_id
     }
 }

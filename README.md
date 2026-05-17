@@ -113,7 +113,7 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
   - List: ListChangeMove, ListSwapMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
   - Scalar ruin-recreate, composite moves, cartesian composition, and nearby selection for scalar and list neighborhoods
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
-- **Model Macros**: `planning_model!`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
+- **Model Macros**: `planning_model!`, `#[solverforge_constraints]`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
 - **Scalar Variables**: `#[planning_variable]` fields store candidate indexes
   as `Option<usize>`; keep external IDs on facts or entities.
 - **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, grouped scalar move selectors, conflict-repair selectors, selector telemetry, and level-aware simulated annealing configuration
@@ -148,6 +148,42 @@ scoring. `collect_vec` exposes a
 `CollectedVec<T>` result view, so grouped payloads such as `String` labels do
 not need `Copy`, `Clone`, or `PartialEq` just to be collected.
 
+Constraint functions should be annotated with `#[solverforge_constraints]`.
+The attribute keeps the same fluent Rust authoring style while giving
+SolverForge a whole-function compiler boundary. When the same grouped stream
+binding is reused by multiple terminal constraints, the compiler builds one
+shared incremental node through the same fluent terminal path and keeps each
+terminal constraint separately named:
+
+```rust
+#[solverforge_constraints]
+fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
+    let g = ConstraintFactory::<Schedule, HardSoftScore>::new();
+    let nurse_presence = g
+        .for_each(Schedule::shifts())
+        .filter(|shift: &Shift| shift.nurse_idx.is_some())
+        .group_by(
+            |shift: &Shift| shift.nurse_idx.unwrap_or(usize::MAX),
+            indexed_presence(|shift: &Shift| shift.day),
+        );
+
+    (
+        nurse_presence
+            .penalize(consecutive_work_bounds)
+            .named("consecutiveWorkBounds"),
+        nurse_presence
+            .penalize(consecutive_off_bounds)
+            .named("consecutiveOffBounds"),
+        nurse_presence
+            .penalize(working_weekends)
+            .named("workingWeekends"),
+    )
+}
+```
+
+Repeated same-binding grouped terminals share incremental grouped work.
+Terminal identity, ordering, metadata, and score explanation remain independent.
+
 ## Installation
 
 If you are building directly against the runtime crates instead of starting from
@@ -155,7 +191,7 @@ If you are building directly against the runtime crates instead of starting from
 
 ```toml
 [dependencies]
-solverforge = { version = "0.14.1", features = ["console"] }
+solverforge = { version = "0.15.0", features = ["console"] }
 ```
 
 When `move_selector` is omitted from `acceptor_forager` local search, the
@@ -292,7 +328,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.14.1 - Zero-Erasure Constraint Solver
+                   v0.15.0 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -521,7 +557,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current workspace version:** 0.14.1
+**Current workspace version:** 0.15.0
 
 The current checked-in workspace exposes:
 

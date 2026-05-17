@@ -71,8 +71,8 @@ impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
@@ -255,8 +255,8 @@ impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    B: Clone + Send + Sync + 'static,
-    K: Clone + Eq + Hash + Send + Sync + 'static,
+    B: Send + Sync + 'static,
+    K: Eq + Hash + Send + Sync + 'static,
     Src: ProjectedSource<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,

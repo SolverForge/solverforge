@@ -3,7 +3,7 @@
 Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 
 **Location:** `crates/solverforge-scoring/`
-**Workspace Release:** `0.14.1`
+**Workspace Release:** `0.15.0`
 
 ## Dependencies
 
@@ -16,11 +16,12 @@ Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 src/
 ├── lib.rs                                          — Crate root; re-exports from all modules
 ├── api/
-│   ├── mod.rs                                      — Re-exports analysis, constraint_set, weight_overrides
+│   ├── mod.rs                                      — Re-exports analysis, constraint_set, node_sharing, weight_overrides
 │   ├── analysis.rs                                 — ScoreExplanation, ConstraintAnalysis, Indictment, IndictmentMap, DetailedConstraintMatch, etc.
+│   ├── node_sharing.rs                             — SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation
 │   ├── constraint_set/
-│   │   ├── mod.rs                                  — Re-exports ConstraintSet, IncrementalConstraint, ConstraintMetadata, ConstraintResult
-│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, tuple impls (0..32)
+│   │   ├── mod.rs                                  — Re-exports ConstraintSet, ConstraintSetChain, OrderedConstraintSetChain, ConstraintSetSource, IncrementalConstraint, IncrementalConstraintSealed, ConstraintMetadata, ConstraintResult
+│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, singleton and tuple impls (0..32)
 │   │   └── tests/
 │   │       ├── mod.rs                              — Test module declarations
 │   │       └── constraint_set.rs                   — ConstraintSet tuple tests
@@ -33,25 +34,28 @@ src/
 │   ├── mod.rs                                      — Re-exports all constraint types
 │   ├── macros.rs                                   — impl_get_matches_nary! macro for detailed match generation
 │   ├── shared.rs                                   — compute_hash<T>() utility function
+│   ├── incremental_markers.rs                      — Hidden IncrementalConstraintSealed impls for built-in constraint types
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
-│   ├── grouped.rs                                  — GroupedUniConstraint<S,A,K,E,Fi,KF,C,V,R,Acc,W,Sc>
+│   ├── grouped.rs                                  — Grouped module root: legacy terminal wrapper, shared node state, terminal scorers, scorer sets, shared set
+│   ├── grouped/*.rs                                — GroupedNodeState, GroupedTerminalScorer, GroupedScorerSet, SharedGroupedConstraintSet, one-terminal wrapper
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
 │   ├── complemented.rs                             — ComplementedGroupConstraint module root and re-exports
 │   ├── complemented/*.rs                           — Retained complemented state, incremental callbacks, helpers, and debug accessors
 │   ├── cross_bi_incremental.rs                     — IncrementalCrossBiConstraint module root and re-exports
 │   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
 │   ├── cross_grouped.rs                            — CrossGroupedConstraint module root and re-exports
-│   ├── cross_grouped/*.rs                          — Retained cross-join grouped state and incremental callbacks
-│   ├── cross_complemented_grouped.rs               — CrossComplementedGroupedConstraint module root and re-exports
-│   ├── cross_complemented_grouped/*.rs             — Retained direct cross-join grouped complement state, updates, and incremental callbacks
+│   ├── cross_grouped/*.rs                          — CrossGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
+│   ├── cross_complemented_grouped.rs               — CrossComplementedGroupedConstraint module root and internal shared engine re-exports
+│   ├── cross_complemented_grouped/*.rs             — CrossComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
 │   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
 │   ├── exists/
 │   │   └── key_state.rs                            — Internal hashed/indexed key bookkeeping for existence constraints
 │   ├── projected.rs                                — Projected retained scoring-row constraint module root and re-exports
-│   ├── projected/*.rs                              — Projected uni, bi, grouped, and complemented-grouped constraints
-│   ├── projected/complemented_grouped/*.rs         — Retained projected grouped complement state and incremental callbacks
+│   ├── projected/*.rs                              — Projected uni, bi, grouped module root, and complemented-grouped constraints
+│   ├── projected/grouped/*.rs                      — ProjectedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
+│   ├── projected/complemented_grouped/*.rs         — ProjectedComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
@@ -67,7 +71,8 @@ src/
 │       ├── tri_incr.rs                             — IncrementalTriConstraint tests
 │       ├── quad_incr.rs                            — IncrementalQuadConstraint tests
 │       ├── penta_incr.rs                           — IncrementalPentaConstraint tests
-│       ├── grouped.rs                              — GroupedUniConstraint tests
+│       ├── grouped.rs                              — GroupedUniConstraint and shared grouped node tests
+│       ├── cross_grouped.rs                        — Shared direct cross grouped node tests
 │       ├── balance.rs                              — BalanceConstraint tests
 │       ├── complemented.rs                         — ComplementedGroupConstraint tests
 │       ├── cross_complemented_grouped.rs           — Direct cross-join grouped complement tests
@@ -186,7 +191,9 @@ pub use constraint::{
 // Constraint Set
 pub use api::constraint_set::{
     ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
+    IncrementalConstraintSealed,
 };
+pub use api::node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 // Score Directors
@@ -240,7 +247,7 @@ pub use stream::{
 Committed score-state snapshot used to roll back speculative evaluation. Fields:
 `solution_score`, `committed_score`, `initialized`.
 
-### `IncrementalConstraint<S, Sc: Score>` — `Send + Sync`
+### `IncrementalConstraint<S, Sc: Score>` — `IncrementalConstraintSealed + Send + Sync`
 
 | Method | Signature | Note |
 |--------|-----------|------|
@@ -262,7 +269,8 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 |--------|-----------|------|
 | `evaluate_all` | `fn evaluate_all(&self, solution: &S) -> Sc` | Sum all constraints |
 | `constraint_count` | `fn constraint_count(&self) -> usize` | Number of constraints |
-| `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>` | Borrowed ref/name/hardness metadata |
+| `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>` | Deduplicated borrowed ref/name/hardness metadata |
+| `constraint_metadata_entries` | `fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>>` | Hidden raw metadata entries in authored order |
 | `evaluate_each` | `fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>>` | Per-constraint results |
 | `evaluate_detailed` | `fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>>` | With match details |
 | `initialize_all` | `fn initialize_all(&mut self, solution: &S) -> Sc` | Initialize all for incremental |
@@ -270,7 +278,7 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 | `on_retract_all` | `fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental retract all |
 | `reset_all` | `fn reset_all(&mut self)` | Reset all |
 
-Implemented for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: IncrementalConstraint<S, Sc>`. Tuple metadata deduplicates repeated full `ConstraintRef`s when hardness agrees and panics when the same full ref has conflicting hard/non-hard metadata. Package-qualified constraints that share a short name remain distinct.
+Implemented for each `IncrementalConstraint<S, Sc>` as a singleton set and for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: ConstraintSet<S, Sc>`. `ConstraintSetChain<Left, Right>` composes two existing `ConstraintSet` values without erasing either concrete type. `OrderedConstraintSetChain<Left, Right>` uses `ConstraintSetSource::Left` and `ConstraintSetSource::Right { constraint_count, metadata_entry_count }` spans to preserve user-authored result ordering when macro-generated node sharing combines one shared set with surrounding constraints. Raw metadata entries keep one entry per constraint for ordering; the public `constraint_metadata()` view deduplicates repeated full `ConstraintRef`s when hardness agrees and panics when the same full ref has conflicting hard/non-hard metadata. Package-qualified constraints that share a short name remain distinct.
 
 ### Shadow Lifecycle on `PlanningSolution`
 
@@ -386,9 +394,22 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&A>` — Group-by with collector and weight on `(&K, &R)`.
 
+The grouped engine is split into `GroupedNodeState` plus
+`GroupedTerminalScorer` collections. `SharedGroupedConstraintSet` updates the
+node once and refreshes all terminal scorers from changed group keys.
+`GroupedUniConstraint` is the one-terminal wrapper around that shared engine.
+Additional grouped terminals append through the same fluent
+`.penalize(...).named(...)` / `.reward(...).named(...)` finalization chain,
+so macro-generated sharing does not use a separate stream construction path.
+
 **`CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint. It keeps keyed join indexes and collector retraction tokens without projecting joined pairs first.
 
-**`CrossComplementedGroupedConstraint<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint complemented against a second collection. It keeps joined-pair collector retraction tokens and scores every complement row using either the retained grouped result or the provided default result.
+Direct cross grouped constraints use `CrossGroupedNodeState` for join indexes,
+match rows, group accumulators, retraction tokens, and changed-key reporting.
+`SharedCrossGroupedConstraintSet` lets multiple terminal scorers consume that
+state while preserving independent terminal metadata.
+
+**`CrossComplementedGroupedConstraint<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint complemented against a second collection. `CrossComplementedGroupedNodeState` keeps join indexes, joined-pair collector retraction tokens, complement target indexes, group accumulators, and changed-key reporting; `SharedCrossComplementedGroupedConstraintSet` lets multiple terminal scorers consume each complement row using either the retained grouped result or the provided default result.
 
 **`BalanceConstraint<S, A, K, E, F, KF, Sc>`** — Load balancing using sum-of-squared-deviations.
 
@@ -400,7 +421,12 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&Out>` — Grouped retained projected rows.
 
-**`ProjectedComplementedGroupedConstraint<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&Out>` — Projected grouped rows complemented against a second collection, including `join(...).project(...).group_by(...).complement(...)` chains.
+Projected grouped constraints use `ProjectedGroupedNodeState` for projected
+source state, row outputs, owner indexes, retraction tokens, group accumulators,
+and changed-key reporting. `SharedProjectedGroupedConstraintSet` shares that
+projected grouped state across multiple terminal scorers.
+
+**`ProjectedComplementedGroupedConstraint<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&Out>` — Projected grouped rows complemented against a second collection, including `join(...).project(...).group_by(...).complement(...)` chains. `ProjectedComplementedGroupedNodeState` retains projected source state, row ownership indexes, complement target rows, group accumulators, and changed-key reporting for shared terminal scorers.
 
 **`FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>`** — Cross-collection with nested collection flattening. Filters receive the A source index and the owning B source index for each flattened C row.
 
@@ -664,7 +690,7 @@ The `ScoreDirector` delegates to `ConstraintSet::on_retract_all()` / `on_insert_
 
 ### ConstraintSet Tuple Implementation
 
-`ConstraintSet` is implemented for tuples of up to 32 elements via a macro. Each tuple element must implement `IncrementalConstraint<S, Sc>`. Operations iterate over all tuple elements, summing scores. This is the zero-erasure alternative to `Vec<Box<dyn Constraint>>`.
+`ConstraintSet` is implemented for every singleton `IncrementalConstraint<S, Sc>` and for tuples of up to 32 nested `ConstraintSet` elements via a macro. Operations iterate over all nested sets, summing scores and flattening per-constraint raw metadata/results without erasure; the public metadata view is deduplicated after ordering. This is the zero-erasure alternative to `Vec<Box<dyn Constraint>>`.
 
 ### N-ary Constraint Macros
 

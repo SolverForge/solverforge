@@ -144,6 +144,7 @@ where
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let mut undo = Vec::with_capacity(self.edits.len());
+        let affected = unique_affected_entities(&self.edits);
         for edit in &self.edits {
             let old_value = (edit.getter)(
                 score_director.working_solution(),
@@ -151,21 +152,28 @@ where
                 edit.variable_index,
             );
             undo.push(old_value);
-            score_director.before_variable_changed(edit.descriptor_index, edit.entity_index);
+        }
+        for (descriptor_index, entity_index) in &affected {
+            score_director.before_variable_changed(*descriptor_index, *entity_index);
+        }
+        for edit in &self.edits {
             (edit.setter)(
                 score_director.working_solution_mut(),
                 edit.entity_index,
                 edit.variable_index,
                 edit.to_value,
             );
-            score_director.after_variable_changed(edit.descriptor_index, edit.entity_index);
+        }
+        for (descriptor_index, entity_index) in affected.iter().rev() {
+            score_director.after_variable_changed(*descriptor_index, *entity_index);
         }
         undo
     }
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
-        for edit in &self.edits {
-            score_director.before_variable_changed(edit.descriptor_index, edit.entity_index);
+        let affected = unique_affected_entities(&self.edits);
+        for (descriptor_index, entity_index) in &affected {
+            score_director.before_variable_changed(*descriptor_index, *entity_index);
         }
         for (edit, old_value) in self.edits.iter().zip(undo) {
             (edit.setter)(
@@ -175,8 +183,8 @@ where
                 old_value,
             );
         }
-        for edit in self.edits.iter().rev() {
-            score_director.after_variable_changed(edit.descriptor_index, edit.entity_index);
+        for (descriptor_index, entity_index) in affected.iter().rev() {
+            score_director.after_variable_changed(*descriptor_index, *entity_index);
         }
     }
 
@@ -239,4 +247,15 @@ where
             });
         }
     }
+}
+
+fn unique_affected_entities<S>(edits: &[CompoundScalarEdit<S>]) -> Vec<(usize, usize)> {
+    let mut affected = Vec::new();
+    for edit in edits {
+        let entity = (edit.descriptor_index, edit.entity_index);
+        if !affected.contains(&entity) {
+            affected.push(entity);
+        }
+    }
+    affected
 }

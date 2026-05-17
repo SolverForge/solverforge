@@ -83,6 +83,66 @@ fn compound_edit(
     }
 }
 
+struct RecordingCompoundDirector {
+    working_solution: CompoundSolution,
+    descriptor: SolutionDescriptor,
+    after_snapshots: Vec<(Option<usize>, Option<usize>)>,
+}
+
+impl RecordingCompoundDirector {
+    fn new(solution: CompoundSolution) -> Self {
+        Self {
+            working_solution: solution,
+            descriptor: SolutionDescriptor::new(
+                "CompoundSolution",
+                TypeId::of::<CompoundSolution>(),
+            ),
+            after_snapshots: Vec::new(),
+        }
+    }
+}
+
+impl Director<CompoundSolution> for RecordingCompoundDirector {
+    fn working_solution(&self) -> &CompoundSolution {
+        &self.working_solution
+    }
+
+    fn working_solution_mut(&mut self) -> &mut CompoundSolution {
+        &mut self.working_solution
+    }
+
+    fn calculate_score(&mut self) -> SoftScore {
+        SoftScore::ZERO
+    }
+
+    fn solution_descriptor(&self) -> &SolutionDescriptor {
+        &self.descriptor
+    }
+
+    fn clone_working_solution(&self) -> CompoundSolution {
+        self.working_solution.clone()
+    }
+
+    fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {
+        self.after_snapshots
+            .push((self.working_solution.left[0], self.working_solution.left[1]));
+    }
+
+    fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
+        (descriptor_index == 0).then_some(self.working_solution.left.len())
+    }
+
+    fn total_entity_count(&self) -> Option<usize> {
+        Some(self.working_solution.left.len())
+    }
+
+    fn constraint_metadata(&self) -> Vec<solverforge_scoring::ConstraintMetadata<'_>> {
+        Vec::new()
+    }
+}
+
 #[test]
 fn compound_scalar_applies_and_undoes_multiple_edits_atomically() {
     let solution = CompoundSolution {
@@ -108,6 +168,31 @@ fn compound_scalar_applies_and_undoes_multiple_edits_atomically() {
 
     assert_eq!(director.working_solution().left[0], Some(0));
     assert_eq!(director.working_solution().right[0], Some(1));
+}
+
+#[test]
+fn compound_scalar_applies_all_edits_before_after_notifications() {
+    let solution = CompoundSolution {
+        left: vec![Some(0), Some(1)],
+        right: vec![],
+        score: None,
+    };
+    let mut director = RecordingCompoundDirector::new(solution);
+    let mov = CompoundScalarMove::new(
+        "batch",
+        vec![
+            compound_edit(0, 0, 0, "left", Some(2), get_left, set_left),
+            compound_edit(0, 1, 0, "left", Some(3), get_left, set_left),
+        ],
+    );
+
+    mov.do_move(&mut director);
+
+    assert_eq!(director.working_solution.left, vec![Some(2), Some(3)]);
+    assert_eq!(
+        director.after_snapshots,
+        vec![(Some(2), Some(3)), (Some(2), Some(3))]
+    );
 }
 
 #[test]

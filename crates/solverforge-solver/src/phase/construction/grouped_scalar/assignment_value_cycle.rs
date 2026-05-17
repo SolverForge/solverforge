@@ -19,6 +19,13 @@ pub(super) struct ValueWindowCycleCursor {
     max_len: usize,
 }
 
+#[derive(Clone, Copy)]
+struct CycleStep {
+    from_value: usize,
+    to_value: usize,
+    sequence_key: usize,
+}
+
 impl ValueWindowCycleCursor {
     pub(super) fn new<S>(
         group: &ScalarAssignmentBinding<S>,
@@ -86,9 +93,7 @@ impl ValueWindowCycleCursor {
                         group,
                         solution,
                         state,
-                        first,
-                        second,
-                        third,
+                        (first, second, third),
                         sequence_window,
                     );
                     if edits.len() < 3
@@ -124,9 +129,7 @@ impl ValueWindowCycleCursor {
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &ScalarAssignmentState,
-        first: usize,
-        second: usize,
-        third: usize,
+        cycle: (usize, usize, usize),
         sequence_window: &[usize],
     ) -> Vec<(usize, Option<usize>)>
     where
@@ -134,67 +137,72 @@ impl ValueWindowCycleCursor {
     {
         let mut edits = Vec::new();
         let mut touched = HashSet::new();
+        let (first, second, third) = cycle;
         for sequence_key in sequence_window {
-            push_cycle_edits(
-                &self.by_value_sequence,
+            self.push_cycle_edits(
                 &mut touched,
                 &mut edits,
                 group,
                 solution,
                 state,
-                first,
-                second,
-                *sequence_key,
+                CycleStep {
+                    from_value: first,
+                    to_value: second,
+                    sequence_key: *sequence_key,
+                },
             );
-            push_cycle_edits(
-                &self.by_value_sequence,
+            self.push_cycle_edits(
                 &mut touched,
                 &mut edits,
                 group,
                 solution,
                 state,
-                second,
-                third,
-                *sequence_key,
+                CycleStep {
+                    from_value: second,
+                    to_value: third,
+                    sequence_key: *sequence_key,
+                },
             );
-            push_cycle_edits(
-                &self.by_value_sequence,
+            self.push_cycle_edits(
                 &mut touched,
                 &mut edits,
                 group,
                 solution,
                 state,
-                third,
-                first,
-                *sequence_key,
+                CycleStep {
+                    from_value: third,
+                    to_value: first,
+                    sequence_key: *sequence_key,
+                },
             );
         }
         edits
     }
-}
 
-fn push_cycle_edits<S>(
-    by_value_sequence: &HashMap<(usize, usize), Vec<usize>>,
-    touched: &mut HashSet<usize>,
-    edits: &mut Vec<(usize, Option<usize>)>,
-    group: &ScalarAssignmentBinding<S>,
-    solution: &S,
-    state: &ScalarAssignmentState,
-    from_value: usize,
-    to_value: usize,
-    sequence_key: usize,
-) where
-    S: PlanningSolution,
-{
-    let Some(entities) = by_value_sequence.get(&(from_value, sequence_key)) else {
-        return;
-    };
-    for entity_index in entities {
-        if touched.insert(*entity_index)
-            && state.current_value(*entity_index) != Some(to_value)
-            && group.value_is_legal(solution, *entity_index, Some(to_value))
-        {
-            edits.push((*entity_index, Some(to_value)));
+    fn push_cycle_edits<S>(
+        &self,
+        touched: &mut HashSet<usize>,
+        edits: &mut Vec<(usize, Option<usize>)>,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
+        state: &ScalarAssignmentState,
+        step: CycleStep,
+    ) where
+        S: PlanningSolution,
+    {
+        let Some(entities) = self
+            .by_value_sequence
+            .get(&(step.from_value, step.sequence_key))
+        else {
+            return;
+        };
+        for entity_index in entities {
+            if touched.insert(*entity_index)
+                && state.current_value(*entity_index) != Some(step.to_value)
+                && group.value_is_legal(solution, *entity_index, Some(step.to_value))
+            {
+                edits.push((*entity_index, Some(step.to_value)));
+            }
         }
     }
 }

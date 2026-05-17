@@ -20,6 +20,21 @@ pub(super) struct ValueRunGapSwapCursor {
     release_sequences: Vec<usize>,
 }
 
+#[derive(Clone, Copy)]
+struct RunGapWindow {
+    target_value: usize,
+    source_value: usize,
+    fill_sequence: usize,
+    release_sequence: usize,
+}
+
+#[derive(Clone, Copy)]
+struct ValueStep {
+    from_value: usize,
+    to_value: usize,
+    sequence: usize,
+}
+
 impl ValueRunGapSwapCursor {
     pub(super) fn new<S>(
         group: &ScalarAssignmentBinding<S>,
@@ -77,10 +92,12 @@ impl ValueRunGapSwapCursor {
                         group,
                         solution,
                         state,
-                        target_value,
-                        source_value,
-                        fill_sequence,
-                        release_sequence,
+                        RunGapWindow {
+                            target_value,
+                            source_value,
+                            fill_sequence,
+                            release_sequence,
+                        },
                     );
                     if edits.len() < 2
                         || !state.assignment_feasible_after_edits(group, solution, &edits)
@@ -152,10 +169,7 @@ impl ValueRunGapSwapCursor {
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &ScalarAssignmentState,
-        target_value: usize,
-        source_value: usize,
-        fill_sequence: usize,
-        release_sequence: usize,
+        window: RunGapWindow,
     ) -> Vec<(usize, Option<usize>)>
     where
         S: PlanningSolution,
@@ -165,18 +179,22 @@ impl ValueRunGapSwapCursor {
             group,
             solution,
             state,
-            source_value,
-            target_value,
-            fill_sequence,
+            ValueStep {
+                from_value: window.source_value,
+                to_value: window.target_value,
+                sequence: window.fill_sequence,
+            },
             &mut edits,
         );
         self.push_reassign_edits(
             group,
             solution,
             state,
-            target_value,
-            source_value,
-            release_sequence,
+            ValueStep {
+                from_value: window.target_value,
+                to_value: window.source_value,
+                sequence: window.release_sequence,
+            },
             &mut edits,
         );
         edits
@@ -187,21 +205,22 @@ impl ValueRunGapSwapCursor {
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &ScalarAssignmentState,
-        from_value: usize,
-        to_value: usize,
-        sequence: usize,
+        step: ValueStep,
         edits: &mut Vec<(usize, Option<usize>)>,
     ) where
         S: PlanningSolution,
     {
-        let Some(entities) = self.by_value_sequence.get(&(from_value, sequence)) else {
+        let Some(entities) = self
+            .by_value_sequence
+            .get(&(step.from_value, step.sequence))
+        else {
             return;
         };
         for entity_index in entities {
-            if state.current_value(*entity_index) != Some(to_value)
-                && group.value_is_legal(solution, *entity_index, Some(to_value))
+            if state.current_value(*entity_index) != Some(step.to_value)
+                && group.value_is_legal(solution, *entity_index, Some(step.to_value))
             {
-                edits.push((*entity_index, Some(to_value)));
+                edits.push((*entity_index, Some(step.to_value)));
             }
         }
     }

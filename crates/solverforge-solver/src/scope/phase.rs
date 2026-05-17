@@ -268,6 +268,13 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
             .record_move_kind_evaluated(move_label, score_ordering);
     }
 
+    pub fn record_move_kind_evaluated_unscored(&mut self, move_label: &'static str) {
+        self.stats.record_move_kind_evaluated_unscored(move_label);
+        self.solver_scope
+            .stats_mut()
+            .record_move_kind_evaluated_unscored(move_label);
+    }
+
     pub fn record_move_kind_accepted(&mut self, move_label: &'static str) {
         self.stats.record_move_kind_accepted(move_label);
         self.solver_scope

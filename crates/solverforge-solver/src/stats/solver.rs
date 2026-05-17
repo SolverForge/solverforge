@@ -324,6 +324,10 @@ impl SolverStats {
         }
     }
 
+    pub fn record_move_kind_evaluated_unscored(&mut self, move_label: &'static str) {
+        self.move_stats_entry(move_label).moves_evaluated += 1;
+    }
+
     pub fn record_move_kind_accepted(&mut self, move_label: &'static str) {
         self.move_stats_entry(move_label).moves_accepted += 1;
     }

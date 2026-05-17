@@ -26,6 +26,75 @@ use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second, AppliedMoveTelemetry};
 
+const STEP_ACCEPTED_LABEL_LIMIT: usize = 32;
+
+#[derive(Clone, Copy)]
+struct StepMoveLabelCount {
+    label: &'static str,
+    count: u64,
+}
+
+struct StepMoveLabelCounts {
+    entries: [StepMoveLabelCount; STEP_ACCEPTED_LABEL_LIMIT],
+    overflow: u64,
+}
+
+impl StepMoveLabelCounts {
+    const EMPTY_ENTRY: StepMoveLabelCount = StepMoveLabelCount {
+        label: "",
+        count: 0,
+    };
+
+    fn new() -> Self {
+        Self {
+            entries: [Self::EMPTY_ENTRY; STEP_ACCEPTED_LABEL_LIMIT],
+            overflow: 0,
+        }
+    }
+
+    fn record(&mut self, label: &'static str) {
+        for entry in &mut self.entries {
+            if entry.count > 0 && entry.label == label {
+                entry.count += 1;
+                return;
+            }
+        }
+        for entry in &mut self.entries {
+            if entry.count == 0 {
+                entry.label = label;
+                entry.count = 1;
+                return;
+            }
+        }
+        self.overflow += 1;
+    }
+
+    fn for_each_ignored_except_selected(
+        &self,
+        selected_label: Option<&'static str>,
+        mut visitor: impl FnMut(&'static str, u64),
+    ) {
+        let mut selected_remaining = selected_label;
+        for entry in &self.entries {
+            if entry.count == 0 {
+                continue;
+            }
+            let ignored = if selected_remaining == Some(entry.label) {
+                selected_remaining = None;
+                entry.count.saturating_sub(1)
+            } else {
+                entry.count
+            };
+            if ignored > 0 {
+                visitor(entry.label, ignored);
+            }
+        }
+        if self.overflow > 0 {
+            visitor("move", self.overflow);
+        }
+    }
+}
+
 /// Local search phase that improves an existing solution.
 ///
 /// This phase iteratively:
@@ -180,6 +249,7 @@ where
             let mut accepted_moves_this_step = 0u64;
             let mut moves_generated_this_step = 0u64;
             let mut moves_evaluated_this_step = 0u64;
+            let mut accepted_move_labels_this_step = StepMoveLabelCounts::new();
             if should_interrupt_before_candidate(&step_scope) {
                 interrupted_step = true;
             }
@@ -223,10 +293,14 @@ where
                 let mov = cursor
                     .candidate(candidate_id)
                     .expect("discovered candidate id must remain borrowable");
+                let move_label = mov.telemetry_label();
                 let selector_label = selector_index.map(|_| candidate_selector_label(&mov));
                 let generation_elapsed = generation_started.elapsed();
                 local_moves_generated += 1;
                 moves_generated_this_step += 1;
+                step_scope
+                    .phase_scope_mut()
+                    .record_move_kind_generated(move_label);
                 if let Some(selector_index) = selector_index {
                     step_scope
                         .phase_scope_mut()
@@ -292,7 +366,13 @@ where
                     selector_index,
                     evaluation_started,
                 ) {
-                    CandidateEvaluation::Scored(score) => score,
+                    CandidateEvaluation::Scored(score) => {
+                        step_scope.phase_scope_mut().record_move_kind_evaluated(
+                            move_label,
+                            score.compare(&last_step_score),
+                        );
+                        score
+                    }
                     CandidateEvaluation::NotDoable
                     | CandidateEvaluation::RejectedByHardImprovement(_) => continue,
                 };
@@ -310,6 +390,10 @@ where
 
                 record_evaluated_move(&mut step_scope, selector_index, evaluation_started);
                 if accepted {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_move_kind_accepted(move_label);
+                    accepted_move_labels_this_step.record(move_label);
                     if let Some(selector_index) = selector_index {
                         step_scope
                             .phase_scope_mut()
@@ -322,8 +406,20 @@ where
                     step_scope
                         .phase_scope_mut()
                         .record_selector_move_acceptor_rejected(selector_index);
+                    step_scope
+                        .phase_scope_mut()
+                        .record_move_kind_acceptor_rejected(
+                            move_label,
+                            move_score.compare(&last_step_score),
+                        );
                 } else {
                     step_scope.phase_scope_mut().record_move_acceptor_rejected();
+                    step_scope
+                        .phase_scope_mut()
+                        .record_move_kind_acceptor_rejected(
+                            move_label,
+                            move_score.compare(&last_step_score),
+                        );
                 }
 
                 trace!(
@@ -412,11 +508,27 @@ where
                     step_scope
                         .phase_scope_mut()
                         .record_moves_forager_ignored(accepted_moves_this_step - 1);
+                    accepted_move_labels_this_step.for_each_ignored_except_selected(
+                        Some(selected_move_label),
+                        |label, count| {
+                            step_scope
+                                .phase_scope_mut()
+                                .record_move_kind_forager_ignored(label, count);
+                        },
+                    );
                 }
             } else if accepted_moves_this_step > 0 {
                 step_scope
                     .phase_scope_mut()
                     .record_moves_forager_ignored(accepted_moves_this_step);
+                accepted_move_labels_this_step.for_each_ignored_except_selected(
+                    None,
+                    |label, count| {
+                        step_scope
+                            .phase_scope_mut()
+                            .record_move_kind_forager_ignored(label, count);
+                    },
+                );
             }
             /* else: no accepted moves this step — that's fine, the acceptor
             history still needs to advance so Late Acceptance / SA / etc.

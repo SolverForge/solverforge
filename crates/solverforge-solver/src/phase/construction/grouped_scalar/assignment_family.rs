@@ -11,13 +11,8 @@ use super::assignment_entity::{
 use super::assignment_pair::PairWindowCursor;
 use super::assignment_state::ScalarAssignmentState;
 use crate::builder::ScalarAssignmentBinding;
-use crate::heuristic::r#move::CompoundScalarMove;
 
-pub(super) enum AssignmentFamilyCursor<S>
-where
-    S: PlanningSolution,
-{
-    Single(Option<CompoundScalarMove<S>>),
+pub(super) enum AssignmentFamilyCursor {
     EntityValues(EntityValueCursor),
     Capacity(CapacityCursor),
     OptionalAdjustment(OptionalAdjustmentCursor),
@@ -26,16 +21,16 @@ where
     Empty,
 }
 
-impl<S> AssignmentFamilyCursor<S>
-where
-    S: PlanningSolution,
-{
-    pub(super) fn required_entity_values(
+impl AssignmentFamilyCursor {
+    pub(super) fn required_entity_values<S>(
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &ScalarAssignmentState,
         options: ScalarAssignmentMoveOptions,
-    ) -> Self {
+    ) -> Self
+    where
+        S: PlanningSolution,
+    {
         let mut entities =
             required_entities_by_scarcity(group, solution, state, options.value_candidate_limit);
         rotate_entity_order(&mut entities, options.entity_offset);

@@ -18,6 +18,7 @@ where
     placer: P,
     forager: Fo,
     refresh_placements_each_step: bool,
+    complete_mandatory_construction: bool,
     construction_obligation: ConstructionObligation,
     _phantom: PhantomData<fn() -> (S, M)>,
 }
@@ -34,6 +35,7 @@ where
             placer,
             forager,
             refresh_placements_each_step: false,
+            complete_mandatory_construction: false,
             construction_obligation: ConstructionObligation::default(),
             _phantom: PhantomData,
         }
@@ -41,6 +43,11 @@ where
 
     pub fn with_live_placement_refresh(mut self) -> Self {
         self.refresh_placements_each_step = true;
+        self
+    }
+
+    pub(crate) fn with_mandatory_construction_completion(mut self) -> Self {
+        self.complete_mandatory_construction = true;
         self
     }
 
@@ -107,12 +114,10 @@ where
         let mut pending_placement = None;
 
         loop {
-            // Construction must complete — only stop for external flag or time limit,
-            // never for step/move count limits (those are for local search).
-            if phase_scope
-                .solver_scope_mut()
-                .should_terminate_construction()
-            {
+            if construction_phase_should_stop(
+                phase_scope.solver_scope_mut(),
+                self.complete_mandatory_construction,
+            ) {
                 break;
             }
 
@@ -121,7 +126,12 @@ where
                 let next_placement = self.placer.get_next_placement(
                     phase_scope.score_director(),
                     |placement| placement_completed(placement, phase_scope.solver_scope()),
-                    || phase_scope.solver_scope().work_should_stop(),
+                    || {
+                        construction_work_should_stop(
+                            phase_scope.solver_scope(),
+                            self.complete_mandatory_construction,
+                        )
+                    },
                 );
                 let placement_generation_elapsed = placement_generation_started.elapsed();
                 if let Some((placement, generated_moves)) = next_placement {
@@ -130,9 +140,10 @@ where
 
                     placement
                 } else {
-                    phase_scope
-                        .solver_scope_mut()
-                        .should_terminate_construction();
+                    construction_phase_should_stop(
+                        phase_scope.solver_scope_mut(),
+                        self.complete_mandatory_construction,
+                    );
                     break;
                 }
             } else {
@@ -145,7 +156,13 @@ where
                 }
             };
 
-            let mut step_scope = StepScope::new(&mut phase_scope);
+            let control_policy = if self.complete_mandatory_construction {
+                StepControlPolicy::CompleteMandatoryConstruction
+            } else {
+                StepControlPolicy::ObserveConfigLimits
+            };
+            let mut step_scope =
+                StepScope::new_with_control_policy(&mut phase_scope, control_policy);
 
             // Use forager to pick the best move index for this placement
             let selection = match self.forager.select_move_index(
@@ -215,5 +232,37 @@ where
 
     fn phase_type_name(&self) -> &'static str {
         "ConstructionHeuristic"
+    }
+}
+
+fn construction_phase_should_stop<S, D, BestCb>(
+    solver_scope: &mut SolverScope<'_, S, D, BestCb>,
+    complete_mandatory_construction: bool,
+) -> bool
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+{
+    if complete_mandatory_construction {
+        solver_scope.should_interrupt_mandatory_construction()
+    } else {
+        solver_scope.should_terminate_construction()
+    }
+}
+
+fn construction_work_should_stop<S, D, BestCb>(
+    solver_scope: &SolverScope<'_, S, D, BestCb>,
+    complete_mandatory_construction: bool,
+) -> bool
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+{
+    if complete_mandatory_construction {
+        solver_scope.mandatory_construction_work_should_stop()
+    } else {
+        solver_scope.work_should_stop()
     }
 }

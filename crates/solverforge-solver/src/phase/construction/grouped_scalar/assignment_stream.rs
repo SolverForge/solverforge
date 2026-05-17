@@ -2,17 +2,12 @@ use std::collections::HashSet;
 
 use solverforge_core::domain::PlanningSolution;
 
-use super::assignment_candidate::{
-    ordered_entities, AssignmentMoveIntent, ScalarAssignmentMoveOptions,
-};
+use super::assignment_candidate::{ordered_entities, ScalarAssignmentMoveOptions};
 use super::assignment_cycle::CycleWindowCursor;
-use super::assignment_entity::{
-    required_entities_by_scarcity, required_value_degrees, sort_values_by_required_scarcity,
-    AssignmentMoveKind, CapacityCursor, OptionalAdjustmentCursor,
-};
+use super::assignment_entity::{AssignmentMoveKind, CapacityCursor, OptionalAdjustmentCursor};
 use super::assignment_family::{AssignmentFamilyCursor, AssignmentMoveFamily};
 use super::assignment_pair::PairWindowCursor;
-use super::assignment_path::{assignment_move_for_entity_value, move_from_edits};
+use super::assignment_required_batch::required_batch_move;
 use super::assignment_state::ScalarAssignmentState;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
@@ -28,18 +23,15 @@ where
     options: ScalarAssignmentMoveOptions,
     state: ScalarAssignmentState,
     batch_required: bool,
-    family_slots: Vec<AssignmentFamilySlot<S>>,
+    family_slots: Vec<AssignmentFamilySlot>,
     family_pos: usize,
     seen: HashSet<AssignmentMoveKey>,
     yielded: usize,
 }
 
-struct AssignmentFamilySlot<S>
-where
-    S: PlanningSolution,
-{
+struct AssignmentFamilySlot {
     family: AssignmentMoveFamily,
-    cursor: AssignmentFamilyCursor<S>,
+    cursor: AssignmentFamilyCursor,
     exhausted: bool,
 }
 
@@ -150,6 +142,17 @@ where
             return None;
         }
 
+        if self.batch_required {
+            self.batch_required = false;
+            if let Some(candidate) =
+                required_batch_move(&self.group, &self.solution, &mut self.state, self.options)
+            {
+                self.seen.insert(normalized_move_key(&candidate));
+                self.yielded += 1;
+                return Some(candidate);
+            }
+        }
+
         let mut exhausted_turns = 0;
         while exhausted_turns < self.family_slots.len() {
             let slot_index = self.family_pos % self.family_slots.len();
@@ -202,29 +205,14 @@ where
         &mut self,
         family: AssignmentMoveFamily,
         options: ScalarAssignmentMoveOptions,
-    ) -> AssignmentFamilyCursor<S> {
+    ) -> AssignmentFamilyCursor {
         match family {
-            AssignmentMoveFamily::Required => {
-                if self.batch_required {
-                    if let Some(mov) = self.required_batch_move(options) {
-                        AssignmentFamilyCursor::Single(Some(mov))
-                    } else {
-                        AssignmentFamilyCursor::required_entity_values(
-                            &self.group,
-                            &self.solution,
-                            &self.state,
-                            options,
-                        )
-                    }
-                } else {
-                    AssignmentFamilyCursor::required_entity_values(
-                        &self.group,
-                        &self.solution,
-                        &self.state,
-                        options,
-                    )
-                }
-            }
+            AssignmentMoveFamily::Required => AssignmentFamilyCursor::required_entity_values(
+                &self.group,
+                &self.solution,
+                &self.state,
+                options,
+            ),
             AssignmentMoveFamily::OptionalAssign => AssignmentFamilyCursor::entity_values(
                 ordered_entities(&self.group, &self.solution, |entity_index| {
                     !self.state.is_required(entity_index)
@@ -289,90 +277,10 @@ where
             AssignmentMoveFamily::Done => AssignmentFamilyCursor::Empty,
         }
     }
-
-    fn required_batch_move(
-        &mut self,
-        options: ScalarAssignmentMoveOptions,
-    ) -> Option<CompoundScalarMove<S>> {
-        let entities = required_entities_by_scarcity(
-            &self.group,
-            &self.solution,
-            &self.state,
-            options.value_candidate_limit,
-        );
-        let value_degrees = required_value_degrees(
-            &self.group,
-            &self.solution,
-            &entities,
-            options.value_candidate_limit,
-        );
-        let mut scalar_edits = Vec::new();
-        let mut edited_entities = HashSet::new();
-        for entity_index in entities {
-            if self.state.current_value(entity_index).is_some() {
-                continue;
-            }
-            let mut values = self.group.candidate_values(
-                &self.solution,
-                entity_index,
-                options.value_candidate_limit,
-            );
-            sort_values_by_required_scarcity(
-                &self.group,
-                &self.solution,
-                entity_index,
-                &value_degrees,
-                &mut values,
-            );
-            for value in values {
-                let Some(mov) = assignment_move_for_entity_value(
-                    &self.group,
-                    &self.solution,
-                    &mut self.state,
-                    entity_index,
-                    value,
-                    options,
-                    AssignmentMoveIntent::required(),
-                ) else {
-                    continue;
-                };
-                if mov
-                    .edits()
-                    .iter()
-                    .any(|edit| edited_entities.contains(&edit.entity_index))
-                {
-                    continue;
-                }
-                if mov.edits().len() != 1 {
-                    continue;
-                }
-                for edit in mov.edits() {
-                    self.state.set_value(
-                        &self.group,
-                        &self.solution,
-                        edit.entity_index,
-                        edit.to_value,
-                    );
-                    edited_entities.insert(edit.entity_index);
-                    scalar_edits.push(self.group.edit(edit.entity_index, edit.to_value));
-                }
-                break;
-            }
-        }
-        if scalar_edits.is_empty() {
-            return None;
-        }
-        move_from_edits(
-            &self.group,
-            &self.solution,
-            &scalar_edits,
-            "scalar_assignment_required",
-        )
-    }
 }
 
 fn next_family_move<S>(
-    cursor: &mut AssignmentFamilyCursor<S>,
+    cursor: &mut AssignmentFamilyCursor,
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
     state: &mut ScalarAssignmentState,
@@ -381,13 +289,6 @@ where
     S: PlanningSolution,
 {
     match cursor {
-        AssignmentFamilyCursor::Single(mov) => {
-            let candidate = mov.take();
-            if candidate.is_none() {
-                *cursor = AssignmentFamilyCursor::Empty;
-            }
-            candidate
-        }
         AssignmentFamilyCursor::EntityValues(entity_cursor) => {
             let candidate = entity_cursor.next(group, solution, state);
             if candidate.is_none() {

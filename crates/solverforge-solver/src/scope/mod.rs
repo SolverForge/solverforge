@@ -13,6 +13,7 @@ mod step;
 pub use phase::PhaseScope;
 pub(crate) use solver::{PendingControl, SolverScopeChildConfig};
 pub use solver::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
+pub(crate) use step::StepControlPolicy;
 pub use step::StepScope;
 
 #[cfg(test)]

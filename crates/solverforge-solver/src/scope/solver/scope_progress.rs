@@ -160,12 +160,33 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         PendingControl::Continue
     }
 
+    pub(crate) fn mandatory_construction_pending_control(&self) -> PendingControl {
+        if self.yielded_to_parent || self.is_terminate_early() {
+            return PendingControl::CancelRequested;
+        }
+        if self
+            .runtime
+            .is_some_and(|runtime| runtime.is_pause_requested())
+        {
+            return PendingControl::PauseRequested;
+        }
+        PendingControl::Continue
+    }
+
     pub(crate) fn work_should_stop(&self) -> bool {
         self.yielded_to_parent
             || self.is_terminate_early()
             || self.time_limit_reached()
             || self.phase_budget_reached()
             || self.inphase_best_score_limit_reached()
+    }
+
+    pub(crate) fn mandatory_construction_work_should_stop(&self) -> bool {
+        self.yielded_to_parent
+            || self.is_terminate_early()
+            || self
+                .runtime
+                .is_some_and(|runtime| runtime.is_pause_requested())
     }
 
     pub fn set_time_limit(&mut self, limit: Duration) {
@@ -212,6 +233,18 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         }
         if self.inphase_best_score_limit_reached() {
             self.mark_terminated_by_config();
+            return true;
+        }
+        false
+    }
+
+    pub(crate) fn should_interrupt_mandatory_construction(&mut self) -> bool {
+        self.settle_pause_if_requested();
+        if self.yielded_to_parent {
+            return true;
+        }
+        if self.is_terminate_early() {
+            self.mark_cancelled();
             return true;
         }
         false

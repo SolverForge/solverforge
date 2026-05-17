@@ -6,6 +6,7 @@ mod assignment_family;
 mod assignment_index;
 mod assignment_pair;
 mod assignment_path;
+mod assignment_required_batch;
 mod assignment_state;
 mod assignment_stream;
 mod move_build;

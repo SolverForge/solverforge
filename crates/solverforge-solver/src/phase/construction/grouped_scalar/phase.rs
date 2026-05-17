@@ -129,18 +129,21 @@ where
             ScalarGroupConstruction::First(build_phase(
                 placer,
                 construction_obligation,
+                required_only,
                 FirstFitForager::new(),
             ))
         }
         ConstructionHeuristicType::CheapestInsertion => ScalarGroupConstruction::Best(build_phase(
             placer,
             construction_obligation,
+            required_only,
             BestFitForager::new(),
         )),
         ConstructionHeuristicType::WeakestFit | ConstructionHeuristicType::WeakestFitDecreasing => {
             ScalarGroupConstruction::Weakest(build_phase(
                 placer,
                 construction_obligation,
+                required_only,
                 WeakestFitForager::new(scalar_group_move_strength::<S>),
             ))
         }
@@ -149,6 +152,7 @@ where
             ScalarGroupConstruction::Strongest(build_phase(
                 placer,
                 construction_obligation,
+                required_only,
                 StrongestFitForager::new(scalar_group_move_strength::<S>),
             ))
         }
@@ -168,15 +172,21 @@ where
 fn build_phase<S, Fo>(
     placer: ScalarGroupPlacer<S>,
     construction_obligation: ConstructionObligation,
+    required_only: bool,
     forager: Fo,
 ) -> ConstructionHeuristicPhase<S, CompoundScalarMove<S>, ScalarGroupPlacer<S>, Fo>
 where
     S: PlanningSolution + 'static,
     Fo: ConstructionForager<S, CompoundScalarMove<S>>,
 {
-    ConstructionHeuristicPhase::new(placer, forager)
+    let phase = ConstructionHeuristicPhase::new(placer, forager)
         .with_construction_obligation(construction_obligation)
-        .with_live_placement_refresh()
+        .with_live_placement_refresh();
+    if required_only {
+        phase.with_mandatory_construction_completion()
+    } else {
+        phase
+    }
 }
 
 fn effective_group_limits(

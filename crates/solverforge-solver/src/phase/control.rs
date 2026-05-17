@@ -2,7 +2,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::MoveArena;
-use crate::scope::{PendingControl, ProgressCallback, StepScope};
+use crate::scope::{PendingControl, ProgressCallback, StepControlPolicy, StepScope};
 
 pub(crate) const GENERATION_POLL_INTERVAL: usize = 256;
 pub(crate) const EVALUATION_POLL_INTERVAL: usize = 64;
@@ -115,11 +115,18 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    if step_scope
-        .phase_scope_mut()
-        .solver_scope_mut()
-        .should_terminate_construction()
-    {
+    let control_policy = step_scope.control_policy();
+    let should_terminate = match control_policy {
+        StepControlPolicy::ObserveConfigLimits => step_scope
+            .phase_scope_mut()
+            .solver_scope_mut()
+            .should_terminate_construction(),
+        StepControlPolicy::CompleteMandatoryConstruction => step_scope
+            .phase_scope_mut()
+            .solver_scope_mut()
+            .should_interrupt_mandatory_construction(),
+    };
+    if should_terminate {
         StepInterrupt::TerminatePhase
     } else {
         StepInterrupt::Restart
@@ -134,8 +141,5 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    !matches!(
-        step_scope.phase_scope().solver_scope().pending_control(),
-        PendingControl::Continue
-    )
+    !matches!(step_scope.pending_control(), PendingControl::Continue)
 }

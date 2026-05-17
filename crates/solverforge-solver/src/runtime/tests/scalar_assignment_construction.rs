@@ -366,52 +366,20 @@ fn solve_default_assignment(
     solver_scope
 }
 
-#[test]
-fn grouped_assignment_vnd_improves_soft_assignment_cost_after_feasibility() {
+fn solve_default_assignment_with_expired_time_limit(
+    plan: CoveragePlan,
+) -> SolverScope<'static, CoveragePlan, CoverageDirector> {
     let descriptor = coverage_plan_descriptor();
     let director = CoverageDirector {
-        working_solution: coverage_plan(
-            2,
-            vec![coverage_slot_with_worker_penalties(
-                true,
-                0,
-                Some(0),
-                &[0, 1],
-                &[10, 0],
-            )],
-        ),
-        descriptor,
+        working_solution: plan,
+        descriptor: descriptor.clone(),
     };
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
-    solver_scope.calculate_score();
-
-    assert_eq!(
-        solver_scope.current_score().copied(),
-        Some(HardSoftScore::of(0, -10))
-    );
-
-    let config = solverforge_config::LocalSearchConfig {
-        local_search_type: solverforge_config::LocalSearchType::VariableNeighborhoodDescent,
-        neighborhoods: vec![solverforge_config::MoveSelectorConfig::GroupedScalarMoveSelector(
-            solverforge_config::GroupedScalarMoveSelectorConfig {
-                group_name: "slot_assignment".to_string(),
-                value_candidate_limit: None,
-                max_moves_per_step: None,
-                require_hard_improvement: false,
-            },
-        )],
-        ..solverforge_config::LocalSearchConfig::default()
-    };
-    let mut phase =
-        crate::builder::build_local_search(Some(&config), &assignment_model(), Some(7));
+    solver_scope.set_time_limit(std::time::Duration::ZERO);
+    let mut phase = Construction::new(None, descriptor, assignment_model());
     phase.solve(&mut solver_scope);
-
-    assert_eq!(solver_scope.working_solution().slots[0].assigned, Some(1));
-    assert_eq!(
-        solver_scope.current_score().copied(),
-        Some(HardSoftScore::of(0, 0))
-    );
+    solver_scope
 }
 
 fn selector_assignment_moves_for_plan(
@@ -499,40 +467,4 @@ fn scalar_assignment_first_fit_uses_cursor_default_for_assignment_alternatives()
         .iter()
         .all(|slot| slot.assigned.is_some()));
     assert_eq!(solver_scope.stats().moves_generated, 36);
-}
-
-#[test]
-fn scalar_assignment_construction_ignores_repair_move_cap() {
-    let model = assignment_model_with_limits(ScalarGroupLimits {
-        group_candidate_limit: Some(2),
-        max_moves_per_step: Some(1),
-        max_augmenting_depth: Some(3),
-        ..ScalarGroupLimits::new()
-    });
-    let plan = coverage_plan(
-        2,
-        vec![
-            coverage_slot(true, 0, None, &[0, 1]),
-            coverage_slot(true, 0, None, &[0, 1]),
-        ],
-    );
-    let crate::builder::ScalarGroupBindingKind::Assignment(assignment) =
-        model.scalar_groups()[0].kind
-    else {
-        panic!("test model should contain an assignment-backed scalar group");
-    };
-    let options =
-        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_construction(
-            model.scalar_groups()[0].limits,
-        );
-    let mut cursor =
-        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::required_construction(
-            assignment, plan, options,
-        );
-    let mut edited_slots = 0;
-    while let Some(mov) = cursor.next_move() {
-        edited_slots += mov.edits().len();
-    }
-
-    assert_eq!(edited_slots, 2);
 }

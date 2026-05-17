@@ -17,6 +17,7 @@ use crate::phase::construction::{
 use crate::phase::control::{settle_construction_interrupt, StepInterrupt};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
+use crate::scope::StepControlPolicy;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second};
 

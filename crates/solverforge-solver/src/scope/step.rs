@@ -5,8 +5,14 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 
-use super::solver::ProgressCallback;
+use super::solver::{PendingControl, ProgressCallback};
 use super::PhaseScope;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StepControlPolicy {
+    ObserveConfigLimits,
+    CompleteMandatoryConstruction,
+}
 
 /// Scope for a single step within a phase.
 ///
@@ -24,17 +30,26 @@ pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb = (
     step_index: u64,
     // Score after this step.
     step_score: Option<S::Score>,
+    control_policy: StepControlPolicy,
 }
 
 impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
     StepScope<'t, 'a, 'b, S, D, BestCb>
 {
     pub fn new(phase_scope: &'a mut PhaseScope<'t, 'b, S, D, BestCb>) -> Self {
+        Self::new_with_control_policy(phase_scope, StepControlPolicy::ObserveConfigLimits)
+    }
+
+    pub(crate) fn new_with_control_policy(
+        phase_scope: &'a mut PhaseScope<'t, 'b, S, D, BestCb>,
+        control_policy: StepControlPolicy,
+    ) -> Self {
         let step_index = phase_scope.step_count();
         Self {
             phase_scope,
             step_index,
             step_score: None,
+            control_policy,
         }
     }
 
@@ -44,6 +59,22 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
 
     pub fn step_score(&self) -> Option<&S::Score> {
         self.step_score.as_ref()
+    }
+
+    pub(crate) fn control_policy(&self) -> StepControlPolicy {
+        self.control_policy
+    }
+
+    pub(crate) fn pending_control(&self) -> PendingControl {
+        match self.control_policy {
+            StepControlPolicy::ObserveConfigLimits => {
+                self.phase_scope.solver_scope().pending_control()
+            }
+            StepControlPolicy::CompleteMandatoryConstruction => self
+                .phase_scope
+                .solver_scope()
+                .mandatory_construction_pending_control(),
+        }
     }
 
     pub fn set_step_score(&mut self, score: S::Score)

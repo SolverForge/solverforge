@@ -78,6 +78,29 @@ fn inphase_best_score_limit_requests_construction_config_termination() {
 }
 
 #[test]
+fn mandatory_construction_control_ignores_config_termination() {
+    let director = create_simple_nqueens_director(2);
+    let mut scope = SolverScope::new(director);
+    scope.start_solving();
+    scope.set_time_limit(std::time::Duration::ZERO);
+    scope.install_inphase_best_score_limit(SoftScore::of(0));
+    let solution = scope.score_director().clone_working_solution();
+    scope.set_best_solution(solution, SoftScore::of(0));
+
+    assert_eq!(
+        scope.pending_control(),
+        PendingControl::ConfigTerminationRequested
+    );
+    assert!(scope.work_should_stop());
+    assert_eq!(
+        scope.mandatory_construction_pending_control(),
+        PendingControl::Continue
+    );
+    assert!(!scope.mandatory_construction_work_should_stop());
+    assert!(!scope.should_interrupt_mandatory_construction());
+}
+
+#[test]
 fn test_phase_scope() {
     let director = create_simple_nqueens_director(2);
     let mut solver_scope = SolverScope::new(director);

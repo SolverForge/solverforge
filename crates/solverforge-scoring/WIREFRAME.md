@@ -20,8 +20,8 @@ src/
 │   ├── analysis.rs                                 — ScoreExplanation, ConstraintAnalysis, Indictment, IndictmentMap, DetailedConstraintMatch, etc.
 │   ├── node_sharing.rs                             — SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation
 │   ├── constraint_set/
-│   │   ├── mod.rs                                  — Re-exports ConstraintSet, ConstraintSetChain, OrderedConstraintSetChain, ConstraintSetSource, IncrementalConstraint, ConstraintMetadata, ConstraintResult
-│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, chain combiners, tuple impls (0..32)
+│   │   ├── mod.rs                                  — Re-exports ConstraintSet, ConstraintSetChain, OrderedConstraintSetChain, ConstraintSetSource, IncrementalConstraint, IncrementalConstraintSealed, ConstraintMetadata, ConstraintResult
+│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, singleton and tuple impls (0..32)
 │   │   └── tests/
 │   │       ├── mod.rs                              — Test module declarations
 │   │       └── constraint_set.rs                   — ConstraintSet tuple tests
@@ -34,6 +34,7 @@ src/
 │   ├── mod.rs                                      — Re-exports all constraint types
 │   ├── macros.rs                                   — impl_get_matches_nary! macro for detailed match generation
 │   ├── shared.rs                                   — compute_hash<T>() utility function
+│   ├── incremental_markers.rs                      — Hidden IncrementalConstraintSealed impls for built-in constraint types
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
 │   ├── grouped.rs                                  — Grouped module root: legacy terminal wrapper, shared node state, terminal scorers, scorer sets, shared set
 │   ├── grouped/*.rs                                — GroupedNodeState, GroupedTerminalScorer, GroupedScorerSet, SharedGroupedConstraintSet, one-terminal wrapper
@@ -190,6 +191,7 @@ pub use constraint::{
 // Constraint Set
 pub use api::constraint_set::{
     ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
+    IncrementalConstraintSealed,
 };
 pub use api::node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
@@ -245,7 +247,7 @@ pub use stream::{
 Committed score-state snapshot used to roll back speculative evaluation. Fields:
 `solution_score`, `committed_score`, `initialized`.
 
-### `IncrementalConstraint<S, Sc: Score>` — `Send + Sync`
+### `IncrementalConstraint<S, Sc: Score>` — `IncrementalConstraintSealed + Send + Sync`
 
 | Method | Signature | Note |
 |--------|-----------|------|
@@ -267,7 +269,8 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 |--------|-----------|------|
 | `evaluate_all` | `fn evaluate_all(&self, solution: &S) -> Sc` | Sum all constraints |
 | `constraint_count` | `fn constraint_count(&self) -> usize` | Number of constraints |
-| `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>` | Borrowed ref/name/hardness metadata |
+| `constraint_metadata` | `fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>` | Deduplicated borrowed ref/name/hardness metadata |
+| `constraint_metadata_entries` | `fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>>` | Hidden raw metadata entries in authored order |
 | `evaluate_each` | `fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>>` | Per-constraint results |
 | `evaluate_detailed` | `fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>>` | With match details |
 | `initialize_all` | `fn initialize_all(&mut self, solution: &S) -> Sc` | Initialize all for incremental |
@@ -275,7 +278,7 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 | `on_retract_all` | `fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental retract all |
 | `reset_all` | `fn reset_all(&mut self)` | Reset all |
 
-Implemented for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: IncrementalConstraint<S, Sc>`. `ConstraintSetChain<Left, Right>` composes two existing `ConstraintSet` values without erasing either concrete type. `OrderedConstraintSetChain<Left, Right>` uses `ConstraintSetSource::Left` and counted `ConstraintSetSource::Right(usize)` spans to preserve user-authored result ordering when macro-generated node sharing combines one shared set with surrounding constraints. Tuple metadata deduplicates repeated full `ConstraintRef`s when hardness agrees and panics when the same full ref has conflicting hard/non-hard metadata. Package-qualified constraints that share a short name remain distinct.
+Implemented for each `IncrementalConstraint<S, Sc>` as a singleton set and for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: ConstraintSet<S, Sc>`. `ConstraintSetChain<Left, Right>` composes two existing `ConstraintSet` values without erasing either concrete type. `OrderedConstraintSetChain<Left, Right>` uses `ConstraintSetSource::Left` and `ConstraintSetSource::Right { constraint_count, metadata_entry_count }` spans to preserve user-authored result ordering when macro-generated node sharing combines one shared set with surrounding constraints. Raw metadata entries keep one entry per constraint for ordering; the public `constraint_metadata()` view deduplicates repeated full `ConstraintRef`s when hardness agrees and panics when the same full ref has conflicting hard/non-hard metadata. Package-qualified constraints that share a short name remain distinct.
 
 ### Shadow Lifecycle on `PlanningSolution`
 
@@ -687,7 +690,7 @@ The `ScoreDirector` delegates to `ConstraintSet::on_retract_all()` / `on_insert_
 
 ### ConstraintSet Tuple Implementation
 
-`ConstraintSet` is implemented for tuples of up to 32 elements via a macro. Each tuple element must implement `IncrementalConstraint<S, Sc>`. Operations iterate over all tuple elements, summing scores. This is the zero-erasure alternative to `Vec<Box<dyn Constraint>>`.
+`ConstraintSet` is implemented for every singleton `IncrementalConstraint<S, Sc>` and for tuples of up to 32 nested `ConstraintSet` elements via a macro. Operations iterate over all nested sets, summing scores and flattening per-constraint raw metadata/results without erasure; the public metadata view is deduplicated after ordering. This is the zero-erasure alternative to `Vec<Box<dyn Constraint>>`.
 
 ### N-ary Constraint Macros
 

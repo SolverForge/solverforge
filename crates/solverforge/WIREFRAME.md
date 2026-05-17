@@ -67,6 +67,7 @@ src/
 - `ConstraintMetadata<'a>` (borrowed constraint identity view)
 - `SharedNodeDiagnostics`, `SharedNodeId`, `SharedNodeOperation`
 - `IncrementalConstraint` (trait)
+- `IncrementalConstraintSealed` (hidden marker for direct custom implementors)
 - `IncrementalUniConstraint`
 - `IncrementalBiConstraint`
 - `Projection` (trait)
@@ -299,9 +300,9 @@ Used exclusively by macro-generated code. Not public API.
 **Scoring (from `solverforge-scoring`):**
 - `Director`, `ScoreDirector`
 - `SolvableSolution`
-- Hidden macro support: `ConstraintSetChain`, `OrderedConstraintSetChain`,
-  `ConstraintSetSource`, `ConstraintWeight`, `ConstraintRef`, `ImpactType`,
-  concrete stream source/filter types, and solver runtime helpers. Node sharing
+- Hidden constraint composition support: `ConstraintSetChain`, `OrderedConstraintSetChain`,
+  `ConstraintSetSource`, `IncrementalConstraintSealed`, `ConstraintWeight`,
+  `ConstraintRef`, `ImpactType`, concrete stream source/filter types, and solver runtime helpers. Node sharing
   is finalized through the same fluent `.penalize(...).named(...)` /
   `.reward(...).named(...)` path as ordinary constraints; internal shared
   node-state types are not facade exports.

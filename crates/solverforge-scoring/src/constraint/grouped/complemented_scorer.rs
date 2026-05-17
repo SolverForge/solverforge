@@ -164,26 +164,6 @@ where
     }
 }
 
-fn push_constraint_metadata<'a>(
-    metadata: &mut Vec<ConstraintMetadata<'a>>,
-    constraint_ref: &'a ConstraintRef,
-    is_hard: bool,
-) {
-    if let Some(existing) = metadata
-        .iter()
-        .find(|item| item.constraint_ref == constraint_ref)
-    {
-        assert_eq!(
-            existing.is_hard,
-            is_hard,
-            "constraint `{}` has conflicting hard/non-hard metadata",
-            constraint_ref.full_name()
-        );
-        return;
-    }
-    metadata.push(ConstraintMetadata::new(constraint_ref, is_hard));
-}
-
 macro_rules! impl_complemented_grouped_scorer_set_for_tuple {
     ($($idx:tt: $T:ident),+) => {
         impl<K, R, Sc, $($T),+> ComplementedGroupedScorerSet<K, R, Sc> for ($($T,)+)
@@ -241,9 +221,7 @@ macro_rules! impl_complemented_grouped_scorer_set_for_tuple {
             fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
                 let mut metadata = Vec::new();
                 $(
-                    for item in ComplementedGroupedScorerSet::constraint_metadata(&self.$idx) {
-                        push_constraint_metadata(&mut metadata, item.constraint_ref, item.is_hard);
-                    }
+                    metadata.extend(ComplementedGroupedScorerSet::constraint_metadata(&self.$idx));
                 )+
                 metadata
             }

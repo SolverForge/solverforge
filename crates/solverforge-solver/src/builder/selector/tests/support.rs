@@ -130,6 +130,8 @@ impl Default for NamedConstraint {
     }
 }
 
+impl IncrementalConstraintSealed for NamedConstraint {}
+
 impl IncrementalConstraint<MixedPlan, SoftScore> for NamedConstraint {
     fn evaluate(&self, _solution: &MixedPlan) -> SoftScore {
         SoftScore::of(0)

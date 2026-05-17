@@ -39,6 +39,7 @@ Constraint Set (Tuple-Based, Zero-Erasure)
 
 pub use api::constraint_set::{
     ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
+    IncrementalConstraintSealed,
 };
 pub use api::node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};

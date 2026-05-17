@@ -35,4 +35,5 @@ include!("tests/scalar_assignment_construction_progress.rs");
 include!("tests/scalar_assignment_dense.rs");
 include!("tests/scalar_assignment_grouped_heuristics.rs");
 include!("tests/scalar_assignment_repair.rs");
+include!("tests/scalar_assignment_value_patterns.rs");
 include!("tests/scalar_assignment_soft.rs");

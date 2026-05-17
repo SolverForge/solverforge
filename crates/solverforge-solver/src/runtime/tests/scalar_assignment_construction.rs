@@ -406,6 +406,54 @@ fn selector_assignment_moves_for_plan(
     )
 }
 
+fn value_block_reassignment_moves_for_plan(
+    plan: &CoveragePlan,
+    limits: ScalarGroupLimits,
+    max_moves: usize,
+) -> Vec<crate::heuristic::r#move::CompoundScalarMove<CoveragePlan>> {
+    let model = assignment_model_with_limits(limits);
+    let group = &model.scalar_groups()[0];
+    let crate::builder::ScalarGroupBindingKind::Assignment(assignment) = group.kind else {
+        panic!("test model should contain an assignment-backed scalar group");
+    };
+    let options =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_selector(
+            group.limits,
+            None,
+            max_moves,
+            0,
+        );
+    crate::phase::construction::grouped_scalar::value_block_reassignment_assignment_moves(
+        &assignment,
+        plan,
+        options,
+    )
+}
+
+fn value_window_moves_for_plan(
+    plan: &CoveragePlan,
+    limits: ScalarGroupLimits,
+    max_moves: usize,
+) -> Vec<crate::heuristic::r#move::CompoundScalarMove<CoveragePlan>> {
+    let model = assignment_model_with_limits(limits);
+    let group = &model.scalar_groups()[0];
+    let crate::builder::ScalarGroupBindingKind::Assignment(assignment) = group.kind else {
+        panic!("test model should contain an assignment-backed scalar group");
+    };
+    let options =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_selector(
+            group.limits,
+            None,
+            max_moves,
+            0,
+        );
+    crate::phase::construction::grouped_scalar::value_window_assignment_moves(
+        &assignment,
+        plan,
+        options,
+    )
+}
+
 #[test]
 fn scalar_assignment_construction_fills_required_slots_with_free_capacity() {
     let solver_scope = solve_assignment(coverage_plan(

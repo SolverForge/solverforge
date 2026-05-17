@@ -2,6 +2,9 @@ use std::collections::HashMap;
 
 use solverforge_core::domain::PlanningSolution;
 
+use super::assignment_block::{
+    ValueBlockReassignmentCursor, ValueLongWindowCursor, ValueWindowCursor,
+};
 use super::assignment_candidate::{rotate_entity_order, ScalarAssignmentMoveOptions};
 use super::assignment_cycle::CycleWindowCursor;
 use super::assignment_entity::{
@@ -10,6 +13,9 @@ use super::assignment_entity::{
 };
 use super::assignment_pair::PairWindowCursor;
 use super::assignment_state::ScalarAssignmentState;
+use super::assignment_value_cycle::ValueWindowCycleCursor;
+use super::assignment_value_release::ValueRunReleaseCursor;
+use super::assignment_value_run::ValueRunGapSwapCursor;
 use crate::builder::ScalarAssignmentBinding;
 
 pub(super) enum AssignmentFamilyCursor {
@@ -18,6 +24,12 @@ pub(super) enum AssignmentFamilyCursor {
     OptionalAdjustment(OptionalAdjustmentCursor),
     PairWindow(PairWindowCursor),
     CycleWindow(CycleWindowCursor),
+    ValueWindow(ValueWindowCursor),
+    ValueLongWindow(ValueLongWindowCursor),
+    ValueRunGapSwap(ValueRunGapSwapCursor),
+    ValueRunRelease(ValueRunReleaseCursor),
+    ValueWindowCycle(ValueWindowCycleCursor),
+    ValueBlockReassignment(ValueBlockReassignmentCursor),
     Empty,
 }
 
@@ -69,11 +81,17 @@ impl AssignmentFamilyCursor {
 pub(super) enum AssignmentMoveFamily {
     Required,
     Capacity,
+    ValueRunGapSwap,
+    ValueRunRelease,
     SequenceWindow,
     Rematch,
     AugmentingRematch,
     Swap,
     PairedReassignment,
+    ValueWindowSwap,
+    ValueLongWindowSwap,
+    ValueWindowCycle,
+    ValueBlockReassignment,
     Reassignment,
     OptionalTransfer,
     OptionalAssign,
@@ -87,12 +105,18 @@ impl AssignmentMoveFamily {
         let current = *self;
         *self = match current {
             Self::Required => Self::Capacity,
-            Self::Capacity => Self::SequenceWindow,
+            Self::Capacity => Self::ValueRunGapSwap,
+            Self::ValueRunGapSwap => Self::ValueRunRelease,
+            Self::ValueRunRelease => Self::SequenceWindow,
             Self::SequenceWindow => Self::Rematch,
             Self::Rematch => Self::AugmentingRematch,
             Self::AugmentingRematch => Self::Swap,
             Self::Swap => Self::PairedReassignment,
-            Self::PairedReassignment => Self::Reassignment,
+            Self::PairedReassignment => Self::ValueWindowSwap,
+            Self::ValueWindowSwap => Self::ValueLongWindowSwap,
+            Self::ValueLongWindowSwap => Self::ValueBlockReassignment,
+            Self::ValueBlockReassignment => Self::ValueWindowCycle,
+            Self::ValueWindowCycle => Self::Reassignment,
             Self::Reassignment => Self::OptionalTransfer,
             Self::OptionalTransfer => Self::OptionalAssign,
             Self::OptionalAssign => Self::OptionalRelease,

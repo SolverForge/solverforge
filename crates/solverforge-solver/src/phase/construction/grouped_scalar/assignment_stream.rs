@@ -236,6 +236,56 @@ where
             AssignmentMoveFamily::PairedReassignment => AssignmentFamilyCursor::PairWindow(
                 PairWindowCursor::paired(&self.group, &self.solution, &self.state, options),
             ),
+            AssignmentMoveFamily::ValueWindowSwap => AssignmentFamilyCursor::ValueWindow(
+                super::assignment_block::ValueWindowCursor::new(
+                    &self.group,
+                    &self.solution,
+                    &self.state,
+                    options,
+                ),
+            ),
+            AssignmentMoveFamily::ValueLongWindowSwap => AssignmentFamilyCursor::ValueLongWindow(
+                super::assignment_block::ValueLongWindowCursor::new(
+                    &self.group,
+                    &self.solution,
+                    &self.state,
+                    options,
+                ),
+            ),
+            AssignmentMoveFamily::ValueRunGapSwap => AssignmentFamilyCursor::ValueRunGapSwap(
+                super::assignment_value_run::ValueRunGapSwapCursor::new(
+                    &self.group,
+                    &self.solution,
+                    &self.state,
+                    options,
+                ),
+            ),
+            AssignmentMoveFamily::ValueRunRelease => AssignmentFamilyCursor::ValueRunRelease(
+                super::assignment_value_release::ValueRunReleaseCursor::new(
+                    &self.group,
+                    &self.solution,
+                    &self.state,
+                    options,
+                ),
+            ),
+            AssignmentMoveFamily::ValueWindowCycle => AssignmentFamilyCursor::ValueWindowCycle(
+                super::assignment_value_cycle::ValueWindowCycleCursor::new(
+                    &self.group,
+                    &self.solution,
+                    &self.state,
+                    options,
+                ),
+            ),
+            AssignmentMoveFamily::ValueBlockReassignment => {
+                AssignmentFamilyCursor::ValueBlockReassignment(
+                    super::assignment_block::ValueBlockReassignmentCursor::new(
+                        &self.group,
+                        &self.solution,
+                        &self.state,
+                        options,
+                    ),
+                )
+            }
             AssignmentMoveFamily::Reassignment => AssignmentFamilyCursor::entity_values(
                 {
                     let mut entities =
@@ -324,6 +374,48 @@ where
             }
             candidate
         }
+        AssignmentFamilyCursor::ValueWindow(value_window_cursor) => {
+            let candidate = value_window_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
+        AssignmentFamilyCursor::ValueLongWindow(long_window_cursor) => {
+            let candidate = long_window_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
+        AssignmentFamilyCursor::ValueRunGapSwap(run_gap_cursor) => {
+            let candidate = run_gap_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
+        AssignmentFamilyCursor::ValueRunRelease(run_release_cursor) => {
+            let candidate = run_release_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
+        AssignmentFamilyCursor::ValueWindowCycle(value_window_cycle_cursor) => {
+            let candidate = value_window_cycle_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
+        AssignmentFamilyCursor::ValueBlockReassignment(block_cursor) => {
+            let candidate = block_cursor.next(group, solution, state);
+            if candidate.is_none() {
+                *cursor = AssignmentFamilyCursor::Empty;
+            }
+            candidate
+        }
         AssignmentFamilyCursor::Empty => None,
     }
 }
@@ -360,6 +452,56 @@ where
         options,
         AssignmentMoveFamily::Rematch,
         AssignmentMoveFamily::Rematch,
+        false,
+        false,
+    );
+    let mut moves = Vec::new();
+    while let Some(candidate) = cursor.next_move() {
+        moves.push(candidate);
+    }
+    moves
+}
+
+#[cfg(test)]
+pub(crate) fn value_block_reassignment_assignment_moves<S>(
+    group: &ScalarAssignmentBinding<S>,
+    solution: &S,
+    options: ScalarAssignmentMoveOptions,
+) -> Vec<CompoundScalarMove<S>>
+where
+    S: PlanningSolution,
+{
+    let mut cursor = ScalarAssignmentMoveCursor::from_family_range(
+        *group,
+        solution.clone(),
+        options,
+        AssignmentMoveFamily::ValueBlockReassignment,
+        AssignmentMoveFamily::ValueBlockReassignment,
+        false,
+        false,
+    );
+    let mut moves = Vec::new();
+    while let Some(candidate) = cursor.next_move() {
+        moves.push(candidate);
+    }
+    moves
+}
+
+#[cfg(test)]
+pub(crate) fn value_window_assignment_moves<S>(
+    group: &ScalarAssignmentBinding<S>,
+    solution: &S,
+    options: ScalarAssignmentMoveOptions,
+) -> Vec<CompoundScalarMove<S>>
+where
+    S: PlanningSolution,
+{
+    let mut cursor = ScalarAssignmentMoveCursor::from_family_range(
+        *group,
+        solution.clone(),
+        options,
+        AssignmentMoveFamily::ValueWindowSwap,
+        AssignmentMoveFamily::ValueWindowSwap,
         false,
         false,
     );

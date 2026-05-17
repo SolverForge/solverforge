@@ -1,6 +1,10 @@
+use std::cmp::Ordering;
+use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use super::{SelectorTelemetry, Throughput};
+use super::{AppliedMoveTelemetry, MoveTelemetry, SelectorTelemetry, Throughput};
+
+const APPLIED_MOVE_TRACE_LIMIT: usize = 8;
 
 #[derive(Debug)]
 pub struct PhaseStats {
@@ -40,6 +44,8 @@ pub struct PhaseStats {
     generation_time: Duration,
     evaluation_time: Duration,
     selector_stats: Vec<SelectorTelemetry>,
+    move_stats: BTreeMap<&'static str, MoveTelemetry>,
+    applied_move_trace: Vec<AppliedMoveTelemetry>,
 }
 
 impl PhaseStats {
@@ -74,6 +80,8 @@ impl PhaseStats {
             generation_time: Duration::default(),
             evaluation_time: Duration::default(),
             selector_stats: Vec::new(),
+            move_stats: BTreeMap::new(),
+            applied_move_trace: Vec::new(),
         }
     }
 
@@ -260,6 +268,73 @@ impl PhaseStats {
         &self.selector_stats
     }
 
+    pub fn applied_move_trace(&self) -> &[AppliedMoveTelemetry] {
+        &self.applied_move_trace
+    }
+
+    pub fn can_record_applied_move_trace(&self) -> bool {
+        self.applied_move_trace.len() < APPLIED_MOVE_TRACE_LIMIT
+    }
+
+    pub fn record_move_kind_generated(&mut self, move_label: &'static str) {
+        self.move_stats_entry(move_label).moves_generated += 1;
+    }
+
+    pub fn record_move_kind_evaluated(
+        &mut self,
+        move_label: &'static str,
+        score_ordering: Ordering,
+    ) {
+        let entry = self.move_stats_entry(move_label);
+        entry.moves_evaluated += 1;
+        match score_ordering {
+            Ordering::Greater => entry.moves_score_improving += 1,
+            Ordering::Equal => entry.moves_score_equal += 1,
+            Ordering::Less => entry.moves_score_worse += 1,
+        }
+    }
+
+    pub fn record_move_kind_accepted(&mut self, move_label: &'static str) {
+        self.move_stats_entry(move_label).moves_accepted += 1;
+    }
+
+    pub fn record_move_kind_applied(&mut self, move_label: &'static str, score_improvement: f64) {
+        let entry = self.move_stats_entry(move_label);
+        entry.moves_applied += 1;
+        if score_improvement > 0.0 {
+            entry.applied_score_improvement += score_improvement;
+        }
+    }
+
+    pub fn record_move_kind_not_doable(&mut self, move_label: &'static str) {
+        self.move_stats_entry(move_label).moves_not_doable += 1;
+    }
+
+    pub fn record_move_kind_acceptor_rejected(
+        &mut self,
+        move_label: &'static str,
+        score_ordering: Ordering,
+    ) {
+        let entry = self.move_stats_entry(move_label);
+        entry.moves_acceptor_rejected += 1;
+        if score_ordering == Ordering::Greater {
+            entry.moves_rejected_improving += 1;
+        }
+    }
+
+    pub fn record_move_kind_forager_ignored(&mut self, move_label: &'static str, count: u64) {
+        if count == 0 {
+            return;
+        }
+        self.move_stats_entry(move_label).moves_forager_ignored += count;
+    }
+
+    pub fn record_applied_move_trace(&mut self, applied_move: AppliedMoveTelemetry) {
+        if self.applied_move_trace.len() < APPLIED_MOVE_TRACE_LIMIT {
+            self.applied_move_trace.push(applied_move);
+        }
+    }
+
     pub fn record_selector_generated_with_label(
         &mut self,
         selector_index: usize,
@@ -305,5 +380,14 @@ impl PhaseStats {
         self.selector_stats
             .last_mut()
             .expect("selector stats entry was just inserted")
+    }
+
+    fn move_stats_entry(&mut self, move_label: &'static str) -> &mut MoveTelemetry {
+        self.move_stats
+            .entry(move_label)
+            .or_insert_with(|| MoveTelemetry {
+                move_label: move_label.to_string(),
+                ..MoveTelemetry::default()
+            })
     }
 }

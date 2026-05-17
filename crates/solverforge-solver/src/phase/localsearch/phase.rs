@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use rand::RngExt;
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 use tracing::{debug, info, trace};
 
@@ -23,7 +24,7 @@ use crate::phase::localsearch::{Acceptor, LocalSearchForager};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
-use crate::stats::{format_duration, whole_units_per_second};
+use crate::stats::{format_duration, whole_units_per_second, AppliedMoveTelemetry};
 
 /// Local search phase that improves an existing solution.
 ///
@@ -177,12 +178,15 @@ where
 
             let mut interrupted_step = false;
             let mut accepted_moves_this_step = 0u64;
+            let mut moves_generated_this_step = 0u64;
+            let mut moves_evaluated_this_step = 0u64;
             if should_interrupt_before_candidate(&step_scope) {
                 interrupted_step = true;
             }
             let generation_started = Instant::now();
+            let step_index = step_scope.step_index();
             let stream_context = MoveStreamContext::new(
-                step_scope.step_index(),
+                step_index,
                 step_scope
                     .phase_scope_mut()
                     .solver_scope_mut()
@@ -222,6 +226,7 @@ where
                 let selector_label = selector_index.map(|_| candidate_selector_label(&mov));
                 let generation_elapsed = generation_started.elapsed();
                 local_moves_generated += 1;
+                moves_generated_this_step += 1;
                 if let Some(selector_index) = selector_index {
                     step_scope
                         .phase_scope_mut()
@@ -249,6 +254,7 @@ where
                     break;
                 }
                 local_moves_evaluated += 1;
+                moves_evaluated_this_step += 1;
 
                 if local_moves_evaluated & 0x1FFF == 0 {
                     let now = Instant::now();
@@ -288,9 +294,8 @@ where
                 ) {
                     CandidateEvaluation::Scored(score) => score,
                     CandidateEvaluation::NotDoable
-                    | CandidateEvaluation::RejectedByHardImprovement => continue,
+                    | CandidateEvaluation::RejectedByHardImprovement(_) => continue,
                 };
-
                 let move_signature = if requires_move_signatures {
                     Some(mov.tabu_signature(step_scope.score_director()))
                 } else {
@@ -352,10 +357,12 @@ where
                 let selected_move = cursor
                     .candidate(selected_index)
                     .expect("selected candidate id must remain borrowable until commit");
+                let selected_move_label = selected_move.telemetry_label();
                 if requires_move_signatures {
                     accepted_move_signature =
                         Some(selected_move.tabu_signature(step_scope.score_director()));
                 }
+                let previous_score = last_step_score;
                 step_scope.apply_committed_move(&selected_move);
                 if let Some(selector_index) = selector_index {
                     step_scope
@@ -365,6 +372,36 @@ where
                     step_scope.phase_scope_mut().record_move_applied();
                 }
                 step_scope.set_step_score(selected_score);
+                let score_improvement =
+                    if previous_score.is_feasible() && selected_score > previous_score {
+                        selected_score.to_scalar() - previous_score.to_scalar()
+                    } else {
+                        0.0
+                    };
+                step_scope
+                    .phase_scope_mut()
+                    .record_move_kind_applied(selected_move_label, score_improvement);
+                if step_scope.phase_scope().can_record_applied_move_trace() {
+                    let score_before = previous_score.to_scalar();
+                    let score_after = selected_score.to_scalar();
+                    step_scope
+                        .phase_scope_mut()
+                        .record_applied_move_trace(AppliedMoveTelemetry {
+                            step_index,
+                            move_label: selected_move_label,
+                            selected_candidate_index: selected_index.index(),
+                            moves_generated_this_step,
+                            moves_evaluated_this_step,
+                            moves_accepted_this_step: accepted_moves_this_step,
+                            moves_forager_ignored_this_step: accepted_moves_this_step
+                                .saturating_sub(1),
+                            score_before,
+                            score_after,
+                            score_delta: score_after - score_before,
+                            hard_feasible_before: previous_score.is_feasible(),
+                            hard_feasible_after: selected_score.is_feasible(),
+                        });
+                }
 
                 // Update last step score
                 last_step_score = selected_score;

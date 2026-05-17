@@ -11,7 +11,7 @@ use crate::scope::{ProgressCallback, StepScope};
 pub(crate) enum CandidateEvaluation<Sc> {
     Scored(Sc),
     NotDoable,
-    RejectedByHardImprovement,
+    RejectedByHardImprovement(Sc),
 }
 
 #[inline]
@@ -73,7 +73,7 @@ where
         } else {
             step_scope.phase_scope_mut().record_move_acceptor_rejected();
         }
-        return CandidateEvaluation::RejectedByHardImprovement;
+        return CandidateEvaluation::RejectedByHardImprovement(move_score);
     }
 
     CandidateEvaluation::Scored(move_score)

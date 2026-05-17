@@ -100,6 +100,13 @@ where
         }
     }
 
+    fn telemetry_label(&self) -> &'static str {
+        match self {
+            Self::Scalar(m) => m.telemetry_label(),
+            Self::List(m) => m.telemetry_label(),
+        }
+    }
+
     fn requires_hard_improvement(&self) -> bool {
         match self {
             Self::Scalar(m) => m.requires_hard_improvement(),

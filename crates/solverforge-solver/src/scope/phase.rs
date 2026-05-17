@@ -1,5 +1,6 @@
 // Phase-level scope.
 
+use std::cmp::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -8,7 +9,7 @@ use solverforge_scoring::Director;
 
 use super::solver::ProgressCallback;
 use super::SolverScope;
-use crate::stats::PhaseStats;
+use crate::stats::{AppliedMoveTelemetry, PhaseStats};
 
 /// Scope for a single phase of solving.
 ///
@@ -246,6 +247,78 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
         self.solver_scope
             .stats_mut()
             .record_moves_forager_ignored(count);
+    }
+
+    pub fn record_move_kind_generated(&mut self, move_label: &'static str) {
+        self.stats.record_move_kind_generated(move_label);
+        self.solver_scope
+            .stats_mut()
+            .record_move_kind_generated(move_label);
+    }
+
+    pub fn record_move_kind_evaluated(
+        &mut self,
+        move_label: &'static str,
+        score_ordering: Ordering,
+    ) {
+        self.stats
+            .record_move_kind_evaluated(move_label, score_ordering);
+        self.solver_scope
+            .stats_mut()
+            .record_move_kind_evaluated(move_label, score_ordering);
+    }
+
+    pub fn record_move_kind_accepted(&mut self, move_label: &'static str) {
+        self.stats.record_move_kind_accepted(move_label);
+        self.solver_scope
+            .stats_mut()
+            .record_move_kind_accepted(move_label);
+    }
+
+    pub fn record_move_kind_applied(&mut self, move_label: &'static str, score_improvement: f64) {
+        self.stats
+            .record_move_kind_applied(move_label, score_improvement);
+        self.solver_scope
+            .stats_mut()
+            .record_move_kind_applied(move_label, score_improvement);
+    }
+
+    pub fn record_move_kind_not_doable(&mut self, move_label: &'static str) {
+        self.stats.record_move_kind_not_doable(move_label);
+        self.solver_scope
+            .stats_mut()
+            .record_move_kind_not_doable(move_label);
+    }
+
+    pub fn record_move_kind_acceptor_rejected(
+        &mut self,
+        move_label: &'static str,
+        score_ordering: Ordering,
+    ) {
+        self.stats
+            .record_move_kind_acceptor_rejected(move_label, score_ordering);
+        self.solver_scope
+            .stats_mut()
+            .record_move_kind_acceptor_rejected(move_label, score_ordering);
+    }
+
+    pub fn record_move_kind_forager_ignored(&mut self, move_label: &'static str, count: u64) {
+        self.stats
+            .record_move_kind_forager_ignored(move_label, count);
+        self.solver_scope
+            .stats_mut()
+            .record_move_kind_forager_ignored(move_label, count);
+    }
+
+    pub fn record_applied_move_trace(&mut self, applied_move: AppliedMoveTelemetry) {
+        self.stats.record_applied_move_trace(applied_move);
+        self.solver_scope
+            .stats_mut()
+            .record_applied_move_trace(applied_move);
+    }
+
+    pub fn can_record_applied_move_trace(&self) -> bool {
+        self.stats.can_record_applied_move_trace()
     }
 
     pub fn record_move_hard_improving(&mut self) {

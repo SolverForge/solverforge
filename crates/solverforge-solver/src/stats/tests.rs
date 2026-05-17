@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use super::*;
+use std::cmp::Ordering;
 
 #[test]
 fn solver_snapshot_preserves_exact_counts_and_durations() {
@@ -65,6 +66,84 @@ fn solver_snapshot_includes_selector_level_telemetry() {
     assert_eq!(snapshot.selector_telemetry[0].moves_evaluated, 1);
     assert_eq!(snapshot.selector_telemetry[0].moves_accepted, 1);
     assert_eq!(snapshot.selector_telemetry[0].moves_applied, 1);
+}
+
+#[test]
+fn solver_snapshot_includes_move_level_telemetry() {
+    let mut stats = SolverStats::default();
+
+    stats.record_move_kind_generated("scalar_assignment_value_run_gap_swap");
+    stats.record_move_kind_evaluated("scalar_assignment_value_run_gap_swap", Ordering::Greater);
+    stats.record_move_kind_accepted("scalar_assignment_value_run_gap_swap");
+    stats.record_move_kind_applied("scalar_assignment_value_run_gap_swap", 25.0);
+    stats.record_move_kind_forager_ignored("scalar_assignment_value_run_gap_swap", 2);
+
+    let snapshot = stats.snapshot();
+
+    assert_eq!(snapshot.move_telemetry.len(), 1);
+    assert_eq!(
+        snapshot.move_telemetry[0].move_label,
+        "scalar_assignment_value_run_gap_swap"
+    );
+    assert_eq!(snapshot.move_telemetry[0].moves_generated, 1);
+    assert_eq!(snapshot.move_telemetry[0].moves_evaluated, 1);
+    assert_eq!(snapshot.move_telemetry[0].moves_accepted, 1);
+    assert_eq!(snapshot.move_telemetry[0].moves_applied, 1);
+    assert_eq!(snapshot.move_telemetry[0].moves_score_improving, 1);
+    assert_eq!(snapshot.move_telemetry[0].moves_forager_ignored, 2);
+    assert_eq!(snapshot.move_telemetry[0].applied_score_improvement, 25.0);
+}
+
+#[test]
+fn solver_snapshot_includes_bounded_applied_move_trace() {
+    let mut stats = SolverStats::default();
+
+    stats.record_applied_move_trace(AppliedMoveTelemetry {
+        step_index: 7,
+        move_label: "scalar_assignment_value_window_swap",
+        selected_candidate_index: 42,
+        moves_generated_this_step: 43,
+        moves_evaluated_this_step: 43,
+        moves_accepted_this_step: 1,
+        moves_forager_ignored_this_step: 0,
+        score_before: -100.0,
+        score_after: -80.0,
+        score_delta: 20.0,
+        hard_feasible_before: true,
+        hard_feasible_after: true,
+    });
+
+    let snapshot = stats.snapshot();
+
+    assert_eq!(snapshot.applied_move_trace.len(), 1);
+    assert_eq!(snapshot.applied_move_trace[0].step_index, 7);
+    assert_eq!(
+        snapshot.applied_move_trace[0].move_label,
+        "scalar_assignment_value_window_swap"
+    );
+    assert_eq!(snapshot.applied_move_trace[0].selected_candidate_index, 42);
+    assert_eq!(snapshot.applied_move_trace[0].score_delta, 20.0);
+    assert!(snapshot.applied_move_trace[0].hard_feasible_after);
+}
+
+#[test]
+fn compact_solver_snapshot_omits_applied_move_trace() {
+    let mut stats = SolverStats::default();
+
+    stats.record_applied_move_trace(AppliedMoveTelemetry {
+        step_index: 1,
+        move_label: "scalar_assignment_value_window_swap",
+        selected_candidate_index: 0,
+        hard_feasible_before: true,
+        hard_feasible_after: true,
+        ..AppliedMoveTelemetry::default()
+    });
+
+    assert_eq!(stats.snapshot().applied_move_trace.len(), 1);
+    assert!(stats
+        .snapshot_without_applied_move_trace()
+        .applied_move_trace
+        .is_empty());
 }
 
 #[test]

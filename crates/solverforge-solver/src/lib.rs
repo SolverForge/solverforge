@@ -143,7 +143,10 @@ pub use run::{log_solve_start, run_solver, run_solver_with_config};
 pub use runtime::{ListVariableEntity, ListVariableMetadata};
 pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::{MaybeTermination, NoTermination, SolveResult, Solver};
-pub use stats::{PhaseStats, SelectorTelemetry, SolverStats, SolverTelemetry};
+pub use stats::{
+    AppliedMoveTelemetry, MoveTelemetry, PhaseStats, SelectorTelemetry, SolverStats,
+    SolverTelemetry,
+};
 pub use termination::{
     AndTermination, BestScoreFeasibleTermination, BestScoreTermination,
     DiminishedReturnsTermination, MoveCountTermination, OrTermination,

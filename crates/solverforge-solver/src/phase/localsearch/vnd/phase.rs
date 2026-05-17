@@ -223,7 +223,7 @@ where
             evaluation_started,
         ) {
             CandidateEvaluation::Scored(score) => score,
-            CandidateEvaluation::NotDoable | CandidateEvaluation::RejectedByHardImprovement => {
+            CandidateEvaluation::NotDoable | CandidateEvaluation::RejectedByHardImprovement(_) => {
                 progress.record_evaluated();
                 progress.maybe_report(step_scope, current_score);
                 continue;

@@ -54,6 +54,39 @@ pub struct SelectorTelemetry {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
+pub struct MoveTelemetry {
+    pub move_label: String,
+    pub moves_generated: u64,
+    pub moves_evaluated: u64,
+    pub moves_accepted: u64,
+    pub moves_applied: u64,
+    pub moves_not_doable: u64,
+    pub moves_acceptor_rejected: u64,
+    pub moves_forager_ignored: u64,
+    pub moves_score_improving: u64,
+    pub moves_score_equal: u64,
+    pub moves_score_worse: u64,
+    pub moves_rejected_improving: u64,
+    pub applied_score_improvement: f64,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct AppliedMoveTelemetry {
+    pub step_index: u64,
+    pub move_label: &'static str,
+    pub selected_candidate_index: usize,
+    pub moves_generated_this_step: u64,
+    pub moves_evaluated_this_step: u64,
+    pub moves_accepted_this_step: u64,
+    pub moves_forager_ignored_this_step: u64,
+    pub score_before: f64,
+    pub score_after: f64,
+    pub score_delta: f64,
+    pub hard_feasible_before: bool,
+    pub hard_feasible_after: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct SolverTelemetry {
     pub elapsed: Duration,
     pub step_count: u64,
@@ -81,6 +114,8 @@ pub struct SolverTelemetry {
     pub generation_time: Duration,
     pub evaluation_time: Duration,
     pub selector_telemetry: Vec<SelectorTelemetry>,
+    pub move_telemetry: Vec<MoveTelemetry>,
+    pub applied_move_trace: Vec<AppliedMoveTelemetry>,
 }
 
 impl SolverTelemetry {
@@ -112,6 +147,8 @@ impl SolverTelemetry {
             generation_time: Duration::ZERO,
             evaluation_time: Duration::ZERO,
             selector_telemetry: Vec::new(),
+            move_telemetry: Vec::new(),
+            applied_move_trace: Vec::new(),
         }
     }
 }

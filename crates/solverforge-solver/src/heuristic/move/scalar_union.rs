@@ -175,6 +175,18 @@ where
         }
     }
 
+    fn telemetry_label(&self) -> &'static str {
+        match self {
+            Self::Change(m) => m.telemetry_label(),
+            Self::Swap(m) => m.telemetry_label(),
+            Self::PillarChange(m) => m.telemetry_label(),
+            Self::PillarSwap(m) => m.telemetry_label(),
+            Self::RuinRecreate(m) => m.telemetry_label(),
+            Self::CompoundScalar(m) => m.telemetry_label(),
+            Self::ConflictRepair(m) => m.telemetry_label(),
+        }
+    }
+
     fn requires_hard_improvement(&self) -> bool {
         match self {
             Self::Change(m) => m.requires_hard_improvement(),

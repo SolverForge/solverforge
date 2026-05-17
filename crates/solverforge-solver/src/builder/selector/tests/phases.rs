@@ -44,7 +44,8 @@ fn default_search_profile_uses_one_streaming_phase_for_assignment_groups() {
     assert!(debug.contains("AcceptorForager"));
     assert!(!debug.contains("VariableNeighborhoodDescent"));
     assert!(debug.contains("DiversifiedLateAcceptance"));
-    assert!(debug.contains("accepted_count_limit: 256"));
+    assert!(debug.contains("LastStepScoreImproving"));
+    assert!(!debug.contains("AcceptedCount"));
 }
 
 #[test]

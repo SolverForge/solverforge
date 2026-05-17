@@ -260,10 +260,15 @@ pub(crate) fn default_local_search_forager<S, V, DM, IDM>(
 where
     S: PlanningSolution,
 {
+    if model.has_scalar_groups() && !model.has_list_variables() {
+        return AnyForager::LastStepScoreImproving(
+            crate::phase::localsearch::FirstLastStepScoreImprovingForager::new(),
+        );
+    }
+
     let limit = if model.has_list_variables()
         || model.has_nearby_scalar_change_variables()
         || model.has_nearby_scalar_swap_variables()
-        || model.has_scalar_groups()
         || model.has_conflict_repairs()
     {
         DEFAULT_LOCAL_SEARCH_ACCEPTED_COUNT

@@ -1,4 +1,5 @@
 use solverforge::prelude::*;
+use solverforge::prelude::ConstraintSet as CSet;
 use solverforge::IncrementalConstraint;
 
 struct Plan {
@@ -16,6 +17,13 @@ fn fixed_one() -> impl IncrementalConstraint<Plan, SoftScore> {
         .named("fixed one")
 }
 
+fn fixed_named(name: String) -> impl ConstraintSet<Plan, SoftScore> {
+    ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(shifts as fn(&Plan) -> &[usize])
+        .penalize(SoftScore::ONE)
+        .named(name.as_str())
+}
+
 fn fixed_constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let fixed_two = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(shifts as fn(&Plan) -> &[usize])
@@ -27,6 +35,82 @@ fn fixed_constraints() -> impl ConstraintSet<Plan, SoftScore> {
         .named("fixed duplicate");
 
     (fixed_two, fixed_three)
+}
+
+#[solverforge_constraints]
+fn moved_name_constraints() -> impl ConstraintSet<Plan, SoftScore> {
+    let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(shifts as fn(&Plan) -> &[usize])
+        .group_by(|employee_id: &usize| *employee_id, count());
+    let name = String::from("moved fixed");
+
+    (
+        by_employee
+            .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+            .named(name.as_str()),
+        fixed_named(name),
+        by_employee
+            .penalize(|_employee_id: &usize, count: &usize| {
+                SoftScore::of((*count * *count) as i64)
+            })
+            .named("after move"),
+    )
+}
+
+#[solverforge_constraints]
+fn empty_tuple_constraints() -> impl ConstraintSet<Plan, SoftScore> {
+    let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(shifts as fn(&Plan) -> &[usize])
+        .group_by(|employee_id: &usize| *employee_id, count());
+
+    (
+        by_employee
+            .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+            .named("empty linear"),
+        (),
+        by_employee
+            .penalize(|_employee_id: &usize, count: &usize| {
+                SoftScore::of((*count * *count) as i64)
+            })
+            .named("empty squared"),
+    )
+}
+
+#[solverforge_constraints]
+fn alias_terminal_constraints() -> impl CSet<Plan, SoftScore> {
+    let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(shifts as fn(&Plan) -> &[usize])
+        .group_by(|employee_id: &usize| *employee_id, count());
+
+    (
+        by_employee
+            .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+            .named("alias linear"),
+        by_employee
+            .penalize(|_employee_id: &usize, count: &usize| {
+                SoftScore::of((*count * *count) as i64)
+            })
+            .named("alias squared"),
+    )
+}
+
+#[solverforge_constraints]
+fn alias_empty_tuple_constraints() -> impl CSet<Plan, SoftScore> {
+    let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(shifts as fn(&Plan) -> &[usize])
+        .group_by(|employee_id: &usize| *employee_id, count());
+
+    (
+        by_employee
+            .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+            .named("alias empty linear"),
+        (),
+        by_employee
+            .penalize(|_employee_id: &usize, count: &usize| {
+                SoftScore::of((*count * *count) as i64)
+            })
+            .named("alias empty squared"),
+    )
 }
 
 #[solverforge_constraints]
@@ -101,4 +185,29 @@ fn main() {
     assert_eq!(bound_metadata[0].name(), "bound linear");
     assert_eq!(bound_metadata[1].name(), "fixed duplicate");
     assert_eq!(bound_metadata[2].name(), "bound squared");
+
+    let moved_constraints = moved_name_constraints();
+    let moved_results = moved_constraints.evaluate_each(&plan);
+    assert_eq!(moved_results.len(), 3);
+    assert_eq!(moved_results[0].name, "moved fixed");
+    assert_eq!(moved_results[1].name, "moved fixed");
+    assert_eq!(moved_results[2].name, "after move");
+
+    let empty_constraints = empty_tuple_constraints();
+    let empty_results = empty_constraints.evaluate_each(&plan);
+    assert_eq!(empty_results.len(), 2);
+    assert_eq!(empty_results[0].name, "empty linear");
+    assert_eq!(empty_results[1].name, "empty squared");
+
+    let alias_constraints = alias_terminal_constraints();
+    let alias_results = alias_constraints.evaluate_each(&plan);
+    assert_eq!(alias_results.len(), 2);
+    assert_eq!(alias_results[0].name, "alias linear");
+    assert_eq!(alias_results[1].name, "alias squared");
+
+    let alias_empty_constraints = alias_empty_tuple_constraints();
+    let alias_empty_results = alias_empty_constraints.evaluate_each(&plan);
+    assert_eq!(alias_empty_results.len(), 2);
+    assert_eq!(alias_empty_results[0].name, "alias empty linear");
+    assert_eq!(alias_empty_results[1].name, "alias empty squared");
 }

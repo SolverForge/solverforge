@@ -31,6 +31,10 @@ where
         (**self).variable_name()
     }
 
+    fn telemetry_label(&self) -> &'static str {
+        (**self).telemetry_label()
+    }
+
     fn requires_hard_improvement(&self) -> bool {
         (**self).requires_hard_improvement()
     }
@@ -146,6 +150,13 @@ where
         match self {
             Self::Borrowed(mov) => mov.variable_name(),
             Self::Sequential(mov) => mov.variable_name(),
+        }
+    }
+
+    fn telemetry_label(&self) -> &'static str {
+        match self {
+            Self::Borrowed(mov) => mov.telemetry_label(),
+            Self::Sequential(mov) => mov.telemetry_label(),
         }
     }
 

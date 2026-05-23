@@ -3,7 +3,7 @@
 Solver engine: phases, moves, selectors, acceptors, foragers, termination, and solver management.
 
 **Location:** `crates/solverforge-solver/`
-**Workspace Release:** `0.14.1`
+**Workspace Release:** `0.15.0`
 
 ## Dependencies
 
@@ -25,6 +25,7 @@ src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
 ├── runtime.rs                           — Runtime assembly and target matching over `RuntimeModel`; routes scalar-only construction through the descriptor boundary, routes named grouped scalar construction through the atomic grouped-scalar builder, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
+├── runtime/defaults.rs                  — Model-aware omitted-phase and omitted-selector default profile
 ├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model validation, and shadow updates
 ├── runtime/
 │   ├── tests.rs                         — Runtime construction routing and target-validation tests
@@ -38,7 +39,7 @@ src/
 │   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, DescriptorFlatSelector<S>, DescriptorSelectorNode<S>, DescriptorSelector<S>, build_descriptor_move_selector(config, descriptor, random_seed); nearby scalar selectors require descriptor-provided nearby candidate hooks, optional meters rank/filter those candidates, optional assigned variables can emit one `Some(v) -> None` change, top-level cartesian selectors expose borrowable sequential candidates, and scalar ruin-recreate uses the configured seed when provided
 │   ├── selectors/*.rs                   — Descriptor selector legality, leaf, dispatch, and builder chunks split by neighborhood family
 │   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>; runtime-only descriptor construction assembly from resolved scalar bindings with optional keep-current legality and slot identity
-│   └── tests.rs                         — Descriptor test root with support/construction/selector/ruin-recreate chunks under `tests/mod/`
+│   └── tests/mod.rs                     — Descriptor test root with support/construction/selector/ruin-recreate chunks under `tests/mod/`
 ├── run.rs                               — AnyTermination, build_termination, run_solver(), run_solver_with_config()
 ├── run_tests.rs                         — Tests
 ├── builder/
@@ -94,6 +95,7 @@ src/
 │   │   ├── k_opt_reconnection.rs       — KOptReconnection patterns
 │   │   ├── k_opt_reconnection_tests.rs — Tests
 │   │   ├── compound_scalar.rs          — CompoundScalarMove<S> for atomic multi-scalar edits with exact undo, tabu identity, and affected-entity reporting
+│   │   ├── conflict_repair.rs          — ConflictRepairMove<S> wrapper over framework-owned compound repair edits
 │   │   ├── composite.rs                — CompositeMove<S, M1, M2>, SequentialCompositeMove<S, M>
 │   │   ├── scalar_union.rs             — ScalarMoveUnion<S, V> enum
 │   │   ├── list_union.rs               — ListMoveUnion<S, V> enum
@@ -152,6 +154,7 @@ src/
 │       │   ├── filtering/tests.rs      — Tests
 │       │   ├── indexed_cursor.rs       — Shared indexed cursor adapter
 │       │   ├── limited.rs              — Candidate-limit cursor decorator
+│       │   ├── limited/tests.rs        — Tests
 │       │   ├── mapped_cursor.rs        — Shared mapped cursor adapter
 │       │   ├── probability.rs          — ProbabilityMoveSelector<S, M, Inner>
 │       │   ├── probability/tests.rs    — Tests
@@ -162,7 +165,9 @@ src/
 │       │   ├── union.rs                — UnionMoveSelector<S, M, A, B>
 │       │   ├── union/tests.rs          — Tests
 │       │   ├── vec_union.rs            — VecUnionSelector<S, M, Leaf> (Vec-backed union for config-driven composition)
-│       │   └── test_utils.rs           — Test helpers
+│       │   ├── vec_union/tests.rs      — Tests
+│       │   ├── test_utils.rs           — Test helpers
+│       │   └── test_utils_tests.rs     — Test helper tests
 │       ├── k_opt/
 │       │   ├── mod.rs                   — Re-exports
 │       │   ├── config.rs               — KOptConfig
@@ -210,6 +215,7 @@ src/
 │   │   ├── capabilities.rs              — Shared heuristic-to-capability routing and early validation for scalar/list/grouped-scalar construction
 │   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroup candidates and assignment groups bound to runtime scalar slots
 │   │   ├── grouped_scalar/assignment_candidate.rs — Assignment move options, required assignment moves, capacity-conflict moves, reassignment moves, and remaining-required telemetry
+│   │   ├── grouped_scalar/assignment_block.rs — Required-assignment block planning helpers
 │   │   ├── grouped_scalar/assignment_cycle.rs — Bounded augmenting cycle and ejection/reinsert move construction
 │   │   ├── grouped_scalar/assignment_edge.rs — Small value objects for assignment-rule sequence-edge checks
 │   │   ├── grouped_scalar/assignment_entity.rs — Entity-local required, optional, capacity, and reassignment move construction
@@ -217,9 +223,15 @@ src/
 │   │   ├── grouped_scalar/assignment_index.rs — Indexed assignment-state map helpers
 │   │   ├── grouped_scalar/assignment_pair.rs — Deterministic bounded pair, rematch, and sequence-window move generation
 │   │   ├── grouped_scalar/assignment_path.rs — Bounded augmenting-path move construction for required and optional scalar assignments
+│   │   ├── grouped_scalar/assignment_required_batch.rs — Dense hard-first required assignment allocation
 │   │   ├── grouped_scalar/assignment_state.rs — Assignment occupancy, capacity, rollback, and conflict bookkeeping
 │   │   ├── grouped_scalar/assignment_stream.rs — Cursor-backed assignment move streaming for construction and selectors
+│   │   ├── grouped_scalar/assignment_value_cycle.rs — Value-cycle rematch generation
+│   │   ├── grouped_scalar/assignment_value_index.rs — Value-index helpers for assignment state
+│   │   ├── grouped_scalar/assignment_value_release.rs — Optional occupant release planning
+│   │   ├── grouped_scalar/assignment_value_run.rs — Same-sequence value-run rematch generation
 │   │   ├── grouped_scalar/move_build.rs — CompoundScalarMove construction from public ScalarCandidate edits
+│   │   ├── grouped_scalar/placement.rs  — Grouped scalar placement value objects
 │   │   ├── grouped_scalar/phase.rs      — ScalarGroupConstruction builder that feeds grouped scalar placements into stock ConstructionHeuristicPhase
 │   │   ├── grouped_scalar/placer.rs     — ScalarGroupPlacer adapter that emits stock Placement<CompoundScalarMove> values for provider and assignment groups
 │   │   ├── grouped_scalar/placer_stream.rs — Concrete candidate and assignment placement stream helpers
@@ -227,9 +239,11 @@ src/
 │   │   └── engine/*.rs                  — Generic construction candidate, scan, commit, and target-matching chunks
 │   ├── localsearch/
 │   │   ├── mod.rs                       — LocalSearchConfig, AcceptorType, re-exports
+│   │   ├── evaluation.rs                — Shared local-search candidate evaluation and hard-delta classification
 │   │   ├── phase.rs                     — LocalSearchPhase<S, M, MS, A, Fo>
 │   │   ├── phase/tests.rs               — Tests
 │   │   ├── forager.rs                   — LocalSearchForager trait, AcceptedCountForager, FirstAcceptedForager, BestScoreForager, re-exports
+│   │   ├── forager/any_tests.rs         — AnyForager dispatch tests
 │   │   ├── forager/improving.rs        — FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager
 │   │   ├── forager/tests.rs             — Tests
 │   │   └── acceptor/
@@ -299,6 +313,11 @@ src/
 │   │   ├── list_construction/regret.rs — ListRegretInsertionPhase
 │   │   ├── list_clarke_wright.rs       — ListClarkeWrightPhase
 │   │   ├── list_clarke_wright/tests.rs — Tests
+│   │   ├── list_clarke_wright/owner_assignment.rs — Owner-specific route assignment and preservation helpers
+│   │   ├── list_clarke_wright/route_state.rs — Route state and merge bookkeeping
+│   │   ├── list_clarke_wright/savings.rs — Metric-class savings computation
+│   │   ├── list_clarke_wright/tests/metric_class.rs — Shared metric-class and owner-feasibility tests
+│   │   ├── list_clarke_wright/tests/owner_binding.rs — Owner-specific hook binding tests
 │   │   ├── list_k_opt.rs               — ListKOptPhase
 │   │   ├── local_search.rs             — LocalSearchPhaseFactory
 │   │   └── k_opt.rs                     — KOptPhaseBuilder, KOptPhase
@@ -1072,9 +1091,13 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 
 ## Real-Time Planning
 
-**`SolverHandle<S>`** — Client-facing handle. `add_problem_change()`, `terminate_early()`, `is_solving()`.
+**`SolverHandle<S>`** — Client-facing handle. `add_problem_change()`,
+`add_problem_change_boxed()`, `terminate_early()`, `is_solving()`, and
+`set_solving()`.
 
-**`ProblemChangeReceiver<S>`** — Server-side receiver. `try_recv()`, `drain_pending()`, `is_terminate_early_requested()`.
+**`ProblemChangeReceiver<S>`** — Server-side receiver. `try_recv()`,
+`drain_pending()`, `is_terminate_early_requested()`, `set_solving()`, and
+`clear_terminate_early()`.
 
 **`ProblemChangeResult`** — `Queued`, `SolverNotRunning`, `QueueFull`.
 

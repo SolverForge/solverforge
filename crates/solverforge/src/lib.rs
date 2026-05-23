@@ -40,7 +40,9 @@ Attribute Macros
 ============================================================================
 */
 
-pub use solverforge_macros::{planning_entity, planning_model, planning_solution, problem_fact};
+pub use solverforge_macros::{
+    planning_entity, planning_model, planning_solution, problem_fact, solverforge_constraints,
+};
 
 /* ============================================================================
 Score Types
@@ -71,8 +73,9 @@ Constraint API
 
 pub use solverforge_scoring::{
     fixed_weight, hard_weight, ConstraintMetadata, ConstraintSet, FixedWeight, HardWeight,
-    IncrementalBiConstraint, IncrementalConstraint, IncrementalUniConstraint, Projection,
-    ProjectionSink,
+    IncrementalBiConstraint, IncrementalConstraint, IncrementalConstraintSealed,
+    IncrementalUniConstraint, Projection, ProjectionSink, SharedNodeDiagnostics, SharedNodeId,
+    SharedNodeOperation,
 };
 
 /* ============================================================================
@@ -90,15 +93,15 @@ Solver
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
-    analyze, local_search, run_solver, run_solver_with_config, Analyzable, ConflictRepair,
-    ConstraintAnalysis, CustomSearchPhase, ExhaustiveSearchConfig, ExhaustiveSearchPhase,
-    ExplorationType, FunctionalPartitioner, PartitionedSearchPhase, RepairCandidate, RepairLimits,
-    RepairProvider, ScalarAssignmentRule, ScalarCandidate, ScalarCandidateProvider, ScalarEdit,
-    ScalarGroup, ScalarGroupLimits, ScalarTarget, ScoreAnalysis, Search, SearchContext,
-    SelectorTelemetry, SimpleDecider, SolutionPartitioner, Solvable, SolverEvent,
-    SolverEventMetadata, SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime,
-    SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTerminalReason,
-    ThreadCount,
+    analyze, local_search, run_solver, run_solver_with_config, Analyzable, AppliedMoveTelemetry,
+    ConflictRepair, ConstraintAnalysis, CustomSearchPhase, ExhaustiveSearchConfig,
+    ExhaustiveSearchPhase, ExplorationType, FunctionalPartitioner, MoveTelemetry,
+    PartitionedSearchPhase, RepairCandidate, RepairLimits, RepairProvider, ScalarAssignmentRule,
+    ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits,
+    ScalarTarget, ScoreAnalysis, Search, SearchContext, SelectorTelemetry, SimpleDecider,
+    SolutionPartitioner, Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState,
+    SolverManager, SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis,
+    SolverStatus, SolverTelemetry, SolverTerminalReason, ThreadCount,
 };
 
 /* ============================================================================

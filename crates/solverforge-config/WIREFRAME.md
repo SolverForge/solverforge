@@ -3,7 +3,7 @@
 Serde-based configuration system for loading solver settings from TOML or YAML files.
 
 **Location:** `crates/solverforge-config/`
-**Workspace Release:** `0.14.1`
+**Workspace Release:** `0.15.0`
 
 ## Dependencies
 
@@ -639,6 +639,15 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `LocalSearch` | `LocalSearchConfig` |
 | `PartitionedSearch` | `PartitionedSearchConfig` |
 | `Custom` | `CustomPhaseConfig` |
+
+### `LocalSearchType`
+
+Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
+
+| Variant | Note |
+|---------|------|
+| `AcceptorForager` | **Default.** Standard acceptor/forager local search |
+| `VariableNeighborhoodDescent` | Ordered neighborhood descent configured through `neighborhoods` |
 
 ### `ConstructionHeuristicType`
 

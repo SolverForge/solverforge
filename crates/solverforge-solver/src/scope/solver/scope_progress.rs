@@ -17,7 +17,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             solution: None,
             current_score: self.current_score.as_ref(),
             best_score: self.best_score.as_ref(),
-            telemetry: self.stats.snapshot(),
+            telemetry: self.stats.snapshot_without_applied_move_trace(),
         });
     }
 
@@ -28,7 +28,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             solution: self.best_solution.as_ref(),
             current_score: self.current_score.as_ref(),
             best_score: self.best_score.as_ref(),
-            telemetry: self.stats.snapshot(),
+            telemetry: self.stats.snapshot_without_applied_move_trace(),
         });
     }
 

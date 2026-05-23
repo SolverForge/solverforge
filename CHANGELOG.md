@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.15.0](///compare/v0.14.1...v0.15.0) (2026-05-23)
+
+
+### Features
+
+* **constraints:** compose shared constraints through typed sets 1b81b19
+* **facade:** expose complemented shared-node internals c4c7219
+* **macros:** compile repeated grouped bindings into shared nodes f18b013
+* **macros:** share provably identical grouped chains 98d5388
+* **scoring:** add node sharing diagnostics surface 9bd9d37
+* **scoring:** expose hidden shared-node compiler hooks baabdd0
+* **scoring:** share complemented cross grouped state 95b5f6a
+* **scoring:** share cross grouped join state ed21de8
+* **scoring:** share projected complemented grouped state f075fc9
+* **scoring:** share projected grouped node state 94b9345
+* **scoring:** split grouped constraints into shared node state 5a9cbae
+* **solver:** add assignment value-pattern neighborhoods 9f226ec
+
+
+### Bug Fixes
+
+* **macros:** count ordered-chain member spans f3c46ff
+* **macros:** emit ordered same-binding grouped sharing fbbc95f
+* **macros:** keep constraint compiler IR clippy-clean a8a853d
+* **macros:** preserve shared tuple member order 364c76a
+* **scoring:** restore zero-erasure shared grouped state 84907e6
+* **solver:** complete required scalar assignment construction 507e381
+* **solver:** notify compound scalar moves atomically cc2337b
+* **solver:** use improving forager for assignment groups 5c4e188
+
 ## [0.14.1](///compare/v0.14.0...v0.14.1) (2026-05-16)
 
 

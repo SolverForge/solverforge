@@ -120,4 +120,6 @@ pub use tri_stream::{TriConstraintBuilder, TriConstraintStream};
 #[doc(hidden)]
 pub use unassigned::UnassignedEntity;
 pub use uni_stream::{UniConstraintBuilder, UniConstraintStream};
+#[doc(hidden)]
+pub use weighting_support::ConstraintWeight;
 pub use weighting_support::{fixed_weight, hard_weight, FixedWeight, HardWeight};

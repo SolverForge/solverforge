@@ -203,6 +203,10 @@ where
         self.variable_label
     }
 
+    fn telemetry_label(&self) -> &'static str {
+        self.reason
+    }
+
     fn requires_hard_improvement(&self) -> bool {
         self.require_hard_improvement
     }

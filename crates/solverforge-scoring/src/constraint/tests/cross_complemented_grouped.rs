@@ -1,9 +1,14 @@
-use crate::api::constraint_set::IncrementalConstraint;
+use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
+use crate::constraint::cross_complemented_grouped::{
+    CrossComplementedGroupedNodeState, CrossComplementedGroupedTerminalScorer,
+    SharedCrossComplementedGroupedConstraintSet,
+};
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::sum;
 use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
 use solverforge_core::score::SoftScore;
+use solverforge_core::{ConstraintRef, ImpactType};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Employee {
@@ -207,4 +212,49 @@ fn cross_bi_group_by_complement_honors_filtered_join_and_complement_sources() {
 
     assert_eq!(total, SoftScore::of(-10));
     assert_eq!(total, constraint.evaluate(&schedule));
+}
+
+#[test]
+fn shared_cross_bi_group_by_complement_updates_one_node_for_multiple_terminals() {
+    let state = CrossComplementedGroupedNodeState::new(
+        shift_source(),
+        employee_source(),
+        target_source(),
+        |shift: &Shift| shift.employee_id,
+        |employee: &Employee| Some(employee.id),
+        |_schedule: &Schedule, _shift: &Shift, _employee: &Employee, _a_idx, _b_idx| true,
+        |_shift: &Shift, employee: &Employee| employee.id,
+        |target: &Target| target.employee_id,
+        sum(|(_shift, _employee): (&Shift, &Employee)| 1i64),
+        |_target: &Target| 5i64,
+    );
+    let scorers = (
+        CrossComplementedGroupedTerminalScorer::new(
+            ConstraintRef::new("", "complemented shift count"),
+            ImpactType::Penalty,
+            |_employee_id: &usize, count: &i64| SoftScore::of(*count),
+            false,
+        ),
+        CrossComplementedGroupedTerminalScorer::new(
+            ConstraintRef::new("", "double complemented shift count"),
+            ImpactType::Penalty,
+            |_employee_id: &usize, count: &i64| SoftScore::of(*count * 2),
+            false,
+        ),
+    );
+    let mut constraints = SharedCrossComplementedGroupedConstraintSet::new(state, scorers);
+    let mut schedule = two_employee_schedule();
+
+    let mut total = constraints.initialize_all(&schedule);
+    assert_eq!(total, SoftScore::of(-21));
+    assert_eq!(constraints.state().update_count(), 0);
+
+    total = total + constraints.on_retract_all(&schedule, 1, 0);
+    schedule.shifts[1].employee_id = Some(1);
+    total = total + constraints.on_insert_all(&schedule, 1, 0);
+
+    assert_eq!(constraints.state().update_count(), 2);
+    assert_eq!(total, SoftScore::of(-6));
+    assert_eq!(total, constraints.evaluate_all(&schedule));
+    assert_eq!(constraints.evaluate_each(&schedule).len(), 2);
 }

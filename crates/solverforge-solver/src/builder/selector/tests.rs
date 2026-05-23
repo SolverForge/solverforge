@@ -13,7 +13,9 @@ use solverforge_core::domain::{
 };
 use solverforge_core::score::SoftScore;
 use solverforge_core::ConstraintRef;
-use solverforge_scoring::{DetailedConstraintMatch, IncrementalConstraint, ScoreDirector};
+use solverforge_scoring::{
+    DetailedConstraintMatch, IncrementalConstraint, IncrementalConstraintSealed, ScoreDirector,
+};
 
 use super::*;
 use crate::builder::list_selector::ListLeafSelector;

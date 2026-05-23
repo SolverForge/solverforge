@@ -145,7 +145,7 @@ where
         Sc,
     >
     where
-        B: Clone + Send + Sync + 'static,
+        B: Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B>,
         KB: Fn(&B) -> K + Send + Sync,
         D: Fn(&B) -> R + Send + Sync,
@@ -188,7 +188,7 @@ where
         Sc,
     >
     where
-        B: Clone + Send + Sync + 'static,
+        B: Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B>,
         KA2: Fn(&Out) -> Option<K> + Send + Sync,
         KB: Fn(&B) -> K + Send + Sync,

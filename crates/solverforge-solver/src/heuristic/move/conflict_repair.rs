@@ -95,6 +95,10 @@ where
         self.compound.variable_name()
     }
 
+    fn telemetry_label(&self) -> &'static str {
+        self.compound.reason()
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         self.compound.tabu_signature(score_director)
     }

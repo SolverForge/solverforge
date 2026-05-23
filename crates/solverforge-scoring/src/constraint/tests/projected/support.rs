@@ -2,8 +2,14 @@ pub(super) use std::marker::PhantomData;
 pub(super) use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub(super) use solverforge_core::score::SoftScore;
+pub(super) use solverforge_core::{ConstraintRef, ImpactType};
 
 pub(super) use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
+pub(super) use crate::constraint::projected::{
+    ProjectedComplementedGroupedNodeState, ProjectedComplementedGroupedTerminalScorer,
+    ProjectedGroupedNodeState, ProjectedGroupedTerminalScorer,
+    SharedProjectedComplementedGroupedConstraintSet, SharedProjectedGroupedConstraintSet,
+};
 pub(super) use crate::director::score_director::ScoreDirector;
 pub(super) use crate::director::Director;
 pub(super) use crate::stream::collection_extract::{source, ChangeSource};
@@ -49,57 +55,71 @@ pub(super) struct Entry {
     pub(super) delta: i64,
 }
 
-pub(super) struct NonCloneEntry {
+pub(super) struct MoveOnlyEntry {
     pub(super) bucket: usize,
     pub(super) delta: i64,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub(super) struct NonCloneBucket(pub(super) usize);
+pub(super) struct MoveOnlyBucket(pub(super) usize);
 
-pub(super) struct NonCloneWorkEntryProjection;
+pub(super) struct MoveOnlyWorkEntryProjection;
 
-impl Projection<Work> for NonCloneWorkEntryProjection {
-    type Out = NonCloneEntry;
+impl Projection<Work> for MoveOnlyWorkEntryProjection {
+    type Out = MoveOnlyEntry;
     const MAX_EMITS: usize = 1;
 
     fn project<Sink>(&self, work: &Work, out: &mut Sink)
     where
         Sink: ProjectionSink<Self::Out>,
     {
-        out.emit(NonCloneEntry {
+        out.emit(MoveOnlyEntry {
             bucket: work.bucket,
             delta: work.demand,
         });
     }
 }
 
-pub(super) struct NonCloneDelta(pub(super) i64);
+pub(super) struct MoveOnlyDelta(pub(super) i64);
 
-pub(super) struct NonCloneDeltaCollector;
+pub(super) struct MoveOnlyDeltaCollector;
 
-impl Collector<&Entry> for NonCloneDeltaCollector {
-    type Value = NonCloneDelta;
+impl Collector<&Entry> for MoveOnlyDeltaCollector {
+    type Value = MoveOnlyDelta;
     type Result = i64;
-    type Accumulator = NonCloneDeltaAccumulator;
+    type Accumulator = MoveOnlyDeltaAccumulator;
 
     fn extract(&self, entry: &Entry) -> Self::Value {
-        NonCloneDelta(entry.delta)
+        MoveOnlyDelta(entry.delta)
     }
 
     fn create_accumulator(&self) -> Self::Accumulator {
-        NonCloneDeltaAccumulator { total: 0 }
+        MoveOnlyDeltaAccumulator { total: 0 }
     }
 }
 
-pub(super) struct NonCloneDeltaAccumulator {
+impl Collector<&MoveOnlyEntry> for MoveOnlyDeltaCollector {
+    type Value = MoveOnlyDelta;
+    type Result = i64;
+    type Accumulator = MoveOnlyDeltaAccumulator;
+
+    fn extract(&self, entry: &MoveOnlyEntry) -> Self::Value {
+        MoveOnlyDelta(entry.delta)
+    }
+
+    fn create_accumulator(&self) -> Self::Accumulator {
+        MoveOnlyDeltaAccumulator { total: 0 }
+    }
+}
+
+pub(super) struct MoveOnlyDeltaAccumulator {
     total: i64,
 }
 
-impl Accumulator<NonCloneDelta, i64> for NonCloneDeltaAccumulator {
+impl Accumulator<MoveOnlyDelta, i64> for MoveOnlyDeltaAccumulator {
     type Retraction = i64;
 
-    fn accumulate(&mut self, value: NonCloneDelta) -> Self::Retraction {
+    fn accumulate(&mut self, value: MoveOnlyDelta) -> Self::Retraction {
         self.total += value.0;
         value.0
     }

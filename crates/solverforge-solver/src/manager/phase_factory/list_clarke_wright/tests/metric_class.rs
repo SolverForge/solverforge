@@ -104,7 +104,6 @@ fn clarke_wright_computes_savings_once_per_metric_class() {
 
 #[test]
 fn clarke_wright_keeps_feasibility_owner_specific_with_shared_metric_class() {
-    DISTANCE_CALLS.store(0, Ordering::SeqCst);
     let plan = Plan {
         customer_values: vec![1, 2],
         routes: vec![Route { visits: Vec::new() }, Route { visits: Vec::new() }],

@@ -1,0 +1,221 @@
+use solverforge_core::score::Score;
+use solverforge_core::ConstraintRef;
+
+use crate::api::analysis::ConstraintAnalysis;
+use crate::api::constraint_set::{ConstraintMetadata, ConstraintResult};
+
+use super::scorer::GroupedTerminalScorer;
+use super::state::GroupedStateView;
+
+pub trait GroupedScorerSet<K, R, Sc: Score>: Send + Sync {
+    fn evaluate<State>(&self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>;
+
+    fn initialize<State>(&mut self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>;
+
+    fn refresh_all<State>(&mut self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>;
+
+    fn refresh_changed<State>(&mut self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>;
+
+    fn constraint_count(&self) -> usize;
+
+    fn primary_constraint_ref(&self) -> &ConstraintRef;
+
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>;
+
+    fn evaluate_each<'a, State>(&'a self, state: &State) -> Vec<ConstraintResult<'a, Sc>>
+    where
+        State: GroupedStateView<K, R>;
+
+    fn evaluate_detailed<'a, State>(&'a self, state: &State) -> Vec<ConstraintAnalysis<'a, Sc>>
+    where
+        State: GroupedStateView<K, R>;
+
+    fn reset(&mut self);
+}
+
+impl<K, R, W, Sc> GroupedScorerSet<K, R, Sc> for GroupedTerminalScorer<K, R, W, Sc>
+where
+    R: Send + Sync + 'static,
+    W: Fn(&K, &R) -> Sc + Send + Sync,
+    Sc: Score + 'static,
+{
+    fn evaluate<State>(&self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>,
+    {
+        self.evaluate(state)
+    }
+
+    fn initialize<State>(&mut self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>,
+    {
+        self.initialize(state)
+    }
+
+    fn refresh_all<State>(&mut self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>,
+    {
+        self.refresh_all(state)
+    }
+
+    fn refresh_changed<State>(&mut self, state: &State) -> Sc
+    where
+        State: GroupedStateView<K, R>,
+    {
+        self.refresh_changed(state)
+    }
+
+    fn constraint_count(&self) -> usize {
+        1
+    }
+
+    fn primary_constraint_ref(&self) -> &ConstraintRef {
+        self.constraint_ref()
+    }
+
+    fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+        vec![ConstraintMetadata::new(
+            self.constraint_ref(),
+            self.is_hard(),
+        )]
+    }
+
+    fn evaluate_each<'a, State>(&'a self, state: &State) -> Vec<ConstraintResult<'a, Sc>>
+    where
+        State: GroupedStateView<K, R>,
+    {
+        vec![ConstraintResult {
+            name: self.name(),
+            score: self.evaluate(state),
+            match_count: state.group_count(),
+            is_hard: self.is_hard(),
+        }]
+    }
+
+    fn evaluate_detailed<'a, State>(&'a self, state: &State) -> Vec<ConstraintAnalysis<'a, Sc>>
+    where
+        State: GroupedStateView<K, R>,
+    {
+        vec![ConstraintAnalysis::new(
+            self.constraint_ref(),
+            Sc::zero(),
+            self.evaluate(state),
+            Vec::new(),
+            self.is_hard(),
+        )]
+    }
+
+    fn reset(&mut self) {
+        self.reset();
+    }
+}
+
+macro_rules! impl_grouped_scorer_set_for_tuple {
+    ($($idx:tt: $T:ident),+) => {
+        impl<K, R, Sc, $($T),+> GroupedScorerSet<K, R, Sc> for ($($T,)+)
+        where
+            R: Send + Sync + 'static,
+            Sc: Score + 'static,
+            $($T: GroupedScorerSet<K, R, Sc>,)+
+        {
+            fn evaluate<State>(&self, state: &State) -> Sc
+            where
+                State: GroupedStateView<K, R>,
+            {
+                let mut total = Sc::zero();
+                $(total = total + self.$idx.evaluate(state);)+
+                total
+            }
+
+            fn initialize<State>(&mut self, state: &State) -> Sc
+            where
+                State: GroupedStateView<K, R>,
+            {
+                let mut total = Sc::zero();
+                $(total = total + self.$idx.initialize(state);)+
+                total
+            }
+
+            fn refresh_all<State>(&mut self, state: &State) -> Sc
+            where
+                State: GroupedStateView<K, R>,
+            {
+                let mut total = Sc::zero();
+                $(total = total + self.$idx.refresh_all(state);)+
+                total
+            }
+
+            fn refresh_changed<State>(&mut self, state: &State) -> Sc
+            where
+                State: GroupedStateView<K, R>,
+            {
+                let mut total = Sc::zero();
+                $(total = total + self.$idx.refresh_changed(state);)+
+                total
+            }
+
+            fn constraint_count(&self) -> usize {
+                let mut count = 0;
+                $(let _ = &self.$idx; count += self.$idx.constraint_count();)+
+                count
+            }
+
+            fn primary_constraint_ref(&self) -> &ConstraintRef {
+                self.0.primary_constraint_ref()
+            }
+
+            fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+                let mut metadata = Vec::new();
+                $(
+                    metadata.extend(self.$idx.constraint_metadata());
+                )+
+                metadata
+            }
+
+            fn evaluate_each<'a, State>(&'a self, state: &State) -> Vec<ConstraintResult<'a, Sc>>
+            where
+                State: GroupedStateView<K, R>,
+            {
+                let mut results = Vec::new();
+                $(results.extend(self.$idx.evaluate_each(state));)+
+                results
+            }
+
+            fn evaluate_detailed<'a, State>(&'a self, state: &State) -> Vec<ConstraintAnalysis<'a, Sc>>
+            where
+                State: GroupedStateView<K, R>,
+            {
+                let mut analyses = Vec::new();
+                $(analyses.extend(self.$idx.evaluate_detailed(state));)+
+                analyses
+            }
+
+            fn reset(&mut self) {
+                $(self.$idx.reset();)+
+            }
+        }
+    };
+}
+
+impl_grouped_scorer_set_for_tuple!(0: C0);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1, 2: C2);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10);
+impl_grouped_scorer_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11);

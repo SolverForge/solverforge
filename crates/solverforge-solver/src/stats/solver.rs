@@ -1,7 +1,10 @@
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use super::{SelectorTelemetry, SolverTelemetry, Throughput};
+use super::{AppliedMoveTelemetry, MoveTelemetry, SelectorTelemetry, SolverTelemetry, Throughput};
+
+const APPLIED_MOVE_TRACE_LIMIT: usize = 8;
 
 #[derive(Debug, Default)]
 pub struct SolverStats {
@@ -39,6 +42,8 @@ pub struct SolverStats {
     generation_time: Duration,
     evaluation_time: Duration,
     selector_stats: Vec<SelectorTelemetry>,
+    move_stats: BTreeMap<&'static str, MoveTelemetry>,
+    applied_move_trace: Vec<AppliedMoveTelemetry>,
 }
 
 impl SolverStats {
@@ -254,6 +259,17 @@ impl SolverStats {
     }
 
     pub fn snapshot(&self) -> SolverTelemetry {
+        self.snapshot_with_applied_move_trace(true)
+    }
+
+    pub fn snapshot_without_applied_move_trace(&self) -> SolverTelemetry {
+        self.snapshot_with_applied_move_trace(false)
+    }
+
+    fn snapshot_with_applied_move_trace(
+        &self,
+        include_applied_move_trace: bool,
+    ) -> SolverTelemetry {
         SolverTelemetry {
             elapsed: self.elapsed(),
             step_count: self.step_count,
@@ -281,6 +297,75 @@ impl SolverStats {
             generation_time: self.generation_time,
             evaluation_time: self.evaluation_time,
             selector_telemetry: self.selector_stats.clone(),
+            move_telemetry: self.move_stats.values().cloned().collect(),
+            applied_move_trace: if include_applied_move_trace {
+                self.applied_move_trace.to_vec()
+            } else {
+                Vec::new()
+            },
+        }
+    }
+
+    pub fn record_move_kind_generated(&mut self, move_label: &'static str) {
+        self.move_stats_entry(move_label).moves_generated += 1;
+    }
+
+    pub fn record_move_kind_evaluated(
+        &mut self,
+        move_label: &'static str,
+        score_ordering: Ordering,
+    ) {
+        let entry = self.move_stats_entry(move_label);
+        entry.moves_evaluated += 1;
+        match score_ordering {
+            Ordering::Greater => entry.moves_score_improving += 1,
+            Ordering::Equal => entry.moves_score_equal += 1,
+            Ordering::Less => entry.moves_score_worse += 1,
+        }
+    }
+
+    pub fn record_move_kind_evaluated_unscored(&mut self, move_label: &'static str) {
+        self.move_stats_entry(move_label).moves_evaluated += 1;
+    }
+
+    pub fn record_move_kind_accepted(&mut self, move_label: &'static str) {
+        self.move_stats_entry(move_label).moves_accepted += 1;
+    }
+
+    pub fn record_move_kind_applied(&mut self, move_label: &'static str, score_improvement: f64) {
+        let entry = self.move_stats_entry(move_label);
+        entry.moves_applied += 1;
+        if score_improvement > 0.0 {
+            entry.applied_score_improvement += score_improvement;
+        }
+    }
+
+    pub fn record_move_kind_not_doable(&mut self, move_label: &'static str) {
+        self.move_stats_entry(move_label).moves_not_doable += 1;
+    }
+
+    pub fn record_move_kind_acceptor_rejected(
+        &mut self,
+        move_label: &'static str,
+        score_ordering: Ordering,
+    ) {
+        let entry = self.move_stats_entry(move_label);
+        entry.moves_acceptor_rejected += 1;
+        if score_ordering == Ordering::Greater {
+            entry.moves_rejected_improving += 1;
+        }
+    }
+
+    pub fn record_move_kind_forager_ignored(&mut self, move_label: &'static str, count: u64) {
+        if count == 0 {
+            return;
+        }
+        self.move_stats_entry(move_label).moves_forager_ignored += count;
+    }
+
+    pub fn record_applied_move_trace(&mut self, applied_move: AppliedMoveTelemetry) {
+        if self.applied_move_trace.len() < APPLIED_MOVE_TRACE_LIMIT {
+            self.applied_move_trace.push(applied_move);
         }
     }
 
@@ -329,6 +414,15 @@ impl SolverStats {
         self.selector_stats
             .last_mut()
             .expect("selector stats entry was just inserted")
+    }
+
+    fn move_stats_entry(&mut self, move_label: &'static str) -> &mut MoveTelemetry {
+        self.move_stats
+            .entry(move_label)
+            .or_insert_with(|| MoveTelemetry {
+                move_label: move_label.to_string(),
+                ..MoveTelemetry::default()
+            })
     }
 }
 

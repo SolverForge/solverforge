@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::builder::ScalarAssignmentBinding;
 use crate::planning::ScalarEdit;
@@ -288,7 +288,7 @@ impl ScalarAssignmentState {
         edits: &[(usize, Option<usize>)],
     ) -> bool {
         let mut changes = Vec::with_capacity(edits.len());
-        let mut touched_capacity_keys = HashSet::new();
+        let mut touched_capacity_keys = Vec::new();
         let mut edited = Vec::with_capacity(edits.len());
         for (entity_index, value) in edits {
             if *entity_index >= self.values.len()
@@ -300,12 +300,12 @@ impl ScalarAssignmentState {
             let previous = self.current_value(*entity_index);
             if let Some(previous) = previous {
                 if let Some(key) = group.capacity_key(solution, *entity_index, previous) {
-                    touched_capacity_keys.insert(key);
+                    push_unique(&mut touched_capacity_keys, key);
                 }
             }
             if let Some(value) = *value {
                 if let Some(key) = group.capacity_key(solution, *entity_index, value) {
-                    touched_capacity_keys.insert(key);
+                    push_unique(&mut touched_capacity_keys, key);
                 }
             }
             edited.push((*entity_index, previous, *value));
@@ -350,7 +350,7 @@ impl ScalarAssignmentState {
         let Some(sequence_key) = group.sequence_key(solution, entity_index, value) else {
             return true;
         };
-        let mut checked = HashSet::new();
+        let mut checked = Vec::new();
         let forced = ForcedAssignment {
             entity_index,
             value,
@@ -388,7 +388,7 @@ impl ScalarAssignmentState {
             return true;
         }
 
-        let mut checked = HashSet::new();
+        let mut checked = Vec::new();
         for (entity_index, previous, next) in edited {
             for value in [*previous, *next].into_iter().flatten() {
                 let Some(sequence_key) = group.sequence_key(solution, *entity_index, value) else {
@@ -424,7 +424,7 @@ impl ScalarAssignmentState {
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         edge: SequenceEdge,
-        checked: &mut HashSet<(usize, usize)>,
+        checked: &mut Vec<(usize, usize)>,
     ) -> bool {
         let mut left_scratch = [0usize; 1];
         let mut right_scratch = [0usize; 1];
@@ -455,9 +455,10 @@ impl ScalarAssignmentState {
 
         for left in left_entities {
             for right in right_entities {
-                if left == right || !checked.insert((*left, *right)) {
+                if left == right || pair_was_checked(checked, *left, *right) {
                     continue;
                 }
+                checked.push((*left, *right));
                 if !group.assignment_edge_allowed(solution, *left, edge.value, *right, edge.value) {
                     return false;
                 }
@@ -562,4 +563,16 @@ fn adjacent_sequences(sequence_key: usize) -> impl Iterator<Item = usize> {
     [sequence_key.checked_sub(1), sequence_key.checked_add(1)]
         .into_iter()
         .flatten()
+}
+
+fn push_unique(values: &mut Vec<usize>, value: usize) {
+    if !values.contains(&value) {
+        values.push(value);
+    }
+}
+
+fn pair_was_checked(checked: &[(usize, usize)], left: usize, right: usize) -> bool {
+    checked
+        .iter()
+        .any(|(checked_left, checked_right)| *checked_left == left && *checked_right == right)
 }

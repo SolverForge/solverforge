@@ -3,15 +3,18 @@
 Proc-macro crate providing attribute macros and derive macros for SolverForge domain model structs.
 
 **Location:** `crates/solverforge-macros/`
-**Workspace Release:** `0.14.1`
+**Workspace Release:** `0.15.0`
 
 ## Dependencies
 
 - `syn` (workspace) — Rust syntax parsing
 - `quote` (workspace) — Rust code generation
 - `proc-macro2` (workspace) — Proc-macro token streams
+- `solverforge` (dev-dependency) — Trybuild pass/fail fixtures
+- `trybuild` (dev-dependency) — Compile-pass and compile-fail UI tests
 
-No solverforge crate dependencies. Generated code references `::solverforge::__internal::*` and `::solverforge::*` at the call site.
+No runtime solverforge crate dependencies. Generated code references
+`::solverforge::__internal::*` and `::solverforge::*` at the call site.
 
 ## File Map
 
@@ -19,6 +22,9 @@ No solverforge crate dependencies. Generated code references `::solverforge::__i
 src/
 ├── attr_parse.rs          — Shared attribute parsing helpers
 ├── attr_validation.rs     — Strict user-authored attribute argument contracts and diagnostics
+├── attr_validation_tests.rs — Attribute validation unit tests
+├── constraints.rs          — `#[solverforge_constraints]` compiler module root
+├── constraints/*.rs        — Constraint function AST, parse, plan, emit, and tests
 ├── entrypoints.rs          — Shared proc-macro wrapper logic used by the crate root
 ├── lib.rs                  — Crate root; required proc-macro entry points only
 ├── planning_model.rs       — `planning_model!` manifest parser, file reader, metadata validator, and model-support generator
@@ -89,6 +95,38 @@ decorates the loaded `solver.toml` config instead of replacing it.
 ### `#[problem_fact]` / `#[problem_fact(serde)]`
 
 Applies to structs. Adds ordinary Rust derives plus hidden SolverForge support derive output. Optionally adds serde derives.
+
+### `#[solverforge_constraints]`
+
+Applies to a constraint factory function. The function remains normal fluent
+Rust, but the macro parses the whole body before type checking so repeated
+same-binding grouped stream terminals can become one shared incremental node
+with multiple terminal scorers. Accepted sharing shape:
+
+- A `let`-bound grouped, projected grouped, direct cross grouped, or
+  complemented grouped stream whose final tuple contains multiple
+  `.penalize(...).named("...")` or `.reward(...).named("...")` terminal calls on
+  that same binding.
+
+The macro preserves terminal order, names, impact direction, and hard metadata.
+Supported shared terminals are emitted back through the ordinary fluent
+terminal path as a single chained stream finalization; the macro does not call
+parallel shared-node constructors. Tuple members that are not part of the
+repeated same-binding group are preserved and combined with the shared terminal
+set through monomorphized `ConstraintSet` composition; the macro does not guess
+whether an opaque expression is a singleton constraint or a multi-constraint set
+from its syntax. Opaque tuples without a
+repeated same-binding grouped terminal stay on the existing Rust path; the
+compiler never adds a public `share`, `derive`, prefix, or suffix API.
+
+Internal module responsibilities:
+
+| Module | Responsibility |
+|--------|----------------|
+| `constraints/ast.rs` | Compiler-internal nodes, terminal constraints, impact kinds, and final program shape |
+| `constraints/parse.rs` | Parses supported fluent terminals, `let` stream bindings, tuple tails, and `.named(...)` requirements |
+| `constraints/plan.rs` | Selects shared grouped plans by repeated binding while preserving terminal order |
+| `constraints/emit.rs` | Emits concrete shared-node code against `::solverforge::__internal::*` helpers |
 
 ## Derive Macros (proc_macro_derive)
 

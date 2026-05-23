@@ -53,6 +53,10 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
 
     fn variable_name(&self) -> &str;
 
+    fn telemetry_label(&self) -> &'static str {
+        "move"
+    }
+
     fn requires_hard_improvement(&self) -> bool {
         false
     }

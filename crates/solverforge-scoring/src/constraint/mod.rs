@@ -25,6 +25,7 @@ pub mod exists;
 pub mod flattened_bi;
 pub mod grouped;
 pub mod incremental;
+mod incremental_markers;
 pub mod projected;
 pub mod shared;
 

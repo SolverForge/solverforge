@@ -3,7 +3,7 @@
 Facade crate: re-exports the public API from all sub-crates under a single `solverforge` dependency.
 
 **Location:** `crates/solverforge/`
-**Workspace Release:** `0.14.1`
+**Workspace Release:** `0.15.0`
 
 The CLI lives in the standalone `solverforge-cli` repository and is not part of this workspace or facade crate.
 
@@ -43,6 +43,7 @@ src/
 ### Model Macros (from `solverforge-macros`)
 
 - `planning_model`
+- `solverforge_constraints`
 - `planning_entity`
 - `planning_solution`
 - `problem_fact`
@@ -64,7 +65,9 @@ src/
 - `HardWeight`
 - `ConstraintSet` (trait)
 - `ConstraintMetadata<'a>` (borrowed constraint identity view)
+- `SharedNodeDiagnostics`, `SharedNodeId`, `SharedNodeOperation`
 - `IncrementalConstraint` (trait)
+- `IncrementalConstraintSealed` (marker trait required by direct custom `IncrementalConstraint` implementors)
 - `IncrementalUniConstraint`
 - `IncrementalBiConstraint`
 - `Projection` (trait)
@@ -98,6 +101,8 @@ src/
 - `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
+- `AppliedMoveTelemetry`
+- `MoveTelemetry`
 - `RepairLimits`
 - `ConflictRepair`
 - `RepairCandidate`
@@ -183,13 +188,14 @@ pub use crate::stream::collector::{collect_vec, consecutive_runs, count, indexed
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     fixed_weight, hard_weight, planning_entity, planning_model, planning_solution, problem_fact,
+    solverforge_constraints,
     BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, CustomSearchPhase, Director,
     ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType, FixedWeight,
     FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, HardWeight,
     PartitionedSearchPhase, Projection, ProjectionSink, RepairCandidate, RepairLimits,
     ScalarAssignmentRule, ScalarCandidate, ScalarEdit, ScalarGroup, ScalarGroupLimits,
-    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SimpleDecider, SoftScore,
-    SolutionPartitioner, ThreadCount,
+    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SharedNodeDiagnostics, SharedNodeId,
+    SharedNodeOperation, SimpleDecider, SoftScore, SolutionPartitioner, ThreadCount,
 };
 ```
 
@@ -272,6 +278,15 @@ Generated existence ergonomics: `#[planning_solution]` generates inherent source
 
 Projected scoring ergonomics: `ConstraintFactory::new().for_each(Plan::assignments()).project(TaskShiftWorkEntries)` creates bounded scoring rows from a named `Projection<A>` type without materializing facts or entities. Keyed cross joins can group joined pairs directly with `.group_by(|left, right| key, collector)` and complement the grouped result, or project them with `.project(|assignment, capacity| Row { ... })` to emit one scoring row per retained joined pair. Projected streams can be filtered, self-joined, merged, grouped, complemented after grouping, and weighted as retained scoring state. Single-source projection implementations emit through `ProjectionSink` and declare `MAX_EMITS`; joined-pair closures do not need a helper type. Projected output rows, projected self-join keys, and grouped collector values do not need `Clone`. Projected self-join ordering is coordinate-stable by `ProjectedRowCoordinate`; low-level pair-filter indexes are primary owner entity indexes, not sparse storage row IDs.
 
+Constraint authoring: `#[solverforge_constraints]` is the canonical attribute
+for constraint factory functions. It preserves fluent stream syntax and gives
+the macro crate a whole-function boundary for node sharing. Reusing the same
+grouped stream binding across multiple `.penalize(...).named(...)` or
+`.reward(...).named(...)` terminals emits one shared grouped node with separate
+terminal scorers. The macro does not share separately written bindings by
+source-text equivalence; reuse must be through the same local grouped-stream
+binding inside the annotated function.
+
 ## `__internal` Module (`#[doc(hidden)]`)
 
 Used exclusively by macro-generated code. Not public API.
@@ -287,6 +302,12 @@ Used exclusively by macro-generated code. Not public API.
 **Scoring (from `solverforge-scoring`):**
 - `Director`, `ScoreDirector`
 - `SolvableSolution`
+- Hidden constraint composition support: `ConstraintSetChain`, `OrderedConstraintSetChain`,
+  `ConstraintSetSource`, `ConstraintWeight`, `ConstraintRef`, `ImpactType`,
+  concrete stream source/filter types, and solver runtime helpers. Node sharing
+  is finalized through the same fluent `.penalize(...).named(...)` /
+  `.reward(...).named(...)` path as ordinary constraints; internal shared
+  node-state types are not facade exports.
 
 **Solver infrastructure (from `solverforge-solver`):**
 - `bind_scalar_groups`, `build_search`, `local_search`, `CustomSearchPhase`, `Search`, `SearchContext`
@@ -330,7 +351,8 @@ local-search selectors.
 
 ## Architectural Notes
 
-- **Pure re-export crate.** Contains zero implementation logic — only `pub use` statements and the `__internal` module.
+- **Facade crate.** Public modules are re-exports; implementation is limited to
+  tiny hidden macro helpers such as `init_console()` and `load_solver_config()`.
 - **`__internal` module** exists so that macro-generated code can reference types via `::solverforge::__internal::*` paths. This allows derive macros in `solverforge-macros` to generate code that compiles in user crates that only depend on `solverforge`.
 - **Shape-aware startup telemetry.** Hidden runtime logging helpers under `__internal` emit `element_count` for list solves and average `candidate_count` for scalar solves so console startup output can label the scale correctly.
 - **Macro-built runtime slots stay model-owned.** `planning_model!` generates

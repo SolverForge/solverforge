@@ -110,7 +110,7 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
   - Partitioned Search for explicit user-defined decomposition with optional Rayon parallelism
 - **Move System**: Zero-allocation moves with cursor-scoped ownership and selected-winner materialization
   - Scalar: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
-  - List: ListChangeMove, ListSwapMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
+  - List: ListChangeMove, ListSwapMove, ListReverseMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
   - Scalar ruin-recreate, composite moves, cartesian composition, and nearby selection for scalar and list neighborhoods
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Model Macros**: `planning_model!`, `#[solverforge_constraints]`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
@@ -332,11 +332,11 @@ models show average `candidates`.
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
-  0.002s ◀ Construction Heuristic ended │ 1ms │ 14 steps │ 14,000/s │ 0hard/-50soft
+  0.002s ◀ Construction Heuristic ended │ 1ms │ 14 steps │ 14,000 moves/s │ 14 moves │ 14 generated │ 14 accepted moves │ 14 calcs │ 0hard/-50soft
   0.002s ▶ Local Search started │ 0hard/-50soft
-  1.002s ⚡    12,456 steps │      445,000/s │ -2hard/8soft
-  2.003s ⚡    24,891 steps │      448,000/s │ 0hard/12soft
- 30.001s ◀ Local Search ended │ 30.00s │ 104,864 steps │ 456,000/s │ 0hard/15soft
+  1.002s ⚡    12,456 steps │      445,000/s │ 12,456 moves │ 1,234 accepted │ 12,456 calcs │ 9.9% │ -2hard/8soft │ 12,456 generated
+  2.003s ⚡    24,891 steps │      448,000/s │ 24,891 moves │ 2,734 accepted │ 24,891 calcs │ 11.0% │ 0hard/12soft │ 24,891 generated
+ 30.001s ◀ Local Search ended │ 30s │ 104,864 steps │ 456,000 moves/s │ 11.9% accepted │ 104,864 moves │ 104,864 generated │ 12,456 accepted moves │ 104,864 calcs │ gen 1s 240ms │ eval 28s 760ms │ 0hard/15soft
  30.001s ■ Solving complete │ 0hard/15soft │ FEASIBLE
 
 ╔══════════════════════════════════════════════════════════╗

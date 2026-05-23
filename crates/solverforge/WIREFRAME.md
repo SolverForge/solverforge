@@ -67,7 +67,7 @@ src/
 - `ConstraintMetadata<'a>` (borrowed constraint identity view)
 - `SharedNodeDiagnostics`, `SharedNodeId`, `SharedNodeOperation`
 - `IncrementalConstraint` (trait)
-- `IncrementalConstraintSealed` (hidden marker for direct custom implementors)
+- `IncrementalConstraintSealed` (marker trait required by direct custom `IncrementalConstraint` implementors)
 - `IncrementalUniConstraint`
 - `IncrementalBiConstraint`
 - `Projection` (trait)
@@ -101,6 +101,8 @@ src/
 - `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
+- `AppliedMoveTelemetry`
+- `MoveTelemetry`
 - `RepairLimits`
 - `ConflictRepair`
 - `RepairCandidate`
@@ -192,8 +194,8 @@ pub use crate::{
     FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, HardWeight,
     PartitionedSearchPhase, Projection, ProjectionSink, RepairCandidate, RepairLimits,
     ScalarAssignmentRule, ScalarCandidate, ScalarEdit, ScalarGroup, ScalarGroupLimits,
-    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SimpleDecider, SoftScore,
-    SolutionPartitioner, ThreadCount,
+    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SharedNodeDiagnostics, SharedNodeId,
+    SharedNodeOperation, SimpleDecider, SoftScore, SolutionPartitioner, ThreadCount,
 };
 ```
 
@@ -301,8 +303,8 @@ Used exclusively by macro-generated code. Not public API.
 - `Director`, `ScoreDirector`
 - `SolvableSolution`
 - Hidden constraint composition support: `ConstraintSetChain`, `OrderedConstraintSetChain`,
-  `ConstraintSetSource`, `IncrementalConstraintSealed`, `ConstraintWeight`,
-  `ConstraintRef`, `ImpactType`, concrete stream source/filter types, and solver runtime helpers. Node sharing
+  `ConstraintSetSource`, `ConstraintWeight`, `ConstraintRef`, `ImpactType`,
+  concrete stream source/filter types, and solver runtime helpers. Node sharing
   is finalized through the same fluent `.penalize(...).named(...)` /
   `.reward(...).named(...)` path as ordinary constraints; internal shared
   node-state types are not facade exports.
@@ -349,7 +351,8 @@ local-search selectors.
 
 ## Architectural Notes
 
-- **Pure re-export crate.** Contains zero implementation logic — only `pub use` statements and the `__internal` module.
+- **Facade crate.** Public modules are re-exports; implementation is limited to
+  tiny hidden macro helpers such as `init_console()` and `load_solver_config()`.
 - **`__internal` module** exists so that macro-generated code can reference types via `::solverforge::__internal::*` paths. This allows derive macros in `solverforge-macros` to generate code that compiles in user crates that only depend on `solverforge`.
 - **Shape-aware startup telemetry.** Hidden runtime logging helpers under `__internal` emit `element_count` for list solves and average `candidate_count` for scalar solves so console startup output can label the scale correctly.
 - **Macro-built runtime slots stay model-owned.** `planning_model!` generates

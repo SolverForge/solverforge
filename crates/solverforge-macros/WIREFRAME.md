@@ -10,8 +10,11 @@ Proc-macro crate providing attribute macros and derive macros for SolverForge do
 - `syn` (workspace) — Rust syntax parsing
 - `quote` (workspace) — Rust code generation
 - `proc-macro2` (workspace) — Proc-macro token streams
+- `solverforge` (dev-dependency) — Trybuild pass/fail fixtures
+- `trybuild` (dev-dependency) — Compile-pass and compile-fail UI tests
 
-No solverforge crate dependencies. Generated code references `::solverforge::__internal::*` and `::solverforge::*` at the call site.
+No runtime solverforge crate dependencies. Generated code references
+`::solverforge::__internal::*` and `::solverforge::*` at the call site.
 
 ## File Map
 
@@ -19,6 +22,7 @@ No solverforge crate dependencies. Generated code references `::solverforge::__i
 src/
 ├── attr_parse.rs          — Shared attribute parsing helpers
 ├── attr_validation.rs     — Strict user-authored attribute argument contracts and diagnostics
+├── attr_validation_tests.rs — Attribute validation unit tests
 ├── constraints.rs          — `#[solverforge_constraints]` compiler module root
 ├── constraints/*.rs        — Constraint function AST, parse, plan, emit, and tests
 ├── entrypoints.rs          — Shared proc-macro wrapper logic used by the crate root

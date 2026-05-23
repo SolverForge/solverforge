@@ -21,6 +21,7 @@ src/
 │   ├── node_sharing.rs                             — SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation
 │   ├── constraint_set/
 │   │   ├── mod.rs                                  — Re-exports ConstraintSet, ConstraintSetChain, OrderedConstraintSetChain, ConstraintSetSource, IncrementalConstraint, IncrementalConstraintSealed, ConstraintMetadata, ConstraintResult
+│   │   ├── chain.rs                                — ConstraintSetChain, OrderedConstraintSetChain, and authored-order source spans
 │   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, singleton and tuple impls (0..32)
 │   │   └── tests/
 │   │       ├── mod.rs                              — Test module declarations
@@ -136,6 +137,7 @@ src/
 │   ├── projected_stream/source/joined.rs           — Cross-join `.project(...)` projected source
 │   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata, VecExtract wrapper, vec() constructor
 │   ├── unassigned.rs                               — Hidden UnassignedEntity hook and `.unassigned()` stream method
+│   ├── weighting_support.rs                        — ConstraintWeight, FixedWeight, HardWeight, and dynamic closure-weight adapters
 │   ├── join_target.rs                              — JoinTarget trait impls for self-join, keyed cross-join, and predicate cross-join
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/

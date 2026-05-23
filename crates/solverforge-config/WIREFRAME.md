@@ -640,6 +640,15 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `PartitionedSearch` | `PartitionedSearchConfig` |
 | `Custom` | `CustomPhaseConfig` |
 
+### `LocalSearchType`
+
+Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
+
+| Variant | Note |
+|---------|------|
+| `AcceptorForager` | **Default.** Standard acceptor/forager local search |
+| `VariableNeighborhoodDescent` | Ordered neighborhood descent configured through `neighborhoods` |
+
 ### `ConstructionHeuristicType`
 
 Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.

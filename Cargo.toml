@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/solverforge-bridge",
     "crates/solverforge-core",
     "crates/solverforge-macros",
     "crates/solverforge-scoring",
@@ -17,7 +18,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.15.0"
+version = "0.15.1"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/SolverForge/solverforge"
@@ -26,6 +27,7 @@ rust-version = "1.95"
 [workspace.dependencies]
 # Internal crates (path-only; versions specified per-crate for publishing)
 solverforge-core = { path = "crates/solverforge-core" }
+solverforge-bridge = { path = "crates/solverforge-bridge" }
 solverforge-macros = { path = "crates/solverforge-macros" }
 solverforge-scoring = { path = "crates/solverforge-scoring" }
 solverforge-solver = { path = "crates/solverforge-solver" }

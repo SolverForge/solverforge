@@ -90,6 +90,7 @@ Solver
 ============================================================================
 */
 
+pub use solverforge_bridge as bridge;
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{

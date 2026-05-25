@@ -139,7 +139,7 @@ pub use planning::{
     ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits,
     ScalarTarget,
 };
-pub use run::{log_solve_start, run_solver, run_solver_with_config};
+pub use run::{log_solve_start, run_solver, run_solver_with_config, run_solver_with_config_parts};
 pub use runtime::{ListVariableEntity, ListVariableMetadata};
 pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::{MaybeTermination, NoTermination, SolveResult, Solver};

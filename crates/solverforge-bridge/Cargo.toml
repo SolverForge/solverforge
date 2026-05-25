@@ -1,0 +1,13 @@
+[package]
+name = "solverforge-bridge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Public dynamic model bridge contracts for SolverForge host-language bindings"
+
+[dependencies]
+solverforge-config = { version = "0.15.1", path = "../solverforge-config" }
+solverforge-core = { version = "0.15.1", path = "../solverforge-core" }
+solverforge-scoring = { version = "0.15.1", path = "../solverforge-scoring" }
+solverforge-solver = { version = "0.15.1", path = "../solverforge-solver" }

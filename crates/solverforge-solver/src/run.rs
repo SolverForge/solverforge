@@ -283,14 +283,47 @@ where
     P: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>> + Send + std::fmt::Debug,
     BuildPhases: Fn(&SolverConfig) -> P,
 {
+    run_solver_with_config_parts(
+        solution,
+        constraints_fn(),
+        descriptor(),
+        entity_count_by_descriptor,
+        runtime,
+        config,
+        default_time_limit_secs,
+        is_trivial,
+        log_scale,
+        |config, _descriptor| build_phases(config),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn run_solver_with_config_parts<S, C, P, BuildPhases>(
+    solution: S,
+    constraints: C,
+    descriptor: SolutionDescriptor,
+    entity_count_by_descriptor: fn(&S, usize) -> usize,
+    runtime: SolverRuntime<S>,
+    config: SolverConfig,
+    default_time_limit_secs: u64,
+    is_trivial: fn(&S) -> bool,
+    log_scale: fn(&S),
+    build_phases: BuildPhases,
+) -> S
+where
+    S: PlanningSolution,
+    S::Score: Score + ParseableScore,
+    C: ConstraintSet<S, S::Score>,
+    P: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>> + Send + std::fmt::Debug,
+    BuildPhases: Fn(&SolverConfig, &SolutionDescriptor) -> P,
+{
     log_scale(&solution);
     let trivial = is_trivial(&solution);
 
-    let constraints = constraints_fn();
     let director = ScoreDirector::with_descriptor(
         solution,
         constraints,
-        descriptor(),
+        descriptor.clone(),
         entity_count_by_descriptor,
     );
 
@@ -327,7 +360,7 @@ where
 
     let callback = ChannelProgressCallback::new(runtime);
 
-    let phases = build_phases(&config);
+    let phases = build_phases(&config, &descriptor);
     let mut solver = Solver::new((phases,))
         .with_config(config.clone())
         .with_termination(termination)

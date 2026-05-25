@@ -3,7 +3,7 @@
 Proc-macro crate providing attribute macros and derive macros for SolverForge domain model structs.
 
 **Location:** `crates/solverforge-macros/`
-**Workspace Release:** `0.15.0`
+**Workspace Release:** `0.15.1`
 
 ## Dependencies
 
@@ -144,7 +144,10 @@ Internal module responsibilities:
   `construction_value_order_key = "fn_name"`. These are emitted for
   construction routing and are not local-search selector ordering hooks.
 - `#[planning_list_variable(...)]` — list planning variable
-  currently requires `Vec<usize>` and `element_collection = "solution_field"`
+  currently requires `Vec<usize>` and `element_collection = "solution_field"`;
+  optional `element_owner_fn = "path"` declares partial fixed ownership; the
+  concrete hook is called from the generated `PlanningModelSupport` impl and
+  adapted to the runtime list-slot owner function
 - `#[planning_pin]` — boolean field controlling entity pinning
 - `#[inverse_relation_shadow_variable(source_variable_name = "field")]` — inverse relation shadow
 - `#[previous_element_shadow_variable(source_variable_name = "field")]` — previous element shadow
@@ -206,6 +209,7 @@ arguments are compile errors.
 - `route_depot_fn = "path"` — optional owner-aware depot hook, `fn(&Solution, entity_idx) -> usize`
 - `route_metric_class_fn = "path"` — optional Clarke-Wright metric class hook, `fn(&Solution, entity_idx) -> usize`; owners in the same class must share depot and route-distance behavior
 - `route_distance_fn = "path"` — optional owner-aware distance hook, `fn(&Solution, entity_idx, from, to) -> i64`
+- `element_owner_fn = "path"` — optional partial fixed-owner hook, `fn(&Solution, element) -> Option<usize>`; `None` leaves that element unrestricted
 - `route_feasible_fn = "path"` — optional owner-aware feasibility hook, `fn(&Solution, entity_idx, route) -> bool`; this is the route-level gate used to express capacity, time-window, vehicle compatibility, and other hard feasibility rules for Clarke-Wright and k-opt
 
 **Generated code:**

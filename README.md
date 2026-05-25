@@ -191,7 +191,7 @@ If you are building directly against the runtime crates instead of starting from
 
 ```toml
 [dependencies]
-solverforge = { version = "0.15.0", features = ["console"] }
+solverforge = { version = "0.15.1", features = ["console"] }
 ```
 
 When `move_selector` is omitted from `acceptor_forager` local search, the
@@ -209,6 +209,16 @@ neighborhoods:
   `SublistSwapMoveSelector`, and `ListReverseMoveSelector`, with k-opt and
   list ruin enabled only when their hooks exist
 - mixed models concatenate the list defaults first, then the scalar defaults
+
+List variables can declare fixed element ownership with
+`#[planning_list_variable(element_collection = "...", element_owner_fn = "...")]`.
+The hook signature is `fn(&Solution, usize) -> Option<usize>` and returns the
+only owner entity index allowed for that list element, or `None` to leave the
+element unrestricted. Out-of-range owner indexes are invalid rather than widened
+to unrestricted. When the model is assembled through `planning_model!`, the hook
+must be visible from the manifest root module. Construction, Clarke-Wright list
+construction, ruin/recreate, and owner-changing list neighborhoods honor the
+hook; intra-owner ordering moves remain available.
 
 Those omitted-config defaults run as one streaming acceptor/forager local
 search phase after construction. Broad unions use fair selection order and
@@ -328,7 +338,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.15.0 - Zero-Erasure Constraint Solver
+                   v0.15.1 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -557,7 +567,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 
 ## Status
 
-**Current workspace version:** 0.15.0
+**Current workspace version:** 0.15.1
 
 The current checked-in workspace exposes:
 

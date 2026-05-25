@@ -25,7 +25,7 @@ Publishing order: `core -> macros -> scoring -> config -> solver -> cvrp -> cons
 
 Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
 
-Current workspace release version: `0.15.0`.
+Current workspace release version: `0.15.1`.
 
 Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
 
@@ -159,6 +159,15 @@ List, nearby-list, and sublist selector cursor paths are production hot loops.
 - Benchmark touched neighborhood families in release mode before and after refactors.
 - Shared helpers are acceptable for selected-entity snapshots, candidate ordering, and exact `size()` accounting, but keep `open_cursor()` loops explicit when abstraction hurts throughput or clarity.
 - Do not accept a median throughput regression greater than 5% without explicit user approval.
+
+### List Owner Restrictions
+
+`element_owner_fn` is a partial fixed-owner restriction. Raw hook return values
+are interpreted only in `solverforge-solver/src/list_placement.rs`: absent hook
+and hook-returned `None` mean unrestricted, a valid `Some(owner)` means fixed to
+that owner, and an out-of-range `Some(owner)` is invalid. Construction,
+ruin/recreate, Clarke-Wright, and owner-changing list selectors consume that
+shared restriction relation rather than branching on hook presence.
 
 ### Threading
 

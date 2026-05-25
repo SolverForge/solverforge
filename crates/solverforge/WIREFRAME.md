@@ -3,7 +3,7 @@
 Facade crate: re-exports the public API from all sub-crates under a single `solverforge` dependency.
 
 **Location:** `crates/solverforge/`
-**Workspace Release:** `0.15.0`
+**Workspace Release:** `0.15.1`
 
 The CLI lives in the standalone `solverforge-cli` repository and is not part of this workspace or facade crate.
 
@@ -358,10 +358,14 @@ local-search selectors.
 - **Macro-built runtime slots stay model-owned.** `planning_model!` generates
   the hidden `PlanningModelSupport` impl that attaches nearby hooks plus scalar
   construction order-key hooks from `#[planning_variable]` `Option<usize>`
-  fields, while list
-  construction capabilities continue to come from `#[planning_list_variable]`.
-  Construction order-key hooks are construction-only and do not reorder
-  local-search scalar candidate neighborhoods.
+  fields, and attaches list construction/owner hooks from
+  `#[planning_list_variable]`. Construction order-key hooks are
+  construction-only and do not reorder local-search scalar candidate
+  neighborhoods.
+- **Partial fixed list ownership.** List variables can declare
+  `element_owner_fn`; macro-generated runtime slots forward the hook to
+  `solverforge-solver`, where `None` means unrestricted and valid `Some(owner)`
+  fixes that element to one owner.
 - **Retained lifecycle surface.** The facade re-exports the retained job / snapshot / checkpoint lifecycle contract from `solverforge-solver`, including exact pause/resume, lifecycle-complete events, and snapshot-bound analysis types.
 - **Prelude** provides the common surface for generated and hand-written
   application code. Users import `use solverforge::prelude::*` and get

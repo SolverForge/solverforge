@@ -2,6 +2,7 @@
 
 use std::any::Any;
 
+use super::VariableId;
 use crate::domain::variable::{ShadowVariableKind, ValueRangeType, VariableType};
 
 pub type UsizeGetter = for<'a> fn(&'a dyn Any) -> Option<usize>;
@@ -18,6 +19,8 @@ pub type UsizeConstructionValueOrderKey = fn(&dyn Any, usize, usize) -> i64;
 pub struct VariableDescriptor {
     // Name of the variable (field name).
     pub name: &'static str,
+    // Logical variable ID for dynamic binding models.
+    pub logical_id: Option<VariableId>,
     // Type of the variable.
     pub variable_type: VariableType,
     // Whether the variable can be unassigned (null).
@@ -47,6 +50,7 @@ impl VariableDescriptor {
     pub fn genuine(name: &'static str) -> Self {
         VariableDescriptor {
             name,
+            logical_id: None,
             variable_type: VariableType::Genuine,
             allows_unassigned: false,
             value_range_provider: None,
@@ -73,6 +77,7 @@ impl VariableDescriptor {
     pub fn chained(name: &'static str) -> Self {
         VariableDescriptor {
             name,
+            logical_id: None,
             variable_type: VariableType::Chained,
             allows_unassigned: false,
             value_range_provider: None,
@@ -95,6 +100,7 @@ impl VariableDescriptor {
     pub fn list(name: &'static str) -> Self {
         VariableDescriptor {
             name,
+            logical_id: None,
             variable_type: VariableType::List,
             allows_unassigned: false,
             value_range_provider: None,
@@ -117,6 +123,7 @@ impl VariableDescriptor {
     pub fn shadow(name: &'static str, kind: ShadowVariableKind) -> Self {
         VariableDescriptor {
             name,
+            logical_id: None,
             variable_type: VariableType::Shadow(kind),
             allows_unassigned: true,
             value_range_provider: None,
@@ -146,6 +153,11 @@ impl VariableDescriptor {
         self
     }
 
+    pub fn with_logical_id(mut self, logical_id: VariableId) -> Self {
+        self.logical_id = Some(logical_id);
+        self
+    }
+
     /// Creates a piggyback shadow variable descriptor.
     ///
     /// Piggyback shadows ride on another shadow variable's listener,
@@ -153,6 +165,7 @@ impl VariableDescriptor {
     pub fn piggyback(name: &'static str, source_shadow: &'static str) -> Self {
         VariableDescriptor {
             name,
+            logical_id: None,
             variable_type: VariableType::Shadow(ShadowVariableKind::Piggyback),
             allows_unassigned: true,
             value_range_provider: None,

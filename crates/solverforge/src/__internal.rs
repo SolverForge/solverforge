@@ -17,9 +17,9 @@ pub use solverforge_macros::{PlanningEntityImpl, PlanningSolutionImpl, ProblemFa
 
 // Domain types
 pub use solverforge_core::domain::{
-    EntityCollectionExtractor, EntityDescriptor, PlanningEntity, PlanningId, PlanningSolution,
-    ProblemFact, ProblemFactDescriptor, ShadowVariableKind, SolutionDescriptor, ValueRangeType,
-    VariableDescriptor,
+    EntityClassId, EntityCollectionExtractor, EntityDescriptor, PlanningEntity, PlanningId,
+    PlanningSolution, ProblemFact, ProblemFactClassId, ProblemFactDescriptor, ShadowVariableKind,
+    SolutionDescriptor, ValueRangeType, VariableDescriptor, VariableId,
 };
 
 // Scoring

@@ -3,7 +3,7 @@
 use std::any::{Any, TypeId};
 use std::fmt;
 
-use super::VariableDescriptor;
+use super::{EntityClassId, VariableDescriptor};
 use crate::domain::entity_ref::{EntityExtractor, EntityRef};
 
 /// Describes a planning entity type at runtime.
@@ -12,6 +12,8 @@ pub struct EntityDescriptor {
     pub type_name: &'static str,
     // TypeId of the entity type.
     pub type_id: TypeId,
+    // Logical entity class ID for dynamic binding models.
+    pub logical_id: Option<EntityClassId>,
     // Field name in the solution (for entity collections).
     pub solution_field: &'static str,
     // Whether this is a collection of entities.
@@ -31,6 +33,7 @@ impl EntityDescriptor {
         EntityDescriptor {
             type_name,
             type_id,
+            logical_id: None,
             solution_field,
             is_collection: true,
             variable_descriptors: Vec::new(),
@@ -42,6 +45,11 @@ impl EntityDescriptor {
 
     pub fn with_extractor(mut self, extractor: Box<dyn EntityExtractor>) -> Self {
         self.extractor = Some(extractor);
+        self
+    }
+
+    pub fn with_logical_id(mut self, logical_id: EntityClassId) -> Self {
+        self.logical_id = Some(logical_id);
         self
     }
 
@@ -143,6 +151,7 @@ impl Clone for EntityDescriptor {
         Self {
             type_name: self.type_name,
             type_id: self.type_id,
+            logical_id: self.logical_id,
             solution_field: self.solution_field,
             is_collection: self.is_collection,
             variable_descriptors: self.variable_descriptors.clone(),

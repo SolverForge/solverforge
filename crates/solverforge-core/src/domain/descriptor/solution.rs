@@ -4,7 +4,7 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt;
 
-use super::{EntityDescriptor, ProblemFactDescriptor, VariableDescriptor};
+use super::{EntityClassId, EntityDescriptor, ProblemFactDescriptor, VariableDescriptor};
 use crate::domain::entity_ref::EntityRef;
 
 /// Describes a planning solution at runtime.
@@ -28,6 +28,8 @@ pub struct SolutionDescriptor {
     pub score_is_optional: bool,
     // Index mapping entity TypeId to descriptor index for O(1) lookup.
     entity_type_index: HashMap<TypeId, usize>,
+    // Index mapping logical entity class IDs to descriptor indexes for dynamic bindings.
+    entity_logical_index: HashMap<EntityClassId, usize>,
 }
 
 impl SolutionDescriptor {
@@ -40,14 +42,19 @@ impl SolutionDescriptor {
             score_field: "score",
             score_is_optional: true,
             entity_type_index: HashMap::new(),
+            entity_logical_index: HashMap::new(),
         }
     }
 
     pub fn with_entity(mut self, descriptor: EntityDescriptor) -> Self {
         let index = self.entity_descriptors.len();
         let type_id = descriptor.type_id;
+        let logical_id = descriptor.logical_id;
         self.entity_descriptors.push(descriptor);
-        self.entity_type_index.insert(type_id, index);
+        self.entity_type_index.entry(type_id).or_insert(index);
+        if let Some(logical_id) = logical_id {
+            self.entity_logical_index.insert(logical_id, index);
+        }
         self
     }
 
@@ -70,6 +77,15 @@ impl SolutionDescriptor {
     pub fn find_entity_descriptor_by_type(&self, type_id: TypeId) -> Option<&EntityDescriptor> {
         self.entity_type_index
             .get(&type_id)
+            .and_then(|&idx| self.entity_descriptors.get(idx))
+    }
+
+    pub fn find_entity_descriptor_by_logical_id(
+        &self,
+        logical_id: EntityClassId,
+    ) -> Option<&EntityDescriptor> {
+        self.entity_logical_index
+            .get(&logical_id)
             .and_then(|&idx| self.entity_descriptors.get(idx))
     }
 
@@ -165,6 +181,7 @@ impl Clone for SolutionDescriptor {
             score_field: self.score_field,
             score_is_optional: self.score_is_optional,
             entity_type_index: self.entity_type_index.clone(),
+            entity_logical_index: self.entity_logical_index.clone(),
         }
     }
 }

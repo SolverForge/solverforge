@@ -20,6 +20,7 @@ impl PlanningSolution for TestSolution {
 fn scalar_variable(name: &'static str) -> VariableDescriptor {
     VariableDescriptor {
         name,
+        logical_id: None,
         variable_type: VariableType::Genuine,
         allows_unassigned: true,
         value_range_provider: Some("values"),

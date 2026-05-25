@@ -3,6 +3,7 @@
 use std::any::TypeId;
 use std::fmt;
 
+use super::ProblemFactClassId;
 use crate::domain::entity_ref::EntityExtractor;
 
 /// Describes a problem fact type at runtime.
@@ -11,6 +12,8 @@ pub struct ProblemFactDescriptor {
     pub type_name: &'static str,
     // TypeId of the problem fact type.
     pub type_id: TypeId,
+    // Logical problem fact class ID for dynamic binding models.
+    pub logical_id: Option<ProblemFactClassId>,
     // Field name in the solution.
     pub solution_field: &'static str,
     // Whether this is a collection of facts.
@@ -26,6 +29,7 @@ impl ProblemFactDescriptor {
         ProblemFactDescriptor {
             type_name,
             type_id,
+            logical_id: None,
             solution_field,
             is_collection: true,
             id_field: None,
@@ -35,6 +39,11 @@ impl ProblemFactDescriptor {
 
     pub fn with_extractor(mut self, extractor: Box<dyn EntityExtractor>) -> Self {
         self.extractor = Some(extractor);
+        self
+    }
+
+    pub fn with_logical_id(mut self, logical_id: ProblemFactClassId) -> Self {
+        self.logical_id = Some(logical_id);
         self
     }
 
@@ -54,6 +63,7 @@ impl Clone for ProblemFactDescriptor {
         Self {
             type_name: self.type_name,
             type_id: self.type_id,
+            logical_id: self.logical_id,
             solution_field: self.solution_field,
             is_collection: self.is_collection,
             id_field: self.id_field,

@@ -152,3 +152,38 @@ fn test_counts() {
     assert_eq!(solution_desc.entity_descriptor_count(), 1);
     assert_eq!(solution_desc.problem_fact_descriptor_count(), 1);
 }
+
+#[derive(Clone, Debug)]
+struct SharedDynamicRow;
+
+#[test]
+fn logical_entity_ids_distinguish_shared_rust_row_type() {
+    let solution_desc = SolutionDescriptor::new("DynamicSolution", TypeId::of::<TestSolution>())
+        .with_entity(
+            EntityDescriptor::new("Task", TypeId::of::<SharedDynamicRow>(), "tasks")
+                .with_logical_id(EntityClassId(0)),
+        )
+        .with_entity(
+            EntityDescriptor::new("Vehicle", TypeId::of::<SharedDynamicRow>(), "vehicles")
+                .with_logical_id(EntityClassId(1)),
+        );
+
+    assert_eq!(
+        solution_desc
+            .find_entity_descriptor_by_logical_id(EntityClassId(0))
+            .map(|descriptor| descriptor.type_name),
+        Some("Task")
+    );
+    assert_eq!(
+        solution_desc
+            .find_entity_descriptor_by_logical_id(EntityClassId(1))
+            .map(|descriptor| descriptor.type_name),
+        Some("Vehicle")
+    );
+    assert_eq!(
+        solution_desc
+            .find_entity_descriptor_by_type(TypeId::of::<SharedDynamicRow>())
+            .map(|descriptor| descriptor.type_name),
+        Some("Task")
+    );
+}

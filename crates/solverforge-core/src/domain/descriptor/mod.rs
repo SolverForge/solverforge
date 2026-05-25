@@ -6,11 +6,13 @@ the derive macros.
 */
 
 mod entity;
+mod identity;
 mod problem_fact;
 mod solution;
 mod var_descriptor;
 
 pub use entity::EntityDescriptor;
+pub use identity::{EntityClassId, ProblemFactClassId, VariableId};
 pub use problem_fact::ProblemFactDescriptor;
 pub use solution::SolutionDescriptor;
 pub use var_descriptor::{

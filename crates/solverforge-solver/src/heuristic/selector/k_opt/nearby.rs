@@ -12,7 +12,9 @@ use crate::heuristic::r#move::k_opt_reconnection::{
 use crate::heuristic::r#move::{CutPoint, KOptMove};
 
 use super::super::entity::EntitySelector;
-use super::super::move_selector::{ArenaMoveCursor, MoveSelector};
+use super::super::move_selector::{
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector,
+};
 use super::config::KOptConfig;
 use super::distance_meter::ListPositionDistanceMeter;
 
@@ -105,28 +107,30 @@ impl<S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
             _phantom: PhantomData,
         }
     }
+}
 
-    fn nearby_positions(
-        &self,
-        solution: &S,
-        entity_idx: usize,
-        origin: usize,
-        len: usize,
-    ) -> Vec<usize> {
-        let mut positions: Vec<(usize, f64)> = (0..len)
-            .filter(|&p| p != origin)
-            .map(|p| {
-                let dist = self
-                    .distance_meter
-                    .distance(solution, entity_idx, origin, p);
-                (p, dist)
-            })
-            .collect();
+fn nearby_positions<S, D>(
+    solution: &S,
+    distance_meter: &D,
+    max_nearby: usize,
+    entity_idx: usize,
+    origin: usize,
+    len: usize,
+) -> Vec<usize>
+where
+    D: ListPositionDistanceMeter<S>,
+{
+    let mut positions: Vec<(usize, f64)> = (0..len)
+        .filter(|&p| p != origin)
+        .map(|p| {
+            let dist = distance_meter.distance(solution, entity_idx, origin, p);
+            (p, dist)
+        })
+        .collect();
 
-        positions.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-        positions.truncate(self.max_nearby);
-        positions.into_iter().map(|(p, _)| p).collect()
-    }
+    positions.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    positions.truncate(max_nearby);
+    positions.into_iter().map(|(p, _)| p).collect()
 }
 
 impl<S, V, DM, ES> MoveSelector<S, KOptMove<S, V>> for NearbyKOptMoveSelector<S, V, DM, ES>
@@ -137,49 +141,32 @@ where
     ES: EntitySelector<S>,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, KOptMove<S, V>>
+        = NearbyKOptMoveCursor<'a, S, V, DM>
     where
         Self: 'a;
 
     fn open_cursor<'a, SD: Director<S>>(&'a self, score_director: &SD) -> Self::Cursor<'a> {
-        let k = self.config.k;
-        let min_seg = self.config.min_segment_len;
-        let patterns = &self.patterns;
-        let list_len_fn = self.list_len;
-        let list_get = self.list_get;
-        let sublist_remove = self.sublist_remove;
-        let sublist_insert = self.sublist_insert;
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
         let solution = score_director.working_solution();
-        let moves: Vec<_> = self
+        let entities = self
             .entity_selector
             .iter(score_director)
-            .flat_map(move |entity_ref| {
-                let entity_idx = entity_ref.entity_index;
-                let len = list_len_fn(solution, entity_idx);
-                let cuts_iter = NearbyCutIterator::new(self, solution, entity_idx, k, len, min_seg);
-
-                cuts_iter.flat_map(move |cuts| {
-                    patterns.iter().map(move |&pattern| {
-                        let mut sorted_cuts = cuts.clone();
-                        sorted_cuts.sort_by_key(|c| c.position());
-
-                        KOptMove::new(
-                            &sorted_cuts,
-                            pattern,
-                            list_len_fn,
-                            list_get,
-                            sublist_remove,
-                            sublist_insert,
-                            variable_name,
-                            descriptor_index,
-                        )
-                    })
-                })
-            })
+            .map(|entity_ref| entity_ref.entity_index)
             .collect();
-        ArenaMoveCursor::from_moves(moves)
+        NearbyKOptMoveCursor::new(
+            solution.clone(),
+            &self.distance_meter,
+            entities,
+            self.config.k,
+            self.config.min_segment_len,
+            self.max_nearby,
+            &self.patterns,
+            self.list_len,
+            self.list_get,
+            self.sublist_remove,
+            self.sublist_insert,
+            self.variable_name,
+            self.descriptor_index,
+        )
     }
 
     fn size<SD: Director<S>>(&self, score_director: &SD) -> usize {
@@ -204,13 +191,163 @@ where
     }
 }
 
-// Iterator for nearby k-cut combinations.
-struct NearbyCutIterator<'a, S, V, D: ListPositionDistanceMeter<S>, ES> {
-    selector: &'a NearbyKOptMoveSelector<S, V, D, ES>,
-    solution: &'a S,
+pub struct NearbyKOptMoveCursor<'a, S, V, D>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+    D: ListPositionDistanceMeter<S>,
+{
+    store: CandidateStore<S, KOptMove<S, V>>,
+    solution: S,
+    distance_meter: &'a D,
+    entities: Vec<usize>,
+    entity_offset: usize,
+    cut_state: Option<NearbyCutState>,
+    pending_cuts: Option<Vec<CutPoint>>,
+    pattern_offset: usize,
+    k: usize,
+    min_seg: usize,
+    max_nearby: usize,
+    patterns: &'a [&'static KOptReconnection],
+    list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
+    sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
+    sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+    variable_name: &'static str,
+    descriptor_index: usize,
+}
+
+impl<'a, S, V, D> NearbyKOptMoveCursor<'a, S, V, D>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+    D: ListPositionDistanceMeter<S>,
+{
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        solution: S,
+        distance_meter: &'a D,
+        entities: Vec<usize>,
+        k: usize,
+        min_seg: usize,
+        max_nearby: usize,
+        patterns: &'a [&'static KOptReconnection],
+        list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
+        sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
+        sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+        variable_name: &'static str,
+        descriptor_index: usize,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            solution,
+            distance_meter,
+            entities,
+            entity_offset: 0,
+            cut_state: None,
+            pending_cuts: None,
+            pattern_offset: 0,
+            k,
+            min_seg,
+            max_nearby,
+            patterns,
+            list_len,
+            list_get,
+            sublist_remove,
+            sublist_insert,
+            variable_name,
+            descriptor_index,
+        }
+    }
+
+    fn load_next_cut_state(&mut self) -> bool {
+        while self.entity_offset < self.entities.len() {
+            let entity_idx = self.entities[self.entity_offset];
+            self.entity_offset += 1;
+            let len = (self.list_len)(&self.solution, entity_idx);
+            let state = NearbyCutState::new(entity_idx, self.k, len, self.min_seg, self.max_nearby);
+            if !state.is_done() {
+                self.cut_state = Some(state);
+                return true;
+            }
+        }
+        false
+    }
+}
+
+impl<S, V, D> MoveCursor<S, KOptMove<S, V>> for NearbyKOptMoveCursor<'_, S, V, D>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+    D: ListPositionDistanceMeter<S>,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        loop {
+            if let Some(cuts) = self.pending_cuts.as_ref() {
+                if self.pattern_offset < self.patterns.len() {
+                    let pattern = self.patterns[self.pattern_offset];
+                    self.pattern_offset += 1;
+                    return Some(self.store.push(KOptMove::new(
+                        cuts,
+                        pattern,
+                        self.list_len,
+                        self.list_get,
+                        self.sublist_remove,
+                        self.sublist_insert,
+                        self.variable_name,
+                        self.descriptor_index,
+                    )));
+                }
+                self.pending_cuts = None;
+                self.pattern_offset = 0;
+            }
+
+            if self.cut_state.is_none() && !self.load_next_cut_state() {
+                return None;
+            }
+
+            if let Some(state) = self.cut_state.as_mut() {
+                if let Some(mut cuts) = state.next_cuts(&self.solution, self.distance_meter) {
+                    cuts.sort_by_key(|c| c.position());
+                    self.pending_cuts = Some(cuts);
+                    self.pattern_offset = 0;
+                    continue;
+                }
+            }
+            self.cut_state = None;
+        }
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, KOptMove<S, V>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> KOptMove<S, V> {
+        self.store.take_candidate(id)
+    }
+}
+
+impl<S, V, D> Iterator for NearbyKOptMoveCursor<'_, S, V, D>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+    D: ListPositionDistanceMeter<S>,
+{
+    type Item = KOptMove<S, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
+    }
+}
+
+// Iterator state for nearby k-cut combinations.
+struct NearbyCutState {
     entity_idx: usize,
     k: usize,
     len: usize,
+    max_nearby: usize,
     min_seg: usize,
     // Stack of (position, nearby_iterator_index)
     stack: Vec<(usize, usize)>,
@@ -219,25 +356,15 @@ struct NearbyCutIterator<'a, S, V, D: ListPositionDistanceMeter<S>, ES> {
     done: bool,
 }
 
-impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
-    NearbyCutIterator<'a, S, V, D, ES>
-{
-    fn new(
-        selector: &'a NearbyKOptMoveSelector<S, V, D, ES>,
-        solution: &'a S,
-        entity_idx: usize,
-        k: usize,
-        len: usize,
-        min_seg: usize,
-    ) -> Self {
+impl NearbyCutState {
+    fn new(entity_idx: usize, k: usize, len: usize, min_seg: usize, max_nearby: usize) -> Self {
         let min_len = (k + 1) * min_seg;
         if len < min_len {
             return Self {
-                selector,
-                solution,
                 entity_idx,
                 k,
                 len,
+                max_nearby,
                 min_seg,
                 stack: vec![],
                 nearby_cache: vec![],
@@ -246,31 +373,38 @@ impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
         }
 
         // Start with first valid position
-        let mut iter = Self {
-            selector,
-            solution,
+        let iter = Self {
             entity_idx,
             k,
             len,
+            max_nearby,
             min_seg,
             stack: vec![(min_seg, 0)],
             nearby_cache: vec![vec![]],
             done: false,
         };
-
-        // Build initial stack to depth k
-        iter.extend_stack();
         iter
     }
 
-    fn extend_stack(&mut self) {
+    fn is_done(&self) -> bool {
+        self.done
+    }
+
+    fn extend_stack<S, D>(&mut self, solution: &S, distance_meter: &D)
+    where
+        D: ListPositionDistanceMeter<S>,
+    {
         while self.stack.len() < self.k && !self.done {
             let (last_pos, _) = *self.stack.last().unwrap();
 
-            // Get nearby positions for next cut
-            let nearby =
-                self.selector
-                    .nearby_positions(self.solution, self.entity_idx, last_pos, self.len);
+            let nearby = nearby_positions(
+                solution,
+                distance_meter,
+                self.max_nearby,
+                self.entity_idx,
+                last_pos,
+                self.len,
+            );
 
             // Filter to valid positions (must leave room for remaining cuts)
             let remaining_cuts = self.k - self.stack.len();
@@ -330,7 +464,10 @@ impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
         false
     }
 
-    fn advance(&mut self) {
+    fn advance<S, D>(&mut self, solution: &S, distance_meter: &D)
+    where
+        D: ListPositionDistanceMeter<S>,
+    {
         if self.done || self.stack.is_empty() {
             self.done = true;
             return;
@@ -352,19 +489,17 @@ impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES>
 
         // Backtrack and extend
         if self.backtrack() {
-            self.extend_stack();
+            self.extend_stack(solution, distance_meter);
         } else {
             self.done = true;
         }
     }
-}
 
-impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES> Iterator
-    for NearbyCutIterator<'a, S, V, D, ES>
-{
-    type Item = Vec<CutPoint>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next_cuts<S, D>(&mut self, solution: &S, distance_meter: &D) -> Option<Vec<CutPoint>>
+    where
+        D: ListPositionDistanceMeter<S>,
+    {
+        self.extend_stack(solution, distance_meter);
         if self.done || self.stack.len() != self.k {
             return None;
         }
@@ -375,7 +510,7 @@ impl<'a, S: PlanningSolution, V, D: ListPositionDistanceMeter<S>, ES> Iterator
             .map(|(pos, _)| CutPoint::new(self.entity_idx, *pos))
             .collect();
 
-        self.advance();
+        self.advance(solution, distance_meter);
 
         Some(cuts)
     }

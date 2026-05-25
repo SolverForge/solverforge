@@ -21,6 +21,7 @@ where
     Cartesian(ListCartesianSelector<S, V, DM, IDM>),
 }
 
+#[allow(clippy::large_enum_variant)] // Inline cursor storage avoids hot-path indirection.
 pub enum ListSelectorCursor<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + 'static,

@@ -40,6 +40,7 @@ pub struct ListVariableSlot<S, V, DM, IDM> {
     pub route_metric_class_fn: Option<fn(&S, usize) -> usize>,
     pub route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
     pub route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
+    pub element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
@@ -72,6 +73,7 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
             route_metric_class_fn: self.route_metric_class_fn,
             route_distance_fn: self.route_distance_fn,
             route_feasible_fn: self.route_feasible_fn,
+            element_owner_fn: self.element_owner_fn,
             _phantom: PhantomData,
         }
     }
@@ -134,8 +136,17 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             route_metric_class_fn,
             route_distance_fn,
             route_feasible_fn,
+            element_owner_fn: None,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    ) -> Self {
+        self.element_owner_fn = element_owner_fn;
+        self
     }
 
     pub fn matches_target(&self, entity_class: Option<&str>, variable_name: Option<&str>) -> bool {

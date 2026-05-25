@@ -40,35 +40,45 @@ pub(crate) fn representative_owner_slots(owner_slots: &[OwnerSlot]) -> Vec<Owner
         .collect()
 }
 
-pub(crate) fn feasible_owners<S>(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn feasible_owners_for_scored_elements<S, E>(
     solution: &S,
     owner_slots: &[OwnerSlot],
-    route: &[usize],
-    metric_class: Option<usize>,
+    route_values: &[usize],
+    route_elements: Option<&[E]>,
+    scored_metric_class: Option<usize>,
     feasible: fn(&S, usize, &[usize]) -> bool,
+    element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
+    entity_count: usize,
 ) -> Vec<usize>
 where
     S: PlanningSolution,
 {
     owner_slots
         .iter()
-        .filter(|slot| metric_class.is_none_or(|class| slot.metric_class == class))
+        .filter(|slot| scored_metric_class.is_none_or(|class| slot.metric_class == class))
         .map(|slot| slot.owner_idx)
-        .filter(|&entity_idx| feasible(solution, entity_idx, route))
-        .collect()
-}
+        .filter(|&entity_idx| {
+            if !feasible(solution, entity_idx, route_values) {
+                return false;
+            }
 
-pub(crate) fn feasible_owners_for_scored_route<S>(
-    solution: &S,
-    owner_slots: &[OwnerSlot],
-    route: &[usize],
-    scored_metric_class: Option<usize>,
-    feasible: fn(&S, usize, &[usize]) -> bool,
-) -> Vec<usize>
-where
-    S: PlanningSolution,
-{
-    feasible_owners(solution, owner_slots, route, scored_metric_class, feasible)
+            let Some(owner_fn) = element_owner_fn else {
+                return true;
+            };
+            let Some(route_elements) = route_elements else {
+                return false;
+            };
+
+            crate::list_placement::route_owner_allows(
+                Some(owner_fn),
+                solution,
+                entity_count,
+                entity_idx,
+                route_elements,
+            )
+        })
+        .collect()
 }
 
 pub(crate) fn match_route_owners(feasible_sets: &[Vec<usize>]) -> Vec<Option<usize>> {

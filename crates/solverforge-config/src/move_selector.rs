@@ -351,6 +351,11 @@ pub struct ListRuinMoveSelectorConfig {
     pub max_ruin_count: usize,
     // Number of ruin moves to generate per step. Default: 10.
     pub moves_per_step: Option<usize>,
+    // Optional maximum source list length eligible for this selector.
+    pub max_source_list_len: Option<usize>,
+    // Whether recreate should skip currently empty destination lists.
+    #[serde(default)]
+    pub skip_empty_destinations: bool,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -361,6 +366,8 @@ impl Default for ListRuinMoveSelectorConfig {
             min_ruin_count: 2,
             max_ruin_count: 5,
             moves_per_step: None,
+            max_source_list_len: None,
+            skip_empty_destinations: false,
             target: VariableTargetConfig::default(),
         }
     }

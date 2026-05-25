@@ -34,6 +34,7 @@ pub struct ListVariableMetadata<S, DM, IDM> {
     pub route_metric_class_fn: Option<fn(&S, usize) -> usize>,
     pub route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
     pub route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
+    pub element_owner_fn: Option<fn(&S, &usize) -> Option<usize>>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -71,8 +72,17 @@ impl<S, DM, IDM> ListVariableMetadata<S, DM, IDM> {
             route_metric_class_fn,
             route_distance_fn,
             route_feasible_fn,
+            element_owner_fn: None,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &usize) -> Option<usize>>,
+    ) -> Self {
+        self.element_owner_fn = element_owner_fn;
+        self
     }
 }
 

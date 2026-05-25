@@ -130,6 +130,10 @@ fn list_set(plan: &mut Plan, entity_idx: usize, pos: usize, value: usize) {
     }
 }
 
+fn mixed_owner(_: &Plan, element: &usize) -> Option<usize> {
+    (*element >= 100).then_some(*element / 100)
+}
+
 fn benchmark_cursor(name: &str, runs: usize, mut run: impl FnMut() -> usize) {
     let mut samples = Vec::with_capacity(runs);
     let warmup_count = black_box(run());
@@ -203,6 +207,53 @@ fn nearby_list_change_keeps_stable_tie_order() {
 }
 
 #[test]
+fn nearby_list_change_keeps_unrestricted_elements_when_owner_hook_exists() {
+    let director = create_director(vec![
+        Vehicle { visits: vec![0] },
+        Vehicle {
+            visits: vec![100, 1],
+        },
+    ]);
+
+    let selector = NearbyListChangeMoveSelector::<Plan, usize, _, _>::new(
+        FromSolutionEntitySelector::new(0),
+        EqualDistanceMeter,
+        8,
+        list_len,
+        list_get,
+        list_remove,
+        list_insert,
+        "visits",
+        0,
+    )
+    .with_element_owner_fn(Some(mixed_owner));
+
+    let moves: Vec<_> = selector
+        .iter_moves(&director)
+        .map(|m| {
+            (
+                m.source_entity_index(),
+                m.source_position(),
+                m.dest_entity_index(),
+                m.dest_position(),
+            )
+        })
+        .collect();
+
+    assert_eq!(
+        moves,
+        vec![
+            (0, 0, 1, 0),
+            (0, 0, 1, 1),
+            (0, 0, 1, 2),
+            (1, 1, 1, 0),
+            (1, 1, 0, 0),
+            (1, 1, 0, 1),
+        ]
+    );
+}
+
+#[test]
 fn nearby_list_swap_emits_unique_pairs_in_stable_order() {
     let director = create_director(vec![
         Vehicle {
@@ -248,6 +299,42 @@ fn nearby_list_swap_emits_unique_pairs_in_stable_order() {
         ],
         "nearby list swap must preserve canonical pair order without emitting duplicates"
     );
+}
+
+#[test]
+fn nearby_list_swap_keeps_unrestricted_elements_when_owner_hook_exists() {
+    let director = create_director(vec![
+        Vehicle { visits: vec![0] },
+        Vehicle {
+            visits: vec![100, 1],
+        },
+    ]);
+
+    let selector = NearbyListSwapMoveSelector::<Plan, usize, _, _>::new(
+        FromSolutionEntitySelector::new(0),
+        EqualDistanceMeter,
+        8,
+        list_len,
+        list_get,
+        list_set,
+        "visits",
+        0,
+    )
+    .with_element_owner_fn(Some(mixed_owner));
+
+    let moves: Vec<_> = selector
+        .iter_moves(&director)
+        .map(|m| {
+            (
+                m.first_entity_index(),
+                m.first_position(),
+                m.second_entity_index(),
+                m.second_position(),
+            )
+        })
+        .collect();
+
+    assert_eq!(moves, vec![(0, 0, 1, 1), (1, 0, 1, 1)]);
 }
 
 #[test]

@@ -23,9 +23,12 @@ mod route_state;
 mod savings;
 
 use owner_assignment::{
-    feasible_owners_for_scored_route, match_route_owners, owner_slots, representative_owner_slots,
+    feasible_owners_for_scored_elements, match_route_owners, owner_slots,
+    representative_owner_slots,
 };
-use route_state::{route_values, routes_match_owners_after_merge, ConstructedRoute};
+use route_state::{
+    route_elements, route_values, routes_match_owners_after_merge, ConstructedRoute,
+};
 use savings::{sort_savings, SavingsEntry};
 
 fn unique_metric_class<S>(_: &S, owner_idx: usize) -> usize {
@@ -109,6 +112,7 @@ where
     metric_class_fn: fn(&S, usize) -> usize,
     distance_fn: fn(&S, usize, usize, usize) -> i64,
     feasible_fn: fn(&S, usize, &[usize]) -> bool,
+    element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
     descriptor_index: usize,
     _marker: PhantomData<fn() -> (S, E)>,
 }
@@ -169,6 +173,7 @@ where
             metric_class_fn: unique_metric_class::<S>,
             distance_fn,
             feasible_fn,
+            element_owner_fn: None,
             descriptor_index,
             _marker: PhantomData,
         }
@@ -181,6 +186,14 @@ where
     */
     pub fn with_metric_class_fn(mut self, metric_class_fn: fn(&S, usize) -> usize) -> Self {
         self.metric_class_fn = metric_class_fn;
+        self
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
+    ) -> Self {
+        self.element_owner_fn = element_owner_fn;
         self
     }
 }
@@ -256,10 +269,18 @@ where
             .iter()
             .map(|&i| {
                 let value = index_to_element(solution, i).into();
+                let element = index_to_element(solution, i);
                 let singleton = [value];
-                let feasible_for_all_owners = owner_slots
-                    .iter()
-                    .all(|slot| (self.feasible_fn)(solution, slot.owner_idx, &singleton));
+                let feasible_for_all_owners = owner_slots.iter().all(|slot| {
+                    (self.feasible_fn)(solution, slot.owner_idx, &singleton)
+                        && crate::list_placement::owner_allows(
+                            self.element_owner_fn,
+                            solution,
+                            n_entities,
+                            slot.owner_idx,
+                            &element,
+                        )
+                });
                 ConstructedRoute::singleton(i, feasible_for_all_owners)
             })
             .collect();
@@ -376,12 +397,18 @@ where
             let candidate_indices: Vec<usize> = test_ri.iter().chain(&test_rj).copied().collect();
             let solution = phase_scope.score_director().working_solution();
             let candidate_route = route_values(solution, index_to_element, &candidate_indices);
-            let candidate_feasible_owners = feasible_owners_for_scored_route(
+            let candidate_elements = self
+                .element_owner_fn
+                .map(|_| route_elements(solution, index_to_element, &candidate_indices));
+            let candidate_feasible_owners = feasible_owners_for_scored_elements(
                 solution,
                 &owner_slots,
                 &candidate_route,
+                candidate_elements.as_deref(),
                 Some(entry.metric_class),
                 self.feasible_fn,
+                self.element_owner_fn,
+                n_entities,
             );
             if candidate_feasible_owners.is_empty() {
                 continue;
@@ -402,6 +429,8 @@ where
                 &owner_slots,
                 index_to_element,
                 self.feasible_fn,
+                self.element_owner_fn,
+                n_entities,
             ) {
                 continue;
             }
@@ -429,28 +458,42 @@ where
             .filter(|route| !route.visits.is_empty())
             .collect();
         let solution = phase_scope.score_director().working_solution();
-        let feasible_sets: Vec<Vec<usize>> = non_empty
-            .iter()
-            .map(|route| {
-                let values = route_values(solution, index_to_element, &route.visits);
-                feasible_owners_for_scored_route(
-                    solution,
-                    &owner_slots,
-                    &values,
-                    route.scored_metric_class,
-                    self.feasible_fn,
-                )
-            })
-            .collect();
+        let constructed_route_count = non_empty.len();
+        let mut assignable_routes = Vec::with_capacity(constructed_route_count);
+        let mut feasible_sets = Vec::with_capacity(constructed_route_count);
+        let mut owner_ineligible_routes = 0usize;
+        for route in non_empty {
+            let values = route_values(solution, index_to_element, &route.visits);
+            let elements = self
+                .element_owner_fn
+                .map(|_| route_elements(solution, index_to_element, &route.visits));
+            let feasible_owners = feasible_owners_for_scored_elements(
+                solution,
+                &owner_slots,
+                &values,
+                elements.as_deref(),
+                route.scored_metric_class,
+                self.feasible_fn,
+                self.element_owner_fn,
+                n_entities,
+            );
+            if feasible_owners.is_empty() {
+                owner_ineligible_routes += 1;
+                continue;
+            }
+            assignable_routes.push(route);
+            feasible_sets.push(feasible_owners);
+        }
         let route_to_owner = match_route_owners(&feasible_sets);
         let matched_count = route_to_owner
             .iter()
             .filter(|owner| owner.is_some())
             .count();
 
-        if matched_count < non_empty.len() && !construction_interrupted {
+        if matched_count < assignable_routes.len() && !construction_interrupted {
             tracing::warn!(
-                constructed_routes = non_empty.len(),
+                constructed_routes = constructed_route_count,
+                owner_ineligible_routes,
                 available_slots = available_entity_slots.len(),
                 matched_routes = matched_count,
                 "ListClarkeWright could not match every constructed route to a feasible empty entity"
@@ -466,7 +509,7 @@ where
             let mut step_scope = StepScope::new(&mut phase_scope);
 
             step_scope.apply_committed_change(|sd| {
-                for (index_route, entity_idx) in non_empty.into_iter().zip(route_to_owner) {
+                for (index_route, entity_idx) in assignable_routes.into_iter().zip(route_to_owner) {
                     let Some(entity_idx) = entity_idx else {
                         continue;
                     };

@@ -179,82 +179,211 @@ pub struct NearbyListChangeMoveSelector<S, V, D, ES> {
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     list_insert: fn(&mut S, usize, usize, V),
+    element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-struct NearbyListChangeSource {
-    src_entity: usize,
-    src_pos: usize,
-    destinations: Vec<(usize, usize)>,
-}
-
-pub struct NearbyListChangeMoveCursor<S, V>
+pub struct NearbyListChangeMoveCursor<'a, S, V, D>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    D: CrossEntityDistanceMeter<S>,
 {
     store: CandidateStore<S, ListChangeMove<S, V>>,
-    sources: Vec<NearbyListChangeSource>,
-    source_offset: usize,
+    solution: S,
+    distance_meter: &'a D,
+    entities: Vec<usize>,
+    route_lens: Vec<usize>,
+    context: MoveStreamContext,
+    source_idx: usize,
+    source_pos_offset: usize,
+    current_source: Option<(usize, usize)>,
+    destinations: Vec<(usize, usize)>,
     destination_offset: usize,
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     list_insert: fn(&mut S, usize, usize, V),
+    owner_context: Option<(fn(&S, &V) -> Option<usize>, usize)>,
+    max_nearby: usize,
     variable_name: &'static str,
     descriptor_index: usize,
 }
 
-impl<S, V> NearbyListChangeMoveCursor<S, V>
+impl<'a, S, V, D> NearbyListChangeMoveCursor<'a, S, V, D>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    D: CrossEntityDistanceMeter<S>,
 {
     #[allow(clippy::too_many_arguments)]
     fn new(
-        sources: Vec<NearbyListChangeSource>,
+        solution: S,
+        distance_meter: &'a D,
+        entities: Vec<usize>,
+        route_lens: Vec<usize>,
+        context: MoveStreamContext,
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
+        owner_context: Option<(fn(&S, &V) -> Option<usize>, usize)>,
+        max_nearby: usize,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
         Self {
             store: CandidateStore::new(),
-            sources,
-            source_offset: 0,
+            solution,
+            distance_meter,
+            entities,
+            route_lens,
+            context,
+            source_idx: 0,
+            source_pos_offset: 0,
+            current_source: None,
+            destinations: Vec::new(),
             destination_offset: 0,
             list_len,
             list_get,
             list_remove,
             list_insert,
+            owner_context,
+            max_nearby,
             variable_name,
             descriptor_index,
         }
     }
+
+    fn load_next_source(&mut self) -> bool {
+        let mut candidates: Vec<NearbyCandidate> = Vec::new();
+
+        while self.source_idx < self.entities.len() {
+            let src_entity = self.entities[self.source_idx];
+            let src_len = self.route_lens[self.source_idx];
+            if src_len == 0 {
+                self.source_idx += 1;
+                self.source_pos_offset = 0;
+                continue;
+            }
+
+            while self.source_pos_offset < src_len {
+                let src_pos = ordered_index(
+                    self.source_pos_offset,
+                    src_len,
+                    self.context,
+                    0xA1EA_2B17_C4A4_0002 ^ src_entity as u64 ^ self.descriptor_index as u64,
+                );
+                self.source_pos_offset += 1;
+
+                let source_restriction = if let Some((owner_fn, entity_count)) = self.owner_context
+                {
+                    let Some(source_element) = (self.list_get)(&self.solution, src_entity, src_pos)
+                    else {
+                        continue;
+                    };
+                    Some(crate::list_placement::owner_restriction(
+                        Some(owner_fn),
+                        &self.solution,
+                        entity_count,
+                        &source_element,
+                    ))
+                } else {
+                    None
+                };
+
+                candidates.clear();
+
+                for dst_pos in 0..src_len {
+                    if dst_pos == src_pos || dst_pos == src_pos + 1 {
+                        continue;
+                    }
+                    if source_restriction.is_some_and(|restriction| !restriction.allows(src_entity))
+                    {
+                        continue;
+                    }
+                    let dist = self.distance_meter.distance(
+                        &self.solution,
+                        src_entity,
+                        src_pos,
+                        src_entity,
+                        dst_pos,
+                    );
+                    if dist.is_finite() {
+                        candidates.push((src_entity, dst_pos, dist));
+                    }
+                }
+
+                for (dst_idx, &dst_entity) in self.entities.iter().enumerate() {
+                    if dst_idx == self.source_idx {
+                        continue;
+                    }
+                    let dst_len = self.route_lens[dst_idx];
+                    for dst_pos in 0..=dst_len {
+                        if source_restriction
+                            .is_some_and(|restriction| !restriction.allows(dst_entity))
+                        {
+                            continue;
+                        }
+                        let ref_pos = dst_pos.min(dst_len.saturating_sub(1));
+                        let dist = self.distance_meter.distance(
+                            &self.solution,
+                            src_entity,
+                            src_pos,
+                            dst_entity,
+                            ref_pos,
+                        );
+                        if dist.is_finite() {
+                            candidates.push((dst_entity, dst_pos, dist));
+                        }
+                    }
+                }
+
+                sort_and_limit_nearby_candidates(&mut candidates, self.max_nearby);
+                if candidates.is_empty() {
+                    continue;
+                }
+
+                self.current_source = Some((src_entity, src_pos));
+                self.destinations.clear();
+                self.destinations.extend(
+                    candidates
+                        .iter()
+                        .map(|&(dst_entity, dst_pos, _)| (dst_entity, dst_pos)),
+                );
+                self.destination_offset = 0;
+                return true;
+            }
+
+            self.source_idx += 1;
+            self.source_pos_offset = 0;
+        }
+
+        false
+    }
 }
 
-impl<S, V> MoveCursor<S, ListChangeMove<S, V>> for NearbyListChangeMoveCursor<S, V>
+impl<S, V, D> MoveCursor<S, ListChangeMove<S, V>> for NearbyListChangeMoveCursor<'_, S, V, D>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    D: CrossEntityDistanceMeter<S>,
 {
     fn next_candidate(&mut self) -> Option<CandidateId> {
         loop {
-            let source = self.sources.get(self.source_offset)?;
-            if self.destination_offset >= source.destinations.len() {
-                self.source_offset += 1;
-                self.destination_offset = 0;
-                continue;
+            if self.destination_offset >= self.destinations.len() && !self.load_next_source() {
+                return None;
             }
-            let (dst_entity, dst_pos) = source.destinations[self.destination_offset];
+            let Some((src_entity, src_pos)) = self.current_source else {
+                continue;
+            };
+            let (dst_entity, dst_pos) = self.destinations[self.destination_offset];
             self.destination_offset += 1;
             return Some(self.store.push(ListChangeMove::new(
-                source.src_entity,
-                source.src_pos,
+                src_entity,
+                src_pos,
                 dst_entity,
                 dst_pos,
                 self.list_len,
@@ -276,10 +405,11 @@ where
     }
 }
 
-impl<S, V> Iterator for NearbyListChangeMoveCursor<S, V>
+impl<S, V, D> Iterator for NearbyListChangeMoveCursor<'_, S, V, D>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    D: CrossEntityDistanceMeter<S>,
 {
     type Item = ListChangeMove<S, V>;
 
@@ -334,10 +464,19 @@ impl<S, V, D, ES> NearbyListChangeMoveSelector<S, V, D, ES> {
             list_get,
             list_remove,
             list_insert,
+            element_owner_fn: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    ) -> Self {
+        self.element_owner_fn = element_owner_fn;
+        self
     }
 }
 
@@ -350,7 +489,7 @@ where
     ES: EntitySelector<S>,
 {
     type Cursor<'a>
-        = NearbyListChangeMoveCursor<S, V>
+        = NearbyListChangeMoveCursor<'a, S, V, D>
     where
         Self: 'a;
 
@@ -365,6 +504,14 @@ where
     ) -> Self::Cursor<'a> {
         let max_nearby = self.max_nearby;
         let solution = score_director.working_solution();
+        let owner_context = self.element_owner_fn.map(|owner_fn| {
+            (
+                owner_fn,
+                score_director
+                    .entity_count(self.descriptor_index)
+                    .unwrap_or(0),
+            )
+        });
 
         let mut selected =
             collect_selected_entities(&self.entity_selector, score_director, self.list_len);
@@ -375,75 +522,18 @@ where
         let entities = selected.entities;
         let route_lens = selected.route_lens;
 
-        let mut sources = Vec::new();
-        let mut candidates: Vec<NearbyCandidate> = Vec::new();
-
-        for (src_idx, &src_entity) in entities.iter().enumerate() {
-            let src_len = route_lens[src_idx];
-            if src_len == 0 {
-                continue;
-            }
-
-            for src_pos_offset in 0..src_len {
-                let src_pos = ordered_index(
-                    src_pos_offset,
-                    src_len,
-                    context,
-                    0xA1EA_2B17_C4A4_0002 ^ src_entity as u64 ^ self.descriptor_index as u64,
-                );
-                candidates.clear();
-
-                // Intra-entity candidates
-                for dst_pos in 0..src_len {
-                    if dst_pos == src_pos || dst_pos == src_pos + 1 {
-                        continue; // Skip no-ops
-                    }
-                    let dist = self
-                        .distance_meter
-                        .distance(solution, src_entity, src_pos, src_entity, dst_pos);
-                    if dist.is_finite() {
-                        candidates.push((src_entity, dst_pos, dist));
-                    }
-                }
-
-                // Inter-entity candidates: insert at any position in other entities
-                for (dst_idx, &dst_entity) in entities.iter().enumerate() {
-                    if dst_idx == src_idx {
-                        continue;
-                    }
-                    let dst_len = route_lens[dst_idx];
-                    // Can insert at positions 0..=dst_len
-                    for dst_pos in 0..=dst_len {
-                        // For the last position, use the distance to the last element
-                        let ref_pos = dst_pos.min(dst_len.saturating_sub(1));
-                        let dist = self
-                            .distance_meter
-                            .distance(solution, src_entity, src_pos, dst_entity, ref_pos);
-                        if dist.is_finite() {
-                            candidates.push((dst_entity, dst_pos, dist));
-                        }
-                    }
-                }
-
-                sort_and_limit_nearby_candidates(&mut candidates, max_nearby);
-
-                sources.push(NearbyListChangeSource {
-                    src_entity,
-                    src_pos,
-                    destinations: candidates
-                        .iter()
-                        .map(|&(dst_entity, dst_pos, _)| (dst_entity, dst_pos))
-                        .collect(),
-                });
-            }
-        }
-
         NearbyListChangeMoveCursor::new(
-            sources,
+            solution.clone(),
+            &self.distance_meter,
+            entities,
+            route_lens,
+            context,
             self.list_len,
             self.list_get,
             self.list_remove,
             self.list_insert,
+            owner_context,
+            max_nearby,
             self.variable_name,
             self.descriptor_index,
         )

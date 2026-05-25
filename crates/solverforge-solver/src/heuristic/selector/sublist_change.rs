@@ -71,6 +71,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::SublistChangeMove;
+use crate::list_placement::{selected_segment_allows, OwnerRestriction};
 
 use super::entity::EntitySelector;
 use super::list_support::{collect_selected_entities, ordered_index};
@@ -99,6 +100,7 @@ pub struct SublistChangeMoveSelector<S, V, ES> {
     list_get: fn(&S, usize, usize) -> Option<V>,
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+    element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -131,6 +133,7 @@ where
     list_get: fn(&S, usize, usize) -> Option<V>,
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+    element_owners: Option<Vec<Vec<OwnerRestriction>>>,
     variable_name: &'static str,
     descriptor_index: usize,
 }
@@ -151,6 +154,7 @@ where
         list_get: fn(&S, usize, usize) -> Option<V>,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
         sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+        element_owners: Option<Vec<Vec<OwnerRestriction>>>,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -172,6 +176,7 @@ where
             list_get,
             sublist_remove,
             sublist_insert,
+            element_owners,
             variable_name,
             descriptor_index,
         }
@@ -259,6 +264,18 @@ where
             self.descriptor_index,
         ))
     }
+
+    fn segment_owner_allows(
+        &self,
+        src_idx: usize,
+        seg_start: usize,
+        seg_end: usize,
+        dst_entity: usize,
+    ) -> bool {
+        self.element_owners.as_ref().is_none_or(|owners| {
+            selected_segment_allows(owners, src_idx, seg_start, seg_end, dst_entity)
+        })
+    }
 }
 
 impl<S, V> MoveCursor<S, SublistChangeMove<S, V>> for SublistChangeMoveCursor<S, V>
@@ -288,6 +305,16 @@ where
                         if dst_pos == seg_start {
                             continue;
                         }
+                        if self.element_owners.is_some()
+                            && !self.segment_owner_allows(
+                                self.src_idx,
+                                seg_start,
+                                seg_end,
+                                src_entity,
+                            )
+                        {
+                            continue;
+                        }
                         return Some(
                             self.push_move(src_entity, seg_start, seg_end, src_entity, dst_pos),
                         );
@@ -315,6 +342,16 @@ where
                                     ^ seg_start as u64,
                             );
                             self.inter_dst_offset += 1;
+                            if self.element_owners.is_some()
+                                && !self.segment_owner_allows(
+                                    self.src_idx,
+                                    seg_start,
+                                    seg_end,
+                                    dst_entity,
+                                )
+                            {
+                                continue;
+                            }
                             return Some(
                                 self.push_move(src_entity, seg_start, seg_end, dst_entity, dst_pos),
                             );
@@ -406,10 +443,19 @@ impl<S, V, ES> SublistChangeMoveSelector<S, V, ES> {
             list_get,
             sublist_remove,
             sublist_insert,
+            element_owner_fn: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    ) -> Self {
+        self.element_owner_fn = element_owner_fn;
+        self
     }
 }
 
@@ -439,6 +485,20 @@ where
             context,
             0x5B15_7C4A_46E0_0001 ^ self.descriptor_index as u64,
         );
+        let element_owners = if self.element_owner_fn.is_some() {
+            crate::list_placement::selected_owner_restrictions(
+                self.element_owner_fn,
+                score_director.working_solution(),
+                score_director
+                    .entity_count(self.descriptor_index)
+                    .unwrap_or(0),
+                &selected.entities,
+                &selected.route_lens,
+                self.list_get,
+            )
+        } else {
+            None
+        };
         SublistChangeMoveCursor::new(
             selected.entities,
             selected.route_lens,
@@ -449,6 +509,7 @@ where
             self.list_get,
             self.sublist_remove,
             self.sublist_insert,
+            element_owners,
             self.variable_name,
             self.descriptor_index,
         )
@@ -457,22 +518,88 @@ where
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let selected =
             collect_selected_entities(&self.entity_selector, score_director, self.list_len);
-        let total_elements = selected.route_lens.iter().sum::<usize>();
-        let entity_count = selected.entities.len();
+        let Some(element_owners) = crate::list_placement::selected_owner_restrictions(
+            self.element_owner_fn,
+            score_director.working_solution(),
+            score_director
+                .entity_count(self.descriptor_index)
+                .unwrap_or(0),
+            &selected.entities,
+            &selected.route_lens,
+            self.list_get,
+        ) else {
+            return unfiltered_sublist_change_size(
+                &selected.route_lens,
+                self.min_sublist_size,
+                self.max_sublist_size,
+            );
+        };
 
-        selected
-            .route_lens
+        let mut count = 0;
+        for (src_idx, (&src_entity, &src_len)) in selected
+            .entities
             .iter()
-            .map(|&route_len| {
-                let inter_destinations =
-                    total_elements.saturating_sub(route_len) + entity_count.saturating_sub(1);
-                count_sublist_change_moves_for_len(
-                    route_len,
-                    inter_destinations,
-                    self.min_sublist_size,
-                    self.max_sublist_size,
-                )
-            })
-            .sum()
+            .zip(selected.route_lens.iter())
+            .enumerate()
+        {
+            for seg_start in 0..src_len {
+                let max_seg = self.max_sublist_size.min(src_len - seg_start);
+                for seg_size in self.min_sublist_size..=max_seg {
+                    let seg_end = seg_start + seg_size;
+                    if selected_segment_allows(
+                        &element_owners,
+                        src_idx,
+                        seg_start,
+                        seg_end,
+                        src_entity,
+                    ) {
+                        count += src_len - seg_size;
+                    }
+                    for (dst_idx, (&dst_entity, &dst_len)) in selected
+                        .entities
+                        .iter()
+                        .zip(selected.route_lens.iter())
+                        .enumerate()
+                    {
+                        if dst_idx == src_idx {
+                            continue;
+                        }
+                        if selected_segment_allows(
+                            &element_owners,
+                            src_idx,
+                            seg_start,
+                            seg_end,
+                            dst_entity,
+                        ) {
+                            count += dst_len + 1;
+                        }
+                    }
+                }
+            }
+        }
+        count
     }
+}
+
+fn unfiltered_sublist_change_size(
+    route_lens: &[usize],
+    min_sublist_size: usize,
+    max_sublist_size: usize,
+) -> usize {
+    let total_elements = route_lens.iter().sum::<usize>();
+    let entity_count = route_lens.len();
+
+    route_lens
+        .iter()
+        .map(|&route_len| {
+            let inter_destinations =
+                total_elements.saturating_sub(route_len) + entity_count.saturating_sub(1);
+            count_sublist_change_moves_for_len(
+                route_len,
+                inter_destinations,
+                min_sublist_size,
+                max_sublist_size,
+            )
+        })
+        .sum()
 }

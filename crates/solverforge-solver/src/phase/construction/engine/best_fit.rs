@@ -159,7 +159,14 @@ where
         }
 
         let mut best_for_element: Option<(usize, usize, S::Score)> = None;
-        for entity_index in 0..entity_count {
+        let solution = phase_scope.score_director().working_solution();
+        let candidates = crate::list_placement::candidate_entity_indices(
+            ctx.element_owner_fn,
+            solution,
+            entity_count,
+            &element,
+        );
+        for entity_index in candidates {
             let len = (ctx.list_len)(
                 phase_scope.score_director().working_solution(),
                 entity_index,

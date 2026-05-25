@@ -7,6 +7,9 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
     let mut descriptor_attachments = Vec::new();
     let mut runtime_helpers = Vec::new();
     let mut runtime_attachments = Vec::new();
+    let mut list_runtime_helpers = Vec::new();
+    let mut list_runtime_attachments = Vec::new();
+    let mut list_owner_match_arms = Vec::new();
     let mut validation_checks = Vec::new();
     let shadow_methods = generate_shadow_methods(model)?;
     let scalar_groups_impl = generate_scalar_groups_impl(model);
@@ -435,6 +438,33 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                 });
             }
         }
+
+        if let (Some(variable_name), Some(path)) =
+            (&entity.list_variable_name, &entity.list_element_owner_fn)
+        {
+            let runtime_helper = format_ident!(
+                "__solverforge_runtime_list_element_owner_{}",
+                entity_field
+            );
+            list_runtime_helpers.push(quote! {
+                fn #runtime_helper(
+                    solution: &#solution_path,
+                    element: &usize,
+                ) -> ::core::option::Option<usize> {
+                    #path(solution, *element)
+                }
+            });
+            list_runtime_attachments.push(quote! {
+                if slot.descriptor_index == #descriptor_index
+                    && slot.variable_name == #variable_name
+                {
+                    slot = slot.with_element_owner_fn(::core::option::Option::Some(#runtime_helper));
+                }
+            });
+            list_owner_match_arms.push(quote! {
+                (#entity_type_name, #variable_name) => #path(solution, *element),
+            });
+        }
     }
 
     Ok(quote! {
@@ -474,6 +504,26 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                 #(#runtime_helpers)*
                 #(#runtime_attachments)*
                 slot
+            }
+
+            fn attach_runtime_list_hooks<DM, IDM>(
+                mut slot: ::solverforge::__internal::ListVariableSlot<Self, usize, DM, IDM>,
+            ) -> ::solverforge::__internal::ListVariableSlot<Self, usize, DM, IDM> {
+                #(#list_runtime_helpers)*
+                #(#list_runtime_attachments)*
+                slot
+            }
+
+            fn list_element_owner(
+                entity_type_name: &'static str,
+                variable_name: &'static str,
+                solution: &Self,
+                element: &usize,
+            ) -> ::core::option::Option<usize> {
+                match (entity_type_name, variable_name) {
+                    #(#list_owner_match_arms)*
+                    _ => ::core::option::Option::None,
+                }
             }
 
             fn attach_scalar_groups(

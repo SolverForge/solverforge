@@ -91,6 +91,7 @@ const PLANNING_LIST_VARIABLE_ARGS: &[AttributeArgSpec] = &[
     AttributeArgSpec::string("route_metric_class_fn"),
     AttributeArgSpec::string("route_distance_fn"),
     AttributeArgSpec::string("route_feasible_fn"),
+    AttributeArgSpec::string("element_owner_fn"),
     AttributeArgSpec::string("solution_trait"),
 ];
 

@@ -15,6 +15,7 @@ pub(super) fn generate_list_metadata(
     };
 
     let field_name = field.ident.as_ref().unwrap();
+    let entity_name_str = entity_name.to_string();
     let field_name_str = field_name.to_string();
     let attr = get_attribute(&field.attrs, "planning_list_variable").unwrap();
     let element_collection = parse_attribute_string(attr, "element_collection").ok_or_else(|| {
@@ -51,9 +52,22 @@ pub(super) fn generate_list_metadata(
         field,
     )?;
     let solution_trait_bound = parse_solution_trait_bound(attr, field)?;
-    let solution_where_clause = solution_trait_bound
-        .as_ref()
-        .map(|bound| quote! { where Solution: #bound });
+    let element_owner_path = parse_optional_path(
+        parse_attribute_string(attr, "element_owner_fn"),
+        "element_owner_fn",
+        field,
+    )?;
+    let solution_where_clause = match (solution_trait_bound.as_ref(), element_owner_path.is_some())
+    {
+        (Some(bound), true) => {
+            quote! { where Solution: #bound + ::solverforge::__internal::PlanningModelSupport }
+        }
+        (Some(bound), false) => quote! { where Solution: #bound },
+        (None, true) => {
+            quote! { where Solution: ::solverforge::__internal::PlanningModelSupport }
+        }
+        (None, false) => quote! {},
+    };
     let route_get = option_fn_expr(
         parse_attribute_string(attr, "route_get_fn"),
         "route_get_fn",
@@ -84,6 +98,34 @@ pub(super) fn generate_list_metadata(
         "route_feasible_fn",
         field,
     )?;
+    let (element_owner_adapter, element_owner) = if element_owner_path.is_some() {
+        (
+            quote! {
+                #[inline]
+                fn __solverforge_list_element_owner<Solution>(
+                    solution: &Solution,
+                    element: &usize,
+                ) -> ::core::option::Option<usize>
+                #solution_where_clause
+                {
+                    <Solution as ::solverforge::__internal::PlanningModelSupport>::list_element_owner(
+                        #entity_name_str,
+                        #field_name_str,
+                        solution,
+                        element,
+                    )
+                }
+            },
+            quote! {
+                ::core::option::Option::Some(
+                    __solverforge_list_element_owner::<Solution>
+                        as fn(&Solution, &usize) -> ::core::option::Option<usize>
+                )
+            },
+        )
+    } else {
+        (quote! {}, quote! { ::core::option::Option::None })
+    };
     Ok(quote! {
         pub const __SOLVERFORGE_LIST_VARIABLE_COUNT: usize = 1;
         const __SOLVERFORGE_LIST_VARIABLE_NAME: &'static str = #field_name_str;
@@ -107,8 +149,9 @@ pub(super) fn generate_list_metadata(
         >
         #solution_where_clause
         {
-            let _ = stringify!(#entity_name);
+            let _ = #entity_name_str;
             let _ = #element_collection;
+            #element_owner_adapter
             ::solverforge::__internal::ListVariableMetadata::new(
                 #cross_dm_expr,
                 #intra_dm_expr,
@@ -119,6 +162,7 @@ pub(super) fn generate_list_metadata(
                 #route_distance,
                 #route_feasible,
             )
+            .with_element_owner_fn(#element_owner)
         }
 
     })
@@ -187,16 +231,21 @@ pub(super) fn generate_list_trait_impl(
         field,
     )?;
     let solution_trait_bound = parse_solution_trait_bound(attr, field)?;
+    let has_element_owner = parse_attribute_string(attr, "element_owner_fn").is_some();
     let element_source = parse_attribute_string(attr, "element_collection").ok_or_else(|| {
         Error::new_spanned(
             field,
             "#[planning_list_variable] requires `element_collection = \"solution_collection\"` for the canonical solver path",
         )
     })?;
-    let solution_bound = solution_trait_bound
-        .as_ref()
-        .map(|bound| quote! { + #bound })
-        .unwrap_or_default();
+    let solution_bound = match (solution_trait_bound.as_ref(), has_element_owner) {
+        (Some(bound), true) => {
+            quote! { + #bound + ::solverforge::__internal::PlanningModelSupport }
+        }
+        (Some(bound), false) => quote! { + #bound },
+        (None, true) => quote! { + ::solverforge::__internal::PlanningModelSupport },
+        (None, false) => quote! {},
+    };
 
     Ok(quote! {
         impl<Solution> ::solverforge::__internal::ListVariableEntity<Solution> for #entity_name
@@ -322,11 +371,21 @@ fn option_fn_expr(
     label: &str,
     span: &impl quote::ToTokens,
 ) -> Result<syn::Expr, Error> {
-    if let Some(path) = path {
-        let parsed: syn::Path = syn::parse_str(&path)
-            .map_err(|_| Error::new_spanned(span, format!("{label} must be a valid path")))?;
+    if let Some(parsed) = parse_optional_path(path, label, span)? {
         Ok(syn::parse_quote! { ::core::option::Option::Some(#parsed) })
     } else {
         Ok(syn::parse_quote! { ::core::option::Option::None })
     }
+}
+
+fn parse_optional_path(
+    path: Option<String>,
+    label: &str,
+    span: &impl quote::ToTokens,
+) -> Result<Option<syn::Path>, Error> {
+    path.map(|path| {
+        syn::parse_str(&path)
+            .map_err(|_| Error::new_spanned(span, format!("{label} must be a valid path")))
+    })
+    .transpose()
 }

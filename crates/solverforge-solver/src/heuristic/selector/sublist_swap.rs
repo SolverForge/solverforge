@@ -68,6 +68,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::SublistSwapMove;
+use crate::list_placement::{selected_segment_allows, OwnerRestriction};
 
 use super::entity::EntitySelector;
 use super::list_support::{collect_selected_entities, ordered_index};
@@ -95,6 +96,7 @@ pub struct SublistSwapMoveSelector<S, V, ES> {
     list_get: fn(&S, usize, usize) -> Option<V>,
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+    element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -114,6 +116,7 @@ where
     store: CandidateStore<S, SublistSwapMove<S, V>>,
     entities: Vec<usize>,
     segments_by_entity: Vec<Vec<ListSegment>>,
+    element_owners: Option<Vec<Vec<OwnerRestriction>>>,
     entity_a_idx: usize,
     segment_a_idx: usize,
     entity_b_idx: usize,
@@ -135,6 +138,7 @@ where
     fn new(
         entities: Vec<usize>,
         segments_by_entity: Vec<Vec<ListSegment>>,
+        element_owners: Option<Vec<Vec<OwnerRestriction>>>,
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
@@ -146,6 +150,7 @@ where
             store: CandidateStore::new(),
             entities,
             segments_by_entity,
+            element_owners,
             entity_a_idx: 0,
             segment_a_idx: 0,
             entity_b_idx: 0,
@@ -180,6 +185,35 @@ where
             self.variable_name,
             self.descriptor_index,
         ))
+    }
+
+    fn segment_owner_allows(
+        &self,
+        entity_idx: usize,
+        segment: ListSegment,
+        dst_entity: usize,
+    ) -> bool {
+        self.element_owners.as_ref().is_none_or(|owners| {
+            selected_segment_allows(owners, entity_idx, segment.start, segment.end, dst_entity)
+        })
+    }
+
+    fn owner_allows_swap(
+        &self,
+        entity_a_idx: usize,
+        first: ListSegment,
+        entity_a: usize,
+        entity_b_idx: usize,
+        second: ListSegment,
+        entity_b: usize,
+    ) -> bool {
+        if entity_a == entity_b {
+            self.segment_owner_allows(entity_a_idx, first, entity_a)
+                && self.segment_owner_allows(entity_b_idx, second, entity_a)
+        } else {
+            self.segment_owner_allows(entity_a_idx, first, entity_b)
+                && self.segment_owner_allows(entity_b_idx, second, entity_a)
+        }
     }
 }
 
@@ -220,6 +254,18 @@ where
                         if first.start == second.start && first.end == second.end {
                             continue;
                         }
+                    }
+                    if self.element_owners.is_some()
+                        && !self.owner_allows_swap(
+                            self.entity_a_idx,
+                            first,
+                            entity_a,
+                            self.entity_b_idx,
+                            second,
+                            entity_b,
+                        )
+                    {
+                        continue;
                     }
                     return Some(self.push_move(entity_a, first, entity_b, second));
                 }
@@ -350,10 +396,19 @@ impl<S, V, ES> SublistSwapMoveSelector<S, V, ES> {
             list_get,
             sublist_remove,
             sublist_insert,
+            element_owner_fn: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    ) -> Self {
+        self.element_owner_fn = element_owner_fn;
+        self
     }
 }
 
@@ -402,10 +457,25 @@ where
                 )
             })
             .collect();
+        let element_owners = if self.element_owner_fn.is_some() {
+            crate::list_placement::selected_owner_restrictions(
+                self.element_owner_fn,
+                score_director.working_solution(),
+                score_director
+                    .entity_count(self.descriptor_index)
+                    .unwrap_or(0),
+                &selected.entities,
+                &selected.route_lens,
+                self.list_get,
+            )
+        } else {
+            None
+        };
 
         SublistSwapMoveCursor::new(
             selected.entities,
             segments_by_entity,
+            element_owners,
             self.list_len,
             self.list_get,
             self.sublist_remove,
@@ -418,28 +488,115 @@ where
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let selected =
             collect_selected_entities(&self.entity_selector, score_director, self.list_len);
-        let segment_counts: Vec<usize> = selected
+        let Some(element_owners) = crate::list_placement::selected_owner_restrictions(
+            self.element_owner_fn,
+            score_director.working_solution(),
+            score_director
+                .entity_count(self.descriptor_index)
+                .unwrap_or(0),
+            &selected.entities,
+            &selected.route_lens,
+            self.list_get,
+        ) else {
+            return unfiltered_sublist_swap_size(
+                &selected.route_lens,
+                self.min_sublist_size,
+                self.max_sublist_size,
+            );
+        };
+
+        let segments_by_entity: Vec<Vec<ListSegment>> = selected
             .route_lens
             .iter()
-            .map(|&route_len| {
-                count_sublist_segments(route_len, self.min_sublist_size, self.max_sublist_size)
-            })
-            .collect();
-        let intra: usize = selected
-            .route_lens
-            .iter()
-            .map(|&route_len| {
-                count_intra_sublist_swap_moves_for_len(
+            .enumerate()
+            .map(|(entity_idx, &route_len)| {
+                build_segments_for_entity(
+                    selected.entities[entity_idx],
                     route_len,
                     self.min_sublist_size,
                     self.max_sublist_size,
+                    MoveStreamContext::default(),
+                    self.descriptor_index,
                 )
             })
-            .sum();
-        let inter: usize = (0..selected.route_lens.len())
-            .flat_map(|left| (left + 1..selected.route_lens.len()).map(move |right| (left, right)))
-            .map(|(left, right)| segment_counts[left] * segment_counts[right])
-            .sum();
-        intra + inter
+            .collect();
+
+        let mut count = 0;
+        for (left_idx, &left_entity) in selected.entities.iter().enumerate() {
+            for &left_segment in &segments_by_entity[left_idx] {
+                for (right_idx, &right_entity) in
+                    selected.entities.iter().enumerate().skip(left_idx)
+                {
+                    for &right_segment in &segments_by_entity[right_idx] {
+                        if left_idx == right_idx {
+                            if right_segment.start < left_segment.end {
+                                continue;
+                            }
+                            if left_segment.start == right_segment.start
+                                && left_segment.end == right_segment.end
+                            {
+                                continue;
+                            }
+                        }
+
+                        let allowed = if left_entity == right_entity {
+                            selected_segment_allows(
+                                &element_owners,
+                                left_idx,
+                                left_segment.start,
+                                left_segment.end,
+                                left_entity,
+                            ) && selected_segment_allows(
+                                &element_owners,
+                                right_idx,
+                                right_segment.start,
+                                right_segment.end,
+                                left_entity,
+                            )
+                        } else {
+                            selected_segment_allows(
+                                &element_owners,
+                                left_idx,
+                                left_segment.start,
+                                left_segment.end,
+                                right_entity,
+                            ) && selected_segment_allows(
+                                &element_owners,
+                                right_idx,
+                                right_segment.start,
+                                right_segment.end,
+                                left_entity,
+                            )
+                        };
+                        if allowed {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        count
     }
+}
+
+fn unfiltered_sublist_swap_size(
+    route_lens: &[usize],
+    min_sublist_size: usize,
+    max_sublist_size: usize,
+) -> usize {
+    let segment_counts: Vec<usize> = route_lens
+        .iter()
+        .map(|&route_len| count_sublist_segments(route_len, min_sublist_size, max_sublist_size))
+        .collect();
+    let intra: usize = route_lens
+        .iter()
+        .map(|&route_len| {
+            count_intra_sublist_swap_moves_for_len(route_len, min_sublist_size, max_sublist_size)
+        })
+        .sum();
+    let inter: usize = (0..route_lens.len())
+        .flat_map(|left| (left + 1..route_lens.len()).map(move |right| (left, right)))
+        .map(|(left, right)| segment_counts[left] * segment_counts[right])
+        .sum();
+    intra + inter
 }

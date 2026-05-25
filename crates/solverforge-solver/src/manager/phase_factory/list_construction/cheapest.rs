@@ -124,10 +124,19 @@ where
                 list_insert,
                 list_remove,
                 index_to_element,
+                element_owner_fn: None,
                 descriptor_index,
             },
             _marker: PhantomData,
         }
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
+    ) -> Self {
+        self.state.element_owner_fn = element_owner_fn;
+        self
     }
 }
 

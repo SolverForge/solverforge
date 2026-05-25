@@ -47,6 +47,45 @@ fn test_limited_neighborhood_parsing() {
 }
 
 #[test]
+fn test_list_ruin_max_source_list_len_parsing() {
+    let toml = r#"
+        [[phases]]
+        type = "local_search"
+
+        [phases.move_selector]
+        type = "union_move_selector"
+
+        [[phases.move_selector.selectors]]
+        type = "list_ruin_move_selector"
+        min_ruin_count = 4
+        max_ruin_count = 20
+        moves_per_step = 10
+        max_source_list_len = 8
+        skip_empty_destinations = true
+        entity_class = "Route"
+        variable_name = "visits"
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    let PhaseConfig::LocalSearch(local_search) = &config.phases[0] else {
+        panic!("phase should be local_search");
+    };
+    let Some(MoveSelectorConfig::UnionMoveSelector(union)) = &local_search.move_selector else {
+        panic!("local search should have a union move selector");
+    };
+    let MoveSelectorConfig::ListRuinMoveSelector(ruin) = &union.selectors[0] else {
+        panic!("union child should be list_ruin");
+    };
+    assert_eq!(ruin.min_ruin_count, 4);
+    assert_eq!(ruin.max_ruin_count, 20);
+    assert_eq!(ruin.moves_per_step, Some(10));
+    assert_eq!(ruin.max_source_list_len, Some(8));
+    assert!(ruin.skip_empty_destinations);
+    assert_eq!(ruin.target.entity_class.as_deref(), Some("Route"));
+    assert_eq!(ruin.target.variable_name.as_deref(), Some("visits"));
+}
+
+#[test]
 fn test_union_selection_order_defaults_to_sequential() {
     let toml = r#"
         [[phases]]

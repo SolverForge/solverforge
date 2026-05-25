@@ -73,6 +73,7 @@ where
                     ctx.index_to_element,
                     ctx.descriptor_index,
                 )
+                .with_element_owner_fn(ctx.element_owner_fn)
                 .solve(solver_scope);
             }
             ConstructionHeuristicType::ListRegretInsertion => {
@@ -86,6 +87,7 @@ where
                     ctx.index_to_element,
                     ctx.descriptor_index,
                 )
+                .with_element_owner_fn(ctx.element_owner_fn)
                 .solve(solver_scope);
             }
             ConstructionHeuristicType::ListClarkeWright => {
@@ -108,7 +110,8 @@ where
                     dist,
                     feasible,
                     ctx.descriptor_index,
-                );
+                )
+                .with_element_owner_fn(ctx.element_owner_fn);
                 if let Some(metric_class) = ctx.route_metric_class_fn {
                     phase = phase.with_metric_class_fn(metric_class);
                 }

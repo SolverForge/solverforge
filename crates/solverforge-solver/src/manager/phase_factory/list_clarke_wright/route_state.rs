@@ -1,6 +1,6 @@
 use solverforge_core::domain::PlanningSolution;
 
-use super::owner_assignment::{feasible_owners_for_scored_route, OwnerSlot};
+use super::owner_assignment::{feasible_owners_for_scored_elements, OwnerSlot};
 
 pub(crate) struct ConstructedRoute {
     pub(crate) visits: Vec<usize>,
@@ -39,6 +39,20 @@ where
         .collect()
 }
 
+pub(crate) fn route_elements<S, E>(
+    solution: &S,
+    index_to_element: fn(&S, usize) -> E,
+    route: &[usize],
+) -> Vec<E>
+where
+    E: Copy,
+{
+    route
+        .iter()
+        .map(|&idx| index_to_element(solution, idx))
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn routes_match_owners_after_merge<S, E>(
     solution: &S,
@@ -51,6 +65,8 @@ pub(crate) fn routes_match_owners_after_merge<S, E>(
     owner_slots: &[OwnerSlot],
     index_to_element: fn(&S, usize) -> E,
     feasible: fn(&S, usize, &[usize]) -> bool,
+    element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
+    entity_count: usize,
 ) -> bool
 where
     S: PlanningSolution,
@@ -77,12 +93,16 @@ where
             (route.visits.as_slice(), route.scored_metric_class)
         };
         let values = route_values(solution, index_to_element, route);
-        let feasible_owners = feasible_owners_for_scored_route(
+        let elements = element_owner_fn.map(|_| route_elements(solution, index_to_element, route));
+        let feasible_owners = feasible_owners_for_scored_elements(
             solution,
             owner_slots,
             &values,
+            elements.as_deref(),
             scored_metric_class,
             feasible,
+            element_owner_fn,
+            entity_count,
         );
         if feasible_owners.is_empty() {
             return false;

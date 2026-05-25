@@ -150,6 +150,14 @@ fn capacity_feasible(_: &Plan, _: usize, route: &[usize]) -> bool {
     route.iter().sum::<usize>() <= 30
 }
 
+fn fixed_element_owner(_: &Plan, element: &usize) -> Option<usize> {
+    Some(*element % 2)
+}
+
+fn mixed_element_owner(_: &Plan, element: &usize) -> Option<usize> {
+    (*element == 11).then_some(1)
+}
+
 fn scarce_owner_distance(_: &Plan, _: usize, a: usize, b: usize) -> i64 {
     if a == 0 || b == 0 {
         100
@@ -281,6 +289,95 @@ fn clarke_wright_route_feasible_preserves_capacity_hook_behavior() {
         .routes
         .iter()
         .all(|route| route.visits.iter().sum::<usize>() <= 30));
+}
+
+#[test]
+fn clarke_wright_respects_fixed_element_owner() {
+    let plan = Plan {
+        customer_values: vec![10, 11],
+        routes: vec![Route { visits: Vec::new() }, Route { visits: Vec::new() }],
+        score: None,
+    };
+    let director = ScoreDirector::simple(
+        plan,
+        SolutionDescriptor::new("Plan", TypeId::of::<Plan>()),
+        |s, descriptor_index| {
+            if descriptor_index == 0 {
+                s.routes.len()
+            } else {
+                0
+            }
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    let mut phase = ListClarkeWrightPhase::new(
+        element_count,
+        get_assigned,
+        entity_count,
+        route_len,
+        assign_route,
+        index_to_element,
+        depot,
+        distance,
+        feasible,
+        0,
+    )
+    .with_element_owner_fn(Some(fixed_element_owner));
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().routes[0].visits, vec![10]);
+    assert_eq!(solver_scope.working_solution().routes[1].visits, vec![11]);
+}
+
+#[test]
+fn clarke_wright_keeps_unrestricted_elements_when_owner_hook_exists() {
+    let plan = Plan {
+        customer_values: vec![10, 11, 12],
+        routes: vec![
+            Route { visits: Vec::new() },
+            Route { visits: Vec::new() },
+            Route { visits: Vec::new() },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(
+        plan,
+        SolutionDescriptor::new("Plan", TypeId::of::<Plan>()),
+        |s, descriptor_index| {
+            if descriptor_index == 0 {
+                s.routes.len()
+            } else {
+                0
+            }
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    let mut phase = ListClarkeWrightPhase::new(
+        element_count,
+        get_assigned,
+        entity_count,
+        route_len,
+        assign_route,
+        index_to_element,
+        depot,
+        distance,
+        single_visit_route,
+        0,
+    )
+    .with_element_owner_fn(Some(mixed_element_owner));
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.working_solution().routes[1].visits, vec![11]);
+    let mut assigned: Vec<_> = solver_scope
+        .working_solution()
+        .routes
+        .iter()
+        .flat_map(|route| route.visits.iter().copied())
+        .collect();
+    assigned.sort_unstable();
+    assert_eq!(assigned, vec![10, 11, 12]);
 }
 
 #[test]

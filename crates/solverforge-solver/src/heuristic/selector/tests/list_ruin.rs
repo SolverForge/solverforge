@@ -1,5 +1,6 @@
 // Tests for list ruin move selector.
 
+use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::list_ruin::ListRuinMoveSelector;
 use crate::heuristic::selector::MoveSelector;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
@@ -50,6 +51,9 @@ fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
     if let Some(r) = s.routes.get_mut(entity_idx) {
         r.stops.insert(idx, v);
     }
+}
+fn invalid_owner(_: &VrpSolution, element: &i32) -> Option<usize> {
+    (*element == 99).then_some(99)
 }
 
 fn create_director(routes: Vec<Vec<i32>>) -> ScoreDirector<VrpSolution, ()> {
@@ -165,6 +169,62 @@ fn empty_lists_should_not_reduce_moves_per_step() {
     for m in &moves {
         assert_eq!(m.entity_index(), 1);
         assert!((1..=2).contains(&m.ruin_count()));
+    }
+}
+
+#[test]
+fn max_source_list_len_filters_long_routes() {
+    let director = create_director(vec![vec![1, 2, 3], vec![4, 5, 6, 7, 8]]);
+
+    let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
+        1,
+        2,
+        entity_count,
+        list_len,
+        list_get,
+        list_remove,
+        list_insert,
+        "stops",
+        0,
+    )
+    .with_max_source_list_len(Some(3))
+    .with_moves_per_step(10)
+    .with_seed(42);
+
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert_eq!(moves.len(), 10);
+    assert!(
+        moves.iter().all(|m| m.entity_index() == 0),
+        "long routes should not be eligible as list-ruin sources"
+    );
+}
+
+#[test]
+fn skips_invalid_owner_elements_before_building_moves() {
+    let director = create_director(vec![vec![99, 1]]);
+
+    let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
+        2,
+        2,
+        entity_count,
+        list_len,
+        list_get,
+        list_remove,
+        list_insert,
+        "stops",
+        0,
+    )
+    .with_element_owner_fn(Some(invalid_owner))
+    .with_moves_per_step(3)
+    .with_seed(42);
+
+    let moves: Vec<_> = selector.iter_moves(&director).collect();
+
+    assert_eq!(moves.len(), 3);
+    for m in &moves {
+        assert_eq!(m.element_indices(), &[1]);
+        assert!(m.is_doable(&director));
     }
 }
 

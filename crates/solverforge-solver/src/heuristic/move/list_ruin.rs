@@ -76,6 +76,8 @@ pub struct ListRuinMove<S, V> {
     list_remove: fn(&mut S, usize, usize) -> V,
     // Insert element at index
     list_insert: fn(&mut S, usize, usize, V),
+    element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    skip_empty_destinations: bool,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<fn() -> V>,
@@ -91,6 +93,8 @@ impl<S, V> Clone for ListRuinMove<S, V> {
             list_get: self.list_get,
             list_remove: self.list_remove,
             list_insert: self.list_insert,
+            element_owner_fn: self.element_owner_fn,
+            skip_empty_destinations: self.skip_empty_destinations,
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
             _phantom: PhantomData,
@@ -143,10 +147,25 @@ impl<S, V> ListRuinMove<S, V> {
             list_get,
             list_remove,
             list_insert,
+            element_owner_fn: None,
+            skip_empty_destinations: false,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    ) -> Self {
+        self.element_owner_fn = element_owner_fn;
+        self
+    }
+
+    pub fn with_skip_empty_destinations(mut self, skip_empty_destinations: bool) -> Self {
+        self.skip_empty_destinations = skip_empty_destinations;
+        self
     }
 
     pub fn entity_index(&self) -> usize {
@@ -196,7 +215,28 @@ where
         }
         let solution = score_director.working_solution();
         let len = (self.list_len)(solution, self.entity_index);
-        self.element_indices.iter().all(|&idx| idx < len)
+
+        let Some(owner_fn) = self.element_owner_fn else {
+            return self.element_indices.iter().all(|&idx| idx < len);
+        };
+
+        let n_entities = (self.entity_count)(solution);
+        self.element_indices.iter().all(|&idx| {
+            if idx >= len {
+                return false;
+            }
+            let Some(element) = (self.list_get)(solution, self.entity_index, idx) else {
+                return false;
+            };
+            crate::list_placement::candidate_entity_indices(
+                Some(owner_fn),
+                solution,
+                n_entities,
+                &element,
+            )
+            .next()
+            .is_some()
+        })
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
@@ -204,6 +244,8 @@ where
         let list_insert = self.list_insert;
         let list_len = self.list_len;
         let entity_count = self.entity_count;
+        let element_owner_fn = self.element_owner_fn;
+        let skip_empty_destinations = self.skip_empty_destinations;
         let src = self.entity_index;
         let descriptor = self.descriptor_index;
 
@@ -229,8 +271,17 @@ where
             let mut best_entity = src;
             let mut best_pos = list_len(score_director.working_solution(), src);
 
-            for e in 0..n_entities {
+            let candidates = crate::list_placement::candidate_entity_indices(
+                element_owner_fn,
+                score_director.working_solution(),
+                n_entities,
+                elem,
+            );
+            for e in candidates {
                 let len = list_len(score_director.working_solution(), e);
+                if skip_empty_destinations && element_owner_fn.is_none() && e != src && len == 0 {
+                    continue;
+                }
                 for pos in 0..=len {
                     score_director.before_variable_changed(descriptor, e);
                     list_insert(score_director.working_solution_mut(), e, pos, elem.clone());

@@ -109,6 +109,7 @@ where
             assignment_mode: AssignmentMode::Append(self.assign_element),
             index_to_element: self.index_to_element,
             descriptor_index: self.descriptor_index,
+            element_owner_fn: None,
             _marker: PhantomData,
         }
     }
@@ -139,6 +140,7 @@ where
     assignment_mode: AssignmentMode<S, E>,
     index_to_element: fn(&S, usize) -> E,
     descriptor_index: usize,
+    element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
     _marker: PhantomData<(fn() -> S, fn() -> E)>,
 }
 
@@ -158,6 +160,7 @@ where
             },
             index_to_element: ctx.index_to_element,
             descriptor_index: ctx.descriptor_index,
+            element_owner_fn: ctx.element_owner_fn,
             _marker: PhantomData,
         }
     }
@@ -219,30 +222,53 @@ where
                 continue;
             }
 
+            let solution = phase_scope.score_director().working_solution();
+            let (target_entity, advance_round_robin) =
+                match crate::list_placement::owner_restriction(
+                    self.element_owner_fn,
+                    solution,
+                    n_entities,
+                    &element,
+                ) {
+                    crate::list_placement::OwnerRestriction::Unrestricted => (entity_idx, true),
+                    crate::list_placement::OwnerRestriction::Fixed(owner_idx) => (owner_idx, false),
+                    crate::list_placement::OwnerRestriction::Invalid => {
+                        tracing::warn!("No valid owner found for element {:?}", elem_idx);
+                        continue;
+                    }
+                };
+
             let mut step_scope = StepScope::new(&mut phase_scope);
 
             step_scope.apply_committed_change(|sd| {
-                sd.before_variable_changed(self.descriptor_index, entity_idx);
+                sd.before_variable_changed(self.descriptor_index, target_entity);
                 match self.assignment_mode {
                     AssignmentMode::Append(assign_element) => {
-                        assign_element(sd.working_solution_mut(), entity_idx, element);
+                        assign_element(sd.working_solution_mut(), target_entity, element);
                     }
                     AssignmentMode::InsertAtEnd {
                         list_len,
                         list_insert,
                     } => {
-                        let insert_pos = list_len(sd.working_solution(), entity_idx);
-                        list_insert(sd.working_solution_mut(), entity_idx, insert_pos, element);
+                        let insert_pos = list_len(sd.working_solution(), target_entity);
+                        list_insert(
+                            sd.working_solution_mut(),
+                            target_entity,
+                            insert_pos,
+                            element,
+                        );
                     }
                 }
-                sd.after_variable_changed(self.descriptor_index, entity_idx);
+                sd.after_variable_changed(self.descriptor_index, target_entity);
             });
 
             let step_score = step_scope.calculate_score();
             step_scope.set_step_score(step_score);
             step_scope.complete();
 
-            entity_idx = (entity_idx + 1) % n_entities;
+            if advance_round_robin {
+                entity_idx = (entity_idx + 1) % n_entities;
+            }
         }
 
         phase_scope.update_best_solution();

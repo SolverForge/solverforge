@@ -14,6 +14,7 @@ pub(super) struct ScoredConstructionState<S, E> {
     pub(super) list_insert: fn(&mut S, usize, usize, E),
     pub(super) list_remove: fn(&mut S, usize, usize) -> E,
     pub(super) index_to_element: fn(&S, usize) -> E,
+    pub(super) element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
     pub(super) descriptor_index: usize,
 }
 
@@ -66,7 +67,14 @@ where
         let list_len = self.list_len;
         let mut best: Option<(usize, usize, S::Score)> = None;
 
-        for entity_idx in 0..n_entities {
+        let solution = score_director.working_solution();
+        let candidates = crate::list_placement::candidate_entity_indices(
+            self.element_owner_fn,
+            solution,
+            n_entities,
+            &element,
+        );
+        for entity_idx in candidates {
             let len = list_len(score_director.working_solution(), entity_idx);
             for pos in 0..=len {
                 if let Some(score) = self.eval_insertion(element, entity_idx, pos, score_director) {

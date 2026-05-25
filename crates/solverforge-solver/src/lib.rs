@@ -21,6 +21,7 @@ pub mod test_utils;
 pub mod builder;
 pub mod descriptor;
 pub mod heuristic;
+pub(crate) mod list_placement;
 pub mod manager;
 pub mod model_support;
 pub mod phase;

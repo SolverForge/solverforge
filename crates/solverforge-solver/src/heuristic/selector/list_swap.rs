@@ -61,6 +61,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListSwapMove;
+use crate::list_placement::{selected_owner_allows, OwnerRestriction};
 
 use super::entity::EntitySelector;
 use super::list_support::{collect_selected_entities, ordered_index};
@@ -83,6 +84,7 @@ pub struct ListSwapMoveSelector<S, V, ES> {
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_set: fn(&mut S, usize, usize, V),
+    element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -112,6 +114,7 @@ where
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_set: fn(&mut S, usize, usize, V),
+    element_owners: Option<Vec<Vec<OwnerRestriction>>>,
     variable_name: &'static str,
     descriptor_index: usize,
 }
@@ -129,6 +132,7 @@ where
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
         list_set: fn(&mut S, usize, usize, V),
+        element_owners: Option<Vec<Vec<OwnerRestriction>>>,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -147,6 +151,7 @@ where
             list_len,
             list_get,
             list_set,
+            element_owners,
             variable_name,
             descriptor_index,
         }
@@ -170,6 +175,32 @@ where
             self.variable_name,
             self.descriptor_index,
         ))
+    }
+
+    fn restriction_at(&self, entity_idx: usize, pos: usize) -> Option<OwnerRestriction> {
+        self.element_owners
+            .as_ref()?
+            .get(entity_idx)?
+            .get(pos)
+            .copied()
+    }
+
+    fn owner_allows_swap(
+        &self,
+        entity_a_idx: usize,
+        pos_a: usize,
+        entity_a: usize,
+        entity_b_idx: usize,
+        pos_b: usize,
+        entity_b: usize,
+    ) -> bool {
+        self.element_owners.as_ref().is_none_or(|_| {
+            self.restriction_at(entity_a_idx, pos_a)
+                .is_some_and(|restriction| restriction.allows(entity_b))
+                && self
+                    .restriction_at(entity_b_idx, pos_b)
+                    .is_some_and(|restriction| restriction.allows(entity_a))
+        })
     }
 
     fn advance_entity(&mut self) {
@@ -221,6 +252,16 @@ where
                                     0x1157_5A09_0000_0003 ^ entity_a as u64 ^ pos_a as u64,
                                 );
                             self.pos_b_offset += 1;
+                            if self.element_owners.is_some()
+                                && (!self
+                                    .restriction_at(self.entity_idx, pos_a)
+                                    .is_some_and(|restriction| restriction.allows(entity_a))
+                                    || !self
+                                        .restriction_at(self.entity_idx, pos_b)
+                                        .is_some_and(|restriction| restriction.allows(entity_a)))
+                            {
+                                continue;
+                            }
                             return Some(self.push_move(entity_a, pos_a, entity_a, pos_b));
                         }
                         self.pos_a_offset += 1;
@@ -258,6 +299,18 @@ where
                                         ^ pos_a as u64,
                                 );
                                 self.inter_pos_b_offset += 1;
+                                if self.element_owners.is_some()
+                                    && !self.owner_allows_swap(
+                                        self.entity_idx,
+                                        pos_a,
+                                        entity_a,
+                                        self.dst_idx,
+                                        pos_b,
+                                        entity_b,
+                                    )
+                                {
+                                    continue;
+                                }
                                 return Some(self.push_move(entity_a, pos_a, entity_b, pos_b));
                             }
                             self.inter_pos_a_offset += 1;
@@ -328,10 +381,19 @@ impl<S, V, ES> ListSwapMoveSelector<S, V, ES> {
             list_len,
             list_get,
             list_set,
+            element_owner_fn: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    ) -> Self {
+        self.element_owner_fn = element_owner_fn;
+        self
     }
 }
 
@@ -361,6 +423,20 @@ where
             context,
             0x1157_5A09_0000_0001 ^ self.descriptor_index as u64,
         );
+        let element_owners = if self.element_owner_fn.is_some() {
+            crate::list_placement::selected_owner_restrictions(
+                self.element_owner_fn,
+                score_director.working_solution(),
+                score_director
+                    .entity_count(self.descriptor_index)
+                    .unwrap_or(0),
+                &selected.entities,
+                &selected.route_lens,
+                self.list_get,
+            )
+        } else {
+            None
+        };
         ListSwapMoveCursor::new(
             selected.entities,
             selected.route_lens,
@@ -368,13 +444,65 @@ where
             self.list_len,
             self.list_get,
             self.list_set,
+            element_owners,
             self.variable_name,
             self.descriptor_index,
         )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        collect_selected_entities(&self.entity_selector, score_director, self.list_len)
-            .list_swap_move_capacity()
+        let selected =
+            collect_selected_entities(&self.entity_selector, score_director, self.list_len);
+        let Some(element_owners) = crate::list_placement::selected_owner_restrictions(
+            self.element_owner_fn,
+            score_director.working_solution(),
+            score_director
+                .entity_count(self.descriptor_index)
+                .unwrap_or(0),
+            &selected.entities,
+            &selected.route_lens,
+            self.list_get,
+        ) else {
+            return selected.list_swap_move_capacity();
+        };
+
+        let mut count = 0;
+        for (left_idx, (&left_entity, &left_len)) in selected
+            .entities
+            .iter()
+            .zip(selected.route_lens.iter())
+            .enumerate()
+        {
+            for left_pos in 0..left_len {
+                for right_pos in left_pos + 1..left_len {
+                    if selected_owner_allows(&element_owners, left_idx, left_pos, left_entity)
+                        && selected_owner_allows(&element_owners, left_idx, right_pos, left_entity)
+                    {
+                        count += 1;
+                    }
+                }
+                for (right_idx, (&right_entity, &right_len)) in selected
+                    .entities
+                    .iter()
+                    .zip(selected.route_lens.iter())
+                    .enumerate()
+                    .skip(left_idx + 1)
+                {
+                    for right_pos in 0..right_len {
+                        if selected_owner_allows(&element_owners, left_idx, left_pos, right_entity)
+                            && selected_owner_allows(
+                                &element_owners,
+                                right_idx,
+                                right_pos,
+                                left_entity,
+                            )
+                        {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        count
     }
 }

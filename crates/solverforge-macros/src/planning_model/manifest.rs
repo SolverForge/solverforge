@@ -91,6 +91,7 @@ struct EntityMetadata {
     scalar_variables: Vec<ScalarVariableMetadata>,
     list_variable_name: Option<String>,
     list_element_collection: Option<String>,
+    list_element_owner_fn: Option<syn::Path>,
 }
 
 struct SolutionCollection {

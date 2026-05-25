@@ -112,12 +112,17 @@ pub struct ListRuinMoveSelector<S, V> {
     list_remove: fn(&mut S, usize, usize) -> V,
     // Function to insert element at index.
     list_insert: fn(&mut S, usize, usize, V),
+    element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     // Variable name.
     variable_name: &'static str,
     // Entity descriptor index.
     descriptor_index: usize,
     // Number of ruin moves to generate per iteration.
     moves_per_step: usize,
+    // Optional cap on source list length for specialized route-emptying selectors.
+    max_source_list_len: Option<usize>,
+    // Optional recreate pruning for domains where opening empty lists is undesirable.
+    skip_empty_destinations: bool,
     _phantom: PhantomData<fn() -> V>,
 }
 
@@ -131,6 +136,8 @@ impl<S, V: Debug> Debug for ListRuinMoveSelector<S, V> {
             .field("min_ruin_count", &self.min_ruin_count)
             .field("max_ruin_count", &self.max_ruin_count)
             .field("moves_per_step", &self.moves_per_step)
+            .field("max_source_list_len", &self.max_source_list_len)
+            .field("skip_empty_destinations", &self.skip_empty_destinations)
             .field("variable_name", &self.variable_name)
             .field("descriptor_index", &self.descriptor_index)
             .finish()
@@ -180,9 +187,12 @@ impl<S, V> ListRuinMoveSelector<S, V> {
             list_get,
             list_remove,
             list_insert,
+            element_owner_fn: None,
             variable_name,
             descriptor_index,
             moves_per_step: 10,
+            max_source_list_len: None,
+            skip_empty_destinations: false,
             _phantom: PhantomData,
         }
     }
@@ -195,8 +205,26 @@ impl<S, V> ListRuinMoveSelector<S, V> {
         self
     }
 
+    pub fn with_max_source_list_len(mut self, max_source_list_len: Option<usize>) -> Self {
+        self.max_source_list_len = max_source_list_len;
+        self
+    }
+
+    pub fn with_skip_empty_destinations(mut self, skip_empty_destinations: bool) -> Self {
+        self.skip_empty_destinations = skip_empty_destinations;
+        self
+    }
+
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.rng = RefCell::new(SmallRng::seed_from_u64(seed));
+        self
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    ) -> Self {
+        self.element_owner_fn = element_owner_fn;
         self
     }
 }
@@ -218,6 +246,7 @@ where
         let list_get = self.list_get;
         let list_remove = self.list_remove;
         let list_insert = self.list_insert;
+        let element_owner_fn = self.element_owner_fn;
         let variable_name = self.variable_name;
         let descriptor_index = self.descriptor_index;
         let min_ruin = self.min_ruin_count;
@@ -227,7 +256,11 @@ where
         let non_empty_entities: Vec<(usize, usize)> = (0..total_entities)
             .filter_map(|entity_idx| {
                 let len = list_len(solution, entity_idx);
-                (len > 0).then_some((entity_idx, len))
+                (len > 0
+                    && self
+                        .max_source_list_len
+                        .is_none_or(|max_len| len <= max_len))
+                .then_some((entity_idx, len))
             })
             .collect();
 
@@ -235,6 +268,75 @@ where
         let mut rng = self.rng.borrow_mut();
         let moves: Vec<ListRuinMove<S, V>> = if non_empty_entities.is_empty() {
             Vec::new()
+        } else if let Some(owner_fn) = element_owner_fn {
+            let owner_eligible_entities: Vec<(usize, SmallVec<[usize; 8]>)> = non_empty_entities
+                .iter()
+                .filter_map(|&(entity_idx, list_length)| {
+                    let mut eligible_indices = SmallVec::new();
+                    for pos in 0..list_length {
+                        let Some(element) = list_get(solution, entity_idx, pos) else {
+                            continue;
+                        };
+                        if crate::list_placement::candidate_entity_indices(
+                            Some(owner_fn),
+                            solution,
+                            total_entities,
+                            &element,
+                        )
+                        .next()
+                        .is_some()
+                        {
+                            eligible_indices.push(pos);
+                        }
+                    }
+                    (!eligible_indices.is_empty()).then_some((entity_idx, eligible_indices))
+                })
+                .collect();
+
+            if owner_eligible_entities.is_empty() {
+                Vec::new()
+            } else {
+                (0..moves_count)
+                    .map(|_| {
+                        // Pick a random entity that has at least one recreatable element.
+                        let (entity_idx, eligible_indices) = &owner_eligible_entities
+                            [rng.random_range(0..owner_eligible_entities.len())];
+                        let eligible_len = eligible_indices.len();
+
+                        // Clamp ruin count to owner-eligible elements.
+                        let min = min_ruin.min(eligible_len);
+                        let max = max_ruin.min(eligible_len);
+                        let ruin_count = if min == max {
+                            min
+                        } else {
+                            rng.random_range(min..=max)
+                        };
+
+                        // Fisher-Yates partial shuffle over owner-eligible indices only.
+                        let mut indices: SmallVec<[usize; 8]> =
+                            eligible_indices.iter().copied().collect();
+                        for i in 0..ruin_count {
+                            let j = rng.random_range(i..eligible_len);
+                            indices.swap(i, j);
+                        }
+                        indices.truncate(ruin_count);
+
+                        ListRuinMove::new(
+                            *entity_idx,
+                            &indices,
+                            self.entity_count,
+                            list_len,
+                            list_get,
+                            list_remove,
+                            list_insert,
+                            variable_name,
+                            descriptor_index,
+                        )
+                        .with_element_owner_fn(element_owner_fn)
+                        .with_skip_empty_destinations(self.skip_empty_destinations)
+                    })
+                    .collect()
+            }
         } else {
             (0..moves_count)
                 .filter_map(|_| {
@@ -263,17 +365,21 @@ where
                     }
                     indices.truncate(ruin_count);
 
-                    Some(ListRuinMove::new(
-                        entity_idx,
-                        &indices,
-                        self.entity_count,
-                        list_len,
-                        list_get,
-                        list_remove,
-                        list_insert,
-                        variable_name,
-                        descriptor_index,
-                    ))
+                    Some(
+                        ListRuinMove::new(
+                            entity_idx,
+                            &indices,
+                            self.entity_count,
+                            list_len,
+                            list_get,
+                            list_remove,
+                            list_insert,
+                            variable_name,
+                            descriptor_index,
+                        )
+                        .with_element_owner_fn(element_owner_fn)
+                        .with_skip_empty_destinations(self.skip_empty_destinations),
+                    )
                 })
                 .collect()
         };

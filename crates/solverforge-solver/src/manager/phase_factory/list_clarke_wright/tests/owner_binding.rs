@@ -29,6 +29,10 @@ fn owner_binding_feasible(_: &Plan, entity_idx: usize, route: &[usize]) -> bool 
     }
 }
 
+fn invalid_for_eleven(_: &Plan, element: &usize) -> Option<usize> {
+    (*element == 11).then_some(99)
+}
+
 #[test]
 fn clarke_wright_skips_savings_for_owner_that_cannot_take_merge() {
     let plan = Plan {
@@ -74,4 +78,50 @@ fn clarke_wright_skips_savings_for_owner_that_cannot_take_merge() {
         visits.sort_unstable();
         visits == [1, 2]
     }));
+}
+
+#[test]
+fn clarke_wright_skips_owner_ineligible_routes_before_matching() {
+    let plan = Plan {
+        customer_values: vec![10, 11],
+        routes: vec![Route { visits: Vec::new() }, Route { visits: Vec::new() }],
+        score: None,
+    };
+    let director = ScoreDirector::simple(
+        plan,
+        SolutionDescriptor::new("Plan", TypeId::of::<Plan>()),
+        |s, descriptor_index| {
+            if descriptor_index == 0 {
+                s.routes.len()
+            } else {
+                0
+            }
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    let mut phase = ListClarkeWrightPhase::new(
+        element_count,
+        get_assigned,
+        entity_count,
+        route_len,
+        assign_route,
+        index_to_element,
+        depot,
+        distance,
+        single_visit_route,
+        0,
+    )
+    .with_element_owner_fn(Some(invalid_for_eleven));
+
+    phase.solve(&mut solver_scope);
+
+    let mut assigned: Vec<_> = solver_scope
+        .working_solution()
+        .routes
+        .iter()
+        .flat_map(|route| route.visits.iter().copied())
+        .collect();
+    assigned.sort_unstable();
+
+    assert_eq!(assigned, vec![10]);
 }

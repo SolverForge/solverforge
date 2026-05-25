@@ -81,6 +81,37 @@ where
     _marker: PhantomData<fn() -> (S, E)>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum RegretValue<Sc> {
+    Finite(Sc),
+    Forced,
+}
+
+impl<Sc: Copy> Copy for RegretValue<Sc> {}
+
+impl<Sc: Copy> Clone for RegretValue<Sc> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<Sc: Ord> PartialOrd for RegretValue<Sc> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<Sc: Ord> Ord for RegretValue<Sc> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (RegretValue::Forced, RegretValue::Forced) => std::cmp::Ordering::Equal,
+            (RegretValue::Forced, RegretValue::Finite(_)) => std::cmp::Ordering::Greater,
+            (RegretValue::Finite(_), RegretValue::Forced) => std::cmp::Ordering::Less,
+            (RegretValue::Finite(left), RegretValue::Finite(right)) => left.cmp(right),
+        }
+    }
+}
+
 impl<S, E> std::fmt::Debug for ListRegretInsertionPhase<S, E>
 where
     S: PlanningSolution,
@@ -128,10 +159,19 @@ where
                 list_insert,
                 list_remove,
                 index_to_element,
+                element_owner_fn: None,
                 descriptor_index,
             },
             _marker: PhantomData,
         }
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
+    ) -> Self {
+        self.state.element_owner_fn = element_owner_fn;
+        self
     }
 
     /* Evaluate best and second-best insertions for `element`. */
@@ -140,11 +180,18 @@ where
         element: E,
         n_entities: usize,
         score_director: &mut D,
-    ) -> Option<(f64, usize, usize)> {
+    ) -> Option<(RegretValue<S::Score>, usize, usize)> {
         let list_len = self.state.list_len;
         let mut all_insertions: Vec<(usize, usize, S::Score)> = Vec::new();
 
-        for entity_idx in 0..n_entities {
+        let solution = score_director.working_solution();
+        let candidates = crate::list_placement::candidate_entity_indices(
+            self.state.element_owner_fn,
+            solution,
+            n_entities,
+            &element,
+        );
+        for entity_idx in candidates {
             let len = list_len(score_director.working_solution(), entity_idx);
             for pos in 0..=len {
                 if let Some(score) =
@@ -166,13 +213,9 @@ where
 
         let regret = if all_insertions.len() >= 2 {
             let second_score = all_insertions[1].2;
-            if best_score > second_score {
-                1.0
-            } else {
-                0.0
-            }
+            RegretValue::Finite(best_score - second_score)
         } else {
-            2.0
+            RegretValue::Forced
         };
 
         Some((regret, best_entity, best_pos))
@@ -223,7 +266,7 @@ where
                 break;
             }
 
-            let mut best_choice: Option<(f64, usize, usize, usize)> = None;
+            let mut best_choice: Option<(RegretValue<S::Score>, usize, usize, usize)> = None;
 
             for (list_idx, &element) in unassigned.iter().enumerate() {
                 if let Some((regret, entity_idx, pos)) =
@@ -265,5 +308,171 @@ where
 
     fn phase_type_name(&self) -> &'static str {
         "ListRegretInsertion"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+    use solverforge_core::score::HardSoftScore;
+    use solverforge_scoring::{ConstraintMetadata, Director};
+
+    use super::*;
+
+    #[derive(Clone, Debug)]
+    struct RegretPlan {
+        routes: Vec<Vec<usize>>,
+        score: Option<HardSoftScore>,
+    }
+
+    impl PlanningSolution for RegretPlan {
+        type Score = HardSoftScore;
+
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
+    }
+
+    struct RegretDirector {
+        working_solution: RegretPlan,
+        descriptor: SolutionDescriptor,
+    }
+
+    impl RegretDirector {
+        fn new(solution: RegretPlan) -> Self {
+            Self {
+                working_solution: solution,
+                descriptor: SolutionDescriptor::new("RegretPlan", TypeId::of::<RegretPlan>()),
+            }
+        }
+    }
+
+    impl Director<RegretPlan> for RegretDirector {
+        fn working_solution(&self) -> &RegretPlan {
+            &self.working_solution
+        }
+
+        fn working_solution_mut(&mut self) -> &mut RegretPlan {
+            &mut self.working_solution
+        }
+
+        fn calculate_score(&mut self) -> HardSoftScore {
+            let score = match singleton_assignment(&self.working_solution) {
+                Some((0, 0)) => HardSoftScore::of(0, -2_000_000),
+                Some((1, 0)) => HardSoftScore::of(-1, 0),
+                Some((0, 1)) => HardSoftScore::of(0, 10),
+                Some((1, 1)) => HardSoftScore::of(0, 0),
+                _ => HardSoftScore::of(-10, 0),
+            };
+            self.working_solution.set_score(Some(score));
+            score
+        }
+
+        fn solution_descriptor(&self) -> &SolutionDescriptor {
+            &self.descriptor
+        }
+
+        fn clone_working_solution(&self) -> RegretPlan {
+            self.working_solution.clone()
+        }
+
+        fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+        fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+        fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
+            (descriptor_index == 0).then_some(self.working_solution.routes.len())
+        }
+
+        fn total_entity_count(&self) -> Option<usize> {
+            Some(self.working_solution.routes.len())
+        }
+
+        fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+            Vec::new()
+        }
+    }
+
+    fn singleton_assignment(solution: &RegretPlan) -> Option<(usize, usize)> {
+        let mut assignment = None;
+        for (entity_idx, route) in solution.routes.iter().enumerate() {
+            for &element in route {
+                if assignment.is_some() {
+                    return None;
+                }
+                assignment = Some((entity_idx, element));
+            }
+        }
+        assignment
+    }
+
+    fn element_count(_: &RegretPlan) -> usize {
+        2
+    }
+
+    fn get_assigned(solution: &RegretPlan) -> Vec<usize> {
+        solution
+            .routes
+            .iter()
+            .flat_map(|route| route.iter().copied())
+            .collect()
+    }
+
+    fn entity_count(solution: &RegretPlan) -> usize {
+        solution.routes.len()
+    }
+
+    fn list_len(solution: &RegretPlan, entity_idx: usize) -> usize {
+        solution.routes[entity_idx].len()
+    }
+
+    fn list_insert(solution: &mut RegretPlan, entity_idx: usize, pos: usize, element: usize) {
+        solution.routes[entity_idx].insert(pos, element);
+    }
+
+    fn list_remove(solution: &mut RegretPlan, entity_idx: usize, pos: usize) -> usize {
+        solution.routes[entity_idx].remove(pos)
+    }
+
+    fn index_to_element(_: &RegretPlan, idx: usize) -> usize {
+        idx
+    }
+
+    #[test]
+    fn regret_compares_score_levels_not_scalar_projection() {
+        let mut director = RegretDirector::new(RegretPlan {
+            routes: vec![Vec::new(), Vec::new()],
+            score: None,
+        });
+        let phase = ListRegretInsertionPhase::new(
+            element_count,
+            get_assigned,
+            entity_count,
+            list_len,
+            list_insert,
+            list_remove,
+            index_to_element,
+            0,
+        );
+
+        let (hard_regret, hard_entity, hard_pos) = phase
+            .evaluate_regret(0, 2, &mut director)
+            .expect("hard regret");
+        let (soft_regret, soft_entity, soft_pos) = phase
+            .evaluate_regret(1, 2, &mut director)
+            .expect("soft regret");
+
+        assert_eq!((hard_entity, hard_pos), (0, 0));
+        assert_eq!((soft_entity, soft_pos), (0, 0));
+        assert!(
+            hard_regret > soft_regret,
+            "a hard-level regret must outrank a larger soft-level regret"
+        );
     }
 }

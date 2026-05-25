@@ -154,7 +154,8 @@ pub(super) fn generate_runtime_phase_support(
                         let metadata = #list_trait::list_metadata();
                         __solverforge_variables.push(
                             ::solverforge::__internal::VariableSlot::List(
-                                ::solverforge::__internal::ListVariableSlot::new(
+                                <#solution_name as ::solverforge::__internal::PlanningModelSupport>::attach_runtime_list_hooks(
+                                    ::solverforge::__internal::ListVariableSlot::new(
                                     __solverforge_entity_type_name,
                                     Self::#element_count_ident,
                                     Self::#assigned_elements_ident,
@@ -181,6 +182,8 @@ pub(super) fn generate_runtime_phase_support(
                                     metadata.route_metric_class_fn,
                                     metadata.route_distance_fn,
                                     metadata.route_feasible_fn,
+                                )
+                                .with_element_owner_fn(metadata.element_owner_fn)
                                 )
                             )
                         );

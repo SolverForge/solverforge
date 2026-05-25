@@ -226,6 +226,44 @@ fn generic_list_model() -> RuntimeModel<GenericListPlan, usize, DefaultMeter, De
     ))])
 }
 
+fn route_element_owner(_: &GenericListPlan, element: &usize) -> Option<usize> {
+    (*element == 10).then_some(1)
+}
+
+fn generic_list_owner_model() -> RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter> {
+    RuntimeModel::new(vec![VariableSlot::List(
+        ListVariableSlot::new(
+            "Route",
+            route_element_count,
+            assigned_route_elements,
+            route_len,
+            route_remove,
+            route_remove_for_construction,
+            route_insert,
+            route_get,
+            route_set,
+            route_reverse,
+            route_sublist_remove,
+            route_sublist_insert,
+            route_ruin_remove,
+            route_ruin_insert,
+            route_index_to_element,
+            route_count,
+            DefaultMeter::default(),
+            DefaultMeter::default(),
+            "visits",
+            0,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .with_element_owner_fn(Some(route_element_owner)),
+    )])
+}
+
 fn solve_generic_list(kind: ConstructionHeuristicType) -> GenericListPlan {
     let descriptor = generic_list_descriptor();
     let plan = GenericListPlan {
@@ -244,11 +282,72 @@ fn solve_generic_list(kind: ConstructionHeuristicType) -> GenericListPlan {
     solver_scope.working_solution().clone()
 }
 
+fn solve_generic_list_with_model(
+    kind: ConstructionHeuristicType,
+    model: RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter>,
+) -> GenericListPlan {
+    solve_generic_list_with_model_and_pool(kind, model, vec![10])
+}
+
+fn solve_generic_list_with_model_and_pool(
+    kind: ConstructionHeuristicType,
+    model: RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter>,
+    route_pool: Vec<usize>,
+) -> GenericListPlan {
+    let descriptor = generic_list_descriptor();
+    let plan = GenericListPlan {
+        score: None,
+        routes: vec![Vec::new(), Vec::new()],
+        route_pool,
+    };
+    let director = GenericListDirector {
+        working_solution: plan,
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+    let mut phase = Construction::new(Some(config(kind)), descriptor, model);
+    phase.solve(&mut solver_scope);
+    solver_scope.working_solution().clone()
+}
+
 #[test]
 fn generic_list_only_first_fit_uses_canonical_order() {
     let solution = solve_generic_list(ConstructionHeuristicType::FirstFit);
 
     assert_eq!(solution.routes, vec![vec![10], Vec::<usize>::new()]);
+}
+
+#[test]
+fn generic_list_first_fit_honors_element_owner() {
+    let solution = solve_generic_list_with_model(
+        ConstructionHeuristicType::FirstFit,
+        generic_list_owner_model(),
+    );
+
+    assert_eq!(solution.routes, vec![Vec::<usize>::new(), vec![10]]);
+}
+
+#[test]
+fn generic_list_first_fit_keeps_unrestricted_owner_results() {
+    let solution = solve_generic_list_with_model_and_pool(
+        ConstructionHeuristicType::FirstFit,
+        generic_list_owner_model(),
+        vec![20, 10],
+    );
+
+    assert_eq!(solution.routes, vec![vec![20], vec![10]]);
+}
+
+#[test]
+fn generic_list_round_robin_keeps_unrestricted_owner_cursor() {
+    let solution = solve_generic_list_with_model_and_pool(
+        ConstructionHeuristicType::ListRoundRobin,
+        generic_list_owner_model(),
+        vec![20, 10, 30],
+    );
+
+    assert_eq!(solution.routes, vec![vec![20], vec![10, 30]]);
 }
 
 #[test]

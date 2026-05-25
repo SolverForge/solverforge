@@ -172,6 +172,8 @@ impl ListMoveSelectorBuilder {
                     c.min_ruin_count,
                     c.max_ruin_count,
                     c.moves_per_step,
+                    c.max_source_list_len,
+                    c.skip_empty_destinations,
                     random_seed,
                 );
             }
@@ -237,7 +239,8 @@ impl ListMoveSelectorBuilder {
             ctx.list_insert,
             ctx.variable_name,
             ctx.descriptor_index,
-        );
+        )
+        .with_element_owner_fn(ctx.element_owner_fn);
         out.push(ListLeafSelector::NearbyListChange(inner));
     }
 
@@ -262,7 +265,8 @@ impl ListMoveSelectorBuilder {
             ctx.list_set,
             ctx.variable_name,
             ctx.descriptor_index,
-        );
+        )
+        .with_element_owner_fn(ctx.element_owner_fn);
         out.push(ListLeafSelector::NearbyListSwap(inner));
     }
 
@@ -311,7 +315,8 @@ impl ListMoveSelectorBuilder {
             ctx.sublist_insert,
             ctx.variable_name,
             ctx.descriptor_index,
-        );
+        )
+        .with_element_owner_fn(ctx.element_owner_fn);
         out.push(ListLeafSelector::SublistChange(inner));
     }
 
@@ -338,7 +343,8 @@ impl ListMoveSelectorBuilder {
             ctx.sublist_insert,
             ctx.variable_name,
             ctx.descriptor_index,
-        );
+        )
+        .with_element_owner_fn(ctx.element_owner_fn);
         out.push(ListLeafSelector::SublistSwap(inner));
     }
 
@@ -393,6 +399,8 @@ impl ListMoveSelectorBuilder {
         min_ruin_count: usize,
         max_ruin_count: usize,
         moves_per_step: Option<usize>,
+        max_source_list_len: Option<usize>,
+        skip_empty_destinations: bool,
         random_seed: Option<u64>,
     ) where
         S: PlanningSolution,
@@ -413,7 +421,10 @@ impl ListMoveSelectorBuilder {
             ctx.variable_name,
             ctx.descriptor_index,
         )
-        .with_moves_per_step(moves_per_step.unwrap_or(10).max(1));
+        .with_element_owner_fn(ctx.element_owner_fn)
+        .with_moves_per_step(moves_per_step.unwrap_or(10).max(1))
+        .with_max_source_list_len(max_source_list_len)
+        .with_skip_empty_destinations(skip_empty_destinations);
         let inner = if let Some(seed) = random_seed {
             inner.with_seed(seed)
         } else {
@@ -441,7 +452,8 @@ impl ListMoveSelectorBuilder {
             ctx.list_insert,
             ctx.variable_name,
             ctx.descriptor_index,
-        );
+        )
+        .with_element_owner_fn(ctx.element_owner_fn);
         out.push(ListLeafSelector::ListChange(inner));
     }
 
@@ -463,7 +475,8 @@ impl ListMoveSelectorBuilder {
             ctx.list_set,
             ctx.variable_name,
             ctx.descriptor_index,
-        );
+        )
+        .with_element_owner_fn(ctx.element_owner_fn);
         out.push(ListLeafSelector::ListSwap(inner));
     }
 }

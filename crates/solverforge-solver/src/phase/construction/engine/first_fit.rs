@@ -160,18 +160,31 @@ where
             continue;
         }
 
-        let entity_index = 0;
-        let position = 0;
-        let score = evaluate_list_insertion(phase_scope, &ctx, element, entity_index, position);
-        return IterationProgress::Committed(Candidate::List {
-            list_insert: ctx.list_insert,
-            descriptor_index: ctx.descriptor_index,
-            element,
-            entity_index,
-            position,
-            order_key: [list_index, element_index, entity_index, position],
-            score,
-        });
+        let solution = phase_scope.score_director().working_solution();
+        let mut candidates = crate::list_placement::candidate_entity_indices(
+            ctx.element_owner_fn,
+            solution,
+            entity_count,
+            &element,
+        );
+        if let Some(entity_index) = candidates.next() {
+            let position = 0;
+            let score =
+                evaluate_list_insertion(phase_scope, &ctx, element, entity_index, position);
+            return IterationProgress::Committed(Candidate::List {
+                list_insert: ctx.list_insert,
+                descriptor_index: ctx.descriptor_index,
+                element,
+                entity_index,
+                position,
+                order_key: [list_index, element_index, entity_index, position],
+                score,
+            });
+        }
+
+        phase_scope
+            .solver_scope_mut()
+            .mark_list_element_completed(element_id);
     }
 
     IterationProgress::None

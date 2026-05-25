@@ -52,6 +52,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListChangeMove;
+use crate::list_placement::{selected_owner_allows, OwnerRestriction};
 
 use super::entity::EntitySelector;
 use super::list_support::{collect_selected_entities, ordered_index};
@@ -86,6 +87,7 @@ pub struct ListChangeMoveSelector<S, V, ES> {
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     // Insert element at position.
     list_insert: fn(&mut S, usize, usize, V),
+    element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     // Variable name for notifications.
     variable_name: &'static str,
     // Entity descriptor index.
@@ -117,6 +119,7 @@ where
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     list_insert: fn(&mut S, usize, usize, V),
+    element_owners: Option<Vec<Vec<OwnerRestriction>>>,
     variable_name: &'static str,
     descriptor_index: usize,
 }
@@ -135,6 +138,7 @@ where
         list_get: fn(&S, usize, usize) -> Option<V>,
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
+        element_owners: Option<Vec<Vec<OwnerRestriction>>>,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -153,9 +157,16 @@ where
             list_get,
             list_remove,
             list_insert,
+            element_owners,
             variable_name,
             descriptor_index,
         }
+    }
+
+    fn owner_allows_destination(&self, src_idx: usize, src_pos: usize, dst_entity: usize) -> bool {
+        self.element_owners
+            .as_ref()
+            .is_none_or(|owners| selected_owner_allows(owners, src_idx, src_pos, dst_entity))
     }
 
     fn current_source(&self) -> Option<(usize, usize, usize)> {
@@ -236,6 +247,11 @@ where
                         if src_pos == dst_pos || dst_pos == src_pos + 1 {
                             continue;
                         }
+                        if self.element_owners.is_some()
+                            && !self.owner_allows_destination(self.src_idx, src_pos, src_entity)
+                        {
+                            continue;
+                        }
                         return Some(self.push_move(src_entity, src_pos, src_entity, dst_pos));
                     }
                     self.stage = ListChangeStage::Inter;
@@ -262,6 +278,11 @@ where
                                     ^ src_pos as u64,
                             );
                             self.inter_dst_pos_offset += 1;
+                            if self.element_owners.is_some()
+                                && !self.owner_allows_destination(self.src_idx, src_pos, dst_entity)
+                            {
+                                continue;
+                            }
                             return Some(self.push_move(src_entity, src_pos, dst_entity, dst_pos));
                         }
                         self.dst_idx += 1;
@@ -330,10 +351,19 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
             list_get,
             list_remove,
             list_insert,
+            element_owner_fn: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
         }
+    }
+
+    pub fn with_element_owner_fn(
+        mut self,
+        element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    ) -> Self {
+        self.element_owner_fn = element_owner_fn;
+        self
     }
 }
 
@@ -363,6 +393,20 @@ where
             context,
             0x1157_C4A4_6E00_0001 ^ self.descriptor_index as u64,
         );
+        let element_owners = if self.element_owner_fn.is_some() {
+            crate::list_placement::selected_owner_restrictions(
+                self.element_owner_fn,
+                score_director.working_solution(),
+                score_director
+                    .entity_count(self.descriptor_index)
+                    .unwrap_or(0),
+                &selected.entities,
+                &selected.route_lens,
+                self.list_get,
+            )
+        } else {
+            None
+        };
         ListChangeMoveCursor::new(
             selected.entities,
             selected.route_lens,
@@ -371,13 +415,61 @@ where
             self.list_get,
             self.list_remove,
             self.list_insert,
+            element_owners,
             self.variable_name,
             self.descriptor_index,
         )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        collect_selected_entities(&self.entity_selector, score_director, self.list_len)
-            .list_change_move_capacity()
+        let selected =
+            collect_selected_entities(&self.entity_selector, score_director, self.list_len);
+        let Some(element_owners) = crate::list_placement::selected_owner_restrictions(
+            self.element_owner_fn,
+            score_director.working_solution(),
+            score_director
+                .entity_count(self.descriptor_index)
+                .unwrap_or(0),
+            &selected.entities,
+            &selected.route_lens,
+            self.list_get,
+        ) else {
+            return selected.list_change_move_capacity();
+        };
+
+        let mut count = 0;
+        for (src_idx, (&src_entity, &src_len)) in selected
+            .entities
+            .iter()
+            .zip(selected.route_lens.iter())
+            .enumerate()
+        {
+            for src_pos in 0..src_len {
+                if selected_owner_allows(&element_owners, src_idx, src_pos, src_entity) {
+                    count += list_change_intra_destination_count(src_len, src_pos);
+                }
+                for (dst_idx, (&dst_entity, &dst_len)) in selected
+                    .entities
+                    .iter()
+                    .zip(selected.route_lens.iter())
+                    .enumerate()
+                {
+                    if dst_idx == src_idx {
+                        continue;
+                    }
+                    if selected_owner_allows(&element_owners, src_idx, src_pos, dst_entity) {
+                        count += dst_len + 1;
+                    }
+                }
+            }
+        }
+        count
     }
+}
+
+#[inline]
+fn list_change_intra_destination_count(src_len: usize, src_pos: usize) -> usize {
+    src_len
+        .saturating_sub(1)
+        .saturating_sub(usize::from(src_pos + 1 < src_len))
 }

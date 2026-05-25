@@ -127,3 +127,28 @@ fn chained_option_usize_does_not_enter_scalar_helper_indexing() {
     assert!(name_helper.contains("0usize => :: core :: option :: Option :: Some (\"worker\")"));
     assert!(!name_helper.contains("\"previous\""));
 }
+
+#[test]
+fn list_metadata_forwards_element_owner_fn() {
+    let input = parse_quote! {
+        struct Route {
+            #[planning_id]
+            id: String,
+            #[planning_list_variable(
+                element_collection = "visits",
+                element_owner_fn = "route_visit_owner"
+            )]
+            visits: Vec<usize>,
+        }
+    };
+
+    let expanded = expand_derive(input)
+        .expect("entity expansion should succeed")
+        .to_string();
+
+    assert!(expanded.contains("PlanningModelSupport"));
+    assert!(expanded.contains("list_element_owner"));
+    assert!(expanded.contains("\"Route\""));
+    assert!(expanded.contains("\"visits\""));
+    assert!(expanded.contains("__solverforge_list_element_owner :: < Solution >"));
+}

@@ -47,6 +47,22 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         Self { job_id, slot }
     }
 
+    /// Creates a runtime handle for synchronous solves that are not retained by
+    /// a [`SolverManager`](super::SolverManager).
+    ///
+    /// Detached runtimes publish lifecycle state into an internal slot without
+    /// an event receiver. Retained solves should continue to use
+    /// `SolverManager`, which owns reusable slots and event delivery.
+    pub fn detached() -> Self {
+        let slot = Box::leak(Box::new(JobSlot::new()));
+        slot.state.store(SLOT_SOLVING, Ordering::Release);
+        slot.worker_running.store(true, Ordering::Release);
+        Self {
+            job_id: usize::MAX,
+            slot,
+        }
+    }
+
     pub fn job_id(&self) -> usize {
         self.job_id
     }

@@ -53,7 +53,9 @@ fn coupled_model_with_group_provider_and_limits(
         .iter()
         .filter_map(|variable| match variable {
             VariableSlot::Scalar(ctx) => Some(*ctx),
-            VariableSlot::List(_) => None,
+            VariableSlot::List(_) | VariableSlot::DynamicScalar(_) | VariableSlot::DynamicList(_) => {
+                None
+            }
         })
         .collect::<Vec<_>>();
 

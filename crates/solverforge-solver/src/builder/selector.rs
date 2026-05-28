@@ -10,6 +10,7 @@ use crate::heuristic::selector::move_selector::{
     CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
+use crate::heuristic::selector::{DynamicListChangeMoveSelector, DynamicScalarChangeMoveSelector};
 use crate::phase::localsearch::LocalSearchPhase;
 use crate::phase::localsearch::VndPhase;
 use crate::phase::Phase;

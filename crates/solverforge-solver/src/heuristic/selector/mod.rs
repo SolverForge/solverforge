@@ -5,6 +5,8 @@ exploring the solution space.
 */
 
 pub mod decorator;
+pub mod dynamic_list_change;
+pub mod dynamic_scalar_change;
 pub mod entity;
 pub mod k_opt;
 pub mod list_change;
@@ -32,6 +34,8 @@ pub mod value_selector;
 #[cfg(test)]
 mod tests;
 
+pub use dynamic_list_change::DynamicListChangeMoveSelector;
+pub use dynamic_scalar_change::DynamicScalarChangeMoveSelector;
 pub use entity::{
     AllEntitiesSelector, EntityReference, EntitySelector, FromSolutionEntitySelector,
 };

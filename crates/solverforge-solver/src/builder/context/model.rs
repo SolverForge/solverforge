@@ -1,11 +1,15 @@
 use std::fmt;
 use std::marker::PhantomData;
 
+use solverforge_core::domain::{DynamicListVariableSlot, DynamicScalarVariableSlot};
+
 use super::{ConflictRepair, ListVariableSlot, ScalarGroupBinding, ScalarVariableSlot};
 
 pub enum VariableSlot<S, V, DM, IDM> {
     Scalar(ScalarVariableSlot<S>),
     List(ListVariableSlot<S, V, DM, IDM>),
+    DynamicScalar(DynamicScalarVariableSlot<S>),
+    DynamicList(DynamicListVariableSlot<S>),
 }
 
 impl<S, V, DM: Clone, IDM: Clone> Clone for VariableSlot<S, V, DM, IDM> {
@@ -13,6 +17,8 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for VariableSlot<S, V, DM, IDM> {
         match self {
             Self::Scalar(variable) => Self::Scalar(*variable),
             Self::List(variable) => Self::List(variable.clone()),
+            Self::DynamicScalar(variable) => Self::DynamicScalar(variable.clone()),
+            Self::DynamicList(variable) => Self::DynamicList(variable.clone()),
         }
     }
 }
@@ -22,6 +28,8 @@ impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for VariableSlot<S, V, DM
         match self {
             Self::Scalar(variable) => variable.fmt(f),
             Self::List(variable) => variable.fmt(f),
+            Self::DynamicScalar(variable) => variable.fmt(f),
+            Self::DynamicList(variable) => variable.fmt(f),
         }
     }
 }
@@ -81,15 +89,36 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
     }
 
     pub fn has_list_variables(&self) -> bool {
-        self.variables
-            .iter()
-            .any(|variable| matches!(variable, VariableSlot::List(_)))
+        self.variables.iter().any(|variable| {
+            matches!(
+                variable,
+                VariableSlot::List(_) | VariableSlot::DynamicList(_)
+            )
+        })
     }
 
     pub fn has_scalar_variables(&self) -> bool {
+        self.variables.iter().any(|variable| {
+            matches!(
+                variable,
+                VariableSlot::Scalar(_) | VariableSlot::DynamicScalar(_)
+            )
+        })
+    }
+
+    pub fn has_dynamic_variables(&self) -> bool {
+        self.variables.iter().any(|variable| {
+            matches!(
+                variable,
+                VariableSlot::DynamicScalar(_) | VariableSlot::DynamicList(_)
+            )
+        })
+    }
+
+    pub fn has_dynamic_list_variables(&self) -> bool {
         self.variables
             .iter()
-            .any(|variable| matches!(variable, VariableSlot::Scalar(_)))
+            .any(|variable| matches!(variable, VariableSlot::DynamicList(_)))
     }
 
     pub fn is_scalar_only(&self) -> bool {
@@ -161,7 +190,16 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
     pub fn scalar_variables(&self) -> impl Iterator<Item = &ScalarVariableSlot<S>> {
         self.variables.iter().filter_map(|variable| match variable {
             VariableSlot::Scalar(ctx) => Some(ctx),
-            VariableSlot::List(_) => None,
+            VariableSlot::List(_)
+            | VariableSlot::DynamicScalar(_)
+            | VariableSlot::DynamicList(_) => None,
+        })
+    }
+
+    pub fn dynamic_scalar_variables(&self) -> impl Iterator<Item = &DynamicScalarVariableSlot<S>> {
+        self.variables.iter().filter_map(|variable| match variable {
+            VariableSlot::DynamicScalar(ctx) => Some(ctx),
+            VariableSlot::Scalar(_) | VariableSlot::List(_) | VariableSlot::DynamicList(_) => None,
         })
     }
 
@@ -222,7 +260,18 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
     pub fn list_variables(&self) -> impl Iterator<Item = &ListVariableSlot<S, V, DM, IDM>> {
         self.variables.iter().filter_map(|variable| match variable {
             VariableSlot::List(ctx) => Some(ctx),
-            VariableSlot::Scalar(_) => None,
+            VariableSlot::Scalar(_)
+            | VariableSlot::DynamicScalar(_)
+            | VariableSlot::DynamicList(_) => None,
+        })
+    }
+
+    pub fn dynamic_list_variables(&self) -> impl Iterator<Item = &DynamicListVariableSlot<S>> {
+        self.variables.iter().filter_map(|variable| match variable {
+            VariableSlot::DynamicList(ctx) => Some(ctx),
+            VariableSlot::Scalar(_) | VariableSlot::List(_) | VariableSlot::DynamicScalar(_) => {
+                None
+            }
         })
     }
 }
@@ -234,5 +283,120 @@ impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for RuntimeModel<S, V, DM
             .field("scalar_groups", &self.scalar_groups)
             .field("conflict_repairs", &self.conflict_repairs)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use solverforge_core::domain::{
+        DynamicListVariableSlot, DynamicModelBackend, DynamicScalarVariableSlot, EntityClassId,
+        VariableId,
+    };
+    use solverforge_core::score::SoftScore;
+
+    use super::{RuntimeModel, VariableSlot};
+
+    #[derive(Clone)]
+    struct DynamicRows;
+
+    impl DynamicModelBackend for DynamicRows {
+        type Score = SoftScore;
+
+        fn entity_count(&self, _entity: EntityClassId) -> usize {
+            0
+        }
+
+        fn get_scalar(
+            &self,
+            _entity: EntityClassId,
+            _row: usize,
+            _variable: VariableId,
+        ) -> Option<usize> {
+            None
+        }
+
+        fn set_scalar(
+            &mut self,
+            _entity: EntityClassId,
+            _row: usize,
+            _variable: VariableId,
+            _value: Option<usize>,
+        ) {
+        }
+
+        fn list_len(&self, _entity: EntityClassId, _row: usize, _variable: VariableId) -> usize {
+            0
+        }
+
+        fn list_get(
+            &self,
+            _entity: EntityClassId,
+            _row: usize,
+            _variable: VariableId,
+            _pos: usize,
+        ) -> Option<usize> {
+            None
+        }
+
+        fn list_insert(
+            &mut self,
+            _entity: EntityClassId,
+            _row: usize,
+            _variable: VariableId,
+            _pos: usize,
+            _value: usize,
+        ) {
+        }
+
+        fn list_remove(
+            &mut self,
+            _entity: EntityClassId,
+            _row: usize,
+            _variable: VariableId,
+            _pos: usize,
+        ) -> Option<usize> {
+            None
+        }
+
+        fn candidate_values(
+            &self,
+            _entity: EntityClassId,
+            _row: usize,
+            _variable: VariableId,
+        ) -> &[usize] {
+            &[]
+        }
+    }
+
+    #[test]
+    fn runtime_model_tracks_dynamic_variable_slots() {
+        let scalar =
+            DynamicScalarVariableSlot::new(EntityClassId(0), VariableId(0), "Task", "worker", true);
+        let list =
+            DynamicListVariableSlot::new(EntityClassId(1), VariableId(0), "Vehicle", "visits");
+
+        let model: RuntimeModel<DynamicRows, usize, (), ()> = RuntimeModel::new(vec![
+            VariableSlot::DynamicScalar(scalar.clone()),
+            VariableSlot::DynamicList(list.clone()),
+        ]);
+
+        assert!(model.has_scalar_variables());
+        assert!(model.has_list_variables());
+        assert_eq!(
+            model
+                .dynamic_scalar_variables()
+                .map(|slot| slot.variable_name)
+                .collect::<Vec<_>>(),
+            vec!["worker"]
+        );
+        assert_eq!(
+            model
+                .dynamic_list_variables()
+                .map(|slot| slot.variable_name)
+                .collect::<Vec<_>>(),
+            vec!["visits"]
+        );
+        assert_eq!(model.scalar_variables().count(), 0);
+        assert_eq!(model.list_variables().count(), 0);
     }
 }

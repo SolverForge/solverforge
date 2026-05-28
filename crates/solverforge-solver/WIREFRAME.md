@@ -925,6 +925,17 @@ scalar slots covered by assignment-backed `ScalarGroup` declarations, and
 explicit scalar selector targets that name an assignment-owned variable are
 rejected with a diagnostic pointing at the owning grouped scalar selector.
 
+Dynamic scalar variables participate in explicit local-search
+`change_move_selector` phases through `DynamicScalarChangeMoveSelector` and
+`DynamicScalarChangeMove`. The dynamic path uses the same score-director
+before/after variable-change protocol as typed scalar moves while keeping the
+macro-generated scalar selector family monomorphized. Dynamic list variables
+participate in explicit unrestricted `list_change_move_selector` phases through
+`DynamicListChangeMoveSelector` and `DynamicListChangeMove`, also using the
+score-director before/after variable-change protocol. Owner-aware, nearby, swap,
+sublist, reverse, k-opt, and ruin dynamic list selectors are not present yet;
+dynamic default solves remain construction-only.
+
 Typed custom search is compiled into the solution, not loaded from a runtime
 registry. A solution can declare `#[planning_solution(search = "path::to::search")]`.
 The search function receives a `SearchContext<S, V, DM, IDM>`, calls

@@ -350,10 +350,13 @@ where
             descriptor.clone(),
             model.clone(),
         )));
-        for phase in
-            crate::builder::search::defaults::default_local_search_phases(model, config.random_seed)
-        {
-            phases.push(RuntimePhase::LocalSearch(phase));
+        if !model.has_dynamic_variables() {
+            for phase in crate::builder::search::defaults::default_local_search_phases(
+                model,
+                config.random_seed,
+            ) {
+                phases.push(RuntimePhase::LocalSearch(phase));
+            }
         }
         return PhaseSequence::new(phases);
     }

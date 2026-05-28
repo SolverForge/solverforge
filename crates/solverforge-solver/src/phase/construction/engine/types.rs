@@ -22,6 +22,21 @@ where
         order_key: [usize; 4],
         score: S::Score,
     },
+    DynamicScalar {
+        slot: DynamicScalarVariableSlot<S>,
+        entity_index: usize,
+        value: usize,
+        order_key: [usize; 4],
+        score: S::Score,
+    },
+    DynamicList {
+        slot: DynamicListVariableSlot<S>,
+        element: usize,
+        entity_index: usize,
+        position: usize,
+        order_key: [usize; 4],
+        score: S::Score,
+    },
 }
 
 impl<S, V> Candidate<S, V>
@@ -30,13 +45,19 @@ where
 {
     fn score(&self) -> &S::Score {
         match self {
-            Self::Scalar { score, .. } | Self::List { score, .. } => score,
+            Self::Scalar { score, .. }
+            | Self::List { score, .. }
+            | Self::DynamicScalar { score, .. }
+            | Self::DynamicList { score, .. } => score,
         }
     }
 
     fn order_key(&self) -> &[usize; 4] {
         match self {
-            Self::Scalar { order_key, .. } | Self::List { order_key, .. } => order_key,
+            Self::Scalar { order_key, .. }
+            | Self::List { order_key, .. }
+            | Self::DynamicScalar { order_key, .. }
+            | Self::DynamicList { order_key, .. } => order_key,
         }
     }
 }
@@ -90,11 +111,11 @@ where
     if heuristic == ConstructionHeuristicType::CheapestInsertion {
         let unbounded = model.variables().iter().any(|variable| {
             matches_target(variable, entity_class, variable_name)
-                && matches!(
+                && (matches!(
                     variable,
                     VariableSlot::Scalar(ctx)
                         if ctx.candidate_values.is_none() && value_candidate_limit.is_none()
-                )
+                ))
         });
         assert!(
             !unbounded,

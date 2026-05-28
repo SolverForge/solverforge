@@ -32,12 +32,30 @@ fn scalar_target<S>(variable: &crate::builder::ScalarVariableSlot<S>) -> Variabl
     }
 }
 
+fn dynamic_scalar_target<S>(
+    variable: &solverforge_core::domain::DynamicScalarVariableSlot<S>,
+) -> VariableTargetConfig {
+    VariableTargetConfig {
+        entity_class: Some(variable.entity_type_name.to_string()),
+        variable_name: Some(variable.variable_name.to_string()),
+    }
+}
+
 fn default_scalar_change_selector<S>(
     variable: &crate::builder::ScalarVariableSlot<S>,
 ) -> MoveSelectorConfig {
     MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
         value_candidate_limit: None,
         target: scalar_target(variable),
+    })
+}
+
+fn default_dynamic_scalar_change_selector<S>(
+    variable: &solverforge_core::domain::DynamicScalarVariableSlot<S>,
+) -> MoveSelectorConfig {
+    MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+        value_candidate_limit: None,
+        target: dynamic_scalar_target(variable),
     })
 }
 
@@ -192,6 +210,10 @@ fn append_scalar_selectors<S, V, DM, IDM>(
     {
         selectors.push(default_scalar_swap_selector(variable));
     }
+
+    for variable in model.dynamic_scalar_variables() {
+        selectors.push(default_dynamic_scalar_change_selector(variable));
+    }
 }
 
 pub(crate) fn default_move_selector_config<S, V, DM, IDM>(
@@ -202,7 +224,7 @@ where
 {
     let mut selectors = Vec::new();
 
-    if model.has_list_variables() {
+    if model.list_variables().next().is_some() {
         selectors.push(default_nearby_list_change_selector());
         selectors.push(default_nearby_list_swap_selector());
         selectors.push(default_sublist_change_selector());

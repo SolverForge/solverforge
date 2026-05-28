@@ -5,7 +5,9 @@ use std::time::Instant;
 use solverforge_config::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,
 };
-use solverforge_core::domain::PlanningSolution;
+use solverforge_core::domain::{
+    DynamicListVariableSlot, DynamicScalarVariableSlot, PlanningSolution,
+};
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 use tracing::info;

@@ -214,6 +214,79 @@ fn push_scalar_selector<S, V, DM, IDM>(
     );
 }
 
+fn matching_dynamic_scalar_variables<S, V, DM, IDM>(
+    config: &MoveSelectorConfig,
+    model: &RuntimeModel<S, V, DM, IDM>,
+) -> Vec<solverforge_core::domain::DynamicScalarVariableSlot<S>> {
+    let target = match config {
+        MoveSelectorConfig::ChangeMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::SwapMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::NearbyChangeMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::NearbySwapMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::PillarChangeMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::PillarSwapMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::RuinRecreateMoveSelector(config) => Some(&config.target),
+        _ => None,
+    };
+    let Some(target) = target else {
+        return Vec::new();
+    };
+    model
+        .dynamic_scalar_variables()
+        .filter(|slot| {
+            slot.matches_target(
+                target.entity_class.as_deref(),
+                target.variable_name.as_deref(),
+            )
+        })
+        .cloned()
+        .collect()
+}
+
+fn push_dynamic_scalar_selector<S, V, DM, IDM>(
+    config: Option<&MoveSelectorConfig>,
+    model: &RuntimeModel<S, V, DM, IDM>,
+    out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
+) where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
+{
+    let Some(config) = config else {
+        return;
+    };
+    let matched = matching_dynamic_scalar_variables(config, model);
+    if matched.is_empty() {
+        return;
+    }
+
+    match config {
+        MoveSelectorConfig::ChangeMoveSelector(config) => {
+            for variable in matched {
+                out.push(NeighborhoodLeaf::DynamicScalar(
+                    DynamicScalarChangeMoveSelector::new(
+                        variable,
+                        config.value_candidate_limit,
+                    ),
+                ));
+            }
+        }
+        MoveSelectorConfig::SwapMoveSelector(_)
+        | MoveSelectorConfig::NearbyChangeMoveSelector(_)
+        | MoveSelectorConfig::NearbySwapMoveSelector(_)
+        | MoveSelectorConfig::PillarChangeMoveSelector(_)
+        | MoveSelectorConfig::PillarSwapMoveSelector(_)
+        | MoveSelectorConfig::RuinRecreateMoveSelector(_) => {
+            panic!(
+                "dynamic scalar variables currently support change_move_selector; \
+                 configured selector matched a dynamic scalar variable but is not bindable"
+            );
+        }
+        _ => {}
+    }
+}
+
 fn assignment_owned_scalar_target<S, V, DM, IDM>(
     config: &MoveSelectorConfig,
     model: &RuntimeModel<S, V, DM, IDM>,
@@ -280,6 +353,80 @@ fn push_list_selector<S, V, DM, IDM>(
                 .into_iter()
                 .map(NeighborhoodLeaf::List),
         );
+    }
+}
+
+fn matching_dynamic_list_variables<S, V, DM, IDM>(
+    config: &MoveSelectorConfig,
+    model: &RuntimeModel<S, V, DM, IDM>,
+) -> Vec<solverforge_core::domain::DynamicListVariableSlot<S>> {
+    let target = match config {
+        MoveSelectorConfig::ListChangeMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::NearbyListChangeMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::ListSwapMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::NearbyListSwapMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::SublistChangeMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::SublistSwapMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::ListReverseMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::KOptMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::ListRuinMoveSelector(config) => Some(&config.target),
+        _ => None,
+    };
+    let Some(target) = target else {
+        return Vec::new();
+    };
+    model
+        .dynamic_list_variables()
+        .filter(|slot| {
+            slot.matches_target(
+                target.entity_class.as_deref(),
+                target.variable_name.as_deref(),
+            )
+        })
+        .cloned()
+        .collect()
+}
+
+fn push_dynamic_list_selector<S, V, DM, IDM>(
+    config: Option<&MoveSelectorConfig>,
+    model: &RuntimeModel<S, V, DM, IDM>,
+    out: &mut Vec<NeighborhoodLeaf<S, V, DM, IDM>>,
+) where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
+{
+    let Some(config) = config else {
+        return;
+    };
+    let matched = matching_dynamic_list_variables(config, model);
+    if matched.is_empty() {
+        return;
+    }
+
+    match config {
+        MoveSelectorConfig::ListChangeMoveSelector(_) => {
+            for variable in matched {
+                out.push(NeighborhoodLeaf::DynamicListChange(
+                    DynamicListChangeMoveSelector::new(variable),
+                ));
+            }
+        }
+        MoveSelectorConfig::NearbyListChangeMoveSelector(_)
+        | MoveSelectorConfig::ListSwapMoveSelector(_)
+        | MoveSelectorConfig::NearbyListSwapMoveSelector(_)
+        | MoveSelectorConfig::SublistChangeMoveSelector(_)
+        | MoveSelectorConfig::SublistSwapMoveSelector(_)
+        | MoveSelectorConfig::ListReverseMoveSelector(_)
+        | MoveSelectorConfig::KOptMoveSelector(_)
+        | MoveSelectorConfig::ListRuinMoveSelector(_) => {
+            panic!(
+                "dynamic list variables currently support list_change_move_selector; \
+                 configured selector matched a dynamic list variable but is not bindable"
+            );
+        }
+        _ => {}
     }
 }
 

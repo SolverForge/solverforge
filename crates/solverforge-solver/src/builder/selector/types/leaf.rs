@@ -4,13 +4,16 @@ use solverforge_core::domain::PlanningSolution;
 
 use crate::builder::list_selector::ListLeafSelector;
 use crate::builder::scalar_selector::ScalarLeafSelector;
-use crate::heuristic::r#move::{ListMoveUnion, MoveArena, ScalarMoveUnion};
+use crate::heuristic::r#move::{
+    DynamicListChangeMove, DynamicScalarChangeMove, ListMoveUnion, MoveArena, ScalarMoveUnion,
+};
 use crate::heuristic::selector::decorator::MappedMoveCursor;
 use crate::heuristic::selector::move_selector::{
     collect_cursor_indices, CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
     MoveStreamContext,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
+use crate::heuristic::selector::{DynamicListChangeMoveSelector, DynamicScalarChangeMoveSelector};
 
 use super::super::{ConflictRepairSelector, GroupedScalarSelector};
 use super::move_union::NeighborhoodMove;
@@ -23,6 +26,8 @@ where
     IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
 {
     Scalar(ScalarLeafSelector<S>),
+    DynamicScalar(DynamicScalarChangeMoveSelector<S>),
+    DynamicListChange(DynamicListChangeMoveSelector<S>),
     List(ListLeafSelector<S, V, DM, IDM>),
     GroupedScalar(GroupedScalarSelector<S>),
     ConflictRepair(ConflictRepairSelector<S>),
@@ -44,6 +49,26 @@ where
     NeighborhoodMove::List(mov)
 }
 
+fn wrap_dynamic_scalar_neighborhood_move<S, V>(
+    mov: DynamicScalarChangeMove<S>,
+) -> NeighborhoodMove<S, V>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    NeighborhoodMove::DynamicScalar(mov)
+}
+
+fn wrap_dynamic_list_change_neighborhood_move<S, V>(
+    mov: DynamicListChangeMove<S>,
+) -> NeighborhoodMove<S, V>
+where
+    S: PlanningSolution + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    NeighborhoodMove::DynamicListChange(mov)
+}
+
 pub enum NeighborhoodLeafCursor<'a, S, V, DM, IDM>
 where
     S: PlanningSolution + 'static,
@@ -58,6 +83,29 @@ where
             NeighborhoodMove<S, V>,
             <ScalarLeafSelector<S> as MoveSelector<S, ScalarMoveUnion<S, usize>>>::Cursor<'a>,
             fn(ScalarMoveUnion<S, usize>) -> NeighborhoodMove<S, V>,
+        >,
+    ),
+    DynamicScalar(
+        MappedMoveCursor<
+                S,
+                DynamicScalarChangeMove<S>,
+                NeighborhoodMove<S, V>,
+                <DynamicScalarChangeMoveSelector<S> as MoveSelector<
+                    S,
+                    DynamicScalarChangeMove<S>,
+                >>::Cursor<'a>,
+                fn(DynamicScalarChangeMove<S>) -> NeighborhoodMove<S, V>,
+            >,
+    ),
+    DynamicListChange(
+        MappedMoveCursor<
+            S,
+            DynamicListChangeMove<S>,
+            NeighborhoodMove<S, V>,
+            <DynamicListChangeMoveSelector<S> as MoveSelector<S, DynamicListChangeMove<S>>>::Cursor<
+                'a,
+            >,
+            fn(DynamicListChangeMove<S>) -> NeighborhoodMove<S, V>,
         >,
     ),
     List(
@@ -100,6 +148,8 @@ where
     fn next_candidate(&mut self) -> Option<CandidateId> {
         match self {
             Self::Scalar(cursor) => cursor.next_candidate(),
+            Self::DynamicScalar(cursor) => cursor.next_candidate(),
+            Self::DynamicListChange(cursor) => cursor.next_candidate(),
             Self::List(cursor) => cursor.next_candidate(),
             Self::ConflictRepair(cursor) => cursor.next_candidate(),
             Self::GroupedScalar(cursor) => cursor.next_candidate(),
@@ -112,6 +162,8 @@ where
     ) -> Option<MoveCandidateRef<'_, S, NeighborhoodMove<S, V>>> {
         match self {
             Self::Scalar(cursor) => cursor.candidate(index),
+            Self::DynamicScalar(cursor) => cursor.candidate(index),
+            Self::DynamicListChange(cursor) => cursor.candidate(index),
             Self::List(cursor) => cursor.candidate(index),
             Self::ConflictRepair(cursor) => cursor.candidate(index),
             Self::GroupedScalar(cursor) => cursor.candidate(index),
@@ -121,6 +173,8 @@ where
     fn take_candidate(&mut self, index: CandidateId) -> NeighborhoodMove<S, V> {
         match self {
             Self::Scalar(cursor) => cursor.take_candidate(index),
+            Self::DynamicScalar(cursor) => cursor.take_candidate(index),
+            Self::DynamicListChange(cursor) => cursor.take_candidate(index),
             Self::List(cursor) => cursor.take_candidate(index),
             Self::ConflictRepair(cursor) => cursor.take_candidate(index),
             Self::GroupedScalar(cursor) => cursor.take_candidate(index),
@@ -130,6 +184,8 @@ where
     fn selector_index(&self, index: CandidateId) -> Option<usize> {
         match self {
             Self::Scalar(cursor) => cursor.selector_index(index),
+            Self::DynamicScalar(cursor) => cursor.selector_index(index),
+            Self::DynamicListChange(cursor) => cursor.selector_index(index),
             Self::List(cursor) => cursor.selector_index(index),
             Self::ConflictRepair(cursor) => cursor.selector_index(index),
             Self::GroupedScalar(cursor) => cursor.selector_index(index),
@@ -147,6 +203,12 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Scalar(selector) => write!(f, "NeighborhoodLeaf::Scalar({selector:?})"),
+            Self::DynamicScalar(selector) => {
+                write!(f, "NeighborhoodLeaf::DynamicScalar({selector:?})")
+            }
+            Self::DynamicListChange(selector) => {
+                write!(f, "NeighborhoodLeaf::DynamicListChange({selector:?})")
+            }
             Self::List(selector) => write!(f, "NeighborhoodLeaf::List({selector:?})"),
             Self::ConflictRepair(selector) => {
                 write!(f, "NeighborhoodLeaf::ConflictRepair({selector:?})")
@@ -187,6 +249,18 @@ where
                 selector.open_cursor_with_context(score_director, context),
                 wrap_scalar_neighborhood_move::<S, V>,
             )),
+            Self::DynamicScalar(selector) => {
+                NeighborhoodLeafCursor::DynamicScalar(MappedMoveCursor::new(
+                    selector.open_cursor_with_context(score_director, context),
+                    wrap_dynamic_scalar_neighborhood_move::<S, V>,
+                ))
+            }
+            Self::DynamicListChange(selector) => {
+                NeighborhoodLeafCursor::DynamicListChange(MappedMoveCursor::new(
+                    selector.open_cursor_with_context(score_director, context),
+                    wrap_dynamic_list_change_neighborhood_move::<S, V>,
+                ))
+            }
             Self::List(selector) => NeighborhoodLeafCursor::List(MappedMoveCursor::new(
                 selector.open_cursor_with_context(score_director, context),
                 wrap_list_neighborhood_move::<S, V>,
@@ -209,6 +283,8 @@ where
     fn size<D: solverforge_scoring::Director<S>>(&self, score_director: &D) -> usize {
         match self {
             Self::Scalar(selector) => selector.size(score_director),
+            Self::DynamicScalar(selector) => selector.size(score_director),
+            Self::DynamicListChange(selector) => selector.size(score_director),
             Self::List(selector) => selector.size(score_director),
             Self::ConflictRepair(selector) => selector.size(score_director),
             Self::GroupedScalar(selector) => selector.size(score_director),

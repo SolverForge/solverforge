@@ -23,17 +23,25 @@ where
         }
 
         let progress = match variable {
-            VariableSlot::Scalar(ctx) => {
-                solve_scalar_first_fit(
-                    variable_index,
-                    *ctx,
-                    value_candidate_limit,
-                    construction_obligation,
-                    phase_scope,
-                )
-            }
+            VariableSlot::Scalar(ctx) => solve_scalar_first_fit(
+                variable_index,
+                *ctx,
+                value_candidate_limit,
+                construction_obligation,
+                phase_scope,
+            ),
             VariableSlot::List(ctx) => {
                 solve_list_first_fit(variable_index, ctx.clone(), phase_scope)
+            }
+            VariableSlot::DynamicScalar(ctx) => solve_dynamic_scalar_first_fit(
+                variable_index,
+                ctx.clone(),
+                value_candidate_limit,
+                construction_obligation,
+                phase_scope,
+            ),
+            VariableSlot::DynamicList(ctx) => {
+                solve_dynamic_list_first_fit(variable_index, ctx.clone(), phase_scope)
             }
         };
 
@@ -79,17 +87,23 @@ where
         }
 
         let progress = match variable {
-            VariableSlot::Scalar(ctx) => {
-                scan_scalar_best_fit(
-                    variable_index,
-                    *ctx,
-                    value_candidate_limit,
-                    construction_obligation,
-                    phase_scope,
-                )
-            }
-            VariableSlot::List(ctx) => {
-                scan_list_best_fit(variable_index, ctx.clone(), phase_scope)
+            VariableSlot::Scalar(ctx) => scan_scalar_best_fit(
+                variable_index,
+                *ctx,
+                value_candidate_limit,
+                construction_obligation,
+                phase_scope,
+            ),
+            VariableSlot::List(ctx) => scan_list_best_fit(variable_index, ctx.clone(), phase_scope),
+            VariableSlot::DynamicScalar(ctx) => scan_dynamic_scalar_best_fit(
+                variable_index,
+                ctx.clone(),
+                value_candidate_limit,
+                construction_obligation,
+                phase_scope,
+            ),
+            VariableSlot::DynamicList(ctx) => {
+                scan_dynamic_list_best_fit(variable_index, ctx.clone(), phase_scope)
             }
         };
 

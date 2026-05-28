@@ -74,8 +74,31 @@ where
         })
         .cloned()
         .collect();
+    let dynamic_scalar_match = model.dynamic_scalar_variables().any(|ctx| {
+        !explicit_target
+            || (entity_class
+                .as_deref()
+                .is_none_or(|name| name == ctx.entity_type_name)
+                && variable_name
+                    .as_deref()
+                    .is_none_or(|name| name == ctx.variable_name))
+    });
+    let dynamic_list_match = model.dynamic_list_variables().any(|ctx| {
+        !explicit_target
+            || (entity_class
+                .as_deref()
+                .is_none_or(|name| name == ctx.entity_type_name)
+                && variable_name
+                    .as_deref()
+                    .is_none_or(|name| name == ctx.variable_name))
+    });
 
-    if explicit_target && targeted_scalar_bindings.is_empty() && list_variables.is_empty() {
+    if explicit_target
+        && targeted_scalar_bindings.is_empty()
+        && list_variables.is_empty()
+        && !dynamic_scalar_match
+        && !dynamic_list_match
+    {
         panic!(
             "construction heuristic matched no planning variables for entity_class={:?} variable_name={:?}",
             entity_class,
@@ -147,13 +170,21 @@ where
             if scalar_group.is_some() {
                 ConstructionRoute::GroupedScalar
             } else {
-                if scalar_bindings.is_empty() && list_variables.is_empty() {
+                if scalar_bindings.is_empty()
+                    && list_variables.is_empty()
+                    && !dynamic_scalar_match
+                    && !dynamic_list_match
+                {
                     panic!(
                         "construction heuristic {:?} matched no planning variables",
                         heuristic
                     );
                 }
-                if !scalar_bindings.is_empty() && list_variables.is_empty() {
+                if !scalar_bindings.is_empty()
+                    && list_variables.is_empty()
+                    && !dynamic_scalar_match
+                    && !dynamic_list_match
+                {
                     ConstructionRoute::Descriptor
                 } else {
                     ConstructionRoute::GenericMixed

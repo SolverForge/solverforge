@@ -33,6 +33,12 @@ where
         ran_child_phase |= construction.solve_configured(Some(&config), solver_scope, false);
     }
 
+    for config in
+        dynamic_list_construction_configs(&construction.model, solver_scope.working_solution())
+    {
+        ran_child_phase |= construction.solve_configured(Some(&config), solver_scope, false);
+    }
+
     for group_index in assignment_group_indices(&construction.model) {
         let config = {
             let group = &construction.model.scalar_groups()[group_index];
@@ -74,6 +80,10 @@ where
     }
 
     for config in descriptor_scalar_configs(&construction.model) {
+        ran_child_phase |= construction.solve_configured(Some(&config), solver_scope, false);
+    }
+
+    for config in dynamic_scalar_configs(&construction.model) {
         ran_child_phase |= construction.solve_configured(Some(&config), solver_scope, false);
     }
 
@@ -123,12 +133,53 @@ fn list_k_opt_configs<S, V, DM, IDM>(
         .collect()
 }
 
+fn dynamic_list_construction_configs<S, V, DM, IDM>(
+    model: &RuntimeModel<S, V, DM, IDM>,
+    solution: &S,
+) -> Vec<ConstructionHeuristicConfig>
+where
+    S: PlanningSolution,
+{
+    model
+        .dynamic_list_variables()
+        .filter(|variable| {
+            variable.assigned_elements(solution).len() < variable.element_count(solution)
+        })
+        .map(|variable| {
+            list_config(
+                ConstructionHeuristicType::FirstFit,
+                variable.entity_type_name,
+                variable.variable_name,
+            )
+        })
+        .collect()
+}
+
 fn descriptor_scalar_configs<S, V, DM, IDM>(
     model: &RuntimeModel<S, V, DM, IDM>,
 ) -> Vec<ConstructionHeuristicConfig> {
     model
         .scalar_variables()
         .filter(|variable| !model.assignment_group_covers_scalar_variable(variable))
+        .map(|variable| {
+            let target = VariableTargetConfig {
+                entity_class: Some(variable.entity_type_name.to_string()),
+                variable_name: Some(variable.variable_name.to_string()),
+            };
+            ConstructionHeuristicConfig {
+                construction_heuristic_type: ConstructionHeuristicType::FirstFit,
+                target,
+                ..ConstructionHeuristicConfig::default()
+            }
+        })
+        .collect()
+}
+
+fn dynamic_scalar_configs<S, V, DM, IDM>(
+    model: &RuntimeModel<S, V, DM, IDM>,
+) -> Vec<ConstructionHeuristicConfig> {
+    model
+        .dynamic_scalar_variables()
         .map(|variable| {
             let target = VariableTargetConfig {
                 entity_class: Some(variable.entity_type_name.to_string()),

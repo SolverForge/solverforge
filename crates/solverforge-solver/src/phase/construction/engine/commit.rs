@@ -64,6 +64,55 @@ fn commit_candidate<S, V, D, ProgressCb>(
             step_scope.set_step_score(step_score);
             step_scope.complete();
         }
+        Candidate::DynamicScalar {
+            slot,
+            entity_index,
+            value,
+            ..
+        } => {
+            let mut step_scope = StepScope::new(phase_scope);
+            step_scope.phase_scope_mut().record_move_accepted();
+            step_scope.apply_committed_change(|score_director| {
+                score_director.before_variable_changed(slot.descriptor_index(), entity_index);
+                slot.set_value(
+                    score_director.working_solution_mut(),
+                    entity_index,
+                    Some(value),
+                );
+                score_director.after_variable_changed(slot.descriptor_index(), entity_index);
+            });
+            step_scope.phase_scope_mut().record_move_applied();
+            step_scope
+                .phase_scope_mut()
+                .record_construction_slot_assigned();
+            let step_score = step_scope.calculate_score();
+            step_scope.set_step_score(step_score);
+            step_scope.complete();
+        }
+        Candidate::DynamicList {
+            slot,
+            element,
+            entity_index,
+            position,
+            ..
+        } => {
+            let mut step_scope = StepScope::new(phase_scope);
+            step_scope.phase_scope_mut().record_move_accepted();
+            step_scope.apply_committed_change(|score_director| {
+                score_director.before_variable_changed(slot.descriptor_index(), entity_index);
+                slot.list_insert(
+                    score_director.working_solution_mut(),
+                    entity_index,
+                    position,
+                    element,
+                );
+                score_director.after_variable_changed(slot.descriptor_index(), entity_index);
+            });
+            step_scope.phase_scope_mut().record_move_applied();
+            let step_score = step_scope.calculate_score();
+            step_scope.set_step_score(step_score);
+            step_scope.complete();
+        }
     }
 }
 
@@ -138,6 +187,77 @@ where
     score
 }
 
+fn evaluate_dynamic_scalar_assignment<S, D, ProgressCb>(
+    phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
+    ctx: &DynamicScalarVariableSlot<S>,
+    entity_index: usize,
+    value: Option<usize>,
+) -> S::Score
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    let generation_started = Instant::now();
+    phase_scope.record_generated_move(generation_started.elapsed());
+
+    let score_director = phase_scope.score_director_mut();
+    let score_state = score_director.snapshot_score_state();
+    let evaluation_started = Instant::now();
+    let old_value = ctx.current_value(score_director.working_solution(), entity_index);
+    score_director.before_variable_changed(ctx.descriptor_index(), entity_index);
+    ctx.set_value(score_director.working_solution_mut(), entity_index, value);
+    score_director.after_variable_changed(ctx.descriptor_index(), entity_index);
+    let score = score_director.calculate_score();
+    score_director.before_variable_changed(ctx.descriptor_index(), entity_index);
+    ctx.set_value(
+        score_director.working_solution_mut(),
+        entity_index,
+        old_value,
+    );
+    score_director.after_variable_changed(ctx.descriptor_index(), entity_index);
+    score_director.restore_score_state(score_state);
+    phase_scope.record_score_calculation();
+    phase_scope.record_evaluated_move(evaluation_started.elapsed());
+    score
+}
+
+fn evaluate_dynamic_list_insertion<S, D, ProgressCb>(
+    phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
+    ctx: &DynamicListVariableSlot<S>,
+    element: usize,
+    entity_index: usize,
+    position: usize,
+) -> S::Score
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    let generation_started = Instant::now();
+    phase_scope.record_generated_move(generation_started.elapsed());
+
+    let score_director = phase_scope.score_director_mut();
+    let score_state = score_director.snapshot_score_state();
+    let evaluation_started = Instant::now();
+    score_director.before_variable_changed(ctx.descriptor_index(), entity_index);
+    ctx.list_insert(
+        score_director.working_solution_mut(),
+        entity_index,
+        position,
+        element,
+    );
+    score_director.after_variable_changed(ctx.descriptor_index(), entity_index);
+    let score = score_director.calculate_score();
+    score_director.before_variable_changed(ctx.descriptor_index(), entity_index);
+    let _ = ctx.list_remove(score_director.working_solution_mut(), entity_index, position);
+    score_director.after_variable_changed(ctx.descriptor_index(), entity_index);
+    score_director.restore_score_state(score_state);
+    phase_scope.record_score_calculation();
+    phase_scope.record_evaluated_move(evaluation_started.elapsed());
+    score
+}
+
 fn candidate_score<S, D, M, ProgressCb>(
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
     mov: &M,
@@ -166,6 +286,14 @@ fn matches_target<S, V, DM, IDM>(
     match variable {
         VariableSlot::Scalar(ctx) => ctx.matches_target(entity_class, variable_name),
         VariableSlot::List(ctx) => ctx.matches_target(entity_class, variable_name),
+        VariableSlot::DynamicScalar(ctx) => {
+            entity_class.is_none_or(|name| name == ctx.entity_type_name)
+                && variable_name.is_none_or(|name| name == ctx.variable_name)
+        }
+        VariableSlot::DynamicList(ctx) => {
+            entity_class.is_none_or(|name| name == ctx.entity_type_name)
+                && variable_name.is_none_or(|name| name == ctx.variable_name)
+        }
     }
 }
 

@@ -11,17 +11,19 @@ pub mod selector;
 // Re-export move types
 pub use r#move::k_opt_reconnection;
 pub use r#move::{
-    ChangeMove, CompositeMove, CompoundScalarEdit, CompoundScalarMove, CutPoint, KOptMove,
-    ListChangeMove, ListMoveUnion, ListReverseMove, ListRuinMove, ListSwapMove, Move, MoveArena,
-    PillarChangeMove, PillarSwapMove, RuinMove, RuinRecreateMove, ScalarMoveUnion,
-    ScalarRecreateValueSource, SublistChangeMove, SublistSwapMove, SwapMove,
+    ChangeMove, CompositeMove, CompoundScalarEdit, CompoundScalarMove, CutPoint,
+    DynamicListChangeMove, DynamicScalarChangeMove, KOptMove, ListChangeMove, ListMoveUnion,
+    ListReverseMove, ListRuinMove, ListSwapMove, Move, MoveArena, PillarChangeMove, PillarSwapMove,
+    RuinMove, RuinRecreateMove, ScalarMoveUnion, ScalarRecreateValueSource, SublistChangeMove,
+    SublistSwapMove, SwapMove,
 };
 
 // Re-export selector types
 pub use selector::decorator::VecUnionSelector;
 pub use selector::{
     AllEntitiesSelector, ChangeMoveSelector, CrossEntityDistanceMeter,
-    DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, DefaultPillarSelector, EntityReference,
+    DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, DefaultPillarSelector,
+    DynamicListChangeMoveSelector, DynamicScalarChangeMoveSelector, EntityReference,
     EntitySelector, FromSolutionEntitySelector, FromSolutionValueSelector, KOptConfig,
     KOptMoveSelector, ListChangeMoveSelector, ListPositionDistanceMeter, ListReverseMoveSelector,
     ListRuinMoveSelector, ListSwapMoveSelector, MimicRecorder, MimicRecordingEntitySelector,

@@ -70,6 +70,10 @@ fn generate_list_build_phases_fn(input: ListBuildPhasesInput<'_>) -> TokenStream
                                 ),
                             )
                         }
+                        ::solverforge::__internal::VariableSlot::DynamicScalar(_)
+                        | ::solverforge::__internal::VariableSlot::DynamicList(_) => {
+                            (::core::usize::MAX, ::core::usize::MAX)
+                        }
                     }
                 });
                 let __solverforge_scalar_slots = __solverforge_variables
@@ -79,6 +83,10 @@ fn generate_list_build_phases_fn(input: ListBuildPhasesInput<'_>) -> TokenStream
                             ::core::option::Option::Some(*ctx)
                         }
                         ::solverforge::__internal::VariableSlot::List(_) => {
+                            ::core::option::Option::None
+                        }
+                        ::solverforge::__internal::VariableSlot::DynamicScalar(_)
+                        | ::solverforge::__internal::VariableSlot::DynamicList(_) => {
                             ::core::option::Option::None
                         }
                     })
@@ -164,6 +172,10 @@ fn generate_list_build_phases_fn(input: ListBuildPhasesInput<'_>) -> TokenStream
                                 ),
                             )
                         }
+                        ::solverforge::__internal::VariableSlot::DynamicScalar(_)
+                        | ::solverforge::__internal::VariableSlot::DynamicList(_) => {
+                            (::core::usize::MAX, ::core::usize::MAX)
+                        }
                     }
                 });
                 let __solverforge_scalar_slots = __solverforge_variables
@@ -173,6 +185,10 @@ fn generate_list_build_phases_fn(input: ListBuildPhasesInput<'_>) -> TokenStream
                             ::core::option::Option::Some(*ctx)
                         }
                         ::solverforge::__internal::VariableSlot::List(_) => {
+                            ::core::option::Option::None
+                        }
+                        ::solverforge::__internal::VariableSlot::DynamicScalar(_)
+                        | ::solverforge::__internal::VariableSlot::DynamicList(_) => {
                             ::core::option::Option::None
                         }
                     })
@@ -221,6 +237,10 @@ fn generate_scalar_build_phases_fn(
                             ::core::option::Option::Some(*ctx)
                         }
                         ::solverforge::__internal::VariableSlot::List(_) => {
+                            ::core::option::Option::None
+                        }
+                        ::solverforge::__internal::VariableSlot::DynamicScalar(_)
+                        | ::solverforge::__internal::VariableSlot::DynamicList(_) => {
                             ::core::option::Option::None
                         }
                     })
@@ -279,6 +299,10 @@ fn generate_scalar_build_phases_fn(
                             ::core::option::Option::Some(*ctx)
                         }
                         ::solverforge::__internal::VariableSlot::List(_) => {
+                            ::core::option::Option::None
+                        }
+                        ::solverforge::__internal::VariableSlot::DynamicScalar(_)
+                        | ::solverforge::__internal::VariableSlot::DynamicList(_) => {
                             ::core::option::Option::None
                         }
                     })

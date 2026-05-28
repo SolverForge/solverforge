@@ -20,6 +20,7 @@ where
         | Some(MoveSelectorConfig::PillarSwapMoveSelector(_))
         | Some(MoveSelectorConfig::RuinRecreateMoveSelector(_)) => {
             push_scalar_selector(config, model, random_seed, &mut leaves);
+            push_dynamic_scalar_selector(config, model, &mut leaves);
         }
         Some(MoveSelectorConfig::GroupedScalarMoveSelector(config)) => {
             push_grouped_scalar_selector(config, model, &mut leaves);
@@ -34,6 +35,7 @@ where
         | Some(MoveSelectorConfig::KOptMoveSelector(_))
         | Some(MoveSelectorConfig::ListRuinMoveSelector(_)) => {
             push_list_selector(config, model, random_seed, &mut leaves);
+            push_dynamic_list_selector(config, model, &mut leaves);
         }
         Some(MoveSelectorConfig::UnionMoveSelector(union)) => {
             for child in &union.selectors {
@@ -55,9 +57,11 @@ where
                 match selector_family(child) {
                     SelectorFamily::Scalar => {
                         push_scalar_selector(Some(child), model, random_seed, &mut leaves);
+                        push_dynamic_scalar_selector(Some(child), model, &mut leaves);
                     }
                     SelectorFamily::List => {
                         push_list_selector(Some(child), model, random_seed, &mut leaves);
+                        push_dynamic_list_selector(Some(child), model, &mut leaves);
                     }
                     SelectorFamily::Mixed => {
                         let nested = build_leaf_selector(Some(child), model, random_seed);
@@ -90,7 +94,7 @@ where
         !leaves.is_empty(),
         "move selector configuration produced no neighborhoods \
          (scalar_slots_present={}, list_slots_present={}, requested_selector_family={})",
-        model.scalar_variables().next().is_some(),
+        model.has_scalar_variables(),
         model.has_list_variables(),
         selector_family_name(config),
     );
@@ -218,7 +222,7 @@ where
         !neighborhoods.is_empty(),
         "move selector configuration produced no neighborhoods \
          (scalar_slots_present={}, list_slots_present={}, requested_selector_family={})",
-        model.scalar_variables().next().is_some(),
+        model.has_scalar_variables(),
         model.has_list_variables(),
         selector_family_name(effective_config),
     );

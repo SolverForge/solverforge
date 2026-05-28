@@ -373,7 +373,7 @@ impl NearbyCutState {
         }
 
         // Start with first valid position
-        let iter = Self {
+        Self {
             entity_idx,
             k,
             len,
@@ -382,8 +382,7 @@ impl NearbyCutState {
             stack: vec![(min_seg, 0)],
             nearby_cache: vec![vec![]],
             done: false,
-        };
-        iter
+        }
     }
 
     fn is_done(&self) -> bool {

@@ -1,6 +1,15 @@
 /// Builder that constructs a `VecUnionSelector` of `ListLeafSelector` from config.
 pub struct ListMoveSelectorBuilder;
 
+struct ListRuinOptions {
+    min_ruin_count: usize,
+    max_ruin_count: usize,
+    moves_per_step: Option<usize>,
+    max_source_list_len: Option<usize>,
+    skip_empty_destinations: bool,
+    random_seed: Option<u64>,
+}
+
 impl ListMoveSelectorBuilder {
     fn selector_requires_score_during_move(config: &MoveSelectorConfig) -> bool {
         match config {
@@ -169,12 +178,14 @@ impl ListMoveSelectorBuilder {
                 Self::push_list_ruin(
                     out,
                     ctx,
-                    c.min_ruin_count,
-                    c.max_ruin_count,
-                    c.moves_per_step,
-                    c.max_source_list_len,
-                    c.skip_empty_destinations,
-                    random_seed,
+                    ListRuinOptions {
+                        min_ruin_count: c.min_ruin_count,
+                        max_ruin_count: c.max_ruin_count,
+                        moves_per_step: c.moves_per_step,
+                        max_source_list_len: c.max_source_list_len,
+                        skip_empty_destinations: c.skip_empty_destinations,
+                        random_seed,
+                    },
                 );
             }
             MoveSelectorConfig::LimitedNeighborhood(_) => {
@@ -396,12 +407,7 @@ impl ListMoveSelectorBuilder {
     fn push_list_ruin<S, V, DM, IDM>(
         out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
         ctx: &ListVariableSlot<S, V, DM, IDM>,
-        min_ruin_count: usize,
-        max_ruin_count: usize,
-        moves_per_step: Option<usize>,
-        max_source_list_len: Option<usize>,
-        skip_empty_destinations: bool,
-        random_seed: Option<u64>,
+        options: ListRuinOptions,
     ) where
         S: PlanningSolution,
         V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -411,8 +417,8 @@ impl ListMoveSelectorBuilder {
         use crate::heuristic::selector::list_ruin::ListRuinMoveSelector;
 
         let inner = ListRuinMoveSelector::new(
-            min_ruin_count,
-            max_ruin_count,
+            options.min_ruin_count,
+            options.max_ruin_count,
             ctx.entity_count,
             ctx.list_len,
             ctx.list_get,
@@ -422,10 +428,10 @@ impl ListMoveSelectorBuilder {
             ctx.descriptor_index,
         )
         .with_element_owner_fn(ctx.element_owner_fn)
-        .with_moves_per_step(moves_per_step.unwrap_or(10).max(1))
-        .with_max_source_list_len(max_source_list_len)
-        .with_skip_empty_destinations(skip_empty_destinations);
-        let inner = if let Some(seed) = random_seed {
+        .with_moves_per_step(options.moves_per_step.unwrap_or(10).max(1))
+        .with_max_source_list_len(options.max_source_list_len)
+        .with_skip_empty_destinations(options.skip_empty_destinations);
+        let inner = if let Some(seed) = options.random_seed {
             inner.with_seed(seed)
         } else {
             inner

@@ -8,11 +8,12 @@ use std::ops::{Add, Neg, Sub};
 use solverforge_core::score::{ParseableScore, Score, ScoreLevel, ScoreParseError};
 
 /// Declared host-language score family.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum DynamicScoreFamily {
     Soft,
     HardSoft,
     HardSoftDecimal,
+    #[default]
     HardMediumSoft,
 }
 
@@ -366,12 +367,6 @@ impl ParseableScore for DynamicScore {
 
     fn to_string_repr(&self) -> String {
         self.to_string()
-    }
-}
-
-impl Default for DynamicScoreFamily {
-    fn default() -> Self {
-        Self::HardMediumSoft
     }
 }
 

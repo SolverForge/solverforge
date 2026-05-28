@@ -54,10 +54,10 @@ pub use solverforge_config::{
     ForagerConfig, HardRegressionPolicyConfig, MoveSelectorConfig, MoveThreadCount, PhaseConfig,
     RecreateHeuristicType, SolverConfig, SolverConfigOverride, UnionSelectionOrder,
 };
+pub use solverforge_core::domain::{EntityClassId, ProblemFactClassId, VariableId};
 pub use solverforge_core::score::{
     BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SoftScore,
 };
-pub use solverforge_core::domain::{EntityClassId, ProblemFactClassId, VariableId};
 
 pub mod cvrp;
 pub mod planning;

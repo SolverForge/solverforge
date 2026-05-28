@@ -10,11 +10,13 @@ mod backend;
 mod ids;
 mod runner;
 mod score;
+mod slots;
 
 pub use backend::{DynamicListAccess, DynamicModelBackend, DynamicScalarAccess};
 pub use ids::{EntityClassId, ProblemFactClassId, VariableId};
 pub use runner::run_dynamic_solver_with_config;
-pub use score::{DynamicScore, DynamicScoreFamily};
+pub use score::{scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily};
+pub use slots::{DynamicListVariableSlot, DynamicScalarVariableSlot};
 
 #[cfg(test)]
 mod backend_tests;

@@ -8,6 +8,7 @@ These traits define the structure of a planning problem:
 */
 
 mod descriptor;
+mod dynamic;
 mod entity_ref;
 pub mod listener;
 pub mod supply;
@@ -19,11 +20,14 @@ mod variable;
 mod tests;
 
 pub use descriptor::{
-    EntityClassId, EntityDescriptor, ProblemFactClassId, ProblemFactDescriptor,
-    SolutionDescriptor, UsizeCandidateValues, UsizeConstructionEntityOrderKey,
-    UsizeConstructionValueOrderKey, UsizeEntityValueProvider, UsizeGetter,
-    UsizeNearbyEntityDistanceMeter, UsizeNearbyValueDistanceMeter, UsizeSetter, VariableDescriptor,
-    VariableId,
+    EntityClassId, EntityDescriptor, ProblemFactClassId, ProblemFactDescriptor, SolutionDescriptor,
+    UsizeCandidateValues, UsizeConstructionEntityOrderKey, UsizeConstructionValueOrderKey,
+    UsizeEntityValueProvider, UsizeGetter, UsizeNearbyEntityDistanceMeter,
+    UsizeNearbyValueDistanceMeter, UsizeSetter, VariableDescriptor, VariableId,
+};
+pub use dynamic::{
+    DynamicListAccess, DynamicListVariableSlot, DynamicModelBackend, DynamicScalarAccess,
+    DynamicScalarVariableSlot,
 };
 pub use entity_ref::{EntityCollectionExtractor, EntityExtractor, EntityRef};
 pub use listener::{

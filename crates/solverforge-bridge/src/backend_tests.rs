@@ -1,6 +1,9 @@
 use solverforge_core::domain::PlanningSolution;
 
-use crate::{DynamicModelBackend, DynamicScore, EntityClassId, VariableId};
+use crate::{
+    DynamicListVariableSlot, DynamicModelBackend, DynamicScalarVariableSlot, DynamicScore,
+    EntityClassId, VariableId,
+};
 
 #[derive(Clone)]
 struct DynamicRows {
@@ -109,6 +112,24 @@ impl DynamicModelBackend for DynamicRows {
             _ => &[],
         }
     }
+
+    fn list_element_count(&self, entity: EntityClassId, variable: VariableId) -> usize {
+        match (entity.0, variable.0) {
+            (1, 1) => 4,
+            _ => 0,
+        }
+    }
+
+    fn list_assigned_elements(&self, entity: EntityClassId, variable: VariableId) -> Vec<usize> {
+        match (entity.0, variable.0) {
+            (1, 1) => self
+                .vehicle_routes
+                .iter()
+                .flat_map(|route| route.iter().copied())
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
 }
 
 #[test]
@@ -138,4 +159,47 @@ fn one_rust_state_type_can_host_multiple_logical_entity_classes() {
     assert_eq!(model.list_len(vehicle, 1, visits), 2);
     assert_eq!(model.list_remove(vehicle, 1, visits, 0), Some(1));
     assert_eq!(model.list_get(vehicle, 1, visits, 0), Some(3));
+}
+
+#[test]
+fn dynamic_scalar_slot_carries_logical_identity() {
+    let mut model = DynamicRows {
+        task_values: vec![None],
+        vehicle_routes: Vec::new(),
+        candidates: vec![2, 4, 6],
+        score: None,
+    };
+    let slot =
+        DynamicScalarVariableSlot::new(EntityClassId(0), VariableId(0), "Task", "worker", true);
+
+    assert_eq!(slot.entity_count(&model), 1);
+    assert_eq!(slot.current_value(&model, 0), None);
+    assert!(slot.value_is_legal(&model, 0, None));
+    assert!(slot.value_is_legal(&model, 0, Some(4)));
+    assert!(!slot.value_is_legal(&model, 0, Some(5)));
+
+    slot.set_value(&mut model, 0, Some(6));
+    assert_eq!(slot.current_value(&model, 0), Some(6));
+}
+
+#[test]
+fn dynamic_list_slot_carries_logical_identity() {
+    let mut model = DynamicRows {
+        task_values: Vec::new(),
+        vehicle_routes: vec![vec![1], vec![2, 3]],
+        candidates: Vec::new(),
+        score: None,
+    };
+    let slot = DynamicListVariableSlot::new(EntityClassId(1), VariableId(1), "Vehicle", "visits");
+
+    assert_eq!(slot.entity_count(&model), 2);
+    assert_eq!(slot.element_count(&model), 4);
+    assert_eq!(slot.assigned_elements(&model), vec![1, 2, 3]);
+    assert_eq!(slot.list_len(&model, 1), 2);
+    assert_eq!(slot.list_get(&model, 1, 0), Some(2));
+
+    slot.list_insert(&mut model, 0, 1, 0);
+    assert_eq!(slot.list_get(&model, 0, 1), Some(0));
+    assert_eq!(slot.list_remove(&mut model, 1, 1), Some(3));
+    assert_eq!(slot.assigned_elements(&model), vec![1, 0, 2]);
 }

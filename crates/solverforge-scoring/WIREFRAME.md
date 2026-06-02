@@ -35,6 +35,7 @@ src/
 │   ├── mod.rs                                      — Re-exports all constraint types
 │   ├── macros.rs                                   — impl_get_matches_nary! macro for detailed match generation
 │   ├── shared.rs                                   — compute_hash<T>() utility function
+│   ├── list_precedence.rs                          — ListPrecedenceMakespanConstraint<S>; stock incremental list-plus-fixed-precedence makespan scoring with optional fixed owner checks
 │   ├── incremental_markers.rs                      — Hidden IncrementalConstraintSealed impls for built-in constraint types
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
 │   ├── grouped.rs                                  — Grouped module root: legacy terminal wrapper, shared node state, terminal scorers, scorer sets, shared set
@@ -187,7 +188,8 @@ pub use constraint::{
     CrossComplementedGroupedConstraint, CrossGroupedConstraint, GroupedUniConstraint,
     IncrementalBiConstraint, IncrementalCrossBiConstraint, IncrementalPentaConstraint,
     IncrementalQuadConstraint, IncrementalTriConstraint, IncrementalUniConstraint,
-    ProjectedComplementedGroupedConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
+    ListPrecedenceMakespanConstraint, ProjectedComplementedGroupedConstraint,
+    ProjectedGroupedConstraint, ProjectedUniConstraint,
 };
 
 // Constraint Set

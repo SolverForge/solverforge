@@ -26,6 +26,7 @@ pub mod flattened_bi;
 pub mod grouped;
 pub mod incremental;
 mod incremental_markers;
+pub mod list_precedence;
 pub mod projected;
 pub mod shared;
 
@@ -41,6 +42,7 @@ pub use exists::IncrementalExistsConstraint;
 pub use flattened_bi::FlattenedBiConstraint;
 pub use grouped::GroupedUniConstraint;
 pub use incremental::IncrementalUniConstraint;
+pub use list_precedence::ListPrecedenceMakespanConstraint;
 pub use nary_incremental::{
     IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
     IncrementalTriConstraint,

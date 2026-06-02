@@ -29,7 +29,8 @@ pub use constraint::{
     CrossComplementedGroupedConstraint, CrossGroupedConstraint, GroupedUniConstraint,
     IncrementalBiConstraint, IncrementalCrossBiConstraint, IncrementalPentaConstraint,
     IncrementalQuadConstraint, IncrementalTriConstraint, IncrementalUniConstraint,
-    ProjectedComplementedGroupedConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
+    ListPrecedenceMakespanConstraint, ProjectedComplementedGroupedConstraint,
+    ProjectedGroupedConstraint, ProjectedUniConstraint,
 };
 
 /* ============================================================================

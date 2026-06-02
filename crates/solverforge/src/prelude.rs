@@ -10,8 +10,9 @@ pub use crate::{
     solverforge_constraints, BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet,
     CustomSearchPhase, Director, ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType,
     FixedWeight, FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore,
-    HardWeight, PartitionedSearchPhase, Projection, ProjectionSink, RepairCandidate, RepairLimits,
-    ScalarAssignmentRule, ScalarCandidate, ScalarEdit, ScalarGroup, ScalarGroupLimits,
-    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SharedNodeDiagnostics, SharedNodeId,
-    SharedNodeOperation, SimpleDecider, SoftScore, SolutionPartitioner, ThreadCount,
+    HardWeight, ListPrecedenceMakespanConstraint, PartitionedSearchPhase, Projection,
+    ProjectionSink, RepairCandidate, RepairLimits, ScalarAssignmentRule, ScalarCandidate,
+    ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget, Score, ScoreDirector, Search,
+    SearchContext, SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation, SimpleDecider,
+    SoftScore, SolutionPartitioner, ThreadCount,
 };

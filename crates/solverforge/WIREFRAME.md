@@ -70,6 +70,7 @@ src/
 - `IncrementalConstraintSealed` (marker trait required by direct custom `IncrementalConstraint` implementors)
 - `IncrementalUniConstraint`
 - `IncrementalBiConstraint`
+- `ListPrecedenceMakespanConstraint`
 - `Projection` (trait)
 - `ProjectionSink` (trait)
 
@@ -358,9 +359,9 @@ local-search selectors.
 - **Macro-built runtime slots stay model-owned.** `planning_model!` generates
   the hidden `PlanningModelSupport` impl that attaches nearby hooks plus scalar
   construction order-key hooks from `#[planning_variable]` `Option<usize>`
-  fields, and attaches list construction/owner hooks from
+  fields, and attaches list construction element-order and owner hooks from
   `#[planning_list_variable]`. Construction order-key hooks are
-  construction-only and do not reorder local-search scalar candidate
+  construction-only and do not reorder local-search scalar candidate or list
   neighborhoods.
 - **Partial fixed list ownership.** List variables can declare
   `element_owner_fn`; macro-generated runtime slots forward the hook to

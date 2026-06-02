@@ -7,6 +7,7 @@ use crate::heuristic::r#move::{
     ScalarMoveUnion,
 };
 
+#[allow(clippy::large_enum_variant)] // Inline storage keeps local-search move dispatch zero-erasure.
 pub enum NeighborhoodMove<S, V> {
     Scalar(ScalarMoveUnion<S, usize>),
     DynamicScalar(DynamicScalarChangeMove<S>),

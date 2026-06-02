@@ -437,7 +437,7 @@ where
     ) -> Option<Vec<usize>> {
         let owner_fn = self.state.element_owner_fn?;
         let mut bucket_sizes = vec![0; n_entities];
-        for element in unassigned.iter().copied() {
+        for &element in unassigned {
             let owner_idx = owner_fn(solution, &element)?;
             if owner_idx >= n_entities {
                 return None;
@@ -1485,12 +1485,10 @@ mod tests {
     #[test]
     fn owner_restricted_trial_budget_keeps_large_fixed_owner_construction_bounded() {
         assert!(
-            owner_restricted_regret_trial_count(&vec![20; 20])
-                > OWNER_RESTRICTED_REGRET_TRIAL_BUDGET
+            owner_restricted_regret_trial_count(&[20; 20]) > OWNER_RESTRICTED_REGRET_TRIAL_BUDGET
         );
         assert!(
-            owner_restricted_regret_trial_count(&vec![5; 10])
-                <= OWNER_RESTRICTED_REGRET_TRIAL_BUDGET
+            owner_restricted_regret_trial_count(&[5; 10]) <= OWNER_RESTRICTED_REGRET_TRIAL_BUDGET
         );
         assert!(
             owner_restricted_best_insertion_trial_count(&[47]) * 47

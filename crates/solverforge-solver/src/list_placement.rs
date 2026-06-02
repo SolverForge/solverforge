@@ -240,20 +240,18 @@ mod tests {
         Some(4)
     }
 
-    fn identity_owner_for_routes(_: &Vec<Vec<usize>>, element: &usize) -> Option<usize> {
+    struct Routes(Vec<Vec<usize>>);
+
+    fn identity_owner_for_routes(_: &Routes, element: &usize) -> Option<usize> {
         Some(*element)
     }
 
-    fn maybe_fixed_owner_for_routes(_: &Vec<Vec<usize>>, element: &usize) -> Option<usize> {
+    fn maybe_fixed_owner_for_routes(_: &Routes, element: &usize) -> Option<usize> {
         (*element < 2).then_some(*element)
     }
 
-    fn list_get_from_routes(
-        routes: &Vec<Vec<usize>>,
-        entity_idx: usize,
-        pos: usize,
-    ) -> Option<usize> {
-        routes.get(entity_idx)?.get(pos).copied()
+    fn list_get_from_routes(routes: &Routes, entity_idx: usize, pos: usize) -> Option<usize> {
+        routes.0.get(entity_idx)?.get(pos).copied()
     }
 
     #[test]
@@ -306,7 +304,7 @@ mod tests {
 
     #[test]
     fn selected_restrictions_detect_all_elements_fixed_to_current_entity() {
-        let routes = vec![vec![0], vec![1, 1]];
+        let routes = Routes(vec![vec![0], vec![1, 1]]);
         let selected = selected_owner_restrictions(
             Some(identity_owner_for_routes),
             &routes,
@@ -322,7 +320,7 @@ mod tests {
 
     #[test]
     fn selected_restrictions_keep_mixed_owner_matrix() {
-        let routes = vec![vec![0, 2], vec![1]];
+        let routes = Routes(vec![vec![0, 2], vec![1]]);
         let selected = selected_owner_restrictions(
             Some(maybe_fixed_owner_for_routes),
             &routes,

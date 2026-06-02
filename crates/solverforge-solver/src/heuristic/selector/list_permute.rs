@@ -490,8 +490,8 @@ fn nth_permutation(len: usize, mut rank: usize) -> SmallVec<[usize; MAX_LIST_PER
     for pos in 0..len {
         let suffix = len - pos - 1;
         let step = factorial(suffix);
-        let index = if step == 0 { 0 } else { rank / step };
-        rank %= step.max(1);
+        let index = rank / step;
+        rank %= step;
         permutation.push(remaining.remove(index));
     }
     permutation

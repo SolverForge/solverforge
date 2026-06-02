@@ -210,6 +210,7 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
+    model.assert_dynamic_descriptor_indexes_resolved();
     let mut neighborhoods = Vec::new();
     let default_config;
     let effective_config = match config {
@@ -340,6 +341,7 @@ where
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
 {
+    model.assert_dynamic_descriptor_indexes_resolved();
     match config.map(|ls| ls.local_search_type).unwrap_or_default() {
         LocalSearchType::AcceptorForager => LocalSearchStrategy::acceptor_forager(
             build_acceptor_forager_local_search(config, model, random_seed),

@@ -3,8 +3,14 @@
 use std::fmt;
 use std::sync::Arc;
 
-use crate::domain::{EntityClassId, VariableId};
+use crate::domain::{EntityClassId, SolutionDescriptor, VariableId};
 use crate::score::Score;
+
+mod backend;
+mod resolution;
+
+use backend::{BackendListAccess, BackendScalarAccess};
+use resolution::{resolve_dynamic_descriptor_index, DynamicVariableKind};
 
 /// Rust-owned dynamic planning model backend.
 ///
@@ -104,92 +110,6 @@ where
     fn remove(&self, solution: &mut S, row: usize, pos: usize) -> Option<usize>;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct BackendScalarAccess {
-    entity: EntityClassId,
-    variable: VariableId,
-}
-
-impl<S> DynamicScalarAccess<S> for BackendScalarAccess
-where
-    S: DynamicModelBackend,
-{
-    fn entity_class(&self) -> EntityClassId {
-        self.entity
-    }
-
-    fn variable(&self) -> VariableId {
-        self.variable
-    }
-
-    fn entity_count(&self, solution: &S) -> usize {
-        solution.entity_count(self.entity)
-    }
-
-    fn get(&self, solution: &S, row: usize) -> Option<usize> {
-        solution.get_scalar(self.entity, row, self.variable)
-    }
-
-    fn set(&self, solution: &mut S, row: usize, value: Option<usize>) {
-        solution.set_scalar(self.entity, row, self.variable, value);
-    }
-
-    fn candidate_values<'a>(&self, solution: &'a S, row: usize) -> &'a [usize] {
-        solution.candidate_values(self.entity, row, self.variable)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct BackendListAccess {
-    entity: EntityClassId,
-    variable: VariableId,
-}
-
-impl<S> DynamicListAccess<S> for BackendListAccess
-where
-    S: DynamicModelBackend,
-{
-    fn entity_class(&self) -> EntityClassId {
-        self.entity
-    }
-
-    fn variable(&self) -> VariableId {
-        self.variable
-    }
-
-    fn entity_count(&self, solution: &S) -> usize {
-        solution.entity_count(self.entity)
-    }
-
-    fn element_count(&self, solution: &S) -> usize {
-        solution.list_element_count(self.entity, self.variable)
-    }
-
-    fn element(&self, solution: &S, element_index: usize) -> Option<usize> {
-        solution.list_element(self.entity, self.variable, element_index)
-    }
-
-    fn assigned_elements(&self, solution: &S) -> Vec<usize> {
-        solution.list_assigned_elements(self.entity, self.variable)
-    }
-
-    fn len(&self, solution: &S, row: usize) -> usize {
-        solution.list_len(self.entity, row, self.variable)
-    }
-
-    fn get(&self, solution: &S, row: usize, pos: usize) -> Option<usize> {
-        solution.list_get(self.entity, row, self.variable, pos)
-    }
-
-    fn insert(&self, solution: &mut S, row: usize, pos: usize, value: usize) {
-        solution.list_insert(self.entity, row, self.variable, pos, value);
-    }
-
-    fn remove(&self, solution: &mut S, row: usize, pos: usize) -> Option<usize> {
-        solution.list_remove(self.entity, row, self.variable, pos)
-    }
-}
-
 /// Public dynamic scalar variable slot.
 pub struct DynamicScalarVariableSlot<S> {
     pub entity: EntityClassId,
@@ -197,6 +117,7 @@ pub struct DynamicScalarVariableSlot<S> {
     pub entity_type_name: &'static str,
     pub variable_name: &'static str,
     pub allows_unassigned: bool,
+    descriptor_index: Option<usize>,
     access: Arc<dyn DynamicScalarAccess<S>>,
 }
 
@@ -208,6 +129,7 @@ impl<S> Clone for DynamicScalarVariableSlot<S> {
             entity_type_name: self.entity_type_name,
             variable_name: self.variable_name,
             allows_unassigned: self.allows_unassigned,
+            descriptor_index: self.descriptor_index,
             access: Arc::clone(&self.access),
         }
     }
@@ -221,6 +143,7 @@ impl<S> fmt::Debug for DynamicScalarVariableSlot<S> {
             .field("entity_type_name", &self.entity_type_name)
             .field("variable_name", &self.variable_name)
             .field("allows_unassigned", &self.allows_unassigned)
+            .field("descriptor_index", &self.descriptor_index)
             .finish()
     }
 }
@@ -232,6 +155,7 @@ impl<S> PartialEq for DynamicScalarVariableSlot<S> {
             && self.entity_type_name == other.entity_type_name
             && self.variable_name == other.variable_name
             && self.allows_unassigned == other.allows_unassigned
+            && self.descriptor_index == other.descriptor_index
     }
 }
 
@@ -252,12 +176,56 @@ impl<S> DynamicScalarVariableSlot<S> {
             entity_type_name,
             variable_name,
             allows_unassigned,
+            descriptor_index: None,
             access,
         }
     }
 
+    pub fn with_descriptor_index(mut self, descriptor_index: usize) -> Self {
+        self.descriptor_index = Some(descriptor_index);
+        self
+    }
+
+    pub fn resolve_descriptor_index(
+        &mut self,
+        descriptor: &SolutionDescriptor,
+    ) -> Result<(), String> {
+        let descriptor_index = resolve_dynamic_descriptor_index(
+            descriptor,
+            self.entity,
+            self.variable,
+            self.entity_type_name,
+            self.variable_name,
+            DynamicVariableKind::Scalar,
+        )?;
+        if let Some(existing) = self.descriptor_index {
+            if existing != descriptor_index {
+                return Err(format!(
+                    "dynamic scalar variable {}.{} was pre-bound to descriptor index {existing}, but logical entity ID {} resolves to descriptor index {descriptor_index}",
+                    self.entity_type_name, self.variable_name, self.entity.0
+                ));
+            }
+        }
+        self.descriptor_index = Some(descriptor_index);
+        Ok(())
+    }
+
+    pub fn resolved_against(mut self, descriptor: &SolutionDescriptor) -> Result<Self, String> {
+        self.resolve_descriptor_index(descriptor)?;
+        Ok(self)
+    }
+
+    pub fn is_descriptor_resolved(&self) -> bool {
+        self.descriptor_index.is_some()
+    }
+
     pub fn descriptor_index(&self) -> usize {
-        self.entity.0
+        self.descriptor_index.unwrap_or_else(|| {
+            panic!(
+                "dynamic scalar variable {}.{} has not been resolved against a SolutionDescriptor",
+                self.entity_type_name, self.variable_name
+            )
+        })
     }
 
     pub fn matches_target(&self, entity_class: Option<&str>, variable_name: Option<&str>) -> bool {
@@ -332,6 +300,7 @@ pub struct DynamicListVariableSlot<S> {
     pub variable: VariableId,
     pub entity_type_name: &'static str,
     pub variable_name: &'static str,
+    descriptor_index: Option<usize>,
     access: Arc<dyn DynamicListAccess<S>>,
 }
 
@@ -342,6 +311,7 @@ impl<S> Clone for DynamicListVariableSlot<S> {
             variable: self.variable,
             entity_type_name: self.entity_type_name,
             variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
             access: Arc::clone(&self.access),
         }
     }
@@ -354,6 +324,7 @@ impl<S> fmt::Debug for DynamicListVariableSlot<S> {
             .field("variable", &self.variable)
             .field("entity_type_name", &self.entity_type_name)
             .field("variable_name", &self.variable_name)
+            .field("descriptor_index", &self.descriptor_index)
             .finish()
     }
 }
@@ -364,6 +335,7 @@ impl<S> PartialEq for DynamicListVariableSlot<S> {
             && self.variable == other.variable
             && self.entity_type_name == other.entity_type_name
             && self.variable_name == other.variable_name
+            && self.descriptor_index == other.descriptor_index
     }
 }
 
@@ -382,12 +354,56 @@ impl<S> DynamicListVariableSlot<S> {
             variable,
             entity_type_name,
             variable_name,
+            descriptor_index: None,
             access,
         }
     }
 
+    pub fn with_descriptor_index(mut self, descriptor_index: usize) -> Self {
+        self.descriptor_index = Some(descriptor_index);
+        self
+    }
+
+    pub fn resolve_descriptor_index(
+        &mut self,
+        descriptor: &SolutionDescriptor,
+    ) -> Result<(), String> {
+        let descriptor_index = resolve_dynamic_descriptor_index(
+            descriptor,
+            self.entity,
+            self.variable,
+            self.entity_type_name,
+            self.variable_name,
+            DynamicVariableKind::List,
+        )?;
+        if let Some(existing) = self.descriptor_index {
+            if existing != descriptor_index {
+                return Err(format!(
+                    "dynamic list variable {}.{} was pre-bound to descriptor index {existing}, but logical entity ID {} resolves to descriptor index {descriptor_index}",
+                    self.entity_type_name, self.variable_name, self.entity.0
+                ));
+            }
+        }
+        self.descriptor_index = Some(descriptor_index);
+        Ok(())
+    }
+
+    pub fn resolved_against(mut self, descriptor: &SolutionDescriptor) -> Result<Self, String> {
+        self.resolve_descriptor_index(descriptor)?;
+        Ok(self)
+    }
+
+    pub fn is_descriptor_resolved(&self) -> bool {
+        self.descriptor_index.is_some()
+    }
+
     pub fn descriptor_index(&self) -> usize {
-        self.entity.0
+        self.descriptor_index.unwrap_or_else(|| {
+            panic!(
+                "dynamic list variable {}.{} has not been resolved against a SolutionDescriptor",
+                self.entity_type_name, self.variable_name
+            )
+        })
     }
 
     pub fn matches_target(&self, entity_class: Option<&str>, variable_name: Option<&str>) -> bool {

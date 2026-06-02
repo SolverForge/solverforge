@@ -187,3 +187,25 @@ fn logical_entity_ids_distinguish_shared_rust_row_type() {
         Some("Task")
     );
 }
+
+#[test]
+fn logical_entity_ids_resolve_to_descriptor_indexes() {
+    let solution_desc = SolutionDescriptor::new("DynamicSolution", TypeId::of::<TestSolution>())
+        .with_entity(
+            EntityDescriptor::new("Vehicle", TypeId::of::<SharedDynamicRow>(), "vehicles")
+                .with_logical_id(EntityClassId(10)),
+        )
+        .with_entity(
+            EntityDescriptor::new("Task", TypeId::of::<SharedDynamicRow>(), "tasks")
+                .with_logical_id(EntityClassId(4)),
+        );
+
+    assert_eq!(
+        solution_desc.entity_descriptor_index_by_logical_id(EntityClassId(10)),
+        Some(0)
+    );
+    assert_eq!(
+        solution_desc.entity_descriptor_index_by_logical_id(EntityClassId(4)),
+        Some(1)
+    );
+}

@@ -131,10 +131,10 @@ where
 
             match self.stage {
                 DynamicListChangeStage::Intra => {
-                    while self.intra_dst_offset < src_len {
+                    while self.intra_dst_offset <= src_len {
                         let dst_pos = ordered_index(
                             self.intra_dst_offset,
-                            src_len,
+                            src_len + 1,
                             self.context,
                             0xD158_C4A4_6E00_0003 ^ src_entity as u64 ^ src_pos as u64,
                         );
@@ -242,8 +242,7 @@ where
         route_lens
             .iter()
             .map(|&source_len| {
-                let intra_tail = source_len.saturating_sub(1);
-                let intra_moves = intra_tail * intra_tail;
+                let intra_moves = source_len * source_len.saturating_sub(1);
                 let inter_destinations =
                     total_elements.saturating_sub(source_len) + entity_count.saturating_sub(1);
                 intra_moves + source_len * inter_destinations

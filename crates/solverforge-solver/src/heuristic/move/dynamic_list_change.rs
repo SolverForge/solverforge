@@ -65,6 +65,22 @@ impl<S> DynamicListChangeMove<S> {
         self.source_entity_index == self.dest_entity_index
     }
 
+    pub fn source_entity_index(&self) -> usize {
+        self.source_entity_index
+    }
+
+    pub fn source_position(&self) -> usize {
+        self.source_position
+    }
+
+    pub fn dest_entity_index(&self) -> usize {
+        self.dest_entity_index
+    }
+
+    pub fn dest_position(&self) -> usize {
+        self.dest_position
+    }
+
     fn adjusted_dest(&self) -> usize {
         if self.is_intra_list() && self.dest_position > self.source_position {
             self.dest_position - 1
@@ -89,7 +105,7 @@ where
 
         let dest_len = self.slot.list_len(solution, self.dest_entity_index);
         let max_dest = if self.is_intra_list() {
-            source_len - 1
+            source_len
         } else {
             dest_len
         };

@@ -44,6 +44,9 @@ where
         model: RuntimeModel<S, V, DM, IDM>,
         random_seed: Option<u64>,
     ) -> Self {
+        let model = model
+            .resolve_dynamic_descriptor_indexes(&descriptor)
+            .unwrap_or_else(|message| panic!("{message}"));
         Self {
             descriptor,
             model,

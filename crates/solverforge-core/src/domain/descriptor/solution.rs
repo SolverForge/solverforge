@@ -84,9 +84,15 @@ impl SolutionDescriptor {
         &self,
         logical_id: EntityClassId,
     ) -> Option<&EntityDescriptor> {
-        self.entity_logical_index
-            .get(&logical_id)
-            .and_then(|&idx| self.entity_descriptors.get(idx))
+        self.entity_descriptor_index_by_logical_id(logical_id)
+            .and_then(|idx| self.entity_descriptors.get(idx))
+    }
+
+    pub fn entity_descriptor_index_by_logical_id(
+        &self,
+        logical_id: EntityClassId,
+    ) -> Option<usize> {
+        self.entity_logical_index.get(&logical_id).copied()
     }
 
     pub fn genuine_variable_descriptors(&self) -> Vec<&VariableDescriptor> {

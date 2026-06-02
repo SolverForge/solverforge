@@ -1,7 +1,10 @@
 use std::any::TypeId;
 
 use solverforge_config::{CustomPhaseConfig, PartitionedSearchConfig, PhaseConfig, SolverConfig};
-use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+use solverforge_core::domain::{
+    DynamicModelBackend, DynamicScalarVariableSlot, EntityClassId, EntityDescriptor,
+    PlanningSolution, SolutionDescriptor, VariableDescriptor, VariableId,
+};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
@@ -9,7 +12,7 @@ use crate::run::ChannelProgressCallback;
 use crate::scope::{ProgressCallback, SolverScope};
 
 use super::{CustomSearchPhase, Search, SearchContext};
-use crate::builder::RuntimeModel;
+use crate::builder::{RuntimeModel, VariableSlot};
 
 #[derive(Clone, Debug)]
 struct TestSolution {
@@ -25,6 +28,75 @@ impl PlanningSolution for TestSolution {
 
     fn set_score(&mut self, score: Option<Self::Score>) {
         self.score = score;
+    }
+}
+
+impl DynamicModelBackend for TestSolution {
+    type Score = SoftScore;
+
+    fn entity_count(&self, _entity: EntityClassId) -> usize {
+        0
+    }
+
+    fn get_scalar(
+        &self,
+        _entity: EntityClassId,
+        _row: usize,
+        _variable: VariableId,
+    ) -> Option<usize> {
+        None
+    }
+
+    fn set_scalar(
+        &mut self,
+        _entity: EntityClassId,
+        _row: usize,
+        _variable: VariableId,
+        _value: Option<usize>,
+    ) {
+    }
+
+    fn list_len(&self, _entity: EntityClassId, _row: usize, _variable: VariableId) -> usize {
+        0
+    }
+
+    fn list_get(
+        &self,
+        _entity: EntityClassId,
+        _row: usize,
+        _variable: VariableId,
+        _pos: usize,
+    ) -> Option<usize> {
+        None
+    }
+
+    fn list_insert(
+        &mut self,
+        _entity: EntityClassId,
+        _row: usize,
+        _variable: VariableId,
+        _pos: usize,
+        _value: usize,
+    ) {
+    }
+
+    fn list_remove(
+        &mut self,
+        _entity: EntityClassId,
+        _row: usize,
+        _variable: VariableId,
+        _pos: usize,
+    ) -> Option<usize> {
+        None
+    }
+
+    fn candidate_values(
+        &self,
+        _entity: EntityClassId,
+        _row: usize,
+        _variable: VariableId,
+    ) -> &[usize] {
+        &[]
     }
 }
 
@@ -52,6 +124,36 @@ fn search_context() -> SearchContext<TestSolution> {
         RuntimeModel::new(Vec::new()),
         Some(7),
     )
+}
+
+#[test]
+fn search_context_resolves_dynamic_slots_for_custom_phase_builders() {
+    let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_entity(
+            EntityDescriptor::new("Vehicle", TypeId::of::<TestSolution>(), "vehicles")
+                .with_logical_id(EntityClassId(1)),
+        )
+        .with_entity(
+            EntityDescriptor::new("Task", TypeId::of::<TestSolution>(), "tasks")
+                .with_logical_id(EntityClassId(0))
+                .with_variable(
+                    VariableDescriptor::genuine("worker").with_logical_id(VariableId(0)),
+                ),
+        );
+    let scalar =
+        DynamicScalarVariableSlot::new(EntityClassId(0), VariableId(0), "Task", "worker", false);
+    let model: RuntimeModel<TestSolution, usize, (), ()> =
+        RuntimeModel::new(vec![VariableSlot::DynamicScalar(scalar)]);
+
+    let context = SearchContext::new(descriptor, model, Some(7));
+    let scalar = context
+        .model()
+        .dynamic_scalar_variables()
+        .next()
+        .expect("dynamic scalar slot");
+
+    assert!(scalar.is_descriptor_resolved());
+    assert_eq!(scalar.descriptor_index(), 1);
 }
 
 fn custom_config(names: &[&str]) -> SolverConfig {

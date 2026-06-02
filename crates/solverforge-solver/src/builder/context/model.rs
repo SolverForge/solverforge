@@ -1,7 +1,9 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use solverforge_core::domain::{DynamicListVariableSlot, DynamicScalarVariableSlot};
+use solverforge_core::domain::{
+    DynamicListVariableSlot, DynamicScalarVariableSlot, SolutionDescriptor,
+};
 
 use super::{ConflictRepair, ListVariableSlot, ScalarGroupBinding, ScalarVariableSlot};
 
@@ -70,6 +72,34 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
     pub fn with_conflict_repairs(mut self, repairs: Vec<ConflictRepair<S>>) -> Self {
         self.conflict_repairs = repairs;
         self
+    }
+
+    pub fn resolve_dynamic_descriptor_indexes(
+        mut self,
+        descriptor: &SolutionDescriptor,
+    ) -> Result<Self, String> {
+        for variable in &mut self.variables {
+            match variable {
+                VariableSlot::DynamicScalar(slot) => slot.resolve_descriptor_index(descriptor)?,
+                VariableSlot::DynamicList(slot) => slot.resolve_descriptor_index(descriptor)?,
+                VariableSlot::Scalar(_) | VariableSlot::List(_) => {}
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn assert_dynamic_descriptor_indexes_resolved(&self) {
+        for variable in &self.variables {
+            match variable {
+                VariableSlot::DynamicScalar(slot) => {
+                    let _ = slot.descriptor_index();
+                }
+                VariableSlot::DynamicList(slot) => {
+                    let _ = slot.descriptor_index();
+                }
+                VariableSlot::Scalar(_) | VariableSlot::List(_) => {}
+            }
+        }
     }
 
     pub fn variables(&self) -> &[VariableSlot<S, V, DM, IDM>] {
@@ -409,5 +439,18 @@ mod tests {
         );
         assert_eq!(model.scalar_variables().count(), 0);
         assert_eq!(model.list_variables().count(), 0);
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "dynamic scalar variable Task.worker has not been resolved against a SolutionDescriptor"
+    )]
+    fn runtime_model_rejects_unresolved_dynamic_slots_for_selector_use() {
+        let scalar =
+            DynamicScalarVariableSlot::new(EntityClassId(0), VariableId(0), "Task", "worker", true);
+        let model: RuntimeModel<DynamicRows, usize, (), ()> =
+            RuntimeModel::new(vec![VariableSlot::DynamicScalar(scalar)]);
+
+        model.assert_dynamic_descriptor_indexes_resolved();
     }
 }

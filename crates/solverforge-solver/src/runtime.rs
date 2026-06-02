@@ -110,6 +110,9 @@ where
         descriptor: SolutionDescriptor,
         model: RuntimeModel<S, V, DM, IDM>,
     ) -> Self {
+        let model = model
+            .resolve_dynamic_descriptor_indexes(&descriptor)
+            .unwrap_or_else(|message| panic!("{message}"));
         Self {
             config,
             descriptor,
@@ -343,6 +346,10 @@ where
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
 {
     let mut phases = Vec::new();
+    let model = model
+        .clone()
+        .resolve_dynamic_descriptor_indexes(descriptor)
+        .unwrap_or_else(|message| panic!("{message}"));
 
     if config.phases.is_empty() {
         phases.push(RuntimePhase::Construction(Construction::new(
@@ -352,7 +359,7 @@ where
         )));
         if !model.has_dynamic_variables() {
             for phase in crate::builder::search::defaults::default_local_search_phases(
-                model,
+                &model,
                 config.random_seed,
             ) {
                 phases.push(RuntimePhase::LocalSearch(phase));
@@ -373,7 +380,7 @@ where
             PhaseConfig::LocalSearch(ls) => {
                 phases.push(RuntimePhase::LocalSearch(build_local_search(
                     Some(ls),
-                    model,
+                    &model,
                     config.random_seed,
                 )));
             }

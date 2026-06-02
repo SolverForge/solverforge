@@ -128,6 +128,11 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 `entity_class = "..."` and `variable_name = "..."` keys when targeting one
 planning variable family.
 
+List construction uses the model's plain `construction_element_order_key`
+list-variable hook when that hook is attached through existing list metadata and
+slots. Variables without the hook keep element source order; there is no extra
+config enum, trait, or selector interface for this behavior.
+
 `construction_obligation` controls nullable scalar construction and required
 assignment-backed scalar construction. The default `preserve_unassigned` allows
 an optional scalar slot to remain unassigned when the current unassigned state
@@ -343,6 +348,35 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `entity_class` | `Option<String>` |
 | `variable_name` | `Option<String>` |
 
+### `ListPermuteMoveConfig`
+
+Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
+
+| Field | Type | Default |
+|-------|------|---------|
+| `min_window_size` | `usize` | `2` |
+| `max_window_size` | `usize` | `5` |
+| `entity_class` | `Option<String>` | `None` |
+| `variable_name` | `Option<String>` | `None` |
+
+`list_permute_move_selector` permutes one contiguous window within a list. It
+is a concrete list move family with normal cursor generation, tabu metadata,
+and undo handling.
+
+### `ListPrecedenceMoveConfig`
+
+Derives: `Debug, Clone, Default, Deserialize, Serialize`.
+
+| Field | Type |
+|-------|------|
+| `entity_class` | `Option<String>` |
+| `variable_name` | `Option<String>` |
+
+`list_precedence_move_selector` targets list variables that expose plain
+precedence hooks through existing list-slot metadata. It streams critical-path
+list moves for generic precedence makespan models and does not introduce a new
+trait or benchmark-specific selector layer.
+
 ### `NearbyListSwapMoveConfig`
 
 Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default` (max_nearby = 10).
@@ -449,6 +483,8 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 | `min_ruin_count` | `usize` | `2` |
 | `max_ruin_count` | `usize` | `5` |
 | `moves_per_step` | `Option<usize>` | `None` |
+| `max_source_list_len` | `Option<usize>` | `None` |
+| `skip_empty_destinations` | `bool` | `false` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 

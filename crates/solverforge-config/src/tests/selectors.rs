@@ -86,6 +86,71 @@ fn test_list_ruin_max_source_list_len_parsing() {
 }
 
 #[test]
+fn test_list_permute_parsing() {
+    let toml = r#"
+        [[phases]]
+        type = "local_search"
+
+        [phases.move_selector]
+        type = "union_move_selector"
+
+        [[phases.move_selector.selectors]]
+        type = "list_permute_move_selector"
+        min_window_size = 2
+        max_window_size = 5
+        entity_class = "Route"
+        variable_name = "visits"
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    let PhaseConfig::LocalSearch(local_search) = &config.phases[0] else {
+        panic!("phase should be local_search");
+    };
+    let Some(MoveSelectorConfig::UnionMoveSelector(union)) = &local_search.move_selector else {
+        panic!("local search should have a union move selector");
+    };
+    let MoveSelectorConfig::ListPermuteMoveSelector(permute) = &union.selectors[0] else {
+        panic!("union child should be list_permute");
+    };
+    assert_eq!(permute.min_window_size, 2);
+    assert_eq!(permute.max_window_size, 5);
+    assert_eq!(permute.target.entity_class.as_deref(), Some("Route"));
+    assert_eq!(permute.target.variable_name.as_deref(), Some("visits"));
+}
+
+#[test]
+fn test_list_precedence_parsing() {
+    let toml = r#"
+        [[phases]]
+        type = "local_search"
+
+        [phases.move_selector]
+        type = "union_move_selector"
+
+        [[phases.move_selector.selectors]]
+        type = "list_precedence_move_selector"
+        entity_class = "Machine"
+        variable_name = "operations"
+    "#;
+
+    let config = SolverConfig::from_toml_str(toml).unwrap();
+    let PhaseConfig::LocalSearch(local_search) = &config.phases[0] else {
+        panic!("phase should be local_search");
+    };
+    let Some(MoveSelectorConfig::UnionMoveSelector(union)) = &local_search.move_selector else {
+        panic!("local search should have a union move selector");
+    };
+    let MoveSelectorConfig::ListPrecedenceMoveSelector(precedence) = &union.selectors[0] else {
+        panic!("union child should be list_precedence");
+    };
+    assert_eq!(precedence.target.entity_class.as_deref(), Some("Machine"));
+    assert_eq!(
+        precedence.target.variable_name.as_deref(),
+        Some("operations")
+    );
+}
+
+#[test]
 fn test_union_selection_order_defaults_to_sequential() {
     let toml = r#"
         [[phases]]

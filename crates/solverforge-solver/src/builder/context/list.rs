@@ -41,6 +41,9 @@ pub struct ListVariableSlot<S, V, DM, IDM> {
     pub route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
     pub route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
     pub element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    pub construction_element_order_key: Option<fn(&S, V) -> i64>,
+    pub precedence_duration_fn: Option<fn(&S, V) -> usize>,
+    pub precedence_successors_fn: Option<fn(&S, V, &mut Vec<V>)>,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
@@ -74,6 +77,9 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
             route_distance_fn: self.route_distance_fn,
             route_feasible_fn: self.route_feasible_fn,
             element_owner_fn: self.element_owner_fn,
+            construction_element_order_key: self.construction_element_order_key,
+            precedence_duration_fn: self.precedence_duration_fn,
+            precedence_successors_fn: self.precedence_successors_fn,
             _phantom: PhantomData,
         }
     }
@@ -137,6 +143,9 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             route_distance_fn,
             route_feasible_fn,
             element_owner_fn: None,
+            construction_element_order_key: None,
+            precedence_duration_fn: None,
+            precedence_successors_fn: None,
             _phantom: PhantomData,
         }
     }
@@ -146,6 +155,24 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     ) -> Self {
         self.element_owner_fn = element_owner_fn;
+        self
+    }
+
+    pub fn with_construction_element_order_key(
+        mut self,
+        construction_element_order_key: Option<fn(&S, V) -> i64>,
+    ) -> Self {
+        self.construction_element_order_key = construction_element_order_key;
+        self
+    }
+
+    pub fn with_precedence_hooks(
+        mut self,
+        duration_fn: Option<fn(&S, V) -> usize>,
+        successors_fn: Option<fn(&S, V, &mut Vec<V>)>,
+    ) -> Self {
+        self.precedence_duration_fn = duration_fn;
+        self.precedence_successors_fn = successors_fn;
         self
     }
 
@@ -179,6 +206,10 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
 
     pub fn supports_ruin(&self) -> bool {
         true
+    }
+
+    pub fn supports_precedence_moves(&self) -> bool {
+        self.precedence_duration_fn.is_some() && self.precedence_successors_fn.is_some()
     }
 }
 

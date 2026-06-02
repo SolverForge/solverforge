@@ -465,6 +465,78 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                 (#entity_type_name, #variable_name) => #path(solution, *element),
             });
         }
+
+        if let (Some(variable_name), Some(path)) = (
+            &entity.list_variable_name,
+            &entity.list_construction_element_order_key,
+        ) {
+            let runtime_helper = format_ident!(
+                "__solverforge_runtime_list_construction_element_order_{}",
+                entity_field
+            );
+            list_runtime_helpers.push(quote! {
+                fn #runtime_helper(
+                    solution: &#solution_path,
+                    element: usize,
+                ) -> i64 {
+                    #path(solution, element)
+                }
+            });
+            list_runtime_attachments.push(quote! {
+                if slot.descriptor_index == #descriptor_index
+                    && slot.variable_name == #variable_name
+                {
+                    slot = slot.with_construction_element_order_key(
+                        ::core::option::Option::Some(#runtime_helper),
+                    );
+                }
+            });
+        }
+
+        if let (
+            Some(variable_name),
+            Some(duration_path),
+            Some(successors_path),
+        ) = (
+            &entity.list_variable_name,
+            &entity.list_precedence_duration_fn,
+            &entity.list_precedence_successors_fn,
+        ) {
+            let duration_helper = format_ident!(
+                "__solverforge_runtime_list_precedence_duration_{}",
+                entity_field
+            );
+            let successors_helper = format_ident!(
+                "__solverforge_runtime_list_precedence_successors_{}",
+                entity_field
+            );
+            list_runtime_helpers.push(quote! {
+                fn #duration_helper(
+                    solution: &#solution_path,
+                    element: usize,
+                ) -> usize {
+                    #duration_path(solution, element)
+                }
+
+                fn #successors_helper(
+                    solution: &#solution_path,
+                    element: usize,
+                    out: &mut ::std::vec::Vec<usize>,
+                ) {
+                    #successors_path(solution, element, out)
+                }
+            });
+            list_runtime_attachments.push(quote! {
+                if slot.descriptor_index == #descriptor_index
+                    && slot.variable_name == #variable_name
+                {
+                    slot = slot.with_precedence_hooks(
+                        ::core::option::Option::Some(#duration_helper),
+                        ::core::option::Option::Some(#successors_helper),
+                    );
+                }
+            });
+        }
     }
 
     Ok(quote! {

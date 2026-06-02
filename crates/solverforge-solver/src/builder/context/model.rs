@@ -179,6 +179,17 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
         self.list_variables().any(ListVariableSlot::supports_ruin)
     }
 
+    pub fn list_precedence_variables(
+        &self,
+    ) -> impl Iterator<Item = &ListVariableSlot<S, V, DM, IDM>> {
+        self.list_variables()
+            .filter(|variable| variable.supports_precedence_moves())
+    }
+
+    pub fn has_list_precedence_variables(&self) -> bool {
+        self.list_precedence_variables().next().is_some()
+    }
+
     pub fn has_k_opt_variables(&self) -> bool {
         self.list_variables().any(ListVariableSlot::supports_k_opt)
     }

@@ -44,6 +44,12 @@ pub enum MoveSelectorConfig {
     // List swap move selector — swaps single elements within/between routes.
     ListSwapMoveSelector(ListSwapMoveConfig),
 
+    // List permute move selector — permutes contiguous windows within routes.
+    ListPermuteMoveSelector(ListPermuteMoveConfig),
+
+    // List precedence move selector — prioritizes critical list arcs in precedence makespan models.
+    ListPrecedenceMoveSelector(ListPrecedenceMoveConfig),
+
     // Nearby list swap move selector — distance-pruned element swap.
     NearbyListSwapMoveSelector(NearbyListSwapMoveConfig),
 
@@ -240,6 +246,36 @@ impl Default for NearbyListChangeMoveConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ListSwapMoveConfig {
+    #[serde(flatten)]
+    pub target: VariableTargetConfig,
+}
+
+// Configuration for `ListPermuteMoveSelector`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListPermuteMoveConfig {
+    // Minimum window size (inclusive). Default: 2.
+    pub min_window_size: usize,
+    // Maximum window size (inclusive). Default: 5.
+    pub max_window_size: usize,
+    #[serde(flatten)]
+    pub target: VariableTargetConfig,
+}
+
+impl Default for ListPermuteMoveConfig {
+    fn default() -> Self {
+        Self {
+            min_window_size: 2,
+            max_window_size: 5,
+            target: VariableTargetConfig::default(),
+        }
+    }
+}
+
+// Configuration for `ListPrecedenceMoveSelector`.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ListPrecedenceMoveConfig {
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }

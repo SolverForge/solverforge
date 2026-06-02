@@ -92,6 +92,9 @@ struct EntityMetadata {
     list_variable_name: Option<String>,
     list_element_collection: Option<String>,
     list_element_owner_fn: Option<syn::Path>,
+    list_construction_element_order_key: Option<syn::Path>,
+    list_precedence_duration_fn: Option<syn::Path>,
+    list_precedence_successors_fn: Option<syn::Path>,
 }
 
 struct SolutionCollection {

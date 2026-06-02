@@ -114,6 +114,7 @@ Current public naming follows neutral Rust contracts rather than helper-role pre
   - Scalar ruin-recreate, composite moves, cartesian composition, and nearby selection for scalar and list neighborhoods
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Model Macros**: `planning_model!`, `#[solverforge_constraints]`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
+- **Dynamic Bridge**: `solverforge-bridge` contracts for host-language integrations, with logical entity/fact/variable IDs, dynamic score support, and descriptor-resolved scalar/list slots
 - **Scalar Variables**: `#[planning_variable]` fields store candidate indexes
   as `Option<usize>`; keep external IDs on facts or entities.
 - **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, grouped scalar move selectors, conflict-repair selectors, selector telemetry, and level-aware simulated annealing configuration
@@ -377,46 +378,27 @@ models show average `candidates`.
 
 ![SERIO incremental scoring](assets/SERIO.jpg)
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         solverforge                             │
-│                    (facade + re-exports)                        │
-└─────────────────────────────────────────────────────────────────┘
-        │              │              │              │
-        ▼              ▼              ▼              ▼
-┌──────────────┬──────────────┬──────────────┬──────────────┐
-│solverforge-  │solverforge-  │solverforge-  │solverforge-  │
-│   solver     │   scoring    │   config     │   console    │
-│              │              │              │              │
-│ • Phases     │ • Constraint │ • TOML       │ • Banner     │
-│ • Moves      │   Streams    │ • Builders   │ • Tracing    │
-│ • Selectors  │ • Score      │              │ • Progress   │
-│ • Acceptors  │   Directors  │              │              │
-│ • Termination│ • SERIO      │              │              │
-│ • Manager    │   Engine     │              │              │
-│ • Telemetry  │              │              │              │
-└──────────────┴──────────────┴──────────────┴──────────────┘
-        │              │
-        └──────┬───────┘
-               ▼
-        ┌──────────────────────────────┐
-        │       solverforge-core       │
-        │                              │
-        │ • Score types                │
-        │ • Domain traits              │
-        │ • Descriptors                │
-        │ • Variable system            │
-        └──────────────────────────────┘
-                       │
-                       ▼
-        ┌──────────────────────────────┐
-        │      solverforge-macros      │
-        │                              │
-        │ • planning_model!           │
-        │ • #[planning_solution]       │
-        │ • #[planning_entity]         │
-        │ • #[problem_fact]            │
-        └──────────────────────────────┘
+```text
+solverforge
+  facade + prelude + public re-exports
+  |
+  |-- solverforge-core      scores, domain traits, descriptors, logical IDs
+  |-- solverforge-macros    planning_model! and attribute macros
+  |-- solverforge-scoring   ConstraintStream API and SERIO scoring
+  |-- solverforge-config    TOML/YAML configuration
+  |-- solverforge-solver    phases, moves, selectors, runtime, SolverManager
+  |-- solverforge-bridge    dynamic host-language binding contracts
+  |-- solverforge-cvrp      VRP helper traits, meters, and route hooks
+  `-- solverforge-console   optional tracing console feature
+
+Dependency layers:
+  solverforge-scoring -> solverforge-core
+  solverforge-config  -> solverforge-core
+  solverforge-solver  -> solverforge-core + solverforge-scoring + solverforge-config
+  solverforge-bridge  -> solverforge-core + solverforge-scoring + solverforge-config + solverforge-solver
+  solverforge-cvrp    -> solverforge-solver
+  solverforge-macros  -> proc-macro dependencies only; generated code references the facade
+  solverforge-console -> tracing only
 ```
 
 ## Crate Overview
@@ -424,6 +406,7 @@ models show average `candidates`.
 | Crate | Purpose |
 |-------|---------|
 | `solverforge` | Main facade with prelude and re-exports |
+| `solverforge-bridge` | Dynamic host-language binding contracts: logical IDs, dynamic score support, dynamic slots, and binding runner helper |
 | `solverforge-core` | Core types: scores, domain traits, descriptors |
 | `solverforge-solver` | Solver engine: phases, moves, termination, SolverManager, telemetry |
 | `solverforge-scoring` | ConstraintStream API, SERIO incremental scoring |
@@ -572,6 +555,7 @@ Typical throughput: 300k-1M moves/second depending on constraint complexity for 
 The current checked-in workspace exposes:
 
 - the `solverforge` facade crate for application code;
+- the `solverforge-bridge` crate for dynamic host-language binding contracts;
 - `solverforge-cli` as the recommended first project path;
 - model-owned `planning_model!` domains with generated collection sources;
 - scalar, list, grouped-scalar, assignment-backed scalar-group,

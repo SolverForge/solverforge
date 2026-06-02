@@ -41,12 +41,17 @@ src/
 ├── domain/
 │   ├── mod.rs                             — Module declarations and re-exports for domain types
 │   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId, ListVariableSolution
+│   ├── dynamic.rs                         — DynamicModelBackend plus dynamic scalar/list access and descriptor-resolved slot adapters for host-language bindings
+│   ├── dynamic/
+│   │   ├── backend.rs                     — DynamicModelBackend-backed scalar/list access adapters
+│   │   └── resolution.rs                  — Logical ID to descriptor-index resolution and validation
 │   ├── entity_ref.rs                      — EntityRef, EntityExtractor trait, EntityCollectionExtractor
 │   ├── variable.rs                        — VariableType, ShadowVariableKind, ValueRangeType, ChainedVariableInfo
 │   ├── value_range.rs                     — ValueRangeProvider trait, FieldValueRangeProvider, ComputedValueRangeProvider, StaticValueRange, IntegerRange
 │   ├── descriptor/
 │   │   ├── mod.rs                         — Re-exports descriptor types
 │   │   ├── entity.rs                      — EntityDescriptor struct
+│   │   ├── identity.rs                    — EntityClassId, ProblemFactClassId, VariableId logical descriptor identifiers
 │   │   ├── solution.rs                    — SolutionDescriptor struct
 │   │   ├── problem_fact.rs                — ProblemFactDescriptor struct
 │   │   ├── var_descriptor.rs              — VariableDescriptor struct
@@ -418,6 +423,7 @@ Implements `ValueRangeProvider<S, i64>` and `ValueRangeProvider<S, i32>` for any
 pub struct EntityDescriptor {
     pub type_name: &'static str,
     pub type_id: TypeId,
+    pub logical_id: Option<EntityClassId>,
     pub solution_field: &'static str,
     pub is_collection: bool,
     pub variable_descriptors: Vec<VariableDescriptor>,
@@ -427,11 +433,13 @@ pub struct EntityDescriptor {
 }
 ```
 
-Builder methods: `with_extractor()`, `with_variable()`, `with_id_field()`, `with_pin_field()`
+Builder methods: `with_extractor()`, `with_logical_id()`, `with_variable()`, `with_id_field()`, `with_pin_field()`
 
 Query methods: `genuine_variable_descriptors()`, `shadow_variable_descriptors()`, `find_variable(&str)`, `has_genuine_variables()`, `has_extractor()`, `entity_count(&dyn Any)`, `get_entity()`, `get_entity_mut()`, `entity_refs()`, `for_each_entity()`, `for_each_entity_mut()`
 
 Manual `Clone` and `Debug` impls.
+
+Logical IDs: `with_logical_id(EntityClassId)` binds dynamic host-language entity classes to descriptor indexes independently of descriptor order.
 
 #### `SolutionDescriptor`
 
@@ -444,12 +452,13 @@ pub struct SolutionDescriptor {
     pub score_field: &'static str,
     pub score_is_optional: bool,
     entity_type_index: HashMap<TypeId, usize>,  // private, O(1) lookup
+    entity_logical_index: HashMap<EntityClassId, usize>,  // private, logical ID -> descriptor index
 }
 ```
 
 Builder methods: `with_entity()`, `with_problem_fact()`, `with_score_field()`
 
-Query methods: `find_entity_descriptor(&str)`, `find_entity_descriptor_by_type(TypeId)`, `genuine_variable_descriptors()`, `shadow_variable_descriptors()`, `total_entity_count(&dyn Any)`, `all_entity_refs(&dyn Any)`, `for_each_entity()`, `get_entity()`, `get_entity_mut()`, `entity_descriptor_count()`, `problem_fact_descriptor_count()`, `all_extractors_configured()`
+Query methods: `find_entity_descriptor(&str)`, `find_entity_descriptor_by_type(TypeId)`, `find_entity_descriptor_by_logical_id(EntityClassId)`, `entity_descriptor_index_by_logical_id(EntityClassId)`, `genuine_variable_descriptors()`, `shadow_variable_descriptors()`, `total_entity_count(&dyn Any)`, `all_entity_refs(&dyn Any)`, `for_each_entity()`, `get_entity()`, `get_entity_mut()`, `entity_descriptor_count()`, `problem_fact_descriptor_count()`, `all_extractors_configured()`
 
 #### `ProblemFactDescriptor`
 
@@ -457,6 +466,7 @@ Query methods: `find_entity_descriptor(&str)`, `find_entity_descriptor_by_type(T
 pub struct ProblemFactDescriptor {
     pub type_name: &'static str,
     pub type_id: TypeId,
+    pub logical_id: Option<ProblemFactClassId>,
     pub solution_field: &'static str,
     pub is_collection: bool,
     pub id_field: Option<&'static str>,
@@ -464,13 +474,14 @@ pub struct ProblemFactDescriptor {
 }
 ```
 
-Builder methods: `with_extractor()`, `single()`, `with_id_field()`
+Builder methods: `with_extractor()`, `with_logical_id()`, `single()`, `with_id_field()`
 
 #### `VariableDescriptor`
 
 ```rust
 pub struct VariableDescriptor {
     pub name: &'static str,
+    pub logical_id: Option<VariableId>,
     pub variable_type: VariableType,
     pub allows_unassigned: bool,
     pub value_range_provider: Option<&'static str>,
@@ -492,7 +503,51 @@ pub struct VariableDescriptor {
 
 Constructors: `genuine(&str)`, `chained(&str)`, `list(&str)`, `shadow(&str, ShadowVariableKind)`, `piggyback(&str, &str)`
 
-Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_candidate_values()`, `with_nearby_value_candidates()`, `with_nearby_entity_candidates()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`, `with_construction_entity_order_key()`, `with_construction_value_order_key()`
+Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_logical_id()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_candidate_values()`, `with_nearby_value_candidates()`, `with_nearby_entity_candidates()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`, `with_construction_entity_order_key()`, `with_construction_value_order_key()`
+
+### Dynamic Binding Slots
+
+`DynamicModelBackend` is the Rust-owned dynamic planning model backend contract for host-language integrations. It exposes logical `EntityClassId`/`VariableId` scalar and list access, candidate values, and list element enumeration.
+
+Required methods: `entity_count()`, `get_scalar()`, `set_scalar()`,
+`list_len()`, `list_get()`, `list_insert()`, `list_remove()`,
+`candidate_values()`.
+
+Default list-element methods: `list_element_count()` returns `0`,
+`list_element()` returns the element index, and `list_assigned_elements()`
+returns an empty vector.
+
+`DynamicScalarAccess<S>` is the object-safe scalar access trait used by custom
+slot adapters. Methods: `entity_class()`, `variable()`, `entity_count()`,
+`get()`, `set()`, and `candidate_values()`.
+
+`DynamicListAccess<S>` is the object-safe list access trait used by custom slot
+adapters. Methods: `entity_class()`, `variable()`, `entity_count()`,
+`element_count()`, `element()`, `assigned_elements()`, `len()`, `get()`,
+`insert()`, and `remove()`.
+
+`DynamicScalarVariableSlot<S>` carries logical entity/variable IDs, display
+names, `allows_unassigned`, a dynamic access adapter, and a resolved descriptor
+index. Constructors: `new()` for `S: DynamicModelBackend`, or `with_access()`
+for custom adapters. Descriptor methods: `with_descriptor_index()`,
+`resolve_descriptor_index(&SolutionDescriptor)`, `resolved_against(&SolutionDescriptor)`,
+`is_descriptor_resolved()`, and `descriptor_index()`. Runtime access methods:
+`matches_target()`, `entity_count()`, `current_value()`, `set_value()`,
+`candidate_values()`, and `value_is_legal()`.
+
+`DynamicListVariableSlot<S>` carries logical entity/variable IDs, display
+names, a dynamic list access adapter, and a resolved descriptor index.
+Constructors: `new()` for `S: DynamicModelBackend`, or `with_access()` for
+custom adapters. Descriptor methods: `with_descriptor_index()`,
+`resolve_descriptor_index(&SolutionDescriptor)`, `resolved_against(&SolutionDescriptor)`,
+`is_descriptor_resolved()`, and `descriptor_index()`. Runtime access methods:
+`matches_target()`, `entity_count()`, `element_count()`, `element()`,
+`assigned_elements()`, `list_len()`, `list_get()`, `list_insert()`, and
+`list_remove()`.
+
+Dynamic slot resolution validates logical entity ID, entity type name, logical
+variable ID, variable name, and scalar/list variable kind before runtime
+construction or local-search selectors use score-director notifications.
 
 Scalar hook type aliases:
 Scalar planning variables use `Option<usize>` candidate indexes. Domain IDs can

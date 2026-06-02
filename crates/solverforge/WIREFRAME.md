@@ -10,6 +10,7 @@ The CLI lives in the standalone `solverforge-cli` repository and is not part of 
 ## Dependencies
 
 - `solverforge-core` (path) — Score types, domain traits
+- `solverforge-bridge` (path) — Dynamic host-language binding contracts
 - `solverforge-macros` (path) — Attribute and derive macros
 - `solverforge-scoring` (path) — Constraint API, Director
 - `solverforge-solver` (path) — Solver engine, manager, phases
@@ -56,6 +57,16 @@ src/
 - `HardMediumSoftScore`
 - `HardSoftDecimalScore`
 - `BendableScore`
+
+### Logical Descriptor IDs (from `solverforge-core::domain`)
+
+- `EntityClassId`
+- `ProblemFactClassId`
+- `VariableId`
+
+### Dynamic Bridge
+
+- `solverforge::bridge` module alias, re-exporting `solverforge-bridge`
 
 ### Constraint API (from `solverforge-scoring`)
 
@@ -193,10 +204,11 @@ pub use crate::{
     BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, CustomSearchPhase, Director,
     ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType, FixedWeight,
     FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, HardWeight,
-    PartitionedSearchPhase, Projection, ProjectionSink, RepairCandidate, RepairLimits,
-    ScalarAssignmentRule, ScalarCandidate, ScalarEdit, ScalarGroup, ScalarGroupLimits,
-    ScalarTarget, Score, ScoreDirector, Search, SearchContext, SharedNodeDiagnostics, SharedNodeId,
-    SharedNodeOperation, SimpleDecider, SoftScore, SolutionPartitioner, ThreadCount,
+    ListPrecedenceMakespanConstraint, PartitionedSearchPhase, Projection, ProjectionSink,
+    RepairCandidate, RepairLimits, ScalarAssignmentRule, ScalarCandidate, ScalarEdit,
+    ScalarGroup, ScalarGroupLimits, ScalarTarget, Score, ScoreDirector, Search, SearchContext,
+    SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation, SimpleDecider, SoftScore,
+    SolutionPartitioner, ThreadCount,
 };
 ```
 
@@ -297,6 +309,7 @@ Used exclusively by macro-generated code. Not public API.
 **Domain types (from `solverforge-core::domain`):**
 - `PlanningEntity`, `PlanningSolution`, `PlanningId`, `ProblemFact`
 - `EntityDescriptor`, `SolutionDescriptor`, `ProblemFactDescriptor`, `VariableDescriptor`
+- `EntityClassId`, `ProblemFactClassId`, `VariableId`
 - `EntityCollectionExtractor`
 - `ShadowVariableKind`, `ValueRangeType`
 

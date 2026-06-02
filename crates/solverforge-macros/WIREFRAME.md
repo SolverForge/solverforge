@@ -37,7 +37,7 @@ src/
 ├── planning_solution/*.rs  — Solution derive expansion, config/shadow/runtime/list roots, stream extensions, and type helpers
 ├── planning_solution/list_operations/*.rs — Entity-collection list runtime helpers and public list-method generation
 ├── planning_solution/runtime/*.rs — Runtime module root, solve generation, scalar setup, and helper declarations
-├── planning_solution/runtime/helpers/*.rs — Runtime helper code split by candidate counts, phase support, and generated trait impls
+├── planning_solution/runtime/helpers/*.rs — Runtime helper code split by candidate counts, phase builders/support, and generated Solvable/runtime trait impls
 ├── planning_solution_tests.rs — PlanningSolution derive tests
 └── problem_fact.rs         — problem-fact support derive: ProblemFact, PlanningId, problem_fact_descriptor()
 ```

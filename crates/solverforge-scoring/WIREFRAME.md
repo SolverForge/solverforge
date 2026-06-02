@@ -70,6 +70,7 @@ src/
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
 │       ├── bi_incr.rs                              — IncrementalBiConstraint tests
+│       ├── cross_bi_incr.rs                        — IncrementalCrossBiConstraint tests
 │       ├── tri_incr.rs                             — IncrementalTriConstraint tests
 │       ├── quad_incr.rs                            — IncrementalQuadConstraint tests
 │       ├── penta_incr.rs                           — IncrementalPentaConstraint tests
@@ -102,6 +103,7 @@ src/
 
 ├── stream/
 │   ├── mod.rs                                      — Module declarations and re-exports for all stream types
+│   ├── tests.rs                                    — Stream API tests
 │   ├── factory.rs                                  — ConstraintFactory<S,Sc>
 │   ├── uni_stream.rs                               — Re-exports
 │   ├── uni_stream/base.rs                          — UniConstraintStream

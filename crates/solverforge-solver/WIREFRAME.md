@@ -24,13 +24,15 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
-├── runtime.rs                           — Runtime assembly and target matching over `RuntimeModel`; routes scalar-only construction through the descriptor boundary, routes named grouped scalar construction through the atomic grouped-scalar builder, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
+├── runtime.rs                           — Runtime assembly and target matching over `RuntimeModel`; resolves dynamic logical IDs to descriptor indexes, routes scalar-only construction through the descriptor boundary, routes named grouped scalar construction through the atomic grouped-scalar builder, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
 ├── runtime/defaults.rs                  — Model-aware omitted-phase and omitted-selector default profile
 ├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model validation, and shadow updates
 ├── list_placement.rs                    — Private partial fixed-owner restriction helpers for list construction, ruin/recreate, Clarke-Wright, and list selectors; detects all-selected-elements-fixed-to-current so intra-owner reordering still streams while cross-owner moves are filtered
 ├── runtime/
 │   ├── tests.rs                         — Runtime construction routing and target-validation tests
-│   ├── tests/*.rs                       — Runtime test fixtures split by scalar, queue, revision, multi-owner, mixed-target, grouped-scalar, and scalar-assignment behavior
+│   ├── tests/*.rs                       — Runtime test fixtures split by scalar, queue, revision, multi-owner, mixed-target, grouped-scalar, scalar-assignment, target-matching, and dynamic runtime behavior
+│   ├── tests/scalar_runtime/*.rs        — Scalar runtime construction support chunks
+│   ├── tests/dynamic_runtime/*.rs       — Dynamic runtime support, descriptor-index notification, and phase behavior chunks
 │   └── list_tests.rs                    — Specialized list-construction runtime tests
 ├── descriptor.rs                        — Re-exports descriptor bindings, selectors, move types, and internal construction/runtime helpers
 ├── descriptor/
@@ -48,7 +50,7 @@ src/
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
 │   ├── acceptor/tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
-│   ├── context.rs                       — RuntimeModel<S, V, DM, IDM>, VariableSlot<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar slots, internal ScalarGroupBinding<S>, scalar assignment metadata, expanded scalar/list construction capability hooks, and list construction element-order function hooks on existing list slots
+│   ├── context.rs                       — RuntimeModel<S, V, DM, IDM>, VariableSlot<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar slots, resolved dynamic descriptor-index validation, internal ScalarGroupBinding<S>, scalar assignment metadata, expanded scalar/list construction capability hooks, and list construction element-order function hooks on existing list slots
 │   ├── context/*.rs                     — Model, list, conflict-repair, and scalar slot implementation chunks
 │   ├── context/scalar/mod.rs            — Scalar slot module root and internal re-exports
 │   ├── context/scalar/*.rs              — Scalar value-source, scalar variable-slot, and grouped scalar binding definitions
@@ -98,9 +100,12 @@ src/
 │   │   ├── k_opt_reconnection_tests.rs — Tests
 │   │   ├── compound_scalar.rs          — CompoundScalarMove<S> for atomic multi-scalar edits with exact undo, tabu identity, and affected-entity reporting
 │   │   ├── conflict_repair.rs          — ConflictRepairMove<S> wrapper over framework-owned compound repair edits
+│   │   ├── dynamic_scalar_change.rs    — DynamicScalarChangeMove<S> over descriptor-resolved DynamicScalarVariableSlot<S>
+│   │   ├── dynamic_list_change.rs      — DynamicListChangeMove<S> over descriptor-resolved DynamicListVariableSlot<S>
 │   │   ├── composite.rs                — CompositeMove<S, M1, M2>, SequentialCompositeMove<S, M>
 │   │   ├── scalar_union.rs             — ScalarMoveUnion<S, V> enum
 │   │   ├── list_union.rs               — ListMoveUnion<S, V> enum
+│   │   ├── list_multi_swap.rs          — ListMultiSwapMove<S, V> for independent same-step intra-list swaps
 │   │   └── tests/                       — Additional test modules
 │   │       ├── mod.rs
 │   │       ├── arena.rs
@@ -108,6 +113,8 @@ src/
 │   │       ├── swap.rs
 │   │       ├── compound_scalar.rs
 │   │       ├── conflict_repair.rs
+│   │       ├── list_multi_swap.rs
+│   │       ├── list_telemetry.rs
 │   │       ├── list_change.rs
 │   │       ├── list_swap.rs
 │   │       ├── list_permute.rs
@@ -127,6 +134,8 @@ src/
 │       ├── move_selector.rs             — MoveSelector trait, MoveCursor, MoveCandidateRef, ChangeMoveSelector, SwapMoveSelector, scalar union helpers; `ChangeMoveSelector::with_allows_unassigned()` enables `Some(v) -> None` generation for assigned optional variables
 │       ├── move_selector/*.rs           — Borrowed candidate cursor, iterator adapter, change selector, and swap selector implementation chunks
 │       ├── move_selector/scalar_union.rs — ScalarChangeMoveSelector, ScalarSwapMoveSelector
+│       ├── dynamic_scalar_change.rs     — DynamicScalarChangeMoveSelector<S> for explicit dynamic scalar change phases
+│       ├── dynamic_list_change.rs       — DynamicListChangeMoveSelector<S> for explicit unrestricted dynamic list-change phases
 │       ├── list_change.rs              — ListChangeMoveSelector<S, V, ES>
 │       ├── list_support.rs             — Private selected-entity snapshots and exact list-neighborhood counting
 │       ├── list_swap.rs                — ListSwapMoveSelector<S, V, ES>
@@ -659,9 +668,13 @@ All moves are generic over `S` (solution) and `V` (value). All use concrete `fn`
 | `RuinRecreateMove` | `<S>` | SmallVec ruined entities, bounded recreate value source, getter/setter fn ptrs | Yes (manual) | No |
 | `CompoundScalarMove` | `<S>` | provider/group reason plus N scalar edits with per-edit descriptor/entity/variable/from/to scope | Yes (manual) | No |
 | `ConflictRepairMove` | `<S>` | thin wrapper over `CompoundScalarMove` for provider repair edits | Yes (manual) | No |
+| `DynamicScalarChangeMove` | `<S>` | descriptor-resolved dynamic scalar slot, entity index, optional usize destination | Yes (manual) | No |
+| `DynamicListChangeMove` | `<S>` | descriptor-resolved dynamic list slot, source entity/position, destination entity/pre-removal position | Yes (manual) | No |
 | `KOptMove` | `<S, V>` | [CutPoint; 5], KOptReconnection, fn ptrs | Yes (manual) | No |
 | `CompositeMove` | `<S, M1, M2>` | index_1, index_2, PhantomData | Yes | Yes |
 | `SequentialCompositeMove` | `<S, M>` | owned two-move arena plus cached descriptor/entity/tabu metadata | Yes (M: Clone) | No |
+| `ListMultiSwapMove` | `<S, V>` | SmallVec independent `(entity, first, second)` intra-list swaps, fn ptrs | Yes (manual) | No |
+| `ListPermuteMove` | `<S, V>` | contiguous intra-list window plus explicit permutation | Yes (manual) | No |
 
 ### Move Union Enums
 
@@ -669,7 +682,7 @@ All moves are generic over `S` (solution) and `V` (value). All use concrete `fn`
 - `Change(ChangeMove<S, V>)`, `Swap(SwapMove<S, V>)`, `PillarChange(PillarChangeMove<S, V>)`, `PillarSwap(PillarSwapMove<S, V>)`, `RuinRecreate(RuinRecreateMove<S>)`, `ConflictRepair(ConflictRepairMove<S>)`, `CompoundScalar(CompoundScalarMove<S>)`, `Composite(SequentialCompositeMove<S, ScalarMoveUnion<S, V>>)`
 
 **`ListMoveUnion<S, V>`** — List variable union:
-- `ListChange`, `ListSwap`, `SublistChange`, `SublistSwap`, `ListReverse`, `KOpt`, `ListRuin`, `Composite`
+- `ListChange`, `ListSwap`, `ListMultiSwap`, `ListPermute`, `SublistChange`, `SublistSwap`, `ListReverse`, `KOpt`, `ListRuin`, `Composite`
 
 ### Supporting Types
 
@@ -715,8 +728,12 @@ All moves are generic over `S` (solution) and `V` (value). All use concrete `fn`
 | `SwapMoveSelector<S, V, LES, RES>` | `SwapMove<S, V>` | Scalar variable swap |
 | `ScalarChangeMoveSelector<S, V, ES, VS>` | `ScalarMoveUnion<S, V>` | Wraps ChangeMoveSelector |
 | `ScalarSwapMoveSelector<S, V, LES, RES>` | `ScalarMoveUnion<S, V>` | Wraps SwapMoveSelector |
+| `DynamicScalarChangeMoveSelector<S>` | `DynamicScalarChangeMove<S>` | Explicit dynamic scalar change selector over descriptor-resolved dynamic slots |
+| `DynamicListChangeMoveSelector<S>` | `DynamicListChangeMove<S>` | Explicit unrestricted dynamic list-change selector over descriptor-resolved dynamic slots; includes intra-list tail destinations |
 | `ListChangeMoveSelector<S, V, ES>` | `ListChangeMove<S, V>` | List element relocation; canonical order, exact `size()` |
 | `ListSwapMoveSelector<S, V, ES>` | `ListSwapMove<S, V>` | List element swap; canonical pair order, exact `size()` |
+| `ListPermuteMoveSelector<S, V, ES>` | `ListPermuteMove<S, V>` | Contiguous intra-list window permutation |
+| `ListPrecedenceMoveSelector<S, V, ES>` | `ListMoveUnion<S, V>` | Critical-path precedence repair over list variables with precedence hooks |
 | `ListReverseMoveSelector<S, V, ES>` | `ListReverseMove<S, V>` | Segment reversal (2-opt) |
 | `ListRuinMoveSelector<S, V>` | `ListRuinMove<S, V>` | LNS element removal |
 | `SublistChangeMoveSelector<S, V, ES>` | `SublistChangeMove<S, V>` | Segment relocation (Or-opt); canonical order, exact `size()` |
@@ -769,6 +786,21 @@ and provider registration keys must match the configured key exactly.
 **`KOptConfig`** — `{ k: usize, min_segment_len: usize, limited_patterns: bool }`. Methods: `new(k)`, `with_min_segment_len()`, `with_limited_patterns()`.
 
 **`RuinVariableAccess<S, V>`** — `selector/ruin.rs`. Scalar-variable access bundle for `RuinMoveSelector::new(min, max, access)`: entity count, getter, setter, variable index, variable name, and descriptor index.
+
+**`VariableSlot<S, V, DM, IDM>` / `RuntimeModel<S, V, DM, IDM>`** —
+`builder/context.rs`. `VariableSlot` variants are `Scalar`, `List`,
+`DynamicScalar`, and `DynamicList`. `RuntimeModel::new(variables)` builds the
+model published by macro/runtime assembly or binding code. Public builder
+methods: `with_scalar_groups()`, `with_conflict_repairs()`, and
+`resolve_dynamic_descriptor_indexes(&SolutionDescriptor)`. Dynamic selector
+assembly requires descriptor-resolved dynamic slots; `assert_dynamic_descriptor_indexes_resolved()`
+panics with the slot diagnostic when a direct caller passes unresolved dynamic
+slots to `build_move_selector()` or `build_local_search()`. Query methods
+include `variables()`, `scalar_groups()`, `conflict_repairs()`, `is_empty()`,
+`has_scalar_variables()`, `has_list_variables()`, `has_dynamic_variables()`,
+`has_dynamic_list_variables()`, `dynamic_scalar_variables()`,
+`dynamic_list_variables()`, and the scalar/list/grouped/repair capability
+helpers used by runtime default construction and selector routing.
 
 **`ScalarVariableSlot<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the monomorphized runtime. The compact scalar `variable_index` is the generated getter/setter dispatch index; hook attachment, descriptor ordering, and user-facing target matching use descriptor index plus variable name, with the canonical entity type name kept for target matching and diagnostics. Getter, setter, and entity-local value sources receive the scalar variable index so selector hot paths do not need descriptor-erased access. In addition to value-source hooks it carries optional nearby hooks and scalar construction order-key hooks via builder-style methods:
 - `with_candidate_values(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for bounded scalar value candidates
@@ -934,11 +966,14 @@ rejected with a diagnostic pointing at the owning grouped scalar selector.
 Dynamic scalar variables participate in explicit local-search
 `change_move_selector` phases through `DynamicScalarChangeMoveSelector` and
 `DynamicScalarChangeMove`. The dynamic path uses the same score-director
-before/after variable-change protocol as typed scalar moves while keeping the
-macro-generated scalar selector family monomorphized. Dynamic list variables
+before/after variable-change protocol as typed scalar moves after resolving
+logical entity IDs to descriptor indexes while keeping the macro-generated
+scalar selector family monomorphized. Dynamic list variables
 participate in explicit unrestricted `list_change_move_selector` phases through
 `DynamicListChangeMoveSelector` and `DynamicListChangeMove`, also using the
-score-director before/after variable-change protocol. Owner-aware, nearby, swap,
+score-director before/after variable-change protocol. Dynamic list-change moves
+use the same pre-removal intra-list destination coordinates as typed
+`ListChangeMove`, including insertion at the tail. Owner-aware, nearby, swap,
 sublist, reverse, k-opt, and ruin dynamic list selectors are not present yet;
 dynamic default solves remain construction-only.
 
@@ -946,6 +981,12 @@ Typed custom search is compiled into the solution, not loaded from a runtime
 registry. A solution can declare `#[planning_solution(search = "path::to::search")]`.
 The search function receives a `SearchContext<S, V, DM, IDM>`, calls
 `ctx.defaults()`, and registers named phases with `.phase("name", |ctx| ...)`.
+`SearchContext` resolves dynamic logical IDs to descriptor indexes before custom
+phase builders receive the runtime model, so custom selectors see the same
+descriptor-index notifications as built-in runtime phases. Direct
+`build_move_selector()` / `build_local_search()` callers must pass an already
+resolved dynamic model; selector assembly fails fast when a dynamic slot is still
+unresolved.
 TOML can then order those compiled-in names with `[[phases]] type = "custom"
 name = "..."`. Custom phases implement `CustomSearchPhase<S>` or use the
 typed `local_search(selector, acceptor, forager)` helper. Generated code lowers
@@ -1132,6 +1173,14 @@ Main solver struct. Drives phases and checks termination. `impl_solver!` macro g
 
 Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBool)`, `with_time_limit(Duration)`, `with_config(SolverConfig)`, `with_progress_callback<F>(F) -> Solver<.., F>`. The callback type transitions the `ProgressCb` parameter from `()` to the concrete closure type — no `Box<dyn Fn>` allocation.
 
+**`NoTermination`** is the marker type used by `Solver::new(...)` before a
+termination is configured.
+
+**`MaybeTermination<S, D, ProgressCb = ()>`** is the public marker trait for
+termination carriers used by `Solver`. It is implemented for `NoTermination`
+and `Option<T>` where `T: Termination<S, D, ProgressCb>`. Methods:
+`should_terminate(&SolverScope<...>)` and `install_inphase_limits(&mut SolverScope<...>)`.
+
 ### `SolveResult<S>`
 
 `{ solution: S, current_score: Option<S::Score>, best_score: S::Score, terminal_reason: SolverTerminalReason, stats: SolverStats }`. Methods: `solution()`, `into_solution()`, `current_score()`, `best_score()`, `terminal_reason()`, `stats()`, `step_count()`, `moves_evaluated()`, `moves_accepted()`.
@@ -1169,7 +1218,7 @@ Runtime helpers:
 - `Construction<S, V, DM, IDM>` — runtime construction phase over one `RuntimeModel`; generic `FirstFit` and `CheapestInsertion` use `phase/construction/engine.rs` when matching list work is present, use the descriptor boundary for scalar-only targets, use grouped scalar construction when `group_name` selects a registered `ScalarGroup`, and delegate specialized scalar-only and list-only heuristics to the existing descriptor/list phase implementations. Grouped construction receives all resolved scalar bindings for legality even when the phase target narrows which members must still need work.
 - `ListVariableMetadata<S, DM, IDM>` — list-variable metadata surfaced to macro-generated runtime code; `new(...)` builds the route-hook metadata and `with_element_owner_fn(...)` attaches an optional partial fixed-owner hook
 - `ListVariableEntity<S>` — list-variable accessors plus `HAS_LIST_VARIABLE`, `LIST_VARIABLE_NAME`, and `LIST_ELEMENT_SOURCE`
-- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `RuntimeModel`
+- `build_phases()` — builds the runtime phase sequence from `SolverConfig`, `SolutionDescriptor`, and one `RuntimeModel`; dynamic slots are resolved against the descriptor before construction/local-search phases are built
 - `PlanningModelSupport` — hidden support trait with no default impl; generated by
   `planning_model!` so solution derives can attach descriptor hooks,
   runtime scalar/list hooks, resolve list element owners, attach scalar groups,

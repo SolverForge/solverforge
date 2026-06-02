@@ -757,6 +757,8 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", r
 | `ListChangeMoveSelector` | `ListChangeMoveConfig` |
 | `NearbyListChangeMoveSelector` | `NearbyListChangeMoveConfig` |
 | `ListSwapMoveSelector` | `ListSwapMoveConfig` |
+| `ListPermuteMoveSelector` | `ListPermuteMoveConfig` |
+| `ListPrecedenceMoveSelector` | `ListPrecedenceMoveConfig` |
 | `NearbyListSwapMoveSelector` | `NearbyListSwapMoveConfig` |
 | `SublistChangeMoveSelector` | `SublistChangeMoveConfig` |
 | `SublistSwapMoveSelector` | `SublistSwapMoveConfig` |

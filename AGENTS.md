@@ -14,6 +14,7 @@ solverforge (facade + re-exports)
     |-- solverforge-solver   - Phases, moves, selectors, termination, SolverManager
     |-- solverforge-scoring  - ConstraintStream API, SERIO incremental scoring
     |-- solverforge-config   - TOML/YAML configuration
+    |-- solverforge-bridge   - Dynamic host-language binding contracts
     |-- solverforge-console  - Tracing-driven console output and progress formatting
     |-- solverforge-cvrp     - CVRP domain helpers and distance utilities
     |-- solverforge-macros   - planning_model!, #[planning_solution], #[planning_entity], #[problem_fact]
@@ -21,7 +22,7 @@ solverforge (facade + re-exports)
     `-> solverforge-core     - Score types, domain traits, descriptors
 ```
 
-Publishing order: `core -> macros -> scoring -> config -> solver -> cvrp -> console -> facade`
+Publishing order: `core -> macros -> scoring -> config -> solver -> bridge -> cvrp -> console -> facade`
 
 Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
 
@@ -56,6 +57,7 @@ Each crate has a `WIREFRAME.md` file that documents its public API surface, modu
 Current wireframes:
 
 - `crates/solverforge/WIREFRAME.md`
+- `crates/solverforge-bridge/WIREFRAME.md`
 - `crates/solverforge-core/WIREFRAME.md`
 - `crates/solverforge-macros/WIREFRAME.md`
 - `crates/solverforge-scoring/WIREFRAME.md`

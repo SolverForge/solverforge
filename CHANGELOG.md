@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.15.1](///compare/v0.15.0...v0.15.1) (2026-06-02)
+
+
+### Features
+
+* **bridge:** add dynamic binding bridge crate f3513b1
+* **bridge:** expose dynamic model slots from core d664655
+* **config:** expose list precedence hooks f9ca1a7
+* **core:** add logical descriptor identifiers ffbb922
+* **scoring:** add list precedence makespan constraint 47ba8c4
+* **solver:** add precedence-aware list neighborhoods f6376a6
+* **solver:** honor fixed list element owners e8845d5
+* **solver:** run dynamic variables in construction and search 8257945
+
+
+### Bug Fixes
+
+* **bridge:** derive dynamic score family default ce75bdc
+* **console:** preserve explicit solver log filters c3c805c
+* **scoring:** rebuild precedence graph for mixed cycle diffs 3ec5d5a
+* **solver:** complete mandatory list construction caaf93c
+* **solver:** resolve dynamic runtime slots by descriptor 3d464f0
+
 ## [0.15.1](///compare/v0.15.0...v0.15.1) (2026-05-24)
 
 

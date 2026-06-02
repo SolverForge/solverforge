@@ -157,6 +157,12 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         if self.inphase_best_score_limit_reached() {
             return PendingControl::ConfigTerminationRequested;
         }
+        if self.inphase_step_count_limit_reached()
+            || self.inphase_move_count_limit_reached()
+            || self.inphase_score_calc_count_limit_reached()
+        {
+            return PendingControl::ConfigTerminationRequested;
+        }
         PendingControl::Continue
     }
 
@@ -179,6 +185,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             || self.time_limit_reached()
             || self.phase_budget_reached()
             || self.inphase_best_score_limit_reached()
+            || self.inphase_step_count_limit_reached()
+            || self.inphase_move_count_limit_reached()
+            || self.inphase_score_calc_count_limit_reached()
     }
 
     pub(crate) fn mandatory_construction_work_should_stop(&self) -> bool {
@@ -271,23 +280,17 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             self.mark_terminated_by_config();
             return true;
         }
-        if let Some(limit) = self.inphase_step_count_limit {
-            if self.total_step_count >= limit {
-                self.mark_terminated_by_config();
-                return true;
-            }
+        if self.inphase_step_count_limit_reached() {
+            self.mark_terminated_by_config();
+            return true;
         }
-        if let Some(limit) = self.inphase_move_count_limit {
-            if self.stats.moves_evaluated >= limit {
-                self.mark_terminated_by_config();
-                return true;
-            }
+        if self.inphase_move_count_limit_reached() {
+            self.mark_terminated_by_config();
+            return true;
         }
-        if let Some(limit) = self.inphase_score_calc_count_limit {
-            if self.stats.score_calculations >= limit {
-                self.mark_terminated_by_config();
-                return true;
-            }
+        if self.inphase_score_calc_count_limit_reached() {
+            self.mark_terminated_by_config();
+            return true;
         }
         false
     }
@@ -386,6 +389,21 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.inphase_best_score_limit
             .zip(self.best_score)
             .is_some_and(|(target, best)| best >= target)
+    }
+
+    fn inphase_step_count_limit_reached(&self) -> bool {
+        self.inphase_step_count_limit
+            .is_some_and(|limit| self.total_step_count >= limit)
+    }
+
+    fn inphase_move_count_limit_reached(&self) -> bool {
+        self.inphase_move_count_limit
+            .is_some_and(|limit| self.stats.moves_evaluated >= limit)
+    }
+
+    fn inphase_score_calc_count_limit_reached(&self) -> bool {
+        self.inphase_score_calc_count_limit
+            .is_some_and(|limit| self.stats.score_calculations >= limit)
     }
 
     fn advance_solution_revision(&mut self) {

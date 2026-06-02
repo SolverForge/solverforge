@@ -5,7 +5,7 @@ use solverforge_scoring::Director;
 
 use crate::builder::ListVariableSlot;
 use crate::phase::Phase;
-use crate::scope::{PhaseScope, SolverScope, StepScope};
+use crate::scope::{PhaseScope, SolverScope, StepControlPolicy, StepScope};
 use crate::PhaseFactory;
 
 enum AssignmentMode<S, E>
@@ -110,6 +110,7 @@ where
             index_to_element: self.index_to_element,
             descriptor_index: self.descriptor_index,
             element_owner_fn: None,
+            element_order_key: None,
             _marker: PhantomData,
         }
     }
@@ -141,6 +142,7 @@ where
     index_to_element: fn(&S, usize) -> E,
     descriptor_index: usize,
     element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
+    element_order_key: Option<fn(&S, E) -> i64>,
     _marker: PhantomData<(fn() -> S, fn() -> E)>,
 }
 
@@ -161,8 +163,17 @@ where
             index_to_element: ctx.index_to_element,
             descriptor_index: ctx.descriptor_index,
             element_owner_fn: ctx.element_owner_fn,
+            element_order_key: ctx.construction_element_order_key,
             _marker: PhantomData,
         }
+    }
+
+    pub(crate) fn with_element_order_key(
+        mut self,
+        element_order_key: Option<fn(&S, E) -> i64>,
+    ) -> Self {
+        self.element_order_key = element_order_key;
+        self
     }
 }
 
@@ -191,7 +202,7 @@ where
         let n_entities = (self.entity_count)(solution);
 
         if n_entities == 0 || n_elements == 0 {
-            let _score = phase_scope.score_director_mut().calculate_score();
+            phase_scope.score_director_mut().calculate_score();
             phase_scope.update_best_solution();
             return;
         }
@@ -200,26 +211,28 @@ where
 
         if assigned.len() >= n_elements {
             tracing::info!("All elements already assigned, skipping construction");
-            let _score = phase_scope.score_director_mut().calculate_score();
+            phase_scope.score_director_mut().calculate_score();
             phase_scope.update_best_solution();
             return;
         }
 
         let assigned_set: std::collections::HashSet<E> = assigned.into_iter().collect();
+        let solution = phase_scope.score_director().working_solution();
+        let mut elements: Vec<(usize, E)> = (0..n_elements)
+            .map(|idx| (idx, (self.index_to_element)(solution, idx)))
+            .filter(|(_, element)| !assigned_set.contains(element))
+            .collect();
+        if let Some(order_key) = self.element_order_key {
+            elements.sort_by_key(|(idx, element)| (order_key(solution, *element), *idx));
+        }
 
         let mut entity_idx = 0;
-        for elem_idx in 0..n_elements {
+        for (_, element) in elements {
             if phase_scope
                 .solver_scope_mut()
-                .should_terminate_construction()
+                .should_interrupt_mandatory_construction()
             {
                 break;
-            }
-
-            let element =
-                (self.index_to_element)(phase_scope.score_director().working_solution(), elem_idx);
-            if assigned_set.contains(&element) {
-                continue;
             }
 
             let solution = phase_scope.score_director().working_solution();
@@ -233,12 +246,15 @@ where
                     crate::list_placement::OwnerRestriction::Unrestricted => (entity_idx, true),
                     crate::list_placement::OwnerRestriction::Fixed(owner_idx) => (owner_idx, false),
                     crate::list_placement::OwnerRestriction::Invalid => {
-                        tracing::warn!("No valid owner found for element {:?}", elem_idx);
+                        tracing::warn!("No valid owner found for list element");
                         continue;
                     }
                 };
 
-            let mut step_scope = StepScope::new(&mut phase_scope);
+            let mut step_scope = StepScope::new_with_control_policy(
+                &mut phase_scope,
+                StepControlPolicy::CompleteMandatoryConstruction,
+            );
 
             step_scope.apply_committed_change(|sd| {
                 sd.before_variable_changed(self.descriptor_index, target_entity);

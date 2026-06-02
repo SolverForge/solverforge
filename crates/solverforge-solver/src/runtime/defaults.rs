@@ -104,6 +104,15 @@ fn list_construction_configs<S, V, DM, IDM>(
         .map(|variable| {
             let construction_heuristic_type = if variable.supports_clarke_wright() {
                 ConstructionHeuristicType::ListClarkeWright
+            } else if variable.supports_precedence_moves()
+                && variable.construction_element_order_key.is_some()
+                && variable.element_owner_fn.is_some()
+            {
+                ConstructionHeuristicType::ListRegretInsertion
+            } else if variable.supports_precedence_moves()
+                && variable.construction_element_order_key.is_some()
+            {
+                ConstructionHeuristicType::ListRoundRobin
             } else {
                 ConstructionHeuristicType::ListCheapestInsertion
             };

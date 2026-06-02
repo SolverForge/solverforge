@@ -60,7 +60,9 @@ where
 
         match heuristic {
             ConstructionHeuristicType::ListRoundRobin => {
-                ListConstructionPhase::from_variable_slot(ctx).solve(solver_scope);
+                ListConstructionPhase::from_variable_slot(ctx)
+                    .with_element_order_key(ctx.construction_element_order_key)
+                    .solve(solver_scope);
             }
             ConstructionHeuristicType::ListCheapestInsertion => {
                 ListCheapestInsertionPhase::new(
@@ -74,6 +76,7 @@ where
                     ctx.descriptor_index,
                 )
                 .with_element_owner_fn(ctx.element_owner_fn)
+                .with_element_order_key(ctx.construction_element_order_key)
                 .solve(solver_scope);
             }
             ConstructionHeuristicType::ListRegretInsertion => {
@@ -88,6 +91,8 @@ where
                     ctx.descriptor_index,
                 )
                 .with_element_owner_fn(ctx.element_owner_fn)
+                .with_element_order_key(ctx.construction_element_order_key)
+                .with_precedence_hooks(ctx.precedence_duration_fn, ctx.precedence_successors_fn)
                 .solve(solver_scope);
             }
             ConstructionHeuristicType::ListClarkeWright => {

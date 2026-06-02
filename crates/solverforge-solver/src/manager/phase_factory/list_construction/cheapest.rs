@@ -5,7 +5,7 @@ use solverforge_scoring::Director;
 
 use super::state::ScoredConstructionState;
 use crate::phase::Phase;
-use crate::scope::{PhaseScope, SolverScope, StepScope};
+use crate::scope::{PhaseScope, SolverScope, StepControlPolicy, StepScope};
 
 /// List construction phase using greedy cheapest insertion.
 ///
@@ -125,6 +125,9 @@ where
                 list_remove,
                 index_to_element,
                 element_owner_fn: None,
+                element_order_key: None,
+                precedence_duration_fn: None,
+                precedence_successors_fn: None,
                 descriptor_index,
             },
             _marker: PhantomData,
@@ -136,6 +139,11 @@ where
         element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
     ) -> Self {
         self.state.element_owner_fn = element_owner_fn;
+        self
+    }
+
+    pub fn with_element_order_key(mut self, element_order_key: Option<fn(&S, E) -> i64>) -> Self {
+        self.state.element_order_key = element_order_key;
         self
     }
 }
@@ -155,7 +163,7 @@ where
         let n_entities = (self.state.entity_count)(phase_scope.score_director().working_solution());
 
         if n_entities == 0 || n_elements == 0 {
-            let _score = phase_scope.score_director_mut().calculate_score();
+            phase_scope.score_director_mut().calculate_score();
             phase_scope.update_best_solution();
             return;
         }
@@ -164,45 +172,45 @@ where
             (self.state.get_assigned)(phase_scope.score_director().working_solution());
         if assigned.len() >= n_elements {
             tracing::info!("All elements already assigned, skipping construction");
-            let _score = phase_scope.score_director_mut().calculate_score();
+            phase_scope.score_director_mut().calculate_score();
             phase_scope.update_best_solution();
             return;
         }
 
         let assigned_set: std::collections::HashSet<E> = assigned.into_iter().collect();
 
-        for elem_idx in 0..n_elements {
+        let elements = self.state.unassigned_elements(
+            phase_scope.score_director().working_solution(),
+            n_elements,
+            &assigned_set,
+        );
+
+        for element in elements {
             if phase_scope
                 .solver_scope_mut()
-                .should_terminate_construction()
+                .should_interrupt_mandatory_construction()
             {
                 break;
-            }
-
-            let element = (self.state.index_to_element)(
-                phase_scope.score_director().working_solution(),
-                elem_idx,
-            );
-            if assigned_set.contains(&element) {
-                continue;
             }
 
             let best =
                 self.state
                     .best_insertion(element, n_entities, phase_scope.score_director_mut());
 
-            if let Some((entity_idx, pos, _score)) = best {
-                let mut step_scope = StepScope::new(&mut phase_scope);
+            if let Some((entity_idx, pos, score)) = best {
+                let mut step_scope = StepScope::new_with_control_policy(
+                    &mut phase_scope,
+                    StepControlPolicy::CompleteMandatoryConstruction,
+                );
 
                 step_scope.apply_committed_change(|sd| {
                     self.state.apply_insertion(element, entity_idx, pos, sd);
                 });
 
-                let step_score = step_scope.calculate_score();
-                step_scope.set_step_score(step_score);
+                step_scope.set_step_score(score);
                 step_scope.complete();
             } else {
-                tracing::warn!("No valid insertion found for element {:?}", elem_idx);
+                tracing::warn!("No valid insertion found for list element");
             }
         }
 

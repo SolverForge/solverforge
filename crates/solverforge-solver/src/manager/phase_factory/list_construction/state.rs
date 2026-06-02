@@ -15,6 +15,9 @@ pub(super) struct ScoredConstructionState<S, E> {
     pub(super) list_remove: fn(&mut S, usize, usize) -> E,
     pub(super) index_to_element: fn(&S, usize) -> E,
     pub(super) element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
+    pub(super) element_order_key: Option<fn(&S, E) -> i64>,
+    pub(super) precedence_duration_fn: Option<fn(&S, E) -> usize>,
+    pub(super) precedence_successors_fn: Option<fn(&S, E, &mut Vec<E>)>,
     pub(super) descriptor_index: usize,
 }
 
@@ -90,6 +93,22 @@ where
         }
 
         best
+    }
+
+    pub(super) fn unassigned_elements(
+        &self,
+        solution: &S,
+        n_elements: usize,
+        assigned_set: &std::collections::HashSet<E>,
+    ) -> Vec<E> {
+        let mut elements: Vec<(usize, E)> = (0..n_elements)
+            .map(|idx| (idx, (self.index_to_element)(solution, idx)))
+            .filter(|(_, element)| !assigned_set.contains(element))
+            .collect();
+        if let Some(order_key) = self.element_order_key {
+            elements.sort_by_key(|(idx, element)| (order_key(solution, *element), *idx));
+        }
+        elements.into_iter().map(|(_, element)| element).collect()
     }
 
     /* Apply the best insertion for `element` permanently. */

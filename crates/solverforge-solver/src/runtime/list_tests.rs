@@ -230,6 +230,16 @@ fn route_element_owner(_: &GenericListPlan, element: &usize) -> Option<usize> {
     (*element == 10).then_some(1)
 }
 
+fn route_element_descending_order(_: &GenericListPlan, element: usize) -> i64 {
+    -(element as i64)
+}
+
+fn route_element_duration(_: &GenericListPlan, _: usize) -> usize {
+    1
+}
+
+fn route_element_successors(_: &GenericListPlan, _: usize, _: &mut Vec<usize>) {}
+
 fn generic_list_owner_model() -> RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter> {
     RuntimeModel::new(vec![VariableSlot::List(
         ListVariableSlot::new(
@@ -264,6 +274,77 @@ fn generic_list_owner_model() -> RuntimeModel<GenericListPlan, usize, DefaultMet
     )])
 }
 
+fn generic_list_ordered_model() -> RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter>
+{
+    RuntimeModel::new(vec![VariableSlot::List(
+        ListVariableSlot::new(
+            "Route",
+            route_element_count,
+            assigned_route_elements,
+            route_len,
+            route_remove,
+            route_remove_for_construction,
+            route_insert,
+            route_get,
+            route_set,
+            route_reverse,
+            route_sublist_remove,
+            route_sublist_insert,
+            route_ruin_remove,
+            route_ruin_insert,
+            route_index_to_element,
+            route_count,
+            DefaultMeter::default(),
+            DefaultMeter::default(),
+            "visits",
+            0,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .with_construction_element_order_key(Some(route_element_descending_order)),
+    )])
+}
+
+fn generic_list_precedence_ordered_model(
+) -> RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter> {
+    RuntimeModel::new(vec![VariableSlot::List(
+        ListVariableSlot::new(
+            "Route",
+            route_element_count,
+            assigned_route_elements,
+            route_len,
+            route_remove,
+            route_remove_for_construction,
+            route_insert,
+            route_get,
+            route_set,
+            route_reverse,
+            route_sublist_remove,
+            route_sublist_insert,
+            route_ruin_remove,
+            route_ruin_insert,
+            route_index_to_element,
+            route_count,
+            DefaultMeter::default(),
+            DefaultMeter::default(),
+            "visits",
+            0,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .with_construction_element_order_key(Some(route_element_descending_order))
+        .with_precedence_hooks(Some(route_element_duration), Some(route_element_successors)),
+    )])
+}
+
 fn solve_generic_list(kind: ConstructionHeuristicType) -> GenericListPlan {
     let descriptor = generic_list_descriptor();
     let plan = GenericListPlan {
@@ -294,6 +375,14 @@ fn solve_generic_list_with_model_and_pool(
     model: RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter>,
     route_pool: Vec<usize>,
 ) -> GenericListPlan {
+    solve_generic_list_with_model_pool(kind, model, route_pool)
+}
+
+fn solve_generic_list_with_model_pool(
+    kind: ConstructionHeuristicType,
+    model: RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter>,
+    route_pool: Vec<usize>,
+) -> GenericListPlan {
     let descriptor = generic_list_descriptor();
     let plan = GenericListPlan {
         score: None,
@@ -307,6 +396,71 @@ fn solve_generic_list_with_model_and_pool(
     let mut solver_scope = SolverScope::new(director);
     solver_scope.start_solving();
     let mut phase = Construction::new(Some(config(kind)), descriptor, model);
+    phase.solve(&mut solver_scope);
+    solver_scope.working_solution().clone()
+}
+
+fn solve_single_route_generic_list_with_model_and_pool(
+    kind: ConstructionHeuristicType,
+    model: RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter>,
+    route_pool: Vec<usize>,
+) -> GenericListPlan {
+    let descriptor = generic_list_descriptor();
+    let plan = GenericListPlan {
+        score: None,
+        routes: vec![Vec::new()],
+        route_pool,
+    };
+    let director = GenericListDirector {
+        working_solution: plan,
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+    let mut phase = Construction::new(Some(config(kind)), descriptor, model);
+    phase.solve(&mut solver_scope);
+    solver_scope.working_solution().clone()
+}
+
+fn solve_default_generic_list_with_model_and_pool(
+    model: RuntimeModel<GenericListPlan, usize, DefaultMeter, DefaultMeter>,
+    route_pool: Vec<usize>,
+) -> GenericListPlan {
+    let descriptor = generic_list_descriptor();
+    let plan = GenericListPlan {
+        score: None,
+        routes: vec![Vec::new(), Vec::new()],
+        route_pool,
+    };
+    let director = GenericListDirector {
+        working_solution: plan,
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+    let mut phase = Construction::new(None, descriptor, model);
+    phase.solve(&mut solver_scope);
+    solver_scope.working_solution().clone()
+}
+
+fn solve_generic_list_with_expired_limit(
+    kind: ConstructionHeuristicType,
+    route_pool: Vec<usize>,
+) -> GenericListPlan {
+    let descriptor = generic_list_descriptor();
+    let plan = GenericListPlan {
+        score: None,
+        routes: vec![Vec::new(), Vec::new()],
+        route_pool,
+    };
+    let director = GenericListDirector {
+        working_solution: plan,
+        descriptor: descriptor.clone(),
+    };
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+    solver_scope.set_time_limit(std::time::Duration::ZERO);
+    let mut phase = Construction::new(Some(config(kind)), descriptor, generic_list_model());
     phase.solve(&mut solver_scope);
     solver_scope.working_solution().clone()
 }
@@ -348,6 +502,79 @@ fn generic_list_round_robin_keeps_unrestricted_owner_cursor() {
     );
 
     assert_eq!(solution.routes, vec![vec![20], vec![10, 30]]);
+}
+
+#[test]
+fn generic_list_round_robin_uses_element_order_key() {
+    let solution = solve_generic_list_with_model_pool(
+        ConstructionHeuristicType::ListRoundRobin,
+        generic_list_ordered_model(),
+        vec![10, 30, 20],
+    );
+
+    assert_eq!(solution.routes, vec![vec![30, 10], vec![20]]);
+}
+
+#[test]
+fn default_precedence_list_construction_uses_ordered_round_robin() {
+    let solution = solve_default_generic_list_with_model_and_pool(
+        generic_list_precedence_ordered_model(),
+        vec![10, 30, 20],
+    );
+
+    assert_eq!(solution.routes, vec![vec![30, 10], vec![20]]);
+}
+
+#[test]
+fn generic_list_cheapest_uses_element_order_key() {
+    let solution = solve_single_route_generic_list_with_model_and_pool(
+        ConstructionHeuristicType::ListCheapestInsertion,
+        generic_list_ordered_model(),
+        vec![10, 30, 20],
+    );
+
+    assert_eq!(solution.routes, vec![vec![10, 20, 30]]);
+}
+
+#[test]
+fn generic_list_regret_uses_element_order_key() {
+    let solution = solve_single_route_generic_list_with_model_and_pool(
+        ConstructionHeuristicType::ListRegretInsertion,
+        generic_list_ordered_model(),
+        vec![10, 30],
+    );
+
+    assert_eq!(solution.routes, vec![vec![10, 30]]);
+}
+
+#[test]
+fn generic_list_round_robin_completes_mandatory_construction_after_time_limit() {
+    let solution = solve_generic_list_with_expired_limit(
+        ConstructionHeuristicType::ListRoundRobin,
+        vec![10, 20, 30],
+    );
+
+    assert_eq!(solution.routes, vec![vec![10, 30], vec![20]]);
+}
+
+#[test]
+fn generic_list_cheapest_completes_mandatory_construction_after_time_limit() {
+    let solution = solve_generic_list_with_expired_limit(
+        ConstructionHeuristicType::ListCheapestInsertion,
+        vec![10, 20, 30],
+    );
+
+    assert_eq!(assigned_route_elements(&solution).len(), 3);
+}
+
+#[test]
+fn generic_list_regret_completes_mandatory_construction_after_time_limit() {
+    let solution = solve_generic_list_with_expired_limit(
+        ConstructionHeuristicType::ListRegretInsertion,
+        vec![10, 20, 30],
+    );
+
+    assert_eq!(assigned_route_elements(&solution).len(), 3);
 }
 
 #[test]

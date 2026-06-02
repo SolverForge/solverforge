@@ -505,7 +505,11 @@ impl ListPrecedenceState {
         }
 
         if self.added_edges_introduce_cycle(&change.added_edges) {
-            self.mark_cyclic_from_route_change(change);
+            if change.removed_edges.is_empty() {
+                self.mark_cyclic_from_route_change(change);
+            } else {
+                self.mark_cyclic_without_cache();
+            }
             return GraphRefreshKind::CycleDetected;
         }
 
@@ -973,6 +977,38 @@ mod tests {
         assert_eq!(state.cycle_penalty, 0);
         assert_eq!(state.earliest, vec![0, 1, 2]);
         assert_eq!(state.makespan, 3);
+    }
+
+    #[test]
+    fn cycle_introduced_with_removed_edges_recovers_by_full_rebuild() {
+        let mut state = graph_state(3, vec![10, 10, 1], &[(0, 1), (1, 2)]);
+        assert_eq!(state.makespan, 21);
+
+        let mut cycle_change = RouteChange::default();
+        if state.remove_edge((0, 1)) {
+            cycle_change.removed_edges.push((0, 1));
+        }
+        if state.add_edge((2, 1)) {
+            cycle_change.added_edges.push((2, 1));
+        }
+        assert_eq!(
+            state.refresh_graph_after_route_change(&cycle_change),
+            GraphRefreshKind::CycleDetected
+        );
+        assert_eq!(state.cycle_penalty, 3);
+        assert!(state.cycle_added_edges.is_empty());
+
+        let mut undo_change = RouteChange::default();
+        if state.remove_edge((2, 1)) {
+            undo_change.removed_edges.push((2, 1));
+        }
+        assert_eq!(
+            state.refresh_graph_after_route_change(&undo_change),
+            GraphRefreshKind::Full
+        );
+        assert_eq!(state.cycle_penalty, 0);
+        assert_eq!(state.earliest, vec![0, 0, 10]);
+        assert_eq!(state.makespan, 11);
     }
 
     #[test]

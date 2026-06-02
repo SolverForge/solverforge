@@ -391,18 +391,17 @@ fn added_edges_introduce_cycle(
     removed: &[(usize, usize)],
     added: &[(usize, usize)],
 ) -> bool {
+    let route_delta = RouteDeltaView {
+        fixed_successors,
+        successors,
+        removed,
+        added: &[],
+    };
     let mut active_added = Vec::new();
     let mut visited = vec![false; successors.len()];
     let mut stack = Vec::new();
     for &(from, to) in added {
-        if edge_active(
-            fixed_successors,
-            successors,
-            removed,
-            &active_added,
-            from,
-            to,
-        ) {
+        if route_delta.with_added(&active_added).edge_active(from, to) {
             continue;
         }
         visited.fill(false);
@@ -410,10 +409,7 @@ fn added_edges_introduce_cycle(
         if reaches_with_route_delta(
             to,
             from,
-            fixed_successors,
-            successors,
-            removed,
-            &active_added,
+            route_delta.with_added(&active_added),
             &mut visited,
             &mut stack,
         ) {
@@ -484,17 +480,40 @@ fn route_delta_has_cycle(
     visited != node_count
 }
 
+#[derive(Clone, Copy)]
+struct RouteDeltaView<'a> {
+    fixed_successors: &'a [Vec<usize>],
+    successors: &'a [Vec<usize>],
+    removed: &'a [(usize, usize)],
+    added: &'a [(usize, usize)],
+}
+
+impl<'a> RouteDeltaView<'a> {
+    fn with_added(self, added: &'a [(usize, usize)]) -> Self {
+        Self { added, ..self }
+    }
+
+    fn edge_active(self, from: usize, to: usize) -> bool {
+        self.added.contains(&(from, to))
+            || self.successors.get(from).is_some_and(|nodes| {
+                nodes.contains(&to)
+                    && (!self.removed.contains(&(from, to))
+                        || self
+                            .fixed_successors
+                            .get(from)
+                            .is_some_and(|fixed| fixed.contains(&to)))
+            })
+    }
+}
+
 fn reaches_with_route_delta(
     source: usize,
     target: usize,
-    fixed_successors: &[Vec<usize>],
-    successors: &[Vec<usize>],
-    removed: &[(usize, usize)],
-    added: &[(usize, usize)],
+    route_delta: RouteDeltaView<'_>,
     visited: &mut [bool],
     stack: &mut Vec<usize>,
 ) -> bool {
-    if source >= successors.len() || target >= successors.len() {
+    if source >= route_delta.successors.len() || target >= route_delta.successors.len() {
         return false;
     }
     stack.push(source);
@@ -506,9 +525,10 @@ fn reaches_with_route_delta(
             continue;
         }
         visited[node] = true;
-        for &successor in &successors[node] {
-            if removed.contains(&(node, successor))
-                && !fixed_successors
+        for &successor in &route_delta.successors[node] {
+            if route_delta.removed.contains(&(node, successor))
+                && !route_delta
+                    .fixed_successors
                     .get(node)
                     .is_some_and(|nodes| nodes.contains(&successor))
             {
@@ -518,31 +538,13 @@ fn reaches_with_route_delta(
                 stack.push(successor);
             }
         }
-        for &(from, to) in added {
+        for &(from, to) in route_delta.added {
             if from == node && !visited.get(to).copied().unwrap_or(true) {
                 stack.push(to);
             }
         }
     }
     false
-}
-
-fn edge_active(
-    fixed_successors: &[Vec<usize>],
-    successors: &[Vec<usize>],
-    removed: &[(usize, usize)],
-    added: &[(usize, usize)],
-    from: usize,
-    to: usize,
-) -> bool {
-    added.contains(&(from, to))
-        || successors.get(from).is_some_and(|nodes| {
-            nodes.contains(&to)
-                && (!removed.contains(&(from, to))
-                    || fixed_successors
-                        .get(from)
-                        .is_some_and(|fixed| fixed.contains(&to)))
-        })
 }
 
 pub(crate) fn node_index<V: PartialEq>(elements: &[V], needle: &V) -> Option<usize> {

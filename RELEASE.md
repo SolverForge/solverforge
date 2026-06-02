@@ -1,6 +1,6 @@
 # Release Guide
 
-Release reference for the `release/0.6.0` line and later patch releases.
+Release reference for coordinated workspace releases.
 
 ## Stability Matrix
 
@@ -11,6 +11,7 @@ Release reference for the `release/0.6.0` line and later patch releases.
 | `solverforge-scoring` | Stable | Publish on every coordinated release | Constraint-stream and incremental scoring engine |
 | `solverforge-config` | Stable | Publish on every coordinated release | Runtime configuration consumed by the solver layer |
 | `solverforge-solver` | Stable | Publish on every coordinated release | Main solve engine and manager APIs |
+| `solverforge-bridge` | Beta | Publish on every coordinated release | Dynamic host-language binding contracts that depend on config, core, scoring, and solver |
 | `solverforge` | Stable | Publish on every coordinated release | Public facade crate and primary library entry point |
 | `solverforge-cvrp` | Beta | Publish on every facade version change | Required by the facade's exact-version dependency set |
 | `solverforge-console` | Beta | Publish on every facade version change | Required for the facade's exact-version optional `console` feature |
@@ -29,14 +30,15 @@ When versions change across the workspace, publish crates in dependency order:
 3. `solverforge-scoring`
 4. `solverforge-config`
 5. `solverforge-solver`
-6. `solverforge-cvrp`
-7. `solverforge-console`
-8. `solverforge`
+6. `solverforge-bridge`
+7. `solverforge-cvrp`
+8. `solverforge-console`
+9. `solverforge`
 
 ## Release Checklist
 
 1. Confirm the release branch is correct.
-   Use `release/0.6.0` as the base for this release line.
+   Use the current release branch or `main` according to the active release plan.
 2. Confirm all release-blocking PRs are merged.
    Verify open issues/PRs targeted at the release branch are either merged or explicitly deferred.
 3. Sync version and changelog state.
@@ -55,7 +57,7 @@ When versions change across the workspace, publish crates in dependency order:
    `cargo publish --dry-run -p solverforge-core`
    `cargo publish --dry-run -p solverforge-macros`
    `cargo publish --dry-run -p solverforge-console`
-   For dependent crates (`solverforge-scoring`, `solverforge-config`, `solverforge-solver`, `solverforge-cvrp`, `solverforge`), rerun `cargo publish --dry-run -p <crate>` immediately before uploading each crate, after its exact-version dependencies are visible on crates.io.
+   For dependent crates (`solverforge-scoring`, `solverforge-config`, `solverforge-solver`, `solverforge-bridge`, `solverforge-cvrp`, `solverforge`), rerun `cargo publish --dry-run -p <crate>` immediately before uploading each crate, after its exact-version dependencies are visible on crates.io.
 8. Publish crates in dependency order.
    Use `make publish-crates` or publish manually in the order listed above.
 9. Post-publish verification.

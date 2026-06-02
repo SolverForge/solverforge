@@ -10,6 +10,8 @@ pub mod dynamic_scalar_change;
 pub mod entity;
 pub mod k_opt;
 pub mod list_change;
+pub mod list_permute;
+pub mod list_precedence;
 pub mod list_reverse;
 pub mod list_ruin;
 mod list_support;
@@ -23,6 +25,7 @@ pub mod nearby_list_swap;
 pub(crate) mod nearby_support;
 pub mod pillar;
 pub(crate) mod pillar_support;
+pub(crate) mod precedence_route;
 pub mod ruin;
 pub(crate) mod seed;
 mod selection_order;
@@ -44,6 +47,8 @@ pub use k_opt::{
     NearbyKOptMoveSelector,
 };
 pub use list_change::ListChangeMoveSelector;
+pub use list_permute::ListPermuteMoveSelector;
+pub use list_precedence::ListPrecedenceMoveSelector;
 pub use list_reverse::ListReverseMoveSelector;
 pub use list_ruin::ListRuinMoveSelector;
 pub use list_swap::ListSwapMoveSelector;

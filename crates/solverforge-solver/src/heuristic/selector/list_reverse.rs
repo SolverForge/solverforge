@@ -66,6 +66,7 @@ use super::list_support::ordered_index;
 use super::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
+use super::precedence_route::{PrecedenceRouteGraph, PrecedenceRouteHooks};
 
 /// A move selector that generates 2-opt segment reversal moves.
 ///
@@ -81,6 +82,7 @@ pub struct ListReverseMoveSelector<S, V, ES> {
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_reverse: fn(&mut S, usize, usize, usize),
+    precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -101,6 +103,7 @@ where
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_reverse: fn(&mut S, usize, usize, usize),
+    precedence_route_graph: Option<PrecedenceRouteGraph>,
     variable_name: &'static str,
     descriptor_index: usize,
 }
@@ -118,6 +121,7 @@ where
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
         list_reverse: fn(&mut S, usize, usize, usize),
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -132,9 +136,18 @@ where
             list_len,
             list_get,
             list_reverse,
+            precedence_route_graph,
             variable_name,
             descriptor_index,
         }
+    }
+
+    pub(crate) fn with_precedence_route_graph(
+        mut self,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
+    ) -> Self {
+        self.precedence_route_graph = precedence_route_graph;
+        self
     }
 
     fn push_move(&mut self, entity: usize, start: usize, end: usize) -> CandidateId {
@@ -185,6 +198,11 @@ where
                             0x1157_2A07_0000_0003 ^ entity as u64 ^ start as u64,
                         );
                     self.end_offset += 1;
+                    if self.precedence_route_graph.as_ref().is_some_and(|graph| {
+                        graph.intra_list_reverse_introduces_cycle(entity, start, end)
+                    }) {
+                        continue;
+                    }
                     return Some(self.push_move(entity, start, end));
                 }
                 self.start_offset += 1;
@@ -251,10 +269,23 @@ impl<S, V, ES> ListReverseMoveSelector<S, V, ES> {
             list_len,
             list_get,
             list_reverse,
+            precedence_route_hooks: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
         }
+    }
+
+    pub(crate) fn with_precedence_route_hooks(
+        mut self,
+        precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
+    ) -> Self {
+        self.precedence_route_hooks = precedence_route_hooks;
+        self
+    }
+
+    pub(crate) fn precedence_route_hooks(&self) -> Option<PrecedenceRouteHooks<S, V>> {
+        self.precedence_route_hooks
     }
 }
 
@@ -302,6 +333,7 @@ where
             self.list_len,
             self.list_get,
             self.list_reverse,
+            None,
             self.variable_name,
             self.descriptor_index,
         )

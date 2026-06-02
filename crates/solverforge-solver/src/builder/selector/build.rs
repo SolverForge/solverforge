@@ -28,6 +28,8 @@ where
         Some(MoveSelectorConfig::ListChangeMoveSelector(_))
         | Some(MoveSelectorConfig::NearbyListChangeMoveSelector(_))
         | Some(MoveSelectorConfig::ListSwapMoveSelector(_))
+        | Some(MoveSelectorConfig::ListPermuteMoveSelector(_))
+        | Some(MoveSelectorConfig::ListPrecedenceMoveSelector(_))
         | Some(MoveSelectorConfig::NearbyListSwapMoveSelector(_))
         | Some(MoveSelectorConfig::SublistChangeMoveSelector(_))
         | Some(MoveSelectorConfig::SublistSwapMoveSelector(_))

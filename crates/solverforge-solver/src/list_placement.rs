@@ -110,26 +110,86 @@ pub(crate) fn selected_owner_restrictions<S, V>(
     entities: &[usize],
     route_lens: &[usize],
     list_get: fn(&S, usize, usize) -> Option<V>,
-) -> Option<Vec<Vec<OwnerRestriction>>> {
+) -> Option<SelectedOwnerRestrictions> {
     let owner_fn = owner_fn?;
-    Some(
-        entities
-            .iter()
-            .zip(route_lens.iter())
-            .map(|(&entity_idx, &len)| {
-                (0..len)
-                    .map(|pos| {
-                        list_get(solution, entity_idx, pos).map_or(
-                            OwnerRestriction::Invalid,
-                            |element| {
-                                owner_restriction(Some(owner_fn), solution, entity_count, &element)
-                            },
-                        )
+    if selected_elements_fixed_to_current_entities(
+        Some(owner_fn),
+        solution,
+        entity_count,
+        entities,
+        route_lens,
+        list_get,
+    ) {
+        return Some(SelectedOwnerRestrictions::FixedToCurrent);
+    }
+    let owners: Vec<Vec<OwnerRestriction>> = entities
+        .iter()
+        .zip(route_lens.iter())
+        .map(|(&entity_idx, &len)| {
+            (0..len)
+                .map(|pos| {
+                    list_get(solution, entity_idx, pos).map_or(
+                        OwnerRestriction::Invalid,
+                        |element| {
+                            owner_restriction(Some(owner_fn), solution, entity_count, &element)
+                        },
+                    )
+                })
+                .collect()
+        })
+        .collect();
+    Some(SelectedOwnerRestrictions::Mixed(owners))
+}
+
+pub(crate) enum SelectedOwnerRestrictions {
+    FixedToCurrent,
+    Mixed(Vec<Vec<OwnerRestriction>>),
+}
+
+impl SelectedOwnerRestrictions {
+    pub(crate) fn is_fixed_to_current(&self) -> bool {
+        matches!(self, Self::FixedToCurrent)
+    }
+
+    pub(crate) fn into_mixed(self) -> Option<Vec<Vec<OwnerRestriction>>> {
+        match self {
+            Self::FixedToCurrent => None,
+            Self::Mixed(owners) => Some(owners),
+        }
+    }
+
+    pub(crate) fn mixed(&self) -> Option<&[Vec<OwnerRestriction>]> {
+        match self {
+            Self::FixedToCurrent => None,
+            Self::Mixed(owners) => Some(owners),
+        }
+    }
+}
+
+pub(crate) fn selected_elements_fixed_to_current_entities<S, V>(
+    owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    solution: &S,
+    entity_count: usize,
+    entities: &[usize],
+    route_lens: &[usize],
+    list_get: fn(&S, usize, usize) -> Option<V>,
+) -> bool {
+    let Some(owner_fn) = owner_fn else {
+        return false;
+    };
+
+    entities
+        .iter()
+        .zip(route_lens.iter())
+        .all(|(&entity_idx, &len)| {
+            (0..len).all(|pos| {
+                list_get(solution, entity_idx, pos)
+                    .map(|element| owner_restriction(Some(owner_fn), solution, entity_count, &element))
+                    .is_some_and(|restriction| {
+                        matches!(restriction, OwnerRestriction::Fixed(owner_idx) if owner_idx == entity_idx)
                     })
-                    .collect()
             })
-            .collect(),
-    )
+        })
 }
 
 #[inline]
@@ -167,7 +227,10 @@ pub(crate) fn selected_segment_allows(
 
 #[cfg(test)]
 mod tests {
-    use super::{candidate_entity_indices, owner_restriction, OwnerRestriction};
+    use super::{
+        candidate_entity_indices, owner_restriction, selected_owner_restrictions, OwnerRestriction,
+        SelectedOwnerRestrictions,
+    };
 
     fn fixed_owner(_: &(), element: &usize) -> Option<usize> {
         (*element == 7).then_some(1)
@@ -175,6 +238,22 @@ mod tests {
 
     fn invalid_owner(_: &(), _: &usize) -> Option<usize> {
         Some(4)
+    }
+
+    fn identity_owner_for_routes(_: &Vec<Vec<usize>>, element: &usize) -> Option<usize> {
+        Some(*element)
+    }
+
+    fn maybe_fixed_owner_for_routes(_: &Vec<Vec<usize>>, element: &usize) -> Option<usize> {
+        (*element < 2).then_some(*element)
+    }
+
+    fn list_get_from_routes(
+        routes: &Vec<Vec<usize>>,
+        entity_idx: usize,
+        pos: usize,
+    ) -> Option<usize> {
+        routes.get(entity_idx)?.get(pos).copied()
     }
 
     #[test]
@@ -222,6 +301,47 @@ mod tests {
         assert_eq!(
             candidate_entity_indices(Some(invalid_owner), &(), 3, &7).collect::<Vec<_>>(),
             Vec::<usize>::new()
+        );
+    }
+
+    #[test]
+    fn selected_restrictions_detect_all_elements_fixed_to_current_entity() {
+        let routes = vec![vec![0], vec![1, 1]];
+        let selected = selected_owner_restrictions(
+            Some(identity_owner_for_routes),
+            &routes,
+            2,
+            &[0, 1],
+            &[1, 2],
+            list_get_from_routes,
+        )
+        .expect("owner restrictions");
+
+        assert!(selected.is_fixed_to_current());
+    }
+
+    #[test]
+    fn selected_restrictions_keep_mixed_owner_matrix() {
+        let routes = vec![vec![0, 2], vec![1]];
+        let selected = selected_owner_restrictions(
+            Some(maybe_fixed_owner_for_routes),
+            &routes,
+            2,
+            &[0, 1],
+            &[2, 1],
+            list_get_from_routes,
+        )
+        .expect("owner restrictions");
+
+        let SelectedOwnerRestrictions::Mixed(owners) = selected else {
+            panic!("mixed restrictions should not collapse to fixed-to-current");
+        };
+        assert_eq!(
+            owners,
+            vec![
+                vec![OwnerRestriction::Fixed(0), OwnerRestriction::Unrestricted],
+                vec![OwnerRestriction::Fixed(1)],
+            ]
         );
     }
 }

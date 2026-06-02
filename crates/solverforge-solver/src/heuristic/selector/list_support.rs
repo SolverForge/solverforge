@@ -27,8 +27,7 @@ impl SelectedEntities {
         self.route_lens
             .iter()
             .map(|&source_len| {
-                let intra_tail = source_len.saturating_sub(1);
-                let intra_moves = intra_tail * intra_tail;
+                let intra_moves = source_len * source_len.saturating_sub(1);
                 let inter_destinations =
                     total_elements.saturating_sub(source_len) + entity_count.saturating_sub(1);
                 intra_moves + source_len * inter_destinations

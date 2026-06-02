@@ -152,6 +152,15 @@ where
         }
     }
 
+    fn requires_score_improvement(&self) -> bool {
+        match self {
+            Self::Scalar(m) => m.requires_score_improvement(),
+            Self::DynamicScalar(m) => m.requires_score_improvement(),
+            Self::DynamicListChange(m) => m.requires_score_improvement(),
+            Self::List(m) => m.requires_score_improvement(),
+        }
+    }
+
     fn tabu_signature<D: solverforge_scoring::Director<S>>(
         &self,
         score_director: &D,

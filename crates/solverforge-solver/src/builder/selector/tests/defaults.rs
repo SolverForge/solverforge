@@ -155,6 +155,58 @@ fn default_list_selector_uses_capability_gated_neighborhoods() {
 }
 
 #[test]
+fn default_precedence_list_selector_adds_critical_and_permutation_neighborhoods() {
+    let selector = build_move_selector(None, &precedence_list_model(), None);
+    let neighborhoods = selector.selectors();
+
+    assert_eq!(
+        selector.selection_order(),
+        solverforge_config::UnionSelectionOrder::StratifiedRandom
+    );
+    assert_eq!(neighborhoods.len(), 8);
+    assert!(matches!(
+        &neighborhoods[0],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::ListPrecedence(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[1],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::ListPermute(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[2],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::NearbyListChange(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[3],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::NearbyListSwap(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[4],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::SublistChange(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[5],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::SublistSwap(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[6],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::ListReverse(_)))
+    ));
+    assert!(matches!(
+        &neighborhoods[7],
+        Neighborhood::Flat(leafs)
+            if matches!(&leafs.selectors()[0], NeighborhoodLeaf::List(ListLeafSelector::ListRuin(_)))
+    ));
+}
+
+#[test]
 fn mixed_default_selector_puts_list_neighborhoods_before_scalar_defaults() {
     let selector = build_move_selector(None, &mixed_model(), None);
     let neighborhoods = selector.selectors();

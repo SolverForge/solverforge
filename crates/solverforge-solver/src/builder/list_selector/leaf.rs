@@ -4,17 +4,18 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{
-    KOptMove, ListChangeMove, ListMoveUnion, ListReverseMove, ListRuinMove, ListSwapMove,
-    SublistChangeMove, SublistSwapMove,
+    KOptMove, ListChangeMove, ListMoveUnion, ListPermuteMove, ListReverseMove, ListRuinMove,
+    ListSwapMove, Move, SublistChangeMove, SublistSwapMove,
 };
 use crate::heuristic::selector::decorator::MappedMoveCursor;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
+use crate::heuristic::selector::precedence_route::{PrecedenceRouteGraph, PrecedenceRouteHooks};
 use crate::heuristic::selector::{
     move_selector::{CandidateId, MoveCandidateRef, MoveCursor, MoveStreamContext},
-    FromSolutionEntitySelector, KOptMoveSelector, ListChangeMoveSelector, ListReverseMoveSelector,
-    ListRuinMoveSelector, ListSwapMoveSelector, MoveSelector, NearbyKOptMoveSelector,
-    NearbyListChangeMoveSelector, NearbyListSwapMoveSelector, SublistChangeMoveSelector,
-    SublistSwapMoveSelector,
+    FromSolutionEntitySelector, KOptMoveSelector, ListChangeMoveSelector, ListPermuteMoveSelector,
+    ListPrecedenceMoveSelector, ListReverseMoveSelector, ListRuinMoveSelector,
+    ListSwapMoveSelector, MoveSelector, NearbyKOptMoveSelector, NearbyListChangeMoveSelector,
+    NearbyListSwapMoveSelector, SublistChangeMoveSelector, SublistSwapMoveSelector,
 };
 
 use super::super::context::IntraDistanceAdapter;
@@ -41,6 +42,8 @@ where
     ListRuin(ListRuinMoveSelector<S, V>),
     ListChange(ListChangeMoveSelector<S, V, FromSolutionEntitySelector>),
     ListSwap(ListSwapMoveSelector<S, V, FromSolutionEntitySelector>),
+    ListPermute(ListPermuteMoveSelector<S, V, FromSolutionEntitySelector>),
+    ListPrecedence(ListPrecedenceMoveSelector<S, V, FromSolutionEntitySelector>),
     SublistSwap(SublistSwapMoveSelector<S, V, FromSolutionEntitySelector>),
 }
 
@@ -58,6 +61,14 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
     ListMoveUnion::ListSwap(mov)
+}
+
+fn wrap_list_permute_move<S, V>(mov: ListPermuteMove<S, V>) -> ListMoveUnion<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    ListMoveUnion::ListPermute(mov)
 }
 
 fn wrap_list_reverse_move<S, V>(mov: ListReverseMove<S, V>) -> ListMoveUnion<S, V>
@@ -98,6 +109,30 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
     ListMoveUnion::SublistSwap(mov)
+}
+
+fn precedence_route_graph<S, V, D: Director<S>>(
+    hooks: Option<PrecedenceRouteHooks<S, V>>,
+    score_director: &D,
+) -> Option<PrecedenceRouteGraph>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq,
+{
+    hooks.map(|hooks| hooks.build_graph(score_director.working_solution()))
+}
+
+fn count_cursor<S, M, C>(mut cursor: C) -> usize
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    let mut count = 0;
+    while cursor.next_candidate().is_some() {
+        count += 1;
+    }
+    count
 }
 
 #[allow(clippy::large_enum_variant)] // Inline storage keeps list cursor dispatch zero-erasure.
@@ -197,6 +232,22 @@ where
         >>::Cursor<'a>,
         fn(ListSwapMove<S, V>) -> ListMoveUnion<S, V>,
     >),
+    ListPermute(MappedMoveCursor<
+        S,
+        ListPermuteMove<S, V>,
+        ListMoveUnion<S, V>,
+        <ListPermuteMoveSelector<S, V, FromSolutionEntitySelector> as MoveSelector<
+            S,
+            ListPermuteMove<S, V>,
+        >>::Cursor<'a>,
+        fn(ListPermuteMove<S, V>) -> ListMoveUnion<S, V>,
+    >),
+    ListPrecedence(
+        <ListPrecedenceMoveSelector<S, V, FromSolutionEntitySelector> as MoveSelector<
+            S,
+            ListMoveUnion<S, V>,
+        >>::Cursor<'a>,
+    ),
     SublistSwap(MappedMoveCursor<
         S,
         SublistSwapMove<S, V>,
@@ -227,6 +278,8 @@ where
             Self::ListRuin(cursor) => cursor.next_candidate(),
             Self::ListChange(cursor) => cursor.next_candidate(),
             Self::ListSwap(cursor) => cursor.next_candidate(),
+            Self::ListPermute(cursor) => cursor.next_candidate(),
+            Self::ListPrecedence(cursor) => cursor.next_candidate(),
             Self::SublistSwap(cursor) => cursor.next_candidate(),
         }
     }
@@ -245,6 +298,8 @@ where
             Self::ListRuin(cursor) => cursor.candidate(index),
             Self::ListChange(cursor) => cursor.candidate(index),
             Self::ListSwap(cursor) => cursor.candidate(index),
+            Self::ListPermute(cursor) => cursor.candidate(index),
+            Self::ListPrecedence(cursor) => cursor.candidate(index),
             Self::SublistSwap(cursor) => cursor.candidate(index),
         }
     }
@@ -260,6 +315,8 @@ where
             Self::ListRuin(cursor) => cursor.take_candidate(index),
             Self::ListChange(cursor) => cursor.take_candidate(index),
             Self::ListSwap(cursor) => cursor.take_candidate(index),
+            Self::ListPermute(cursor) => cursor.take_candidate(index),
+            Self::ListPrecedence(cursor) => cursor.take_candidate(index),
             Self::SublistSwap(cursor) => cursor.take_candidate(index),
         }
     }
@@ -275,6 +332,8 @@ where
             Self::ListRuin(cursor) => cursor.selector_index(index),
             Self::ListChange(cursor) => cursor.selector_index(index),
             Self::ListSwap(cursor) => cursor.selector_index(index),
+            Self::ListPermute(cursor) => cursor.selector_index(index),
+            Self::ListPrecedence(cursor) => cursor.selector_index(index),
             Self::SublistSwap(cursor) => cursor.selector_index(index),
         }
     }
@@ -298,6 +357,8 @@ where
             Self::ListRuin(s) => write!(f, "ListLeafSelector::ListRuin({s:?})"),
             Self::ListChange(s) => write!(f, "ListLeafSelector::ListChange({s:?})"),
             Self::ListSwap(s) => write!(f, "ListLeafSelector::ListSwap({s:?})"),
+            Self::ListPermute(s) => write!(f, "ListLeafSelector::ListPermute({s:?})"),
+            Self::ListPrecedence(s) => write!(f, "ListLeafSelector::ListPrecedence({s:?})"),
             Self::SublistSwap(s) => write!(f, "ListLeafSelector::SublistSwap({s:?})"),
         }
     }
@@ -326,19 +387,35 @@ where
     ) -> Self::Cursor<'a> {
         match self {
             Self::NearbyListChange(s) => ListLeafCursor::NearbyListChange(MappedMoveCursor::new(
-                s.open_cursor_with_context(score_director, context),
+                s.open_cursor_with_context(score_director, context)
+                    .with_precedence_route_graph(precedence_route_graph(
+                        s.precedence_route_hooks(),
+                        score_director,
+                    )),
                 wrap_list_change_move::<S, V>,
             )),
             Self::NearbyListSwap(s) => ListLeafCursor::NearbyListSwap(MappedMoveCursor::new(
-                s.open_cursor_with_context(score_director, context),
+                s.open_cursor_with_context(score_director, context)
+                    .with_precedence_route_graph(precedence_route_graph(
+                        s.precedence_route_hooks(),
+                        score_director,
+                    )),
                 wrap_list_swap_move::<S, V>,
             )),
             Self::ListReverse(s) => ListLeafCursor::ListReverse(MappedMoveCursor::new(
-                s.open_cursor_with_context(score_director, context),
+                s.open_cursor_with_context(score_director, context)
+                    .with_precedence_route_graph(precedence_route_graph(
+                        s.precedence_route_hooks(),
+                        score_director,
+                    )),
                 wrap_list_reverse_move::<S, V>,
             )),
             Self::SublistChange(s) => ListLeafCursor::SublistChange(MappedMoveCursor::new(
-                s.open_cursor_with_context(score_director, context),
+                s.open_cursor_with_context(score_director, context)
+                    .with_precedence_route_graph(precedence_route_graph(
+                        s.precedence_route_hooks(),
+                        score_director,
+                    )),
                 wrap_sublist_change_move::<S, V>,
             )),
             Self::KOpt(s) => ListLeafCursor::KOpt(MappedMoveCursor::new(
@@ -354,32 +431,75 @@ where
                 wrap_list_ruin_move::<S, V>,
             )),
             Self::ListChange(s) => ListLeafCursor::ListChange(MappedMoveCursor::new(
-                s.open_cursor_with_context(score_director, context),
+                s.open_cursor_with_context(score_director, context)
+                    .with_precedence_route_graph(precedence_route_graph(
+                        s.precedence_route_hooks(),
+                        score_director,
+                    )),
                 wrap_list_change_move::<S, V>,
             )),
             Self::ListSwap(s) => ListLeafCursor::ListSwap(MappedMoveCursor::new(
-                s.open_cursor_with_context(score_director, context),
+                s.open_cursor_with_context(score_director, context)
+                    .with_precedence_route_graph(precedence_route_graph(
+                        s.precedence_route_hooks(),
+                        score_director,
+                    )),
                 wrap_list_swap_move::<S, V>,
             )),
+            Self::ListPermute(s) => ListLeafCursor::ListPermute(MappedMoveCursor::new(
+                s.open_cursor_with_context(score_director, context)
+                    .with_precedence_route_graph(precedence_route_graph(
+                        s.precedence_route_hooks(),
+                        score_director,
+                    )),
+                wrap_list_permute_move::<S, V>,
+            )),
+            Self::ListPrecedence(s) => {
+                ListLeafCursor::ListPrecedence(s.open_cursor_with_context(score_director, context))
+            }
             Self::SublistSwap(s) => ListLeafCursor::SublistSwap(MappedMoveCursor::new(
-                s.open_cursor_with_context(score_director, context),
+                s.open_cursor_with_context(score_director, context)
+                    .with_precedence_route_graph(precedence_route_graph(
+                        s.precedence_route_hooks(),
+                        score_director,
+                    )),
                 wrap_sublist_swap_move::<S, V>,
             )),
         }
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
+        macro_rules! guarded_size {
+            ($selector:expr) => {{
+                let hooks = $selector.precedence_route_hooks();
+                if hooks.is_some() {
+                    count_cursor(
+                        $selector
+                            .open_cursor(score_director)
+                            .with_precedence_route_graph(precedence_route_graph(
+                                hooks,
+                                score_director,
+                            )),
+                    )
+                } else {
+                    $selector.size(score_director)
+                }
+            }};
+        }
+
         match self {
-            Self::NearbyListChange(s) => s.size(score_director),
-            Self::NearbyListSwap(s) => s.size(score_director),
-            Self::ListReverse(s) => s.size(score_director),
-            Self::SublistChange(s) => s.size(score_director),
+            Self::NearbyListChange(s) => guarded_size!(s),
+            Self::NearbyListSwap(s) => guarded_size!(s),
+            Self::ListReverse(s) => guarded_size!(s),
+            Self::SublistChange(s) => guarded_size!(s),
             Self::KOpt(s) => s.size(score_director),
             Self::NearbyKOpt(s) => s.size(score_director),
             Self::ListRuin(s) => s.size(score_director),
-            Self::ListChange(s) => s.size(score_director),
-            Self::ListSwap(s) => s.size(score_director),
-            Self::SublistSwap(s) => s.size(score_director),
+            Self::ListChange(s) => guarded_size!(s),
+            Self::ListSwap(s) => guarded_size!(s),
+            Self::ListPermute(s) => guarded_size!(s),
+            Self::ListPrecedence(s) => s.size(score_director),
+            Self::SublistSwap(s) => guarded_size!(s),
         }
     }
 }

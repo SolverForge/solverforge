@@ -199,6 +199,18 @@ where
         }
     }
 
+    fn requires_score_improvement(&self) -> bool {
+        match self {
+            Self::Change(m) => m.requires_score_improvement(),
+            Self::Swap(m) => m.requires_score_improvement(),
+            Self::PillarChange(m) => m.requires_score_improvement(),
+            Self::PillarSwap(m) => m.requires_score_improvement(),
+            Self::RuinRecreate(m) => m.requires_score_improvement(),
+            Self::CompoundScalar(m) => m.requires_score_improvement(),
+            Self::ConflictRepair(m) => m.requires_score_improvement(),
+        }
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         match self {
             Self::Change(m) => m.tabu_signature(score_director),

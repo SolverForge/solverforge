@@ -1,6 +1,9 @@
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::domain::SolutionDescriptor;
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::Director;
+use std::any::TypeId;
+use std::cell::Cell;
 
 use super::*;
 use crate::heuristic::r#move::{Move, MoveTabuSignature};
@@ -20,6 +23,61 @@ impl PlanningSolution for TestSolution {
 
     fn set_score(&mut self, score: Option<Self::Score>) {
         self.score = score;
+    }
+}
+
+#[derive(Clone, Debug)]
+struct TestDirector {
+    working_solution: TestSolution,
+    descriptor: SolutionDescriptor,
+}
+
+impl TestDirector {
+    fn new() -> Self {
+        Self {
+            working_solution: TestSolution {
+                score: Some(SoftScore::ZERO),
+            },
+            descriptor: SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>()),
+        }
+    }
+}
+
+impl Director<TestSolution> for TestDirector {
+    fn working_solution(&self) -> &TestSolution {
+        &self.working_solution
+    }
+
+    fn working_solution_mut(&mut self) -> &mut TestSolution {
+        &mut self.working_solution
+    }
+
+    fn calculate_score(&mut self) -> SoftScore {
+        SoftScore::ZERO
+    }
+
+    fn solution_descriptor(&self) -> &SolutionDescriptor {
+        &self.descriptor
+    }
+
+    fn clone_working_solution(&self) -> TestSolution {
+        self.working_solution.clone()
+    }
+
+    fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn entity_count(&self, _descriptor_index: usize) -> Option<usize> {
+        Some(0)
+    }
+
+    fn total_entity_count(&self) -> Option<usize> {
+        Some(0)
+    }
+
+    fn constraint_metadata(&self) -> Vec<solverforge_scoring::ConstraintMetadata<'_>> {
+        Vec::new()
     }
 }
 
@@ -101,6 +159,45 @@ fn drain_values(mut cursor: VecUnionMoveCursor<TestSolution, TestMove, TestCurso
         values.push(cursor.take_candidate(id).0);
     }
     values
+}
+
+#[derive(Debug)]
+struct ContextRecordingSelector {
+    values: Vec<i32>,
+    seen_context: Cell<Option<MoveStreamContext>>,
+}
+
+impl ContextRecordingSelector {
+    fn new(values: impl IntoIterator<Item = i32>) -> Self {
+        Self {
+            values: values.into_iter().collect(),
+            seen_context: Cell::new(None),
+        }
+    }
+}
+
+impl MoveSelector<TestSolution, TestMove> for ContextRecordingSelector {
+    type Cursor<'a> = TestCursor;
+
+    fn open_cursor<'a, D: Director<TestSolution>>(
+        &'a self,
+        score_director: &D,
+    ) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<TestSolution>>(
+        &'a self,
+        _score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
+        self.seen_context.set(Some(context));
+        TestCursor::new(self.values.iter().copied())
+    }
+
+    fn size<D: Director<TestSolution>>(&self, _score_director: &D) -> usize {
+        self.values.len()
+    }
 }
 
 #[test]
@@ -191,4 +288,82 @@ fn stratified_random_keeps_each_child_live_without_materializing_child_moves() {
     assert!(values.contains(&1));
     assert!(values.contains(&10));
     assert!(values.contains(&20));
+}
+
+#[test]
+fn sequential_keeps_child_selectors_canonical() {
+    let selector = VecUnionSelector::<TestSolution, TestMove, _>::with_selection_order(
+        vec![
+            ContextRecordingSelector::new([1, 2]),
+            ContextRecordingSelector::new([10, 11]),
+        ],
+        UnionSelectionOrder::Sequential,
+    );
+    let director = TestDirector::new();
+
+    let _cursor =
+        selector.open_cursor_with_context(&director, MoveStreamContext::new(3, 42, Some(4)));
+
+    assert_eq!(
+        selector.selectors()[0].seen_context.get(),
+        Some(MoveStreamContext::default())
+    );
+    assert_eq!(
+        selector.selectors()[1].seen_context.get(),
+        Some(MoveStreamContext::default())
+    );
+}
+
+#[test]
+fn round_robin_propagates_context_to_child_selectors() {
+    let context = MoveStreamContext::new(3, 42, Some(4));
+    let selector = VecUnionSelector::<TestSolution, TestMove, _>::with_selection_order(
+        vec![
+            ContextRecordingSelector::new([1, 2]),
+            ContextRecordingSelector::new([10, 11]),
+        ],
+        UnionSelectionOrder::RoundRobin,
+    );
+    let director = TestDirector::new();
+
+    let _cursor = selector.open_cursor_with_context(&director, context);
+
+    assert_eq!(selector.selectors()[0].seen_context.get(), Some(context));
+    assert_eq!(selector.selectors()[1].seen_context.get(), Some(context));
+}
+
+#[test]
+fn rotating_round_robin_propagates_context_to_child_selectors() {
+    let context = MoveStreamContext::new(3, 42, Some(4));
+    let selector = VecUnionSelector::<TestSolution, TestMove, _>::with_selection_order(
+        vec![
+            ContextRecordingSelector::new([1, 2]),
+            ContextRecordingSelector::new([10, 11]),
+        ],
+        UnionSelectionOrder::RotatingRoundRobin,
+    );
+    let director = TestDirector::new();
+
+    let _cursor = selector.open_cursor_with_context(&director, context);
+
+    assert_eq!(selector.selectors()[0].seen_context.get(), Some(context));
+    assert_eq!(selector.selectors()[1].seen_context.get(), Some(context));
+}
+
+#[test]
+fn stratified_random_propagates_context_to_child_selectors() {
+    let context = MoveStreamContext::new(3, 42, Some(4));
+    let selector = VecUnionSelector::<TestSolution, TestMove, _>::with_selection_order(
+        vec![
+            ContextRecordingSelector::new([1, 2]),
+            ContextRecordingSelector::new([10, 11]),
+        ],
+        UnionSelectionOrder::StratifiedRandom,
+    );
+    let director = TestDirector::new();
+
+    let _cursor = selector.open_cursor_with_context(&director, context);
+
+    assert_eq!(selector.selectors()[0].seen_context.get(), Some(context));
+    assert_eq!(selector.selectors()[1].seen_context.get(), Some(context));
 }

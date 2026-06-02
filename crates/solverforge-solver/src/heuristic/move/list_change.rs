@@ -191,12 +191,12 @@ where
         }
 
         /* Check destination position is valid
-        For intra-list, dest can be 0..=len-1 (after removal)
+        For intra-list, dest uses pre-removal coordinates and can be 0..=len
         For inter-list, dest can be 0..=len
         */
         let dest_len = (self.list_len)(solution, self.dest_entity_index);
         let max_dest = if self.is_intra_list() {
-            source_len - 1 // After removal, list is shorter
+            source_len
         } else {
             dest_len
         };
@@ -302,6 +302,10 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    fn telemetry_label(&self) -> &'static str {
+        "list_change"
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {

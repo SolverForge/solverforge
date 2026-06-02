@@ -125,6 +125,8 @@ pub(crate) const TABU_OP_SWAP: u64 = 0xF000_0000_0000_0001;
 pub(crate) const TABU_OP_PILLAR_SWAP: u64 = 0xF000_0000_0000_0002;
 pub(crate) const TABU_OP_LIST_SWAP: u64 = 0xF000_0000_0000_0003;
 pub(crate) const TABU_OP_LIST_REVERSE: u64 = 0xF000_0000_0000_0004;
+pub(crate) const TABU_OP_LIST_PERMUTE: u64 = 0xF000_0000_0000_0005;
+pub(crate) const TABU_OP_LIST_MULTI_SWAP: u64 = 0xF000_0000_0000_0006;
 
 pub(crate) fn scoped_move_identity(
     scope: MoveTabuScope,

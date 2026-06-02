@@ -417,6 +417,48 @@ impl Move<TestSolution> for ScoreFieldMove {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+struct ScoreImprovementRequiredMove(i64);
+
+impl Move<TestSolution> for ScoreImprovementRequiredMove {
+    type Undo = <ScoreFieldMove as Move<TestSolution>>::Undo;
+
+    fn is_doable<D: Director<TestSolution>>(&self, score_director: &D) -> bool {
+        ScoreFieldMove(self.0).is_doable(score_director)
+    }
+
+    fn do_move<D: Director<TestSolution>>(&self, score_director: &mut D) -> Self::Undo {
+        ScoreFieldMove(self.0).do_move(score_director)
+    }
+
+    fn undo_move<D: Director<TestSolution>>(&self, score_director: &mut D, undo: Self::Undo) {
+        ScoreFieldMove(self.0).undo_move(score_director, undo);
+    }
+
+    fn descriptor_index(&self) -> usize {
+        0
+    }
+
+    fn entity_indices(&self) -> &[usize] {
+        &[0]
+    }
+
+    fn variable_name(&self) -> &str {
+        "score"
+    }
+
+    fn requires_score_improvement(&self) -> bool {
+        true
+    }
+
+    fn tabu_signature<D: Director<TestSolution>>(
+        &self,
+        score_director: &D,
+    ) -> crate::heuristic::r#move::MoveTabuSignature {
+        ScoreFieldMove(self.0).tabu_signature(score_director)
+    }
+}
+
 #[derive(Debug)]
 struct ScoreFieldSelector {
     scores: Vec<i64>,
@@ -485,6 +527,56 @@ impl MoveSelector<TestSolution, ScoreFieldMove> for ScoreFieldSelector {
 
     fn size<D: Director<TestSolution>>(&self, _score_director: &D) -> usize {
         self.scores.len()
+    }
+}
+
+#[derive(Debug)]
+struct ScoreImprovementRequiredSelector {
+    scores: Vec<i64>,
+}
+
+impl ScoreImprovementRequiredSelector {
+    fn new(scores: impl Into<Vec<i64>>) -> Self {
+        Self {
+            scores: scores.into(),
+        }
+    }
+}
+
+impl MoveSelector<TestSolution, ScoreImprovementRequiredMove> for ScoreImprovementRequiredSelector {
+    type Cursor<'a>
+        = ArenaMoveCursor<TestSolution, ScoreImprovementRequiredMove>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<TestSolution>>(
+        &'a self,
+        _score_director: &D,
+    ) -> Self::Cursor<'a> {
+        ArenaMoveCursor::from_moves(
+            self.scores
+                .iter()
+                .copied()
+                .map(ScoreImprovementRequiredMove),
+        )
+    }
+
+    fn size<D: Director<TestSolution>>(&self, _score_director: &D) -> usize {
+        self.scores.len()
+    }
+}
+
+#[derive(Debug)]
+struct AlwaysAcceptAcceptor;
+
+impl Acceptor<TestSolution> for AlwaysAcceptAcceptor {
+    fn is_accepted(
+        &mut self,
+        _last_step_score: &SoftScore,
+        _move_score: &SoftScore,
+        _move_signature: Option<&crate::heuristic::r#move::MoveTabuSignature>,
+    ) -> bool {
+        true
     }
 }
 
@@ -685,6 +777,29 @@ fn accepted_count_limit_picks_best_of_accepted_horizon() {
 }
 
 #[test]
+fn config_move_count_interrupt_commits_best_already_accepted_move() {
+    let director = ScoreFieldDirector::new();
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+    solver_scope.inphase_move_count_limit = Some(1);
+
+    let move_selector = ScoreFieldSelector::new([1, 3]);
+    let acceptor = HillClimbingAcceptor::new();
+    let forager: AcceptedCountForager<_> = AcceptedCountForager::new(2);
+    let mut phase: LocalSearchPhase<_, ScoreFieldMove, _, _, _> =
+        LocalSearchPhase::new(move_selector, acceptor, forager, Some(1));
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.stats().moves_evaluated, 1);
+    assert_eq!(solver_scope.stats().moves_applied, 1);
+    assert_eq!(
+        solver_scope.working_solution().score,
+        Some(SoftScore::of(1))
+    );
+}
+
+#[test]
 fn best_score_forager_still_scans_full_neighborhood() {
     let director = ScoreFieldDirector::new();
     let mut solver_scope = SolverScope::new(director);
@@ -699,6 +814,28 @@ fn best_score_forager_still_scans_full_neighborhood() {
     phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.stats().moves_evaluated, 3);
+    assert_eq!(solver_scope.stats().moves_applied, 1);
+    assert_eq!(
+        solver_scope.working_solution().score,
+        Some(SoftScore::of(3))
+    );
+}
+
+#[test]
+fn score_improvement_required_move_rejects_worse_before_acceptor() {
+    let director = ScoreFieldDirector::new();
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+
+    let move_selector = ScoreImprovementRequiredSelector::new([-5, 3]);
+    let acceptor = AlwaysAcceptAcceptor;
+    let forager: AcceptedCountForager<_> = AcceptedCountForager::new(1);
+    let mut phase: LocalSearchPhase<_, ScoreImprovementRequiredMove, _, _, _> =
+        LocalSearchPhase::new(move_selector, acceptor, forager, Some(1));
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(solver_scope.stats().moves_evaluated, 2);
     assert_eq!(solver_scope.stats().moves_applied, 1);
     assert_eq!(
         solver_scope.working_solution().score,

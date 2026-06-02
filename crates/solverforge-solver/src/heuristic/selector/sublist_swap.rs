@@ -68,13 +68,14 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::SublistSwapMove;
-use crate::list_placement::{selected_segment_allows, OwnerRestriction};
+use crate::list_placement::{selected_segment_allows, OwnerRestriction, SelectedOwnerRestrictions};
 
 use super::entity::EntitySelector;
 use super::list_support::{collect_selected_entities, ordered_index};
 use super::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
+use super::precedence_route::{PrecedenceRouteGraph, PrecedenceRouteHooks};
 use super::sublist_support::{count_intra_sublist_swap_moves_for_len, count_sublist_segments};
 
 /// A move selector that generates sublist swap moves.
@@ -97,6 +98,7 @@ pub struct SublistSwapMoveSelector<S, V, ES> {
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -108,6 +110,93 @@ struct ListSegment {
     end: usize,
 }
 
+#[derive(Clone)]
+struct SublistSegmentCursor {
+    entity: usize,
+    route_len: usize,
+    min_seg: usize,
+    max_seg: usize,
+    context: MoveStreamContext,
+    descriptor_index: usize,
+    start_offset: usize,
+    size_offset: usize,
+    current_start: Option<usize>,
+    current_size_count: usize,
+}
+
+impl SublistSegmentCursor {
+    fn new(
+        entity: usize,
+        route_len: usize,
+        min_seg: usize,
+        max_seg: usize,
+        context: MoveStreamContext,
+        descriptor_index: usize,
+    ) -> Self {
+        Self {
+            entity,
+            route_len,
+            min_seg,
+            max_seg,
+            context,
+            descriptor_index,
+            start_offset: 0,
+            size_offset: 0,
+            current_start: None,
+            current_size_count: 0,
+        }
+    }
+}
+
+impl Iterator for SublistSegmentCursor {
+    type Item = ListSegment;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.route_len < self.min_seg {
+            return None;
+        }
+
+        loop {
+            if let Some(start) = self.current_start {
+                if self.size_offset < self.current_size_count {
+                    let segment_size = self.min_seg
+                        + ordered_index(
+                            self.size_offset,
+                            self.current_size_count,
+                            self.context,
+                            0x5B15_75A0_9000_0003 ^ self.entity as u64 ^ start as u64,
+                        );
+                    self.size_offset += 1;
+                    return Some(ListSegment {
+                        start,
+                        end: start + segment_size,
+                    });
+                }
+                self.current_start = None;
+            }
+
+            if self.start_offset >= self.route_len {
+                return None;
+            }
+
+            let start = ordered_index(
+                self.start_offset,
+                self.route_len,
+                self.context,
+                0x5B15_75A0_9000_0002 ^ self.entity as u64 ^ self.descriptor_index as u64,
+            );
+            self.start_offset += 1;
+            let max_valid = self.max_seg.min(self.route_len - start);
+            if max_valid < self.min_seg {
+                continue;
+            }
+            self.current_start = Some(start);
+            self.current_size_count = max_valid - self.min_seg + 1;
+            self.size_offset = 0;
+        }
+    }
+}
+
 pub struct SublistSwapMoveCursor<S, V>
 where
     S: PlanningSolution,
@@ -115,12 +204,18 @@ where
 {
     store: CandidateStore<S, SublistSwapMove<S, V>>,
     entities: Vec<usize>,
-    segments_by_entity: Vec<Vec<ListSegment>>,
+    route_lens: Vec<usize>,
+    context: MoveStreamContext,
     element_owners: Option<Vec<Vec<OwnerRestriction>>>,
+    fixed_to_current_entity: bool,
+    precedence_route_graph: Option<PrecedenceRouteGraph>,
     entity_a_idx: usize,
-    segment_a_idx: usize,
+    segment_a_cursor: Option<SublistSegmentCursor>,
+    first_segment: Option<ListSegment>,
     entity_b_idx: usize,
-    segment_b_idx: usize,
+    segment_b_cursor: Option<SublistSegmentCursor>,
+    min_seg: usize,
+    max_seg: usize,
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
@@ -137,8 +232,13 @@ where
     #[allow(clippy::too_many_arguments)]
     fn new(
         entities: Vec<usize>,
-        segments_by_entity: Vec<Vec<ListSegment>>,
+        route_lens: Vec<usize>,
+        context: MoveStreamContext,
         element_owners: Option<Vec<Vec<OwnerRestriction>>>,
+        fixed_to_current_entity: bool,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
+        min_seg: usize,
+        max_seg: usize,
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
@@ -149,12 +249,18 @@ where
         Self {
             store: CandidateStore::new(),
             entities,
-            segments_by_entity,
+            route_lens,
+            context,
             element_owners,
+            fixed_to_current_entity,
+            precedence_route_graph,
             entity_a_idx: 0,
-            segment_a_idx: 0,
+            segment_a_cursor: None,
+            first_segment: None,
             entity_b_idx: 0,
-            segment_b_idx: 0,
+            segment_b_cursor: None,
+            min_seg,
+            max_seg,
             list_len,
             list_get,
             sublist_remove,
@@ -162,6 +268,14 @@ where
             variable_name,
             descriptor_index,
         }
+    }
+
+    pub(crate) fn with_precedence_route_graph(
+        mut self,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
+    ) -> Self {
+        self.precedence_route_graph = precedence_route_graph;
+        self
     }
 
     fn push_move(
@@ -185,6 +299,17 @@ where
             self.variable_name,
             self.descriptor_index,
         ))
+    }
+
+    fn segment_cursor(&self, entity_idx: usize) -> SublistSegmentCursor {
+        SublistSegmentCursor::new(
+            self.entities[entity_idx],
+            self.route_lens[entity_idx],
+            self.min_seg,
+            self.max_seg,
+            self.context,
+            self.descriptor_index,
+        )
     }
 
     fn segment_owner_allows(
@@ -215,6 +340,33 @@ where
                 && self.segment_owner_allows(entity_b_idx, second, entity_a)
         }
     }
+
+    fn next_first_segment(&mut self) -> Option<ListSegment> {
+        loop {
+            if self.entity_a_idx >= self.entities.len() {
+                return None;
+            }
+            if self.segment_a_cursor.is_none() {
+                self.segment_a_cursor = Some(self.segment_cursor(self.entity_a_idx));
+            }
+            if let Some(first) = self
+                .segment_a_cursor
+                .as_mut()
+                .and_then(SublistSegmentCursor::next)
+            {
+                self.first_segment = Some(first);
+                self.entity_b_idx = self.entity_a_idx;
+                self.segment_b_cursor = None;
+                return Some(first);
+            }
+
+            self.entity_a_idx += 1;
+            self.segment_a_cursor = None;
+            self.first_segment = None;
+            self.entity_b_idx = self.entity_a_idx;
+            self.segment_b_cursor = None;
+        }
+    }
 }
 
 impl<S, V> MoveCursor<S, SublistSwapMove<S, V>> for SublistSwapMoveCursor<S, V>
@@ -227,26 +379,30 @@ where
             if self.entity_a_idx >= self.entities.len() {
                 return None;
             }
-            if self.segment_a_idx >= self.segments_by_entity[self.entity_a_idx].len() {
-                self.entity_a_idx += 1;
-                self.segment_a_idx = 0;
-                self.entity_b_idx = self.entity_a_idx;
-                self.segment_b_idx = 0;
-                continue;
-            }
 
+            let first = match self.first_segment {
+                Some(first) => first,
+                None => self.next_first_segment()?,
+            };
             let entity_a = self.entities[self.entity_a_idx];
-            let first = self.segments_by_entity[self.entity_a_idx][self.segment_a_idx];
             if self.entity_b_idx < self.entity_a_idx {
                 self.entity_b_idx = self.entity_a_idx;
-                self.segment_b_idx = 0;
+                self.segment_b_cursor = None;
             }
 
             while self.entity_b_idx < self.entities.len() {
+                if self.fixed_to_current_entity && self.entity_b_idx != self.entity_a_idx {
+                    break;
+                }
                 let entity_b = self.entities[self.entity_b_idx];
-                while self.segment_b_idx < self.segments_by_entity[self.entity_b_idx].len() {
-                    let second = self.segments_by_entity[self.entity_b_idx][self.segment_b_idx];
-                    self.segment_b_idx += 1;
+                if self.segment_b_cursor.is_none() {
+                    self.segment_b_cursor = Some(self.segment_cursor(self.entity_b_idx));
+                }
+                while let Some(second) = self
+                    .segment_b_cursor
+                    .as_mut()
+                    .and_then(SublistSegmentCursor::next)
+                {
                     if self.entity_a_idx == self.entity_b_idx {
                         if second.start < first.end {
                             continue;
@@ -267,15 +423,28 @@ where
                     {
                         continue;
                     }
+                    if entity_a == entity_b
+                        && self.precedence_route_graph.as_ref().is_some_and(|graph| {
+                            graph.intra_sublist_swap_introduces_cycle(
+                                entity_a,
+                                first.start,
+                                first.end,
+                                second.start,
+                                second.end,
+                            )
+                        })
+                    {
+                        continue;
+                    }
                     return Some(self.push_move(entity_a, first, entity_b, second));
                 }
                 self.entity_b_idx += 1;
-                self.segment_b_idx = 0;
+                self.segment_b_cursor = None;
             }
 
-            self.segment_a_idx += 1;
+            self.first_segment = None;
             self.entity_b_idx = self.entity_a_idx;
-            self.segment_b_idx = 0;
+            self.segment_b_cursor = None;
         }
     }
 
@@ -301,46 +470,22 @@ where
     }
 }
 
-fn build_segments_for_entity(
+fn sublist_segments_for_entity(
     entity: usize,
     route_len: usize,
     min_seg: usize,
     max_seg: usize,
     context: MoveStreamContext,
     descriptor_index: usize,
-) -> Vec<ListSegment> {
-    if route_len < min_seg {
-        return Vec::new();
-    }
-
-    let mut segments = Vec::new();
-    for start_offset in 0..route_len {
-        let start = ordered_index(
-            start_offset,
-            route_len,
-            context,
-            0x5B15_75A0_9000_0002 ^ entity as u64 ^ descriptor_index as u64,
-        );
-        let max_valid = max_seg.min(route_len - start);
-        if max_valid < min_seg {
-            continue;
-        }
-        let size_count = max_valid - min_seg + 1;
-        for size_offset in 0..size_count {
-            let segment_size = min_seg
-                + ordered_index(
-                    size_offset,
-                    size_count,
-                    context,
-                    0x5B15_75A0_9000_0003 ^ entity as u64 ^ start as u64,
-                );
-            segments.push(ListSegment {
-                start,
-                end: start + segment_size,
-            });
-        }
-    }
-    segments
+) -> impl Iterator<Item = ListSegment> {
+    SublistSegmentCursor::new(
+        entity,
+        route_len,
+        min_seg,
+        max_seg,
+        context,
+        descriptor_index,
+    )
 }
 
 impl<S, V: Debug, ES: Debug> Debug for SublistSwapMoveSelector<S, V, ES> {
@@ -397,6 +542,7 @@ impl<S, V, ES> SublistSwapMoveSelector<S, V, ES> {
             sublist_remove,
             sublist_insert,
             element_owner_fn: None,
+            precedence_route_hooks: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -409,6 +555,18 @@ impl<S, V, ES> SublistSwapMoveSelector<S, V, ES> {
     ) -> Self {
         self.element_owner_fn = element_owner_fn;
         self
+    }
+
+    pub(crate) fn with_precedence_route_hooks(
+        mut self,
+        precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
+    ) -> Self {
+        self.precedence_route_hooks = precedence_route_hooks;
+        self
+    }
+
+    pub(crate) fn precedence_route_hooks(&self) -> Option<PrecedenceRouteHooks<S, V>> {
+        self.precedence_route_hooks
     }
 }
 
@@ -441,41 +599,30 @@ where
             context,
             0x5B15_75A0_9000_0001 ^ self.descriptor_index as u64,
         );
-        let segments_by_entity = selected
-            .route_lens
-            .iter()
-            .enumerate()
-            .map(|(entity_offset, &route_len)| {
-                let entity = selected.entities[entity_offset];
-                build_segments_for_entity(
-                    entity,
-                    route_len,
-                    min_seg,
-                    max_seg,
-                    context,
-                    self.descriptor_index,
-                )
-            })
-            .collect();
-        let element_owners = if self.element_owner_fn.is_some() {
-            crate::list_placement::selected_owner_restrictions(
-                self.element_owner_fn,
-                score_director.working_solution(),
-                score_director
-                    .entity_count(self.descriptor_index)
-                    .unwrap_or(0),
-                &selected.entities,
-                &selected.route_lens,
-                self.list_get,
-            )
-        } else {
-            None
-        };
+        let owner_restrictions = crate::list_placement::selected_owner_restrictions(
+            self.element_owner_fn,
+            score_director.working_solution(),
+            score_director
+                .entity_count(self.descriptor_index)
+                .unwrap_or(0),
+            &selected.entities,
+            &selected.route_lens,
+            self.list_get,
+        );
+        let fixed_to_current_entity = owner_restrictions
+            .as_ref()
+            .is_some_and(SelectedOwnerRestrictions::is_fixed_to_current);
+        let element_owners = owner_restrictions.and_then(SelectedOwnerRestrictions::into_mixed);
 
         SublistSwapMoveCursor::new(
             selected.entities,
-            segments_by_entity,
+            selected.route_lens,
+            context,
             element_owners,
+            fixed_to_current_entity,
+            None,
+            min_seg,
+            max_seg,
             self.list_len,
             self.list_get,
             self.sublist_remove,
@@ -488,7 +635,7 @@ where
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let selected =
             collect_selected_entities(&self.entity_selector, score_director, self.list_len);
-        let Some(element_owners) = crate::list_placement::selected_owner_restrictions(
+        let Some(owner_restrictions) = crate::list_placement::selected_owner_restrictions(
             self.element_owner_fn,
             score_director.working_solution(),
             score_director
@@ -505,29 +652,44 @@ where
             );
         };
 
-        let segments_by_entity: Vec<Vec<ListSegment>> = selected
-            .route_lens
-            .iter()
-            .enumerate()
-            .map(|(entity_idx, &route_len)| {
-                build_segments_for_entity(
-                    selected.entities[entity_idx],
-                    route_len,
-                    self.min_sublist_size,
-                    self.max_sublist_size,
-                    MoveStreamContext::default(),
-                    self.descriptor_index,
-                )
-            })
-            .collect();
+        if owner_restrictions.is_fixed_to_current() {
+            return selected
+                .route_lens
+                .iter()
+                .map(|&route_len| {
+                    count_intra_sublist_swap_moves_for_len(
+                        route_len,
+                        self.min_sublist_size,
+                        self.max_sublist_size,
+                    )
+                })
+                .sum();
+        }
+        let element_owners = owner_restrictions
+            .mixed()
+            .expect("non-fixed owner restrictions must retain mixed owner matrix");
 
         let mut count = 0;
         for (left_idx, &left_entity) in selected.entities.iter().enumerate() {
-            for &left_segment in &segments_by_entity[left_idx] {
+            for left_segment in sublist_segments_for_entity(
+                left_entity,
+                selected.route_lens[left_idx],
+                self.min_sublist_size,
+                self.max_sublist_size,
+                MoveStreamContext::default(),
+                self.descriptor_index,
+            ) {
                 for (right_idx, &right_entity) in
                     selected.entities.iter().enumerate().skip(left_idx)
                 {
-                    for &right_segment in &segments_by_entity[right_idx] {
+                    for right_segment in sublist_segments_for_entity(
+                        right_entity,
+                        selected.route_lens[right_idx],
+                        self.min_sublist_size,
+                        self.max_sublist_size,
+                        MoveStreamContext::default(),
+                        self.descriptor_index,
+                    ) {
                         if left_idx == right_idx {
                             if right_segment.start < left_segment.end {
                                 continue;
@@ -541,13 +703,13 @@ where
 
                         let allowed = if left_entity == right_entity {
                             selected_segment_allows(
-                                &element_owners,
+                                element_owners,
                                 left_idx,
                                 left_segment.start,
                                 left_segment.end,
                                 left_entity,
                             ) && selected_segment_allows(
-                                &element_owners,
+                                element_owners,
                                 right_idx,
                                 right_segment.start,
                                 right_segment.end,
@@ -555,13 +717,13 @@ where
                             )
                         } else {
                             selected_segment_allows(
-                                &element_owners,
+                                element_owners,
                                 left_idx,
                                 left_segment.start,
                                 left_segment.end,
                                 right_entity,
                             ) && selected_segment_allows(
-                                &element_owners,
+                                element_owners,
                                 right_idx,
                                 right_segment.start,
                                 right_segment.end,

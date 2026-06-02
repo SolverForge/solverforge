@@ -13,9 +13,9 @@ pub use r#move::k_opt_reconnection;
 pub use r#move::{
     ChangeMove, CompositeMove, CompoundScalarEdit, CompoundScalarMove, CutPoint,
     DynamicListChangeMove, DynamicScalarChangeMove, KOptMove, ListChangeMove, ListMoveUnion,
-    ListReverseMove, ListRuinMove, ListSwapMove, Move, MoveArena, PillarChangeMove, PillarSwapMove,
-    RuinMove, RuinRecreateMove, ScalarMoveUnion, ScalarRecreateValueSource, SublistChangeMove,
-    SublistSwapMove, SwapMove,
+    ListMultiSwapMove, ListPermuteMove, ListReverseMove, ListRuinMove, ListSwapMove, Move,
+    MoveArena, PillarChangeMove, PillarSwapMove, RuinMove, RuinRecreateMove, ScalarMoveUnion,
+    ScalarRecreateValueSource, SublistChangeMove, SublistSwapMove, SwapMove,
 };
 
 // Re-export selector types
@@ -25,8 +25,9 @@ pub use selector::{
     DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, DefaultPillarSelector,
     DynamicListChangeMoveSelector, DynamicScalarChangeMoveSelector, EntityReference,
     EntitySelector, FromSolutionEntitySelector, FromSolutionValueSelector, KOptConfig,
-    KOptMoveSelector, ListChangeMoveSelector, ListPositionDistanceMeter, ListReverseMoveSelector,
-    ListRuinMoveSelector, ListSwapMoveSelector, MimicRecorder, MimicRecordingEntitySelector,
+    KOptMoveSelector, ListChangeMoveSelector, ListPermuteMoveSelector, ListPositionDistanceMeter,
+    ListPrecedenceMoveSelector, ListReverseMoveSelector, ListRuinMoveSelector,
+    ListSwapMoveSelector, MimicRecorder, MimicRecordingEntitySelector,
     MimicReplayingEntitySelector, MoveSelector, NearbyDistanceMeter, NearbyEntitySelector,
     NearbyKOptMoveSelector, NearbyListChangeMoveSelector, NearbyListSwapMoveSelector,
     NearbySelectionConfig, PerEntitySliceValueSelector, PerEntityValueSelector, Pillar,

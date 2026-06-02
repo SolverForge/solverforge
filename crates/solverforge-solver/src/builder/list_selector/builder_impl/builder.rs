@@ -33,6 +33,21 @@ impl ListMoveSelectorBuilder {
         );
     }
 
+    fn precedence_route_hooks<S, V, DM, IDM>(
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
+    ) -> Option<PrecedenceRouteHooks<S, V>> {
+        ctx.precedence_successors_fn.map(|successors_fn| {
+            PrecedenceRouteHooks::new(
+                ctx.element_count,
+                ctx.index_to_element,
+                successors_fn,
+                ctx.entity_count,
+                ctx.list_len,
+                ctx.list_get,
+            )
+        })
+    }
+
     /// Builds a top-level list move selector from move selector config and domain slot.
     ///
     /// Default (no config): `Union(NearbyListChange(20), NearbyListSwap(20), ListReverse)`
@@ -165,6 +180,12 @@ impl ListMoveSelectorBuilder {
             MoveSelectorConfig::ListReverseMoveSelector(_) => {
                 Self::push_list_reverse(out, ctx);
             }
+            MoveSelectorConfig::ListPermuteMoveSelector(c) => {
+                Self::push_list_permute(out, ctx, c.min_window_size, c.max_window_size);
+            }
+            MoveSelectorConfig::ListPrecedenceMoveSelector(_) => {
+                Self::push_list_precedence(out, ctx);
+            }
             MoveSelectorConfig::SublistChangeMoveSelector(c) => {
                 Self::push_sublist_change(out, ctx, c.min_sublist_size, c.max_sublist_size);
             }
@@ -252,6 +273,7 @@ impl ListMoveSelectorBuilder {
             ctx.descriptor_index,
         )
         .with_element_owner_fn(ctx.element_owner_fn);
+        let inner = inner.with_precedence_route_hooks(Self::precedence_route_hooks(ctx));
         out.push(ListLeafSelector::NearbyListChange(inner));
     }
 
@@ -278,6 +300,7 @@ impl ListMoveSelectorBuilder {
             ctx.descriptor_index,
         )
         .with_element_owner_fn(ctx.element_owner_fn);
+        let inner = inner.with_precedence_route_hooks(Self::precedence_route_hooks(ctx));
         out.push(ListLeafSelector::NearbyListSwap(inner));
     }
 
@@ -299,7 +322,8 @@ impl ListMoveSelectorBuilder {
             ctx.list_reverse,
             ctx.variable_name,
             ctx.descriptor_index,
-        );
+        )
+        .with_precedence_route_hooks(Self::precedence_route_hooks(ctx));
         out.push(ListLeafSelector::ListReverse(inner));
     }
 
@@ -328,7 +352,80 @@ impl ListMoveSelectorBuilder {
             ctx.descriptor_index,
         )
         .with_element_owner_fn(ctx.element_owner_fn);
+        let inner = inner.with_precedence_route_hooks(Self::precedence_route_hooks(ctx));
         out.push(ListLeafSelector::SublistChange(inner));
+    }
+
+    fn push_list_permute<S, V, DM, IDM>(
+        out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
+        min_window_size: usize,
+        max_window_size: usize,
+    ) where
+        S: PlanningSolution,
+        V: Clone + PartialEq + Send + Sync + Debug + 'static,
+        DM: CrossEntityDistanceMeter<S> + Clone,
+        IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
+    {
+        use crate::heuristic::selector::list_permute::ListPermuteMoveSelector;
+
+        let inner = ListPermuteMoveSelector::new(
+            FromSolutionEntitySelector::new(ctx.descriptor_index),
+            min_window_size,
+            max_window_size,
+            ctx.list_len,
+            ctx.list_get,
+            ctx.sublist_remove,
+            ctx.sublist_insert,
+            ctx.variable_name,
+            ctx.descriptor_index,
+        )
+        .with_element_owner_fn(ctx.element_owner_fn);
+        let inner = inner.with_precedence_route_hooks(Self::precedence_route_hooks(ctx));
+        out.push(ListLeafSelector::ListPermute(inner));
+    }
+
+    fn push_list_precedence<S, V, DM, IDM>(
+        out: &mut Vec<ListLeafSelector<S, V, DM, IDM>>,
+        ctx: &ListVariableSlot<S, V, DM, IDM>,
+    ) where
+        S: PlanningSolution,
+        V: Clone + PartialEq + Send + Sync + Debug + 'static,
+        DM: CrossEntityDistanceMeter<S> + Clone,
+        IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
+    {
+        use crate::heuristic::selector::list_precedence::ListPrecedenceMoveSelector;
+
+        let (Some(duration_fn), Some(successors_fn)) =
+            (ctx.precedence_duration_fn, ctx.precedence_successors_fn)
+        else {
+            panic!(
+                "list_precedence_move_selector requires precedence_duration_fn and precedence_successors_fn on {}.{}",
+                ctx.entity_type_name, ctx.variable_name
+            );
+        };
+        let inner = ListPrecedenceMoveSelector::new(
+            FromSolutionEntitySelector::new(ctx.descriptor_index),
+            ctx.element_count,
+            ctx.index_to_element,
+            duration_fn,
+            successors_fn,
+            ctx.entity_count,
+            ctx.list_len,
+            ctx.list_get,
+            ctx.list_remove,
+            ctx.list_insert,
+            ctx.list_set,
+            ctx.list_reverse,
+            ctx.ruin_remove,
+            ctx.ruin_insert,
+            ctx.element_owner_fn,
+            ctx.sublist_remove,
+            ctx.sublist_insert,
+            ctx.variable_name,
+            ctx.descriptor_index,
+        );
+        out.push(ListLeafSelector::ListPrecedence(inner));
     }
 
     fn push_sublist_swap<S, V, DM, IDM>(
@@ -356,6 +453,7 @@ impl ListMoveSelectorBuilder {
             ctx.descriptor_index,
         )
         .with_element_owner_fn(ctx.element_owner_fn);
+        let inner = inner.with_precedence_route_hooks(Self::precedence_route_hooks(ctx));
         out.push(ListLeafSelector::SublistSwap(inner));
     }
 
@@ -428,6 +526,11 @@ impl ListMoveSelectorBuilder {
             ctx.descriptor_index,
         )
         .with_element_owner_fn(ctx.element_owner_fn)
+        .with_precedence_hooks(
+            ctx.precedence_successors_fn.map(|_| ctx.element_count),
+            ctx.precedence_successors_fn.map(|_| ctx.index_to_element),
+            ctx.precedence_successors_fn,
+        )
         .with_moves_per_step(options.moves_per_step.unwrap_or(10).max(1))
         .with_max_source_list_len(options.max_source_list_len)
         .with_skip_empty_destinations(options.skip_empty_destinations);
@@ -460,6 +563,7 @@ impl ListMoveSelectorBuilder {
             ctx.descriptor_index,
         )
         .with_element_owner_fn(ctx.element_owner_fn);
+        let inner = inner.with_precedence_route_hooks(Self::precedence_route_hooks(ctx));
         out.push(ListLeafSelector::ListChange(inner));
     }
 
@@ -483,6 +587,7 @@ impl ListMoveSelectorBuilder {
             ctx.descriptor_index,
         )
         .with_element_owner_fn(ctx.element_owner_fn);
+        let inner = inner.with_precedence_route_hooks(Self::precedence_route_hooks(ctx));
         out.push(ListLeafSelector::ListSwap(inner));
     }
 }

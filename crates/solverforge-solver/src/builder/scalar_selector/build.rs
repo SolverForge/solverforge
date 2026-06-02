@@ -399,6 +399,8 @@ fn collect_scalar_leaf_selectors<S>(
             MoveSelectorConfig::ListChangeMoveSelector(_)
             | MoveSelectorConfig::NearbyListChangeMoveSelector(_)
             | MoveSelectorConfig::ListSwapMoveSelector(_)
+            | MoveSelectorConfig::ListPermuteMoveSelector(_)
+            | MoveSelectorConfig::ListPrecedenceMoveSelector(_)
             | MoveSelectorConfig::NearbyListSwapMoveSelector(_)
             | MoveSelectorConfig::SublistChangeMoveSelector(_)
             | MoveSelectorConfig::SublistSwapMoveSelector(_)

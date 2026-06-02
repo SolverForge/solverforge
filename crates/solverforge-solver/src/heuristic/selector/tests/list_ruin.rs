@@ -1,7 +1,8 @@
 // Tests for list ruin move selector.
 
-use crate::heuristic::r#move::Move;
+use crate::heuristic::r#move::{ListRuinMove, Move};
 use crate::heuristic::selector::list_ruin::ListRuinMoveSelector;
+use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor};
 use crate::heuristic::selector::MoveSelector;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
@@ -54,6 +55,27 @@ fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
 }
 fn invalid_owner(_: &VrpSolution, element: &i32) -> Option<usize> {
     (*element == 99).then_some(99)
+}
+fn fixed_owner(_: &VrpSolution, element: &i32) -> Option<usize> {
+    Some((*element / 100) as usize)
+}
+fn only_two_owner(_: &VrpSolution, element: &i32) -> Option<usize> {
+    if *element == 2 {
+        Some(0)
+    } else {
+        Some(99)
+    }
+}
+fn precedence_element_count(_: &VrpSolution) -> usize {
+    3
+}
+fn precedence_index_to_element(_: &VrpSolution, idx: usize) -> i32 {
+    i32::try_from(idx + 1).expect("test element index fits i32")
+}
+fn precedence_successors(_: &VrpSolution, element: i32, out: &mut Vec<i32>) {
+    if element == 1 {
+        out.push(2);
+    }
 }
 
 fn create_director(routes: Vec<Vec<i32>>) -> ScoreDirector<VrpSolution, ()> {
@@ -229,6 +251,93 @@ fn skips_invalid_owner_elements_before_building_moves() {
 }
 
 #[test]
+fn owner_restricted_ruin_recreates_only_into_allowed_owner() {
+    let mut director = create_director(vec![vec![100], vec![]]);
+
+    let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
+        1,
+        1,
+        entity_count,
+        list_len,
+        list_get,
+        list_remove,
+        list_insert,
+        "stops",
+        0,
+    )
+    .with_element_owner_fn(Some(fixed_owner))
+    .with_moves_per_step(1)
+    .with_seed(42);
+
+    let mov = selector
+        .iter_moves(&director)
+        .next()
+        .expect("owner-restricted ruin move");
+    mov.do_move(&mut director);
+
+    assert_eq!(
+        director.working_solution().routes[0].stops,
+        Vec::<i32>::new()
+    );
+    assert_eq!(director.working_solution().routes[1].stops, vec![100]);
+}
+
+#[test]
+fn precedence_ruin_recreate_skips_cycle_forming_insertions() {
+    let mut director = create_director(vec![vec![1, 2, 3]]);
+    let mov = ListRuinMove::<VrpSolution, i32>::new(
+        0,
+        &[1],
+        entity_count,
+        list_len,
+        list_get,
+        list_remove,
+        list_insert,
+        "stops",
+        0,
+    )
+    .with_precedence_hooks(
+        Some(precedence_element_count),
+        Some(precedence_index_to_element),
+        Some(precedence_successors),
+    );
+
+    mov.do_move(&mut director);
+
+    assert_eq!(director.working_solution().routes[0].stops, vec![1, 2, 3]);
+}
+
+#[test]
+fn precedence_ruin_cursor_passes_recreate_filter_to_moves() {
+    let mut director = create_director(vec![vec![1, 2, 3]]);
+    let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
+        1,
+        1,
+        entity_count,
+        list_len,
+        list_get,
+        list_remove,
+        list_insert,
+        "stops",
+        0,
+    )
+    .with_element_owner_fn(Some(only_two_owner))
+    .with_precedence_hooks(
+        Some(precedence_element_count),
+        Some(precedence_index_to_element),
+        Some(precedence_successors),
+    )
+    .with_moves_per_step(1)
+    .with_seed(7);
+
+    let mov = selector.iter_moves(&director).next().expect("ruin move");
+    assert_eq!(mov.element_indices(), &[1]);
+    mov.do_move(&mut director);
+
+    assert_eq!(director.working_solution().routes[0].stops, vec![1, 2, 3]);
+}
+
+#[test]
 fn seeded_selector_advances_between_steps() {
     let director = create_director(vec![vec![1, 2, 3, 4, 5], vec![6, 7, 8, 9, 10]]);
 
@@ -298,6 +407,44 @@ fn size_returns_moves_per_step() {
     .with_moves_per_step(7);
 
     assert_eq!(selector.size(&director), 7);
+}
+
+#[test]
+fn cursor_generates_list_ruin_moves_lazily() {
+    let director = create_director(vec![vec![1, 2, 3, 4, 5]]);
+
+    let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
+        1,
+        2,
+        entity_count,
+        list_len,
+        list_get,
+        list_remove,
+        list_insert,
+        "stops",
+        0,
+    )
+    .with_moves_per_step(4)
+    .with_seed(7);
+
+    let mut cursor = selector.open_cursor(&director);
+    let first_id = cursor.next_candidate().expect("first candidate");
+    let first = cursor.candidate(first_id).expect("first candidate ref");
+    let MoveCandidateRef::Borrowed(first) = first else {
+        panic!("list ruin cursor should yield borrowed candidates");
+    };
+    assert!((1..=2).contains(&first.ruin_count()));
+
+    let second_id = cursor.next_candidate().expect("second candidate");
+    let second = cursor.candidate(second_id).expect("second candidate ref");
+    let MoveCandidateRef::Borrowed(second) = second else {
+        panic!("list ruin cursor should yield borrowed candidates");
+    };
+    assert!((1..=2).contains(&second.ruin_count()));
+
+    let remaining = std::iter::from_fn(|| cursor.next_candidate()).count();
+    assert_eq!(remaining, 2);
+    assert!(cursor.next_candidate().is_none());
 }
 
 #[test]

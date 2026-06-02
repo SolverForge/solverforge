@@ -79,6 +79,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListSwapMove;
+use crate::list_placement::selected_elements_fixed_to_current_entities;
 
 use super::entity::EntitySelector;
 use super::list_support::{collect_selected_entities, ordered_index};
@@ -87,6 +88,7 @@ use super::move_selector::{
 };
 use super::nearby_list_change::CrossEntityDistanceMeter;
 use super::nearby_list_support::{sort_and_limit_nearby_candidates, NearbyCandidate};
+use super::precedence_route::{PrecedenceRouteGraph, PrecedenceRouteHooks};
 
 /// A distance-pruned list swap move selector.
 ///
@@ -106,6 +108,7 @@ pub struct NearbyListSwapMoveSelector<S, V, D, ES> {
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_set: fn(&mut S, usize, usize, V),
     element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -132,6 +135,8 @@ where
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_set: fn(&mut S, usize, usize, V),
     owner_context: Option<(fn(&S, &V) -> Option<usize>, usize)>,
+    fixed_to_current_entity: bool,
+    precedence_route_graph: Option<PrecedenceRouteGraph>,
     max_nearby: usize,
     variable_name: &'static str,
     descriptor_index: usize,
@@ -154,6 +159,8 @@ where
         list_get: fn(&S, usize, usize) -> Option<V>,
         list_set: fn(&mut S, usize, usize, V),
         owner_context: Option<(fn(&S, &V) -> Option<usize>, usize)>,
+        fixed_to_current_entity: bool,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
         max_nearby: usize,
         variable_name: &'static str,
         descriptor_index: usize,
@@ -174,10 +181,20 @@ where
             list_get,
             list_set,
             owner_context,
+            fixed_to_current_entity,
+            precedence_route_graph,
             max_nearby,
             variable_name,
             descriptor_index,
         }
+    }
+
+    pub(crate) fn with_precedence_route_graph(
+        mut self,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
+    ) -> Self {
+        self.precedence_route_graph = precedence_route_graph;
+        self
     }
 
     fn load_next_source(&mut self) -> bool {
@@ -239,6 +256,11 @@ where
                             continue;
                         }
                     }
+                    if self.precedence_route_graph.as_ref().is_some_and(|graph| {
+                        graph.intra_list_swap_introduces_cycle(src_entity, src_pos, dst_pos)
+                    }) {
+                        continue;
+                    }
                     let dist = self.distance_meter.distance(
                         &self.solution,
                         src_entity,
@@ -251,44 +273,46 @@ where
                     }
                 }
 
-                for (dst_idx, &dst_entity) in self.entities.iter().enumerate() {
-                    if dst_idx <= self.source_idx {
-                        continue;
-                    }
-                    let dst_len = self.route_lens[dst_idx];
-                    if dst_len == 0 {
-                        continue;
-                    }
-
-                    for dst_pos in 0..dst_len {
-                        if let Some((owner_fn, entity_count)) = self.owner_context {
-                            let Some(dst_element) =
-                                (self.list_get)(&self.solution, dst_entity, dst_pos)
-                            else {
-                                continue;
-                            };
-                            let dst_restriction = crate::list_placement::owner_restriction(
-                                Some(owner_fn),
-                                &self.solution,
-                                entity_count,
-                                &dst_element,
-                            );
-                            if source_restriction
-                                .is_some_and(|restriction| !restriction.allows(dst_entity))
-                                || !dst_restriction.allows(src_entity)
-                            {
-                                continue;
-                            }
+                if !self.fixed_to_current_entity {
+                    for (dst_idx, &dst_entity) in self.entities.iter().enumerate() {
+                        if dst_idx <= self.source_idx {
+                            continue;
                         }
-                        let dist = self.distance_meter.distance(
-                            &self.solution,
-                            src_entity,
-                            src_pos,
-                            dst_entity,
-                            dst_pos,
-                        );
-                        if dist.is_finite() {
-                            candidates.push((dst_entity, dst_pos, dist));
+                        let dst_len = self.route_lens[dst_idx];
+                        if dst_len == 0 {
+                            continue;
+                        }
+
+                        for dst_pos in 0..dst_len {
+                            if let Some((owner_fn, entity_count)) = self.owner_context {
+                                let Some(dst_element) =
+                                    (self.list_get)(&self.solution, dst_entity, dst_pos)
+                                else {
+                                    continue;
+                                };
+                                let dst_restriction = crate::list_placement::owner_restriction(
+                                    Some(owner_fn),
+                                    &self.solution,
+                                    entity_count,
+                                    &dst_element,
+                                );
+                                if source_restriction
+                                    .is_some_and(|restriction| !restriction.allows(dst_entity))
+                                    || !dst_restriction.allows(src_entity)
+                                {
+                                    continue;
+                                }
+                            }
+                            let dist = self.distance_meter.distance(
+                                &self.solution,
+                                src_entity,
+                                src_pos,
+                                dst_entity,
+                                dst_pos,
+                            );
+                            if dist.is_finite() {
+                                candidates.push((dst_entity, dst_pos, dist));
+                            }
                         }
                     }
                 }
@@ -414,6 +438,7 @@ impl<S, V, D, ES> NearbyListSwapMoveSelector<S, V, D, ES> {
             list_get,
             list_set,
             element_owner_fn: None,
+            precedence_route_hooks: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -426,6 +451,18 @@ impl<S, V, D, ES> NearbyListSwapMoveSelector<S, V, D, ES> {
     ) -> Self {
         self.element_owner_fn = element_owner_fn;
         self
+    }
+
+    pub(crate) fn with_precedence_route_hooks(
+        mut self,
+        precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
+    ) -> Self {
+        self.precedence_route_hooks = precedence_route_hooks;
+        self
+    }
+
+    pub(crate) fn precedence_route_hooks(&self) -> Option<PrecedenceRouteHooks<S, V>> {
+        self.precedence_route_hooks
     }
 }
 
@@ -467,6 +504,16 @@ where
             context,
             0xA1EA_25A0_9000_0001 ^ self.descriptor_index as u64,
         );
+        let fixed_to_current_entity = owner_context.is_some_and(|(_, entity_count)| {
+            selected_elements_fixed_to_current_entities(
+                self.element_owner_fn,
+                solution,
+                entity_count,
+                &selected.entities,
+                &selected.route_lens,
+                self.list_get,
+            )
+        });
         let entities = selected.entities;
         let route_lens = selected.route_lens;
 
@@ -480,6 +527,8 @@ where
             self.list_get,
             self.list_set,
             owner_context,
+            fixed_to_current_entity,
+            None,
             max_nearby,
             self.variable_name,
             self.descriptor_index,

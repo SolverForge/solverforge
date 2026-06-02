@@ -7,6 +7,8 @@ use super::EntityReference;
 
 mod k_opt;
 mod list_neighborhood;
+mod list_permute;
+mod list_precedence;
 mod list_ruin;
 mod mimic;
 mod move_selector;

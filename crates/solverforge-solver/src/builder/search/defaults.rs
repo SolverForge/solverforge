@@ -2,11 +2,11 @@ use std::fmt::Debug;
 
 use solverforge_config::{
     AcceptedCountForagerConfig, ChangeMoveConfig, CompoundConflictRepairMoveSelectorConfig,
-    ForagerConfig, GroupedScalarMoveSelectorConfig, KOptMoveSelectorConfig, ListReverseMoveConfig,
-    ListRuinMoveSelectorConfig, MoveSelectorConfig, NearbyChangeMoveConfig,
-    NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, NearbySwapMoveConfig,
-    SublistChangeMoveConfig, SublistSwapMoveConfig, UnionMoveSelectorConfig, UnionSelectionOrder,
-    VariableTargetConfig,
+    ForagerConfig, GroupedScalarMoveSelectorConfig, KOptMoveSelectorConfig, ListPermuteMoveConfig,
+    ListPrecedenceMoveConfig, ListReverseMoveConfig, ListRuinMoveSelectorConfig,
+    MoveSelectorConfig, NearbyChangeMoveConfig, NearbyListChangeMoveConfig,
+    NearbyListSwapMoveConfig, NearbySwapMoveConfig, SublistChangeMoveConfig, SublistSwapMoveConfig,
+    UnionMoveSelectorConfig, UnionSelectionOrder, VariableTargetConfig,
 };
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
@@ -111,6 +111,29 @@ fn default_sublist_swap_selector() -> MoveSelectorConfig {
 fn default_list_reverse_selector() -> MoveSelectorConfig {
     MoveSelectorConfig::ListReverseMoveSelector(ListReverseMoveConfig {
         target: VariableTargetConfig::default(),
+    })
+}
+
+fn default_list_precedence_selector<S, V, DM, IDM>(
+    variable: &crate::builder::ListVariableSlot<S, V, DM, IDM>,
+) -> MoveSelectorConfig {
+    MoveSelectorConfig::ListPrecedenceMoveSelector(ListPrecedenceMoveConfig {
+        target: VariableTargetConfig {
+            entity_class: Some(variable.entity_type_name.to_string()),
+            variable_name: Some(variable.variable_name.to_string()),
+        },
+    })
+}
+
+fn default_precedence_list_permute_selector<S, V, DM, IDM>(
+    variable: &crate::builder::ListVariableSlot<S, V, DM, IDM>,
+) -> MoveSelectorConfig {
+    MoveSelectorConfig::ListPermuteMoveSelector(ListPermuteMoveConfig {
+        target: VariableTargetConfig {
+            entity_class: Some(variable.entity_type_name.to_string()),
+            variable_name: Some(variable.variable_name.to_string()),
+        },
+        ..ListPermuteMoveConfig::default()
     })
 }
 
@@ -225,6 +248,10 @@ where
     let mut selectors = Vec::new();
 
     if model.list_variables().next().is_some() {
+        for variable in model.list_precedence_variables() {
+            selectors.push(default_list_precedence_selector(variable));
+            selectors.push(default_precedence_list_permute_selector(variable));
+        }
         selectors.push(default_nearby_list_change_selector());
         selectors.push(default_nearby_list_swap_selector());
         selectors.push(default_sublist_change_selector());
@@ -285,6 +312,13 @@ where
     if model.has_scalar_groups() && !model.has_list_variables() {
         return AnyForager::LastStepScoreImproving(
             crate::phase::localsearch::FirstLastStepScoreImprovingForager::new(),
+        );
+    }
+
+    if model.list_precedence_variables().next().is_some() {
+        return AnyForager::LastStepScoreImproving(
+            crate::phase::localsearch::FirstLastStepScoreImprovingForager::new()
+                .with_accepted_count_limit(DEFAULT_LOCAL_SEARCH_ACCEPTED_COUNT),
         );
     }
 

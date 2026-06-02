@@ -129,6 +129,7 @@ where
     last_step_score: S::Score,
     accepted_moves: Vec<(CandidateId, S::Score)>,
     found_last_step_improving: bool,
+    accepted_count_limit: Option<usize>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -141,8 +142,18 @@ where
             last_step_score: S::Score::zero(),
             accepted_moves: Vec::new(),
             found_last_step_improving: false,
+            accepted_count_limit: None,
             _phantom: PhantomData,
         }
+    }
+
+    pub(crate) fn with_accepted_count_limit(mut self, accepted_count_limit: usize) -> Self {
+        assert!(
+            accepted_count_limit > 0,
+            "FirstLastStepScoreImprovingForager: accepted_count_limit must be > 0, got 0"
+        );
+        self.accepted_count_limit = Some(accepted_count_limit);
+        self
     }
 }
 
@@ -162,6 +173,7 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FirstLastStepScoreImprovingForager")
             .field("found_last_step_improving", &self.found_last_step_improving)
+            .field("accepted_count_limit", &self.accepted_count_limit)
             .finish()
     }
 }
@@ -175,6 +187,7 @@ where
             last_step_score: self.last_step_score,
             accepted_moves: Vec::new(),
             found_last_step_improving: false,
+            accepted_count_limit: self.accepted_count_limit,
             _phantom: PhantomData,
         }
     }
@@ -192,6 +205,13 @@ where
     }
 
     fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
+        if self.found_last_step_improving
+            || self
+                .accepted_count_limit
+                .is_some_and(|limit| self.accepted_moves.len() >= limit)
+        {
+            return;
+        }
         if score > self.last_step_score {
             self.accepted_moves.clear();
             self.accepted_moves.push((index, score));
@@ -203,6 +223,13 @@ where
 
     fn is_quit_early(&self) -> bool {
         self.found_last_step_improving
+            || self
+                .accepted_count_limit
+                .is_some_and(|limit| self.accepted_moves.len() >= limit)
+    }
+
+    fn accepted_count_limit(&self) -> Option<usize> {
+        self.accepted_count_limit
     }
 
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {

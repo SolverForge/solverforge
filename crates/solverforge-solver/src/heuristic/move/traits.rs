@@ -61,6 +61,10 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
         false
     }
 
+    fn requires_score_improvement(&self) -> bool {
+        false
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature;
 
     fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {

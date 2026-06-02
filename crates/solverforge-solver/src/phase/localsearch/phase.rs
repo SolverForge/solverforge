@@ -22,7 +22,7 @@ use crate::phase::localsearch::evaluation::{
 };
 use crate::phase::localsearch::{Acceptor, LocalSearchForager};
 use crate::phase::Phase;
-use crate::scope::ProgressCallback;
+use crate::scope::{PendingControl, ProgressCallback};
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 use crate::stats::{format_duration, whole_units_per_second, AppliedMoveTelemetry};
 
@@ -135,8 +135,9 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
+    let move_label = mov.telemetry_label();
     if mov.variable_name() == "compound_scalar" || mov.variable_name() == "conflict_repair" {
-        return mov.variable_name().to_string();
+        return format!("{}:{move_label}", mov.variable_name());
     }
     let mut label = None;
     mov.for_each_affected_entity(&mut |affected| {
@@ -144,7 +145,9 @@ where
             label = Some(affected.variable_name.to_string());
         }
     });
-    label.unwrap_or_else(|| "move".to_string())
+    label
+        .map(|variable| format!("{variable}:{move_label}"))
+        .unwrap_or_else(|| format!("move:{move_label}"))
 }
 
 impl<S, M, MS, A, Fo> LocalSearchPhase<S, M, MS, A, Fo>
@@ -374,7 +377,8 @@ where
                         score
                     }
                     CandidateEvaluation::NotDoable
-                    | CandidateEvaluation::RejectedByHardImprovement(_) => continue,
+                    | CandidateEvaluation::RejectedByHardImprovement(_)
+                    | CandidateEvaluation::RejectedByScoreImprovement(_) => continue,
                 };
                 let move_signature = if requires_move_signatures {
                     Some(mov.tabu_signature(step_scope.score_director()))
@@ -439,7 +443,13 @@ where
                 interrupted_step = true;
             }
 
-            if interrupted_step {
+            let commit_interrupted_config_step = interrupted_step
+                && accepted_moves_this_step > 0
+                && matches!(
+                    step_scope.pending_control(),
+                    PendingControl::ConfigTerminationRequested
+                );
+            if interrupted_step && !commit_interrupted_config_step {
                 match settle_search_interrupt(&mut step_scope) {
                     StepInterrupt::Restart => continue,
                     StepInterrupt::TerminatePhase => break,

@@ -13,6 +13,7 @@ pub(crate) enum CandidateEvaluation<Sc> {
     Scored(Sc),
     NotDoable,
     RejectedByHardImprovement(Sc),
+    RejectedByScoreImprovement(Sc),
 }
 
 #[inline]
@@ -89,6 +90,25 @@ where
             .phase_scope_mut()
             .record_move_kind_acceptor_rejected(move_label, move_score.compare(&reference_score));
         return CandidateEvaluation::RejectedByHardImprovement(move_score);
+    }
+
+    if mov.requires_score_improvement() && move_score <= reference_score {
+        let move_label = mov.telemetry_label();
+        record_evaluated_move(step_scope, selector_index, evaluation_started);
+        step_scope
+            .phase_scope_mut()
+            .record_move_kind_evaluated(move_label, move_score.compare(&reference_score));
+        if let Some(selector_index) = selector_index {
+            step_scope
+                .phase_scope_mut()
+                .record_selector_move_acceptor_rejected(selector_index);
+        } else {
+            step_scope.phase_scope_mut().record_move_acceptor_rejected();
+        }
+        step_scope
+            .phase_scope_mut()
+            .record_move_kind_acceptor_rejected(move_label, move_score.compare(&reference_score));
+        return CandidateEvaluation::RejectedByScoreImprovement(move_score);
     }
 
     CandidateEvaluation::Scored(move_score)

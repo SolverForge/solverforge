@@ -167,6 +167,7 @@ fn list_change_keeps_canonical_intra_then_inter_order() {
     assert_eq!(
         moves,
         vec![
+            (0, 0, 0, 2),
             (0, 0, 1, 0),
             (0, 0, 1, 1),
             (0, 1, 0, 0),
@@ -238,7 +239,7 @@ fn list_change_honors_fixed_element_owner() {
         })
         .collect();
 
-    assert_eq!(moves, vec![(0, 1, 0, 0)]);
+    assert_eq!(moves, vec![(0, 0, 0, 2), (0, 1, 0, 0)]);
     assert_eq!(selector.size(&director), moves.len());
 }
 
@@ -275,6 +276,7 @@ fn list_change_keeps_unrestricted_elements_when_owner_hook_exists() {
     assert_eq!(
         moves,
         vec![
+            (0, 0, 0, 2),
             (0, 0, 1, 0),
             (0, 0, 1, 1),
             (0, 1, 0, 0),
@@ -364,6 +366,41 @@ fn list_swap_keeps_unrestricted_elements_when_owner_hook_exists() {
         .collect();
 
     assert_eq!(moves, vec![(0, 0, 1, 1), (1, 0, 1, 1)]);
+    assert_eq!(selector.size(&director), moves.len());
+}
+
+#[test]
+fn list_swap_honors_fixed_element_owner() {
+    let director = create_director(vec![
+        Vehicle { visits: vec![0, 1] },
+        Vehicle {
+            visits: vec![100, 101],
+        },
+    ]);
+
+    let selector = ListSwapMoveSelector::<Plan, usize, _>::new(
+        FromSolutionEntitySelector::new(0),
+        list_len,
+        list_get,
+        list_set,
+        "visits",
+        0,
+    )
+    .with_element_owner_fn(Some(fixed_owner));
+
+    let moves: Vec<_> = selector
+        .iter_moves(&director)
+        .map(|m| {
+            (
+                m.first_entity_index(),
+                m.first_position(),
+                m.second_entity_index(),
+                m.second_position(),
+            )
+        })
+        .collect();
+
+    assert_eq!(moves, vec![(0, 0, 0, 1), (1, 0, 1, 1)]);
     assert_eq!(selector.size(&director), moves.len());
 }
 

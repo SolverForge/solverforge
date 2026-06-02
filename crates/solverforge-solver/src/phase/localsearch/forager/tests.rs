@@ -286,6 +286,8 @@ fn foragers_report_stream_horizon_only_for_finite_accepted_counts() {
     let best_score = BestScoreForager::<DummySolution>::new();
     let first_best = FirstBestScoreImprovingForager::<DummySolution>::new();
     let first_last = FirstLastStepScoreImprovingForager::<DummySolution>::new();
+    let bounded_first_last =
+        FirstLastStepScoreImprovingForager::<DummySolution>::new().with_accepted_count_limit(4);
 
     assert_eq!(
         <AcceptedCountForager<DummySolution> as LocalSearchForager<
@@ -321,6 +323,13 @@ fn foragers_report_stream_horizon_only_for_finite_accepted_counts() {
             TestMove,
         >>::accepted_count_limit(&first_last),
         None
+    );
+    assert_eq!(
+        <FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::accepted_count_limit(&bounded_first_last),
+        Some(4)
     );
 }
 
@@ -470,4 +479,51 @@ fn test_first_last_step_improving_quits_on_improvement() {
         .unwrap();
     assert_eq!(index.index(), 1);
     assert_eq!(score, SoftScore::of(-5));
+}
+
+#[test]
+fn first_last_step_improving_falls_back_to_accepted_count_limit() {
+    let last_step = SoftScore::of(-10);
+    let mut forager =
+        FirstLastStepScoreImprovingForager::<DummySolution>::new().with_accepted_count_limit(2);
+    <FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
+        DummySolution,
+        TestMove,
+    >>::step_started(&mut forager, zero(), last_step);
+
+    <FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
+        DummySolution,
+        TestMove,
+    >>::add_move_index(&mut forager, CandidateId::new(0), SoftScore::of(-15));
+    assert!(
+        !<FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::is_quit_early(&forager)
+    );
+
+    <FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
+        DummySolution,
+        TestMove,
+    >>::add_move_index(&mut forager, CandidateId::new(1), SoftScore::of(-12));
+    assert!(
+        <FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::is_quit_early(&forager)
+    );
+
+    <FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
+        DummySolution,
+        TestMove,
+    >>::add_move_index(&mut forager, CandidateId::new(2), SoftScore::of(-5));
+
+    let (index, score) =
+        <FirstLastStepScoreImprovingForager<DummySolution> as LocalSearchForager<
+            DummySolution,
+            TestMove,
+        >>::pick_move_index(&mut forager)
+        .unwrap();
+    assert_eq!(index.index(), 1);
+    assert_eq!(score, SoftScore::of(-12));
 }

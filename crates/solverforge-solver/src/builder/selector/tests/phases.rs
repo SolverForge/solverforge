@@ -78,6 +78,21 @@ fn default_list_and_mixed_local_search_use_list_streaming_defaults() {
 }
 
 #[test]
+fn default_precedence_list_local_search_uses_bounded_improving_forager() {
+    let phase = build_local_search::<MixedPlan, usize, NoopMeter, NoopMeter>(
+        None,
+        &precedence_list_model(),
+        None,
+    );
+    let debug = format!("{phase:?}");
+
+    assert!(debug.contains("LateAcceptance"));
+    assert!(debug.contains("LastStepScoreImproving"));
+    assert!(debug.contains("accepted_count_limit: Some(256)"));
+    assert!(!debug.contains("AnyForager::AcceptedCount"));
+}
+
+#[test]
 fn explicit_acceptor_and_forager_configs_override_defaults() {
     let config = LocalSearchConfig {
         local_search_type: LocalSearchType::AcceptorForager,

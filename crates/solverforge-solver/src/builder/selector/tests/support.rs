@@ -300,6 +300,17 @@ fn list_set(solution: &mut MixedPlan, entity_index: usize, pos: usize, value: us
     solution.vehicles[entity_index].visits[pos] = value;
 }
 
+fn precedence_duration(_solution: &MixedPlan, _visit: usize) -> usize {
+    1
+}
+
+fn precedence_successors(solution: &MixedPlan, visit: usize, out: &mut Vec<usize>) {
+    let next = visit + 1;
+    if assigned_visits(solution).contains(&next) {
+        out.push(next);
+    }
+}
+
 fn list_reverse(solution: &mut MixedPlan, entity_index: usize, start: usize, end: usize) {
     solution.vehicles[entity_index].visits[start..end].reverse();
 }
@@ -449,6 +460,13 @@ fn assignment_scalar_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMe
 
 fn list_only_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {
     RuntimeModel::new(vec![VariableSlot::List(list_slot())])
+}
+
+fn precedence_list_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {
+    RuntimeModel::new(vec![VariableSlot::List(list_slot().with_precedence_hooks(
+        Some(precedence_duration),
+        Some(precedence_successors),
+    ))])
 }
 
 fn mixed_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {

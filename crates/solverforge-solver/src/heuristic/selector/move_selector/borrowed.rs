@@ -39,6 +39,10 @@ where
         (**self).requires_hard_improvement()
     }
 
+    fn requires_score_improvement(&self) -> bool {
+        (**self).requires_score_improvement()
+    }
+
     fn tabu_signature<D: Director<S>>(
         &self,
         score_director: &D,
@@ -164,6 +168,13 @@ where
         match self {
             Self::Borrowed(mov) => mov.requires_hard_improvement(),
             Self::Sequential(mov) => mov.requires_hard_improvement(),
+        }
+    }
+
+    fn requires_score_improvement(&self) -> bool {
+        match self {
+            Self::Borrowed(mov) => mov.requires_score_improvement(),
+            Self::Sequential(mov) => mov.requires_score_improvement(),
         }
     }
 

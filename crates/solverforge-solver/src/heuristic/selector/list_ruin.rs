@@ -77,7 +77,9 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListRuinMove;
 
-use super::move_selector::{ArenaMoveCursor, MoveSelector};
+use super::move_selector::{
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+};
 
 /// A move selector that generates `ListRuinMove` instances for Large Neighborhood Search.
 ///
@@ -113,6 +115,9 @@ pub struct ListRuinMoveSelector<S, V> {
     // Function to insert element at index.
     list_insert: fn(&mut S, usize, usize, V),
     element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    precedence_element_count: Option<fn(&S) -> usize>,
+    precedence_index_to_element: Option<fn(&S, usize) -> V>,
+    precedence_successors_fn: Option<fn(&S, V, &mut Vec<V>)>,
     // Variable name.
     variable_name: &'static str,
     // Entity descriptor index.
@@ -126,8 +131,9 @@ pub struct ListRuinMoveSelector<S, V> {
     _phantom: PhantomData<fn() -> V>,
 }
 
-// SAFETY: RefCell<SmallRng> is only accessed while pre-generating a move batch
-// inside `iter_moves`, and selectors are consumed from a single thread at a time.
+// SAFETY: RefCell<SmallRng> is accessed only while opening a cursor to derive
+// that cursor's private seed. Each cursor owns its SmallRng and is consumed from
+// a single thread at a time.
 unsafe impl<S, V> Send for ListRuinMoveSelector<S, V> {}
 
 impl<S, V: Debug> Debug for ListRuinMoveSelector<S, V> {
@@ -138,6 +144,10 @@ impl<S, V: Debug> Debug for ListRuinMoveSelector<S, V> {
             .field("moves_per_step", &self.moves_per_step)
             .field("max_source_list_len", &self.max_source_list_len)
             .field("skip_empty_destinations", &self.skip_empty_destinations)
+            .field(
+                "has_precedence_recreate_filter",
+                &self.precedence_successors_fn.is_some(),
+            )
             .field("variable_name", &self.variable_name)
             .field("descriptor_index", &self.descriptor_index)
             .finish()
@@ -188,6 +198,9 @@ impl<S, V> ListRuinMoveSelector<S, V> {
             list_remove,
             list_insert,
             element_owner_fn: None,
+            precedence_element_count: None,
+            precedence_index_to_element: None,
+            precedence_successors_fn: None,
             variable_name,
             descriptor_index,
             moves_per_step: 10,
@@ -227,35 +240,223 @@ impl<S, V> ListRuinMoveSelector<S, V> {
         self.element_owner_fn = element_owner_fn;
         self
     }
+
+    pub(crate) fn with_precedence_hooks(
+        mut self,
+        element_count: Option<fn(&S) -> usize>,
+        index_to_element: Option<fn(&S, usize) -> V>,
+        successors_fn: Option<fn(&S, V, &mut Vec<V>)>,
+    ) -> Self {
+        self.precedence_element_count = element_count;
+        self.precedence_index_to_element = index_to_element;
+        self.precedence_successors_fn = successors_fn;
+        self
+    }
+}
+
+enum ListRuinSourcePool {
+    Unrestricted(Vec<(usize, usize)>),
+    OwnerRestricted(Vec<(usize, SmallVec<[usize; 8]>)>),
+}
+
+impl ListRuinSourcePool {
+    fn is_empty(&self) -> bool {
+        match self {
+            Self::Unrestricted(entities) => entities.is_empty(),
+            Self::OwnerRestricted(entities) => entities.is_empty(),
+        }
+    }
+}
+
+pub struct ListRuinMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    store: CandidateStore<S, ListRuinMove<S, V>>,
+    rng: SmallRng,
+    source_pool: ListRuinSourcePool,
+    remaining_moves: usize,
+    min_ruin_count: usize,
+    max_ruin_count: usize,
+    entity_count: fn(&S) -> usize,
+    list_len: fn(&S, usize) -> usize,
+    list_get: fn(&S, usize, usize) -> Option<V>,
+    list_remove: fn(&mut S, usize, usize) -> V,
+    list_insert: fn(&mut S, usize, usize, V),
+    element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    precedence_element_count: Option<fn(&S) -> usize>,
+    precedence_index_to_element: Option<fn(&S, usize) -> V>,
+    precedence_successors_fn: Option<fn(&S, V, &mut Vec<V>)>,
+    skip_empty_destinations: bool,
+    variable_name: &'static str,
+    descriptor_index: usize,
+}
+
+impl<S, V> ListRuinMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        rng: SmallRng,
+        source_pool: ListRuinSourcePool,
+        remaining_moves: usize,
+        min_ruin_count: usize,
+        max_ruin_count: usize,
+        entity_count: fn(&S) -> usize,
+        list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
+        list_remove: fn(&mut S, usize, usize) -> V,
+        list_insert: fn(&mut S, usize, usize, V),
+        element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+        precedence_element_count: Option<fn(&S) -> usize>,
+        precedence_index_to_element: Option<fn(&S, usize) -> V>,
+        precedence_successors_fn: Option<fn(&S, V, &mut Vec<V>)>,
+        skip_empty_destinations: bool,
+        variable_name: &'static str,
+        descriptor_index: usize,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            rng,
+            source_pool,
+            remaining_moves,
+            min_ruin_count,
+            max_ruin_count,
+            entity_count,
+            list_len,
+            list_get,
+            list_remove,
+            list_insert,
+            element_owner_fn,
+            precedence_element_count,
+            precedence_index_to_element,
+            precedence_successors_fn,
+            skip_empty_destinations,
+            variable_name,
+            descriptor_index,
+        }
+    }
+
+    fn choose_ruin_count(&mut self, eligible_len: usize) -> usize {
+        let min = self.min_ruin_count.min(eligible_len);
+        let max = self.max_ruin_count.min(eligible_len);
+        if min == max {
+            min
+        } else {
+            self.rng.random_range(min..=max)
+        }
+    }
+
+    fn next_unrestricted_move(&mut self) -> Option<ListRuinMove<S, V>> {
+        let ListRuinSourcePool::Unrestricted(entities) = &self.source_pool else {
+            return None;
+        };
+        let &(entity_idx, list_length) = entities.get(self.rng.random_range(0..entities.len()))?;
+        let ruin_count = self.choose_ruin_count(list_length);
+        let mut indices: SmallVec<[usize; 8]> = (0..list_length).collect();
+        for i in 0..ruin_count {
+            let j = self.rng.random_range(i..list_length);
+            indices.swap(i, j);
+        }
+        indices.truncate(ruin_count);
+        Some(self.build_move(entity_idx, &indices))
+    }
+
+    fn next_owner_restricted_move(&mut self) -> Option<ListRuinMove<S, V>> {
+        let (entity_idx, mut indices) = {
+            let ListRuinSourcePool::OwnerRestricted(entities) = &self.source_pool else {
+                return None;
+            };
+            let (entity_idx, eligible_indices) =
+                entities.get(self.rng.random_range(0..entities.len()))?;
+            (*entity_idx, eligible_indices.clone())
+        };
+        let eligible_len = indices.len();
+        let ruin_count = self.choose_ruin_count(eligible_len);
+        for i in 0..ruin_count {
+            let j = self.rng.random_range(i..eligible_len);
+            indices.swap(i, j);
+        }
+        indices.truncate(ruin_count);
+        Some(self.build_move(entity_idx, &indices))
+    }
+
+    fn build_move(&self, entity_idx: usize, indices: &[usize]) -> ListRuinMove<S, V> {
+        ListRuinMove::new(
+            entity_idx,
+            indices,
+            self.entity_count,
+            self.list_len,
+            self.list_get,
+            self.list_remove,
+            self.list_insert,
+            self.variable_name,
+            self.descriptor_index,
+        )
+        .with_element_owner_fn(self.element_owner_fn)
+        .with_precedence_hooks(
+            self.precedence_element_count,
+            self.precedence_index_to_element,
+            self.precedence_successors_fn,
+        )
+        .with_skip_empty_destinations(self.skip_empty_destinations)
+    }
+}
+
+impl<S, V> MoveCursor<S, ListRuinMove<S, V>> for ListRuinMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        if self.remaining_moves == 0 || self.source_pool.is_empty() {
+            return None;
+        }
+        self.remaining_moves -= 1;
+
+        let next_move = match self.source_pool {
+            ListRuinSourcePool::Unrestricted(_) => self.next_unrestricted_move(),
+            ListRuinSourcePool::OwnerRestricted(_) => self.next_owner_restricted_move(),
+        }?;
+        Some(self.store.push(next_move))
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, ListRuinMove<S, V>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> ListRuinMove<S, V> {
+        self.store.take_candidate(id)
+    }
 }
 
 impl<S, V> MoveSelector<S, ListRuinMove<S, V>> for ListRuinMoveSelector<S, V>
 where
     S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, ListRuinMove<S, V>>
+        = ListRuinMoveCursor<S, V>
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
         let solution = score_director.working_solution();
         let total_entities = (self.entity_count)(solution);
-        let list_len = self.list_len;
-        let list_get = self.list_get;
-        let list_remove = self.list_remove;
-        let list_insert = self.list_insert;
-        let element_owner_fn = self.element_owner_fn;
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
-        let min_ruin = self.min_ruin_count;
-        let max_ruin = self.max_ruin_count;
-        let moves_count = self.moves_per_step;
-
         let non_empty_entities: Vec<(usize, usize)> = (0..total_entities)
             .filter_map(|entity_idx| {
-                let len = list_len(solution, entity_idx);
+                let len = (self.list_len)(solution, entity_idx);
                 (len > 0
                     && self
                         .max_source_list_len
@@ -264,17 +465,13 @@ where
             })
             .collect();
 
-        // Pre-generate moves using RNG (empty if no entities)
-        let mut rng = self.rng.borrow_mut();
-        let moves: Vec<ListRuinMove<S, V>> = if non_empty_entities.is_empty() {
-            Vec::new()
-        } else if let Some(owner_fn) = element_owner_fn {
-            let owner_eligible_entities: Vec<(usize, SmallVec<[usize; 8]>)> = non_empty_entities
+        let source_pool = if let Some(owner_fn) = self.element_owner_fn {
+            let owner_eligible_entities = non_empty_entities
                 .iter()
                 .filter_map(|&(entity_idx, list_length)| {
                     let mut eligible_indices = SmallVec::new();
                     for pos in 0..list_length {
-                        let Some(element) = list_get(solution, entity_idx, pos) else {
+                        let Some(element) = (self.list_get)(solution, entity_idx, pos) else {
                             continue;
                         };
                         if crate::list_placement::candidate_entity_indices(
@@ -292,99 +489,32 @@ where
                     (!eligible_indices.is_empty()).then_some((entity_idx, eligible_indices))
                 })
                 .collect();
-
-            if owner_eligible_entities.is_empty() {
-                Vec::new()
-            } else {
-                (0..moves_count)
-                    .map(|_| {
-                        // Pick a random entity that has at least one recreatable element.
-                        let (entity_idx, eligible_indices) = &owner_eligible_entities
-                            [rng.random_range(0..owner_eligible_entities.len())];
-                        let eligible_len = eligible_indices.len();
-
-                        // Clamp ruin count to owner-eligible elements.
-                        let min = min_ruin.min(eligible_len);
-                        let max = max_ruin.min(eligible_len);
-                        let ruin_count = if min == max {
-                            min
-                        } else {
-                            rng.random_range(min..=max)
-                        };
-
-                        // Fisher-Yates partial shuffle over owner-eligible indices only.
-                        let mut indices: SmallVec<[usize; 8]> =
-                            eligible_indices.iter().copied().collect();
-                        for i in 0..ruin_count {
-                            let j = rng.random_range(i..eligible_len);
-                            indices.swap(i, j);
-                        }
-                        indices.truncate(ruin_count);
-
-                        ListRuinMove::new(
-                            *entity_idx,
-                            &indices,
-                            self.entity_count,
-                            list_len,
-                            list_get,
-                            list_remove,
-                            list_insert,
-                            variable_name,
-                            descriptor_index,
-                        )
-                        .with_element_owner_fn(element_owner_fn)
-                        .with_skip_empty_destinations(self.skip_empty_destinations)
-                    })
-                    .collect()
-            }
+            ListRuinSourcePool::OwnerRestricted(owner_eligible_entities)
         } else {
-            (0..moves_count)
-                .filter_map(|_| {
-                    // Pick a random entity
-                    let (entity_idx, list_length) =
-                        non_empty_entities[rng.random_range(0..non_empty_entities.len())];
-
-                    if list_length == 0 {
-                        return None;
-                    }
-
-                    // Clamp ruin count to available elements
-                    let min = min_ruin.min(list_length);
-                    let max = max_ruin.min(list_length);
-                    let ruin_count = if min == max {
-                        min
-                    } else {
-                        rng.random_range(min..=max)
-                    };
-
-                    // Fisher-Yates partial shuffle to select random indices
-                    let mut indices: SmallVec<[usize; 8]> = (0..list_length).collect();
-                    for i in 0..ruin_count {
-                        let j = rng.random_range(i..list_length);
-                        indices.swap(i, j);
-                    }
-                    indices.truncate(ruin_count);
-
-                    Some(
-                        ListRuinMove::new(
-                            entity_idx,
-                            &indices,
-                            self.entity_count,
-                            list_len,
-                            list_get,
-                            list_remove,
-                            list_insert,
-                            variable_name,
-                            descriptor_index,
-                        )
-                        .with_element_owner_fn(element_owner_fn)
-                        .with_skip_empty_destinations(self.skip_empty_destinations),
-                    )
-                })
-                .collect()
+            ListRuinSourcePool::Unrestricted(non_empty_entities)
         };
 
-        ArenaMoveCursor::from_moves(moves)
+        let seed = self.rng.borrow_mut().random::<u64>()
+            ^ context.offset_seed(0x7157_8011_C0DE_0001) as u64;
+        ListRuinMoveCursor::new(
+            SmallRng::seed_from_u64(seed),
+            source_pool,
+            self.moves_per_step,
+            self.min_ruin_count,
+            self.max_ruin_count,
+            self.entity_count,
+            self.list_len,
+            self.list_get,
+            self.list_remove,
+            self.list_insert,
+            self.element_owner_fn,
+            self.precedence_element_count,
+            self.precedence_index_to_element,
+            self.precedence_successors_fn,
+            self.skip_empty_destinations,
+            self.variable_name,
+            self.descriptor_index,
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

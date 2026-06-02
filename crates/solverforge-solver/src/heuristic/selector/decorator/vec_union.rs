@@ -83,10 +83,16 @@ where
         score_director: &D,
         context: MoveStreamContext,
     ) -> Self::Cursor<'a> {
+        let child_context = match self.selection_order {
+            UnionSelectionOrder::Sequential => MoveStreamContext::default(),
+            UnionSelectionOrder::RoundRobin
+            | UnionSelectionOrder::RotatingRoundRobin
+            | UnionSelectionOrder::StratifiedRandom => context,
+        };
         VecUnionMoveCursor::new(
             self.selectors
                 .iter()
-                .map(|selector| selector.open_cursor_with_context(score_director, context))
+                .map(|selector| selector.open_cursor_with_context(score_director, child_context))
                 .collect(),
             self.selection_order,
             context,

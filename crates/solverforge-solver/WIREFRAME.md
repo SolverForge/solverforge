@@ -27,7 +27,7 @@ src/
 ├── runtime.rs                           — Runtime assembly and target matching over `RuntimeModel`; routes scalar-only construction through the descriptor boundary, routes named grouped scalar construction through the atomic grouped-scalar builder, uses capability-validated routing for scalar/list/mixed construction, and delegates specialized list phases
 ├── runtime/defaults.rs                  — Model-aware omitted-phase and omitted-selector default profile
 ├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model validation, and shadow updates
-├── list_placement.rs                    — Private partial fixed-owner restriction helpers for list construction, ruin/recreate, Clarke-Wright, and owner-changing list selectors
+├── list_placement.rs                    — Private partial fixed-owner restriction helpers for list construction, ruin/recreate, Clarke-Wright, and list selectors; detects all-selected-elements-fixed-to-current so intra-owner reordering still streams while cross-owner moves are filtered
 ├── runtime/
 │   ├── tests.rs                         — Runtime construction routing and target-validation tests
 │   ├── tests/*.rs                       — Runtime test fixtures split by scalar, queue, revision, multi-owner, mixed-target, grouped-scalar, and scalar-assignment behavior
@@ -48,7 +48,7 @@ src/
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
 │   ├── acceptor/tests.rs                — Tests
 │   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
-│   ├── context.rs                       — RuntimeModel<S, V, DM, IDM>, VariableSlot<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar slots, internal ScalarGroupBinding<S>, scalar assignment metadata, expanded scalar/list construction capability hooks
+│   ├── context.rs                       — RuntimeModel<S, V, DM, IDM>, VariableSlot<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar slots, internal ScalarGroupBinding<S>, scalar assignment metadata, expanded scalar/list construction capability hooks, and list construction element-order function hooks on existing list slots
 │   ├── context/*.rs                     — Model, list, conflict-repair, and scalar slot implementation chunks
 │   ├── context/scalar/mod.rs            — Scalar slot module root and internal re-exports
 │   ├── context/scalar/*.rs              — Scalar value-source, scalar variable-slot, and grouped scalar binding definitions
@@ -82,6 +82,7 @@ src/
 │   │   ├── swap.rs                      — SwapMove<S, V>
 │   │   ├── list_change.rs              — ListChangeMove<S, V>
 │   │   ├── list_swap.rs                — ListSwapMove<S, V>
+│   │   ├── list_permute.rs             — ListPermuteMove<S, V>; contiguous intra-list window permutation with exact undo and tabu identity
 │   │   ├── list_reverse.rs             — ListReverseMove<S, V>
 │   │   ├── list_ruin.rs                — ListRuinMove<S, V>
 │   │   ├── metadata.rs                 — MoveTabuSignature, scoped entity/value tabu tokens, exact move identities
@@ -109,6 +110,7 @@ src/
 │   │       ├── conflict_repair.rs
 │   │       ├── list_change.rs
 │   │       ├── list_swap.rs
+│   │       ├── list_permute.rs
 │   │       ├── list_reverse.rs
 │   │       ├── list_ruin.rs
 │   │       ├── pillar_change.rs
@@ -128,6 +130,8 @@ src/
 │       ├── list_change.rs              — ListChangeMoveSelector<S, V, ES>
 │       ├── list_support.rs             — Private selected-entity snapshots and exact list-neighborhood counting
 │       ├── list_swap.rs                — ListSwapMoveSelector<S, V, ES>
+│       ├── list_permute.rs             — ListPermuteMoveSelector<S, V, ES>; cursor-backed contiguous-window permutation
+│       ├── list_precedence.rs          — ListPrecedenceMoveSelector<S, V, ES>; cursor-backed critical-path, singleton critical-node, and critical-sublist moves for list variables with plain precedence hooks
 │       ├── list_reverse.rs             — ListReverseMoveSelector<S, V, ES>
 │       ├── list_ruin.rs                — ListRuinMoveSelector<S, V>
 │       ├── sublist_change.rs           — SublistChangeMoveSelector<S, V, ES>
@@ -183,6 +187,8 @@ src/
 │           ├── mod.rs
 │           ├── k_opt.rs
 │           ├── list_neighborhood.rs
+│           ├── list_permute.rs
+│           ├── list_precedence.rs
 │           ├── list_ruin.rs
 │           ├── mimic.rs
 │           ├── nearby.rs
@@ -308,10 +314,10 @@ src/
 │   │   ├── mod.rs                       — Re-exports
 │   │   ├── construction.rs             — ConstructionPhaseFactory
 │   │   ├── list_construction.rs        — Re-exports
-│   │   ├── list_construction/round_robin.rs — ListConstructionPhaseBuilder, ListConstructionPhase
-│   │   ├── list_construction/state.rs  — Shared scored insertion state
-│   │   ├── list_construction/cheapest.rs — ListCheapestInsertionPhase
-│   │   ├── list_construction/regret.rs — ListRegretInsertionPhase
+│   │   ├── list_construction/round_robin.rs — ListConstructionPhaseBuilder, ListConstructionPhase; uses mandatory-construction step control and optional list element ordering
+│   │   ├── list_construction/state.rs  — Shared scored insertion state plus original/shuffled/keyed unassigned-element ordering
+│   │   ├── list_construction/cheapest.rs — ListCheapestInsertionPhase; preserves committed step score and mandatory-construction semantics
+│   │   ├── list_construction/regret.rs — ListRegretInsertionPhase; preserves committed step score, stable unassigned-element ordering, regret ties by best insertion score, mandatory-construction semantics, and an oversized fixed-owner ordered-append fallback
 │   │   ├── list_clarke_wright.rs       — ListClarkeWrightPhase
 │   │   ├── list_clarke_wright/tests.rs — Tests
 │   │   ├── list_clarke_wright/owner_assignment.rs — Owner-specific route assignment and preservation helpers

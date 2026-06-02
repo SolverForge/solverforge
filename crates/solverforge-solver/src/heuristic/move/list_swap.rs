@@ -264,6 +264,10 @@ where
         self.variable_name
     }
 
+    fn telemetry_label(&self) -> &'static str {
+        "list_swap"
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         let first_val = (self.list_get)(
             score_director.working_solution(),

@@ -61,13 +61,14 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListSwapMove;
-use crate::list_placement::{selected_owner_allows, OwnerRestriction};
+use crate::list_placement::{selected_owner_allows, OwnerRestriction, SelectedOwnerRestrictions};
 
 use super::entity::EntitySelector;
 use super::list_support::{collect_selected_entities, ordered_index};
 use super::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
+use super::precedence_route::{PrecedenceRouteGraph, PrecedenceRouteHooks};
 
 /// A move selector that generates list swap moves.
 ///
@@ -85,6 +86,7 @@ pub struct ListSwapMoveSelector<S, V, ES> {
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_set: fn(&mut S, usize, usize, V),
     element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -115,6 +117,8 @@ where
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_set: fn(&mut S, usize, usize, V),
     element_owners: Option<Vec<Vec<OwnerRestriction>>>,
+    fixed_to_current_entity: bool,
+    precedence_route_graph: Option<PrecedenceRouteGraph>,
     variable_name: &'static str,
     descriptor_index: usize,
 }
@@ -133,6 +137,8 @@ where
         list_get: fn(&S, usize, usize) -> Option<V>,
         list_set: fn(&mut S, usize, usize, V),
         element_owners: Option<Vec<Vec<OwnerRestriction>>>,
+        fixed_to_current_entity: bool,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -152,9 +158,19 @@ where
             list_get,
             list_set,
             element_owners,
+            fixed_to_current_entity,
+            precedence_route_graph,
             variable_name,
             descriptor_index,
         }
+    }
+
+    pub(crate) fn with_precedence_route_graph(
+        mut self,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
+    ) -> Self {
+        self.precedence_route_graph = precedence_route_graph;
+        self
     }
 
     fn push_move(
@@ -262,10 +278,19 @@ where
                             {
                                 continue;
                             }
+                            if self.precedence_route_graph.as_ref().is_some_and(|graph| {
+                                graph.intra_list_swap_introduces_cycle(entity_a, pos_a, pos_b)
+                            }) {
+                                continue;
+                            }
                             return Some(self.push_move(entity_a, pos_a, entity_a, pos_b));
                         }
                         self.pos_a_offset += 1;
                         self.pos_b_offset = 0;
+                    }
+                    if self.fixed_to_current_entity {
+                        self.advance_entity();
+                        continue;
                     }
                     self.stage = ListSwapStage::Inter;
                     self.dst_idx = self.entity_idx + 1;
@@ -382,6 +407,7 @@ impl<S, V, ES> ListSwapMoveSelector<S, V, ES> {
             list_get,
             list_set,
             element_owner_fn: None,
+            precedence_route_hooks: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -394,6 +420,18 @@ impl<S, V, ES> ListSwapMoveSelector<S, V, ES> {
     ) -> Self {
         self.element_owner_fn = element_owner_fn;
         self
+    }
+
+    pub(crate) fn with_precedence_route_hooks(
+        mut self,
+        precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
+    ) -> Self {
+        self.precedence_route_hooks = precedence_route_hooks;
+        self
+    }
+
+    pub(crate) fn precedence_route_hooks(&self) -> Option<PrecedenceRouteHooks<S, V>> {
+        self.precedence_route_hooks
     }
 }
 
@@ -423,20 +461,20 @@ where
             context,
             0x1157_5A09_0000_0001 ^ self.descriptor_index as u64,
         );
-        let element_owners = if self.element_owner_fn.is_some() {
-            crate::list_placement::selected_owner_restrictions(
-                self.element_owner_fn,
-                score_director.working_solution(),
-                score_director
-                    .entity_count(self.descriptor_index)
-                    .unwrap_or(0),
-                &selected.entities,
-                &selected.route_lens,
-                self.list_get,
-            )
-        } else {
-            None
-        };
+        let owner_restrictions = crate::list_placement::selected_owner_restrictions(
+            self.element_owner_fn,
+            score_director.working_solution(),
+            score_director
+                .entity_count(self.descriptor_index)
+                .unwrap_or(0),
+            &selected.entities,
+            &selected.route_lens,
+            self.list_get,
+        );
+        let fixed_to_current_entity = owner_restrictions
+            .as_ref()
+            .is_some_and(SelectedOwnerRestrictions::is_fixed_to_current);
+        let element_owners = owner_restrictions.and_then(SelectedOwnerRestrictions::into_mixed);
         ListSwapMoveCursor::new(
             selected.entities,
             selected.route_lens,
@@ -445,6 +483,8 @@ where
             self.list_get,
             self.list_set,
             element_owners,
+            fixed_to_current_entity,
+            None,
             self.variable_name,
             self.descriptor_index,
         )
@@ -453,7 +493,7 @@ where
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let selected =
             collect_selected_entities(&self.entity_selector, score_director, self.list_len);
-        let Some(element_owners) = crate::list_placement::selected_owner_restrictions(
+        let Some(owner_restrictions) = crate::list_placement::selected_owner_restrictions(
             self.element_owner_fn,
             score_director.working_solution(),
             score_director
@@ -466,6 +506,17 @@ where
             return selected.list_swap_move_capacity();
         };
 
+        if owner_restrictions.is_fixed_to_current() {
+            return selected
+                .route_lens
+                .iter()
+                .map(|&len| len * len.saturating_sub(1) / 2)
+                .sum();
+        }
+        let element_owners = owner_restrictions
+            .mixed()
+            .expect("non-fixed owner restrictions must retain mixed owner matrix");
+
         let mut count = 0;
         for (left_idx, (&left_entity, &left_len)) in selected
             .entities
@@ -475,8 +526,8 @@ where
         {
             for left_pos in 0..left_len {
                 for right_pos in left_pos + 1..left_len {
-                    if selected_owner_allows(&element_owners, left_idx, left_pos, left_entity)
-                        && selected_owner_allows(&element_owners, left_idx, right_pos, left_entity)
+                    if selected_owner_allows(element_owners, left_idx, left_pos, left_entity)
+                        && selected_owner_allows(element_owners, left_idx, right_pos, left_entity)
                     {
                         count += 1;
                     }
@@ -489,9 +540,9 @@ where
                     .skip(left_idx + 1)
                 {
                     for right_pos in 0..right_len {
-                        if selected_owner_allows(&element_owners, left_idx, left_pos, right_entity)
+                        if selected_owner_allows(element_owners, left_idx, left_pos, right_entity)
                             && selected_owner_allows(
-                                &element_owners,
+                                element_owners,
                                 right_idx,
                                 right_pos,
                                 left_entity,

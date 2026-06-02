@@ -202,6 +202,10 @@ where
         self.variable_name
     }
 
+    fn telemetry_label(&self) -> &'static str {
+        "list_reverse"
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         let mut value_ids: SmallVec<[u64; 2]> = SmallVec::new();
         for pos in self.start..self.end {

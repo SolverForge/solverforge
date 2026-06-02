@@ -335,6 +335,10 @@ where
         self.variable_name
     }
 
+    fn telemetry_label(&self) -> &'static str {
+        "sublist_change"
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         let layout = derive_segment_relocation_layout(
             self.source_entity_index,

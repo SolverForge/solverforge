@@ -119,6 +119,8 @@ fn selector_family(config: &MoveSelectorConfig) -> SelectorFamily {
         MoveSelectorConfig::ListChangeMoveSelector(_)
         | MoveSelectorConfig::NearbyListChangeMoveSelector(_)
         | MoveSelectorConfig::ListSwapMoveSelector(_)
+        | MoveSelectorConfig::ListPermuteMoveSelector(_)
+        | MoveSelectorConfig::ListPrecedenceMoveSelector(_)
         | MoveSelectorConfig::NearbyListSwapMoveSelector(_)
         | MoveSelectorConfig::SublistChangeMoveSelector(_)
         | MoveSelectorConfig::SublistSwapMoveSelector(_)
@@ -334,6 +336,23 @@ fn target_assignment_owner<S, V, DM, IDM>(
     })
 }
 
+fn list_selector_target(config: Option<&MoveSelectorConfig>) -> Option<&solverforge_config::VariableTargetConfig> {
+    match config? {
+        MoveSelectorConfig::ListChangeMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::NearbyListChangeMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::ListSwapMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::ListPermuteMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::ListPrecedenceMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::NearbyListSwapMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::SublistChangeMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::SublistSwapMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::ListReverseMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::KOptMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::ListRuinMoveSelector(config) => Some(&config.target),
+        _ => None,
+    }
+}
+
 fn push_list_selector<S, V, DM, IDM>(
     config: Option<&MoveSelectorConfig>,
     model: &RuntimeModel<S, V, DM, IDM>,
@@ -345,7 +364,15 @@ fn push_list_selector<S, V, DM, IDM>(
     DM: CrossEntityDistanceMeter<S> + Clone + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
 {
-    for variable in model.list_variables() {
+    let target = list_selector_target(config);
+    for variable in model.list_variables().filter(|variable| {
+        target.is_none_or(|target| {
+            variable.matches_target(
+                target.entity_class.as_deref(),
+                target.variable_name.as_deref(),
+            )
+        })
+    }) {
         let selector = ListMoveSelectorBuilder::build_flat(config, variable, random_seed);
         out.extend(
             selector
@@ -364,6 +391,8 @@ fn matching_dynamic_list_variables<S, V, DM, IDM>(
         MoveSelectorConfig::ListChangeMoveSelector(config) => Some(&config.target),
         MoveSelectorConfig::NearbyListChangeMoveSelector(config) => Some(&config.target),
         MoveSelectorConfig::ListSwapMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::ListPermuteMoveSelector(config) => Some(&config.target),
+        MoveSelectorConfig::ListPrecedenceMoveSelector(config) => Some(&config.target),
         MoveSelectorConfig::NearbyListSwapMoveSelector(config) => Some(&config.target),
         MoveSelectorConfig::SublistChangeMoveSelector(config) => Some(&config.target),
         MoveSelectorConfig::SublistSwapMoveSelector(config) => Some(&config.target),
@@ -415,6 +444,8 @@ fn push_dynamic_list_selector<S, V, DM, IDM>(
         }
         MoveSelectorConfig::NearbyListChangeMoveSelector(_)
         | MoveSelectorConfig::ListSwapMoveSelector(_)
+        | MoveSelectorConfig::ListPermuteMoveSelector(_)
+        | MoveSelectorConfig::ListPrecedenceMoveSelector(_)
         | MoveSelectorConfig::NearbyListSwapMoveSelector(_)
         | MoveSelectorConfig::SublistChangeMoveSelector(_)
         | MoveSelectorConfig::SublistSwapMoveSelector(_)

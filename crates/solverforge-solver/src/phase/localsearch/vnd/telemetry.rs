@@ -83,8 +83,9 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
+    let move_label = mov.telemetry_label();
     if mov.variable_name() == "compound_scalar" || mov.variable_name() == "conflict_repair" {
-        return mov.variable_name().to_string();
+        return format!("{}:{move_label}", mov.variable_name());
     }
     let mut label = None;
     mov.for_each_affected_entity(&mut |affected| {
@@ -92,5 +93,7 @@ where
             label = Some(affected.variable_name.to_string());
         }
     });
-    label.unwrap_or_else(|| "move".to_string())
+    label
+        .map(|variable| format!("{variable}:{move_label}"))
+        .unwrap_or_else(|| format!("move:{move_label}"))
 }

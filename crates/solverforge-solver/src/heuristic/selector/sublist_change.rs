@@ -71,13 +71,14 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::SublistChangeMove;
-use crate::list_placement::{selected_segment_allows, OwnerRestriction};
+use crate::list_placement::{selected_segment_allows, OwnerRestriction, SelectedOwnerRestrictions};
 
 use super::entity::EntitySelector;
 use super::list_support::{collect_selected_entities, ordered_index};
 use super::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
+use super::precedence_route::{PrecedenceRouteGraph, PrecedenceRouteHooks};
 use super::sublist_support::count_sublist_change_moves_for_len;
 
 /// A move selector that generates sublist change (Or-opt) moves.
@@ -101,6 +102,7 @@ pub struct SublistChangeMoveSelector<S, V, ES> {
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -134,6 +136,8 @@ where
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     element_owners: Option<Vec<Vec<OwnerRestriction>>>,
+    fixed_to_current_entity: bool,
+    precedence_route_graph: Option<PrecedenceRouteGraph>,
     variable_name: &'static str,
     descriptor_index: usize,
 }
@@ -155,6 +159,8 @@ where
         sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
         sublist_insert: fn(&mut S, usize, usize, Vec<V>),
         element_owners: Option<Vec<Vec<OwnerRestriction>>>,
+        fixed_to_current_entity: bool,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
@@ -177,9 +183,19 @@ where
             sublist_remove,
             sublist_insert,
             element_owners,
+            fixed_to_current_entity,
+            precedence_route_graph,
             variable_name,
             descriptor_index,
         }
+    }
+
+    pub(crate) fn with_precedence_route_graph(
+        mut self,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
+    ) -> Self {
+        self.precedence_route_graph = precedence_route_graph;
+        self
     }
 
     fn segment_size_count(&self, src_len: usize, seg_start: usize) -> usize {
@@ -315,9 +331,20 @@ where
                         {
                             continue;
                         }
+                        if self.precedence_route_graph.as_ref().is_some_and(|graph| {
+                            graph.intra_sublist_change_introduces_cycle(
+                                src_entity, seg_start, seg_end, dst_pos,
+                            )
+                        }) {
+                            continue;
+                        }
                         return Some(
                             self.push_move(src_entity, seg_start, seg_end, src_entity, dst_pos),
                         );
+                    }
+                    if self.fixed_to_current_entity {
+                        self.advance_segment();
+                        continue;
                     }
                     self.stage = SublistChangeStage::Inter;
                     self.dst_idx = 0;
@@ -444,6 +471,7 @@ impl<S, V, ES> SublistChangeMoveSelector<S, V, ES> {
             sublist_remove,
             sublist_insert,
             element_owner_fn: None,
+            precedence_route_hooks: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -456,6 +484,18 @@ impl<S, V, ES> SublistChangeMoveSelector<S, V, ES> {
     ) -> Self {
         self.element_owner_fn = element_owner_fn;
         self
+    }
+
+    pub(crate) fn with_precedence_route_hooks(
+        mut self,
+        precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
+    ) -> Self {
+        self.precedence_route_hooks = precedence_route_hooks;
+        self
+    }
+
+    pub(crate) fn precedence_route_hooks(&self) -> Option<PrecedenceRouteHooks<S, V>> {
+        self.precedence_route_hooks
     }
 }
 
@@ -485,20 +525,20 @@ where
             context,
             0x5B15_7C4A_46E0_0001 ^ self.descriptor_index as u64,
         );
-        let element_owners = if self.element_owner_fn.is_some() {
-            crate::list_placement::selected_owner_restrictions(
-                self.element_owner_fn,
-                score_director.working_solution(),
-                score_director
-                    .entity_count(self.descriptor_index)
-                    .unwrap_or(0),
-                &selected.entities,
-                &selected.route_lens,
-                self.list_get,
-            )
-        } else {
-            None
-        };
+        let owner_restrictions = crate::list_placement::selected_owner_restrictions(
+            self.element_owner_fn,
+            score_director.working_solution(),
+            score_director
+                .entity_count(self.descriptor_index)
+                .unwrap_or(0),
+            &selected.entities,
+            &selected.route_lens,
+            self.list_get,
+        );
+        let fixed_to_current_entity = owner_restrictions
+            .as_ref()
+            .is_some_and(SelectedOwnerRestrictions::is_fixed_to_current);
+        let element_owners = owner_restrictions.and_then(SelectedOwnerRestrictions::into_mixed);
         SublistChangeMoveCursor::new(
             selected.entities,
             selected.route_lens,
@@ -510,6 +550,8 @@ where
             self.sublist_remove,
             self.sublist_insert,
             element_owners,
+            fixed_to_current_entity,
+            None,
             self.variable_name,
             self.descriptor_index,
         )
@@ -518,7 +560,7 @@ where
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let selected =
             collect_selected_entities(&self.entity_selector, score_director, self.list_len);
-        let Some(element_owners) = crate::list_placement::selected_owner_restrictions(
+        let Some(owner_restrictions) = crate::list_placement::selected_owner_restrictions(
             self.element_owner_fn,
             score_director.working_solution(),
             score_director
@@ -535,6 +577,24 @@ where
             );
         };
 
+        if owner_restrictions.is_fixed_to_current() {
+            return selected
+                .route_lens
+                .iter()
+                .map(|&route_len| {
+                    count_sublist_change_moves_for_len(
+                        route_len,
+                        0,
+                        self.min_sublist_size,
+                        self.max_sublist_size,
+                    )
+                })
+                .sum();
+        }
+        let element_owners = owner_restrictions
+            .mixed()
+            .expect("non-fixed owner restrictions must retain mixed owner matrix");
+
         let mut count = 0;
         for (src_idx, (&src_entity, &src_len)) in selected
             .entities
@@ -547,7 +607,7 @@ where
                 for seg_size in self.min_sublist_size..=max_seg {
                     let seg_end = seg_start + seg_size;
                     if selected_segment_allows(
-                        &element_owners,
+                        element_owners,
                         src_idx,
                         seg_start,
                         seg_end,
@@ -565,7 +625,7 @@ where
                             continue;
                         }
                         if selected_segment_allows(
-                            &element_owners,
+                            element_owners,
                             src_idx,
                             seg_start,
                             seg_end,

@@ -97,6 +97,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListChangeMove;
+use crate::list_placement::selected_elements_fixed_to_current_entities;
 
 use super::entity::EntitySelector;
 use super::list_support::{collect_selected_entities, ordered_index};
@@ -104,6 +105,7 @@ use super::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
 use super::nearby_list_support::{sort_and_limit_nearby_candidates, NearbyCandidate};
+use super::precedence_route::{PrecedenceRouteGraph, PrecedenceRouteHooks};
 
 /// Measures distance between two list positions, potentially across different entities.
 ///
@@ -180,6 +182,7 @@ pub struct NearbyListChangeMoveSelector<S, V, D, ES> {
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     list_insert: fn(&mut S, usize, usize, V),
     element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
@@ -207,6 +210,8 @@ where
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
     list_insert: fn(&mut S, usize, usize, V),
     owner_context: Option<(fn(&S, &V) -> Option<usize>, usize)>,
+    fixed_to_current_entity: bool,
+    precedence_route_graph: Option<PrecedenceRouteGraph>,
     max_nearby: usize,
     variable_name: &'static str,
     descriptor_index: usize,
@@ -230,6 +235,8 @@ where
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
         list_insert: fn(&mut S, usize, usize, V),
         owner_context: Option<(fn(&S, &V) -> Option<usize>, usize)>,
+        fixed_to_current_entity: bool,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
         max_nearby: usize,
         variable_name: &'static str,
         descriptor_index: usize,
@@ -251,10 +258,20 @@ where
             list_remove,
             list_insert,
             owner_context,
+            fixed_to_current_entity,
+            precedence_route_graph,
             max_nearby,
             variable_name,
             descriptor_index,
         }
+    }
+
+    pub(crate) fn with_precedence_route_graph(
+        mut self,
+        precedence_route_graph: Option<PrecedenceRouteGraph>,
+    ) -> Self {
+        self.precedence_route_graph = precedence_route_graph;
+        self
     }
 
     fn load_next_source(&mut self) -> bool {
@@ -296,7 +313,7 @@ where
 
                 candidates.clear();
 
-                for dst_pos in 0..src_len {
+                for dst_pos in 0..=src_len {
                     if dst_pos == src_pos || dst_pos == src_pos + 1 {
                         continue;
                     }
@@ -304,39 +321,46 @@ where
                     {
                         continue;
                     }
+                    if self.precedence_route_graph.as_ref().is_some_and(|graph| {
+                        graph.intra_list_change_introduces_cycle(src_entity, src_pos, dst_pos)
+                    }) {
+                        continue;
+                    }
                     let dist = self.distance_meter.distance(
                         &self.solution,
                         src_entity,
                         src_pos,
                         src_entity,
-                        dst_pos,
+                        dst_pos.min(src_len.saturating_sub(1)),
                     );
                     if dist.is_finite() {
                         candidates.push((src_entity, dst_pos, dist));
                     }
                 }
 
-                for (dst_idx, &dst_entity) in self.entities.iter().enumerate() {
-                    if dst_idx == self.source_idx {
-                        continue;
-                    }
-                    let dst_len = self.route_lens[dst_idx];
-                    for dst_pos in 0..=dst_len {
-                        if source_restriction
-                            .is_some_and(|restriction| !restriction.allows(dst_entity))
-                        {
+                if !self.fixed_to_current_entity {
+                    for (dst_idx, &dst_entity) in self.entities.iter().enumerate() {
+                        if dst_idx == self.source_idx {
                             continue;
                         }
-                        let ref_pos = dst_pos.min(dst_len.saturating_sub(1));
-                        let dist = self.distance_meter.distance(
-                            &self.solution,
-                            src_entity,
-                            src_pos,
-                            dst_entity,
-                            ref_pos,
-                        );
-                        if dist.is_finite() {
-                            candidates.push((dst_entity, dst_pos, dist));
+                        let dst_len = self.route_lens[dst_idx];
+                        for dst_pos in 0..=dst_len {
+                            if source_restriction
+                                .is_some_and(|restriction| !restriction.allows(dst_entity))
+                            {
+                                continue;
+                            }
+                            let ref_pos = dst_pos.min(dst_len.saturating_sub(1));
+                            let dist = self.distance_meter.distance(
+                                &self.solution,
+                                src_entity,
+                                src_pos,
+                                dst_entity,
+                                ref_pos,
+                            );
+                            if dist.is_finite() {
+                                candidates.push((dst_entity, dst_pos, dist));
+                            }
                         }
                     }
                 }
@@ -465,6 +489,7 @@ impl<S, V, D, ES> NearbyListChangeMoveSelector<S, V, D, ES> {
             list_remove,
             list_insert,
             element_owner_fn: None,
+            precedence_route_hooks: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -477,6 +502,18 @@ impl<S, V, D, ES> NearbyListChangeMoveSelector<S, V, D, ES> {
     ) -> Self {
         self.element_owner_fn = element_owner_fn;
         self
+    }
+
+    pub(crate) fn with_precedence_route_hooks(
+        mut self,
+        precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
+    ) -> Self {
+        self.precedence_route_hooks = precedence_route_hooks;
+        self
+    }
+
+    pub(crate) fn precedence_route_hooks(&self) -> Option<PrecedenceRouteHooks<S, V>> {
+        self.precedence_route_hooks
     }
 }
 
@@ -519,6 +556,16 @@ where
             context,
             0xA1EA_2B17_C4A4_0001 ^ self.descriptor_index as u64,
         );
+        let fixed_to_current_entity = owner_context.is_some_and(|(_, entity_count)| {
+            selected_elements_fixed_to_current_entities(
+                self.element_owner_fn,
+                solution,
+                entity_count,
+                &selected.entities,
+                &selected.route_lens,
+                self.list_get,
+            )
+        });
         let entities = selected.entities;
         let route_lens = selected.route_lens;
 
@@ -533,6 +580,8 @@ where
             self.list_remove,
             self.list_insert,
             owner_context,
+            fixed_to_current_entity,
+            None,
             max_nearby,
             self.variable_name,
             self.descriptor_index,

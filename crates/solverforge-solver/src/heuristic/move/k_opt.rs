@@ -401,6 +401,10 @@ where
         self.variable_name
     }
 
+    fn telemetry_label(&self) -> &'static str {
+        "k_opt"
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         let mut touched_value_ids: SmallVec<[u64; 2]> = SmallVec::new();
         let len = (self.list_len)(score_director.working_solution(), self.entity_index);

@@ -401,6 +401,10 @@ where
             || self.second.requires_hard_improvement()
     }
 
+    fn requires_score_improvement(&self) -> bool {
+        self.first.requires_score_improvement() || self.second.requires_score_improvement()
+    }
+
     fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {
         self.tabu_signature.clone()
     }
@@ -483,6 +487,11 @@ where
         self.require_hard_improvement
             || self.first_move().requires_hard_improvement()
             || self.second_move().requires_hard_improvement()
+    }
+
+    fn requires_score_improvement(&self) -> bool {
+        self.first_move().requires_score_improvement()
+            || self.second_move().requires_score_improvement()
     }
 
     fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {

@@ -91,6 +91,10 @@ fn sublist_insert(plan: &mut Plan, entity_idx: usize, pos: usize, items: Vec<usi
     }
 }
 
+fn fixed_owner(_: &Plan, element: &usize) -> Option<usize> {
+    Some(*element / 100)
+}
+
 fn mixed_owner(_: &Plan, element: &usize) -> Option<usize> {
     (*element >= 100).then_some(*element / 100)
 }
@@ -264,6 +268,50 @@ fn sublist_change_keeps_unrestricted_elements_when_owner_hook_exists() {
 }
 
 #[test]
+fn sublist_change_honors_fixed_element_owner() {
+    let director = create_director(vec![
+        Vehicle {
+            visits: vec![0, 1, 2],
+        },
+        Vehicle {
+            visits: vec![100, 101],
+        },
+    ]);
+
+    let selector = SublistChangeMoveSelector::<Plan, usize, _>::new(
+        FromSolutionEntitySelector::new(0),
+        1,
+        2,
+        list_len,
+        list_get,
+        sublist_remove,
+        sublist_insert,
+        "visits",
+        0,
+    )
+    .with_element_owner_fn(Some(fixed_owner));
+
+    let moves: Vec<_> = selector
+        .iter_moves(&director)
+        .map(|m| {
+            (
+                m.source_entity_index(),
+                m.source_start(),
+                m.source_end(),
+                m.dest_entity_index(),
+                m.dest_position(),
+            )
+        })
+        .collect();
+
+    assert!(moves
+        .iter()
+        .all(|(source_entity, _, _, dest_entity, _)| source_entity == dest_entity));
+    assert_eq!(moves.len(), 10);
+    assert_eq!(selector.size(&director), moves.len());
+}
+
+#[test]
 fn sublist_swap_emits_canonical_non_overlapping_pairs() {
     let director = create_director(vec![
         Vehicle {
@@ -353,6 +401,51 @@ fn sublist_swap_keeps_unrestricted_elements_when_owner_hook_exists() {
         .collect();
 
     assert_eq!(moves, vec![(0, 0, 1, 1, 1, 2), (1, 0, 1, 1, 1, 2)]);
+    assert_eq!(selector.size(&director), moves.len());
+}
+
+#[test]
+fn sublist_swap_honors_fixed_element_owner() {
+    let director = create_director(vec![
+        Vehicle {
+            visits: vec![0, 1, 2],
+        },
+        Vehicle {
+            visits: vec![100, 101],
+        },
+    ]);
+
+    let selector = SublistSwapMoveSelector::<Plan, usize, _>::new(
+        FromSolutionEntitySelector::new(0),
+        1,
+        2,
+        list_len,
+        list_get,
+        sublist_remove,
+        sublist_insert,
+        "visits",
+        0,
+    )
+    .with_element_owner_fn(Some(fixed_owner));
+
+    let moves: Vec<_> = selector
+        .iter_moves(&director)
+        .map(|m| {
+            (
+                m.first_entity_index(),
+                m.first_start(),
+                m.first_end(),
+                m.second_entity_index(),
+                m.second_start(),
+                m.second_end(),
+            )
+        })
+        .collect();
+
+    assert!(moves
+        .iter()
+        .all(|(first_entity, _, _, second_entity, _, _)| first_entity == second_entity));
+    assert_eq!(moves.len(), 6);
     assert_eq!(selector.size(&director), moves.len());
 }
 

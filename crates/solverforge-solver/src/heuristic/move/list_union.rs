@@ -10,15 +10,15 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::{
-    KOptMove, ListChangeMove, ListReverseMove, ListRuinMove, ListSwapMove, Move, MoveTabuSignature,
-    SublistChangeMove, SublistSwapMove,
+    KOptMove, ListChangeMove, ListMultiSwapMove, ListPermuteMove, ListReverseMove, ListRuinMove,
+    ListSwapMove, Move, MoveTabuSignature, SublistChangeMove, SublistSwapMove,
 };
 
 /// A monomorphized union of all list-variable move types.
 ///
 /// Implements `Move<S>` by delegating to the inner variant.
 /// Enables combining `ListChangeMoveSelector`, `ListSwapMoveSelector`,
-/// `SublistChangeMoveSelector`, `SublistSwapMoveSelector`,
+/// `ListPermuteMoveSelector`, `SublistChangeMoveSelector`, `SublistSwapMoveSelector`,
 /// `ListReverseMoveSelector`, `KOptMoveSelector`, and
 /// `ListRuinMoveSelector` without type erasure.
 ///
@@ -31,6 +31,8 @@ use super::{
 pub enum ListMoveUnion<S, V> {
     ListChange(ListChangeMove<S, V>),
     ListSwap(ListSwapMove<S, V>),
+    ListMultiSwap(ListMultiSwapMove<S, V>),
+    ListPermute(ListPermuteMove<S, V>),
     SublistChange(SublistChangeMove<S, V>),
     SublistSwap(SublistSwapMove<S, V>),
     ListReverse(ListReverseMove<S, V>),
@@ -45,6 +47,8 @@ where
 {
     ListChange(<ListChangeMove<S, V> as Move<S>>::Undo),
     ListSwap(<ListSwapMove<S, V> as Move<S>>::Undo),
+    ListMultiSwap(<ListMultiSwapMove<S, V> as Move<S>>::Undo),
+    ListPermute(<ListPermuteMove<S, V> as Move<S>>::Undo),
     SublistChange(<SublistChangeMove<S, V> as Move<S>>::Undo),
     SublistSwap(<SublistSwapMove<S, V> as Move<S>>::Undo),
     ListReverse(<ListReverseMove<S, V> as Move<S>>::Undo),
@@ -61,6 +65,8 @@ where
         match self {
             Self::ListChange(m) => Self::ListChange(*m),
             Self::ListSwap(m) => Self::ListSwap(*m),
+            Self::ListMultiSwap(m) => Self::ListMultiSwap(m.clone()),
+            Self::ListPermute(m) => Self::ListPermute(m.clone()),
             Self::SublistChange(m) => Self::SublistChange(*m),
             Self::SublistSwap(m) => Self::SublistSwap(*m),
             Self::ListReverse(m) => Self::ListReverse(*m),
@@ -79,6 +85,8 @@ where
         match self {
             Self::ListChange(m) => m.fmt(f),
             Self::ListSwap(m) => m.fmt(f),
+            Self::ListMultiSwap(m) => m.fmt(f),
+            Self::ListPermute(m) => m.fmt(f),
             Self::SublistChange(m) => m.fmt(f),
             Self::SublistSwap(m) => m.fmt(f),
             Self::ListReverse(m) => m.fmt(f),
@@ -99,6 +107,8 @@ where
         match self {
             Self::ListChange(m) => m.is_doable(score_director),
             Self::ListSwap(m) => m.is_doable(score_director),
+            Self::ListMultiSwap(m) => m.is_doable(score_director),
+            Self::ListPermute(m) => m.is_doable(score_director),
             Self::SublistChange(m) => m.is_doable(score_director),
             Self::SublistSwap(m) => m.is_doable(score_director),
             Self::ListReverse(m) => m.is_doable(score_director),
@@ -117,6 +127,11 @@ where
                 m.do_move(score_director);
                 ListMoveUnionUndo::ListSwap(())
             }
+            Self::ListMultiSwap(m) => {
+                m.do_move(score_director);
+                ListMoveUnionUndo::ListMultiSwap(())
+            }
+            Self::ListPermute(m) => ListMoveUnionUndo::ListPermute(m.do_move(score_director)),
             Self::SublistChange(m) => {
                 m.do_move(score_director);
                 ListMoveUnionUndo::SublistChange(())
@@ -142,6 +157,12 @@ where
             (Self::ListSwap(m), ListMoveUnionUndo::ListSwap(undo)) => {
                 m.undo_move(score_director, undo)
             }
+            (Self::ListMultiSwap(m), ListMoveUnionUndo::ListMultiSwap(undo)) => {
+                m.undo_move(score_director, undo)
+            }
+            (Self::ListPermute(m), ListMoveUnionUndo::ListPermute(undo)) => {
+                m.undo_move(score_director, undo)
+            }
             (Self::SublistChange(m), ListMoveUnionUndo::SublistChange(undo)) => {
                 m.undo_move(score_director, undo)
             }
@@ -163,6 +184,8 @@ where
         match self {
             Self::ListChange(m) => m.descriptor_index(),
             Self::ListSwap(m) => m.descriptor_index(),
+            Self::ListMultiSwap(m) => m.descriptor_index(),
+            Self::ListPermute(m) => m.descriptor_index(),
             Self::SublistChange(m) => m.descriptor_index(),
             Self::SublistSwap(m) => m.descriptor_index(),
             Self::ListReverse(m) => m.descriptor_index(),
@@ -175,6 +198,8 @@ where
         match self {
             Self::ListChange(m) => m.entity_indices(),
             Self::ListSwap(m) => m.entity_indices(),
+            Self::ListMultiSwap(m) => m.entity_indices(),
+            Self::ListPermute(m) => m.entity_indices(),
             Self::SublistChange(m) => m.entity_indices(),
             Self::SublistSwap(m) => m.entity_indices(),
             Self::ListReverse(m) => m.entity_indices(),
@@ -187,6 +212,8 @@ where
         match self {
             Self::ListChange(m) => m.variable_name(),
             Self::ListSwap(m) => m.variable_name(),
+            Self::ListMultiSwap(m) => m.variable_name(),
+            Self::ListPermute(m) => m.variable_name(),
             Self::SublistChange(m) => m.variable_name(),
             Self::SublistSwap(m) => m.variable_name(),
             Self::ListReverse(m) => m.variable_name(),
@@ -195,10 +222,54 @@ where
         }
     }
 
+    fn telemetry_label(&self) -> &'static str {
+        match self {
+            Self::ListChange(m) => m.telemetry_label(),
+            Self::ListSwap(m) => m.telemetry_label(),
+            Self::ListMultiSwap(m) => m.telemetry_label(),
+            Self::ListPermute(m) => m.telemetry_label(),
+            Self::SublistChange(m) => m.telemetry_label(),
+            Self::SublistSwap(m) => m.telemetry_label(),
+            Self::ListReverse(m) => m.telemetry_label(),
+            Self::KOpt(m) => m.telemetry_label(),
+            Self::ListRuin(m) => m.telemetry_label(),
+        }
+    }
+
+    fn requires_hard_improvement(&self) -> bool {
+        match self {
+            Self::ListChange(m) => m.requires_hard_improvement(),
+            Self::ListSwap(m) => m.requires_hard_improvement(),
+            Self::ListMultiSwap(m) => m.requires_hard_improvement(),
+            Self::ListPermute(m) => m.requires_hard_improvement(),
+            Self::SublistChange(m) => m.requires_hard_improvement(),
+            Self::SublistSwap(m) => m.requires_hard_improvement(),
+            Self::ListReverse(m) => m.requires_hard_improvement(),
+            Self::KOpt(m) => m.requires_hard_improvement(),
+            Self::ListRuin(m) => m.requires_hard_improvement(),
+        }
+    }
+
+    fn requires_score_improvement(&self) -> bool {
+        match self {
+            Self::ListChange(m) => m.requires_score_improvement(),
+            Self::ListSwap(m) => m.requires_score_improvement(),
+            Self::ListMultiSwap(m) => m.requires_score_improvement(),
+            Self::ListPermute(m) => m.requires_score_improvement(),
+            Self::SublistChange(m) => m.requires_score_improvement(),
+            Self::SublistSwap(m) => m.requires_score_improvement(),
+            Self::ListReverse(m) => m.requires_score_improvement(),
+            Self::KOpt(m) => m.requires_score_improvement(),
+            Self::ListRuin(m) => m.requires_score_improvement(),
+        }
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         match self {
             Self::ListChange(m) => m.tabu_signature(score_director),
             Self::ListSwap(m) => m.tabu_signature(score_director),
+            Self::ListMultiSwap(m) => m.tabu_signature(score_director),
+            Self::ListPermute(m) => m.tabu_signature(score_director),
             Self::SublistChange(m) => m.tabu_signature(score_director),
             Self::SublistSwap(m) => m.tabu_signature(score_director),
             Self::ListReverse(m) => m.tabu_signature(score_director),

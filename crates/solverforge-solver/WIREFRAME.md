@@ -36,11 +36,17 @@ src/
 │   └── list_tests.rs                    — Specialized list-construction runtime tests
 ├── descriptor.rs                        — Re-exports descriptor bindings, selectors, move types, and internal construction/runtime helpers
 ├── descriptor/
-│   ├── bindings.rs                      — Scalar-variable binding discovery, nearby hooks, scalar construction order keys, and frontier-aware work checks
+│   ├── bindings.rs                      — Scalar-variable binding module root and public/internal re-exports
+│   ├── bindings/lookup.rs               — Binding collection, target matching, and frontier-aware scalar work checks
+│   ├── bindings/variable.rs             — VariableBinding and ResolvedVariableBinding metadata/value-source helpers
 │   ├── move_types.rs                    — DescriptorChangeMove<S>, DescriptorSwapMove<S>, DescriptorPillarChangeMove<S>, DescriptorPillarSwapMove<S>, DescriptorRuinRecreateMove<S>, DescriptorMoveUnion<S>
 │   ├── move_types/*.rs                  — Descriptor move implementations split by move family
 │   ├── selectors.rs                     — DescriptorChangeMoveSelector<S>, DescriptorSwapMoveSelector<S>, DescriptorLeafSelector<S>, DescriptorFlatSelector<S>, DescriptorSelectorNode<S>, DescriptorSelector<S>, build_descriptor_move_selector(config, descriptor, random_seed); nearby scalar selectors require descriptor-provided nearby candidate hooks, optional meters rank/filter those candidates, optional assigned variables can emit one `Some(v) -> None` change, top-level cartesian selectors expose borrowable sequential candidates, and scalar ruin-recreate uses the configured seed when provided
-│   ├── selectors/*.rs                   — Descriptor selector legality, leaf, dispatch, and builder chunks split by neighborhood family
+│   ├── selectors/swap_legality.rs       — Descriptor swap legality index over value-range provider shapes
+│   ├── selectors/change_swap.rs         — Descriptor change and swap leaf selectors
+│   ├── selectors/pillar_ruin.rs         — Descriptor pillar change/swap and ruin-recreate selectors
+│   ├── selectors/dispatch.rs            — Descriptor selector dispatch root
+│   ├── selectors/dispatch/*.rs          — Descriptor selector dispatch build/type chunks
 │   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>; runtime-only descriptor construction assembly from resolved scalar bindings with optional keep-current legality and slot identity
 │   └── tests/mod.rs                     — Descriptor test root with support/construction/selector/ruin-recreate chunks under `tests/mod/`
 ├── run.rs                               — AnyTermination, build_termination, run_solver(), run_solver_with_config()
@@ -53,15 +59,16 @@ src/
 │   ├── context.rs                       — RuntimeModel<S, V, DM, IDM>, VariableSlot<S, V, DM, IDM>, IntraDistanceAdapter<T>, index-addressed scalar slots, resolved dynamic descriptor-index validation, internal ScalarGroupBinding<S>, scalar assignment metadata, expanded scalar/list construction capability hooks, and list construction element-order function hooks on existing list slots
 │   ├── context/*.rs                     — Model, list, conflict-repair, and scalar slot implementation chunks
 │   ├── context/scalar/mod.rs            — Scalar slot module root and internal re-exports
-│   ├── context/scalar/*.rs              — Scalar value-source, scalar variable-slot, and grouped scalar binding definitions
+│   ├── context/scalar/*.rs              — value_source.rs, variable.rs, and group.rs scalar slot definitions
 │   ├── scalar_selector.rs               — Canonical scalar selector assembly over index-addressed scalar slots, nearby scalar leaves, pillar legality filtering, ruin-recreate, and cartesian composition
 │   ├── scalar_selector/*.rs             — Scalar value, leaf, dispatch, and build chunks
+│   ├── scalar_selector/leaf_selectors/*.rs — single_entity.rs and pillar_ruin.rs chunks included by leaf_selectors.rs
 │   ├── scalar_selector/tests.rs         — Scalar selector test root with change/swap, nearby/ruin, pillar, and cartesian chunks
 │   ├── search.rs                        — Typed custom-search surface: SearchContext, Search, CustomSearchPhase, local_search(), and typed custom phase registration
 │   ├── search/*.rs                      — Model-aware default search profile and recursive typed custom phase registry
 │   ├── selector.rs                      — Selector<S, V, DM, IDM>, Neighborhood<S, V, DM, IDM>, build_move_selector() over published RuntimeModel variable slots
 │   ├── selector/*.rs                    — Mixed scalar/list neighborhood move, grouped scalar selector, conflict repair selector, family classification, and explicit selector builder chunks
-│   ├── selector/types/*.rs              — Neighborhood leaf, composite, cursor, and union types used by selector assembly
+│   ├── selector/types/*.rs              — leaf.rs, composite.rs, and move_union.rs types used by selector assembly
 │   ├── selector/tests.rs                — Mixed selector test root with support, defaults, grouped scalar, cartesian, and phase chunks
 │   ├── list_selector.rs                 — Re-exports list selector leaf and builder modules
 │   └── list_selector/
@@ -132,7 +139,7 @@ src/
 │       ├── entity.rs                    — EntitySelector trait, FromSolutionEntitySelector, AllEntitiesSelector
 │       ├── value_selector.rs              — ValueSelector trait, StaticValueSelector, FromSolutionValueSelector
 │       ├── move_selector.rs             — MoveSelector trait, MoveCursor, MoveCandidateRef, ChangeMoveSelector, SwapMoveSelector, scalar union helpers; `ChangeMoveSelector::with_allows_unassigned()` enables `Some(v) -> None` generation for assigned optional variables
-│       ├── move_selector/*.rs           — Borrowed candidate cursor, iterator adapter, change selector, and swap selector implementation chunks
+│       ├── move_selector/*.rs           — borrowed.rs candidate cursor, iter.rs adapter, change.rs selector, and swap.rs selector implementation chunks
 │       ├── move_selector/scalar_union.rs — ScalarChangeMoveSelector, ScalarSwapMoveSelector
 │       ├── dynamic_scalar_change.rs     — DynamicScalarChangeMoveSelector<S> for explicit dynamic scalar change phases
 │       ├── dynamic_list_change.rs       — DynamicListChangeMoveSelector<S> for explicit unrestricted dynamic list-change phases
@@ -141,6 +148,7 @@ src/
 │       ├── list_swap.rs                — ListSwapMoveSelector<S, V, ES>
 │       ├── list_permute.rs             — ListPermuteMoveSelector<S, V, ES>; cursor-backed contiguous-window permutation
 │       ├── list_precedence.rs          — ListPrecedenceMoveSelector<S, V, ES>; cursor-backed critical-path, singleton critical-node, and critical-sublist moves for list variables with plain precedence hooks
+│       ├── precedence_route.rs         — Internal precedence route graph and cycle checks shared by list precedence neighborhoods
 │       ├── list_reverse.rs             — ListReverseMoveSelector<S, V, ES>
 │       ├── list_ruin.rs                — ListRuinMoveSelector<S, V>
 │       ├── sublist_change.rs           — SublistChangeMoveSelector<S, V, ES>
@@ -188,7 +196,7 @@ src/
 │       │   ├── cuts.rs                 — CutCombinationIterator (pub(crate))
 │       │   ├── iterators.rs            — CutCombinationIterator (pub), binomial(), count_cut_combinations()
 │       │   ├── distance_meter.rs       — ListPositionDistanceMeter trait, DefaultDistanceMeter
-│       │   ├── distance.rs             — (duplicate of distance_meter.rs)
+│       │   ├── distance.rs             — ListPositionDistanceMeter and DefaultDistanceMeter mirror used by the k-opt module split
 │       │   ├── nearby.rs               — NearbyKOptMoveSelector<S, V, D, ES>
 │       │   ├── selector.rs             — KOptMoveSelector<S, V, ES>
 │       │   └── tests.rs                — Tests
@@ -337,6 +345,7 @@ src/
 │   │   ├── list_k_opt.rs               — ListKOptPhase
 │   │   ├── local_search.rs             — LocalSearchPhaseFactory
 │   │   └── k_opt.rs                     — KOptPhaseBuilder, KOptPhase
+│   ├── phase_factory_trait.rs          — PhaseFactory<S, D> zero-erasure factory trait
 │   ├── builder_tests.rs                — Tests
 │   ├── mod_tests.rs                    — Tests
 │   ├── mod_tests_integration.rs        — Integration test module declarations
@@ -349,13 +358,16 @@ src/
 │   ├── mod_tests_integration/prompt_tests.rs — Prompt-settlement tests
 │   ├── mod_tests_integration/resume_support.rs — Resume and snapshot fixtures
 │   ├── mod_tests_integration/resume_tests.rs — Resume determinism tests
+│   ├── mod_tests_integration/partitioned_lifecycle_tests.rs — Partitioned retained-lifecycle pause/cancel tests
 │   ├── mod_tests_integration/analysis_tests.rs — Snapshot analysis retention tests
 │   └── mod_tests_integration/runtime_helpers.rs — Shared telemetry helpers
 │
 ├── scope/
 │   ├── mod.rs                           — Re-exports
-│   ├── solver.rs                        — SolverScope<'t, S, D, ProgressCb = ()>, ProgressCallback trait, lifecycle-aware SolveResult
-│   ├── solver/*.rs                      — Solver progress callback and scope implementation chunks
+│   ├── solver.rs                        — SolverScope<'t, S, D, ProgressCb = ()>, ProgressCallback trait, lifecycle-aware SolveResult, and included scope chunks
+│   ├── solver/progress.rs               — SolverProgressRef, SolverProgressKind, SolverProgressStatus, and ProgressCallback dispatch
+│   ├── solver/scope_core.rs             — Core SolverScope construction, runtime publication, lifecycle control, mutation, and child-scope helpers
+│   ├── solver/scope_progress.rs         — SolverScope score/best-solution/progress/stat reporting helpers
 │   ├── phase.rs                         — PhaseScope<'t, 'a, S, D, BestCb = ()>
 │   ├── step.rs                          — StepScope<'t, 'a, 'b, S, D, BestCb = ()>
 │   └── tests.rs                         — Tests

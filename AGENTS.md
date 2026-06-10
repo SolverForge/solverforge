@@ -146,7 +146,7 @@ finalizers, or grouped/projection paths.
 - Flattened-bi filters use the A source index and the owning B source index for
   the flattened C row.
 - Projected-bi filters use the projected row's primary owner entity index; row
-  orientation is still determined by `ProjectedRowCoordinate`, and retained
+  orientation is still determined by `RowCoordinate`, and retained
   storage row IDs are never semantic.
 - Public fluent `.filter(...)` methods stay entity/value-only and adapt to the
   indexed trait shape internally.

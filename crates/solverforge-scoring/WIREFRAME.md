@@ -39,25 +39,30 @@ src/
 │   ├── incremental_markers.rs                      — Hidden IncrementalConstraintSealed impls for built-in constraint types
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
 │   ├── grouped.rs                                  — grouped::Uni module root, shared node state, terminal scorers, scorer sets, shared set
-│   ├── grouped/*.rs                                — GroupedNodeState, GroupedTerminalScorer, GroupedScorerSet, SharedGroupedConstraintSet, one-terminal wrapper
+│   ├── grouped/*.rs                                — scorer.rs, complemented_scorer.rs, scorer_set.rs, shared_set.rs, state.rs, terminal.rs for GroupedNodeState, terminal scorer sets, SharedGroupedConstraintSet, and the one-terminal wrapper
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
 │   ├── complemented.rs                             — constraint::complemented::Grouped module root and re-exports
 │   ├── complemented/*.rs                           — Retained complemented state, incremental callbacks, helpers, and debug accessors
 │   ├── cross_bi_incremental.rs                     — constraint::cross_bi_incremental::Bi module root and re-exports
 │   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
 │   ├── cross_grouped.rs                            — constraint::cross_grouped::Grouped module root and re-exports
-│   ├── cross_grouped/*.rs                          — GroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
+│   ├── cross_grouped/*.rs                          — indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, updates.rs, view.rs for retained direct cross grouped state
 │   ├── cross_complemented_grouped.rs               — constraint::cross_complemented_grouped::ComplementedGrouped module root and internal shared engine re-exports
-│   ├── cross_complemented_grouped/*.rs             — ComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
+│   ├── cross_complemented_grouped/*.rs             — builder.rs, indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, updates.rs, view.rs for retained direct cross grouped complements
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
 │   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
 │   ├── exists/
 │   │   └── key_state.rs                            — Internal hashed/indexed key bookkeeping for existence constraints
 │   ├── projected.rs                                — Projected retained scoring-row constraint module root and re-exports
-│   ├── projected/*.rs                              — projected::Uni, Bi, DirectedBi, Grouped, and ComplementedGrouped constraints
-│   ├── projected/grouped/*.rs                      — GroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
-│   ├── projected/complemented_grouped/*.rs         — ComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
+│   ├── projected/uni.rs                            — projected::Uni terminal constraint for retained projected rows
+│   ├── projected/bi.rs                             — projected::Bi retained symmetric projected self-join constraint
+│   ├── projected/directed_bi.rs                    — projected::DirectedBi retained directed projected self-join state
+│   ├── projected/directed_bi_incremental.rs        — IncrementalConstraint callbacks for directed projected self-joins
+│   ├── projected/grouped.rs                        — projected::Grouped module root and shared grouped re-exports
+│   ├── projected/complemented_grouped.rs           — projected::ComplementedGrouped module root and shared complemented-grouped re-exports
+│   ├── projected/grouped/*.rs                      — scorer.rs, shared_set.rs, state.rs, terminal.rs for projected grouped retained state
+│   ├── projected/complemented_grouped/*.rs         — indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, view.rs for projected grouped complements
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
@@ -165,7 +170,7 @@ src/
 │   │       └── filter.rs                           — Filter tests
 │   ├── joiner/
 │   │   ├── mod.rs                                  — Re-exports all joiner types and functions
-│   │   ├── equal.rs                                — EqualJoiner, equal(), equal_bi() functions
+│   │   ├── equal.rs                                — EqualJoiner, Symmetric/Directed mode markers, equal(), equal_bi() functions
 │   │   ├── comparison.rs                           — LessThan/GreaterThan joiners and factory functions
 │   │   ├── filtering.rs                            — FilteringJoiner and filtering() function
 │   │   ├── overlapping.rs                          — OverlappingJoiner and overlapping() function

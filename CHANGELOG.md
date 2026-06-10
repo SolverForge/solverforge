@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.15.2](///compare/v0.15.1...v0.15.2) (2026-06-10)
+
+
+### Features
+
+* **scoring:** add directed projected self joins 2653a0b
+
 ## [0.15.1](///compare/v0.15.0...v0.15.1) (2026-06-02)
 
 

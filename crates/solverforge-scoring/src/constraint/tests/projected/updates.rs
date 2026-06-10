@@ -138,27 +138,27 @@ fn shared_projected_grouped_set_updates_one_projected_node_for_multiple_terminal
             ChangeSource::Descriptor(0),
         ))
         .project(WorkEntryProjection);
-    let state = ProjectedGroupedNodeState::new(
+    let state = GroupedNodeState::new(
         projected.source,
         projected.filter,
         |entry: &Entry| entry.bucket,
         sum(|entry: &Entry| entry.delta),
     );
     let scorers = (
-        ProjectedGroupedTerminalScorer::new(
+        GroupedTerminalScorer::new(
             ConstraintRef::new("", "positive demand"),
             ImpactType::Penalty,
             |_bucket: &usize, demand: &i64| SoftScore::of((*demand).max(0)),
             false,
         ),
-        ProjectedGroupedTerminalScorer::new(
+        GroupedTerminalScorer::new(
             ConstraintRef::new("", "weighted demand"),
             ImpactType::Penalty,
             |bucket: &usize, demand: &i64| SoftScore::of((*bucket as i64 + 1) * *demand),
             false,
         ),
     );
-    let mut constraints = SharedProjectedGroupedConstraintSet::new(state, scorers);
+    let mut constraints = SharedGroupedSet::new(state, scorers);
     let mut plan = Plan {
         work: vec![
             Work {
@@ -341,7 +341,7 @@ fn shared_projected_group_by_complement_updates_one_node_for_multiple_terminals(
             |capacity: &Capacity| capacity.bucket,
             |_capacity: &Capacity| 3i64,
         );
-    let state = ProjectedComplementedGroupedNodeState::new(
+    let state = ComplementedGroupedNodeState::new(
         complemented.source,
         complemented.extractor_b,
         complemented.filter,
@@ -351,20 +351,20 @@ fn shared_projected_group_by_complement_updates_one_node_for_multiple_terminals(
         complemented.default_fn,
     );
     let scorers = (
-        ProjectedComplementedGroupedTerminalScorer::new(
+        ComplementedGroupedTerminalScorer::new(
             ConstraintRef::new("", "projected demand"),
             ImpactType::Penalty,
             |bucket: &usize, demand: &i64| SoftScore::of((*bucket as i64 * 10) + *demand),
             false,
         ),
-        ProjectedComplementedGroupedTerminalScorer::new(
+        ComplementedGroupedTerminalScorer::new(
             ConstraintRef::new("", "double projected demand"),
             ImpactType::Penalty,
             |_bucket: &usize, demand: &i64| SoftScore::of(*demand * 2),
             false,
         ),
     );
-    let mut constraints = SharedProjectedComplementedGroupedConstraintSet::new(state, scorers);
+    let mut constraints = SharedComplementedGroupedSet::new(state, scorers);
     let mut plan = projected_demand_complement_plan();
 
     let mut total = constraints.initialize_all(&plan);

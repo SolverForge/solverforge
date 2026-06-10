@@ -34,19 +34,11 @@ pub mod shared;
 mod tests;
 
 pub use balance::BalanceConstraint;
-pub use complemented::ComplementedGroupConstraint;
-pub use cross_bi_incremental::IncrementalCrossBiConstraint;
-pub use cross_complemented_grouped::CrossComplementedGroupedConstraint;
-pub use cross_grouped::CrossGroupedConstraint;
 pub use exists::IncrementalExistsConstraint;
 pub use flattened_bi::FlattenedBiConstraint;
-pub use grouped::GroupedUniConstraint;
 pub use incremental::IncrementalUniConstraint;
 pub use list_precedence::ListPrecedenceMakespanConstraint;
 pub use nary_incremental::{
     IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
     IncrementalTriConstraint,
-};
-pub use projected::{
-    ProjectedComplementedGroupedConstraint, ProjectedGroupedConstraint, ProjectedUniConstraint,
 };

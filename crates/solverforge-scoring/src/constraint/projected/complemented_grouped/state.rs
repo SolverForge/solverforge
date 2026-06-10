@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
-use crate::stream::{ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource};
+use crate::stream::projected::{RowCoordinate, RowOwner, Source};
 
 use super::indexes::key_hash;
 
@@ -17,9 +17,9 @@ pub(super) struct GroupState<K, Acc> {
     pub(super) count: usize,
 }
 
-pub struct ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
+pub struct ComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
 {
     pub(super) source: Src,
@@ -33,9 +33,9 @@ where
     pub(super) source_state: Option<Src::State>,
     pub(super) groups: Vec<GroupState<K, Acc>>,
     pub(super) groups_by_hash: HashMap<u64, Vec<usize>>,
-    row_groups: HashMap<ProjectedRowCoordinate, usize>,
-    row_retractions: HashMap<ProjectedRowCoordinate, CollectorRetraction<Acc, V, R>>,
-    rows_by_owner: HashMap<ProjectedRowOwner, Vec<ProjectedRowCoordinate>>,
+    row_groups: HashMap<RowCoordinate, usize>,
+    row_retractions: HashMap<RowCoordinate, CollectorRetraction<Acc, V, R>>,
+    rows_by_owner: HashMap<RowOwner, Vec<RowCoordinate>>,
     pub(super) complement_groups: HashMap<usize, usize>,
     pub(super) complements_by_group: HashMap<usize, Vec<usize>>,
     pub(super) complement_defaults: HashMap<usize, R>,
@@ -53,7 +53,7 @@ where
     )>,
 }
 
-pub struct ProjectedComplementedGroupedEvaluationState<K, V, R, Acc>
+pub struct ComplementedGroupedEvaluationState<K, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
 {
@@ -63,13 +63,13 @@ where
 }
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
-    ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
+    ComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     B: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
     KA: Fn(&Out) -> Option<K> + Send + Sync,
@@ -120,7 +120,7 @@ where
     pub fn evaluation_state(
         &self,
         solution: &S,
-    ) -> ProjectedComplementedGroupedEvaluationState<K, V, R, Acc> {
+    ) -> ComplementedGroupedEvaluationState<K, V, R, Acc> {
         let entities_b = self.extractor_b.extract(solution);
         let state = self.source.build_state(solution);
         let mut groups = HashMap::<K, Acc>::new();
@@ -144,7 +144,7 @@ where
                 complements.push(((self.key_b)(entity), (self.default_fn)(entity)));
             }
         }
-        ProjectedComplementedGroupedEvaluationState {
+        ComplementedGroupedEvaluationState {
             groups,
             complements,
             _phantom: PhantomData,
@@ -335,7 +335,7 @@ where
         }
     }
 
-    fn index_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
+    fn index_coordinate(&mut self, coordinate: RowCoordinate) {
         coordinate.for_each_owner(|owner| {
             self.rows_by_owner
                 .entry(owner)
@@ -344,7 +344,7 @@ where
         });
     }
 
-    fn unindex_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
+    fn unindex_coordinate(&mut self, coordinate: RowCoordinate) {
         coordinate.for_each_owner(|owner| {
             let mut remove_bucket = false;
             if let Some(rows) = self.rows_by_owner.get_mut(&owner) {
@@ -357,12 +357,7 @@ where
         });
     }
 
-    pub(super) fn insert_row(
-        &mut self,
-        solution: &S,
-        coordinate: ProjectedRowCoordinate,
-        output: Out,
-    ) {
+    pub(super) fn insert_row(&mut self, solution: &S, coordinate: RowCoordinate, output: Out) {
         if self.row_groups.contains_key(&coordinate) || !self.filter.test(solution, &output) {
             return;
         }
@@ -376,7 +371,7 @@ where
         self.index_coordinate(coordinate);
     }
 
-    pub(super) fn retract_row(&mut self, coordinate: ProjectedRowCoordinate) {
+    pub(super) fn retract_row(&mut self, coordinate: RowCoordinate) {
         let Some(group_id) = self.row_groups.remove(&coordinate) else {
             return;
         };
@@ -391,7 +386,7 @@ where
         &self,
         descriptor_index: usize,
         entity_index: usize,
-    ) -> Vec<ProjectedRowOwner> {
+    ) -> Vec<RowOwner> {
         let mut owners = Vec::new();
         for slot in 0..self.source.source_count() {
             if self
@@ -399,7 +394,7 @@ where
                 .change_source(slot)
                 .assert_localizes(descriptor_index, "projected complemented grouped")
             {
-                owners.push(ProjectedRowOwner {
+                owners.push(RowOwner {
                     source_slot: slot,
                     entity_index,
                 });
@@ -408,10 +403,7 @@ where
         owners
     }
 
-    pub(super) fn coordinates_for_owners(
-        &self,
-        owners: &[ProjectedRowOwner],
-    ) -> Vec<ProjectedRowCoordinate> {
+    pub(super) fn coordinates_for_owners(&self, owners: &[RowOwner]) -> Vec<RowCoordinate> {
         let mut seen = HashSet::new();
         let mut coordinates = Vec::new();
         for owner in owners {

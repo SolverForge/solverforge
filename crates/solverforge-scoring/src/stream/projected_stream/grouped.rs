@@ -8,10 +8,10 @@ use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
 use crate::stream::weighting_support::ConstraintWeight;
 
-use super::complemented_grouped::ProjectedComplementedGroupedConstraintStream;
-use super::source::ProjectedSource;
+use super::complemented_grouped::ComplementedGrouped;
+use super::source::Source;
 
-pub struct ProjectedGroupedConstraintStream<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
+pub struct Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
 where
     Sc: Score,
 {
@@ -30,13 +30,12 @@ where
     )>,
 }
 
-impl<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
-    ProjectedGroupedConstraintStream<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
+impl<S, Out, K, Src, F, KF, C, V, R, Acc, Sc> Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
@@ -50,11 +49,11 @@ where
         impact_type: solverforge_core::ImpactType,
         weight_fn: W,
         is_hard: bool,
-    ) -> ProjectedGroupedConstraintBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
+    ) -> GroupedBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
     where
         W: Fn(&K, &R) -> Sc + Send + Sync,
     {
-        ProjectedGroupedConstraintBuilder {
+        GroupedBuilder {
             source: self.source,
             filter: self.filter,
             key_fn: self.key_fn,
@@ -69,20 +68,7 @@ where
     pub fn penalize<W>(
         self,
         weight_fn: W,
-    ) -> ProjectedGroupedConstraintBuilder<
-        S,
-        Out,
-        K,
-        Src,
-        F,
-        KF,
-        C,
-        V,
-        R,
-        Acc,
-        impl Fn(&K, &R) -> Sc + Send + Sync,
-        Sc,
-    >
+    ) -> GroupedBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, impl Fn(&K, &R) -> Sc + Send + Sync, Sc>
     where
         W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
     {
@@ -97,20 +83,7 @@ where
     pub fn reward<W>(
         self,
         weight_fn: W,
-    ) -> ProjectedGroupedConstraintBuilder<
-        S,
-        Out,
-        K,
-        Src,
-        F,
-        KF,
-        C,
-        V,
-        R,
-        Acc,
-        impl Fn(&K, &R) -> Sc + Send + Sync,
-        Sc,
-    >
+    ) -> GroupedBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, impl Fn(&K, &R) -> Sc + Send + Sync, Sc>
     where
         W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
     {
@@ -127,7 +100,7 @@ where
         extractor_b: EB,
         key_b: KB,
         default_fn: D,
-    ) -> ProjectedComplementedGroupedConstraintStream<
+    ) -> ComplementedGrouped<
         S,
         Out,
         B,
@@ -152,7 +125,7 @@ where
     {
         let key_fn = self.key_fn;
         let key_a = move |output: &Out| Some((key_fn)(output));
-        ProjectedComplementedGroupedConstraintStream {
+        ComplementedGrouped {
             source: self.source,
             extractor_b,
             filter: self.filter,
@@ -170,23 +143,7 @@ where
         key_a: KA2,
         key_b: KB,
         default_fn: D,
-    ) -> ProjectedComplementedGroupedConstraintStream<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA2,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        Sc,
-    >
+    ) -> ComplementedGrouped<S, Out, B, K, Src, EB, F, KA2, KB, C, V, R, Acc, D, Sc>
     where
         B: Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B>,
@@ -194,7 +151,7 @@ where
         KB: Fn(&B) -> K + Send + Sync,
         D: Fn(&B) -> R + Send + Sync,
     {
-        ProjectedComplementedGroupedConstraintStream {
+        ComplementedGrouped {
             source: self.source,
             extractor_b,
             filter: self.filter,
@@ -207,7 +164,7 @@ where
     }
 }
 
-pub struct ProjectedGroupedConstraintBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
+pub struct GroupedBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
     Sc: Score,
 {
@@ -230,12 +187,12 @@ where
 }
 
 impl<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
-    ProjectedGroupedConstraintBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
+    GroupedBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
@@ -248,21 +205,8 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> crate::constraint::projected::ProjectedGroupedConstraint<
-        S,
-        Out,
-        K,
-        Src,
-        F,
-        KF,
-        C,
-        V,
-        R,
-        Acc,
-        W,
-        Sc,
-    > {
-        crate::constraint::projected::ProjectedGroupedConstraint::new(
+    ) -> crate::constraint::projected::Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc> {
+        crate::constraint::projected::Grouped::new(
             solverforge_core::ConstraintRef::new("", name),
             self.impact_type,
             self.source,

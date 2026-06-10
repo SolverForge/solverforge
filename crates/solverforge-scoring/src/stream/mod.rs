@@ -89,17 +89,26 @@ mod weighting_support;
 #[cfg(test)]
 mod tests;
 
+pub mod cross {
+    pub use super::cross_bi_stream::{
+        Bi, Builder, ComplementedGrouped, ComplementedGroupedBuilder, Grouped, GroupedBuilder,
+    };
+}
+
+pub mod projected {
+    pub use super::projected_stream::{
+        Bi, BiBuilder, Builder, ComplementedGrouped, ComplementedGroupedBuilder, DirectedBi,
+        DirectedBiBuilder, Grouped, GroupedBuilder, JoinedSource, ProjectedJoinTarget, Projection,
+        ProjectionSink, RowCoordinate, RowOwner, Source, Stream,
+    };
+}
+
 pub use balance_stream::{BalanceConstraintBuilder, BalanceConstraintStream};
 pub use bi_stream::{BiConstraintBuilder, BiConstraintStream};
 pub use collection_extract::{
     source, ChangeSource, CollectionExtract, FlattenExtract, SourceExtract, VecExtract,
 };
 pub use complemented_stream::{ComplementedConstraintBuilder, ComplementedConstraintStream};
-pub use cross_bi_stream::{
-    CrossBiConstraintBuilder, CrossBiConstraintStream, CrossComplementedGroupedConstraintBuilder,
-    CrossComplementedGroupedConstraintStream, CrossGroupedConstraintBuilder,
-    CrossGroupedConstraintStream,
-};
 pub use existence_stream::{ExistenceMode, ExistsConstraintBuilder, ExistsConstraintStream};
 pub use existence_target::{ExistenceTarget, FlattenedCollectionTarget};
 pub use factory::ConstraintFactory;
@@ -108,13 +117,7 @@ pub use grouped_stream::{GroupedConstraintBuilder, GroupedConstraintStream};
 pub use join_target::JoinTarget;
 pub use key_extract::{EntityKeyAdapter, KeyExtract};
 pub use penta_stream::{PentaConstraintBuilder, PentaConstraintStream};
-pub use projected_stream::{
-    JoinedProjectedSource, ProjectedBiConstraintBuilder, ProjectedBiConstraintStream,
-    ProjectedComplementedGroupedConstraintBuilder, ProjectedComplementedGroupedConstraintStream,
-    ProjectedConstraintBuilder, ProjectedConstraintStream, ProjectedGroupedConstraintBuilder,
-    ProjectedGroupedConstraintStream, ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource,
-    Projection, ProjectionSink,
-};
+pub use projected_stream::{Projection, ProjectionSink};
 pub use quad_stream::{QuadConstraintBuilder, QuadConstraintStream};
 pub use tri_stream::{TriConstraintBuilder, TriConstraintStream};
 #[doc(hidden)]

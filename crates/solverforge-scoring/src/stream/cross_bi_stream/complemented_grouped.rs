@@ -4,13 +4,12 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use crate::constraint::cross_complemented_grouped::CrossComplementedGroupedConstraint;
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::BiFilter;
 use crate::stream::weighting_support::ConstraintWeight;
 
-pub struct CrossComplementedGroupedConstraintStream<
+pub struct ComplementedGrouped<
     S,
     A,
     B,
@@ -59,28 +58,7 @@ pub struct CrossComplementedGroupedConstraintStream<
 }
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Sc>
-    CrossComplementedGroupedConstraintStream<
-        S,
-        A,
-        B,
-        T,
-        JK,
-        GK,
-        EA,
-        EB,
-        ET,
-        KA,
-        KB,
-        F,
-        GF,
-        KT,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        Sc,
-    >
+    ComplementedGrouped<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -111,7 +89,7 @@ where
         impact_type: ImpactType,
         weight_fn: W,
         is_hard: bool,
-    ) -> CrossComplementedGroupedConstraintBuilder<
+    ) -> ComplementedGroupedBuilder<
         S,
         A,
         B,
@@ -137,7 +115,7 @@ where
     where
         W: Fn(&GK, &R) -> Sc + Send + Sync,
     {
-        CrossComplementedGroupedConstraintBuilder {
+        ComplementedGroupedBuilder {
             extractor_a: self.extractor_a,
             extractor_b: self.extractor_b,
             extractor_t: self.extractor_t,
@@ -158,7 +136,7 @@ where
     pub fn penalize<W>(
         self,
         weight: W,
-    ) -> CrossComplementedGroupedConstraintBuilder<
+    ) -> ComplementedGroupedBuilder<
         S,
         A,
         B,
@@ -195,7 +173,7 @@ where
     pub fn reward<W>(
         self,
         weight: W,
-    ) -> CrossComplementedGroupedConstraintBuilder<
+    ) -> ComplementedGroupedBuilder<
         S,
         A,
         B,
@@ -230,7 +208,7 @@ where
     }
 }
 
-pub struct CrossComplementedGroupedConstraintBuilder<
+pub struct ComplementedGroupedBuilder<
     S,
     A,
     B,
@@ -283,7 +261,7 @@ pub struct CrossComplementedGroupedConstraintBuilder<
 }
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>
-    CrossComplementedGroupedConstraintBuilder<
+    ComplementedGroupedBuilder<
         S,
         A,
         B,
@@ -335,7 +313,7 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> CrossComplementedGroupedConstraint<
+    ) -> crate::constraint::cross_complemented_grouped::ComplementedGrouped<
         S,
         A,
         B,
@@ -362,7 +340,7 @@ where
         let combined_filter = move |s: &S, a: &A, b: &B, a_idx: usize, b_idx: usize| {
             filter.test(s, a, b, a_idx, b_idx)
         };
-        CrossComplementedGroupedConstraint::new(
+        crate::constraint::cross_complemented_grouped::ComplementedGrouped::new(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor_a,

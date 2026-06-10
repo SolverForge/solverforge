@@ -1,7 +1,7 @@
-// Tests for ComplementedGroupConstraint.
+// Tests for Grouped.
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::constraint::complemented::ComplementedGroupConstraint;
+use crate::constraint::complemented::Grouped;
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::count;
 use solverforge_core::score::SoftScore;
@@ -33,7 +33,7 @@ fn employees(s: &Schedule) -> &[Employee] {
 
 #[test]
 fn test_complemented_evaluate() {
-    let constraint = ComplementedGroupConstraint::new(
+    let constraint = Grouped::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
         source(
@@ -71,7 +71,7 @@ fn test_complemented_evaluate() {
 
 #[test]
 fn test_complemented_skips_none_keys() {
-    let constraint = ComplementedGroupConstraint::new(
+    let constraint = Grouped::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
         source(
@@ -113,7 +113,7 @@ fn test_complemented_skips_none_keys() {
 
 #[test]
 fn test_complemented_incremental() {
-    let mut constraint = ComplementedGroupConstraint::new(
+    let mut constraint = Grouped::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
         source(
@@ -169,7 +169,7 @@ fn test_complemented_incremental() {
 
 #[test]
 fn test_complemented_incremental_with_none_keys() {
-    let mut constraint = ComplementedGroupConstraint::new(
+    let mut constraint = Grouped::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
         source(
@@ -218,7 +218,7 @@ fn test_complemented_incremental_with_none_keys() {
 
 #[test]
 fn test_complemented_with_default() {
-    let constraint = ComplementedGroupConstraint::new(
+    let constraint = Grouped::new(
         ConstraintRef::new("", "Workload balance"),
         ImpactType::Penalty,
         shifts,
@@ -256,7 +256,7 @@ fn test_complemented_with_default() {
 
 #[test]
 fn test_complemented_incremental_matches_evaluate() {
-    let mut constraint = ComplementedGroupConstraint::new(
+    let mut constraint = Grouped::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
         source(
@@ -315,7 +315,7 @@ fn test_complemented_incremental_matches_evaluate() {
 
 #[test]
 fn test_complemented_b_side_insert_and_retract() {
-    let mut constraint = ComplementedGroupConstraint::new(
+    let mut constraint = Grouped::new(
         ConstraintRef::new("", "Shift count"),
         ImpactType::Penalty,
         source(
@@ -354,7 +354,7 @@ fn test_complemented_b_side_insert_and_retract() {
 
 #[test]
 fn test_complemented_missing_group_weight_can_use_complement_key() {
-    let constraint = ComplementedGroupConstraint::new(
+    let constraint = Grouped::new(
         ConstraintRef::new("", "Missing key weighted shift count"),
         ImpactType::Penalty,
         shifts,
@@ -379,7 +379,7 @@ fn test_complemented_missing_group_weight_can_use_complement_key() {
 
 #[test]
 fn test_complemented_duplicate_complement_keys_match_incremental() {
-    let mut constraint = ComplementedGroupConstraint::new(
+    let mut constraint = Grouped::new(
         ConstraintRef::new("", "Duplicate complement key shift count"),
         ImpactType::Penalty,
         source(

@@ -6,16 +6,16 @@ use solverforge_core::score::Score;
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter};
 use super::super::flattened_bi_stream::FlattenedBiConstraintStream;
-use super::super::projected_stream::{JoinedProjectedSource, ProjectedConstraintStream};
-use super::grouped::CrossGroupedConstraintStream;
+use super::super::projected_stream::{JoinedSource, Stream};
+use super::grouped::Grouped;
 
 /* Zero-erasure constraint stream over cross-entity pairs.
 
-`CrossBiConstraintStream` joins entities from collection A with collection B,
+`Bi` joins entities from collection A with collection B,
 accumulates filters on joined pairs, and finalizes into an
-`IncrementalCrossBiConstraint` via `penalize()` or `reward()`.
+`Bi` via `penalize()` or `reward()`.
 */
-pub struct CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>
+pub struct Bi<S, A, B, K, EA, EB, KA, KB, F, Sc>
 where
     Sc: Score,
 {
@@ -27,8 +27,7 @@ where
     pub(super) _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Sc)>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, Sc>
-    CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, TrueFilter, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, Sc> Bi<S, A, B, K, EA, EB, KA, KB, TrueFilter, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -52,7 +51,7 @@ where
     }
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, Sc> CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, F, Sc> Bi<S, A, B, K, EA, EB, KA, KB, F, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -86,7 +85,7 @@ where
     pub fn filter<P>(
         self,
         predicate: P,
-    ) -> CrossBiConstraintStream<
+    ) -> Bi<
         S,
         A,
         B,
@@ -101,7 +100,7 @@ where
     where
         P: Fn(&A, &B) -> bool + Send + Sync,
     {
-        CrossBiConstraintStream {
+        Bi {
             extractor_a: self.extractor_a,
             extractor_b: self.extractor_b,
             key_a: self.key_a,
@@ -161,7 +160,7 @@ where
         self,
         group_key_fn: GF,
         collector: C,
-    ) -> CrossGroupedConstraintStream<S, A, B, K, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
+    ) -> Grouped<S, A, B, K, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
     where
         GK: Eq + Hash + Clone + Send + Sync + 'static,
         GF: Fn(&A, &B) -> GK + Send + Sync,
@@ -177,7 +176,7 @@ where
         R: Send + Sync + 'static,
         Acc: super::super::collector::Accumulator<V, R> + Send + Sync + 'static,
     {
-        CrossGroupedConstraintStream {
+        Grouped {
             extractor_a: self.extractor_a,
             extractor_b: self.extractor_b,
             key_a: self.key_a,
@@ -190,7 +189,7 @@ where
     }
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, Sc> CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, F, Sc> Bi<S, A, B, K, EA, EB, KA, KB, F, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -206,38 +205,28 @@ where
     pub fn project<Out, P>(
         self,
         project: P,
-    ) -> ProjectedConstraintStream<
-        S,
-        Out,
-        JoinedProjectedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>,
-        TrueFilter,
-        Sc,
-    >
+    ) -> Stream<S, Out, JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>, TrueFilter, Sc>
     where
         Out: Send + Sync + 'static,
         P: Fn(&A, &B) -> Out + Send + Sync + 'static,
     {
-        ProjectedConstraintStream::<
-            S,
-            Out,
-            JoinedProjectedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>,
-            TrueFilter,
-            Sc,
-        >::new(JoinedProjectedSource::new(
-            self.extractor_a,
-            self.extractor_b,
-            self.key_a,
-            self.key_b,
-            self.filter,
-            project,
-        ))
+        Stream::<S, Out, JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>, TrueFilter, Sc>::new(
+            JoinedSource::new(
+                self.extractor_a,
+                self.extractor_b,
+                self.key_a,
+                self.key_b,
+                self.filter,
+                project,
+            ),
+        )
     }
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, F, Sc: Score> std::fmt::Debug
-    for CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>
+    for Bi<S, A, B, K, EA, EB, KA, KB, F, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CrossBiConstraintStream").finish()
+        f.debug_struct("Bi").finish()
     }
 }

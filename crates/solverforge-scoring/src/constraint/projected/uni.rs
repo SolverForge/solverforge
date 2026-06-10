@@ -6,11 +6,11 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::filter::UniFilter;
-use crate::stream::{ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource};
+use crate::stream::projected::{RowCoordinate, RowOwner, Source};
 
-pub struct ProjectedUniConstraint<S, Out, Src, F, W, Sc>
+pub struct Uni<S, Out, Src, F, W, Sc>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Sc: Score,
 {
     constraint_ref: ConstraintRef,
@@ -20,16 +20,16 @@ where
     weight: W,
     is_hard: bool,
     source_state: Option<Src::State>,
-    row_contributions: HashMap<ProjectedRowCoordinate, Sc>,
-    rows_by_owner: HashMap<ProjectedRowOwner, Vec<ProjectedRowCoordinate>>,
+    row_contributions: HashMap<RowCoordinate, Sc>,
+    rows_by_owner: HashMap<RowOwner, Vec<RowCoordinate>>,
     _phantom: PhantomData<(fn() -> S, fn() -> Out)>,
 }
 
-impl<S, Out, Src, F, W, Sc> ProjectedUniConstraint<S, Out, Src, F, W, Sc>
+impl<S, Out, Src, F, W, Sc> Uni<S, Out, Src, F, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     W: Fn(&Out) -> Sc + Send + Sync,
     Sc: Score + 'static,
@@ -70,7 +70,7 @@ where
         }
     }
 
-    fn index_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
+    fn index_coordinate(&mut self, coordinate: RowCoordinate) {
         coordinate.for_each_owner(|owner| {
             self.rows_by_owner
                 .entry(owner)
@@ -79,7 +79,7 @@ where
         });
     }
 
-    fn unindex_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
+    fn unindex_coordinate(&mut self, coordinate: RowCoordinate) {
         coordinate.for_each_owner(|owner| {
             let mut remove_bucket = false;
             if let Some(rows) = self.rows_by_owner.get_mut(&owner) {
@@ -92,7 +92,7 @@ where
         });
     }
 
-    fn insert_row(&mut self, solution: &S, coordinate: ProjectedRowCoordinate, output: Out) -> Sc {
+    fn insert_row(&mut self, solution: &S, coordinate: RowCoordinate, output: Out) -> Sc {
         if self.row_contributions.contains_key(&coordinate) || !self.filter.test(solution, &output)
         {
             return Sc::zero();
@@ -103,7 +103,7 @@ where
         contribution
     }
 
-    fn retract_row(&mut self, coordinate: ProjectedRowCoordinate) -> Sc {
+    fn retract_row(&mut self, coordinate: RowCoordinate) -> Sc {
         let Some(contribution) = self.row_contributions.remove(&coordinate) else {
             return Sc::zero();
         };
@@ -111,11 +111,7 @@ where
         -contribution
     }
 
-    fn localized_owners(
-        &self,
-        descriptor_index: usize,
-        entity_index: usize,
-    ) -> Vec<ProjectedRowOwner> {
+    fn localized_owners(&self, descriptor_index: usize, entity_index: usize) -> Vec<RowOwner> {
         let mut owners = Vec::new();
         for slot in 0..self.source.source_count() {
             if self
@@ -123,7 +119,7 @@ where
                 .change_source(slot)
                 .assert_localizes(descriptor_index, &self.constraint_ref.name)
             {
-                owners.push(ProjectedRowOwner {
+                owners.push(RowOwner {
                     source_slot: slot,
                     entity_index,
                 });
@@ -132,7 +128,7 @@ where
         owners
     }
 
-    fn coordinates_for_owners(&self, owners: &[ProjectedRowOwner]) -> Vec<ProjectedRowCoordinate> {
+    fn coordinates_for_owners(&self, owners: &[RowOwner]) -> Vec<RowCoordinate> {
         let mut seen = HashSet::new();
         let mut coordinates = Vec::new();
         for owner in owners {
@@ -149,12 +145,11 @@ where
     }
 }
 
-impl<S, Out, Src, F, W, Sc> IncrementalConstraint<S, Sc>
-    for ProjectedUniConstraint<S, Out, Src, F, W, Sc>
+impl<S, Out, Src, F, W, Sc> IncrementalConstraint<S, Sc> for Uni<S, Out, Src, F, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     W: Fn(&Out) -> Sc + Send + Sync,
     Sc: Score + 'static,

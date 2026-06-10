@@ -4,12 +4,13 @@ use std::sync::{
 };
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::constraint::IncrementalCrossBiConstraint;
+use crate::constraint::cross_bi_incremental::Bi as CrossBiConstraint;
 use crate::stream::collection_extract::{source, ChangeSource, CollectionExtract};
 use crate::stream::collector::sum;
+use crate::stream::cross::Bi as CrossBiStream;
 use crate::stream::filter::FnBiFilter;
 use crate::stream::joiner::equal_bi;
-use crate::stream::{ConstraintFactory, CrossBiConstraintStream};
+use crate::stream::ConstraintFactory;
 use solverforge_core::score::{Score, SoftScore};
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -68,7 +69,7 @@ impl CollectionExtract<Schedule> for CountingEmployeeExtract {
 }
 
 fn create_unavailable_employee_constraint() -> impl IncrementalConstraint<Schedule, SoftScore> {
-    IncrementalCrossBiConstraint::new(
+    CrossBiConstraint::new(
         ConstraintRef::new("", "Unavailable employee"),
         ImpactType::Penalty,
         source(
@@ -166,7 +167,7 @@ fn two_employee_schedule() -> Schedule {
 fn cross_bi_unrelated_insert_skips_extractors() {
     let shift_extract_calls = Arc::new(AtomicUsize::new(0));
     let employee_extract_calls = Arc::new(AtomicUsize::new(0));
-    let mut constraint = IncrementalCrossBiConstraint::new(
+    let mut constraint = CrossBiConstraint::new(
         ConstraintRef::new("", "Unavailable employee"),
         ImpactType::Penalty,
         CountingShiftExtract {
@@ -305,7 +306,7 @@ fn cross_bi_group_by_incremental_updates_join_groups() {
 
 #[test]
 fn cross_bi_direct_path_preserves_filter_source_indexes() {
-    let constraint = CrossBiConstraintStream::new_with_filter(
+    let constraint = CrossBiStream::new_with_filter(
         source(
             (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
             ChangeSource::Descriptor(0),
@@ -335,7 +336,7 @@ fn cross_bi_direct_path_preserves_filter_source_indexes() {
 
 #[test]
 fn cross_bi_group_by_preserves_filter_source_indexes() {
-    let constraint = CrossBiConstraintStream::new_with_filter(
+    let constraint = CrossBiStream::new_with_filter(
         source(
             (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
             ChangeSource::Descriptor(0),
@@ -381,7 +382,7 @@ fn cross_bi_unrelated_descriptor_is_noop() {
 #[test]
 #[should_panic(expected = "cannot localize entity indexes")]
 fn cross_bi_unknown_source_panics_on_localized_callback() {
-    let mut constraint = IncrementalCrossBiConstraint::new(
+    let mut constraint = CrossBiConstraint::new(
         ConstraintRef::new("", "Unavailable employee"),
         ImpactType::Penalty,
         (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],

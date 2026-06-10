@@ -5,14 +5,14 @@ use solverforge_core::score::Score;
 
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter};
-use crate::stream::joiner::EqualJoiner;
 use crate::stream::weighting_support::ConstraintWeight;
 
-use super::bi::{ProjectedBiConstraintStream, ProjectedConstraintBuilder};
-use super::grouped::ProjectedGroupedConstraintStream;
-use super::source::{FilteredProjectedSource, MergedProjectedSource, ProjectedSource};
+use super::bi::Builder;
+use super::grouped::Grouped;
+use super::join_target::ProjectedJoinTarget;
+use super::source::{FilteredSource, MergedSource, Source};
 
-pub struct ProjectedConstraintStream<S, Out, Src, F, Sc>
+pub struct Stream<S, Out, Src, F, Sc>
 where
     Sc: Score,
 {
@@ -21,16 +21,16 @@ where
     pub(crate) _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> Sc)>,
 }
 
-impl<S, Out, Src, F, Sc> ProjectedConstraintStream<S, Out, Src, F, Sc>
+impl<S, Out, Src, F, Sc> Stream<S, Out, Src, F, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     Sc: Score + 'static,
 {
-    pub(crate) fn new(source: Src) -> ProjectedConstraintStream<S, Out, Src, TrueFilter, Sc> {
-        ProjectedConstraintStream {
+    pub(crate) fn new(source: Src) -> Stream<S, Out, Src, TrueFilter, Sc> {
+        Stream {
             source,
             filter: TrueFilter,
             _phantom: PhantomData,
@@ -40,7 +40,7 @@ where
     pub fn filter<P>(
         self,
         predicate: P,
-    ) -> ProjectedConstraintStream<
+    ) -> Stream<
         S,
         Out,
         Src,
@@ -50,7 +50,7 @@ where
     where
         P: Fn(&Out) -> bool + Send + Sync + 'static,
     {
-        ProjectedConstraintStream {
+        Stream {
             source: self.source,
             filter: AndUniFilter::new(
                 self.filter,
@@ -62,25 +62,22 @@ where
 
     pub fn merge<OtherSrc, OtherF>(
         self,
-        other: ProjectedConstraintStream<S, Out, OtherSrc, OtherF, Sc>,
-    ) -> ProjectedConstraintStream<
+        other: Stream<S, Out, OtherSrc, OtherF, Sc>,
+    ) -> Stream<
         S,
         Out,
-        MergedProjectedSource<
-            FilteredProjectedSource<S, Out, Src, F>,
-            FilteredProjectedSource<S, Out, OtherSrc, OtherF>,
-        >,
+        MergedSource<FilteredSource<S, Out, Src, F>, FilteredSource<S, Out, OtherSrc, OtherF>>,
         TrueFilter,
         Sc,
     >
     where
-        OtherSrc: ProjectedSource<S, Out>,
+        OtherSrc: Source<S, Out>,
         OtherF: UniFilter<S, Out>,
     {
-        let left = FilteredProjectedSource::new(self.source, self.filter);
-        let right = FilteredProjectedSource::new(other.source, other.filter);
-        ProjectedConstraintStream {
-            source: MergedProjectedSource::new(left, right),
+        let left = FilteredSource::new(self.source, self.filter);
+        let right = FilteredSource::new(other.source, other.filter);
+        Stream {
+            source: MergedSource::new(left, right),
             filter: TrueFilter,
             _phantom: PhantomData,
         }
@@ -90,7 +87,7 @@ where
         self,
         key_fn: KF,
         collector: C,
-    ) -> ProjectedGroupedConstraintStream<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
+    ) -> Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
     where
         K: Eq + Hash + Send + Sync + 'static,
         KF: Fn(&Out) -> K + Send + Sync,
@@ -102,7 +99,7 @@ where
         R: Send + Sync + 'static,
         Acc: Accumulator<V, R> + Send + Sync + 'static,
     {
-        ProjectedGroupedConstraintStream {
+        Grouped {
             source: self.source,
             filter: self.filter,
             key_fn,
@@ -111,22 +108,11 @@ where
         }
     }
 
-    pub fn join<K, KF>(
-        self,
-        joiner: EqualJoiner<KF, KF, K>,
-    ) -> ProjectedBiConstraintStream<S, Out, K, Src, F, KF, TrueFilter, Sc>
+    pub fn join<J>(self, joiner: J) -> J::Output
     where
-        K: Eq + Hash + Send + Sync + 'static,
-        KF: Fn(&Out) -> K + Send + Sync,
+        J: ProjectedJoinTarget<S, Out, Src, F, Sc>,
     {
-        let (key_fn, _) = joiner.into_keys();
-        ProjectedBiConstraintStream {
-            source: self.source,
-            filter: self.filter,
-            key_fn,
-            pair_filter: TrueFilter,
-            _phantom: PhantomData,
-        }
+        joiner.apply(self.source, self.filter)
     }
 
     fn into_weighted_builder<W>(
@@ -134,11 +120,11 @@ where
         impact_type: solverforge_core::ImpactType,
         weight: W,
         is_hard: bool,
-    ) -> ProjectedConstraintBuilder<S, Out, Src, F, W, Sc>
+    ) -> Builder<S, Out, Src, F, W, Sc>
     where
         W: Fn(&Out) -> Sc + Send + Sync,
     {
-        ProjectedConstraintBuilder {
+        Builder {
             source: self.source,
             filter: self.filter,
             impact_type,
@@ -151,13 +137,28 @@ where
     pub fn penalize<W>(
         self,
         weight: W,
-    ) -> ProjectedConstraintBuilder<S, Out, Src, F, impl Fn(&Out) -> Sc + Send + Sync, Sc>
+    ) -> Builder<S, Out, Src, F, impl Fn(&Out) -> Sc + Send + Sync, Sc>
     where
         W: for<'w> ConstraintWeight<(&'w Out,), Sc> + Send + Sync,
     {
         let is_hard = weight.is_hard();
         self.into_weighted_builder(
             solverforge_core::ImpactType::Penalty,
+            move |output: &Out| weight.score((output,)),
+            is_hard,
+        )
+    }
+
+    pub fn reward<W>(
+        self,
+        weight: W,
+    ) -> Builder<S, Out, Src, F, impl Fn(&Out) -> Sc + Send + Sync, Sc>
+    where
+        W: for<'w> ConstraintWeight<(&'w Out,), Sc> + Send + Sync,
+    {
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            solverforge_core::ImpactType::Reward,
             move |output: &Out| weight.score((output,)),
             is_hard,
         )

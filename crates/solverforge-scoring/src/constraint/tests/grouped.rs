@@ -1,11 +1,11 @@
-// GroupedUniConstraint tests
+// Uni tests
 
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 use crate::constraint::grouped::{
-    GroupedNodeState, GroupedTerminalScorer, GroupedUniConstraint, SharedGroupedConstraintSet,
+    GroupedNodeState, GroupedTerminalScorer, SharedGroupedConstraintSet, Uni,
 };
 use crate::stream::collection_extract::{source, vec, ChangeSource};
 use crate::stream::collector::{collect_vec, count, CollectedVec};
@@ -24,7 +24,7 @@ struct GroupedSolution {
 
 #[test]
 fn test_grouped_constraint_evaluate() {
-    let constraint = GroupedUniConstraint::new(
+    let constraint = Uni::new(
         ConstraintRef::new("", "Workload"),
         ImpactType::Penalty,
         source(
@@ -56,7 +56,7 @@ fn test_grouped_constraint_evaluate() {
 
 #[test]
 fn test_grouped_constraint_incremental() {
-    let mut constraint = GroupedUniConstraint::new(
+    let mut constraint = Uni::new(
         ConstraintRef::new("", "Workload"),
         ImpactType::Penalty,
         source(
@@ -99,7 +99,7 @@ fn test_grouped_constraint_incremental() {
 
 #[test]
 fn test_grouped_constraint_reward() {
-    let constraint = GroupedUniConstraint::new(
+    let constraint = Uni::new(
         ConstraintRef::new("", "Collaboration"),
         ImpactType::Reward,
         vec(|s: &GroupedSolution| &s.shifts),
@@ -123,7 +123,7 @@ fn test_grouped_constraint_reward() {
 
 #[test]
 fn test_grouped_constraint_weight_can_use_key() {
-    let constraint = GroupedUniConstraint::new(
+    let constraint = Uni::new(
         ConstraintRef::new("", "Key weighted workload"),
         ImpactType::Penalty,
         vec(|s: &GroupedSolution| &s.shifts),
@@ -147,7 +147,7 @@ fn test_grouped_constraint_weight_can_use_key() {
 
 #[test]
 fn test_grouped_constraint_collect_vec_accepts_owned_labels() {
-    let constraint = GroupedUniConstraint::new(
+    let constraint = Uni::new(
         ConstraintRef::new("", "Grouped labels"),
         ImpactType::Penalty,
         vec(|s: &GroupedSolution| &s.shifts),

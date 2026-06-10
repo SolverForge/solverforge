@@ -9,10 +9,10 @@ use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::ConstraintWeight;
 
-use super::shared_set::SharedCrossComplementedGroupedConstraintSet;
-use super::state::CrossComplementedGroupedNodeState;
+use super::shared_set::SharedComplementedGroupedSet;
+use super::state::ComplementedGroupedNodeState;
 
-pub struct CrossComplementedGroupedConstraintSetBuilder<
+pub struct ComplementedGroupedSetBuilder<
     S,
     A,
     B,
@@ -39,7 +39,7 @@ pub struct CrossComplementedGroupedConstraintSetBuilder<
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    state: CrossComplementedGroupedNodeState<
+    state: ComplementedGroupedNodeState<
         S,
         A,
         B,
@@ -69,7 +69,7 @@ pub struct CrossComplementedGroupedConstraintSetBuilder<
 }
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Scorers, Sc>
-    SharedCrossComplementedGroupedConstraintSet<
+    SharedComplementedGroupedSet<
         S,
         A,
         B,
@@ -120,7 +120,7 @@ where
         impact_type: ImpactType,
         weight_fn: W,
         is_hard: bool,
-    ) -> CrossComplementedGroupedConstraintSetBuilder<
+    ) -> ComplementedGroupedSetBuilder<
         S,
         A,
         B,
@@ -147,7 +147,7 @@ where
     where
         W: Fn(&GK, &R) -> Sc + Send + Sync,
     {
-        CrossComplementedGroupedConstraintSetBuilder {
+        ComplementedGroupedSetBuilder {
             state: self.state,
             scorers: self.scorers,
             cached_score: self.cached_score,
@@ -161,7 +161,7 @@ where
     pub fn penalize<W>(
         self,
         weight: W,
-    ) -> CrossComplementedGroupedConstraintSetBuilder<
+    ) -> ComplementedGroupedSetBuilder<
         S,
         A,
         B,
@@ -199,7 +199,7 @@ where
     pub fn reward<W>(
         self,
         weight: W,
-    ) -> CrossComplementedGroupedConstraintSetBuilder<
+    ) -> ComplementedGroupedSetBuilder<
         S,
         A,
         B,
@@ -236,7 +236,7 @@ where
 }
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Scorers, W, Sc>
-    CrossComplementedGroupedConstraintSetBuilder<
+    ComplementedGroupedSetBuilder<
         S,
         A,
         B,
@@ -287,7 +287,7 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> SharedCrossComplementedGroupedConstraintSet<
+    ) -> SharedComplementedGroupedSet<
         S,
         A,
         B,
@@ -316,7 +316,7 @@ where
             self.weight_fn,
             self.is_hard,
         );
-        SharedCrossComplementedGroupedConstraintSet {
+        SharedComplementedGroupedSet {
             state: self.state,
             scorers: (self.scorers, scorer),
             cached_score: self.cached_score,

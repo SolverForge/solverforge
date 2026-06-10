@@ -32,32 +32,32 @@ src/
 │       ├── analysis.rs                             — Analysis type tests
 │       └── weight_overrides.rs                     — Weight override tests
 ├── constraint/
-│   ├── mod.rs                                      — Re-exports all constraint types
+│   ├── mod.rs                                      — Module declarations and selected root re-exports
 │   ├── macros.rs                                   — impl_get_matches_nary! macro for detailed match generation
 │   ├── shared.rs                                   — compute_hash<T>() utility function
 │   ├── list_precedence.rs                          — ListPrecedenceMakespanConstraint<S>; stock incremental list-plus-fixed-precedence makespan scoring with optional fixed owner checks
 │   ├── incremental_markers.rs                      — Hidden IncrementalConstraintSealed impls for built-in constraint types
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
-│   ├── grouped.rs                                  — Grouped module root: legacy terminal wrapper, shared node state, terminal scorers, scorer sets, shared set
+│   ├── grouped.rs                                  — grouped::Uni module root, shared node state, terminal scorers, scorer sets, shared set
 │   ├── grouped/*.rs                                — GroupedNodeState, GroupedTerminalScorer, GroupedScorerSet, SharedGroupedConstraintSet, one-terminal wrapper
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
-│   ├── complemented.rs                             — ComplementedGroupConstraint module root and re-exports
+│   ├── complemented.rs                             — constraint::complemented::Grouped module root and re-exports
 │   ├── complemented/*.rs                           — Retained complemented state, incremental callbacks, helpers, and debug accessors
-│   ├── cross_bi_incremental.rs                     — IncrementalCrossBiConstraint module root and re-exports
+│   ├── cross_bi_incremental.rs                     — constraint::cross_bi_incremental::Bi module root and re-exports
 │   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
-│   ├── cross_grouped.rs                            — CrossGroupedConstraint module root and re-exports
-│   ├── cross_grouped/*.rs                          — CrossGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
-│   ├── cross_complemented_grouped.rs               — CrossComplementedGroupedConstraint module root and internal shared engine re-exports
-│   ├── cross_complemented_grouped/*.rs             — CrossComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
+│   ├── cross_grouped.rs                            — constraint::cross_grouped::Grouped module root and re-exports
+│   ├── cross_grouped/*.rs                          — GroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
+│   ├── cross_complemented_grouped.rs               — constraint::cross_complemented_grouped::ComplementedGrouped module root and internal shared engine re-exports
+│   ├── cross_complemented_grouped/*.rs             — ComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper, retained row updates
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
 │   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
 │   ├── exists/
 │   │   └── key_state.rs                            — Internal hashed/indexed key bookkeeping for existence constraints
 │   ├── projected.rs                                — Projected retained scoring-row constraint module root and re-exports
-│   ├── projected/*.rs                              — Projected uni, bi, grouped module root, and complemented-grouped constraints
-│   ├── projected/grouped/*.rs                      — ProjectedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
-│   ├── projected/complemented_grouped/*.rs         — ProjectedComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
+│   ├── projected/*.rs                              — projected::Uni, Bi, DirectedBi, Grouped, and ComplementedGrouped constraints
+│   ├── projected/grouped/*.rs                      — GroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
+│   ├── projected/complemented_grouped/*.rs         — ComplementedGroupedNodeState, terminal scorer alias, shared set, one-terminal wrapper
 │   ├── nary_incremental/
 │   │   ├── mod.rs                                  — Re-exports all nary constraint macros
 │   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
@@ -70,14 +70,14 @@ src/
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
 │       ├── bi_incr.rs                              — IncrementalBiConstraint tests
-│       ├── cross_bi_incr.rs                        — IncrementalCrossBiConstraint tests
+│       ├── cross_bi_incr.rs                        — constraint::cross_bi_incremental::Bi tests
 │       ├── tri_incr.rs                             — IncrementalTriConstraint tests
 │       ├── quad_incr.rs                            — IncrementalQuadConstraint tests
 │       ├── penta_incr.rs                           — IncrementalPentaConstraint tests
-│       ├── grouped.rs                              — GroupedUniConstraint and shared grouped node tests
+│       ├── grouped.rs                              — constraint::grouped::Uni and shared grouped node tests
 │       ├── cross_grouped.rs                        — Shared direct cross grouped node tests
 │       ├── balance.rs                              — BalanceConstraint tests
-│       ├── complemented.rs                         — ComplementedGroupConstraint tests
+│       ├── complemented.rs                         — constraint::complemented::Grouped tests
 │       ├── cross_complemented_grouped.rs           — Direct cross-join grouped complement tests
 │       ├── flattened_bi.rs                         — FlattenedBiConstraint tests
 │       ├── exists.rs                               — IncrementalExistsConstraint update tests
@@ -118,10 +118,10 @@ src/
 │   ├── balance_stream.rs                           — BalanceConstraintStream, BalanceConstraintBuilder
 │   ├── complemented_stream.rs                      — ComplementedConstraintStream, ComplementedConstraintBuilder
 │   ├── cross_bi_stream.rs                          — Re-exports
-│   ├── cross_bi_stream/base.rs                     — CrossBiConstraintStream
-│   ├── cross_bi_stream/grouped.rs                  — CrossGroupedConstraintStream and builder
-│   ├── cross_bi_stream/complemented_grouped.rs     — CrossComplementedGroupedConstraintStream and builder
-│   ├── cross_bi_stream/weighting.rs                — CrossBiConstraintBuilder
+│   ├── cross_bi_stream/base.rs                     — stream::cross::Bi
+│   ├── cross_bi_stream/grouped.rs                  — stream::cross::Grouped and builder
+│   ├── cross_bi_stream/complemented_grouped.rs     — stream::cross::ComplementedGrouped and builder
+│   ├── cross_bi_stream/weighting.rs                — stream::cross::Builder
 │   ├── flattened_bi_stream.rs                      — Re-exports
 │   ├── flattened_bi_stream/base.rs                 — FlattenedBiConstraintStream
 │   ├── flattened_bi_stream/builder.rs              — FlattenedBiConstraintBuilder
@@ -129,11 +129,13 @@ src/
 │   ├── existence_stream.rs                         — ExistsConstraintStream, ExistsConstraintBuilder, ExistenceMode, FlattenExtract
 │   ├── existence_target.rs                         — ExistenceTarget trait for direct and flattened existence targets
 │   ├── projected_stream.rs                         — Projected stream module root and re-exports
-│   ├── projected_stream/uni.rs                     — ProjectedConstraintStream and terminal builder
-│   ├── projected_stream/bi.rs                      — ProjectedBiConstraintStream and terminal builder
-│   ├── projected_stream/grouped.rs                 — ProjectedGroupedConstraintStream, reward, complement, and terminal builder
-│   ├── projected_stream/complemented_grouped.rs    — ProjectedComplementedGroupedConstraintStream and builder
-│   ├── projected_stream/source.rs                  — Projection, projected row coordinates, ProjectedSource trait
+│   ├── projected_stream/uni.rs                     — stream::projected::Stream and terminal builder
+│   ├── projected_stream/bi.rs                      — stream::projected::Bi and terminal builder
+│   ├── projected_stream/directed_bi.rs             — stream::projected::DirectedBi and terminal builder for directed projected self-joins
+│   ├── projected_stream/join_target.rs             — ProjectedJoinTarget dispatch for symmetric and directed projected self-joins
+│   ├── projected_stream/grouped.rs                 — stream::projected::Grouped, reward, complement, and terminal builder
+│   ├── projected_stream/complemented_grouped.rs    — stream::projected::ComplementedGrouped and builder
+│   ├── projected_stream/source.rs                  — Projection, projected row coordinates, Source trait
 │   ├── projected_stream/source/single.rs           — Single-source `.project(...)` source
 │   ├── projected_stream/source/filtered.rs         — Row-level filtered projected source
 │   ├── projected_stream/source/merged.rs           — Merged projected sources with source-slot offsets
@@ -185,14 +187,19 @@ src/
 ## Public Re-exports (lib.rs)
 
 ```rust
-// Constraints
+// Root constraint exports keep globally distinct names only.
 pub use constraint::{
-    CrossComplementedGroupedConstraint, CrossGroupedConstraint, GroupedUniConstraint,
-    IncrementalBiConstraint, IncrementalCrossBiConstraint, IncrementalPentaConstraint,
-    IncrementalQuadConstraint, IncrementalTriConstraint, IncrementalUniConstraint,
-    ListPrecedenceMakespanConstraint, ProjectedComplementedGroupedConstraint,
-    ProjectedGroupedConstraint, ProjectedUniConstraint,
+    IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
+    IncrementalTriConstraint, IncrementalUniConstraint, ListPrecedenceMakespanConstraint,
 };
+
+// Short family names are intentionally module-scoped:
+// constraint::grouped::Uni
+// constraint::complemented::Grouped
+// constraint::cross_bi_incremental::Bi
+// constraint::cross_grouped::Grouped
+// constraint::cross_complemented_grouped::ComplementedGrouped
+// constraint::projected::{Uni, Bi, DirectedBi, Grouped, ComplementedGrouped}
 
 // Constraint Set
 pub use api::constraint_set::{
@@ -215,14 +222,13 @@ pub use api::analysis::{
 // Fluent Stream API
 pub use stream::{
     fixed_weight, hard_weight, BiConstraintBuilder, BiConstraintStream, ConstraintFactory,
-    CrossComplementedGroupedConstraintBuilder, CrossComplementedGroupedConstraintStream,
-    CrossGroupedConstraintBuilder, CrossGroupedConstraintStream, FixedWeight,
-    GroupedConstraintBuilder, GroupedConstraintStream, HardWeight,
-    ProjectedBiConstraintBuilder, ProjectedBiConstraintStream, ProjectedComplementedGroupedConstraintBuilder,
-    ProjectedComplementedGroupedConstraintStream, ProjectedConstraintBuilder,
-    ProjectedConstraintStream, ProjectedGroupedConstraintBuilder, ProjectedGroupedConstraintStream,
+    FixedWeight, GroupedConstraintBuilder, GroupedConstraintStream, HardWeight,
     Projection, ProjectionSink, UniConstraintBuilder, UniConstraintStream,
 };
+
+// Short cross/projected stream names are intentionally module-scoped:
+// stream::cross::{Bi, Builder, Grouped, GroupedBuilder, ComplementedGrouped, ComplementedGroupedBuilder}
+// stream::projected::{Stream, Builder, Bi, BiBuilder, DirectedBi, DirectedBiBuilder, Grouped, GroupedBuilder, ComplementedGrouped, ComplementedGroupedBuilder}
 ```
 
 ## Public Traits
@@ -319,7 +325,7 @@ Joined filter indexes are semantic source indexes, not builder-local
 placeholders. Same-source joins pass canonical entity indexes; cross-bi passes
 left and right source indexes; flattened-bi passes the A source index and the
 owning B source index for the flattened row; projected-bi passes each projected
-row's primary owner entity index while `ProjectedRowCoordinate` still owns row
+row's primary owner entity index while `RowCoordinate` still owns row
 orientation.
 
 ### `Joiner<A, B>` — `Send + Sync`
@@ -394,45 +400,47 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`IncrementalPentaConstraint<S, A, K, E, KE, F, W, Sc>`** — Self-join penta constraint. Joined filters receive the five source entity indexes.
 
-**`IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, W, Sc>`** — Cross-collection bi constraint (two different collections joined by key). Stateless `evaluate()`, `match_count()`, and `get_matches()` rebuild the keyed B-side index directly, so retained analysis works even before `initialize()`. Filters receive the A and B source indexes on every direct, grouped, and projected finalization path. The low-level `new(...)` constructor preserves index-aware weights via `Fn(&S, usize, usize) -> Sc`; fluent stream builders use `PairWeight<W>` internally for `Fn(&A, &B) -> Sc` weights without cloning streams or extractors.
+**`constraint::cross_bi_incremental::Bi<S, A, B, K, EA, EB, KA, KB, F, W, Sc>`** — Cross-collection bi constraint (two different collections joined by key). Stateless `evaluate()`, `match_count()`, and `get_matches()` rebuild the keyed B-side index directly, so retained analysis works even before `initialize()`. Filters receive the A and B source indexes on every direct, grouped, and projected finalization path. The low-level `new(...)` constructor preserves index-aware weights via `Fn(&S, usize, usize) -> Sc`; fluent stream builders use `PairWeight<W>` internally for `Fn(&A, &B) -> Sc` weights without cloning streams or extractors.
 
 **`CrossBiWeight<S, A, B, Sc>`**, **`IndexWeight<W>`**, **`PairWeight<W>`** — Zero-erasure cross-bi weight strategies. They keep low-level index-aware scoring and fluent pair-aware scoring as separate monomorphized paths.
 
-**`GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&A>` — Group-by with collector and weight on `(&K, &R)`.
+**`constraint::grouped::Uni<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&A>` — Group-by with collector and weight on `(&K, &R)`.
 
 The grouped engine is split into `GroupedNodeState` plus
 `GroupedTerminalScorer` collections. `SharedGroupedConstraintSet` updates the
 node once and refreshes all terminal scorers from changed group keys.
-`GroupedUniConstraint` is the one-terminal wrapper around that shared engine.
+`constraint::grouped::Uni` is the one-terminal wrapper around that shared engine.
 Additional grouped terminals append through the same fluent
 `.penalize(...).named(...)` / `.reward(...).named(...)` finalization chain,
 so macro-generated sharing does not use a separate stream construction path.
 
-**`CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint. It keeps keyed join indexes and collector retraction tokens without projecting joined pairs first.
+**`constraint::cross_grouped::Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint. It keeps keyed join indexes and collector retraction tokens without projecting joined pairs first.
 
-Direct cross grouped constraints use `CrossGroupedNodeState` for join indexes,
+Direct cross grouped constraints use `constraint::cross_grouped::GroupedNodeState` for join indexes,
 match rows, group accumulators, retraction tokens, and changed-key reporting.
-`SharedCrossGroupedConstraintSet` lets multiple terminal scorers consume that
+`constraint::cross_grouped::SharedGroupedSet` lets multiple terminal scorers consume that
 state while preserving independent terminal metadata.
 
-**`CrossComplementedGroupedConstraint<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint complemented against a second collection. `CrossComplementedGroupedNodeState` keeps join indexes, joined-pair collector retraction tokens, complement target indexes, group accumulators, and changed-key reporting; `SharedCrossComplementedGroupedConstraintSet` lets multiple terminal scorers consume each complement row using either the retained grouped result or the provided default result.
+**`constraint::cross_complemented_grouped::ComplementedGrouped<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint complemented against a second collection. `constraint::cross_complemented_grouped::ComplementedGroupedNodeState` keeps join indexes, joined-pair collector retraction tokens, complement target indexes, group accumulators, and changed-key reporting; `constraint::cross_complemented_grouped::SharedComplementedGroupedSet` lets multiple terminal scorers consume each complement row using either the retained grouped result or the provided default result.
 
 **`BalanceConstraint<S, A, K, E, F, KF, Sc>`** — Load balancing using sum-of-squared-deviations.
 
-**`ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&A>` — Group-by complemented against a second collection (for supply vs demand).
+**`constraint::complemented::Grouped<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&A>` — Group-by complemented against a second collection (for supply vs demand).
 
-**`ProjectedUniConstraint<S, Out, Src, F, W, Sc>`** — Terminal constraint for scoring retained projected rows one row at a time.
+**`constraint::projected::Uni<S, Out, Src, F, W, Sc>`** — Terminal constraint for scoring retained projected rows one row at a time.
 
-**`ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc>`** — Self-join constraint over retained projected rows. Pair ordering is coordinate-stable by `ProjectedRowCoordinate`; pair-filter indexes are the projected rows' primary owner entity indexes, never retained storage row IDs.
+**`constraint::projected::Bi<S, Out, K, Src, F, KF, PF, W, Sc>`** — Symmetric self-join constraint over retained projected rows. Pair ordering is coordinate-stable by `RowCoordinate`; pair-filter indexes are the projected rows' primary owner entity indexes, never retained storage row IDs. It is produced by `stream::projected::Stream::join(equal(...))`.
 
-**`ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&Out>` — Grouped retained projected rows.
+**`constraint::projected::DirectedBi<S, Out, K, Src, F, KL, KR, PF, W, Sc>`** — Directed self-join constraint over retained projected rows with distinct left and right key extractors. It is produced by `stream::projected::Stream::join(equal_bi(left_key, right_key))`, evaluates oriented pairs where the left key equals the right key, and skips only the same retained row.
 
-Projected grouped constraints use `ProjectedGroupedNodeState` for projected
+**`constraint::projected::Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&Out>` — Grouped retained projected rows.
+
+Projected grouped constraints use `constraint::projected::GroupedNodeState` for projected
 source state, row outputs, owner indexes, retraction tokens, group accumulators,
-and changed-key reporting. `SharedProjectedGroupedConstraintSet` shares that
+and changed-key reporting. `constraint::projected::SharedGroupedSet` shares that
 projected grouped state across multiple terminal scorers.
 
-**`ProjectedComplementedGroupedConstraint<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&Out>` — Projected grouped rows complemented against a second collection, including `join(...).project(...).group_by(...).complement(...)` chains. `ProjectedComplementedGroupedNodeState` retains projected source state, row ownership indexes, complement target rows, group accumulators, and changed-key reporting for shared terminal scorers.
+**`constraint::projected::ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&Out>` — Projected grouped rows complemented against a second collection, including `join(...).project(...).group_by(...).complement(...)` chains. `constraint::projected::ComplementedGroupedNodeState` retains projected source state, row ownership indexes, complement target rows, group accumulators, and changed-key reporting for shared terminal scorers.
 
 **`FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>`** — Cross-collection with nested collection flattening. Filters receive the A source index and the owning B source index for each flattened C row.
 
@@ -485,10 +493,10 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 - Generated solution source methods pass `for_each()` hidden descriptor/static source metadata.
 
 **`UniConstraintStream<S, A, E, F, Sc>`** — Single collection stream.
-- Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `ProjectedConstraintStream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
+- Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `stream::projected::Stream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 - `UniConstraintStream` implements `CollectionExtract` by delegating extraction to its source and applying its accumulated filter through `contains(...)`.
 - Stream targets preserve their own source filters when passed to keyed or predicate cross-joins. This lets `.join((ConstraintFactory::new().for_each(source).filter(pred), equal_bi(...)))` keep the right-side source predicate inside the joined stream.
-- `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `CrossBiConstraintStream`; `(other_stream, |a, b| pred)` → predicate `CrossBiConstraintStream`
+- `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `stream::cross::Bi`; `(other_stream, |a, b| pred)` → predicate `stream::cross::Bi`
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
 **`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `named()` → `IncrementalUniConstraint`
@@ -497,20 +505,25 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 
 **`ProjectionSink<Out>`** — Emission sink used by `Projection<A>` implementations. `emit(output)` is the only projection output channel.
 
-**`ProjectedConstraintStream<S, Out, Src, F, Sc>`** — Scoring rows from one or more source streams. Single-source output type is inferred from the named projection type passed to `project(...)`; keyed cross joins use `CrossBiConstraintStream::project(|left, right| row)` and emit exactly one scoring row per retained joined pair. Retained rows are cached by `ProjectedRowCoordinate` and indexed by one or two `ProjectedRowOwner` values. Single-source projected rows update incrementally from their source owner; joined-pair projected rows update incrementally from either joined source when that source is descriptor-localized. Projected self-join pair order follows `ProjectedRowCoordinate` ordering; pair-filter indexes use each row's primary owner entity index, and retained storage row IDs are internal and never semantic. Projected rows can be self-joined by `equal(|row| key)` without materialized facts, and projected output rows plus projected self-join keys do not need `Clone`. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
-- Operations: `filter()`, `merge(other)`, `group_by()`, `join(equal(...))`, `penalize(weight_or_fn)`
+**`stream::projected::Stream<S, Out, Src, F, Sc>`** — Scoring rows from one or more source streams. Single-source output type is inferred from the named projection type passed to `project(...)`; keyed cross joins use `stream::cross::Bi::project(|left, right| row)` and emit exactly one scoring row per retained joined pair. Retained rows are cached by `RowCoordinate` and indexed by one or two `RowOwner` values. Single-source projected rows update incrementally from their source owner; joined-pair projected rows update incrementally from either joined source when that source is descriptor-localized. Symmetric projected self-join pair order follows `RowCoordinate` ordering; pair-filter indexes use each row's primary owner entity index, and retained storage row IDs are internal and never semantic. Projected rows can be self-joined by `equal(|row| key)` or by directed `equal_bi(left_key, right_key)` without materialized facts, and projected output rows plus projected self-join keys do not need `Clone`. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
+- Operations: `filter()`, `merge(other)`, `group_by()`, `join(equal(...))`, `join(equal_bi(...))`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 
-**`ProjectedConstraintBuilder`** — `named()` → `ProjectedUniConstraint`
+**`stream::projected::Builder`** — `named()` → `constraint::projected::Uni`
 
-**`ProjectedBiConstraintStream<S, Out, K, Src, F, KF, PF, Sc>`** — Self-join stream over projected rows produced by `ProjectedConstraintStream::join(equal(...))`.
-- Operations: `filter()`, `penalize(weight_or_fn)`
+**`stream::projected::Bi<S, Out, K, Src, F, KF, PF, Sc>`** — Self-join stream over projected rows produced by `stream::projected::Stream::join(equal(...))`.
+- Operations: `filter()`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 
-**`ProjectedBiConstraintBuilder`** — `named()` → `ProjectedBiConstraint`
+**`stream::projected::BiBuilder`** — `named()` → `constraint::projected::Bi`
 
-**`ProjectedRowCoordinate`** — Hidden support coordinate for projected rows:
+**`stream::projected::DirectedBi<S, Out, K, Src, F, KL, KR, PF, Sc>`** — Directed self-join stream over projected rows produced by `stream::projected::Stream::join(equal_bi(left_key, right_key))`.
+- Operations: `filter()`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
+
+**`stream::projected::DirectedBiBuilder`** — `named()` → `constraint::projected::DirectedBi`
+
+**`RowCoordinate`** — Hidden support coordinate for projected rows:
 `{ primary_owner, secondary_owner, emit_index }`. `primary_owner` is always
 present; `secondary_owner` is present for joined-pair rows from
-`CrossBiConstraintStream::project(...)`. It is used to keep projected self-join
+`stream::cross::Bi::project(...)`. It is used to keep projected self-join
 orientation stable across sparse row-slot reuse and to dedupe callbacks when
 both owners localize to the same descriptor/entity update.
 
@@ -536,7 +549,7 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
     .project(AssignmentLoadEntries)
 ```
 
-**`ProjectedGroupedConstraintStream` / `ProjectedGroupedConstraintBuilder`** — Grouped projected rows using stock collectors such as `sum()`, `count()`, `collect_vec()`, `consecutive_runs()`, and `indexed_presence()`. Grouped retained state uses the same `ProjectedRowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `ProjectedRowCoordinate` and caches accumulator retraction tokens for exact retracts. Grouped weights use the canonical `penalize(|key, result| ...)` / `reward(|key, result| ...)` shape. `complement()` and `complement_with_key()` continue to `ProjectedComplementedGroupedConstraintStream`; `named()` → `ProjectedGroupedConstraint`.
+**`stream::projected::Grouped` / `stream::projected::GroupedBuilder`** — Grouped projected rows using stock collectors such as `sum()`, `count()`, `collect_vec()`, `consecutive_runs()`, and `indexed_presence()`. Grouped retained state uses the same `RowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `RowCoordinate` and caches accumulator retraction tokens for exact retracts. Grouped weights use the canonical `penalize(|key, result| ...)` / `reward(|key, result| ...)` shape. `complement()` and `complement_with_key()` continue to `stream::projected::ComplementedGrouped`; `named()` → `constraint::projected::Grouped`.
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
 - Operations: `filter()`, `join()` → TriStream, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
@@ -549,26 +562,26 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 
 **`PentaConstraintStream/Builder`** — Same pattern, penta-arity. Terminal (no further joins).
 
-**`CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>`** — Cross-collection bi stream.
-- Operations: `filter()`, `group_by(|left, right| key, collector)` → CrossGroupedConstraintStream, `project(|left, right| row)` → ProjectedConstraintStream, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `flatten_last()` → FlattenedBiStream
+**`stream::cross::Bi<S, A, B, K, EA, EB, KA, KB, F, Sc>`** — Cross-collection bi stream.
+- Operations: `filter()`, `group_by(|left, right| key, collector)` → stream::cross::Grouped, `project(|left, right| row)` → stream::projected::Stream, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `flatten_last()` → FlattenedBiStream
 
-**`CrossBiConstraintBuilder`** — `named()` → `IncrementalCrossBiConstraint`
+**`stream::cross::Builder`** — `named()` → `constraint::cross_bi_incremental::Bi`
 
-**`CrossGroupedConstraintStream/Builder`** — Direct grouped cross-join stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `CrossGroupedConstraint`. `complement(source, key, default)` → `CrossComplementedGroupedConstraintStream`. Collectors receive the joined pair shape as `(&A, &B)`.
+**`stream::cross::Grouped/Builder`** — Direct grouped cross-join stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::cross_grouped::Grouped`. `complement(source, key, default)` → `stream::cross::ComplementedGrouped`. Collectors receive the joined pair shape as `(&A, &B)`.
 
-**`CrossComplementedGroupedConstraintStream/Builder`** — Direct grouped cross-join complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `CrossComplementedGroupedConstraint`. Complement defaults are produced from the complement entity and weighted by key plus collector result. Complement sources use the same `CollectionExtract::contains(...)` membership contract as joined sources.
+**`stream::cross::ComplementedGrouped/Builder`** — Direct grouped cross-join complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::cross_complemented_grouped::ComplementedGrouped`. Complement defaults are produced from the complement entity and weighted by key plus collector result. Complement sources use the same `CollectionExtract::contains(...)` membership contract as joined sources.
 
 **`GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>`** — Grouped stream.
 - Operations: `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `complement()`, `complement_with_key()` → ComplementedStream
 - Dynamic weighted operations use one canonical key-aware closure shape: `Fn(&K, &R) -> Sc`.
 
-**`GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** — `named()` → `GroupedUniConstraint`
+**`GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** — `named()` → `constraint::grouped::Uni`
 
 **`BalanceConstraintStream/Builder`** — Balance stream. `penalize(weight)`, `reward(weight)`, `named()` → `BalanceConstraint`
 
-**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `ComplementedGroupConstraint`. Dynamic weighted operations receive the real or complemented key as `Fn(&K, &R) -> Sc`.
+**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::complemented::Grouped`. Dynamic weighted operations receive the real or complemented key as `Fn(&K, &R) -> Sc`.
 
-**`ProjectedComplementedGroupedConstraintStream/Builder`** — Projected grouped complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `ProjectedComplementedGroupedConstraint`. Complement defaults are produced from the complement entity and weighted by key plus collector result.
+**`stream::projected::ComplementedGrouped/Builder`** — Projected grouped complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::projected::ComplementedGrouped`. Complement defaults are produced from the complement entity and weighted by key plus collector result.
 
 **`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `FlattenedBiConstraint`. Low-level filters receive the A source index and the B owner index for the flattened C row.
 
@@ -609,7 +622,11 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 ### Join Support Types
 
 **`JoinTarget<S, A, E, F, Sc>`** — Trait for `.join()` dispatch on `UniConstraintStream`.
-- Impl groups: `EqualJoiner<KA, KA, K>` (self-join), any `CollectionExtract` target with `EqualJoiner<KA, KB, K>` (keyed cross-join, including filtered `UniConstraintStream` targets), and `(UniConstraintStream<...>, P)` (predicate cross-join with filtered stream target).
+- Impl groups: `EqualJoiner<KA, KA, K, Symmetric>` (self-join from `equal(...)`), any `CollectionExtract` target with `EqualJoiner<KA, KB, K, Mode>` (keyed cross-join from `equal_bi(...)`, including filtered `UniConstraintStream` targets), and `(UniConstraintStream<...>, P)` (predicate cross-join with filtered stream target).
+
+**`ProjectedJoinTarget<S, Out, Src, F, Sc>`** — Trait for `.join()` dispatch on `stream::projected::Stream`.
+- `equal(|row| key)` dispatches to `stream::projected::Bi` and preserves symmetric coordinate-stable pair ordering.
+- `equal_bi(left_key, right_key)` dispatches to `stream::projected::DirectedBi` and preserves left/right key orientation for projected rows of the same output type.
 
 **`KeyExtract<S, A, K>`** — Trait for key extraction. Blanket impl for `Fn(&S, &A, usize) -> K + Send + Sync`. Used as the bound on `KE` type params in nary stream/constraint macros.
 - Method: `fn extract(&self, s: &S, a: &A, idx: usize) -> K`
@@ -633,7 +650,7 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 
 ### Joiner Types
 
-**`EqualJoiner<Fa, Fb, T>`** — Join by key equality.
+**`EqualJoiner<Fa, Fb, T, Mode>`** — Join by key equality. `Mode` is `Symmetric` for `equal(...)` and `Directed` for `equal_bi(...)`.
 - Factory: `equal(key_fn)`, `equal_bi(left, right)`
 - Methods: `key_a()`, `key_b()`, `into_keys()`, `key_extractors()`
 

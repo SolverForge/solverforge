@@ -5,10 +5,10 @@ use crate::stream::collector::{Accumulator, Collector};
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
-use super::ComplementedGroupConstraint;
+use super::Grouped;
 
 impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc> IncrementalConstraint<S, Sc>
-    for ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+    for Grouped<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,

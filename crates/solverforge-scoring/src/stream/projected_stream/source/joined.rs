@@ -5,9 +5,9 @@ use std::marker::PhantomData;
 use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::filter::BiFilter;
 
-use super::{ProjectedRowCoordinate, ProjectedSource};
+use super::{RowCoordinate, Source};
 
-pub struct JoinedProjectedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out> {
+pub struct JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out> {
     extractor_a: EA,
     extractor_b: EB,
     key_a: KA,
@@ -17,9 +17,7 @@ pub struct JoinedProjectedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out> {
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Out)>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, P, Out>
-    JoinedProjectedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>
-{
+impl<S, A, B, K, EA, EB, KA, KB, F, P, Out> JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out> {
     pub(crate) fn new(
         extractor_a: EA,
         extractor_b: EB,
@@ -40,12 +38,12 @@ impl<S, A, B, K, EA, EB, KA, KB, F, P, Out>
     }
 }
 
-pub struct JoinedProjectedState<K> {
+pub struct JoinedState<K> {
     a_by_key: HashMap<K, Vec<usize>>,
     b_by_key: HashMap<K, Vec<usize>>,
 }
 
-impl<K> Default for JoinedProjectedState<K> {
+impl<K> Default for JoinedState<K> {
     fn default() -> Self {
         Self {
             a_by_key: HashMap::new(),
@@ -54,7 +52,7 @@ impl<K> Default for JoinedProjectedState<K> {
     }
 }
 
-impl<K> JoinedProjectedState<K>
+impl<K> JoinedState<K>
 where
     K: Eq + Hash,
 {
@@ -95,8 +93,8 @@ where
     }
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, P, Out> ProjectedSource<S, Out>
-    for JoinedProjectedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>
+impl<S, A, B, K, EA, EB, KA, KB, F, P, Out> Source<S, Out>
+    for JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -110,7 +108,7 @@ where
     P: Fn(&A, &B) -> Out + Send + Sync,
     Out: Send + Sync + 'static,
 {
-    type State = JoinedProjectedState<K>;
+    type State = JoinedState<K>;
 
     const MAX_EMITS: usize = 1;
 
@@ -127,7 +125,7 @@ where
     }
 
     fn build_state(&self, solution: &S) -> Self::State {
-        let mut state = JoinedProjectedState::default();
+        let mut state = JoinedState::default();
         for (idx, entity) in self.extractor_a.extract(solution).iter().enumerate() {
             if !self.extractor_a.contains(solution, entity) {
                 continue;
@@ -145,7 +143,7 @@ where
 
     fn collect_all<V>(&self, solution: &S, state: &Self::State, mut visit: V)
     where
-        V: FnMut(ProjectedRowCoordinate, Out),
+        V: FnMut(RowCoordinate, Out),
     {
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
@@ -171,7 +169,7 @@ where
         entity_index: usize,
         mut visit: V,
     ) where
-        V: FnMut(ProjectedRowCoordinate, Out),
+        V: FnMut(RowCoordinate, Out),
     {
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
@@ -275,8 +273,7 @@ where
     }
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, P, Out>
-    JoinedProjectedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>
+impl<S, A, B, K, EA, EB, KA, KB, F, P, Out> JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out>
 where
     EA: CollectionExtract<S, Item = A>,
     EB: CollectionExtract<S, Item = B>,
@@ -292,7 +289,7 @@ where
         b_idx: usize,
         visit: &mut V,
     ) where
-        V: FnMut(ProjectedRowCoordinate, Out),
+        V: FnMut(RowCoordinate, Out),
     {
         let Some(a) = entities_a.get(a_idx) else {
             return;
@@ -306,7 +303,7 @@ where
         if !self.filter.test(solution, a, b, a_idx, b_idx) {
             return;
         }
-        let coordinate = ProjectedRowCoordinate::pair(0, a_idx, 1, b_idx, 0);
+        let coordinate = RowCoordinate::pair(0, a_idx, 1, b_idx, 0);
         visit(coordinate, (self.project)(a, b));
     }
 }

@@ -10,10 +10,10 @@ use crate::constraint::grouped::ComplementedGroupedScorerSet;
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 
-pub use super::builder::CrossComplementedGroupedConstraintSetBuilder;
-use super::state::CrossComplementedGroupedNodeState;
+pub use super::builder::ComplementedGroupedSetBuilder;
+use super::state::ComplementedGroupedNodeState;
 
-pub struct SharedCrossComplementedGroupedConstraintSet<
+pub struct SharedComplementedGroupedSet<
     S,
     A,
     B,
@@ -39,7 +39,7 @@ pub struct SharedCrossComplementedGroupedConstraintSet<
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    pub(super) state: CrossComplementedGroupedNodeState<
+    pub(super) state: ComplementedGroupedNodeState<
         S,
         A,
         B,
@@ -66,7 +66,7 @@ pub struct SharedCrossComplementedGroupedConstraintSet<
 }
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Scorers, Sc>
-    SharedCrossComplementedGroupedConstraintSet<
+    SharedComplementedGroupedSet<
         S,
         A,
         B,
@@ -113,7 +113,7 @@ where
     Sc: Score + 'static,
 {
     pub fn new(
-        state: CrossComplementedGroupedNodeState<
+        state: ComplementedGroupedNodeState<
             S,
             A,
             B,
@@ -146,7 +146,7 @@ where
 
     pub fn state(
         &self,
-    ) -> &CrossComplementedGroupedNodeState<
+    ) -> &ComplementedGroupedNodeState<
         S,
         A,
         B,
@@ -177,7 +177,7 @@ where
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Scorers, Sc>
     ConstraintSet<S, Sc>
-    for SharedCrossComplementedGroupedConstraintSet<
+    for SharedComplementedGroupedSet<
         S,
         A,
         B,
@@ -279,7 +279,7 @@ where
 }
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Scorers, Sc>
-    SharedCrossComplementedGroupedConstraintSet<
+    SharedComplementedGroupedSet<
         S,
         A,
         B,

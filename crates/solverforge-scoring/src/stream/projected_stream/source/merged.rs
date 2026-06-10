@@ -1,24 +1,24 @@
 use crate::stream::collection_extract::ChangeSource;
 
-use super::{ProjectedRowCoordinate, ProjectedSource};
+use super::{RowCoordinate, Source};
 
-pub struct MergedProjectedSource<Left, Right> {
+pub struct MergedSource<Left, Right> {
     left: Left,
     right: Right,
 }
 
-impl<Left, Right> MergedProjectedSource<Left, Right> {
+impl<Left, Right> MergedSource<Left, Right> {
     pub(crate) fn new(left: Left, right: Right) -> Self {
         Self { left, right }
     }
 }
 
-impl<S, Out, Left, Right> ProjectedSource<S, Out> for MergedProjectedSource<Left, Right>
+impl<S, Out, Left, Right> Source<S, Out> for MergedSource<Left, Right>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    Left: ProjectedSource<S, Out>,
-    Right: ProjectedSource<S, Out>,
+    Left: Source<S, Out>,
+    Right: Source<S, Out>,
 {
     type State = (Left::State, Right::State);
 
@@ -46,7 +46,7 @@ where
 
     fn collect_all<V>(&self, solution: &S, state: &Self::State, mut visit: V)
     where
-        V: FnMut(ProjectedRowCoordinate, Out),
+        V: FnMut(RowCoordinate, Out),
     {
         self.left.collect_all(solution, &state.0, &mut visit);
         let left_count = self.left.source_count();
@@ -64,7 +64,7 @@ where
         entity_index: usize,
         visit: V,
     ) where
-        V: FnMut(ProjectedRowCoordinate, Out),
+        V: FnMut(RowCoordinate, Out),
     {
         let left_count = self.left.source_count();
         if slot < left_count {

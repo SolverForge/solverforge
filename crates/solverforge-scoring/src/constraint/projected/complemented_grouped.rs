@@ -6,9 +6,9 @@ mod terminal;
 mod view;
 
 #[doc(hidden)]
-pub use scorer::ProjectedComplementedGroupedTerminalScorer;
+pub use scorer::ComplementedGroupedTerminalScorer;
 #[doc(hidden)]
-pub use shared_set::SharedProjectedComplementedGroupedConstraintSet;
+pub use shared_set::SharedComplementedGroupedSet;
 #[doc(hidden)]
-pub use state::ProjectedComplementedGroupedNodeState;
-pub use terminal::ProjectedComplementedGroupedConstraint;
+pub use state::ComplementedGroupedNodeState;
+pub use terminal::ComplementedGrouped;

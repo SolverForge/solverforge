@@ -2,8 +2,8 @@
 
 Three impls cover all join patterns:
 1. `EqualJoiner<KA, KA, K>` — self-join, returns `BiConstraintStream`
-2. `(EB, EqualJoiner<KA, KB, K>)` — keyed cross-join, returns `CrossBiConstraintStream`
-3. `(UniConstraintStream<...>, P)` — predicate cross-join, returns `CrossBiConstraintStream`
+2. `(EB, EqualJoiner<KA, KB, K>)` — keyed cross-join, returns `Bi`
+3. `(UniConstraintStream<...>, P)` — predicate cross-join, returns `Bi`
 */
 
 use std::hash::Hash;
@@ -12,9 +12,9 @@ use solverforge_core::score::Score;
 
 use super::bi_stream::BiConstraintStream;
 use super::collection_extract::CollectionExtract;
-use super::cross_bi_stream::CrossBiConstraintStream;
+use super::cross_bi_stream::Bi;
 use super::filter::{PairFilter, UniBiFilter, UniFilter, UniLeftBiFilter};
-use super::joiner::EqualJoiner;
+use super::joiner::{EqualJoiner, Symmetric};
 use super::key_extract::EntityKeyAdapter;
 use super::UniConstraintStream;
 
@@ -34,7 +34,7 @@ pub trait JoinTarget<S, A, E, F, Sc: Score> {
 }
 
 // Self-join: `.join(equal(|a: &A| a.key))` — pairs same-collection entities.
-impl<S, A, E, F, K, KA, Sc> JoinTarget<S, A, E, F, Sc> for EqualJoiner<KA, KA, K>
+impl<S, A, E, F, K, KA, Sc> JoinTarget<S, A, E, F, Sc> for EqualJoiner<KA, KA, K, Symmetric>
 where
     S: Send + Sync + 'static,
     A: Clone + Hash + PartialEq + Send + Sync + 'static,
@@ -55,7 +55,8 @@ where
 }
 
 // Keyed cross-join: `.join((extractor_b, equal_bi(ka, kb)))` — pairs two collections by key.
-impl<S, A, B, E, F, EB, K, KA, KB, Sc> JoinTarget<S, A, E, F, Sc> for (EB, EqualJoiner<KA, KB, K>)
+impl<S, A, B, E, F, EB, K, KA, KB, Mode, Sc> JoinTarget<S, A, E, F, Sc>
+    for (EB, EqualJoiner<KA, KB, K, Mode>)
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -68,13 +69,13 @@ where
     KB: Fn(&B) -> K + Send + Sync,
     Sc: Score + 'static,
 {
-    type Output = CrossBiConstraintStream<S, A, B, K, E, EB, KA, KB, UniLeftBiFilter<F, B>, Sc>;
+    type Output = Bi<S, A, B, K, E, EB, KA, KB, UniLeftBiFilter<F, B>, Sc>;
 
     fn apply(self, extractor_a: E, filter_a: F) -> Self::Output {
         let (extractor_b, joiner) = self;
         let (key_a, key_b) = joiner.into_keys();
         let bi_filter = UniLeftBiFilter::new(filter_a);
-        CrossBiConstraintStream::new_with_filter(extractor_a, extractor_b, key_a, key_b, bi_filter)
+        Bi::new_with_filter(extractor_a, extractor_b, key_a, key_b, bi_filter)
     }
 }
 
@@ -92,24 +93,13 @@ where
     P: Fn(&A, &B) -> bool + Send + Sync + 'static,
     Sc: Score + 'static,
 {
-    type Output = CrossBiConstraintStream<
-        S,
-        A,
-        B,
-        u8,
-        E,
-        EB,
-        fn(&A) -> u8,
-        fn(&B) -> u8,
-        PairFilter<F, FB, P>,
-        Sc,
-    >;
+    type Output = Bi<S, A, B, u8, E, EB, fn(&A) -> u8, fn(&B) -> u8, PairFilter<F, FB, P>, Sc>;
 
     fn apply(self, extractor_a: E, filter_a: F) -> Self::Output {
         let (other_stream, predicate) = self;
         let (extractor_b, filter_b) = other_stream.into_parts();
         let combined_filter = PairFilter::new(filter_a, filter_b, predicate);
-        CrossBiConstraintStream::new_with_filter(
+        Bi::new_with_filter(
             extractor_a,
             extractor_b,
             (|_: &A| 0u8) as fn(&A) -> u8,

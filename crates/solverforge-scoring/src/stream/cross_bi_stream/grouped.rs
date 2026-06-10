@@ -4,15 +4,14 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use crate::constraint::cross_grouped::CrossGroupedConstraint;
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::BiFilter;
 use crate::stream::weighting_support::ConstraintWeight;
 
-use super::complemented_grouped::CrossComplementedGroupedConstraintStream;
+use super::complemented_grouped::ComplementedGrouped;
 
-pub struct CrossGroupedConstraintStream<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
+pub struct Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
 where
     Sc: Score,
 {
@@ -37,7 +36,7 @@ where
 }
 
 impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
-    CrossGroupedConstraintStream<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
+    Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -64,11 +63,11 @@ where
         impact_type: ImpactType,
         weight_fn: W,
         is_hard: bool,
-    ) -> CrossGroupedConstraintBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
+    ) -> GroupedBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
     where
         W: Fn(&GK, &R) -> Sc + Send + Sync,
     {
-        CrossGroupedConstraintBuilder {
+        GroupedBuilder {
             extractor_a: self.extractor_a,
             extractor_b: self.extractor_b,
             key_a: self.key_a,
@@ -86,7 +85,7 @@ where
     pub fn penalize<W>(
         self,
         weight: W,
-    ) -> CrossGroupedConstraintBuilder<
+    ) -> GroupedBuilder<
         S,
         A,
         B,
@@ -119,7 +118,7 @@ where
     pub fn reward<W>(
         self,
         weight: W,
-    ) -> CrossGroupedConstraintBuilder<
+    ) -> GroupedBuilder<
         S,
         A,
         B,
@@ -154,35 +153,14 @@ where
         extractor_t: ET,
         key_t: KT,
         default_fn: D,
-    ) -> CrossComplementedGroupedConstraintStream<
-        S,
-        A,
-        B,
-        T,
-        JK,
-        GK,
-        EA,
-        EB,
-        ET,
-        KA,
-        KB,
-        F,
-        GF,
-        KT,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        Sc,
-    >
+    ) -> ComplementedGrouped<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Sc>
     where
         T: Clone + Send + Sync + 'static,
         ET: CollectionExtract<S, Item = T>,
         KT: Fn(&T) -> GK + Send + Sync,
         D: Fn(&T) -> R + Send + Sync,
     {
-        CrossComplementedGroupedConstraintStream {
+        ComplementedGrouped {
             extractor_a: self.extractor_a,
             extractor_b: self.extractor_b,
             extractor_t,
@@ -198,25 +176,8 @@ where
     }
 }
 
-pub struct CrossGroupedConstraintBuilder<
-    S,
-    A,
-    B,
-    JK,
-    GK,
-    EA,
-    EB,
-    KA,
-    KB,
-    F,
-    GF,
-    C,
-    V,
-    R,
-    Acc,
-    W,
-    Sc,
-> where
+pub struct GroupedBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
+where
     Sc: Score,
 {
     extractor_a: EA,
@@ -243,7 +204,7 @@ pub struct CrossGroupedConstraintBuilder<
 }
 
 impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
-    CrossGroupedConstraintBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
+    GroupedBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -269,7 +230,7 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> CrossGroupedConstraint<
+    ) -> crate::constraint::cross_grouped::Grouped<
         S,
         A,
         B,
@@ -292,7 +253,7 @@ where
         let combined_filter = move |s: &S, a: &A, b: &B, a_idx: usize, b_idx: usize| {
             filter.test(s, a, b, a_idx, b_idx)
         };
-        CrossGroupedConstraint::new(
+        crate::constraint::cross_grouped::Grouped::new(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor_a,

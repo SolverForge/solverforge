@@ -3,7 +3,7 @@ mod shared_set;
 mod state;
 mod terminal;
 
-pub use scorer::ProjectedGroupedTerminalScorer;
-pub use shared_set::SharedProjectedGroupedConstraintSet;
-pub use state::ProjectedGroupedNodeState;
-pub use terminal::ProjectedGroupedConstraint;
+pub use scorer::GroupedTerminalScorer;
+pub use shared_set::SharedGroupedSet;
+pub use state::GroupedNodeState;
+pub use terminal::Grouped;

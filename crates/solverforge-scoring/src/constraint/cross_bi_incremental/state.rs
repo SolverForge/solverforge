@@ -29,7 +29,7 @@ where
 
 All function types are concrete generics - no trait objects, no Arc.
 */
-pub struct IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+pub struct Bi<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
 where
     Sc: Score,
 {
@@ -55,8 +55,7 @@ where
     pub(super) _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B)>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-    IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, IndexWeight<W>, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> Bi<S, A, B, K, EA, EB, KA, KB, F, IndexWeight<W>, Sc>
 where
     S: 'static,
     A: Clone + 'static,
@@ -103,8 +102,7 @@ where
     }
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-    IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, PairWeight<W>, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> Bi<S, A, B, K, EA, EB, KA, KB, F, PairWeight<W>, Sc>
 where
     S: 'static,
     A: Clone + 'static,
@@ -144,8 +142,7 @@ where
     }
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-    IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> Bi<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
 where
     S: 'static,
     A: Clone + 'static,

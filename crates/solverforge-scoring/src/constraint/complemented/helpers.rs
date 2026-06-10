@@ -4,10 +4,10 @@ use std::hash::Hash;
 use crate::stream::collector::{Accumulator, Collector};
 use solverforge_core::score::Score;
 
-use super::ComplementedGroupConstraint;
+use super::Grouped;
 
 impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
-    ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+    Grouped<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,

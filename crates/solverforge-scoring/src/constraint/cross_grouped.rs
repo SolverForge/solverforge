@@ -7,9 +7,9 @@ mod updates;
 mod view;
 
 #[doc(hidden)]
-pub use scorer::CrossGroupedTerminalScorer;
+pub use scorer::GroupedTerminalScorer;
 #[doc(hidden)]
-pub use shared_set::SharedCrossGroupedConstraintSet;
+pub use shared_set::SharedGroupedSet;
 #[doc(hidden)]
-pub use state::CrossGroupedNodeState;
-pub use terminal::CrossGroupedConstraint;
+pub use state::GroupedNodeState;
+pub use terminal::Grouped;

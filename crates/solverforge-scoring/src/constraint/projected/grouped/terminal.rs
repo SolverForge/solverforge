@@ -9,10 +9,11 @@ use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::grouped::GroupedTerminalScorer;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
-use crate::stream::{ConstraintWeight, ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource};
+use crate::stream::projected::{RowCoordinate, RowOwner, Source};
+use crate::stream::ConstraintWeight;
 
-use super::shared_set::SharedProjectedGroupedConstraintSet;
-use super::state::ProjectedGroupedNodeState;
+use super::shared_set::SharedGroupedSet;
+use super::state::GroupedNodeState;
 
 struct GroupState<Acc> {
     accumulator: Acc,
@@ -21,9 +22,9 @@ struct GroupState<Acc> {
 
 type CollectorRetraction<Acc, V, R> = <Acc as Accumulator<V, R>>::Retraction;
 
-pub struct ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
+pub struct Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
@@ -37,9 +38,9 @@ where
     is_hard: bool,
     source_state: Option<Src::State>,
     groups: HashMap<K, GroupState<Acc>>,
-    row_outputs: HashMap<ProjectedRowCoordinate, Out>,
-    row_retractions: HashMap<ProjectedRowCoordinate, CollectorRetraction<Acc, V, R>>,
-    rows_by_owner: HashMap<ProjectedRowOwner, Vec<ProjectedRowCoordinate>>,
+    row_outputs: HashMap<RowCoordinate, Out>,
+    row_retractions: HashMap<RowCoordinate, CollectorRetraction<Acc, V, R>>,
+    rows_by_owner: HashMap<RowOwner, Vec<RowCoordinate>>,
     _phantom: PhantomData<(
         fn() -> S,
         fn() -> Out,
@@ -50,13 +51,12 @@ where
     )>,
 }
 
-impl<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
-    ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
+impl<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc> Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
@@ -109,7 +109,7 @@ where
         }
     }
 
-    fn index_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
+    fn index_coordinate(&mut self, coordinate: RowCoordinate) {
         coordinate.for_each_owner(|owner| {
             self.rows_by_owner
                 .entry(owner)
@@ -118,7 +118,7 @@ where
         });
     }
 
-    fn unindex_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
+    fn unindex_coordinate(&mut self, coordinate: RowCoordinate) {
         coordinate.for_each_owner(|owner| {
             let mut remove_bucket = false;
             if let Some(rows) = self.rows_by_owner.get_mut(&owner) {
@@ -212,7 +212,7 @@ where
         new_score - old
     }
 
-    fn insert_row(&mut self, solution: &S, coordinate: ProjectedRowCoordinate, output: Out) -> Sc {
+    fn insert_row(&mut self, solution: &S, coordinate: RowCoordinate, output: Out) -> Sc {
         if self.row_outputs.contains_key(&coordinate) || !self.filter.test(solution, &output) {
             return Sc::zero();
         }
@@ -225,7 +225,7 @@ where
         delta
     }
 
-    fn retract_row(&mut self, coordinate: ProjectedRowCoordinate) -> Sc {
+    fn retract_row(&mut self, coordinate: RowCoordinate) -> Sc {
         let Some(output) = self.row_outputs.remove(&coordinate) else {
             return Sc::zero();
         };
@@ -237,11 +237,7 @@ where
         self.retract_value(key, retraction)
     }
 
-    fn localized_owners(
-        &self,
-        descriptor_index: usize,
-        entity_index: usize,
-    ) -> Vec<ProjectedRowOwner> {
+    fn localized_owners(&self, descriptor_index: usize, entity_index: usize) -> Vec<RowOwner> {
         let mut owners = Vec::new();
         for slot in 0..self.source.source_count() {
             if self
@@ -249,7 +245,7 @@ where
                 .change_source(slot)
                 .assert_localizes(descriptor_index, &self.constraint_ref.name)
             {
-                owners.push(ProjectedRowOwner {
+                owners.push(RowOwner {
                     source_slot: slot,
                     entity_index,
                 });
@@ -258,7 +254,7 @@ where
         owners
     }
 
-    fn coordinates_for_owners(&self, owners: &[ProjectedRowOwner]) -> Vec<ProjectedRowCoordinate> {
+    fn coordinates_for_owners(&self, owners: &[RowOwner]) -> Vec<RowCoordinate> {
         let mut seen = HashSet::new();
         let mut coordinates = Vec::new();
         for owner in owners {
@@ -275,13 +271,12 @@ where
     }
 }
 
-impl<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
-    ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
+impl<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc> Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
@@ -294,7 +289,7 @@ where
     pub fn penalize<W2>(
         self,
         weight: W2,
-    ) -> super::shared_set::ProjectedGroupedConstraintSetBuilder<
+    ) -> super::shared_set::GroupedSetBuilder<
         S,
         Out,
         K,
@@ -312,21 +307,20 @@ where
     where
         W2: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
     {
-        let state =
-            ProjectedGroupedNodeState::new(self.source, self.filter, self.key_fn, self.collector);
+        let state = GroupedNodeState::new(self.source, self.filter, self.key_fn, self.collector);
         let scorer = GroupedTerminalScorer::new(
             self.constraint_ref,
             self.impact_type,
             self.weight_fn,
             self.is_hard,
         );
-        SharedProjectedGroupedConstraintSet::new(state, scorer).penalize(weight)
+        SharedGroupedSet::new(state, scorer).penalize(weight)
     }
 
     pub fn reward<W2>(
         self,
         weight: W2,
-    ) -> super::shared_set::ProjectedGroupedConstraintSetBuilder<
+    ) -> super::shared_set::GroupedSetBuilder<
         S,
         Out,
         K,
@@ -344,25 +338,24 @@ where
     where
         W2: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
     {
-        let state =
-            ProjectedGroupedNodeState::new(self.source, self.filter, self.key_fn, self.collector);
+        let state = GroupedNodeState::new(self.source, self.filter, self.key_fn, self.collector);
         let scorer = GroupedTerminalScorer::new(
             self.constraint_ref,
             self.impact_type,
             self.weight_fn,
             self.is_hard,
         );
-        SharedProjectedGroupedConstraintSet::new(state, scorer).reward(weight)
+        SharedGroupedSet::new(state, scorer).reward(weight)
     }
 }
 
 impl<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc> IncrementalConstraint<S, Sc>
-    for ProjectedGroupedConstraint<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
+    for Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,

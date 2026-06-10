@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use super::super::super::constraint::grouped::GroupedUniConstraint;
+use super::super::super::constraint::grouped::Uni;
 use super::super::collection_extract::CollectionExtract;
 use super::super::collector::{Accumulator, Collector};
 use super::super::filter::UniFilter;
@@ -48,12 +48,9 @@ where
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    /* Finalizes the builder into a zero-erasure `GroupedUniConstraint`. */
-    pub fn named(
-        self,
-        name: &str,
-    ) -> GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> {
-        GroupedUniConstraint::new(
+    /* Finalizes the builder into a zero-erasure `Uni`. */
+    pub fn named(self, name: &str) -> Uni<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> {
+        Uni::new(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor,

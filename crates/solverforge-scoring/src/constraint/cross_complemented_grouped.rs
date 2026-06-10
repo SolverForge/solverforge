@@ -8,9 +8,9 @@ mod updates;
 mod view;
 
 #[doc(hidden)]
-pub use scorer::CrossComplementedGroupedTerminalScorer;
+pub use scorer::ComplementedGroupedTerminalScorer;
 #[doc(hidden)]
-pub use shared_set::SharedCrossComplementedGroupedConstraintSet;
+pub use shared_set::SharedComplementedGroupedSet;
 #[doc(hidden)]
-pub use state::CrossComplementedGroupedNodeState;
-pub use terminal::CrossComplementedGroupedConstraint;
+pub use state::ComplementedGroupedNodeState;
+pub use terminal::ComplementedGrouped;

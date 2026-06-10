@@ -7,16 +7,16 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::filter::{BiFilter, UniFilter};
-use crate::stream::{ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource};
+use crate::stream::projected::{RowCoordinate, RowOwner, Source};
 
 struct ProjectedJoinRow<Out> {
     output: Out,
-    coordinate: ProjectedRowCoordinate,
+    coordinate: RowCoordinate,
 }
 
-pub struct ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc>
+pub struct Bi<S, Out, K, Src, F, KF, PF, W, Sc>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Sc: Score,
 {
     constraint_ref: ConstraintRef,
@@ -30,18 +30,18 @@ where
     source_state: Option<Src::State>,
     rows: Vec<Option<ProjectedJoinRow<Out>>>,
     free_row_ids: Vec<usize>,
-    rows_by_owner: HashMap<ProjectedRowOwner, Vec<usize>>,
-    row_ids_by_coordinate: HashMap<ProjectedRowCoordinate, usize>,
+    rows_by_owner: HashMap<RowOwner, Vec<usize>>,
+    row_ids_by_coordinate: HashMap<RowCoordinate, usize>,
     rows_by_key: HashMap<K, Vec<usize>>,
     _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> Sc)>,
 }
 
-impl<S, Out, K, Src, F, KF, PF, W, Sc> ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc>
+impl<S, Out, K, Src, F, KF, PF, W, Sc> Bi<S, Out, K, Src, F, KF, PF, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     PF: BiFilter<S, Out, Out>,
@@ -103,7 +103,7 @@ where
         self.compute_score(left, right)
     }
 
-    fn filter_index(coordinate: ProjectedRowCoordinate) -> usize {
+    fn filter_index(coordinate: RowCoordinate) -> usize {
         coordinate.primary_owner.entity_index
     }
 
@@ -131,7 +131,7 @@ where
         &self,
         solution: &S,
         candidate_output: &Out,
-        candidate_coordinate: ProjectedRowCoordinate,
+        candidate_coordinate: RowCoordinate,
         other: &ProjectedJoinRow<Out>,
     ) -> Sc {
         let (left, right, left_idx, right_idx) = if candidate_coordinate <= other.coordinate {
@@ -168,13 +168,13 @@ where
         }
     }
 
-    fn index_row_owners(&mut self, coordinate: ProjectedRowCoordinate, row_id: usize) {
+    fn index_row_owners(&mut self, coordinate: RowCoordinate, row_id: usize) {
         coordinate.for_each_owner(|owner| {
             self.rows_by_owner.entry(owner).or_default().push(row_id);
         });
     }
 
-    fn unindex_row_owners(&mut self, coordinate: ProjectedRowCoordinate, row_id: usize) {
+    fn unindex_row_owners(&mut self, coordinate: RowCoordinate, row_id: usize) {
         coordinate.for_each_owner(|owner| {
             let mut remove_bucket = false;
             if let Some(ids) = self.rows_by_owner.get_mut(&owner) {
@@ -187,7 +187,7 @@ where
         });
     }
 
-    fn insert_row(&mut self, solution: &S, coordinate: ProjectedRowCoordinate, output: Out) -> Sc {
+    fn insert_row(&mut self, solution: &S, coordinate: RowCoordinate, output: Out) -> Sc {
         if self.row_ids_by_coordinate.contains_key(&coordinate) {
             return Sc::zero();
         }
@@ -307,11 +307,7 @@ where
         )
     }
 
-    fn localized_owners(
-        &self,
-        descriptor_index: usize,
-        entity_index: usize,
-    ) -> Vec<ProjectedRowOwner> {
+    fn localized_owners(&self, descriptor_index: usize, entity_index: usize) -> Vec<RowOwner> {
         let mut owners = Vec::new();
         for slot in 0..self.source.source_count() {
             if self
@@ -319,7 +315,7 @@ where
                 .change_source(slot)
                 .assert_localizes(descriptor_index, &self.constraint_ref.name)
             {
-                owners.push(ProjectedRowOwner {
+                owners.push(RowOwner {
                     source_slot: slot,
                     entity_index,
                 });
@@ -328,7 +324,7 @@ where
         owners
     }
 
-    fn row_ids_for_owners(&self, owners: &[ProjectedRowOwner]) -> Vec<usize> {
+    fn row_ids_for_owners(&self, owners: &[RowOwner]) -> Vec<usize> {
         let mut seen = HashSet::new();
         let mut row_ids = Vec::new();
         for owner in owners {
@@ -356,12 +352,12 @@ where
 }
 
 impl<S, Out, K, Src, F, KF, PF, W, Sc> IncrementalConstraint<S, Sc>
-    for ProjectedBiConstraint<S, Out, K, Src, F, KF, PF, W, Sc>
+    for Bi<S, Out, K, Src, F, KF, PF, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     PF: BiFilter<S, Out, Out>,

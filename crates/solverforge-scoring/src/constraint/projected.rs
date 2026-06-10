@@ -1,18 +1,18 @@
 mod bi;
 mod complemented_grouped;
+mod directed_bi;
+mod directed_bi_incremental;
 mod grouped;
 mod uni;
 
-pub use bi::ProjectedBiConstraint;
-pub use complemented_grouped::ProjectedComplementedGroupedConstraint;
+pub use bi::Bi;
+pub use complemented_grouped::ComplementedGrouped;
 #[doc(hidden)]
 pub use complemented_grouped::{
-    ProjectedComplementedGroupedNodeState, ProjectedComplementedGroupedTerminalScorer,
-    SharedProjectedComplementedGroupedConstraintSet,
+    ComplementedGroupedNodeState, ComplementedGroupedTerminalScorer, SharedComplementedGroupedSet,
 };
-pub use grouped::ProjectedGroupedConstraint;
+pub use directed_bi::DirectedBi;
+pub use grouped::Grouped;
 #[doc(hidden)]
-pub use grouped::{
-    ProjectedGroupedNodeState, ProjectedGroupedTerminalScorer, SharedProjectedGroupedConstraintSet,
-};
-pub use uni::ProjectedUniConstraint;
+pub use grouped::{GroupedNodeState, GroupedTerminalScorer, SharedGroupedSet};
+pub use uni::Uni;

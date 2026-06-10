@@ -23,7 +23,7 @@ pub(super) struct MatchRow<Retraction> {
     pub(super) b_pos: usize,
 }
 
-pub struct CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
+pub struct GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
 {
@@ -59,7 +59,7 @@ where
     )>,
 }
 
-pub struct CrossGroupedEvaluationState<GK, V, R, Acc>
+pub struct GroupedEvaluationState<GK, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
 {
@@ -68,7 +68,7 @@ where
 }
 
 impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
-    CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
+    GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
     S: Send + Sync + 'static,
     A: Send + Sync + 'static,
@@ -125,7 +125,7 @@ where
         }
     }
 
-    pub fn evaluation_state(&self, solution: &S) -> CrossGroupedEvaluationState<GK, V, R, Acc> {
+    pub fn evaluation_state(&self, solution: &S) -> GroupedEvaluationState<GK, V, R, Acc> {
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
         let b_by_key = self.b_index_for(solution, entities_b);
@@ -149,7 +149,7 @@ where
             }
         }
 
-        CrossGroupedEvaluationState {
+        GroupedEvaluationState {
             groups,
             _phantom: PhantomData,
         }
@@ -346,7 +346,7 @@ where
 }
 
 impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
-    CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
+    GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
     GK: Eq + Hash,

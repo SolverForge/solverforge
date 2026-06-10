@@ -15,4 +15,4 @@ pub use scorer_set::GroupedScorerSet;
 pub use shared_set::SharedGroupedConstraintSet;
 #[doc(hidden)]
 pub use state::{GroupedNodeState, GroupedStateView};
-pub use terminal::GroupedUniConstraint;
+pub use terminal::Uni;

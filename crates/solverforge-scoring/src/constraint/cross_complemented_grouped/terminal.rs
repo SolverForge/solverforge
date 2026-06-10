@@ -11,11 +11,11 @@ use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::ConstraintWeight;
 
-use super::shared_set::SharedCrossComplementedGroupedConstraintSet;
-use super::state::CrossComplementedGroupedNodeState;
+use super::shared_set::SharedComplementedGroupedSet;
+use super::state::ComplementedGroupedNodeState;
 
 type Inner<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc> =
-    SharedCrossComplementedGroupedConstraintSet<
+    SharedComplementedGroupedSet<
         S,
         A,
         B,
@@ -39,7 +39,7 @@ type Inner<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W
         Sc,
     >;
 
-pub struct CrossComplementedGroupedConstraint<
+pub struct ComplementedGrouped<
     S,
     A,
     B,
@@ -71,29 +71,7 @@ pub struct CrossComplementedGroupedConstraint<
 }
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>
-    CrossComplementedGroupedConstraint<
-        S,
-        A,
-        B,
-        T,
-        JK,
-        GK,
-        EA,
-        EB,
-        ET,
-        KA,
-        KB,
-        F,
-        GF,
-        KT,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        W,
-        Sc,
-    >
+    ComplementedGrouped<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Send + Sync + 'static,
@@ -134,7 +112,7 @@ where
         weight_fn: W,
         is_hard: bool,
     ) -> Self {
-        let state = CrossComplementedGroupedNodeState::new(
+        let state = ComplementedGroupedNodeState::new(
             extractor_a,
             extractor_b,
             extractor_t,
@@ -149,7 +127,7 @@ where
         let scorer = GroupedTerminalScorer::new(constraint_ref, impact_type, weight_fn, is_hard);
         Self {
             is_hard,
-            inner: SharedCrossComplementedGroupedConstraintSet::new(state, scorer),
+            inner: SharedComplementedGroupedSet::new(state, scorer),
             _phantom: PhantomData,
         }
     }
@@ -157,7 +135,7 @@ where
     pub fn penalize<W2>(
         self,
         weight: W2,
-    ) -> super::shared_set::CrossComplementedGroupedConstraintSetBuilder<
+    ) -> super::shared_set::ComplementedGroupedSetBuilder<
         S,
         A,
         B,
@@ -190,7 +168,7 @@ where
     pub fn reward<W2>(
         self,
         weight: W2,
-    ) -> super::shared_set::CrossComplementedGroupedConstraintSetBuilder<
+    ) -> super::shared_set::ComplementedGroupedSetBuilder<
         S,
         A,
         B,
@@ -223,7 +201,7 @@ where
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>
     IncrementalConstraint<S, Sc>
-    for CrossComplementedGroupedConstraint<
+    for ComplementedGrouped<
         S,
         A,
         B,

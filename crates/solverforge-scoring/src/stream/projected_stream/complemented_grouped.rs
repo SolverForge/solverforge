@@ -4,31 +4,15 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use crate::constraint::projected::ProjectedComplementedGroupedConstraint;
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
 use crate::stream::weighting_support::ConstraintWeight;
 
-use super::source::ProjectedSource;
+use super::source::Source;
 
-pub struct ProjectedComplementedGroupedConstraintStream<
-    S,
-    Out,
-    B,
-    K,
-    Src,
-    EB,
-    F,
-    KA,
-    KB,
-    C,
-    V,
-    R,
-    Acc,
-    D,
-    Sc,
-> where
+pub struct ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Sc>
+where
     Sc: Score,
 {
     pub(crate) source: Src,
@@ -51,29 +35,13 @@ pub struct ProjectedComplementedGroupedConstraintStream<
 }
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Sc>
-    ProjectedComplementedGroupedConstraintStream<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        Sc,
-    >
+    ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     B: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
     KA: Fn(&Out) -> Option<K> + Send + Sync,
@@ -90,28 +58,11 @@ where
         impact_type: ImpactType,
         weight_fn: W,
         is_hard: bool,
-    ) -> ProjectedComplementedGroupedConstraintBuilder<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        W,
-        Sc,
-    >
+    ) -> ComplementedGroupedBuilder<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
     where
         W: Fn(&K, &R) -> Sc + Send + Sync,
     {
-        ProjectedComplementedGroupedConstraintBuilder {
+        ComplementedGroupedBuilder {
             source: self.source,
             extractor_b: self.extractor_b,
             filter: self.filter,
@@ -129,7 +80,7 @@ where
     pub fn penalize<W>(
         self,
         weight: W,
-    ) -> ProjectedComplementedGroupedConstraintBuilder<
+    ) -> ComplementedGroupedBuilder<
         S,
         Out,
         B,
@@ -161,7 +112,7 @@ where
     pub fn reward<W>(
         self,
         weight: W,
-    ) -> ProjectedComplementedGroupedConstraintBuilder<
+    ) -> ComplementedGroupedBuilder<
         S,
         Out,
         B,
@@ -191,24 +142,8 @@ where
     }
 }
 
-pub struct ProjectedComplementedGroupedConstraintBuilder<
-    S,
-    Out,
-    B,
-    K,
-    Src,
-    EB,
-    F,
-    KA,
-    KB,
-    C,
-    V,
-    R,
-    Acc,
-    D,
-    W,
-    Sc,
-> where
+pub struct ComplementedGroupedBuilder<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
+where
     Sc: Score,
 {
     source: Src,
@@ -234,30 +169,13 @@ pub struct ProjectedComplementedGroupedConstraintBuilder<
 }
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
-    ProjectedComplementedGroupedConstraintBuilder<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        W,
-        Sc,
-    >
+    ComplementedGroupedBuilder<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     B: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
     KA: Fn(&Out) -> Option<K> + Send + Sync,
@@ -273,7 +191,7 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> ProjectedComplementedGroupedConstraint<
+    ) -> crate::constraint::projected::ComplementedGrouped<
         S,
         Out,
         B,
@@ -291,7 +209,7 @@ where
         W,
         Sc,
     > {
-        ProjectedComplementedGroupedConstraint::new(
+        crate::constraint::projected::ComplementedGrouped::new(
             ConstraintRef::new("", name),
             self.impact_type,
             self.source,

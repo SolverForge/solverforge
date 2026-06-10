@@ -1,7 +1,5 @@
 use crate::api::constraint_set::ConstraintSet;
-use crate::constraint::cross_grouped::{
-    CrossGroupedNodeState, CrossGroupedTerminalScorer, SharedCrossGroupedConstraintSet,
-};
+use crate::constraint::cross_grouped::{GroupedNodeState, GroupedTerminalScorer, SharedGroupedSet};
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::sum;
 use solverforge_core::score::SoftScore;
@@ -36,7 +34,7 @@ fn schedule() -> Schedule {
 
 #[test]
 fn shared_cross_grouped_set_updates_one_join_node_for_multiple_terminals() {
-    let state = CrossGroupedNodeState::new(
+    let state = GroupedNodeState::new(
         source(
             (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
             ChangeSource::Descriptor(0),
@@ -56,20 +54,20 @@ fn shared_cross_grouped_set_updates_one_join_node_for_multiple_terminals() {
         sum(|(_shift, _employee): (&Shift, &Employee)| 1i64),
     );
     let scorers = (
-        CrossGroupedTerminalScorer::new(
+        GroupedTerminalScorer::new(
             ConstraintRef::new("", "linear assigned shift count"),
             ImpactType::Penalty,
             |_employee_id: &usize, count: &i64| SoftScore::of(*count),
             false,
         ),
-        CrossGroupedTerminalScorer::new(
+        GroupedTerminalScorer::new(
             ConstraintRef::new("", "squared assigned shift count"),
             ImpactType::Penalty,
             |_employee_id: &usize, count: &i64| SoftScore::of(count * count),
             false,
         ),
     );
-    let mut constraints = SharedCrossGroupedConstraintSet::new(state, scorers);
+    let mut constraints = SharedGroupedSet::new(state, scorers);
     let plan = schedule();
 
     assert_eq!(constraints.evaluate_all(&plan), SoftScore::of(-6));

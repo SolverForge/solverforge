@@ -29,6 +29,11 @@ pub struct AssignmentCapacity {
     pub capacity: i64,
 }
 
+pub struct GroupRow {
+    pub group: usize,
+    pub parent: Option<usize>,
+}
+
 #[planning_solution]
 pub struct Plan {
     #[problem_fact_collection]
@@ -93,6 +98,23 @@ impl Projection<Capacity> for CapacityEntries {
         sink.emit(CapacityEntry {
             bucket: capacity.bucket,
             delta: -capacity.amount,
+        });
+    }
+}
+
+struct GroupRows;
+
+impl Projection<Assignment> for GroupRows {
+    type Out = GroupRow;
+    const MAX_EMITS: usize = 1;
+
+    fn project<Sink>(&self, assignment: &Assignment, sink: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        sink.emit(GroupRow {
+            group: assignment.bucket,
+            parent: (assignment.demand >= 0).then_some(assignment.demand as usize),
         });
     }
 }
@@ -179,6 +201,45 @@ fn cross_join_project_is_public_and_infers_output_type() {
     };
 
     assert_eq!(constraint.evaluate(&plan), HardSoftScore::of(-2, 0));
+}
+
+#[test]
+fn projected_self_join_accepts_directed_distinct_keys() {
+    let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
+        .for_each(Plan::assignments())
+        .project(GroupRows)
+        .join(joiner::equal_bi(
+            |left: &GroupRow| Some(left.group),
+            |right: &GroupRow| right.parent,
+        ))
+        .penalize(|left: &GroupRow, right: &GroupRow| {
+            HardSoftScore::of_hard((left.group * 10 + right.group) as i64)
+        })
+        .named("projected parent child");
+
+    let plan = Plan {
+        capacities: Vec::new(),
+        assignments: vec![
+            Assignment {
+                id: 0,
+                bucket: 1,
+                demand: -1,
+            },
+            Assignment {
+                id: 1,
+                bucket: 2,
+                demand: 1,
+            },
+            Assignment {
+                id: 2,
+                bucket: 3,
+                demand: 1,
+            },
+        ],
+        score: None,
+    };
+
+    assert_eq!(constraint.evaluate(&plan), HardSoftScore::of(-25, 0));
 }
 
 #[test]

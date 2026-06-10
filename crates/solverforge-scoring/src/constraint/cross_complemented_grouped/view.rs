@@ -5,30 +5,10 @@ use crate::constraint::grouped::ComplementedGroupedStateView;
 use crate::stream::collector::Accumulator;
 
 use super::indexes::key_hash;
-use super::state::{CrossComplementedGroupedEvaluationState, CrossComplementedGroupedNodeState};
+use super::state::{ComplementedGroupedEvaluationState, ComplementedGroupedNodeState};
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
-    CrossComplementedGroupedNodeState<
-        S,
-        A,
-        B,
-        T,
-        JK,
-        GK,
-        EA,
-        EB,
-        ET,
-        KA,
-        KB,
-        F,
-        GF,
-        KT,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-    >
+    ComplementedGroupedNodeState<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
 where
     Acc: Accumulator<V, R>,
     GK: Eq + Hash,
@@ -63,7 +43,7 @@ where
 }
 
 impl<GK, V, R, Acc> ComplementedGroupedStateView<GK, R>
-    for CrossComplementedGroupedEvaluationState<GK, V, R, Acc>
+    for ComplementedGroupedEvaluationState<GK, V, R, Acc>
 where
     GK: Eq + Hash,
     Acc: Accumulator<V, R>,
@@ -124,7 +104,7 @@ where
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
     ComplementedGroupedStateView<GK, R>
-    for CrossComplementedGroupedNodeState<
+    for ComplementedGroupedNodeState<
         S,
         A,
         B,

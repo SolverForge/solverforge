@@ -26,7 +26,7 @@ This constraint:
 3. Computes population standard deviation across all group counts
 4. Multiplies the base score by std_dev to produce the final score
 
-The key difference from `GroupedUniConstraint` is that balance computes
+The key difference from `Uni` is that balance computes
 a GLOBAL statistic, not per-group scores.
 
 # Type Parameters

@@ -29,10 +29,10 @@ where
     fn apply(self, mode: ExistenceMode, extractor_a: EA, filter_a: FA) -> Self::Output;
 }
 
-impl<S, A, B, EA, FA, EP, FP, K, KA, KB, Sc> ExistenceTarget<S, A, EA, FA, Sc>
+impl<S, A, B, EA, FA, EP, FP, K, KA, KB, Mode, Sc> ExistenceTarget<S, A, EA, FA, Sc>
     for (
         UniConstraintStream<S, B, EP, FP, Sc>,
-        EqualJoiner<KA, KB, K>,
+        EqualJoiner<KA, KB, K, Mode>,
     )
 where
     S: Send + Sync + 'static,
@@ -65,10 +65,10 @@ where
     }
 }
 
-impl<S, A, P, B, EA, FA, EP, FP, K, KA, KB, Flatten, Sc> ExistenceTarget<S, A, EA, FA, Sc>
+impl<S, A, P, B, EA, FA, EP, FP, K, KA, KB, Mode, Flatten, Sc> ExistenceTarget<S, A, EA, FA, Sc>
     for (
         FlattenedCollectionTarget<S, P, B, EP, FP, Flatten, Sc>,
-        EqualJoiner<KA, KB, K>,
+        EqualJoiner<KA, KB, K, Mode>,
     )
 where
     S: Send + Sync + 'static,

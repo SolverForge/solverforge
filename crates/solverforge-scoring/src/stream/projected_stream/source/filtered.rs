@@ -3,15 +3,15 @@ use std::marker::PhantomData;
 use crate::stream::collection_extract::ChangeSource;
 use crate::stream::filter::UniFilter;
 
-use super::{ProjectedRowCoordinate, ProjectedSource};
+use super::{RowCoordinate, Source};
 
-pub struct FilteredProjectedSource<S, Out, Src, F> {
+pub struct FilteredSource<S, Out, Src, F> {
     source: Src,
     filter: F,
     _phantom: PhantomData<(fn() -> S, fn() -> Out)>,
 }
 
-impl<S, Out, Src, F> FilteredProjectedSource<S, Out, Src, F> {
+impl<S, Out, Src, F> FilteredSource<S, Out, Src, F> {
     pub(crate) fn new(source: Src, filter: F) -> Self {
         Self {
             source,
@@ -21,11 +21,11 @@ impl<S, Out, Src, F> FilteredProjectedSource<S, Out, Src, F> {
     }
 }
 
-impl<S, Out, Src, F> ProjectedSource<S, Out> for FilteredProjectedSource<S, Out, Src, F>
+impl<S, Out, Src, F> Source<S, Out> for FilteredSource<S, Out, Src, F>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
 {
     type State = Src::State;
@@ -46,7 +46,7 @@ where
 
     fn collect_all<V>(&self, solution: &S, state: &Self::State, mut visit: V)
     where
-        V: FnMut(ProjectedRowCoordinate, Out),
+        V: FnMut(RowCoordinate, Out),
     {
         self.source
             .collect_all(solution, state, |coordinate, output| {
@@ -64,7 +64,7 @@ where
         entity_index: usize,
         mut visit: V,
     ) where
-        V: FnMut(ProjectedRowCoordinate, Out),
+        V: FnMut(RowCoordinate, Out),
     {
         self.source
             .collect_entity(solution, state, slot, entity_index, |coordinate, output| {

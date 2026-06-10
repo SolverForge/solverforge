@@ -10,12 +10,12 @@ use crate::constraint::grouped::{ComplementedGroupedScorerSet, GroupedTerminalSc
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
+use crate::stream::projected::Source;
 use crate::stream::ConstraintWeight;
-use crate::stream::ProjectedSource;
 
-use super::state::ProjectedComplementedGroupedNodeState;
+use super::state::ComplementedGroupedNodeState;
 
-pub struct SharedProjectedComplementedGroupedConstraintSet<
+pub struct SharedComplementedGroupedSet<
     S,
     Out,
     B,
@@ -33,17 +33,17 @@ pub struct SharedProjectedComplementedGroupedConstraintSet<
     Scorers,
     Sc,
 > where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    state: ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>,
+    state: ComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>,
     scorers: Scorers,
     cached_score: Sc,
     _phantom: PhantomData<fn() -> Sc>,
 }
 
-pub struct ProjectedComplementedGroupedConstraintSetBuilder<
+pub struct ComplementedGroupedSetBuilder<
     S,
     Out,
     B,
@@ -62,11 +62,11 @@ pub struct ProjectedComplementedGroupedConstraintSetBuilder<
     W,
     Sc,
 > where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    state: ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>,
+    state: ComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>,
     scorers: Scorers,
     cached_score: Sc,
     impact_type: ImpactType,
@@ -76,30 +76,13 @@ pub struct ProjectedComplementedGroupedConstraintSetBuilder<
 }
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, Sc>
-    SharedProjectedComplementedGroupedConstraintSet<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        Scorers,
-        Sc,
-    >
+    SharedComplementedGroupedSet<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     B: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
     KA: Fn(&Out) -> Option<K> + Send + Sync,
@@ -113,22 +96,7 @@ where
     Sc: Score + 'static,
 {
     pub fn new(
-        state: ProjectedComplementedGroupedNodeState<
-            S,
-            Out,
-            B,
-            K,
-            Src,
-            EB,
-            F,
-            KA,
-            KB,
-            C,
-            V,
-            R,
-            Acc,
-            D,
-        >,
+        state: ComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>,
         scorers: Scorers,
     ) -> Self {
         Self {
@@ -141,8 +109,7 @@ where
 
     pub fn state(
         &self,
-    ) -> &ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
-    {
+    ) -> &ComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D> {
         &self.state
     }
 
@@ -155,7 +122,7 @@ where
         impact_type: ImpactType,
         weight_fn: W,
         is_hard: bool,
-    ) -> ProjectedComplementedGroupedConstraintSetBuilder<
+    ) -> ComplementedGroupedSetBuilder<
         S,
         Out,
         B,
@@ -177,7 +144,7 @@ where
     where
         W: Fn(&K, &R) -> Sc + Send + Sync,
     {
-        ProjectedComplementedGroupedConstraintSetBuilder {
+        ComplementedGroupedSetBuilder {
             state: self.state,
             scorers: self.scorers,
             cached_score: self.cached_score,
@@ -191,7 +158,7 @@ where
     pub fn penalize<W>(
         self,
         weight: W,
-    ) -> ProjectedComplementedGroupedConstraintSetBuilder<
+    ) -> ComplementedGroupedSetBuilder<
         S,
         Out,
         B,
@@ -224,7 +191,7 @@ where
     pub fn reward<W>(
         self,
         weight: W,
-    ) -> ProjectedComplementedGroupedConstraintSetBuilder<
+    ) -> ComplementedGroupedSetBuilder<
         S,
         Out,
         B,
@@ -256,31 +223,13 @@ where
 }
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, W, Sc>
-    ProjectedComplementedGroupedConstraintSetBuilder<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        Scorers,
-        W,
-        Sc,
-    >
+    ComplementedGroupedSetBuilder<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     B: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
     KA: Fn(&Out) -> Option<K> + Send + Sync,
@@ -297,7 +246,7 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> SharedProjectedComplementedGroupedConstraintSet<
+    ) -> SharedComplementedGroupedSet<
         S,
         Out,
         B,
@@ -321,7 +270,7 @@ where
             self.weight_fn,
             self.is_hard,
         );
-        SharedProjectedComplementedGroupedConstraintSet {
+        SharedComplementedGroupedSet {
             state: self.state,
             scorers: (self.scorers, scorer),
             cached_score: self.cached_score,
@@ -331,30 +280,13 @@ where
 }
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, Sc> ConstraintSet<S, Sc>
-    for SharedProjectedComplementedGroupedConstraintSet<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        Scorers,
-        Sc,
-    >
+    for SharedComplementedGroupedSet<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     B: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
     KA: Fn(&Out) -> Option<K> + Send + Sync,
@@ -416,26 +348,9 @@ where
 }
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, Sc>
-    SharedProjectedComplementedGroupedConstraintSet<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        Scorers,
-        Sc,
-    >
+    SharedComplementedGroupedSet<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Scorers, Sc>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
     Scorers: ComplementedGroupedScorerSet<K, R, Sc>,
     K: Eq + Hash,

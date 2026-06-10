@@ -3,17 +3,15 @@ use std::hash::Hash;
 
 use crate::constraint::grouped::ComplementedGroupedStateView;
 use crate::stream::collector::Accumulator;
-use crate::stream::ProjectedSource;
+use crate::stream::projected::Source;
 
 use super::indexes::key_hash;
-use super::state::{
-    ProjectedComplementedGroupedEvaluationState, ProjectedComplementedGroupedNodeState,
-};
+use super::state::{ComplementedGroupedEvaluationState, ComplementedGroupedNodeState};
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
-    ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
+    ComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
     K: Eq + Hash,
 {
@@ -47,7 +45,7 @@ where
 }
 
 impl<K, V, R, Acc> ComplementedGroupedStateView<K, R>
-    for ProjectedComplementedGroupedEvaluationState<K, V, R, Acc>
+    for ComplementedGroupedEvaluationState<K, V, R, Acc>
 where
     K: Eq + Hash,
     Acc: Accumulator<V, R>,
@@ -107,9 +105,9 @@ where
 }
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D> ComplementedGroupedStateView<K, R>
-    for ProjectedComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
+    for ComplementedGroupedNodeState<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     K: Eq + Hash,
     Acc: Accumulator<V, R>,
 {

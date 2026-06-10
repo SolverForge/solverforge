@@ -13,7 +13,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use super::collection_extract::CollectionExtract;
 use super::collector::{Accumulator, Collector};
 use super::weighting_support::ConstraintWeight;
-use crate::constraint::complemented::ComplementedGroupConstraint;
+use crate::constraint::complemented::Grouped;
 
 /* Zero-erasure constraint stream with complemented groups.
 
@@ -282,11 +282,8 @@ where
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    pub fn named(
-        self,
-        name: &str,
-    ) -> ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc> {
-        ComplementedGroupConstraint::new(
+    pub fn named(self, name: &str) -> Grouped<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc> {
+        Grouped::new(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor_a,
@@ -300,7 +297,7 @@ where
         )
     }
 
-    // Finalizes the builder into a `ComplementedGroupConstraint`.
+    // Finalizes the builder into a `Grouped`.
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc: Score> std::fmt::Debug

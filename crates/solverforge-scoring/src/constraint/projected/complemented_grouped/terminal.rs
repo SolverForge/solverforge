@@ -10,33 +10,13 @@ use crate::constraint::grouped::GroupedTerminalScorer;
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
+use crate::stream::projected::Source;
 use crate::stream::ConstraintWeight;
-use crate::stream::ProjectedSource;
 
-use super::shared_set::SharedProjectedComplementedGroupedConstraintSet;
-use super::state::ProjectedComplementedGroupedNodeState;
+use super::shared_set::SharedComplementedGroupedSet;
+use super::state::ComplementedGroupedNodeState;
 
-type Inner<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc> =
-    SharedProjectedComplementedGroupedConstraintSet<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        GroupedTerminalScorer<K, R, W, Sc>,
-        Sc,
-    >;
-
-pub struct ProjectedComplementedGroupedConstraint<
+type Inner<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc> = SharedComplementedGroupedSet<
     S,
     Out,
     B,
@@ -51,10 +31,13 @@ pub struct ProjectedComplementedGroupedConstraint<
     R,
     Acc,
     D,
-    W,
+    GroupedTerminalScorer<K, R, W, Sc>,
     Sc,
-> where
-    Src: ProjectedSource<S, Out>,
+>;
+
+pub struct ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
+where
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
@@ -64,13 +47,13 @@ pub struct ProjectedComplementedGroupedConstraint<
 }
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
-    ProjectedComplementedGroupedConstraint<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
+    ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     B: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
     KA: Fn(&Out) -> Option<K> + Send + Sync,
@@ -97,7 +80,7 @@ where
         weight_fn: W,
         is_hard: bool,
     ) -> Self {
-        let state = ProjectedComplementedGroupedNodeState::new(
+        let state = ComplementedGroupedNodeState::new(
             source,
             extractor_b,
             filter,
@@ -109,7 +92,7 @@ where
         let scorer = GroupedTerminalScorer::new(constraint_ref, impact_type, weight_fn, is_hard);
         Self {
             is_hard,
-            inner: SharedProjectedComplementedGroupedConstraintSet::new(state, scorer),
+            inner: SharedComplementedGroupedSet::new(state, scorer),
             _phantom: PhantomData,
         }
     }
@@ -117,7 +100,7 @@ where
     pub fn penalize<W2>(
         self,
         weight: W2,
-    ) -> super::shared_set::ProjectedComplementedGroupedConstraintSetBuilder<
+    ) -> super::shared_set::ComplementedGroupedSetBuilder<
         S,
         Out,
         B,
@@ -145,7 +128,7 @@ where
     pub fn reward<W2>(
         self,
         weight: W2,
-    ) -> super::shared_set::ProjectedComplementedGroupedConstraintSetBuilder<
+    ) -> super::shared_set::ComplementedGroupedSetBuilder<
         S,
         Out,
         B,
@@ -172,30 +155,13 @@ where
 }
 
 impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc> IncrementalConstraint<S, Sc>
-    for ProjectedComplementedGroupedConstraint<
-        S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        W,
-        Sc,
-    >
+    for ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     B: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     EB: CollectionExtract<S, Item = B>,
     F: UniFilter<S, Out>,
     KA: Fn(&Out) -> Option<K> + Send + Sync,

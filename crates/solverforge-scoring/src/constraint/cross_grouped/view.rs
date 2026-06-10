@@ -4,9 +4,9 @@ use crate::constraint::grouped::GroupedStateView;
 use crate::stream::collector::Accumulator;
 
 use super::indexes::key_hash;
-use super::state::{CrossGroupedEvaluationState, CrossGroupedNodeState};
+use super::state::{GroupedEvaluationState, GroupedNodeState};
 
-impl<GK, V, R, Acc> GroupedStateView<GK, R> for CrossGroupedEvaluationState<GK, V, R, Acc>
+impl<GK, V, R, Acc> GroupedStateView<GK, R> for GroupedEvaluationState<GK, V, R, Acc>
 where
     GK: Eq + Hash,
     Acc: Accumulator<V, R>,
@@ -58,7 +58,7 @@ where
 }
 
 impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc> GroupedStateView<GK, R>
-    for CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
+    for GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
     GK: Eq + Hash,
     Acc: Accumulator<V, R>,

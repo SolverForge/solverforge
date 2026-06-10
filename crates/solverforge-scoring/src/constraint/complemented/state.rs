@@ -47,7 +47,7 @@ when they don't have a valid key (e.g., unassigned shifts).
 # Example
 
 ```
-use solverforge_scoring::constraint::complemented::ComplementedGroupConstraint;
+use solverforge_scoring::constraint::complemented::Grouped;
 use solverforge_scoring::stream::collector::count;
 use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 use solverforge_core::{ConstraintRef, ImpactType};
@@ -65,7 +65,7 @@ employees: Vec<Employee>,
 shifts: Vec<Shift>,
 }
 
-let constraint = ComplementedGroupConstraint::new(
+let constraint = Grouped::new(
 ConstraintRef::new("", "Shift count"),
 ImpactType::Penalty,
 |s: &Schedule| s.shifts.as_slice(),
@@ -92,7 +92,7 @@ Shift { employee_id: None },  // Skipped - no key
 assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
 ```
 */
-pub struct ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+pub struct Grouped<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     Acc: Accumulator<V, R>,
     Sc: Score,
@@ -131,7 +131,7 @@ where
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
-    ComplementedGroupConstraint<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
+    Grouped<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     S: 'static,
     A: Clone + 'static,

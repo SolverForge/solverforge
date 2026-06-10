@@ -7,10 +7,10 @@ use crate::stream::collection_extract::CollectionExtract;
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
-use super::{CrossBiWeight, IncrementalCrossBiConstraint};
+use super::{Bi, CrossBiWeight};
 
 impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> IncrementalConstraint<S, Sc>
-    for IncrementalCrossBiConstraint<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+    for Bi<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Debug + Send + Sync + 'static,

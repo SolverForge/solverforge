@@ -11,31 +11,30 @@ use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::ConstraintWeight;
 
-use super::shared_set::SharedCrossGroupedConstraintSet;
-use super::state::CrossGroupedNodeState;
+use super::shared_set::SharedGroupedSet;
+use super::state::GroupedNodeState;
 
-type Inner<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc> =
-    SharedCrossGroupedConstraintSet<
-        S,
-        A,
-        B,
-        JK,
-        GK,
-        EA,
-        EB,
-        KA,
-        KB,
-        F,
-        GF,
-        C,
-        V,
-        R,
-        Acc,
-        GroupedTerminalScorer<GK, R, W, Sc>,
-        Sc,
-    >;
+type Inner<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc> = SharedGroupedSet<
+    S,
+    A,
+    B,
+    JK,
+    GK,
+    EA,
+    EB,
+    KA,
+    KB,
+    F,
+    GF,
+    C,
+    V,
+    R,
+    Acc,
+    GroupedTerminalScorer<GK, R, W, Sc>,
+    Sc,
+>;
 
-pub struct CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
+pub struct Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
 where
     Acc: Accumulator<V, R>,
     Sc: Score,
@@ -46,7 +45,7 @@ where
 }
 
 impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
-    CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
+    Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Send + Sync + 'static,
@@ -80,7 +79,7 @@ where
         weight_fn: W,
         is_hard: bool,
     ) -> Self {
-        let state = CrossGroupedNodeState::new(
+        let state = GroupedNodeState::new(
             extractor_a,
             extractor_b,
             key_a,
@@ -92,7 +91,7 @@ where
         let scorer = GroupedTerminalScorer::new(constraint_ref, impact_type, weight_fn, is_hard);
         Self {
             is_hard,
-            inner: SharedCrossGroupedConstraintSet::new(state, scorer),
+            inner: SharedGroupedSet::new(state, scorer),
             _phantom: PhantomData,
         }
     }
@@ -100,7 +99,7 @@ where
     pub fn penalize<W2>(
         self,
         weight: W2,
-    ) -> super::shared_set::CrossGroupedConstraintSetBuilder<
+    ) -> super::shared_set::GroupedSetBuilder<
         S,
         A,
         B,
@@ -129,7 +128,7 @@ where
     pub fn reward<W2>(
         self,
         weight: W2,
-    ) -> super::shared_set::CrossGroupedConstraintSetBuilder<
+    ) -> super::shared_set::GroupedSetBuilder<
         S,
         A,
         B,
@@ -157,7 +156,7 @@ where
 }
 
 impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc> IncrementalConstraint<S, Sc>
-    for CrossGroupedConstraint<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
+    for Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Send + Sync + 'static,

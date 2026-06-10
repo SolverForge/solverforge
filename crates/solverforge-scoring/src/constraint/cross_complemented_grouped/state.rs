@@ -23,7 +23,7 @@ pub(super) struct MatchRow<Retraction> {
     pub(super) b_pos: usize,
 }
 
-pub struct CrossComplementedGroupedNodeState<
+pub struct ComplementedGroupedNodeState<
     S,
     A,
     B,
@@ -87,7 +87,7 @@ pub struct CrossComplementedGroupedNodeState<
     )>,
 }
 
-pub struct CrossComplementedGroupedEvaluationState<GK, V, R, Acc>
+pub struct ComplementedGroupedEvaluationState<GK, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
 {
@@ -97,27 +97,7 @@ where
 }
 
 impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
-    CrossComplementedGroupedNodeState<
-        S,
-        A,
-        B,
-        T,
-        JK,
-        GK,
-        EA,
-        EB,
-        ET,
-        KA,
-        KB,
-        F,
-        GF,
-        KT,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-    >
+    ComplementedGroupedNodeState<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
 where
     S: Send + Sync + 'static,
     A: Send + Sync + 'static,
@@ -193,7 +173,7 @@ where
     pub fn evaluation_state(
         &self,
         solution: &S,
-    ) -> CrossComplementedGroupedEvaluationState<GK, V, R, Acc> {
+    ) -> ComplementedGroupedEvaluationState<GK, V, R, Acc> {
         let entities_a = self.extractor_a.extract(solution);
         let entities_b = self.extractor_b.extract(solution);
         let entities_t = self.extractor_t.extract(solution);
@@ -225,7 +205,7 @@ where
             }
         }
 
-        CrossComplementedGroupedEvaluationState {
+        ComplementedGroupedEvaluationState {
             groups,
             targets,
             _phantom: PhantomData,

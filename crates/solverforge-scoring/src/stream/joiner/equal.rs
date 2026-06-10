@@ -4,6 +4,12 @@ use std::marker::PhantomData;
 
 use super::Joiner;
 
+// Marker for same-source joins where each unordered pair is considered once.
+pub struct Symmetric;
+
+// Marker for left/right joins where pair orientation is part of the semantics.
+pub struct Directed;
+
 /* Creates a joiner that matches when a property is equal on both sides.
 
 This is the primary joiner for self-joins where you're matching
@@ -28,7 +34,7 @@ assert!(same_employee.matches(&a, &b));
 assert!(!same_employee.matches(&a, &c));
 ```
 */
-pub fn equal<A, T, F>(key: F) -> EqualJoiner<F, F, T>
+pub fn equal<A, T, F>(key: F) -> EqualJoiner<F, F, T, Symmetric>
 where
     T: PartialEq,
     F: Fn(&A) -> T + Clone + Send + Sync,
@@ -68,7 +74,7 @@ assert!(by_id.matches(&emp, &task1));
 assert!(!by_id.matches(&emp, &task2));
 ```
 */
-pub fn equal_bi<A, B, T, Fa, Fb>(left: Fa, right: Fb) -> EqualJoiner<Fa, Fb, T>
+pub fn equal_bi<A, B, T, Fa, Fb>(left: Fa, right: Fb) -> EqualJoiner<Fa, Fb, T, Directed>
 where
     T: PartialEq,
     Fa: Fn(&A) -> T + Send + Sync,
@@ -85,13 +91,13 @@ where
 
 Created by the [`equal()`] or [`equal_bi()`] functions.
 */
-pub struct EqualJoiner<Fa, Fb, T> {
+pub struct EqualJoiner<Fa, Fb, T, Mode = Directed> {
     left: Fa,
     right: Fb,
-    _phantom: PhantomData<fn() -> T>,
+    _phantom: PhantomData<(fn() -> T, fn() -> Mode)>,
 }
 
-impl<Fa, Fb, T> EqualJoiner<Fa, Fb, T> {
+impl<Fa, Fb, T, Mode> EqualJoiner<Fa, Fb, T, Mode> {
     // Extracts the join key from an A entity.
     #[inline]
     pub fn key_a<A>(&self, a: &A) -> T
@@ -127,7 +133,7 @@ impl<Fa, Fb, T> EqualJoiner<Fa, Fb, T> {
     }
 }
 
-impl<A, B, T, Fa, Fb> Joiner<A, B> for EqualJoiner<Fa, Fb, T>
+impl<A, B, T, Fa, Fb, Mode> Joiner<A, B> for EqualJoiner<Fa, Fb, T, Mode>
 where
     T: PartialEq,
     Fa: Fn(&A) -> T + Send + Sync,

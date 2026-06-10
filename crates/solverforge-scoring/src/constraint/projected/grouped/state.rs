@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use crate::constraint::grouped::GroupedStateView;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
-use crate::stream::{ProjectedRowCoordinate, ProjectedRowOwner, ProjectedSource};
+use crate::stream::projected::{RowCoordinate, RowOwner, Source};
 
 struct GroupState<K, Acc> {
     key: K,
@@ -15,9 +15,9 @@ struct GroupState<K, Acc> {
 
 type CollectorRetraction<Acc, V, R> = <Acc as Accumulator<V, R>>::Retraction;
 
-pub struct ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>
+pub struct GroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
 {
     source: Src,
@@ -27,16 +27,16 @@ where
     source_state: Option<Src::State>,
     groups: Vec<GroupState<K, Acc>>,
     groups_by_hash: HashMap<u64, Vec<usize>>,
-    row_groups: HashMap<ProjectedRowCoordinate, usize>,
-    row_retractions: HashMap<ProjectedRowCoordinate, CollectorRetraction<Acc, V, R>>,
-    rows_by_owner: HashMap<ProjectedRowOwner, Vec<ProjectedRowCoordinate>>,
+    row_groups: HashMap<RowCoordinate, usize>,
+    row_retractions: HashMap<RowCoordinate, CollectorRetraction<Acc, V, R>>,
+    rows_by_owner: HashMap<RowOwner, Vec<RowCoordinate>>,
     changed_groups: Vec<usize>,
     update_count: usize,
     changed_key_count: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> V, fn() -> R, fn() -> Acc)>,
 }
 
-pub struct ProjectedGroupedEvaluationState<K, V, R, Acc>
+pub struct GroupedEvaluationState<K, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
 {
@@ -44,13 +44,12 @@ where
     _phantom: PhantomData<(fn() -> V, fn() -> R)>,
 }
 
-impl<S, Out, K, Src, F, KF, C, V, R, Acc>
-    ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>
+impl<S, Out, K, Src, F, KF, C, V, R, Acc> GroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
@@ -77,7 +76,7 @@ where
         }
     }
 
-    pub fn evaluation_state(&self, solution: &S) -> ProjectedGroupedEvaluationState<K, V, R, Acc> {
+    pub fn evaluation_state(&self, solution: &S) -> GroupedEvaluationState<K, V, R, Acc> {
         let state = self.source.build_state(solution);
         let mut groups = HashMap::<K, Acc>::new();
         self.source.collect_all(solution, &state, |_, output| {
@@ -91,7 +90,7 @@ where
                 .or_insert_with(|| self.collector.create_accumulator())
                 .accumulate(value);
         });
-        ProjectedGroupedEvaluationState {
+        GroupedEvaluationState {
             groups,
             _phantom: PhantomData,
         }
@@ -223,7 +222,7 @@ where
         self.mark_changed(group_id);
     }
 
-    fn insert_row(&mut self, solution: &S, coordinate: ProjectedRowCoordinate, output: Out) {
+    fn insert_row(&mut self, solution: &S, coordinate: RowCoordinate, output: Out) {
         if self.row_groups.contains_key(&coordinate) || !self.filter.test(solution, &output) {
             return;
         }
@@ -235,7 +234,7 @@ where
         self.index_coordinate(coordinate);
     }
 
-    fn retract_row(&mut self, coordinate: ProjectedRowCoordinate) {
+    fn retract_row(&mut self, coordinate: RowCoordinate) {
         let Some(group_id) = self.row_groups.remove(&coordinate) else {
             return;
         };
@@ -246,7 +245,7 @@ where
         self.retract_value(group_id, retraction);
     }
 
-    fn index_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
+    fn index_coordinate(&mut self, coordinate: RowCoordinate) {
         coordinate.for_each_owner(|owner| {
             self.rows_by_owner
                 .entry(owner)
@@ -255,7 +254,7 @@ where
         });
     }
 
-    fn unindex_coordinate(&mut self, coordinate: ProjectedRowCoordinate) {
+    fn unindex_coordinate(&mut self, coordinate: RowCoordinate) {
         coordinate.for_each_owner(|owner| {
             let mut remove_bucket = false;
             if let Some(rows) = self.rows_by_owner.get_mut(&owner) {
@@ -268,11 +267,7 @@ where
         });
     }
 
-    fn localized_owners(
-        &self,
-        descriptor_index: usize,
-        entity_index: usize,
-    ) -> Vec<ProjectedRowOwner> {
+    fn localized_owners(&self, descriptor_index: usize, entity_index: usize) -> Vec<RowOwner> {
         let mut owners = Vec::new();
         for slot in 0..self.source.source_count() {
             if self
@@ -280,7 +275,7 @@ where
                 .change_source(slot)
                 .assert_localizes(descriptor_index, "sharedProjectedGroupedNode")
             {
-                owners.push(ProjectedRowOwner {
+                owners.push(RowOwner {
                     source_slot: slot,
                     entity_index,
                 });
@@ -289,7 +284,7 @@ where
         owners
     }
 
-    fn coordinates_for_owners(&self, owners: &[ProjectedRowOwner]) -> Vec<ProjectedRowCoordinate> {
+    fn coordinates_for_owners(&self, owners: &[RowOwner]) -> Vec<RowCoordinate> {
         let mut seen = HashSet::new();
         let mut coordinates = Vec::new();
         for owner in owners {
@@ -321,10 +316,9 @@ where
     }
 }
 
-impl<S, Out, K, Src, F, KF, C, V, R, Acc>
-    ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>
+impl<S, Out, K, Src, F, KF, C, V, R, Acc> GroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
     K: Eq + Hash,
 {
@@ -337,7 +331,7 @@ where
     }
 }
 
-impl<K, V, R, Acc> GroupedStateView<K, R> for ProjectedGroupedEvaluationState<K, V, R, Acc>
+impl<K, V, R, Acc> GroupedStateView<K, R> for GroupedEvaluationState<K, V, R, Acc>
 where
     K: Eq + Hash,
     Acc: Accumulator<V, R>,
@@ -389,10 +383,10 @@ where
 }
 
 impl<S, Out, K, Src, F, KF, C, V, R, Acc> GroupedStateView<K, R>
-    for ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>
+    for GroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>
 where
     K: Eq + Hash,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
 {
     fn for_each_group_result<Visit>(&self, mut visit: Visit)

@@ -1,5 +1,27 @@
 use super::support::*;
 
+struct HierarchyRow {
+    group: usize,
+    parent: Option<usize>,
+}
+
+struct HierarchyProjection;
+
+impl Projection<Work> for HierarchyProjection {
+    type Out = HierarchyRow;
+    const MAX_EMITS: usize = 1;
+
+    fn project<Sink>(&self, work: &Work, out: &mut Sink)
+    where
+        Sink: ProjectionSink<Self::Out>,
+    {
+        out.emit(HierarchyRow {
+            group: work.bucket,
+            parent: (work.demand >= 0).then_some(work.demand as usize),
+        });
+    }
+}
+
 #[test]
 fn projected_allows_zero_and_multiple_outputs() {
     let constraint = ConstraintFactory::<Plan, SoftScore>::new()
@@ -131,6 +153,143 @@ fn projected_rows_can_self_join_by_key() {
 }
 
 #[test]
+fn projected_rows_can_self_join_by_directed_distinct_keys() {
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(HierarchyProjection)
+        .join(crate::stream::joiner::equal_bi(
+            |left: &HierarchyRow| Some(left.group),
+            |right: &HierarchyRow| right.parent,
+        ))
+        .penalize(|left: &HierarchyRow, right: &HierarchyRow| {
+            SoftScore::of((left.group * 10 + right.group) as i64)
+        })
+        .named("projected parent child");
+
+    let plan = Plan {
+        work: vec![
+            Work {
+                bucket: 1,
+                demand: -1,
+                enabled: true,
+            },
+            Work {
+                bucket: 2,
+                demand: 1,
+                enabled: true,
+            },
+            Work {
+                bucket: 3,
+                demand: 1,
+                enabled: true,
+            },
+            Work {
+                bucket: 4,
+                demand: 4,
+                enabled: true,
+            },
+        ],
+        capacity: Vec::new(),
+    };
+
+    let total = constraint.initialize(&plan);
+
+    assert_eq!(constraint.match_count(&plan), 2);
+    assert_eq!(total, SoftScore::of(-25));
+    assert_eq!(total, constraint.evaluate(&plan));
+}
+
+#[test]
+fn projected_directed_self_join_counts_both_orientations_when_both_match() {
+    let constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(HierarchyProjection)
+        .join(crate::stream::joiner::equal_bi(
+            |left: &HierarchyRow| Some(left.group),
+            |right: &HierarchyRow| right.parent,
+        ))
+        .penalize(|left: &HierarchyRow, right: &HierarchyRow| {
+            SoftScore::of((left.group * 10 + right.group) as i64)
+        })
+        .named("projected reciprocal parent child");
+
+    let plan = Plan {
+        work: vec![
+            Work {
+                bucket: 1,
+                demand: 2,
+                enabled: true,
+            },
+            Work {
+                bucket: 2,
+                demand: 1,
+                enabled: true,
+            },
+        ],
+        capacity: Vec::new(),
+    };
+
+    assert_eq!(constraint.match_count(&plan), 2);
+    assert_eq!(constraint.evaluate(&plan), SoftScore::of(-33));
+}
+
+#[test]
+fn projected_directed_self_join_updates_incrementally() {
+    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
+        .for_each(source(
+            work as fn(&Plan) -> &[Work],
+            ChangeSource::Descriptor(0),
+        ))
+        .project(HierarchyProjection)
+        .join(crate::stream::joiner::equal_bi(
+            |left: &HierarchyRow| Some(left.group),
+            |right: &HierarchyRow| right.parent,
+        ))
+        .penalize(|left: &HierarchyRow, right: &HierarchyRow| {
+            SoftScore::of((left.group * 10 + right.group) as i64)
+        })
+        .named("projected updated parent child");
+
+    let mut plan = Plan {
+        work: vec![
+            Work {
+                bucket: 1,
+                demand: -1,
+                enabled: true,
+            },
+            Work {
+                bucket: 2,
+                demand: 1,
+                enabled: true,
+            },
+            Work {
+                bucket: 3,
+                demand: 4,
+                enabled: true,
+            },
+        ],
+        capacity: Vec::new(),
+    };
+
+    let mut total = constraint.initialize(&plan);
+    assert_eq!(total, SoftScore::of(-12));
+
+    total = total + constraint.on_retract(&plan, 2, 0);
+    plan.work[2].demand = 1;
+    total = total + constraint.on_insert(&plan, 2, 0);
+
+    assert_eq!(constraint.match_count(&plan), 2);
+    assert_eq!(total, SoftScore::of(-25));
+    assert_eq!(total, constraint.evaluate(&plan));
+}
+
+#[test]
 fn projected_self_join_reuses_row_slots_after_repeated_updates() {
     let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(source(
@@ -225,7 +384,7 @@ fn projected_self_join_pair_filter_uses_stable_owner_indexes_after_slot_reuse() 
             ChangeSource::Descriptor(0),
         ))
         .project(WorkEntryProjection);
-    let mut constraint = ProjectedBiConstraintStream {
+    let mut constraint = Bi {
         source: projected.source,
         filter: projected.filter,
         key_fn: |entry: &Entry| entry.bucket,

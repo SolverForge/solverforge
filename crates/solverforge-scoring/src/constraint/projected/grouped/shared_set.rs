@@ -9,30 +9,30 @@ use crate::api::constraint_set::{ConstraintMetadata, ConstraintResult, Constrain
 use crate::constraint::grouped::{GroupedScorerSet, GroupedTerminalScorer};
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
+use crate::stream::projected::Source;
 use crate::stream::ConstraintWeight;
-use crate::stream::ProjectedSource;
 
-use super::state::ProjectedGroupedNodeState;
+use super::state::GroupedNodeState;
 
-pub struct SharedProjectedGroupedConstraintSet<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
+pub struct SharedGroupedSet<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    state: ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>,
+    state: GroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>,
     scorers: Scorers,
     cached_score: Sc,
     _phantom: PhantomData<fn() -> Sc>,
 }
 
-pub struct ProjectedGroupedConstraintSetBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, W, Sc>
+pub struct GroupedSetBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, W, Sc>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
-    state: ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>,
+    state: GroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>,
     scorers: Scorers,
     cached_score: Sc,
     impact_type: ImpactType,
@@ -42,12 +42,12 @@ where
 }
 
 impl<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
-    SharedProjectedGroupedConstraintSet<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
+    SharedGroupedSet<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
@@ -58,7 +58,7 @@ where
     Sc: Score + 'static,
 {
     pub fn new(
-        state: ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>,
+        state: GroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc>,
         scorers: Scorers,
     ) -> Self {
         Self {
@@ -69,7 +69,7 @@ where
         }
     }
 
-    pub fn state(&self) -> &ProjectedGroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc> {
+    pub fn state(&self) -> &GroupedNodeState<S, Out, K, Src, F, KF, C, V, R, Acc> {
         &self.state
     }
 
@@ -78,11 +78,11 @@ where
         impact_type: ImpactType,
         weight_fn: W,
         is_hard: bool,
-    ) -> ProjectedGroupedConstraintSetBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, W, Sc>
+    ) -> GroupedSetBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, W, Sc>
     where
         W: Fn(&K, &R) -> Sc + Send + Sync,
     {
-        ProjectedGroupedConstraintSetBuilder {
+        GroupedSetBuilder {
             state: self.state,
             scorers: self.scorers,
             cached_score: self.cached_score,
@@ -96,7 +96,7 @@ where
     pub fn penalize<W>(
         self,
         weight: W,
-    ) -> ProjectedGroupedConstraintSetBuilder<
+    ) -> GroupedSetBuilder<
         S,
         Out,
         K,
@@ -125,7 +125,7 @@ where
     pub fn reward<W>(
         self,
         weight: W,
-    ) -> ProjectedGroupedConstraintSetBuilder<
+    ) -> GroupedSetBuilder<
         S,
         Out,
         K,
@@ -153,12 +153,12 @@ where
 }
 
 impl<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, W, Sc>
-    ProjectedGroupedConstraintSetBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, W, Sc>
+    GroupedSetBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
@@ -172,7 +172,7 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> SharedProjectedGroupedConstraintSet<
+    ) -> SharedGroupedSet<
         S,
         Out,
         K,
@@ -192,7 +192,7 @@ where
             self.weight_fn,
             self.is_hard,
         );
-        SharedProjectedGroupedConstraintSet {
+        SharedGroupedSet {
             state: self.state,
             scorers: (self.scorers, scorer),
             cached_score: self.cached_score,
@@ -202,12 +202,12 @@ where
 }
 
 impl<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc> ConstraintSet<S, Sc>
-    for SharedProjectedGroupedConstraintSet<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
+    for SharedGroupedSet<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     K: Eq + Hash + Send + Sync + 'static,
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
@@ -266,9 +266,9 @@ where
 }
 
 impl<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
-    SharedProjectedGroupedConstraintSet<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
+    SharedGroupedSet<S, Out, K, Src, F, KF, C, V, R, Acc, Scorers, Sc>
 where
-    Src: ProjectedSource<S, Out>,
+    Src: Source<S, Out>,
     Acc: Accumulator<V, R>,
     Scorers: GroupedScorerSet<K, R, Sc>,
     K: Eq + Hash,

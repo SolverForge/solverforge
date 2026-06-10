@@ -6,9 +6,8 @@ pub(super) use solverforge_core::{ConstraintRef, ImpactType};
 
 pub(super) use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 pub(super) use crate::constraint::projected::{
-    ProjectedComplementedGroupedNodeState, ProjectedComplementedGroupedTerminalScorer,
-    ProjectedGroupedNodeState, ProjectedGroupedTerminalScorer,
-    SharedProjectedComplementedGroupedConstraintSet, SharedProjectedGroupedConstraintSet,
+    ComplementedGroupedNodeState, ComplementedGroupedTerminalScorer, GroupedNodeState,
+    GroupedTerminalScorer, SharedComplementedGroupedSet, SharedGroupedSet,
 };
 pub(super) use crate::director::score_director::ScoreDirector;
 pub(super) use crate::director::Director;
@@ -16,9 +15,8 @@ pub(super) use crate::stream::collection_extract::{source, ChangeSource};
 pub(super) use crate::stream::collector::{sum, Accumulator, Collector};
 pub(super) use crate::stream::filter::FnBiFilter;
 pub(super) use crate::stream::joiner::equal;
-pub(super) use crate::stream::{
-    ConstraintFactory, ProjectedBiConstraintStream, Projection, ProjectionSink,
-};
+pub(super) use crate::stream::projected::Bi;
+pub(super) use crate::stream::{ConstraintFactory, Projection, ProjectionSink};
 use solverforge_core::domain::PlanningSolution;
 
 #[derive(Clone, Debug, PartialEq)]

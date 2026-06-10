@@ -4,14 +4,14 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use crate::constraint::cross_bi_incremental::{IncrementalCrossBiConstraint, PairWeight};
+use crate::constraint::cross_bi_incremental::PairWeight;
 
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::BiFilter;
 use super::super::weighting_support::ConstraintWeight;
-use super::base::CrossBiConstraintStream;
+use super::base::Bi;
 
-impl<S, A, B, K, EA, EB, KA, KB, F, Sc> CrossBiConstraintStream<S, A, B, K, EA, EB, KA, KB, F, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, F, Sc> Bi<S, A, B, K, EA, EB, KA, KB, F, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -29,11 +29,11 @@ where
         impact_type: ImpactType,
         weight: W,
         is_hard: bool,
-    ) -> CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+    ) -> Builder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
     where
         W: Fn(&A, &B) -> Sc + Send + Sync,
     {
-        CrossBiConstraintBuilder {
+        Builder {
             extractor_a: self.extractor_a,
             extractor_b: self.extractor_b,
             key_a: self.key_a,
@@ -49,19 +49,7 @@ where
     pub fn penalize<W>(
         self,
         weight: W,
-    ) -> CrossBiConstraintBuilder<
-        S,
-        A,
-        B,
-        K,
-        EA,
-        EB,
-        KA,
-        KB,
-        F,
-        impl Fn(&A, &B) -> Sc + Send + Sync,
-        Sc,
-    >
+    ) -> Builder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
     where
         W: for<'w> ConstraintWeight<(&'w A, &'w B), Sc> + Send + Sync,
     {
@@ -76,19 +64,7 @@ where
     pub fn reward<W>(
         self,
         weight: W,
-    ) -> CrossBiConstraintBuilder<
-        S,
-        A,
-        B,
-        K,
-        EA,
-        EB,
-        KA,
-        KB,
-        F,
-        impl Fn(&A, &B) -> Sc + Send + Sync,
-        Sc,
-    >
+    ) -> Builder<S, A, B, K, EA, EB, KA, KB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc>
     where
         W: for<'w> ConstraintWeight<(&'w A, &'w B), Sc> + Send + Sync,
     {
@@ -102,7 +78,7 @@ where
 }
 
 // Zero-erasure builder for finalizing a cross-bi constraint.
-pub struct CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+pub struct Builder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
 where
     Sc: Score,
 {
@@ -117,8 +93,7 @@ where
     _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> K, fn() -> Sc)>,
 }
 
-impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-    CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> Builder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
@@ -135,7 +110,7 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> IncrementalCrossBiConstraint<
+    ) -> crate::constraint::cross_bi_incremental::Bi<
         S,
         A,
         B,
@@ -153,7 +128,7 @@ where
             filter.test(s, a, b, a_idx, b_idx)
         };
 
-        IncrementalCrossBiConstraint::new_pair_weight(
+        crate::constraint::cross_bi_incremental::Bi::new_pair_weight(
             ConstraintRef::new("", name),
             self.impact_type,
             self.extractor_a,
@@ -168,10 +143,10 @@ where
 }
 
 impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc: Score> std::fmt::Debug
-    for CrossBiConstraintBuilder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
+    for Builder<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CrossBiConstraintBuilder")
+        f.debug_struct("Builder")
             .field("impact_type", &self.impact_type)
             .finish()
     }

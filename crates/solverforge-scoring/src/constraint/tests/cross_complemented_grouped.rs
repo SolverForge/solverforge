@@ -1,7 +1,6 @@
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 use crate::constraint::cross_complemented_grouped::{
-    CrossComplementedGroupedNodeState, CrossComplementedGroupedTerminalScorer,
-    SharedCrossComplementedGroupedConstraintSet,
+    ComplementedGroupedNodeState, ComplementedGroupedTerminalScorer, SharedComplementedGroupedSet,
 };
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::sum;
@@ -216,7 +215,7 @@ fn cross_bi_group_by_complement_honors_filtered_join_and_complement_sources() {
 
 #[test]
 fn shared_cross_bi_group_by_complement_updates_one_node_for_multiple_terminals() {
-    let state = CrossComplementedGroupedNodeState::new(
+    let state = ComplementedGroupedNodeState::new(
         shift_source(),
         employee_source(),
         target_source(),
@@ -229,20 +228,20 @@ fn shared_cross_bi_group_by_complement_updates_one_node_for_multiple_terminals()
         |_target: &Target| 5i64,
     );
     let scorers = (
-        CrossComplementedGroupedTerminalScorer::new(
+        ComplementedGroupedTerminalScorer::new(
             ConstraintRef::new("", "complemented shift count"),
             ImpactType::Penalty,
             |_employee_id: &usize, count: &i64| SoftScore::of(*count),
             false,
         ),
-        CrossComplementedGroupedTerminalScorer::new(
+        ComplementedGroupedTerminalScorer::new(
             ConstraintRef::new("", "double complemented shift count"),
             ImpactType::Penalty,
             |_employee_id: &usize, count: &i64| SoftScore::of(*count * 2),
             false,
         ),
     );
-    let mut constraints = SharedCrossComplementedGroupedConstraintSet::new(state, scorers);
+    let mut constraints = SharedComplementedGroupedSet::new(state, scorers);
     let mut schedule = two_employee_schedule();
 
     let mut total = constraints.initialize_all(&schedule);

@@ -4,10 +4,10 @@ use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 
 use super::indexes::{key_hash, remove_index_from_hash_bucket};
-use super::state::{CrossGroupedNodeState, MatchRow};
+use super::state::{GroupedNodeState, MatchRow};
 
 impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
-    CrossGroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
+    GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
     S: Send + Sync + 'static,
     A: Send + Sync + 'static,

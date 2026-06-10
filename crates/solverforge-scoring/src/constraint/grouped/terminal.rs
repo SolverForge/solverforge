@@ -30,7 +30,7 @@ type Inner<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> = SharedGroupedConstraintSet
     Sc,
 >;
 
-pub struct GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
+pub struct Uni<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     Acc: Accumulator<V, R>,
     Sc: Score,
@@ -40,8 +40,7 @@ where
     _phantom: PhantomData<fn() -> (S, A, V, R, Acc)>,
 }
 
-impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
-    GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
+impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> Uni<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Send + Sync + 'static,
@@ -126,7 +125,7 @@ where
 }
 
 impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> IncrementalConstraint<S, Sc>
-    for GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
+    for Uni<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     A: Send + Sync + 'static,
@@ -195,12 +194,12 @@ where
 }
 
 impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> std::fmt::Debug
-    for GroupedUniConstraint<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
+    for Uni<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     Acc: Accumulator<V, R>,
     Sc: Score,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GroupedUniConstraint").finish()
+        f.debug_struct("Uni").finish()
     }
 }

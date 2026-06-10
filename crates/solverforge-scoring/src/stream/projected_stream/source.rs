@@ -3,10 +3,10 @@ mod joined;
 mod merged;
 mod single;
 
-pub use filtered::FilteredProjectedSource;
-pub use joined::JoinedProjectedSource;
-pub use merged::MergedProjectedSource;
-pub use single::SingleProjectedSource;
+pub use filtered::FilteredSource;
+pub use joined::JoinedSource;
+pub use merged::MergedSource;
+pub use single::SingleSource;
 
 use crate::stream::collection_extract::ChangeSource;
 
@@ -39,24 +39,24 @@ where
 
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProjectedRowOwner {
+pub struct RowOwner {
     pub source_slot: usize,
     pub entity_index: usize,
 }
 
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ProjectedRowCoordinate {
-    pub primary_owner: ProjectedRowOwner,
-    pub secondary_owner: Option<ProjectedRowOwner>,
+pub struct RowCoordinate {
+    pub primary_owner: RowOwner,
+    pub secondary_owner: Option<RowOwner>,
     pub emit_index: usize,
 }
 
-impl ProjectedRowCoordinate {
+impl RowCoordinate {
     #[inline]
     pub fn single(source_slot: usize, entity_index: usize, emit_index: usize) -> Self {
         Self {
-            primary_owner: ProjectedRowOwner {
+            primary_owner: RowOwner {
                 source_slot,
                 entity_index,
             },
@@ -74,11 +74,11 @@ impl ProjectedRowCoordinate {
         emit_index: usize,
     ) -> Self {
         Self {
-            primary_owner: ProjectedRowOwner {
+            primary_owner: RowOwner {
                 source_slot: left_slot,
                 entity_index: left_index,
             },
-            secondary_owner: Some(ProjectedRowOwner {
+            secondary_owner: Some(RowOwner {
                 source_slot: right_slot,
                 entity_index: right_index,
             }),
@@ -89,7 +89,7 @@ impl ProjectedRowCoordinate {
     #[inline]
     pub fn for_each_owner<V>(&self, mut visit: V)
     where
-        V: FnMut(ProjectedRowOwner),
+        V: FnMut(RowOwner),
     {
         visit(self.primary_owner);
         if let Some(owner) = self.secondary_owner {
@@ -110,7 +110,7 @@ impl ProjectedRowCoordinate {
 }
 
 #[doc(hidden)]
-pub trait ProjectedSource<S, Out>: Send + Sync {
+pub trait Source<S, Out>: Send + Sync {
     type State: Send + Sync;
 
     const MAX_EMITS: usize;
@@ -120,7 +120,7 @@ pub trait ProjectedSource<S, Out>: Send + Sync {
     fn build_state(&self, solution: &S) -> Self::State;
     fn collect_all<V>(&self, solution: &S, state: &Self::State, visit: V)
     where
-        V: FnMut(ProjectedRowCoordinate, Out);
+        V: FnMut(RowCoordinate, Out);
     fn collect_entity<V>(
         &self,
         solution: &S,
@@ -129,7 +129,7 @@ pub trait ProjectedSource<S, Out>: Send + Sync {
         entity_index: usize,
         visit: V,
     ) where
-        V: FnMut(ProjectedRowCoordinate, Out);
+        V: FnMut(RowCoordinate, Out);
     fn insert_entity_state(
         &self,
         solution: &S,

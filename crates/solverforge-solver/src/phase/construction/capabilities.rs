@@ -308,31 +308,22 @@ fn validate_list_route<S, V, DM, IDM>(
         match heuristic {
             ConstructionHeuristicType::ListClarkeWright => {
                 if ctx.route_set_fn.is_none() {
-                    required.push("route_set_fn");
+                    required.push("route_hooks");
                 }
-                if ctx.route_depot_fn.is_none() {
-                    required.push("route_depot_fn");
-                }
-                if ctx.route_distance_fn.is_none() {
-                    required.push("route_distance_fn");
-                }
-                if ctx.route_feasible_fn.is_none() {
-                    required.push("route_feasible_fn");
+                if ctx.savings_depot_fn.is_none()
+                    || ctx.savings_distance_fn.is_none()
+                    || ctx.savings_feasible_fn.is_none()
+                {
+                    required.push("savings_hooks");
                 }
             }
-            ConstructionHeuristicType::ListKOpt => {
-                if ctx.route_get_fn.is_none() {
-                    required.push("route_get_fn");
-                }
-                if ctx.route_set_fn.is_none() {
-                    required.push("route_set_fn");
-                }
-                if ctx.route_depot_fn.is_none() {
-                    required.push("route_depot_fn");
-                }
-                if ctx.route_distance_fn.is_none() {
-                    required.push("route_distance_fn");
-                }
+            ConstructionHeuristicType::ListKOpt
+                if ctx.route_get_fn.is_none()
+                    || ctx.route_set_fn.is_none()
+                    || ctx.route_depot_fn.is_none()
+                    || ctx.route_distance_fn.is_none() =>
+            {
+                required.push("route_hooks");
             }
             _ => {}
         }

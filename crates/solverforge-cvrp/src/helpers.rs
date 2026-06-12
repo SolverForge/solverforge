@@ -26,7 +26,7 @@ pub fn depot_for_entity<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
 ///
 /// Owners that share the same `ProblemData` pointer share depot and distance
 /// behavior, so Clarke-Wright can compute their savings rows once.
-pub fn route_metric_class<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
+pub fn savings_metric_class<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
     if entity_idx >= plan.vehicle_count() {
         return entity_idx;
     }
@@ -37,6 +37,26 @@ pub fn route_metric_class<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize 
         "VrpSolution::vehicle_data_ptr({entity_idx}) returned null for a non-empty fleet"
     );
     ptr as usize
+}
+
+/// Depot token used by Clarke-Wright construction.
+pub fn savings_depot_for_entity<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
+    depot_for_entity(plan, entity_idx)
+}
+
+/// Construction distance used by Clarke-Wright for models that share CVRP route data.
+pub fn savings_distance<S: VrpSolution>(
+    plan: &S,
+    entity_idx: usize,
+    from: usize,
+    to: usize,
+) -> i64 {
+    route_distance(plan, entity_idx, from, to)
+}
+
+/// Construction feasibility used by Clarke-Wright for models that share CVRP route data.
+pub fn savings_feasible<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool {
+    route_feasible(plan, entity_idx, route)
 }
 
 /// Distance between two element indices for the route owner.
@@ -67,6 +87,25 @@ pub fn route_feasible<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usiz
         Some(data) => check_capacity_feasible(route, data) && check_time_feasible(route, data),
         None => true,
     }
+}
+
+/// Route-local hook bundle for `#[planning_list_variable(route_hooks = "...")]`.
+pub mod route_hooks {
+    pub use super::depot_for_entity as depot;
+    pub use super::get_route as get;
+    pub use super::replace_route as set;
+    pub use super::route_distance as distance;
+    pub use super::route_feasible as feasible;
+}
+
+/// Clarke-Wright savings hook bundle for `#[planning_list_variable(savings_hooks = "...")]`.
+///
+/// Use this only when construction should share the same CVRP data as exact
+/// route-local behavior.
+pub mod savings_hooks {
+    pub use super::savings_depot_for_entity as depot;
+    pub use super::savings_distance as distance;
+    pub use super::savings_feasible as feasible;
 }
 
 fn check_capacity_feasible(route: &[usize], data: &ProblemData) -> bool {

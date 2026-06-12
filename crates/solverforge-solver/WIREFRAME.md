@@ -1158,8 +1158,8 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 | `ListClarkeWrightPhase<S, E>` | Self (implements Phase directly) |
 | `KOptPhaseBuilder<S, V>` | `KOptPhase` |
 
-`ListClarkeWrightPhase<S, E>` preserves preassigned routes by filling only empty entities, computes savings per optional `route_metric_class_fn` class through `route_depot_fn` and `route_distance_fn`, and assigns constructed routes through deterministic matching against owner-specific `route_feasible_fn` plus partial fixed-owner restrictions.
-`ListKOptPhase<S, E>` uses the same route hooks for per-route 2-opt polishing: `route_get_fn` reads the route, `route_set_fn` writes an accepted route, `route_depot_fn` supplies the owner depot, `route_distance_fn` scores reversals for that owner, and optional `route_feasible_fn` rejects infeasible improvements.
+`ListClarkeWrightPhase<S, E>` preserves preassigned routes by filling only empty entities, computes savings per optional savings `metric_class` through savings `depot` and `distance`, and first assigns constructed routes through deterministic matching against savings `feasible` plus partial fixed-owner restrictions. When all constructed routes are individually owner-feasible but route-to-owner matching is still short, Clarke-Wright completes construction with savings-distance cheapest insertion under the same savings feasibility hook. It uses route `set` only to commit the constructed assignment; it does not consume route-local distance or feasibility.
+`ListKOptPhase<S, E>` is route-local polishing: route `get` reads the route, route `set` writes an accepted route, route `depot` supplies the owner depot, route `distance` scores reversals for that owner, and route `feasible` rejects infeasible improvements. It does not consume Clarke-Wright savings hooks.
 
 ## Real-Time Planning
 

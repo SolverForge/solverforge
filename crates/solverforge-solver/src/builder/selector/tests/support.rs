@@ -421,13 +421,16 @@ fn list_slot() -> ListVariableSlot<MixedPlan, usize, NoopMeter, NoopMeter> {
         NoopMeter,
         "visits",
         1,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    )
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 }
 
 fn scalar_only_model() -> RuntimeModel<MixedPlan, usize, NoopMeter, NoopMeter> {

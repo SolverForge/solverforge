@@ -66,22 +66,28 @@ All functions are generic over `S: VrpSolution`.
 | Function | Signature | Description |
 |----------|-----------|-------------|
 | `depot_for_entity` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize` | Depot index for the route owner |
-| `route_metric_class` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize` | Clarke-Wright metric class for owners that share backing `ProblemData` |
 | `route_distance` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, from: usize, to: usize) -> i64` | Distance between two element indices for the route owner |
 | `route_feasible` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool` | True if the route satisfies the owner's capacity and time-window constraints |
 | `replace_route` | `fn<S: VrpSolution>(plan: &mut S, entity_idx: usize, route: Vec<usize>)` | Replace the current route for an entity |
 | `get_route` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> Vec<usize>` | Current route for an entity |
+| `savings_depot_for_entity` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize` | Construction depot adapter for models that share exact CVRP route data |
+| `savings_metric_class` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize` | Clarke-Wright metric class for owners that share backing `ProblemData` |
+| `savings_distance` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, from: usize, to: usize) -> i64` | Construction distance adapter for models that share exact CVRP route data |
+| `savings_feasible` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool` | Construction feasibility adapter for models that share exact CVRP route data |
 
-### Usage as macro attribute fn pointers
+### Usage as macro hook bundles
 
 ```rust
 #[planning_list_variable(
-    route_get_fn      = "solverforge_cvrp::get_route",
-    route_set_fn      = "solverforge_cvrp::replace_route",
-    route_depot_fn    = "solverforge_cvrp::depot_for_entity",
-    route_metric_class_fn = "solverforge_cvrp::route_metric_class",
-    route_distance_fn = "solverforge_cvrp::route_distance",
-    route_feasible_fn = "solverforge_cvrp::route_feasible",
+    route_hooks = "solverforge_cvrp::route_hooks",
+    savings_hooks = "solverforge_cvrp::savings_hooks",
+    savings_metric_class_fn = "solverforge_cvrp::savings_metric_class",
     // ...
 )]
 ```
+
+`route_hooks` exports `get`, `set`, `depot`, `distance`, and `feasible` for
+exact route-local behavior. `savings_hooks` exports `depot`, `distance`,
+and `feasible` for Clarke-Wright construction when that construction metric
+intentionally shares the same CVRP data. Set `savings_metric_class_fn` explicitly
+when owners share backing `ProblemData` and should share savings rows.

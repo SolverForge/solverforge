@@ -130,34 +130,85 @@ fn helpers_handle_empty_fleets() {
 
     assert_eq!(route_distance(&solution, 0, 1, 2), 0);
     assert_eq!(depot_for_entity(&solution, 0), 0);
-    assert_eq!(route_metric_class(&solution, 3), 3);
+    assert_eq!(savings_metric_class(&solution, 3), 3);
     assert!(route_feasible(&solution, 0, &[1, 2]));
 }
 
 #[test]
-fn route_metric_class_groups_shared_problem_data() {
+fn savings_metric_class_groups_shared_problem_data() {
     let solution = SharedDataSolution {
         data: base_problem_data(),
         routes: vec![vec![1], vec![2], vec![3]],
     };
 
     assert_eq!(
-        route_metric_class(&solution, 0),
-        route_metric_class(&solution, 1)
+        savings_metric_class(&solution, 0),
+        savings_metric_class(&solution, 1)
     );
     assert_eq!(
-        route_metric_class(&solution, 1),
-        route_metric_class(&solution, 2)
+        savings_metric_class(&solution, 1),
+        savings_metric_class(&solution, 2)
     );
 }
 
 #[test]
-fn route_metric_class_separates_distinct_problem_data() {
+fn savings_metric_class_separates_distinct_problem_data() {
     let solution = TestSolution::new(vec![vec![1], vec![2]]);
 
     assert_ne!(
-        route_metric_class(&solution, 0),
-        route_metric_class(&solution, 1)
+        savings_metric_class(&solution, 0),
+        savings_metric_class(&solution, 1)
+    );
+}
+
+#[test]
+fn clarke_wright_adapters_share_exact_cvrp_data_when_requested() {
+    let solution = TestSolution::new(vec![vec![1, 2], vec![3]]);
+
+    assert_eq!(
+        savings_depot_for_entity(&solution, 0),
+        depot_for_entity(&solution, 0)
+    );
+    assert_eq!(
+        savings_distance(&solution, 0, 1, 2),
+        route_distance(&solution, 0, 1, 2)
+    );
+    assert_eq!(
+        savings_feasible(&solution, 0, &[1, 2]),
+        route_feasible(&solution, 0, &[1, 2])
+    );
+}
+
+#[test]
+fn hook_bundles_expose_route_and_savings_semantics() {
+    let mut solution = TestSolution::new(vec![vec![1, 2], vec![3]]);
+
+    assert_eq!(route_hooks::get(&solution, 0), get_route(&solution, 0));
+    route_hooks::set(&mut solution, 1, vec![2, 1]);
+    assert_eq!(get_route(&solution, 1), vec![2, 1]);
+    assert_eq!(
+        route_hooks::depot(&solution, 0),
+        depot_for_entity(&solution, 0)
+    );
+    assert_eq!(
+        route_hooks::distance(&solution, 0, 1, 2),
+        route_distance(&solution, 0, 1, 2)
+    );
+    assert_eq!(
+        route_hooks::feasible(&solution, 0, &[1, 2]),
+        route_feasible(&solution, 0, &[1, 2])
+    );
+    assert_eq!(
+        savings_hooks::depot(&solution, 0),
+        savings_depot_for_entity(&solution, 0)
+    );
+    assert_eq!(
+        savings_hooks::distance(&solution, 0, 1, 2),
+        savings_distance(&solution, 0, 1, 2)
+    );
+    assert_eq!(
+        savings_hooks::feasible(&solution, 0, &[1, 2]),
+        savings_feasible(&solution, 0, &[1, 2])
     );
 }
 

@@ -183,7 +183,8 @@ Module: `solverforge::cvrp`
 - `MatrixDistanceMeter`
 - `MatrixIntraDistanceMeter`
 - `replace_route`, `get_route`
-- `depot_for_entity`, `route_metric_class`, `route_distance`, `route_feasible`
+- route-local helpers: `depot_for_entity`, `route_distance`, `route_feasible`
+- Clarke-Wright construction adapters: `savings_depot_for_entity`, `savings_metric_class`, `savings_distance`, `savings_feasible`
 
 ### Console (feature-gated)
 

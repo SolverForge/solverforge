@@ -68,36 +68,30 @@ pub(super) fn generate_list_metadata(
         }
         (None, false) => quote! {},
     };
-    let route_get = option_fn_expr(
-        parse_attribute_string(attr, "route_get_fn"),
-        "route_get_fn",
+    let route_hooks = parse_optional_path(
+        parse_attribute_string(attr, "route_hooks"),
+        "route_hooks",
         field,
     )?;
-    let route_set = option_fn_expr(
-        parse_attribute_string(attr, "route_set_fn"),
-        "route_set_fn",
+    let savings_hooks = parse_optional_path(
+        parse_attribute_string(attr, "savings_hooks"),
+        "savings_hooks",
         field,
     )?;
-    let route_depot = option_fn_expr(
-        parse_attribute_string(attr, "route_depot_fn"),
-        "route_depot_fn",
+    let savings_metric_class_path = parse_optional_path(
+        parse_attribute_string(attr, "savings_metric_class_fn"),
+        "savings_metric_class_fn",
         field,
     )?;
-    let route_metric_class = option_fn_expr(
-        parse_attribute_string(attr, "route_metric_class_fn"),
-        "route_metric_class_fn",
-        field,
-    )?;
-    let route_distance = option_fn_expr(
-        parse_attribute_string(attr, "route_distance_fn"),
-        "route_distance_fn",
-        field,
-    )?;
-    let route_feasible = option_fn_expr(
-        parse_attribute_string(attr, "route_feasible_fn"),
-        "route_feasible_fn",
-        field,
-    )?;
+    let route_get = hook_fn_expr(route_hooks.as_ref(), "get");
+    let route_set = hook_fn_expr(route_hooks.as_ref(), "set");
+    let route_depot = hook_fn_expr(route_hooks.as_ref(), "depot");
+    let route_distance = hook_fn_expr(route_hooks.as_ref(), "distance");
+    let route_feasible = hook_fn_expr(route_hooks.as_ref(), "feasible");
+    let savings_depot = hook_fn_expr(savings_hooks.as_ref(), "depot");
+    let savings_metric_class = optional_hook_fn_expr(savings_metric_class_path.as_ref());
+    let savings_distance = hook_fn_expr(savings_hooks.as_ref(), "distance");
+    let savings_feasible = hook_fn_expr(savings_hooks.as_ref(), "feasible");
     let (element_owner_adapter, element_owner) = if element_owner_path.is_some() {
         (
             quote! {
@@ -158,9 +152,12 @@ pub(super) fn generate_list_metadata(
                 #route_get,
                 #route_set,
                 #route_depot,
-                #route_metric_class,
                 #route_distance,
                 #route_feasible,
+                #savings_depot,
+                #savings_metric_class,
+                #savings_distance,
+                #savings_feasible,
             )
             .with_element_owner_fn(#element_owner)
         }
@@ -205,6 +202,9 @@ pub(super) fn generate_list_trait_impl(
                     ::solverforge::__internal::ListVariableMetadata::new(
                         ::solverforge::__internal::DefaultCrossEntityDistanceMeter::default(),
                         ::solverforge::__internal::DefaultCrossEntityDistanceMeter::default(),
+                        ::core::option::Option::None,
+                        ::core::option::Option::None,
+                        ::core::option::Option::None,
                         ::core::option::Option::None,
                         ::core::option::Option::None,
                         ::core::option::Option::None,
@@ -366,15 +366,20 @@ fn parse_solution_trait_bound(
         .transpose()
 }
 
-fn option_fn_expr(
-    path: Option<String>,
-    label: &str,
-    span: &impl quote::ToTokens,
-) -> Result<syn::Expr, Error> {
-    if let Some(parsed) = parse_optional_path(path, label, span)? {
-        Ok(syn::parse_quote! { ::core::option::Option::Some(#parsed) })
+fn hook_fn_expr(module_path: Option<&syn::Path>, fn_name: &str) -> TokenStream {
+    if let Some(module_path) = module_path {
+        let fn_ident = Ident::new(fn_name, proc_macro2::Span::call_site());
+        quote! { ::core::option::Option::Some(#module_path::#fn_ident) }
     } else {
-        Ok(syn::parse_quote! { ::core::option::Option::None })
+        quote! { ::core::option::Option::None }
+    }
+}
+
+fn optional_hook_fn_expr(path: Option<&syn::Path>) -> TokenStream {
+    if let Some(path) = path {
+        quote! { ::core::option::Option::Some(#path) }
+    } else {
+        quote! { ::core::option::Option::None }
     }
 }
 

@@ -213,6 +213,9 @@ fn list_slot_with_precedence() -> ListVariableSlot<Plan, usize, CountingMeter, C
         None,
         None,
         None,
+        None,
+        None,
+        None,
     )
     .with_precedence_hooks(Some(precedence_duration), Some(precedence_successors))
 }
@@ -242,6 +245,9 @@ fn nearby_list_swap_uses_cross_entity_meter() {
         intra_meter,
         "visits",
         0,
+        None,
+        None,
+        None,
         None,
         None,
         None,
@@ -411,6 +417,9 @@ fn public_list_builder_supports_cartesian_product() {
         intra_meter,
         "visits",
         0,
+        None,
+        None,
+        None,
         None,
         None,
         None,

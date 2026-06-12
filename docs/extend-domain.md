@@ -31,11 +31,14 @@ Use the scaffold as a thin starter, then model the real problem in your app.
   declare that on the same `#[planning_variable]` with
   `construction_entity_order_key = "fn_name"` and/or
   `construction_value_order_key = "fn_name"`.
-- Keep list construction capabilities on `#[planning_list_variable]`. Clarke-Wright
-  and k-opt construction consume the same owner-aware route hooks:
-  `route_get_fn`, `route_set_fn`, `route_depot_fn`, `route_distance_fn`, and
-  `route_feasible_fn`. They do not infer scalar order keys or alternate list
-  hooks.
+- Keep list construction capabilities on `#[planning_list_variable]`.
+  `route_hooks = "path"` names the route-local module used by k-opt and route
+  assignment; it must export `get`, `set`, `depot`, `distance`, and `feasible`.
+  `savings_hooks = "path"` names the Clarke-Wright construction module; it must
+  export `depot`, `distance`, and `feasible`. Add
+  `savings_metric_class_fn = "path::metric_class"` only when owners share
+  construction depot and distance behavior. Sharing helper implementations is
+  allowed, but route-local and savings semantics stay explicit.
 - Add derived fields, validation helpers, and sample data beside the domain
   model, not in the scaffold templates.
 

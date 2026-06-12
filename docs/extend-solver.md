@@ -45,8 +45,8 @@ ad hoc special cases:
   scalar selectors keep canonical bounded candidate order.
 - `list_round_robin`, `list_cheapest_insertion`, `list_regret_insertion`,
   `list_clarke_wright`, and `list_k_opt` are list-only. The runtime validates
-  the required list hooks before phase build instead of failing deep inside the
-  algorithm.
+  the required route or savings hooks before phase build instead of failing deep
+  inside the algorithm.
 - `group_name` selects a named `ScalarGroup` for grouped scalar construction.
   Candidate-backed groups apply arbitrary compound scalar candidates atomically.
   Assignment-backed groups generate stock nullable scalar candidates and feed
@@ -60,11 +60,13 @@ ad hoc special cases:
 If `move_selector` is omitted, the runtime keeps one streaming-first default
 story:
 
-- scalar-only models default to `ChangeMoveSelector` plus `SwapMoveSelector`
+- scalar-only models default to nearby scalar change/swap selectors when hooks
+  are declared, then plain `ChangeMoveSelector` plus `SwapMoveSelector`
+  fallback selectors for every non-assignment-owned scalar slot
 - list-only models default to `NearbyListChangeMoveSelector(20)`,
   `NearbyListSwapMoveSelector(20)`, `SublistChangeMoveSelector`,
-  `SublistSwapMoveSelector`, and `ListReverseMoveSelector`, with k-opt and
-  list ruin enabled only when their hooks exist
+  `SublistSwapMoveSelector`, and `ListReverseMoveSelector`, with k-opt enabled
+  only when route hooks exist and list ruin enabled for supported list slots
 - mixed models use the list defaults first, then the scalar defaults
 
 Omitted config builds construction plus one streaming local-search phase. Broad

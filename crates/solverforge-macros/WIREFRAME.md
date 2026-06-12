@@ -211,16 +211,13 @@ arguments are compile errors.
 - `element_collection = "field"` — solution field with all list elements
 - `distance_meter = "path"` — optional cross-entity distance meter type
 - `intra_distance_meter = "path"` — optional intra-entity distance meter type
-- `route_get_fn = "path"` — optional route reader, `fn(&Solution, entity_idx) -> Vec<usize>`
-- `route_set_fn = "path"` — optional route writer, `fn(&mut Solution, entity_idx, route)`
-- `route_depot_fn = "path"` — optional owner-aware depot hook, `fn(&Solution, entity_idx) -> usize`
-- `route_metric_class_fn = "path"` — optional Clarke-Wright metric class hook, `fn(&Solution, entity_idx) -> usize`; owners in the same class must share depot and route-distance behavior
-- `route_distance_fn = "path"` — optional owner-aware distance hook, `fn(&Solution, entity_idx, from, to) -> i64`
+- `route_hooks = "path"` — optional route-local hook module with `get`, `set`, `depot`, `distance`, and `feasible`; k-opt uses these hooks and Clarke-Wright uses only `set` for assignment
+- `savings_hooks = "path"` — optional Clarke-Wright construction hook module with `depot`, `distance`, and `feasible`
+- `savings_metric_class_fn = "path"` — optional Clarke-Wright metric-class hook, `fn(&Solution, entity_idx) -> usize`; owners in the same class must share construction depot and distance behavior
 - `element_owner_fn = "path"` — optional partial fixed-owner hook, `fn(&Solution, element) -> Option<usize>`; `None` leaves that element unrestricted
 - `construction_element_order_key = "path"` — optional list-construction ordering hook, `fn(&Solution, element) -> i64`; it flows through existing generated list metadata and runtime list slots
 - `precedence_duration_fn = "path"` — optional precedence duration hook, `fn(&Solution, element) -> usize`; paired with `precedence_successors_fn`
 - `precedence_successors_fn = "path"` — optional fixed-precedence successor hook, `fn(&Solution, element, &mut Vec<usize>)`; paired with `precedence_duration_fn`
-- `route_feasible_fn = "path"` — optional owner-aware feasibility hook, `fn(&Solution, entity_idx, route) -> bool`; this is the route-level gate used to express capacity, time-window, vehicle compatibility, and other hard feasibility rules for Clarke-Wright and k-opt
 
 **Generated code:**
 - `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, plus `update_entity_shadows()` / `update_all_shadows()` overrides when shadow updates are configured

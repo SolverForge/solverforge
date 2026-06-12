@@ -37,9 +37,12 @@ pub struct ListVariableSlot<S, V, DM, IDM> {
     pub route_get_fn: Option<fn(&S, usize) -> Vec<usize>>,
     pub route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>,
     pub route_depot_fn: Option<fn(&S, usize) -> usize>,
-    pub route_metric_class_fn: Option<fn(&S, usize) -> usize>,
     pub route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
     pub route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
+    pub savings_depot_fn: Option<fn(&S, usize) -> usize>,
+    pub savings_metric_class_fn: Option<fn(&S, usize) -> usize>,
+    pub savings_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
+    pub savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
     pub element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     pub construction_element_order_key: Option<fn(&S, V) -> i64>,
     pub precedence_duration_fn: Option<fn(&S, V) -> usize>,
@@ -73,9 +76,12 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
             route_get_fn: self.route_get_fn,
             route_set_fn: self.route_set_fn,
             route_depot_fn: self.route_depot_fn,
-            route_metric_class_fn: self.route_metric_class_fn,
             route_distance_fn: self.route_distance_fn,
             route_feasible_fn: self.route_feasible_fn,
+            savings_depot_fn: self.savings_depot_fn,
+            savings_metric_class_fn: self.savings_metric_class_fn,
+            savings_distance_fn: self.savings_distance_fn,
+            savings_feasible_fn: self.savings_feasible_fn,
             element_owner_fn: self.element_owner_fn,
             construction_element_order_key: self.construction_element_order_key,
             precedence_duration_fn: self.precedence_duration_fn,
@@ -111,9 +117,12 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         route_get_fn: Option<fn(&S, usize) -> Vec<usize>>,
         route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>,
         route_depot_fn: Option<fn(&S, usize) -> usize>,
-        route_metric_class_fn: Option<fn(&S, usize) -> usize>,
         route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
         route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
+        savings_depot_fn: Option<fn(&S, usize) -> usize>,
+        savings_metric_class_fn: Option<fn(&S, usize) -> usize>,
+        savings_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
+        savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
     ) -> Self {
         Self {
             entity_type_name,
@@ -139,9 +148,12 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             route_get_fn,
             route_set_fn,
             route_depot_fn,
-            route_metric_class_fn,
             route_distance_fn,
             route_feasible_fn,
+            savings_depot_fn,
+            savings_metric_class_fn,
+            savings_distance_fn,
+            savings_feasible_fn,
             element_owner_fn: None,
             construction_element_order_key: None,
             precedence_duration_fn: None,
@@ -192,9 +204,9 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
 
     pub fn supports_clarke_wright(&self) -> bool {
         self.route_set_fn.is_some()
-            && self.route_depot_fn.is_some()
-            && self.route_distance_fn.is_some()
-            && self.route_feasible_fn.is_some()
+            && self.savings_depot_fn.is_some()
+            && self.savings_distance_fn.is_some()
+            && self.savings_feasible_fn.is_some()
     }
 
     pub fn supports_k_opt(&self) -> bool {

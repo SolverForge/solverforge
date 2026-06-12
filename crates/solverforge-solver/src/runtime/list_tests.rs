@@ -223,6 +223,9 @@ fn generic_list_model() -> RuntimeModel<GenericListPlan, usize, DefaultMeter, De
         None,
         None,
         None,
+        None,
+        None,
+        None,
     ))])
 }
 
@@ -269,6 +272,9 @@ fn generic_list_owner_model() -> RuntimeModel<GenericListPlan, usize, DefaultMet
             None,
             None,
             None,
+            None,
+            None,
+            None,
         )
         .with_element_owner_fn(Some(route_element_owner)),
     )])
@@ -304,6 +310,9 @@ fn generic_list_ordered_model() -> RuntimeModel<GenericListPlan, usize, DefaultM
             None,
             None,
             None,
+            None,
+            None,
+            None,
         )
         .with_construction_element_order_key(Some(route_element_descending_order)),
     )])
@@ -333,6 +342,9 @@ fn generic_list_precedence_ordered_model(
             DefaultMeter::default(),
             "visits",
             0,
+            None,
+            None,
+            None,
             None,
             None,
             None,

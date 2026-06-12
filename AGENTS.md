@@ -44,8 +44,11 @@ Treat the repository documentation as a coordinated surface, not as isolated fil
   a long release-history dump; use `CHANGELOG.md` for release history and
   `RELEASE.md` for maintainer release operations.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps. Update them for any public surface change.
-- `docs/*.md` files capture focused extension and architecture guidance. When a refactor changes naming or explains an intentional boundary, update the relevant doc or add a dedicated audit note.
-- `docs/naming-charter.md` is the canonical naming contract for scalar/list terminology. Keep it in sync with any public rename or cleanup sweep.
+- `docs/*.md` files capture focused extension guidance for APIs that are meant
+  to be extended, plus narrowly scoped agent notes that do not belong in this
+  file or in crate wireframes. Do not add standalone contract, charter, audit,
+  or historical plan documents under `docs/`; current public APIs belong in the
+  README and matching wireframes, while durable repository rules belong here.
 - `AGENTS.md` records repository-specific rules for future coding agents. Update it when the engineering workflow or documentation policy changes.
 - Documentation must describe the current checked-in code and public surface, not an intended future design. If a refactor is incomplete, document the shipped boundary and current limitation explicitly instead of documenting the target state as if it already exists.
 - Distinguish crate-root re-exports from module-level exports and hidden `__internal` bridges. Do not document a module-only or macro-only symbol as if it were a supported root-level facade export.
@@ -74,7 +77,10 @@ When public surface changes, update the matching wireframe in the same change:
 4. Keep file maps in sync with added or moved files.
 5. Document public surface and usage only, not implementation detail.
 
-When a public API change also affects how users discover or reason about the feature, update the corresponding top-level docs in the same change. Renames and architectural cleanups should leave behind a clear trail in `README.md`, relevant `docs/*.md` files, and the affected wireframes.
+When a public API change also affects how users discover or reason about the
+feature, update the corresponding top-level docs in the same change. Extension
+point changes should leave a clear trail in `README.md`, the relevant extension
+guide under `docs/`, and the affected wireframes.
 
 Version bumps are documentation changes too. When the published version changes, update the manifest version plus the coordinated public docs surface in the same change:
 

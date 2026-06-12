@@ -74,9 +74,6 @@ planning variables with independent planning lists, and they use the same
   repository, then continues against the runtime crates in this workspace.
 - `docs/extend-domain.md` and `docs/extend-solver.md` cover scaffold extension
   workflows.
-- `docs/lifecycle-pause-resume-contract.md` defines the retained lifecycle contract, including exact pause/resume semantics, snapshot identity, and terminal-state cleanup rules.
-- `docs/naming-charter.md` is the canonical naming contract for scalar/list terminology and selector-family cleanup.
-- `docs/naming-contract-audit.md` records the current neutral selector and extractor naming model.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps for each crate.
 - `AGENTS.md` defines repository-level engineering and documentation expectations for coding agents.
 
@@ -92,7 +89,10 @@ SolverForge preserves concrete types through the hot solver and scoring pipeline
 
 This enables aggressive compiler optimizations and cache-friendly data layouts.
 
-Current public naming follows neutral Rust contracts rather than helper-role prefixes. The object-safe descriptor boundary is still intentional, but the concrete adapter and selector surface are now documented as `EntityCollectionExtractor`, `ValueSelector`, and `MoveSelector`. The historical rename and rationale are captured in [docs/naming-contract-audit.md](docs/naming-contract-audit.md).
+Current public naming follows neutral Rust APIs rather than helper-role prefixes.
+The object-safe descriptor boundary is still intentional, but the concrete
+adapter and selector surface are now documented as `EntityCollectionExtractor`,
+`ValueSelector`, and `MoveSelector`.
 
 ## Features
 
@@ -207,8 +207,8 @@ neighborhoods:
   those group-owned slots on the grouped path
 - list-only models default to `NearbyListChangeMoveSelector(20)`,
   `NearbyListSwapMoveSelector(20)`, `SublistChangeMoveSelector`,
-  `SublistSwapMoveSelector`, and `ListReverseMoveSelector`, with k-opt and
-  list ruin enabled only when their hooks exist
+  `SublistSwapMoveSelector`, and `ListReverseMoveSelector`, with k-opt enabled
+  only when route hooks exist and list ruin enabled for supported list slots
 - mixed models concatenate the list defaults first, then the scalar defaults
 
 List variables can declare fixed element ownership with

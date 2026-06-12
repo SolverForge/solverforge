@@ -15,7 +15,7 @@ The CLI lives in the standalone `solverforge-cli` repository and is not part of 
 - `solverforge-scoring` (path) — Constraint API, Director
 - `solverforge-solver` (path) — Solver engine, manager, phases
 - `solverforge-config` (path) — Configuration types
-- `solverforge-cvrp` (path) — CVRP domain helpers
+- `solverforge-cvrp` (path) — CVRP domain helpers and route/savings hook bundles
 - `solverforge-console` (path, optional) — Console output (feature-gated)
 
 ## Features
@@ -183,6 +183,7 @@ Module: `solverforge::cvrp`
 - `MatrixDistanceMeter`
 - `MatrixIntraDistanceMeter`
 - `replace_route`, `get_route`
+- hook modules: `route_hooks`, `savings_hooks`
 - route-local helpers: `depot_for_entity`, `route_distance`, `route_feasible`
 - Clarke-Wright construction adapters: `savings_depot_for_entity`, `savings_metric_class`, `savings_distance`, `savings_feasible`
 

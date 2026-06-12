@@ -889,7 +889,7 @@ Runtime routing is capability-driven:
   variables must use the owning `group_name`; ungrouped construction for those
   targets is rejected before phase execution
 - scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
-- list-only route heuristics validate required owner-aware route hooks before phase build
+- list-only route heuristics validate their required route-local and savings hook capabilities before phase build
 - `element_owner_fn` is interpreted through one crate-private owner-restriction helper: no hook or hook-returned `None` leaves an element unrestricted, valid `Some(owner)` fixes the element to that owner, and invalid owners produce no legal placement
 - generic mixed construction stays in the canonical engine
 

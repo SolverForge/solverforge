@@ -1,6 +1,7 @@
 # solverforge-cvrp WIREFRAME
 
-Domain helpers for Capacitated Vehicle Routing Problems (CVRP).
+Domain helpers for Capacitated Vehicle Routing Problems (CVRP), including
+route-local and Clarke-Wright savings hook bundles.
 
 **Location:** `crates/solverforge-cvrp/`
 **Workspace Release:** `0.16.0`
@@ -13,7 +14,7 @@ Domain helpers for Capacitated Vehicle Routing Problems (CVRP).
 
 ```
 src/
-├── helpers.rs       — Public CVRP free functions and private pointer helpers
+├── helpers.rs       — Public CVRP free functions, hook bundles, and private pointer helpers
 ├── lib.rs           — Module exports and public re-exports
 ├── meters.rs        — Distance meter implementations
 ├── problem_data.rs  — `ProblemData`
@@ -85,6 +86,11 @@ All functions are generic over `S: VrpSolution`.
     // ...
 )]
 ```
+
+Public hook modules:
+
+- `route_hooks` — exports `get`, `set`, `depot`, `distance`, and `feasible`
+- `savings_hooks` — exports `depot`, `distance`, and `feasible`
 
 `route_hooks` exports `get`, `set`, `depot`, `distance`, and `feasible` for
 exact route-local behavior. `savings_hooks` exports `depot`, `distance`,

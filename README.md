@@ -388,7 +388,7 @@ solverforge
   |-- solverforge-config    TOML/YAML configuration
   |-- solverforge-solver    phases, moves, selectors, runtime, SolverManager
   |-- solverforge-bridge    dynamic host-language binding contracts
-  |-- solverforge-cvrp      VRP helper traits, meters, and route hooks
+  |-- solverforge-cvrp      VRP helper traits, meters, and route/savings hooks
   `-- solverforge-console   optional tracing console feature
 
 Dependency layers:
@@ -413,7 +413,7 @@ Dependency layers:
 | `solverforge-config` | Configuration via TOML and builder API |
 | `solverforge-console` | Tracing-based console output with banner and progress display |
 | `solverforge-macros` | Procedural macros for domain model |
-| `solverforge-cvrp` | CVRP domain helpers: `VrpSolution`, `ProblemData`, distance meters, feasibility functions |
+| `solverforge-cvrp` | CVRP domain helpers: `VrpSolution`, `ProblemData`, distance meters, route hooks, and Clarke-Wright savings hooks |
 
 ## Score Types
 

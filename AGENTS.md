@@ -16,7 +16,7 @@ solverforge (facade + re-exports)
     |-- solverforge-config   - TOML/YAML configuration
     |-- solverforge-bridge   - Dynamic host-language binding contracts
     |-- solverforge-console  - Tracing-driven console output and progress formatting
-    |-- solverforge-cvrp     - CVRP domain helpers and distance utilities
+    |-- solverforge-cvrp     - CVRP domain helpers and route/savings hook bundles
     |-- solverforge-macros   - planning_model!, #[planning_solution], #[planning_entity], #[problem_fact]
     |
     `-> solverforge-core     - Score types, domain traits, descriptors

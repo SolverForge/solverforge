@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.16.0](///compare/v0.15.2...v0.16.0) (2026-06-12)
+
+
+### Features
+
+* **list:** split route and savings hooks 2c61fa7
+
+
+### Bug Fixes
+
+* **solver:** complete unmatched Clarke-Wright routes b0b4c7e
+
 ## [0.15.2](///compare/v0.15.1...v0.15.2) (2026-06-10)
 
 

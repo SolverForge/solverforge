@@ -181,6 +181,40 @@ fn scarce_owner_feasible(_: &Plan, entity_idx: usize, route: &[usize]) -> bool {
     }
 }
 
+fn scarce_capacity_distance(_: &Plan, _: usize, a: usize, b: usize) -> i64 {
+    if a == 0 || b == 0 {
+        100
+    } else {
+        match (a.min(b), a.max(b)) {
+            (3, 4) => 0,
+            (1, 5) => 1,
+            _ => 90,
+        }
+    }
+}
+
+fn scarce_capacity_demand(value: usize) -> usize {
+    match value {
+        1 | 2 => 6,
+        3..=5 => 5,
+        _ => 100,
+    }
+}
+
+fn scarce_capacity_feasible(_: &Plan, entity_idx: usize, route: &[usize]) -> bool {
+    let capacity = match entity_idx {
+        0 => 5,
+        1 | 2 => 11,
+        _ => 0,
+    };
+    route
+        .iter()
+        .copied()
+        .map(scarce_capacity_demand)
+        .sum::<usize>()
+        <= capacity
+}
+
 #[test]
 fn clarke_wright_hooks_receive_actual_list_values() {
     observed_actual_value_hook_values()
@@ -574,4 +608,60 @@ fn clarke_wright_skips_merge_that_breaks_global_owner_matching() {
     }));
     assert!(solution.routes.iter().any(|route| route.visits == [3]));
     assert!(solution.routes.iter().any(|route| route.visits == [4]));
+}
+
+#[test]
+fn clarke_wright_completes_unmatched_routes_with_savings_insertion() {
+    let plan = Plan {
+        customer_values: vec![1, 2, 3, 4, 5],
+        routes: vec![
+            Route { visits: Vec::new() },
+            Route { visits: Vec::new() },
+            Route { visits: Vec::new() },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(
+        plan,
+        SolutionDescriptor::new("Plan", TypeId::of::<Plan>()),
+        |s, descriptor_index| {
+            if descriptor_index == 0 {
+                s.routes.len()
+            } else {
+                0
+            }
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    let mut phase = ListClarkeWrightPhase::new(
+        element_count,
+        get_assigned,
+        entity_count,
+        route_len,
+        assign_route,
+        index_to_element,
+        depot,
+        scarce_capacity_distance,
+        scarce_capacity_feasible,
+        0,
+    );
+
+    phase.solve(&mut solver_scope);
+
+    let solution = solver_scope.working_solution();
+    let mut assigned: Vec<_> = solution
+        .routes
+        .iter()
+        .flat_map(|route| route.visits.iter().copied())
+        .collect();
+    assigned.sort_unstable();
+
+    assert_eq!(assigned, vec![1, 2, 3, 4, 5]);
+    for (entity_idx, route) in solution.routes.iter().enumerate() {
+        assert!(scarce_capacity_feasible(
+            solution,
+            entity_idx,
+            &route.visits
+        ));
+    }
 }

@@ -35,6 +35,177 @@ fn unique_metric_class<S>(_: &S, owner_idx: usize) -> usize {
     owner_idx
 }
 
+struct CompletionAssignment {
+    owner_idx: usize,
+    route_indices: Vec<usize>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn complete_routes_by_insertion<S, E>(
+    solution: &S,
+    owner_slots: &[owner_assignment::OwnerSlot],
+    routes: &[ConstructedRoute],
+    index_to_element: fn(&S, usize) -> E,
+    depot_fn: fn(&S, usize) -> usize,
+    distance_fn: fn(&S, usize, usize, usize) -> i64,
+    feasible: fn(&S, usize, &[usize]) -> bool,
+    element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
+    entity_count: usize,
+) -> Option<Vec<(usize, Vec<usize>)>>
+where
+    S: PlanningSolution,
+    E: Copy + Into<usize>,
+{
+    let mut assignments = owner_slots
+        .iter()
+        .map(|slot| CompletionAssignment {
+            owner_idx: slot.owner_idx,
+            route_indices: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let mut element_order = Vec::new();
+
+    for (route_idx, route) in routes.iter().enumerate() {
+        if route.visits.is_empty() {
+            continue;
+        }
+
+        for (visit_position, &element_idx) in route.visits.iter().enumerate() {
+            let element = index_to_element(solution, element_idx);
+            let value = [element.into()];
+            let feasible_owner_count = owner_slots
+                .iter()
+                .filter(|slot| {
+                    crate::list_placement::owner_allows(
+                        element_owner_fn,
+                        solution,
+                        entity_count,
+                        slot.owner_idx,
+                        &element,
+                    ) && feasible(solution, slot.owner_idx, &value)
+                })
+                .count();
+            if feasible_owner_count == 0 {
+                return None;
+            }
+            element_order.push((feasible_owner_count, route_idx, visit_position, element_idx));
+        }
+    }
+
+    element_order.sort_unstable();
+
+    for (_, _, _, element_idx) in element_order {
+        let mut best: Option<(i64, usize, usize)> = None;
+
+        for (assignment_idx, assignment) in assignments.iter().enumerate() {
+            let owner_idx = assignment.owner_idx;
+            let element = index_to_element(solution, element_idx);
+            if !crate::list_placement::owner_allows(
+                element_owner_fn,
+                solution,
+                entity_count,
+                owner_idx,
+                &element,
+            ) {
+                continue;
+            }
+
+            for insert_idx in 0..=assignment.route_indices.len() {
+                let mut candidate = assignment.route_indices.clone();
+                candidate.insert(insert_idx, element_idx);
+                let candidate_values = route_values(solution, index_to_element, &candidate);
+                if !feasible(solution, owner_idx, &candidate_values) {
+                    continue;
+                }
+
+                if let Some(owner_fn) = element_owner_fn {
+                    let candidate_elements = route_elements(solution, index_to_element, &candidate);
+                    if !crate::list_placement::route_owner_allows(
+                        Some(owner_fn),
+                        solution,
+                        entity_count,
+                        owner_idx,
+                        &candidate_elements,
+                    ) {
+                        continue;
+                    }
+                }
+
+                let delta = insertion_delta(
+                    solution,
+                    owner_idx,
+                    &assignment.route_indices,
+                    insert_idx,
+                    element_idx,
+                    index_to_element,
+                    depot_fn,
+                    distance_fn,
+                );
+                let candidate_key = (delta, assignment.route_indices.len(), assignment_idx);
+                let best_key = best.map(|(delta, assignment_idx, _)| {
+                    (
+                        delta,
+                        assignments[assignment_idx].route_indices.len(),
+                        assignment_idx,
+                    )
+                });
+                if best_key.is_none_or(|best_key| candidate_key < best_key) {
+                    best = Some((delta, assignment_idx, insert_idx));
+                }
+            }
+        }
+
+        let (_, assignment_idx, insert_idx) = best?;
+        assignments[assignment_idx]
+            .route_indices
+            .insert(insert_idx, element_idx);
+    }
+
+    Some(
+        assignments
+            .into_iter()
+            .filter_map(|assignment| {
+                if assignment.route_indices.is_empty() {
+                    return None;
+                }
+                let route = route_values(solution, index_to_element, &assignment.route_indices);
+                Some((assignment.owner_idx, route))
+            })
+            .collect(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn insertion_delta<S, E>(
+    solution: &S,
+    owner_idx: usize,
+    route_indices: &[usize],
+    insert_idx: usize,
+    element_idx: usize,
+    index_to_element: fn(&S, usize) -> E,
+    depot_fn: fn(&S, usize) -> usize,
+    distance_fn: fn(&S, usize, usize, usize) -> i64,
+) -> i64
+where
+    E: Copy + Into<usize>,
+{
+    let depot = depot_fn(solution, owner_idx);
+    let value = index_to_element(solution, element_idx).into();
+    let previous = if insert_idx == 0 {
+        depot
+    } else {
+        index_to_element(solution, route_indices[insert_idx - 1]).into()
+    };
+    let next = route_indices
+        .get(insert_idx)
+        .map(|&idx| index_to_element(solution, idx).into())
+        .unwrap_or(depot);
+
+    distance_fn(solution, owner_idx, previous, value)
+        + distance_fn(solution, owner_idx, value, next)
+        - distance_fn(solution, owner_idx, previous, next)
+}
+
 /// List construction phase using Clarke-Wright savings algorithm.
 ///
 /// Builds routes by computing a savings value for every pair of elements,
@@ -340,114 +511,127 @@ where
         }
         sort_savings(&mut savings);
 
-        // Greedy merge
-        for (merge_idx, entry) in savings.iter().enumerate() {
-            if (merge_idx & 0xFF) == 0
-                && phase_scope
-                    .solver_scope_mut()
-                    .should_terminate_construction()
-            {
-                construction_interrupted = true;
+        // Greedy merge. Revisit the savings order until it reaches a fixed
+        // point, because a pair skipped before can become a valid endpoint
+        // merge after another route changes.
+        loop {
+            let mut merged_in_pass = false;
+
+            for (merge_idx, entry) in savings.iter().enumerate() {
+                if (merge_idx & 0xFF) == 0
+                    && phase_scope
+                        .solver_scope_mut()
+                        .should_terminate_construction()
+                {
+                    construction_interrupted = true;
+                    break;
+                }
+                let i = entry.left_idx;
+                let j = entry.right_idx;
+
+                let ri = match route_of[i] {
+                    Some(r) => r,
+                    None => continue,
+                };
+                let rj = match route_of[j] {
+                    Some(r) => r,
+                    None => continue,
+                };
+
+                if ri == rj {
+                    continue;
+                }
+
+                // i must be an endpoint of ri
+                if !routes[ri].can_merge_for_metric_class(entry.metric_class)
+                    || !routes[rj].can_merge_for_metric_class(entry.metric_class)
+                {
+                    continue;
+                }
+
+                let i_is_endpoint =
+                    routes[ri].visits.first() == Some(&i) || routes[ri].visits.last() == Some(&i);
+                if !i_is_endpoint {
+                    continue;
+                }
+                // j must be an endpoint of rj
+                let j_is_endpoint =
+                    routes[rj].visits.first() == Some(&j) || routes[rj].visits.last() == Some(&j);
+                if !j_is_endpoint {
+                    continue;
+                }
+
+                let mut test_ri = routes[ri].visits.clone();
+                if test_ri.first() == Some(&i) {
+                    test_ri.reverse();
+                }
+                let mut test_rj = routes[rj].visits.clone();
+                if test_rj.last() == Some(&j) {
+                    test_rj.reverse();
+                }
+
+                let candidate_indices: Vec<usize> =
+                    test_ri.iter().chain(&test_rj).copied().collect();
+                let solution = phase_scope.score_director().working_solution();
+                let candidate_route = route_values(solution, index_to_element, &candidate_indices);
+                let candidate_elements = self
+                    .element_owner_fn
+                    .map(|_| route_elements(solution, index_to_element, &candidate_indices));
+                let candidate_feasible_owners = feasible_owners_for_scored_elements(
+                    solution,
+                    &owner_slots,
+                    &candidate_route,
+                    candidate_elements.as_deref(),
+                    Some(entry.metric_class),
+                    self.feasible_fn,
+                    self.element_owner_fn,
+                    n_entities,
+                );
+                if candidate_feasible_owners.is_empty() {
+                    continue;
+                }
+                let candidate_feasible_for_all_metric_class_owners = candidate_feasible_owners
+                    .len()
+                    == owner_slots
+                        .iter()
+                        .filter(|slot| slot.metric_class == entry.metric_class)
+                        .count();
+                if !routes_match_owners_after_merge(
+                    solution,
+                    &routes,
+                    ri,
+                    rj,
+                    &candidate_indices,
+                    entry.metric_class,
+                    candidate_feasible_for_all_metric_class_owners,
+                    &owner_slots,
+                    index_to_element,
+                    self.feasible_fn,
+                    self.element_owner_fn,
+                    n_entities,
+                ) {
+                    continue;
+                }
+
+                routes[ri].visits = test_ri;
+                routes[ri].scored_metric_class = Some(entry.metric_class);
+                routes[ri].feasible_for_all_owners = false;
+                routes[ri].feasible_for_all_metric_class_owners =
+                    candidate_feasible_for_all_metric_class_owners;
+                routes[rj].visits.clear();
+                routes[rj].scored_metric_class = None;
+                routes[rj].feasible_for_all_owners = false;
+                routes[rj].feasible_for_all_metric_class_owners = false;
+                for &c in &test_rj {
+                    route_of[c] = Some(ri);
+                }
+                routes[ri].visits.extend(test_rj);
+                merged_in_pass = true;
+            }
+
+            if construction_interrupted || !merged_in_pass {
                 break;
             }
-            let i = entry.left_idx;
-            let j = entry.right_idx;
-
-            let ri = match route_of[i] {
-                Some(r) => r,
-                None => continue,
-            };
-            let rj = match route_of[j] {
-                Some(r) => r,
-                None => continue,
-            };
-
-            if ri == rj {
-                continue;
-            }
-
-            // i must be an endpoint of ri
-            if !routes[ri].can_merge_for_metric_class(entry.metric_class)
-                || !routes[rj].can_merge_for_metric_class(entry.metric_class)
-            {
-                continue;
-            }
-
-            let i_is_endpoint =
-                routes[ri].visits.first() == Some(&i) || routes[ri].visits.last() == Some(&i);
-            if !i_is_endpoint {
-                continue;
-            }
-            // j must be an endpoint of rj
-            let j_is_endpoint =
-                routes[rj].visits.first() == Some(&j) || routes[rj].visits.last() == Some(&j);
-            if !j_is_endpoint {
-                continue;
-            }
-
-            let mut test_ri = routes[ri].visits.clone();
-            if test_ri.first() == Some(&i) {
-                test_ri.reverse();
-            }
-            let mut test_rj = routes[rj].visits.clone();
-            if test_rj.last() == Some(&j) {
-                test_rj.reverse();
-            }
-
-            let candidate_indices: Vec<usize> = test_ri.iter().chain(&test_rj).copied().collect();
-            let solution = phase_scope.score_director().working_solution();
-            let candidate_route = route_values(solution, index_to_element, &candidate_indices);
-            let candidate_elements = self
-                .element_owner_fn
-                .map(|_| route_elements(solution, index_to_element, &candidate_indices));
-            let candidate_feasible_owners = feasible_owners_for_scored_elements(
-                solution,
-                &owner_slots,
-                &candidate_route,
-                candidate_elements.as_deref(),
-                Some(entry.metric_class),
-                self.feasible_fn,
-                self.element_owner_fn,
-                n_entities,
-            );
-            if candidate_feasible_owners.is_empty() {
-                continue;
-            }
-            let candidate_feasible_for_all_metric_class_owners = candidate_feasible_owners.len()
-                == owner_slots
-                    .iter()
-                    .filter(|slot| slot.metric_class == entry.metric_class)
-                    .count();
-            if !routes_match_owners_after_merge(
-                solution,
-                &routes,
-                ri,
-                rj,
-                &candidate_indices,
-                entry.metric_class,
-                candidate_feasible_for_all_metric_class_owners,
-                &owner_slots,
-                index_to_element,
-                self.feasible_fn,
-                self.element_owner_fn,
-                n_entities,
-            ) {
-                continue;
-            }
-
-            routes[ri].visits = test_ri;
-            routes[ri].scored_metric_class = Some(entry.metric_class);
-            routes[ri].feasible_for_all_owners = false;
-            routes[ri].feasible_for_all_metric_class_owners =
-                candidate_feasible_for_all_metric_class_owners;
-            routes[rj].visits.clear();
-            routes[rj].scored_metric_class = None;
-            routes[rj].feasible_for_all_owners = false;
-            routes[rj].feasible_for_all_metric_class_owners = false;
-            for &c in &test_rj {
-                route_of[c] = Some(ri);
-            }
-            routes[ri].visits.extend(test_rj);
         }
 
         // Assign all constructed routes in one step so an interrupted construction
@@ -462,7 +646,7 @@ where
         let mut assignable_routes = Vec::with_capacity(constructed_route_count);
         let mut feasible_sets = Vec::with_capacity(constructed_route_count);
         let mut owner_ineligible_routes = 0usize;
-        for route in non_empty {
+        for route in &non_empty {
             let values = route_values(solution, index_to_element, &route.visits);
             let elements = self
                 .element_owner_fn
@@ -481,7 +665,7 @@ where
                 owner_ineligible_routes += 1;
                 continue;
             }
-            assignable_routes.push(route);
+            assignable_routes.push(route.clone());
             feasible_sets.push(feasible_owners);
         }
         let route_to_owner = match_route_owners(&feasible_sets);
@@ -489,8 +673,29 @@ where
             .iter()
             .filter(|owner| owner.is_some())
             .count();
+        let completion_routes = if matched_count < assignable_routes.len()
+            && !construction_interrupted
+            && owner_ineligible_routes == 0
+        {
+            complete_routes_by_insertion(
+                solution,
+                &owner_slots,
+                &non_empty,
+                index_to_element,
+                self.depot_fn,
+                self.distance_fn,
+                self.feasible_fn,
+                self.element_owner_fn,
+                n_entities,
+            )
+        } else {
+            None
+        };
 
-        if matched_count < assignable_routes.len() && !construction_interrupted {
+        if matched_count < assignable_routes.len()
+            && !construction_interrupted
+            && completion_routes.is_none()
+        {
             tracing::warn!(
                 constructed_routes = constructed_route_count,
                 owner_ineligible_routes,
@@ -503,7 +708,23 @@ where
             return;
         }
 
-        if matched_count > 0 {
+        if let Some(completed_routes) = completion_routes {
+            let assign_route = self.assign_route;
+            let descriptor_index = self.descriptor_index;
+            let mut step_scope = StepScope::new(&mut phase_scope);
+
+            step_scope.apply_committed_change(|sd| {
+                for (entity_idx, route) in completed_routes {
+                    sd.before_variable_changed(descriptor_index, entity_idx);
+                    assign_route(sd.working_solution_mut(), entity_idx, route);
+                    sd.after_variable_changed(descriptor_index, entity_idx);
+                }
+            });
+
+            let step_score = step_scope.calculate_score();
+            step_scope.set_step_score(step_score);
+            step_scope.complete();
+        } else if matched_count > 0 {
             let assign_route = self.assign_route;
             let descriptor_index = self.descriptor_index;
             let mut step_scope = StepScope::new(&mut phase_scope);

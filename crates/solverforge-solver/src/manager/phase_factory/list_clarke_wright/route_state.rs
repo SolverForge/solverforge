@@ -2,6 +2,7 @@ use solverforge_core::domain::PlanningSolution;
 
 use super::owner_assignment::{feasible_owners_for_scored_elements, OwnerSlot};
 
+#[derive(Clone)]
 pub(crate) struct ConstructedRoute {
     pub(crate) visits: Vec<usize>,
     pub(crate) scored_metric_class: Option<usize>,

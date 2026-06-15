@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.17.1](///compare/v0.17.0...v0.17.1) (2026-06-15)
+
+
+### Bug Fixes
+
+* **cvrp:** handle unreachable CVRP legs safely
+
 ## [0.17.0](///compare/v0.16.0...v0.17.0) (2026-06-15)
 
 

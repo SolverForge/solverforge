@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.17.0](///compare/v0.16.0...v0.17.0) (2026-06-15)
+
+
+### Features
+
+* **macros:** add cvrp list domain profile d013bc0
+
+
+### Bug Fixes
+
+* **cvrp:** keep k-opt route feasibility strict 5f6acdf
+
 ## [0.16.0](///compare/v0.15.2...v0.16.0) (2026-06-12)
 
 

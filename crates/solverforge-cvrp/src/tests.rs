@@ -131,7 +131,8 @@ fn helpers_handle_empty_fleets() {
     assert_eq!(route_distance(&solution, 0, 1, 2), 0);
     assert_eq!(depot_for_entity(&solution, 0), 0);
     assert_eq!(savings_metric_class(&solution, 3), 3);
-    assert!(route_feasible(&solution, 0, &[1, 2]));
+    assert!(!route_feasible(&solution, 0, &[1, 2]));
+    assert!(route_feasible(&solution, 0, &[]));
 }
 
 #[test]
@@ -235,7 +236,7 @@ fn route_helpers_replace_and_clone_routes() {
 }
 
 #[test]
-fn time_feasibility_checks_waiting_and_deadlines() {
+fn route_feasibility_rejects_time_violations_while_savings_admits_them() {
     let solution = TestSolution::new(vec![vec![1, 2], vec![3]]);
 
     assert!(
@@ -244,12 +245,15 @@ fn time_feasibility_checks_waiting_and_deadlines() {
     );
     assert!(
         !route_feasible(&solution, 0, &[2, 3]),
-        "route should miss customer 3's latest end"
+        "route-local feasibility should reject missed time windows"
     );
+    assert!(!route_hooks::feasible(&solution, 0, &[2, 3]));
+    assert!(savings_feasible(&solution, 0, &[2, 3]));
+    assert!(savings_hooks::feasible(&solution, 0, &[2, 3]));
 }
 
 #[test]
-fn route_feasibility_checks_owner_capacity() {
+fn route_feasibility_rejects_capacity_violations_while_savings_admits_them() {
     let mut owner_one_data = base_problem_data();
     owner_one_data.capacity = 4;
     let solution = TestSolution::with_data(
@@ -258,7 +262,32 @@ fn route_feasibility_checks_owner_capacity() {
     );
 
     assert!(route_feasible(&solution, 0, &[1, 2]));
-    assert!(!route_feasible(&solution, 1, &[1, 2]));
+    assert!(
+        !route_feasible(&solution, 1, &[1, 2]),
+        "route-local feasibility should reject over-capacity routes"
+    );
+    assert!(!route_hooks::feasible(&solution, 1, &[1, 2]));
+    assert!(savings_feasible(&solution, 1, &[1, 2]));
+    assert!(savings_hooks::feasible(&solution, 1, &[1, 2]));
+}
+
+#[test]
+fn route_feasibility_rejects_structurally_invalid_routes() {
+    let solution = TestSolution::new(vec![vec![1, 2], vec![3]]);
+    let null_data = NullDataSolution {
+        routes: vec![vec![1, 2]],
+    };
+
+    assert!(!route_feasible(&solution, 0, &[4]));
+    assert!(!savings_feasible(&solution, 0, &[4]));
+    assert!(!route_hooks::feasible(&solution, 0, &[4]));
+    assert!(!savings_hooks::feasible(&solution, 0, &[4]));
+    assert!(!route_feasible(&solution, 2, &[1]));
+    assert!(!savings_feasible(&solution, 2, &[1]));
+    assert!(!route_feasible(&null_data, 0, &[1]));
+    assert!(!savings_feasible(&null_data, 0, &[1]));
+    assert!(route_feasible(&null_data, 0, &[]));
+    assert!(savings_feasible(&null_data, 0, &[]));
 }
 
 #[test]

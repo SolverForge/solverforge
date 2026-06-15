@@ -18,6 +18,24 @@ pub(crate) fn problem_data_for_entity<S: VrpSolution>(
     unsafe { ptr.as_ref() }
 }
 
+#[inline]
+fn optional_problem_data_for_entity<S: VrpSolution>(
+    plan: &S,
+    entity_idx: usize,
+) -> Option<&ProblemData> {
+    if entity_idx >= plan.vehicle_count() {
+        return None;
+    }
+    let ptr = plan.vehicle_data_ptr(entity_idx);
+    if ptr.is_null() {
+        return None;
+    }
+    // SAFETY: VrpSolution implementors guarantee valid pointers for the duration
+    // of the solve call; this path treats null as non-admissible instead of
+    // panicking because it is used by feasibility gates.
+    unsafe { ptr.as_ref() }
+}
+
 pub fn depot_for_entity<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
     problem_data_for_entity(plan, entity_idx).map_or(0, |data| data.depot)
 }
@@ -54,9 +72,18 @@ pub fn savings_distance<S: VrpSolution>(
     route_distance(plan, entity_idx, from, to)
 }
 
-/// Construction feasibility used by Clarke-Wright for models that share CVRP route data.
+/// Construction admissibility used by Clarke-Wright for stock CVRP route data.
+///
+/// This intentionally rejects only routes that cannot be evaluated safely.
+/// Capacity and time-window violations remain scoreable during construction.
 pub fn savings_feasible<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool {
-    route_feasible(plan, entity_idx, route)
+    if route.is_empty() {
+        return true;
+    }
+    let Some(data) = optional_problem_data_for_entity(plan, entity_idx) else {
+        return false;
+    };
+    route_is_structurally_valid(route, data)
 }
 
 /// Distance between two element indices for the route owner.
@@ -78,18 +105,20 @@ pub fn get_route<S: VrpSolution>(plan: &S, entity_idx: usize) -> Vec<usize> {
     plan.vehicle_visits(entity_idx).to_vec()
 }
 
-/// Returns `true` if the route satisfies capacity and time-window constraints.
+/// Returns `true` if the route satisfies stock CVRP route-local feasibility.
 pub fn route_feasible<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool {
     if route.is_empty() {
         return true;
     }
-    match problem_data_for_entity(plan, entity_idx) {
-        Some(data) => check_capacity_feasible(route, data) && check_time_feasible(route, data),
-        None => true,
-    }
+    let Some(data) = optional_problem_data_for_entity(plan, entity_idx) else {
+        return false;
+    };
+    route_is_structurally_valid(route, data)
+        && route_is_capacity_feasible(route, data)
+        && route_is_time_feasible(route, data)
 }
 
-/// Route-local hook bundle for `#[planning_list_variable(route_hooks = "...")]`.
+/// Route-local hook bundle used by `#[planning_list_variable(domain = "cvrp")]`.
 pub mod route_hooks {
     pub use super::depot_for_entity as depot;
     pub use super::get_route as get;
@@ -98,45 +127,71 @@ pub mod route_hooks {
     pub use super::route_feasible as feasible;
 }
 
-/// Clarke-Wright savings hook bundle for `#[planning_list_variable(savings_hooks = "...")]`.
+/// Clarke-Wright savings hook bundle used by `#[planning_list_variable(domain = "cvrp")]`.
 ///
-/// Use this only when construction should share the same CVRP data as exact
-/// route-local behavior.
+/// Advanced users can wire this explicitly when custom macro attributes should
+/// still share stock CVRP construction data.
 pub mod savings_hooks {
     pub use super::savings_depot_for_entity as depot;
     pub use super::savings_distance as distance;
     pub use super::savings_feasible as feasible;
 }
 
-fn check_capacity_feasible(route: &[usize], data: &ProblemData) -> bool {
+fn route_is_structurally_valid(route: &[usize], data: &ProblemData) -> bool {
+    let Some(max_visit) = route.iter().copied().max() else {
+        return true;
+    };
+    let max_node = max_visit.max(data.depot);
+
+    if max_visit >= data.demands.len()
+        || max_visit >= data.time_windows.len()
+        || max_visit >= data.service_durations.len()
+        || max_node >= data.distance_matrix.len()
+        || max_node >= data.travel_times.len()
+    {
+        return false;
+    }
+
     route
         .iter()
-        .map(|&visit| data.demands[visit] as i64)
+        .chain(std::iter::once(&data.depot))
+        .all(|&node| {
+            data.distance_matrix
+                .get(node)
+                .is_some_and(|row| row.len() > max_node)
+                && data
+                    .travel_times
+                    .get(node)
+                    .is_some_and(|row| row.len() > max_node)
+        })
+}
+
+fn route_is_capacity_feasible(route: &[usize], data: &ProblemData) -> bool {
+    route
+        .iter()
+        .map(|&visit| i64::from(data.demands[visit]))
         .sum::<i64>()
         <= data.capacity
 }
 
-fn check_time_feasible(route: &[usize], data: &ProblemData) -> bool {
+fn route_is_time_feasible(route: &[usize], data: &ProblemData) -> bool {
     let mut current_time = data.vehicle_departure_time;
-    let mut prev = data.depot;
+    let mut previous = data.depot;
 
     for &visit in route {
-        current_time += data.travel_times[prev][visit];
+        current_time += data.travel_times[previous][visit];
 
         let (min_start, max_end) = data.time_windows[visit];
-
         if current_time < min_start {
             current_time = min_start;
         }
 
-        let service_end = current_time + data.service_durations[visit];
-
-        if service_end > max_end {
+        current_time += data.service_durations[visit];
+        if current_time > max_end {
             return false;
         }
 
-        current_time = service_end;
-        prev = visit;
+        previous = visit;
     }
 
     true

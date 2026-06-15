@@ -1,8 +1,8 @@
 /* CVRP domain helpers for SolverForge.
 
 Provides `ProblemData`, `MatrixDistanceMeter`, `MatrixIntraDistanceMeter`,
-the `VrpSolution` trait, and route hook functions for Clarke-Wright and k-opt
-construction phases.
+the `VrpSolution` trait, and the stock helpers behind
+`#[planning_list_variable(domain = "cvrp")]`.
 */
 
 mod helpers;

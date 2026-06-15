@@ -31,14 +31,20 @@ Use the scaffold as a thin starter, then model the real problem in your app.
   declare that on the same `#[planning_variable]` with
   `construction_entity_order_key = "fn_name"` and/or
   `construction_value_order_key = "fn_name"`.
-- Keep list construction capabilities on `#[planning_list_variable]`.
-  `route_hooks = "path"` names the route-local module used by k-opt and route
-  assignment; it must export `get`, `set`, `depot`, `distance`, and `feasible`.
-  `savings_hooks = "path"` names the Clarke-Wright construction module; it must
-  export `depot`, `distance`, and `feasible`. Add
+- Keep stock CVRP routing declarative with
+  `#[planning_list_variable(element_collection = "...", domain = "cvrp")]`.
+  The profile wires the stock route-local and Clarke-Wright construction hooks
+  internally. Route-local phases use strict stock CVRP capacity and time-window
+  feasibility, while Clarke-Wright construction uses relaxed savings
+  feasibility so the score model can compare capacity, lateness, travel-time,
+  and unassigned penalties after assignment.
+- Omit `domain = "cvrp"` and use explicit `route_hooks = "path"` and
+  `savings_hooks = "path"` only for custom routing domains or strict pruning
+  policies. The route-local module must export `get`, `set`, `depot`,
+  `distance`, and `feasible`; the savings module must export `depot`,
+  `distance`, and `feasible`. Add
   `savings_metric_class_fn = "path::metric_class"` only when owners share
-  construction depot and distance behavior. Sharing helper implementations is
-  allowed, but route-local and savings semantics stay explicit.
+  construction depot and distance behavior.
 - Add derived fields, validation helpers, and sample data beside the domain
   model, not in the scaffold templates.
 

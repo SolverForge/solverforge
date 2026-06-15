@@ -16,7 +16,7 @@ solverforge (facade + re-exports)
     |-- solverforge-config   - TOML/YAML configuration
     |-- solverforge-bridge   - Dynamic host-language binding contracts
     |-- solverforge-console  - Tracing-driven console output and progress formatting
-    |-- solverforge-cvrp     - CVRP domain helpers and route/savings hook bundles
+    |-- solverforge-cvrp     - CVRP profile helpers, traits, meters, and hook bundles
     |-- solverforge-macros   - planning_model!, #[planning_solution], #[planning_entity], #[problem_fact]
     |
     `-> solverforge-core     - Score types, domain traits, descriptors
@@ -176,6 +176,24 @@ and hook-returned `None` mean unrestricted, a valid `Some(owner)` means fixed to
 that owner, and an out-of-range `Some(owner)` is invalid. Construction,
 ruin/recreate, Clarke-Wright, and owner-changing list selectors consume that
 shared restriction relation rather than branching on hook presence.
+
+### CVRP Route Hooks
+
+The stock `#[planning_list_variable(domain = "cvrp")]` profile expands to CVRP
+distance meters, `VrpSolution`, route hooks, savings hooks, and
+`savings_metric_class`. Do not collapse the route-local and construction hook
+semantics:
+
+- `route_hooks::feasible` / `route_feasible` are strict route-local gates and
+  must reject structurally invalid, over-capacity, and time-window-infeasible
+  routes before route-local phases such as `ListKOpt` commit a reversal.
+- `savings_hooks::feasible` / `savings_feasible` are Clarke-Wright construction
+  admissibility gates and should reject only routes that cannot be evaluated
+  safely by stock CVRP data. Capacity and time-window violations remain
+  scoreable during construction.
+- Custom routing domains should omit `domain = "cvrp"` and provide explicit
+  `route_hooks` / `savings_hooks`; do not add compatibility aliases around the
+  profile defaults.
 
 ### Threading
 

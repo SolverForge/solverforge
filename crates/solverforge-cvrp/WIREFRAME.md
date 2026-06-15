@@ -1,7 +1,7 @@
 # solverforge-cvrp WIREFRAME
 
-Domain helpers for Capacitated Vehicle Routing Problems (CVRP), including
-route-local and Clarke-Wright savings hook bundles.
+Domain helpers for Capacitated Vehicle Routing Problems (CVRP), including the
+stock `domain = "cvrp"` list-variable profile internals.
 
 **Location:** `crates/solverforge-cvrp/`
 **Workspace Release:** `0.16.0`
@@ -68,24 +68,30 @@ All functions are generic over `S: VrpSolution`.
 |----------|-----------|-------------|
 | `depot_for_entity` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize` | Depot index for the route owner |
 | `route_distance` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, from: usize, to: usize) -> i64` | Distance between two element indices for the route owner |
-| `route_feasible` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool` | True if the route satisfies the owner's capacity and time-window constraints |
+| `route_feasible` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool` | Strict route-local CVRP feasibility: structural validity, capacity, and time windows |
 | `replace_route` | `fn<S: VrpSolution>(plan: &mut S, entity_idx: usize, route: Vec<usize>)` | Replace the current route for an entity |
 | `get_route` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> Vec<usize>` | Current route for an entity |
 | `savings_depot_for_entity` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize` | Construction depot adapter for models that share exact CVRP route data |
 | `savings_metric_class` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize` | Clarke-Wright metric class for owners that share backing `ProblemData` |
 | `savings_distance` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, from: usize, to: usize) -> i64` | Construction distance adapter for models that share exact CVRP route data |
-| `savings_feasible` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool` | Construction feasibility adapter for models that share exact CVRP route data |
+| `savings_feasible` | `fn<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[usize]) -> bool` | Construction admissibility adapter that rejects only non-evaluable stock CVRP routes |
 
-### Usage as macro hook bundles
+### Usage as a macro domain profile
 
 ```rust
 #[planning_list_variable(
-    route_hooks = "solverforge_cvrp::route_hooks",
-    savings_hooks = "solverforge_cvrp::savings_hooks",
-    savings_metric_class_fn = "solverforge_cvrp::savings_metric_class",
-    // ...
+    element_collection = "deliveries",
+    domain = "cvrp"
 )]
 ```
+
+The profile expands to the stock meters, `VrpSolution` bound, route hooks,
+savings hooks, and savings metric class. Route-local phases use strict stock
+CVRP route feasibility. Clarke-Wright construction uses relaxed savings
+feasibility so assignment can stay broad while the score model compares
+capacity and lateness violations against leaving work unassigned.
+
+### Advanced macro hook bundles
 
 Public hook modules:
 
@@ -93,7 +99,10 @@ Public hook modules:
 - `savings_hooks` — exports `depot`, `distance`, and `feasible`
 
 `route_hooks` exports `get`, `set`, `depot`, `distance`, and `feasible` for
-exact route-local behavior. `savings_hooks` exports `depot`, `distance`,
-and `feasible` for Clarke-Wright construction when that construction metric
-intentionally shares the same CVRP data. Set `savings_metric_class_fn` explicitly
-when owners share backing `ProblemData` and should share savings rows.
+route-local behavior, including strict CVRP capacity and time-window checks.
+`savings_hooks` exports `depot`, `distance`, and `feasible` for Clarke-Wright
+construction when that construction metric shares stock CVRP data; its
+feasibility hook rejects malformed owners/data/visit ids but admits scoreable
+capacity and time-window violations. Custom hook modules are the advanced
+escape hatch for non-CVRP route semantics or different pruning policies; use
+them by omitting `domain = "cvrp"` and declaring explicit macro hook paths.

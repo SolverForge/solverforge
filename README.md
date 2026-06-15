@@ -117,6 +117,10 @@ adapter and selector surface are now documented as `EntityCollectionExtractor`,
 - **Dynamic Bridge**: `solverforge-bridge` contracts for host-language integrations, with logical entity/fact/variable IDs, dynamic score support, and descriptor-resolved scalar/list slots
 - **Scalar Variables**: `#[planning_variable]` fields store candidate indexes
   as `Option<usize>`; keep external IDs on facts or entities.
+- **CVRP List Profile**: `#[planning_list_variable(domain = "cvrp")]` wires
+  stock CVRP distance meters plus split route/savings hooks. Route-local phases
+  use strict capacity and time-window feasibility; Clarke-Wright construction
+  uses relaxed savings admissibility so assignment remains score-comparable.
 - **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, grouped scalar move selectors, conflict-repair selectors, selector telemetry, and level-aware simulated annealing configuration
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
 
@@ -388,7 +392,7 @@ solverforge
   |-- solverforge-config    TOML/YAML configuration
   |-- solverforge-solver    phases, moves, selectors, runtime, SolverManager
   |-- solverforge-bridge    dynamic host-language binding contracts
-  |-- solverforge-cvrp      VRP helper traits, meters, and route/savings hooks
+  |-- solverforge-cvrp      CVRP profile helpers, traits, meters, and hook bundles
   `-- solverforge-console   optional tracing console feature
 
 Dependency layers:
@@ -413,7 +417,7 @@ Dependency layers:
 | `solverforge-config` | Configuration via TOML and builder API |
 | `solverforge-console` | Tracing-based console output with banner and progress display |
 | `solverforge-macros` | Procedural macros for domain model |
-| `solverforge-cvrp` | CVRP domain helpers: `VrpSolution`, `ProblemData`, distance meters, route hooks, and Clarke-Wright savings hooks |
+| `solverforge-cvrp` | CVRP domain profile helpers: `VrpSolution`, `ProblemData`, distance meters, and split stock route/savings hook bundles |
 
 ## Score Types
 

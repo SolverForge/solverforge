@@ -15,7 +15,7 @@ The CLI lives in the standalone `solverforge-cli` repository and is not part of 
 - `solverforge-scoring` (path) — Constraint API, Director
 - `solverforge-solver` (path) — Solver engine, manager, phases
 - `solverforge-config` (path) — Configuration types
-- `solverforge-cvrp` (path) — CVRP domain helpers and route/savings hook bundles
+- `solverforge-cvrp` (path) — CVRP profile helpers, traits, meters, and hook bundles
 - `solverforge-console` (path, optional) — Console output (feature-gated)
 
 ## Features
@@ -186,6 +186,15 @@ Module: `solverforge::cvrp`
 - hook modules: `route_hooks`, `savings_hooks`
 - route-local helpers: `depot_for_entity`, `route_distance`, `route_feasible`
 - Clarke-Wright construction adapters: `savings_depot_for_entity`, `savings_metric_class`, `savings_distance`, `savings_feasible`
+
+Stock CVRP route lists should normally use
+`#[planning_list_variable(element_collection = "...", domain = "cvrp")]`. The
+domain profile expands to the helper modules above while keeping the
+construction/local-search split out of ordinary model code: route hooks enforce
+strict route-local CVRP capacity and time-window feasibility, while savings
+hooks provide relaxed Clarke-Wright construction admissibility. Explicit hook
+modules remain available for custom routing semantics when the `domain = "cvrp"`
+profile is omitted.
 
 ### Console (feature-gated)
 

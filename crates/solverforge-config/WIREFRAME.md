@@ -704,7 +704,7 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 | `ListCheapestInsertion` | Specialized list-only score-minimizing insertion; validates the targeted list variable exists before phase build |
 | `ListRegretInsertion` | Specialized list-only highest-regret insertion; validates the targeted list variable exists before phase build |
 | `ListClarkeWright` | Specialized list-only greedy route merging by savings; validates `route_hooks` for assignment and `savings_hooks` for construction depot, distance, and feasibility before phase build |
-| `ListKOpt` | Specialized list-only per-route k-opt polishing (k=2 = 2-opt); validates `route_hooks` for route read/write, depot, and distance before phase build |
+| `ListKOpt` | Specialized list-only per-route k-opt polishing (k=2 = 2-opt); validates `route_hooks` for route read/write, depot, and distance before phase build, and consumes route feasibility as the optional route-local commit gate |
 
 When `group_name` is set, grouped scalar construction supports
 `FirstFit`, `FirstFitDecreasing`, `CheapestInsertion`, `WeakestFit`,

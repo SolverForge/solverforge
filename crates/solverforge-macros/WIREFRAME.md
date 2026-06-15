@@ -209,6 +209,7 @@ arguments are compile errors.
 
 **`#[planning_list_variable]` parameters:**
 - `element_collection = "field"` — solution field with all list elements
+- `domain = "cvrp"` — stock CVRP list-variable profile; supplies the CVRP solution trait, distance meters, strict route hooks, relaxed Clarke-Wright savings hooks, and savings metric class
 - `distance_meter = "path"` — optional cross-entity distance meter type
 - `intra_distance_meter = "path"` — optional intra-entity distance meter type
 - `route_hooks = "path"` — optional route-local hook module with `get`, `set`, `depot`, `distance`, and `feasible`; k-opt uses these hooks and Clarke-Wright uses only `set` for assignment
@@ -218,6 +219,12 @@ arguments are compile errors.
 - `construction_element_order_key = "path"` — optional list-construction ordering hook, `fn(&Solution, element) -> i64`; it flows through existing generated list metadata and runtime list slots
 - `precedence_duration_fn = "path"` — optional precedence duration hook, `fn(&Solution, element) -> usize`; paired with `precedence_successors_fn`
 - `precedence_successors_fn = "path"` — optional fixed-precedence successor hook, `fn(&Solution, element, &mut Vec<usize>)`; paired with `precedence_duration_fn`
+
+When `domain = "cvrp"` is present, the profiled defaults above must be used as a
+coherent stock bundle. Overriding `distance_meter`, `intra_distance_meter`,
+`solution_trait`, `route_hooks`, `savings_hooks`, or `savings_metric_class_fn`
+is rejected unless the override repeats the exact stock path. Custom routing
+semantics should omit `domain = "cvrp"` and declare explicit hook paths instead.
 
 **Generated code:**
 - `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, plus `update_entity_shadows()` / `update_all_shadows()` overrides when shadow updates are configured

@@ -27,31 +27,39 @@ pub(super) fn generate_list_metadata(
 
     ensure_vec_usize(&field.ty, field)?;
 
+    let distance_meter = parse_profiled_attribute(attr, "distance_meter", field)?;
+    let intra_distance_meter = parse_profiled_attribute(attr, "intra_distance_meter", field)?;
+    let solution_trait = parse_profiled_attribute(attr, "solution_trait", field)?;
+    let route_hooks_attr = parse_profiled_attribute(attr, "route_hooks", field)?;
+    let savings_hooks_attr = parse_profiled_attribute(attr, "savings_hooks", field)?;
+    let savings_metric_class_attr =
+        parse_profiled_attribute(attr, "savings_metric_class_fn", field)?;
+
     let cross_dm_ty = parse_type_or_default(
-        parse_attribute_string(attr, "distance_meter"),
+        distance_meter.clone(),
         "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
         "distance_meter",
         field,
     )?;
     let intra_dm_ty = parse_type_or_default(
-        parse_attribute_string(attr, "intra_distance_meter"),
+        intra_distance_meter.clone(),
         "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
         "intra_distance_meter",
         field,
     )?;
     let cross_dm_expr = parse_default_expr(
-        parse_attribute_string(attr, "distance_meter"),
+        distance_meter,
         "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
         "distance_meter",
         field,
     )?;
     let intra_dm_expr = parse_default_expr(
-        parse_attribute_string(attr, "intra_distance_meter"),
+        intra_distance_meter,
         "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
         "intra_distance_meter",
         field,
     )?;
-    let solution_trait_bound = parse_solution_trait_bound(attr, field)?;
+    let solution_trait_bound = parse_solution_trait_bound(solution_trait, field)?;
     let element_owner_path = parse_optional_path(
         parse_attribute_string(attr, "element_owner_fn"),
         "element_owner_fn",
@@ -68,21 +76,10 @@ pub(super) fn generate_list_metadata(
         }
         (None, false) => quote! {},
     };
-    let route_hooks = parse_optional_path(
-        parse_attribute_string(attr, "route_hooks"),
-        "route_hooks",
-        field,
-    )?;
-    let savings_hooks = parse_optional_path(
-        parse_attribute_string(attr, "savings_hooks"),
-        "savings_hooks",
-        field,
-    )?;
-    let savings_metric_class_path = parse_optional_path(
-        parse_attribute_string(attr, "savings_metric_class_fn"),
-        "savings_metric_class_fn",
-        field,
-    )?;
+    let route_hooks = parse_optional_path(route_hooks_attr, "route_hooks", field)?;
+    let savings_hooks = parse_optional_path(savings_hooks_attr, "savings_hooks", field)?;
+    let savings_metric_class_path =
+        parse_optional_path(savings_metric_class_attr, "savings_metric_class_fn", field)?;
     let route_get = hook_fn_expr(route_hooks.as_ref(), "get");
     let route_set = hook_fn_expr(route_hooks.as_ref(), "set");
     let route_depot = hook_fn_expr(route_hooks.as_ref(), "depot");
@@ -218,19 +215,22 @@ pub(super) fn generate_list_trait_impl(
     };
 
     let attr = get_attribute(&field.attrs, "planning_list_variable").unwrap();
+    let distance_meter = parse_profiled_attribute(attr, "distance_meter", field)?;
+    let intra_distance_meter = parse_profiled_attribute(attr, "intra_distance_meter", field)?;
+    let solution_trait = parse_profiled_attribute(attr, "solution_trait", field)?;
     let cross_dm_ty = parse_type_or_default(
-        parse_attribute_string(attr, "distance_meter"),
+        distance_meter,
         "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
         "distance_meter",
         field,
     )?;
     let intra_dm_ty = parse_type_or_default(
-        parse_attribute_string(attr, "intra_distance_meter"),
+        intra_distance_meter,
         "::solverforge::__internal::DefaultCrossEntityDistanceMeter",
         "intra_distance_meter",
         field,
     )?;
-    let solution_trait_bound = parse_solution_trait_bound(attr, field)?;
+    let solution_trait_bound = parse_solution_trait_bound(solution_trait, field)?;
     let has_element_owner = parse_attribute_string(attr, "element_owner_fn").is_some();
     let element_source = parse_attribute_string(attr, "element_collection").ok_or_else(|| {
         Error::new_spanned(
@@ -355,15 +355,14 @@ fn parse_default_expr(
 }
 
 fn parse_solution_trait_bound(
-    attr: &syn::Attribute,
+    path: Option<String>,
     span: &impl quote::ToTokens,
 ) -> Result<Option<syn::TypeParamBound>, Error> {
-    parse_attribute_string(attr, "solution_trait")
-        .map(|path| {
-            syn::parse_str(&path)
-                .map_err(|_| Error::new_spanned(span, "solution_trait must be a valid trait path"))
-        })
-        .transpose()
+    path.map(|path| {
+        syn::parse_str(&path)
+            .map_err(|_| Error::new_spanned(span, "solution_trait must be a valid trait path"))
+    })
+    .transpose()
 }
 
 fn hook_fn_expr(module_path: Option<&syn::Path>, fn_name: &str) -> TokenStream {
@@ -393,4 +392,79 @@ fn parse_optional_path(
             .map_err(|_| Error::new_spanned(span, format!("{label} must be a valid path")))
     })
     .transpose()
+}
+
+#[derive(Clone, Copy)]
+enum ListVariableDomain {
+    Cvrp,
+}
+
+impl ListVariableDomain {
+    fn from_attr(
+        attr: &syn::Attribute,
+        span: &impl quote::ToTokens,
+    ) -> Result<Option<Self>, Error> {
+        parse_attribute_string(attr, "domain")
+            .map(|domain| match domain.as_str() {
+                "cvrp" => Ok(Self::Cvrp),
+                _ => Err(Error::new_spanned(
+                    span,
+                    format!(
+                        "unsupported planning_list_variable domain `{domain}`; supported domains are cvrp"
+                    ),
+                )),
+            })
+            .transpose()
+    }
+
+    fn default_for(self, name: &str) -> Option<&'static str> {
+        match self {
+            Self::Cvrp => match name {
+                "distance_meter" => Some("::solverforge::cvrp::MatrixDistanceMeter"),
+                "intra_distance_meter" => Some("::solverforge::cvrp::MatrixIntraDistanceMeter"),
+                "solution_trait" => Some("::solverforge::cvrp::VrpSolution"),
+                "route_hooks" => Some("::solverforge::cvrp::route_hooks"),
+                "savings_hooks" => Some("::solverforge::cvrp::savings_hooks"),
+                "savings_metric_class_fn" => Some("::solverforge::cvrp::savings_metric_class"),
+                _ => None,
+            },
+        }
+    }
+}
+
+fn parse_profiled_attribute(
+    attr: &syn::Attribute,
+    name: &str,
+    span: &impl quote::ToTokens,
+) -> Result<Option<String>, Error> {
+    let explicit = parse_attribute_string(attr, name);
+    let Some(domain) = ListVariableDomain::from_attr(attr, span)? else {
+        return Ok(explicit);
+    };
+    let Some(default) = domain.default_for(name) else {
+        return Ok(explicit);
+    };
+
+    if let Some(value) = explicit {
+        if normalize_path(&value) == normalize_path(default) {
+            Ok(Some(default.to_string()))
+        } else {
+            Err(Error::new_spanned(
+                span,
+                format!(
+                    "`domain = \"cvrp\"` provides `{name}`; remove `{name}` or use the stock path `{default}`"
+                ),
+            ))
+        }
+    } else {
+        Ok(Some(default.to_string()))
+    }
+}
+
+fn normalize_path(path: &str) -> String {
+    path.chars()
+        .filter(|ch| !ch.is_whitespace())
+        .collect::<String>()
+        .trim_start_matches("::")
+        .to_string()
 }

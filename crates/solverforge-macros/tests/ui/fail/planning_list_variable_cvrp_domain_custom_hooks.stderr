@@ -1,0 +1,10 @@
+error: `domain = "cvrp"` provides `route_hooks`; remove `route_hooks` or use the stock path `::solverforge::cvrp::route_hooks`
+  --> tests/ui/fail/planning_list_variable_cvrp_domain_custom_hooks.rs:8:5
+   |
+ 8 | /     #[planning_list_variable(
+ 9 | |         element_collection = "visits",
+10 | |         domain = "cvrp",
+11 | |         route_hooks = "custom_hooks"
+12 | |     )]
+13 | |     pub visits: Vec<usize>,
+   | |__________________________^

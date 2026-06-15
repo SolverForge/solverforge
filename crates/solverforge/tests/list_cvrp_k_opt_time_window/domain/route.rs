@@ -10,6 +10,4 @@ pub struct Route {
         domain = "cvrp"
     )]
     pub visits: Vec<usize>,
-
-    pub data_addr: usize,
 }

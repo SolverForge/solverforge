@@ -5,11 +5,8 @@ pub struct Route {
     #[planning_id]
     pub id: usize,
 
-    #[planning_list_variable(
-        element_collection = "customer_values",
-        domain = "cvrp"
-    )]
+    #[planning_list_variable(element_collection = "visits", domain = "unknown")]
     pub visits: Vec<usize>,
-
-    pub data_addr: usize,
 }
+
+fn main() {}

@@ -83,6 +83,7 @@ const PLANNING_VARIABLE_ARGS: &[AttributeArgSpec] = &[
 
 const PLANNING_LIST_VARIABLE_ARGS: &[AttributeArgSpec] = &[
     AttributeArgSpec::string("element_collection"),
+    AttributeArgSpec::string("domain"),
     AttributeArgSpec::string("distance_meter"),
     AttributeArgSpec::string("intra_distance_meter"),
     AttributeArgSpec::string("route_hooks"),

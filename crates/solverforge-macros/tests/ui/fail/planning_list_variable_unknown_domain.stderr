@@ -1,0 +1,6 @@
+error: unsupported planning_list_variable domain `unknown`; supported domains are cvrp
+ --> tests/ui/fail/planning_list_variable_unknown_domain.rs:8:5
+  |
+8 | /     #[planning_list_variable(element_collection = "visits", domain = "unknown")]
+9 | |     pub visits: Vec<usize>,
+  | |__________________________^

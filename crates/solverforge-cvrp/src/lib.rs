@@ -16,7 +16,7 @@ pub use helpers::{
     savings_metric_class,
 };
 pub use meters::{MatrixDistanceMeter, MatrixIntraDistanceMeter};
-pub use problem_data::ProblemData;
+pub use problem_data::{ProblemData, UNREACHABLE};
 pub use solution::VrpSolution;
 
 #[cfg(test)]

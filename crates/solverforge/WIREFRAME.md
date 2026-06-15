@@ -180,6 +180,7 @@ Module: `solverforge::cvrp`
 
 - `VrpSolution` (trait)
 - `ProblemData`
+- `UNREACHABLE`
 - `MatrixDistanceMeter`
 - `MatrixIntraDistanceMeter`
 - `replace_route`, `get_route`

@@ -88,7 +88,7 @@ pub fn savings_feasible<S: VrpSolution>(plan: &S, entity_idx: usize, route: &[us
 
 /// Distance between two element indices for the route owner.
 pub fn route_distance<S: VrpSolution>(plan: &S, entity_idx: usize, from: usize, to: usize) -> i64 {
-    problem_data_for_entity(plan, entity_idx).map_or(0, |data| data.distance_matrix[from][to])
+    problem_data_for_entity(plan, entity_idx).map_or(0, |data| data.distance_cost(from, to))
 }
 
 /// Replaces the current route for entity `entity_idx`.
@@ -167,11 +167,15 @@ fn route_is_structurally_valid(route: &[usize], data: &ProblemData) -> bool {
 }
 
 fn route_is_capacity_feasible(route: &[usize], data: &ProblemData) -> bool {
-    route
-        .iter()
-        .map(|&visit| i64::from(data.demands[visit]))
-        .sum::<i64>()
-        <= data.capacity
+    let mut total = 0_i64;
+    for &visit in route {
+        let demand = i64::from(data.demands[visit]);
+        total = match total.checked_add(demand) {
+            Some(total) => total,
+            None => return false,
+        };
+    }
+    total <= data.capacity
 }
 
 fn route_is_time_feasible(route: &[usize], data: &ProblemData) -> bool {
@@ -179,14 +183,27 @@ fn route_is_time_feasible(route: &[usize], data: &ProblemData) -> bool {
     let mut previous = data.depot;
 
     for &visit in route {
-        current_time += data.travel_times[previous][visit];
+        let Some(travel_time) = data.travel_time(previous, visit) else {
+            return false;
+        };
+        current_time = match current_time.checked_add(travel_time) {
+            Some(current_time) => current_time,
+            None => return false,
+        };
 
         let (min_start, max_end) = data.time_windows[visit];
         if current_time < min_start {
             current_time = min_start;
         }
 
-        current_time += data.service_durations[visit];
+        let service_duration = data.service_durations[visit];
+        if service_duration < 0 {
+            return false;
+        }
+        current_time = match current_time.checked_add(service_duration) {
+            Some(current_time) => current_time,
+            None => return false,
+        };
         if current_time > max_end {
             return false;
         }
@@ -194,5 +211,8 @@ fn route_is_time_feasible(route: &[usize], data: &ProblemData) -> bool {
         previous = visit;
     }
 
-    true
+    let Some(return_time) = data.travel_time(previous, data.depot) else {
+        return false;
+    };
+    current_time.checked_add(return_time).is_some()
 }

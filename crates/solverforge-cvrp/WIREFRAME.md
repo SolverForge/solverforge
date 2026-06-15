@@ -39,6 +39,12 @@ Immutable problem data shared by all vehicles. Fields:
 | `travel_times` | `Vec<Vec<i64>>` | Travel time matrix |
 | `vehicle_departure_time` | `i64` | Departure time from depot |
 
+`UNREACHABLE` is exported as `i64::MAX` for non-traversable matrix entries.
+`route_feasible` rejects routes that contain unreachable travel-time legs or
+overflowing time arithmetic. Distance hooks convert unreachable or malformed
+distance entries into a large finite cost so construction and local-search
+distance arithmetic stays panic-free.
+
 ### `VrpSolution` (trait)
 
 Trait implemented by a planning solution that holds a fleet of vehicles.
@@ -89,7 +95,8 @@ The profile expands to the stock meters, `VrpSolution` bound, route hooks,
 savings hooks, and savings metric class. Route-local phases use strict stock
 CVRP route feasibility. Clarke-Wright construction uses relaxed savings
 feasibility so assignment can stay broad while the score model compares
-capacity and lateness violations against leaving work unassigned.
+capacity, lateness, and unreachable-leg violations against leaving work
+unassigned.
 
 ### Advanced macro hook bundles
 

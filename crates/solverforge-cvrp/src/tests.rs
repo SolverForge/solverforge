@@ -181,6 +181,94 @@ fn clarke_wright_adapters_share_exact_cvrp_data_when_requested() {
 }
 
 #[test]
+fn route_feasibility_rejects_unreachable_depot_leg_without_panic() {
+    let mut data = base_problem_data();
+    data.distance_matrix[0][1] = UNREACHABLE;
+    data.travel_times[0][1] = UNREACHABLE;
+    let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
+
+    let outcome = std::panic::catch_unwind(|| route_feasible(&solution, 0, &[1]));
+
+    assert!(matches!(outcome, Ok(false)));
+}
+
+#[test]
+fn route_feasibility_rejects_unreachable_inter_visit_leg_without_panic() {
+    let mut data = base_problem_data();
+    data.distance_matrix[1][2] = UNREACHABLE;
+    data.travel_times[1][2] = UNREACHABLE;
+    let solution = TestSolution::with_data(vec![vec![1, 2]], vec![data]);
+
+    let outcome = std::panic::catch_unwind(|| route_feasible(&solution, 0, &[1, 2]));
+
+    assert!(matches!(outcome, Ok(false)));
+}
+
+#[test]
+fn route_feasibility_rejects_unreachable_return_depot_leg_without_panic() {
+    let mut data = base_problem_data();
+    data.distance_matrix[1][0] = UNREACHABLE;
+    data.travel_times[1][0] = UNREACHABLE;
+    let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
+
+    let outcome = std::panic::catch_unwind(|| route_feasible(&solution, 0, &[1]));
+
+    assert!(matches!(outcome, Ok(false)));
+}
+
+#[test]
+fn route_feasibility_rejects_time_overflow_without_wrapping() {
+    let mut data = base_problem_data();
+    data.vehicle_departure_time = 20;
+    data.travel_times[0][1] = i64::MAX - 10;
+    let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
+
+    assert!(
+        !route_feasible(&solution, 0, &[1]),
+        "overflowing travel accumulation must not wrap into a feasible time"
+    );
+}
+
+#[test]
+fn route_feasibility_rejects_service_overflow_without_wrapping() {
+    let mut data = base_problem_data();
+    data.time_windows[1] = (0, i64::MAX);
+    data.service_durations[1] = i64::MAX;
+    let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
+
+    assert!(
+        !route_feasible(&solution, 0, &[1]),
+        "overflowing service accumulation must not wrap into a feasible time"
+    );
+}
+
+#[test]
+fn stock_savings_feasibility_stays_structural_for_unreachable_routes() {
+    let mut data = base_problem_data();
+    data.distance_matrix[0][1] = UNREACHABLE;
+    data.travel_times[0][1] = UNREACHABLE;
+    let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
+
+    assert!(savings_feasible(&solution, 0, &[1]));
+    assert!(savings_hooks::feasible(&solution, 0, &[1]));
+}
+
+#[test]
+fn stock_distances_convert_unreachable_or_malformed_legs_to_finite_costs() {
+    let mut data = base_problem_data();
+    data.distance_matrix[0][1] = UNREACHABLE;
+    let solution = TestSolution::with_data(vec![vec![1]], vec![data]);
+
+    let unreachable_cost = route_distance(&solution, 0, 0, 1);
+    let malformed_cost = route_distance(&solution, 0, 99, 1);
+
+    assert!(unreachable_cost > 0);
+    assert!(unreachable_cost < UNREACHABLE);
+    assert_eq!(savings_distance(&solution, 0, 0, 1), unreachable_cost);
+    assert_eq!(malformed_cost, unreachable_cost);
+}
+
+#[test]
 fn hook_bundles_expose_route_and_savings_semantics() {
     let mut solution = TestSolution::new(vec![vec![1, 2], vec![3]]);
 
@@ -304,5 +392,19 @@ fn distance_meters_cover_invalid_positions() {
         .is_infinite());
     assert!(MatrixIntraDistanceMeter
         .distance(&solution, 0, 0, 0, 4)
+        .is_infinite());
+}
+
+#[test]
+fn distance_meters_treat_unreachable_legs_as_infinite() {
+    let mut data = base_problem_data();
+    data.distance_matrix[1][2] = UNREACHABLE;
+    let solution = TestSolution::with_data(vec![vec![1, 2], vec![2]], vec![data.clone(), data]);
+
+    assert!(MatrixDistanceMeter
+        .distance(&solution, 0, 0, 1, 0)
+        .is_infinite());
+    assert!(MatrixIntraDistanceMeter
+        .distance(&solution, 0, 0, 0, 1)
         .is_infinite());
 }

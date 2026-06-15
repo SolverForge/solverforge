@@ -21,9 +21,9 @@ impl<S: VrpSolution> CrossEntityDistanceMeter<S> for MatrixDistanceMeter {
         if src_pos >= src_visits.len() || dst_pos >= dst_visits.len() {
             return f64::INFINITY;
         }
-        problem_data_for_entity(solution, src_entity).map_or(f64::INFINITY, |data| {
-            data.distance_matrix[src_visits[src_pos]][dst_visits[dst_pos]] as f64
-        })
+        problem_data_for_entity(solution, src_entity)
+            .and_then(|data| data.finite_distance(src_visits[src_pos], dst_visits[dst_pos]))
+            .map_or(f64::INFINITY, |distance| distance as f64)
     }
 }
 
@@ -44,8 +44,8 @@ impl<S: VrpSolution> CrossEntityDistanceMeter<S> for MatrixIntraDistanceMeter {
         if src_pos >= visits.len() || dst_pos >= visits.len() {
             return f64::INFINITY;
         }
-        problem_data_for_entity(solution, src_entity).map_or(f64::INFINITY, |data| {
-            data.distance_matrix[visits[src_pos]][visits[dst_pos]] as f64
-        })
+        problem_data_for_entity(solution, src_entity)
+            .and_then(|data| data.finite_distance(visits[src_pos], visits[dst_pos]))
+            .map_or(f64::INFINITY, |distance| distance as f64)
     }
 }

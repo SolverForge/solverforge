@@ -209,7 +209,7 @@ arguments are compile errors.
 
 **`#[planning_list_variable]` parameters:**
 - `element_collection = "field"` — solution field with all list elements
-- `domain = "cvrp"` — stock CVRP list-variable profile; supplies the CVRP solution trait, distance meters, strict route hooks, relaxed Clarke-Wright savings hooks, and savings metric class
+- `domain = "cvrp"` — stock CVRP list-variable profile; supplies the CVRP solution trait, distance meters, strict route hooks with safe unreachable-leg rejection, relaxed Clarke-Wright savings hooks, and savings metric class
 - `distance_meter = "path"` — optional cross-entity distance meter type
 - `intra_distance_meter = "path"` — optional intra-entity distance meter type
 - `route_hooks = "path"` — optional route-local hook module with `get`, `set`, `depot`, `distance`, and `feasible`; k-opt uses these hooks and Clarke-Wright uses only `set` for assignment

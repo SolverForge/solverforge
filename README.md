@@ -119,8 +119,9 @@ adapter and selector surface are now documented as `EntityCollectionExtractor`,
   as `Option<usize>`; keep external IDs on facts or entities.
 - **CVRP List Profile**: `#[planning_list_variable(domain = "cvrp")]` wires
   stock CVRP distance meters plus split route/savings hooks. Route-local phases
-  use strict capacity and time-window feasibility; Clarke-Wright construction
-  uses relaxed savings admissibility so assignment remains score-comparable.
+  use strict capacity, time-window, and unreachable-leg feasibility;
+  Clarke-Wright construction uses relaxed savings admissibility so assignment
+  remains score-comparable.
 - **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, grouped scalar move selectors, conflict-repair selectors, selector telemetry, and level-aware simulated annealing configuration
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
 

@@ -142,6 +142,14 @@ fn distance_records_owner(_: &Plan, entity_idx: usize, a: usize, b: usize) -> i6
     (a as i64 - b as i64).abs()
 }
 
+fn extreme_distance(_: &Plan, _: usize, a: usize, b: usize) -> i64 {
+    if a == b {
+        0
+    } else {
+        i64::MAX
+    }
+}
+
 fn single_visit_route(_: &Plan, _: usize, route: &[usize]) -> bool {
     route.len() <= 1
 }
@@ -323,6 +331,56 @@ fn clarke_wright_route_feasible_preserves_capacity_hook_behavior() {
         .routes
         .iter()
         .all(|route| route.visits.iter().sum::<usize>() <= 30));
+}
+
+#[test]
+fn clarke_wright_extreme_distances_do_not_overflow_savings() {
+    let plan = Plan {
+        customer_values: vec![10, 20, 30],
+        routes: vec![
+            Route { visits: Vec::new() },
+            Route { visits: Vec::new() },
+            Route { visits: Vec::new() },
+        ],
+        score: None,
+    };
+    let director = ScoreDirector::simple(
+        plan,
+        SolutionDescriptor::new("Plan", TypeId::of::<Plan>()),
+        |s, descriptor_index| {
+            if descriptor_index == 0 {
+                s.routes.len()
+            } else {
+                0
+            }
+        },
+    );
+    let mut solver_scope = SolverScope::new(director);
+    let mut phase = ListClarkeWrightPhase::new(
+        element_count,
+        get_assigned,
+        entity_count,
+        route_len,
+        assign_route,
+        index_to_element,
+        depot,
+        extreme_distance,
+        single_visit_route,
+        0,
+    );
+
+    phase.solve(&mut solver_scope);
+
+    let solution = solver_scope.working_solution();
+    let mut assigned: Vec<_> = solution
+        .routes
+        .iter()
+        .flat_map(|route| route.visits.iter().copied())
+        .collect();
+    assigned.sort_unstable();
+
+    assert_eq!(assigned, vec![10, 20, 30]);
+    assert!(solution.routes.iter().all(|route| route.visits.len() <= 1));
 }
 
 #[test]

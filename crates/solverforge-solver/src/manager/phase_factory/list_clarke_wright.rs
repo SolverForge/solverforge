@@ -15,6 +15,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
+use super::distance_arithmetic::sum_two_minus_one;
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
@@ -201,9 +202,11 @@ where
         .map(|&idx| index_to_element(solution, idx).into())
         .unwrap_or(depot);
 
-    distance_fn(solution, owner_idx, previous, value)
-        + distance_fn(solution, owner_idx, value, next)
-        - distance_fn(solution, owner_idx, previous, next)
+    sum_two_minus_one(
+        distance_fn(solution, owner_idx, previous, value),
+        distance_fn(solution, owner_idx, value, next),
+        distance_fn(solution, owner_idx, previous, next),
+    )
 }
 
 /// List construction phase using Clarke-Wright savings algorithm.
@@ -489,9 +492,11 @@ where
                     let depot = (self.depot_fn)(solution, owner_idx);
                     let left_value = index_to_element(solution, left_idx).into();
                     let right_value = index_to_element(solution, right_idx).into();
-                    let saving = distance_fn(solution, owner_idx, depot, left_value)
-                        + distance_fn(solution, owner_idx, depot, right_value)
-                        - distance_fn(solution, owner_idx, left_value, right_value);
+                    let saving = sum_two_minus_one(
+                        distance_fn(solution, owner_idx, depot, left_value),
+                        distance_fn(solution, owner_idx, depot, right_value),
+                        distance_fn(solution, owner_idx, left_value, right_value),
+                    );
                     savings.push(SavingsEntry {
                         saving,
                         metric_class: owner_slot.metric_class,

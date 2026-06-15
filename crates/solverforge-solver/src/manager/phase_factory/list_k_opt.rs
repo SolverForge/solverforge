@@ -10,6 +10,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
+use super::distance_arithmetic::sum_two;
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
 
@@ -192,11 +193,15 @@ where
                         let e = if j + 1 < n { route[j + 1] } else { depot };
                         // Accept if reversing [i..=j] reduces distance
                         let solution = phase_scope.score_director().working_solution();
-                        if distance_fn(solution, entity_idx, a, c)
-                            + distance_fn(solution, entity_idx, b, e)
-                            < distance_fn(solution, entity_idx, a, b)
-                                + distance_fn(solution, entity_idx, c, e)
-                        {
+                        let proposed_distance = sum_two(
+                            distance_fn(solution, entity_idx, a, c),
+                            distance_fn(solution, entity_idx, b, e),
+                        );
+                        let current_distance = sum_two(
+                            distance_fn(solution, entity_idx, a, b),
+                            distance_fn(solution, entity_idx, c, e),
+                        );
+                        if proposed_distance < current_distance {
                             route[i..=j].reverse();
                             // Check optional feasibility gate; revert if infeasible
                             if let Some(f) = feasible_fn {
@@ -290,6 +295,14 @@ mod tests {
         (left as i64 - right as i64).abs()
     }
 
+    fn extreme_distance(_: &Plan, _: usize, left: usize, right: usize) -> i64 {
+        if left == right {
+            0
+        } else {
+            i64::MAX
+        }
+    }
+
     fn owner_distance_calls() -> &'static Mutex<Vec<usize>> {
         static CALLS: OnceLock<Mutex<Vec<usize>>> = OnceLock::new();
         CALLS.get_or_init(|| Mutex::new(Vec::new()))
@@ -366,6 +379,34 @@ mod tests {
             depot,
             line_distance,
             Some(keep_original_middle_pair),
+            0,
+        );
+
+        phase.solve(&mut solver_scope);
+
+        assert_eq!(
+            solver_scope.working_solution().routes[0].visits,
+            vec![1, 3, 2, 4]
+        );
+    }
+
+    #[test]
+    fn list_k_opt_extreme_distances_do_not_overflow_or_accept_wrapped_improvement() {
+        let plan = Plan {
+            routes: vec![Route {
+                visits: vec![1, 3, 2, 4],
+            }],
+            score: None,
+        };
+        let mut solver_scope = SolverScope::new(director(plan));
+        let mut phase = ListKOptPhase::<Plan, usize>::new(
+            2,
+            entity_count,
+            get_route,
+            set_route,
+            depot,
+            extreme_distance,
+            None,
             0,
         );
 

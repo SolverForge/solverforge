@@ -19,6 +19,7 @@ flow through generics. See the individual factory types for usage details.
 */
 
 mod construction;
+mod distance_arithmetic;
 mod k_opt;
 mod list_clarke_wright;
 mod list_construction;

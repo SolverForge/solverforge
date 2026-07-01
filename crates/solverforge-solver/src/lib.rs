@@ -119,7 +119,7 @@ pub use phase::{
         BestFitForager, ConstructionChoice, ConstructionForager, ConstructionHeuristicConfig,
         ConstructionHeuristicPhase, EntityPlacer, FirstFeasibleForager, FirstFitForager,
         ForagerType, Placement, QueuedEntityPlacer, ScalarAssignmentMoveCursor,
-        ScalarAssignmentMoveOptions,
+        ScalarAssignmentMoveOptions, ScalarAssignmentRequiredStreamingCursor,
     },
     exhaustive::{
         BounderType, ExhaustiveSearchConfig, ExhaustiveSearchDecider, ExhaustiveSearchNode,

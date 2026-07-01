@@ -43,11 +43,19 @@ impl AssignmentFamilyCursor {
     where
         S: PlanningSolution,
     {
-        let mut entities =
-            required_entities_by_scarcity(group, solution, state, options.value_candidate_limit);
+        let mut entities = if options.required_scarcity_ordering {
+            required_entities_by_scarcity(group, solution, state, options.value_candidate_limit)
+        } else {
+            super::assignment_candidate::ordered_entities(group, solution, |entity_index| {
+                state.is_required(entity_index) && state.current_value(entity_index).is_none()
+            })
+        };
         rotate_entity_order(&mut entities, options.entity_offset);
-        let value_degrees =
-            required_value_degrees(group, solution, &entities, options.value_candidate_limit);
+        let value_degrees = if options.required_scarcity_ordering {
+            required_value_degrees(group, solution, &entities, options.value_candidate_limit)
+        } else {
+            HashMap::new()
+        };
         Self::EntityValues(EntityValueCursor {
             entities,
             entity_pos: 0,

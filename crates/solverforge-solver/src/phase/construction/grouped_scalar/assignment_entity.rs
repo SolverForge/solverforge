@@ -32,14 +32,24 @@ impl EntityValueCursor {
     {
         let intent = self.kind.intent();
         while self.entity_pos < self.entities.len() {
+            let entity_index = self.entities[self.entity_pos];
+            if self.kind == AssignmentMoveKind::Required
+                && state.current_value(entity_index).is_some()
+            {
+                self.entity_pos += 1;
+                self.values.clear();
+                self.value_pos = 0;
+                continue;
+            }
             if self.values.is_empty() {
-                let entity_index = self.entities[self.entity_pos];
                 self.values = group.candidate_values(
                     solution,
                     entity_index,
                     self.options.value_candidate_limit,
                 );
-                if self.kind == AssignmentMoveKind::Required {
+                if self.kind == AssignmentMoveKind::Required
+                    && self.options.required_scarcity_ordering
+                {
                     sort_values_by_required_scarcity(
                         group,
                         solution,
@@ -57,7 +67,6 @@ impl EntityValueCursor {
                 }
                 self.value_pos = 0;
             }
-            let entity_index = self.entities[self.entity_pos];
             while self.value_pos < self.values.len() {
                 let value = self.values[self.value_pos];
                 self.value_pos += 1;

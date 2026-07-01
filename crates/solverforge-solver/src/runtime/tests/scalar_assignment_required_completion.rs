@@ -105,6 +105,169 @@ fn scalar_assignment_construction_cursor_batches_required_entity_values() {
 }
 
 #[test]
+fn scalar_assignment_streaming_required_cursor_yields_one_entity_move() {
+    let model = assignment_model_with_limits(ScalarGroupLimits {
+        group_candidate_limit: Some(4),
+        max_moves_per_step: Some(1),
+        max_augmenting_depth: Some(3),
+        ..ScalarGroupLimits::new()
+    });
+    let plan = coverage_plan(
+        3,
+        vec![
+            coverage_slot(true, 0, None, &[0, 1, 2]),
+            coverage_slot(true, 1, None, &[0, 1, 2]),
+            coverage_slot(true, 2, None, &[0, 1, 2]),
+        ],
+    );
+    let crate::builder::ScalarGroupBindingKind::Assignment(assignment) =
+        model.scalar_groups()[0].kind
+    else {
+        panic!("test model should contain an assignment-backed scalar group");
+    };
+    let options =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_construction(
+            model.scalar_groups()[0].limits,
+        )
+        .with_entity_offset(1);
+    let mut cursor =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::required_streaming_construction(
+            assignment, plan, options,
+        );
+    let mov = cursor.next_move().expect("expected a required assignment move");
+
+    assert_eq!(mov.reason(), "scalar_assignment_required");
+    assert_eq!(mov.edits().len(), 1);
+    assert_eq!(mov.edits()[0].entity_index, 1);
+}
+
+#[test]
+fn scalar_assignment_borrowed_streaming_required_helper_yields_one_entity_move() {
+    let model = assignment_model_with_limits(ScalarGroupLimits {
+        group_candidate_limit: Some(4),
+        max_moves_per_step: Some(1),
+        max_augmenting_depth: Some(3),
+        ..ScalarGroupLimits::new()
+    });
+    let plan = coverage_plan(
+        3,
+        vec![
+            coverage_slot(true, 0, None, &[0, 1, 2]),
+            coverage_slot(true, 1, None, &[0, 1, 2]),
+            coverage_slot(true, 2, None, &[0, 1, 2]),
+        ],
+    );
+    let crate::builder::ScalarGroupBindingKind::Assignment(assignment) =
+        model.scalar_groups()[0].kind
+    else {
+        panic!("test model should contain an assignment-backed scalar group");
+    };
+    let options =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_construction(
+            model.scalar_groups()[0].limits,
+        )
+        .with_entity_offset(1);
+    let mov = crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::next_required_streaming_construction_move(
+        assignment,
+        &plan,
+        options,
+    )
+    .expect("expected a required assignment move");
+
+    assert_eq!(mov.reason(), "scalar_assignment_required");
+    assert_eq!(mov.edits().len(), 1);
+    assert_eq!(mov.edits()[0].entity_index, 1);
+}
+
+#[test]
+fn scalar_assignment_streaming_required_cursor_commits_accepted_move() {
+    let model = assignment_model_with_limits(ScalarGroupLimits {
+        group_candidate_limit: Some(4),
+        max_moves_per_step: Some(1),
+        max_augmenting_depth: Some(3),
+        ..ScalarGroupLimits::new()
+    });
+    let plan = coverage_plan(
+        3,
+        vec![
+            coverage_slot(true, 0, None, &[0, 1, 2]),
+            coverage_slot(true, 1, None, &[0, 1, 2]),
+            coverage_slot(true, 2, None, &[0, 1, 2]),
+        ],
+    );
+    let crate::builder::ScalarGroupBindingKind::Assignment(assignment) =
+        model.scalar_groups()[0].kind
+    else {
+        panic!("test model should contain an assignment-backed scalar group");
+    };
+    let options =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_construction(
+            model.scalar_groups()[0].limits,
+        )
+        .with_entity_offset(1);
+    let mut cursor =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::required_streaming_construction(
+            assignment, plan, options,
+        );
+    let first = cursor
+        .next_move()
+        .expect("expected first required assignment move");
+    let first_entity = first.edits()[0].entity_index;
+
+    cursor.commit_move(&first);
+
+    let second = cursor
+        .next_move()
+        .expect("expected second required assignment move");
+    assert_ne!(second.edits()[0].entity_index, first_entity);
+}
+
+#[test]
+fn scalar_assignment_borrowed_required_cursor_commits_accepted_move() {
+    let model = assignment_model_with_limits(ScalarGroupLimits {
+        group_candidate_limit: Some(4),
+        max_moves_per_step: Some(1),
+        max_augmenting_depth: Some(3),
+        ..ScalarGroupLimits::new()
+    });
+    let plan = coverage_plan(
+        3,
+        vec![
+            coverage_slot(true, 0, None, &[0, 1, 2]),
+            coverage_slot(true, 1, None, &[0, 1, 2]),
+            coverage_slot(true, 2, None, &[0, 1, 2]),
+        ],
+    );
+    let crate::builder::ScalarGroupBindingKind::Assignment(assignment) =
+        model.scalar_groups()[0].kind
+    else {
+        panic!("test model should contain an assignment-backed scalar group");
+    };
+    let options =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentMoveOptions::for_construction(
+            model.scalar_groups()[0].limits,
+        )
+        .with_entity_offset(1);
+    let mut cursor =
+        crate::phase::construction::grouped_scalar::ScalarAssignmentRequiredStreamingCursor::new(
+            assignment,
+            &plan,
+            options,
+        );
+    let first = cursor
+        .next_move(&plan)
+        .expect("expected first required assignment move");
+    let first_entity = first.edits()[0].entity_index;
+
+    cursor.commit_move(&plan, &first);
+
+    let second = cursor
+        .next_move(&plan)
+        .expect("expected second required assignment move");
+    assert_ne!(second.edits()[0].entity_index, first_entity);
+}
+
+#[test]
 fn scalar_assignment_construction_ignores_repair_move_cap() {
     let model = assignment_model_with_limits(ScalarGroupLimits {
         group_candidate_limit: Some(4),

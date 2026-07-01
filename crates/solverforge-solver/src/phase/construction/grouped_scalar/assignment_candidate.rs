@@ -14,6 +14,7 @@ pub struct ScalarAssignmentMoveOptions {
     pub(crate) max_depth: usize,
     pub(crate) max_rematch_size: usize,
     pub(crate) entity_offset: usize,
+    pub(crate) required_scarcity_ordering: bool,
 }
 
 impl ScalarAssignmentMoveOptions {
@@ -24,6 +25,7 @@ impl ScalarAssignmentMoveOptions {
             max_depth: limits.max_augmenting_depth.unwrap_or(3),
             max_rematch_size: limits.max_rematch_size.unwrap_or(4).max(2),
             entity_offset: 0,
+            required_scarcity_ordering: true,
         }
     }
 
@@ -39,11 +41,22 @@ impl ScalarAssignmentMoveOptions {
             max_depth: limits.max_augmenting_depth.unwrap_or(3),
             max_rematch_size: limits.max_rematch_size.unwrap_or(4).max(2),
             entity_offset,
+            required_scarcity_ordering: true,
         }
     }
 
     pub fn with_max_moves(mut self, max_moves: usize) -> Self {
         self.max_moves = max_moves;
+        self
+    }
+
+    pub fn with_entity_offset(mut self, entity_offset: usize) -> Self {
+        self.entity_offset = entity_offset;
+        self
+    }
+
+    pub fn with_required_scarcity_ordering(mut self, enabled: bool) -> Self {
+        self.required_scarcity_ordering = enabled;
         self
     }
 }

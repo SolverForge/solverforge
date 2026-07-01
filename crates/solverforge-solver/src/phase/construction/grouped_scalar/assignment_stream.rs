@@ -29,6 +29,17 @@ where
     yielded: usize,
 }
 
+pub struct ScalarAssignmentRequiredStreamingCursor<S>
+where
+    S: PlanningSolution,
+{
+    group: ScalarAssignmentBinding<S>,
+    options: ScalarAssignmentMoveOptions,
+    state: ScalarAssignmentState,
+    cursor: AssignmentFamilyCursor,
+    yielded: usize,
+}
+
 struct AssignmentFamilySlot {
     family: AssignmentMoveFamily,
     cursor: AssignmentFamilyCursor,
@@ -69,6 +80,54 @@ where
             false,
             true,
         )
+    }
+
+    pub fn required_streaming_construction(
+        group: ScalarAssignmentBinding<S>,
+        solution: S,
+        options: ScalarAssignmentMoveOptions,
+    ) -> Self {
+        Self::from_family_range(
+            group,
+            solution,
+            options.with_required_scarcity_ordering(false),
+            AssignmentMoveFamily::Required,
+            AssignmentMoveFamily::Required,
+            false,
+            false,
+        )
+    }
+
+    pub fn next_required_streaming_construction_move(
+        group: ScalarAssignmentBinding<S>,
+        solution: &S,
+        options: ScalarAssignmentMoveOptions,
+    ) -> Option<CompoundScalarMove<S>> {
+        let options = options.with_required_scarcity_ordering(false);
+        if options.max_moves == 0 {
+            return None;
+        }
+        let mut state = ScalarAssignmentState::new(&group, solution);
+        let mut cursor =
+            AssignmentFamilyCursor::required_entity_values(&group, solution, &state, options);
+        next_family_move(&mut cursor, &group, solution, &mut state)
+    }
+
+    pub fn commit_move(&mut self, mov: &CompoundScalarMove<S>) {
+        for edit in mov.edits() {
+            self.state.set_value(
+                &self.group,
+                &self.solution,
+                edit.entity_index,
+                edit.to_value,
+            );
+            (edit.setter)(
+                &mut self.solution,
+                edit.entity_index,
+                edit.variable_index,
+                edit.to_value,
+            );
+        }
     }
 
     pub(crate) fn required(
@@ -325,6 +384,45 @@ where
                 CapacityCursor::new(&self.group, &self.solution, &self.state, options),
             ),
             AssignmentMoveFamily::Done => AssignmentFamilyCursor::Empty,
+        }
+    }
+}
+
+impl<S> ScalarAssignmentRequiredStreamingCursor<S>
+where
+    S: PlanningSolution,
+{
+    pub fn new(
+        group: ScalarAssignmentBinding<S>,
+        solution: &S,
+        options: ScalarAssignmentMoveOptions,
+    ) -> Self {
+        let options = options.with_required_scarcity_ordering(false);
+        let state = ScalarAssignmentState::new(&group, solution);
+        let cursor =
+            AssignmentFamilyCursor::required_entity_values(&group, solution, &state, options);
+        Self {
+            group,
+            options,
+            state,
+            cursor,
+            yielded: 0,
+        }
+    }
+
+    pub fn next_move(&mut self, solution: &S) -> Option<CompoundScalarMove<S>> {
+        if self.options.max_moves == 0 || self.yielded >= self.options.max_moves {
+            return None;
+        }
+        let candidate = next_family_move(&mut self.cursor, &self.group, solution, &mut self.state)?;
+        self.yielded += 1;
+        Some(candidate)
+    }
+
+    pub fn commit_move(&mut self, solution: &S, mov: &CompoundScalarMove<S>) {
+        for edit in mov.edits() {
+            self.state
+                .set_value(&self.group, solution, edit.entity_index, edit.to_value);
         }
     }
 }

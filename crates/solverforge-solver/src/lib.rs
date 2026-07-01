@@ -36,10 +36,10 @@ pub mod termination;
 
 pub use builder::{
     build_local_search, build_move_selector, local_search, AcceptorBuilder, AnyAcceptor,
-    AnyForager, CustomSearchPhase, ForagerBuilder, IntraDistanceAdapter, ListVariableSlot,
-    LocalSearch, LocalSearchStrategy, Neighborhood, NeighborhoodLeaf, NeighborhoodMove,
-    RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding, ScalarVariableSlot, Search,
-    SearchContext, Selector, ValueSource, VariableSlot,
+    AnyForager, CustomSearchPhase, ForagerBuilder, GroupedScalarCursor, GroupedScalarSelector,
+    IntraDistanceAdapter, ListVariableSlot, LocalSearch, LocalSearchStrategy, Neighborhood,
+    NeighborhoodLeaf, NeighborhoodMove, RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding,
+    ScalarVariableSlot, Search, SearchContext, Selector, ValueSource, VariableSlot,
 };
 pub use descriptor::{
     build_descriptor_move_selector, descriptor_has_bindings, DescriptorConstruction,
@@ -118,7 +118,8 @@ pub use phase::{
     construction::{
         BestFitForager, ConstructionChoice, ConstructionForager, ConstructionHeuristicConfig,
         ConstructionHeuristicPhase, EntityPlacer, FirstFeasibleForager, FirstFitForager,
-        ForagerType, Placement, QueuedEntityPlacer,
+        ForagerType, Placement, QueuedEntityPlacer, ScalarAssignmentMoveCursor,
+        ScalarAssignmentMoveOptions,
     },
     exhaustive::{
         BounderType, ExhaustiveSearchConfig, ExhaustiveSearchDecider, ExhaustiveSearchNode,

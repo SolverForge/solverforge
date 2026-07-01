@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
@@ -95,11 +97,58 @@ where
         best
     }
 
+    pub(super) fn precedence_downstream_by_element(
+        &self,
+        solution: &S,
+        unassigned: &[E],
+    ) -> Option<HashMap<E, usize>> {
+        let duration_fn = self.precedence_duration_fn?;
+        let successors_fn = self.precedence_successors_fn?;
+        if unassigned.is_empty() {
+            return Some(HashMap::new());
+        }
+
+        let mut index_by_element = HashMap::with_capacity(unassigned.len());
+        for (idx, &element) in unassigned.iter().enumerate() {
+            if index_by_element.insert(element, idx).is_some() {
+                return None;
+            }
+        }
+
+        let durations = unassigned
+            .iter()
+            .map(|&element| duration_fn(solution, element))
+            .collect::<Vec<_>>();
+        let mut successors = vec![Vec::new(); unassigned.len()];
+        let mut predecessor_counts = vec![0usize; unassigned.len()];
+        let mut scratch = Vec::new();
+        for (from_idx, &element) in unassigned.iter().enumerate() {
+            scratch.clear();
+            successors_fn(solution, element, &mut scratch);
+            for successor in &scratch {
+                if let Some(&to_idx) = index_by_element.get(successor) {
+                    successors[from_idx].push(to_idx);
+                    predecessor_counts[to_idx] += 1;
+                }
+            }
+        }
+
+        let topo = topological_order(&successors, &predecessor_counts)?;
+        let downstream = downstream_durations(&successors, &durations, &topo);
+        Some(
+            unassigned
+                .iter()
+                .copied()
+                .zip(downstream)
+                .collect::<HashMap<_, _>>(),
+        )
+    }
+
     pub(super) fn unassigned_elements(
         &self,
         solution: &S,
         n_elements: usize,
-        assigned_set: &std::collections::HashSet<E>,
+        assigned_set: &HashSet<E>,
     ) -> Vec<E> {
         let mut elements: Vec<(usize, E)> = (0..n_elements)
             .map(|idx| (idx, (self.index_to_element)(solution, idx)))
@@ -128,4 +177,46 @@ where
         );
         score_director.after_variable_changed(self.descriptor_index, entity_idx);
     }
+}
+
+pub(super) fn topological_order(
+    successors: &[Vec<usize>],
+    predecessor_counts: &[usize],
+) -> Option<Vec<usize>> {
+    let mut predecessor_counts = predecessor_counts.to_vec();
+    let mut ready = predecessor_counts
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, &count)| (count == 0).then_some(idx))
+        .collect::<Vec<_>>();
+    let mut order = Vec::with_capacity(successors.len());
+
+    while let Some(idx) = ready.pop() {
+        order.push(idx);
+        for &successor in &successors[idx] {
+            predecessor_counts[successor] -= 1;
+            if predecessor_counts[successor] == 0 {
+                ready.push(successor);
+            }
+        }
+    }
+
+    (order.len() == successors.len()).then_some(order)
+}
+
+pub(super) fn downstream_durations(
+    successors: &[Vec<usize>],
+    durations: &[usize],
+    topological_order: &[usize],
+) -> Vec<usize> {
+    let mut downstream = durations.to_vec();
+    for &idx in topological_order.iter().rev() {
+        let successor_tail = successors[idx]
+            .iter()
+            .map(|&successor| downstream[successor])
+            .max()
+            .unwrap_or(0);
+        downstream[idx] = durations[idx].saturating_add(successor_tail);
+    }
+    downstream
 }

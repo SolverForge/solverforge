@@ -8,7 +8,7 @@ use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct ScalarAssignmentMoveOptions {
+pub struct ScalarAssignmentMoveOptions {
     pub(crate) value_candidate_limit: Option<usize>,
     pub(crate) max_moves: usize,
     pub(crate) max_depth: usize,
@@ -17,7 +17,7 @@ pub(crate) struct ScalarAssignmentMoveOptions {
 }
 
 impl ScalarAssignmentMoveOptions {
-    pub(crate) fn for_construction(limits: crate::builder::ScalarGroupLimits) -> Self {
+    pub fn for_construction(limits: crate::builder::ScalarGroupLimits) -> Self {
         Self {
             value_candidate_limit: limits.value_candidate_limit,
             max_moves: limits.group_candidate_limit.unwrap_or(usize::MAX),
@@ -42,7 +42,7 @@ impl ScalarAssignmentMoveOptions {
         }
     }
 
-    pub(crate) fn with_max_moves(mut self, max_moves: usize) -> Self {
+    pub fn with_max_moves(mut self, max_moves: usize) -> Self {
         self.max_moves = max_moves;
         self
     }

@@ -77,6 +77,7 @@ where
                 )
                 .with_element_owner_fn(ctx.element_owner_fn)
                 .with_element_order_key(ctx.construction_element_order_key)
+                .with_precedence_hooks(ctx.precedence_duration_fn, ctx.precedence_successors_fn)
                 .solve(solver_scope);
             }
             ConstructionHeuristicType::ListRegretInsertion => {

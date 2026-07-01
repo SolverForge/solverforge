@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::state::ScoredConstructionState;
+use super::state::{downstream_durations, topological_order, ScoredConstructionState};
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepControlPolicy, StepScope};
 
@@ -167,31 +167,6 @@ fn owner_restricted_best_insertion_trial_count(bucket_sizes: &[usize]) -> usize 
     })
 }
 
-fn topological_order(
-    successors: &[Vec<usize>],
-    predecessor_counts: &[usize],
-) -> Option<Vec<usize>> {
-    let mut predecessor_counts = predecessor_counts.to_vec();
-    let mut ready = predecessor_counts
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, &count)| (count == 0).then_some(idx))
-        .collect::<Vec<_>>();
-    let mut order = Vec::with_capacity(successors.len());
-
-    while let Some(idx) = ready.pop() {
-        order.push(idx);
-        for &successor in &successors[idx] {
-            predecessor_counts[successor] -= 1;
-            if predecessor_counts[successor] == 0 {
-                ready.push(successor);
-            }
-        }
-    }
-
-    (order.len() == successors.len()).then_some(order)
-}
-
 fn precedence_frontier_regret_trial_count(
     successors: &[Vec<usize>],
     predecessor_counts: &[usize],
@@ -235,23 +210,6 @@ fn precedence_frontier_regret_trial_count(
     }
 
     (processed == successors.len()).then_some(trials)
-}
-
-fn downstream_durations(
-    successors: &[Vec<usize>],
-    durations: &[usize],
-    topological_order: &[usize],
-) -> Vec<usize> {
-    let mut downstream = durations.to_vec();
-    for &idx in topological_order.iter().rev() {
-        let successor_tail = successors[idx]
-            .iter()
-            .map(|&successor| downstream[successor])
-            .max()
-            .unwrap_or(0);
-        downstream[idx] = durations[idx].saturating_add(successor_tail);
-    }
-    downstream
 }
 
 impl<S, E> std::fmt::Debug for ListRegretInsertionPhase<S, E>
@@ -324,7 +282,7 @@ where
         self
     }
 
-    pub(crate) fn with_precedence_hooks(
+    pub fn with_precedence_hooks(
         mut self,
         duration_fn: Option<fn(&S, E) -> usize>,
         successors_fn: Option<fn(&S, E, &mut Vec<E>)>,
@@ -445,53 +403,6 @@ where
             bucket_sizes[owner_idx] += 1;
         }
         Some(bucket_sizes)
-    }
-
-    fn precedence_downstream_by_element(
-        &self,
-        solution: &S,
-        unassigned: &[E],
-    ) -> Option<HashMap<E, usize>> {
-        let duration_fn = self.state.precedence_duration_fn?;
-        let successors_fn = self.state.precedence_successors_fn?;
-        if unassigned.is_empty() {
-            return Some(HashMap::new());
-        }
-
-        let mut index_by_element = HashMap::with_capacity(unassigned.len());
-        for (idx, &element) in unassigned.iter().enumerate() {
-            if index_by_element.insert(element, idx).is_some() {
-                return None;
-            }
-        }
-
-        let durations = unassigned
-            .iter()
-            .map(|&element| duration_fn(solution, element))
-            .collect::<Vec<_>>();
-        let mut successors = vec![Vec::new(); unassigned.len()];
-        let mut predecessor_counts = vec![0usize; unassigned.len()];
-        let mut scratch = Vec::new();
-        for (from_idx, &element) in unassigned.iter().enumerate() {
-            scratch.clear();
-            successors_fn(solution, element, &mut scratch);
-            for successor in &scratch {
-                if let Some(&to_idx) = index_by_element.get(successor) {
-                    successors[from_idx].push(to_idx);
-                    predecessor_counts[to_idx] += 1;
-                }
-            }
-        }
-
-        let topo = topological_order(&successors, &predecessor_counts)?;
-        let downstream = downstream_durations(&successors, &durations, &topo);
-        Some(
-            unassigned
-                .iter()
-                .copied()
-                .zip(downstream)
-                .collect::<HashMap<_, _>>(),
-        )
     }
 
     fn solve_oversized_owner_restricted<'t, 'a, D, BestCb>(
@@ -986,7 +897,7 @@ where
             n_elements,
             &assigned_set,
         );
-        let downstream_by_element = self.precedence_downstream_by_element(
+        let downstream_by_element = self.state.precedence_downstream_by_element(
             phase_scope.score_director().working_solution(),
             &unassigned,
         );

@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
@@ -146,6 +147,28 @@ where
         self.state.element_order_key = element_order_key;
         self
     }
+
+    pub fn with_precedence_hooks(
+        mut self,
+        duration_fn: Option<fn(&S, E) -> usize>,
+        successors_fn: Option<fn(&S, E, &mut Vec<E>)>,
+    ) -> Self {
+        self.state.precedence_duration_fn = duration_fn;
+        self.state.precedence_successors_fn = successors_fn;
+        self
+    }
+
+    fn order_precedence_elements(&self, solution: &S, elements: &mut [E]) {
+        let Some(downstream_by_element) = self
+            .state
+            .precedence_downstream_by_element(solution, elements)
+        else {
+            return;
+        };
+        elements.sort_by_key(|element| {
+            Reverse(downstream_by_element.get(element).copied().unwrap_or(0))
+        });
+    }
 }
 
 impl<S, E, D, BestCb> Phase<S, D, BestCb> for ListCheapestInsertionPhase<S, E>
@@ -179,10 +202,14 @@ where
 
         let assigned_set: std::collections::HashSet<E> = assigned.into_iter().collect();
 
-        let elements = self.state.unassigned_elements(
+        let mut elements = self.state.unassigned_elements(
             phase_scope.score_director().working_solution(),
             n_elements,
             &assigned_set,
+        );
+        self.order_precedence_elements(
+            phase_scope.score_director().working_solution(),
+            &mut elements,
         );
 
         for element in elements {
@@ -219,5 +246,163 @@ where
 
     fn phase_type_name(&self) -> &'static str {
         "ListCheapestInsertion"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+    use solverforge_core::score::HardSoftScore;
+    use solverforge_scoring::{ConstraintMetadata, Director};
+
+    use super::*;
+
+    #[derive(Clone, Debug)]
+    struct CheapestPlan {
+        routes: Vec<Vec<usize>>,
+        score: Option<HardSoftScore>,
+    }
+
+    impl PlanningSolution for CheapestPlan {
+        type Score = HardSoftScore;
+
+        fn score(&self) -> Option<Self::Score> {
+            self.score
+        }
+
+        fn set_score(&mut self, score: Option<Self::Score>) {
+            self.score = score;
+        }
+    }
+
+    struct CheapestDirector {
+        working_solution: CheapestPlan,
+        descriptor: SolutionDescriptor,
+    }
+
+    impl CheapestDirector {
+        fn new(solution: CheapestPlan) -> Self {
+            Self {
+                working_solution: solution,
+                descriptor: SolutionDescriptor::new("CheapestPlan", TypeId::of::<CheapestPlan>()),
+            }
+        }
+    }
+
+    impl Director<CheapestPlan> for CheapestDirector {
+        fn working_solution(&self) -> &CheapestPlan {
+            &self.working_solution
+        }
+
+        fn working_solution_mut(&mut self) -> &mut CheapestPlan {
+            &mut self.working_solution
+        }
+
+        fn calculate_score(&mut self) -> HardSoftScore {
+            let score = HardSoftScore::ZERO;
+            self.working_solution.set_score(Some(score));
+            score
+        }
+
+        fn solution_descriptor(&self) -> &SolutionDescriptor {
+            &self.descriptor
+        }
+
+        fn clone_working_solution(&self) -> CheapestPlan {
+            self.working_solution.clone()
+        }
+
+        fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+        fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+        fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
+            (descriptor_index == 0).then_some(self.working_solution.routes.len())
+        }
+
+        fn total_entity_count(&self) -> Option<usize> {
+            Some(self.working_solution.routes.len())
+        }
+
+        fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
+            Vec::new()
+        }
+    }
+
+    fn element_count(_: &CheapestPlan) -> usize {
+        2
+    }
+
+    fn get_assigned(solution: &CheapestPlan) -> Vec<usize> {
+        solution
+            .routes
+            .iter()
+            .flat_map(|route| route.iter().copied())
+            .collect()
+    }
+
+    fn entity_count(solution: &CheapestPlan) -> usize {
+        solution.routes.len()
+    }
+
+    fn list_len(solution: &CheapestPlan, entity_idx: usize) -> usize {
+        solution.routes[entity_idx].len()
+    }
+
+    fn list_insert(solution: &mut CheapestPlan, entity_idx: usize, pos: usize, element: usize) {
+        solution.routes[entity_idx].insert(pos, element);
+    }
+
+    fn list_remove(solution: &mut CheapestPlan, entity_idx: usize, pos: usize) -> usize {
+        solution.routes[entity_idx].remove(pos)
+    }
+
+    fn swapped_index_to_element(_: &CheapestPlan, idx: usize) -> usize {
+        match idx {
+            0 => 1,
+            1 => 0,
+            _ => idx,
+        }
+    }
+
+    fn unit_duration(_: &CheapestPlan, _: usize) -> usize {
+        1
+    }
+
+    fn zero_precedes_one(_: &CheapestPlan, element: usize, out: &mut Vec<usize>) {
+        if element == 0 {
+            out.push(1);
+        }
+    }
+
+    #[test]
+    fn cheapest_precedence_hooks_order_elements_by_downstream_criticality() {
+        let director = CheapestDirector::new(CheapestPlan {
+            routes: vec![Vec::new()],
+            score: None,
+        });
+        let mut solver_scope = SolverScope::new(director);
+        solver_scope.start_solving();
+        let mut phase = ListCheapestInsertionPhase::new(
+            element_count,
+            get_assigned,
+            entity_count,
+            list_len,
+            list_insert,
+            list_remove,
+            swapped_index_to_element,
+            0,
+        )
+        .with_precedence_hooks(Some(unit_duration), Some(zero_precedes_one));
+
+        phase.solve(&mut solver_scope);
+
+        assert_eq!(
+            solver_scope.working_solution().routes,
+            vec![vec![1, 0]],
+            "element 0 has downstream work and should dispatch before element 1"
+        );
     }
 }

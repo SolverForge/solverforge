@@ -14,7 +14,7 @@ use crate::heuristic::r#move::CompoundScalarMove;
 
 type AssignmentMoveKey = Vec<(usize, usize, usize, &'static str, Option<usize>)>;
 
-pub(crate) struct ScalarAssignmentMoveCursor<S>
+pub struct ScalarAssignmentMoveCursor<S>
 where
     S: PlanningSolution,
 {
@@ -55,7 +55,7 @@ where
         )
     }
 
-    pub(crate) fn required_construction(
+    pub fn required_construction(
         group: ScalarAssignmentBinding<S>,
         solution: S,
         options: ScalarAssignmentMoveOptions,
@@ -137,7 +137,7 @@ where
         }
     }
 
-    pub(crate) fn next_move(&mut self) -> Option<CompoundScalarMove<S>> {
+    pub fn next_move(&mut self) -> Option<CompoundScalarMove<S>> {
         if self.options.max_moves == 0 || self.yielded >= self.options.max_moves {
             return None;
         }

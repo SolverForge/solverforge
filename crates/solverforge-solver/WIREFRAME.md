@@ -332,9 +332,9 @@ src/
 │   │   ├── construction.rs             — ConstructionPhaseFactory
 │   │   ├── list_construction.rs        — Re-exports
 │   │   ├── list_construction/round_robin.rs — ListConstructionPhaseBuilder, ListConstructionPhase; uses mandatory-construction step control and optional list element ordering
-│   │   ├── list_construction/state.rs  — Shared scored insertion state plus original/shuffled/keyed unassigned-element ordering
-│   │   ├── list_construction/cheapest.rs — ListCheapestInsertionPhase; preserves committed step score and mandatory-construction semantics
-│   │   ├── list_construction/regret.rs — ListRegretInsertionPhase; preserves committed step score, stable unassigned-element ordering, regret ties by best insertion score, mandatory-construction semantics, and an oversized fixed-owner ordered-append fallback
+│   │   ├── list_construction/state.rs  — Shared scored insertion state plus original/shuffled/keyed/precedence-aware unassigned-element ordering
+│   │   ├── list_construction/cheapest.rs — ListCheapestInsertionPhase; preserves committed step score, mandatory-construction semantics, fixed-owner restrictions, and precedence-aware element order
+│   │   ├── list_construction/regret.rs — ListRegretInsertionPhase; preserves committed step score, stable unassigned-element ordering, regret ties by best insertion score and precedence criticality, mandatory-construction semantics, and an oversized fixed-owner ordered-append fallback
 │   │   ├── list_clarke_wright.rs       — ListClarkeWrightPhase
 │   │   ├── list_clarke_wright/tests.rs — Tests
 │   │   ├── list_clarke_wright/owner_assignment.rs — Owner-specific route assignment and preservation helpers
@@ -869,6 +869,23 @@ group bindings before phase or selector construction. Assignment-backed
 construction generates stock grouped candidates and uses the same grouped
 selection engine as candidate-backed groups.
 
+**`GroupedScalarSelector<S>` / `GroupedScalarCursor<S>`** —
+`builder/selector/grouped_scalar.rs`. Public zero-erasure selector and cursor
+for external dynamic runtimes that bind a `ScalarGroupBinding<S>` themselves
+and need native grouped scalar local search without synthesizing a descriptor
+selector. The selector applies config limits first, falls back to model-owned
+group limits, and streams `ScalarMoveUnion` candidates through the standard
+`MoveCursor` contract.
+
+**`ScalarAssignmentMoveCursor<S>` / `ScalarAssignmentMoveOptions`** —
+`phase/construction/grouped_scalar/assignment_stream.rs` and
+`assignment_candidate.rs`. Public assignment-cursor boundary for dynamic
+runtimes that need direct required-assignment streaming during construction.
+`ScalarAssignmentMoveOptions::for_construction(...)` converts effective
+`ScalarGroupLimits` into the bounded assignment stream, and
+`ScalarAssignmentMoveCursor::required_construction(...)` yields only required
+assignment construction moves.
+
 **`IntraDistanceAdapter<T>`** — `builder/context.rs`. Newtype wrapping `T: CrossEntityDistanceMeter<S>`. Implements `ListPositionDistanceMeter<S>` by forwarding to `T::distance` with `src_entity_idx == dst_entity_idx`. Used by `ListMoveSelectorBuilder::push_kopt` when `max_nearby > 0`.
 
 **`MimicRecorder`** — Shared state for recording/replaying entity selections. Methods: `new(id)`, `get_has_next()`, `get_recorded_entity()`, `reset()`.
@@ -877,7 +894,7 @@ selection engine as candidate-backed groups.
 
 ### Construction Heuristic
 
-**`ConstructionHeuristicPhase<S, M, P, Fo>`** — Bounds: `P: EntityPlacer<S, M>`, `Fo: ConstructionForager<S, M>`. `with_live_placement_refresh()` switches order-sensitive scalar heuristics from phase-start placement snapshots to per-step recomputation. Forager step selection is dispatched through the concrete `Fo` type; stock foragers provide prompt/control-aware selection without `dyn Any` routing.
+**`ConstructionHeuristicPhase<S, M, P, Fo>`** — Bounds: `P: EntityPlacer<S, M>`, `Fo: ConstructionForager<S, M>`. `with_live_placement_refresh()` switches order-sensitive scalar heuristics from phase-start placement snapshots to per-step recomputation. `with_mandatory_construction_completion()` lets mandatory construction slots finish even after ordinary construction limits have expired. Forager step selection is dispatched through the concrete `Fo` type; stock foragers provide prompt/control-aware selection without `dyn Any` routing.
 
 Runtime routing is capability-driven:
 - scalar-only `FirstFit` and `CheapestInsertion` use the descriptor boundary
@@ -1157,6 +1174,15 @@ Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis>
 | `ListRegretInsertionPhase<S, E>` | Self (implements Phase directly) |
 | `ListClarkeWrightPhase<S, E>` | Self (implements Phase directly) |
 | `KOptPhaseBuilder<S, V>` | `KOptPhase` |
+
+`ListCheapestInsertionPhase<S, E>` and `ListRegretInsertionPhase<S, E>` expose
+`with_element_owner_fn(...)`, `with_element_order_key(...)`, and
+`with_precedence_hooks(...)`. Owner hooks restrict candidate entities through
+the shared owner-restriction relation. Element order hooks provide direct
+construction ordering. Precedence hooks supply duration and successor metadata:
+cheapest insertion orders unassigned elements by downstream criticality before
+greedy insertion, while regret insertion uses the same metadata for
+topological element ordering and regret tie-breaking.
 
 `ListClarkeWrightPhase<S, E>` preserves preassigned routes by filling only empty entities, computes savings per optional savings `metric_class` through savings `depot` and `distance`, and first assigns constructed routes through deterministic matching against savings `feasible` plus partial fixed-owner restrictions. The savings feasibility hook is a construction admissibility gate: stock CVRP rejects malformed owners/data/visit ids while leaving scoreable capacity and time-window violations to constraints. When route-to-owner matching is still short, Clarke-Wright completes construction with savings-distance cheapest insertion under the same savings feasibility hook. It uses route `set` only to commit the constructed assignment; it does not consume route-local distance or feasibility.
 `ListKOptPhase<S, E>` is route-local polishing: route `get` reads the route, route `set` writes an accepted route, route `depot` supplies the owner depot, route `distance` scores reversals for that owner, and route `feasible` is the route-local commit gate. Stock CVRP route feasibility is strict for capacity and time windows, so k-opt does not commit hard-infeasible route-local improvements. It does not consume Clarke-Wright savings hooks.

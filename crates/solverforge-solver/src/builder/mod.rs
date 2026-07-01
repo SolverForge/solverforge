@@ -22,6 +22,6 @@ pub use context::{
 pub use forager::{AnyForager, ForagerBuilder};
 pub use search::{build_search, local_search, CustomSearchPhase, Search, SearchContext};
 pub use selector::{
-    build_local_search, build_move_selector, LocalSearch, LocalSearchStrategy, Neighborhood,
-    NeighborhoodLeaf, NeighborhoodMove, Selector,
+    build_local_search, build_move_selector, GroupedScalarCursor, GroupedScalarSelector,
+    LocalSearch, LocalSearchStrategy, Neighborhood, NeighborhoodLeaf, NeighborhoodMove, Selector,
 };

@@ -27,6 +27,7 @@ pub use forager::{
 };
 pub(crate) use frontier::ConstructionFrontier;
 pub(crate) use grouped_scalar::build_scalar_group_construction;
+pub use grouped_scalar::{ScalarAssignmentMoveCursor, ScalarAssignmentMoveOptions};
 pub use phase::ConstructionHeuristicPhase;
 pub(crate) use placer::ConstructionTarget;
 pub use placer::{EntityPlacer, Placement, QueuedEntityPlacer, SortedEntityPlacer};

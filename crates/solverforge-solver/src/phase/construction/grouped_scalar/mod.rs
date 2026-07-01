@@ -22,14 +22,14 @@ mod placer_stream;
 
 #[cfg(test)]
 pub(crate) use assignment_candidate::selector_assignment_moves;
-pub(crate) use assignment_candidate::ScalarAssignmentMoveOptions;
+pub use assignment_candidate::ScalarAssignmentMoveOptions;
 #[cfg(test)]
 pub(crate) use assignment_stream::rematch_assignment_moves;
 #[cfg(test)]
 pub(crate) use assignment_stream::value_block_reassignment_assignment_moves;
 #[cfg(test)]
 pub(crate) use assignment_stream::value_window_assignment_moves;
-pub(crate) use assignment_stream::ScalarAssignmentMoveCursor;
+pub use assignment_stream::ScalarAssignmentMoveCursor;
 pub(crate) use move_build::compound_move_for_group_candidate;
 pub(crate) use phase::build_scalar_group_construction;
 pub(crate) use placement::scalar_group_move_strength;

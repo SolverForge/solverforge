@@ -46,7 +46,7 @@ where
         self
     }
 
-    pub(crate) fn with_mandatory_construction_completion(mut self) -> Self {
+    pub fn with_mandatory_construction_completion(mut self) -> Self {
         self.complete_mandatory_construction = true;
         self
     }

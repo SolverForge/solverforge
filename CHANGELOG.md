@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.17.2](///compare/v0.17.1...v0.17.2) (2026-07-02)
+
+
+### Features
+
+* **solver:** expose dynamic construction primitives 8d49779
+* **solver:** stream required assignment construction state b09c99e
+
 ## [0.17.1](///compare/v0.17.0...v0.17.1) (2026-06-15)
 
 

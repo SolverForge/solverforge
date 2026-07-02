@@ -441,7 +441,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
 ### `PillarChangeMoveConfig`
 
-Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
+Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type | Default |
 |-------|------|---------|
@@ -453,7 +453,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
 ### `PillarSwapMoveConfig`
 
-Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
+Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type | Default |
 |-------|------|---------|

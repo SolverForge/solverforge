@@ -49,7 +49,7 @@ src/
 │   ├── selectors/dispatch/*.rs          — Descriptor selector dispatch build/type chunks
 │   ├── construction.rs                  — DescriptorConstruction<S>, DescriptorEntityPlacer<S>; runtime-only descriptor construction assembly from resolved scalar bindings with optional keep-current legality and slot identity
 │   └── tests/mod.rs                     — Descriptor test root with support/construction/selector/ruin-recreate chunks under `tests/mod/`
-├── run.rs                               — AnyTermination, build_termination, run_solver(), run_solver_with_config()
+├── run.rs                               — AnyTermination, ChannelProgressCallback, build_termination(), log_solve_start(), run_solver(), run_solver_with_config(), run_solver_with_config_parts()
 ├── run_tests.rs                         — Tests
 ├── builder/
 │   ├── mod.rs                           — Re-exports from all builder submodules
@@ -262,7 +262,7 @@ src/
 │   │   ├── engine.rs                    — Canonical generic scalar/list/mixed construction engine used by runtime assembly
 │   │   └── engine/*.rs                  — Generic construction candidate, scan, commit, and target-matching chunks
 │   ├── localsearch/
-│   │   ├── mod.rs                       — LocalSearchConfig, AcceptorType, re-exports
+│   │   ├── mod.rs                       — Acceptor, local-search acceptor/forager, and LocalSearchPhase re-exports
 │   │   ├── evaluation.rs                — Shared local-search candidate evaluation and hard-delta classification
 │   │   ├── phase.rs                     — LocalSearchPhase<S, M, MS, A, Fo>
 │   │   ├── phase/tests.rs               — Tests
@@ -1279,7 +1279,7 @@ the starting local-search score, and emits `phase_end` with the best score. The
 console layer renders phase-start scores when present; construction and
 partitioned phase starts currently omit a score field.
 
-### `run_solver()` / `run_solver_with_config()` — `run.rs`
+### `run_solver()` / `run_solver_with_config()` / `run_solver_with_config_parts()` — `run.rs`
 
 Canonical solve entrypoints used by macro-generated solving. They accept generated descriptor/runtime callbacks plus a retained `SolverRuntime<S>` so the runtime can publish lifecycle events, pause at safe boundaries, and preserve snapshot identity across pause/resume. `ScoreDirector` now calls `PlanningSolution::update_all_shadows()` before initialization and `PlanningSolution::update_entity_shadows()` before reinsertion, so the canonical solver path stays fully monomorphized.
 

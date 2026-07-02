@@ -131,7 +131,7 @@ src/
 │   ├── flattened_bi_stream/base.rs                 — FlattenedBiConstraintStream
 │   ├── flattened_bi_stream/builder.rs              — FlattenedBiConstraintBuilder
 │   ├── flattened_bi_stream/weighting.rs            — Weighting helpers for flattened streams
-│   ├── existence_stream.rs                         — ExistsConstraintStream, ExistsConstraintBuilder, ExistenceMode, FlattenExtract
+│   ├── existence_stream.rs                         — ExistsConstraintStream, ExistsConstraintBuilder, ExistenceMode
 │   ├── existence_target.rs                         — ExistenceTarget trait for direct and flattened existence targets
 │   ├── projected_stream.rs                         — Projected stream module root and re-exports
 │   ├── projected_stream/uni.rs                     — stream::projected::Stream and terminal builder
@@ -610,11 +610,11 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 .join((vec(|s: &Schedule| &s.employees), equal_bi(...)))
 ```
 
-**`CollectionExtract<S>`** — Public low-level source contract accepted by `ConstraintFactory::for_each(...)`. Macro-generated solution source functions return the concrete hidden `SourceExtract<fn(&S) -> &[T]>` wrapper, which satisfies `CollectionExtract<S>` and preserves source metadata for raw keyed joins.
+**`SourceExtract<E>`** — Hidden descriptor-aware collection extraction wrapper used by macro-generated solution source methods. It satisfies `CollectionExtract<S>` and preserves source metadata for raw keyed joins.
 
 **`ChangeSource`** — Hidden enum describing whether a stream source can localize descriptor-owned incremental callbacks: `Unknown`, `Static`, or `Descriptor(idx)`. `Descriptor(idx)` owns localized events for that descriptor. `Static` never localizes. `Unknown` is non-localized metadata for raw/manual extraction: it is valid for `evaluate()` and `initialize()`, but localized `on_insert(...)` / `on_retract(...)` callbacks panic because the entity index cannot be safely mapped to a source.
 
-**`SourceExtract<E>` / `source(...)`** — Hidden descriptor-aware collection extraction used by macro-generated solution source methods. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact and list-element collections carry `ChangeSource::Static`. These symbols are not part of the facade stream workflow.
+**`source(...)`** — Hidden constructor for descriptor-aware collection extraction used by macro-generated solution source methods. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact and list-element collections carry `ChangeSource::Static`. This symbol is not part of the facade stream workflow.
 
 **`FlattenExtract<P>`** — Trait for flattening a parent entity into a child slice for existence filtering. Blanket impl for `Fn(&P) -> &[B] + Send + Sync`; `FlattenVecExtract<F>` adapts `Fn(&P) -> &Vec<B>`.
 

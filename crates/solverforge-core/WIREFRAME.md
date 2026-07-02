@@ -528,8 +528,10 @@ adapters. Methods: `entity_class()`, `variable()`, `entity_count()`,
 
 `DynamicScalarVariableSlot<S>` carries logical entity/variable IDs, display
 names, `allows_unassigned`, a dynamic access adapter, and a resolved descriptor
-index. Constructors: `new()` for `S: DynamicModelBackend`, or `with_access()`
-for custom adapters. Descriptor methods: `with_descriptor_index()`,
+index. Public fields: `entity`, `variable`, `entity_type_name`,
+`variable_name`, and `allows_unassigned`; the descriptor index and access
+adapter are private. Constructors: `new()` for `S: DynamicModelBackend`, or
+`with_access()` for custom adapters. Descriptor methods: `with_descriptor_index()`,
 `resolve_descriptor_index(&SolutionDescriptor)`, `resolved_against(&SolutionDescriptor)`,
 `is_descriptor_resolved()`, and `descriptor_index()`. Runtime access methods:
 `matches_target()`, `entity_count()`, `current_value()`, `set_value()`,
@@ -537,8 +539,9 @@ for custom adapters. Descriptor methods: `with_descriptor_index()`,
 
 `DynamicListVariableSlot<S>` carries logical entity/variable IDs, display
 names, a dynamic list access adapter, and a resolved descriptor index.
-Constructors: `new()` for `S: DynamicModelBackend`, or `with_access()` for
-custom adapters. Descriptor methods: `with_descriptor_index()`,
+Public fields: `entity`, `variable`, `entity_type_name`, and `variable_name`;
+the descriptor index and access adapter are private. Constructors: `new()` for
+`S: DynamicModelBackend`, or `with_access()` for custom adapters. Descriptor methods: `with_descriptor_index()`,
 `resolve_descriptor_index(&SolutionDescriptor)`, `resolved_against(&SolutionDescriptor)`,
 `is_descriptor_resolved()`, and `descriptor_index()`. Runtime access methods:
 `matches_target()`, `entity_count()`, `element_count()`, `element()`,

@@ -26,7 +26,9 @@ src/
 
 ### `ProblemData`
 
-Immutable problem data shared by all vehicles. Fields:
+Immutable problem data shared by all vehicles. Derives: `Clone, Debug`.
+
+Fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -60,11 +62,11 @@ Trait implemented by a planning solution that holds a fleet of vehicles.
 
 ### `MatrixDistanceMeter`
 
-Cross-entity distance meter backed by the solution's distance matrix. Implements `CrossEntityDistanceMeter<S: VrpSolution>`. `#[derive(Clone, Default)]`.
+Cross-entity distance meter backed by the solution's distance matrix. Implements `CrossEntityDistanceMeter<S: VrpSolution>`. `#[derive(Clone, Debug, Default)]`.
 
 ### `MatrixIntraDistanceMeter`
 
-Intra-entity distance meter backed by the solution's distance matrix. Implements `CrossEntityDistanceMeter<S: VrpSolution>`. `#[derive(Clone, Default)]`.
+Intra-entity distance meter backed by the solution's distance matrix. Implements `CrossEntityDistanceMeter<S: VrpSolution>`. `#[derive(Clone, Debug, Default)]`.
 
 ## Free Functions
 

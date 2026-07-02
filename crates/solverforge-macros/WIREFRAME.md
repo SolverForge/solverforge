@@ -148,6 +148,9 @@ Internal module responsibilities:
   optional `element_owner_fn = "path"` declares partial fixed ownership; the
   concrete hook is called from the generated `PlanningModelSupport` impl and
   adapted to the runtime list-slot owner function. Optional
+  `solution_trait = "path"` adds the solution trait bound used by custom list
+  helper hooks; `domain = "cvrp"` supplies the stock `VrpSolution` bound.
+  Optional
   `construction_element_order_key = "path"` declares a plain
   `fn(&Solution, element) -> i64` hook used by list construction through
   existing runtime list-slot metadata. Optional
@@ -215,6 +218,7 @@ arguments are compile errors.
 - `route_hooks = "path"` — optional route-local hook module with `get`, `set`, `depot`, `distance`, and `feasible`; k-opt uses these hooks and Clarke-Wright uses only `set` for assignment
 - `savings_hooks = "path"` — optional Clarke-Wright construction hook module with `depot`, `distance`, and `feasible`
 - `savings_metric_class_fn = "path"` — optional Clarke-Wright metric-class hook, `fn(&Solution, entity_idx) -> usize`; owners in the same class must share construction depot and distance behavior
+- `solution_trait = "path"` — optional solution trait bound required by custom list helper hooks; `domain = "cvrp"` supplies `::solverforge::cvrp::VrpSolution`
 - `element_owner_fn = "path"` — optional partial fixed-owner hook, `fn(&Solution, element) -> Option<usize>`; `None` leaves that element unrestricted
 - `construction_element_order_key = "path"` — optional list-construction ordering hook, `fn(&Solution, element) -> i64`; it flows through existing generated list metadata and runtime list slots
 - `precedence_duration_fn = "path"` — optional precedence duration hook, `fn(&Solution, element) -> usize`; paired with `precedence_successors_fn`

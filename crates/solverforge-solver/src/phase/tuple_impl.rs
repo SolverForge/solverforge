@@ -33,4 +33,9 @@ where
     fn phase_type_name(&self) -> &'static str {
         "PhaseTuple"
     }
+
+    fn on_solver_terminal(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>) {
+        self.0.on_solver_terminal(solver_scope);
+        self.1.on_solver_terminal(solver_scope);
+    }
 }

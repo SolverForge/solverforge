@@ -5,7 +5,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
 use super::super::solution_manager::ScoreAnalysis;
-use crate::stats::SolverTelemetry;
+use crate::stats::{CandidateTraceTelemetry, SolverTelemetry};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -50,6 +50,21 @@ impl<Sc: Score> SolverStatus<Sc> {
     pub fn is_terminal(&self) -> bool {
         self.lifecycle_state.is_terminal()
     }
+}
+
+/// One atomically retained diagnostic view of a job.
+///
+/// Ordinary lifecycle events, status, and snapshots intentionally keep
+/// [`SolverTelemetry::candidate_trace`] empty. When a caller explicitly asks
+/// for diagnostics, this pairs compact aggregate telemetry with the bounded
+/// candidate-pull prefix under one retained-job lock. That prevents combining
+/// counters from one publication with a trace from another. Its status scores
+/// and `latest_snapshot_revision` are from that same publication, so a caller
+/// can fetch and validate exactly the snapshot paired with a terminal trace.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SolverTelemetryDetail<Sc: Score> {
+    pub status: SolverStatus<Sc>,
+    pub candidate_trace: Option<CandidateTraceTelemetry>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -6,12 +6,39 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::Move;
 
 use super::solver::{PendingControl, ProgressCallback};
-use super::PhaseScope;
+use super::{PhaseScope, SolverScope};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StepControlPolicy {
     ObserveConfigLimits,
     CompleteMandatoryConstruction,
+}
+
+impl StepControlPolicy {
+    pub(crate) fn for_required_construction(required_only: bool) -> Self {
+        if required_only {
+            Self::CompleteMandatoryConstruction
+        } else {
+            Self::ObserveConfigLimits
+        }
+    }
+
+    pub(crate) fn should_terminate_construction<S, D, ProgressCb>(
+        self,
+        solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
+    ) -> bool
+    where
+        S: PlanningSolution,
+        D: Director<S>,
+        ProgressCb: ProgressCallback<S>,
+    {
+        match self {
+            Self::ObserveConfigLimits => solver_scope.should_terminate_construction(),
+            Self::CompleteMandatoryConstruction => {
+                solver_scope.should_interrupt_mandatory_construction()
+            }
+        }
+    }
 }
 
 /// Scope for a single step within a phase.
@@ -31,6 +58,8 @@ pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb = (
     // Score after this step.
     step_score: Option<S::Score>,
     control_policy: StepControlPolicy,
+    control_polling_required: bool,
+    progress_polling_required: bool,
 }
 
 impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
@@ -45,11 +74,22 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
         control_policy: StepControlPolicy,
     ) -> Self {
         let step_index = phase_scope.step_count();
+        let control_polling_required = match control_policy {
+            StepControlPolicy::ObserveConfigLimits => {
+                phase_scope.solver_scope().config_control_polling_required()
+            }
+            StepControlPolicy::CompleteMandatoryConstruction => phase_scope
+                .solver_scope()
+                .mandatory_control_polling_required(),
+        };
         Self {
             phase_scope,
             step_index,
             step_score: None,
             control_policy,
+            control_polling_required,
+            progress_polling_required: BestCb::PUBLISHES_PROGRESS
+                || tracing::enabled!(tracing::Level::DEBUG),
         }
     }
 
@@ -66,6 +106,9 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
     }
 
     pub(crate) fn pending_control(&self) -> PendingControl {
+        if !self.control_polling_required {
+            return PendingControl::Continue;
+        }
         match self.control_policy {
             StepControlPolicy::ObserveConfigLimits => {
                 self.phase_scope.solver_scope().pending_control()
@@ -77,11 +120,18 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
         }
     }
 
+    pub(crate) fn progress_polling_required(&self) -> bool {
+        self.progress_polling_required
+    }
+
     pub fn set_step_score(&mut self, score: S::Score)
     where
         S::Score: Copy,
     {
         self.phase_scope.solver_scope_mut().set_current_score(score);
+        self.phase_scope
+            .solver_scope_mut()
+            .observe_phase_step_score(score);
         self.step_score = Some(score);
     }
 
@@ -89,6 +139,7 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
     pub fn complete(&mut self) {
         self.phase_scope.increment_step_count();
         self.phase_scope.solver_scope_mut().pause_if_requested();
+        self.phase_scope.report_progress_if_due();
     }
 
     pub fn phase_scope(&self) -> &PhaseScope<'t, 'b, S, D, BestCb> {

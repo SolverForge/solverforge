@@ -13,7 +13,10 @@ use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
 use crate::scope::SolverScope;
-use crate::stats::SolverStats;
+use crate::stats::{
+    CandidateTraceExecutionPolicy, CandidateTraceHeader, CandidateTracePhasePlan,
+    QualifiedCandidateTraceRunProvenance, SolverStats,
+};
 use crate::termination::Termination;
 
 /* Result of a solve operation containing solution and telemetry.
@@ -92,6 +95,13 @@ pub struct Solver<'t, P, T, S: PlanningSolution, D, ProgressCb = ()> {
     terminate: Option<&'t AtomicBool>,
     runtime: Option<SolverRuntime<S>>,
     config: Option<SolverConfig>,
+    /// Canonical resolved policy supplied by the configured runtime entrypoint.
+    /// Direct generic `Solver` construction leaves this absent on purpose: an
+    /// arbitrary Rust termination cannot be reconstructed honestly from the
+    /// input config alone.
+    candidate_trace_execution_policy: Option<CandidateTraceExecutionPolicy>,
+    /// Explicit fail-closed benchmark attestation for qualified comparisons.
+    candidate_trace_qualified_run_provenance: Option<QualifiedCandidateTraceRunProvenance>,
     time_limit: Option<Duration>,
     // Callback invoked when the solver should publish progress.
     progress_callback: ProgressCb,
@@ -120,6 +130,8 @@ where
             terminate: None,
             runtime: None,
             config: None,
+            candidate_trace_execution_policy: None,
+            candidate_trace_qualified_run_provenance: None,
             time_limit: None,
             progress_callback: (),
             _phantom: PhantomData,
@@ -133,6 +145,8 @@ where
             terminate: self.terminate,
             runtime: self.runtime,
             config: self.config,
+            candidate_trace_execution_policy: self.candidate_trace_execution_policy,
+            candidate_trace_qualified_run_provenance: self.candidate_trace_qualified_run_provenance,
             time_limit: self.time_limit,
             progress_callback: self.progress_callback,
             _phantom: PhantomData,
@@ -154,6 +168,8 @@ where
             terminate: Some(terminate),
             runtime: self.runtime,
             config: self.config,
+            candidate_trace_execution_policy: self.candidate_trace_execution_policy,
+            candidate_trace_qualified_run_provenance: self.candidate_trace_qualified_run_provenance,
             time_limit: self.time_limit,
             progress_callback: self.progress_callback,
             _phantom: PhantomData,
@@ -170,6 +186,30 @@ where
         self
     }
 
+    /// Supplies the canonical policy resolved by a first-party entrypoint.
+    ///
+    /// This remains crate-private so external users cannot accidentally claim
+    /// an arbitrary custom termination is equivalent to a built-in policy.
+    pub(crate) fn with_candidate_trace_execution_policy(
+        mut self,
+        execution_policy: CandidateTraceExecutionPolicy,
+    ) -> Self {
+        self.candidate_trace_execution_policy = Some(execution_policy);
+        self
+    }
+
+    /// Requests a qualified candidate trace with a complete, immutable
+    /// model/instance/state/core-tree/build attestation. Construction of the
+    /// value validates the attestation before execution; it is never inferred
+    /// from environment, callbacks, or working state.
+    pub fn with_qualified_candidate_trace_run_provenance(
+        mut self,
+        provenance: QualifiedCandidateTraceRunProvenance,
+    ) -> Self {
+        self.candidate_trace_qualified_run_provenance = Some(provenance);
+        self
+    }
+
     /// Sets a callback to be invoked for exact solver progress and best-solution updates.
     ///
     /// Transitions the callback type parameter to the concrete closure type.
@@ -180,6 +220,8 @@ where
             terminate: self.terminate,
             runtime: self.runtime,
             config: self.config,
+            candidate_trace_execution_policy: self.candidate_trace_execution_policy,
+            candidate_trace_qualified_run_provenance: self.candidate_trace_qualified_run_provenance,
             time_limit: self.time_limit,
             progress_callback: callback,
             _phantom: PhantomData,
@@ -287,6 +329,8 @@ macro_rules! impl_solver {
                     terminate,
                     runtime,
                     config,
+                    candidate_trace_execution_policy,
+                    candidate_trace_qualified_run_provenance,
                     time_limit,
                     progress_callback,
                     ..
@@ -298,6 +342,45 @@ macro_rules! impl_solver {
                     terminate,
                     runtime,
                 );
+                if let Some(trace_config) = config.as_ref().and_then(|config| config.candidate_trace) {
+                    let phase_children = vec![$(phases.$idx.candidate_trace_plan(),)+];
+                    let resolved_phase_plan = CandidateTracePhasePlan::known(
+                        "solverforge.solver",
+                        [("top_level_phase_count", phase_children.len().to_string())],
+                        phase_children,
+                    );
+                    let configured_input = config
+                        .as_ref()
+                        .expect("candidate trace configuration requires SolverConfig")
+                        .canonical_toml();
+                    let execution_policy = candidate_trace_execution_policy.unwrap_or_else(|| {
+                        CandidateTraceExecutionPolicy::opaque_with_attributes(
+                            "solverforge.execution_policy.direct_generic_termination",
+                            [(
+                                "solver_with_time_limit_ns",
+                                time_limit.map_or_else(
+                                    || "none".to_string(),
+                                    |limit| limit.as_nanos().to_string(),
+                                ),
+                            )],
+                        )
+                    });
+                    let header = match candidate_trace_qualified_run_provenance {
+                        Some(provenance) => CandidateTraceHeader::new_qualified(
+                            configured_input,
+                            execution_policy,
+                            resolved_phase_plan,
+                            provenance,
+                        ),
+                        None => CandidateTraceHeader::new(
+                            configured_input,
+                            execution_policy,
+                            resolved_phase_plan,
+                            None,
+                        ),
+                    };
+                    solver_scope.enable_candidate_trace(header, trace_config.max_entries.get());
+                }
                 if let Some(environment_mode) = config.as_ref().map(|cfg| cfg.environment_mode) {
                     solver_scope = solver_scope.with_environment_mode(environment_mode);
                 }
@@ -333,6 +416,17 @@ macro_rules! impl_solver {
                             solver_scope.best_score()
                         );
                     }
+                )+
+
+                // Every configured top-level phase receives one terminal
+                // lifecycle notification, even if cancellation or configured
+                // termination skipped its solve method. This is deliberately
+                // after the full phase loop so hooks cannot observe or create
+                // an intermediate completion boundary.
+                $(
+                    phases.$idx.on_solver_terminal(&mut solver_scope);
+                    solver_scope.pause_if_requested();
+                    let _ = check_termination(&termination, &mut solver_scope);
                 )+
 
                 // Extract solution and stats before consuming scope
@@ -394,6 +488,8 @@ macro_rules! impl_solver_with_director {
                     terminate: self.terminate,
                     runtime: self.runtime,
                     config: self.config,
+                    candidate_trace_execution_policy: self.candidate_trace_execution_policy,
+                    candidate_trace_qualified_run_provenance: self.candidate_trace_qualified_run_provenance,
                     time_limit: self.time_limit,
                     progress_callback: self.progress_callback,
                     _phantom: PhantomData,
@@ -421,3 +517,7 @@ impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4);
 impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5);
 impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6);
 impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6, 7: P7);
+
+#[cfg(test)]
+#[path = "solver_tests.rs"]
+mod tests;

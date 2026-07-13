@@ -30,8 +30,6 @@ impl PlanningSolution for TestSolution {
 
 #[derive(Clone, Debug)]
 struct TestEntity {
-    #[allow(dead_code)]
-    id: i64,
     value: Option<i64>,
 }
 
@@ -64,18 +62,9 @@ fn calculate_entity_score(solution: &EntityTestSolution) -> SoftScore {
 fn test_solver_with_time_limit_termination() {
     let solution = EntityTestSolution {
         entities: vec![
-            TestEntity {
-                id: 0,
-                value: Some(1),
-            },
-            TestEntity {
-                id: 1,
-                value: Some(2),
-            },
-            TestEntity {
-                id: 2,
-                value: Some(2),
-            },
+            TestEntity { value: Some(1) },
+            TestEntity { value: Some(2) },
+            TestEntity { value: Some(2) },
         ],
         target_sum: 5,
         score: None,
@@ -94,16 +83,7 @@ fn test_solver_with_time_limit_termination() {
 #[test]
 fn test_solver_with_step_limit_termination() {
     let solution = EntityTestSolution {
-        entities: vec![
-            TestEntity {
-                id: 0,
-                value: Some(0),
-            },
-            TestEntity {
-                id: 1,
-                value: Some(0),
-            },
-        ],
+        entities: vec![TestEntity { value: Some(0) }, TestEntity { value: Some(0) }],
         target_sum: 6,
         score: None,
     };
@@ -121,16 +101,7 @@ fn test_solver_with_step_limit_termination() {
 #[test]
 fn test_solver_factory_with_entity_solution() {
     let solution = EntityTestSolution {
-        entities: vec![
-            TestEntity {
-                id: 0,
-                value: Some(2),
-            },
-            TestEntity {
-                id: 1,
-                value: Some(3),
-            },
-        ],
+        entities: vec![TestEntity { value: Some(2) }, TestEntity { value: Some(3) }],
         target_sum: 5,
         score: None,
     };

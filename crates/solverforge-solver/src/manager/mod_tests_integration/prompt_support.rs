@@ -271,7 +271,11 @@ impl MoveSelector<PromptControlSolution, NoOpMove> for PromptControlSelector {
 }
 
 impl Solvable for PromptControlSolution {
-    fn solve(self, runtime: SolverRuntime<Self>) {
+    fn solve(
+        self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
+    ) {
         let mut solver_scope = SolverScope::new_with_callback(
             PromptControlDirector::new(self),
             (),
@@ -297,7 +301,7 @@ impl Solvable for PromptControlSolution {
         let mut phase = LocalSearchPhase::new(
             selector,
             HillClimbingAcceptor::new(),
-            BestScoreForager::new(),
+            BestScoreForager::new(true),
             Some(1),
         );
         phase.solve(&mut solver_scope);

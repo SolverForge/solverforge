@@ -1,8 +1,7 @@
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::MoveArena;
-use crate::scope::{PendingControl, ProgressCallback, StepControlPolicy, StepScope};
+use crate::scope::{PendingControl, ProgressCallback, StepScope};
 
 pub(crate) const GENERATION_POLL_INTERVAL: usize = 256;
 pub(crate) const EVALUATION_POLL_INTERVAL: usize = 64;
@@ -11,34 +10,6 @@ pub(crate) const EVALUATION_POLL_INTERVAL: usize = 64;
 pub(crate) enum StepInterrupt {
     Restart,
     TerminatePhase,
-}
-
-pub(crate) fn append_interruptibly<'t, 'a, 'b, S, D, ProgressCb, M, I>(
-    step_scope: &StepScope<'t, 'a, 'b, S, D, ProgressCb>,
-    arena: &mut MoveArena<M>,
-    iter: I,
-) -> bool
-where
-    S: PlanningSolution,
-    D: Director<S>,
-    ProgressCb: ProgressCallback<S>,
-    I: IntoIterator<Item = M>,
-{
-    if has_pending_control(step_scope) {
-        return true;
-    }
-
-    for (generated, mov) in iter.into_iter().enumerate() {
-        if generated != 0
-            && generated.is_multiple_of(GENERATION_POLL_INTERVAL)
-            && has_pending_control(step_scope)
-        {
-            return true;
-        }
-        arena.push(mov);
-    }
-
-    has_pending_control(step_scope)
 }
 
 pub(crate) fn should_interrupt_before_candidate<'t, 'a, 'b, S, D, ProgressCb>(
@@ -116,16 +87,8 @@ where
     ProgressCb: ProgressCallback<S>,
 {
     let control_policy = step_scope.control_policy();
-    let should_terminate = match control_policy {
-        StepControlPolicy::ObserveConfigLimits => step_scope
-            .phase_scope_mut()
-            .solver_scope_mut()
-            .should_terminate_construction(),
-        StepControlPolicy::CompleteMandatoryConstruction => step_scope
-            .phase_scope_mut()
-            .solver_scope_mut()
-            .should_interrupt_mandatory_construction(),
-    };
+    let should_terminate = control_policy
+        .should_terminate_construction(step_scope.phase_scope_mut().solver_scope_mut());
     if should_terminate {
         StepInterrupt::TerminatePhase
     } else {

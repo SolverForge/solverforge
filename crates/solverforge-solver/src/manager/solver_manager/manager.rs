@@ -6,12 +6,16 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use tokio::sync::mpsc;
 
+use crate::stats::QualifiedCandidateTraceRunProvenance;
+
 use super::super::solution_manager::Analyzable;
 use super::runtime::{panic_payload_to_string, SolverRuntime};
-use super::slot::{JobSlot, SLOT_FREE, SLOT_SOLVING};
+#[cfg(test)]
+use super::slot::SLOT_FREE;
+use super::slot::{JobSlot, SLOT_SOLVING};
 use super::types::{
     SolverEvent, SolverLifecycleState, SolverManagerError, SolverSnapshot, SolverSnapshotAnalysis,
-    SolverStatus,
+    SolverStatus, SolverTelemetryDetail,
 };
 
 /// Maximum concurrent jobs per SolverManager instance.
@@ -19,7 +23,11 @@ pub const MAX_JOBS: usize = 16;
 
 /// Trait for solutions that can run inside the retained lifecycle manager.
 pub trait Solvable: PlanningSolution + Send + 'static {
-    fn solve(self, runtime: SolverRuntime<Self>);
+    fn solve(
+        self,
+        runtime: SolverRuntime<Self>,
+        qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
+    );
 }
 
 /// Manages retained async solve jobs with lifecycle-complete event streaming.
@@ -66,35 +74,57 @@ where
         &'static self,
         solution: S,
     ) -> Result<(usize, mpsc::UnboundedReceiver<SolverEvent<S>>), SolverManagerError> {
+        self.submit(solution, None)
+    }
+
+    /// Submits a retained solve with externally validated candidate-trace provenance.
+    ///
+    /// This changes only the diagnostic trace header. Job allocation, worker
+    /// execution, event publication, snapshots, and terminalization use the
+    /// same retained lifecycle as [`Self::solve`].
+    pub fn solve_with_qualified_candidate_trace_provenance(
+        &'static self,
+        solution: S,
+        provenance: QualifiedCandidateTraceRunProvenance,
+    ) -> Result<(usize, mpsc::UnboundedReceiver<SolverEvent<S>>), SolverManagerError> {
+        self.submit(solution, Some(provenance))
+    }
+
+    fn submit(
+        &'static self,
+        solution: S,
+        qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
+    ) -> Result<(usize, mpsc::UnboundedReceiver<SolverEvent<S>>), SolverManagerError> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
-        let Some(slot_idx) = self.slots.iter().position(|slot| {
-            slot.state
-                .compare_exchange(SLOT_FREE, SLOT_SOLVING, Ordering::SeqCst, Ordering::SeqCst)
-                .is_ok()
-        }) else {
+        let Some(slot_idx) = self
+            .slots
+            .iter()
+            .position(|slot| slot.try_initialize(sender.clone()))
+        else {
             return Err(SolverManagerError::NoFreeJobSlots);
         };
 
         let slot = &self.slots[slot_idx];
-        slot.initialize(sender);
         let runtime = SolverRuntime::new(slot_idx, slot);
 
         rayon::spawn(move || {
-            let result = std::panic::catch_unwind(AssertUnwindSafe(|| solution.solve(runtime)));
+            let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                solution.solve(runtime, qualified_candidate_trace_provenance)
+            }));
 
             match result {
                 Ok(()) => {
                     if !runtime.is_terminal() {
                         if runtime.is_cancel_requested() {
-                            let (current_score, best_score, telemetry) = {
-                                let record = runtime.slot.record.lock().unwrap();
-                                (
-                                    record.current_score,
-                                    record.best_score,
-                                    record.telemetry.clone(),
-                                )
-                            };
+                            let (current_score, best_score, telemetry) =
+                                runtime.slot.with_publication(|_, record| {
+                                    (
+                                        record.current_score,
+                                        record.best_score,
+                                        record.telemetry.clone(),
+                                    )
+                                });
                             runtime.emit_cancelled(current_score, best_score, telemetry);
                         } else {
                             runtime.emit_failed(
@@ -117,11 +147,37 @@ where
 
     pub fn get_status(&self, job_id: usize) -> Result<SolverStatus<S::Score>, SolverManagerError> {
         let slot = self.slot(job_id)?;
-        let state = slot
-            .public_state()
-            .ok_or(SolverManagerError::JobNotFound { job_id })?;
-        let record = slot.record.lock().unwrap();
-        Ok(record.status(job_id, state))
+        slot.with_publication(|_, record| {
+            let state = slot
+                .public_state()
+                .ok_or(SolverManagerError::JobNotFound { job_id })?;
+            Ok(record.status(job_id, state))
+        })
+    }
+
+    /// Returns compact aggregate telemetry and bounded candidate-pull detail
+    /// from one retained publication instant. The embedded status's scores and
+    /// latest snapshot revision identify that same instant.
+    ///
+    /// This is deliberately separate from [`Self::get_status`], lifecycle
+    /// events, and snapshots: those control-plane payloads remain compact as
+    /// a solve publishes progress. Detail is returned only when it belongs to
+    /// the current compact telemetry publication; it is cleared on every
+    /// later trace-free progress, resume, lifecycle-only, or terminal update.
+    pub fn get_telemetry_detail(
+        &self,
+        job_id: usize,
+    ) -> Result<SolverTelemetryDetail<S::Score>, SolverManagerError> {
+        let slot = self.slot(job_id)?;
+        slot.with_publication(|_, record| {
+            let state = slot
+                .public_state()
+                .ok_or(SolverManagerError::JobNotFound { job_id })?;
+            Ok(SolverTelemetryDetail {
+                status: record.status(job_id, state),
+                candidate_trace: record.candidate_trace_detail.clone(),
+            })
+        })
     }
 
     pub fn pause(&self, job_id: usize) -> Result<(), SolverManagerError> {
@@ -135,6 +191,7 @@ where
             ) {
                 Ok(_) => {
                     slot.pause_requested.store(true, Ordering::SeqCst);
+                    record.clear_candidate_trace_detail();
                     let metadata =
                         record.next_metadata(job_id, SolverLifecycleState::PauseRequested, None);
                     if let Some(sender) = sender {
@@ -161,60 +218,64 @@ where
 
     pub fn resume(&self, job_id: usize) -> Result<(), SolverManagerError> {
         let slot = self.slot(job_id)?;
-        let state = slot
-            .public_state()
-            .ok_or(SolverManagerError::JobNotFound { job_id })?;
-        if state != SolverLifecycleState::Paused {
-            return Err(SolverManagerError::InvalidStateTransition {
-                job_id,
-                action: "resume",
-                state,
-            });
-        }
-
-        slot.pause_requested.store(false, Ordering::SeqCst);
+        slot.with_publication(|_, _record| {
+            let state = slot
+                .public_state()
+                .ok_or(SolverManagerError::JobNotFound { job_id })?;
+            if state != SolverLifecycleState::Paused {
+                return Err(SolverManagerError::InvalidStateTransition {
+                    job_id,
+                    action: "resume",
+                    state,
+                });
+            }
+            slot.pause_requested.store(false, Ordering::SeqCst);
+            Ok(())
+        })?;
         slot.pause_condvar.notify_one();
         Ok(())
     }
 
     pub fn cancel(&self, job_id: usize) -> Result<(), SolverManagerError> {
         let slot = self.slot(job_id)?;
-        let state = slot
-            .public_state()
-            .ok_or(SolverManagerError::JobNotFound { job_id })?;
-        if !matches!(
-            state,
-            SolverLifecycleState::Solving
-                | SolverLifecycleState::PauseRequested
-                | SolverLifecycleState::Paused
-        ) {
-            return Err(SolverManagerError::InvalidStateTransition {
-                job_id,
-                action: "cancel",
+        slot.with_publication(|_, _record| {
+            let state = slot
+                .public_state()
+                .ok_or(SolverManagerError::JobNotFound { job_id })?;
+            if !matches!(
                 state,
-            });
-        }
+                SolverLifecycleState::Solving
+                    | SolverLifecycleState::PauseRequested
+                    | SolverLifecycleState::Paused
+            ) {
+                return Err(SolverManagerError::InvalidStateTransition {
+                    job_id,
+                    action: "cancel",
+                    state,
+                });
+            }
 
-        slot.terminate.store(true, Ordering::SeqCst);
-        slot.pause_requested.store(false, Ordering::SeqCst);
+            slot.terminate.store(true, Ordering::SeqCst);
+            slot.pause_requested.store(false, Ordering::SeqCst);
+            Ok(())
+        })?;
         slot.pause_condvar.notify_one();
         Ok(())
     }
 
     pub fn delete(&self, job_id: usize) -> Result<(), SolverManagerError> {
         let slot = self.slot(job_id)?;
-        let state = slot
-            .public_state()
-            .ok_or(SolverManagerError::JobNotFound { job_id })?;
-        if !state.is_terminal() {
-            return Err(SolverManagerError::InvalidStateTransition {
-                job_id,
-                action: "delete",
-                state,
-            });
+        match slot.delete_terminal() {
+            Ok(()) => {}
+            Err(None) => return Err(SolverManagerError::JobNotFound { job_id }),
+            Err(Some(state)) => {
+                return Err(SolverManagerError::InvalidStateTransition {
+                    job_id,
+                    action: "delete",
+                    state,
+                });
+            }
         }
-
-        slot.mark_deleted();
         slot.try_reset_deleted();
         Ok(())
     }
@@ -225,31 +286,32 @@ where
         snapshot_revision: Option<u64>,
     ) -> Result<SolverSnapshot<S>, SolverManagerError> {
         let slot = self.slot(job_id)?;
-        if slot.public_state().is_none() {
-            return Err(SolverManagerError::JobNotFound { job_id });
-        }
+        slot.with_publication(|_, record| {
+            if slot.public_state().is_none() {
+                return Err(SolverManagerError::JobNotFound { job_id });
+            }
 
-        let record = slot.record.lock().unwrap();
-        if record.snapshots.is_empty() {
-            return Err(SolverManagerError::NoSnapshotAvailable { job_id });
-        }
+            if record.snapshots.is_empty() {
+                return Err(SolverManagerError::NoSnapshotAvailable { job_id });
+            }
 
-        match snapshot_revision {
-            Some(revision) => record
-                .snapshots
-                .iter()
-                .find(|snapshot| snapshot.snapshot_revision == revision)
-                .cloned()
-                .ok_or(SolverManagerError::SnapshotNotFound {
-                    job_id,
-                    snapshot_revision: revision,
-                }),
-            None => Ok(record
-                .snapshots
-                .last()
-                .expect("checked non-empty snapshots")
-                .clone()),
-        }
+            match snapshot_revision {
+                Some(revision) => record
+                    .snapshots
+                    .iter()
+                    .find(|snapshot| snapshot.snapshot_revision == revision)
+                    .cloned()
+                    .ok_or(SolverManagerError::SnapshotNotFound {
+                        job_id,
+                        snapshot_revision: revision,
+                    }),
+                None => Ok(record
+                    .snapshots
+                    .last()
+                    .expect("checked non-empty snapshots")
+                    .clone()),
+            }
+        })
     }
 
     pub fn analyze_snapshot(

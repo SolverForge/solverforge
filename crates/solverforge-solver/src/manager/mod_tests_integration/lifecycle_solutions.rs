@@ -8,10 +8,11 @@ use solverforge_scoring::Director;
 use super::super::{
     Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolverRuntime, SolverTerminalReason,
 };
-use super::common::NoOpPhase;
-use super::gates::LifecycleStepGate;
+use super::gates::{BlockingPoint, LifecycleStepGate};
 use super::runtime_helpers::{telemetry_with_steps, zero_telemetry};
+use crate::builder::{RuntimeModel, SearchContext};
 use crate::scope::SolverScope;
+use crate::{try_run_solver_with_config_and_search, DefaultCrossEntityDistanceMeter};
 
 #[derive(Clone, Debug)]
 pub(super) struct LifecycleSolution {
@@ -116,7 +117,11 @@ impl solverforge_scoring::Director<LifecycleSolution> for LifecycleDirector {
 }
 
 impl Solvable for LifecycleSolution {
-    fn solve(self, runtime: SolverRuntime<Self>) {
+    fn solve(
+        self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
+    ) {
         let mut solver_scope =
             SolverScope::new_with_callback(LifecycleDirector::new(self), (), None, Some(runtime));
 
@@ -203,7 +208,11 @@ impl PlanningSolution for PauseRequestedProgressSolution {
 }
 
 impl Solvable for PauseRequestedProgressSolution {
-    fn solve(mut self, runtime: SolverRuntime<Self>) {
+    fn solve(
+        mut self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
+    ) {
         let score = SoftScore::of(self.value);
         self.set_score(Some(score));
         runtime.emit_best_solution(self.clone(), Some(score), score, zero_telemetry());
@@ -222,6 +231,54 @@ impl Solvable for PauseRequestedProgressSolution {
         } else {
             runtime.emit_cancelled(Some(score), Some(score), zero_telemetry());
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct TerminalHookLifecycleSolution {
+    pub(super) terminal_hook: BlockingPoint,
+    value: i64,
+    score: Option<SoftScore>,
+}
+
+impl TerminalHookLifecycleSolution {
+    pub(super) fn new(value: i64) -> Self {
+        Self {
+            terminal_hook: BlockingPoint::new(),
+            value,
+            score: None,
+        }
+    }
+}
+
+impl PlanningSolution for TerminalHookLifecycleSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl Solvable for TerminalHookLifecycleSolution {
+    fn solve(
+        mut self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
+    ) {
+        let score = SoftScore::of(self.value);
+        self.set_score(Some(score));
+        self.terminal_hook.block();
+        runtime.emit_completed(
+            self,
+            Some(score),
+            score,
+            zero_telemetry(),
+            SolverTerminalReason::Completed,
+        );
     }
 }
 
@@ -250,7 +307,11 @@ impl PlanningSolution for PauseOrderingSolution {
 }
 
 impl Solvable for PauseOrderingSolution {
-    fn solve(mut self, runtime: SolverRuntime<Self>) {
+    fn solve(
+        mut self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
+    ) {
         let score = SoftScore::of(self.value);
         self.set_score(Some(score));
         runtime.emit_best_solution(self.clone(), Some(score), score, zero_telemetry());
@@ -310,7 +371,11 @@ impl PlanningSolution for DeleteReservationSolution {
 }
 
 impl Solvable for DeleteReservationSolution {
-    fn solve(mut self, runtime: SolverRuntime<Self>) {
+    fn solve(
+        mut self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
+    ) {
         let score = SoftScore::of(1);
         self.set_score(Some(score));
         runtime.emit_completed(
@@ -325,12 +390,12 @@ impl Solvable for DeleteReservationSolution {
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct TrivialLifecycleSolution {
+pub(super) struct ZeroVariableLifecycleSolution {
     pub(super) gate: LifecycleStepGate,
     score: Option<SoftScore>,
 }
 
-impl TrivialLifecycleSolution {
+impl ZeroVariableLifecycleSolution {
     pub(super) fn new() -> Self {
         Self {
             gate: LifecycleStepGate::new_closed(),
@@ -339,7 +404,7 @@ impl TrivialLifecycleSolution {
     }
 }
 
-impl PlanningSolution for TrivialLifecycleSolution {
+impl PlanningSolution for ZeroVariableLifecycleSolution {
     type Score = SoftScore;
 
     fn score(&self) -> Option<Self::Score> {
@@ -353,39 +418,53 @@ impl PlanningSolution for TrivialLifecycleSolution {
     fn update_entity_shadows(&mut self, _descriptor_index: usize, _entity_index: usize) {}
 }
 
-fn trivial_solution_descriptor() -> SolutionDescriptor {
+fn zero_variable_solution_descriptor() -> SolutionDescriptor {
     SolutionDescriptor::new(
-        "TrivialLifecycleSolution",
-        TypeId::of::<TrivialLifecycleSolution>(),
+        "ZeroVariableLifecycleSolution",
+        TypeId::of::<ZeroVariableLifecycleSolution>(),
     )
 }
 
-fn trivial_entity_count(_solution: &TrivialLifecycleSolution, _descriptor_index: usize) -> usize {
+fn zero_variable_entity_count(
+    _solution: &ZeroVariableLifecycleSolution,
+    _descriptor_index: usize,
+) -> usize {
     0
 }
 
-fn trivial_log_scale(solution: &TrivialLifecycleSolution) {
+fn zero_variable_log_scale(solution: &ZeroVariableLifecycleSolution) {
     solution.gate.wait_for_permit();
 }
 
-fn empty_noop_phase_sequence(
-    _config: &solverforge_config::SolverConfig,
-) -> crate::phase::PhaseSequence<NoOpPhase> {
-    crate::phase::PhaseSequence::new(Vec::new())
-}
-
-impl Solvable for TrivialLifecycleSolution {
-    fn solve(self, runtime: SolverRuntime<Self>) {
-        let _ = crate::run::run_solver(
+impl Solvable for ZeroVariableLifecycleSolution {
+    fn solve(
+        self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
+    ) {
+        let result = try_run_solver_with_config_and_search(
             self,
-            || (),
-            trivial_solution_descriptor,
-            trivial_entity_count,
+            (),
+            zero_variable_solution_descriptor(),
+            zero_variable_entity_count,
             runtime,
+            solverforge_config::SolverConfig::default(),
             30,
-            |_| true,
-            trivial_log_scale,
-            empty_noop_phase_sequence,
+            zero_variable_log_scale,
+            None,
+            |config, descriptor| {
+                let model = RuntimeModel::<
+                    ZeroVariableLifecycleSolution,
+                    usize,
+                    DefaultCrossEntityDistanceMeter,
+                    DefaultCrossEntityDistanceMeter,
+                >::new(Vec::new());
+                Ok(SearchContext::try_new(descriptor, model, config.random_seed)?.defaults())
+            },
+        );
+        assert!(
+            result.is_ok(),
+            "zero-variable compiled runtime solve must succeed"
         );
     }
 }

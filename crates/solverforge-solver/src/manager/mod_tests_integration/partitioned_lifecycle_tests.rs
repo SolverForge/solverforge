@@ -135,7 +135,11 @@ where
 }
 
 impl Solvable for PartitionedRetainedSolution {
-    fn solve(self, runtime: SolverRuntime<Self>) {
+    fn solve(
+        self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
+    ) {
         let mut solver_scope = SolverScope::new_with_callback(
             PartitionedRetainedDirector::new(self),
             (),

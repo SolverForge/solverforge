@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::fmt::{self, Debug};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -6,9 +7,41 @@ use solverforge_core::domain::PlanningSolution;
 use super::slot::{
     JobSlot, SLOT_CANCELLED, SLOT_COMPLETED, SLOT_FAILED, SLOT_PAUSED, SLOT_SOLVING,
 };
-use super::types::{SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverTerminalReason};
+use super::types::{SolverEvent, SolverLifecycleState, SolverTerminalReason};
 use crate::scope::{ProgressCallback, SolverScope};
 use crate::stats::SolverTelemetry;
+
+/// Preserves a foreign-runtime error object while giving retained solving a
+/// stable, displayable failure message.
+pub struct SolverPanicPayload {
+    message: String,
+    payload: Box<dyn Any + Send>,
+}
+
+impl SolverPanicPayload {
+    pub fn new(message: impl Into<String>, payload: impl Any + Send) -> Self {
+        Self {
+            message: message.into(),
+            payload: Box::new(payload),
+        }
+    }
+
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    pub fn into_parts(self) -> (String, Box<dyn Any + Send>) {
+        (self.message, self.payload)
+    }
+}
+
+impl Debug for SolverPanicPayload {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SolverPanicPayload")
+            .field("message", &self.message)
+            .finish_non_exhaustive()
+    }
+}
 
 /// Runtime context for a retained solve job.
 ///
@@ -40,6 +73,14 @@ enum EventKind {
     Progress,
     Resumed,
     Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CompletionDisposition {
+    Published,
+    Pause,
+    Cancel,
+    AlreadyTerminal,
 }
 
 impl<S: PlanningSolution> SolverRuntime<S> {
@@ -85,14 +126,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         best_score: Option<S::Score>,
         telemetry: SolverTelemetry,
     ) {
-        let lifecycle_state = self.current_state();
-        self.emit_non_snapshot_event(
-            lifecycle_state,
-            current_score,
-            best_score,
-            telemetry,
-            EventKind::Progress,
-        );
+        self.emit_non_snapshot_event(current_score, best_score, telemetry, EventKind::Progress);
     }
 
     pub fn emit_best_solution(
@@ -102,12 +136,12 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         best_score: S::Score,
         telemetry: SolverTelemetry,
     ) {
-        let state = self.current_state();
         self.slot.with_publication(|sender, record| {
+            let state = self.current_state();
             let terminal_reason = record.terminal_reason;
             record.current_score = current_score;
             record.best_score = Some(best_score);
-            record.telemetry = telemetry.clone();
+            record.publish_telemetry(telemetry);
 
             let snapshot_revision = record.push_snapshot(super::types::SolverSnapshot {
                 job_id: self.job_id,
@@ -116,7 +150,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
                 terminal_reason,
                 current_score,
                 best_score: Some(best_score),
-                telemetry: telemetry.clone(),
+                telemetry: record.telemetry.clone(),
                 solution: solution.clone(),
             });
 
@@ -135,34 +169,79 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         telemetry: SolverTelemetry,
         terminal_reason: SolverTerminalReason,
     ) {
-        self.slot.with_publication(|sender, record| {
-            self.slot.state.store(SLOT_COMPLETED, Ordering::SeqCst);
-            record.terminal_reason = Some(terminal_reason);
-            record.checkpoint_available = false;
-            record.current_score = current_score;
-            record.best_score = Some(best_score);
-            record.telemetry = telemetry.clone();
+        loop {
+            let disposition = self.slot.with_publication(|sender, record| {
+                if self.current_state().is_terminal() {
+                    return CompletionDisposition::AlreadyTerminal;
+                }
+                if self.is_cancel_requested() {
+                    return CompletionDisposition::Cancel;
+                }
+                if self.is_pause_requested()
+                    || matches!(
+                        self.current_state(),
+                        SolverLifecycleState::PauseRequested | SolverLifecycleState::Paused
+                    )
+                {
+                    return CompletionDisposition::Pause;
+                }
 
-            let snapshot_revision = record.push_snapshot(super::types::SolverSnapshot {
-                job_id: self.job_id,
-                snapshot_revision: 0,
-                lifecycle_state: SolverLifecycleState::Completed,
-                terminal_reason: Some(terminal_reason),
-                current_score,
-                best_score: Some(best_score),
-                telemetry: telemetry.clone(),
-                solution: solution.clone(),
+                self.slot.state.store(SLOT_COMPLETED, Ordering::SeqCst);
+                record.terminal_reason = Some(terminal_reason);
+                record.checkpoint_available = false;
+                record.current_score = current_score;
+                record.best_score = Some(best_score);
+                record.publish_telemetry(telemetry.clone());
+
+                let snapshot_revision = record.push_snapshot(super::types::SolverSnapshot {
+                    job_id: self.job_id,
+                    snapshot_revision: 0,
+                    lifecycle_state: SolverLifecycleState::Completed,
+                    terminal_reason: Some(terminal_reason),
+                    current_score,
+                    best_score: Some(best_score),
+                    telemetry: record.telemetry.clone(),
+                    solution: solution.clone(),
+                });
+
+                let metadata = record.next_metadata(
+                    self.job_id,
+                    SolverLifecycleState::Completed,
+                    Some(snapshot_revision),
+                );
+                if let Some(sender) = sender {
+                    let _ = sender.send(SolverEvent::Completed {
+                        metadata,
+                        solution: solution.clone(),
+                    });
+                }
+                CompletionDisposition::Published
             });
 
-            let metadata = record.next_metadata(
-                self.job_id,
-                SolverLifecycleState::Completed,
-                Some(snapshot_revision),
-            );
-            if let Some(sender) = sender {
-                let _ = sender.send(SolverEvent::Completed { metadata, solution });
+            match disposition {
+                CompletionDisposition::Published | CompletionDisposition::AlreadyTerminal => {
+                    return;
+                }
+                CompletionDisposition::Cancel => {
+                    self.emit_cancelled(current_score, Some(best_score), telemetry);
+                    return;
+                }
+                CompletionDisposition::Pause => {
+                    if self.pause_with_snapshot(
+                        solution.clone(),
+                        current_score,
+                        Some(best_score),
+                        telemetry.clone(),
+                    ) {
+                        continue;
+                    }
+                    if self.is_cancel_requested() {
+                        self.emit_cancelled(current_score, Some(best_score), telemetry);
+                        return;
+                    }
+                }
             }
-        });
+        }
     }
 
     pub fn emit_cancelled(
@@ -182,30 +261,23 @@ impl<S: PlanningSolution> SolverRuntime<S> {
     }
 
     pub fn emit_failed(&self, error: String) {
-        if matches!(
-            self.current_state(),
-            SolverLifecycleState::Completed
-                | SolverLifecycleState::Cancelled
-                | SolverLifecycleState::Failed
-        ) {
-            return;
-        }
-
         self.slot.with_publication(|sender, record| {
+            if matches!(
+                self.current_state(),
+                SolverLifecycleState::Completed
+                    | SolverLifecycleState::Cancelled
+                    | SolverLifecycleState::Failed
+            ) {
+                return;
+            }
             self.slot.state.store(SLOT_FAILED, Ordering::SeqCst);
             record.terminal_reason = Some(SolverTerminalReason::Failed);
             record.checkpoint_available = false;
             record.failure_message = Some(error.clone());
-            let telemetry = record.telemetry.clone();
+            record.clear_candidate_trace_detail();
             let metadata = record.next_metadata(self.job_id, SolverLifecycleState::Failed, None);
             if let Some(sender) = sender {
-                let _ = sender.send(SolverEvent::Failed {
-                    metadata: SolverEventMetadata {
-                        telemetry,
-                        ..metadata
-                    },
-                    error,
-                });
+                let _ = sender.send(SolverEvent::Failed { metadata, error });
             }
         });
     }
@@ -242,13 +314,20 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             return false;
         }
 
-        self.slot.with_publication(|sender, record| {
+        let (telemetry, candidate_trace) = telemetry.split_candidate_trace();
+        let published = self.slot.with_publication(|sender, record| {
+            if !self.slot.pause_requested.load(Ordering::Acquire)
+                || self.is_cancel_requested()
+                || self.current_state().is_terminal()
+            {
+                return false;
+            }
             self.slot.state.store(SLOT_PAUSED, Ordering::SeqCst);
             let terminal_reason = record.terminal_reason;
             record.checkpoint_available = true;
             record.current_score = current_score;
             record.best_score = best_score;
-            record.telemetry = telemetry.clone();
+            record.publish_telemetry_with_candidate_trace(telemetry.clone(), candidate_trace);
 
             let snapshot_revision = record.push_snapshot(super::types::SolverSnapshot {
                 job_id: self.job_id,
@@ -257,7 +336,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
                 terminal_reason,
                 current_score,
                 best_score,
-                telemetry: telemetry.clone(),
+                telemetry: record.telemetry.clone(),
                 solution,
             });
 
@@ -269,7 +348,11 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             if let Some(sender) = sender {
                 let _ = sender.send(SolverEvent::Paused { metadata });
             }
+            true
         });
+        if !published {
+            return false;
+        }
 
         let mut guard = self.slot.pause_gate.lock().unwrap();
         while self.slot.pause_requested.load(Ordering::Acquire) && !self.is_cancel_requested() {
@@ -281,14 +364,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             return false;
         }
 
-        self.slot.state.store(SLOT_SOLVING, Ordering::SeqCst);
-        self.emit_non_snapshot_event(
-            SolverLifecycleState::Solving,
-            current_score,
-            best_score,
-            telemetry,
-            EventKind::Resumed,
-        );
+        self.emit_non_snapshot_event(current_score, best_score, telemetry, EventKind::Resumed);
         true
     }
 
@@ -304,16 +380,26 @@ impl<S: PlanningSolution> SolverRuntime<S> {
 
     fn emit_non_snapshot_event(
         &self,
-        lifecycle_state: SolverLifecycleState,
         current_score: Option<S::Score>,
         best_score: Option<S::Score>,
         telemetry: SolverTelemetry,
         kind: EventKind,
     ) {
         self.slot.with_publication(|sender, record| {
+            if kind == EventKind::Resumed && self.is_cancel_requested() {
+                return;
+            }
+            let lifecycle_state = match kind {
+                EventKind::Progress => self.current_state(),
+                EventKind::Resumed => {
+                    self.slot.state.store(SLOT_SOLVING, Ordering::SeqCst);
+                    SolverLifecycleState::Solving
+                }
+                EventKind::Cancelled => unreachable!(),
+            };
             record.current_score = current_score;
             record.best_score = best_score;
-            record.telemetry = telemetry.clone();
+            record.publish_telemetry(telemetry);
             if lifecycle_state != SolverLifecycleState::Paused {
                 record.checkpoint_available = false;
             }
@@ -339,6 +425,9 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         kind: EventKind,
     ) {
         self.slot.with_publication(|sender, record| {
+            if self.current_state().is_terminal() {
+                return;
+            }
             match lifecycle_state {
                 SolverLifecycleState::Cancelled => {
                     self.slot.state.store(SLOT_CANCELLED, Ordering::SeqCst);
@@ -352,7 +441,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
             record.checkpoint_available = false;
             record.current_score = current_score;
             record.best_score = best_score;
-            record.telemetry = telemetry.clone();
+            record.publish_telemetry(telemetry);
             let metadata = record.next_metadata(self.job_id, lifecycle_state, None);
             let event = match kind {
                 EventKind::Cancelled => SolverEvent::Cancelled { metadata },
@@ -365,12 +454,36 @@ impl<S: PlanningSolution> SolverRuntime<S> {
     }
 }
 
-pub(super) fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
+pub(super) fn panic_payload_to_string(payload: Box<dyn Any + Send>) -> String {
     if let Some(message) = payload.downcast_ref::<&'static str>() {
         (*message).to_string()
     } else if let Some(message) = payload.downcast_ref::<String>() {
         message.clone()
+    } else if let Some(payload) = payload.downcast_ref::<SolverPanicPayload>() {
+        payload.message().to_string()
     } else {
         "solver panicked with a non-string payload".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{panic_payload_to_string, SolverPanicPayload};
+
+    #[test]
+    fn retained_failure_uses_foreign_runtime_message() {
+        let payload = SolverPanicPayload::new("foreign traceback", 41_u8);
+        assert_eq!(
+            panic_payload_to_string(Box::new(payload)),
+            "foreign traceback"
+        );
+    }
+
+    #[test]
+    fn foreign_runtime_payload_remains_owned() {
+        let payload = SolverPanicPayload::new("foreign traceback", 41_u8);
+        let (message, payload) = payload.into_parts();
+        assert_eq!(message, "foreign traceback");
+        assert_eq!(*payload.downcast::<u8>().expect("u8 payload"), 41);
     }
 }

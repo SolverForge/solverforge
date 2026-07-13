@@ -8,7 +8,7 @@ use super::types::{
     SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverSnapshot, SolverStatus,
     SolverTerminalReason,
 };
-use crate::stats::SolverTelemetry;
+use crate::stats::{CandidateTraceTelemetry, SolverTelemetry};
 
 pub(super) const SLOT_FREE: u8 = 0;
 pub(super) const SLOT_SOLVING: u8 = 1;
@@ -29,6 +29,11 @@ pub(super) struct JobRecord<S: PlanningSolution> {
     pub(super) current_score: Option<S::Score>,
     pub(super) best_score: Option<S::Score>,
     pub(super) telemetry: SolverTelemetry,
+    /// Bounded diagnostic detail is intentionally detached from ordinary
+    /// status/event/snapshot telemetry. Fetch it explicitly through
+    /// `SolverManager::get_telemetry_detail` so progress publication
+    /// never deep-clones the trace prefix.
+    pub(super) candidate_trace_detail: Option<CandidateTraceTelemetry>,
     pub(super) checkpoint_available: bool,
     pub(super) snapshots: Vec<SolverSnapshot<S>>,
     pub(super) failure_message: Option<String>,
@@ -43,6 +48,7 @@ impl<S: PlanningSolution> JobRecord<S> {
             current_score: None,
             best_score: None,
             telemetry: SolverTelemetry::new_const(),
+            candidate_trace_detail: None,
             checkpoint_available: false,
             snapshots: Vec::new(),
             failure_message: None,
@@ -56,6 +62,7 @@ impl<S: PlanningSolution> JobRecord<S> {
         self.current_score = None;
         self.best_score = None;
         self.telemetry = SolverTelemetry::default();
+        self.candidate_trace_detail = None;
         self.checkpoint_available = false;
         self.snapshots.clear();
         self.failure_message = None;
@@ -67,6 +74,38 @@ impl<S: PlanningSolution> JobRecord<S> {
         self.latest_snapshot_revision = Some(next);
         self.snapshots.push(snapshot);
         next
+    }
+
+    /// Replaces public telemetry while moving optional bounded diagnostic
+    /// detail into the job-owned detail store. The stored telemetry is
+    /// trace-free and safe to clone into events and snapshots.
+    ///
+    /// Detail belongs to this exact telemetry publication. In particular, a
+    /// compact telemetry update must clear the previous trace rather than
+    /// returning it with later scores, lifecycle state, or event sequence.
+    pub(super) fn publish_telemetry(&mut self, mut telemetry: SolverTelemetry) {
+        self.candidate_trace_detail = telemetry.take_candidate_trace();
+        self.telemetry = telemetry;
+        debug_assert!(self.telemetry.candidate_trace.is_none());
+    }
+
+    /// Like [`Self::publish_telemetry`], but accepts detail that was detached
+    /// before a compact telemetry value had to be reused (pause/resume).
+    pub(super) fn publish_telemetry_with_candidate_trace(
+        &mut self,
+        telemetry: SolverTelemetry,
+        candidate_trace: Option<CandidateTraceTelemetry>,
+    ) {
+        debug_assert!(telemetry.candidate_trace.is_none());
+        self.candidate_trace_detail = candidate_trace;
+        self.telemetry = telemetry;
+    }
+
+    /// Clears diagnostic detail before a public lifecycle publication which
+    /// has no telemetry payload of its own. This preserves the same exact
+    /// publication invariant as [`Self::publish_telemetry`].
+    pub(super) fn clear_candidate_trace_detail(&mut self) {
+        self.candidate_trace_detail = None;
     }
 
     pub(super) fn next_metadata(
@@ -150,16 +189,26 @@ impl<S: PlanningSolution> JobSlot<S> {
         f(sender, &mut record)
     }
 
-    pub(super) fn initialize(&self, sender: mpsc::UnboundedSender<SolverEvent<S>>) {
+    /// Claims a free slot and initializes every public record field under the
+    /// same publication lock used by status/detail readers.  A reader can
+    /// therefore never observe `SOLVING` paired with the previous job's
+    /// telemetry or diagnostic prefix.
+    pub(super) fn try_initialize(&self, sender: mpsc::UnboundedSender<SolverEvent<S>>) -> bool {
+        let _publication = self.publication.lock().unwrap();
+        if self.state.load(Ordering::Acquire) != SLOT_FREE {
+            return false;
+        }
         self.terminate.store(false, Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
         self.worker_running.store(true, Ordering::Release);
         self.visibility.store(SLOT_VISIBLE, Ordering::Release);
         *self.sender.lock().unwrap() = Some(sender);
         self.record.lock().unwrap().reset();
+        self.state.store(SLOT_SOLVING, Ordering::Release);
+        true
     }
 
-    pub(super) fn reset(&self) {
+    fn reset_locked(&self) {
         self.terminate.store(false, Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);
         self.worker_running.store(false, Ordering::Release);
@@ -169,33 +218,44 @@ impl<S: PlanningSolution> JobSlot<S> {
         self.visibility.store(SLOT_VISIBLE, Ordering::Release);
     }
 
-    pub(super) fn mark_deleted(&self) {
-        self.visibility.store(SLOT_DELETED, Ordering::Release);
-        *self.sender.lock().unwrap() = None;
-    }
-
     pub(super) fn worker_exited(&self) {
+        let _publication = self.publication.lock().unwrap();
         self.worker_running.store(false, Ordering::Release);
-        self.try_reset_deleted();
+        if self.visibility.load(Ordering::Acquire) == SLOT_DELETED {
+            self.visibility.store(SLOT_DELETING, Ordering::Release);
+            self.reset_locked();
+        }
     }
 
     pub(super) fn try_reset_deleted(&self) {
-        if self.worker_running.load(Ordering::Acquire) {
-            return;
-        }
-
-        if self
-            .visibility
-            .compare_exchange(
-                SLOT_DELETED,
-                SLOT_DELETING,
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            )
-            .is_ok()
+        let _publication = self.publication.lock().unwrap();
+        if !self.worker_running.load(Ordering::Acquire)
+            && self.visibility.load(Ordering::Acquire) == SLOT_DELETED
         {
-            self.reset();
+            self.visibility.store(SLOT_DELETING, Ordering::Release);
+            self.reset_locked();
         }
+    }
+
+    /// Atomically removes a terminal job from the public lifecycle surface.
+    ///
+    /// `None` means the slot is already hidden/free; `Some(state)` means it
+    /// is still visible but not terminal.  The manager maps those outcomes to
+    /// its public error type without reopening a state/record race.
+    pub(super) fn delete_terminal(&self) -> Result<(), Option<SolverLifecycleState>> {
+        let _publication = self.publication.lock().unwrap();
+        if self.visibility.load(Ordering::Acquire) != SLOT_VISIBLE {
+            return Err(None);
+        }
+        let Some(state) = self.raw_state() else {
+            return Err(None);
+        };
+        if !state.is_terminal() {
+            return Err(Some(state));
+        }
+        self.visibility.store(SLOT_DELETED, Ordering::Release);
+        *self.sender.lock().unwrap() = None;
+        Ok(())
     }
 
     pub(super) fn raw_state(&self) -> Option<SolverLifecycleState> {

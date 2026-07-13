@@ -9,7 +9,7 @@ use super::super::{
 use super::common::recv_event;
 use super::lifecycle_solutions::{
     DeleteReservationSolution, LifecycleSolution, PauseOrderingSolution,
-    PauseRequestedProgressSolution, TrivialLifecycleSolution,
+    PauseRequestedProgressSolution, TerminalHookLifecycleSolution, ZeroVariableLifecycleSolution,
 };
 
 #[test]
@@ -337,6 +337,93 @@ fn retained_job_pause_requested_event_precedes_worker_pause_events() {
 }
 
 #[test]
+fn pause_accepted_during_terminal_hook_settles_before_completion() {
+    static MANAGER: SolverManager<TerminalHookLifecycleSolution> = SolverManager::new();
+
+    let solution = TerminalHookLifecycleSolution::new(23);
+    let hook = solution.terminal_hook.clone();
+    let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
+    hook.wait_until_blocked();
+
+    MANAGER
+        .pause(job_id)
+        .expect("pause during terminal hook is accepted");
+    match recv_event(&mut receiver, "pause requested during terminal hook") {
+        SolverEvent::PauseRequested { metadata } => {
+            assert_eq!(
+                metadata.lifecycle_state,
+                SolverLifecycleState::PauseRequested
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    hook.release();
+    match recv_event(&mut receiver, "paused before terminal completion") {
+        SolverEvent::Paused { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Paused);
+            assert_eq!(metadata.snapshot_revision, Some(1));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.resume(job_id).expect("terminal pause resumes");
+    match recv_event(&mut receiver, "resumed terminal solve") {
+        SolverEvent::Resumed { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Solving);
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+    match recv_event(&mut receiver, "completion after terminal resume") {
+        SolverEvent::Completed { metadata, .. } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Completed);
+            assert_eq!(
+                metadata.terminal_reason,
+                Some(SolverTerminalReason::Completed)
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    MANAGER.delete(job_id).expect("delete completed job");
+}
+
+#[test]
+fn cancel_accepted_during_terminal_hook_cannot_publish_completion() {
+    static MANAGER: SolverManager<TerminalHookLifecycleSolution> = SolverManager::new();
+
+    let solution = TerminalHookLifecycleSolution::new(29);
+    let hook = solution.terminal_hook.clone();
+    let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
+    hook.wait_until_blocked();
+
+    MANAGER
+        .cancel(job_id)
+        .expect("cancel during terminal hook is accepted");
+    hook.release();
+
+    match recv_event(&mut receiver, "cancelled terminal solve") {
+        SolverEvent::Cancelled { metadata } => {
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Cancelled);
+            assert_eq!(
+                metadata.terminal_reason,
+                Some(SolverTerminalReason::Cancelled)
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+    assert_eq!(
+        MANAGER
+            .get_status(job_id)
+            .expect("cancelled status")
+            .lifecycle_state,
+        SolverLifecycleState::Cancelled
+    );
+
+    MANAGER.delete(job_id).expect("delete cancelled job");
+}
+
+#[test]
 fn retained_job_delete_keeps_slot_reserved_until_worker_exit() {
     static MANAGER: SolverManager<DeleteReservationSolution> = SolverManager::new();
 
@@ -373,10 +460,10 @@ fn retained_job_delete_keeps_slot_reserved_until_worker_exit() {
 }
 
 #[test]
-fn trivial_job_cancelled_while_paused_reports_cancelled() {
-    static MANAGER: SolverManager<TrivialLifecycleSolution> = SolverManager::new();
+fn zero_variable_job_cancelled_while_paused_reports_cancelled() {
+    static MANAGER: SolverManager<ZeroVariableLifecycleSolution> = SolverManager::new();
 
-    let solution = TrivialLifecycleSolution::new();
+    let solution = ZeroVariableLifecycleSolution::new();
     let gate = solution.gate.clone();
     let (job_id, mut receiver) = MANAGER.solve(solution).expect("job should start");
 
@@ -393,6 +480,17 @@ fn trivial_job_cancelled_while_paused_reports_cancelled() {
     }
 
     gate.allow_next_step();
+
+    match recv_event(&mut receiver, "best solution event") {
+        SolverEvent::BestSolution { metadata, .. } => {
+            assert_eq!(
+                metadata.lifecycle_state,
+                SolverLifecycleState::PauseRequested
+            );
+            assert_eq!(metadata.snapshot_revision, Some(1));
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
 
     match recv_event(&mut receiver, "paused event") {
         SolverEvent::Paused { metadata } => {

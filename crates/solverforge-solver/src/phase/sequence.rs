@@ -5,6 +5,7 @@ use solverforge_scoring::Director;
 
 use crate::phase::Phase;
 use crate::scope::{ProgressCallback, SolverScope};
+use crate::stats::CandidateTracePhasePlan;
 
 pub struct PhaseSequence<P> {
     phases: Vec<P>,
@@ -47,5 +48,22 @@ where
 
     fn phase_type_name(&self) -> &'static str {
         "PhaseSequence"
+    }
+
+    fn on_solver_terminal(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
+        for phase in &mut self.phases {
+            phase.on_solver_terminal(solver_scope);
+        }
+    }
+
+    fn candidate_trace_plan(&self) -> CandidateTracePhasePlan {
+        CandidateTracePhasePlan::known(
+            "solverforge.phase.sequence",
+            [("phase_count", self.phases.len().to_string())],
+            self.phases
+                .iter()
+                .map(|phase| phase.candidate_trace_plan())
+                .collect(),
+        )
     }
 }

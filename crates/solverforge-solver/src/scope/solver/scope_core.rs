@@ -1,3 +1,70 @@
+const PROGRESS_INTERVAL: Duration = Duration::from_secs(1);
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ProgressTick {
+    pub elapsed: Duration,
+    pub step_delta: u64,
+    pub move_delta: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ProgressPulse {
+    phase_index: usize,
+    phase_type: &'static str,
+    next_deadline: Instant,
+    last_reported_at: Instant,
+    last_step_count: u64,
+    last_move_count: u64,
+}
+
+impl ProgressPulse {
+    fn new(
+        now: Instant,
+        phase_index: usize,
+        phase_type: &'static str,
+        step_count: u64,
+        move_count: u64,
+    ) -> Self {
+        Self {
+            phase_index,
+            phase_type,
+            next_deadline: now + PROGRESS_INTERVAL,
+            last_reported_at: now,
+            last_step_count: step_count,
+            last_move_count: move_count,
+        }
+    }
+
+    fn take_due(
+        &mut self,
+        now: Instant,
+        phase_index: usize,
+        phase_type: &'static str,
+        step_count: u64,
+        move_count: u64,
+    ) -> Option<ProgressTick> {
+        if self.phase_index != phase_index || self.phase_type != phase_type {
+            *self = Self::new(now, phase_index, phase_type, step_count, move_count);
+            return None;
+        }
+        if now < self.next_deadline {
+            return None;
+        }
+        let tick = ProgressTick {
+            elapsed: now.duration_since(self.last_reported_at),
+            step_delta: step_count.saturating_sub(self.last_step_count),
+            move_delta: move_count.saturating_sub(self.last_move_count),
+        };
+        self.last_reported_at = now;
+        self.last_step_count = step_count;
+        self.last_move_count = move_count;
+        while self.next_deadline <= now {
+            self.next_deadline += PROGRESS_INTERVAL;
+        }
+        Some(tick)
+    }
+}
+
 pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()> {
     score_director: D,
     best_solution: Option<S>,
@@ -16,6 +83,7 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     time_limit: Option<Duration>,
     time_deadline: Option<Instant>,
     progress_callback: ProgressCb,
+    progress_pulse: Option<ProgressPulse>,
     terminal_reason: Option<SolverTerminalReason>,
     last_best_elapsed: Option<Duration>,
     best_solution_revision: Option<u64>,
@@ -26,6 +94,7 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     pub inphase_move_count_limit: Option<u64>,
     pub inphase_score_calc_count_limit: Option<u64>,
     inphase_best_score_limit: Option<S::Score>,
+    phase_termination: Option<ScopedPhaseTermination<S>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -97,6 +166,118 @@ impl PhaseBudget {
                 self.score_calc_count_limit,
                 self.score_calculations.load(Ordering::SeqCst),
             )
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ScopedPhaseTermination<S: PlanningSolution> {
+    start_step_count: u64,
+    start_elapsed: Duration,
+    time_limit: Option<Duration>,
+    step_count_limit: Option<u64>,
+    best_score_limit: Option<S::Score>,
+    unimproved_step_count_limit: Option<u64>,
+    unimproved_time_limit: Option<Duration>,
+    best_score: Option<S::Score>,
+    improvement_score: Option<S::Score>,
+    last_improvement_step_count: u64,
+    last_improvement_elapsed: Duration,
+}
+
+impl<S> ScopedPhaseTermination<S>
+where
+    S: PlanningSolution,
+{
+    fn from_config<D, ProgressCb>(
+        scope: &SolverScope<'_, S, D, ProgressCb>,
+        config: &TerminationConfig,
+    ) -> Option<Self>
+    where
+        D: Director<S>,
+        ProgressCb: ProgressCallback<S>,
+        S::Score: ParseableScore,
+    {
+        let best_score_limit = config
+            .best_score_limit
+            .as_deref()
+            .and_then(|score| S::Score::parse(score).ok());
+        let time_limit = config.time_limit();
+        let step_count_limit = config.step_count_limit;
+        let unimproved_step_count_limit = config.unimproved_step_count_limit;
+        let unimproved_time_limit = config.unimproved_time_limit();
+        if time_limit.is_none()
+            && step_count_limit.is_none()
+            && best_score_limit.is_none()
+            && unimproved_step_count_limit.is_none()
+            && unimproved_time_limit.is_none()
+        {
+            return None;
+        }
+        let elapsed = scope.elapsed().unwrap_or_default();
+        let best_score = match (scope.best_score, scope.current_score) {
+            (Some(best), Some(current)) => Some(best.max(current)),
+            (Some(best), None) | (None, Some(best)) => Some(best),
+            (None, None) => None,
+        };
+        Some(Self {
+            start_step_count: scope.total_step_count,
+            start_elapsed: elapsed,
+            time_limit,
+            step_count_limit,
+            best_score_limit,
+            unimproved_step_count_limit,
+            unimproved_time_limit,
+            best_score,
+            improvement_score: scope.current_score.or(scope.best_score),
+            last_improvement_step_count: scope.total_step_count,
+            last_improvement_elapsed: elapsed,
+        })
+    }
+
+    fn is_reached(
+        &self,
+        total_step_count: u64,
+        elapsed: Duration,
+    ) -> bool {
+        let phase_steps = total_step_count.saturating_sub(self.start_step_count);
+        let phase_elapsed = elapsed.saturating_sub(self.start_elapsed);
+        self.time_limit.is_some_and(|limit| phase_elapsed >= limit)
+            || self.step_count_limit.is_some_and(|limit| phase_steps >= limit)
+            || self
+                .best_score_limit
+                .is_some_and(|limit| self.best_score.is_some_and(|score| score >= limit))
+            || self.unimproved_step_count_limit.is_some_and(|limit| {
+                total_step_count.saturating_sub(self.last_improvement_step_count) >= limit
+            })
+            || self.unimproved_time_limit.is_some_and(|limit| {
+                elapsed.saturating_sub(self.last_improvement_elapsed) >= limit
+            })
+    }
+
+    fn record_improvement(&mut self, total_step_count: u64, elapsed: Duration) {
+        self.last_improvement_step_count = total_step_count;
+        self.last_improvement_elapsed = elapsed;
+    }
+
+    fn observe_score(
+        &mut self,
+        score: S::Score,
+        completed_step_count: u64,
+        elapsed: Duration,
+    ) {
+        if self.best_score.is_none_or(|best| score > best) {
+            self.best_score = Some(score);
+        }
+        if self.improvement_score.is_none_or(|best| score > best) {
+            self.improvement_score = Some(score);
+            self.record_improvement(completed_step_count, elapsed);
+        }
+    }
+
+    fn needs_score_observation(&self) -> bool {
+        self.best_score_limit.is_some()
+            || self.unimproved_step_count_limit.is_some()
+            || self.unimproved_time_limit.is_some()
     }
 }
 
@@ -176,6 +357,7 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             time_limit: None,
             time_deadline: None,
             progress_callback: (),
+            progress_pulse: None,
             terminal_reason: None,
             last_best_elapsed: None,
             best_solution_revision: None,
@@ -186,6 +368,7 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
             inphase_best_score_limit: None,
+            phase_termination: None,
         }
     }
 }
@@ -218,6 +401,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             time_limit: None,
             time_deadline: None,
             progress_callback: callback,
+            progress_pulse: None,
             terminal_reason: None,
             last_best_elapsed: None,
             best_solution_revision: None,
@@ -228,6 +412,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             inphase_move_count_limit: None,
             inphase_score_calc_count_limit: None,
             inphase_best_score_limit: None,
+            phase_termination: None,
         }
     }
 
@@ -284,6 +469,53 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         }
     }
 
+    /// Runs one configured phase with a phase-relative termination overlay.
+    ///
+    /// The overlay is intentionally independent from solver-wide termination:
+    /// it starts at this phase boundary, applies every supported
+    /// `TerminationConfig` limit, and is restored before the next phase runs.
+    /// Mandatory default construction deliberately does not install this
+    /// overlay, so its required-completion pass remains interruptible only by
+    /// lifecycle control.
+    pub(crate) fn with_phase_termination<T>(
+        &mut self,
+        config: Option<&TerminationConfig>,
+        work: impl FnOnce(&mut Self) -> T,
+    ) -> T
+    where
+        S::Score: ParseableScore,
+    {
+        let previous = self.phase_termination.take();
+        self.phase_termination =
+            config.and_then(|config| ScopedPhaseTermination::from_config(self, config));
+        let result = work(self);
+        self.phase_termination = previous;
+        result
+    }
+
+    fn phase_termination_reached(&self) -> bool {
+        self.phase_termination.as_ref().is_some_and(|termination| {
+            termination.is_reached(self.total_step_count, self.elapsed().unwrap_or_default())
+        })
+    }
+
+    pub(crate) fn phase_termination_requires_score_observation(&self) -> bool {
+        self.phase_termination
+            .as_ref()
+            .is_some_and(ScopedPhaseTermination::needs_score_observation)
+    }
+
+    fn observe_phase_score(&mut self, score: S::Score, completed_step_count: u64) {
+        let elapsed = self.elapsed().unwrap_or_default();
+        if let Some(termination) = &mut self.phase_termination {
+            termination.observe_score(score, completed_step_count, elapsed);
+        }
+    }
+
+    pub(crate) fn observe_phase_step_score(&mut self, score: S::Score) {
+        self.observe_phase_score(score, self.total_step_count.saturating_add(1));
+    }
+
     fn child_time_deadline(&self) -> Option<Instant> {
         self.time_deadline.or_else(|| {
             self.time_limit.map(|limit| {
@@ -316,6 +548,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             time_limit: self.time_limit,
             time_deadline: self.time_deadline,
             progress_callback: callback,
+            progress_pulse: self.progress_pulse,
             terminal_reason: self.terminal_reason,
             last_best_elapsed: self.last_best_elapsed,
             best_solution_revision: self.best_solution_revision,
@@ -326,6 +559,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             inphase_move_count_limit: self.inphase_move_count_limit,
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
             inphase_best_score_limit: self.inphase_best_score_limit,
+            phase_termination: self.phase_termination,
         }
     }
 
@@ -338,6 +572,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.yielded_to_parent = false;
         self.best_solution_revision = None;
         self.solution_revision = 1;
+        self.progress_pulse = None;
         self.construction_frontier.reset();
         self.stats.start();
     }
@@ -458,6 +693,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             .mark_list_completed(element_id, self.solution_revision);
     }
 
+    #[cfg(test)]
     pub(crate) fn solution_revision(&self) -> u64 {
         self.solution_revision
     }
@@ -476,7 +712,4 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.committed_mutation(change);
     }
 
-    pub(crate) fn construction_frontier(&self) -> &ConstructionFrontier {
-        &self.construction_frontier
-    }
 }

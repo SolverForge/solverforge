@@ -15,10 +15,15 @@ pub struct SolverProgressRef<'a, S: PlanningSolution> {
 }
 
 pub trait ProgressCallback<S: PlanningSolution>: Send + Sync {
+    #[doc(hidden)]
+    const PUBLISHES_PROGRESS: bool = true;
+
     fn invoke(&self, progress: SolverProgressRef<'_, S>);
 }
 
 impl<S: PlanningSolution> ProgressCallback<S> for () {
+    const PUBLISHES_PROGRESS: bool = false;
+
     fn invoke(&self, _progress: SolverProgressRef<'_, S>) {}
 }
 

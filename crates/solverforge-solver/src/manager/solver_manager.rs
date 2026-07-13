@@ -15,8 +15,8 @@ mod types;
 
 #[allow(unused_imports)]
 pub use manager::{Solvable, SolverManager, MAX_JOBS};
-pub use runtime::SolverRuntime;
+pub use runtime::{SolverPanicPayload, SolverRuntime};
 pub use types::{
     SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManagerError, SolverSnapshot,
-    SolverSnapshotAnalysis, SolverStatus, SolverTerminalReason,
+    SolverSnapshotAnalysis, SolverStatus, SolverTelemetryDetail, SolverTerminalReason,
 };

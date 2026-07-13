@@ -6,10 +6,14 @@ use std::time::Instant;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
+use tracing::debug;
 
 use super::solver::ProgressCallback;
 use super::SolverScope;
-use crate::stats::{AppliedMoveTelemetry, PhaseStats};
+use crate::stats::{
+    whole_units_per_second, AppliedMoveTelemetry, CandidateTraceConstructionTarget,
+    CandidateTraceDisposition, CandidateTracePullToken, CandidateTraceSource, PhaseStats,
+};
 
 /// Scope for a single phase of solving.
 ///
@@ -24,12 +28,16 @@ pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb = ()> 
     solver_scope: &'a mut SolverScope<'t, S, D, BestCb>,
     // Index of this phase (0-based).
     phase_index: usize,
+    // Monotonic execution index used only by an enabled candidate trace.
+    candidate_trace_phase_index: Option<usize>,
     // Score at the start of this phase.
     starting_score: Option<S::Score>,
     // Number of steps in this phase.
     step_count: u64,
     // When this phase started.
     start_time: Instant,
+    // Solver-active elapsed at phase entry. The solver clock excludes pauses.
+    solver_elapsed_at_start: Option<Duration>,
     // Phase statistics.
     stats: PhaseStats,
 }
@@ -38,13 +46,18 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
     PhaseScope<'t, 'a, S, D, BestCb>
 {
     pub fn new(solver_scope: &'a mut SolverScope<'t, S, D, BestCb>, phase_index: usize) -> Self {
+        let candidate_trace_phase_index = solver_scope.begin_candidate_trace_phase();
+        solver_scope.begin_phase_progress(phase_index, "Unknown", 0, 0);
         let starting_score = solver_scope.best_score().cloned();
+        let solver_elapsed_at_start = solver_scope.elapsed();
         Self {
             solver_scope,
             phase_index,
+            candidate_trace_phase_index,
             starting_score,
             step_count: 0,
             start_time: Instant::now(),
+            solver_elapsed_at_start,
             stats: PhaseStats::new(phase_index, "Unknown"),
         }
     }
@@ -54,13 +67,18 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
         phase_index: usize,
         phase_type: &'static str,
     ) -> Self {
+        let candidate_trace_phase_index = solver_scope.begin_candidate_trace_phase();
+        solver_scope.begin_phase_progress(phase_index, phase_type, 0, 0);
         let starting_score = solver_scope.best_score().cloned();
+        let solver_elapsed_at_start = solver_scope.elapsed();
         Self {
             solver_scope,
             phase_index,
+            candidate_trace_phase_index,
             starting_score,
             step_count: 0,
             start_time: Instant::now(),
+            solver_elapsed_at_start,
             stats: PhaseStats::new(phase_index, phase_type),
         }
     }
@@ -74,7 +92,10 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
     }
 
     pub fn elapsed(&self) -> std::time::Duration {
-        self.start_time.elapsed()
+        match (self.solver_elapsed_at_start, self.solver_scope.elapsed()) {
+            (Some(start), Some(now)) => now.saturating_sub(start),
+            _ => self.start_time.elapsed(),
+        }
     }
 
     pub fn step_count(&self) -> u64 {
@@ -134,6 +155,63 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
 
     pub fn stats_mut(&mut self) -> &mut PhaseStats {
         &mut self.stats
+    }
+
+    pub fn report_progress(&self) {
+        let phase = self.stats.snapshot_with_elapsed(self.elapsed());
+        self.solver_scope.report_phase_progress(phase);
+    }
+
+    pub fn report_progress_if_due(&mut self) -> bool {
+        if !BestCb::PUBLISHES_PROGRESS && !tracing::enabled!(tracing::Level::DEBUG) {
+            return false;
+        }
+        let tick = self.solver_scope.take_phase_progress_tick(
+            self.phase_index,
+            self.stats.phase_type,
+            self.stats.step_count,
+            self.stats.moves_evaluated,
+        );
+        let Some(tick) = tick else {
+            return false;
+        };
+        let speed_count = if tick.move_delta > 0 {
+            tick.move_delta
+        } else {
+            tick.step_delta
+        };
+        let current_score = self.solver_scope.current_score();
+        let published_best_score = self.solver_scope.best_score();
+        let reported_best_score = match (current_score, published_best_score) {
+            (Some(current), Some(best)) if current > best => Some(current),
+            (_, Some(best)) => Some(best),
+            (Some(current), None) => Some(current),
+            (None, None) => None,
+        };
+        let current_score = current_score
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "none".to_string());
+        let best_score = reported_best_score
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "none".to_string());
+        debug!(
+            event = "progress",
+            phase = self.stats.phase_type,
+            phase_index = self.phase_index,
+            steps = self.stats.step_count,
+            moves_generated = self.stats.moves_generated,
+            moves_evaluated = self.stats.moves_evaluated,
+            moves_accepted = self.stats.moves_accepted,
+            moves_score_improving = self.stats.moves_score_improving(),
+            moves_applied_improving = self.stats.moves_applied_improving(),
+            score_calculations = self.stats.score_calculations,
+            speed = whole_units_per_second(speed_count, tick.elapsed),
+            acceptance_rate = format!("{:.1}%", self.stats.acceptance_rate() * 100.0),
+            current_score = current_score,
+            best_score = best_score,
+        );
+        self.report_progress();
+        true
     }
 
     pub fn record_generated_batch(&mut self, count: u64, duration: Duration) {
@@ -326,6 +404,68 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
 
     pub fn can_record_applied_move_trace(&self) -> bool {
         self.stats.can_record_applied_move_trace()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn record_candidate_pull<M>(
+        &mut self,
+        source: CandidateTraceSource,
+        selector_index: Option<usize>,
+        candidate_index: usize,
+        construction_target: Option<CandidateTraceConstructionTarget>,
+        candidate: &M,
+    ) -> Option<CandidateTracePullToken>
+    where
+        M: crate::heuristic::r#move::Move<S>,
+    {
+        self.solver_scope.record_candidate_pull(
+            source,
+            self.candidate_trace_phase_index.unwrap_or(self.phase_index),
+            self.stats.phase_type,
+            self.step_count,
+            selector_index,
+            candidate_index,
+            construction_target,
+            candidate,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn record_candidate_operation<I, T>(
+        &mut self,
+        source: CandidateTraceSource,
+        selector_index: Option<usize>,
+        candidate_index: usize,
+        construction_target: Option<CandidateTraceConstructionTarget>,
+        descriptor_index: usize,
+        operation: &'static str,
+        components: I,
+    ) -> Option<CandidateTracePullToken>
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<crate::stats::CandidateTraceCoordinate>,
+    {
+        self.solver_scope.record_candidate_operation(
+            source,
+            self.candidate_trace_phase_index.unwrap_or(self.phase_index),
+            self.stats.phase_type,
+            self.step_count,
+            selector_index,
+            candidate_index,
+            construction_target,
+            descriptor_index,
+            operation,
+            components,
+        )
+    }
+
+    pub(crate) fn record_candidate_trace_disposition(
+        &mut self,
+        token: CandidateTracePullToken,
+        disposition: CandidateTraceDisposition,
+    ) {
+        self.solver_scope
+            .record_candidate_trace_disposition(token, disposition);
     }
 
     pub fn record_move_hard_improving(&mut self) {

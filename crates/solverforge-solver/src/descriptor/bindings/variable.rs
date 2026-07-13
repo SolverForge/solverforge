@@ -3,12 +3,10 @@ use std::fmt::{self, Debug};
 use std::ops::Deref;
 
 use solverforge_core::domain::{
-    PlanningSolution, SolutionDescriptor, UsizeCandidateValues, UsizeConstructionEntityOrderKey,
-    UsizeConstructionValueOrderKey, UsizeEntityValueProvider, UsizeGetter, UsizeSetter,
+    SolutionDescriptor, UsizeCandidateValues, UsizeEntityValueProvider, UsizeGetter, UsizeSetter,
     ValueRangeType,
 };
 
-use crate::builder::context::{ConstructionEntityOrderKey, ConstructionValueOrderKey};
 use crate::phase::construction::ConstructionSlotId;
 
 #[derive(Clone)]
@@ -31,8 +29,6 @@ pub(crate) struct VariableBinding {
         Option<solverforge_core::domain::UsizeNearbyValueDistanceMeter>,
     pub(crate) nearby_entity_distance_meter:
         Option<solverforge_core::domain::UsizeNearbyEntityDistanceMeter>,
-    pub(crate) construction_entity_order_key: Option<UsizeConstructionEntityOrderKey>,
-    pub(crate) construction_value_order_key: Option<UsizeConstructionValueOrderKey>,
 }
 
 impl Debug for VariableBinding {
@@ -237,35 +233,18 @@ impl VariableBinding {
                 .is_some_and(|count| value < count),
         }
     }
-
-    pub(crate) fn entity_order_key(&self, solution: &dyn Any, entity_index: usize) -> Option<i64> {
-        self.construction_entity_order_key
-            .map(|order_key| order_key(solution, entity_index))
-    }
-
-    pub(crate) fn value_order_key(
-        &self,
-        solution: &dyn Any,
-        entity_index: usize,
-        value: usize,
-    ) -> Option<i64> {
-        self.construction_value_order_key
-            .map(|order_key| order_key(solution, entity_index, value))
-    }
 }
 
 pub(crate) struct ResolvedVariableBinding<S> {
     binding: VariableBinding,
-    runtime_construction_entity_order_key: Option<ConstructionEntityOrderKey<S>>,
-    runtime_construction_value_order_key: Option<ConstructionValueOrderKey<S>>,
+    _phantom: std::marker::PhantomData<fn() -> S>,
 }
 
 impl<S> Clone for ResolvedVariableBinding<S> {
     fn clone(&self) -> Self {
         Self {
             binding: self.binding.clone(),
-            runtime_construction_entity_order_key: self.runtime_construction_entity_order_key,
-            runtime_construction_value_order_key: self.runtime_construction_value_order_key,
+            _phantom: std::marker::PhantomData,
         }
     }
 }
@@ -274,14 +253,6 @@ impl<S> Debug for ResolvedVariableBinding<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ResolvedVariableBinding")
             .field("binding", &self.binding)
-            .field(
-                "has_runtime_construction_entity_order_key",
-                &self.runtime_construction_entity_order_key.is_some(),
-            )
-            .field(
-                "has_runtime_construction_value_order_key",
-                &self.runtime_construction_value_order_key.is_some(),
-            )
             .finish()
     }
 }
@@ -298,66 +269,7 @@ impl<S> ResolvedVariableBinding<S> {
     pub(crate) fn new(binding: VariableBinding) -> Self {
         Self {
             binding,
-            runtime_construction_entity_order_key: None,
-            runtime_construction_value_order_key: None,
+            _phantom: std::marker::PhantomData,
         }
-    }
-
-    pub(crate) fn with_runtime_construction_hooks(
-        mut self,
-        entity_order_key: Option<ConstructionEntityOrderKey<S>>,
-        value_order_key: Option<ConstructionValueOrderKey<S>>,
-    ) -> Self {
-        self.runtime_construction_entity_order_key = entity_order_key;
-        self.runtime_construction_value_order_key = value_order_key;
-        self
-    }
-
-    pub(crate) fn has_entity_order_key(&self) -> bool {
-        self.runtime_construction_entity_order_key.is_some()
-            || self.binding.construction_entity_order_key.is_some()
-    }
-
-    pub(crate) fn has_value_order_key(&self) -> bool {
-        self.runtime_construction_value_order_key.is_some()
-            || self.binding.construction_value_order_key.is_some()
-    }
-
-    pub(crate) fn runtime_value_order_key(&self) -> Option<ConstructionValueOrderKey<S>> {
-        self.runtime_construction_value_order_key
-    }
-
-    pub(crate) fn clone_binding(&self) -> VariableBinding {
-        self.binding.clone()
-    }
-}
-
-impl<S> ResolvedVariableBinding<S>
-where
-    S: PlanningSolution + 'static,
-{
-    pub(crate) fn entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
-        self.runtime_construction_entity_order_key
-            .and_then(|order_key| order_key(solution, entity_index, self.binding.variable_index))
-            .or_else(|| {
-                self.binding
-                    .entity_order_key(solution as &dyn Any, entity_index)
-            })
-    }
-
-    pub(crate) fn value_order_key(
-        &self,
-        solution: &S,
-        entity_index: usize,
-        value: usize,
-    ) -> Option<i64> {
-        self.runtime_construction_value_order_key
-            .and_then(|order_key| {
-                order_key(solution, entity_index, self.binding.variable_index, value)
-            })
-            .or_else(|| {
-                self.binding
-                    .value_order_key(solution as &dyn Any, entity_index, value)
-            })
     }
 }

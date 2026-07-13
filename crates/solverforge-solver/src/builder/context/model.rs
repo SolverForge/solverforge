@@ -1,11 +1,12 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use solverforge_core::domain::{
-    DynamicListVariableSlot, DynamicScalarVariableSlot, SolutionDescriptor,
-};
+use solverforge_core::domain::{DynamicListVariableSlot, DynamicScalarVariableSlot};
 
-use super::{ConflictRepair, ListVariableSlot, ScalarGroupBinding, ScalarVariableSlot};
+use super::{
+    ConflictRepair, ListVariableSlot, RuntimeCandidateMetricRegistry, RuntimeProviderRegistry,
+    ScalarGroupBinding, ScalarVariableSlot,
+};
 
 pub enum VariableSlot<S, V, DM, IDM> {
     Scalar(ScalarVariableSlot<S>),
@@ -37,10 +38,12 @@ impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for VariableSlot<S, V, DM
 }
 
 pub struct RuntimeModel<S, V, DM, IDM> {
-    variables: Vec<VariableSlot<S, V, DM, IDM>>,
-    scalar_groups: Vec<ScalarGroupBinding<S>>,
-    conflict_repairs: Vec<ConflictRepair<S>>,
-    _phantom: PhantomData<(fn() -> S, fn() -> V)>,
+    pub(super) variables: Vec<VariableSlot<S, V, DM, IDM>>,
+    pub(super) scalar_groups: Vec<ScalarGroupBinding<S>>,
+    pub(super) conflict_repairs: Vec<ConflictRepair<S>>,
+    pub(super) runtime_provider_registry: RuntimeProviderRegistry<S>,
+    pub(super) candidate_metrics: RuntimeCandidateMetricRegistry<S>,
+    pub(super) _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
 impl<S, V, DM: Clone, IDM: Clone> Clone for RuntimeModel<S, V, DM, IDM> {
@@ -49,6 +52,8 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for RuntimeModel<S, V, DM, IDM> {
             variables: self.variables.clone(),
             scalar_groups: self.scalar_groups.clone(),
             conflict_repairs: self.conflict_repairs.clone(),
+            runtime_provider_registry: self.runtime_provider_registry.clone(),
+            candidate_metrics: self.candidate_metrics.clone(),
             _phantom: PhantomData,
         }
     }
@@ -60,6 +65,8 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
             variables,
             scalar_groups: Vec::new(),
             conflict_repairs: Vec::new(),
+            runtime_provider_registry: RuntimeProviderRegistry::default(),
+            candidate_metrics: RuntimeCandidateMetricRegistry::default(),
             _phantom: PhantomData,
         }
     }
@@ -74,32 +81,18 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
         self
     }
 
-    pub fn resolve_dynamic_descriptor_indexes(
-        mut self,
-        descriptor: &SolutionDescriptor,
-    ) -> Result<Self, String> {
-        for variable in &mut self.variables {
-            match variable {
-                VariableSlot::DynamicScalar(slot) => slot.resolve_descriptor_index(descriptor)?,
-                VariableSlot::DynamicList(slot) => slot.resolve_descriptor_index(descriptor)?,
-                VariableSlot::Scalar(_) | VariableSlot::List(_) => {}
-            }
-        }
-        Ok(self)
+    /// Attaches the immutable host-language generic-provider registry.  It is
+    /// frozen against resolved dynamic slot identities during model resolution
+    /// and is never consulted through a mutable schema/TLS lookup at solve
+    /// time.
+    pub fn with_runtime_provider_registry(mut self, registry: RuntimeProviderRegistry<S>) -> Self {
+        self.runtime_provider_registry = registry;
+        self
     }
 
-    pub fn assert_dynamic_descriptor_indexes_resolved(&self) {
-        for variable in &self.variables {
-            match variable {
-                VariableSlot::DynamicScalar(slot) => {
-                    let _ = slot.descriptor_index();
-                }
-                VariableSlot::DynamicList(slot) => {
-                    let _ = slot.descriptor_index();
-                }
-                VariableSlot::Scalar(_) | VariableSlot::List(_) => {}
-            }
-        }
+    pub fn with_candidate_metrics(mut self, metrics: RuntimeCandidateMetricRegistry<S>) -> Self {
+        self.candidate_metrics = metrics;
+        self
     }
 
     pub fn variables(&self) -> &[VariableSlot<S, V, DM, IDM>] {
@@ -112,6 +105,14 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
 
     pub fn conflict_repairs(&self) -> &[ConflictRepair<S>] {
         &self.conflict_repairs
+    }
+
+    pub fn runtime_provider_registry(&self) -> &RuntimeProviderRegistry<S> {
+        &self.runtime_provider_registry
+    }
+
+    pub fn candidate_metrics(&self) -> &RuntimeCandidateMetricRegistry<S> {
+        &self.candidate_metrics
     }
 
     pub fn is_empty(&self) -> bool {
@@ -158,11 +159,17 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
     pub fn has_nearby_scalar_change_variables(&self) -> bool {
         self.scalar_variables()
             .any(ScalarVariableSlot::supports_nearby_change)
+            || self
+                .dynamic_scalar_variables()
+                .any(DynamicScalarVariableSlot::has_nearby_value_candidates)
     }
 
     pub fn has_nearby_scalar_swap_variables(&self) -> bool {
         self.scalar_variables()
             .any(ScalarVariableSlot::supports_nearby_swap)
+            || self
+                .dynamic_scalar_variables()
+                .any(DynamicScalarVariableSlot::has_nearby_entity_candidates)
     }
 
     pub fn assignment_scalar_groups(
@@ -182,6 +189,19 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
             group.members.iter().any(|member| {
                 member.descriptor_index == variable.descriptor_index
                     && member.variable_index == variable.variable_index
+            })
+        })
+    }
+
+    pub fn assignment_group_covers_dynamic_scalar_variable(
+        &self,
+        variable: &DynamicScalarVariableSlot<S>,
+    ) -> bool {
+        self.assignment_scalar_groups().any(|(_, group)| {
+            group.members.iter().any(|member| {
+                member.dynamic_identity().is_some_and(|(entity, slot)| {
+                    entity == variable.entity && slot == variable.variable
+                })
             })
         })
     }
@@ -323,6 +343,8 @@ impl<S, V, DM: fmt::Debug, IDM: fmt::Debug> fmt::Debug for RuntimeModel<S, V, DM
             .field("variables", &self.variables)
             .field("scalar_groups", &self.scalar_groups)
             .field("conflict_repairs", &self.conflict_repairs)
+            .field("runtime_provider_registry", &self.runtime_provider_registry)
+            .field("candidate_metrics", &self.candidate_metrics)
             .finish()
     }
 }
@@ -406,6 +428,16 @@ mod tests {
             _variable: VariableId,
         ) -> &[usize] {
             &[]
+        }
+
+        fn scalar_value_is_legal(
+            &self,
+            _entity: EntityClassId,
+            _row: usize,
+            _variable: VariableId,
+            _value: usize,
+        ) -> bool {
+            false
         }
     }
 

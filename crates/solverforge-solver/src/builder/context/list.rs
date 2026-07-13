@@ -6,6 +6,13 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 
 pub struct IntraDistanceAdapter<T>(pub T);
 
+/// Canonical source key for the built-in `usize` planning-list representation.
+/// Generated list models and dynamic bridge lists use their logical element ID
+/// as the stable key; the per-run runtime binder maps it to source order.
+pub fn usize_element_source_key<S>(_solution: &S, element: &usize) -> usize {
+    *element
+}
+
 impl<S, T: CrossEntityDistanceMeter<S>> ListPositionDistanceMeter<S> for IntraDistanceAdapter<T> {
     fn distance(&self, solution: &S, entity_idx: usize, pos_a: usize, pos_b: usize) -> f64 {
         self.0
@@ -29,6 +36,10 @@ pub struct ListVariableSlot<S, V, DM, IDM> {
     pub ruin_remove: fn(&mut S, usize, usize) -> V,
     pub ruin_insert: fn(&mut S, usize, usize, V),
     pub index_to_element: fn(&S, usize) -> V,
+    /// Stable identity key for a list element. The per-run runtime binder
+    /// resolves these keys to declared source indexes once; it never scans
+    /// payloads by `PartialEq` during construction.
+    pub element_source_key: fn(&S, &V) -> usize,
     pub entity_count: fn(&S) -> usize,
     pub cross_distance_meter: DM,
     pub intra_distance_meter: IDM,
@@ -68,6 +79,7 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
             ruin_remove: self.ruin_remove,
             ruin_insert: self.ruin_insert,
             index_to_element: self.index_to_element,
+            element_source_key: self.element_source_key,
             entity_count: self.entity_count,
             cross_distance_meter: self.cross_distance_meter.clone(),
             intra_distance_meter: self.intra_distance_meter.clone(),
@@ -109,6 +121,7 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         ruin_remove: fn(&mut S, usize, usize) -> V,
         ruin_insert: fn(&mut S, usize, usize, V),
         index_to_element: fn(&S, usize) -> V,
+        element_source_key: fn(&S, &V) -> usize,
         entity_count: fn(&S) -> usize,
         cross_distance_meter: DM,
         intra_distance_meter: IDM,
@@ -140,6 +153,7 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             ruin_remove,
             ruin_insert,
             index_to_element,
+            element_source_key,
             entity_count,
             cross_distance_meter,
             intra_distance_meter,

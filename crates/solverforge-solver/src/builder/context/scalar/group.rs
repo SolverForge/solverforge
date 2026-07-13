@@ -1,134 +1,17 @@
 use std::fmt;
+use std::sync::Arc;
 
-use crate::planning::{
-    ScalarAssignmentDeclaration, ScalarAssignmentRule, ScalarCandidateProvider, ScalarEdit,
-    ScalarGroup, ScalarGroupKind, ScalarGroupLimits,
-};
+use solverforge_core::domain::{DynamicScalarAssignmentMetadata, DynamicScalarVariableSlot};
 
-use super::value_source::ValueSource;
-use super::variable::{ScalarGetter, ScalarSetter, ScalarVariableSlot};
+use crate::planning::{ScalarCandidateProvider, ScalarGroup, ScalarGroupKind, ScalarGroupLimits};
 
-pub struct ScalarGroupMemberBinding<S> {
-    pub descriptor_index: usize,
-    pub variable_index: usize,
-    pub entity_type_name: &'static str,
-    pub variable_name: &'static str,
-    pub getter: ScalarGetter<S>,
-    pub setter: ScalarSetter<S>,
-    pub value_source: ValueSource<S>,
-    pub entity_count: fn(&S) -> usize,
-    pub candidate_values: Option<super::variable::ScalarCandidateValues<S>>,
-    pub allows_unassigned: bool,
-}
+use super::variable::ScalarVariableSlot;
 
-impl<S> Clone for ScalarGroupMemberBinding<S> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
+mod assignment;
+mod member;
 
-impl<S> Copy for ScalarGroupMemberBinding<S> {}
-
-impl<S> ScalarGroupMemberBinding<S> {
-    pub fn from_scalar_slot(slot: ScalarVariableSlot<S>) -> Self {
-        Self {
-            descriptor_index: slot.descriptor_index,
-            variable_index: slot.variable_index,
-            entity_type_name: slot.entity_type_name,
-            variable_name: slot.variable_name,
-            getter: slot.getter,
-            setter: slot.setter,
-            value_source: slot.value_source,
-            entity_count: slot.entity_count,
-            candidate_values: slot.candidate_values,
-            allows_unassigned: slot.allows_unassigned,
-        }
-    }
-
-    pub fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize> {
-        (self.getter)(solution, entity_index, self.variable_index)
-    }
-
-    pub fn value_is_legal(
-        &self,
-        solution: &S,
-        entity_index: usize,
-        candidate: Option<usize>,
-    ) -> bool {
-        let Some(value) = candidate else {
-            return self.allows_unassigned;
-        };
-        match self.value_source {
-            ValueSource::Empty => false,
-            ValueSource::CountableRange { from, to } => from <= value && value < to,
-            ValueSource::SolutionCount {
-                count_fn,
-                provider_index,
-            } => value < count_fn(solution, provider_index),
-            ValueSource::EntitySlice { values_for_entity } => {
-                values_for_entity(solution, entity_index, self.variable_index).contains(&value)
-            }
-        }
-    }
-
-    pub fn entity_count(&self, solution: &S) -> usize {
-        (self.entity_count)(solution)
-    }
-
-    pub fn candidate_values(
-        &self,
-        solution: &S,
-        entity_index: usize,
-        value_candidate_limit: Option<usize>,
-    ) -> Vec<usize> {
-        if let Some(candidate_values) = self.candidate_values {
-            let values = candidate_values(solution, entity_index, self.variable_index);
-            return match value_candidate_limit {
-                Some(limit) => values.iter().copied().take(limit).collect(),
-                None => values.to_vec(),
-            };
-        }
-        match self.value_source {
-            ValueSource::Empty => Vec::new(),
-            ValueSource::CountableRange { from, to } => {
-                let end = value_candidate_limit
-                    .map(|limit| from.saturating_add(limit).min(to))
-                    .unwrap_or(to);
-                (from..end).collect()
-            }
-            ValueSource::SolutionCount {
-                count_fn,
-                provider_index,
-            } => {
-                let count = count_fn(solution, provider_index);
-                let end = value_candidate_limit
-                    .map(|limit| limit.min(count))
-                    .unwrap_or(count);
-                (0..end).collect()
-            }
-            ValueSource::EntitySlice { values_for_entity } => {
-                let values = values_for_entity(solution, entity_index, self.variable_index);
-                match value_candidate_limit {
-                    Some(limit) => values.iter().copied().take(limit).collect(),
-                    None => values.to_vec(),
-                }
-            }
-        }
-    }
-}
-
-impl<S> fmt::Debug for ScalarGroupMemberBinding<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ScalarGroupMemberBinding")
-            .field("descriptor_index", &self.descriptor_index)
-            .field("variable_index", &self.variable_index)
-            .field("entity_type_name", &self.entity_type_name)
-            .field("variable_name", &self.variable_name)
-            .field("value_source", &self.value_source)
-            .field("allows_unassigned", &self.allows_unassigned)
-            .finish()
-    }
-}
+pub use assignment::ScalarAssignmentBinding;
+pub use member::ScalarGroupMemberBinding;
 
 pub struct ScalarGroupBinding<S> {
     pub group_name: &'static str,
@@ -137,6 +20,9 @@ pub struct ScalarGroupBinding<S> {
     pub limits: ScalarGroupLimits,
 }
 
+// Keep assignment metadata inline so the canonical grouped construction and
+// local-search path remains allocation-free after model compilation.
+#[allow(clippy::large_enum_variant)]
 pub enum ScalarGroupBindingKind<S> {
     Candidates {
         candidate_provider: ScalarCandidateProvider<S>,
@@ -146,157 +32,12 @@ pub enum ScalarGroupBindingKind<S> {
 
 impl<S> Clone for ScalarGroupBindingKind<S> {
     fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S> Copy for ScalarGroupBindingKind<S> {}
-
-pub struct ScalarAssignmentBinding<S> {
-    pub target: ScalarGroupMemberBinding<S>,
-    pub required_entity: Option<fn(&S, usize) -> bool>,
-    pub capacity_key: Option<fn(&S, usize, usize) -> Option<usize>>,
-    pub position_key: Option<fn(&S, usize) -> i64>,
-    pub sequence_key: Option<fn(&S, usize, usize) -> Option<usize>>,
-    pub entity_order: Option<fn(&S, usize) -> i64>,
-    pub value_order: Option<fn(&S, usize, usize) -> i64>,
-    pub assignment_rule: Option<ScalarAssignmentRule<S>>,
-}
-
-impl<S> Clone for ScalarAssignmentBinding<S> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S> Copy for ScalarAssignmentBinding<S> {}
-
-impl<S> ScalarAssignmentBinding<S> {
-    fn bind(
-        group_name: &'static str,
-        members: &[ScalarGroupMemberBinding<S>],
-        declaration: ScalarAssignmentDeclaration<S>,
-    ) -> Self {
-        assert_eq!(
-            members.len(),
-            1,
-            "assignment scalar group `{group_name}` must target exactly one scalar planning variable",
-        );
-        let target = members[0];
-        assert!(
-            target.allows_unassigned,
-            "assignment scalar group `{group_name}` target {}.{} must allow unassigned values",
-            target.entity_type_name, target.variable_name,
-        );
-        assert!(
-            declaration.assignment_rule.is_none() || declaration.sequence_key.is_some(),
-            "assignment scalar group `{group_name}` with an assignment rule must declare a sequence key",
-        );
-        Self {
-            target,
-            required_entity: declaration.required_entity,
-            capacity_key: declaration.capacity_key,
-            position_key: declaration.position_key,
-            sequence_key: declaration.sequence_key,
-            entity_order: declaration.entity_order,
-            value_order: declaration.value_order,
-            assignment_rule: declaration.assignment_rule,
+        match self {
+            Self::Candidates { candidate_provider } => Self::Candidates {
+                candidate_provider: *candidate_provider,
+            },
+            Self::Assignment(assignment) => Self::Assignment(assignment.clone()),
         }
-    }
-
-    pub fn entity_count(&self, solution: &S) -> usize {
-        self.target.entity_count(solution)
-    }
-
-    pub fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize> {
-        self.target.current_value(solution, entity_index)
-    }
-
-    pub fn is_required(&self, solution: &S, entity_index: usize) -> bool {
-        self.required_entity
-            .map(|required_entity| required_entity(solution, entity_index))
-            .unwrap_or(false)
-    }
-
-    pub fn capacity_key(&self, solution: &S, entity_index: usize, value: usize) -> Option<usize> {
-        self.capacity_key
-            .and_then(|capacity_key| capacity_key(solution, entity_index, value))
-    }
-
-    pub fn position_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
-        self.position_key
-            .map(|position_key| position_key(solution, entity_index))
-    }
-
-    pub fn sequence_key(&self, solution: &S, entity_index: usize, value: usize) -> Option<usize> {
-        self.sequence_key
-            .and_then(|sequence_key| sequence_key(solution, entity_index, value))
-    }
-
-    pub fn entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
-        self.entity_order
-            .map(|entity_order| entity_order(solution, entity_index))
-    }
-
-    pub fn value_order_key(&self, solution: &S, entity_index: usize, value: usize) -> Option<i64> {
-        self.value_order
-            .map(|value_order| value_order(solution, entity_index, value))
-    }
-
-    pub fn assignment_edge_allowed(
-        &self,
-        solution: &S,
-        left_entity: usize,
-        left_value: usize,
-        right_entity: usize,
-        right_value: usize,
-    ) -> bool {
-        self.assignment_rule
-            .map(|assignment_rule| {
-                assignment_rule(solution, left_entity, left_value, right_entity, right_value)
-            })
-            .unwrap_or(true)
-    }
-
-    pub fn candidate_values(
-        &self,
-        solution: &S,
-        entity_index: usize,
-        value_candidate_limit: Option<usize>,
-    ) -> Vec<usize> {
-        let mut values =
-            self.target
-                .candidate_values(solution, entity_index, value_candidate_limit);
-        values.sort_by_key(|value| (self.value_order_key(solution, entity_index, *value), *value));
-        values
-    }
-
-    pub fn value_is_legal(&self, solution: &S, entity_index: usize, value: Option<usize>) -> bool {
-        self.target.value_is_legal(solution, entity_index, value)
-    }
-
-    pub fn edit(&self, entity_index: usize, value: Option<usize>) -> ScalarEdit<S> {
-        ScalarEdit::from_descriptor_index(
-            self.target.descriptor_index,
-            entity_index,
-            self.target.variable_name,
-            value,
-        )
-    }
-
-    pub fn remaining_required_count(&self, solution: &S) -> u64 {
-        (0..self.entity_count(solution))
-            .filter(|entity_index| {
-                self.is_required(solution, *entity_index)
-                    && self.current_value(solution, *entity_index).is_none()
-            })
-            .fold(0_u64, |count, _| count.saturating_add(1))
-    }
-
-    pub fn unassigned_count(&self, solution: &S) -> u64 {
-        (0..self.entity_count(solution))
-            .filter(|entity_index| self.current_value(solution, *entity_index).is_none())
-            .fold(0_u64, |count, _| count.saturating_add(1))
     }
 }
 
@@ -344,11 +85,33 @@ impl<S> ScalarGroupBinding<S> {
         }
     }
 
-    pub fn member_for_edit(&self, edit: &ScalarEdit<S>) -> Option<ScalarGroupMemberBinding<S>> {
-        self.members.iter().copied().find(|member| {
-            member.descriptor_index == edit.descriptor_index()
-                && member.variable_name == edit.variable_name()
-        })
+    pub fn dynamic_assignment(
+        group_name: &'static str,
+        target: DynamicScalarVariableSlot<S>,
+        metadata: Arc<dyn DynamicScalarAssignmentMetadata<S>>,
+        limits: ScalarGroupLimits,
+    ) -> Self {
+        let member = ScalarGroupMemberBinding::from_dynamic_slot(target);
+        let assignment = ScalarAssignmentBinding::dynamic(group_name, member.clone(), metadata);
+        Self {
+            group_name,
+            members: vec![member],
+            kind: ScalarGroupBindingKind::Assignment(assignment),
+            limits,
+        }
+    }
+
+    pub fn member_for_edit(
+        &self,
+        edit: &crate::planning::ScalarEdit<S>,
+    ) -> Option<ScalarGroupMemberBinding<S>> {
+        self.members
+            .iter()
+            .find(|member| {
+                member.descriptor_index == edit.descriptor_index()
+                    && member.variable_name == edit.variable_name()
+            })
+            .cloned()
     }
 
     pub fn assignment(&self) -> Option<&ScalarAssignmentBinding<S>> {
@@ -356,6 +119,54 @@ impl<S> ScalarGroupBinding<S> {
             ScalarGroupBindingKind::Assignment(assignment) => Some(assignment),
             ScalarGroupBindingKind::Candidates { .. } => None,
         }
+    }
+
+    pub(crate) fn assignment_mut(&mut self) -> Option<&mut ScalarAssignmentBinding<S>> {
+        match &mut self.kind {
+            ScalarGroupBindingKind::Assignment(assignment) => Some(assignment),
+            ScalarGroupBindingKind::Candidates { .. } => None,
+        }
+    }
+
+    pub(crate) fn canonicalize_dynamic_members(
+        &mut self,
+        scalar_slots: &[DynamicScalarVariableSlot<S>],
+    ) -> Result<(), String> {
+        for member in &mut self.members {
+            let Some((entity, variable)) = member.dynamic_identity() else {
+                continue;
+            };
+            let slot = scalar_slots
+                .iter()
+                .find(|slot| slot.entity == entity && slot.variable == variable)
+                .cloned()
+                .ok_or_else(|| {
+                    format!(
+                        "dynamic scalar group `{}` targets unregistered scalar variable {}.{}",
+                        self.group_name, member.entity_type_name, member.variable_name
+                    )
+                })?;
+            member.canonicalize_dynamic_slot(slot)?;
+        }
+
+        let group_name = self.group_name;
+        let Some(assignment) = self.assignment_mut() else {
+            return Ok(());
+        };
+        let Some((entity, variable)) = assignment.target().dynamic_identity() else {
+            return Ok(());
+        };
+        let slot = scalar_slots
+            .iter()
+            .find(|slot| slot.entity == entity && slot.variable == variable)
+            .cloned()
+            .ok_or_else(|| {
+                format!(
+                    "dynamic scalar group `{}` targets an unregistered assignment variable",
+                    group_name
+                )
+            })?;
+        assignment.target_mut().canonicalize_dynamic_slot(slot)
     }
 
     pub fn is_assignment(&self) -> bool {
@@ -368,12 +179,12 @@ impl<S> ScalarGroupBinding<S> {
 
     pub fn has_sequence_metadata(&self) -> bool {
         self.assignment()
-            .is_some_and(|assignment| assignment.sequence_key.is_some())
+            .is_some_and(ScalarAssignmentBinding::has_sequence_metadata)
     }
 
     pub fn has_position_metadata(&self) -> bool {
         self.assignment()
-            .is_some_and(|assignment| assignment.position_key.is_some())
+            .is_some_and(ScalarAssignmentBinding::has_position_metadata)
     }
 
     pub fn default_max_moves_per_step(&self) -> Option<usize> {
@@ -386,7 +197,7 @@ impl<S> Clone for ScalarGroupBinding<S> {
         Self {
             group_name: self.group_name,
             members: self.members.clone(),
-            kind: self.kind,
+            kind: self.kind.clone(),
             limits: self.limits,
         }
     }

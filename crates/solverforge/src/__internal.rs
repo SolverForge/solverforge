@@ -31,8 +31,8 @@ pub use tokio::sync::mpsc::UnboundedSender;
 
 // Solver infrastructure
 pub use solverforge_solver::builder::{
-    bind_scalar_groups, build_search, local_search, CustomSearchPhase, ListVariableSlot,
-    LocalSearch, LocalSearchStrategy, RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding,
+    bind_scalar_groups, local_search, usize_element_source_key, CustomSearchPhase,
+    ListVariableSlot, RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding,
     ScalarVariableSlot, Search, SearchContext, ValueSource, VariableSlot,
 };
 pub use solverforge_solver::heuristic::selector::{
@@ -42,13 +42,11 @@ pub use solverforge_solver::manager::{
     KOptPhaseBuilder, ListConstructionPhaseBuilder, PhaseFactory, SolverFactory,
 };
 pub use solverforge_solver::model_support::PlanningModelSupport;
-pub use solverforge_solver::runtime::{build_phases, Construction, RuntimePhase};
 pub use solverforge_solver::runtime::{ListVariableEntity, ListVariableMetadata};
 pub use solverforge_solver::scope::{ProgressCallback, SolverScope};
 pub use solverforge_solver::{
-    descriptor_has_bindings, log_solve_start, run_solver, run_solver_with_config,
-    run_solver_with_config_parts, Phase, PhaseSequence, SolverEvent, SolverRuntime,
-    SolverTelemetry,
+    log_solve_start, try_run_solver_with_config_and_search, RuntimeBuildResult, SolverEvent,
+    SolverRuntime, SolverTelemetry,
 };
 
 // Config

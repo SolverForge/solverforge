@@ -1,18 +1,70 @@
-//! Public dynamic runner helpers.
+//! Public dynamic runner helpers backed by the compiled runtime graph.
+//!
+//! Bindings pass one already-compiled runtime model. This bridge never accepts
+//! a phase-builder closure and exposes one solver runner.
+
+use std::fmt::Debug;
+use std::hash::Hash;
 
 use solverforge_config::SolverConfig;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
-use solverforge_scoring::{ConstraintSet, ScoreDirector};
-use solverforge_solver::{run_solver_with_config_parts, Phase, SolverRuntime};
+use solverforge_scoring::ConstraintSet;
+use solverforge_solver::builder::{NoDynamicExtensions, Search, SearchContext};
+use solverforge_solver::stats::QualifiedCandidateTraceRunProvenance;
+use solverforge_solver::{
+    try_run_solver_with_config_and_search, CrossEntityDistanceMeter, RuntimeBuildResult,
+    RuntimeModel, SolverRuntime,
+};
 
-/// Run a solver from already-built runtime parts.
+/// Dynamic authoring transferred to the shared graph compiler. The distinct
+/// empty extension registry makes custom and partitioned declarations a
+/// structural error rather than a host-language fallback.
+struct DynamicSearchDeclaration<S, V, DM, IDM>
+where
+    S: PlanningSolution,
+{
+    context: SearchContext<S, V, DM, IDM>,
+}
+
+impl<S, V, DM, IDM> Search<S, V, DM, IDM> for DynamicSearchDeclaration<S, V, DM, IDM>
+where
+    S: PlanningSolution + 'static,
+    S::Score: Score + ParseableScore,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + Sync + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + Sync + 'static,
+{
+    type Extensions = NoDynamicExtensions;
+
+    fn into_runtime_parts(self) -> (SearchContext<S, V, DM, IDM>, Self::Extensions) {
+        (self.context, NoDynamicExtensions)
+    }
+}
+
+fn dynamic_search_declaration<S, V, DM, IDM>(
+    config: &SolverConfig,
+    descriptor: SolutionDescriptor,
+    model: RuntimeModel<S, V, DM, IDM>,
+) -> RuntimeBuildResult<DynamicSearchDeclaration<S, V, DM, IDM>>
+where
+    S: PlanningSolution + 'static,
+    S::Score: Score + ParseableScore,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + Sync + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + Sync + 'static,
+{
+    Ok(DynamicSearchDeclaration {
+        context: SearchContext::try_new(descriptor, model, config.random_seed)?,
+    })
+}
+
+/// Runs a dynamic model through the one compiled runtime path.
 ///
-/// This is the binding-oriented entrypoint: descriptor, constraints, config,
-/// and phase construction are values supplied by the caller instead of
-/// macro-generated `fn() -> T` factories.
+/// The one model value is consumed by the canonical compiled runner. There is
+/// no host-language construction branch or deferred alternate execution path.
 #[allow(clippy::too_many_arguments)]
-pub fn run_dynamic_solver_with_config<S, C, P, BuildPhases>(
+pub fn try_run_dynamic_solver_with_config_parts<S, C, V, DM, IDM>(
     solution: S,
     constraints: C,
     descriptor: SolutionDescriptor,
@@ -20,20 +72,19 @@ pub fn run_dynamic_solver_with_config<S, C, P, BuildPhases>(
     runtime: SolverRuntime<S>,
     config: SolverConfig,
     default_time_limit_secs: u64,
-    is_trivial: fn(&S) -> bool,
     log_scale: fn(&S),
-    build_phases: BuildPhases,
-) -> S
+    qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
+    model: RuntimeModel<S, V, DM, IDM>,
+) -> RuntimeBuildResult<S>
 where
-    S: PlanningSolution,
-    S::Score: Score + ParseableScore,
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    S::Score: Score + Copy + Ord + ParseableScore,
     C: ConstraintSet<S, S::Score>,
-    P: Phase<S, ScoreDirector<S, C>, solverforge_solver::run::ChannelProgressCallback<S>>
-        + Send
-        + std::fmt::Debug,
-    BuildPhases: Fn(&SolverConfig, &SolutionDescriptor) -> P,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + Sync + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + Sync + 'static,
 {
-    run_solver_with_config_parts(
+    try_run_solver_with_config_and_search(
         solution,
         constraints,
         descriptor,
@@ -41,8 +92,8 @@ where
         runtime,
         config,
         default_time_limit_secs,
-        is_trivial,
         log_scale,
-        build_phases,
+        qualified_candidate_trace_provenance,
+        move |config, descriptor| dynamic_search_declaration(config, descriptor, model),
     )
 }

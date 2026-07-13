@@ -144,6 +144,8 @@ pub(super) fn generate_runtime_phase_support(
                 );
                 let index_to_element_ident =
                     format_ident!("__solverforge_index_to_element_{}", field_name);
+                let element_source_key_ident =
+                    format_ident!("__solverforge_element_source_key_{}", field_name);
                 quote! {
                     if #list_trait::HAS_LIST_VARIABLE {
                         let __solverforge_entity_type_name = descriptor
@@ -171,6 +173,7 @@ pub(super) fn generate_runtime_phase_support(
                                     Self::#ruin_remove_ident,
                                     Self::#ruin_insert_ident,
                                     Self::#index_to_element_ident,
+                                    Self::#element_source_key_ident,
                                     Self::#n_entities_ident,
                                     #cross_enum_ident::#variant(metadata.cross_distance_meter.clone()),
                                     #intra_enum_ident::#variant(metadata.intra_distance_meter.clone()),
@@ -195,16 +198,17 @@ pub(super) fn generate_runtime_phase_support(
             })
             .collect();
 
-        let build_phases_fn = generate_list_build_phases_fn(ListBuildPhasesInput {
-            solution_name,
-            cross_enum_ident: &cross_enum_ident,
-            intra_enum_ident: &intra_enum_ident,
-            scalar_setup: &scalar_setup,
-            list_runtime_setup: &list_runtime_setup,
-            scalar_groups_expr: &scalar_groups_expr,
-            conflict_repair_expr: &conflict_repair_expr,
-            search_fn: search_fn.as_ref(),
-        });
+        let search_declaration_fn =
+            generate_list_search_declaration_fn(ListSearchDeclarationInput {
+                solution_name,
+                cross_enum_ident: &cross_enum_ident,
+                intra_enum_ident: &intra_enum_ident,
+                scalar_setup: &scalar_setup,
+                list_runtime_setup: &list_runtime_setup,
+                scalar_groups_expr: &scalar_groups_expr,
+                conflict_repair_expr: &conflict_repair_expr,
+                search_fn: search_fn.as_ref(),
+            });
 
         return quote! {
             #[derive(Clone, Debug)]
@@ -263,25 +267,6 @@ pub(super) fn generate_runtime_phase_support(
                     false #(|| #has_list_variable_terms)*
                 }
 
-                fn __solverforge_is_trivial(solution: &Self) -> bool {
-                    let descriptor = Self::descriptor();
-                    let has_scalar = ::solverforge::__internal::descriptor_has_bindings(&descriptor);
-                    let total_entity_count = descriptor
-                        .total_entity_count(solution as &dyn ::std::any::Any)
-                        .unwrap_or(0);
-                    if total_entity_count == 0 {
-                        return true;
-                    }
-
-                    if !Self::__solverforge_has_list_variable() {
-                        return !has_scalar;
-                    }
-
-                    let has_list = Self::__solverforge_total_list_entities(solution) > 0
-                        && Self::__solverforge_total_list_elements(solution) > 0;
-                    !has_scalar && !has_list
-                }
-
                 fn __solverforge_log_scale(solution: &Self) {
                     let descriptor = Self::descriptor();
                     if Self::__solverforge_has_list_variable() {
@@ -305,12 +290,12 @@ pub(super) fn generate_runtime_phase_support(
                     }
                 }
 
-                #build_phases_fn
+                #search_declaration_fn
             }
         };
     }
 
-    let build_phases_fn = generate_scalar_build_phases_fn(
+    let search_declaration_fn = generate_scalar_search_declaration_fn(
         solution_name,
         &scalar_setup,
         &scalar_groups_expr,
@@ -326,15 +311,6 @@ pub(super) fn generate_runtime_phase_support(
                 30
             }
 
-            fn __solverforge_is_trivial(solution: &Self) -> bool {
-                let descriptor = Self::descriptor();
-                !::solverforge::__internal::descriptor_has_bindings(&descriptor)
-                    || descriptor
-                        .total_entity_count(solution as &dyn ::std::any::Any)
-                        .unwrap_or(0)
-                        == 0
-            }
-
             fn __solverforge_log_scale(solution: &Self) {
                 let descriptor = Self::descriptor();
                 ::solverforge::__internal::log_solve_start(
@@ -348,7 +324,7 @@ pub(super) fn generate_runtime_phase_support(
                 );
             }
 
-            #build_phases_fn
+            #search_declaration_fn
         }
     }
 }

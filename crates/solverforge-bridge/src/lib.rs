@@ -12,9 +12,13 @@ mod runner;
 mod score;
 mod slots;
 
-pub use backend::{DynamicListAccess, DynamicModelBackend, DynamicScalarAccess};
+pub use backend::{
+    DynamicListAccess, DynamicListAccessCapabilities, DynamicListMetadata,
+    DynamicListMetadataCapabilities, DynamicModelBackend, DynamicScalarAccess,
+    DynamicScalarAssignmentMetadata, DynamicScalarAssignmentMetadataCapabilities,
+};
 pub use ids::{EntityClassId, ProblemFactClassId, VariableId};
-pub use runner::run_dynamic_solver_with_config;
+pub use runner::try_run_dynamic_solver_with_config_parts;
 pub use score::{scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily};
 pub use slots::{DynamicListVariableSlot, DynamicScalarVariableSlot};
 

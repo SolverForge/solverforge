@@ -50,9 +50,10 @@ Score Types
 */
 
 pub use solverforge_config::{
-    AcceptorConfig, ConstructionHeuristicType, ConstructionObligation, EnvironmentMode,
-    ForagerConfig, HardRegressionPolicyConfig, MoveSelectorConfig, MoveThreadCount, PhaseConfig,
-    RecreateHeuristicType, SolverConfig, SolverConfigOverride, UnionSelectionOrder,
+    AcceptorConfig, CandidateTraceConfig, ConstructionHeuristicType, ConstructionObligation,
+    EnvironmentMode, ForagerConfig, HardRegressionPolicyConfig, MoveSelectorConfig,
+    MoveThreadCount, PhaseConfig, RecreateHeuristicType, SolverConfig, SolverConfigOverride,
+    UnionSelectionOrder,
 };
 pub use solverforge_core::domain::{EntityClassId, ProblemFactClassId, VariableId};
 pub use solverforge_core::score::{
@@ -93,17 +94,27 @@ Solver
 
 pub use solverforge_bridge as bridge;
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
+pub use solverforge_solver::stats::{
+    CandidatePullTelemetry, CandidateTraceCompositeIdentity, CandidateTraceConstructionTarget,
+    CandidateTraceCoordinate, CandidateTraceDigest, CandidateTraceDisposition,
+    CandidateTraceExecutionPolicy, CandidateTraceExternalDigest, CandidateTraceHeader,
+    CandidateTraceIdentity, CandidateTraceInputAttestation, CandidateTraceInputProvenance,
+    CandidateTraceInputProvenanceStatus, CandidateTraceOperationIdentity,
+    CandidateTracePhaseAttribute, CandidateTracePhasePlan, CandidateTraceProvenanceStatus,
+    CandidateTraceQualificationError, CandidateTraceQualificationStatus, CandidateTraceSource,
+    CandidateTraceTelemetry, QualifiedCandidateTraceRunProvenance, CANDIDATE_TRACE_FORMAT_VERSION,
+};
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
-    analyze, local_search, run_solver, run_solver_with_config, Analyzable, AppliedMoveTelemetry,
-    ConflictRepair, ConstraintAnalysis, CustomSearchPhase, ExhaustiveSearchConfig,
-    ExhaustiveSearchPhase, ExplorationType, FunctionalPartitioner, MoveTelemetry,
-    PartitionedSearchPhase, RepairCandidate, RepairLimits, RepairProvider, ScalarAssignmentRule,
-    ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits,
-    ScalarTarget, ScoreAnalysis, Search, SearchContext, SelectorTelemetry, SimpleDecider,
-    SolutionPartitioner, Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState,
-    SolverManager, SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis,
-    SolverStatus, SolverTelemetry, SolverTerminalReason, ThreadCount,
+    analyze, local_search, Analyzable, AppliedMoveTelemetry, ConflictRepair, ConstraintAnalysis,
+    CustomSearchPhase, ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType,
+    FunctionalPartitioner, MoveTelemetry, PartitionedSearchPhase, PhaseTelemetry, RepairCandidate,
+    RepairLimits, RepairProvider, ScalarAssignmentRule, ScalarCandidate, ScalarCandidateProvider,
+    ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget, ScoreAnalysis, Search, SearchContext,
+    SelectorTelemetry, SimpleDecider, SolutionPartitioner, Solvable, SolverEvent,
+    SolverEventMetadata, SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime,
+    SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTelemetryDetail,
+    SolverTerminalReason, ThreadCount,
 };
 
 /* ============================================================================

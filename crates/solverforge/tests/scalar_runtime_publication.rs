@@ -55,7 +55,7 @@ fn scalar_only_solution_runs_construction_in_retained_runtime() {
             .tasks
             .iter()
             .all(|task| task.resource_idx.is_some()),
-        "scalar construction should assign all tasks instead of taking the trivial path"
+        "scalar construction should assign all tasks through the ordinary runtime"
     );
 
     MANAGER.delete(job_id).expect("delete completed job");

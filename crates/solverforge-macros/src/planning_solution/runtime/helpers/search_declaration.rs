@@ -1,4 +1,4 @@
-struct ListBuildPhasesInput<'a> {
+struct ListSearchDeclarationInput<'a> {
     solution_name: &'a Ident,
     cross_enum_ident: &'a Ident,
     intra_enum_ident: &'a Ident,
@@ -9,8 +9,8 @@ struct ListBuildPhasesInput<'a> {
     search_fn: Option<&'a syn::Path>,
 }
 
-fn generate_list_build_phases_fn(input: ListBuildPhasesInput<'_>) -> TokenStream {
-    let ListBuildPhasesInput {
+fn generate_list_search_declaration_fn(input: ListSearchDeclarationInput<'_>) -> TokenStream {
+    let ListSearchDeclarationInput {
         solution_name,
         cross_enum_ident,
         intra_enum_ident,
@@ -23,18 +23,17 @@ fn generate_list_build_phases_fn(input: ListBuildPhasesInput<'_>) -> TokenStream
 
     if let Some(search_fn) = search_fn {
         quote! {
-            fn __solverforge_build_phases<D, ProgressCb>(
+            fn __solverforge_search_declaration(
                 config: &::solverforge::__internal::SolverConfig,
-            ) -> impl ::solverforge::__internal::Phase<
-                #solution_name,
-                D,
-                ProgressCb
-            > + ::std::fmt::Debug + ::core::marker::Send
-            where
-                D: ::solverforge::__internal::Director<#solution_name>,
-                ProgressCb: ::solverforge::__internal::ProgressCallback<#solution_name>,
-            {
-                let descriptor = Self::descriptor();
+                descriptor: ::solverforge::__internal::SolutionDescriptor,
+            ) -> ::solverforge::__internal::RuntimeBuildResult<
+                impl ::solverforge::__internal::Search<
+                    #solution_name,
+                    usize,
+                    #cross_enum_ident,
+                    #intra_enum_ident
+                >
+            > {
                 #scalar_setup
                 #(#list_runtime_setup)*
                 let __solverforge_descriptor_variable_order =
@@ -100,43 +99,27 @@ fn generate_list_build_phases_fn(input: ListBuildPhasesInput<'_>) -> TokenStream
                 >::new(__solverforge_variables)
                 .with_scalar_groups(__solverforge_scalar_groups)
                 #conflict_repair_expr;
-                let context = ::solverforge::__internal::SearchContext::new(
+                let context = ::solverforge::__internal::SearchContext::try_new(
                     descriptor,
                     model,
                     config.random_seed,
-                );
-                ::solverforge::__internal::build_search::<
-                    #solution_name,
-                    usize,
-                    #cross_enum_ident,
-                    #intra_enum_ident,
-                    D,
-                    ProgressCb,
-                    _
-                >(#search_fn(context), config)
+                )?;
+                ::core::result::Result::Ok(#search_fn(context))
             }
         }
     } else {
         quote! {
-            fn __solverforge_build_phases(
+            fn __solverforge_search_declaration(
                 config: &::solverforge::__internal::SolverConfig,
-            ) -> ::solverforge::__internal::PhaseSequence<
-                ::solverforge::__internal::RuntimePhase<
-                    ::solverforge::__internal::Construction<
-                        #solution_name,
-                        usize,
-                        #cross_enum_ident,
-                        #intra_enum_ident
-                    >,
-                    ::solverforge::__internal::LocalSearchStrategy<
-                        #solution_name,
-                        usize,
-                        #cross_enum_ident,
-                        #intra_enum_ident
-                    >
+                descriptor: ::solverforge::__internal::SolutionDescriptor,
+            ) -> ::solverforge::__internal::RuntimeBuildResult<
+                impl ::solverforge::__internal::Search<
+                    #solution_name,
+                    usize,
+                    #cross_enum_ident,
+                    #intra_enum_ident
                 >
             > {
-                let descriptor = Self::descriptor();
                 #scalar_setup
                 #(#list_runtime_setup)*
                 let __solverforge_descriptor_variable_order =
@@ -202,13 +185,18 @@ fn generate_list_build_phases_fn(input: ListBuildPhasesInput<'_>) -> TokenStream
                 >::new(__solverforge_variables)
                 .with_scalar_groups(__solverforge_scalar_groups)
                 #conflict_repair_expr;
-                ::solverforge::__internal::build_phases(config, &descriptor, &model)
+                let context = ::solverforge::__internal::SearchContext::try_new(
+                    descriptor,
+                    model,
+                    config.random_seed,
+                )?;
+                ::core::result::Result::Ok(context.defaults())
             }
         }
     }
 }
 
-fn generate_scalar_build_phases_fn(
+fn generate_scalar_search_declaration_fn(
     solution_name: &Ident,
     scalar_setup: &TokenStream,
     scalar_groups_expr: &TokenStream,
@@ -217,18 +205,17 @@ fn generate_scalar_build_phases_fn(
 ) -> TokenStream {
     if let Some(search_fn) = search_fn {
         quote! {
-            fn __solverforge_build_phases<D, ProgressCb>(
+            fn __solverforge_search_declaration(
                 config: &::solverforge::__internal::SolverConfig,
-            ) -> impl ::solverforge::__internal::Phase<
-                #solution_name,
-                D,
-                ProgressCb
-            > + ::std::fmt::Debug + ::core::marker::Send
-            where
-                D: ::solverforge::__internal::Director<#solution_name>,
-                ProgressCb: ::solverforge::__internal::ProgressCallback<#solution_name>,
-            {
-                let descriptor = Self::descriptor();
+                descriptor: ::solverforge::__internal::SolutionDescriptor,
+            ) -> ::solverforge::__internal::RuntimeBuildResult<
+                impl ::solverforge::__internal::Search<
+                    #solution_name,
+                    usize,
+                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
+                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter
+                >
+            > {
                 #scalar_setup
                 let __solverforge_scalar_slots = __solverforge_variables
                     .iter()
@@ -254,43 +241,27 @@ fn generate_scalar_build_phases_fn(
                 >::new(__solverforge_variables)
                 .with_scalar_groups(__solverforge_scalar_groups)
                 #conflict_repair_expr;
-                let context = ::solverforge::__internal::SearchContext::new(
+                let context = ::solverforge::__internal::SearchContext::try_new(
                     descriptor,
                     model,
                     config.random_seed,
-                );
-                ::solverforge::__internal::build_search::<
-                    #solution_name,
-                    usize,
-                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
-                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
-                    D,
-                    ProgressCb,
-                    _
-                >(#search_fn(context), config)
+                )?;
+                ::core::result::Result::Ok(#search_fn(context))
             }
         }
     } else {
         quote! {
-            fn __solverforge_build_phases(
+            fn __solverforge_search_declaration(
                 config: &::solverforge::__internal::SolverConfig,
-            ) -> ::solverforge::__internal::PhaseSequence<
-                ::solverforge::__internal::RuntimePhase<
-                    ::solverforge::__internal::Construction<
-                        #solution_name,
-                        usize,
-                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
-                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter
-                    >,
-                    ::solverforge::__internal::LocalSearchStrategy<
-                        #solution_name,
-                        usize,
-                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
-                        ::solverforge::__internal::DefaultCrossEntityDistanceMeter
-                    >
+                descriptor: ::solverforge::__internal::SolutionDescriptor,
+            ) -> ::solverforge::__internal::RuntimeBuildResult<
+                impl ::solverforge::__internal::Search<
+                    #solution_name,
+                    usize,
+                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter,
+                    ::solverforge::__internal::DefaultCrossEntityDistanceMeter
                 >
             > {
-                let descriptor = Self::descriptor();
                 #scalar_setup
                 let __solverforge_scalar_slots = __solverforge_variables
                     .iter()
@@ -316,7 +287,12 @@ fn generate_scalar_build_phases_fn(
                 >::new(__solverforge_variables)
                 .with_scalar_groups(__solverforge_scalar_groups)
                 #conflict_repair_expr;
-                ::solverforge::__internal::build_phases(config, &descriptor, &model)
+                let context = ::solverforge::__internal::SearchContext::try_new(
+                    descriptor,
+                    model,
+                    config.random_seed,
+                )?;
+                ::core::result::Result::Ok(context.defaults())
             }
         }
     }

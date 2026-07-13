@@ -23,8 +23,15 @@ pub(super) fn generate_solvable_solution(
                 fn solve(
                     self,
                     runtime: ::solverforge::SolverRuntime<Self>,
+                    qualified_candidate_trace_provenance: ::core::option::Option<
+                        ::solverforge::QualifiedCandidateTraceRunProvenance,
+                    >,
                 ) {
-                    let _ = #solution_name::solve_internal(self, runtime);
+                    let _ = #solution_name::solve_internal(
+                        self,
+                        runtime,
+                        qualified_candidate_trace_provenance,
+                    );
                 }
             }
 

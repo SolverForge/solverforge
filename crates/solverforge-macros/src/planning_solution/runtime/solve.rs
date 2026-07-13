@@ -1,4 +1,3 @@
-
 pub(super) fn generate_runtime_solve_internal(
     constraints_path: &Option<String>,
     config_path: &Option<String>,
@@ -24,58 +23,47 @@ pub(super) fn generate_runtime_solve_internal(
     } else {
         quote! { ::solverforge::__internal::load_solver_config() }
     };
-    let solve_expr = if config_path.is_some() || solver_toml_path.is_some() {
-        let config_expr = if let Some(config_path) = config_path.as_ref() {
-            let config_fn: syn::Path =
-                syn::parse_str(config_path).expect("config path must be a valid Rust path");
-            quote! {
-                let base_config = #base_config_expr;
-                let config = #config_fn(&self, base_config);
-            }
-        } else {
-            quote! {
-                let config = #base_config_expr;
-            }
-        };
+    let config_expr = if let Some(config_path) = config_path.as_ref() {
+        let config_fn: syn::Path =
+            syn::parse_str(config_path).expect("config path must be a valid Rust path");
         quote! {
-            #config_expr
-            ::solverforge::__internal::run_solver_with_config(
-                self,
-                #constraints_fn,
-                Self::descriptor,
-                Self::entity_count,
-                runtime,
-                config,
-                Self::__solverforge_default_time_limit_secs(),
-                Self::__solverforge_is_trivial,
-                Self::__solverforge_log_scale,
-                Self::__solverforge_build_phases,
-            )
+            let base_config = #base_config_expr;
+            let config = #config_fn(&self, base_config);
         }
     } else {
         quote! {
-            ::solverforge::__internal::run_solver(
-                self,
-                #constraints_fn,
-                Self::descriptor,
-                Self::entity_count,
-                runtime,
-                Self::__solverforge_default_time_limit_secs(),
-                Self::__solverforge_is_trivial,
-                Self::__solverforge_log_scale,
-                Self::__solverforge_build_phases,
-            )
+            let config = #base_config_expr;
         }
+    };
+    let solve_expr = quote! {
+        #config_expr
+        ::solverforge::__internal::try_run_solver_with_config_and_search(
+            self,
+            #constraints_fn(),
+            Self::descriptor(),
+            Self::entity_count,
+            runtime,
+            config,
+            Self::__solverforge_default_time_limit_secs(),
+            Self::__solverforge_log_scale,
+            qualified_candidate_trace_provenance,
+            Self::__solverforge_search_declaration,
+        )
     };
     quote! {
         fn solve_internal(
             self,
             runtime: ::solverforge::SolverRuntime<Self>,
+            qualified_candidate_trace_provenance: ::core::option::Option<
+                ::solverforge::QualifiedCandidateTraceRunProvenance,
+            >,
         ) -> Self {
             ::solverforge::__internal::init_console();
 
-            #solve_expr
+            match { #solve_expr } {
+                ::core::result::Result::Ok(solution) => solution,
+                ::core::result::Result::Err(error) => panic!("{error}"),
+            }
         }
     }
 }
-

@@ -70,6 +70,8 @@ macro_rules! __solverforge_list_setup {
                 format_ident!("__solverforge_list_remove_for_construction_{}", field_name);
             let index_to_element_ident =
                 format_ident!("__solverforge_index_to_element_{}", field_name);
+            let element_source_key_ident =
+                format_ident!("__solverforge_element_source_key_{}", field_name);
             let element_count_ident = format_ident!("__solverforge_element_count_{}", field_name);
             let assigned_elements_ident =
                 format_ident!("__solverforge_assigned_elements_{}", field_name);
@@ -204,6 +206,11 @@ macro_rules! __solverforge_list_setup {
                         }
                         ::core::option::Option::None => idx,
                     }
+                }
+
+                #[inline]
+                fn #element_source_key_ident(_s: &Self, element: &usize) -> usize {
+                    *element
                 }
 
                 #[inline]

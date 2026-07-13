@@ -1,7 +1,8 @@
 use solverforge::__internal::PlanningSolution as PlanningSolutionTrait;
 use solverforge::{
+    CandidateTraceConfig, CandidateTraceExternalDigest, QualifiedCandidateTraceRunProvenance,
     SoftScore, Solvable, SolverEvent, SolverManager, SolverRuntime, SolverTelemetry,
-    SolverTerminalReason,
+    SolverTelemetryDetail, SolverTerminalReason,
 };
 
 #[derive(Clone, Debug)]
@@ -23,7 +24,11 @@ impl PlanningSolutionTrait for ManualRuntimeSolution {
 }
 
 impl Solvable for ManualRuntimeSolution {
-    fn solve(mut self, runtime: SolverRuntime<Self>) {
+    fn solve(
+        mut self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<QualifiedCandidateTraceRunProvenance>,
+    ) {
         let score = SoftScore::of(self.value);
         self.set_score(Some(score));
 
@@ -37,6 +42,26 @@ impl Solvable for ManualRuntimeSolution {
             SolverTerminalReason::Completed,
         );
     }
+}
+
+#[test]
+fn candidate_trace_configuration_and_provenance_are_facade_root_types() {
+    let config = CandidateTraceConfig::new(std::num::NonZeroUsize::new(4).unwrap());
+    assert_eq!(config.max_entries.get(), 4);
+
+    let digest = |byte| CandidateTraceExternalDigest::sha256([byte; 32]);
+    let provenance = QualifiedCandidateTraceRunProvenance::externally_attested(
+        digest(1),
+        digest(2),
+        digest(3),
+        digest(4),
+        digest(5),
+        "facade-only-test",
+    )
+    .expect("complete external provenance qualifies");
+    assert_eq!(provenance.input_provenance().schema_digest, digest(1),);
+
+    let _detail: Option<SolverTelemetryDetail<SoftScore>> = None;
 }
 
 #[test]

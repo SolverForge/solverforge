@@ -64,7 +64,7 @@ fn golden_solution_expansion_loads_solver_config_before_config_callback() {
     assert!(
         expanded.contains("let config = crate :: config :: for_solution (& self , base_config)")
     );
-    assert!(expanded.contains("run_solver_with_config"));
+    assert!(expanded.contains("try_run_solver_with_config_and_search"));
 }
 
 #[test]
@@ -86,7 +86,7 @@ fn golden_solution_expansion_embeds_explicit_solver_toml_source() {
 
     assert!(expanded.contains("include_str ! (\"fixtures/solver.toml\")"));
     assert!(expanded.contains("OnceLock < :: solverforge :: SolverConfig >"));
-    assert!(expanded.contains("run_solver_with_config"));
+    assert!(expanded.contains("try_run_solver_with_config_and_search"));
     assert!(!expanded.contains("load_solver_config ()"));
 }
 
@@ -108,8 +108,10 @@ fn golden_solution_expansion_binds_typed_custom_search_path() {
         .to_string();
 
     assert!(expanded.contains("crate :: search :: search"));
-    assert!(expanded.contains("SearchContext :: new"));
-    assert!(expanded.contains("build_search :: < Plan"));
+    assert!(expanded.contains("SearchContext :: try_new"));
+    assert!(expanded.contains("RuntimeBuildResult"));
+    assert!(expanded.contains("__solverforge_search_declaration"));
+    assert!(!expanded.contains("build_search"));
     assert!(!expanded.contains("Box < dyn"));
     assert!(!expanded.contains("dyn Phase"));
     assert!(!expanded.contains("custom_phase_class"));
@@ -162,10 +164,14 @@ fn golden_solution_expansion_binds_private_list_runtime_helpers() {
     assert!(expanded.contains("fn __solverforge_list_insert_shifts"));
     assert!(expanded.contains("fn __solverforge_index_to_element_routes"));
     assert!(expanded.contains("fn __solverforge_index_to_element_shifts"));
+    assert!(expanded.contains("fn __solverforge_element_source_key_routes"));
+    assert!(expanded.contains("fn __solverforge_element_source_key_shifts"));
     assert!(expanded.contains("Self :: __solverforge_list_insert_routes"));
     assert!(expanded.contains("Self :: __solverforge_list_insert_shifts"));
     assert!(expanded.contains("Self :: __solverforge_index_to_element_routes"));
     assert!(expanded.contains("Self :: __solverforge_index_to_element_shifts"));
+    assert!(expanded.contains("Self :: __solverforge_element_source_key_routes"));
+    assert!(expanded.contains("Self :: __solverforge_element_source_key_shifts"));
     assert!(expanded.contains("Self :: __solverforge_total_list_entities"));
     assert!(expanded.contains("Self :: __solverforge_total_list_elements"));
 }
@@ -199,7 +205,8 @@ fn golden_solution_expansion_sorts_runtime_variables_by_descriptor_order() {
     assert!(expanded.contains("variable . usize_getter . is_some ()"));
     assert!(expanded.contains("PlanningModelSupport"));
     assert!(expanded.contains("ctx . variable_name"));
-    assert!(expanded.contains(":: solverforge :: __internal :: build_phases"));
+    assert!(expanded.contains("__solverforge_search_declaration"));
+    assert!(expanded.contains("SearchContext :: try_new"));
 }
 
 #[test]

@@ -7,6 +7,27 @@ pub struct VariableTargetConfig {
     pub variable_name: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum SelectionOrder {
+    #[default]
+    Original,
+    Random,
+    Shuffled,
+    Sorted,
+    Probabilistic,
+}
+
+impl SelectionOrder {
+    pub const fn is_random(self) -> bool {
+        matches!(self, Self::Random | Self::Shuffled | Self::Probabilistic)
+    }
+
+    pub const fn requires_complete_stream(self) -> bool {
+        matches!(self, Self::Sorted | Self::Probabilistic)
+    }
+}
+
 // Move selector configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -87,10 +108,73 @@ pub enum MoveSelectorConfig {
     CompoundConflictRepairMoveSelector(CompoundConflictRepairMoveSelectorConfig),
 }
 
+impl MoveSelectorConfig {
+    pub const fn selection_order(&self) -> Option<SelectionOrder> {
+        match self {
+            Self::ChangeMoveSelector(config) => config.selection_order,
+            Self::SwapMoveSelector(config) => config.selection_order,
+            Self::NearbyChangeMoveSelector(config) => config.selection_order,
+            Self::NearbySwapMoveSelector(config) => config.selection_order,
+            Self::PillarChangeMoveSelector(config) => config.selection_order,
+            Self::PillarSwapMoveSelector(config) => config.selection_order,
+            Self::RuinRecreateMoveSelector(config) => config.selection_order,
+            Self::GroupedScalarMoveSelector(config) => config.selection_order,
+            Self::ListChangeMoveSelector(config) => config.selection_order,
+            Self::NearbyListChangeMoveSelector(config) => config.selection_order,
+            Self::ListSwapMoveSelector(config) => config.selection_order,
+            Self::ListPermuteMoveSelector(config) => config.selection_order,
+            Self::ListPrecedenceMoveSelector(config) => config.selection_order,
+            Self::NearbyListSwapMoveSelector(config) => config.selection_order,
+            Self::SublistChangeMoveSelector(config) => config.selection_order,
+            Self::SublistSwapMoveSelector(config) => config.selection_order,
+            Self::ListReverseMoveSelector(config) => config.selection_order,
+            Self::KOptMoveSelector(config) => config.selection_order,
+            Self::ListRuinMoveSelector(config) => config.selection_order,
+            Self::ConflictRepairMoveSelector(config) => config.selection_order,
+            Self::CompoundConflictRepairMoveSelector(config) => config.selection_order,
+            Self::LimitedNeighborhood(_)
+            | Self::UnionMoveSelector(_)
+            | Self::CartesianProductMoveSelector(_) => None,
+        }
+    }
+
+    pub fn selection_metric(&self) -> Option<&str> {
+        match self {
+            Self::ChangeMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::SwapMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::NearbyChangeMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::NearbySwapMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::PillarChangeMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::PillarSwapMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::RuinRecreateMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::GroupedScalarMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::ListChangeMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::NearbyListChangeMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::ListSwapMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::ListPermuteMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::ListPrecedenceMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::NearbyListSwapMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::SublistChangeMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::SublistSwapMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::ListReverseMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::KOptMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::ListRuinMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::ConflictRepairMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::CompoundConflictRepairMoveSelector(config) => config.selection_metric.as_deref(),
+            Self::LimitedNeighborhood(_)
+            | Self::UnionMoveSelector(_)
+            | Self::CartesianProductMoveSelector(_) => None,
+        }
+    }
+}
+
 // Change move configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ChangeMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     pub value_candidate_limit: Option<usize>,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
@@ -100,6 +184,9 @@ pub struct ChangeMoveConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct SwapMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -108,6 +195,9 @@ pub struct SwapMoveConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct NearbyChangeMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     pub max_nearby: usize,
     pub value_candidate_limit: Option<usize>,
     #[serde(flatten)]
@@ -118,6 +208,8 @@ impl Default for NearbyChangeMoveConfig {
     fn default() -> Self {
         let (max_nearby, target) = default_nearby_target_config();
         Self {
+            selection_order: None,
+            selection_metric: None,
             max_nearby,
             value_candidate_limit: None,
             target,
@@ -129,6 +221,9 @@ impl Default for NearbyChangeMoveConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct NearbySwapMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     pub max_nearby: usize,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
@@ -137,7 +232,12 @@ pub struct NearbySwapMoveConfig {
 impl Default for NearbySwapMoveConfig {
     fn default() -> Self {
         let (max_nearby, target) = default_nearby_target_config();
-        Self { max_nearby, target }
+        Self {
+            selection_order: None,
+            selection_metric: None,
+            max_nearby,
+            target,
+        }
     }
 }
 
@@ -145,6 +245,9 @@ impl Default for NearbySwapMoveConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PillarChangeMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     pub minimum_sub_pillar_size: usize,
     pub maximum_sub_pillar_size: usize,
     pub value_candidate_limit: Option<usize>,
@@ -156,6 +259,9 @@ pub struct PillarChangeMoveConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PillarSwapMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     pub minimum_sub_pillar_size: usize,
     pub maximum_sub_pillar_size: usize,
     #[serde(flatten)]
@@ -173,17 +279,30 @@ pub enum RecreateHeuristicType {
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum UnionSelectionOrder {
-    #[default]
     Sequential,
     RoundRobin,
     RotatingRoundRobin,
+    Random,
+    #[default]
     StratifiedRandom,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UnionWeighting {
+    #[default]
+    Equal,
+    Fixed,
+    CandidateCount,
 }
 
 // Ruin-and-recreate move configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct RuinRecreateMoveSelectorConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     pub min_ruin_count: usize,
     pub max_ruin_count: usize,
     pub moves_per_step: Option<usize>,
@@ -196,6 +315,8 @@ pub struct RuinRecreateMoveSelectorConfig {
 impl Default for RuinRecreateMoveSelectorConfig {
     fn default() -> Self {
         Self {
+            selection_order: None,
+            selection_metric: None,
             min_ruin_count: 2,
             max_ruin_count: 5,
             moves_per_step: None,
@@ -210,6 +331,9 @@ impl Default for RuinRecreateMoveSelectorConfig {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub struct GroupedScalarMoveSelectorConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     pub group_name: String,
     pub value_candidate_limit: Option<usize>,
     pub max_moves_per_step: Option<usize>,
@@ -221,6 +345,9 @@ pub struct GroupedScalarMoveSelectorConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ListChangeMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -229,6 +356,9 @@ pub struct ListChangeMoveConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct NearbyListChangeMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     // Maximum nearby destination positions to consider per source element.
     pub max_nearby: usize,
     #[serde(flatten)]
@@ -238,7 +368,12 @@ pub struct NearbyListChangeMoveConfig {
 impl Default for NearbyListChangeMoveConfig {
     fn default() -> Self {
         let (max_nearby, target) = default_nearby_target_config();
-        Self { max_nearby, target }
+        Self {
+            selection_order: None,
+            selection_metric: None,
+            max_nearby,
+            target,
+        }
     }
 }
 
@@ -246,6 +381,9 @@ impl Default for NearbyListChangeMoveConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ListSwapMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -254,6 +392,9 @@ pub struct ListSwapMoveConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ListPermuteMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     // Minimum window size (inclusive). Default: 2.
     pub min_window_size: usize,
     // Maximum window size (inclusive). Default: 5.
@@ -265,6 +406,8 @@ pub struct ListPermuteMoveConfig {
 impl Default for ListPermuteMoveConfig {
     fn default() -> Self {
         Self {
+            selection_order: None,
+            selection_metric: None,
             min_window_size: 2,
             max_window_size: 5,
             target: VariableTargetConfig::default(),
@@ -276,6 +419,9 @@ impl Default for ListPermuteMoveConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ListPrecedenceMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -284,6 +430,9 @@ pub struct ListPrecedenceMoveConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct NearbyListSwapMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     // Maximum nearby swap partners to consider per source element.
     pub max_nearby: usize,
     #[serde(flatten)]
@@ -293,7 +442,12 @@ pub struct NearbyListSwapMoveConfig {
 impl Default for NearbyListSwapMoveConfig {
     fn default() -> Self {
         let (max_nearby, target) = default_nearby_target_config();
-        Self { max_nearby, target }
+        Self {
+            selection_order: None,
+            selection_metric: None,
+            max_nearby,
+            target,
+        }
     }
 }
 
@@ -301,6 +455,9 @@ impl Default for NearbyListSwapMoveConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct SublistChangeMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     // Minimum segment size (inclusive). Default: 1.
     pub min_sublist_size: usize,
     // Maximum segment size (inclusive). Default: 3.
@@ -313,6 +470,8 @@ impl Default for SublistChangeMoveConfig {
     fn default() -> Self {
         let (min_sublist_size, max_sublist_size, target) = default_sublist_target_config();
         Self {
+            selection_order: None,
+            selection_metric: None,
             min_sublist_size,
             max_sublist_size,
             target,
@@ -324,6 +483,9 @@ impl Default for SublistChangeMoveConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct SublistSwapMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     // Minimum segment size (inclusive). Default: 1.
     pub min_sublist_size: usize,
     // Maximum segment size (inclusive). Default: 3.
@@ -336,6 +498,8 @@ impl Default for SublistSwapMoveConfig {
     fn default() -> Self {
         let (min_sublist_size, max_sublist_size, target) = default_sublist_target_config();
         Self {
+            selection_order: None,
+            selection_metric: None,
             min_sublist_size,
             max_sublist_size,
             target,
@@ -347,6 +511,9 @@ impl Default for SublistSwapMoveConfig {
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ListReverseMoveConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -355,6 +522,9 @@ pub struct ListReverseMoveConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct KOptMoveSelectorConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     // K value (number of cuts). Default: 3.
     pub k: usize,
     // Minimum segment length between cuts. Default: 1.
@@ -369,6 +539,8 @@ pub struct KOptMoveSelectorConfig {
 impl Default for KOptMoveSelectorConfig {
     fn default() -> Self {
         Self {
+            selection_order: None,
+            selection_metric: None,
             k: 3,
             min_segment_len: 1,
             max_nearby: 0,
@@ -381,6 +553,9 @@ impl Default for KOptMoveSelectorConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ListRuinMoveSelectorConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     // Minimum number of elements to ruin per move. Default: 2.
     pub min_ruin_count: usize,
     // Maximum number of elements to ruin per move. Default: 5.
@@ -399,6 +574,8 @@ pub struct ListRuinMoveSelectorConfig {
 impl Default for ListRuinMoveSelectorConfig {
     fn default() -> Self {
         Self {
+            selection_order: None,
+            selection_metric: None,
             min_ruin_count: 2,
             max_ruin_count: 5,
             moves_per_step: None,
@@ -425,6 +602,10 @@ pub struct LimitedNeighborhoodConfig {
 pub struct UnionMoveSelectorConfig {
     #[serde(default)]
     pub selection_order: UnionSelectionOrder,
+    #[serde(default)]
+    pub weighting: UnionWeighting,
+    #[serde(default)]
+    pub weights: Vec<u64>,
     // Child selectors.
     pub selectors: Vec<MoveSelectorConfig>,
 }
@@ -444,6 +625,9 @@ pub struct CartesianProductConfig {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub struct ConflictRepairMoveSelectorConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     pub constraints: Vec<String>,
     #[serde(default = "default_conflict_repair_max_matches")]
     pub max_matches_per_step: usize,
@@ -460,6 +644,8 @@ pub struct ConflictRepairMoveSelectorConfig {
 impl Default for ConflictRepairMoveSelectorConfig {
     fn default() -> Self {
         Self {
+            selection_order: None,
+            selection_metric: None,
             constraints: Vec::new(),
             max_matches_per_step: default_conflict_repair_max_matches(),
             max_repairs_per_match: default_conflict_repair_max_repairs(),
@@ -473,6 +659,9 @@ impl Default for ConflictRepairMoveSelectorConfig {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub struct CompoundConflictRepairMoveSelectorConfig {
+    #[serde(default)]
+    pub selection_order: Option<SelectionOrder>,
+    pub selection_metric: Option<String>,
     pub constraints: Vec<String>,
     #[serde(default = "default_conflict_repair_max_matches")]
     pub max_matches_per_step: usize,
@@ -489,6 +678,8 @@ pub struct CompoundConflictRepairMoveSelectorConfig {
 impl Default for CompoundConflictRepairMoveSelectorConfig {
     fn default() -> Self {
         Self {
+            selection_order: None,
+            selection_metric: None,
             constraints: Vec::new(),
             max_matches_per_step: default_conflict_repair_max_matches(),
             max_repairs_per_match: default_conflict_repair_max_repairs(),

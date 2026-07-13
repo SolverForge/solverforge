@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::acceptor::AcceptorConfig;
-use crate::forager::ForagerConfig;
+use crate::forager::{ForagerConfig, ScoreTieBreak};
 use crate::move_selector::{MoveSelectorConfig, VariableTargetConfig};
 use crate::solver_config::MoveThreadCount;
 use crate::termination::TerminationConfig;
@@ -167,6 +167,10 @@ pub struct LocalSearchConfig {
 
     // Forager configuration.
     pub forager: Option<ForagerConfig>,
+
+    // Selection among equally scored accepted candidates.
+    #[serde(default)]
+    pub score_tie_break: ScoreTieBreak,
 
     // Move selector configuration.
     pub move_selector: Option<MoveSelectorConfig>,

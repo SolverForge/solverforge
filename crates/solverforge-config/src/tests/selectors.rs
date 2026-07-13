@@ -151,7 +151,7 @@ fn test_list_precedence_parsing() {
 }
 
 #[test]
-fn test_union_selection_order_defaults_to_sequential() {
+fn test_union_selection_order_defaults_to_stratified_random() {
     let toml = r#"
         [[phases]]
         type = "local_search"
@@ -174,7 +174,7 @@ fn test_union_selection_order_defaults_to_sequential() {
     };
     assert_eq!(
         union.selection_order,
-        crate::move_selector::UnionSelectionOrder::Sequential
+        crate::move_selector::UnionSelectionOrder::StratifiedRandom
     );
 }
 

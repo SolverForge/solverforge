@@ -57,7 +57,7 @@ pub use acceptor::{
 };
 pub use director::DirectorConfig;
 pub use error::ConfigError;
-pub use forager::{AcceptedCountForagerConfig, ForagerConfig};
+pub use forager::{AcceptedCountForagerConfig, ForagerConfig, ScoreTieBreak};
 pub use move_selector::{
     CartesianProductConfig, ChangeMoveConfig, CompoundConflictRepairMoveSelectorConfig,
     ConflictRepairMoveSelectorConfig, GroupedScalarMoveSelectorConfig, KOptMoveSelectorConfig,
@@ -65,15 +65,17 @@ pub use move_selector::{
     ListPrecedenceMoveConfig, ListReverseMoveConfig, ListRuinMoveSelectorConfig,
     ListSwapMoveConfig, MoveSelectorConfig, NearbyChangeMoveConfig, NearbyListChangeMoveConfig,
     NearbyListSwapMoveConfig, NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig,
-    RecreateHeuristicType, RuinRecreateMoveSelectorConfig, SublistChangeMoveConfig,
+    RecreateHeuristicType, RuinRecreateMoveSelectorConfig, SelectionOrder, SublistChangeMoveConfig,
     SublistSwapMoveConfig, SwapMoveConfig, UnionMoveSelectorConfig, UnionSelectionOrder,
-    VariableTargetConfig,
+    UnionWeighting, VariableTargetConfig,
 };
 pub use phase::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,
     CustomPhaseConfig, LocalSearchConfig, LocalSearchType, PartitionedSearchConfig, PhaseConfig,
 };
-pub use solver_config::{EnvironmentMode, MoveThreadCount, SolverConfig, SolverConfigOverride};
+pub use solver_config::{
+    CandidateTraceConfig, EnvironmentMode, MoveThreadCount, SolverConfig, SolverConfigOverride,
+};
 pub use termination::TerminationConfig;
 
 #[cfg(test)]

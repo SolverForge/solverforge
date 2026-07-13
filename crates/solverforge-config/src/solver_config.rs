@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::path::Path;
 use std::time::Duration;
 
@@ -35,6 +36,14 @@ pub struct SolverConfig {
     // Phase configurations.
     #[serde(default)]
     pub phases: Vec<PhaseConfig>,
+
+    /// Optional bounded candidate-pull trace for cross-runtime diagnostics.
+    ///
+    /// This is deliberately opt-in: recording a trace retains one owned
+    /// identity per engine-consumed candidate.  A non-zero cap is required so
+    /// diagnostic runs cannot accidentally retain an unbounded neighborhood.
+    #[serde(default)]
+    pub candidate_trace: Option<CandidateTraceConfig>,
 }
 
 impl SolverConfig {
@@ -91,6 +100,30 @@ impl SolverConfig {
         self
     }
 
+    /// Returns a deterministic, complete representation of this effective
+    /// configuration for diagnostic provenance.
+    ///
+    /// The representation is intentionally produced by the same serde model
+    /// used to load solver configuration.  Consumers compare this exact value
+    /// together with the resolved phase plan in the candidate trace header.
+    pub fn canonical_toml(&self) -> String {
+        toml::to_string(self)
+            .expect("SolverConfig serialization must succeed for a serde-derived configuration")
+    }
+
+    /// Returns the canonical solver-document representation of one phase.
+    ///
+    /// Runtime provenance uses this rather than debug formatting so every
+    /// configured selector, acceptor, forager, target, and termination field
+    /// participates in the candidate-trace plan digest.
+    pub fn canonical_phase_toml(phase: &PhaseConfig) -> String {
+        Self {
+            phases: vec![phase.clone()],
+            ..Self::default()
+        }
+        .canonical_toml()
+    }
+
     /// Returns the termination time limit, if configured.
     ///
     /// Convenience method that delegates to `termination.time_limit()`.
@@ -110,6 +143,30 @@ impl SolverConfig {
     /// ```
     pub fn time_limit(&self) -> Option<Duration> {
         self.termination.as_ref().and_then(|t| t.time_limit())
+    }
+}
+
+/// Opt-in bounded candidate-pull trace configuration.
+///
+/// Enable from TOML with, for example:
+///
+/// ```toml
+/// [candidate_trace]
+/// max_entries = 100_000
+/// ```
+///
+/// A zero cap is rejected during deserialization.  The trace records its
+/// total pull count even after the cap, marks itself truncated, and never
+/// retains identities beyond this limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct CandidateTraceConfig {
+    pub max_entries: NonZeroUsize,
+}
+
+impl CandidateTraceConfig {
+    pub const fn new(max_entries: NonZeroUsize) -> Self {
+        Self { max_entries }
     }
 }
 

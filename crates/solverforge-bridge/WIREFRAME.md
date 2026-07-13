@@ -3,7 +3,7 @@
 Public dynamic model bridge contracts for SolverForge host-language bindings.
 
 **Location:** `crates/solverforge-bridge/`
-**Workspace Release:** `0.17.2`
+**Workspace Release:** `0.18.0`
 
 This crate is the boundary between monomorphized Rust models and dynamic
 binding models. It is additive: the macro-generated Rust path remains in
@@ -23,7 +23,7 @@ No feature flags are currently declared.
 
 ```text
 src/
-├── backend.rs       - Re-exports dynamic model access traits from `solverforge-core`
+├── backend.rs       - Re-exports dynamic model access and scalar-assignment metadata traits from `solverforge-core`
 ├── backend_tests.rs - Backend re-export tests
 ├── ids.rs           - Re-exports logical descriptor ID types from `solverforge-core`
 ├── lib.rs           - Crate root; module declarations and public re-exports
@@ -36,9 +36,12 @@ src/
 ## Public Re-exports
 
 ```rust
-pub use backend::{DynamicListAccess, DynamicModelBackend, DynamicScalarAccess};
+pub use backend::{
+    DynamicListAccess, DynamicModelBackend, DynamicScalarAccess,
+    DynamicScalarAssignmentMetadata, DynamicScalarAssignmentMetadataCapabilities,
+};
 pub use ids::{EntityClassId, ProblemFactClassId, VariableId};
-pub use runner::run_dynamic_solver_with_config;
+pub use runner::try_run_dynamic_solver_with_config_parts;
 pub use score::{scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily};
 pub use slots::{DynamicListVariableSlot, DynamicScalarVariableSlot};
 ```
@@ -64,10 +67,31 @@ Re-exported from `solverforge-core::domain`:
 - `DynamicModelBackend`
 - `DynamicScalarAccess<S>`
 - `DynamicListAccess<S>`
+- `DynamicScalarAssignmentMetadata<S>`
+- `DynamicScalarAssignmentMetadataCapabilities`
 
 `DynamicModelBackend` is the normal implementation target for Rust-owned
 dynamic solution state. `DynamicScalarAccess` and `DynamicListAccess` are
-object-safe access traits used by dynamic slot adapters.
+object-safe access traits used by dynamic slot adapters. A custom scalar access
+adapter may additionally declare and lazily visit nearby value/entity sources,
+provide optional distances, and distinguish a row-local absent source from an
+empty source so the canonical dynamic nearby selectors preserve fallback and
+source-consumption semantics.
+
+### Dynamic Assignment Metadata
+
+`DynamicScalarAssignmentMetadata<S>` is a declarative, group-bound metadata
+contract for a dynamic nullable scalar assignment group. A bridge consumer
+creates one `Send + Sync` metadata object for one group registration; it must
+not select a group through a phase name, active solve, or thread-local state.
+Its capabilities declare which hooks are structurally present, and an
+assignment rule requires a sequence key. Hooks whose capability is absent
+return neutral values (`false`, `None`, or `true` for an edge check).
+
+The bridge exposes metadata only. It never supplies an alternate construction
+stream, custom dynamic phase, or selector escape hatch: SolverForge compiles
+the registered group into its canonical construction and grouped local-search
+paths.
 
 ### Dynamic Variable Slots
 
@@ -137,10 +161,10 @@ callback)` sets the thread-local family used by `DynamicScore::zero()` and
 
 ## Public Functions
 
-### `run_dynamic_solver_with_config`
+### Compiled dynamic runner entrypoints
 
 ```rust
-pub fn run_dynamic_solver_with_config<S, C, P, BuildPhases>(
+pub fn try_run_dynamic_solver_with_config_parts<S, C, V, DM, IDM>(
     solution: S,
     constraints: C,
     descriptor: SolutionDescriptor,
@@ -148,28 +172,30 @@ pub fn run_dynamic_solver_with_config<S, C, P, BuildPhases>(
     runtime: SolverRuntime<S>,
     config: SolverConfig,
     default_time_limit_secs: u64,
-    is_trivial: fn(&S) -> bool,
     log_scale: fn(&S),
-    build_phases: BuildPhases,
-) -> S
+    qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
+    model: RuntimeModel<S, V, DM, IDM>,
+) -> RuntimeBuildResult<S>
 where
-    S: PlanningSolution,
-    S::Score: Score + ParseableScore,
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    S::Score: Score + Copy + Ord + ParseableScore,
     C: ConstraintSet<S, S::Score>,
-    P: Phase<S, ScoreDirector<S, C>, solverforge_solver::run::ChannelProgressCallback<S>>
-        + Send
-        + std::fmt::Debug,
-    BuildPhases: Fn(&SolverConfig, &SolutionDescriptor) -> P;
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
+    DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + Sync + 'static,
+    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + Sync + 'static;
 ```
 
-This is the binding-oriented entrypoint. The caller supplies descriptor,
-constraints, config, entity-count callback, retained runtime, and phase builder
-values instead of relying on macro-generated factories.
+This is the binding-oriented entrypoint. It consumes frozen dynamic model parts
+into the same compiled graph and phase runner used by native models. It accepts
+no phase builder, selector registration, or alternate construction path.
+The optional qualified provenance changes only the candidate-trace header; it
+does not select another runner.
 
 ## Scope
 
 - Stable logical IDs for dynamic entity, fact, and variable classes.
 - Dynamic planning-model backend and slot contracts.
+- Dynamic scalar-assignment metadata for declarative group registration.
 - Dynamic scalar/list runtime slot re-exports for host-language bindings.
 - Dynamic score support for the binding path.
 - Public runner helper for already-built dynamic runtime parts.
@@ -180,3 +206,4 @@ values instead of relying on macro-generated factories.
 - Generated Rust.
 - String-parsed constraints.
 - A second solver engine.
+- Dynamic construction cursors, phases, or selector registration.

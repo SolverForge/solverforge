@@ -3,7 +3,7 @@
 Core types and traits for the SolverForge constraint solver framework.
 
 **Location:** `crates/solverforge-core/`
-**Workspace Release:** `0.17.2`
+**Workspace Release:** `0.18.0`
 
 ## Dependencies
 
@@ -43,6 +43,7 @@ src/
 │   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId, ListVariableSolution
 │   ├── dynamic.rs                         — DynamicModelBackend plus dynamic scalar/list access and descriptor-resolved slot adapters for host-language bindings
 │   ├── dynamic/
+│   │   ├── assignment.rs                  — Dynamic scalar-assignment metadata contract and structural capabilities
 │   │   ├── backend.rs                     — DynamicModelBackend-backed scalar/list access adapters
 │   │   └── resolution.rs                  — Logical ID to descriptor-index resolution and validation
 │   ├── entity_ref.rs                      — EntityRef, EntityExtractor trait, EntityCollectionExtractor
@@ -519,7 +520,15 @@ returns an empty vector.
 
 `DynamicScalarAccess<S>` is the object-safe scalar access trait used by custom
 slot adapters. Methods: `entity_class()`, `variable()`, `entity_count()`,
-`get()`, `set()`, and `candidate_values()`.
+`get()`, `set()`, and `candidate_values()`. Optional nearby-source methods are
+`has_nearby_value_candidates()`, `visit_nearby_value_candidates()`,
+`nearby_value_distance()`, `has_nearby_entity_candidates()`,
+`visit_nearby_entity_candidates()`, and `nearby_entity_distance()`. The
+`has_*` methods declare structural source capability; each visitor returns
+whether that row supplied a source and receives a source-consumption limit.
+Returning `false` requests the ordinary per-row value or all-entity fallback;
+`None` distance preserves source order. Visitors must not consume a lazy host
+source past their supplied limit.
 
 `DynamicListAccess<S>` is the object-safe list access trait used by custom slot
 adapters. Methods: `entity_class()`, `variable()`, `entity_count()`,
@@ -527,30 +536,64 @@ adapters. Methods: `entity_class()`, `variable()`, `entity_count()`,
 `insert()`, and `remove()`.
 
 `DynamicScalarVariableSlot<S>` carries logical entity/variable IDs, display
-names, `allows_unassigned`, a dynamic access adapter, and a resolved descriptor
-index. Public fields: `entity`, `variable`, `entity_type_name`,
-`variable_name`, and `allows_unassigned`; the descriptor index and access
-adapter are private. Constructors: `new()` for `S: DynamicModelBackend`, or
-`with_access()` for custom adapters. Descriptor methods: `with_descriptor_index()`,
-`resolve_descriptor_index(&SolutionDescriptor)`, `resolved_against(&SolutionDescriptor)`,
-`is_descriptor_resolved()`, and `descriptor_index()`. Runtime access methods:
+names, `allows_unassigned`, a dynamic access adapter, and the resolved entity
+descriptor and variable indexes. Public fields: `entity`, `variable`,
+`entity_type_name`, `variable_name`, and `allows_unassigned`; both indexes and
+the access adapter are private. Constructors: `new()` for
+`S: DynamicModelBackend`, or `with_access()` for custom adapters. Descriptor
+methods: `resolve_descriptor_index(&SolutionDescriptor)`,
+`resolved_against(&SolutionDescriptor)`, `is_descriptor_resolved()`,
+`descriptor_index()`, and `descriptor_variable_index()`.
+`resolve_descriptor_index()` validates the complete logical target and
+establishes both indexes; `is_descriptor_resolved()` is true only when both
+indexes are present. Runtime access methods:
 `matches_target()`, `entity_count()`, `current_value()`, `set_value()`,
-`candidate_values()`, and `value_is_legal()`.
+`candidate_values()`, `has_nearby_value_candidates()`,
+`visit_nearby_value_candidates()`, `nearby_value_distance()`,
+`has_nearby_entity_candidates()`, `visit_nearby_entity_candidates()`,
+`nearby_entity_distance()`, and `value_is_legal()`.
 
 `DynamicListVariableSlot<S>` carries logical entity/variable IDs, display
-names, a dynamic list access adapter, and a resolved descriptor index.
-Public fields: `entity`, `variable`, `entity_type_name`, and `variable_name`;
-the descriptor index and access adapter are private. Constructors: `new()` for
-`S: DynamicModelBackend`, or `with_access()` for custom adapters. Descriptor methods: `with_descriptor_index()`,
-`resolve_descriptor_index(&SolutionDescriptor)`, `resolved_against(&SolutionDescriptor)`,
-`is_descriptor_resolved()`, and `descriptor_index()`. Runtime access methods:
+names, a dynamic list access adapter, and the resolved entity descriptor and
+variable indexes. Public fields: `entity`, `variable`, `entity_type_name`, and
+`variable_name`; both indexes and the access adapter are private. Constructors:
+`new()` for `S: DynamicModelBackend`, `try_with_access()` for custom adapters,
+or `with_access_and_metadata()` for custom adapters with immutable metadata.
+Descriptor methods: `resolve_descriptor_index(&SolutionDescriptor)`,
+`resolved_against(&SolutionDescriptor)`, `is_descriptor_resolved()`,
+`descriptor_index()`, and `descriptor_variable_index()`.
+`resolve_descriptor_index()` establishes both indexes after full validation;
+`is_descriptor_resolved()` is true only when both are present. Runtime access methods:
 `matches_target()`, `entity_count()`, `element_count()`, `element()`,
 `assigned_elements()`, `list_len()`, `list_get()`, `list_insert()`, and
 `list_remove()`.
 
 Dynamic slot resolution validates logical entity ID, entity type name, logical
 variable ID, variable name, and scalar/list variable kind before runtime
-construction or local-search selectors use score-director notifications.
+construction or local-search selectors use score-director notifications. That
+model-compilation boundary also establishes canonical dynamic construction-slot
+identity.
+
+### Dynamic Scalar Assignment Metadata
+
+`DynamicScalarAssignmentMetadata<S>` is the public declarative metadata
+boundary for one dynamic nullable scalar assignment group. A binding registers
+one `Send + Sync` metadata object against one group-owned dynamic scalar slot;
+it does not register a construction phase, selector, move stream, thread-local
+lookup, or group-name lookup callback.
+
+`DynamicScalarAssignmentMetadataCapabilities` declares whether the group has
+required-entity, capacity-key, position-key, sequence-key, entity-order,
+value-order, or assignment-rule metadata. These are structural declarations,
+not values inferred during a solve. If a capability is false, its corresponding
+method must return the neutral result (`false`, `None`, or `true` for
+`assignment_edge_allowed`). An assignment rule requires sequence-key metadata.
+
+The metadata methods are `required_entity()`, `capacity_key()`,
+`position_key()`, `sequence_key()`, `entity_order_key()`,
+`value_order_key()`, and `assignment_edge_allowed()`. SolverForge owns the
+resulting candidate generation, canonical construction, and grouped local
+search; host bindings supply only this declarative group metadata.
 
 Scalar hook type aliases:
 Scalar planning variables use `Option<usize>` candidate indexes. Domain IDs can

@@ -3,7 +3,7 @@
 Facade crate: re-exports the public API from all sub-crates under a single `solverforge` dependency.
 
 **Location:** `crates/solverforge/`
-**Workspace Release:** `0.17.2`
+**Workspace Release:** `0.18.0`
 
 The CLI lives in the standalone `solverforge-cli` repository and is not part of this workspace or facade crate.
 
@@ -93,6 +93,7 @@ src/
 ### Configuration (from `solverforge-config`)
 
 - `AcceptorConfig`
+- `CandidateTraceConfig`
 - `ConstructionHeuristicType`
 - `ConstructionObligation`
 - `EnvironmentMode`
@@ -108,8 +109,6 @@ src/
 
 ### Solver (from `solverforge-solver`)
 
-- `run_solver`
-- `run_solver_with_config`
 - `analyze` (free function)
 - `Solvable` (trait)
 - `Analyzable` (trait)
@@ -132,12 +131,27 @@ src/
 - `SolverEventMetadata`
 - `SolverLifecycleState`
 - `SolverStatus`
+- `SolverTelemetryDetail`
 - `SolverManagerError`
 - `SolverSnapshot`
 - `SolverSnapshotAnalysis`
+- `PhaseTelemetry`
 - `SolverTelemetry`
 - `SelectorTelemetry`
 - `SolverTerminalReason`
+- candidate-trace graph and payload types: `CandidatePullTelemetry`,
+  `CandidateTraceCompositeIdentity`, `CandidateTraceConstructionTarget`,
+  `CandidateTraceCoordinate`, `CandidateTraceDigest`,
+  `CandidateTraceDisposition`, `CandidateTraceExecutionPolicy`,
+  `CandidateTraceExternalDigest`, `CandidateTraceHeader`,
+  `CandidateTraceIdentity`, `CandidateTraceInputAttestation`,
+  `CandidateTraceInputProvenance`, `CandidateTraceInputProvenanceStatus`,
+  `CandidateTraceOperationIdentity`, `CandidateTracePhaseAttribute`,
+  `CandidateTracePhasePlan`, `CandidateTraceProvenanceStatus`,
+  `CandidateTraceQualificationError`, `CandidateTraceQualificationStatus`,
+  `CandidateTraceSource`, `CandidateTraceTelemetry`,
+  `QualifiedCandidateTraceRunProvenance`, and
+  `CANDIDATE_TRACE_FORMAT_VERSION`
 - `ScoreAnalysis`
 - `ConstraintAnalysis` (solver-level serializable analysis)
 - `DefaultDistanceMeter`
@@ -336,15 +350,19 @@ Used exclusively by macro-generated code. Not public API.
   node-state types are not facade exports.
 
 **Solver infrastructure (from `solverforge-solver`):**
-- `bind_scalar_groups`, `build_search`, `local_search`, `CustomSearchPhase`, `Search`, `SearchContext`
-- `ListVariableSlot`, `LocalSearch`, `LocalSearchStrategy`, `RuntimeModel`, `ScalarGroupBinding`, `ScalarGroupMemberBinding`, `ScalarVariableSlot`, `ValueSource`, `VariableSlot`
+- `bind_scalar_groups`, `local_search`, `CustomSearchPhase`, `Search`, `SearchContext`
+- `ListVariableSlot`, `RuntimeModel`, `ScalarGroupBinding`, `ScalarGroupMemberBinding`, `ScalarVariableSlot`, `ValueSource`, `VariableSlot`, `usize_element_source_key`
+
+Specialized list construction facades require an explicit `element_source_key`:
+the stable unique `usize` identity shared by declared, assigned, and
+precedence-successor element values. The solver binds it before construction
+and uses source indexes rather than payload equality or hashing.
 - `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
 - `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`
 - `PhaseFactory`, `SolverFactory`
-- `Construction`, `PhaseSequence`, `RuntimePhase`
 - `ProgressCallback`, `SolverScope`
-- `Phase`, `SolverRuntime`, `SolverEvent`, `SolverTelemetry`
-- `build_phases`, `descriptor_has_bindings`, `log_solve_start`, `run_solver`, `run_solver_with_config`
+- `SolverRuntime`, `SolverEvent`, `SolverTelemetry`
+- `descriptor_has_bindings`, `log_solve_start`, `RuntimeBuildResult`, `try_run_solver_with_config_and_search`
 - `ListVariableEntity`, `ListVariableMetadata`
 - `PlanningModelSupport`
 

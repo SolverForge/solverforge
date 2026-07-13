@@ -26,7 +26,7 @@ Publishing order: `core -> macros -> scoring -> config -> solver -> bridge -> cv
 
 Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
 
-Current workspace release version: `0.17.2`.
+Current workspace release version: `0.18.0`.
 
 Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
 
@@ -105,12 +105,23 @@ Intentional type-erasure boundaries that should not be "fixed":
 
 - `DynDistanceMeter` in `nearby.rs`
 - `DefaultPillarSelector` extractor closures in `pillar.rs`
+- `RuntimeHostCompoundProvider` in `builder/context/provider`: host-language
+  callbacks only. Static Rust candidate and repair providers must stay on
+  their concrete function-pointer and typed-`ScalarEdit` path.
+- `RuntimeHostProviderErrorBoundary` in `builder/context/provider`: cold
+  conversion of core normalization failures into native host exceptions only.
 
 ### Move Ownership
 
-Moves are never cloned in the solver path. The forager stores arena indices, and the selected move is taken from the arena by ownership.
+Moves are never cloned in the solver path. Selector cursors own discovered
+candidates behind stable `CandidateId`s; foragers retain IDs, and the selected
+move is taken from its cursor by ownership.
 
-Selector cursors own move storage. Search phases evaluate borrowable candidates by stable index and materialize exactly the selected winner by ownership. Do not reintroduce owned `open_cursor()` streams for cartesian composition.
+Search phases evaluate borrowable candidates by stable ID and materialize
+exactly the selected winner by ownership. Construction likewise has one cursor
+path per placement; do not add a second eager placement collector or a fallback
+move vector. Do not reintroduce owned `open_cursor()` streams for cartesian
+composition.
 
 Clone is acceptable only for:
 

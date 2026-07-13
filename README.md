@@ -83,11 +83,17 @@ SolverForge preserves concrete types through the hot solver and scoring pipeline
 
 - **No trait objects in hot dispatch** (`Box<dyn Trait>`, `Arc<dyn Trait>`)
 - **No runtime dispatch in hot loops** - solver and scoring generics resolve at compile time
-- **No trait-object allocation in retained scoring state** - moves stay arena-owned, scoring pipelines stay monomorphized, and retained collector state is explicit
+- **No trait-object allocation in retained scoring state** - candidates stay cursor-owned until the selected move transfers by value, scoring pipelines stay monomorphized, and retained forager state is explicit
 - **Deterministic neighborhood order** - canonical list, nearby-list, and sublist selector enumeration keeps seeded local search reproducible
 - **Predictable performance** - no GC pauses, no vtable lookups
 
 This enables aggressive compiler optimizations and cache-friendly data layouts.
+
+Host-language compound-provider callbacks are the explicit integration
+boundary: only `RuntimeHostCompoundProvider` uses object-safe dispatch and raw
+named edits. Native Rust `ScalarCandidateProvider` and `RepairProvider`
+functions remain concrete function pointers and carry typed `ScalarEdit`
+values directly into the shared cursor normalizer.
 
 Current public naming follows neutral Rust APIs rather than helper-role prefixes.
 The object-safe descriptor boundary is still intentional, but the concrete
@@ -114,7 +120,7 @@ adapter and selector surface are now documented as `EntityCollectionExtractor`,
   - Scalar ruin-recreate, composite moves, cartesian composition, and nearby selection for scalar and list neighborhoods
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Model Macros**: `planning_model!`, `#[solverforge_constraints]`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
-- **Dynamic Bridge**: `solverforge-bridge` contracts for host-language integrations, with logical entity/fact/variable IDs, dynamic score support, and descriptor-resolved scalar/list slots
+- **Dynamic Bridge**: `solverforge-bridge` contracts for host-language integrations, with logical entity/fact/variable IDs, dynamic score support, descriptor-resolved scalar/list slots, and lazy nearby-source adapters
 - **Scalar Variables**: `#[planning_variable]` fields store candidate indexes
   as `Option<usize>`; keep external IDs on facts or entities.
 - **CVRP List Profile**: `#[planning_list_variable(domain = "cvrp")]` wires
@@ -197,7 +203,7 @@ If you are building directly against the runtime crates instead of starting from
 
 ```toml
 [dependencies]
-solverforge = { version = "0.17.2", features = ["console"] }
+solverforge = { version = "0.18.0", features = ["console"] }
 ```
 
 When `move_selector` is omitted from `acceptor_forager` local search, the
@@ -225,6 +231,21 @@ to unrestricted. When the model is assembled through `planning_model!`, the hook
 must be visible from the manifest root module. Construction, Clarke-Wright list
 construction, ruin/recreate, and owner-changing list neighborhoods honor the
 hook; intra-owner ordering moves remain available.
+
+### Specialized list-construction source identity
+
+`ListConstructionPhaseBuilder`, `ListCheapestInsertionPhase`,
+`ListRegretInsertionPhase`, and `ListClarkeWrightPhase` require an explicit
+`element_source_key` function. The function maps each declared element, each
+currently assigned element, and each precedence-successor value to the same
+unique, stable `usize` source identity. SolverForge freezes that binding before
+construction, then uses source indexes for ordering, ownership, precedence,
+candidate traces, and static/dynamic execution. It never recovers identity by
+payload equality or hashing; duplicate, missing, or inconsistent keys are a
+construction bind error. When multiple construction phases target the same
+list slot, they share the frozen declaration binding but refresh current
+assignments before each phase, so later phases cannot reinsert earlier work or
+reread declaration callbacks.
 
 Those omitted-config defaults run as one streaming acceptor/forager local
 search phase after construction. Broad unions use fair selection order and
@@ -266,7 +287,7 @@ monomorphized.
 | Feature | Description |
 |---------|-------------|
 | `console` | Colorful console output with progress tracking |
-| `verbose-logging` | DEBUG-level progress updates (1/sec during local search) |
+| `verbose-logging` | DEBUG-level phase progress updates (1/sec during long-running work) |
 | `decimal` | Decimal score support via `rust_decimal` |
 | `serde` | Serialization support for domain types |
 
@@ -344,7 +365,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.17.2 - Zero-Erasure Constraint Solver
+                   v0.18.0 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -376,7 +397,7 @@ models show average `candidates`.
 | Level | Content | When |
 |-------|---------|------|
 | INFO | Lifecycle events (solve/phase start/end) | Default |
-| DEBUG | Progress updates (1/sec with speed and score) | `verbose-logging` feature |
+| DEBUG | Phase progress updates (1/sec with phase, speed, and score) | `verbose-logging` feature |
 | TRACE | Individual move evaluations | `RUST_LOG=solverforge_solver=trace` |
 
 ## Architecture
@@ -544,7 +565,7 @@ For project scaffolding and end-to-end application templates, use the standalone
 
 SolverForge leverages Rust's zero-cost abstractions:
 
-- **Zero-Erasure Moves**: Values stored inline, no boxing, arena-based ownership (never cloned)
+- **Zero-Erasure Moves**: Values stay concrete and inline, with cursor-owned candidate storage and by-value selected-move transfer
 - **RPITIT Selectors**: Return-position impl Trait eliminates `Box<dyn Iterator>` from all selectors
 - **Incremental Scoring**: SERIO propagates only changed constraints
 - **No GC**: Predictable latency without garbage collection
@@ -553,9 +574,20 @@ SolverForge leverages Rust's zero-cost abstractions:
 
 Typical throughput: 300k-1M moves/second depending on constraint complexity for scheduling; 2.5M+ moves/second on VRP
 
+`make pre-release` is portable across supported development hosts. Release
+qualification also requires the separate controlled-host
+`make bench-zero-regression` gate on Linux with `taskset`, `/usr/bin/time`,
+readable `/sys` CPU topology, and the selected `BENCH_CPU` available (CPU 10 by
+default); `perf` counters are collected when permitted. The gate builds an
+independently linked binary for each case, alternates paired trials, verifies
+full-enumeration candidate count and order separately from first-fit work, and
+rejects a positive median or paired 95% upper bound for wall time, allocations,
+peak memory, or available hardware counters. A host that cannot run the
+controlled gate has not completed release qualification.
+
 ## Status
 
-**Current workspace version:** 0.17.2
+**Current workspace version:** 0.18.0
 
 The current checked-in workspace exposes:
 

@@ -7,7 +7,7 @@ rust-version.workspace = true
 description = "Public dynamic model bridge contracts for SolverForge host-language bindings"
 
 [dependencies]
-solverforge-config = { version = "0.17.2", path = "../solverforge-config" }
-solverforge-core = { version = "0.17.2", path = "../solverforge-core" }
-solverforge-scoring = { version = "0.17.2", path = "../solverforge-scoring" }
-solverforge-solver = { version = "0.17.2", path = "../solverforge-solver" }
+solverforge-config = { version = "0.18.0", path = "../solverforge-config" }
+solverforge-core = { version = "0.18.0", path = "../solverforge-core" }
+solverforge-scoring = { version = "0.18.0", path = "../solverforge-scoring" }
+solverforge-solver = { version = "0.18.0", path = "../solverforge-solver" }

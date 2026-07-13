@@ -113,6 +113,16 @@ impl DynamicModelBackend for DynamicRows {
         }
     }
 
+    fn scalar_value_is_legal(
+        &self,
+        entity: EntityClassId,
+        _row: usize,
+        variable: VariableId,
+        value: usize,
+    ) -> bool {
+        (entity.0, variable.0) == (0, 0) && self.candidates.contains(&value)
+    }
+
     fn list_element_count(&self, entity: EntityClassId, variable: VariableId) -> usize {
         match (entity.0, variable.0) {
             (1, 1) => 4,

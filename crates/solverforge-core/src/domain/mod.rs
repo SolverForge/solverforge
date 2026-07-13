@@ -26,8 +26,10 @@ pub use descriptor::{
     UsizeNearbyValueDistanceMeter, UsizeSetter, VariableDescriptor, VariableId,
 };
 pub use dynamic::{
-    DynamicListAccess, DynamicListVariableSlot, DynamicModelBackend, DynamicScalarAccess,
-    DynamicScalarVariableSlot,
+    DynamicListAccess, DynamicListAccessCapabilities, DynamicListMetadata,
+    DynamicListMetadataCapabilities, DynamicListVariableSlot, DynamicModelBackend,
+    DynamicScalarAccess, DynamicScalarAssignmentMetadata,
+    DynamicScalarAssignmentMetadataCapabilities, DynamicScalarVariableSlot,
 };
 pub use entity_ref::{EntityCollectionExtractor, EntityExtractor, EntityRef};
 pub use listener::{

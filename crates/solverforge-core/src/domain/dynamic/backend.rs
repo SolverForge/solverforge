@@ -35,6 +35,10 @@ where
     fn candidate_values<'a>(&self, solution: &'a S, row: usize) -> &'a [usize] {
         solution.candidate_values(self.entity, row, self.variable)
     }
+
+    fn value_is_legal(&self, solution: &S, row: usize, value: usize) -> bool {
+        solution.scalar_value_is_legal(self.entity, row, self.variable, value)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

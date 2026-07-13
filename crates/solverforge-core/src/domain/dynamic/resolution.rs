@@ -6,14 +6,20 @@ pub(super) enum DynamicVariableKind {
     List,
 }
 
-pub(super) fn resolve_dynamic_descriptor_index(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct DynamicDescriptorIndexes {
+    pub descriptor_index: usize,
+    pub variable_index: usize,
+}
+
+pub(super) fn resolve_dynamic_descriptor_indexes(
     descriptor: &SolutionDescriptor,
     entity: EntityClassId,
     variable: VariableId,
     entity_type_name: &'static str,
     variable_name: &'static str,
     kind: DynamicVariableKind,
-) -> Result<usize, String> {
+) -> Result<DynamicDescriptorIndexes, String> {
     let Some(descriptor_index) = descriptor.entity_descriptor_index_by_logical_id(entity) else {
         return Err(format!(
             "dynamic variable {entity_type_name}.{variable_name} refers to logical entity ID {}, but the solution descriptor has no matching entity descriptor",
@@ -31,10 +37,11 @@ pub(super) fn resolve_dynamic_descriptor_index(
         ));
     }
 
-    let Some(variable_descriptor) = entity_descriptor
+    let Some((variable_index, variable_descriptor)) = entity_descriptor
         .variable_descriptors
         .iter()
-        .find(|descriptor| descriptor.logical_id == Some(variable))
+        .enumerate()
+        .find(|(_, descriptor)| descriptor.logical_id == Some(variable))
     else {
         return Err(format!(
             "dynamic variable {entity_type_name}.{variable_name} refers to logical variable ID {}, but descriptor {entity_type_name} has no matching variable descriptor",
@@ -48,16 +55,15 @@ pub(super) fn resolve_dynamic_descriptor_index(
         ));
     }
     match kind {
-        DynamicVariableKind::Scalar if variable_descriptor.variable_type.is_list() => Err(
-            format!(
-                "dynamic scalar variable {entity_type_name}.{variable_name} resolves to a list variable descriptor"
-            ),
-        ),
-        DynamicVariableKind::List if !variable_descriptor.variable_type.is_list() => Err(
-            format!(
-                "dynamic list variable {entity_type_name}.{variable_name} resolves to a non-list variable descriptor"
-            ),
-        ),
-        DynamicVariableKind::Scalar | DynamicVariableKind::List => Ok(descriptor_index),
+        DynamicVariableKind::Scalar if variable_descriptor.variable_type.is_list() => Err(format!(
+            "dynamic scalar variable {entity_type_name}.{variable_name} resolves to a list variable descriptor"
+        )),
+        DynamicVariableKind::List if !variable_descriptor.variable_type.is_list() => Err(format!(
+            "dynamic list variable {entity_type_name}.{variable_name} resolves to a non-list variable descriptor"
+        )),
+        DynamicVariableKind::Scalar | DynamicVariableKind::List => Ok(DynamicDescriptorIndexes {
+            descriptor_index,
+            variable_index,
+        }),
     }
 }

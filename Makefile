@@ -24,7 +24,7 @@ EXAMPLE_PACKAGES := $(shell find examples -mindepth 2 -maxdepth 2 -name Cargo.to
 
 # ============== Phony Targets ==============
 .PHONY: banner help build build-release examples test test-quick test-doc test-unit test-one \
-        lint fmt fmt-check clippy ci-local pre-release version bump-patch bump-minor bump-major \
+        lint fmt fmt-check clippy ci-local bench-zero-regression pre-release version bump-patch bump-minor bump-major \
         bump-dry publish-crates-dry publish-crates clean watch
 
 # ============== Default Target ==============
@@ -154,6 +154,9 @@ ci-local: banner
 	@printf "\n$(GREEN)$(BOLD)╔══════════════════════════════════════════════════════════╗$(RESET)\n"
 	@printf "$(GREEN)$(BOLD)║              $(CHECK) CI SIMULATION PASSED                      ║$(RESET)\n"
 	@printf "$(GREEN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"
+
+bench-zero-regression:
+	@BENCH_CPU=$${BENCH_CPU:-10} scripts/bench-zero-regression.sh
 
 # ============== Version Management ==============
 

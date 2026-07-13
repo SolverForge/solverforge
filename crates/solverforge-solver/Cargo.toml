@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 description = "Solver engine for SolverForge"
+autobenches = false
 
 [features]
 default = []

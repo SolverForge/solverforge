@@ -52,15 +52,22 @@ When versions change across the workspace, publish crates in dependency order:
 6. Run test gates.
    `cargo test --workspace --all-features`
    `make pre-release`
-7. Verify publishability.
+7. Run the controlled-host zero-regression qualification.
+   On a dedicated Linux host with `taskset`, `/usr/bin/time`, readable `/sys`
+   CPU topology, CPU 10 available by default, and optional unprivileged `perf`
+   counters, run:
+   `BENCH_CPU=10 WARMUPS=5 TRIALS=51 make bench-zero-regression`
+   This is a separate required release qualification. It is intentionally not
+   part of portable `make pre-release`; inability to run it is not a pass.
+8. Verify publishability.
    Run real package dry-runs for crates that can be verified before publish:
    `cargo publish --dry-run -p solverforge-core`
    `cargo publish --dry-run -p solverforge-macros`
    `cargo publish --dry-run -p solverforge-console`
    For dependent crates (`solverforge-scoring`, `solverforge-config`, `solverforge-solver`, `solverforge-bridge`, `solverforge-cvrp`, `solverforge`), rerun `cargo publish --dry-run -p <crate>` immediately before uploading each crate, after its exact-version dependencies are visible on crates.io.
-8. Publish crates in dependency order.
+9. Publish crates in dependency order.
    Use `make publish-crates` or publish manually in the order listed above.
-9. Post-publish verification.
+10. Post-publish verification.
     Confirm crates.io versions, docs.rs builds, and install smoke tests:
     `cargo add solverforge@<version>`
 

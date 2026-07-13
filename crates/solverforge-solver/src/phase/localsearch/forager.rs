@@ -33,13 +33,13 @@ where
     Foragers that implement pick-early-on-improvement use these to decide
     when to stop evaluating moves.
     */
-    fn step_started(&mut self, best_score: S::Score, last_step_score: S::Score);
+    fn step_started(&mut self, best_score: S::Score, last_step_score: S::Score, step_seed: u64);
 
     /* Adds an accepted move index to the forager.
 
-    The index refers to a position in the MoveArena.
+    The ID refers to a live candidate in the current move cursor.
     */
-    fn add_move_index(&mut self, index: CandidateId, score: S::Score);
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) -> ForagerDecision;
 
     // Returns true if the forager has collected enough moves and
     // wants to stop evaluating more.
@@ -54,6 +54,104 @@ where
     Returns None if no moves were accepted.
     */
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)>;
+}
+
+/// Tells the phase which candidate payload remains owned after online foraging.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ForagerDecision {
+    /// Retain the newly accepted candidate.
+    Keep,
+    /// Release the newly accepted candidate; the current winner remains retained.
+    Release,
+    /// Retain the new candidate and release the replaced candidate immediately.
+    Replace(CandidateId),
+}
+
+pub(super) struct BestCandidate<S>
+where
+    S: PlanningSolution,
+{
+    selected: Option<(CandidateId, S::Score)>,
+    equal_count: u64,
+    step_seed: u64,
+    random_ties: bool,
+}
+
+impl<S> BestCandidate<S>
+where
+    S: PlanningSolution,
+{
+    fn new(random_ties: bool) -> Self {
+        Self {
+            selected: None,
+            equal_count: 0,
+            step_seed: 0,
+            random_ties,
+        }
+    }
+
+    fn reset(&mut self, step_seed: u64) {
+        self.selected = None;
+        self.equal_count = 0;
+        self.step_seed = step_seed;
+    }
+
+    fn consider(&mut self, index: CandidateId, score: S::Score) -> ForagerDecision {
+        let Some((selected, best_score)) = self.selected else {
+            self.selected = Some((index, score));
+            self.equal_count = 1;
+            return ForagerDecision::Keep;
+        };
+
+        match score.cmp(&best_score) {
+            std::cmp::Ordering::Less => ForagerDecision::Release,
+            std::cmp::Ordering::Greater => self.replace(index, score),
+            std::cmp::Ordering::Equal => {
+                self.equal_count += 1;
+                if self.random_ties && reservoir_pick(self.step_seed, self.equal_count) {
+                    self.selected = Some((index, score));
+                    ForagerDecision::Replace(selected)
+                } else {
+                    ForagerDecision::Release
+                }
+            }
+        }
+    }
+
+    pub(super) fn replace(&mut self, index: CandidateId, score: S::Score) -> ForagerDecision {
+        self.equal_count = 1;
+        match self.selected.replace((index, score)) {
+            Some((replaced, _)) => ForagerDecision::Replace(replaced),
+            None => ForagerDecision::Keep,
+        }
+    }
+
+    pub(super) fn take(&mut self) -> Option<(CandidateId, S::Score)> {
+        self.equal_count = 0;
+        self.selected.take()
+    }
+
+    pub(super) fn has_selection(&self) -> bool {
+        self.selected.is_some()
+    }
+
+    fn random_ties(&self) -> bool {
+        self.random_ties
+    }
+}
+
+fn reservoir_pick(step_seed: u64, equal_count: u64) -> bool {
+    let mixed = splitmix64(
+        step_seed ^ equal_count.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ 0xF04A_63E2_39B7_4D11,
+    );
+    mixed.is_multiple_of(equal_count)
+}
+
+fn splitmix64(mut value: u64) -> u64 {
+    value = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    value ^ (value >> 31)
 }
 
 mod improving;
@@ -72,8 +170,8 @@ where
 {
     // Number of accepted moves to collect before ending the step.
     accepted_count_limit: usize,
-    // Collected move indices with their scores.
-    accepted_moves: Vec<(CandidateId, S::Score)>,
+    accepted_count: usize,
+    best_move: BestCandidate<S>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -89,14 +187,15 @@ where
     ///
     /// # Arguments
     /// * `accepted_count_limit` - Collect this many accepted moves before quitting early
-    pub fn new(accepted_count_limit: usize) -> Self {
+    pub fn new(accepted_count_limit: usize, random_ties: bool) -> Self {
         assert!(
             accepted_count_limit > 0,
             "AcceptedCountForager: accepted_count_limit must be > 0, got 0"
         );
         Self {
             accepted_count_limit,
-            accepted_moves: Vec::new(),
+            accepted_count: 0,
+            best_move: BestCandidate::new(random_ties),
             _phantom: PhantomData,
         }
     }
@@ -109,7 +208,8 @@ where
     fn clone(&self) -> Self {
         Self {
             accepted_count_limit: self.accepted_count_limit,
-            accepted_moves: Vec::new(), // Fresh vec for clone
+            accepted_count: 0,
+            best_move: BestCandidate::new(self.best_move.random_ties()),
             _phantom: PhantomData,
         }
     }
@@ -122,7 +222,7 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AcceptedCountForager")
             .field("accepted_count_limit", &self.accepted_count_limit)
-            .field("accepted_count", &self.accepted_moves.len())
+            .field("accepted_count", &self.accepted_count)
             .finish()
     }
 }
@@ -132,19 +232,21 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn step_started(&mut self, _best_score: S::Score, _last_step_score: S::Score) {
-        self.accepted_moves.clear();
+    fn step_started(&mut self, _best_score: S::Score, _last_step_score: S::Score, step_seed: u64) {
+        self.accepted_count = 0;
+        self.best_move.reset(step_seed);
     }
 
-    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
-        if self.accepted_moves.len() >= self.accepted_count_limit {
-            return;
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) -> ForagerDecision {
+        if self.accepted_count >= self.accepted_count_limit {
+            return ForagerDecision::Release;
         }
-        self.accepted_moves.push((index, score));
+        self.accepted_count += 1;
+        self.best_move.consider(index, score)
     }
 
     fn is_quit_early(&self) -> bool {
-        self.accepted_moves.len() >= self.accepted_count_limit
+        self.accepted_count >= self.accepted_count_limit
     }
 
     fn accepted_count_limit(&self) -> Option<usize> {
@@ -152,23 +254,7 @@ where
     }
 
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
-        if self.accepted_moves.is_empty() {
-            return None;
-        }
-
-        // Find the best move (highest score)
-        let mut best_idx = 0;
-        let mut best_score = self.accepted_moves[0].1;
-
-        for (i, &(_, score)) in self.accepted_moves.iter().enumerate().skip(1) {
-            if score > best_score {
-                best_idx = i;
-                best_score = score;
-            }
-        }
-
-        // Return the best move index
-        Some(self.accepted_moves.swap_remove(best_idx))
+        self.best_move.take()
     }
 }
 
@@ -233,13 +319,16 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn step_started(&mut self, _best_score: S::Score, _last_step_score: S::Score) {
+    fn step_started(&mut self, _best_score: S::Score, _last_step_score: S::Score, _step_seed: u64) {
         self.accepted_move = None;
     }
 
-    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) -> ForagerDecision {
         if self.accepted_move.is_none() {
             self.accepted_move = Some((index, score));
+            ForagerDecision::Keep
+        } else {
+            ForagerDecision::Release
         }
     }
 
@@ -265,7 +354,7 @@ where
     S: PlanningSolution,
 {
     // Best accepted move index and score seen in the current step.
-    best_move: Option<(CandidateId, S::Score)>,
+    best_move: BestCandidate<S>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -273,9 +362,9 @@ impl<S> BestScoreForager<S>
 where
     S: PlanningSolution,
 {
-    pub fn new() -> Self {
+    pub fn new(random_ties: bool) -> Self {
         Self {
-            best_move: None,
+            best_move: BestCandidate::new(random_ties),
             _phantom: PhantomData,
         }
     }
@@ -286,7 +375,7 @@ where
     S: PlanningSolution,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(true)
     }
 }
 
@@ -296,7 +385,7 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BestScoreForager")
-            .field("has_move", &self.best_move.is_some())
+            .field("has_move", &self.best_move.has_selection())
             .finish()
     }
 }
@@ -307,7 +396,7 @@ where
 {
     fn clone(&self) -> Self {
         Self {
-            best_move: None,
+            best_move: BestCandidate::new(self.best_move.random_ties()),
             _phantom: PhantomData,
         }
     }
@@ -318,15 +407,12 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn step_started(&mut self, _best_score: S::Score, _last_step_score: S::Score) {
-        self.best_move = None;
+    fn step_started(&mut self, _best_score: S::Score, _last_step_score: S::Score, step_seed: u64) {
+        self.best_move.reset(step_seed);
     }
 
-    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
-        match self.best_move {
-            Some((_, best_score)) if best_score >= score => {}
-            _ => self.best_move = Some((index, score)),
-        }
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) -> ForagerDecision {
+        self.best_move.consider(index, score)
     }
 
     fn is_quit_early(&self) -> bool {

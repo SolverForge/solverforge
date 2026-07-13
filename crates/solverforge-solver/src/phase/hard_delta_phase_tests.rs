@@ -9,27 +9,30 @@ use crate::heuristic::r#move::metadata::{hash_str, MoveTabuScope};
 use crate::heuristic::r#move::{Move, MoveTabuSignature};
 use crate::heuristic::selector::move_selector::ArenaMoveCursor;
 use crate::heuristic::selector::MoveSelector;
-use crate::phase::localsearch::VndPhase;
-use crate::phase::traits::Phase;
+use crate::phase::localsearch::vnd::solve_vnd_with_resources;
+use crate::phase::localsearch::SelectorCursorSource;
 use crate::scope::SolverScope;
 
 #[test]
 fn vnd_accepts_required_repair_that_improves_later_hard_level() {
     let director = BendableRepairDirector::new();
     let mut solver_scope = SolverScope::new(director);
-    let mut phase = VndPhase::<BendableRepairPlan, BendableRepairMove, BendableRepairSelector>::new(
-        vec![BendableRepairSelector {
-            moves: vec![BendableRepairMove {
-                first_hard: 0,
-                second_hard: -5,
-                soft: -100,
-                require_hard: true,
-            }],
+    let mut neighborhoods = vec![SelectorCursorSource::new(BendableRepairSelector {
+        moves: vec![BendableRepairMove {
+            first_hard: 0,
+            second_hard: -5,
+            soft: -100,
+            require_hard: true,
         }],
-        None,
-    );
+    })];
+    let mut resources = ();
 
-    phase.solve(&mut solver_scope);
+    solve_vnd_with_resources::<_, _, _, BendableRepairMove, _>(
+        &mut neighborhoods,
+        &mut resources,
+        None,
+        &mut solver_scope,
+    );
 
     let solution = solver_scope.working_solution();
     assert_eq!(solution.first_hard, 0);

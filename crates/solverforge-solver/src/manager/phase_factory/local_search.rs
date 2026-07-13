@@ -8,8 +8,8 @@ use solverforge_scoring::Director;
 use crate::heuristic::{Move, MoveSelector};
 use crate::phase::localsearch::{
     AcceptedCountForager, Acceptor, HillClimbingAcceptor, LateAcceptanceAcceptor,
-    LocalSearchForager, LocalSearchPhase, SimulatedAnnealingAcceptor, TabuSearchAcceptor,
-    TabuSearchPolicy,
+    LocalSearchForager, LocalSearchPhase, SelectorCursorSource, SimulatedAnnealingAcceptor,
+    TabuSearchAcceptor, TabuSearchPolicy,
 };
 
 use super::super::PhaseFactory;
@@ -77,7 +77,7 @@ where
         Self::new(
             move_selector,
             HillClimbingAcceptor::new(),
-            AcceptedCountForager::new(1),
+            AcceptedCountForager::new(1, true),
         )
     }
 }
@@ -92,7 +92,7 @@ where
         Self::new(
             move_selector,
             TabuSearchAcceptor::new(TabuSearchPolicy::move_only(tabu_size)),
-            AcceptedCountForager::new(1),
+            AcceptedCountForager::new(1, true),
         )
     }
 }
@@ -108,7 +108,7 @@ where
         Self::new(
             move_selector,
             SimulatedAnnealingAcceptor::new(starting_temp, decay_rate),
-            AcceptedCountForager::new(1),
+            AcceptedCountForager::new(1, true),
         )
     }
 }
@@ -123,7 +123,7 @@ where
         Self::new(
             move_selector,
             LateAcceptanceAcceptor::new(size),
-            AcceptedCountForager::new(1),
+            AcceptedCountForager::new(1, true),
         )
     }
 }
@@ -137,7 +137,7 @@ where
     A: Acceptor<S> + Clone + Send + Sync + 'static,
     Fo: LocalSearchForager<S, M> + Clone + Send + Sync + 'static,
 {
-    type Phase = LocalSearchPhase<S, M, MS, A, Fo>;
+    type Phase = LocalSearchPhase<S, M, SelectorCursorSource<MS>, A, Fo>;
 
     fn create(&self) -> Self::Phase {
         LocalSearchPhase::new(

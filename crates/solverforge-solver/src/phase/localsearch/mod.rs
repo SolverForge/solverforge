@@ -5,6 +5,7 @@ that are accepted according to an acceptance criterion.
 */
 
 mod acceptor;
+mod cursor_source;
 mod evaluation;
 mod forager;
 mod phase;
@@ -16,9 +17,12 @@ pub use acceptor::{
     HillClimbingAcceptor, LateAcceptanceAcceptor, SimulatedAnnealingAcceptor,
     SimulatedAnnealingCalibration, StepCountingHillClimbingAcceptor, TabuSearchAcceptor,
 };
+pub use cursor_source::MoveCursorSource;
+#[doc(hidden)]
+pub use cursor_source::SelectorCursorSource;
 pub use forager::{
     AcceptedCountForager, BestScoreForager, FirstAcceptedForager, FirstBestScoreImprovingForager,
-    FirstLastStepScoreImprovingForager, LocalSearchForager,
+    FirstLastStepScoreImprovingForager, ForagerDecision, LocalSearchForager,
 };
+pub(crate) use phase::solve_local_search_with_resources;
 pub use phase::LocalSearchPhase;
-pub(crate) use vnd::VndPhase;

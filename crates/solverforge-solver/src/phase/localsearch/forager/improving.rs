@@ -7,7 +7,7 @@ use solverforge_core::score::Score;
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::CandidateId;
 
-use super::LocalSearchForager;
+use super::{BestCandidate, ForagerDecision, LocalSearchForager};
 
 /// A forager that picks the first accepted move that improves on the best score ever seen.
 ///
@@ -19,7 +19,7 @@ where
     S: PlanningSolution,
 {
     best_score: S::Score,
-    accepted_moves: Vec<(CandidateId, S::Score)>,
+    best_move: BestCandidate<S>,
     found_best_improving: bool,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -28,10 +28,10 @@ impl<S> FirstBestScoreImprovingForager<S>
 where
     S: PlanningSolution,
 {
-    pub fn new() -> Self {
+    pub fn new(random_ties: bool) -> Self {
         Self {
             best_score: S::Score::zero(),
-            accepted_moves: Vec::new(),
+            best_move: BestCandidate::new(random_ties),
             found_best_improving: false,
             _phantom: PhantomData,
         }
@@ -43,7 +43,7 @@ where
     S: PlanningSolution,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(true)
     }
 }
 
@@ -65,7 +65,7 @@ where
     fn clone(&self) -> Self {
         Self {
             best_score: self.best_score,
-            accepted_moves: Vec::new(),
+            best_move: BestCandidate::new(self.best_move.random_ties()),
             found_best_improving: false,
             _phantom: PhantomData,
         }
@@ -77,20 +77,21 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn step_started(&mut self, best_score: S::Score, _last_step_score: S::Score) {
+    fn step_started(&mut self, best_score: S::Score, _last_step_score: S::Score, step_seed: u64) {
         self.best_score = best_score;
-        self.accepted_moves.clear();
+        self.best_move.reset(step_seed);
         self.found_best_improving = false;
     }
 
-    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) -> ForagerDecision {
         if score > self.best_score {
-            self.accepted_moves.clear();
-            self.accepted_moves.push((index, score));
             self.found_best_improving = true;
-        } else if !self.found_best_improving {
-            self.accepted_moves.push((index, score));
+            return self.best_move.replace(index, score);
         }
+        if self.found_best_improving {
+            return ForagerDecision::Release;
+        }
+        self.best_move.consider(index, score)
     }
 
     fn is_quit_early(&self) -> bool {
@@ -98,22 +99,7 @@ where
     }
 
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
-        if self.accepted_moves.is_empty() {
-            return None;
-        }
-        if self.found_best_improving {
-            return self.accepted_moves.pop();
-        }
-
-        let mut best_idx = 0;
-        let mut best_score = self.accepted_moves[0].1;
-        for (i, &(_, score)) in self.accepted_moves.iter().enumerate().skip(1) {
-            if score > best_score {
-                best_idx = i;
-                best_score = score;
-            }
-        }
-        Some(self.accepted_moves.swap_remove(best_idx))
+        self.best_move.take()
     }
 }
 
@@ -127,7 +113,8 @@ where
     S: PlanningSolution,
 {
     last_step_score: S::Score,
-    accepted_moves: Vec<(CandidateId, S::Score)>,
+    accepted_count: usize,
+    best_move: BestCandidate<S>,
     found_last_step_improving: bool,
     accepted_count_limit: Option<usize>,
     _phantom: PhantomData<fn() -> S>,
@@ -137,10 +124,11 @@ impl<S> FirstLastStepScoreImprovingForager<S>
 where
     S: PlanningSolution,
 {
-    pub fn new() -> Self {
+    pub fn new(random_ties: bool) -> Self {
         Self {
             last_step_score: S::Score::zero(),
-            accepted_moves: Vec::new(),
+            accepted_count: 0,
+            best_move: BestCandidate::new(random_ties),
             found_last_step_improving: false,
             accepted_count_limit: None,
             _phantom: PhantomData,
@@ -162,7 +150,7 @@ where
     S: PlanningSolution,
 {
     fn default() -> Self {
-        Self::new()
+        Self::new(true)
     }
 }
 
@@ -185,7 +173,8 @@ where
     fn clone(&self) -> Self {
         Self {
             last_step_score: self.last_step_score,
-            accepted_moves: Vec::new(),
+            accepted_count: 0,
+            best_move: BestCandidate::new(self.best_move.random_ties()),
             found_last_step_improving: false,
             accepted_count_limit: self.accepted_count_limit,
             _phantom: PhantomData,
@@ -198,34 +187,34 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn step_started(&mut self, _best_score: S::Score, last_step_score: S::Score) {
+    fn step_started(&mut self, _best_score: S::Score, last_step_score: S::Score, step_seed: u64) {
         self.last_step_score = last_step_score;
-        self.accepted_moves.clear();
+        self.accepted_count = 0;
+        self.best_move.reset(step_seed);
         self.found_last_step_improving = false;
     }
 
-    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) -> ForagerDecision {
         if self.found_last_step_improving
             || self
                 .accepted_count_limit
-                .is_some_and(|limit| self.accepted_moves.len() >= limit)
+                .is_some_and(|limit| self.accepted_count >= limit)
         {
-            return;
+            return ForagerDecision::Release;
         }
+        self.accepted_count += 1;
         if score > self.last_step_score {
-            self.accepted_moves.clear();
-            self.accepted_moves.push((index, score));
             self.found_last_step_improving = true;
-        } else if !self.found_last_step_improving {
-            self.accepted_moves.push((index, score));
+            return self.best_move.replace(index, score);
         }
+        self.best_move.consider(index, score)
     }
 
     fn is_quit_early(&self) -> bool {
         self.found_last_step_improving
             || self
                 .accepted_count_limit
-                .is_some_and(|limit| self.accepted_moves.len() >= limit)
+                .is_some_and(|limit| self.accepted_count >= limit)
     }
 
     fn accepted_count_limit(&self) -> Option<usize> {
@@ -233,21 +222,6 @@ where
     }
 
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)> {
-        if self.accepted_moves.is_empty() {
-            return None;
-        }
-        if self.found_last_step_improving {
-            return self.accepted_moves.pop();
-        }
-
-        let mut best_idx = 0;
-        let mut best_score = self.accepted_moves[0].1;
-        for (i, &(_, score)) in self.accepted_moves.iter().enumerate().skip(1) {
-            if score > best_score {
-                best_idx = i;
-                best_score = score;
-            }
-        }
-        Some(self.accepted_moves.swap_remove(best_idx))
+        self.best_move.take()
     }
 }

@@ -25,14 +25,15 @@ type TestMove = ChangeMove<DummySolution, i32>;
 
 #[test]
 fn any_forager_forwards_stream_horizon() {
-    let accepted_count = AnyForager::AcceptedCount(AcceptedCountForager::<DummySolution>::new(4));
+    let accepted_count =
+        AnyForager::AcceptedCount(AcceptedCountForager::<DummySolution>::new(4, false));
     let first_accepted = AnyForager::FirstAccepted(FirstAcceptedForager::<DummySolution>::new());
-    let best_score = AnyForager::BestScore(BestScoreForager::<DummySolution>::new());
+    let best_score = AnyForager::BestScore(BestScoreForager::<DummySolution>::new(false));
     let first_best =
-        AnyForager::BestScoreImproving(FirstBestScoreImprovingForager::<DummySolution>::new());
+        AnyForager::BestScoreImproving(FirstBestScoreImprovingForager::<DummySolution>::new(false));
     let first_last = AnyForager::LastStepScoreImproving(FirstLastStepScoreImprovingForager::<
         DummySolution,
-    >::new());
+    >::new(false));
 
     assert_eq!(
         <AnyForager<DummySolution> as LocalSearchForager<

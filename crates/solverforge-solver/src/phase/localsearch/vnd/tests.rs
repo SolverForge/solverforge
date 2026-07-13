@@ -15,6 +15,7 @@ use crate::heuristic::selector::move_selector::{
 };
 use crate::heuristic::selector::MoveSelector;
 use crate::manager::SolverTerminalReason;
+use crate::phase::localsearch::SelectorCursorSource;
 use crate::scope::SolverScope;
 
 #[derive(Clone, Debug)]
@@ -231,12 +232,14 @@ fn selector_from_scores(scores: &[i64]) -> FlaggingSelector {
 fn vnd_single_neighborhood_applies_best_improving_move() {
     let director = InterruptDirector::new();
     let mut solver_scope = SolverScope::new(director);
-
-    let mut phase = VndPhase::<InterruptPlan, InterruptMove, FlaggingSelector>::new(
-        vec![selector_from_scores(&[-1, 1, 2])],
+    let mut neighborhoods = vec![SelectorCursorSource::new(selector_from_scores(&[-1, 1, 2]))];
+    let mut resources = ();
+    solve_vnd_with_resources::<_, _, _, InterruptMove, _>(
+        &mut neighborhoods,
+        &mut resources,
         None,
+        &mut solver_scope,
     );
-    phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().value, 2);
     assert_eq!(
@@ -252,24 +255,27 @@ fn vnd_cancel_mid_neighborhood_does_not_commit_partial_best() {
     let mut solver_scope = SolverScope::new(director).with_terminate(Some(terminate.as_ref()));
     solver_scope.start_solving();
 
-    let mut phase = VndPhase::<InterruptPlan, InterruptMove, FlaggingSelector>::new(
-        vec![FlaggingSelector {
-            moves: vec![
-                InterruptMove {
-                    doable: true,
-                    score: 1,
-                },
-                InterruptMove {
-                    doable: true,
-                    score: 2,
-                },
-            ],
-            terminate: terminate.clone(),
-            trigger_index: 1,
-        }],
+    let mut neighborhoods = vec![SelectorCursorSource::new(FlaggingSelector {
+        moves: vec![
+            InterruptMove {
+                doable: true,
+                score: 1,
+            },
+            InterruptMove {
+                doable: true,
+                score: 2,
+            },
+        ],
+        terminate: terminate.clone(),
+        trigger_index: 1,
+    })];
+    let mut resources = ();
+    solve_vnd_with_resources::<_, _, _, InterruptMove, _>(
+        &mut neighborhoods,
+        &mut resources,
         None,
+        &mut solver_scope,
     );
-    phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().value, 0);
     assert_eq!(
@@ -285,11 +291,16 @@ fn vnd_polling_advances_through_non_doable_tail_after_cancel_request() {
     let mut solver_scope = SolverScope::new(director).with_terminate(Some(terminate.as_ref()));
     solver_scope.start_solving();
 
-    let mut phase = VndPhase::<InterruptPlan, InterruptMove, FlaggingSelector>::new(
-        vec![selector_with_non_doable_tail(terminate.clone())],
+    let mut neighborhoods = vec![SelectorCursorSource::new(selector_with_non_doable_tail(
+        terminate.clone(),
+    ))];
+    let mut resources = ();
+    solve_vnd_with_resources::<_, _, _, InterruptMove, _>(
+        &mut neighborhoods,
+        &mut resources,
         None,
+        &mut solver_scope,
     );
-    phase.solve(&mut solver_scope);
 
     assert_eq!(
         solver_scope.terminal_reason(),
@@ -459,18 +470,20 @@ impl MoveSelector<HardRepairPlan, HardRepairMove> for HardRepairSelector {
 fn vnd_rejects_hard_neutral_repair_move_when_hard_improvement_required() {
     let director = HardRepairDirector::new();
     let mut solver_scope = SolverScope::new(director);
-    let mut phase = VndPhase::<HardRepairPlan, HardRepairMove, HardRepairSelector>::new(
-        vec![HardRepairSelector {
-            moves: vec![HardRepairMove {
-                hard: -1,
-                soft: 10,
-                require_hard: true,
-            }],
+    let mut neighborhoods = vec![SelectorCursorSource::new(HardRepairSelector {
+        moves: vec![HardRepairMove {
+            hard: -1,
+            soft: 10,
+            require_hard: true,
         }],
+    })];
+    let mut resources = ();
+    solve_vnd_with_resources::<_, _, _, HardRepairMove, _>(
+        &mut neighborhoods,
+        &mut resources,
         None,
+        &mut solver_scope,
     );
-
-    phase.solve(&mut solver_scope);
 
     let solution = solver_scope.working_solution();
     assert_eq!(solution.hard, -1);

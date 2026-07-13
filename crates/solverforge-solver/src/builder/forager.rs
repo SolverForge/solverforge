@@ -1,6 +1,6 @@
 // Forager builder and `AnyForager` enum.
 
-use solverforge_config::ForagerConfig;
+use solverforge_config::{ForagerConfig, ScoreTieBreak};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use std::fmt::Debug;
@@ -9,7 +9,7 @@ use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::CandidateId;
 use crate::phase::localsearch::{
     AcceptedCountForager, BestScoreForager, FirstAcceptedForager, FirstBestScoreImprovingForager,
-    FirstLastStepScoreImprovingForager, LocalSearchForager,
+    FirstLastStepScoreImprovingForager, ForagerDecision, LocalSearchForager,
 };
 
 /* A concrete enum over all built-in forager types.
@@ -49,27 +49,27 @@ impl<S: PlanningSolution, M: Move<S>> LocalSearchForager<S, M> for AnyForager<S>
 where
     S::Score: Score,
 {
-    fn step_started(&mut self, best_score: S::Score, last_step_score: S::Score) {
+    fn step_started(&mut self, best_score: S::Score, last_step_score: S::Score, step_seed: u64) {
         match self {
             Self::AcceptedCount(f) => {
-                LocalSearchForager::<S, M>::step_started(f, best_score, last_step_score)
+                LocalSearchForager::<S, M>::step_started(f, best_score, last_step_score, step_seed)
             }
             Self::FirstAccepted(f) => {
-                LocalSearchForager::<S, M>::step_started(f, best_score, last_step_score)
+                LocalSearchForager::<S, M>::step_started(f, best_score, last_step_score, step_seed)
             }
             Self::BestScore(f) => {
-                LocalSearchForager::<S, M>::step_started(f, best_score, last_step_score)
+                LocalSearchForager::<S, M>::step_started(f, best_score, last_step_score, step_seed)
             }
             Self::BestScoreImproving(f) => {
-                LocalSearchForager::<S, M>::step_started(f, best_score, last_step_score)
+                LocalSearchForager::<S, M>::step_started(f, best_score, last_step_score, step_seed)
             }
             Self::LastStepScoreImproving(f) => {
-                LocalSearchForager::<S, M>::step_started(f, best_score, last_step_score)
+                LocalSearchForager::<S, M>::step_started(f, best_score, last_step_score, step_seed)
             }
         }
     }
 
-    fn add_move_index(&mut self, index: CandidateId, score: S::Score) {
+    fn add_move_index(&mut self, index: CandidateId, score: S::Score) -> ForagerDecision {
         match self {
             Self::AcceptedCount(f) => LocalSearchForager::<S, M>::add_move_index(f, index, score),
             Self::FirstAccepted(f) => LocalSearchForager::<S, M>::add_move_index(f, index, score),
@@ -119,27 +119,31 @@ pub struct ForagerBuilder;
 
 impl ForagerBuilder {
     /// Builds a concrete [`AnyForager`] from configuration.
-    pub fn build<S: PlanningSolution>(config: Option<&ForagerConfig>) -> AnyForager<S>
+    pub fn build<S: PlanningSolution>(
+        config: Option<&ForagerConfig>,
+        score_tie_break: ScoreTieBreak,
+    ) -> AnyForager<S>
     where
         S::Score: Score,
     {
+        let random_ties = matches!(score_tie_break, ScoreTieBreak::Random);
         let Some(cfg) = config else {
-            return AnyForager::AcceptedCount(AcceptedCountForager::new(1));
+            return AnyForager::AcceptedCount(AcceptedCountForager::new(1, random_ties));
         };
 
         match cfg {
             ForagerConfig::AcceptedCount(accepted) => {
                 let limit = accepted.limit.unwrap_or(1).max(1);
-                AnyForager::AcceptedCount(AcceptedCountForager::new(limit))
+                AnyForager::AcceptedCount(AcceptedCountForager::new(limit, random_ties))
             }
-            ForagerConfig::BestScore => AnyForager::BestScore(BestScoreForager::new()),
+            ForagerConfig::BestScore => AnyForager::BestScore(BestScoreForager::new(random_ties)),
             ForagerConfig::FirstAccepted => AnyForager::FirstAccepted(FirstAcceptedForager::new()),
             ForagerConfig::FirstBestScoreImproving => {
-                AnyForager::BestScoreImproving(FirstBestScoreImprovingForager::new())
+                AnyForager::BestScoreImproving(FirstBestScoreImprovingForager::new(random_ties))
             }
-            ForagerConfig::FirstLastStepScoreImproving => {
-                AnyForager::LastStepScoreImproving(FirstLastStepScoreImprovingForager::new())
-            }
+            ForagerConfig::FirstLastStepScoreImproving => AnyForager::LastStepScoreImproving(
+                FirstLastStepScoreImprovingForager::new(random_ties),
+            ),
         }
     }
 }

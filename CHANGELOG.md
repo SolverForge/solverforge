@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.18.0](///compare/v0.17.2...v0.18.0) (2026-07-13)
+
+
+### Features
+
+* **config:** model resolved selector policy c83610b
+* **core:** declare dynamic model capabilities 9e2d179
+* **runtime:** compile immutable search graphs 8e54f48
+* **solver:** freeze compound provider registries 564ef82
+* **telemetry:** qualify candidate execution traces ec3eef9
+
+
+### Bug Fixes
+
+* **lifecycle:** settle control at phase boundaries f60b199
+
 ## [0.17.2](///compare/v0.17.1...v0.17.2) (2026-07-02)
 
 

@@ -1,4 +1,4 @@
-//! Public dynamic scalar change facade over the canonical scalar leaf.
+//! Public dynamic nearby-change facade over the canonical scalar leaf.
 
 use std::fmt::{self, Debug};
 
@@ -11,55 +11,61 @@ use crate::heuristic::r#move::{DynamicScalarChangeMove, MoveArena};
 use super::move_selector::{MoveSelector, MoveStreamContext};
 use super::scalar_neighborhood::{
     dynamic_slot, emit_dynamic_scalar_change_move, RuntimeScalarFacadeCursor,
-    ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec,
+    ScalarNeighborhoodBindingError, ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec,
 };
 
-/// Direct public facade. Candidate discovery, ordering, and ownership live in
-/// `ScalarNeighborhoodLeaf`; this type preserves the established public move
-/// payload only.
-pub struct DynamicScalarChangeMoveSelector<S> {
+/// Direct public facade for one declared dynamic nearby-value source.
+///
+/// Construction is fallible by design. A missing structural nearby source is
+/// a binding error, not permission to substitute ordinary candidates.
+pub struct DynamicScalarNearbyChangeMoveSelector<S> {
     leaf: ScalarNeighborhoodLeaf<S>,
 }
 
-pub type DynamicScalarChangeMoveCursor<S> =
+pub type DynamicScalarNearbyChangeMoveCursor<S> =
     RuntimeScalarFacadeCursor<S, DynamicScalarChangeMove<S>>;
 
-impl<S> DynamicScalarChangeMoveSelector<S>
+impl<S> DynamicScalarNearbyChangeMoveSelector<S>
 where
     S: PlanningSolution,
 {
-    pub fn new(slot: DynamicScalarVariableSlot<S>, value_candidate_limit: Option<usize>) -> Self {
-        let leaf = ScalarNeighborhoodLeaf::from_spec(
-            ScalarNeighborhoodSpec::Change {
-                value_candidate_limit,
-            },
-            dynamic_slot(slot),
-            None,
-        )
-        .expect("ordinary dynamic scalar slots always provide a candidate stream");
-        Self { leaf }
+    pub fn new(
+        slot: DynamicScalarVariableSlot<S>,
+        max_nearby: usize,
+        value_candidate_limit: Option<usize>,
+    ) -> Result<Self, ScalarNeighborhoodBindingError> {
+        Ok(Self {
+            leaf: ScalarNeighborhoodLeaf::from_spec(
+                ScalarNeighborhoodSpec::NearbyChange {
+                    max_nearby,
+                    value_candidate_limit,
+                },
+                dynamic_slot(slot),
+                None,
+            )?,
+        })
     }
 }
 
-impl<S> Debug for DynamicScalarChangeMoveSelector<S>
+impl<S> Debug for DynamicScalarNearbyChangeMoveSelector<S>
 where
     S: PlanningSolution,
 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("DynamicScalarChangeMoveSelector")
+            .debug_struct("DynamicScalarNearbyChangeMoveSelector")
             .field("leaf", &self.leaf)
             .finish()
     }
 }
 
-impl<S> MoveSelector<S, DynamicScalarChangeMove<S>> for DynamicScalarChangeMoveSelector<S>
+impl<S> MoveSelector<S, DynamicScalarChangeMove<S>> for DynamicScalarNearbyChangeMoveSelector<S>
 where
     S: PlanningSolution,
     S::Score: Score,
 {
     type Cursor<'a>
-        = DynamicScalarChangeMoveCursor<S>
+        = DynamicScalarNearbyChangeMoveCursor<S>
     where
         Self: 'a;
 

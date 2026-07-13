@@ -71,7 +71,7 @@ fn compound_edit(
     getter: fn(&CompoundSolution, usize, usize) -> Option<usize>,
     setter: fn(&mut CompoundSolution, usize, usize, Option<usize>),
 ) -> CompoundScalarEdit<CompoundSolution> {
-    CompoundScalarEdit {
+    CompoundScalarEdit::static_edit(
         descriptor_index,
         entity_index,
         variable_index,
@@ -79,8 +79,8 @@ fn compound_edit(
         to_value,
         getter,
         setter,
-        value_is_legal: None,
-    }
+        None,
+    )
 }
 
 struct RecordingCompoundDirector {
@@ -255,8 +255,8 @@ fn compound_scalar_rejects_noop_and_illegal_edits() {
     );
     assert!(!noop.is_doable(&director));
 
-    let mut illegal_edit = compound_edit(0, 0, 0, "left", Some(2), get_left, set_left);
-    illegal_edit.value_is_legal = Some(legal_to_three);
+    let illegal_edit = compound_edit(0, 0, 0, "left", Some(2), get_left, set_left)
+        .with_value_is_legal(legal_to_three);
     let illegal = CompoundScalarMove::new("illegal", vec![illegal_edit]);
     assert!(!illegal.is_doable(&director));
 }

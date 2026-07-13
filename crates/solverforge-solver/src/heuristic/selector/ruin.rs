@@ -82,7 +82,9 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::RuinMove;
 
-use super::move_selector::{ArenaMoveCursor, MoveSelector};
+use super::move_selector::{
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector,
+};
 
 pub struct RuinVariableAccess<S, V> {
     // Function to get entity count from solution.
@@ -156,6 +158,90 @@ pub struct RuinMoveSelector<S, V> {
     moves_per_step: usize,
 }
 
+pub struct RuinMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    store: CandidateStore<S, RuinMove<S, V>>,
+    subsets: std::vec::IntoIter<SmallVec<[usize; 8]>>,
+    access: RuinVariableAccess<S, V>,
+}
+
+impl<S, V> RuinMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    pub(crate) fn next_subset(&mut self) -> Option<SmallVec<[usize; 8]>> {
+        self.subsets.next()
+    }
+
+    fn next_move(&mut self) -> Option<RuinMove<S, V>> {
+        let indices = self.next_subset()?;
+        Some(RuinMove::from_indices(
+            indices,
+            self.access.getter,
+            self.access.setter,
+            self.access.variable_index,
+            self.access.variable_name,
+            self.access.descriptor_index,
+        ))
+    }
+}
+
+impl<S, V> MoveCursor<S, RuinMove<S, V>> for RuinMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        let mov = self.next_move()?;
+        Some(self.store.push(mov))
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, RuinMove<S, V>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> RuinMove<S, V> {
+        self.store.take_candidate(id)
+    }
+
+    fn next_owned_candidate(&mut self) -> Option<RuinMove<S, V>> {
+        self.next_move()
+    }
+
+    #[inline(always)]
+    fn next_owned_candidate_matching(
+        &mut self,
+        predicate: for<'a> fn(MoveCandidateRef<'a, S, RuinMove<S, V>>) -> bool,
+    ) -> Option<RuinMove<S, V>> {
+        loop {
+            let mov = self.next_move()?;
+            if predicate(MoveCandidateRef::Borrowed(&mov)) {
+                return Some(mov);
+            }
+        }
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
+    }
+}
+
+impl<S, V> Iterator for RuinMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    type Item = RuinMove<S, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_owned_candidate()
+    }
+}
+
 // SAFETY: RefCell<SmallRng> is only accessed while pre-generating a move batch
 // inside `iter_moves`, and selectors are consumed from a single thread at a time.
 unsafe impl<S, V> Send for RuinMoveSelector<S, V> {}
@@ -222,7 +308,7 @@ where
     V: Clone + Send + Sync + Debug + 'static,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, RuinMove<S, V>>
+        = RuinMoveCursor<S, V>
     where
         Self: 'a;
 
@@ -236,36 +322,33 @@ where
 
         // Pre-generate subsets using RNG
         let mut rng = self.rng.borrow_mut();
+        let mut permutation: Vec<usize> = (0..total_entities).collect();
         let subsets: Vec<SmallVec<[usize; 8]>> = (0..moves_count)
             .map(|_| {
                 if total_entities == 0 {
                     return SmallVec::new();
+                }
+                for (index, entity) in permutation.iter_mut().enumerate() {
+                    *entity = index;
                 }
                 let ruin_count = if min == max {
                     min
                 } else {
                     rng.random_range(min..=max)
                 };
-                let mut indices: SmallVec<[usize; 8]> = (0..total_entities).collect();
                 for i in 0..ruin_count {
                     let j = rng.random_range(i..total_entities);
-                    indices.swap(i, j);
+                    permutation.swap(i, j);
                 }
-                indices.truncate(ruin_count);
-                indices
+                permutation[..ruin_count].iter().copied().collect()
             })
             .collect();
 
-        ArenaMoveCursor::from_moves(subsets.into_iter().map(move |indices| {
-            RuinMove::new(
-                &indices,
-                access.getter,
-                access.setter,
-                access.variable_index,
-                access.variable_name,
-                access.descriptor_index,
-            )
-        }))
+        RuinMoveCursor {
+            store: CandidateStore::new(),
+            subsets: subsets.into_iter(),
+            access,
+        }
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

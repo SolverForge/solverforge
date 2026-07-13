@@ -297,7 +297,7 @@ where
 
     let selection_order = match config {
         Some(MoveSelectorConfig::UnionMoveSelector(union)) => union.selection_order,
-        _ => solverforge_config::UnionSelectionOrder::Sequential,
+        _ => solverforge_config::UnionSelectionOrder::default(),
     };
     VecUnionSelector::with_selection_order(leaves, selection_order)
 }
@@ -389,7 +389,7 @@ where
     );
     let selection_order = match config {
         Some(MoveSelectorConfig::UnionMoveSelector(union)) => union.selection_order,
-        _ => solverforge_config::UnionSelectionOrder::Sequential,
+        _ => solverforge_config::UnionSelectionOrder::default(),
     };
     VecUnionSelector::with_selection_order(nodes, selection_order)
 }

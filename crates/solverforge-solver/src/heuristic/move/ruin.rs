@@ -113,8 +113,26 @@ impl<S, V> RuinMove<S, V> {
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
+        Self::from_indices(
+            SmallVec::from_slice(entity_indices),
+            getter,
+            setter,
+            variable_index,
+            variable_name,
+            descriptor_index,
+        )
+    }
+
+    pub(crate) fn from_indices(
+        entity_indices: SmallVec<[usize; 8]>,
+        getter: fn(&S, usize, usize) -> Option<V>,
+        setter: fn(&mut S, usize, usize, Option<V>),
+        variable_index: usize,
+        variable_name: &'static str,
+        descriptor_index: usize,
+    ) -> Self {
         Self {
-            entity_indices: SmallVec::from_slice(entity_indices),
+            entity_indices,
             getter,
             setter,
             variable_index,

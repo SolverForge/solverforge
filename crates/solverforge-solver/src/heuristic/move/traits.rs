@@ -6,6 +6,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::MoveTabuSignature;
+use crate::stats::CandidateTraceIdentity;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MoveAffectedEntity<'a> {
@@ -66,6 +67,19 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature;
+
+    /// Returns the canonical identity used by opt-in candidate-pull tracing.
+    ///
+    /// Returns an explicit logical-coordinate identity for candidate tracing.
+    ///
+    /// This intentionally does *not* derive from tabu metadata: tabu keys may
+    /// contain representation-specific hashes. A move family that has not
+    /// supplied a cross-representation coordinate grammar returns `None`, and
+    /// the resulting trace is explicitly non-qualifying rather than faking a
+    /// comparable key.
+    fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
+        None
+    }
 
     fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {
         let descriptor_index = self.descriptor_index();

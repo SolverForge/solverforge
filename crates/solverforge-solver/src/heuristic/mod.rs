@@ -12,10 +12,11 @@ pub mod selector;
 pub use r#move::k_opt_reconnection;
 pub use r#move::{
     ChangeMove, CompositeMove, CompoundScalarEdit, CompoundScalarMove, CutPoint,
-    DynamicListChangeMove, DynamicScalarChangeMove, KOptMove, ListChangeMove, ListMoveUnion,
-    ListMultiSwapMove, ListPermuteMove, ListReverseMove, ListRuinMove, ListSwapMove, Move,
-    MoveArena, PillarChangeMove, PillarSwapMove, RuinMove, RuinRecreateMove, ScalarMoveUnion,
-    ScalarRecreateValueSource, SublistChangeMove, SublistSwapMove, SwapMove,
+    DynamicListChangeMove, DynamicScalarChangeMove, DynamicScalarSwapMove, KOptMove,
+    ListChangeMove, ListMoveUnion, ListMultiSwapMove, ListPermuteMove, ListReverseMove,
+    ListRuinMove, ListSwapMove, Move, MoveArena, PillarChangeMove, PillarSwapMove, RuinMove,
+    RuinRecreateMove, ScalarMoveUnion, ScalarRecreateValueSource, SublistChangeMove,
+    SublistSwapMove, SwapMove,
 };
 
 // Re-export selector types
@@ -23,7 +24,8 @@ pub use selector::decorator::VecUnionSelector;
 pub use selector::{
     AllEntitiesSelector, ChangeMoveSelector, CrossEntityDistanceMeter,
     DefaultCrossEntityDistanceMeter, DefaultDistanceMeter, DefaultPillarSelector,
-    DynamicListChangeMoveSelector, DynamicScalarChangeMoveSelector, EntityReference,
+    DynamicListChangeMoveSelector, DynamicScalarChangeMoveSelector,
+    DynamicScalarNearbyChangeMoveSelector, DynamicScalarNearbySwapMoveSelector, EntityReference,
     EntitySelector, FromSolutionEntitySelector, FromSolutionValueSelector, KOptConfig,
     KOptMoveSelector, ListChangeMoveSelector, ListPermuteMoveSelector, ListPositionDistanceMeter,
     ListPrecedenceMoveSelector, ListReverseMoveSelector, ListRuinMoveSelector,
@@ -32,6 +34,7 @@ pub use selector::{
     NearbyKOptMoveSelector, NearbyListChangeMoveSelector, NearbyListSwapMoveSelector,
     NearbySelectionConfig, PerEntitySliceValueSelector, PerEntityValueSelector, Pillar,
     PillarSelector, RuinMoveSelector, RuinVariableAccess, ScalarChangeMoveSelector,
-    ScalarSwapMoveSelector, SelectionOrder, StaticValueSelector, SubPillarConfig,
-    SublistChangeMoveSelector, SublistSwapMoveSelector, SwapMoveSelector, ValueSelector,
+    ScalarNeighborhoodBindingError, ScalarSwapMoveSelector, SelectionOrder, StaticValueSelector,
+    SubPillarConfig, SublistChangeMoveSelector, SublistSwapMoveSelector, SwapMoveSelector,
+    ValueSelector,
 };

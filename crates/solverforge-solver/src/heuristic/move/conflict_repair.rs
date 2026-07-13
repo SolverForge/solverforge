@@ -3,6 +3,8 @@ use std::fmt::{self, Debug};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
+use crate::stats::CandidateTraceIdentity;
+
 use super::compound_scalar::{CompoundScalarEdit, CompoundScalarMove};
 use super::{Move, MoveAffectedEntity, MoveTabuSignature};
 
@@ -40,15 +42,17 @@ impl<S> ConflictRepairMove<S> {
     pub fn new(reason: &'static str, edits: Vec<ConflictRepairScalarEdit<S>>) -> Self {
         let edits = edits
             .into_iter()
-            .map(|edit| CompoundScalarEdit {
-                descriptor_index: edit.descriptor_index,
-                entity_index: edit.entity_index,
-                variable_index: edit.variable_index,
-                variable_name: edit.variable_name,
-                to_value: edit.to_value,
-                getter: edit.getter,
-                setter: edit.setter,
-                value_is_legal: None,
+            .map(|edit| {
+                CompoundScalarEdit::static_edit(
+                    edit.descriptor_index,
+                    edit.entity_index,
+                    edit.variable_index,
+                    edit.variable_name,
+                    edit.to_value,
+                    edit.getter,
+                    edit.setter,
+                    None,
+                )
             })
             .collect();
         Self {
@@ -101,6 +105,10 @@ where
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         self.compound.tabu_signature(score_director)
+    }
+
+    fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
+        self.compound.candidate_trace_identity()
     }
 
     fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {

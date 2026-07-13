@@ -1,3 +1,235 @@
+struct DescriptorEntityValues {
+    entity_index: usize,
+    values: Vec<usize>,
+    current_assigned: bool,
+}
+
+pub struct DescriptorChangeMoveCursor<S>
+where
+    S: PlanningSolution,
+{
+    store: CandidateStore<S, DescriptorMoveUnion<S>>,
+    binding: VariableBinding,
+    solution_descriptor: SolutionDescriptor,
+    entity_values: Vec<DescriptorEntityValues>,
+    entity_offset: usize,
+    value_offset: usize,
+}
+
+impl<S> DescriptorChangeMoveCursor<S>
+where
+    S: PlanningSolution,
+{
+    fn new(
+        binding: VariableBinding,
+        solution_descriptor: SolutionDescriptor,
+        entity_values: Vec<DescriptorEntityValues>,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            binding,
+            solution_descriptor,
+            entity_values,
+            entity_offset: 0,
+            value_offset: 0,
+        }
+    }
+}
+
+impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorChangeMoveCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        while let Some(entity_values) = self.entity_values.get(self.entity_offset) {
+            if let Some(value) = entity_values.values.get(self.value_offset).copied() {
+                self.value_offset += 1;
+                return Some(self.store.push(DescriptorMoveUnion::Change(
+                    DescriptorChangeMove::new(
+                        self.binding.clone(),
+                        entity_values.entity_index,
+                        Some(value),
+                        self.solution_descriptor.clone(),
+                    ),
+                )));
+            }
+
+            if self.binding.allows_unassigned
+                && entity_values.current_assigned
+                && self.value_offset == entity_values.values.len()
+            {
+                self.value_offset += 1;
+                return Some(self.store.push(DescriptorMoveUnion::Change(
+                    DescriptorChangeMove::new(
+                        self.binding.clone(),
+                        entity_values.entity_index,
+                        None,
+                        self.solution_descriptor.clone(),
+                    ),
+                )));
+            }
+
+            self.entity_offset += 1;
+            self.value_offset = 0;
+        }
+        None
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, DescriptorMoveUnion<S>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> DescriptorMoveUnion<S> {
+        self.store.take_candidate(id)
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
+    }
+}
+
+impl<S> Iterator for DescriptorChangeMoveCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    type Item = DescriptorMoveUnion<S>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_owned_candidate()
+    }
+}
+
+enum DescriptorSwapOrder {
+    All {
+        count: usize,
+        left_entity_index: usize,
+        right_entity_index: usize,
+    },
+    Explicit(std::vec::IntoIter<(usize, usize)>),
+}
+
+pub struct DescriptorSwapMoveCursor<S>
+where
+    S: PlanningSolution,
+{
+    store: CandidateStore<S, DescriptorMoveUnion<S>>,
+    binding: VariableBinding,
+    solution_descriptor: SolutionDescriptor,
+    legality_index: SwapLegalityIndex,
+    order: DescriptorSwapOrder,
+}
+
+impl<S> DescriptorSwapMoveCursor<S>
+where
+    S: PlanningSolution,
+{
+    fn all(
+        binding: VariableBinding,
+        solution_descriptor: SolutionDescriptor,
+        legality_index: SwapLegalityIndex,
+        count: usize,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            binding,
+            solution_descriptor,
+            legality_index,
+            order: DescriptorSwapOrder::All {
+                count,
+                left_entity_index: 0,
+                right_entity_index: 1,
+            },
+        }
+    }
+
+    fn explicit(
+        binding: VariableBinding,
+        solution_descriptor: SolutionDescriptor,
+        legality_index: SwapLegalityIndex,
+        pairs: Vec<(usize, usize)>,
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            binding,
+            solution_descriptor,
+            legality_index,
+            order: DescriptorSwapOrder::Explicit(pairs.into_iter()),
+        }
+    }
+
+    fn next_pair(&mut self) -> Option<(usize, usize)> {
+        match &mut self.order {
+            DescriptorSwapOrder::All {
+                count,
+                left_entity_index,
+                right_entity_index,
+            } => {
+                while *left_entity_index < *count {
+                    if *right_entity_index < *count {
+                        let pair = (*left_entity_index, *right_entity_index);
+                        *right_entity_index += 1;
+                        return Some(pair);
+                    }
+                    *left_entity_index += 1;
+                    *right_entity_index = left_entity_index.saturating_add(1);
+                }
+                None
+            }
+            DescriptorSwapOrder::Explicit(pairs) => pairs.next(),
+        }
+    }
+}
+
+impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorSwapMoveCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        while let Some((left_entity_index, right_entity_index)) = self.next_pair() {
+            let Some((left_value, right_value)) = self
+                .legality_index
+                .values_for_swap(left_entity_index, right_entity_index)
+            else {
+                continue;
+            };
+            return Some(self.store.push(DescriptorMoveUnion::Swap(
+                DescriptorSwapMove::new_validated(
+                    self.binding.clone(),
+                    left_entity_index,
+                    left_value,
+                    right_entity_index,
+                    right_value,
+                    self.solution_descriptor.clone(),
+                ),
+            )));
+        }
+        None
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, DescriptorMoveUnion<S>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> DescriptorMoveUnion<S> {
+        self.store.take_candidate(id)
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
+    }
+}
+
+impl<S> Iterator for DescriptorSwapMoveCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    type Item = DescriptorMoveUnion<S>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_owned_candidate()
+    }
+}
+
 #[derive(Clone)]
 pub struct DescriptorChangeMoveSelector<S> {
     binding: VariableBinding,
@@ -38,7 +270,7 @@ where
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
+        = DescriptorChangeMoveCursor<S>
     where
         Self: 'a;
 
@@ -46,52 +278,30 @@ where
         let count = score_director
             .entity_count(self.binding.descriptor_index)
             .unwrap_or(0);
-        let descriptor = self.solution_descriptor.clone();
-        let binding = self.binding.clone();
-        let allows_unassigned = self.allows_unassigned;
         let solution = score_director.working_solution() as &dyn Any;
-        let moves: Vec<_> = (0..count)
-            .flat_map(move |entity_index| {
-                let entity = descriptor
-                    .get_entity(solution, binding.descriptor_index, entity_index)
+        let entity_values = (0..count)
+            .map(|entity_index| {
+                let entity = self
+                    .solution_descriptor
+                    .get_entity(solution, self.binding.descriptor_index, entity_index)
                     .expect("entity lookup failed for change selector");
-                let current_value = (binding.getter)(entity);
-                let unassign_move = (allows_unassigned && current_value.is_some()).then({
-                    let binding = binding.clone();
-                    let descriptor = descriptor.clone();
-                    move || {
-                        DescriptorMoveUnion::Change(DescriptorChangeMove::new(
-                            binding.clone(),
-                            entity_index,
-                            None,
-                            descriptor.clone(),
-                        ))
-                    }
-                });
-                binding
-                    .candidate_values_for_entity_index(
-                        &descriptor,
+                DescriptorEntityValues {
+                    entity_index,
+                    values: self.binding.candidate_values_for_entity_index(
+                        &self.solution_descriptor,
                         solution,
                         entity_index,
                         self.value_candidate_limit,
-                    )
-                    .into_iter()
-                    .map({
-                        let binding = binding.clone();
-                        let descriptor = descriptor.clone();
-                        move |value| {
-                            DescriptorMoveUnion::Change(DescriptorChangeMove::new(
-                                binding.clone(),
-                                entity_index,
-                                Some(value),
-                                descriptor.clone(),
-                            ))
-                        }
-                    })
-                    .chain(unassign_move)
+                    ),
+                    current_assigned: (self.binding.getter)(entity).is_some(),
+                }
             })
             .collect();
-        ArenaMoveCursor::from_moves(moves)
+        DescriptorChangeMoveCursor::new(
+            self.binding.clone(),
+            self.solution_descriptor.clone(),
+            entity_values,
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -154,7 +364,7 @@ where
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
+        = DescriptorSwapMoveCursor<S>
     where
         Self: 'a;
 
@@ -173,26 +383,7 @@ where
             "entity lookup failed for swap selector",
         );
 
-        let mut moves = Vec::new();
-        for left_entity_index in 0..count {
-            for right_entity_index in (left_entity_index + 1)..count {
-                if let Some((left_value, right_value)) =
-                    legality_index.values_for_swap(left_entity_index, right_entity_index)
-                {
-                    moves.push(DescriptorMoveUnion::Swap(
-                        DescriptorSwapMove::new_validated(
-                            binding.clone(),
-                            left_entity_index,
-                            left_value,
-                            right_entity_index,
-                            right_value,
-                            descriptor.clone(),
-                        ),
-                    ));
-                }
-            }
-        }
-        ArenaMoveCursor::from_moves(moves)
+        DescriptorSwapMoveCursor::all(binding, descriptor, legality_index, count)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -236,7 +427,7 @@ where
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
+        = DescriptorChangeMoveCursor<S>
     where
         Self: 'a;
 
@@ -250,21 +441,20 @@ where
         let count = score_director
             .entity_count(self.binding.descriptor_index)
             .unwrap_or(0);
-        let binding = self.binding.clone();
-        let descriptor = self.solution_descriptor.clone();
         let max_nearby = self.max_nearby;
         let value_candidate_limit = self.value_candidate_limit;
-        let moves: Vec<_> = (0..count)
-            .flat_map(move |entity_index| {
-                let entity = descriptor
-                    .get_entity(solution, binding.descriptor_index, entity_index)
+        let entity_values = (0..count)
+            .map(|entity_index| {
+                let entity = self
+                    .solution_descriptor
+                    .get_entity(solution, self.binding.descriptor_index, entity_index)
                     .expect("entity lookup failed for nearby change selector");
-                let current_value = (binding.getter)(entity);
+                let current_value = (self.binding.getter)(entity);
                 let current_assigned = current_value.is_some();
                 let values = candidate_values(
                     solution,
                     entity_index,
-                    binding.variable_index,
+                    self.binding.variable_index,
                 );
                 let limit = value_candidate_limit.unwrap_or(values.len());
                 let mut candidates: Vec<(usize, f64, usize)> = values
@@ -284,34 +474,18 @@ where
                     .collect();
                 truncate_nearby_candidates(&mut candidates, max_nearby);
 
-                let candidate_moves = candidates.into_iter().map({
-                    let binding = binding.clone();
-                    let descriptor = descriptor.clone();
-                    move |(value, _, _)| {
-                        DescriptorMoveUnion::Change(DescriptorChangeMove::new(
-                            binding.clone(),
-                            entity_index,
-                            Some(value),
-                            descriptor.clone(),
-                        ))
-                    }
-                });
-                let unassign = (binding.allows_unassigned && current_assigned).then({
-                    let binding = binding.clone();
-                    let descriptor = descriptor.clone();
-                    move || {
-                        DescriptorMoveUnion::Change(DescriptorChangeMove::new(
-                            binding.clone(),
-                            entity_index,
-                            None,
-                            descriptor.clone(),
-                        ))
-                    }
-                });
-                candidate_moves.chain(unassign)
+                DescriptorEntityValues {
+                    entity_index,
+                    values: candidates.into_iter().map(|(value, _, _)| value).collect(),
+                    current_assigned,
+                }
             })
             .collect();
-        ArenaMoveCursor::from_moves(moves)
+        DescriptorChangeMoveCursor::new(
+            self.binding.clone(),
+            self.solution_descriptor.clone(),
+            entity_values,
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -342,7 +516,7 @@ where
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
+        = DescriptorSwapMoveCursor<S>
     where
         Self: 'a;
 
@@ -366,7 +540,7 @@ where
             count,
             "entity lookup failed for nearby swap selector",
         );
-        let mut moves = Vec::new();
+        let mut pairs = Vec::new();
         for left_entity_index in 0..count {
             let mut candidates: Vec<(usize, f64, usize)> = entity_candidates(
                 solution,
@@ -398,19 +572,11 @@ where
                 else {
                     continue;
                 };
-                moves.push(DescriptorMoveUnion::Swap(
-                    DescriptorSwapMove::new_validated(
-                        binding.clone(),
-                        left_entity_index,
-                        left_value,
-                        right_entity_index,
-                        right_value,
-                        descriptor.clone(),
-                    ),
-                ));
+                let _ = (left_value, right_value);
+                pairs.push((left_entity_index, right_entity_index));
             }
         }
-        ArenaMoveCursor::from_moves(moves)
+        DescriptorSwapMoveCursor::explicit(binding, descriptor, legality_index, pairs)
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

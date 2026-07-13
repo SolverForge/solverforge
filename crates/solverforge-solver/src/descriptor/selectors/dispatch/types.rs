@@ -31,19 +31,25 @@ where
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
+        = DescriptorLeafCursor<S>
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         match self {
-            Self::Change(selector) => selector.open_cursor(score_director),
-            Self::Swap(selector) => selector.open_cursor(score_director),
-            Self::NearbyChange(selector) => selector.open_cursor(score_director),
-            Self::NearbySwap(selector) => selector.open_cursor(score_director),
-            Self::PillarChange(selector) => selector.open_cursor(score_director),
-            Self::PillarSwap(selector) => selector.open_cursor(score_director),
-            Self::RuinRecreate(selector) => selector.open_cursor(score_director),
+            Self::Change(selector) => DescriptorLeafCursor::Change(selector.open_cursor(score_director)),
+            Self::Swap(selector) => DescriptorLeafCursor::Swap(selector.open_cursor(score_director)),
+            Self::NearbyChange(selector) => DescriptorLeafCursor::Change(selector.open_cursor(score_director)),
+            Self::NearbySwap(selector) => DescriptorLeafCursor::Swap(selector.open_cursor(score_director)),
+            Self::PillarChange(selector) => {
+                DescriptorLeafCursor::PillarChange(selector.open_cursor(score_director))
+            }
+            Self::PillarSwap(selector) => {
+                DescriptorLeafCursor::PillarSwap(selector.open_cursor(score_director))
+            }
+            Self::RuinRecreate(selector) => {
+                DescriptorLeafCursor::RuinRecreate(selector.open_cursor(score_director))
+            }
         }
     }
 
@@ -60,21 +66,82 @@ where
     }
 }
 
+#[allow(clippy::large_enum_variant)]
+pub enum DescriptorLeafCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    Change(DescriptorChangeMoveCursor<S>),
+    Swap(DescriptorSwapMoveCursor<S>),
+    PillarChange(DescriptorPillarChangeMoveCursor<S>),
+    PillarSwap(DescriptorPillarSwapMoveCursor<S>),
+    RuinRecreate(DescriptorRuinRecreateMoveCursor<S>),
+}
+
+impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorLeafCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        match self {
+            Self::Change(cursor) => cursor.next_candidate(),
+            Self::Swap(cursor) => cursor.next_candidate(),
+            Self::PillarChange(cursor) => cursor.next_candidate(),
+            Self::PillarSwap(cursor) => cursor.next_candidate(),
+            Self::RuinRecreate(cursor) => cursor.next_candidate(),
+        }
+    }
+
+    fn candidate(
+        &self,
+        id: CandidateId,
+    ) -> Option<MoveCandidateRef<'_, S, DescriptorMoveUnion<S>>> {
+        match self {
+            Self::Change(cursor) => cursor.candidate(id),
+            Self::Swap(cursor) => cursor.candidate(id),
+            Self::PillarChange(cursor) => cursor.candidate(id),
+            Self::PillarSwap(cursor) => cursor.candidate(id),
+            Self::RuinRecreate(cursor) => cursor.candidate(id),
+        }
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> DescriptorMoveUnion<S> {
+        match self {
+            Self::Change(cursor) => cursor.take_candidate(id),
+            Self::Swap(cursor) => cursor.take_candidate(id),
+            Self::PillarChange(cursor) => cursor.take_candidate(id),
+            Self::PillarSwap(cursor) => cursor.take_candidate(id),
+            Self::RuinRecreate(cursor) => cursor.take_candidate(id),
+        }
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        match self {
+            Self::Change(cursor) => cursor.release_candidate(id),
+            Self::Swap(cursor) => cursor.release_candidate(id),
+            Self::PillarChange(cursor) => cursor.release_candidate(id),
+            Self::PillarSwap(cursor) => cursor.release_candidate(id),
+            Self::RuinRecreate(cursor) => cursor.release_candidate(id),
+        }
+    }
+}
+
 #[allow(clippy::large_enum_variant)] // Inline storage keeps selector assembly zero-erasure.
 pub enum DescriptorSelectorNode<S> {
     Leaf(DescriptorLeafSelector<S>),
     Cartesian(DescriptorCartesianSelector<S>),
 }
 
-pub enum DescriptorSelectorCursor<S>
+#[allow(clippy::large_enum_variant)]
+pub enum DescriptorSelectorCursor<'a, S>
 where
     S: PlanningSolution + 'static,
 {
-    Leaf(ArenaMoveCursor<S, DescriptorMoveUnion<S>>),
-    Cartesian(CartesianProductCursor<S, DescriptorMoveUnion<S>>),
+    Leaf(DescriptorLeafCursor<S>),
+    Cartesian(DescriptorCartesianCursor<'a, S>),
 }
 
-impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorSelectorCursor<S>
+impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorSelectorCursor<'_, S>
 where
     S: PlanningSolution + 'static,
 {
@@ -99,6 +166,24 @@ where
         match self {
             Self::Leaf(cursor) => cursor.take_candidate(index),
             Self::Cartesian(cursor) => cursor.take_candidate(index),
+        }
+    }
+
+    fn apply_owned_candidate<D: Director<S>>(
+        &mut self,
+        index: CandidateId,
+        score_director: &mut D,
+    ) {
+        match self {
+            Self::Leaf(cursor) => cursor.apply_owned_candidate(index, score_director),
+            Self::Cartesian(cursor) => cursor.apply_owned_candidate(index, score_director),
+        }
+    }
+
+    fn release_candidate(&mut self, index: CandidateId) -> bool {
+        match self {
+            Self::Leaf(cursor) => cursor.release_candidate(index),
+            Self::Cartesian(cursor) => cursor.release_candidate(index),
         }
     }
 
@@ -128,7 +213,7 @@ where
     S::Score: Score,
 {
     type Cursor<'a>
-        = DescriptorSelectorCursor<S>
+        = DescriptorSelectorCursor<'a, S>
     where
         Self: 'a;
 

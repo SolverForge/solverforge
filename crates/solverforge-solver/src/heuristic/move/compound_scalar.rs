@@ -1,8 +1,10 @@
 use std::fmt::{self, Debug};
 
 use smallvec::{smallvec, SmallVec};
-use solverforge_core::domain::PlanningSolution;
+use solverforge_core::domain::{DynamicScalarVariableSlot, PlanningSolution};
 use solverforge_scoring::Director;
+
+use crate::stats::{CandidateTraceCoordinate, CandidateTraceIdentity};
 
 use super::metadata::{
     encode_option_usize, encode_usize, hash_str, MoveTabuScope, MoveTabuSignature,
@@ -13,16 +15,161 @@ pub const COMPOUND_SCALAR_VARIABLE: &str = "compound_scalar";
 
 pub type ScalarEditLegality<S> = fn(&S, usize, usize, Option<usize>) -> bool;
 
-#[derive(Clone)]
+enum CompoundScalarEditAccess<S> {
+    Static {
+        getter: fn(&S, usize, usize) -> Option<usize>,
+        setter: fn(&mut S, usize, usize, Option<usize>),
+        value_is_legal: Option<ScalarEditLegality<S>>,
+    },
+    Dynamic(DynamicScalarVariableSlot<S>),
+}
+
+impl<S> Clone for CompoundScalarEditAccess<S> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Static {
+                getter,
+                setter,
+                value_is_legal,
+            } => Self::Static {
+                getter: *getter,
+                setter: *setter,
+                value_is_legal: *value_is_legal,
+            },
+            Self::Dynamic(slot) => Self::Dynamic(slot.clone()),
+        }
+    }
+}
+
+/// One edit in a grouped scalar move.
+///
+/// The static form keeps the existing direct function pointers.  The dynamic
+/// form carries the already-bound dynamic slot, so move execution never needs
+/// a thread-local group name or a schema lookup.
 pub struct CompoundScalarEdit<S> {
     pub descriptor_index: usize,
     pub entity_index: usize,
     pub variable_index: usize,
     pub variable_name: &'static str,
     pub to_value: Option<usize>,
-    pub getter: fn(&S, usize, usize) -> Option<usize>,
-    pub setter: fn(&mut S, usize, usize, Option<usize>),
-    pub value_is_legal: Option<ScalarEditLegality<S>>,
+    access: CompoundScalarEditAccess<S>,
+}
+
+impl<S> Clone for CompoundScalarEdit<S> {
+    fn clone(&self) -> Self {
+        Self {
+            descriptor_index: self.descriptor_index,
+            entity_index: self.entity_index,
+            variable_index: self.variable_index,
+            variable_name: self.variable_name,
+            to_value: self.to_value,
+            access: self.access.clone(),
+        }
+    }
+}
+
+impl<S> CompoundScalarEdit<S> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn static_edit(
+        descriptor_index: usize,
+        entity_index: usize,
+        variable_index: usize,
+        variable_name: &'static str,
+        to_value: Option<usize>,
+        getter: fn(&S, usize, usize) -> Option<usize>,
+        setter: fn(&mut S, usize, usize, Option<usize>),
+        value_is_legal: Option<ScalarEditLegality<S>>,
+    ) -> Self {
+        Self {
+            descriptor_index,
+            entity_index,
+            variable_index,
+            variable_name,
+            to_value,
+            access: CompoundScalarEditAccess::Static {
+                getter,
+                setter,
+                value_is_legal,
+            },
+        }
+    }
+
+    pub fn dynamic_edit(
+        descriptor_index: usize,
+        entity_index: usize,
+        variable_index: usize,
+        variable_name: &'static str,
+        to_value: Option<usize>,
+        slot: DynamicScalarVariableSlot<S>,
+    ) -> Self {
+        debug_assert_eq!(descriptor_index, slot.descriptor_index());
+        debug_assert_eq!(variable_index, slot.descriptor_variable_index());
+        debug_assert_eq!(variable_name, slot.variable_name);
+        Self {
+            descriptor_index,
+            entity_index,
+            variable_index,
+            variable_name,
+            to_value,
+            access: CompoundScalarEditAccess::Dynamic(slot),
+        }
+    }
+
+    pub fn with_value_is_legal(mut self, value_is_legal: ScalarEditLegality<S>) -> Self {
+        if let CompoundScalarEditAccess::Static {
+            value_is_legal: legality,
+            ..
+        } = &mut self.access
+        {
+            *legality = Some(value_is_legal);
+        }
+        self
+    }
+}
+
+impl<S> CompoundScalarEdit<S> {
+    pub(crate) fn current_value(&self, solution: &S) -> Option<usize> {
+        match &self.access {
+            CompoundScalarEditAccess::Static { getter, .. } => {
+                getter(solution, self.entity_index, self.variable_index)
+            }
+            CompoundScalarEditAccess::Dynamic(slot) => {
+                slot.current_value(solution, self.entity_index)
+            }
+        }
+    }
+
+    pub(crate) fn set_value(&self, solution: &mut S, value: Option<usize>) {
+        match &self.access {
+            CompoundScalarEditAccess::Static { setter, .. } => {
+                setter(solution, self.entity_index, self.variable_index, value)
+            }
+            CompoundScalarEditAccess::Dynamic(slot) => {
+                slot.set_value(solution, self.entity_index, value)
+            }
+        }
+    }
+
+    pub(crate) fn value_is_legal(&self, solution: &S) -> bool {
+        match &self.access {
+            CompoundScalarEditAccess::Static {
+                value_is_legal: Some(legality),
+                ..
+            } => legality(
+                solution,
+                self.entity_index,
+                self.variable_index,
+                self.to_value,
+            ),
+            CompoundScalarEditAccess::Static {
+                value_is_legal: None,
+                ..
+            } => true,
+            CompoundScalarEditAccess::Dynamic(slot) => {
+                slot.value_is_legal(solution, self.entity_index, self.to_value)
+            }
+        }
+    }
 }
 
 impl<S> Debug for CompoundScalarEdit<S> {
@@ -94,6 +241,24 @@ impl<S> CompoundScalarMove<S> {
     pub fn reason(&self) -> &'static str {
         self.reason
     }
+
+    pub(crate) fn is_doable_on(&self, solution: &S) -> bool
+    where
+        S: PlanningSolution,
+    {
+        if self.edits.is_empty() {
+            return false;
+        }
+
+        let mut changes_value = false;
+        for edit in &self.edits {
+            if !edit.value_is_legal(solution) {
+                return false;
+            }
+            changes_value |= edit.current_value(solution) != edit.to_value;
+        }
+        changes_value
+    }
 }
 
 impl<S> Debug for CompoundScalarMove<S> {
@@ -118,51 +283,21 @@ where
     type Undo = Vec<Option<usize>>;
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
-        if self.edits.is_empty() {
-            return false;
-        }
-
-        let solution = score_director.working_solution();
-        let mut changes_value = false;
-        for edit in &self.edits {
-            if let Some(value_is_legal) = edit.value_is_legal {
-                if !value_is_legal(
-                    solution,
-                    edit.entity_index,
-                    edit.variable_index,
-                    edit.to_value,
-                ) {
-                    return false;
-                }
-            }
-            let current = (edit.getter)(solution, edit.entity_index, edit.variable_index);
-            changes_value |= current != edit.to_value;
-        }
-
-        changes_value
+        self.is_doable_on(score_director.working_solution())
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let mut undo = Vec::with_capacity(self.edits.len());
         let affected = unique_affected_entities(&self.edits);
         for edit in &self.edits {
-            let old_value = (edit.getter)(
-                score_director.working_solution(),
-                edit.entity_index,
-                edit.variable_index,
-            );
+            let old_value = edit.current_value(score_director.working_solution());
             undo.push(old_value);
         }
         for (descriptor_index, entity_index) in &affected {
             score_director.before_variable_changed(*descriptor_index, *entity_index);
         }
         for edit in &self.edits {
-            (edit.setter)(
-                score_director.working_solution_mut(),
-                edit.entity_index,
-                edit.variable_index,
-                edit.to_value,
-            );
+            edit.set_value(score_director.working_solution_mut(), edit.to_value);
         }
         for (descriptor_index, entity_index) in affected.iter().rev() {
             score_director.after_variable_changed(*descriptor_index, *entity_index);
@@ -176,12 +311,7 @@ where
             score_director.before_variable_changed(*descriptor_index, *entity_index);
         }
         for (edit, old_value) in self.edits.iter().zip(undo) {
-            (edit.setter)(
-                score_director.working_solution_mut(),
-                edit.entity_index,
-                edit.variable_index,
-                old_value,
-            );
+            edit.set_value(score_director.working_solution_mut(), old_value);
         }
         for (descriptor_index, entity_index) in affected.iter().rev() {
             score_director.after_variable_changed(*descriptor_index, *entity_index);
@@ -219,11 +349,7 @@ where
         let mut destination_tokens: SmallVec<[_; 8]> = SmallVec::new();
 
         for edit in &self.edits {
-            let current = (edit.getter)(
-                score_director.working_solution(),
-                edit.entity_index,
-                edit.variable_index,
-            );
+            let current = edit.current_value(score_director.working_solution());
             let descriptor = encode_usize(edit.descriptor_index);
             let entity = encode_usize(edit.entity_index);
             let variable = hash_str(edit.variable_name);
@@ -240,6 +366,21 @@ where
         MoveTabuSignature::new(scope, move_id, undo_move_id)
             .with_entity_tokens(entity_tokens)
             .with_destination_value_tokens(destination_tokens)
+    }
+
+    fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
+        let children = self.edits.iter().map(|edit| {
+            CandidateTraceIdentity::logical_move(
+                edit.descriptor_index,
+                edit.variable_name,
+                "scalar_change",
+                vec![
+                    CandidateTraceCoordinate::from(edit.entity_index),
+                    CandidateTraceCoordinate::from(edit.to_value),
+                ],
+            )
+        });
+        Some(CandidateTraceIdentity::composite(self.reason, children))
     }
 
     fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {

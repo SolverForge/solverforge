@@ -14,6 +14,8 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
+use crate::stats::CandidateTraceIdentity;
+
 use super::metadata::{
     encode_option_debug, encode_usize, ordered_coordinate_pair, scoped_move_identity,
     MoveTabuScope, TABU_OP_SWAP,
@@ -255,5 +257,14 @@ where
                 scope.value_token(right_id),
                 scope.value_token(left_id),
             ])
+    }
+
+    fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
+        Some(CandidateTraceIdentity::logical_move(
+            self.descriptor_index,
+            self.variable_name,
+            "scalar_swap",
+            [self.left_entity_index, self.right_entity_index],
+        ))
     }
 }

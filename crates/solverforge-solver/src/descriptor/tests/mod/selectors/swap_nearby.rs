@@ -15,6 +15,8 @@ fn descriptor_nearby_change_uses_value_distance_meter() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::NearbyChangeMoveSelector(NearbyChangeMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         max_nearby: 1,
         value_candidate_limit: None,
         target: VariableTargetConfig::default(),
@@ -43,6 +45,8 @@ fn descriptor_nearby_change_applies_value_candidate_limit_before_ranking() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::NearbyChangeMoveSelector(NearbyChangeMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         max_nearby: 3,
         value_candidate_limit: Some(1),
         target: VariableTargetConfig::default(),
@@ -68,6 +72,8 @@ fn descriptor_nearby_change_applies_value_candidate_limit_before_ranking() {
 fn descriptor_nearby_change_rejects_distance_meter_without_candidate_hook() {
     let descriptor = descriptor_with_nearby_value_meter_only();
     let config = MoveSelectorConfig::NearbyChangeMoveSelector(NearbyChangeMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         max_nearby: 1,
         value_candidate_limit: None,
         target: VariableTargetConfig::default(),
@@ -96,6 +102,8 @@ fn descriptor_nearby_swap_filters_same_value_candidates_before_limiting() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::NearbySwapMoveSelector(NearbySwapMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         max_nearby: 1,
         target: VariableTargetConfig::default(),
     });
@@ -137,6 +145,8 @@ fn descriptor_swap_move_uses_indexed_legality_after_generation() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         target: VariableTargetConfig::default(),
     });
     let selector =
@@ -171,6 +181,8 @@ fn descriptor_swap_selector_prunes_illegal_entity_ranges() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         target: VariableTargetConfig::default(),
     });
 
@@ -207,6 +219,8 @@ fn descriptor_swap_selector_emits_complete_assignment_swaps_without_domain() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         target: VariableTargetConfig::default(),
     });
 
@@ -240,6 +254,8 @@ fn descriptor_swap_selector_rejects_explicit_empty_domain() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         target: VariableTargetConfig::default(),
     });
 
@@ -273,6 +289,8 @@ fn descriptor_nearby_swap_prunes_illegal_entity_ranges_before_limiting() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::NearbySwapMoveSelector(NearbySwapMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         max_nearby: 1,
         target: VariableTargetConfig::default(),
     });
@@ -310,6 +328,8 @@ fn descriptor_swap_tabu_identity_is_direction_stable() {
     };
     let mut director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         target: VariableTargetConfig::default(),
     });
     let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);

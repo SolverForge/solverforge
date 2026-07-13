@@ -3,7 +3,6 @@ pub struct DescriptorChangeMove<S> {
     binding: VariableBinding,
     entity_index: usize,
     to_value: Option<usize>,
-    construction_value_order_key: Option<ConstructionValueOrderKey<S>>,
     solution_descriptor: SolutionDescriptor,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -30,18 +29,9 @@ impl<S: 'static> DescriptorChangeMove<S> {
             binding,
             entity_index,
             to_value,
-            construction_value_order_key: None,
             solution_descriptor,
             _phantom: PhantomData,
         }
-    }
-
-    pub(crate) fn with_construction_value_order_key(
-        mut self,
-        order_key: ConstructionValueOrderKey<S>,
-    ) -> Self {
-        self.construction_value_order_key = Some(order_key);
-        self
     }
 
     fn current_value(&self, solution: &S) -> Option<usize> {
@@ -56,24 +46,6 @@ impl<S: 'static> DescriptorChangeMove<S> {
         (self.binding.getter)(entity)
     }
 
-    pub(crate) fn live_value_order_key(&self, solution: &S) -> Option<i64> {
-        self.to_value.map(|value| {
-            self.construction_value_order_key
-                .and_then(|order_key| {
-                    order_key(
-                        solution,
-                        self.entity_index,
-                        self.binding.variable_index,
-                        value,
-                    )
-                })
-                .or_else(|| {
-                    self.binding
-                        .value_order_key(solution as &dyn Any, self.entity_index, value)
-                })
-                .unwrap_or(0)
-        })
-    }
 }
 
 impl<S> Move<S> for DescriptorChangeMove<S>

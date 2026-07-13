@@ -1,4 +1,4 @@
-//! Public dynamic scalar change facade over the canonical scalar leaf.
+//! Public dynamic nearby-swap facade over the canonical scalar leaf.
 
 use std::fmt::{self, Debug};
 
@@ -6,60 +6,62 @@ use solverforge_core::domain::{DynamicScalarVariableSlot, PlanningSolution};
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{DynamicScalarChangeMove, MoveArena};
+use crate::heuristic::r#move::{DynamicScalarSwapMove, MoveArena};
 
 use super::move_selector::{MoveSelector, MoveStreamContext};
 use super::scalar_neighborhood::{
-    dynamic_slot, emit_dynamic_scalar_change_move, RuntimeScalarFacadeCursor,
-    ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec,
+    dynamic_slot, emit_dynamic_scalar_swap_move, RuntimeScalarFacadeCursor,
+    ScalarNeighborhoodBindingError, ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec,
 };
 
-/// Direct public facade. Candidate discovery, ordering, and ownership live in
-/// `ScalarNeighborhoodLeaf`; this type preserves the established public move
-/// payload only.
-pub struct DynamicScalarChangeMoveSelector<S> {
+/// Direct public facade for one declared dynamic nearby-entity source.
+///
+/// Missing source metadata is a structural binding failure. In particular, it
+/// never changes the candidate universe to all entity pairs.
+pub struct DynamicScalarNearbySwapMoveSelector<S> {
     leaf: ScalarNeighborhoodLeaf<S>,
 }
 
-pub type DynamicScalarChangeMoveCursor<S> =
-    RuntimeScalarFacadeCursor<S, DynamicScalarChangeMove<S>>;
+pub type DynamicScalarNearbySwapMoveCursor<S> =
+    RuntimeScalarFacadeCursor<S, DynamicScalarSwapMove<S>>;
 
-impl<S> DynamicScalarChangeMoveSelector<S>
+impl<S> DynamicScalarNearbySwapMoveSelector<S>
 where
     S: PlanningSolution,
 {
-    pub fn new(slot: DynamicScalarVariableSlot<S>, value_candidate_limit: Option<usize>) -> Self {
-        let leaf = ScalarNeighborhoodLeaf::from_spec(
-            ScalarNeighborhoodSpec::Change {
-                value_candidate_limit,
-            },
-            dynamic_slot(slot),
-            None,
-        )
-        .expect("ordinary dynamic scalar slots always provide a candidate stream");
-        Self { leaf }
+    pub fn new(
+        slot: DynamicScalarVariableSlot<S>,
+        max_nearby: usize,
+    ) -> Result<Self, ScalarNeighborhoodBindingError> {
+        Ok(Self {
+            leaf: ScalarNeighborhoodLeaf::from_spec(
+                ScalarNeighborhoodSpec::NearbySwap { max_nearby },
+                dynamic_slot(slot),
+                None,
+            )?,
+        })
     }
 }
 
-impl<S> Debug for DynamicScalarChangeMoveSelector<S>
+impl<S> Debug for DynamicScalarNearbySwapMoveSelector<S>
 where
     S: PlanningSolution,
 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
-            .debug_struct("DynamicScalarChangeMoveSelector")
+            .debug_struct("DynamicScalarNearbySwapMoveSelector")
             .field("leaf", &self.leaf)
             .finish()
     }
 }
 
-impl<S> MoveSelector<S, DynamicScalarChangeMove<S>> for DynamicScalarChangeMoveSelector<S>
+impl<S> MoveSelector<S, DynamicScalarSwapMove<S>> for DynamicScalarNearbySwapMoveSelector<S>
 where
     S: PlanningSolution,
     S::Score: Score,
 {
     type Cursor<'a>
-        = DynamicScalarChangeMoveCursor<S>
+        = DynamicScalarNearbySwapMoveCursor<S>
     where
         Self: 'a;
 
@@ -76,7 +78,7 @@ where
         RuntimeScalarFacadeCursor::new(
             self.leaf
                 .open_cursor_with_stream_state(&mut stream_state, director, context),
-            emit_dynamic_scalar_change_move::<S>,
+            emit_dynamic_scalar_swap_move::<S>,
         )
     }
 
@@ -87,7 +89,7 @@ where
     fn append_moves<D: Director<S>>(
         &self,
         director: &D,
-        arena: &mut MoveArena<DynamicScalarChangeMove<S>>,
+        arena: &mut MoveArena<DynamicScalarSwapMove<S>>,
     ) {
         arena.extend(self.open_cursor(director));
     }

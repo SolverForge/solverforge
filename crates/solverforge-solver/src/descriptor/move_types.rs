@@ -8,7 +8,6 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
-use crate::builder::context::ConstructionValueOrderKey;
 use crate::heuristic::r#move::metadata::{
     append_canonical_usize_slice_pair, encode_option_usize, encode_usize, hash_str,
     ordered_coordinate_pair, scoped_move_identity, MoveTabuScope, ScopedEntityTabuToken,

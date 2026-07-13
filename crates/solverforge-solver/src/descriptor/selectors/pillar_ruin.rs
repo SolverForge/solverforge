@@ -1,3 +1,184 @@
+struct DescriptorPillarChangeInput {
+    entity_indices: Vec<usize>,
+    values: Vec<usize>,
+}
+
+pub struct DescriptorPillarChangeMoveCursor<S>
+where
+    S: PlanningSolution,
+{
+    store: CandidateStore<S, DescriptorMoveUnion<S>>,
+    binding: VariableBinding,
+    solution_descriptor: SolutionDescriptor,
+    inputs: Vec<DescriptorPillarChangeInput>,
+    input_offset: usize,
+    value_offset: usize,
+}
+
+impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorPillarChangeMoveCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        while let Some(input) = self.inputs.get(self.input_offset) {
+            if let Some(value) = input.values.get(self.value_offset).copied() {
+                self.value_offset += 1;
+                return Some(self.store.push(DescriptorMoveUnion::PillarChange(
+                    DescriptorPillarChangeMove::new(
+                        self.binding.clone(),
+                        input.entity_indices.clone(),
+                        Some(value),
+                        self.solution_descriptor.clone(),
+                    ),
+                )));
+            }
+            self.input_offset += 1;
+            self.value_offset = 0;
+        }
+        None
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, DescriptorMoveUnion<S>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> DescriptorMoveUnion<S> {
+        self.store.take_candidate(id)
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
+    }
+}
+
+impl<S> Iterator for DescriptorPillarChangeMoveCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    type Item = DescriptorMoveUnion<S>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_owned_candidate()
+    }
+}
+
+pub struct DescriptorPillarSwapMoveCursor<S>
+where
+    S: PlanningSolution,
+{
+    store: CandidateStore<S, DescriptorMoveUnion<S>>,
+    binding: VariableBinding,
+    solution_descriptor: SolutionDescriptor,
+    pillars: Vec<Vec<usize>>,
+    pairs: std::vec::IntoIter<(usize, usize)>,
+}
+
+impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorPillarSwapMoveCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        let (left_index, right_index) = self.pairs.next()?;
+        Some(self.store.push(DescriptorMoveUnion::PillarSwap(
+            DescriptorPillarSwapMove::new(
+                self.binding.clone(),
+                self.pillars[left_index].clone(),
+                self.pillars[right_index].clone(),
+                self.solution_descriptor.clone(),
+            ),
+        )))
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, DescriptorMoveUnion<S>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> DescriptorMoveUnion<S> {
+        self.store.take_candidate(id)
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
+    }
+}
+
+impl<S> Iterator for DescriptorPillarSwapMoveCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    type Item = DescriptorMoveUnion<S>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_owned_candidate()
+    }
+}
+
+pub struct DescriptorRuinRecreateMoveCursor<S>
+where
+    S: PlanningSolution,
+{
+    store: CandidateStore<S, DescriptorMoveUnion<S>>,
+    binding: VariableBinding,
+    solution_descriptor: SolutionDescriptor,
+    subsets: std::vec::IntoIter<SmallVec<[usize; 8]>>,
+    recreatable: Vec<bool>,
+    recreate_heuristic_type: RecreateHeuristicType,
+    value_candidate_limit: Option<usize>,
+}
+
+impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorRuinRecreateMoveCursor<S>
+where
+    S: PlanningSolution + 'static,
+    S::Score: Score,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        for indices in self.subsets.by_ref() {
+            if indices.is_empty()
+                || (!self.binding.allows_unassigned
+                    && !indices.iter().all(|&entity_index| {
+                        self.recreatable.get(entity_index).copied().unwrap_or(false)
+                    }))
+            {
+                continue;
+            }
+            return Some(self.store.push(DescriptorMoveUnion::RuinRecreate(
+                DescriptorRuinRecreateMove::new(
+                    self.binding.clone(),
+                    &indices,
+                    self.solution_descriptor.clone(),
+                    self.recreate_heuristic_type,
+                    self.value_candidate_limit,
+                ),
+            )));
+        }
+        None
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, DescriptorMoveUnion<S>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> DescriptorMoveUnion<S> {
+        self.store.take_candidate(id)
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
+    }
+}
+
+impl<S> Iterator for DescriptorRuinRecreateMoveCursor<S>
+where
+    S: PlanningSolution + 'static,
+    S::Score: Score,
+{
+    type Item = DescriptorMoveUnion<S>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_owned_candidate()
+    }
+}
+
 fn build_sub_pillar_config(minimum_size: usize, maximum_size: usize) -> SubPillarConfig {
     if minimum_size == 0 || maximum_size == 0 {
         SubPillarConfig::none()
@@ -37,59 +218,60 @@ where
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
+        = DescriptorPillarChangeMoveCursor<S>
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let solution = score_director.working_solution() as &dyn Any;
-        let binding = self.binding.clone();
-        let descriptor = self.solution_descriptor.clone();
         let count = score_director
-            .entity_count(binding.descriptor_index)
+            .entity_count(self.binding.descriptor_index)
             .unwrap_or(0);
-        let moves: Vec<_> = collect_pillar_groups(
+        let inputs = collect_pillar_groups(
             (0..count).map(|entity_index| {
                 (
-                    EntityReference::new(binding.descriptor_index, entity_index),
-                    (binding.getter)(binding.entity_for_index(&descriptor, solution, entity_index)),
+                    EntityReference::new(self.binding.descriptor_index, entity_index),
+                    (self.binding.getter)(self.binding.entity_for_index(
+                        &self.solution_descriptor,
+                        solution,
+                        entity_index,
+                    )),
                 )
             }),
             &build_sub_pillar_config(self.minimum_sub_pillar_size, self.maximum_sub_pillar_size),
         )
         .into_iter()
-        .flat_map(move |group| {
+        .map(|group| {
             let entity_indices: Vec<usize> = group
                 .pillar
                 .iter()
                 .map(|entity| entity.entity_index)
                 .collect();
-            intersect_legal_values_for_pillar(&group.pillar, |entity_index| {
-                binding.candidate_values_for_entity_index(
-                    &descriptor,
+            let values = intersect_legal_values_for_pillar(&group.pillar, |entity_index| {
+                self.binding.candidate_values_for_entity_index(
+                    &self.solution_descriptor,
                     solution,
                     entity_index,
                     self.value_candidate_limit,
                 )
             })
             .into_iter()
-            .filter(move |&value| value != group.shared_value)
-            .map({
-                let binding = binding.clone();
-                let descriptor = descriptor.clone();
-                let entity_indices = entity_indices.clone();
-                move |value| {
-                    DescriptorMoveUnion::PillarChange(DescriptorPillarChangeMove::new(
-                        binding.clone(),
-                        entity_indices.clone(),
-                        Some(value),
-                        descriptor.clone(),
-                    ))
-                }
-            })
+            .filter(|&value| value != group.shared_value)
+            .collect();
+            DescriptorPillarChangeInput {
+                entity_indices,
+                values,
+            }
         })
         .collect();
-        ArenaMoveCursor::from_moves(moves)
+        DescriptorPillarChangeMoveCursor {
+            store: CandidateStore::new(),
+            binding: self.binding.clone(),
+            solution_descriptor: self.solution_descriptor.clone(),
+            inputs,
+            input_offset: 0,
+            value_offset: 0,
+        }
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -122,7 +304,7 @@ where
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
+        = DescriptorPillarSwapMoveCursor<S>
     where
         Self: 'a;
 
@@ -142,7 +324,7 @@ where
             }),
             &build_sub_pillar_config(self.minimum_sub_pillar_size, self.maximum_sub_pillar_size),
         );
-        let mut moves = Vec::new();
+        let mut pairs = Vec::new();
         for left_index in 0..pillars.len() {
             for right_index in (left_index + 1)..pillars.len() {
                 if !binding.has_unspecified_value_range()
@@ -156,25 +338,25 @@ where
                 {
                     continue;
                 }
-                moves.push(DescriptorMoveUnion::PillarSwap(
-                    DescriptorPillarSwapMove::new(
-                        binding.clone(),
-                        pillars[left_index]
-                            .pillar
-                            .iter()
-                            .map(|entity| entity.entity_index)
-                            .collect(),
-                        pillars[right_index]
-                            .pillar
-                            .iter()
-                            .map(|entity| entity.entity_index)
-                            .collect(),
-                        descriptor.clone(),
-                    ),
-                ));
+                pairs.push((left_index, right_index));
             }
         }
-        ArenaMoveCursor::from_moves(moves)
+        DescriptorPillarSwapMoveCursor {
+            store: CandidateStore::new(),
+            binding,
+            solution_descriptor: descriptor,
+            pillars: pillars
+                .into_iter()
+                .map(|group| {
+                    group
+                        .pillar
+                        .iter()
+                        .map(|entity| entity.entity_index)
+                        .collect()
+                })
+                .collect(),
+            pairs: pairs.into_iter(),
+        }
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -214,7 +396,7 @@ where
     S::Score: Score,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, DescriptorMoveUnion<S>>
+        = DescriptorRuinRecreateMoveCursor<S>
     where
         Self: 'a;
 
@@ -231,6 +413,16 @@ where
                     .get_entity(solution, binding.descriptor_index, entity_index)
                     .expect("entity lookup failed for descriptor ruin_recreate selector");
                 (binding.getter)(entity).is_some()
+            })
+            .collect();
+        let recreatable = (0..count)
+            .map(|entity_index| {
+                binding.has_candidate_values_for_entity_index(
+                    &descriptor,
+                    solution,
+                    entity_index,
+                    self.value_candidate_limit,
+                )
             })
             .collect();
         let total = assigned_indices.len();
@@ -260,28 +452,15 @@ where
             })
             .collect();
 
-        let moves: Vec<_> = subsets
-            .into_iter()
-            .filter_map({
-                let binding = binding.clone();
-                let descriptor = descriptor.clone();
-                move |indices| {
-                    if indices.is_empty() {
-                        return None;
-                    }
-                    let mov = DescriptorRuinRecreateMove::new(
-                        binding.clone(),
-                        &indices,
-                        descriptor.clone(),
-                        recreate_heuristic_type,
-                        value_candidate_limit,
-                    );
-                    mov.is_doable(score_director)
-                        .then_some(DescriptorMoveUnion::RuinRecreate(mov))
-                }
-            })
-            .collect();
-        ArenaMoveCursor::from_moves(moves)
+        DescriptorRuinRecreateMoveCursor {
+            store: CandidateStore::new(),
+            binding,
+            solution_descriptor: descriptor,
+            subsets: subsets.into_iter(),
+            recreatable,
+            recreate_heuristic_type,
+            value_candidate_limit,
+        }
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {

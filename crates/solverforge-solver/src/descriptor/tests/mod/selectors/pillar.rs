@@ -19,6 +19,8 @@ fn descriptor_pillar_change_uses_public_pillar_semantics() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::PillarChangeMoveSelector(PillarChangeMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         minimum_sub_pillar_size: 0,
         maximum_sub_pillar_size: 0,
         value_candidate_limit: None,
@@ -58,6 +60,8 @@ fn descriptor_pillar_change_intersects_entity_domains() {
     };
     let mut director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::PillarChangeMoveSelector(PillarChangeMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         minimum_sub_pillar_size: 0,
         maximum_sub_pillar_size: 0,
         value_candidate_limit: None,
@@ -110,6 +114,8 @@ fn descriptor_pillar_swap_prunes_illegal_partners() {
     };
     let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::PillarSwapMoveSelector(PillarSwapMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         minimum_sub_pillar_size: 0,
         maximum_sub_pillar_size: 0,
         target: VariableTargetConfig::default(),
@@ -146,6 +152,8 @@ fn descriptor_pillar_swap_tabu_identity_is_direction_stable() {
     };
     let mut director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::PillarSwapMoveSelector(PillarSwapMoveConfig {
+        selection_order: None,
+        selection_metric: None,
         minimum_sub_pillar_size: 0,
         maximum_sub_pillar_size: 0,
         target: VariableTargetConfig::default(),

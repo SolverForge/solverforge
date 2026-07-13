@@ -12,13 +12,12 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor, ValueRangeT
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::decorator::{
     CartesianProductCursor, CartesianProductSelector, VecUnionSelector,
 };
 use crate::heuristic::selector::entity::EntityReference;
 use crate::heuristic::selector::move_selector::{
-    ArenaMoveCursor, CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector,
 };
 use crate::heuristic::selector::nearby_support::truncate_nearby_candidates;
 use crate::heuristic::selector::pillar::SubPillarConfig;
@@ -39,6 +38,13 @@ type DescriptorCartesianSelector<S> = CartesianProductSelector<
     S,
     DescriptorMoveUnion<S>,
     DescriptorFlatSelector<S>,
+    DescriptorFlatSelector<S>,
+>;
+type DescriptorCartesianCursor<'a, S> = CartesianProductCursor<
+    'a,
+    S,
+    DescriptorMoveUnion<S>,
+    <DescriptorFlatSelector<S> as MoveSelector<S, DescriptorMoveUnion<S>>>::Cursor<'a>,
     DescriptorFlatSelector<S>,
 >;
 pub type DescriptorSelector<S> =

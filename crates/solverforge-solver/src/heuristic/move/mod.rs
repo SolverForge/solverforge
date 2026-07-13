@@ -61,9 +61,11 @@ mod compound_scalar;
 mod conflict_repair;
 mod dynamic_list_change;
 mod dynamic_scalar_change;
+mod dynamic_scalar_swap;
 mod k_opt;
 pub mod k_opt_reconnection;
 mod list_change;
+pub(crate) mod list_kernel;
 mod list_multi_swap;
 mod list_permute;
 mod list_reverse;
@@ -75,6 +77,7 @@ mod pillar_change;
 mod pillar_swap;
 mod ruin;
 mod ruin_recreate;
+mod runtime_compound;
 mod scalar_union;
 mod segment_layout;
 mod sublist_change;
@@ -95,6 +98,7 @@ pub use compound_scalar::{CompoundScalarEdit, CompoundScalarMove, COMPOUND_SCALA
 pub use conflict_repair::{ConflictRepairMove, ConflictRepairScalarEdit};
 pub use dynamic_list_change::DynamicListChangeMove;
 pub use dynamic_scalar_change::DynamicScalarChangeMove;
+pub use dynamic_scalar_swap::DynamicScalarSwapMove;
 pub use k_opt::{CutPoint, KOptMove};
 pub use list_change::ListChangeMove;
 pub use list_multi_swap::ListMultiSwapMove;
@@ -108,7 +112,13 @@ pub use pillar_change::PillarChangeMove;
 pub use pillar_swap::PillarSwapMove;
 pub use ruin::RuinMove;
 pub use ruin_recreate::{RuinRecreateMove, ScalarRecreateValueSource};
+#[cfg(test)]
+pub(crate) use runtime_compound::{
+    reset_runtime_compound_move_clone_count, runtime_compound_move_clone_count,
+};
+pub use runtime_compound::{RuntimeCompoundMove, RuntimeCompoundMoveKind};
 pub use scalar_union::ScalarMoveUnion;
+pub(crate) use segment_layout::{SegmentRelocationCoords, SegmentSwapCoords};
 pub use sublist_change::SublistChangeMove;
 pub use sublist_swap::SublistSwapMove;
 pub use swap::SwapMove;

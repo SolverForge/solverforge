@@ -18,6 +18,8 @@ fn descriptor_ruin_recreate_first_fit_reassigns_to_first_improving_value() {
         },
     );
     let config = MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig {
+        selection_order: None,
+        selection_metric: None,
         min_ruin_count: 1,
         max_ruin_count: 1,
         moves_per_step: Some(1),
@@ -54,6 +56,8 @@ fn descriptor_ruin_recreate_cheapest_insertion_picks_best_value() {
         },
     );
     let config = MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig {
+        selection_order: None,
+        selection_metric: None,
         min_ruin_count: 1,
         max_ruin_count: 1,
         moves_per_step: Some(1),
@@ -83,6 +87,8 @@ fn descriptor_ruin_recreate_skips_required_entities_without_recreate_values() {
     };
     let director = PlanScoreDirector::new(plan, descriptor.clone());
     let config = MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig {
+        selection_order: None,
+        selection_metric: None,
         min_ruin_count: 1,
         max_ruin_count: 1,
         moves_per_step: Some(4),
@@ -112,6 +118,8 @@ fn descriptor_ruin_recreate_honors_configured_random_seed() {
         };
         let director = PlanScoreDirector::new(plan, descriptor.clone());
         let config = MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig {
+            selection_order: None,
+            selection_metric: None,
             min_ruin_count: 1,
             max_ruin_count: 3,
             moves_per_step: Some(16),

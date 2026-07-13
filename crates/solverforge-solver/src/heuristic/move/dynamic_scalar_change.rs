@@ -4,6 +4,8 @@ use smallvec::smallvec;
 use solverforge_core::domain::{DynamicScalarVariableSlot, PlanningSolution};
 use solverforge_scoring::Director;
 
+use crate::stats::{CandidateTraceCoordinate, CandidateTraceIdentity};
+
 use super::metadata::{encode_option_debug, encode_usize, hash_str, MoveTabuScope};
 use super::{Move, MoveTabuSignature};
 
@@ -149,5 +151,17 @@ where
         )
         .with_entity_tokens([scope.entity_token(entity_id)])
         .with_destination_value_tokens([scope.value_token(to_id)])
+    }
+
+    fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
+        Some(CandidateTraceIdentity::logical_move(
+            self.slot.descriptor_index(),
+            self.slot.variable_name,
+            "scalar_change",
+            vec![
+                CandidateTraceCoordinate::from(self.entity_index),
+                CandidateTraceCoordinate::from(self.to_value),
+            ],
+        ))
     }
 }

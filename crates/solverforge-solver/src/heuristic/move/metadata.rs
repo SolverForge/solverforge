@@ -1,10 +1,19 @@
 use std::collections::hash_map::DefaultHasher;
-use std::fmt::Debug;
+use std::fmt::{Debug, Write};
 use std::hash::{Hash, Hasher};
 
 use smallvec::{smallvec, SmallVec};
 
 pub const NONE_ID: u64 = u64::MAX;
+/// Canonical tag for a dynamic list element's declared source key.
+///
+/// Runtime list moves must never hash the debug wrapper (`Dynamic(…)`): it is
+/// an implementation detail and would make an otherwise identical dynamic
+/// declaration use a different tabu identity from its source stream. The
+/// move scope already carries the descriptor and variable identity, so this
+/// tag only distinguishes the dynamic source-key representation inside that
+/// declared slot.
+pub(crate) const TABU_VALUE_RUNTIME_DYNAMIC_LIST_SOURCE: u64 = 0xD1A5_7EED_0000_0001;
 pub type MoveIdentity = SmallVec<[u64; 8]>;
 
 /// Canonical tabu metadata for one move candidate.
@@ -105,15 +114,36 @@ pub(crate) fn encode_option_usize(value: Option<usize>) -> u64 {
     value.map_or(NONE_ID, encode_usize)
 }
 
+/// Encodes a dynamic list element by its canonical declared source key.
+///
+/// XOR is intentionally a bijection over `u64`: distinct source keys stay
+/// distinct without allocating or depending on `Debug` formatting.
+pub(crate) const fn encode_runtime_dynamic_list_source(source_key: usize) -> u64 {
+    TABU_VALUE_RUNTIME_DYNAMIC_LIST_SOURCE ^ source_key as u64
+}
+
 pub(crate) fn hash_str(value: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     value.hash(&mut hasher);
     hasher.finish()
 }
 
+struct DebugHashBuffer(SmallVec<[u8; 32]>);
+
+impl Write for DebugHashBuffer {
+    fn write_str(&mut self, value: &str) -> std::fmt::Result {
+        self.0.extend_from_slice(value.as_bytes());
+        Ok(())
+    }
+}
+
 pub(crate) fn hash_debug<T: Debug>(value: &T) -> u64 {
+    let mut formatted = DebugHashBuffer(SmallVec::new());
+    write!(&mut formatted, "{value:?}").expect("formatting into an in-memory buffer cannot fail");
     let mut hasher = DefaultHasher::new();
-    format!("{value:?}").hash(&mut hasher);
+    std::str::from_utf8(&formatted.0)
+        .expect("Debug formatting must produce UTF-8")
+        .hash(&mut hasher);
     hasher.finish()
 }
 
@@ -209,4 +239,27 @@ pub(crate) fn compose_sequential_tabu_signature(
     MoveTabuSignature::new(scope, move_id, undo_move_id)
         .with_entity_tokens(entity_tokens)
         .with_destination_value_tokens(destination_value_tokens)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    use super::hash_debug;
+
+    fn allocated_hash_debug<T: std::fmt::Debug>(value: &T) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        format!("{value:?}").hash(&mut hasher);
+        hasher.finish()
+    }
+
+    #[test]
+    fn stack_debug_hash_matches_allocating_identity() {
+        assert_eq!(hash_debug(&42_usize), allocated_hash_debug(&42_usize));
+        assert_eq!(
+            hash_debug(&("a\nlonger value", vec![1_u8, 2, 3])),
+            allocated_hash_debug(&("a\nlonger value", vec![1_u8, 2, 3]))
+        );
+    }
 }

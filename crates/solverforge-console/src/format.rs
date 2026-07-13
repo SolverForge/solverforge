@@ -286,6 +286,8 @@ fn format_phase_end(v: &EventVisitor) -> String {
     let moves_generated = v.moves_generated.unwrap_or(0);
     let moves_evaluated = v.moves_evaluated.unwrap_or(0);
     let moves_accepted = v.moves_accepted.unwrap_or(0);
+    let moves_score_improving = v.moves_score_improving.unwrap_or(0);
+    let moves_applied_improving = v.moves_applied_improving.unwrap_or(0);
     let score_calculations = v.score_calculations.unwrap_or(0);
     let score = v.score.as_deref().unwrap_or("N/A");
     let duration = v.duration.as_deref().unwrap_or("0ns");
@@ -346,6 +348,18 @@ fn format_phase_end(v: &EventVisitor) -> String {
         ));
     }
 
+    if phase == "Local Search" {
+        output.push_str(&format!(
+            " │ {} improving candidates │ {} improving moves applied",
+            moves_score_improving
+                .to_formatted_string(&Locale::en)
+                .bright_white(),
+            moves_applied_improving
+                .to_formatted_string(&Locale::en)
+                .bright_white(),
+        ));
+    }
+
     if score_calculations > 0 {
         output.push_str(&format!(
             " │ {} calcs",
@@ -369,20 +383,27 @@ fn format_phase_end(v: &EventVisitor) -> String {
 }
 
 fn format_progress(v: &EventVisitor) -> String {
+    let phase = v.phase.as_deref();
     let steps = v.steps.unwrap_or(0);
     let speed = v.speed.unwrap_or(0);
     let moves_generated = v.moves_generated.unwrap_or(0);
     let moves_evaluated = v.moves_evaluated.unwrap_or(0);
     let moves_accepted = v.moves_accepted.unwrap_or(0);
+    let moves_score_improving = v.moves_score_improving.unwrap_or(0);
+    let moves_applied_improving = v.moves_applied_improving.unwrap_or(0);
     let score_calculations = v.score_calculations.unwrap_or(0);
     let current_score = v.current_score.as_deref().unwrap_or("N/A");
     let best_score = v.best_score.as_deref();
     let acceptance_rate = v.acceptance_rate.as_deref().unwrap_or("0.0%");
 
+    let phase_label = phase
+        .map(|phase| format!(" {} │", phase.white().bold()))
+        .unwrap_or_default();
     let mut output = format!(
-        "{} {} {:>10} steps │ {:>12}/s │ {} moves │ {} accepted │ {} calcs │ {} │ {}",
+        "{} {}{} {:>10} steps │ {:>12}/s │ {} moves │ {} accepted │ {} calcs │ {} │ {}",
         format_elapsed(),
         "⚡".bright_cyan(),
+        phase_label,
         steps.to_formatted_string(&Locale::en).white(),
         speed
             .to_formatted_string(&Locale::en)
@@ -399,6 +420,18 @@ fn format_progress(v: &EventVisitor) -> String {
         output.push_str(&format!(
             " │ {} generated",
             moves_generated.to_formatted_string(&Locale::en).white()
+        ));
+    }
+
+    if phase == Some("Local Search") {
+        output.push_str(&format!(
+            " │ {} improving candidates │ {} improving moves applied",
+            moves_score_improving
+                .to_formatted_string(&Locale::en)
+                .white(),
+            moves_applied_improving
+                .to_formatted_string(&Locale::en)
+                .white(),
         ));
     }
 

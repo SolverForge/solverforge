@@ -2,7 +2,11 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use super::{AppliedMoveTelemetry, MoveTelemetry, SelectorTelemetry, SolverTelemetry, Throughput};
+use super::{
+    AppliedMoveTelemetry, CandidatePullTelemetry, CandidateTraceDisposition,
+    CandidateTracePhasePlan, CandidateTracePullToken, CandidateTraceRecordDecision,
+    CandidateTraceTelemetry, MoveTelemetry, SelectorTelemetry, SolverTelemetry, Throughput,
+};
 
 const APPLIED_MOVE_TRACE_LIMIT: usize = 8;
 
@@ -12,7 +16,8 @@ pub struct SolverStats {
     pause_started_at: Option<Instant>,
     // Total steps taken across all phases.
     pub step_count: u64,
-    // Total moves generated across all phases.
+    /// Total candidate moves actually yielded by cursors across all phases.
+    /// Unrequested logical neighborhood tails are not generated work.
     pub moves_generated: u64,
     // Total moves evaluated across all phases.
     pub moves_evaluated: u64,
@@ -44,6 +49,7 @@ pub struct SolverStats {
     selector_stats: Vec<SelectorTelemetry>,
     move_stats: BTreeMap<&'static str, MoveTelemetry>,
     applied_move_trace: Vec<AppliedMoveTelemetry>,
+    candidate_trace: Option<CandidateTraceTelemetry>,
 }
 
 impl SolverStats {
@@ -277,6 +283,8 @@ impl SolverStats {
             moves_evaluated: self.moves_evaluated,
             moves_accepted: self.moves_accepted,
             moves_applied: self.moves_applied,
+            moves_score_improving: self.moves_score_improving(),
+            moves_applied_improving: self.moves_applied_improving(),
             moves_not_doable: self.moves_not_doable,
             moves_acceptor_rejected: self.moves_acceptor_rejected,
             moves_forager_ignored: self.moves_forager_ignored,
@@ -296,6 +304,7 @@ impl SolverStats {
             scalar_assignment_required_remaining: self.scalar_assignment_required_remaining,
             generation_time: self.generation_time,
             evaluation_time: self.evaluation_time,
+            phase: None,
             selector_telemetry: self.selector_stats.clone(),
             move_telemetry: self.move_stats.values().cloned().collect(),
             applied_move_trace: if include_applied_move_trace {
@@ -303,11 +312,32 @@ impl SolverStats {
             } else {
                 Vec::new()
             },
+            candidate_trace: if include_applied_move_trace {
+                self.candidate_trace
+                    .as_ref()
+                    .map(CandidateTraceTelemetry::snapshot)
+            } else {
+                None
+            },
         }
     }
 
     pub fn record_move_kind_generated(&mut self, move_label: &'static str) {
         self.move_stats_entry(move_label).moves_generated += 1;
+    }
+
+    pub fn moves_score_improving(&self) -> u64 {
+        self.move_stats
+            .values()
+            .map(|entry| entry.moves_score_improving)
+            .sum()
+    }
+
+    pub fn moves_applied_improving(&self) -> u64 {
+        self.move_stats
+            .values()
+            .map(|entry| entry.moves_applied_improving)
+            .sum()
     }
 
     pub fn record_move_kind_evaluated(
@@ -336,6 +366,7 @@ impl SolverStats {
         let entry = self.move_stats_entry(move_label);
         entry.moves_applied += 1;
         if score_improvement > 0.0 {
+            entry.moves_applied_improving += 1;
             entry.applied_score_improvement += score_improvement;
         }
     }
@@ -367,6 +398,64 @@ impl SolverStats {
         if self.applied_move_trace.len() < APPLIED_MOVE_TRACE_LIMIT {
             self.applied_move_trace.push(applied_move);
         }
+    }
+
+    pub(crate) fn enable_candidate_trace(&mut self, candidate_trace: CandidateTraceTelemetry) {
+        assert!(
+            self.candidate_trace.is_none(),
+            "candidate trace may be enabled only once per solve"
+        );
+        self.candidate_trace = Some(candidate_trace);
+    }
+
+    pub(crate) fn prepare_candidate_trace_pull(&mut self) -> CandidateTraceRecordDecision {
+        match self.candidate_trace.as_mut() {
+            Some(trace) => trace.prepare_pull(),
+            None => CandidateTraceRecordDecision::Disabled,
+        }
+    }
+
+    pub(crate) fn begin_candidate_trace_phase(&mut self) -> Option<usize> {
+        self.candidate_trace
+            .as_mut()
+            .map(CandidateTraceTelemetry::begin_phase)
+    }
+
+    /// Finalizes the exact phase plan for an enabled candidate trace.
+    ///
+    /// A trace-free solve intentionally has no recorder to update. The
+    /// one-way invariant itself is enforced by `CandidateTraceTelemetry` when
+    /// a trace exists.
+    pub(crate) fn finalize_candidate_trace_resolved_phase_plan(
+        &mut self,
+        resolved_phase_plan: CandidateTracePhasePlan,
+    ) {
+        if let Some(trace) = self.candidate_trace.as_mut() {
+            trace.finalize_resolved_phase_plan(resolved_phase_plan);
+        }
+    }
+
+    pub(crate) fn record_prepared_candidate_trace_pull(
+        &mut self,
+        pull: CandidatePullTelemetry,
+    ) -> CandidateTracePullToken {
+        let trace = self
+            .candidate_trace
+            .as_mut()
+            .expect("a prepared candidate trace pull requires an enabled trace");
+        trace.push_prepared(pull)
+    }
+
+    pub(crate) fn record_candidate_trace_disposition(
+        &mut self,
+        token: CandidateTracePullToken,
+        disposition: CandidateTraceDisposition,
+    ) {
+        let trace = self
+            .candidate_trace
+            .as_mut()
+            .expect("a candidate trace disposition requires an enabled trace");
+        trace.record_disposition(token, disposition);
     }
 
     pub fn record_selector_generated_with_label(

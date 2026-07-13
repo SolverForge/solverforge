@@ -28,6 +28,8 @@ pub(crate) struct EventVisitor {
     pub(crate) moves_generated: Option<u64>,
     pub(crate) moves_evaluated: Option<u64>,
     pub(crate) moves_accepted: Option<u64>,
+    pub(crate) moves_score_improving: Option<u64>,
+    pub(crate) moves_applied_improving: Option<u64>,
     pub(crate) score_calculations: Option<u64>,
     pub(crate) generation_time: Option<String>,
     pub(crate) evaluation_time: Option<String>,
@@ -67,6 +69,8 @@ impl Visit for EventVisitor {
             "moves_generated" => self.moves_generated = Some(value),
             "moves_evaluated" => self.moves_evaluated = Some(value),
             "moves_accepted" => self.moves_accepted = Some(value),
+            "moves_score_improving" => self.moves_score_improving = Some(value),
+            "moves_applied_improving" => self.moves_applied_improving = Some(value),
             "score_calculations" => self.score_calculations = Some(value),
             _ => {}
         }

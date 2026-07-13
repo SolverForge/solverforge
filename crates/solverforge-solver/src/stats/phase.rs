@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use super::{AppliedMoveTelemetry, MoveTelemetry, SelectorTelemetry, Throughput};
+use super::{AppliedMoveTelemetry, MoveTelemetry, PhaseTelemetry, SelectorTelemetry, Throughput};
 
 const APPLIED_MOVE_TRACE_LIMIT: usize = 8;
 
@@ -15,7 +15,8 @@ pub struct PhaseStats {
     start_time: Instant,
     // Number of steps taken in this phase.
     pub step_count: u64,
-    // Number of moves generated in this phase.
+    /// Number of candidate moves actually yielded by cursors in this phase.
+    /// Unrequested logical neighborhood tails are not generated work.
     pub moves_generated: u64,
     // Number of moves evaluated in this phase.
     pub moves_evaluated: u64,
@@ -87,6 +88,28 @@ impl PhaseStats {
 
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
+    }
+
+    pub fn snapshot(&self) -> PhaseTelemetry {
+        self.snapshot_with_elapsed(self.elapsed())
+    }
+
+    pub(crate) fn snapshot_with_elapsed(&self, elapsed: Duration) -> PhaseTelemetry {
+        PhaseTelemetry {
+            phase_index: self.phase_index,
+            phase_type: self.phase_type.to_string(),
+            elapsed,
+            step_count: self.step_count,
+            moves_generated: self.moves_generated,
+            moves_evaluated: self.moves_evaluated,
+            moves_accepted: self.moves_accepted,
+            moves_applied: self.moves_applied,
+            moves_score_improving: self.moves_score_improving(),
+            moves_applied_improving: self.moves_applied_improving(),
+            score_calculations: self.score_calculations,
+            generation_time: self.generation_time,
+            evaluation_time: self.evaluation_time,
+        }
     }
 
     /// Records a step completion.
@@ -272,6 +295,20 @@ impl PhaseStats {
         &self.applied_move_trace
     }
 
+    pub fn moves_score_improving(&self) -> u64 {
+        self.move_stats
+            .values()
+            .map(|entry| entry.moves_score_improving)
+            .sum()
+    }
+
+    pub fn moves_applied_improving(&self) -> u64 {
+        self.move_stats
+            .values()
+            .map(|entry| entry.moves_applied_improving)
+            .sum()
+    }
+
     pub fn can_record_applied_move_trace(&self) -> bool {
         self.applied_move_trace.len() < APPLIED_MOVE_TRACE_LIMIT
     }
@@ -306,6 +343,7 @@ impl PhaseStats {
         let entry = self.move_stats_entry(move_label);
         entry.moves_applied += 1;
         if score_improvement > 0.0 {
+            entry.moves_applied_improving += 1;
             entry.applied_score_improvement += score_improvement;
         }
     }

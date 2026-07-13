@@ -22,6 +22,7 @@ fn solver_snapshot_preserves_exact_counts_and_durations() {
     assert_eq!(snapshot.score_calculations, 1);
     assert_eq!(snapshot.generation_time, Duration::from_millis(4));
     assert_eq!(snapshot.evaluation_time, Duration::from_millis(5));
+    assert!(snapshot.phase.is_none());
 }
 
 #[test]
@@ -42,6 +43,16 @@ fn phase_stats_track_generation_and_evaluation_separately() {
     assert_eq!(stats.score_calculations, 1);
     assert_eq!(stats.generation_time(), Duration::from_millis(8));
     assert_eq!(stats.evaluation_time(), Duration::from_millis(9));
+    let snapshot = stats.snapshot();
+    assert_eq!(snapshot.phase_index, 2);
+    assert_eq!(snapshot.phase_type, "LocalSearch");
+    assert_eq!(snapshot.step_count, 1);
+    assert_eq!(snapshot.moves_generated, 7);
+    assert_eq!(snapshot.moves_evaluated, 1);
+    assert_eq!(snapshot.moves_accepted, 1);
+    assert_eq!(snapshot.score_calculations, 1);
+    assert_eq!(snapshot.generation_time, Duration::from_millis(8));
+    assert_eq!(snapshot.evaluation_time, Duration::from_millis(9));
 }
 
 #[test]
@@ -246,4 +257,101 @@ fn format_duration_uses_exact_integer_units() {
     assert_eq!(format_duration(Duration::from_millis(2_500)), "2s 500ms");
     assert_eq!(format_duration(Duration::from_secs(125)), "2m 5s");
     assert_eq!(format_duration(Duration::from_micros(42)), "42us");
+}
+
+fn provisional_candidate_trace() -> CandidateTraceTelemetry {
+    CandidateTraceTelemetry::new(
+        CandidateTraceHeader::new(
+            "[candidate_trace]\nmax_entries = 4\n".to_string(),
+            CandidateTraceExecutionPolicy::known(
+                "test.execution_policy",
+                std::iter::empty::<(String, String)>(),
+            ),
+            CandidateTracePhasePlan::opaque("test.runtime.default.pending"),
+            None,
+        ),
+        4,
+    )
+}
+
+#[test]
+fn candidate_trace_plan_stays_provisional_across_pause_and_resume_until_finalization() {
+    let mut stats = SolverStats::default();
+    stats.start();
+    stats.enable_candidate_trace(provisional_candidate_trace());
+
+    let before_pause = stats
+        .snapshot()
+        .candidate_trace
+        .expect("enabled candidate trace");
+    assert!(!before_pause.has_complete_execution_provenance());
+    assert!(!before_pause.header.resolved_phase_plan_complete);
+    let provisional_digest = before_pause.header.resolved_phase_plan_digest;
+
+    stats.pause();
+    let paused = stats
+        .snapshot()
+        .candidate_trace
+        .expect("paused candidate trace");
+    stats.resume();
+    let resumed = stats
+        .snapshot()
+        .candidate_trace
+        .expect("resumed candidate trace");
+
+    assert_eq!(
+        paused.header.resolved_phase_plan,
+        before_pause.header.resolved_phase_plan
+    );
+    assert_eq!(paused.header.resolved_phase_plan_digest, provisional_digest);
+    assert_eq!(
+        resumed.header.resolved_phase_plan,
+        before_pause.header.resolved_phase_plan
+    );
+    assert_eq!(
+        resumed.header.resolved_phase_plan_digest,
+        provisional_digest
+    );
+    assert!(!resumed.has_complete_execution_provenance());
+
+    let terminal_plan = CandidateTracePhasePlan::known(
+        "test.runtime.default",
+        [("terminal", "completed")],
+        vec![CandidateTracePhasePlan::known(
+            "test.runtime.list_clarke_wright",
+            std::iter::empty::<(String, String)>(),
+            Vec::new(),
+        )],
+    );
+    let expected_digest = CandidateTraceDigest::of_bytes(&terminal_plan.canonical_bytes());
+    stats.finalize_candidate_trace_resolved_phase_plan(terminal_plan.clone());
+
+    let terminal = stats
+        .snapshot()
+        .candidate_trace
+        .expect("terminal candidate trace");
+    assert_eq!(terminal.header.resolved_phase_plan, terminal_plan);
+    assert_eq!(terminal.header.resolved_phase_plan_digest, expected_digest);
+    assert!(terminal.header.resolved_phase_plan_complete);
+    assert!(terminal.has_complete_execution_provenance());
+    assert_eq!(
+        terminal.provenance_status().qualification,
+        CandidateTraceQualificationStatus::NotRequested
+    );
+
+    assert!(!paused.header.resolved_phase_plan_complete);
+    assert_eq!(paused.header.resolved_phase_plan_digest, provisional_digest);
+}
+
+#[test]
+#[should_panic(expected = "candidate trace resolved phase plan may be finalized only once")]
+fn candidate_trace_plan_finalization_is_one_way() {
+    let mut trace = provisional_candidate_trace();
+    let plan = CandidateTracePhasePlan::known(
+        "test.runtime.final",
+        std::iter::empty::<(String, String)>(),
+        Vec::new(),
+    );
+    trace.finalize_resolved_phase_plan(plan.clone());
+    trace.finalize_resolved_phase_plan(plan);
 }

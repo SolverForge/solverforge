@@ -5,6 +5,8 @@ Stack-allocated statistics for solver and phase performance tracking.
 
 use std::time::Duration;
 
+use super::CandidateTraceTelemetry;
+
 /* Solver-level statistics.
 
 Tracks aggregate metrics across all phases of a solve run.
@@ -33,6 +35,8 @@ assert_eq!(stats.moves_accepted, 1);
 pub struct SelectorTelemetry {
     pub selector_index: usize,
     pub selector_label: String,
+    /// Candidate moves actually yielded by this selector.
+    /// This is runtime work, not the size of an unconsumed neighborhood.
     pub moves_generated: u64,
     pub moves_evaluated: u64,
     pub moves_accepted: u64,
@@ -56,6 +60,8 @@ pub struct SelectorTelemetry {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct MoveTelemetry {
     pub move_label: String,
+    /// Candidate moves actually yielded to the engine across all phases.
+    /// Exhaust a cursor or query selector sizing separately for logical size.
     pub moves_generated: u64,
     pub moves_evaluated: u64,
     pub moves_accepted: u64,
@@ -64,10 +70,30 @@ pub struct MoveTelemetry {
     pub moves_acceptor_rejected: u64,
     pub moves_forager_ignored: u64,
     pub moves_score_improving: u64,
+    pub moves_applied_improving: u64,
     pub moves_score_equal: u64,
     pub moves_score_worse: u64,
     pub moves_rejected_improving: u64,
     pub applied_score_improvement: f64,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PhaseTelemetry {
+    pub phase_index: usize,
+    pub phase_type: String,
+    pub elapsed: Duration,
+    pub step_count: u64,
+    /// Candidate moves actually yielded to the engine during this phase.
+    /// This is runtime work, not the size of an unconsumed neighborhood.
+    pub moves_generated: u64,
+    pub moves_evaluated: u64,
+    pub moves_accepted: u64,
+    pub moves_applied: u64,
+    pub moves_score_improving: u64,
+    pub moves_applied_improving: u64,
+    pub score_calculations: u64,
+    pub generation_time: Duration,
+    pub evaluation_time: Duration,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -90,10 +116,14 @@ pub struct AppliedMoveTelemetry {
 pub struct SolverTelemetry {
     pub elapsed: Duration,
     pub step_count: u64,
+    /// Candidate moves actually yielded to the engine across all phases.
+    /// Exhaust a cursor or query selector sizing separately for logical size.
     pub moves_generated: u64,
     pub moves_evaluated: u64,
     pub moves_accepted: u64,
     pub moves_applied: u64,
+    pub moves_score_improving: u64,
+    pub moves_applied_improving: u64,
     pub moves_not_doable: u64,
     pub moves_acceptor_rejected: u64,
     pub moves_forager_ignored: u64,
@@ -113,9 +143,13 @@ pub struct SolverTelemetry {
     pub scalar_assignment_required_remaining: u64,
     pub generation_time: Duration,
     pub evaluation_time: Duration,
+    pub phase: Option<PhaseTelemetry>,
     pub selector_telemetry: Vec<SelectorTelemetry>,
     pub move_telemetry: Vec<MoveTelemetry>,
     pub applied_move_trace: Vec<AppliedMoveTelemetry>,
+    /// Present only when `SolverConfig.candidate_trace` enabled bounded
+    /// core-owned candidate-pull diagnostics for this run.
+    pub candidate_trace: Option<CandidateTraceTelemetry>,
 }
 
 impl SolverTelemetry {
@@ -127,6 +161,8 @@ impl SolverTelemetry {
             moves_evaluated: 0,
             moves_accepted: 0,
             moves_applied: 0,
+            moves_score_improving: 0,
+            moves_applied_improving: 0,
             moves_not_doable: 0,
             moves_acceptor_rejected: 0,
             moves_forager_ignored: 0,
@@ -146,10 +182,31 @@ impl SolverTelemetry {
             scalar_assignment_required_remaining: 0,
             generation_time: Duration::ZERO,
             evaluation_time: Duration::ZERO,
+            phase: None,
             selector_telemetry: Vec::new(),
             move_telemetry: Vec::new(),
             applied_move_trace: Vec::new(),
+            candidate_trace: None,
         }
+    }
+
+    /// Removes bounded candidate-pull diagnostic detail before ordinary
+    /// lifecycle publication.
+    ///
+    /// Candidate traces can be intentionally large (up to the configured
+    /// diagnostic ceiling). Progress events, retained status, and solution
+    /// snapshots are all normal control-plane traffic, so they must never
+    /// clone that detail. The retained manager keeps it in its dedicated
+    /// detail store and exposes it only through an explicit accessor.
+    pub(crate) fn take_candidate_trace(&mut self) -> Option<CandidateTraceTelemetry> {
+        self.candidate_trace.take()
+    }
+
+    /// Splits bounded diagnostic detail from compact publication telemetry
+    /// without cloning either payload.
+    pub(crate) fn split_candidate_trace(mut self) -> (Self, Option<CandidateTraceTelemetry>) {
+        let candidate_trace = self.take_candidate_trace();
+        (self, candidate_trace)
     }
 }
 

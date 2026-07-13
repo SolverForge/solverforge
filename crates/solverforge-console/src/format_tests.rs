@@ -66,6 +66,7 @@ fn format_score_handles_hard_soft_and_simple_scores() {
 fn format_event_renders_progress_and_trace_steps() {
     let progress = EventVisitor {
         event: Some("progress".to_string()),
+        phase: Some("Construction Heuristic".to_string()),
         steps: Some(12_345),
         speed: Some(678),
         current_score: Some("0hard/9soft".to_string()),
@@ -73,6 +74,7 @@ fn format_event_renders_progress_and_trace_steps() {
     };
     let progress_output = format_event(&progress, Level::INFO);
     assert!(progress_output.contains("steps"));
+    assert!(progress_output.contains("Construction Heuristic"));
     assert!(progress_output.contains("678"));
     assert!(progress_output.contains("0hard"));
 

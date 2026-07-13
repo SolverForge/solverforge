@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use solverforge_core::domain::PlanningSolution;
 
 use super::assignment_candidate::{
-    rotate_entity_order, AssignmentMoveIntent, ScalarAssignmentMoveOptions,
+    order_candidates, AssignmentMoveIntent, ScalarAssignmentMoveOptions,
 };
 use super::assignment_entity::{
     required_entities_by_scarcity, required_value_degrees, sort_values_by_required_scarcity,
@@ -24,7 +24,7 @@ where
 {
     let mut entities =
         required_entities_by_scarcity(group, solution, state, options.value_candidate_limit);
-    rotate_entity_order(&mut entities, options.entity_offset);
+    order_candidates(&mut entities, options, 0xA551_6EED_0000_0004);
     let value_degrees =
         required_value_degrees(group, solution, &entities, options.value_candidate_limit);
     let mut scalar_edits = Vec::new();

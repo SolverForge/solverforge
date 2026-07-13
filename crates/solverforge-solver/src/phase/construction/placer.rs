@@ -11,7 +11,9 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{ChangeMove, Move};
+use crate::heuristic::selector::move_selector::{CandidateId, MoveCandidateRef, MoveCursor};
 use crate::heuristic::selector::{EntityReference, EntitySelector, ValueSelector};
+use crate::stats::CandidateTracePullToken;
 
 use super::{ConstructionGroupSlotId, ConstructionSlotId};
 
@@ -57,42 +59,43 @@ impl ConstructionTarget {
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type
-pub struct Placement<S, M>
+pub struct Placement<S, M, C = crate::heuristic::selector::move_selector::ArenaMoveCursor<S, M>>
 where
     S: PlanningSolution,
     M: Move<S>,
+    C: MoveCursor<S, M>,
 {
     // The entity reference.
     pub entity_ref: EntityReference,
-    // Candidate moves for this placement.
-    pub moves: Vec<M>,
+    candidates: C,
     // Whether keeping the current value is a legal construction choice.
     keep_current_legal: bool,
     target: ConstructionTarget,
-    move_targets: Vec<ConstructionTarget>,
-    construction_entity_order_key: Option<i64>,
-    _phantom: PhantomData<fn() -> S>,
+    candidate_target: fn(&C, CandidateId) -> Option<&ConstructionTarget>,
+    // Captured-only mapping from a cursor candidate to its bounded diagnostic
+    // pull token. It stays empty trace-off and after trace saturation.
+    candidate_trace_tokens: Vec<(CandidateId, CandidateTracePullToken)>,
+    candidate_scores: Vec<(CandidateId, S::Score)>,
+    _phantom: PhantomData<fn() -> (S, M)>,
 }
 
-impl<S, M> Placement<S, M>
+impl<S, M, C> Placement<S, M, C>
 where
     S: PlanningSolution,
     M: Move<S>,
+    C: MoveCursor<S, M>,
 {
-    pub fn new(entity_ref: EntityReference, moves: Vec<M>) -> Self {
+    pub fn new(entity_ref: EntityReference, candidates: C) -> Self {
         Self {
             entity_ref,
-            moves,
+            candidates,
             keep_current_legal: false,
             target: ConstructionTarget::new(),
-            move_targets: Vec::new(),
-            construction_entity_order_key: None,
+            candidate_target: |_, _| None,
+            candidate_trace_tokens: Vec::new(),
+            candidate_scores: Vec::new(),
             _phantom: PhantomData,
         }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.moves.is_empty()
     }
 
     pub fn with_keep_current_legal(mut self, legal: bool) -> Self {
@@ -116,72 +119,84 @@ where
         self
     }
 
-    pub(crate) fn scalar_slots(&self) -> &[ConstructionSlotId] {
-        self.target.scalar_slots()
-    }
-
     pub(crate) fn with_group_slot(mut self, group_slot: ConstructionGroupSlotId) -> Self {
         self.target = self.target.with_group_slot(group_slot);
         self
     }
 
-    pub(crate) fn with_move_targets(mut self, move_targets: Vec<ConstructionTarget>) -> Self {
-        assert!(
-            move_targets.is_empty() || move_targets.len() == self.moves.len(),
-            "construction move targets must be empty or match the move count"
-        );
-        self.move_targets = move_targets;
+    pub(crate) fn with_candidate_target(
+        mut self,
+        candidate_target: fn(&C, CandidateId) -> Option<&ConstructionTarget>,
+    ) -> Self {
+        self.candidate_target = candidate_target;
         self
-    }
-
-    pub(crate) fn group_slot(&self) -> Option<&ConstructionGroupSlotId> {
-        self.target.group_slot()
-    }
-
-    pub(crate) fn with_construction_entity_order_key(mut self, order_key: Option<i64>) -> Self {
-        self.construction_entity_order_key = order_key;
-        self
-    }
-
-    pub(crate) fn construction_entity_order_key(&self) -> Option<i64> {
-        self.construction_entity_order_key
     }
 
     pub(crate) fn construction_target(&self) -> &ConstructionTarget {
         &self.target
     }
 
-    pub(crate) fn construction_target_for_move(&self, move_index: usize) -> &ConstructionTarget {
-        self.move_targets.get(move_index).unwrap_or(&self.target)
+    pub(crate) fn construction_target_for_move(
+        &self,
+        candidate_id: CandidateId,
+    ) -> &ConstructionTarget {
+        (self.candidate_target)(&self.candidates, candidate_id).unwrap_or(&self.target)
     }
 
-    /// Takes ownership of a move at the given index.
-    ///
-    /// Uses swap_remove for O(1) removal.
-    pub fn take_move(&mut self, index: usize) -> M {
-        if !self.move_targets.is_empty() {
-            self.move_targets.swap_remove(index);
-        }
-        self.moves.swap_remove(index)
+    pub fn candidates(&self) -> &C {
+        &self.candidates
+    }
+
+    pub fn candidates_mut(&mut self) -> &mut C {
+        &mut self.candidates
+    }
+
+    pub fn take_move(&mut self, candidate_id: CandidateId) -> M {
+        self.candidates.take_candidate(candidate_id)
+    }
+
+    pub(crate) fn record_candidate_trace_token(
+        &mut self,
+        candidate_id: CandidateId,
+        token: CandidateTracePullToken,
+    ) {
+        self.candidate_trace_tokens.push((candidate_id, token));
+    }
+
+    pub(crate) fn candidate_trace_token(
+        &self,
+        candidate_id: CandidateId,
+    ) -> Option<CandidateTracePullToken> {
+        self.candidate_trace_tokens
+            .iter()
+            .find_map(|(recorded_id, token)| (*recorded_id == candidate_id).then_some(*token))
+    }
+
+    pub(crate) fn record_candidate_score(&mut self, candidate_id: CandidateId, score: S::Score) {
+        self.candidate_scores.push((candidate_id, score));
+    }
+
+    pub(crate) fn candidate_score(&self, candidate_id: CandidateId) -> Option<S::Score>
+    where
+        S::Score: Copy,
+    {
+        self.candidate_scores
+            .iter()
+            .find_map(|(recorded_id, score)| (*recorded_id == candidate_id).then_some(*score))
     }
 }
 
-impl<S, M> Debug for Placement<S, M>
+impl<S, M, C> Debug for Placement<S, M, C>
 where
     S: PlanningSolution,
     M: Move<S>,
+    C: MoveCursor<S, M>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Placement")
             .field("entity_ref", &self.entity_ref)
-            .field("move_count", &self.moves.len())
             .field("keep_current_legal", &self.keep_current_legal)
             .field("target", &self.target)
-            .field("move_target_count", &self.move_targets.len())
-            .field(
-                "construction_entity_order_key",
-                &self.construction_entity_order_key,
-            )
             .finish()
     }
 }
@@ -194,199 +209,38 @@ where
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type
+pub trait EntityPlacerCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    type CandidateCursor: MoveCursor<S, M>;
+
+    fn next_placement<D, IsCompleted, ShouldStop>(
+        &mut self,
+        score_director: &D,
+        is_completed: IsCompleted,
+        should_stop: ShouldStop,
+    ) -> Option<Placement<S, M, Self::CandidateCursor>>
+    where
+        D: Director<S>,
+        IsCompleted: FnMut(&Placement<S, M, Self::CandidateCursor>) -> bool,
+        ShouldStop: FnMut() -> bool;
+}
+
 pub trait EntityPlacer<S, M>: Send + Debug
 where
     S: PlanningSolution,
     M: Move<S>,
 {
-    // Returns all placements (entities + their candidate moves).
-    fn get_placements<D: Director<S>>(&self, score_director: &D) -> Vec<Placement<S, M>>;
-
-    // Returns the next live placement and the number of candidate moves generated
-    // while finding it. The default preserves the eager construction behavior.
-    fn get_next_placement<D, IsCompleted, ShouldStop>(
-        &self,
-        score_director: &D,
-        mut is_completed: IsCompleted,
-        mut should_stop: ShouldStop,
-    ) -> Option<(Placement<S, M>, u64)>
+    type Cursor<'a>: EntityPlacerCursor<S, M> + 'a
     where
-        D: Director<S>,
-        IsCompleted: FnMut(&Placement<S, M>) -> bool,
-        ShouldStop: FnMut() -> bool,
-    {
-        let mut selected = None;
-        let mut generated_moves = 0u64;
+        Self: 'a;
 
-        for placement in self.get_placements(score_director) {
-            if should_stop() {
-                return None;
-            }
-            if is_completed(&placement) {
-                continue;
-            }
-            generated_moves = generated_moves
-                .saturating_add(u64::try_from(placement.moves.len()).unwrap_or(u64::MAX));
-            if selected.is_none() {
-                selected = Some(placement);
-            }
-        }
-
-        selected.map(|placement| (placement, generated_moves))
-    }
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a>;
 }
 
-/// A queued entity placer that processes entities in order.
-///
-/// For each uninitialized entity, generates change moves for all possible values.
-/// Uses concrete function pointers for zero-erasure access.
-///
-/// # Type Parameters
-/// * `S` - The planning solution type
-/// * `V` - The value type
-/// * `ES` - The entity selector type
-/// * `VS` - The value selector type
-pub struct QueuedEntityPlacer<S, V, ES, VS>
-where
-    S: PlanningSolution,
-    ES: EntitySelector<S>,
-    VS: ValueSelector<S, V>,
-{
-    // The entity selector.
-    entity_selector: ES,
-    // The value selector.
-    value_selector: VS,
-    // Concrete getter function pointer.
-    getter: fn(&S, usize, usize) -> Option<V>,
-    // Concrete setter function pointer.
-    setter: fn(&mut S, usize, usize, Option<V>),
-    variable_index: usize,
-    // The variable name.
-    variable_name: &'static str,
-    // The descriptor index.
-    descriptor_index: usize,
-    // Whether the variable can remain unassigned during construction.
-    allows_unassigned: bool,
-    _phantom: PhantomData<fn() -> V>,
-}
-
-impl<S, V, ES, VS> QueuedEntityPlacer<S, V, ES, VS>
-where
-    S: PlanningSolution,
-    ES: EntitySelector<S>,
-    VS: ValueSelector<S, V>,
-{
-    pub fn new(
-        entity_selector: ES,
-        value_selector: VS,
-        getter: fn(&S, usize, usize) -> Option<V>,
-        setter: fn(&mut S, usize, usize, Option<V>),
-        descriptor_index: usize,
-        variable_index: usize,
-        variable_name: &'static str,
-    ) -> Self {
-        Self {
-            entity_selector,
-            value_selector,
-            getter,
-            setter,
-            variable_index,
-            variable_name,
-            descriptor_index,
-            allows_unassigned: false,
-            _phantom: PhantomData,
-        }
-    }
-
-    pub fn with_allows_unassigned(mut self, allows_unassigned: bool) -> Self {
-        self.allows_unassigned = allows_unassigned;
-        self
-    }
-}
-
-impl<S, V, ES, VS> Debug for QueuedEntityPlacer<S, V, ES, VS>
-where
-    S: PlanningSolution,
-    ES: EntitySelector<S> + Debug,
-    VS: ValueSelector<S, V> + Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("QueuedEntityPlacer")
-            .field("entity_selector", &self.entity_selector)
-            .field("value_selector", &self.value_selector)
-            .field("variable_name", &self.variable_name)
-            .field("allows_unassigned", &self.allows_unassigned)
-            .finish()
-    }
-}
-
-impl<S, V, ES, VS> EntityPlacer<S, ChangeMove<S, V>> for QueuedEntityPlacer<S, V, ES, VS>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    ES: EntitySelector<S>,
-    VS: ValueSelector<S, V>,
-{
-    fn get_placements<D: Director<S>>(
-        &self,
-        score_director: &D,
-    ) -> Vec<Placement<S, ChangeMove<S, V>>> {
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
-        let getter = self.getter;
-        let setter = self.setter;
-        let variable_index = self.variable_index;
-        let allows_unassigned = self.allows_unassigned;
-
-        self.entity_selector
-            .iter(score_director)
-            .filter_map(|entity_ref| {
-                // Check if entity is uninitialized using concrete getter - zero erasure
-                let current_value = getter(
-                    score_director.working_solution(),
-                    entity_ref.entity_index,
-                    variable_index,
-                );
-
-                // Only include uninitialized entities
-                if current_value.is_some() {
-                    return None;
-                }
-
-                // Generate moves for all possible values
-                let moves: Vec<ChangeMove<S, V>> = self
-                    .value_selector
-                    .iter(
-                        score_director,
-                        entity_ref.descriptor_index,
-                        entity_ref.entity_index,
-                    )
-                    .map(|value| {
-                        ChangeMove::new(
-                            entity_ref.entity_index,
-                            Some(value),
-                            getter,
-                            setter,
-                            variable_index,
-                            variable_name,
-                            descriptor_index,
-                        )
-                    })
-                    .collect();
-
-                if moves.is_empty() {
-                    None
-                } else {
-                    Some(
-                        Placement::new(entity_ref, moves)
-                            .with_keep_current_legal(allows_unassigned),
-                    )
-                }
-            })
-            .collect()
-    }
-}
-
+include!("placer/queued.rs");
 /// Entity placer that sorts placements by a comparator function.
 ///
 /// Wraps an inner placer and sorts its placements using a concrete comparator.
@@ -474,26 +328,91 @@ where
     }
 }
 
+type InnerPlacementCandidateCursor<'a, S, M, Inner> =
+    <<Inner as EntityPlacer<S, M>>::Cursor<'a> as EntityPlacerCursor<S, M>>::CandidateCursor;
+
+pub struct SortedEntityPlacerCursor<'a, S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    Inner: EntityPlacer<S, M> + 'a,
+{
+    inner: Inner::Cursor<'a>,
+    comparator: fn(&S, usize, usize) -> std::cmp::Ordering,
+    placements:
+        Option<std::vec::IntoIter<Placement<S, M, InnerPlacementCandidateCursor<'a, S, M, Inner>>>>,
+}
+
+impl<'a, S, M, Inner> EntityPlacerCursor<S, M> for SortedEntityPlacerCursor<'a, S, M, Inner>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    Inner: EntityPlacer<S, M> + 'a,
+{
+    type CandidateCursor = InnerPlacementCandidateCursor<'a, S, M, Inner>;
+
+    fn next_placement<D, IsCompleted, ShouldStop>(
+        &mut self,
+        score_director: &D,
+        mut is_completed: IsCompleted,
+        mut should_stop: ShouldStop,
+    ) -> Option<Placement<S, M, Self::CandidateCursor>>
+    where
+        D: Director<S>,
+        IsCompleted: FnMut(&Placement<S, M, Self::CandidateCursor>) -> bool,
+        ShouldStop: FnMut() -> bool,
+    {
+        if self.placements.is_none() {
+            let mut placements = Vec::new();
+            while let Some(placement) =
+                self.inner
+                    .next_placement(score_director, |_| false, &mut should_stop)
+            {
+                placements.push(placement);
+            }
+            let solution = score_director.working_solution();
+            let comparator = self.comparator;
+            placements.sort_by(|left, right| {
+                comparator(
+                    solution,
+                    left.entity_ref.entity_index,
+                    right.entity_ref.entity_index,
+                )
+            });
+            self.placements = Some(placements.into_iter());
+        }
+
+        let placements = self
+            .placements
+            .as_mut()
+            .expect("sorted placement cursor must be initialized");
+        while !should_stop() {
+            let placement = placements.next()?;
+            if !is_completed(&placement) {
+                return Some(placement);
+            }
+        }
+        None
+    }
+}
+
 impl<S, M, Inner> EntityPlacer<S, M> for SortedEntityPlacer<S, M, Inner>
 where
     S: PlanningSolution,
     M: Move<S>,
     Inner: EntityPlacer<S, M>,
 {
-    fn get_placements<D: Director<S>>(&self, score_director: &D) -> Vec<Placement<S, M>> {
-        let mut placements = self.inner.get_placements(score_director);
-        let solution = score_director.working_solution();
-        let cmp = self.comparator;
+    type Cursor<'a>
+        = SortedEntityPlacerCursor<'a, S, M, Inner>
+    where
+        Self: 'a;
 
-        placements.sort_by(|a, b| {
-            cmp(
-                solution,
-                a.entity_ref.entity_index,
-                b.entity_ref.entity_index,
-            )
-        });
-
-        placements
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        SortedEntityPlacerCursor {
+            inner: self.inner.open_cursor(score_director),
+            comparator: self.comparator,
+            placements: None,
+        }
     }
 }
 

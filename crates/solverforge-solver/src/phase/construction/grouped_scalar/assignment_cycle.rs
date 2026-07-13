@@ -1,6 +1,6 @@
 use solverforge_core::domain::PlanningSolution;
 
-use super::assignment_candidate::{rotate_entity_order, ScalarAssignmentMoveOptions};
+use super::assignment_candidate::{order_candidates, ScalarAssignmentMoveOptions};
 use super::assignment_entity::assigned_entities_by_position;
 use super::assignment_path::move_from_edits;
 use super::assignment_state::ScalarAssignmentState;
@@ -30,7 +30,7 @@ impl CycleWindowCursor {
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
         let mut entities = assigned_entities_by_position(group, solution, state);
-        rotate_entity_order(&mut entities, options.entity_offset);
+        order_candidates(&mut entities, options, 0xA551_6EED_0000_0010);
         let max_len = options.max_rematch_size.min(entities.len()).max(2);
         Self {
             kind: CycleWindowKind::AugmentingRematch,
@@ -50,7 +50,7 @@ impl CycleWindowCursor {
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
         let mut entities = assigned_entities_by_position(group, solution, state);
-        rotate_entity_order(&mut entities, options.entity_offset);
+        order_candidates(&mut entities, options, 0xA551_6EED_0000_0011);
         let max_len = options.max_rematch_size.min(entities.len()).max(2);
         Self {
             kind: CycleWindowKind::EjectionReinsert,
@@ -215,7 +215,10 @@ where
     }
 
     let mut order = window.to_vec();
-    rotate_entity_order(&mut order, attempt);
+    if !order.is_empty() {
+        let len = order.len();
+        order.rotate_left(attempt % len);
+    }
     for entity_index in order {
         let values = group.candidate_values(solution, entity_index, options.value_candidate_limit);
         let Some(value) =

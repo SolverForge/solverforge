@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use solverforge_core::domain::PlanningSolution;
 
-use super::assignment_candidate::{rotate_entity_order, ScalarAssignmentMoveOptions};
+use super::assignment_candidate::{order_candidates, ScalarAssignmentMoveOptions};
 use super::assignment_state::ScalarAssignmentState;
 use crate::builder::ScalarAssignmentBinding;
 
@@ -42,11 +42,11 @@ where
 
     let mut values = assigned_values.into_iter().collect::<Vec<_>>();
     values.sort_unstable();
-    rotate_entity_order(&mut values, options.entity_offset);
+    order_candidates(&mut values, options, 0xA551_6EED_0000_0001);
 
     let mut sequence_keys = sequence_keys.into_iter().collect::<Vec<_>>();
     sequence_keys.sort_unstable();
-    rotate_entity_order(&mut sequence_keys, options.entity_offset);
+    order_candidates(&mut sequence_keys, options, 0xA551_6EED_0000_0002);
 
     AssignedValueSequenceIndex {
         values,

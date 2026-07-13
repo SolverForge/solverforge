@@ -1,231 +1,327 @@
+use std::collections::HashSet;
+
 use solverforge_config::{ConstructionHeuristicType, ConstructionObligation};
 use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::Director;
 
 use super::assignment_candidate::ScalarAssignmentMoveOptions;
 use super::assignment_stream::ScalarAssignmentMoveCursor;
-use super::placement::{
-    assignment_group_slot, assignment_move_target, assignment_move_touches_completed_slot,
-    placement_entity_order_key, placement_sequence, principal_assignment_edit,
+use super::move_build::compound_move_for_prevalidated_group_candidate;
+use super::placement::{assignment_group_slot, assignment_move_target, principal_assignment_edit};
+use crate::builder::context::{ScalarAssignmentBinding, ScalarCandidate, ScalarGroupBinding};
+use crate::heuristic::r#move::CompoundScalarMove;
+use crate::heuristic::selector::move_selector::{
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor,
 };
-use super::placer::ScalarGroupPlacement;
-use crate::builder::context::ScalarAssignmentBinding;
-use crate::descriptor::ResolvedVariableBinding;
-use crate::heuristic::r#move::{CompoundScalarMove, Move};
 use crate::heuristic::selector::EntityReference;
-use crate::phase::construction::capabilities::grouped_heuristic_requires_entity_order;
-use crate::phase::construction::Placement;
+use crate::phase::construction::{
+    ConstructionGroupSlotId, ConstructionSlotId, ConstructionTarget, Placement,
+};
 
-pub(super) struct CandidatePlacementGenerator<S>
+pub(super) struct CandidatePlacementSeed<S>
 where
     S: PlanningSolution + 'static,
 {
-    pub(super) placements: std::vec::IntoIter<ScalarGroupPlacement<S>>,
+    pub(super) sequence: usize,
+    pub(super) entity_ref: EntityReference,
+    pub(super) candidates: Vec<ScalarCandidate<S>>,
+    pub(super) group_slot: ConstructionGroupSlotId,
+    pub(super) scalar_slots: Vec<ConstructionSlotId>,
+    pub(super) keep_current_legal: bool,
+    pub(super) entity_order_key: Option<i64>,
 }
 
-pub(super) struct AssignmentPlacementGenerator<S>
+pub(crate) struct CandidatePlacementGenerator<S>
+where
+    S: PlanningSolution + 'static,
+{
+    pub(super) placements: std::vec::IntoIter<CandidatePlacementSeed<S>>,
+    pub(super) group: ScalarGroupBinding<S>,
+}
+
+pub(crate) struct AssignmentPlacementGenerator<S>
 where
     S: PlanningSolution + 'static,
 {
     pub(super) group_index: usize,
     pub(super) assignment: ScalarAssignmentBinding<S>,
-    pub(super) target_binding: ResolvedVariableBinding<S>,
     pub(super) cursor: ScalarAssignmentMoveCursor<S>,
     pub(super) pending: Option<CompoundScalarMove<S>>,
     pub(super) options: ScalarAssignmentMoveOptions,
     pub(super) accepted: usize,
 }
 
-pub(super) fn next_candidate_placement<S, IsCompleted, ShouldStop>(
-    generator: &mut CandidatePlacementGenerator<S>,
-    generated_moves: &mut u64,
-    is_completed: &mut IsCompleted,
-    should_stop: &mut ShouldStop,
-) -> Option<ScalarGroupPlacement<S>>
+#[allow(clippy::large_enum_variant)]
+enum ScalarGroupCandidateSource<S>
 where
     S: PlanningSolution + 'static,
-    IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
+{
+    Empty,
+    Candidates {
+        group: ScalarGroupBinding<S>,
+        candidates: std::vec::IntoIter<ScalarCandidate<S>>,
+    },
+    Assignment {
+        generator: AssignmentPlacementGenerator<S>,
+        active_entity: usize,
+        completed_slots: HashSet<ConstructionSlotId>,
+        first: Option<(CompoundScalarMove<S>, ConstructionTarget)>,
+    },
+}
+
+pub(crate) struct ScalarGroupCandidateCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    store: CandidateStore<S, CompoundScalarMove<S>>,
+    targets: Vec<ConstructionTarget>,
+    source: ScalarGroupCandidateSource<S>,
+}
+
+impl<S> ScalarGroupCandidateCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    fn empty() -> Self {
+        Self {
+            store: CandidateStore::new(),
+            targets: Vec::new(),
+            source: ScalarGroupCandidateSource::Empty,
+        }
+    }
+
+    fn candidates(group: ScalarGroupBinding<S>, candidates: Vec<ScalarCandidate<S>>) -> Self {
+        Self {
+            store: CandidateStore::with_capacity(candidates.len()),
+            targets: Vec::new(),
+            source: ScalarGroupCandidateSource::Candidates {
+                group,
+                candidates: candidates.into_iter(),
+            },
+        }
+    }
+
+    fn assignment(
+        generator: AssignmentPlacementGenerator<S>,
+        active_entity: usize,
+        completed_slots: HashSet<ConstructionSlotId>,
+        first: (CompoundScalarMove<S>, ConstructionTarget),
+    ) -> Self {
+        Self {
+            store: CandidateStore::new(),
+            targets: Vec::new(),
+            source: ScalarGroupCandidateSource::Assignment {
+                generator,
+                active_entity,
+                completed_slots,
+                first: Some(first),
+            },
+        }
+    }
+
+    pub(super) fn construction_target(
+        &self,
+        candidate_id: CandidateId,
+    ) -> Option<&ConstructionTarget> {
+        self.targets.get(candidate_id.index())
+    }
+}
+
+impl<S> MoveCursor<S, CompoundScalarMove<S>> for ScalarGroupCandidateCursor<S>
+where
+    S: PlanningSolution + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        let (mov, target) = match &mut self.source {
+            ScalarGroupCandidateSource::Empty => return None,
+            ScalarGroupCandidateSource::Candidates { group, candidates } => {
+                let candidate = candidates.next()?;
+                let order_key = candidate.construction_value_order_key();
+                let mov = compound_move_for_prevalidated_group_candidate(group, &candidate)
+                    .with_construction_value_order_key(order_key);
+                (mov, None)
+            }
+            ScalarGroupCandidateSource::Assignment {
+                generator,
+                active_entity,
+                completed_slots,
+                first,
+            } => {
+                let (mov, target) = if let Some(first) = first.take() {
+                    first
+                } else {
+                    let (entity_index, mov, target) =
+                        next_assignment_candidate(generator, completed_slots)?;
+                    if entity_index != *active_entity {
+                        generator.pending = Some(mov);
+                        return None;
+                    }
+                    (mov, target)
+                };
+                generator.accepted += 1;
+                (mov, Some(target))
+            }
+        };
+
+        let candidate_id = self.store.push(mov);
+        if let Some(target) = target {
+            debug_assert_eq!(self.targets.len(), candidate_id.index());
+            self.targets.push(target);
+        }
+        Some(candidate_id)
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, CompoundScalarMove<S>>> {
+        self.store.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> CompoundScalarMove<S> {
+        self.store.take_candidate(id)
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
+    }
+}
+
+pub(super) fn next_candidate_placement<S, IsCompleted, ShouldStop>(
+    generator: &mut CandidatePlacementGenerator<S>,
+    is_completed: &mut IsCompleted,
+    should_stop: &mut ShouldStop,
+) -> Option<Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>>
+where
+    S: PlanningSolution + 'static,
+    IsCompleted: FnMut(&Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>) -> bool,
     ShouldStop: FnMut() -> bool,
 {
-    for placement in generator.placements.by_ref() {
-        if should_stop() {
-            return None;
+    while !should_stop() {
+        let seed = generator.placements.next()?;
+        let placement = Placement::new(
+            seed.entity_ref,
+            ScalarGroupCandidateCursor::candidates(generator.group.clone(), seed.candidates),
+        )
+        .with_group_slot(seed.group_slot)
+        .with_scalar_slots(seed.scalar_slots)
+        .with_keep_current_legal(seed.keep_current_legal);
+        if !is_completed(&placement) {
+            return Some(placement);
         }
-        *generated_moves = generated_moves
-            .saturating_add(u64::try_from(placement.moves.len()).unwrap_or(u64::MAX));
-        if is_completed(&placement) {
-            continue;
-        }
-        return Some(placement);
     }
     None
 }
 
-pub(super) fn next_assignment_placement<S, D, IsCompleted, ShouldStop>(
-    generator: &mut AssignmentPlacementGenerator<S>,
-    score_director: &D,
-    generated_moves: &mut u64,
-    is_completed: &mut IsCompleted,
-    should_stop: &mut ShouldStop,
-) -> Option<ScalarGroupPlacement<S>>
+pub(super) fn next_assignment_placement<S, IsCompleted, ShouldStop>(
+    mut generator: AssignmentPlacementGenerator<S>,
+    mut is_completed: IsCompleted,
+    mut should_stop: ShouldStop,
+) -> Option<Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>>
 where
     S: PlanningSolution + 'static,
-    D: Director<S>,
-    IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
+    IsCompleted: FnMut(&Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>) -> bool,
     ShouldStop: FnMut() -> bool,
 {
-    let solution = score_director.working_solution();
-    while generator.accepted < generator.options.max_moves {
-        if should_stop() {
-            return None;
-        }
-        let (entity_index, mov) = next_assignment_move_for_placement(
-            generator,
-            score_director,
-            is_completed,
-            should_stop,
-        )?;
-        *generated_moves = generated_moves.saturating_add(1);
+    let completed_slots = completed_assignment_slots(&generator, &mut is_completed);
+    if generator.accepted < generator.options.max_moves && !should_stop() {
+        let (entity_index, mov, target) =
+            next_assignment_candidate(&mut generator, &completed_slots)?;
         let group_slot = assignment_group_slot(generator.group_index, entity_index);
-        let mut moves = vec![assignment_move_with_order_key(
-            &generator.assignment,
-            solution,
-            entity_index,
-            mov,
-        )];
-        while generator.accepted + moves.len() < generator.options.max_moves {
-            if should_stop() {
-                break;
-            }
-            let Some((next_entity, next_move)) = next_assignment_move_for_placement(
-                generator,
-                score_director,
-                is_completed,
-                should_stop,
-            ) else {
-                break;
-            };
-            if next_entity != entity_index {
-                generator.pending = Some(next_move);
-                break;
-            }
-            *generated_moves = generated_moves.saturating_add(1);
-            moves.push(assignment_move_with_order_key(
-                &generator.assignment,
-                solution,
-                entity_index,
-                next_move,
-            ));
-        }
-
-        let move_targets = moves
-            .iter()
-            .map(|mov| assignment_move_target(&generator.target_binding, &group_slot, mov))
-            .collect::<Vec<_>>();
-        let mut scalar_slots = moves
-            .iter()
-            .flat_map(|mov| {
-                mov.edits()
-                    .iter()
-                    .map(|edit| generator.target_binding.slot_id(edit.entity_index))
-            })
-            .collect::<Vec<_>>();
-        scalar_slots.sort_unstable();
-        scalar_slots.dedup();
+        let scalar_slots = target.scalar_slots().to_vec();
+        let allows_unassigned = generator.assignment.target.allows_unassigned;
         let placement = Placement::new(
             EntityReference::new(generator.assignment.target.descriptor_index, entity_index),
-            moves,
+            ScalarGroupCandidateCursor::assignment(
+                generator,
+                entity_index,
+                completed_slots,
+                (mov, target),
+            ),
         )
         .with_group_slot(group_slot)
         .with_scalar_slots(scalar_slots)
-        .with_move_targets(move_targets)
-        .with_keep_current_legal(generator.assignment.target.allows_unassigned)
-        .with_construction_entity_order_key(
-            generator
-                .assignment
-                .entity_order_key(solution, entity_index),
-        );
-        if is_completed(&placement) {
-            continue;
+        .with_keep_current_legal(allows_unassigned)
+        .with_candidate_target(ScalarGroupCandidateCursor::construction_target);
+        if !is_completed(&placement) {
+            return Some(placement);
         }
-        generator.accepted += placement.moves.len();
-        return Some(placement);
     }
     None
 }
 
-fn next_assignment_move_for_placement<S, D, IsCompleted, ShouldStop>(
+fn next_assignment_candidate<S>(
     generator: &mut AssignmentPlacementGenerator<S>,
-    score_director: &D,
-    is_completed: &mut IsCompleted,
-    should_stop: &mut ShouldStop,
-) -> Option<(usize, CompoundScalarMove<S>)>
+    completed_slots: &HashSet<ConstructionSlotId>,
+) -> Option<(usize, CompoundScalarMove<S>, ConstructionTarget)>
 where
     S: PlanningSolution + 'static,
-    D: Director<S>,
-    IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
-    ShouldStop: FnMut() -> bool,
 {
     loop {
-        if should_stop() {
+        if generator.accepted >= generator.options.max_moves {
             return None;
         }
-        let mov = if let Some(mov) = generator.pending.take() {
-            mov
-        } else {
-            generator.cursor.next_move()?
-        };
-        if assignment_move_touches_completed_slot(
-            &mov,
-            &generator.target_binding,
-            generator.assignment.target.descriptor_index,
-            is_completed,
-        ) {
+        let mov = generator
+            .pending
+            .take()
+            .or_else(|| generator.cursor.next_move())?;
+        if mov.edits().iter().any(|edit| {
+            completed_slots.contains(&ConstructionSlotId::new(
+                generator.assignment.target().construction_binding_index(),
+                edit.entity_index,
+            ))
+        }) {
             continue;
         }
-        if !mov.is_doable(score_director) {
+        let snapshot = generator.cursor.construction_snapshot();
+        if mov.edits().is_empty()
+            || !mov
+                .edits()
+                .iter()
+                .any(|edit| edit.current_value(snapshot) != edit.to_value)
+        {
             continue;
         }
-        let Some(anchor) = mov
+        let anchor = mov
             .edits()
             .iter()
             .find(|edit| edit.to_value.is_some())
-            .or_else(|| mov.edits().first())
-        else {
-            continue;
-        };
-        return Some((anchor.entity_index, mov));
+            .or_else(|| mov.edits().first())?;
+        let entity_index = anchor.entity_index;
+        let order_key = principal_assignment_edit(&mov, entity_index)
+            .and_then(|principal| principal.to_value)
+            .and_then(|value| {
+                generator
+                    .assignment
+                    .value_order_key(snapshot, entity_index, value)
+            });
+        let mov = mov.with_construction_value_order_key(order_key);
+        let group_slot = assignment_group_slot(generator.group_index, entity_index);
+        let target = assignment_move_target(generator.assignment.target(), &group_slot, &mov);
+        return Some((entity_index, mov, target));
     }
 }
 
-fn assignment_move_with_order_key<S>(
-    assignment: &ScalarAssignmentBinding<S>,
-    solution: &S,
-    entity_index: usize,
-    mov: CompoundScalarMove<S>,
-) -> CompoundScalarMove<S>
+fn completed_assignment_slots<S, IsCompleted>(
+    generator: &AssignmentPlacementGenerator<S>,
+    is_completed: &mut IsCompleted,
+) -> HashSet<ConstructionSlotId>
 where
-    S: PlanningSolution,
-{
-    let order_key = principal_assignment_edit(&mov, entity_index)
-        .and_then(|principal| principal.to_value)
-        .and_then(|value| assignment.value_order_key(solution, entity_index, value));
-    mov.with_construction_value_order_key(order_key)
-}
-
-pub(super) fn sort_grouped_placements<S>(
-    placements: &mut [ScalarGroupPlacement<S>],
-    heuristic: ConstructionHeuristicType,
-) where
     S: PlanningSolution + 'static,
+    IsCompleted: FnMut(&Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>) -> bool,
 {
-    if grouped_heuristic_requires_entity_order(heuristic) {
-        placements.sort_by(|left, right| {
-            placement_entity_order_key(right)
-                .cmp(&placement_entity_order_key(left))
-                .then_with(|| placement_sequence(left).cmp(&placement_sequence(right)))
-        });
-    }
+    (0..generator
+        .assignment
+        .entity_count(generator.cursor.construction_snapshot()))
+        .filter_map(|entity_index| {
+            let slot_id = ConstructionSlotId::new(
+                generator.assignment.target().construction_binding_index(),
+                entity_index,
+            );
+            let placement = Placement::new(
+                EntityReference::new(generator.assignment.target.descriptor_index, entity_index),
+                ScalarGroupCandidateCursor::empty(),
+            )
+            .with_scalar_slots(vec![slot_id]);
+            is_completed(&placement).then_some(slot_id)
+        })
+        .collect()
 }
 
 pub(super) fn assignment_placement_move_limit(

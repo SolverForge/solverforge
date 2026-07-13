@@ -5,8 +5,9 @@ generated for each entity placement.
 
 # Zero-Erasure Design
 
-Foragers return indices into the placement's move Vec, not cloned moves.
-The caller takes ownership via the index.
+Foragers return stable candidate IDs into the placement's cursor-owned store.
+Rejected candidates are released immediately and the caller takes ownership of
+the selected move by ID.
 */
 
 use std::fmt::Debug;
@@ -17,6 +18,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
+use crate::heuristic::selector::move_selector::{CandidateId, MoveCursor};
 use crate::scope::{ProgressCallback, StepScope};
 
 use super::Placement;
@@ -25,13 +27,13 @@ use super::Placement;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConstructionChoice {
     KeepCurrent,
-    Select(usize),
+    Select(CandidateId),
 }
 
 /// Trait for selecting a move during construction.
 ///
 /// Foragers evaluate candidate moves and pick one based on their strategy.
-// Returns either a selected move index or an explicit keep-current choice.
+/// Returns either a selected candidate ID or an explicit keep-current choice.
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
@@ -41,26 +43,16 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /* Picks a construction choice from the placement's candidates.
-     */
-    fn pick_move_index<D: Director<S>>(
+    fn select_move_index<D, BestCb, C>(
         &self,
-        placement: &Placement<S, M>,
-        score_director: &mut D,
-    ) -> ConstructionChoice;
-
-    fn select_move_index<D, BestCb>(
-        &self,
-        placement: &Placement<S, M>,
+        placement: &mut Placement<S, M, C>,
         _construction_obligation: ConstructionObligation,
         step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
     ) -> Option<ConstructionChoice>
     where
         D: Director<S>,
         BestCb: ProgressCallback<S>,
-    {
-        Some(self.pick_move_index(placement, step_scope.score_director_mut()))
-    }
+        C: MoveCursor<S, M>;
 }
 
 /// First Fit forager - picks the first feasible move.

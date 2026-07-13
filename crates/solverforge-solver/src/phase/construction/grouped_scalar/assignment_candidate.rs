@@ -1,30 +1,24 @@
-#[cfg(test)]
-use solverforge_core::domain::PlanningSolution;
-
-#[cfg(test)]
-use super::assignment_stream::collect_assignment_moves;
 use crate::builder::ScalarAssignmentBinding;
-#[cfg(test)]
-use crate::heuristic::r#move::CompoundScalarMove;
+use crate::heuristic::selector::move_selector::MoveStreamContext;
 
 #[derive(Clone, Copy, Debug)]
-pub struct ScalarAssignmentMoveOptions {
+pub(crate) struct ScalarAssignmentMoveOptions {
     pub(crate) value_candidate_limit: Option<usize>,
     pub(crate) max_moves: usize,
     pub(crate) max_depth: usize,
     pub(crate) max_rematch_size: usize,
-    pub(crate) entity_offset: usize,
+    pub(crate) selection_context: MoveStreamContext,
     pub(crate) required_scarcity_ordering: bool,
 }
 
 impl ScalarAssignmentMoveOptions {
-    pub fn for_construction(limits: crate::builder::ScalarGroupLimits) -> Self {
+    pub(crate) fn for_construction(limits: crate::builder::ScalarGroupLimits) -> Self {
         Self {
             value_candidate_limit: limits.value_candidate_limit,
             max_moves: limits.group_candidate_limit.unwrap_or(usize::MAX),
             max_depth: limits.max_augmenting_depth.unwrap_or(3),
             max_rematch_size: limits.max_rematch_size.unwrap_or(4).max(2),
-            entity_offset: 0,
+            selection_context: MoveStreamContext::default(),
             required_scarcity_ordering: true,
         }
     }
@@ -33,30 +27,20 @@ impl ScalarAssignmentMoveOptions {
         limits: crate::builder::ScalarGroupLimits,
         value_candidate_limit: Option<usize>,
         max_moves_per_step: usize,
-        entity_offset: usize,
+        selection_context: MoveStreamContext,
     ) -> Self {
         Self {
             value_candidate_limit: value_candidate_limit.or(limits.value_candidate_limit),
             max_moves: max_moves_per_step,
             max_depth: limits.max_augmenting_depth.unwrap_or(3),
             max_rematch_size: limits.max_rematch_size.unwrap_or(4).max(2),
-            entity_offset,
+            selection_context,
             required_scarcity_ordering: true,
         }
     }
 
-    pub fn with_max_moves(mut self, max_moves: usize) -> Self {
+    pub(crate) fn with_max_moves(mut self, max_moves: usize) -> Self {
         self.max_moves = max_moves;
-        self
-    }
-
-    pub fn with_entity_offset(mut self, entity_offset: usize) -> Self {
-        self.entity_offset = entity_offset;
-        self
-    }
-
-    pub fn with_required_scarcity_ordering(mut self, enabled: bool) -> Self {
-        self.required_scarcity_ordering = enabled;
         self
     }
 }
@@ -101,18 +85,6 @@ pub(crate) fn remaining_required_count<S>(group: &ScalarAssignmentBinding<S>, so
     group.remaining_required_count(solution)
 }
 
-#[cfg(test)]
-pub(crate) fn selector_assignment_moves<S>(
-    group: &ScalarAssignmentBinding<S>,
-    solution: &S,
-    options: ScalarAssignmentMoveOptions,
-) -> Vec<CompoundScalarMove<S>>
-where
-    S: PlanningSolution,
-{
-    collect_assignment_moves(group, solution, options)
-}
-
 pub(super) fn ordered_entities<S, F>(
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
@@ -133,10 +105,12 @@ where
     entities
 }
 
-pub(super) fn rotate_entity_order(entities: &mut [usize], entity_offset: usize) {
-    if entities.is_empty() {
-        return;
-    }
-    let len = entities.len();
-    entities.rotate_left(entity_offset % len);
+pub(super) fn order_candidates<T: Clone>(
+    candidates: &mut [T],
+    options: ScalarAssignmentMoveOptions,
+    salt: u64,
+) {
+    options
+        .selection_context
+        .apply_selection_order_without_replacement(candidates, salt);
 }

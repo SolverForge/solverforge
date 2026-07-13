@@ -1,276 +1,194 @@
-/* Clarke-Wright savings construction phase for list-variable problems.
-
-Builds routes by computing savings for every element pair, then greedily
-merging singleton routes in descending savings order subject to owner-aware
-route feasibility.
-
-Public list hooks operate in actual stored list values. This phase may use
-collection indices internally for dense bookkeeping, but it must normalize
-them before calling any domain callback.
-*/
-
-use std::collections::HashSet;
-use std::marker::PhantomData;
+//! The public Clarke-Wright facade and its one canonical access protocol.
+//!
+//! The savings/merge/matching/completion algorithm lives in `kernel.rs`.
+//! Both this established public phase and compiled `RuntimeListSlot` instances
+//! adapt to that one kernel; neither owns a second construction algorithm.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::distance_arithmetic::sum_two_minus_one;
+use crate::builder::context::list_access::{ListAccess, RouteSequenceAccess, SavingsAccess};
+use crate::builder::context::{
+    bind_runtime_list_source, unassigned_from_current_assignment, ListSourceAccess,
+    RuntimeListElement, RuntimeListSlot, RuntimeListSourceIndex, SourceElement,
+};
+use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::Phase;
-use crate::scope::{PhaseScope, SolverScope, StepScope};
+use crate::scope::{ProgressCallback, SolverScope, StepControlPolicy};
 
+mod completion;
+mod kernel;
 mod owner_assignment;
 mod route_state;
 mod savings;
 
-use owner_assignment::{
-    feasible_owners_for_scored_elements, match_route_owners, owner_slots,
-    representative_owner_slots,
-};
-use route_state::{
-    route_elements, route_values, routes_match_owners_after_merge, ConstructedRoute,
-};
-use savings::{sort_savings, SavingsEntry};
+pub(crate) use kernel::run_clarke_wright;
 
-fn unique_metric_class<S>(_: &S, owner_idx: usize) -> usize {
-    owner_idx
+/// The declaration-resolved operations used by canonical Clarke-Wright.
+///
+/// The type is deliberately small: it exposes exactly the source, savings,
+/// owner, and route-replacement semantics that the algorithm consumes. It is
+/// implemented by the public function-pointer facade and by `RuntimeListSlot`.
+/// Thus static and dynamic models run the same savings ordering, merge logic,
+/// completion logic, and trace sources.
+pub(crate) trait ClarkeWrightAccess<S>: ListSourceAccess<S> {
+    fn entity_type_name(&self) -> &'static str;
+    fn variable_name(&self) -> &'static str;
+    fn descriptor_index(&self) -> usize;
+    fn entity_count(&self, solution: &S) -> usize;
+    fn route_len(&self, solution: &S, entity_index: usize) -> usize;
+    fn route_value(&self, element: &Self::Element) -> usize;
+    fn element_owner(&self, solution: &S, element: &Self::Element) -> Option<usize>;
+    fn savings_depot(&self, solution: &S, entity_index: usize) -> usize;
+    fn savings_metric_class(&self, solution: &S, entity_index: usize) -> usize;
+    fn savings_distance(&self, solution: &S, entity_index: usize, from: usize, to: usize) -> i64;
+    fn savings_feasible(&self, solution: &S, entity_index: usize, route: &[usize]) -> bool;
+    fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>);
 }
 
-struct CompletionAssignment {
-    owner_idx: usize,
-    route_indices: Vec<usize>,
-}
-
-#[allow(clippy::too_many_arguments)]
-fn complete_routes_by_insertion<S, E>(
-    solution: &S,
-    owner_slots: &[owner_assignment::OwnerSlot],
-    routes: &[ConstructedRoute],
-    index_to_element: fn(&S, usize) -> E,
-    depot_fn: fn(&S, usize) -> usize,
-    distance_fn: fn(&S, usize, usize, usize) -> i64,
-    feasible: fn(&S, usize, &[usize]) -> bool,
-    element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
-    entity_count: usize,
-) -> Option<Vec<(usize, Vec<usize>)>>
+impl<S, V, DM, IDM> ClarkeWrightAccess<S> for RuntimeListSlot<S, V, DM, IDM>
 where
-    S: PlanningSolution,
-    E: Copy + Into<usize>,
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    V: Clone + PartialEq + Into<usize> + Send + Sync + std::fmt::Debug + 'static,
+    DM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
+    IDM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    let mut assignments = owner_slots
-        .iter()
-        .map(|slot| CompletionAssignment {
-            owner_idx: slot.owner_idx,
-            route_indices: Vec::new(),
-        })
-        .collect::<Vec<_>>();
-    let mut element_order = Vec::new();
+    fn entity_type_name(&self) -> &'static str {
+        ListAccess::entity_type_name(self)
+    }
 
-    for (route_idx, route) in routes.iter().enumerate() {
-        if route.visits.is_empty() {
-            continue;
-        }
+    fn variable_name(&self) -> &'static str {
+        ListAccess::variable_name(self)
+    }
 
-        for (visit_position, &element_idx) in route.visits.iter().enumerate() {
-            let element = index_to_element(solution, element_idx);
-            let value = [element.into()];
-            let feasible_owner_count = owner_slots
-                .iter()
-                .filter(|slot| {
-                    crate::list_placement::owner_allows(
-                        element_owner_fn,
-                        solution,
-                        entity_count,
-                        slot.owner_idx,
-                        &element,
-                    ) && feasible(solution, slot.owner_idx, &value)
-                })
-                .count();
-            if feasible_owner_count == 0 {
-                return None;
-            }
-            element_order.push((feasible_owner_count, route_idx, visit_position, element_idx));
+    fn descriptor_index(&self) -> usize {
+        ListAccess::descriptor_index(self)
+    }
+
+    fn entity_count(&self, solution: &S) -> usize {
+        ListAccess::entity_count(self, solution)
+    }
+
+    fn route_len(&self, solution: &S, entity_index: usize) -> usize {
+        ListAccess::list_len(self, solution, entity_index)
+    }
+
+    fn route_value(&self, element: &Self::Element) -> usize {
+        match element {
+            RuntimeListElement::Static(value) => value.clone().into(),
+            RuntimeListElement::Dynamic(value) => *value,
         }
     }
 
-    element_order.sort_unstable();
-
-    for (_, _, _, element_idx) in element_order {
-        let mut best: Option<(i64, usize, usize)> = None;
-
-        for (assignment_idx, assignment) in assignments.iter().enumerate() {
-            let owner_idx = assignment.owner_idx;
-            let element = index_to_element(solution, element_idx);
-            if !crate::list_placement::owner_allows(
-                element_owner_fn,
-                solution,
-                entity_count,
-                owner_idx,
-                &element,
-            ) {
-                continue;
-            }
-
-            for insert_idx in 0..=assignment.route_indices.len() {
-                let mut candidate = assignment.route_indices.clone();
-                candidate.insert(insert_idx, element_idx);
-                let candidate_values = route_values(solution, index_to_element, &candidate);
-                if !feasible(solution, owner_idx, &candidate_values) {
-                    continue;
-                }
-
-                if let Some(owner_fn) = element_owner_fn {
-                    let candidate_elements = route_elements(solution, index_to_element, &candidate);
-                    if !crate::list_placement::route_owner_allows(
-                        Some(owner_fn),
-                        solution,
-                        entity_count,
-                        owner_idx,
-                        &candidate_elements,
-                    ) {
-                        continue;
-                    }
-                }
-
-                let delta = insertion_delta(
-                    solution,
-                    owner_idx,
-                    &assignment.route_indices,
-                    insert_idx,
-                    element_idx,
-                    index_to_element,
-                    depot_fn,
-                    distance_fn,
-                );
-                let candidate_key = (delta, assignment.route_indices.len(), assignment_idx);
-                let best_key = best.map(|(delta, assignment_idx, _)| {
-                    (
-                        delta,
-                        assignments[assignment_idx].route_indices.len(),
-                        assignment_idx,
-                    )
-                });
-                if best_key.is_none_or(|best_key| candidate_key < best_key) {
-                    best = Some((delta, assignment_idx, insert_idx));
-                }
-            }
-        }
-
-        let (_, assignment_idx, insert_idx) = best?;
-        assignments[assignment_idx]
-            .route_indices
-            .insert(insert_idx, element_idx);
+    fn element_owner(&self, solution: &S, element: &Self::Element) -> Option<usize> {
+        ListAccess::element_owner(self, solution, element)
+            .expect("compiled Clarke-Wright ownership policy must be callable")
     }
 
-    Some(
-        assignments
-            .into_iter()
-            .filter_map(|assignment| {
-                if assignment.route_indices.is_empty() {
-                    return None;
-                }
-                let route = route_values(solution, index_to_element, &assignment.route_indices);
-                Some((assignment.owner_idx, route))
-            })
-            .collect(),
-    )
+    fn savings_depot(&self, solution: &S, entity_index: usize) -> usize {
+        SavingsAccess::savings_depot(self, solution, entity_index)
+            .expect("compiled Clarke-Wright savings depot must be callable")
+    }
+
+    fn savings_metric_class(&self, solution: &S, entity_index: usize) -> usize {
+        SavingsAccess::savings_metric_class(self, solution, entity_index)
+            .expect("compiled Clarke-Wright savings metric class must be callable")
+    }
+
+    fn savings_distance(&self, solution: &S, entity_index: usize, from: usize, to: usize) -> i64 {
+        SavingsAccess::savings_distance(self, solution, entity_index, from, to)
+            .expect("compiled Clarke-Wright savings distance must be callable")
+    }
+
+    fn savings_feasible(&self, solution: &S, entity_index: usize, route: &[usize]) -> bool {
+        SavingsAccess::savings_feasible(self, solution, entity_index, route)
+            .expect("compiled Clarke-Wright savings feasibility must be callable")
+    }
+
+    fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>) {
+        RouteSequenceAccess::replace_route(self, solution, entity_index, route)
+            .expect("compiled Clarke-Wright route replacement must be callable");
+    }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn insertion_delta<S, E>(
+pub(super) fn owner_allows<S, A>(
+    access: &A,
+    solution: &S,
+    entity_count: usize,
+    entity_index: usize,
+    element: &A::Element,
+) -> bool
+where
+    A: ClarkeWrightAccess<S>,
+{
+    match access.element_owner(solution, element) {
+        None => true,
+        Some(owner_index) => owner_index < entity_count && owner_index == entity_index,
+    }
+}
+
+pub(super) fn route_owner_allows<S, A>(
+    access: &A,
+    solution: &S,
+    entity_count: usize,
+    entity_index: usize,
+    route: &[A::Element],
+) -> bool
+where
+    A: ClarkeWrightAccess<S>,
+{
+    route
+        .iter()
+        .all(|element| owner_allows(access, solution, entity_count, entity_index, element))
+}
+
+pub(super) struct CompletionAssignment {
+    pub(super) owner_idx: usize,
+    pub(super) route_indices: Vec<usize>,
+}
+
+pub(super) fn insertion_delta<S, A>(
     solution: &S,
     owner_idx: usize,
     route_indices: &[usize],
     insert_idx: usize,
     element_idx: usize,
-    index_to_element: fn(&S, usize) -> E,
-    depot_fn: fn(&S, usize) -> usize,
-    distance_fn: fn(&S, usize, usize, usize) -> i64,
+    access: &A,
+    source_index: &RuntimeListSourceIndex<A::Element>,
 ) -> i64
 where
-    E: Copy + Into<usize>,
+    A: ClarkeWrightAccess<S>,
 {
-    let depot = depot_fn(solution, owner_idx);
-    let value = index_to_element(solution, element_idx).into();
+    let depot = access.savings_depot(solution, owner_idx);
+    let value = access.route_value(source_index.element(element_idx));
     let previous = if insert_idx == 0 {
         depot
     } else {
-        index_to_element(solution, route_indices[insert_idx - 1]).into()
+        access.route_value(source_index.element(route_indices[insert_idx - 1]))
     };
     let next = route_indices
         .get(insert_idx)
-        .map(|&idx| index_to_element(solution, idx).into())
+        .map(|&idx| access.route_value(source_index.element(idx)))
         .unwrap_or(depot);
-
     sum_two_minus_one(
-        distance_fn(solution, owner_idx, previous, value),
-        distance_fn(solution, owner_idx, value, next),
-        distance_fn(solution, owner_idx, previous, next),
+        access.savings_distance(solution, owner_idx, previous, value),
+        access.savings_distance(solution, owner_idx, value, next),
+        access.savings_distance(solution, owner_idx, previous, next),
     )
 }
 
-/// List construction phase using Clarke-Wright savings algorithm.
+fn unique_metric_class<S>(_: &S, owner_idx: usize) -> usize {
+    owner_idx
+}
+
+/// Public facade for the canonical Clarke-Wright construction kernel.
 ///
-/// Builds routes by computing a savings value for every pair of elements,
-/// then greedily merges singleton routes in descending savings order,
-/// subject to owner-aware route feasibility. All domain knowledge is supplied
-/// by the caller via function pointers.
-///
-/// # Algorithm
-///
-/// ```text
-/// 1. For every pair (i, j) where i < j (depot excluded):
-///        savings(i, j) = dist(depot, i) + dist(depot, j) - dist(i, j)
-/// 2. Sort savings descending.
-/// 3. Start with each element in its own singleton route.
-/// 4. For each (i, j) in savings order:
-///        - Skip if i or j are in the same route.
-///        - Skip if no route owner can accept the merged route.
-///        - Skip if i is not an endpoint of its route, or j is not.
-///        - Orient and merge the two routes.
-/// 5. Assign non-empty routes to empty entities through deterministic matching.
-/// ```
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::ListClarkeWrightPhase;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SoftScore;
-///
-/// #[derive(Clone)]
-/// struct Vehicle { route: Vec<usize> }
-///
-/// #[derive(Clone)]
-/// struct Plan {
-///     vehicles: Vec<Vehicle>,
-///     n_stops: usize,
-///     score: Option<SoftScore>,
-/// }
-///
-/// impl PlanningSolution for Plan {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// let phase = ListClarkeWrightPhase::<Plan, usize>::new(
-///     |p| p.n_stops,
-///     |p| p.vehicles.iter().flat_map(|v| v.route.iter().copied()).collect(),
-///     |p| p.vehicles.len(),
-///     |p, entity_idx| p.vehicles.get(entity_idx).map_or(0, |v| v.route.len()),
-///     |p, entity_idx, route| {
-///         if let Some(v) = p.vehicles.get_mut(entity_idx) {
-///             v.route = route;
-///         }
-///     },
-///     |_p, idx| idx,
-///     |_p, _entity_idx| 0,            // depot value
-///     |_p, _entity_idx, i, j| (i as i64 - j as i64).abs(),
-///     |_p, _entity_idx, route| route.iter().sum::<usize>() <= 10,
-///     0,
-/// );
-/// ```
+/// Its constructor requires an explicit stable source key. Declaration and
+/// assignment identity are therefore validated before construction without
+/// payload equality/hash recovery. `Into<usize>` has a separate, explicit
+/// role here: it supplies CVRP route values for savings calculations, never
+/// construction identity.
 pub struct ListClarkeWrightPhase<S, E>
 where
     S: PlanningSolution,
@@ -282,13 +200,13 @@ where
     route_len: fn(&S, usize) -> usize,
     assign_route: fn(&mut S, usize, Vec<usize>),
     index_to_element: fn(&S, usize) -> E,
+    element_source_key: fn(&S, &E) -> usize,
     depot_fn: fn(&S, usize) -> usize,
     metric_class_fn: fn(&S, usize) -> usize,
     distance_fn: fn(&S, usize, usize, usize) -> i64,
     feasible_fn: fn(&S, usize, &[usize]) -> bool,
     element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
     descriptor_index: usize,
-    _marker: PhantomData<fn() -> (S, E)>,
 }
 
 impl<S, E> std::fmt::Debug for ListClarkeWrightPhase<S, E>
@@ -306,23 +224,6 @@ where
     S: PlanningSolution,
     E: Copy + Into<usize> + Send + Sync + 'static,
 {
-    /* Creates a new Clarke-Wright savings construction phase.
-
-    # Arguments
-
-    * `element_count` — Total number of elements (stops) to assign
-    * `get_assigned` — Returns currently assigned elements
-    * `entity_count` — Number of entities (vehicles/routes)
-    * `route_len` — Current list length for an entity; used to preserve preassigned routes
-    * `assign_route` — Assigns a complete route of element values to entity at index
-    * `index_to_element` — Converts an element index to its domain value
-    * `depot_fn` — Returns the depot value for the route owner
-    * `distance_fn` — Distance between two actual element values for the route owner
-    * `feasible_fn` — Owner-aware hard feasibility gate. Receives the solution,
-    route owner, and candidate route as actual element values; return `false`
-    to skip the route-owner assignment.
-    * `descriptor_index` — Entity descriptor index for change notification
-    */
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         element_count: fn(&S) -> usize,
@@ -331,6 +232,7 @@ where
         route_len: fn(&S, usize) -> usize,
         assign_route: fn(&mut S, usize, Vec<usize>),
         index_to_element: fn(&S, usize) -> E,
+        element_source_key: fn(&S, &E) -> usize,
         depot_fn: fn(&S, usize) -> usize,
         distance_fn: fn(&S, usize, usize, usize) -> i64,
         feasible_fn: fn(&S, usize, &[usize]) -> bool,
@@ -343,21 +245,16 @@ where
             route_len,
             assign_route,
             index_to_element,
+            element_source_key,
             depot_fn,
             metric_class_fn: unique_metric_class::<S>,
             distance_fn,
             feasible_fn,
             element_owner_fn: None,
             descriptor_index,
-            _marker: PhantomData,
         }
     }
 
-    /* Configures the construction metric class hook.
-
-    Owners in the same class must produce identical depot and route-distance
-    values. Feasibility remains owner-specific.
-    */
     pub fn with_metric_class_fn(mut self, metric_class_fn: fn(&S, usize) -> usize) -> Self {
         self.metric_class_fn = metric_class_fn;
         self
@@ -372,387 +269,122 @@ where
     }
 }
 
+impl<S, E> ListSourceAccess<S> for ListClarkeWrightPhase<S, E>
+where
+    S: PlanningSolution,
+    E: Copy + Into<usize> + Send + Sync + 'static,
+{
+    type Element = E;
+
+    fn element_count(&self, solution: &S) -> usize {
+        (self.element_count)(solution)
+    }
+
+    fn index_to_element(&self, solution: &S, source_index: usize) -> Option<Self::Element> {
+        (source_index < (self.element_count)(solution))
+            .then(|| (self.index_to_element)(solution, source_index))
+    }
+
+    fn element_source_key(&self, solution: &S, element: &Self::Element) -> usize {
+        (self.element_source_key)(solution, element)
+    }
+
+    fn assigned_elements(&self, solution: &S) -> Vec<Self::Element> {
+        (self.get_assigned)(solution)
+    }
+}
+
+impl<S, E> ClarkeWrightAccess<S> for ListClarkeWrightPhase<S, E>
+where
+    S: PlanningSolution,
+    E: Copy + Into<usize> + Send + Sync + 'static,
+{
+    fn entity_type_name(&self) -> &'static str {
+        "list_clarke_wright"
+    }
+
+    fn variable_name(&self) -> &'static str {
+        "list_clarke_wright"
+    }
+
+    fn descriptor_index(&self) -> usize {
+        self.descriptor_index
+    }
+
+    fn entity_count(&self, solution: &S) -> usize {
+        (self.entity_count)(solution)
+    }
+
+    fn route_len(&self, solution: &S, entity_index: usize) -> usize {
+        (self.route_len)(solution, entity_index)
+    }
+
+    fn route_value(&self, element: &Self::Element) -> usize {
+        (*element).into()
+    }
+
+    fn element_owner(&self, solution: &S, element: &Self::Element) -> Option<usize> {
+        self.element_owner_fn
+            .and_then(|owner| owner(solution, element))
+    }
+
+    fn savings_depot(&self, solution: &S, entity_index: usize) -> usize {
+        (self.depot_fn)(solution, entity_index)
+    }
+
+    fn savings_metric_class(&self, solution: &S, entity_index: usize) -> usize {
+        (self.metric_class_fn)(solution, entity_index)
+    }
+
+    fn savings_distance(&self, solution: &S, entity_index: usize, from: usize, to: usize) -> i64 {
+        (self.distance_fn)(solution, entity_index, from, to)
+    }
+
+    fn savings_feasible(&self, solution: &S, entity_index: usize, route: &[usize]) -> bool {
+        (self.feasible_fn)(solution, entity_index, route)
+    }
+
+    fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>) {
+        (self.assign_route)(solution, entity_index, route);
+    }
+}
+
 impl<S, E, D, BestCb> Phase<S, D, BestCb> for ListClarkeWrightPhase<S, E>
 where
     S: PlanningSolution,
-    E: Copy + Eq + std::hash::Hash + Into<usize> + Send + Sync + 'static,
+    E: Copy + Into<usize> + Send + Sync + 'static,
     D: Director<S>,
-    BestCb: crate::scope::ProgressCallback<S>,
+    BestCb: ProgressCallback<S>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
-        let mut phase_scope = PhaseScope::new(solver_scope, 0);
-
-        let solution = phase_scope.score_director().working_solution();
-        let n_elements = (self.element_count)(solution);
-        let n_entities = (self.entity_count)(solution);
-
-        if n_entities == 0 || n_elements == 0 {
-            let _score = phase_scope.score_director_mut().calculate_score();
-            phase_scope.update_best_solution();
-            return;
-        }
-
-        let assigned = (self.get_assigned)(phase_scope.score_director().working_solution());
-        if assigned.len() >= n_elements {
-            tracing::info!("All elements already assigned, skipping Clarke-Wright construction");
-            let _score = phase_scope.score_director_mut().calculate_score();
-            phase_scope.update_best_solution();
-            return;
-        }
-
-        let solution = phase_scope.score_director().working_solution();
-        let index_to_element = self.index_to_element;
-        let available_entity_slots: Vec<usize> = (0..n_entities)
-            .filter(|&entity_idx| (self.route_len)(solution, entity_idx) == 0)
-            .collect();
-
-        if available_entity_slots.is_empty() {
-            tracing::warn!(
-                unassigned_elements = n_elements.saturating_sub(assigned.len()),
-                "ListClarkeWright found no empty entity slots for remaining work; leaving preassigned routes untouched"
-            );
-            let _score = phase_scope.score_director_mut().calculate_score();
-            phase_scope.update_best_solution();
-            return;
-        }
-
-        let depot_values: HashSet<usize> = available_entity_slots
-            .iter()
-            .map(|&entity_idx| (self.depot_fn)(solution, entity_idx))
-            .collect();
-        let owner_slots = owner_slots(solution, &available_entity_slots, self.metric_class_fn);
-        let representative_owner_slots = representative_owner_slots(&owner_slots);
-        let assigned_set: HashSet<E> = assigned.into_iter().collect();
-        let unassigned_indices: Vec<usize> = (0..n_elements)
-            .filter(|&i| {
-                let element = index_to_element(solution, i);
-                !depot_values.contains(&element.into()) && !assigned_set.contains(&element)
-            })
-            .collect();
-
-        let n = unassigned_indices.len();
-        if n == 0 {
-            let _score = phase_scope.score_director_mut().calculate_score();
-            phase_scope.update_best_solution();
-            return;
-        }
-
-        // Initialize singleton routes before savings generation so we can always
-        // commit a meaningful partial construction if termination fires mid-phase.
-        let mut routes: Vec<ConstructedRoute> = unassigned_indices
-            .iter()
-            .map(|&i| {
-                let value = index_to_element(solution, i).into();
-                let element = index_to_element(solution, i);
-                let singleton = [value];
-                let feasible_for_all_owners = owner_slots.iter().all(|slot| {
-                    (self.feasible_fn)(solution, slot.owner_idx, &singleton)
-                        && crate::list_placement::owner_allows(
-                            self.element_owner_fn,
-                            solution,
-                            n_entities,
-                            slot.owner_idx,
-                            &element,
-                        )
-                });
-                ConstructedRoute::singleton(i, feasible_for_all_owners)
-            })
-            .collect();
-
-        // Map collection index -> route index.
-        let mut route_of: Vec<Option<usize>> = vec![None; n_elements];
-        for (route_idx, &elem_idx) in unassigned_indices.iter().enumerate() {
-            route_of[elem_idx] = Some(route_idx);
-        }
-
-        // Compute savings for all pairs (i, j) where i < j in unassigned_indices,
-        // calling domain hooks only in actual value space.
-        let distance_fn = self.distance_fn;
-        let mut savings: Vec<SavingsEntry> = Vec::with_capacity(
-            n.saturating_mul(n.saturating_sub(1))
-                .saturating_div(2)
-                .saturating_mul(representative_owner_slots.len()),
-        );
-        let mut construction_interrupted = false;
-        'savings_generation: for owner_slot in &representative_owner_slots {
-            let owner_idx = owner_slot.owner_idx;
-            for a in 0..n {
-                if (a & 0x1F) == 0
-                    && phase_scope
-                        .solver_scope_mut()
-                        .should_terminate_construction()
-                {
-                    construction_interrupted = true;
-                    break 'savings_generation;
-                }
-                for b in (a + 1)..n {
-                    let left_idx = unassigned_indices[a];
-                    let right_idx = unassigned_indices[b];
-                    let solution = phase_scope.score_director().working_solution();
-                    let depot = (self.depot_fn)(solution, owner_idx);
-                    let left_value = index_to_element(solution, left_idx).into();
-                    let right_value = index_to_element(solution, right_idx).into();
-                    let saving = sum_two_minus_one(
-                        distance_fn(solution, owner_idx, depot, left_value),
-                        distance_fn(solution, owner_idx, depot, right_value),
-                        distance_fn(solution, owner_idx, left_value, right_value),
-                    );
-                    savings.push(SavingsEntry {
-                        saving,
-                        metric_class: owner_slot.metric_class,
-                        left_idx,
-                        right_idx,
-                    });
-                    if (savings.len() & 0x3FF) == 0
-                        && phase_scope
-                            .solver_scope_mut()
-                            .should_terminate_construction()
-                    {
-                        construction_interrupted = true;
-                        break 'savings_generation;
-                    }
-                }
-            }
-        }
-        sort_savings(&mut savings);
-
-        // Greedy merge. Revisit the savings order until it reaches a fixed
-        // point, because a pair skipped before can become a valid endpoint
-        // merge after another route changes.
-        loop {
-            let mut merged_in_pass = false;
-
-            for (merge_idx, entry) in savings.iter().enumerate() {
-                if (merge_idx & 0xFF) == 0
-                    && phase_scope
-                        .solver_scope_mut()
-                        .should_terminate_construction()
-                {
-                    construction_interrupted = true;
-                    break;
-                }
-                let i = entry.left_idx;
-                let j = entry.right_idx;
-
-                let ri = match route_of[i] {
-                    Some(r) => r,
-                    None => continue,
-                };
-                let rj = match route_of[j] {
-                    Some(r) => r,
-                    None => continue,
-                };
-
-                if ri == rj {
-                    continue;
-                }
-
-                // i must be an endpoint of ri
-                if !routes[ri].can_merge_for_metric_class(entry.metric_class)
-                    || !routes[rj].can_merge_for_metric_class(entry.metric_class)
-                {
-                    continue;
-                }
-
-                let i_is_endpoint =
-                    routes[ri].visits.first() == Some(&i) || routes[ri].visits.last() == Some(&i);
-                if !i_is_endpoint {
-                    continue;
-                }
-                // j must be an endpoint of rj
-                let j_is_endpoint =
-                    routes[rj].visits.first() == Some(&j) || routes[rj].visits.last() == Some(&j);
-                if !j_is_endpoint {
-                    continue;
-                }
-
-                let mut test_ri = routes[ri].visits.clone();
-                if test_ri.first() == Some(&i) {
-                    test_ri.reverse();
-                }
-                let mut test_rj = routes[rj].visits.clone();
-                if test_rj.last() == Some(&j) {
-                    test_rj.reverse();
-                }
-
-                let candidate_indices: Vec<usize> =
-                    test_ri.iter().chain(&test_rj).copied().collect();
-                let solution = phase_scope.score_director().working_solution();
-                let candidate_route = route_values(solution, index_to_element, &candidate_indices);
-                let candidate_elements = self
-                    .element_owner_fn
-                    .map(|_| route_elements(solution, index_to_element, &candidate_indices));
-                let candidate_feasible_owners = feasible_owners_for_scored_elements(
-                    solution,
-                    &owner_slots,
-                    &candidate_route,
-                    candidate_elements.as_deref(),
-                    Some(entry.metric_class),
-                    self.feasible_fn,
-                    self.element_owner_fn,
-                    n_entities,
-                );
-                if candidate_feasible_owners.is_empty() {
-                    continue;
-                }
-                let candidate_feasible_for_all_metric_class_owners = candidate_feasible_owners
-                    .len()
-                    == owner_slots
-                        .iter()
-                        .filter(|slot| slot.metric_class == entry.metric_class)
-                        .count();
-                if !routes_match_owners_after_merge(
-                    solution,
-                    &routes,
-                    ri,
-                    rj,
-                    &candidate_indices,
-                    entry.metric_class,
-                    candidate_feasible_for_all_metric_class_owners,
-                    &owner_slots,
-                    index_to_element,
-                    self.feasible_fn,
-                    self.element_owner_fn,
-                    n_entities,
-                ) {
-                    continue;
-                }
-
-                routes[ri].visits = test_ri;
-                routes[ri].scored_metric_class = Some(entry.metric_class);
-                routes[ri].feasible_for_all_owners = false;
-                routes[ri].feasible_for_all_metric_class_owners =
-                    candidate_feasible_for_all_metric_class_owners;
-                routes[rj].visits.clear();
-                routes[rj].scored_metric_class = None;
-                routes[rj].feasible_for_all_owners = false;
-                routes[rj].feasible_for_all_metric_class_owners = false;
-                for &c in &test_rj {
-                    route_of[c] = Some(ri);
-                }
-                routes[ri].visits.extend(test_rj);
-                merged_in_pass = true;
-            }
-
-            if construction_interrupted || !merged_in_pass {
-                break;
-            }
-        }
-
-        // Assign all constructed routes in one step so an interrupted construction
-        // still commits a coherent partial solution instead of leaving the working
-        // solution empty.
-        let non_empty: Vec<ConstructedRoute> = routes
-            .into_iter()
-            .filter(|route| !route.visits.is_empty())
-            .collect();
-        let solution = phase_scope.score_director().working_solution();
-        let constructed_route_count = non_empty.len();
-        let mut assignable_routes = Vec::with_capacity(constructed_route_count);
-        let mut feasible_sets = Vec::with_capacity(constructed_route_count);
-        let mut owner_ineligible_routes = 0usize;
-        for route in &non_empty {
-            let values = route_values(solution, index_to_element, &route.visits);
-            let elements = self
-                .element_owner_fn
-                .map(|_| route_elements(solution, index_to_element, &route.visits));
-            let feasible_owners = feasible_owners_for_scored_elements(
-                solution,
-                &owner_slots,
-                &values,
-                elements.as_deref(),
-                route.scored_metric_class,
-                self.feasible_fn,
-                self.element_owner_fn,
-                n_entities,
-            );
-            if feasible_owners.is_empty() {
-                owner_ineligible_routes += 1;
-                continue;
-            }
-            assignable_routes.push(route.clone());
-            feasible_sets.push(feasible_owners);
-        }
-        let route_to_owner = match_route_owners(&feasible_sets);
-        let matched_count = route_to_owner
-            .iter()
-            .filter(|owner| owner.is_some())
-            .count();
-        let completion_routes = if matched_count < assignable_routes.len()
-            && !construction_interrupted
-            && owner_ineligible_routes == 0
-        {
-            complete_routes_by_insertion(
-                solution,
-                &owner_slots,
-                &non_empty,
-                index_to_element,
-                self.depot_fn,
-                self.distance_fn,
-                self.feasible_fn,
-                self.element_owner_fn,
-                n_entities,
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>) {
+        let binding = bind_runtime_list_source(self, solver_scope.working_solution())
+            .unwrap_or_else(|error| {
+                panic!(
+                    "ListClarkeWright {}.{} source binding failed before phase execution: {error:?}",
+                    self.entity_type_name(),
+                    self.variable_name(),
+                )
+            });
+        let source_index = binding.into_source_index();
+        let unassigned = unassigned_from_current_assignment(
+            self,
+            &source_index,
+            solver_scope.working_solution(),
+        )
+        .unwrap_or_else(|error| {
+            panic!(
+                "ListClarkeWright {}.{} assignment refresh failed before phase execution: {error:?}",
+                self.entity_type_name(),
+                self.variable_name(),
             )
-        } else {
-            None
-        };
-
-        if matched_count < assignable_routes.len()
-            && !construction_interrupted
-            && completion_routes.is_none()
-        {
-            tracing::warn!(
-                constructed_routes = constructed_route_count,
-                owner_ineligible_routes,
-                available_slots = available_entity_slots.len(),
-                matched_routes = matched_count,
-                "ListClarkeWright could not match every constructed route to a feasible empty entity"
-            );
-            let _score = phase_scope.score_director_mut().calculate_score();
-            phase_scope.update_best_solution();
-            return;
-        }
-
-        if let Some(completed_routes) = completion_routes {
-            let assign_route = self.assign_route;
-            let descriptor_index = self.descriptor_index;
-            let mut step_scope = StepScope::new(&mut phase_scope);
-
-            step_scope.apply_committed_change(|sd| {
-                for (entity_idx, route) in completed_routes {
-                    sd.before_variable_changed(descriptor_index, entity_idx);
-                    assign_route(sd.working_solution_mut(), entity_idx, route);
-                    sd.after_variable_changed(descriptor_index, entity_idx);
-                }
-            });
-
-            let step_score = step_scope.calculate_score();
-            step_scope.set_step_score(step_score);
-            step_scope.complete();
-        } else if matched_count > 0 {
-            let assign_route = self.assign_route;
-            let descriptor_index = self.descriptor_index;
-            let mut step_scope = StepScope::new(&mut phase_scope);
-
-            step_scope.apply_committed_change(|sd| {
-                for (index_route, entity_idx) in assignable_routes.into_iter().zip(route_to_owner) {
-                    let Some(entity_idx) = entity_idx else {
-                        continue;
-                    };
-                    sd.before_variable_changed(descriptor_index, entity_idx);
-                    let route =
-                        route_values(sd.working_solution(), index_to_element, &index_route.visits);
-                    assign_route(sd.working_solution_mut(), entity_idx, route);
-                    sd.after_variable_changed(descriptor_index, entity_idx);
-                }
-            });
-
-            let step_score = step_scope.calculate_score();
-            step_scope.set_step_score(step_score);
-            step_scope.complete();
-        }
-
-        phase_scope.update_best_solution();
+        });
+        run_clarke_wright(
+            self,
+            &source_index,
+            &unassigned,
+            StepControlPolicy::ObserveConfigLimits,
+            solver_scope,
+        );
     }
 
     fn phase_type_name(&self) -> &'static str {

@@ -98,14 +98,22 @@ fn test_queued_placer_all_uninitialized() {
         "row",
     );
 
-    let placements = placer.get_placements(&director);
+    let mut cursor = placer.open_cursor(&director);
+    let mut placements = Vec::new();
+    while let Some(mut placement) = cursor.next_placement(&director, |_| false, || false) {
+        let mut candidate_count = 0;
+        while placement.candidates_mut().next_candidate().is_some() {
+            candidate_count += 1;
+        }
+        placements.push((placement.entity_ref, candidate_count));
+    }
 
     // All 3 entities should have placements
     assert_eq!(placements.len(), 3);
 
     // Each should have 3 moves (one per value)
-    for p in &placements {
-        assert_eq!(p.moves.len(), 3);
+    for (_, candidate_count) in &placements {
+        assert_eq!(*candidate_count, 3);
     }
 }
 
@@ -127,11 +135,15 @@ fn test_queued_placer_some_initialized() {
         "row",
     );
 
-    let placements = placer.get_placements(&director);
+    let mut cursor = placer.open_cursor(&director);
+    let mut placements = Vec::new();
+    while let Some(placement) = cursor.next_placement(&director, |_| false, || false) {
+        placements.push(placement.entity_ref);
+    }
 
     // Only 1 entity (index 1) should have a placement
     assert_eq!(placements.len(), 1);
-    assert_eq!(placements[0].entity_ref.entity_index, 1);
+    assert_eq!(placements[0].entity_index, 1);
 }
 
 #[test]
@@ -151,7 +163,11 @@ fn test_queued_placer_all_initialized() {
         "row",
     );
 
-    let placements = placer.get_placements(&director);
+    let mut cursor = placer.open_cursor(&director);
+    let mut placements = Vec::new();
+    while let Some(placement) = cursor.next_placement(&director, |_| false, || false) {
+        placements.push(placement.entity_ref);
+    }
 
     // No placements - all already initialized
     assert_eq!(placements.len(), 0);
@@ -181,10 +197,14 @@ fn test_sorted_entity_placer_descending() {
     }
 
     let sorted = SortedEntityPlacer::new(inner, descending_index);
-    let placements = sorted.get_placements(&director);
+    let mut cursor = sorted.open_cursor(&director);
+    let mut placements = Vec::new();
+    while let Some(placement) = cursor.next_placement(&director, |_| false, || false) {
+        placements.push(placement.entity_ref);
+    }
 
     assert_eq!(placements.len(), 3);
-    assert_eq!(placements[0].entity_ref.entity_index, 2);
-    assert_eq!(placements[1].entity_ref.entity_index, 1);
-    assert_eq!(placements[2].entity_ref.entity_index, 0);
+    assert_eq!(placements[0].entity_index, 2);
+    assert_eq!(placements[1].entity_index, 1);
+    assert_eq!(placements[2].entity_index, 0);
 }

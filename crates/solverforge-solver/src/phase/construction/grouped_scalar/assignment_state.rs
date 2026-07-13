@@ -343,7 +343,7 @@ impl ScalarAssignmentState {
         entity_index: usize,
         value: usize,
     ) -> bool {
-        if group.assignment_rule.is_none() {
+        if !group.has_assignment_rule() {
             return true;
         }
 
@@ -384,7 +384,7 @@ impl ScalarAssignmentState {
         solution: &S,
         edited: &[(usize, Option<usize>, Option<usize>)],
     ) -> bool {
-        if group.assignment_rule.is_none() {
+        if !group.has_assignment_rule() {
             return true;
         }
 
@@ -537,7 +537,7 @@ impl ScalarAssignmentState {
         value: usize,
         blockers: &mut Vec<usize>,
     ) {
-        if group.assignment_rule.is_none()
+        if !group.has_assignment_rule()
             || self.assignment_allowed(group, solution, entity_index, value)
         {
             return;

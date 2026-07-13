@@ -57,10 +57,7 @@ impl ValueLongWindowCursor {
                 pairs.push((index.values[left_pos], index.values[right_pos]));
             }
         }
-        if !pairs.is_empty() {
-            let pair_count = pairs.len();
-            pairs.rotate_left(options.entity_offset % pair_count);
-        }
+        super::assignment_candidate::order_candidates(&mut pairs, options, 0xA551_6EED_0000_0012);
 
         let base_len = options
             .max_rematch_size
@@ -150,10 +147,7 @@ impl ValueWindowCursor {
                 pairs.push((index.values[left_pos], index.values[right_pos]));
             }
         }
-        if !pairs.is_empty() {
-            let pair_count = pairs.len();
-            pairs.rotate_left(options.entity_offset % pair_count);
-        }
+        super::assignment_candidate::order_candidates(&mut pairs, options, 0xA551_6EED_0000_0013);
 
         let max_len = options
             .max_depth
@@ -247,10 +241,7 @@ impl ValueBlockReassignmentCursor {
                 }
             }
         }
-        if !pairs.is_empty() {
-            let pair_count = pairs.len();
-            pairs.rotate_left(options.entity_offset % pair_count);
-        }
+        super::assignment_candidate::order_candidates(&mut pairs, options, 0xA551_6EED_0000_0014);
 
         let max_len = options
             .max_depth

@@ -6,8 +6,11 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
+mod compiled_parity;
 mod metric_class;
 mod owner_binding;
+mod public_compiled_parity;
+mod source_key;
 
 #[derive(Clone, Debug)]
 struct Route {
@@ -254,6 +257,7 @@ fn clarke_wright_hooks_receive_actual_list_values() {
         route_len,
         assign_route,
         index_to_element,
+        crate::builder::usize_element_source_key,
         depot,
         actual_value_distance,
         actual_value_feasible,
@@ -310,6 +314,7 @@ fn clarke_wright_route_feasible_preserves_capacity_hook_behavior() {
         route_len,
         assign_route,
         index_to_element,
+        crate::builder::usize_element_source_key,
         depot,
         distance,
         capacity_feasible,
@@ -363,6 +368,7 @@ fn clarke_wright_extreme_distances_do_not_overflow_savings() {
         route_len,
         assign_route,
         index_to_element,
+        crate::builder::usize_element_source_key,
         depot,
         extreme_distance,
         single_visit_route,
@@ -409,6 +415,7 @@ fn clarke_wright_respects_fixed_element_owner() {
         route_len,
         assign_route,
         index_to_element,
+        crate::builder::usize_element_source_key,
         depot,
         distance,
         feasible,
@@ -452,6 +459,7 @@ fn clarke_wright_keeps_unrestricted_elements_when_owner_hook_exists() {
         route_len,
         assign_route,
         index_to_element,
+        crate::builder::usize_element_source_key,
         depot,
         distance,
         single_visit_route,
@@ -502,6 +510,7 @@ fn clarke_wright_preserves_preassigned_routes() {
         route_len,
         assign_route,
         index_to_element,
+        crate::builder::usize_element_source_key,
         depot,
         distance,
         feasible,
@@ -546,6 +555,7 @@ fn clarke_wright_assigns_constructed_routes_to_feasible_owners() {
         route_len,
         assign_route,
         index_to_element,
+        crate::builder::usize_element_source_key,
         depot,
         distance,
         owner_feasible,
@@ -595,6 +605,7 @@ fn clarke_wright_uses_owner_depots_for_savings() {
         route_len,
         assign_route,
         index_to_element,
+        crate::builder::usize_element_source_key,
         depot_by_owner,
         distance_records_owner,
         single_visit_route,
@@ -642,6 +653,7 @@ fn clarke_wright_skips_merge_that_breaks_global_owner_matching() {
         route_len,
         assign_route,
         index_to_element,
+        crate::builder::usize_element_source_key,
         depot,
         scarce_owner_distance,
         scarce_owner_feasible,
@@ -698,6 +710,7 @@ fn clarke_wright_completes_unmatched_routes_with_savings_insertion() {
         route_len,
         assign_route,
         index_to_element,
+        crate::builder::usize_element_source_key,
         depot,
         scarce_capacity_distance,
         scarce_capacity_feasible,

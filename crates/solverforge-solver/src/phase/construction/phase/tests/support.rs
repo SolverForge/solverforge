@@ -1,3 +1,5 @@
+include!("support/control.rs");
+
 fn create_placer(
     values: Vec<i64>,
 ) -> QueuedEntityPlacer<
@@ -9,88 +11,6 @@ fn create_placer(
     let es = FromSolutionEntitySelector::new(0);
     let vs = StaticValueSelector::new(values);
     QueuedEntityPlacer::new(es, vs, get_queen_row, set_queen_row, 0, 0, "row")
-}
-
-#[derive(Clone, Debug)]
-struct BlockingPoint {
-    state: Arc<(Mutex<BlockingPointState>, Condvar)>,
-}
-
-#[derive(Debug)]
-struct BlockingPointState {
-    blocked: bool,
-    released: bool,
-}
-
-impl BlockingPoint {
-    fn new() -> Self {
-        Self {
-            state: Arc::new((
-                Mutex::new(BlockingPointState {
-                    blocked: false,
-                    released: false,
-                }),
-                Condvar::new(),
-            )),
-        }
-    }
-
-    fn block(&self) {
-        let (lock, condvar) = &*self.state;
-        let mut state = lock.lock().unwrap();
-        state.blocked = true;
-        condvar.notify_all();
-        while !state.released {
-            state = condvar.wait(state).unwrap();
-        }
-    }
-
-    fn wait_until_blocked(&self) {
-        let (lock, condvar) = &*self.state;
-        let mut state = lock.lock().unwrap();
-        while !state.blocked {
-            state = condvar.wait(state).unwrap();
-        }
-    }
-
-    fn release(&self) {
-        let (lock, condvar) = &*self.state;
-        let mut state = lock.lock().unwrap();
-        state.released = true;
-        condvar.notify_all();
-    }
-}
-
-#[derive(Clone, Debug)]
-struct BlockingEvaluationGate {
-    block_at: usize,
-    seen: Arc<AtomicUsize>,
-    blocker: BlockingPoint,
-}
-
-impl BlockingEvaluationGate {
-    fn new(block_at: usize) -> Self {
-        Self {
-            block_at,
-            seen: Arc::new(AtomicUsize::new(0)),
-            blocker: BlockingPoint::new(),
-        }
-    }
-
-    fn on_evaluation(&self) {
-        let seen = self.seen.fetch_add(1, Ordering::SeqCst) + 1;
-        if seen == self.block_at {
-            self.blocker.block();
-        }
-    }
-
-    fn wait_until_blocked(&self) {
-        self.blocker.wait_until_blocked();
-    }
-
-    fn release(&self) {
-        self.blocker.release();
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -109,6 +29,7 @@ struct ConstructionPauseSolution {
 #[derive(Clone, Copy, Debug)]
 enum ConstructionPauseSolvableMode {
     FirstFitMax64,
+    FirstFitDecisive,
     BestFitKeepCurrent,
 }
 
@@ -130,6 +51,14 @@ impl ConstructionPauseSolution {
         Self {
             solvable_mode: ConstructionPauseSolvableMode::BestFitKeepCurrent,
             ..Self::new(eval_gate)
+        }
+    }
+
+    fn decisive(eval_gate: BlockingEvaluationGate) -> Self {
+        Self {
+            eval_gate: Some(eval_gate),
+            solvable_mode: ConstructionPauseSolvableMode::FirstFitDecisive,
+            ..Self::new(None)
         }
     }
 }
@@ -346,12 +275,53 @@ impl ConstructionPausePlacer {
     }
 }
 
+struct ConstructionTestPlacerCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    placements: std::vec::IntoIter<Placement<S, M>>,
+}
+
+impl<S, M> EntityPlacerCursor<S, M> for ConstructionTestPlacerCursor<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    type CandidateCursor = ArenaMoveCursor<S, M>;
+
+    fn next_placement<D, IsCompleted, ShouldStop>(
+        &mut self,
+        _score_director: &D,
+        mut is_completed: IsCompleted,
+        mut should_stop: ShouldStop,
+    ) -> Option<Placement<S, M>>
+    where
+        D: Director<S>,
+        IsCompleted: FnMut(&Placement<S, M>) -> bool,
+        ShouldStop: FnMut() -> bool,
+    {
+        while !should_stop() {
+            let placement = self.placements.next()?;
+            if !is_completed(&placement) {
+                return Some(placement);
+            }
+        }
+        None
+    }
+}
+
 impl EntityPlacer<ConstructionPauseSolution, ConstructionPauseMove> for ConstructionPausePlacer {
-    fn get_placements<D: Director<ConstructionPauseSolution>>(
-        &self,
+    type Cursor<'a>
+        = ConstructionTestPlacerCursor<ConstructionPauseSolution, ConstructionPauseMove>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<ConstructionPauseSolution>>(
+        &'a self,
         score_director: &D,
-    ) -> Vec<Placement<ConstructionPauseSolution, ConstructionPauseMove>> {
-        score_director
+    ) -> Self::Cursor<'a> {
+        let placements = score_director
             .working_solution()
             .entities
             .iter()
@@ -361,7 +331,7 @@ impl EntityPlacer<ConstructionPauseSolution, ConstructionPauseMove> for Construc
                     return None;
                 }
 
-                let moves = (0..65)
+                let moves: Vec<_> = (0..65)
                     .map(|value| {
                         ConstructionPauseMove::new(
                             entity_index,
@@ -372,9 +342,14 @@ impl EntityPlacer<ConstructionPauseSolution, ConstructionPauseMove> for Construc
                     })
                     .collect();
 
-                Some(Placement::new(EntityReference::new(0, entity_index), moves))
+                Some(Placement::new(
+                    EntityReference::new(0, entity_index),
+                    ArenaMoveCursor::from_moves(moves),
+                ))
             })
-            .collect()
+            .collect::<Vec<_>>()
+            .into_iter();
+        ConstructionTestPlacerCursor { placements }
     }
 }
 
@@ -401,11 +376,16 @@ impl ScoredConstructionPlacer {
 }
 
 impl EntityPlacer<ConstructionPauseSolution, ConstructionPauseMove> for ScoredConstructionPlacer {
-    fn get_placements<D: Director<ConstructionPauseSolution>>(
-        &self,
+    type Cursor<'a>
+        = ConstructionTestPlacerCursor<ConstructionPauseSolution, ConstructionPauseMove>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<ConstructionPauseSolution>>(
+        &'a self,
         score_director: &D,
-    ) -> Vec<Placement<ConstructionPauseSolution, ConstructionPauseMove>> {
-        score_director
+    ) -> Self::Cursor<'a> {
+        let placements = score_director
             .working_solution()
             .entities
             .iter()
@@ -415,7 +395,7 @@ impl EntityPlacer<ConstructionPauseSolution, ConstructionPauseMove> for ScoredCo
                     return None;
                 }
 
-                let moves = self
+                let moves: Vec<_> = self
                     .values
                     .iter()
                     .copied()
@@ -431,16 +411,25 @@ impl EntityPlacer<ConstructionPauseSolution, ConstructionPauseMove> for ScoredCo
                     .collect();
 
                 Some(
-                    Placement::new(EntityReference::new(0, entity_index), moves)
+                    Placement::new(
+                        EntityReference::new(0, entity_index),
+                        ArenaMoveCursor::from_moves(moves),
+                    )
                         .with_keep_current_legal(self.keep_current_legal),
                 )
             })
-            .collect()
+            .collect::<Vec<_>>()
+            .into_iter();
+        ConstructionTestPlacerCursor { placements }
     }
 }
 
 impl Solvable for ConstructionPauseSolution {
-    fn solve(self, runtime: SolverRuntime<Self>) {
+    fn solve(
+        self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
+    ) {
         let eval_gate = self.eval_gate.clone();
         let solvable_mode = self.solvable_mode;
         let mut solver_scope = SolverScope::new_with_callback(
@@ -456,6 +445,14 @@ impl Solvable for ConstructionPauseSolution {
             ConstructionPauseSolvableMode::FirstFitMax64 => {
                 let mut phase = ConstructionHeuristicPhase::new(
                     ConstructionPausePlacer::new(eval_gate),
+                    FirstFitForager::new(),
+                );
+                phase.solve(&mut solver_scope);
+            }
+            ConstructionPauseSolvableMode::FirstFitDecisive => {
+                let mut phase = ConstructionHeuristicPhase::new(
+                    ScoredConstructionPlacer::new((0..66).collect(), false)
+                        .with_eval_gate(eval_gate),
                     FirstFitForager::new(),
                 );
                 phase.solve(&mut solver_scope);

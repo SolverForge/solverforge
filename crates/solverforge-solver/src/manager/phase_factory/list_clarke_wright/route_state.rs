@@ -1,6 +1,7 @@
 use solverforge_core::domain::PlanningSolution;
 
 use super::owner_assignment::{feasible_owners_for_scored_elements, OwnerSlot};
+use super::{ClarkeWrightAccess, RuntimeListSourceIndex};
 
 #[derive(Clone)]
 pub(crate) struct ConstructedRoute {
@@ -26,37 +27,38 @@ impl ConstructedRoute {
     }
 }
 
-pub(crate) fn route_values<S, E>(
-    solution: &S,
-    index_to_element: fn(&S, usize) -> E,
+pub(crate) fn route_values<S, A>(
+    access: &A,
+    source_index: &RuntimeListSourceIndex<A::Element>,
     route: &[usize],
 ) -> Vec<usize>
 where
-    E: Copy + Into<usize>,
+    A: ClarkeWrightAccess<S>,
 {
     route
         .iter()
-        .map(|&idx| index_to_element(solution, idx).into())
+        .map(|&idx| access.route_value(source_index.element(idx)))
         .collect()
 }
 
-pub(crate) fn route_elements<S, E>(
-    solution: &S,
-    index_to_element: fn(&S, usize) -> E,
+pub(crate) fn route_elements<S, A>(
+    source_index: &RuntimeListSourceIndex<A::Element>,
     route: &[usize],
-) -> Vec<E>
+) -> Vec<A::Element>
 where
-    E: Copy,
+    A: ClarkeWrightAccess<S>,
 {
     route
         .iter()
-        .map(|&idx| index_to_element(solution, idx))
+        .map(|&idx| source_index.element(idx).clone())
         .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn routes_match_owners_after_merge<S, E>(
+pub(crate) fn routes_match_owners_after_merge<S, A>(
+    access: &A,
     solution: &S,
+    source_index: &RuntimeListSourceIndex<A::Element>,
     routes: &[ConstructedRoute],
     merged_route_idx: usize,
     removed_route_idx: usize,
@@ -64,14 +66,11 @@ pub(crate) fn routes_match_owners_after_merge<S, E>(
     candidate_metric_class: usize,
     candidate_feasible_for_all_metric_class_owners: bool,
     owner_slots: &[OwnerSlot],
-    index_to_element: fn(&S, usize) -> E,
-    feasible: fn(&S, usize, &[usize]) -> bool,
-    element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
     entity_count: usize,
 ) -> bool
 where
     S: PlanningSolution,
-    E: Copy + Into<usize>,
+    A: ClarkeWrightAccess<S>,
 {
     if routes_match_owners_by_metric_class(
         routes,
@@ -93,16 +92,15 @@ where
         } else {
             (route.visits.as_slice(), route.scored_metric_class)
         };
-        let values = route_values(solution, index_to_element, route);
-        let elements = element_owner_fn.map(|_| route_elements(solution, index_to_element, route));
+        let values = route_values(access, source_index, route);
+        let elements = route_elements::<S, A>(source_index, route);
         let feasible_owners = feasible_owners_for_scored_elements(
+            access,
             solution,
             owner_slots,
             &values,
-            elements.as_deref(),
+            &elements,
             scored_metric_class,
-            feasible,
-            element_owner_fn,
             entity_count,
         );
         if feasible_owners.is_empty() {

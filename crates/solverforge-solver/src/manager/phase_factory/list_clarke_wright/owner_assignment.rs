@@ -2,23 +2,28 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use solverforge_core::domain::PlanningSolution;
 
+use super::{route_owner_allows, ClarkeWrightAccess};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct OwnerSlot {
     pub(crate) owner_idx: usize,
     pub(crate) metric_class: usize,
 }
 
-pub(crate) fn owner_slots<S>(
+pub(crate) fn owner_slots<S, A>(
+    access: &A,
     solution: &S,
     available_entity_slots: &[usize],
-    metric_class: fn(&S, usize) -> usize,
-) -> Vec<OwnerSlot> {
+) -> Vec<OwnerSlot>
+where
+    A: ClarkeWrightAccess<S>,
+{
     available_entity_slots
         .iter()
         .copied()
         .map(|owner_idx| OwnerSlot {
             owner_idx,
-            metric_class: metric_class(solution, owner_idx),
+            metric_class: access.savings_metric_class(solution, owner_idx),
         })
         .collect()
 }
@@ -41,42 +46,28 @@ pub(crate) fn representative_owner_slots(owner_slots: &[OwnerSlot]) -> Vec<Owner
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn feasible_owners_for_scored_elements<S, E>(
+pub(crate) fn feasible_owners_for_scored_elements<S, A>(
+    access: &A,
     solution: &S,
     owner_slots: &[OwnerSlot],
     route_values: &[usize],
-    route_elements: Option<&[E]>,
+    route_elements: &[A::Element],
     scored_metric_class: Option<usize>,
-    feasible: fn(&S, usize, &[usize]) -> bool,
-    element_owner_fn: Option<fn(&S, &E) -> Option<usize>>,
     entity_count: usize,
 ) -> Vec<usize>
 where
     S: PlanningSolution,
+    A: ClarkeWrightAccess<S>,
 {
     owner_slots
         .iter()
         .filter(|slot| scored_metric_class.is_none_or(|class| slot.metric_class == class))
         .map(|slot| slot.owner_idx)
         .filter(|&entity_idx| {
-            if !feasible(solution, entity_idx, route_values) {
+            if !access.savings_feasible(solution, entity_idx, route_values) {
                 return false;
             }
-
-            let Some(owner_fn) = element_owner_fn else {
-                return true;
-            };
-            let Some(route_elements) = route_elements else {
-                return false;
-            };
-
-            crate::list_placement::route_owner_allows(
-                Some(owner_fn),
-                solution,
-                entity_count,
-                entity_idx,
-                route_elements,
-            )
+            route_owner_allows(access, solution, entity_count, entity_idx, route_elements)
         })
         .collect()
 }

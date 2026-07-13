@@ -1,21 +1,5 @@
-fn filter_completed_scalar_placements<S, D, BestCb, M>(
-    placements: Vec<Placement<S, M>>,
-    solver_scope: &SolverScope<'_, S, D, BestCb>,
-) -> Vec<Placement<S, M>>
-where
-    S: PlanningSolution,
-    D: Director<S>,
-    BestCb: ProgressCallback<S>,
-    M: Move<S>,
-{
-    placements
-        .into_iter()
-        .filter(|placement| !placement_completed(placement, solver_scope))
-        .collect()
-}
-
-fn commit_selection<S, D, BestCb, M>(
-    placement: &mut Placement<S, M>,
+fn commit_selection<S, D, BestCb, M, C>(
+    placement: &mut Placement<S, M, C>,
     selection: ConstructionChoice,
     construction_obligation: ConstructionObligation,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
@@ -25,18 +9,35 @@ fn commit_selection<S, D, BestCb, M>(
     D: Director<S>,
     BestCb: ProgressCallback<S>,
     M: Move<S>,
+    C: MoveCursor<S, M>,
 {
     let completion_target = match selection {
         ConstructionChoice::KeepCurrent => placement.construction_target().clone(),
         ConstructionChoice::Select(idx) => placement.construction_target_for_move(idx).clone(),
     };
+    let selected_score = match selection {
+        ConstructionChoice::KeepCurrent => None,
+        ConstructionChoice::Select(idx) => placement.candidate_score(idx),
+    };
 
     match selection {
         ConstructionChoice::KeepCurrent => {}
         ConstructionChoice::Select(idx) => {
+            if let Some(token) = placement.candidate_trace_token(idx) {
+                step_scope.phase_scope_mut().record_candidate_trace_disposition(
+                    token,
+                    CandidateTraceDisposition::Selected,
+                );
+            }
             step_scope.phase_scope_mut().record_move_accepted();
             let m = placement.take_move(idx);
             step_scope.apply_committed_move(&m);
+            if let Some(token) = placement.candidate_trace_token(idx) {
+                step_scope.phase_scope_mut().record_candidate_trace_disposition(
+                    token,
+                    CandidateTraceDisposition::Applied,
+                );
+            }
             step_scope.phase_scope_mut().record_move_applied();
             if !completion_target.is_empty() {
                 step_scope
@@ -46,7 +47,18 @@ fn commit_selection<S, D, BestCb, M>(
         }
     }
 
-    if construction_step_needs_score(placement.keep_current_legal(), construction_obligation) {
+    if let Some(score) = selected_score {
+        step_scope.set_step_score(score);
+    } else if matches!(selection, ConstructionChoice::Select(_))
+        || construction_step_needs_score(
+            placement.keep_current_legal(),
+            construction_obligation,
+        )
+        || step_scope
+            .phase_scope()
+            .solver_scope()
+            .phase_termination_requires_score_observation()
+    {
         let step_score = step_scope.calculate_score();
         step_scope.set_step_score(step_score);
     }
@@ -81,8 +93,8 @@ fn construction_step_needs_score(
     keep_current_allowed(keep_current_legal, construction_obligation)
 }
 
-fn placement_completed<S, D, BestCb, M>(
-    placement: &Placement<S, M>,
+fn placement_completed<S, D, BestCb, M, C>(
+    placement: &Placement<S, M, C>,
     solver_scope: &SolverScope<'_, S, D, BestCb>,
 ) -> bool
 where
@@ -90,6 +102,7 @@ where
     D: Director<S>,
     BestCb: ProgressCallback<S>,
     M: Move<S>,
+    C: MoveCursor<S, M>,
 {
     target_completed(placement.construction_target(), solver_scope)
 }

@@ -169,6 +169,44 @@ where
     }
 }
 
+/// Returns whether a grouped scalar construction phase has any unfinished
+/// work in the current solution.
+///
+/// Construction and compiled execution use this one predicate so
+/// an empty group keeps its established no-op boundary instead of creating a
+/// second construction lifecycle.
+pub(crate) fn scalar_group_work_remaining<S>(group: &ScalarGroupBinding<S>, solution: &S) -> bool
+where
+    S: PlanningSolution,
+{
+    if let Some(assignment) = group.assignment() {
+        return assignment.unassigned_count(solution) > 0;
+    }
+    group.members.iter().any(|member| {
+        (0..member.entity_count(solution))
+            .any(|entity_index| member.current_value(solution, entity_index).is_none())
+    })
+}
+
+/// Records the required-assignment frontier at the same boundaries as grouped
+/// construction.  This is observed telemetry, not a second source of
+/// construction state.
+pub(crate) fn record_scalar_assignment_remaining<S, D, ProgressCb>(
+    group: &ScalarGroupBinding<S>,
+    solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    if let Some(assignment) = group.assignment() {
+        let remaining = assignment.remaining_required_count(solver_scope.working_solution());
+        solver_scope
+            .stats_mut()
+            .record_scalar_assignment_required_remaining(group.group_name, remaining);
+    }
+}
+
 fn build_phase<S, Fo>(
     placer: ScalarGroupPlacer<S>,
     construction_obligation: ConstructionObligation,
@@ -180,8 +218,7 @@ where
     Fo: ConstructionForager<S, CompoundScalarMove<S>>,
 {
     let phase = ConstructionHeuristicPhase::new(placer, forager)
-        .with_construction_obligation(construction_obligation)
-        .with_live_placement_refresh();
+        .with_construction_obligation(construction_obligation);
     if required_only {
         phase.with_mandatory_construction_completion()
     } else {

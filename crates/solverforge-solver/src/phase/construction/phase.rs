@@ -10,16 +10,18 @@ use solverforge_scoring::Director;
 use tracing::info;
 
 use crate::heuristic::r#move::Move;
+use crate::heuristic::selector::move_selector::MoveCursor;
 use crate::phase::construction::decision::keep_current_allowed;
 use crate::phase::construction::{
-    ConstructionChoice, ConstructionForager, ConstructionTarget, EntityPlacer, Placement,
+    ConstructionChoice, ConstructionForager, ConstructionTarget, EntityPlacer, EntityPlacerCursor,
+    Placement,
 };
 use crate::phase::control::{settle_construction_interrupt, StepInterrupt};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
 use crate::scope::StepControlPolicy;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
-use crate::stats::{format_duration, whole_units_per_second};
+use crate::stats::{format_duration, whole_units_per_second, CandidateTraceDisposition};
 
 include!("phase/phase_type.rs");
 include!("phase/selection.rs");

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use solverforge_core::domain::PlanningSolution;
 
 use super::assignment_candidate::{
-    ordered_entities, rotate_entity_order, AssignmentMoveIntent, ScalarAssignmentMoveOptions,
+    order_candidates, ordered_entities, AssignmentMoveIntent, ScalarAssignmentMoveOptions,
 };
 use super::assignment_path::{assignment_move_for_entity_value, move_from_edits};
 use super::assignment_state::{CapacityConflict, ScalarAssignmentState};
@@ -220,7 +220,7 @@ impl OptionalAdjustmentCursor {
             !state.is_required(entity_index) && state.current_value(entity_index).is_some()
         });
         state.sort_entities_by_current_value_pressure(group, solution, &mut targets);
-        rotate_entity_order(&mut targets, options.entity_offset);
+        order_candidates(&mut targets, options, 0xA551_6EED_0000_000D);
         Self {
             kind: OptionalAdjustmentKind::Release,
             targets,
@@ -243,8 +243,8 @@ impl OptionalAdjustmentCursor {
             !state.is_required(entity_index) && state.current_value(entity_index).is_some()
         });
         state.sort_entities_by_current_value_pressure(group, solution, &mut sources);
-        rotate_entity_order(&mut targets, options.entity_offset);
-        rotate_entity_order(&mut sources, options.entity_offset);
+        order_candidates(&mut targets, options, 0xA551_6EED_0000_000E);
+        order_candidates(&mut sources, options, 0xA551_6EED_0000_000F);
         Self {
             kind: OptionalAdjustmentKind::Transfer,
             targets,

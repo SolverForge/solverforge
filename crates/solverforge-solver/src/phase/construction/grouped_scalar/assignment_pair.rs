@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use solverforge_core::domain::PlanningSolution;
 
-use super::assignment_candidate::{rotate_entity_order, ScalarAssignmentMoveOptions};
+use super::assignment_candidate::{order_candidates, ScalarAssignmentMoveOptions};
 use super::assignment_entity::assigned_entities_by_position;
 use super::assignment_path::move_from_edits;
 use super::assignment_state::ScalarAssignmentState;
@@ -38,7 +38,7 @@ impl PairWindowCursor {
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
         let mut assigned = Vec::new();
-        if group.position_key.is_some() && group.sequence_key.is_some() {
+        if group.has_position_metadata() && group.has_sequence_metadata() {
             for entity_index in 0..group.entity_count(solution) {
                 let Some(value) = group.current_value(solution, entity_index) else {
                     continue;
@@ -54,10 +54,7 @@ impl PairWindowCursor {
                 ));
             }
             assigned.sort_unstable();
-            if !assigned.is_empty() {
-                let assigned_len = assigned.len();
-                assigned.rotate_left(options.entity_offset % assigned_len);
-            }
+            order_candidates(&mut assigned, options, 0xA551_6EED_0000_0006);
         }
         Self::from_assigned(PairWindowKind::SequenceWindow, assigned, options)
     }
@@ -69,7 +66,7 @@ impl PairWindowCursor {
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
         let mut entities = assigned_entities_by_position(group, solution, state);
-        rotate_entity_order(&mut entities, options.entity_offset);
+        order_candidates(&mut entities, options, 0xA551_6EED_0000_0007);
         Self::from_entities(PairWindowKind::Swap, entities, options)
     }
 
@@ -91,10 +88,7 @@ impl PairWindowCursor {
         }
         let mut sequence_keys = by_sequence.keys().copied().collect::<Vec<_>>();
         sequence_keys.sort_unstable();
-        if !sequence_keys.is_empty() {
-            let sequence_key_count = sequence_keys.len();
-            sequence_keys.rotate_left(options.entity_offset % sequence_key_count);
-        }
+        order_candidates(&mut sequence_keys, options, 0xA551_6EED_0000_0008);
         let mut groups = Vec::with_capacity(sequence_keys.len());
         for sequence_key in sequence_keys {
             let Some(mut entities) = by_sequence.remove(&sequence_key) else {
@@ -107,7 +101,11 @@ impl PairWindowCursor {
                     *entity_index,
                 )
             });
-            rotate_entity_order(&mut entities, options.entity_offset);
+            order_candidates(
+                &mut entities,
+                options,
+                0xA551_6EED_0000_0009 ^ sequence_key.unwrap_or(usize::MAX) as u64,
+            );
             groups.push(entities);
         }
         Self::from_groups(PairWindowKind::Rematch, groups, options)
@@ -120,7 +118,7 @@ impl PairWindowCursor {
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
         let mut entities = assigned_entities_by_position(group, solution, state);
-        rotate_entity_order(&mut entities, options.entity_offset);
+        order_candidates(&mut entities, options, 0xA551_6EED_0000_000A);
         Self::from_entities(PairWindowKind::PairedReassignment, entities, options)
     }
 

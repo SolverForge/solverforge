@@ -10,9 +10,15 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::distance_arithmetic::sum_two;
+use crate::builder::context::list_access::{ListAccess, RouteAccess, RouteSequenceAccess};
+use crate::builder::context::RuntimeListSlot;
+use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::Phase;
-use crate::scope::{PhaseScope, SolverScope, StepScope};
+use crate::scope::{ProgressCallback, SolverScope, StepControlPolicy};
+
+mod kernel;
+
+pub(crate) use kernel::{run_list_k_opt, ListKOptAccess};
 
 /// Per-route k-opt polishing phase for list variable problems.
 ///
@@ -130,111 +136,97 @@ where
     }
 }
 
+impl<S, E> ListKOptAccess<S> for ListKOptPhase<S, E>
+where
+    S: PlanningSolution,
+    E: Copy + Send + Sync + 'static,
+{
+    fn descriptor_index(&self) -> usize {
+        self.descriptor_index
+    }
+
+    fn entity_count(&self, solution: &S) -> usize {
+        (self.entity_count)(solution)
+    }
+
+    fn route_values(&self, solution: &S, entity_index: usize) -> Vec<usize> {
+        (self.get_route)(solution, entity_index)
+    }
+
+    fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>) {
+        (self.set_route)(solution, entity_index, route);
+    }
+
+    fn route_depot(&self, solution: &S, entity_index: usize) -> usize {
+        (self.depot_fn)(solution, entity_index)
+    }
+
+    fn route_distance(&self, solution: &S, entity_index: usize, from: usize, to: usize) -> i64 {
+        (self.distance_fn)(solution, entity_index, from, to)
+    }
+
+    fn route_feasible(&self, solution: &S, entity_index: usize, route: &[usize]) -> bool {
+        self.feasible_fn
+            .is_none_or(|feasible| feasible(solution, entity_index, route))
+    }
+}
+
+impl<S, V, DM, IDM> ListKOptAccess<S> for RuntimeListSlot<S, V, DM, IDM>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    V: Clone + PartialEq + Into<usize> + Send + Sync + std::fmt::Debug + 'static,
+    DM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
+    IDM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
+{
+    fn descriptor_index(&self) -> usize {
+        ListAccess::descriptor_index(self)
+    }
+
+    fn entity_count(&self, solution: &S) -> usize {
+        ListAccess::entity_count(self, solution)
+    }
+
+    fn route_values(&self, solution: &S, entity_index: usize) -> Vec<usize> {
+        RouteSequenceAccess::route_values(self, solution, entity_index)
+            .expect("compiled list K-opt route access must be validated before execution")
+    }
+
+    fn replace_route(&self, solution: &mut S, entity_index: usize, route: Vec<usize>) {
+        RouteSequenceAccess::replace_route(self, solution, entity_index, route)
+            .expect("compiled list K-opt route replacement must be validated before execution");
+    }
+
+    fn route_depot(&self, solution: &S, entity_index: usize) -> usize {
+        RouteAccess::route_depot(self, solution, entity_index)
+            .expect("compiled list K-opt route metadata must be validated before execution")
+    }
+
+    fn route_distance(&self, solution: &S, entity_index: usize, from: usize, to: usize) -> i64 {
+        RouteAccess::route_distance(self, solution, entity_index, from, to)
+            .expect("compiled list K-opt route metadata must be validated before execution")
+    }
+
+    fn route_feasible(&self, solution: &S, entity_index: usize, route: &[usize]) -> bool {
+        RouteAccess::route_feasible(self, solution, entity_index, route)
+            .expect("compiled list K-opt route metadata must be validated before execution")
+    }
+}
+
 impl<S, E, D, BestCb> Phase<S, D, BestCb> for ListKOptPhase<S, E>
 where
     S: PlanningSolution,
     E: Copy + Send + Sync + 'static,
     D: Director<S>,
-    BestCb: crate::scope::ProgressCallback<S>,
+    BestCb: ProgressCallback<S>,
 {
-    fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
-        if self.k != 2 {
-            tracing::warn!(
-                k = self.k,
-                "ListKOptPhase: only k=2 is implemented; skipping k-opt polishing"
-            );
-            let mut phase_scope = PhaseScope::new(solver_scope, 0);
-            let _score = phase_scope.score_director_mut().calculate_score();
-            phase_scope.update_best_solution();
-            return;
-        }
-
-        let mut phase_scope = PhaseScope::new(solver_scope, 0);
-
-        let n_entities = {
-            let solution = phase_scope.score_director().working_solution();
-            (self.entity_count)(solution)
-        };
-
-        if n_entities == 0 {
-            let _score = phase_scope.score_director_mut().calculate_score();
-            phase_scope.update_best_solution();
-            return;
-        }
-
-        let distance_fn = self.distance_fn;
-        let feasible_fn = self.feasible_fn;
-        let depot_fn = self.depot_fn;
-        let descriptor_index = self.descriptor_index;
-
-        for entity_idx in 0..n_entities {
-            let (depot, mut route) = {
-                let solution = phase_scope.score_director().working_solution();
-                let depot = depot_fn(solution, entity_idx);
-                let route = (self.get_route)(solution, entity_idx);
-                (depot, route)
-            };
-
-            let n = route.len();
-            if n < 4 {
-                continue;
-            }
-
-            let mut changed = false;
-
-            // 2-opt: try all (i, j) segment reversals
-            loop {
-                let mut improved = false;
-                for i in 0..n - 1 {
-                    let a = if i == 0 { depot } else { route[i - 1] };
-                    let b = route[i];
-                    for j in i + 1..n {
-                        let c = route[j];
-                        let e = if j + 1 < n { route[j + 1] } else { depot };
-                        // Accept if reversing [i..=j] reduces distance
-                        let solution = phase_scope.score_director().working_solution();
-                        let proposed_distance = sum_two(
-                            distance_fn(solution, entity_idx, a, c),
-                            distance_fn(solution, entity_idx, b, e),
-                        );
-                        let current_distance = sum_two(
-                            distance_fn(solution, entity_idx, a, b),
-                            distance_fn(solution, entity_idx, c, e),
-                        );
-                        if proposed_distance < current_distance {
-                            route[i..=j].reverse();
-                            // Check optional feasibility gate; revert if infeasible
-                            if let Some(f) = feasible_fn {
-                                let solution = phase_scope.score_director().working_solution();
-                                if !f(solution, entity_idx, &route) {
-                                    route[i..=j].reverse();
-                                    continue;
-                                }
-                            }
-                            improved = true;
-                            changed = true;
-                        }
-                    }
-                }
-                if !improved {
-                    break;
-                }
-            }
-
-            if changed {
-                let mut step_scope = StepScope::new(&mut phase_scope);
-                step_scope.apply_committed_change(|sd| {
-                    sd.before_variable_changed(descriptor_index, entity_idx);
-                    (self.set_route)(sd.working_solution_mut(), entity_idx, route);
-                    sd.after_variable_changed(descriptor_index, entity_idx);
-                });
-                let step_score = step_scope.calculate_score();
-                step_scope.set_step_score(step_score);
-                step_scope.complete();
-            }
-        }
-
-        phase_scope.update_best_solution();
+    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>) {
+        let k = self.k;
+        run_list_k_opt(
+            self,
+            k,
+            StepControlPolicy::ObserveConfigLimits,
+            solver_scope,
+        );
     }
 
     fn phase_type_name(&self) -> &'static str {

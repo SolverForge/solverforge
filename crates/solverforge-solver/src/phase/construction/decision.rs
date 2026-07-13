@@ -1,23 +1,15 @@
 use std::cmp::Ordering;
 
+use crate::heuristic::selector::move_selector::CandidateId;
 use solverforge_core::score::Score;
 
 use super::ConstructionChoice;
 use solverforge_config::ConstructionObligation;
 
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BaselinePolicy {
-    NeverPreferCurrent,
     KeepIfAlreadyFeasible,
     KeepOnlyIfStrictlyBetterThanAllMoves,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum EqualScorePolicy {
-    PreferMove,
-    PreferCurrent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,7 +17,7 @@ pub(crate) struct ScoredChoiceTracker<ScoreT>
 where
     ScoreT: Score,
 {
-    best_candidate: Option<(usize, ScoreT)>,
+    best_candidate: Option<(CandidateId, ScoreT)>,
 }
 
 impl<ScoreT> Default for ScoredChoiceTracker<ScoreT>
@@ -43,7 +35,7 @@ impl<ScoreT> ScoredChoiceTracker<ScoreT>
 where
     ScoreT: Score,
 {
-    pub(crate) fn consider(&mut self, idx: usize, score: ScoreT) {
+    pub(crate) fn consider(&mut self, idx: CandidateId, score: ScoreT) {
         let should_replace = match self.best_candidate {
             None => true,
             Some((_, best_score)) => score > best_score,
@@ -55,7 +47,7 @@ where
     }
 }
 
-pub(crate) fn select_first_fit(first_doable_idx: Option<usize>) -> ConstructionChoice {
+pub(crate) fn select_first_fit(first_doable_idx: Option<CandidateId>) -> ConstructionChoice {
     first_doable_idx
         .map(ConstructionChoice::Select)
         .unwrap_or(ConstructionChoice::KeepCurrent)
@@ -82,12 +74,11 @@ where
         tracker,
         baseline_score,
         BaselinePolicy::KeepOnlyIfStrictlyBetterThanAllMoves,
-        EqualScorePolicy::PreferMove,
     )
 }
 
 pub(crate) fn select_first_feasible<ScoreT>(
-    first_feasible_idx: Option<usize>,
+    first_feasible_idx: Option<CandidateId>,
     fallback_tracker: ScoredChoiceTracker<ScoreT>,
     baseline_score: Option<ScoreT>,
 ) -> ConstructionChoice
@@ -106,7 +97,6 @@ where
         fallback_tracker,
         baseline_score,
         BaselinePolicy::KeepOnlyIfStrictlyBetterThanAllMoves,
-        EqualScorePolicy::PreferMove,
     )
 }
 
@@ -125,7 +115,6 @@ pub(crate) fn resolve_scored_choice<ScoreT>(
     tracker: ScoredChoiceTracker<ScoreT>,
     baseline_score: Option<ScoreT>,
     baseline_policy: BaselinePolicy,
-    equal_score_policy: EqualScorePolicy,
 ) -> ConstructionChoice
 where
     ScoreT: Score,
@@ -139,7 +128,6 @@ where
     };
 
     match baseline_policy {
-        BaselinePolicy::NeverPreferCurrent => ConstructionChoice::Select(idx),
         BaselinePolicy::KeepIfAlreadyFeasible if baseline_score.is_feasible() => {
             ConstructionChoice::KeepCurrent
         }
@@ -148,10 +136,7 @@ where
             match baseline_score.cmp(&candidate_score) {
                 Ordering::Greater => ConstructionChoice::KeepCurrent,
                 Ordering::Less => ConstructionChoice::Select(idx),
-                Ordering::Equal => match equal_score_policy {
-                    EqualScorePolicy::PreferMove => ConstructionChoice::Select(idx),
-                    EqualScorePolicy::PreferCurrent => ConstructionChoice::KeepCurrent,
-                },
+                Ordering::Equal => ConstructionChoice::Select(idx),
             }
         }
     }

@@ -5,7 +5,7 @@ use solverforge_core::domain::PlanningSolution;
 use super::assignment_block::{
     ValueBlockReassignmentCursor, ValueLongWindowCursor, ValueWindowCursor,
 };
-use super::assignment_candidate::{rotate_entity_order, ScalarAssignmentMoveOptions};
+use super::assignment_candidate::{order_candidates, ScalarAssignmentMoveOptions};
 use super::assignment_cycle::CycleWindowCursor;
 use super::assignment_entity::{
     required_entities_by_scarcity, required_value_degrees, AssignmentMoveKind, CapacityCursor,
@@ -50,7 +50,7 @@ impl AssignmentFamilyCursor {
                 state.is_required(entity_index) && state.current_value(entity_index).is_none()
             })
         };
-        rotate_entity_order(&mut entities, options.entity_offset);
+        order_candidates(&mut entities, options, 0xA551_6EED_0000_000B);
         let value_degrees = if options.required_scarcity_ordering {
             required_value_degrees(group, solution, &entities, options.value_candidate_limit)
         } else {
@@ -72,7 +72,7 @@ impl AssignmentFamilyCursor {
         options: ScalarAssignmentMoveOptions,
         kind: AssignmentMoveKind,
     ) -> Self {
-        rotate_entity_order(&mut entities, options.entity_offset);
+        order_candidates(&mut entities, options, 0xA551_6EED_0000_000C);
         Self::EntityValues(EntityValueCursor {
             entities,
             entity_pos: 0,

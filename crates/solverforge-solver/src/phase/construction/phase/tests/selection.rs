@@ -214,17 +214,44 @@ struct ReferencingConstructionForager<'a> {
 impl<'a> ConstructionForager<ConstructionPauseSolution, ConstructionPauseMove>
     for ReferencingConstructionForager<'a>
 {
-    fn pick_move_index<D: Director<ConstructionPauseSolution>>(
+    fn select_move_index<D, BestCb, C>(
         &self,
-        placement: &Placement<ConstructionPauseSolution, ConstructionPauseMove>,
-        _score_director: &mut D,
-    ) -> ConstructionChoice {
-        placement
-            .moves
+        placement: &mut Placement<ConstructionPauseSolution, ConstructionPauseMove, C>,
+        _construction_obligation: ConstructionObligation,
+        _step_scope: &mut StepScope<
+            '_,
+            '_,
+            '_,
+            ConstructionPauseSolution,
+            D,
+            BestCb,
+        >,
+    ) -> Option<ConstructionChoice>
+    where
+        D: Director<ConstructionPauseSolution>,
+        BestCb: ProgressCallback<ConstructionPauseSolution>,
+        C: MoveCursor<ConstructionPauseSolution, ConstructionPauseMove>,
+    {
+        let mut candidates = Vec::new();
+        while let Some(candidate_id) = placement.candidates_mut().next_candidate() {
+            candidates.push(candidate_id);
+        }
+        let selected = candidates
             .len()
             .checked_sub(self.tail_offset.saturating_add(1))
-            .map(ConstructionChoice::Select)
-            .unwrap_or(ConstructionChoice::KeepCurrent)
+            .map(|index| candidates[index]);
+        for candidate_id in candidates {
+            if Some(candidate_id) != selected {
+                assert!(placement
+                    .candidates_mut()
+                    .release_candidate(candidate_id));
+            }
+        }
+        Some(
+            selected
+                .map(ConstructionChoice::Select)
+                .unwrap_or(ConstructionChoice::KeepCurrent),
+        )
     }
 }
 

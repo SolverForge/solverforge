@@ -2,7 +2,10 @@
 
 use super::*;
 use crate::heuristic::r#move::ChangeMove;
+use crate::heuristic::selector::move_selector::{ArenaMoveCursor, CandidateId};
 use crate::heuristic::selector::EntityReference;
+use crate::scope::{PhaseScope, SolverScope, StepScope};
+use solverforge_config::ConstructionObligation;
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
@@ -143,7 +146,29 @@ fn create_placement_with_values(
         .into_iter()
         .map(|value| ChangeMove::new(0, Some(value), get_queen_row, set_queen_row, 0, "row", 0))
         .collect();
-    Placement::new(entity_ref, moves)
+    Placement::new(entity_ref, ArenaMoveCursor::from_moves(moves))
+}
+
+fn select<D, F>(
+    forager: &F,
+    placement: &mut Placement<NQueensSolution, TestMove>,
+    director: D,
+) -> ConstructionChoice
+where
+    D: Director<NQueensSolution>,
+    F: ConstructionForager<NQueensSolution, TestMove>,
+{
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.start_solving();
+    let mut phase_scope = PhaseScope::new(&mut solver_scope, 0);
+    let mut step_scope = StepScope::new(&mut phase_scope);
+    forager
+        .select_move_index(
+            placement,
+            ConstructionObligation::PreserveUnassigned,
+            &mut step_scope,
+        )
+        .expect("unit-test construction selection must not be interrupted")
 }
 
 fn create_scored_director(unassigned_score: i64) -> ScoredDirector {
@@ -159,50 +184,36 @@ fn create_scored_director(unassigned_score: i64) -> ScoredDirector {
 
 #[test]
 fn test_first_fit_forager() {
-    let mut director = create_test_director();
+    let director = create_test_director();
     let mut placement = create_placement();
 
     let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
-    let selected = forager.pick_move_index(&placement, &mut director);
+    let selected = select(&forager, &mut placement, director);
 
     // First Fit should pick the first move (index 0)
-    assert_eq!(selected, ConstructionChoice::Select(0));
-
-    // Take move and execute
-    if let ConstructionChoice::Select(idx) = selected {
-        let m = placement.moves.swap_remove(idx);
-        m.do_move(&mut director);
-    }
+    assert_eq!(selected, ConstructionChoice::Select(CandidateId::new(0)));
 }
 
 #[test]
 fn test_best_fit_forager() {
-    let mut director = create_test_director();
+    let director = create_test_director();
     let mut placement = create_placement();
 
     let forager = BestFitForager::<NQueensSolution, TestMove>::new();
-    let selected = forager.pick_move_index(&placement, &mut director);
+    let selected = select(&forager, &mut placement, director);
 
     // Best Fit picks some move when all score equally (empty constraint set)
     assert!(matches!(selected, ConstructionChoice::Select(_)));
-
-    // Take move and execute
-    if let ConstructionChoice::Select(idx) = selected {
-        let m = placement.moves.swap_remove(idx);
-        m.do_move(&mut director);
-        let score = director.calculate_score();
-        assert_eq!(score, SoftScore::of(0));
-    }
 }
 
 #[test]
 fn test_empty_placement() {
-    let mut director = create_test_director();
-    let placement: Placement<NQueensSolution, TestMove> =
-        Placement::new(EntityReference::new(0, 0), vec![]);
+    let director = create_test_director();
+    let mut placement: Placement<NQueensSolution, TestMove> =
+        Placement::new(EntityReference::new(0, 0), ArenaMoveCursor::new());
 
     let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
-    let selected = forager.pick_move_index(&placement, &mut director);
+    let selected = select(&forager, &mut placement, director);
 
     assert_eq!(selected, ConstructionChoice::KeepCurrent);
 }
@@ -213,207 +224,193 @@ fn value_strength(m: &TestMove, _solution: &NQueensSolution) -> i64 {
 
 #[test]
 fn test_weakest_fit_forager() {
-    let mut director = create_test_director();
+    let director = create_test_director();
     let mut placement = create_placement(); // values: 1, 5, 3
 
     let forager = WeakestFitForager::<NQueensSolution, TestMove>::new(value_strength);
-    let selected = forager.pick_move_index(&placement, &mut director);
+    let selected = select(&forager, &mut placement, director);
 
     // Weakest Fit should pick the move with lowest strength (index 0, value 1)
-    assert_eq!(selected, ConstructionChoice::Select(0));
-
-    if let ConstructionChoice::Select(idx) = selected {
-        let m = placement.moves.swap_remove(idx);
-        m.do_move(&mut director);
-        let score = director.calculate_score();
-        assert_eq!(score, SoftScore::of(0));
-    }
+    assert_eq!(selected, ConstructionChoice::Select(CandidateId::new(0)));
 }
 
 #[test]
 fn test_strongest_fit_forager() {
-    let mut director = create_test_director();
+    let director = create_test_director();
     let mut placement = create_placement(); // values: 1, 5, 3
 
     let forager = StrongestFitForager::<NQueensSolution, TestMove>::new(value_strength);
-    let selected = forager.pick_move_index(&placement, &mut director);
+    let selected = select(&forager, &mut placement, director);
 
     // Strongest Fit should pick the move with highest strength (index 1, value 5)
-    assert_eq!(selected, ConstructionChoice::Select(1));
-
-    if let ConstructionChoice::Select(idx) = selected {
-        let m = placement.moves.swap_remove(idx);
-        m.do_move(&mut director);
-        let score = director.calculate_score();
-        assert_eq!(score, SoftScore::of(0));
-    }
+    assert_eq!(selected, ConstructionChoice::Select(CandidateId::new(1)));
 }
 
 #[test]
 fn weakest_fit_keeps_current_when_selected_move_does_not_beat_optional_baseline() {
-    let mut director = create_scored_director(0);
-    let placement = create_placement_with_values([0, 7, 3]).with_keep_current_legal(true);
+    let director = create_scored_director(0);
+    let mut placement = create_placement_with_values([0, 7, 3]).with_keep_current_legal(true);
 
     let forager = WeakestFitForager::<NQueensSolution, TestMove>::new(value_strength);
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
+        select(&forager, &mut placement, director),
         ConstructionChoice::KeepCurrent
     );
 }
 
 #[test]
 fn weakest_fit_selects_when_selected_move_beats_optional_baseline() {
-    let mut director = create_scored_director(0);
-    let placement = create_placement_with_values([1, 7, 3]).with_keep_current_legal(true);
+    let director = create_scored_director(0);
+    let mut placement = create_placement_with_values([1, 7, 3]).with_keep_current_legal(true);
 
     let forager = WeakestFitForager::<NQueensSolution, TestMove>::new(value_strength);
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
-        ConstructionChoice::Select(0)
+        select(&forager, &mut placement, director),
+        ConstructionChoice::Select(CandidateId::new(0))
     );
 }
 
 #[test]
 fn strongest_fit_keeps_current_when_selected_move_does_not_beat_optional_baseline() {
-    let mut director = create_scored_director(0);
-    let placement = create_placement_with_values([-5, -1, 0]).with_keep_current_legal(true);
+    let director = create_scored_director(0);
+    let mut placement = create_placement_with_values([-5, -1, 0]).with_keep_current_legal(true);
 
     let forager = StrongestFitForager::<NQueensSolution, TestMove>::new(value_strength);
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
+        select(&forager, &mut placement, director),
         ConstructionChoice::KeepCurrent
     );
 }
 
 #[test]
 fn strongest_fit_selects_when_selected_move_beats_optional_baseline() {
-    let mut director = create_scored_director(0);
-    let placement = create_placement_with_values([-5, 7, 3]).with_keep_current_legal(true);
+    let director = create_scored_director(0);
+    let mut placement = create_placement_with_values([-5, 7, 3]).with_keep_current_legal(true);
 
     let forager = StrongestFitForager::<NQueensSolution, TestMove>::new(value_strength);
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
-        ConstructionChoice::Select(1)
+        select(&forager, &mut placement, director),
+        ConstructionChoice::Select(CandidateId::new(1))
     );
 }
 
 #[test]
 fn first_fit_keeps_current_when_optional_baseline_is_not_beaten() {
-    let mut director = create_scored_director(0);
-    let placement = create_placement_with_values([-5, -1]).with_keep_current_legal(true);
+    let director = create_scored_director(0);
+    let mut placement = create_placement_with_values([-5, -1]).with_keep_current_legal(true);
 
     let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
+        select(&forager, &mut placement, director),
         ConstructionChoice::KeepCurrent
     );
 }
 
 #[test]
 fn first_fit_selects_later_improving_candidate_when_earlier_one_is_worse() {
-    let mut director = create_scored_director(0);
-    let placement = create_placement_with_values([-5, 7, -1]).with_keep_current_legal(true);
+    let director = create_scored_director(0);
+    let mut placement = create_placement_with_values([-5, 7, -1]).with_keep_current_legal(true);
 
     let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
-        ConstructionChoice::Select(1)
+        select(&forager, &mut placement, director),
+        ConstructionChoice::Select(CandidateId::new(1))
     );
 }
 
 #[test]
 fn first_fit_selects_first_improving_candidate_over_optional_baseline() {
-    let mut director = create_scored_director(0);
-    let placement = create_placement_with_values([7, -5, 3]).with_keep_current_legal(true);
+    let director = create_scored_director(0);
+    let mut placement = create_placement_with_values([7, -5, 3]).with_keep_current_legal(true);
 
     let forager = FirstFitForager::<NQueensSolution, TestMove>::new();
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
-        ConstructionChoice::Select(0)
+        select(&forager, &mut placement, director),
+        ConstructionChoice::Select(CandidateId::new(0))
     );
 }
 
 #[test]
 fn best_fit_prefers_first_equal_score_candidate_over_keep_current() {
-    let mut director = create_test_director();
-    let placement = create_placement().with_keep_current_legal(true);
+    let director = create_test_director();
+    let mut placement = create_placement().with_keep_current_legal(true);
 
     let forager = BestFitForager::<NQueensSolution, TestMove>::new();
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
-        ConstructionChoice::Select(0)
+        select(&forager, &mut placement, director),
+        ConstructionChoice::Select(CandidateId::new(0))
     );
 }
 
 #[test]
 fn first_feasible_returns_keep_current_when_baseline_is_feasible() {
-    let mut director = create_test_director();
-    let placement = create_placement().with_keep_current_legal(true);
+    let director = create_test_director();
+    let mut placement = create_placement().with_keep_current_legal(true);
 
     let forager = FirstFeasibleForager::<NQueensSolution, TestMove>::new();
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
+        select(&forager, &mut placement, director),
         ConstructionChoice::KeepCurrent
     );
 }
 
 #[test]
 fn best_fit_keeps_current_when_all_candidates_are_worse_than_baseline() {
-    let mut director = create_scored_director(0);
-    let placement = create_placement_with_values([-5, -1]).with_keep_current_legal(true);
+    let director = create_scored_director(0);
+    let mut placement = create_placement_with_values([-5, -1]).with_keep_current_legal(true);
 
     let forager = BestFitForager::<NQueensSolution, TestMove>::new();
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
+        select(&forager, &mut placement, director),
         ConstructionChoice::KeepCurrent
     );
 }
 
 #[test]
 fn best_fit_selects_best_candidate_when_it_beats_baseline() {
-    let mut director = create_scored_director(0);
-    let placement = create_placement_with_values([-5, 7, 3]).with_keep_current_legal(true);
+    let director = create_scored_director(0);
+    let mut placement = create_placement_with_values([-5, 7, 3]).with_keep_current_legal(true);
 
     let forager = BestFitForager::<NQueensSolution, TestMove>::new();
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
-        ConstructionChoice::Select(1)
+        select(&forager, &mut placement, director),
+        ConstructionChoice::Select(CandidateId::new(1))
     );
 }
 
 #[test]
 fn first_feasible_selects_first_feasible_candidate_when_baseline_is_infeasible() {
-    let mut director = create_scored_director(-2);
-    let placement = create_placement_with_values([-3, 1, 5]).with_keep_current_legal(true);
+    let director = create_scored_director(-2);
+    let mut placement = create_placement_with_values([-3, 1, 5]).with_keep_current_legal(true);
 
     let forager = FirstFeasibleForager::<NQueensSolution, TestMove>::new();
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
-        ConstructionChoice::Select(1)
+        select(&forager, &mut placement, director),
+        ConstructionChoice::Select(CandidateId::new(1))
     );
 }
 
 #[test]
 fn first_feasible_prefers_equal_score_candidate_over_infeasible_baseline() {
-    let mut director = create_scored_director(-1);
-    let placement = create_placement_with_values([-1, -2]).with_keep_current_legal(true);
+    let director = create_scored_director(-1);
+    let mut placement = create_placement_with_values([-1, -2]).with_keep_current_legal(true);
 
     let forager = FirstFeasibleForager::<NQueensSolution, TestMove>::new();
 
     assert_eq!(
-        forager.pick_move_index(&placement, &mut director),
-        ConstructionChoice::Select(0)
+        select(&forager, &mut placement, director),
+        ConstructionChoice::Select(CandidateId::new(0))
     );
 }

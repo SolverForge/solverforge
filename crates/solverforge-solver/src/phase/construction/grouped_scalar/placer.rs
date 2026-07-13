@@ -7,26 +7,41 @@ use solverforge_scoring::Director;
 
 use super::assignment_candidate::{remaining_required_count, ScalarAssignmentMoveOptions};
 use super::assignment_stream::ScalarAssignmentMoveCursor;
-use super::move_build::compound_move_for_group_candidate;
-use super::placement::{
-    assignment_target_binding, group_slot_id, never_completed, placement_for_group_candidate,
-    push_or_merge_placement, scalar_slots_for_candidate,
-};
+use super::placement::{group_slot_id, scalar_slots_for_candidate};
 use super::placer_stream::{
     assignment_placement_move_limit, next_assignment_placement, next_candidate_placement,
-    sort_grouped_placements, AssignmentPlacementGenerator, CandidatePlacementGenerator,
+    AssignmentPlacementGenerator, CandidatePlacementGenerator, CandidatePlacementSeed,
+    ScalarGroupCandidateCursor,
 };
 use crate::builder::context::{
     ScalarAssignmentBinding, ScalarGroupBinding, ScalarGroupBindingKind, ScalarGroupLimits,
 };
 use crate::descriptor::ResolvedVariableBinding;
-use crate::heuristic::r#move::{CompoundScalarMove, Move};
-use crate::phase::construction::capabilities::{
-    grouped_heuristic_requires_entity_order, grouped_heuristic_requires_value_order,
-};
-use crate::phase::construction::{EntityPlacer, Placement};
+use crate::heuristic::r#move::CompoundScalarMove;
+use crate::heuristic::selector::EntityReference;
+use crate::phase::construction::{EntityPlacer, EntityPlacerCursor, Placement};
 
-pub(super) type ScalarGroupPlacement<S> = Placement<S, CompoundScalarMove<S>>;
+pub(super) type ScalarGroupPlacement<S> =
+    Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>;
+
+fn grouped_heuristic_requires_entity_order(heuristic: ConstructionHeuristicType) -> bool {
+    matches!(
+        heuristic,
+        ConstructionHeuristicType::FirstFitDecreasing
+            | ConstructionHeuristicType::WeakestFitDecreasing
+            | ConstructionHeuristicType::StrongestFitDecreasing
+    )
+}
+
+fn grouped_heuristic_requires_value_order(heuristic: ConstructionHeuristicType) -> bool {
+    matches!(
+        heuristic,
+        ConstructionHeuristicType::WeakestFit
+            | ConstructionHeuristicType::WeakestFitDecreasing
+            | ConstructionHeuristicType::StrongestFit
+            | ConstructionHeuristicType::StrongestFitDecreasing
+    )
+}
 
 pub(crate) struct ScalarGroupPlacer<S> {
     group_index: usize,
@@ -90,83 +105,59 @@ impl<S> Debug for ScalarGroupPlacer<S> {
     }
 }
 
-impl<S> EntityPlacer<S, CompoundScalarMove<S>> for ScalarGroupPlacer<S>
+pub(crate) struct ScalarGroupPlacerCursor<'a, S>
 where
     S: PlanningSolution + 'static,
 {
-    fn get_placements<D: Director<S>>(&self, score_director: &D) -> Vec<ScalarGroupPlacement<S>> {
-        let mut keep = never_completed::<S>;
-        let mut never_stop = || false;
-        let mut generated_moves = 0;
-        let mut placements = Vec::new();
-        match self.group.kind {
-            ScalarGroupBindingKind::Candidates { candidate_provider } => {
-                let mut generator =
-                    self.candidate_placement_generator(score_director, candidate_provider);
-                while let Some(placement) = next_candidate_placement(
-                    &mut generator,
-                    &mut generated_moves,
-                    &mut keep,
-                    &mut never_stop,
-                ) {
-                    placements.push(placement);
-                }
-            }
-            ScalarGroupBindingKind::Assignment(assignment) => {
-                if let Some(mut generator) =
-                    self.assignment_placement_generator(score_director, assignment)
-                {
-                    while let Some(placement) = next_assignment_placement(
-                        &mut generator,
-                        score_director,
-                        &mut generated_moves,
-                        &mut keep,
-                        &mut never_stop,
-                    ) {
-                        placements.push(placement);
-                    }
-                }
-            }
-        }
-        placements
-    }
+    placer: &'a ScalarGroupPlacer<S>,
+}
 
-    fn get_next_placement<D, IsCompleted, ShouldStop>(
-        &self,
+impl<S> EntityPlacerCursor<S, CompoundScalarMove<S>> for ScalarGroupPlacerCursor<'_, S>
+where
+    S: PlanningSolution + 'static,
+{
+    type CandidateCursor = ScalarGroupCandidateCursor<S>;
+
+    fn next_placement<D, IsCompleted, ShouldStop>(
+        &mut self,
         score_director: &D,
         mut is_completed: IsCompleted,
         mut should_stop: ShouldStop,
-    ) -> Option<(ScalarGroupPlacement<S>, u64)>
+    ) -> Option<ScalarGroupPlacement<S>>
     where
         D: Director<S>,
         IsCompleted: FnMut(&ScalarGroupPlacement<S>) -> bool,
         ShouldStop: FnMut() -> bool,
     {
-        let mut generated_moves = 0;
-        let placement = match self.group.kind {
+        match &self.placer.group.kind {
             ScalarGroupBindingKind::Candidates { candidate_provider } => {
-                let mut generator =
-                    self.candidate_placement_generator(score_director, candidate_provider);
-                next_candidate_placement(
-                    &mut generator,
-                    &mut generated_moves,
-                    &mut is_completed,
-                    &mut should_stop,
-                )
+                let mut generator = self
+                    .placer
+                    .candidate_placement_generator(score_director, *candidate_provider);
+                next_candidate_placement(&mut generator, &mut is_completed, &mut should_stop)
             }
-            ScalarGroupBindingKind::Assignment(assignment) => {
-                let mut generator =
-                    self.assignment_placement_generator(score_director, assignment)?;
-                next_assignment_placement(
-                    &mut generator,
-                    score_director,
-                    &mut generated_moves,
-                    &mut is_completed,
-                    &mut should_stop,
-                )
-            }
-        };
-        placement.map(|placement| (placement, generated_moves))
+            ScalarGroupBindingKind::Assignment(assignment) => next_assignment_placement(
+                self.placer
+                    .assignment_placement_generator(score_director, assignment)?,
+                &mut is_completed,
+                &mut should_stop,
+            ),
+        }
+    }
+}
+
+impl<S> EntityPlacer<S, CompoundScalarMove<S>> for ScalarGroupPlacer<S>
+where
+    S: PlanningSolution + 'static,
+{
+    type Cursor<'a>
+        = ScalarGroupPlacerCursor<'a, S>
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
+        let _ = score_director;
+        ScalarGroupPlacerCursor { placer: self }
     }
 }
 
@@ -188,6 +179,7 @@ where
         if total_limit == 0 {
             return CandidatePlacementGenerator {
                 placements: Vec::new().into_iter(),
+                group: self.group.clone(),
             };
         }
 
@@ -235,57 +227,73 @@ where
                 );
             }
 
-            let group_slot = group_slot_id(self.group_index, &candidate, &scalar_slots);
-            let Some(mut mov) =
-                compound_move_for_group_candidate(&self.group, solution, &candidate)
-            else {
-                continue;
-            };
-            if !mov.is_doable(score_director) {
+            if !candidate.edits().iter().any(|edit| {
+                let member = self
+                    .group
+                    .member_for_edit(edit)
+                    .expect("validated grouped scalar candidate member must exist");
+                member.current_value(solution, edit.entity_index()) != edit.to_value()
+            }) {
                 continue;
             }
-            mov = mov.with_construction_value_order_key(candidate.construction_value_order_key());
-            let placement = placement_for_group_candidate(
-                sequence,
-                &candidate,
-                group_slot,
-                scalar_slots,
-                keep_current_legal,
-                mov,
-            )
-            .with_construction_entity_order_key(candidate.construction_entity_order_key());
-            push_or_merge_placement(&mut placements, placement);
+            let group_slot = group_slot_id(self.group_index, &candidate, &scalar_slots);
+            if let Some(existing) =
+                placements
+                    .iter_mut()
+                    .find(|existing: &&mut CandidatePlacementSeed<S>| {
+                        existing.group_slot == group_slot && existing.scalar_slots == scalar_slots
+                    })
+            {
+                existing.candidates.push(candidate.clone());
+            } else {
+                let entity_ref = candidate
+                    .edits()
+                    .first()
+                    .map(|edit| EntityReference::new(edit.descriptor_index(), edit.entity_index()))
+                    .unwrap_or_else(|| EntityReference::new(0, sequence));
+                placements.push(CandidatePlacementSeed {
+                    sequence,
+                    entity_ref,
+                    candidates: vec![candidate.clone()],
+                    group_slot,
+                    scalar_slots,
+                    keep_current_legal,
+                    entity_order_key: candidate.construction_entity_order_key(),
+                });
+            }
             seen_candidates.push(candidate);
             accepted += 1;
         }
-        sort_grouped_placements(&mut placements, self.heuristic);
+        if grouped_heuristic_requires_entity_order(self.heuristic) {
+            placements.sort_by(|left, right| {
+                right
+                    .entity_order_key
+                    .cmp(&left.entity_order_key)
+                    .then_with(|| left.sequence.cmp(&right.sequence))
+            });
+        }
         CandidatePlacementGenerator {
             placements: placements.into_iter(),
+            group: self.group.clone(),
         }
     }
 
     fn assignment_placement_generator<D>(
         &self,
         score_director: &D,
-        assignment: ScalarAssignmentBinding<S>,
+        assignment: &ScalarAssignmentBinding<S>,
     ) -> Option<AssignmentPlacementGenerator<S>>
     where
         D: Director<S>,
     {
         let solution = score_director.working_solution();
-        let Some(target_binding) = assignment_target_binding(&assignment, &self.scalar_bindings)
-        else {
-            panic!(
-                "assignment-backed grouped scalar construction targets unknown scalar slot {}.{}",
-                assignment.target.entity_type_name, assignment.target.variable_name
-            );
-        };
+        let _ = assignment.target().construction_binding_index();
         let options = ScalarAssignmentMoveOptions::for_construction(self.limits);
         if options.max_moves == 0 {
             return None;
         }
 
-        let required_remaining = remaining_required_count(&assignment, solution);
+        let required_remaining = remaining_required_count(assignment, solution);
         if self.required_only && required_remaining == 0 {
             return None;
         }
@@ -299,17 +307,24 @@ where
         );
         let options = options.with_max_moves(max_moves);
         let cursor = if self.required_only {
-            ScalarAssignmentMoveCursor::required_construction(assignment, solution.clone(), options)
+            ScalarAssignmentMoveCursor::required_construction(
+                assignment.clone(),
+                solution.clone(),
+                options,
+            )
         } else if target_required {
-            ScalarAssignmentMoveCursor::required(assignment, solution.clone(), options)
+            ScalarAssignmentMoveCursor::required(assignment.clone(), solution.clone(), options)
         } else {
-            ScalarAssignmentMoveCursor::optional_construction(assignment, solution.clone(), options)
+            ScalarAssignmentMoveCursor::optional_construction(
+                assignment.clone(),
+                solution.clone(),
+                options,
+            )
         };
 
         Some(AssignmentPlacementGenerator {
             group_index: self.group_index,
-            assignment,
-            target_binding: target_binding.clone(),
+            assignment: assignment.clone(),
             cursor,
             pending: None,
             options,

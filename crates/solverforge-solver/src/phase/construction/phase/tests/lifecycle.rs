@@ -27,6 +27,38 @@ fn test_construction_phase_reports_one_best_solution_on_improvement() {
 }
 
 #[test]
+fn construction_reports_progress_before_a_long_phase_ends() {
+    let gate = BlockingEvaluationGate::delaying(Duration::from_millis(400));
+    let progress_events = Arc::new(AtomicUsize::new(0));
+    let progress_events_for_callback = Arc::clone(&progress_events);
+    let solution = ConstructionPauseSolution::with_entity_count(3, Some(gate.clone()));
+    let mut solver_scope = SolverScope::new_with_callback(
+        ConstructionPauseDirector::new(solution),
+        move |progress: crate::scope::SolverProgressRef<'_, ConstructionPauseSolution>| {
+            if progress.kind == crate::scope::SolverProgressKind::Progress {
+                assert!(progress.telemetry.step_count > 0);
+                assert!(progress.telemetry.moves_evaluated > 0);
+                progress_events_for_callback.fetch_add(1, Ordering::SeqCst);
+            }
+        },
+        None,
+        None,
+    );
+    solver_scope.start_solving();
+
+    let mut phase = ConstructionHeuristicPhase::new(
+        ConstructionPausePlacer::new(Some(gate)),
+        FirstFitForager::new(),
+    );
+    phase.solve(&mut solver_scope);
+
+    assert!(
+        progress_events.load(Ordering::SeqCst) > 0,
+        "construction ended without a progress event"
+    );
+}
+
+#[test]
 fn test_construction_empty_solution() {
     let director = create_simple_nqueens_director(0);
     let mut solver_scope = SolverScope::new(director);

@@ -17,7 +17,6 @@ where
 {
     placer: P,
     forager: Fo,
-    refresh_placements_each_step: bool,
     complete_mandatory_construction: bool,
     construction_obligation: ConstructionObligation,
     _phantom: PhantomData<fn() -> (S, M)>,
@@ -34,16 +33,10 @@ where
         Self {
             placer,
             forager,
-            refresh_placements_each_step: false,
             complete_mandatory_construction: false,
             construction_obligation: ConstructionObligation::default(),
             _phantom: PhantomData,
         }
-    }
-
-    pub fn with_live_placement_refresh(mut self) -> Self {
-        self.refresh_placements_each_step = true;
-        self
     }
 
     pub fn with_mandatory_construction_completion(mut self) -> Self {
@@ -86,7 +79,8 @@ where
     Fo: ConstructionForager<S, M>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D, BestCb>) {
-        let mut phase_scope = PhaseScope::new(solver_scope, 0);
+        let mut phase_scope =
+            PhaseScope::with_phase_type(solver_scope, 0, "Construction Heuristic");
         let phase_index = phase_scope.phase_index();
 
         info!(
@@ -95,23 +89,7 @@ where
             phase_index = phase_index,
         );
 
-        let mut placements = if self.refresh_placements_each_step {
-            None
-        } else {
-            let placement_generation_started = Instant::now();
-            let placements = filter_completed_scalar_placements(
-                self.placer.get_placements(phase_scope.score_director()),
-                phase_scope.solver_scope(),
-            );
-            let placement_generation_elapsed = placement_generation_started.elapsed();
-            let generated_moves = placements
-                .iter()
-                .map(|placement| u64::try_from(placement.moves.len()).unwrap_or(u64::MAX))
-                .sum();
-            phase_scope.record_generated_batch(generated_moves, placement_generation_elapsed);
-            Some(placements.into_iter())
-        };
-        let mut pending_placement = None;
+        let mut placement_cursor = self.placer.open_cursor(phase_scope.score_director());
 
         loop {
             if construction_phase_should_stop(
@@ -121,39 +99,30 @@ where
                 break;
             }
 
-            let mut placement = if self.refresh_placements_each_step {
-                let placement_generation_started = Instant::now();
-                let next_placement = self.placer.get_next_placement(
-                    phase_scope.score_director(),
-                    |placement| placement_completed(placement, phase_scope.solver_scope()),
-                    || {
-                        construction_work_should_stop(
-                            phase_scope.solver_scope(),
-                            self.complete_mandatory_construction,
-                        )
-                    },
-                );
-                let placement_generation_elapsed = placement_generation_started.elapsed();
-                if let Some((placement, generated_moves)) = next_placement {
-                    phase_scope
-                        .record_generated_batch(generated_moves, placement_generation_elapsed);
-
-                    placement
-                } else {
-                    construction_phase_should_stop(
-                        phase_scope.solver_scope_mut(),
+            let placement_generation_started = Instant::now();
+            let mut placement_generation_interrupted = false;
+            let next_placement = placement_cursor.next_placement(
+                phase_scope.score_director(),
+                |placement| placement_completed(placement, phase_scope.solver_scope()),
+                || {
+                    let should_stop = construction_work_should_stop(
+                        phase_scope.solver_scope(),
                         self.complete_mandatory_construction,
                     );
-                    break;
+                    placement_generation_interrupted |= should_stop;
+                    should_stop
+                },
+            );
+            phase_scope.record_generation_time(placement_generation_started.elapsed());
+            let Some(mut placement) = next_placement else {
+                let terminated = construction_phase_should_stop(
+                    phase_scope.solver_scope_mut(),
+                    self.complete_mandatory_construction,
+                );
+                if placement_generation_interrupted && !terminated {
+                    continue;
                 }
-            } else {
-                match pending_placement
-                    .take()
-                    .or_else(|| placements.as_mut().and_then(Iterator::next))
-                {
-                    Some(placement) => placement,
-                    None => break,
-                }
+                break;
             };
 
             let control_policy = if self.complete_mandatory_construction {
@@ -164,19 +133,32 @@ where
             let mut step_scope =
                 StepScope::new_with_control_policy(&mut phase_scope, control_policy);
 
-            // Use forager to pick the best move index for this placement
-            let selection = match self.forager.select_move_index(
-                &placement,
+            // Time the whole streamed selection once. Per-candidate evaluation
+            // time is tracked separately, so the remainder is cursor generation
+            // and forager bookkeeping without a clock read for every tiny move.
+            let evaluation_before = step_scope.phase_scope().stats().evaluation_time();
+            let selection_started = Instant::now();
+            let selection_result = self.forager.select_move_index(
+                &mut placement,
                 self.construction_obligation,
                 &mut step_scope,
-            ) {
+            );
+            let selection_elapsed = selection_started.elapsed();
+            let evaluation_elapsed = step_scope
+                .phase_scope()
+                .stats()
+                .evaluation_time()
+                .saturating_sub(evaluation_before);
+            step_scope
+                .phase_scope_mut()
+                .record_generation_time(selection_elapsed.saturating_sub(evaluation_elapsed));
+
+            // Use forager to pick the best move index for this placement.
+            let selection = match selection_result {
                 Some(selection) => selection,
                 None => {
                     match settle_construction_interrupt(&mut step_scope) {
                         StepInterrupt::Restart => {
-                            if !self.refresh_placements_each_step {
-                                pending_placement = Some(placement);
-                            }
                             continue;
                         }
                         StepInterrupt::TerminatePhase => break,

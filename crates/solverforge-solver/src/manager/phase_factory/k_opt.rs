@@ -10,13 +10,14 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::MoveArena;
 use crate::heuristic::selector::k_opt::{KOptConfig, KOptMoveSelector};
+use crate::heuristic::selector::move_selector::MoveCursor;
 use crate::phase::control::{
-    append_interruptibly, settle_search_interrupt, should_interrupt_evaluation, StepInterrupt,
+    settle_search_interrupt, should_interrupt_evaluation, StepInterrupt, GENERATION_POLL_INTERVAL,
 };
 use crate::phase::Phase;
 use crate::scope::{PhaseScope, SolverScope, StepScope};
+use crate::stats::{CandidateTraceDisposition, CandidateTracePullToken, CandidateTraceSource};
 
 use super::super::PhaseFactory;
 
@@ -194,7 +195,7 @@ where
         use crate::heuristic::selector::entity::FromSolutionEntitySelector;
         use crate::heuristic::selector::move_selector::MoveSelector;
 
-        let mut phase_scope = PhaseScope::new(solver_scope, 0);
+        let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, "K-Opt");
 
         // Calculate initial score
         let mut last_step_score = phase_scope.calculate_score();
@@ -214,67 +215,164 @@ where
 
         let step_limit = self.step_limit.unwrap_or(u64::MAX);
         let mut steps = 0u64;
-        let mut arena = MoveArena::new();
-
         while steps < step_limit && !phase_scope.solver_scope_mut().should_terminate() {
             let mut step_scope = StepScope::new(&mut phase_scope);
-
-            arena.reset();
-            let generation_interrupted = {
-                let iter = move_selector.iter_moves(step_scope.score_director());
-                append_interruptibly(&step_scope, &mut arena, iter)
-            };
-            if generation_interrupted {
-                match settle_search_interrupt(&mut step_scope) {
-                    StepInterrupt::Restart => continue,
-                    StepInterrupt::TerminatePhase => break,
-                }
-            }
-
-            let mut best_move_idx = None;
+            let mut cursor = move_selector.open_cursor(step_scope.score_director());
+            let mut best_move_id = None;
             let mut best_score = None;
+            let mut best_trace_token: Option<CandidateTracePullToken> = None;
             let mut interrupted_step = false;
+            let mut candidate_ordinal = 0usize;
 
-            // Evaluate all moves
-            for idx in 0..arena.len() {
-                if should_interrupt_evaluation(&step_scope, idx) {
+            while let Some(candidate_id) = cursor.next_candidate() {
+                let candidate = cursor
+                    .candidate(candidate_id)
+                    .expect("k-opt candidate id must remain live after pull");
+                let trace_token = step_scope.phase_scope_mut().record_candidate_pull(
+                    CandidateTraceSource::KOpt,
+                    None,
+                    candidate_id.index(),
+                    None,
+                    &candidate,
+                );
+                if should_interrupt_evaluation(&step_scope, candidate_ordinal) {
+                    if let Some(token) = trace_token {
+                        step_scope
+                            .phase_scope_mut()
+                            .record_candidate_trace_disposition(
+                                token,
+                                CandidateTraceDisposition::InterruptedBeforeEvaluation,
+                            );
+                    }
                     interrupted_step = true;
                     break;
                 }
+                candidate_ordinal += 1;
 
-                let mv = arena.get(idx).unwrap();
-                if !mv.is_doable(step_scope.score_director()) {
+                let is_doable = cursor
+                    .candidate(candidate_id)
+                    .expect("k-opt candidate id must remain live during evaluation")
+                    .is_doable(step_scope.score_director());
+                if !is_doable {
+                    if let Some(token) = trace_token {
+                        let phase_scope = step_scope.phase_scope_mut();
+                        phase_scope.record_candidate_trace_disposition(
+                            token,
+                            CandidateTraceDisposition::Evaluated,
+                        );
+                        phase_scope.record_candidate_trace_disposition(
+                            token,
+                            CandidateTraceDisposition::NotDoable,
+                        );
+                    }
+                    assert!(cursor.release_candidate(candidate_id));
+                    if candidate_ordinal.is_multiple_of(GENERATION_POLL_INTERVAL) {
+                        step_scope.phase_scope_mut().report_progress_if_due();
+                    }
                     continue;
                 }
 
-                let score_state = step_scope.score_director().snapshot_score_state();
-                let undo = mv.do_move(step_scope.score_director_mut());
-                let move_score = step_scope.calculate_score();
+                let move_score = {
+                    let mv = cursor
+                        .candidate(candidate_id)
+                        .expect("k-opt candidate id must remain live during evaluation");
+                    let score_state = step_scope.score_director().snapshot_score_state();
+                    let undo = mv.do_move(step_scope.score_director_mut());
+                    let move_score = step_scope.calculate_score();
+                    mv.undo_move(step_scope.score_director_mut(), undo);
+                    step_scope
+                        .score_director_mut()
+                        .restore_score_state(score_state);
+                    move_score
+                };
+                if let Some(token) = trace_token {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_candidate_trace_disposition(
+                            token,
+                            CandidateTraceDisposition::Evaluated,
+                        );
+                }
 
                 if move_score > last_step_score
                     && best_score.as_ref().is_none_or(|b| move_score > *b)
                 {
+                    if let Some(previous_best) = best_move_id.replace(candidate_id) {
+                        assert!(cursor.release_candidate(previous_best));
+                    }
+                    if let Some(token) = std::mem::replace(&mut best_trace_token, trace_token) {
+                        step_scope
+                            .phase_scope_mut()
+                            .record_candidate_trace_disposition(
+                                token,
+                                CandidateTraceDisposition::ForagerIgnored,
+                            );
+                    }
                     best_score = Some(move_score);
-                    best_move_idx = Some(idx);
+                } else {
+                    assert!(cursor.release_candidate(candidate_id));
+                    if let Some(token) = trace_token {
+                        step_scope
+                            .phase_scope_mut()
+                            .record_candidate_trace_disposition(
+                                token,
+                                CandidateTraceDisposition::ForagerIgnored,
+                            );
+                    }
                 }
-
-                mv.undo_move(step_scope.score_director_mut(), undo);
-                step_scope
-                    .score_director_mut()
-                    .restore_score_state(score_state);
+                if candidate_ordinal.is_multiple_of(GENERATION_POLL_INTERVAL) {
+                    step_scope.phase_scope_mut().report_progress_if_due();
+                }
             }
 
             if interrupted_step {
                 match settle_search_interrupt(&mut step_scope) {
-                    StepInterrupt::Restart => continue,
-                    StepInterrupt::TerminatePhase => break,
+                    StepInterrupt::Restart => {
+                        if let Some(token) = best_trace_token.take() {
+                            step_scope
+                                .phase_scope_mut()
+                                .record_candidate_trace_disposition(
+                                    token,
+                                    CandidateTraceDisposition::ForagerIgnored,
+                                );
+                        }
+                        continue;
+                    }
+                    StepInterrupt::TerminatePhase => {
+                        if let Some(token) = best_trace_token.take() {
+                            step_scope
+                                .phase_scope_mut()
+                                .record_candidate_trace_disposition(
+                                    token,
+                                    CandidateTraceDisposition::ForagerIgnored,
+                                );
+                        }
+                        break;
+                    }
                 }
             }
 
             // Apply best move if found
-            if let (Some(idx), Some(score)) = (best_move_idx, best_score) {
-                let selected_move = arena.take(idx);
-                step_scope.apply_committed_move(&selected_move);
+            if let (Some(selected_id), Some(score)) = (best_move_id, best_score) {
+                if let Some(token) = best_trace_token {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_candidate_trace_disposition(
+                            token,
+                            CandidateTraceDisposition::Selected,
+                        );
+                }
+                step_scope.apply_committed_change(|score_director| {
+                    cursor.apply_owned_candidate(selected_id, score_director);
+                });
+                if let Some(token) = best_trace_token {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_candidate_trace_disposition(
+                            token,
+                            CandidateTraceDisposition::Applied,
+                        );
+                }
                 step_scope.set_step_score(score);
                 last_step_score = score;
                 step_scope.phase_scope_mut().update_best_solution();

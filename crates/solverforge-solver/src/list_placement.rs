@@ -77,32 +77,6 @@ pub(crate) fn candidate_entity_indices<S, V>(
     owner_restriction(owner_fn, solution, entity_count, element).candidates(entity_count)
 }
 
-pub(crate) fn owner_allows<S, V>(
-    owner_fn: Option<fn(&S, &V) -> Option<usize>>,
-    solution: &S,
-    entity_count: usize,
-    entity_idx: usize,
-    element: &V,
-) -> bool {
-    owner_restriction(owner_fn, solution, entity_count, element).allows(entity_idx)
-}
-
-pub(crate) fn route_owner_allows<S, V>(
-    owner_fn: Option<fn(&S, &V) -> Option<usize>>,
-    solution: &S,
-    entity_count: usize,
-    entity_idx: usize,
-    route: &[V],
-) -> bool {
-    let Some(owner_fn) = owner_fn else {
-        return true;
-    };
-
-    route
-        .iter()
-        .all(|element| owner_allows(Some(owner_fn), solution, entity_count, entity_idx, element))
-}
-
 pub(crate) fn selected_owner_restrictions<S, V>(
     owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     solution: &S,
@@ -149,13 +123,6 @@ pub(crate) enum SelectedOwnerRestrictions {
 impl SelectedOwnerRestrictions {
     pub(crate) fn is_fixed_to_current(&self) -> bool {
         matches!(self, Self::FixedToCurrent)
-    }
-
-    pub(crate) fn into_mixed(self) -> Option<Vec<Vec<OwnerRestriction>>> {
-        match self {
-            Self::FixedToCurrent => None,
-            Self::Mixed(owners) => Some(owners),
-        }
     }
 
     pub(crate) fn mixed(&self) -> Option<&[Vec<OwnerRestriction>]> {

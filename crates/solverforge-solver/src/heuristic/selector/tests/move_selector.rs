@@ -13,7 +13,7 @@ use std::sync::{
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{
-    ChangeMoveSelector, MoveSelector, SwapMoveSelector,
+    CandidateStore, ChangeMoveSelector, MoveSelector, SwapMoveSelector,
 };
 
 #[derive(Clone, Debug)]
@@ -74,6 +74,84 @@ fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
         .with_entity(entity_desc);
 
     ScoreDirector::simple(solution, descriptor, |s, _| s.tasks.len())
+}
+
+#[derive(Debug)]
+struct StoredMove(Arc<AtomicUsize>);
+
+impl Drop for StoredMove {
+    fn drop(&mut self) {
+        self.0.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+impl Move<TaskSolution> for StoredMove {
+    type Undo = ();
+
+    fn is_doable<D: solverforge_scoring::Director<TaskSolution>>(
+        &self,
+        _score_director: &D,
+    ) -> bool {
+        true
+    }
+
+    fn do_move<D: solverforge_scoring::Director<TaskSolution>>(
+        &self,
+        _score_director: &mut D,
+    ) -> Self::Undo {
+    }
+
+    fn undo_move<D: solverforge_scoring::Director<TaskSolution>>(
+        &self,
+        _score_director: &mut D,
+        _undo: Self::Undo,
+    ) {
+    }
+
+    fn descriptor_index(&self) -> usize {
+        0
+    }
+
+    fn entity_indices(&self) -> &[usize] {
+        &[]
+    }
+
+    fn variable_name(&self) -> &str {
+        "stored"
+    }
+
+    fn tabu_signature<D: solverforge_scoring::Director<TaskSolution>>(
+        &self,
+        _score_director: &D,
+    ) -> crate::heuristic::r#move::MoveTabuSignature {
+        let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "stored");
+        crate::heuristic::r#move::MoveTabuSignature::new(
+            scope,
+            smallvec::smallvec![1],
+            smallvec::smallvec![1],
+        )
+    }
+}
+
+#[test]
+fn candidate_store_releases_payloads_without_reusing_stable_ids() {
+    let drops = Arc::new(AtomicUsize::new(0));
+    let mut store = CandidateStore::<TaskSolution, StoredMove>::new();
+    let first = store.push(StoredMove(Arc::clone(&drops)));
+    let second = store.push(StoredMove(Arc::clone(&drops)));
+
+    assert!(store.release_candidate(first));
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert!(store.candidate(first).is_none());
+    assert!(!store.release_candidate(first));
+
+    let third = store.push(StoredMove(Arc::clone(&drops)));
+    assert_eq!(third.index(), 2);
+    assert!(store.candidate(first).is_none());
+
+    drop(store.take_candidate(third));
+    assert!(store.release_candidate(second));
+    assert_eq!(drops.load(Ordering::SeqCst), 3);
 }
 
 #[derive(Clone, Debug)]

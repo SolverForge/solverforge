@@ -99,10 +99,12 @@ fn filters_cartesian_candidates_without_materializing_the_full_stream() {
         collect_cursor_indices::<TaskSolution, ScalarMoveUnion<TaskSolution, i32>, _>(&mut cursor);
 
     assert!(indices.len() >= 2);
-    assert!(indices.iter().all(|&index| cursor
-        .candidate(index)
-        .and_then(composite_values)
-        .is_some_and(|(first, _)| first == 10)));
+    assert!(indices.iter().all(|&index| {
+        cursor
+            .candidate(index)
+            .and_then(composite_values)
+            .is_some_and(|(first, _)| first == 10)
+    }));
     assert!(cursor
         .candidate(indices[0])
         .is_some_and(|candidate| candidate.is_doable(&director)));

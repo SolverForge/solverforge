@@ -9,9 +9,11 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
+use crate::stats::CandidateTraceIdentity;
+
 use super::{
     ChangeMove, CompoundScalarMove, ConflictRepairMove, Move, MoveTabuSignature, PillarChangeMove,
-    PillarSwapMove, RuinRecreateMove, SwapMove,
+    PillarSwapMove, RuinRecreateMove, RuntimeCompoundMove, SwapMove,
 };
 
 /// A monomorphized union of the canonical scalar move family.
@@ -27,6 +29,7 @@ pub enum ScalarMoveUnion<S, V> {
     RuinRecreate(RuinRecreateMove<S>),
     CompoundScalar(CompoundScalarMove<S>),
     ConflictRepair(ConflictRepairMove<S>),
+    RuntimeCompound(RuntimeCompoundMove<S>),
 }
 
 pub enum ScalarMoveUnionUndo<S, V>
@@ -41,6 +44,7 @@ where
     RuinRecreate(<RuinRecreateMove<S> as Move<S>>::Undo),
     CompoundScalar(<CompoundScalarMove<S> as Move<S>>::Undo),
     ConflictRepair(<ConflictRepairMove<S> as Move<S>>::Undo),
+    RuntimeCompound(<RuntimeCompoundMove<S> as Move<S>>::Undo),
 }
 
 impl<S, V> Clone for ScalarMoveUnion<S, V>
@@ -57,6 +61,7 @@ where
             Self::RuinRecreate(m) => Self::RuinRecreate(m.clone()),
             Self::CompoundScalar(m) => Self::CompoundScalar(m.clone()),
             Self::ConflictRepair(m) => Self::ConflictRepair(m.clone()),
+            Self::RuntimeCompound(m) => Self::RuntimeCompound(m.clone()),
         }
     }
 }
@@ -75,6 +80,7 @@ where
             Self::RuinRecreate(m) => m.fmt(f),
             Self::CompoundScalar(m) => m.fmt(f),
             Self::ConflictRepair(m) => m.fmt(f),
+            Self::RuntimeCompound(m) => m.fmt(f),
         }
     }
 }
@@ -95,6 +101,7 @@ where
             Self::RuinRecreate(m) => m.is_doable(score_director),
             Self::CompoundScalar(m) => m.is_doable(score_director),
             Self::ConflictRepair(m) => m.is_doable(score_director),
+            Self::RuntimeCompound(m) => m.is_doable(score_director),
         }
     }
 
@@ -110,6 +117,9 @@ where
             }
             Self::ConflictRepair(m) => {
                 ScalarMoveUnionUndo::ConflictRepair(m.do_move(score_director))
+            }
+            Self::RuntimeCompound(m) => {
+                ScalarMoveUnionUndo::RuntimeCompound(m.do_move(score_director))
             }
         }
     }
@@ -135,6 +145,9 @@ where
             (Self::ConflictRepair(m), ScalarMoveUnionUndo::ConflictRepair(undo)) => {
                 m.undo_move(score_director, undo)
             }
+            (Self::RuntimeCompound(m), ScalarMoveUnionUndo::RuntimeCompound(undo)) => {
+                m.undo_move(score_director, undo)
+            }
             _ => panic!("scalar move undo shape must match move shape"),
         }
     }
@@ -148,6 +161,7 @@ where
             Self::RuinRecreate(m) => m.descriptor_index(),
             Self::CompoundScalar(m) => m.descriptor_index(),
             Self::ConflictRepair(m) => m.descriptor_index(),
+            Self::RuntimeCompound(m) => m.descriptor_index(),
         }
     }
 
@@ -160,6 +174,7 @@ where
             Self::RuinRecreate(m) => m.entity_indices(),
             Self::CompoundScalar(m) => m.entity_indices(),
             Self::ConflictRepair(m) => m.entity_indices(),
+            Self::RuntimeCompound(m) => m.entity_indices(),
         }
     }
 
@@ -172,6 +187,7 @@ where
             Self::RuinRecreate(m) => m.variable_name(),
             Self::CompoundScalar(m) => m.variable_name(),
             Self::ConflictRepair(m) => m.variable_name(),
+            Self::RuntimeCompound(m) => m.variable_name(),
         }
     }
 
@@ -184,6 +200,7 @@ where
             Self::RuinRecreate(m) => m.telemetry_label(),
             Self::CompoundScalar(m) => m.telemetry_label(),
             Self::ConflictRepair(m) => m.telemetry_label(),
+            Self::RuntimeCompound(m) => m.telemetry_label(),
         }
     }
 
@@ -196,6 +213,7 @@ where
             Self::RuinRecreate(m) => m.requires_hard_improvement(),
             Self::CompoundScalar(m) => m.requires_hard_improvement(),
             Self::ConflictRepair(m) => m.requires_hard_improvement(),
+            Self::RuntimeCompound(m) => m.requires_hard_improvement(),
         }
     }
 
@@ -208,6 +226,7 @@ where
             Self::RuinRecreate(m) => m.requires_score_improvement(),
             Self::CompoundScalar(m) => m.requires_score_improvement(),
             Self::ConflictRepair(m) => m.requires_score_improvement(),
+            Self::RuntimeCompound(m) => m.requires_score_improvement(),
         }
     }
 
@@ -220,6 +239,20 @@ where
             Self::RuinRecreate(m) => m.tabu_signature(score_director),
             Self::CompoundScalar(m) => m.tabu_signature(score_director),
             Self::ConflictRepair(m) => m.tabu_signature(score_director),
+            Self::RuntimeCompound(m) => m.tabu_signature(score_director),
+        }
+    }
+
+    fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
+        match self {
+            Self::Change(m) => m.candidate_trace_identity(),
+            Self::Swap(m) => m.candidate_trace_identity(),
+            Self::PillarChange(m) => m.candidate_trace_identity(),
+            Self::PillarSwap(m) => m.candidate_trace_identity(),
+            Self::RuinRecreate(m) => m.candidate_trace_identity(),
+            Self::CompoundScalar(m) => m.candidate_trace_identity(),
+            Self::ConflictRepair(m) => m.candidate_trace_identity(),
+            Self::RuntimeCompound(m) => m.candidate_trace_identity(),
         }
     }
 
@@ -232,6 +265,7 @@ where
             Self::RuinRecreate(m) => m.for_each_affected_entity(visitor),
             Self::CompoundScalar(m) => m.for_each_affected_entity(visitor),
             Self::ConflictRepair(m) => m.for_each_affected_entity(visitor),
+            Self::RuntimeCompound(m) => m.for_each_affected_entity(visitor),
         }
     }
 }

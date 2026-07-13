@@ -1,3 +1,5 @@
+use solverforge_config::SelectionOrder;
+
 pub struct MoveSelectorIter<S, M, C>
 where
     S: PlanningSolution,
@@ -8,11 +10,12 @@ where
     _phantom: PhantomData<(fn() -> S, fn() -> M)>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MoveStreamContext {
     step_index: u64,
     step_seed: u64,
     accepted_count_limit: Option<usize>,
+    selection_order: SelectionOrder,
 }
 
 impl MoveStreamContext {
@@ -25,7 +28,17 @@ impl MoveStreamContext {
             step_index,
             step_seed,
             accepted_count_limit,
+            selection_order: SelectionOrder::Original,
         }
+    }
+
+    pub const fn with_selection_order(mut self, selection_order: SelectionOrder) -> Self {
+        self.selection_order = selection_order;
+        self
+    }
+
+    pub const fn selection_order(self) -> SelectionOrder {
+        self.selection_order
     }
 
     pub const fn step_index(self) -> u64 {
@@ -71,12 +84,109 @@ impl MoveStreamContext {
         self.mixed_seed(salt) as usize
     }
 
-    fn is_canonical(self) -> bool {
-        self.step_index == 0 && self.step_seed == 0 && self.accepted_count_limit.is_none()
+    pub(crate) fn random_index(self, len: usize, salt: u64) -> usize {
+        if len <= 1 {
+            return 0;
+        }
+        (self.mixed_seed(salt) as usize) % len
+    }
+
+    pub(crate) fn random_stride(self, len: usize, salt: u64) -> usize {
+        if len <= 1 {
+            return 1;
+        }
+        let mut stride = (self.mixed_seed(salt) as usize % (len - 1)) + 1;
+        while gcd(stride, len) != 1 {
+            stride = if stride == len - 1 { 1 } else { stride + 1 };
+        }
+        stride
+    }
+
+    pub(crate) fn random_seed(self, salt: u64) -> u64 {
+        self.mixed_seed(salt)
+    }
+
+    pub(crate) fn selection_index(self, offset: usize, len: usize, salt: u64) -> usize {
+        debug_assert!(offset < len);
+        match self.selection_order {
+            SelectionOrder::Original | SelectionOrder::Sorted | SelectionOrder::Probabilistic => {
+                offset
+            }
+            SelectionOrder::Random => self.random_index(
+                len,
+                salt ^ (offset as u64).wrapping_mul(0xD1B5_4A32_D192_ED03),
+            ),
+            SelectionOrder::Shuffled => {
+                let start = self.random_index(len, salt);
+                let stride = self.random_stride(len, salt ^ 0xA24B_AED4_963E_E407);
+                (start + offset * stride) % len
+            }
+        }
+    }
+
+    /// Orders an outer source dimension without revisiting an expensive row.
+    /// `Random` remains with-replacement at the candidate coordinate level,
+    /// while source rows are traversed once in a seeded permutation.
+    pub(crate) fn selection_index_without_replacement(
+        self,
+        offset: usize,
+        len: usize,
+        salt: u64,
+    ) -> usize {
+        debug_assert!(offset < len);
+        match self.selection_order {
+            SelectionOrder::Original | SelectionOrder::Sorted | SelectionOrder::Probabilistic => {
+                offset
+            }
+            SelectionOrder::Random | SelectionOrder::Shuffled => {
+                let start = self.random_index(len, salt);
+                let stride = self.random_stride(len, salt ^ 0xA24B_AED4_963E_E407);
+                (start + offset * stride) % len
+            }
+        }
+    }
+
+    pub(crate) fn apply_selection_order<T: Clone>(self, values: &mut [T], salt: u64) {
+        if self.is_canonical() {
+            return;
+        }
+        let canonical = values.to_vec();
+        for (offset, value) in values.iter_mut().enumerate() {
+            *value = canonical[self.selection_index(offset, canonical.len(), salt)].clone();
+        }
+    }
+
+    pub(crate) fn apply_selection_order_without_replacement<T: Clone>(
+        self,
+        values: &mut [T],
+        salt: u64,
+    ) {
+        if self.is_canonical() {
+            return;
+        }
+        let canonical = values.to_vec();
+        for (offset, value) in values.iter_mut().enumerate() {
+            *value = canonical
+                [self.selection_index_without_replacement(offset, canonical.len(), salt)]
+                .clone();
+        }
+    }
+
+    pub(crate) const fn is_canonical(self) -> bool {
+        matches!(
+            self.selection_order,
+            SelectionOrder::Original | SelectionOrder::Sorted | SelectionOrder::Probabilistic
+        )
     }
 
     fn mixed_seed(self, salt: u64) -> u64 {
         splitmix64(self.step_seed ^ self.step_index.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ salt)
+    }
+}
+
+impl Default for MoveStreamContext {
+    fn default() -> Self {
+        Self::new(0, 0, None)
     }
 }
 
@@ -118,9 +228,9 @@ where
 {
     type Item = M;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        let id = self.cursor.next_candidate()?;
-        Some(self.cursor.take_candidate(id))
+        self.cursor.next_owned_candidate()
     }
 }
 
@@ -140,6 +250,12 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
     ) -> Self::Cursor<'a> {
         self.open_cursor(score_director)
     }
+
+    /// Validates director-dependent selector configuration without producing candidates.
+    ///
+    /// Composite selectors call this before deferring a child cursor so deterministic
+    /// configuration errors retain their cursor-open timing.
+    fn validate_cursor<D: Director<S>>(&self, _score_director: &D) {}
 
     fn iter_moves<'a, D: Director<S>>(
         &'a self,

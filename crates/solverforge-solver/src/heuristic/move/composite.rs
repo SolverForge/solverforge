@@ -13,7 +13,10 @@ use std::marker::PhantomData;
 
 use smallvec::SmallVec;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+use solverforge_core::ConstraintRef;
 use solverforge_scoring::{ConstraintMetadata, Director, DirectorScoreState};
+
+use crate::stats::CandidateTraceIdentity;
 
 use super::{Move, MoveArena, MoveTabuSignature};
 
@@ -127,16 +130,16 @@ where
     }
 }
 
-pub(crate) struct SequentialPreviewDirector<'a, S: PlanningSolution> {
+pub(crate) struct SequentialPreviewDirector<S: PlanningSolution> {
     working_solution: S,
-    descriptor: &'a SolutionDescriptor,
-    constraint_metadata: Vec<ConstraintMetadata<'a>>,
+    descriptor: SolutionDescriptor,
+    constraint_metadata: Vec<(ConstraintRef, bool)>,
     entity_counts: Vec<Option<usize>>,
     total_entity_count: Option<usize>,
 }
 
-impl<'a, S: PlanningSolution> SequentialPreviewDirector<'a, S> {
-    pub(crate) fn from_director<D: Director<S>>(score_director: &'a D) -> Self {
+impl<S: PlanningSolution> SequentialPreviewDirector<S> {
+    pub(crate) fn from_director<D: Director<S>>(score_director: &D) -> Self {
         let descriptor = score_director.solution_descriptor();
         let entity_counts = (0..descriptor.entity_descriptor_count())
             .map(|descriptor_index| score_director.entity_count(descriptor_index))
@@ -144,15 +147,19 @@ impl<'a, S: PlanningSolution> SequentialPreviewDirector<'a, S> {
 
         Self {
             working_solution: score_director.clone_working_solution(),
-            descriptor,
-            constraint_metadata: score_director.constraint_metadata(),
+            descriptor: descriptor.clone(),
+            constraint_metadata: score_director
+                .constraint_metadata()
+                .into_iter()
+                .map(|metadata| (metadata.constraint_ref.clone(), metadata.is_hard))
+                .collect(),
             entity_counts,
             total_entity_count: score_director.total_entity_count(),
         }
     }
 }
 
-impl<S: PlanningSolution> Director<S> for SequentialPreviewDirector<'_, S> {
+impl<S: PlanningSolution> Director<S> for SequentialPreviewDirector<S> {
     fn working_solution(&self) -> &S {
         &self.working_solution
     }
@@ -166,7 +173,7 @@ impl<S: PlanningSolution> Director<S> for SequentialPreviewDirector<'_, S> {
     }
 
     fn solution_descriptor(&self) -> &SolutionDescriptor {
-        self.descriptor
+        &self.descriptor
     }
 
     fn clone_working_solution(&self) -> S {
@@ -192,7 +199,10 @@ impl<S: PlanningSolution> Director<S> for SequentialPreviewDirector<'_, S> {
     }
 
     fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
-        self.constraint_metadata.to_vec()
+        self.constraint_metadata
+            .iter()
+            .map(|(constraint_ref, is_hard)| ConstraintMetadata::new(constraint_ref, *is_hard))
+            .collect()
     }
 
     fn is_incremental(&self) -> bool {
@@ -408,6 +418,16 @@ where
     fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {
         self.tabu_signature.clone()
     }
+
+    fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
+        Some(CandidateTraceIdentity::composite(
+            "sequential_composite",
+            [
+                self.first.candidate_trace_identity()?,
+                self.second.candidate_trace_identity()?,
+            ],
+        ))
+    }
 }
 
 impl<S, M> Clone for SequentialCompositeMove<S, M>
@@ -496,5 +516,15 @@ where
 
     fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {
         self.tabu_signature.clone()
+    }
+
+    fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
+        Some(CandidateTraceIdentity::composite(
+            "sequential_composite",
+            [
+                self.first_move().candidate_trace_identity()?,
+                self.second_move().candidate_trace_identity()?,
+            ],
+        ))
     }
 }

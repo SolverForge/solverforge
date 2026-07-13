@@ -144,6 +144,10 @@ fn right_y_to_ten(_solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
     vec![y_move(10)]
 }
 
+fn right_y_to_ten_then_twenty(_solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
+    vec![y_move(10), y_move(20)]
+}
+
 fn right_shadow_backed_y(solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
     solution.tasks[0]
         .shadow_y_target
@@ -226,14 +230,14 @@ fn cartesian_product_skips_rows_with_illegal_left_moves() {
 
     assert_eq!(selector.size(&director), 2);
     assert_eq!(indices.len(), 1);
-    assert!(indices.iter().all(|&index| cursor
-        .candidate(index)
-        .is_some_and(|mov| mov.is_doable(&director))));
+    assert!(indices.iter().all(|&index| {
+        cursor
+            .candidate(index)
+            .is_some_and(|mov| mov.is_doable(&director))
+    }));
 
-    cursor
-        .candidate(indices[0])
-        .expect("cartesian candidate must remain valid")
-        .do_move(&mut director);
+    cursor.apply_owned_candidate(indices[0], &mut director);
+    assert!(cursor.candidate(indices[0]).is_none());
     assert_eq!(get_x(director.working_solution(), 0, 0), Some(2));
     assert_eq!(get_y(director.working_solution(), 0, 0), Some(10));
 }
@@ -263,9 +267,11 @@ fn cartesian_product_skips_pairs_with_illegal_right_moves() {
         cursor.candidate(indices[0]),
         Some(MoveCandidateRef::Sequential(_))
     ));
-    assert!(indices.iter().all(|&index| cursor
-        .candidate(index)
-        .is_some_and(|mov| mov.is_doable(&director))));
+    assert!(indices.iter().all(|&index| {
+        cursor
+            .candidate(index)
+            .is_some_and(|mov| mov.is_doable(&director))
+    }));
 
     cursor
         .candidate(indices[0])
@@ -295,9 +301,11 @@ fn cartesian_product_preview_updates_shadows_before_building_right_row() {
 
     assert_eq!(selector.size(&director), 1);
     assert_eq!(indices.len(), 1);
-    assert!(indices.iter().all(|&index| cursor
-        .candidate(index)
-        .is_some_and(|mov| mov.is_doable(&director))));
+    assert!(indices.iter().all(|&index| {
+        cursor
+            .candidate(index)
+            .is_some_and(|mov| mov.is_doable(&director))
+    }));
 
     let _ = director.calculate_score();
     cursor
@@ -350,12 +358,14 @@ fn cartesian_product_moves_remain_stable_after_selector_reuse() {
 #[derive(Debug)]
 struct CountingSelector {
     open_count: std::cell::Cell<usize>,
+    build: fn(&Sol) -> Vec<ScalarMoveUnion<Sol, i32>>,
 }
 
 impl CountingSelector {
-    fn new() -> Self {
+    fn new(build: fn(&Sol) -> Vec<ScalarMoveUnion<Sol, i32>>) -> Self {
         Self {
             open_count: std::cell::Cell::new(0),
+            build,
         }
     }
 }
@@ -368,14 +378,14 @@ impl MoveSelector<Sol, ScalarMoveUnion<Sol, i32>> for CountingSelector {
 
     fn open_cursor<'a, D: solverforge_scoring::Director<Sol>>(
         &'a self,
-        _score_director: &D,
+        score_director: &D,
     ) -> Self::Cursor<'a> {
         self.open_count.set(self.open_count.get() + 1);
-        ArenaMoveCursor::from_moves(vec![x_move(1), x_move(2)])
+        ArenaMoveCursor::from_moves((self.build)(score_director.working_solution()))
     }
 
-    fn size<D: solverforge_scoring::Director<Sol>>(&self, _score_director: &D) -> usize {
-        2
+    fn size<D: solverforge_scoring::Director<Sol>>(&self, score_director: &D) -> usize {
+        (self.build)(score_director.working_solution()).len()
     }
 }
 
@@ -386,13 +396,72 @@ fn cartesian_product_size_does_not_open_child_cursors() {
         y: Some(0),
         shadow_y_target: None,
     }]);
-    let left = CountingSelector::new();
-    let right = CountingSelector::new();
+    let left = CountingSelector::new(left_x_to_one_then_two);
+    let right = CountingSelector::new(left_x_to_one_then_two);
     let selector = CartesianProductSelector::new(left, right);
 
     assert_eq!(selector.size(&director), 4);
     assert_eq!(selector.left.open_count.get(), 0);
     assert_eq!(selector.right.open_count.get(), 0);
+}
+
+#[test]
+fn cartesian_product_opens_right_rows_only_as_iteration_reaches_them() {
+    let director = create_director(vec![Task {
+        x: Some(0),
+        y: Some(0),
+        shadow_y_target: None,
+    }]);
+    let selector = CartesianProductSelector::new(
+        TestSelector {
+            build: left_x_to_one_then_two,
+        },
+        CountingSelector::new(right_y_to_ten_then_twenty),
+    );
+
+    let mut cursor = selector.open_cursor(&director);
+    assert_eq!(selector.right.open_count.get(), 0);
+
+    let first = cursor.next_candidate().expect("first pair must exist");
+    assert_eq!(selector.right.open_count.get(), 1);
+    let second = cursor.next_candidate().expect("second pair must exist");
+    assert_eq!(selector.right.open_count.get(), 1);
+    let third = cursor.next_candidate().expect("third pair must exist");
+    assert_eq!(selector.right.open_count.get(), 2);
+
+    assert!(cursor.candidate(first).is_some());
+    assert!(cursor.candidate(second).is_some());
+    assert!(cursor.candidate(third).is_some());
+}
+
+#[test]
+fn cartesian_product_releases_all_losers_before_owned_commit() {
+    let mut director = create_director(vec![Task {
+        x: Some(0),
+        y: Some(0),
+        shadow_y_target: None,
+    }]);
+    let selector = CartesianProductSelector::new(
+        TestSelector {
+            build: left_x_to_one_then_two,
+        },
+        TestSelector {
+            build: right_y_to_ten_then_twenty,
+        },
+    );
+
+    let mut cursor = selector.open_cursor(&director);
+    let indices = collect_indices(&mut cursor);
+    assert_eq!(indices.len(), 4);
+    for &loser in &indices[1..] {
+        assert!(cursor.release_candidate(loser));
+        assert!(cursor.candidate(loser).is_none());
+    }
+
+    cursor.apply_owned_candidate(indices[0], &mut director);
+    assert!(cursor.candidate(indices[0]).is_none());
+    assert_eq!(get_x(director.working_solution(), 0, 0), Some(1));
+    assert_eq!(get_y(director.working_solution(), 0, 0), Some(10));
 }
 
 #[test]

@@ -9,6 +9,8 @@ use std::fmt::Debug;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
+use crate::stats::CandidateTraceIdentity;
+
 use super::{
     KOptMove, ListChangeMove, ListMultiSwapMove, ListPermuteMove, ListReverseMove, ListRuinMove,
     ListSwapMove, Move, MoveTabuSignature, SublistChangeMove, SublistSwapMove,
@@ -275,6 +277,20 @@ where
             Self::ListReverse(m) => m.tabu_signature(score_director),
             Self::KOpt(m) => m.tabu_signature(score_director),
             Self::ListRuin(m) => m.tabu_signature(score_director),
+        }
+    }
+
+    fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
+        match self {
+            Self::ListChange(m) => m.candidate_trace_identity(),
+            Self::ListSwap(m) => m.candidate_trace_identity(),
+            Self::ListMultiSwap(m) => m.candidate_trace_identity(),
+            Self::ListPermute(m) => m.candidate_trace_identity(),
+            Self::SublistChange(m) => m.candidate_trace_identity(),
+            Self::SublistSwap(m) => m.candidate_trace_identity(),
+            Self::ListReverse(m) => m.candidate_trace_identity(),
+            Self::KOpt(m) => m.candidate_trace_identity(),
+            Self::ListRuin(m) => m.candidate_trace_identity(),
         }
     }
 }

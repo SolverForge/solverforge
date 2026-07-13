@@ -19,10 +19,14 @@ fn descriptor_cartesian_builds_composite_moves() {
         require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                selection_order: None,
+                selection_metric: None,
                 value_candidate_limit: None,
                 target: VariableTargetConfig::default(),
             }),
             MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+                selection_order: None,
+                selection_metric: None,
                 target: VariableTargetConfig::default(),
             }),
         ],
@@ -72,10 +76,14 @@ fn descriptor_cartesian_selector_survives_filtering_wrapper() {
         require_hard_improvement: false,
         selectors: vec![
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                selection_order: None,
+                selection_metric: None,
                 value_candidate_limit: None,
                 target: VariableTargetConfig::default(),
             }),
             MoveSelectorConfig::SwapMoveSelector(SwapMoveConfig {
+                selection_order: None,
+                selection_metric: None,
                 target: VariableTargetConfig::default(),
             }),
         ],
@@ -108,6 +116,8 @@ fn descriptor_cartesian_rejects_score_seeking_left_child() {
         selectors: vec![
             MoveSelectorConfig::RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig::default()),
             MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                selection_order: None,
+                selection_metric: None,
                 value_candidate_limit: None,
                 target: VariableTargetConfig::default(),
             }),

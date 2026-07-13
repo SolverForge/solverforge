@@ -61,20 +61,15 @@ where
             allows_unassigned,
         }
     }
-}
 
-impl<S, V> MoveCursor<S, ChangeMove<S, V>> for ChangeMoveCursor<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-{
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    #[inline(always)]
+    fn next_move(&mut self) -> Option<ChangeMove<S, V>> {
         while self.entity_offset < self.entity_values.len() {
             let entity_values = &self.entity_values[self.entity_offset];
             if self.value_offset < entity_values.values.len() {
                 let value = entity_values.values[self.value_offset].clone();
                 self.value_offset += 1;
-                return Some(self.store.push(ChangeMove::new(
+                return Some(ChangeMove::new(
                     entity_values.entity_ref.entity_index,
                     Some(value),
                     self.getter,
@@ -82,7 +77,7 @@ where
                     self.variable_index,
                     self.variable_name,
                     self.descriptor_index,
-                )));
+                ));
             }
 
             let to_none_offset = entity_values.values.len();
@@ -91,7 +86,7 @@ where
                 && self.value_offset == to_none_offset
             {
                 self.value_offset += 1;
-                return Some(self.store.push(ChangeMove::new(
+                return Some(ChangeMove::new(
                     entity_values.entity_ref.entity_index,
                     None,
                     self.getter,
@@ -99,14 +94,24 @@ where
                     self.variable_index,
                     self.variable_name,
                     self.descriptor_index,
-                )));
+                ));
             }
 
             self.entity_offset += 1;
             self.value_offset = 0;
         }
-
         None
+    }
+}
+
+impl<S, V> MoveCursor<S, ChangeMove<S, V>> for ChangeMoveCursor<S, V>
+where
+    S: PlanningSolution,
+    V: Clone + PartialEq + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        let mov = self.next_move()?;
+        Some(self.store.push(mov))
     }
 
     fn candidate(
@@ -119,6 +124,28 @@ where
     fn take_candidate(&mut self, id: CandidateId) -> ChangeMove<S, V> {
         self.store.take_candidate(id)
     }
+
+    #[inline(always)]
+    fn next_owned_candidate(&mut self) -> Option<ChangeMove<S, V>> {
+        self.next_move()
+    }
+
+    #[inline(always)]
+    fn next_owned_candidate_inspected<T, F>(&mut self, mut inspect: F) -> Option<(ChangeMove<S, V>, T)>
+    where
+        F: for<'a> FnMut(MoveCandidateRef<'a, S, ChangeMove<S, V>>) -> Option<T>,
+    {
+        loop {
+            let mov = self.next_move()?;
+            if let Some(metadata) = inspect(MoveCandidateRef::Borrowed(&mov)) {
+                return Some((mov, metadata));
+            }
+        }
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
+    }
 }
 
 impl<S, V> Iterator for ChangeMoveCursor<S, V>
@@ -129,8 +156,7 @@ where
     type Item = ChangeMove<S, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let id = self.next_candidate()?;
-        Some(self.take_candidate(id))
+        self.next_move()
     }
 }
 
@@ -223,21 +249,45 @@ where
         context: MoveStreamContext,
     ) -> Self::Cursor<'a> {
         let solution = score_director.working_solution();
-        let mut entity_values: Vec<_> = self
-            .entity_selector
-            .iter(score_director)
-            .map(|entity_ref| {
+        let canonical_entities = self.entity_selector.iter(score_director).collect::<Vec<_>>();
+        let entity_count = canonical_entities.len();
+        let entity_salt = 0xC4A4_6E00_0000_0001
+            ^ ((self.descriptor_index as u64) << 32)
+            ^ self.variable_index as u64;
+        let entity_values = (0..entity_count)
+            .map(|entity_offset| {
+                let entity_ref = canonical_entities
+                    [context.selection_index(entity_offset, entity_count, entity_salt)];
                 let current_assigned = (self.getter)(
                     solution,
                     entity_ref.entity_index,
                     self.variable_index,
                 )
                 .is_some();
-                let values = self.value_selector.iter(
-                    score_director,
-                    entity_ref.descriptor_index,
-                    entity_ref.entity_index,
-                ).collect();
+                let canonical_values = self
+                    .value_selector
+                    .iter(
+                        score_director,
+                        entity_ref.descriptor_index,
+                        entity_ref.entity_index,
+                    )
+                    .collect::<Vec<_>>();
+                let value_count = canonical_values.len();
+                let value_salt = 0xC4A4_6E00_0000_0000
+                    ^ entity_ref.entity_index as u64
+                    ^ ((self.descriptor_index as u64) << 32)
+                    ^ self.variable_index as u64;
+                let values = if context.is_canonical() {
+                    canonical_values
+                } else {
+                    (0..value_count)
+                        .map(|value_offset| {
+                            canonical_values
+                                [context.selection_index(value_offset, value_count, value_salt)]
+                            .clone()
+                        })
+                        .collect()
+                };
                 ChangeEntityValues {
                     entity_ref,
                     values,
@@ -245,23 +295,6 @@ where
                 }
             })
             .collect();
-        for entity_values in &mut entity_values {
-            let start = context.start_offset(
-                entity_values.values.len(),
-                0xC4A4_6E00_0000_0000
-                    ^ entity_values.entity_ref.entity_index as u64
-                    ^ ((self.descriptor_index as u64) << 32)
-                    ^ self.variable_index as u64,
-            );
-            entity_values.values.rotate_left(start);
-        }
-        let entity_start = context.start_offset(
-            entity_values.len(),
-            0xC4A4_6E00_0000_0001
-                ^ ((self.descriptor_index as u64) << 32)
-                ^ self.variable_index as u64,
-        );
-        entity_values.rotate_left(entity_start);
         ChangeMoveCursor::new(
             entity_values,
             self.getter,

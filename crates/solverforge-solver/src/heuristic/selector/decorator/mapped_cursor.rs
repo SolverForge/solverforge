@@ -68,6 +68,10 @@ where
         self.store.take_candidate(id)
     }
 
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
+    }
+
     fn selector_index(&self, id: CandidateId) -> Option<usize> {
         self.selector_indices.get(id.index()).copied().flatten()
     }

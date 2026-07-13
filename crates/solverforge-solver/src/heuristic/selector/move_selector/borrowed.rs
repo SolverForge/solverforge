@@ -50,6 +50,10 @@ where
         (**self).tabu_signature(score_director)
     }
 
+    fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {
+        (**self).candidate_trace_identity()
+    }
+
     fn for_each_affected_entity(
         &self,
         visitor: &mut dyn FnMut(crate::heuristic::r#move::MoveAffectedEntity<'_>),
@@ -157,6 +161,13 @@ where
         }
     }
 
+    fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {
+        match self {
+            Self::Borrowed(mov) => mov.candidate_trace_identity(),
+            Self::Sequential(mov) => mov.candidate_trace_identity(),
+        }
+    }
+
     fn telemetry_label(&self) -> &'static str {
         match self {
             Self::Borrowed(mov) => mov.telemetry_label(),
@@ -199,6 +210,17 @@ where
     }
 }
 
+/// Incremental, cursor-owned candidate storage for a single neighborhood.
+///
+/// `next_candidate()` constructs or discovers at most the next candidate and
+/// returns a stable ID. A consumer may stop at any time: dropping the cursor
+/// must release all retained candidates and any unconsumed source state without
+/// requiring the remaining neighborhood to be enumerated. Implementations must
+/// not rely on full exhaustion for correctness, callback delivery, or cleanup.
+///
+/// Candidates remain borrowable until they are released or transferred. The
+/// selected candidate is consumed exactly once through `take_candidate()` or
+/// `apply_owned_candidate()`; unselected live candidates remain cursor-owned.
 pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
     fn next_candidate(&mut self) -> Option<CandidateId>;
 
@@ -206,8 +228,150 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
 
     fn take_candidate(&mut self, id: CandidateId) -> M;
 
+    fn next_owned_candidate(&mut self) -> Option<M> {
+        let id = self.next_candidate()?;
+        Some(self.take_candidate(id))
+    }
+
+    fn next_owned_candidate_matching(
+        &mut self,
+        predicate: for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool,
+    ) -> Option<M> {
+        loop {
+            let id = self.next_candidate()?;
+            let candidate = self
+                .candidate(id)
+                .expect("newly generated cursor candidate must remain live");
+            let accepted = predicate(candidate);
+            if accepted {
+                return Some(self.take_candidate(id));
+            }
+            assert!(self.release_candidate(id));
+        }
+    }
+
+    fn next_owned_candidate_inspected<T, F>(&mut self, mut inspect: F) -> Option<(M, T)>
+    where
+        F: for<'a> FnMut(MoveCandidateRef<'a, S, M>) -> Option<T>,
+    {
+        loop {
+            let id = self.next_candidate()?;
+            let candidate = self
+                .candidate(id)
+                .expect("newly generated cursor candidate must remain live");
+            if let Some(metadata) = inspect(candidate) {
+                return Some((self.take_candidate(id), metadata));
+            }
+            assert!(self.release_candidate(id));
+        }
+    }
+
+    fn apply_owned_candidate<D: Director<S>>(&mut self, id: CandidateId, score_director: &mut D) {
+        let mov = self.take_candidate(id);
+        mov.do_move(score_director);
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        if self.candidate(id).is_none() {
+            return false;
+        }
+        drop(self.take_candidate(id));
+        true
+    }
+
     fn selector_index(&self, _id: CandidateId) -> Option<usize> {
         None
+    }
+}
+
+/// A cursor whose next pull needs one explicitly owned execution resource.
+///
+/// Ordinary selectors use [`MoveCursor`] directly. Runtime provider cursors
+/// need a solve-owned reason arena only at the instant a reachable child is
+/// pulled, however; retaining that arena in a leaf or hiding it behind
+/// interior mutability would break lazy callback delivery and resource
+/// ownership. Recursive composition therefore uses this private companion
+/// contract and lends its resource only to the child selected by the
+/// canonical union scheduler.
+#[doc(hidden)]
+pub trait ResourceMoveCursor<S: PlanningSolution, M: Move<S>, Resources> {
+    fn next_candidate_with_resources(&mut self, resources: &mut Resources) -> Option<CandidateId>;
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>>;
+
+    fn take_candidate(&mut self, id: CandidateId) -> M;
+
+    fn next_owned_candidate_inspected_with_resources<T, F>(
+        &mut self,
+        resources: &mut Resources,
+        mut inspect: F,
+    ) -> Option<(M, T)>
+    where
+        F: for<'a> FnMut(MoveCandidateRef<'a, S, M>) -> Option<T>,
+    {
+        loop {
+            let id = self.next_candidate_with_resources(resources)?;
+            let candidate = self
+                .candidate(id)
+                .expect("newly generated resource cursor candidate must remain live");
+            if let Some(metadata) = inspect(candidate) {
+                return Some((self.take_candidate(id), metadata));
+            }
+            assert!(self.release_candidate(id));
+        }
+    }
+
+    fn apply_owned_candidate<D: Director<S>>(&mut self, id: CandidateId, score_director: &mut D);
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool;
+
+    fn selector_index(&self, id: CandidateId) -> Option<usize>;
+}
+
+/// Adapts an ordinary cursor to the resource-aware composition boundary.
+///
+/// It is deliberately explicit instead of a blanket implementation of
+/// [`ResourceMoveCursor`]: compiled provider cursors need their own resource
+/// lending implementation, and a blanket would overlap that specialization.
+#[doc(hidden)]
+pub struct UnitResourceCursor<C> {
+    inner: C,
+}
+
+impl<C> UnitResourceCursor<C> {
+    pub(crate) fn new(inner: C) -> Self {
+        Self { inner }
+    }
+}
+
+impl<S, M, C> ResourceMoveCursor<S, M, ()> for UnitResourceCursor<C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    fn next_candidate_with_resources(&mut self, _resources: &mut ()) -> Option<CandidateId> {
+        self.inner.next_candidate()
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+        self.inner.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> M {
+        self.inner.take_candidate(id)
+    }
+
+    fn apply_owned_candidate<D: Director<S>>(&mut self, id: CandidateId, score_director: &mut D) {
+        self.inner.apply_owned_candidate(id, score_director);
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.inner.release_candidate(id)
+    }
+
+    fn selector_index(&self, id: CandidateId) -> Option<usize> {
+        self.inner.selector_index(id)
     }
 }
 
@@ -216,8 +380,14 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    moves: Vec<Option<M>>,
+    positions: Vec<Option<usize>>,
+    live: Vec<StoredCandidate<M>>,
     _phantom: PhantomData<fn() -> S>,
+}
+
+struct StoredCandidate<M> {
+    id: CandidateId,
+    mov: M,
 }
 
 impl<S, M> CandidateStore<S, M>
@@ -227,21 +397,24 @@ where
 {
     pub fn new() -> Self {
         Self {
-            moves: Vec::new(),
+            positions: Vec::new(),
+            live: Vec::new(),
             _phantom: PhantomData,
         }
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            moves: Vec::with_capacity(capacity),
+            positions: Vec::with_capacity(capacity),
+            live: Vec::with_capacity(capacity),
             _phantom: PhantomData,
         }
     }
 
     pub fn push(&mut self, mov: M) -> CandidateId {
-        let id = CandidateId::new(self.moves.len());
-        self.moves.push(Some(mov));
+        let id = CandidateId::new(self.positions.len());
+        self.positions.push(Some(self.live.len()));
+        self.live.push(StoredCandidate { id, mov });
         id
     }
 
@@ -249,29 +422,50 @@ where
     where
         I: IntoIterator<Item = M>,
     {
-        self.moves.extend(iter.into_iter().map(Some));
+        for mov in iter {
+            self.push(mov);
+        }
     }
 
     pub fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
-        self.moves
-            .get(id.index())
-            .and_then(|mov| mov.as_ref())
-            .map(MoveCandidateRef::Borrowed)
+        let position = self.positions.get(id.index()).copied().flatten()?;
+        self.live
+            .get(position)
+            .map(|stored| MoveCandidateRef::Borrowed(&stored.mov))
     }
 
     pub fn take_candidate(&mut self, id: CandidateId) -> M {
-        self.moves
+        let position = self
+            .positions
             .get_mut(id.index())
             .and_then(Option::take)
-            .expect("move cursor candidate id must remain valid")
+            .expect("move cursor candidate id must remain valid");
+        let stored = self.live.swap_remove(position);
+        debug_assert_eq!(stored.id, id);
+        if let Some(moved) = self.live.get(position) {
+            self.positions[moved.id.index()] = Some(position);
+        }
+        stored.mov
+    }
+
+    pub fn release_candidate(&mut self, id: CandidateId) -> bool {
+        if self
+            .positions
+            .get(id.index())
+            .is_none_or(Option::is_none)
+        {
+            return false;
+        }
+        drop(self.take_candidate(id));
+        true
     }
 
     pub fn len(&self) -> usize {
-        self.moves.len()
+        self.positions.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.moves.is_empty()
+        self.positions.is_empty()
     }
 }
 
@@ -332,6 +526,14 @@ where
     {
         self.store.extend(iter);
     }
+
+    pub fn len(&self) -> usize {
+        self.store.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.store.is_empty()
+    }
 }
 
 impl<S, M> Default for ArenaMoveCursor<S, M>
@@ -379,6 +581,10 @@ where
 
     fn take_candidate(&mut self, id: CandidateId) -> M {
         self.store.take_candidate(id)
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
     }
 }
 

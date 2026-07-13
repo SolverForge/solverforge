@@ -14,11 +14,12 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::metadata::compose_sequential_tabu_signature;
 use crate::heuristic::r#move::{
-    Move, MoveArena, MoveTabuSignature, SequentialCompositeMoveRef, SequentialPreviewDirector,
+    Move, MoveArena, MoveTabuSignature, SequentialCompositeMove, SequentialCompositeMoveRef,
+    SequentialPreviewDirector,
 };
 use crate::heuristic::selector::move_selector::{
-    collect_cursor_indices, CandidateId, MoveCandidateRef, MoveCursor, MoveSelector,
-    MoveSelectorIter, MoveStreamContext,
+    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveSelectorIter,
+    MoveStreamContext,
 };
 
 /// Holds two owned move arenas and provides indexed pair iteration.
@@ -124,115 +125,83 @@ where
     }
 }
 
-struct CartesianRow<M> {
-    right_moves: Vec<Option<M>>,
+struct CartesianRow<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    left: M,
+    right_moves: CandidateStore<S, M>,
+    live_pairs: usize,
+}
+
+struct ActiveCartesianRow<C, U> {
+    row_index: usize,
+    right_cursor: C,
+    left_undo: U,
+    left_signature: MoveTabuSignature,
 }
 
 struct CartesianPair {
-    left_index: usize,
-    right_index: usize,
+    row_index: usize,
+    right_id: CandidateId,
     entity_indices: SmallVec<[usize; 8]>,
     tabu_signature: MoveTabuSignature,
 }
 
-pub struct CartesianProductCursor<S, M>
+pub struct CartesianProductCursor<'a, S, M, LeftCursor, Right>
 where
     S: PlanningSolution,
     M: Move<S>,
+    LeftCursor: MoveCursor<S, M>,
+    Right: MoveSelector<S, M>,
 {
     require_hard_improvement: bool,
-    left_moves: Vec<Option<M>>,
-    rows: Vec<CartesianRow<M>>,
-    pairs: Vec<CartesianPair>,
-    next_pair: usize,
+    left_cursor: LeftCursor,
+    right_selector: &'a Right,
+    rows: Vec<Option<CartesianRow<S, M>>>,
+    active_row: Option<ActiveCartesianRow<Right::Cursor<'a>, M::Undo>>,
+    pairs: Vec<Option<CartesianPair>>,
+    preview: SequentialPreviewDirector<S>,
+    context: MoveStreamContext,
     _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, M> CartesianProductCursor<S, M>
+impl<'a, S, M, LeftCursor, Right> CartesianProductCursor<'a, S, M, LeftCursor, Right>
 where
     S: PlanningSolution,
     M: Move<S>,
+    LeftCursor: MoveCursor<S, M>,
+    Right: MoveSelector<S, M>,
 {
-    fn new<LeftCursor, Right, D>(
+    fn new<D: Director<S>>(
         require_hard_improvement: bool,
-        mut left_cursor: LeftCursor,
-        right_selector: &Right,
+        left_cursor: LeftCursor,
+        right_selector: &'a Right,
         score_director: &D,
         context: MoveStreamContext,
-    ) -> Self
-    where
-        LeftCursor: MoveCursor<S, M>,
-        Right: MoveSelector<S, M>,
-        D: Director<S>,
-    {
-        let mut left_moves = Vec::new();
-        let mut rows = Vec::new();
-        let mut pairs = Vec::new();
-
-        for left_index in collect_cursor_indices::<S, M, _>(&mut left_cursor) {
-            let left_signature = left_cursor
-                .candidate(left_index)
-                .expect("left cartesian candidate must remain valid")
-                .tabu_signature(score_director);
-            let left_move = left_cursor.take_candidate(left_index);
-            let row_index = left_moves.len();
-
-            let mut row = CartesianRow {
-                right_moves: Vec::new(),
-            };
-
-            if left_move.is_doable(score_director) {
-                let mut preview = SequentialPreviewDirector::from_director(score_director);
-                left_move.do_move(&mut preview);
-                let mut right_cursor = right_selector.open_cursor_with_context(&preview, context);
-                for right_index in collect_cursor_indices::<S, M, _>(&mut right_cursor) {
-                    let right_signature = right_cursor
-                        .candidate(right_index)
-                        .expect("right cartesian candidate must remain valid")
-                        .tabu_signature(&preview);
-                    let right_move = right_cursor.take_candidate(right_index);
-                    if !right_move.is_doable(&preview) {
-                        continue;
-                    }
-                    let right_local_index = row.right_moves.len();
-                    let entity_indices = combined_entity_indices(
-                        left_move.entity_indices(),
-                        right_move.entity_indices(),
-                    );
-                    let tabu_signature = compose_sequential_tabu_signature(
-                        "cartesian_product",
-                        &left_signature,
-                        &right_signature,
-                    );
-                    row.right_moves.push(Some(right_move));
-                    pairs.push(CartesianPair {
-                        left_index: row_index,
-                        right_index: right_local_index,
-                        entity_indices,
-                        tabu_signature,
-                    });
-                }
-            }
-
-            left_moves.push(Some(left_move));
-            rows.push(row);
-        }
-
+    ) -> Self {
         Self {
             require_hard_improvement,
-            left_moves,
-            rows,
-            pairs,
-            next_pair: 0,
+            left_cursor,
+            right_selector,
+            rows: Vec::new(),
+            active_row: None,
+            pairs: Vec::new(),
+            preview: SequentialPreviewDirector::from_director(score_director),
+            context,
             _phantom: PhantomData,
         }
     }
 
     fn build_candidate(&self, pair_id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
-        let pair = self.pairs.get(pair_id.index())?;
-        let left = self.left_moves.get(pair.left_index)?.as_ref()?;
-        let row = self.rows.get(pair.left_index)?;
-        let right = row.right_moves.get(pair.right_index)?.as_ref()?;
+        let pair = self.pairs.get(pair_id.index())?.as_ref()?;
+        let row = self.rows.get(pair.row_index)?.as_ref()?;
+        let left = &row.left;
+        let right = match row.right_moves.candidate(pair.right_id)? {
+            MoveCandidateRef::Borrowed(mov) => mov,
+            MoveCandidateRef::Sequential(_) => return None,
+        };
         let variable_name = if left.variable_name() == right.variable_name() {
             left.variable_name()
         } else {
@@ -250,18 +219,140 @@ where
             ),
         ))
     }
+
+    fn release_row_if_unused(&mut self, row_index: usize) {
+        let should_release = self
+            .rows
+            .get(row_index)
+            .and_then(Option::as_ref)
+            .is_some_and(|row| {
+                self.active_row
+                    .as_ref()
+                    .is_none_or(|active| active.row_index != row_index)
+                    && row.live_pairs == 0
+            });
+        if should_release {
+            let _row = self.rows[row_index]
+                .take()
+                .expect("unused cartesian row must remain live");
+        }
+    }
 }
 
-impl<S, M> MoveCursor<S, M> for CartesianProductCursor<S, M>
+impl<S, M, LeftCursor, Right> MoveCursor<S, M>
+    for CartesianProductCursor<'_, S, M, LeftCursor, Right>
 where
     S: PlanningSolution,
     M: Move<S>,
+    LeftCursor: MoveCursor<S, M>,
+    Right: MoveSelector<S, M>,
 {
     fn next_candidate(&mut self) -> Option<CandidateId> {
-        let index = self.next_pair;
-        self.next_pair = index + 1;
-        let id = CandidateId::new(index);
-        self.build_candidate(id).map(|_| id)
+        loop {
+            if self.active_row.is_some() {
+                let inspected = {
+                    let active = self
+                        .active_row
+                        .as_mut()
+                        .expect("active cartesian row must remain live");
+                    let row_index = active.row_index;
+                    let row = self.rows[row_index]
+                        .as_mut()
+                        .expect("active cartesian row must remain live");
+                    let left = &row.left;
+                    let left_signature = &active.left_signature;
+                    active.right_cursor.next_owned_candidate_inspected(|right| {
+                        let right = match right {
+                            MoveCandidateRef::Borrowed(mov) => mov,
+                            MoveCandidateRef::Sequential(_) => {
+                                panic!("nested cartesian right candidates are not supported")
+                            }
+                        };
+                        if !right.is_doable(&self.preview) {
+                            return None;
+                        }
+                        Some((
+                            combined_entity_indices(left.entity_indices(), right.entity_indices()),
+                            compose_sequential_tabu_signature(
+                                "cartesian_product",
+                                left_signature,
+                                &right.tabu_signature(&self.preview),
+                            ),
+                        ))
+                    })
+                };
+                if let Some((right, (entity_indices, tabu_signature))) = inspected {
+                    let row_index = self
+                        .active_row
+                        .as_ref()
+                        .expect("active cartesian row must remain live")
+                        .row_index;
+                    let right_id = self.rows[row_index]
+                        .as_mut()
+                        .expect("active cartesian row must remain live")
+                        .right_moves
+                        .push(right);
+                    let pair_id = CandidateId::new(self.pairs.len());
+                    self.pairs.push(Some(CartesianPair {
+                        row_index,
+                        right_id,
+                        entity_indices,
+                        tabu_signature,
+                    }));
+                    self.rows[row_index]
+                        .as_mut()
+                        .expect("active cartesian row must remain live")
+                        .live_pairs += 1;
+                    return Some(pair_id);
+                }
+
+                let active = self
+                    .active_row
+                    .take()
+                    .expect("active cartesian row must remain live");
+                let row_index = active.row_index;
+                self.rows[row_index]
+                    .as_ref()
+                    .expect("active cartesian row must remain live")
+                    .left
+                    .undo_move(&mut self.preview, active.left_undo);
+                self.release_row_if_unused(row_index);
+            }
+
+            let left_id = self.left_cursor.next_candidate()?;
+            let left = self
+                .left_cursor
+                .candidate(left_id)
+                .expect("left cartesian candidate must remain valid");
+            let left = match left {
+                MoveCandidateRef::Borrowed(mov) => mov,
+                MoveCandidateRef::Sequential(_) => {
+                    panic!("nested cartesian left candidates are not supported")
+                }
+            };
+            if !left.is_doable(&self.preview) {
+                assert!(self.left_cursor.release_candidate(left_id));
+                continue;
+            }
+            let left_signature = left.tabu_signature(&self.preview);
+            let left = self.left_cursor.take_candidate(left_id);
+            let left_undo = left.do_move(&mut self.preview);
+            let right_cursor = self
+                .right_selector
+                .open_cursor_with_context(&self.preview, self.context);
+            let row_index = self.rows.len();
+            self.rows.push(Some(CartesianRow {
+                left,
+                right_moves: CandidateStore::new(),
+                live_pairs: 0,
+            }));
+            self.active_row = Some(ActiveCartesianRow {
+                row_index,
+                right_cursor,
+                left_undo,
+                left_signature,
+            });
+        }
     }
 
     fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
@@ -273,6 +364,73 @@ where
         panic!(
             "cartesian product cursors expose borrowed sequential candidates; apply the selected candidate before dropping the cursor",
         );
+    }
+
+    fn apply_owned_candidate<D: Director<S>>(
+        &mut self,
+        index: CandidateId,
+        score_director: &mut D,
+    ) {
+        let pair = self
+            .pairs
+            .get_mut(index.index())
+            .and_then(Option::take)
+            .expect("selected cartesian pair must remain live");
+        let mut row = self.rows[pair.row_index]
+            .take()
+            .expect("selected cartesian row must remain live");
+        if self
+            .active_row
+            .as_ref()
+            .is_some_and(|active| active.row_index == pair.row_index)
+        {
+            self.active_row = None;
+        }
+        for sibling in &mut self.pairs {
+            if sibling
+                .as_ref()
+                .is_some_and(|sibling| sibling.row_index == pair.row_index)
+            {
+                let sibling = sibling
+                    .take()
+                    .expect("selected cartesian sibling must remain live");
+                assert!(row.right_moves.release_candidate(sibling.right_id));
+            }
+        }
+        let left = row.left;
+        let right = row.right_moves.take_candidate(pair.right_id);
+        let variable_name = if left.variable_name() == right.variable_name() {
+            left.variable_name().to_string()
+        } else {
+            "cartesian_product".to_string()
+        };
+        let descriptor_index = left.descriptor_index();
+        let selected = SequentialCompositeMove::new(
+            left,
+            right,
+            descriptor_index,
+            pair.entity_indices,
+            variable_name,
+            pair.tabu_signature,
+        )
+        .with_require_hard_improvement(self.require_hard_improvement);
+        selected.do_move(score_director);
+    }
+
+    fn release_candidate(&mut self, index: CandidateId) -> bool {
+        let Some(pair) = self.pairs.get_mut(index.index()).and_then(Option::take) else {
+            return false;
+        };
+        let row = self.rows[pair.row_index]
+            .as_mut()
+            .expect("released cartesian row must remain live");
+        assert!(row.right_moves.release_candidate(pair.right_id));
+        row.live_pairs = row
+            .live_pairs
+            .checked_sub(1)
+            .expect("cartesian row live-pair count must remain positive");
+        self.release_row_if_unused(pair.row_index);
+        true
     }
 }
 
@@ -341,7 +499,7 @@ where
     Right: MoveSelector<S, M>,
 {
     type Cursor<'a>
-        = CartesianProductCursor<S, M>
+        = CartesianProductCursor<'a, S, M, Left::Cursor<'a>, Right>
     where
         Self: 'a;
 
@@ -354,6 +512,7 @@ where
         score_director: &D,
         context: MoveStreamContext,
     ) -> Self::Cursor<'a> {
+        self.right.validate_cursor(score_director);
         CartesianProductCursor::new(
             self.require_hard_improvement,
             self.left.open_cursor_with_context(score_director, context),
@@ -361,6 +520,11 @@ where
             score_director,
             context,
         )
+    }
+
+    fn validate_cursor<D: Director<S>>(&self, score_director: &D) {
+        self.left.validate_cursor(score_director);
+        self.right.validate_cursor(score_director);
     }
 
     fn iter_moves<'a, D: Director<S>>(

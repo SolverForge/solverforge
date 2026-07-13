@@ -7,7 +7,8 @@ use std::cell::Cell;
 
 use super::*;
 use crate::heuristic::r#move::{Move, MoveTabuSignature};
-use crate::heuristic::selector::move_selector::CandidateStore;
+use crate::heuristic::selector::move_selector::{CandidateStore, ResourceMoveCursor};
+use std::rc::Rc;
 
 #[derive(Clone, Debug)]
 struct TestSolution {
@@ -206,6 +207,7 @@ fn sequential_drains_each_child_before_next_child() {
         vec![TestCursor::new([1, 2, 3]), TestCursor::new([10, 11])],
         UnionSelectionOrder::Sequential,
         MoveStreamContext::default(),
+        vec![1; 2],
     );
 
     assert_eq!(drain_values(cursor), vec![1, 2, 3, 10, 11]);
@@ -222,6 +224,7 @@ fn round_robin_interleaves_uneven_child_lengths_and_skips_empty_children() {
         ],
         UnionSelectionOrder::RoundRobin,
         MoveStreamContext::default(),
+        vec![1; 4],
     );
 
     assert_eq!(drain_values(cursor), vec![1, 10, 20, 2, 21, 3]);
@@ -233,6 +236,7 @@ fn round_robin_candidates_remain_borrowable_and_takeable_after_interleaving() {
         vec![TestCursor::new([1, 2]), TestCursor::new([10, 11])],
         UnionSelectionOrder::RoundRobin,
         MoveStreamContext::default(),
+        vec![1; 2],
     );
 
     let first = cursor.next_candidate().unwrap();
@@ -259,6 +263,7 @@ fn rotating_round_robin_uses_stream_context_offset_without_changing_child_order(
         ],
         UnionSelectionOrder::RotatingRoundRobin,
         context,
+        vec![1; 3],
     );
 
     let offset = context.start_offset(3, 0xA11C_E5E1_EC70_0001);
@@ -281,6 +286,7 @@ fn stratified_random_keeps_each_child_live_without_materializing_child_moves() {
         ],
         UnionSelectionOrder::StratifiedRandom,
         MoveStreamContext::new(3, 42, Some(4)),
+        vec![1; 3],
     );
 
     let values = drain_values(cursor);
@@ -291,7 +297,8 @@ fn stratified_random_keeps_each_child_live_without_materializing_child_moves() {
 }
 
 #[test]
-fn sequential_keeps_child_selectors_canonical() {
+fn sequential_preserves_child_candidate_order_and_step_context() {
+    let context = MoveStreamContext::new(3, 42, Some(4));
     let selector = VecUnionSelector::<TestSolution, TestMove, _>::with_selection_order(
         vec![
             ContextRecordingSelector::new([1, 2]),
@@ -301,17 +308,10 @@ fn sequential_keeps_child_selectors_canonical() {
     );
     let director = TestDirector::new();
 
-    let _cursor =
-        selector.open_cursor_with_context(&director, MoveStreamContext::new(3, 42, Some(4)));
+    let _cursor = selector.open_cursor_with_context(&director, context);
 
-    assert_eq!(
-        selector.selectors()[0].seen_context.get(),
-        Some(MoveStreamContext::default())
-    );
-    assert_eq!(
-        selector.selectors()[1].seen_context.get(),
-        Some(MoveStreamContext::default())
-    );
+    assert_eq!(selector.selectors()[0].seen_context.get(), Some(context));
+    assert_eq!(selector.selectors()[1].seen_context.get(), Some(context));
 }
 
 #[test]
@@ -366,4 +366,115 @@ fn stratified_random_propagates_context_to_child_selectors() {
 
     assert_eq!(selector.selectors()[0].seen_context.get(), Some(context));
     assert_eq!(selector.selectors()[1].seen_context.get(), Some(context));
+}
+
+struct ResourceTestCursor {
+    inner: TestCursor,
+    pulls: Rc<Cell<usize>>,
+    reason: &'static str,
+}
+
+impl ResourceTestCursor {
+    fn new(
+        values: impl IntoIterator<Item = i32>,
+        pulls: Rc<Cell<usize>>,
+        reason: &'static str,
+    ) -> Self {
+        Self {
+            inner: TestCursor::new(values),
+            pulls,
+            reason,
+        }
+    }
+}
+
+impl ResourceMoveCursor<TestSolution, TestMove, Vec<&'static str>> for ResourceTestCursor {
+    fn next_candidate_with_resources(
+        &mut self,
+        reasons: &mut Vec<&'static str>,
+    ) -> Option<CandidateId> {
+        self.pulls.set(self.pulls.get() + 1);
+        let candidate = self.inner.next_candidate()?;
+        if !reasons.contains(&self.reason) {
+            reasons.push(self.reason);
+        }
+        Some(candidate)
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, TestSolution, TestMove>> {
+        self.inner.candidate(id)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> TestMove {
+        self.inner.take_candidate(id)
+    }
+
+    fn apply_owned_candidate<D: Director<TestSolution>>(
+        &mut self,
+        id: CandidateId,
+        score_director: &mut D,
+    ) {
+        self.inner.apply_owned_candidate(id, score_director);
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.inner.release_candidate(id)
+    }
+
+    fn selector_index(&self, _id: CandidateId) -> Option<usize> {
+        None
+    }
+}
+
+#[test]
+fn resource_union_lends_one_reason_store_only_to_reached_children() {
+    let first_pulls = Rc::new(Cell::new(0));
+    let second_pulls = Rc::new(Cell::new(0));
+    let mut cursor = ResourceVecUnionMoveCursor::new(
+        vec![
+            ResourceTestCursor::new([1, 2], Rc::clone(&first_pulls), "first"),
+            ResourceTestCursor::new([10], Rc::clone(&second_pulls), "second"),
+        ],
+        UnionSelectionOrder::Sequential,
+        MoveStreamContext::default(),
+        vec![1; 2],
+    );
+    let mut reasons = Vec::new();
+
+    let first = cursor
+        .next_candidate_with_resources(&mut reasons)
+        .expect("first candidate");
+    assert_eq!(cursor.take_candidate(first), TestMove(1));
+
+    // This models a limited(1) outer composition: dropping before the first
+    // child exhausts must not pull the unreached second provider branch.
+    drop(cursor);
+    assert_eq!(first_pulls.get(), 1);
+    assert_eq!(second_pulls.get(), 0);
+    assert_eq!(reasons, vec!["first"]);
+}
+
+#[test]
+fn resource_union_preserves_round_robin_order_and_shared_reason_interning() {
+    let first_pulls = Rc::new(Cell::new(0));
+    let second_pulls = Rc::new(Cell::new(0));
+    let mut cursor = ResourceVecUnionMoveCursor::new(
+        vec![
+            ResourceTestCursor::new([1, 2], Rc::clone(&first_pulls), "shared"),
+            ResourceTestCursor::new([10, 11], Rc::clone(&second_pulls), "shared"),
+        ],
+        UnionSelectionOrder::RoundRobin,
+        MoveStreamContext::default(),
+        vec![1; 2],
+    );
+    let mut reasons = Vec::new();
+    let mut values = Vec::new();
+    while let Some(id) = cursor.next_candidate_with_resources(&mut reasons) {
+        values.push(cursor.take_candidate(id).0);
+    }
+
+    assert_eq!(values, vec![1, 10, 2, 11]);
+    assert_eq!(reasons, vec!["shared"]);
+    assert!(first_pulls.get() >= 2);
+    assert!(second_pulls.get() >= 2);
 }

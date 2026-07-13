@@ -11,10 +11,91 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{
-    MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
 
-use super::indexed_cursor::IndexedMoveCursor;
+pub struct FilteringMoveCursor<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    inner: C,
+    predicate: for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool,
+    discovered: Vec<CandidateId>,
+    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
+}
+
+impl<S, M, C> FilteringMoveCursor<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    fn new(inner: C, predicate: for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool) -> Self {
+        Self {
+            inner,
+            predicate,
+            discovered: Vec::new(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, M, C> MoveCursor<S, M> for FilteringMoveCursor<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        loop {
+            let child_id = self.inner.next_candidate()?;
+            let candidate = self
+                .inner
+                .candidate(child_id)
+                .expect("filtering candidate must remain valid");
+            if (self.predicate)(candidate) {
+                let outer_id = CandidateId::new(self.discovered.len());
+                self.discovered.push(child_id);
+                return Some(outer_id);
+            }
+            assert!(self.inner.release_candidate(child_id));
+        }
+    }
+
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+        self.inner.candidate(*self.discovered.get(id.index())?)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> M {
+        self.inner.take_candidate(self.discovered[id.index()])
+    }
+
+    // Keep the potentially large child cursor state machine out of every
+    // iterator consumer. This boundary avoids instruction-layout duplication
+    // while still returning each accepted move by value without storage.
+    #[inline(never)]
+    fn next_owned_candidate(&mut self) -> Option<M> {
+        self.inner.next_owned_candidate_matching(self.predicate)
+    }
+
+    fn apply_owned_candidate<D: Director<S>>(&mut self, id: CandidateId, score_director: &mut D) {
+        self.inner
+            .apply_owned_candidate(self.discovered[id.index()], score_director);
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        let Some(&child_id) = self.discovered.get(id.index()) else {
+            return false;
+        };
+        self.inner.release_candidate(child_id)
+    }
+
+    fn selector_index(&self, id: CandidateId) -> Option<usize> {
+        self.inner.selector_index(*self.discovered.get(id.index())?)
+    }
+}
 
 /// Filters moves from an inner selector using a predicate function.
 ///
@@ -103,7 +184,7 @@ where
     Inner: MoveSelector<S, M>,
 {
     type Cursor<'a>
-        = IndexedMoveCursor<S, M, Inner::Cursor<'a>>
+        = FilteringMoveCursor<S, M, Inner::Cursor<'a>>
     where
         Self: 'a;
 
@@ -116,18 +197,10 @@ where
         score_director: &D,
         context: MoveStreamContext,
     ) -> Self::Cursor<'a> {
-        let mut inner = self.inner.open_cursor_with_context(score_director, context);
-        let predicate = self.predicate;
-        let mut indices = Vec::new();
-        while let Some(child_index) = inner.next_candidate() {
-            let candidate = inner
-                .candidate(child_index)
-                .expect("filtering candidate must remain valid");
-            if predicate(candidate) {
-                indices.push(child_index);
-            }
-        }
-        IndexedMoveCursor::new(inner, indices)
+        FilteringMoveCursor::new(
+            self.inner.open_cursor_with_context(score_director, context),
+            self.predicate,
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -136,6 +209,10 @@ where
 
     fn is_never_ending(&self) -> bool {
         self.inner.is_never_ending()
+    }
+
+    fn validate_cursor<D: Director<S>>(&self, score_director: &D) {
+        self.inner.validate_cursor(score_director);
     }
 }
 

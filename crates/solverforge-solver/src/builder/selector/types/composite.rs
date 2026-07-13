@@ -1,173 +1,152 @@
+//! One recursive selector-composition surface.
+//!
+//! The compiled runner supplies frozen leaves. This module owns recursive
+//! Limited/Union/Cartesian state around them.
+
 use std::fmt::{self, Debug};
+use std::marker::PhantomData;
 
+use solverforge_config::{UnionSelectionOrder, UnionWeighting};
 use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::Director;
 
-use crate::heuristic::selector::decorator::{
-    CartesianProductCursor, CartesianProductSelector, LimitedMoveCursor,
-};
-use crate::heuristic::selector::move_selector::{
-    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
-};
-use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
+use crate::heuristic::r#move::{Move, SequentialCompositeMove};
+use crate::heuristic::selector::move_selector::{MoveStreamContext, ResourceMoveCursor};
 
-use super::{LeafSelector, NeighborhoodMove};
+mod cartesian;
+mod execution;
+mod state;
 
-pub enum Neighborhood<S, V, DM, IDM>
+pub(crate) use cartesian::SelectorCompositionCartesianCursor;
+pub(crate) use execution::SelectorCompositionState;
+pub(crate) use state::SelectorCompositionCursor;
+
+/// A move carrier that can own a selected Cartesian pair.
+///
+/// The generic compositor never creates a second runtime-specific move union.
+/// Each carrier provides its one lossless owned-sequence representation.
+pub(crate) trait SequentialMoveCarrier<S>: Move<S> + Sized
 where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone,
-    IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
+    S: PlanningSolution,
 {
-    Flat(LeafSelector<S, V, DM, IDM>),
+    fn from_sequential(composite: SequentialCompositeMove<S, Self>) -> Self;
+}
+
+/// A frozen flat leaf set whose stream state belongs to a composition
+/// execution, not to the selector definition.
+///
+/// The stateful opening hook returns the composition cursor directly.
+///
+/// This intentionally does not inherit the public selector facade. Provider
+/// leaves borrow the runner-owned resource only when a reachable child is
+/// pulled.
+pub(crate) trait StatefulComposedFlat<S, M, FlatState, Resources>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    type Cursor<'a>: ResourceMoveCursor<S, M, Resources> + 'a
+    where
+        Self: 'a;
+
+    fn new_stream_state(&self) -> FlatState;
+
+    fn open_cursor_with_stream_state<'a, D: Director<S>>(
+        &'a self,
+        stream_state: &mut FlatState,
+        resources: &mut Resources,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a>;
+
+    fn size<D: Director<S>>(&self, score_director: &D) -> usize;
+
+    fn validate_cursor<D: Director<S>>(&self, score_director: &D);
+}
+
+/// One recursive node over a frozen flat leaf set.
+///
+/// `Flat`, `Limited`, `Union`, and `Cartesian` preserve one recursive
+/// ownership and cursor path. A union therefore remains valid inside either
+/// Cartesian child instead of being flattened into an unrelated outer path.
+pub enum SelectorComposition<S, M, Flat, FlatState>
+where
+    S: PlanningSolution,
+    M: Move<S> + 'static,
+{
+    Flat(Flat),
     Limited {
-        selector: LeafSelector<S, V, DM, IDM>,
+        selector: Box<SelectorCompositionChild<S, M, Flat, FlatState>>,
         selected_count_limit: usize,
     },
-    Cartesian(CartesianNeighborhoodSelector<S, V, DM, IDM>),
-}
-
-pub enum CartesianChildSelector<S, V, DM, IDM>
-where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone,
-    IDM: CrossEntityDistanceMeter<S> + Clone + 'static,
-{
-    Flat(LeafSelector<S, V, DM, IDM>),
-    Limited {
-        selector: LeafSelector<S, V, DM, IDM>,
-        selected_count_limit: usize,
+    Union {
+        selection_order: UnionSelectionOrder,
+        weighting: UnionWeighting,
+        weights: Vec<u64>,
+        children: Vec<SelectorCompositionChild<S, M, Flat, FlatState>>,
     },
+    Cartesian(SelectorCompositionCartesian<S, M, Flat, FlatState>),
 }
 
-type CartesianNeighborhoodSelector<S, V, DM, IDM> = CartesianProductSelector<
-    S,
-    NeighborhoodMove<S, V>,
-    CartesianChildSelector<S, V, DM, IDM>,
-    CartesianChildSelector<S, V, DM, IDM>,
->;
+/// A Cartesian child is the same recursive composition node.
+pub type SelectorCompositionChild<S, M, Flat, FlatState> =
+    SelectorComposition<S, M, Flat, FlatState>;
 
-pub enum CartesianChildCursor<'a, S, V, DM, IDM>
+/// A recursive Cartesian node with deferred right-child opening.
+pub struct SelectorCompositionCartesian<S, M, Flat, FlatState>
 where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    S: PlanningSolution,
+    M: Move<S> + 'static,
 {
-    Flat(<LeafSelector<S, V, DM, IDM> as MoveSelector<S, NeighborhoodMove<S, V>>>::Cursor<'a>),
-    Limited(
-        LimitedMoveCursor<
-            <LeafSelector<S, V, DM, IDM> as MoveSelector<S, NeighborhoodMove<S, V>>>::Cursor<'a>,
-        >,
-    ),
+    left: Box<SelectorCompositionChild<S, M, Flat, FlatState>>,
+    right: Box<SelectorCompositionChild<S, M, Flat, FlatState>>,
+    require_hard_improvement: bool,
+    _marker: PhantomData<fn() -> (S, M, FlatState)>,
 }
 
-impl<S, V, DM, IDM> MoveCursor<S, NeighborhoodMove<S, V>>
-    for CartesianChildCursor<'_, S, V, DM, IDM>
+impl<S, M, Flat, FlatState> SelectorCompositionCartesian<S, M, Flat, FlatState>
 where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    S: PlanningSolution,
+    M: Move<S> + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        match self {
-            Self::Flat(cursor) => cursor.next_candidate(),
-            Self::Limited(cursor) => cursor.next_candidate(),
+    pub fn new(
+        left: SelectorCompositionChild<S, M, Flat, FlatState>,
+        right: SelectorCompositionChild<S, M, Flat, FlatState>,
+    ) -> Self {
+        Self {
+            left: Box::new(left),
+            right: Box::new(right),
+            require_hard_improvement: false,
+            _marker: PhantomData,
         }
     }
 
-    fn candidate(
-        &self,
-        index: CandidateId,
-    ) -> Option<MoveCandidateRef<'_, S, NeighborhoodMove<S, V>>> {
-        match self {
-            Self::Flat(cursor) => cursor.candidate(index),
-            Self::Limited(cursor) => cursor.candidate(index),
-        }
-    }
-
-    fn take_candidate(&mut self, index: CandidateId) -> NeighborhoodMove<S, V> {
-        match self {
-            Self::Flat(cursor) => cursor.take_candidate(index),
-            Self::Limited(cursor) => cursor.take_candidate(index),
-        }
-    }
-
-    fn selector_index(&self, index: CandidateId) -> Option<usize> {
-        match self {
-            Self::Flat(cursor) => cursor.selector_index(index),
-            Self::Limited(cursor) => cursor.selector_index(index),
-        }
+    pub fn with_require_hard_improvement(mut self, require_hard_improvement: bool) -> Self {
+        self.require_hard_improvement = require_hard_improvement;
+        self
     }
 }
 
-pub enum NeighborhoodCursor<'a, S, V, DM, IDM>
+impl<S, M, Flat, FlatState> Debug for SelectorCompositionCartesian<S, M, Flat, FlatState>
 where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    S: PlanningSolution,
+    M: Move<S> + 'static,
+    Flat: Debug,
 {
-    Flat(<LeafSelector<S, V, DM, IDM> as MoveSelector<S, NeighborhoodMove<S, V>>>::Cursor<'a>),
-    Limited(
-        LimitedMoveCursor<
-            <LeafSelector<S, V, DM, IDM> as MoveSelector<S, NeighborhoodMove<S, V>>>::Cursor<'a>,
-        >,
-    ),
-    Cartesian(CartesianProductCursor<S, NeighborhoodMove<S, V>>),
-}
-
-impl<S, V, DM, IDM> MoveCursor<S, NeighborhoodMove<S, V>> for NeighborhoodCursor<'_, S, V, DM, IDM>
-where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-{
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        match self {
-            Self::Flat(cursor) => cursor.next_candidate(),
-            Self::Limited(cursor) => cursor.next_candidate(),
-            Self::Cartesian(cursor) => cursor.next_candidate(),
-        }
-    }
-
-    fn candidate(
-        &self,
-        index: CandidateId,
-    ) -> Option<MoveCandidateRef<'_, S, NeighborhoodMove<S, V>>> {
-        match self {
-            Self::Flat(cursor) => cursor.candidate(index),
-            Self::Limited(cursor) => cursor.candidate(index),
-            Self::Cartesian(cursor) => cursor.candidate(index),
-        }
-    }
-
-    fn take_candidate(&mut self, index: CandidateId) -> NeighborhoodMove<S, V> {
-        match self {
-            Self::Flat(cursor) => cursor.take_candidate(index),
-            Self::Limited(cursor) => cursor.take_candidate(index),
-            Self::Cartesian(cursor) => cursor.take_candidate(index),
-        }
-    }
-
-    fn selector_index(&self, index: CandidateId) -> Option<usize> {
-        match self {
-            Self::Flat(cursor) => cursor.selector_index(index),
-            Self::Limited(cursor) => cursor.selector_index(index),
-            Self::Cartesian(cursor) => cursor.selector_index(index),
-        }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CartesianProductSelector")
+            .field("left", &self.left)
+            .field("right", &self.right)
+            .field("require_hard_improvement", &self.require_hard_improvement)
+            .finish()
     }
 }
 
-impl<S, V, DM, IDM> Debug for Neighborhood<S, V, DM, IDM>
+impl<S, M, Flat, FlatState> Debug for SelectorComposition<S, M, Flat, FlatState>
 where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
+    S: PlanningSolution,
+    M: Move<S> + 'static,
+    Flat: Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -180,132 +159,19 @@ where
                 .field("selector", selector)
                 .field("selected_count_limit", selected_count_limit)
                 .finish(),
-            Self::Cartesian(selector) => write!(f, "Neighborhood::Cartesian({selector:?})"),
-        }
-    }
-}
-
-impl<S, V, DM, IDM> MoveSelector<S, NeighborhoodMove<S, V>> for Neighborhood<S, V, DM, IDM>
-where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-{
-    type Cursor<'a>
-        = NeighborhoodCursor<'a, S, V, DM, IDM>
-    where
-        Self: 'a;
-
-    fn open_cursor<'a, D: solverforge_scoring::Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> Self::Cursor<'a> {
-        self.open_cursor_with_context(score_director, MoveStreamContext::default())
-    }
-
-    fn open_cursor_with_context<'a, D: solverforge_scoring::Director<S>>(
-        &'a self,
-        score_director: &D,
-        context: MoveStreamContext,
-    ) -> Self::Cursor<'a> {
-        match self {
-            Self::Flat(selector) => {
-                NeighborhoodCursor::Flat(selector.open_cursor_with_context(score_director, context))
-            }
-            Self::Limited {
-                selector,
-                selected_count_limit,
-            } => NeighborhoodCursor::Limited(LimitedMoveCursor::new(
-                selector.open_cursor_with_context(score_director, context),
-                *selected_count_limit,
-            )),
-            Self::Cartesian(selector) => NeighborhoodCursor::Cartesian(
-                selector.open_cursor_with_context(score_director, context),
-            ),
-        }
-    }
-
-    fn size<D: solverforge_scoring::Director<S>>(&self, score_director: &D) -> usize {
-        match self {
-            Self::Flat(selector) => selector.size(score_director),
-            Self::Limited {
-                selector,
-                selected_count_limit,
-            } => selector.size(score_director).min(*selected_count_limit),
-            Self::Cartesian(selector) => selector.size(score_director),
-        }
-    }
-}
-
-impl<S, V, DM, IDM> Debug for CartesianChildSelector<S, V, DM, IDM>
-where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Flat(selector) => write!(f, "CartesianChildSelector::Flat({selector:?})"),
-            Self::Limited {
-                selector,
-                selected_count_limit,
+            Self::Union {
+                selection_order,
+                weighting,
+                weights,
+                children,
             } => f
-                .debug_struct("CartesianChildSelector::Limited")
-                .field("selector", selector)
-                .field("selected_count_limit", selected_count_limit)
+                .debug_struct("Neighborhood::Union")
+                .field("selection_order", selection_order)
+                .field("weighting", weighting)
+                .field("weights", weights)
+                .field("children", children)
                 .finish(),
-        }
-    }
-}
-
-impl<S, V, DM, IDM> MoveSelector<S, NeighborhoodMove<S, V>>
-    for CartesianChildSelector<S, V, DM, IDM>
-where
-    S: PlanningSolution + 'static,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + 'static,
-{
-    type Cursor<'a>
-        = CartesianChildCursor<'a, S, V, DM, IDM>
-    where
-        Self: 'a;
-
-    fn open_cursor<'a, D: solverforge_scoring::Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> Self::Cursor<'a> {
-        self.open_cursor_with_context(score_director, MoveStreamContext::default())
-    }
-
-    fn open_cursor_with_context<'a, D: solverforge_scoring::Director<S>>(
-        &'a self,
-        score_director: &D,
-        context: MoveStreamContext,
-    ) -> Self::Cursor<'a> {
-        match self {
-            Self::Flat(selector) => CartesianChildCursor::Flat(
-                selector.open_cursor_with_context(score_director, context),
-            ),
-            Self::Limited {
-                selector,
-                selected_count_limit,
-            } => CartesianChildCursor::Limited(LimitedMoveCursor::new(
-                selector.open_cursor_with_context(score_director, context),
-                *selected_count_limit,
-            )),
-        }
-    }
-
-    fn size<D: solverforge_scoring::Director<S>>(&self, score_director: &D) -> usize {
-        match self {
-            Self::Flat(selector) => selector.size(score_director),
-            Self::Limited {
-                selector,
-                selected_count_limit,
-            } => selector.size(score_director).min(*selected_count_limit),
+            Self::Cartesian(selector) => write!(f, "Neighborhood::Cartesian({selector:?})"),
         }
     }
 }

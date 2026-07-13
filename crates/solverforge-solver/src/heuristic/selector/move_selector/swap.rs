@@ -100,6 +100,10 @@ where
     fn take_candidate(&mut self, id: CandidateId) -> SwapMove<S, V> {
         self.store.take_candidate(id)
     }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.store.release_candidate(id)
+    }
 }
 
 impl<S, V> Iterator for SwapMoveCursor<S, V>
@@ -194,13 +198,27 @@ where
         score_director: &D,
         context: MoveStreamContext,
     ) -> Self::Cursor<'a> {
-        let mut right_entities: Vec<_> = self.right_entity_selector.iter(score_director).collect();
-        let mut left_entities: Vec<_> = self.left_entity_selector.iter(score_director).collect();
+        let canonical_right: Vec<_> = self.right_entity_selector.iter(score_director).collect();
+        let canonical_left: Vec<_> = self.left_entity_selector.iter(score_director).collect();
         let salt = ((self.descriptor_index as u64) << 32) ^ self.variable_index as u64;
-        let left_start = context.start_offset(left_entities.len(), 0x5A09_0000_0000_0001 ^ salt);
-        let right_start = context.start_offset(right_entities.len(), 0x5A09_0000_0000_0002 ^ salt);
-        left_entities.rotate_left(left_start);
-        right_entities.rotate_left(right_start);
+        let left_entities = (0..canonical_left.len())
+            .map(|offset| {
+                canonical_left[context.selection_index(
+                    offset,
+                    canonical_left.len(),
+                    0x5A09_0000_0000_0001 ^ salt,
+                )]
+            })
+            .collect();
+        let right_entities = (0..canonical_right.len())
+            .map(|offset| {
+                canonical_right[context.selection_index(
+                    offset,
+                    canonical_right.len(),
+                    0x5A09_0000_0000_0002 ^ salt,
+                )]
+            })
+            .collect();
         SwapMoveCursor::new(
             left_entities,
             right_entities,

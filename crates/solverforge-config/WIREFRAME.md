@@ -21,10 +21,10 @@ src/
 ├── acceptor.rs      — AcceptorConfig and acceptor-specific config structs
 ├── director.rs      — DirectorConfig
 ├── error.rs         — ConfigError
-├── forager.rs       — ForagerConfig and AcceptedCountForagerConfig
-├── move_selector.rs — MoveSelectorConfig and selector-specific config structs
+├── forager.rs       — ForagerConfig, AcceptedCountForagerConfig, and ScoreTieBreak
+├── move_selector.rs — MoveSelectorConfig, leaf ordering/metrics, union weighting, and selector-specific config structs
 ├── phase.rs         — PhaseConfig plus construction/local-search/partitioned/custom configs
-├── solver_config.rs — SolverConfig, SolverConfigOverride, environment/thread settings
+├── solver_config.rs — SolverConfig, bounded candidate-trace config, canonical provenance serialization, overrides, and environment/thread settings
 ├── termination.rs   — TerminationConfig
 └── tests.rs         — Test module root
     └── tests/*.rs   — Unit tests for TOML/YAML parsing, selector config, and roundtrips
@@ -64,6 +64,7 @@ Top-level solver configuration. Derives: `Debug, Clone, Default, Deserialize, Se
 | `termination` | `Option<TerminationConfig>` | `None` | |
 | `score_director` | `Option<DirectorConfig>` | `None` | |
 | `phases` | `Vec<PhaseConfig>` | `[]` | `#[serde(default)]` |
+| `candidate_trace` | `Option<CandidateTraceConfig>` | `None` | Opt-in bounded candidate-pull diagnostics |
 
 **Methods:**
 
@@ -78,7 +79,20 @@ Top-level solver configuration. Derives: `Debug, Clone, Default, Deserialize, Se
 | `with_termination_seconds` | `fn(self, seconds: u64) -> Self` | Builder: sets seconds_spent_limit |
 | `with_random_seed` | `fn(self, seed: u64) -> Self` | Builder: sets random_seed |
 | `with_phase` | `fn(self, phase: PhaseConfig) -> Self` | Builder: appends phase |
+| `canonical_toml` | `fn(&self) -> String` | Complete deterministic serde representation for diagnostic provenance |
+| `canonical_phase_toml` | `fn(phase: &PhaseConfig) -> String` | Canonical one-phase solver document |
 | `time_limit` | `fn(&self) -> Option<Duration>` | Convenience: delegates to termination |
+
+### `CandidateTraceConfig`
+
+Opt-in bounded candidate-pull tracing. Derives:
+`Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize`.
+
+| Field | Type | Note |
+|-------|------|------|
+| `max_entries` | `NonZeroUsize` | Zero is rejected during deserialization |
+
+Constructor: `const fn new(max_entries: NonZeroUsize) -> Self`.
 
 ### `TerminationConfig`
 
@@ -167,6 +181,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `local_search_type` | `LocalSearchType` |
 | `acceptor` | `Option<AcceptorConfig>` |
 | `forager` | `Option<ForagerConfig>` |
+| `score_tie_break` | `ScoreTieBreak` |
 | `move_selector` | `Option<MoveSelectorConfig>` |
 | `neighborhoods` | `Vec<MoveSelectorConfig>` |
 | `termination` | `Option<TerminationConfig>` |
@@ -184,14 +199,22 @@ declared runtime capabilities. Nearby scalar
 change/swap selectors are used before plain scalar fallback selectors when the
 model declares nearby hooks, and plain scalar fallback remains present for every
 non-assignment-owned scalar slot. Scalar groups add grouped-scalar selectors. List
-models use nearby list change/swap, sublist change/swap, reverse, k-opt when
-k-opt hooks exist, and list ruin when the list runtime supports ruin moves.
+slots use precedence plus permutation when the full precedence move bundle is
+available; nearby list change, plus nearby list swap when set access exists,
+when cross-position distance is available; plain change, plus plain swap when
+set access exists, without that metric; capability-gated sublist and reverse
+moves; nearby or unbounded k-opt according to intra-position distance; and list
+ruin.
 Conflict repair selectors are added only when repair providers are registered.
 Assignment-owned scalar variables stay on their grouped scalar selector path:
 plain scalar selector defaults and conflict-repair defaults exclude them.
 Omitted acceptor and forager settings are selected by the same model-aware
 profile. Explicit `acceptor`, `forager`, `move_selector`, and VND
 `neighborhoods` remain exact user-owned configuration.
+
+`score_tie_break` defaults to `ScoreTieBreak::Random`, which uses the seeded
+step stream for reservoir tie selection. `ScoreTieBreak::First` keeps the first
+equally scored accepted candidate.
 
 ### `VariableTargetConfig`
 
@@ -300,6 +323,30 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | Field | Type |
 |-------|------|
 | `water_level_increase_ratio` | `Option<f64>` |
+
+### Common leaf-selector fields and ordering
+
+Every non-composite leaf configuration from `ChangeMoveConfig` through
+`CompoundConflictRepairMoveSelectorConfig` has these public Rust fields in
+addition to the family-specific fields shown below:
+
+| Field | Type | Default | Note |
+|-------|------|---------|------|
+| `selection_order` | `Option<SelectionOrder>` | `None` | The runtime supplies the surrounding default (`Random` for omitted local search) |
+| `selection_metric` | `Option<String>` | `None` | Required for `Sorted` and `Probabilistic`; rejected for other orders |
+
+Target-bearing leaf structs store `target: VariableTargetConfig`. That field is
+`#[serde(flatten)]`, so the tables below spell out its serialized
+`entity_class` and `variable_name` keys even though Rust callers access one
+`target` field. `GroupedScalarMoveSelectorConfig` and the two conflict-repair
+leaf configs do not have a variable target.
+
+`SelectionOrder` variants are `Original` (default), `Random`, `Shuffled`,
+`Sorted`, and `Probabilistic`. `is_random()` identifies the seeded random
+families; `requires_complete_stream()` is true for sorted and probabilistic
+ordering. `MoveSelectorConfig::selection_order()` and
+`MoveSelectorConfig::selection_metric()` expose the leaf values and return
+`None` for limited, union, and cartesian composites.
 
 ### `ChangeMoveConfig`
 
@@ -547,13 +594,21 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `selection_order` | `UnionSelectionOrder` | `Sequential` |
+| `selection_order` | `UnionSelectionOrder` | `StratifiedRandom` |
+| `weighting` | `UnionWeighting` | `Equal` |
+| `weights` | `Vec<u64>` | `[]` |
 | `selectors` | `Vec<MoveSelectorConfig>` |
 
 ### `UnionSelectionOrder`
 
-Enum: `Sequential` (default), `RoundRobin`, `RotatingRoundRobin`,
-`StratifiedRandom`.
+Enum: `Sequential`, `RoundRobin`, `RotatingRoundRobin`, `Random`, and
+`StratifiedRandom` (default).
+
+### `UnionWeighting`
+
+Enum: `Equal` (default), `Fixed`, and `CandidateCount`. `Fixed` consumes the
+explicit `weights` vector; `CandidateCount` derives scheduling weight from the
+children's declared candidate counts.
 
 ### `CartesianProductConfig`
 
@@ -685,19 +740,28 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 | `AcceptorForager` | **Default.** Standard acceptor/forager local search |
 | `VariableNeighborhoodDescent` | Ordered neighborhood descent configured through `neighborhoods` |
 
+### `ScoreTieBreak`
+
+Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
+
+| Variant | Note |
+|---------|------|
+| `Random` | **Default.** Seeded reservoir selection among equal best scores |
+| `First` | Retain the first equal best candidate |
+
 ### `ConstructionHeuristicType`
 
 Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 
 | Variant | Note |
 |---------|------|
-| `FirstFit` | **Default.** Generic first-fit construction over mixed or list-bearing runtime plans; scalar-only targets reuse the descriptor path |
+| `FirstFit` | **Default.** Generic first-fit construction; scalar-only targets use the compiled graph's descriptor-placement schedule, while mixed or list-bearing targets use its global slot scan |
 | `FirstFitDecreasing` | Specialized scalar-only first fit by entity difficulty; validates `construction_entity_order_key` |
 | `WeakestFit` | Specialized scalar-only weakest-fit heuristic; validates `construction_value_order_key` |
 | `WeakestFitDecreasing` | Specialized scalar-only weakest-fit-by-difficulty heuristic; validates both scalar order-key hooks |
 | `StrongestFit` | Specialized scalar-only strongest-fit heuristic; validates `construction_value_order_key` |
 | `StrongestFitDecreasing` | Specialized scalar-only strongest-fit-by-difficulty heuristic; validates both scalar order-key hooks |
-| `CheapestInsertion` | Generic best-score construction over mixed or list-bearing runtime plans; scalar-only targets reuse the descriptor path |
+| `CheapestInsertion` | Generic best-score construction; scalar-only targets use the compiled graph's descriptor-placement schedule, while mixed or list-bearing targets use its global slot scan |
 | `AllocateEntityFromQueue` | Specialized scalar-only queue-driven allocation; validates `construction_entity_order_key` |
 | `AllocateToValueFromQueue` | Specialized scalar-only value-queue allocation; validates `construction_value_order_key` |
 | `ListRoundRobin` | Specialized list-only even distribution; validates the targeted list variable exists before phase build |

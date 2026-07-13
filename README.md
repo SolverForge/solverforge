@@ -79,26 +79,28 @@ planning variables with independent planning lists, and they use the same
 
 ## Zero-Erasure Architecture
 
-SolverForge preserves concrete types through the hot solver and scoring pipeline:
+SolverForge keeps its canonical native solver and scoring pipeline concrete,
+with a small set of explicit erasure seams:
 
-- **No trait objects in hot dispatch** (`Box<dyn Trait>`, `Arc<dyn Trait>`)
-- **No runtime dispatch in hot loops** - solver and scoring generics resolve at compile time
+- **Concrete native dispatch** - Rust solver, selector, move, provider, and scoring generics resolve at compile time
+- **Explicit erasure seams** - object-safe dispatch is confined to documented dynamic/host integration, descriptor access, real-time problem-change, and analysis/panic boundaries
 - **No trait-object allocation in retained scoring state** - candidates stay cursor-owned until the selected move transfers by value, scoring pipelines stay monomorphized, and retained forager state is explicit
 - **Deterministic neighborhood order** - canonical list, nearby-list, and sublist selector enumeration keeps seeded local search reproducible
-- **Predictable performance** - no GC pauses, no vtable lookups
+- **Predictable native performance** - no GC pauses; move and selector carriers stay concrete, with only the documented scorer-agnostic and integration seams using dynamic dispatch
 
 This enables aggressive compiler optimizations and cache-friendly data layouts.
 
-Host-language compound-provider callbacks are the explicit integration
-boundary: only `RuntimeHostCompoundProvider` uses object-safe dispatch and raw
-named edits. Native Rust `ScalarCandidateProvider` and `RepairProvider`
-functions remain concrete function pointers and carry typed `ScalarEdit`
+Dynamic scalar/list access and metadata, configured candidate metrics, and
+host-language compound providers are explicit integration boundaries. Native
+Rust `ScalarCandidateProvider` and `RepairProvider` functions remain concrete
+function pointers and carry typed `ScalarEdit`
 values directly into the shared cursor normalizer.
 
-Current public naming follows neutral Rust APIs rather than helper-role prefixes.
-The object-safe descriptor boundary is still intentional, but the concrete
-adapter and selector surface are now documented as `EntityCollectionExtractor`,
-`ValueSelector`, and `MoveSelector`.
+The object-safe `EntityExtractor` boundary belongs to runtime-erased
+`SolutionDescriptor` access; canonical generated runtime and scoring-stream
+paths retain their concrete collection and selector types. Public concrete
+adapters and selector APIs are `EntityCollectionExtractor`, `ValueSelector`,
+and `MoveSelector`.
 
 ## Features
 
@@ -106,7 +108,7 @@ adapter and selector surface are now documented as `EntityCollectionExtractor`,
 - **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, filtered join sources, single-source and cross-join projected scoring rows, symmetric and directed projected self-joins, direct cross-join grouping and grouped complements, projected grouped complements, existence checks, joins, grouping, `collect_vec`, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
-  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) over one mixed scalar/list runtime plan when matching list work is present, plus descriptor construction routing for scalar-only targets and specialized list phases (`ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, owner-aware `ListClarkeWright`, `ListKOpt`)
+  - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) through one compiled runtime graph: scalar-only targets use its descriptor-placement schedule, mixed/list-bearing targets use its declaration-order global scan, and specialized list phases provide `ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, owner-aware `ListClarkeWright`, and `ListKOpt`
   - Grouped scalar construction for named `ScalarGroup` declarations, including
     candidate-backed compound edits and assignment-backed nullable scalar
     construction with required-slot handling, capacity repair, and heuristic
@@ -114,13 +116,13 @@ adapter and selector surface are now documented as `EntityCollectionExtractor`,
   - Local Search (`acceptor_forager` with Hill Climbing, Simulated Annealing, Tabu Search, Late Acceptance, Great Deluge, Step Counting Hill Climbing, and Diversified Late Acceptance; or `variable_neighborhood_descent` with ordered neighborhoods)
   - Exhaustive Search for exact small finite scalar spaces
   - Partitioned Search for explicit user-defined decomposition with optional Rayon parallelism
-- **Move System**: Zero-allocation moves with cursor-scoped ownership and selected-winner materialization
+- **Move System**: Zero-erasure moves with cursor-scoped candidate ownership and by-value selected-winner materialization
   - Scalar: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
-  - List: ListChangeMove, ListSwapMove, ListReverseMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
-  - Scalar ruin-recreate, composite moves, cartesian composition, and nearby selection for scalar and list neighborhoods
+  - List: ListChangeMove, ListSwapMove, ListPermuteMove, ListReverseMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
+  - Scalar ruin-recreate, precedence repair, native and host-backed compound scalar moves, cartesian composition, and nearby selection for scalar and list neighborhoods
 - **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Model Macros**: `planning_model!`, `#[solverforge_constraints]`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
-- **Dynamic Bridge**: `solverforge-bridge` contracts for host-language integrations, with logical entity/fact/variable IDs, dynamic score support, descriptor-resolved scalar/list slots, and lazy nearby-source adapters
+- **Dynamic Bridge**: `solverforge-bridge` contracts for host-language integrations, with logical entity/fact/variable IDs, dynamic score support, descriptor-resolved scalar/list slots, lazy nearby-source adapters, and explicit dynamic-list access and metadata capabilities
 - **Scalar Variables**: `#[planning_variable]` fields store candidate indexes
   as `Option<usize>`; keep external IDs on facts or entities.
 - **CVRP List Profile**: `#[planning_list_variable(domain = "cvrp")]` wires
@@ -128,7 +130,7 @@ adapter and selector surface are now documented as `EntityCollectionExtractor`,
   use strict capacity, time-window, and unreachable-leg feasibility;
   Clarke-Wright construction uses relaxed savings admissibility so assignment
   remains score-comparable.
-- **Configuration**: TOML/YAML support with builder API, bounded scalar candidate limits, grouped scalar move selectors, conflict-repair selectors, selector telemetry, and level-aware simulated annealing configuration
+- **Configuration**: TOML/YAML support with builder APIs, bounded candidate tracing, per-selector ordering and host metrics, weighted union scheduling, score tie-breaking, grouped scalar and conflict-repair selectors, and level-aware simulated annealing configuration
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
 
 Grouped scoring weights receive both the group key and collected result:
@@ -216,11 +218,18 @@ neighborhoods:
 - assignment-backed scalar groups are edited through their owning grouped
   scalar selector; generic scalar selectors and conflict-repair defaults leave
   those group-owned slots on the grouped path
-- list-only models default to `NearbyListChangeMoveSelector(20)`,
-  `NearbyListSwapMoveSelector(20)`, `SublistChangeMoveSelector`,
-  `SublistSwapMoveSelector`, and `ListReverseMoveSelector`, with k-opt enabled
-  only when route hooks exist and list ruin enabled for supported list slots
-- mixed models concatenate the list defaults first, then the scalar defaults
+- list slots receive capability-matched families in a fixed order: precedence
+  repair plus list permutation when the complete precedence move bundle exists;
+  nearby change, plus nearby swap when set access exists, with a limit of 20
+  when a cross-position metric exists; plain change, plus plain swap when set
+  access exists, when that metric does not; sublist, reverse, and k-opt families
+  only when their required operations are declared; and list ruin for every
+  bound list slot. K-opt uses the nearby metric when available and the unbounded
+  form otherwise
+- mixed models declare list families first, then nearby scalar, grouped-scalar,
+  compound conflict-repair, and ordinary scalar families. Default leaf order
+  is seeded `Random`; a multi-family union uses `StratifiedRandom` (a single
+  family uses `Sequential`)
 
 List variables can declare fixed element ownership with
 `#[planning_list_variable(element_collection = "...", element_owner_fn = "...")]`.
@@ -248,16 +257,18 @@ assignments before each phase, so later phases cannot reinsert earlier work or
 reread declaration callbacks.
 
 Those omitted-config defaults run as one streaming acceptor/forager local
-search phase after construction. Broad unions use fair selection order and
-finite accepted-count horizons; `limited_neighborhood` remains the explicit cap
-for configured exhaustive selectors. Variable Neighborhood Descent is never
-prepended implicitly.
+search phase after construction. Multi-family unions use stratified-random
+selection and the stock forager applies finite accepted-count horizons where
+applicable; `limited_neighborhood` remains the explicit cap for configured
+exhaustive selectors. Variable Neighborhood Descent is never prepended
+implicitly.
 
 When full `phases` are omitted, construction runs model-aware defaults before
 that local search: list variables use the matching specialized list
 construction, assignment-backed scalar groups run named grouped
 `CheapestInsertion` passes for required and optional slots, and remaining
-non-assignment-owned scalar variables use descriptor scalar construction.
+non-assignment-owned scalar variables use descriptor-backed single-slot
+construction.
 Explicit scalar construction targets that name an assignment-owned variable
 must use the owning `group_name`.
 
@@ -288,8 +299,8 @@ monomorphized.
 |---------|-------------|
 | `console` | Colorful console output with progress tracking |
 | `verbose-logging` | DEBUG-level phase progress updates (1/sec during long-running work) |
-| `decimal` | Decimal score support via `rust_decimal` |
-| `serde` | Serialization support for domain types |
+| `decimal` | Forwards the currently empty `solverforge-core/decimal` feature; fixed-scale `HardSoftDecimalScore` is always available |
+| `serde` | Serialization support for score types |
 
 ## Quick Start
 
@@ -566,13 +577,15 @@ For project scaffolding and end-to-end application templates, use the standalone
 SolverForge leverages Rust's zero-cost abstractions:
 
 - **Zero-Erasure Moves**: Values stay concrete and inline, with cursor-owned candidate storage and by-value selected-move transfer
-- **RPITIT Selectors**: Return-position impl Trait eliminates `Box<dyn Iterator>` from all selectors
+- **Cursor Selectors**: GAT-based concrete cursors expose stable candidate IDs and borrowable moves without `Box<dyn Iterator>` in selector hot paths
 - **Incremental Scoring**: SERIO propagates only changed constraints
 - **No GC**: Predictable latency without garbage collection
 - **Cache-friendly**: Contiguous memory layouts for hot paths
-- **No vtable dispatch in hot execution**: Monomorphized score directors, deciders, and bounders
+- **Concrete native execution**: Score directors, deciders, bounders, move carriers, and selector carriers remain monomorphized; documented scorer-agnostic `&dyn Director` callbacks are narrow intentional seams
 
-Typical throughput: 300k-1M moves/second depending on constraint complexity for scheduling; 2.5M+ moves/second on VRP
+Absolute throughput depends on the model, constraints, neighborhood, hardware,
+and termination policy. Use emitted generated/evaluated throughput for one run
+and the controlled paired benchmark gate below for regression decisions.
 
 `make pre-release` is portable across supported development hosts. Release
 qualification also requires the separate controlled-host

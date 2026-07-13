@@ -103,13 +103,28 @@ All hot-path code must stay monomorphized.
 
 Intentional type-erasure boundaries that should not be "fixed":
 
-- `DynDistanceMeter` in `nearby.rs`
-- `DefaultPillarSelector` extractor closures in `pillar.rs`
+- The `&dyn Director<S>` scorer argument used by `DynDistanceMeter` in
+  `nearby.rs` and by `DefaultPillarSelector` extractor closures in `pillar.rs`;
+  the meter and closure types themselves remain concrete generic parameters.
+- `EntityExtractor` in `solverforge-core`: runtime-erased
+  `SolutionDescriptor` access only. Canonical generated `RuntimeModel` and
+  scoring-stream paths retain concrete collection types.
+- Analysis `EntityRef` payloads in `solverforge-scoring`: explanation and
+  reporting boundary only.
+- `DynamicScalarAccess`, `DynamicListAccess`, `DynamicListMetadata`, and
+  `DynamicScalarAssignmentMetadata`: host-language dynamic-model slot
+  boundaries only.
+- `RuntimeCandidateMetric`: explicit configured host metric boundary for
+  `Sorted` and `Probabilistic` selector ordering only.
 - `RuntimeHostCompoundProvider` in `builder/context/provider`: host-language
   callbacks only. Static Rust candidate and repair providers must stay on
   their concrete function-pointer and typed-`ScalarEdit` path.
 - `RuntimeHostProviderErrorBoundary` in `builder/context/provider`: cold
   conversion of core normalization failures into native host exceptions only.
+- `ProblemChange::apply(&mut dyn Director<S>)`: real-time problem-change
+  integration boundary only.
+- `SolverPanicPayload`: cold preservation of a foreign runtime panic object
+  alongside its stable display message only.
 
 ### Move Ownership
 

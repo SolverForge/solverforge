@@ -14,7 +14,7 @@ use rand::Rng;
 
 /// Arena allocator for moves with O(1) reset.
 ///
-/// Instead of allocating a new Vec<M> each step and letting it drop,
+/// Instead of allocating a new `Vec<M>` each step and letting it drop,
 /// the arena maintains a reusable buffer. Calling `reset()` simply
 /// sets the length to 0 without running destructors (moves are Copy-like
 /// in practice since they contain only primitives and small inline data).

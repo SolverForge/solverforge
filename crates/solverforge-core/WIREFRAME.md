@@ -10,7 +10,11 @@ Core types and traits for the SolverForge constraint solver framework.
 - `thiserror` (workspace) — error derive macros
 - `serde` (workspace, optional, feature-gated) — serialization for score types
 
-**Features:** `default`, `decimal`, `serde`
+| Feature | Effect |
+|---------|--------|
+| `default` | Empty default feature set |
+| `decimal` | Currently empty forwarded feature; `HardSoftDecimalScore` is always available with fixed-scale `i64` storage |
+| `serde` | Enables `Serialize` / `Deserialize` for score types |
 
 ## File Map
 
@@ -41,7 +45,7 @@ src/
 ├── domain/
 │   ├── mod.rs                             — Module declarations and re-exports for domain types
 │   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId, ListVariableSolution
-│   ├── dynamic.rs                         — DynamicModelBackend plus dynamic scalar/list access and descriptor-resolved slot adapters for host-language bindings
+│   ├── dynamic.rs                         — DynamicModelBackend, scalar/list access contracts, explicit list access/metadata capabilities, and descriptor-resolved slot adapters
 │   ├── dynamic/
 │   │   ├── assignment.rs                  — Dynamic scalar-assignment metadata contract and structural capabilities
 │   │   ├── backend.rs                     — DynamicModelBackend-backed scalar/list access adapters
@@ -73,6 +77,7 @@ src/
 │   │   └── tests.rs                       — Supply tests (inverse, anchor, list_state)
 │   └── tests/
 │       ├── mod.rs                         — Test module declarations
+│       ├── dynamic_list_tests.rs          — Dynamic list access, metadata, and slot validation tests
 │       ├── entity_ref_tests.rs            — EntityCollectionExtractor tests
 │       ├── value_range_tests.rs           — ValueRangeProvider tests
 │       └── variable_tests.rs             — VariableType, ShadowVariableKind, ChainedVariableInfo tests
@@ -508,11 +513,11 @@ Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_logical
 
 ### Dynamic Binding Slots
 
-`DynamicModelBackend` is the Rust-owned dynamic planning model backend contract for host-language integrations. It exposes logical `EntityClassId`/`VariableId` scalar and list access, candidate values, and list element enumeration.
+`DynamicModelBackend` is the Rust-owned dynamic planning model backend contract for host-language integrations. It exposes logical `EntityClassId`/`VariableId` scalar and list access, candidate values, scalar legality, and list element enumeration.
 
 Required methods: `entity_count()`, `get_scalar()`, `set_scalar()`,
 `list_len()`, `list_get()`, `list_insert()`, `list_remove()`,
-`candidate_values()`.
+`candidate_values()`, and `scalar_value_is_legal()`.
 
 Default list-element methods: `list_element_count()` returns `0`,
 `list_element()` returns the element index, and `list_assigned_elements()`
@@ -520,7 +525,7 @@ returns an empty vector.
 
 `DynamicScalarAccess<S>` is the object-safe scalar access trait used by custom
 slot adapters. Methods: `entity_class()`, `variable()`, `entity_count()`,
-`get()`, `set()`, and `candidate_values()`. Optional nearby-source methods are
+`get()`, `set()`, `candidate_values()`, and `value_is_legal()`. Optional nearby-source methods are
 `has_nearby_value_candidates()`, `visit_nearby_value_candidates()`,
 `nearby_value_distance()`, `has_nearby_entity_candidates()`,
 `visit_nearby_entity_candidates()`, and `nearby_entity_distance()`. The
@@ -531,9 +536,25 @@ Returning `false` requests the ordinary per-row value or all-entity fallback;
 source past their supplied limit.
 
 `DynamicListAccess<S>` is the object-safe list access trait used by custom slot
-adapters. Methods: `entity_class()`, `variable()`, `entity_count()`,
+adapters. Required methods: `entity_class()`, `variable()`, `entity_count()`,
 `element_count()`, `element()`, `assigned_elements()`, `len()`, `get()`,
-`insert()`, and `remove()`.
+`insert()`, and `remove()`. `capabilities()` returns
+`DynamicListAccessCapabilities { set, replace, reverse, sublist }`; the
+matching optional operations are `set()`, whole-row `replace()`, `reverse()`,
+`sublist_remove()`, and `sublist_insert()`. An absent capability is a hard
+phase-validation boundary, not permission to synthesize the operation from
+basic mutations.
+
+`DynamicListMetadataCapabilities` declares immutable, slot-bound
+`element_owner`, `construction_order_key`, `precedence_duration`,
+`precedence_successors`, `cross_position_distance`,
+`intra_position_distance`, `route`, and `savings` bundles.
+`DynamicListMetadata<S>` exposes the bound logical identity and the matching
+owner/order/precedence, distance, route, and savings methods. Route metadata
+contains depot, distance, and feasibility; route reads and whole-row writes
+remain on `DynamicListAccess`. Savings metadata contains depot, metric class,
+distance, and construction feasibility. SolverForge never manufactures
+metadata defaults for an undeclared bundle.
 
 `DynamicScalarVariableSlot<S>` carries logical entity/variable IDs, display
 names, `allows_unassigned`, a dynamic access adapter, and the resolved entity
@@ -554,11 +575,13 @@ indexes are present. Runtime access methods:
 `nearby_entity_distance()`, and `value_is_legal()`.
 
 `DynamicListVariableSlot<S>` carries logical entity/variable IDs, display
-names, a dynamic list access adapter, and the resolved entity descriptor and
-variable indexes. Public fields: `entity`, `variable`, `entity_type_name`, and
+names, a dynamic list access adapter, optional immutable metadata, and the
+resolved entity descriptor and variable indexes. Public fields: `entity`, `variable`, `entity_type_name`, and
 `variable_name`; both indexes and the access adapter are private. Constructors:
-`new()` for `S: DynamicModelBackend`, `try_with_access()` for custom adapters,
-or `with_access_and_metadata()` for custom adapters with immutable metadata.
+`new()` for `S: DynamicModelBackend`, `new_with_metadata()` for backend access
+plus immutable metadata, `try_with_access()` for custom adapters,
+`with_access_and_metadata()` for custom adapters with immutable metadata, or
+`with_metadata()` to attach and identity-check metadata after access creation.
 Descriptor methods: `resolve_descriptor_index(&SolutionDescriptor)`,
 `resolved_against(&SolutionDescriptor)`, `is_descriptor_resolved()`,
 `descriptor_index()`, and `descriptor_variable_index()`.
@@ -566,7 +589,10 @@ Descriptor methods: `resolve_descriptor_index(&SolutionDescriptor)`,
 `is_descriptor_resolved()` is true only when both are present. Runtime access methods:
 `matches_target()`, `entity_count()`, `element_count()`, `element()`,
 `assigned_elements()`, `list_len()`, `list_get()`, `list_insert()`, and
-`list_remove()`.
+`list_remove()`. Capability-aware operations are `access_capabilities()`,
+`list_set()`, `list_replace()`, `list_reverse()`, `sublist_remove()`, and
+`sublist_insert()`. Metadata access uses `metadata()`,
+`metadata_capabilities()`, and `require_metadata()`.
 
 Dynamic slot resolution validates logical entity ID, entity type name, logical
 variable ID, variable name, and scalar/list variable kind before runtime

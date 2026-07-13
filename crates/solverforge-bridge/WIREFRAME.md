@@ -23,7 +23,7 @@ No feature flags are currently declared.
 
 ```text
 src/
-├── backend.rs       - Re-exports dynamic model access and scalar-assignment metadata traits from `solverforge-core`
+├── backend.rs       - Re-exports dynamic model access, list capability/metadata, and scalar-assignment metadata contracts from `solverforge-core`
 ├── backend_tests.rs - Backend re-export tests
 ├── ids.rs           - Re-exports logical descriptor ID types from `solverforge-core`
 ├── lib.rs           - Crate root; module declarations and public re-exports
@@ -37,7 +37,8 @@ src/
 
 ```rust
 pub use backend::{
-    DynamicListAccess, DynamicModelBackend, DynamicScalarAccess,
+    DynamicListAccess, DynamicListAccessCapabilities, DynamicListMetadata,
+    DynamicListMetadataCapabilities, DynamicModelBackend, DynamicScalarAccess,
     DynamicScalarAssignmentMetadata, DynamicScalarAssignmentMetadataCapabilities,
 };
 pub use ids::{EntityClassId, ProblemFactClassId, VariableId};
@@ -67,6 +68,9 @@ Re-exported from `solverforge-core::domain`:
 - `DynamicModelBackend`
 - `DynamicScalarAccess<S>`
 - `DynamicListAccess<S>`
+- `DynamicListAccessCapabilities`
+- `DynamicListMetadata<S>`
+- `DynamicListMetadataCapabilities`
 - `DynamicScalarAssignmentMetadata<S>`
 - `DynamicScalarAssignmentMetadataCapabilities`
 
@@ -77,6 +81,20 @@ adapter may additionally declare and lazily visit nearby value/entity sources,
 provide optional distances, and distinguish a row-local absent source from an
 empty source so the canonical dynamic nearby selectors preserve fallback and
 source-consumption semantics.
+
+`DynamicListAccessCapabilities` declares whether one slot implements `set`,
+whole-row `replace`, `reverse`, and atomic sublist operations. Optional access
+methods return `false` or `None` when their capability is absent; SolverForge
+does not emulate a missing operation by composing basic mutations.
+
+`DynamicListMetadataCapabilities` declares immutable, slot-bound
+`element_owner`, construction-order, precedence-duration/successor,
+cross/intra-position distance, route, and savings bundles.
+`DynamicListMetadata<S>` supplies the corresponding owner/order/precedence,
+distance, route depot/distance/feasibility, and savings
+depot/metric-class/distance/feasibility values. Metadata identity is bound to
+the same logical entity and variable IDs as the slot, and a selected phase
+fails validation when its required bundle is absent.
 
 ### Dynamic Assignment Metadata
 
@@ -101,7 +119,8 @@ Re-exported from `solverforge-core::domain`:
 - `DynamicListVariableSlot<S>`
 
 Slots carry logical entity/variable IDs, human-readable entity and variable
-names, dynamic access adapters, and a resolved descriptor index. Runtime
+names, dynamic access adapters, optional immutable list metadata, and resolved
+descriptor/variable indexes. Runtime
 builders resolve slots against `SolutionDescriptor` before construction or
 local-search selector assembly so score-director notifications use descriptor
 indexes rather than raw logical IDs.
@@ -195,6 +214,7 @@ does not select another runner.
 
 - Stable logical IDs for dynamic entity, fact, and variable classes.
 - Dynamic planning-model backend and slot contracts.
+- Explicit dynamic-list mutation and metadata capability contracts.
 - Dynamic scalar-assignment metadata for declarative group registration.
 - Dynamic scalar/list runtime slot re-exports for host-language bindings.
 - Dynamic score support for the binding path.

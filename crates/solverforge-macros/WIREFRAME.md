@@ -35,9 +35,9 @@ src/
 ├── planning_entity_tests.rs — PlanningEntity derive tests
 ├── planning_solution.rs    — planning-solution support derive module root
 ├── planning_solution/*.rs  — Solution derive expansion, config/shadow/runtime/list roots, stream extensions, and type helpers
-├── planning_solution/list_operations/*.rs — Entity-collection list runtime helpers and public list-method generation
+├── planning_solution/list_operations/*.rs — Private owner-specific list runtime helper generation
 ├── planning_solution/runtime/*.rs — Runtime module root, solve generation, scalar setup, and helper declarations
-├── planning_solution/runtime/helpers/*.rs — Runtime helper code split by candidate counts, phase builders/support, and generated Solvable/runtime trait impls
+├── planning_solution/runtime/helpers/*.rs — Runtime helper code split by candidate counts, search declaration/support, and generated Solvable/runtime trait impls
 ├── planning_solution_tests.rs — PlanningSolution derive tests
 └── problem_fact.rs         — problem-fact support derive: ProblemFact, PlanningId, problem_fact_descriptor()
 ```
@@ -269,12 +269,14 @@ semantics should omit `domain = "cvrp"` and declare explicit hook paths instead.
 |----------|-----------|------|
 | `parse_constraints_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_constraints_path = "..."]` |
 | `parse_config_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_config_path = "..."]` |
+| `parse_solver_toml_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_solver_toml_path = "..."]` |
+| `parse_search_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_search_path = "..."]` |
+| `parse_conflict_repairs_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_conflict_repairs_path = "..."]` |
+| `parse_scalar_groups_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_scalar_groups_path = "..."]` |
 | `parse_shadow_config` | `fn(&[Attribute]) -> ShadowConfig` | Parses `#[shadow_variable_updates(...)]` |
-| `generate_runtime_phase_support` | `fn(&Fields, &Option<String>, &Ident) -> TokenStream` | Generates the single macro-side runtime model assembly and phase builder glue |
-| `find_list_owner_config` | `fn(&ShadowConfig, &Fields) -> Result<Option<ListOwnerConfig>, Error>` | Resolves shadow `list_owner` to the entity collection field and element-collection metadata |
-| `find_list_shadow_config` | `fn(ListOwnerConfig, &Fields) -> Result<ListShadowConfig, Error>` | Resolves the configured owner to the matching direct element collection field for shadow validation |
+| `generate_runtime_phase_support` | `fn(&Fields, &Option<String>, &Option<String>, &Option<String>, &Option<String>, &Ident) -> TokenStream` | Generates runtime-model assembly and the configured/custom search declaration for constraints, repairs, scalar groups, and search callbacks |
 | `shadow_updates_requested` | `fn(&ShadowConfig) -> bool` | Detects whether real shadow update work is configured |
-| `generate_list_operations` | `fn(&Fields) -> TokenStream` | Generates the private runtime helper family, public owner-scoped list methods, and guarded single-owner generic methods without relying on bare-name metadata lookup |
+| `generate_list_operations` | `fn(&Fields) -> TokenStream` | Generates private owner-specific list mutation/source helpers and aggregate list entity/element counts for the canonical runtime |
 | `generate_solvable_solution` | `fn(&Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |
 | `generate_shadow_support` | `fn(&ShadowConfig, &Fields, &Ident) -> Result<TokenStream, Error>` | Generates `PlanningSolution` shadow method overrides |
 | `generate_collection_source_methods` | `fn(&Fields) -> TokenStream` | Generates inherent solution source methods used with ConstraintFactory::for_each |

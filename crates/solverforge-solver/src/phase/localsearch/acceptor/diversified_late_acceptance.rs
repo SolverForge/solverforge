@@ -10,7 +10,7 @@ use crate::heuristic::r#move::MoveTabuSignature;
 
 /// Diversified late acceptance acceptor - combines late acceptance with best score tracking.
 ///
-/// Extends [`LateAcceptanceAcceptor`] by also tracking the best score found.
+/// Extends [`super::LateAcceptanceAcceptor`] by also tracking the best score found.
 /// Accepts a move if it:
 /// 1. Improves the last step score (always accepted), OR
 /// 2. Is at least as good as the score from N steps ago, OR

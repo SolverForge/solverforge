@@ -22,7 +22,7 @@ The CLI lives in the standalone `solverforge-cli` repository and is not part of 
 
 | Feature | Effect |
 |---------|--------|
-| `decimal` | Enables `solverforge-core/decimal` (HardSoftDecimalScore backed by rust_decimal) |
+| `decimal` | Forwards the currently empty `solverforge-core/decimal` feature; fixed-scale `HardSoftDecimalScore` is always available |
 | `serde` | Enables `solverforge-core/serde` (Serialize/Deserialize for score types) |
 | `console` | Enables `dep:solverforge-console` (terminal output) |
 | `verbose-logging` | Enables verbose tracing output |
@@ -362,7 +362,7 @@ and uses source indexes rather than payload equality or hashing.
 - `PhaseFactory`, `SolverFactory`
 - `ProgressCallback`, `SolverScope`
 - `SolverRuntime`, `SolverEvent`, `SolverTelemetry`
-- `descriptor_has_bindings`, `log_solve_start`, `RuntimeBuildResult`, `try_run_solver_with_config_and_search`
+- `log_solve_start`, `RuntimeBuildResult`, `try_run_solver_with_config_and_search`
 - `ListVariableEntity`, `ListVariableMetadata`
 - `PlanningModelSupport`
 

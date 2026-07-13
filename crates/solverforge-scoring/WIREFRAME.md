@@ -453,6 +453,25 @@ projected grouped state across multiple terminal scorers.
 
 **`ExistenceMode`** — `enum { Exists, NotExists }`
 
+#### Shared grouped-state support
+
+The grouped compiler surface deliberately exposes concrete retained-state and
+builder carriers so `#[solverforge_constraints]` can append terminals without
+erasing types. Unary sharing returns `GroupedConstraintSetBuilder`; direct
+cross and projected sharing return their module-specific `GroupedSetBuilder`;
+complemented direct/projected sharing returns
+`ComplementedGroupedSetBuilder`. The corresponding immutable analysis views
+are module-specific `GroupedEvaluationState` and
+`ComplementedGroupedEvaluationState` values.
+
+`GroupedStateView<K, R>` / `ComplementedGroupedStateView<K, R>` expose retained
+group results to scorers. `GroupedScorerSet<K, R, Sc>` /
+`ComplementedGroupedScorerSet<K, R, Sc>` are the concrete tuple-scorer
+dispatch contracts, and `ComplementedGroupedTerminalScorer` is the module-local
+alias of the common grouped terminal scorer. These support symbols are
+module-level compiler bridges (several are `#[doc(hidden)]`); they are not
+crate-root modeling APIs and do not introduce runtime node caches.
+
 ### Analysis Types
 
 Constraints own their `ConstraintRef` once. Metadata and analysis types borrow that identity so package-qualified constraint names remain intact without cloning `ConstraintRef` in scoring or reporting paths.
@@ -507,6 +526,14 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 **`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `named()` → `IncrementalUniConstraint`
 
 **`Projection<A>`** — Retained projection contract for single-source `.project(...)`. Implementations define `type Out`, `const MAX_EMITS: usize`, and `project(&self, input: &A, sink: &mut impl ProjectionSink<Self::Out>)`. Projection implementations emit bounded scoring rows into the sink; Vec-returning closures are not part of the API. `Out` does not need `Clone`.
+
+The fluent projected stream keeps its concrete source type in the return type:
+`SingleSource` for one projection, `FilteredSource` after a projected filter,
+`MergedSource` after merging compatible projected streams, and `JoinedSource`
+for a projected cross join. `JoinedState` is that source's retained keyed
+index. Their constructors are crate-private and they are not root exports;
+callers obtain these opaque carriers through fluent operations and continue on
+`stream::projected::Stream`.
 
 **`ProjectionSink<Out>`** — Emission sink used by `Projection<A>` implementations. `emit(output)` is the only projection output channel.
 
@@ -639,6 +666,10 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 **`EntityKeyAdapter<KA>`** — Wraps `KA: Fn(&A) -> K` as a `KeyExtract`. Used in self-join `JoinTarget` impl to adapt entity-only key functions.
 - `new(key_fn: KA)` → `EntityKeyAdapter<KA>`
 
+`PhantomKey<T>` is the zero-sized type carrier used in inferred stream return
+types when a key parameter must not inherit `Send`, `Sync`, or `Clone` bounds.
+It has no public constructor and is not a crate-root modeling symbol.
+
 ### Filter Types
 
 **`TrueFilter`** — Always-true filter. Implements all filter traits.
@@ -693,7 +724,9 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 
 **`CollectVecCollector<T, F>`** / **`CollectVecAccumulator<T>`** / **`CollectedVec<T>`** — Retains mapped values once and exposes them through an insertion-order iterable view.
 - Factory: `collect_vec(mapper)`
-- `CollectedVec<T>` exposes `iter()`, `len()`, `is_empty()`, and `to_vec()` when `T: Clone`.
+- `CollectedVec<T>` exposes `iter() -> CollectedVecIter<'_, T>`, `len()`,
+  `is_empty()`, and `to_vec()` when `T: Clone`. `CollectedVecIter` yields
+  `&T` in retained insertion order.
 
 ## Architectural Notes
 
@@ -727,6 +760,10 @@ The `ScoreDirector` delegates to `ConstraintSet::on_retract_all()` / `on_insert_
 - `matches: HashSet<(usize, ...)>` — all current matches
 - `key_to_indices: HashMap<K, HashSet<usize>>` — key-based index for join
 - `index_to_key: HashMap<usize, K>` — reverse key lookup
+
+The exported `impl_incremental_nary_constraint!` dispatcher accepts
+`bi`, `tri`, `quad`, or `penta` plus the generated struct name and forwards to
+the corresponding arity macro.
 
 ### Stream Arity Macros
 

@@ -11,15 +11,14 @@ Uses concrete function pointers for list operations. No `dyn Any`, no downcastin
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::metadata::{
-    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
-    ScopedValueTabuToken,
+use super::list_kernel::{
+    sublist_change_candidate_trace_identity, sublist_change_do_move, sublist_change_is_doable,
+    sublist_change_tabu_signature, sublist_change_undo_move, StaticListWindowAccess,
 };
-use super::segment_layout::derive_segment_relocation_layout;
+use super::segment_layout::SegmentRelocationCoords;
 use super::{Move, MoveTabuSignature};
 
 /// A move that relocates a contiguous sublist from one position to another.
@@ -197,6 +196,27 @@ impl<S, V> SublistChangeMove<S, V> {
     pub fn is_intra_list(&self) -> bool {
         self.source_entity_index == self.dest_entity_index
     }
+
+    fn access(&self) -> StaticListWindowAccess<S, V> {
+        StaticListWindowAccess {
+            list_len: self.list_len,
+            list_get: self.list_get,
+            sublist_remove: self.sublist_remove,
+            sublist_insert: self.sublist_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+        }
+    }
+
+    fn coordinates(&self) -> SegmentRelocationCoords {
+        SegmentRelocationCoords::new(
+            self.source_entity_index,
+            self.source_start,
+            self.source_end,
+            self.dest_entity_index,
+            self.dest_position,
+        )
+    }
 }
 
 impl<S, V> Move<S> for SublistChangeMove<S, V>
@@ -207,116 +227,15 @@ where
     type Undo = ();
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
-        let solution = score_director.working_solution();
-
-        // Check range is valid (start < end)
-        if self.source_start >= self.source_end {
-            return false;
-        }
-
-        // Check source range is within bounds
-        let source_len = (self.list_len)(solution, self.source_entity_index);
-        if self.source_end > source_len {
-            return false;
-        }
-
-        // Check destination position is valid
-        let dest_len = (self.list_len)(solution, self.dest_entity_index);
-        let sublist_len = self.sublist_len();
-
-        let max_dest = if self.is_intra_list() {
-            // After removing sublist, list is shorter
-            source_len - sublist_len
-        } else {
-            dest_len
-        };
-
-        if self.dest_position > max_dest {
-            return false;
-        }
-
-        // For intra-list, dest_position is relative to the post-removal list.
-        if self.is_intra_list() {
-            // Re-inserting at the original start position is the only no-op.
-            if self.dest_position == self.source_start {
-                return false;
-            }
-        }
-
-        true
+        sublist_change_is_doable(&self.access(), self.coordinates(), score_director)
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
-        let layout = derive_segment_relocation_layout(
-            self.source_entity_index,
-            self.source_start,
-            self.source_end,
-            self.dest_entity_index,
-            self.dest_position,
-        );
-
-        // Notify before changes
-        score_director.before_variable_changed(self.descriptor_index, self.source_entity_index);
-        if !self.is_intra_list() {
-            score_director.before_variable_changed(self.descriptor_index, self.dest_entity_index);
-        }
-
-        // Remove sublist from source
-        let elements = (self.sublist_remove)(
-            score_director.working_solution_mut(),
-            self.source_entity_index,
-            self.source_start,
-            self.source_end,
-        );
-
-        // dest_position is relative to post-removal list, no adjustment needed
-        let dest_pos = layout.exact.dest_position;
-
-        // Insert at destination
-        (self.sublist_insert)(
-            score_director.working_solution_mut(),
-            self.dest_entity_index,
-            dest_pos,
-            elements,
-        );
-
-        // Notify after changes
-        score_director.after_variable_changed(self.descriptor_index, self.source_entity_index);
-        if !self.is_intra_list() {
-            score_director.after_variable_changed(self.descriptor_index, self.dest_entity_index);
-        }
+        sublist_change_do_move(&self.access(), self.coordinates(), score_director);
     }
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, (): Self::Undo) {
-        let inverse = derive_segment_relocation_layout(
-            self.source_entity_index,
-            self.source_start,
-            self.source_end,
-            self.dest_entity_index,
-            self.dest_position,
-        )
-        .inverse;
-        score_director.before_variable_changed(self.descriptor_index, inverse.source_entity_index);
-        if inverse.source_entity_index != inverse.dest_entity_index {
-            score_director
-                .before_variable_changed(self.descriptor_index, inverse.dest_entity_index);
-        }
-        let removed = (self.sublist_remove)(
-            score_director.working_solution_mut(),
-            inverse.source_entity_index,
-            inverse.source_range.start,
-            inverse.source_range.end,
-        );
-        (self.sublist_insert)(
-            score_director.working_solution_mut(),
-            inverse.dest_entity_index,
-            inverse.dest_position,
-            removed,
-        );
-        score_director.after_variable_changed(self.descriptor_index, inverse.source_entity_index);
-        if inverse.source_entity_index != inverse.dest_entity_index {
-            score_director.after_variable_changed(self.descriptor_index, inverse.dest_entity_index);
-        }
+        sublist_change_undo_move(&self.access(), self.coordinates(), score_director);
     }
 
     fn descriptor_index(&self) -> usize {
@@ -340,59 +259,13 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let layout = derive_segment_relocation_layout(
-            self.source_entity_index,
-            self.source_start,
-            self.source_end,
-            self.dest_entity_index,
-            self.dest_position,
-        );
-        let mut moved_ids: SmallVec<[u64; 2]> = SmallVec::new();
-        for pos in self.source_start..self.source_end {
-            let value = (self.list_get)(
-                score_director.working_solution(),
-                self.source_entity_index,
-                pos,
-            );
-            moved_ids.push(encode_option_debug(value.as_ref()));
-        }
-        let source_entity_id = encode_usize(self.source_entity_index);
-        let dest_entity_id = encode_usize(self.dest_entity_index);
-        let variable_id = hash_str(self.variable_name);
-        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
-        let mut entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]> =
-            smallvec![scope.entity_token(source_entity_id)];
-        if !self.is_intra_list() {
-            entity_tokens.push(scope.entity_token(dest_entity_id));
-        }
-        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = moved_ids
-            .iter()
-            .copied()
-            .map(|value_id| scope.value_token(value_id))
-            .collect();
-        let mut move_id = smallvec![
-            encode_usize(self.descriptor_index),
-            variable_id,
-            source_entity_id,
-            encode_usize(layout.exact.source_range.start),
-            encode_usize(layout.exact.source_range.end),
-            dest_entity_id,
-            encode_usize(layout.exact.dest_position)
-        ];
-        move_id.extend(moved_ids.iter().copied());
-        let mut undo_move_id = smallvec![
-            encode_usize(self.descriptor_index),
-            variable_id,
-            encode_usize(layout.inverse.source_entity_index),
-            encode_usize(layout.inverse.source_range.start),
-            encode_usize(layout.inverse.source_range.end),
-            encode_usize(layout.inverse.dest_entity_index),
-            encode_usize(layout.inverse.dest_position)
-        ];
-        undo_move_id.extend(moved_ids.iter().copied());
+        sublist_change_tabu_signature(&self.access(), self.coordinates(), score_director)
+    }
 
-        MoveTabuSignature::new(scope, move_id, undo_move_id)
-            .with_entity_tokens(entity_tokens)
-            .with_destination_value_tokens(destination_value_tokens)
+    fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {
+        Some(sublist_change_candidate_trace_identity(
+            &self.access(),
+            self.coordinates(),
+        ))
     }
 }

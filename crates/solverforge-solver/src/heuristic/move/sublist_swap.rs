@@ -11,15 +11,14 @@ Uses concrete function pointers for list operations. No `dyn Any`, no downcastin
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::metadata::{
-    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
-    ScopedValueTabuToken,
+use super::list_kernel::{
+    sublist_swap_candidate_trace_identity, sublist_swap_do_move, sublist_swap_is_doable,
+    sublist_swap_tabu_signature, sublist_swap_undo_move, StaticListWindowAccess,
 };
-use super::segment_layout::derive_segment_swap_layout;
+use super::segment_layout::SegmentSwapCoords;
 use super::{Move, MoveTabuSignature};
 
 /// A move that swaps two contiguous sublists.
@@ -210,6 +209,28 @@ impl<S, V> SublistSwapMove<S, V> {
     pub fn is_intra_list(&self) -> bool {
         self.first_entity_index == self.second_entity_index
     }
+
+    fn access(&self) -> StaticListWindowAccess<S, V> {
+        StaticListWindowAccess {
+            list_len: self.list_len,
+            list_get: self.list_get,
+            sublist_remove: self.sublist_remove,
+            sublist_insert: self.sublist_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+        }
+    }
+
+    fn coordinates(&self) -> SegmentSwapCoords {
+        SegmentSwapCoords::new(
+            self.first_entity_index,
+            self.first_start,
+            self.first_end,
+            self.second_entity_index,
+            self.second_start,
+            self.second_end,
+        )
+    }
 }
 
 impl<S, V> Move<S> for SublistSwapMove<S, V>
@@ -220,209 +241,15 @@ where
     type Undo = ();
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
-        let solution = score_director.working_solution();
-
-        // Both ranges must be valid (start < end)
-        if self.first_start >= self.first_end || self.second_start >= self.second_end {
-            return false;
-        }
-
-        // Check first range is within bounds
-        let first_list_len = (self.list_len)(solution, self.first_entity_index);
-        if self.first_end > first_list_len {
-            return false;
-        }
-
-        // Check second range is within bounds
-        let second_list_len = (self.list_len)(solution, self.second_entity_index);
-        if self.second_end > second_list_len {
-            return false;
-        }
-
-        // For intra-list swaps, ranges must not overlap
-        if self.is_intra_list() {
-            // Ranges overlap if one starts before the other ends
-            let overlaps = self.first_start < self.second_end && self.second_start < self.first_end;
-            if overlaps {
-                return false;
-            }
-        }
-
-        true
+        sublist_swap_is_doable(&self.access(), self.coordinates(), score_director)
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
-        let layout = derive_segment_swap_layout(
-            self.first_entity_index,
-            self.first_start,
-            self.first_end,
-            self.second_entity_index,
-            self.second_start,
-            self.second_end,
-        );
-
-        // Notify before changes
-        score_director.before_variable_changed(self.descriptor_index, self.first_entity_index);
-        if !self.is_intra_list() {
-            score_director.before_variable_changed(self.descriptor_index, self.second_entity_index);
-        }
-
-        if self.is_intra_list() {
-            let (early_range, late_range) = layout.exact.ordered_ranges();
-
-            // Remove later range first
-            let late_elements = (self.sublist_remove)(
-                score_director.working_solution_mut(),
-                self.first_entity_index,
-                late_range.start,
-                late_range.end,
-            );
-
-            // Remove earlier range
-            let early_elements = (self.sublist_remove)(
-                score_director.working_solution_mut(),
-                self.first_entity_index,
-                early_range.start,
-                early_range.end,
-            );
-
-            // Insert late elements at early position
-            let late_len = late_range.len();
-            let early_len = early_range.len();
-            (self.sublist_insert)(
-                score_director.working_solution_mut(),
-                self.first_entity_index,
-                early_range.start,
-                late_elements,
-            );
-
-            /* Insert early elements at adjusted late position
-            After removing early range, late_start shifts by early_len
-            After inserting late elements, it shifts back by late_len
-            */
-            let new_late_pos = late_range.start - early_len + late_len;
-            (self.sublist_insert)(
-                score_director.working_solution_mut(),
-                self.first_entity_index,
-                new_late_pos,
-                early_elements,
-            );
-        } else {
-            // Inter-list swap: simpler, no index interaction between lists
-            let first_elements = (self.sublist_remove)(
-                score_director.working_solution_mut(),
-                self.first_entity_index,
-                self.first_start,
-                self.first_end,
-            );
-
-            let second_elements = (self.sublist_remove)(
-                score_director.working_solution_mut(),
-                self.second_entity_index,
-                self.second_start,
-                self.second_end,
-            );
-
-            // Insert swapped
-            (self.sublist_insert)(
-                score_director.working_solution_mut(),
-                self.first_entity_index,
-                self.first_start,
-                second_elements,
-            );
-
-            (self.sublist_insert)(
-                score_director.working_solution_mut(),
-                self.second_entity_index,
-                self.second_start,
-                first_elements,
-            );
-        }
-
-        // Notify after changes
-        score_director.after_variable_changed(self.descriptor_index, self.first_entity_index);
-        if !self.is_intra_list() {
-            score_director.after_variable_changed(self.descriptor_index, self.second_entity_index);
-        }
+        sublist_swap_do_move(&self.access(), self.coordinates(), score_director);
     }
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, (): Self::Undo) {
-        let inverse = derive_segment_swap_layout(
-            self.first_entity_index,
-            self.first_start,
-            self.first_end,
-            self.second_entity_index,
-            self.second_start,
-            self.second_end,
-        )
-        .inverse;
-        score_director.before_variable_changed(self.descriptor_index, inverse.first_entity_index);
-        if inverse.first_entity_index != inverse.second_entity_index {
-            score_director
-                .before_variable_changed(self.descriptor_index, inverse.second_entity_index);
-        }
-
-        if inverse.first_entity_index == inverse.second_entity_index {
-            let (early_range, late_range) = inverse.ordered_ranges();
-            let late_elements = (self.sublist_remove)(
-                score_director.working_solution_mut(),
-                inverse.first_entity_index,
-                late_range.start,
-                late_range.end,
-            );
-            let early_elements = (self.sublist_remove)(
-                score_director.working_solution_mut(),
-                inverse.first_entity_index,
-                early_range.start,
-                early_range.end,
-            );
-            let late_len = late_range.len();
-            let early_len = early_range.len();
-            (self.sublist_insert)(
-                score_director.working_solution_mut(),
-                inverse.first_entity_index,
-                early_range.start,
-                late_elements,
-            );
-            let new_late_pos = late_range.start - early_len + late_len;
-            (self.sublist_insert)(
-                score_director.working_solution_mut(),
-                inverse.first_entity_index,
-                new_late_pos,
-                early_elements,
-            );
-        } else {
-            let first_elements = (self.sublist_remove)(
-                score_director.working_solution_mut(),
-                inverse.first_entity_index,
-                inverse.first_range.start,
-                inverse.first_range.end,
-            );
-            let second_elements = (self.sublist_remove)(
-                score_director.working_solution_mut(),
-                inverse.second_entity_index,
-                inverse.second_range.start,
-                inverse.second_range.end,
-            );
-            (self.sublist_insert)(
-                score_director.working_solution_mut(),
-                inverse.first_entity_index,
-                inverse.first_range.start,
-                second_elements,
-            );
-            (self.sublist_insert)(
-                score_director.working_solution_mut(),
-                inverse.second_entity_index,
-                inverse.second_range.start,
-                first_elements,
-            );
-        }
-
-        score_director.after_variable_changed(self.descriptor_index, inverse.first_entity_index);
-        if inverse.first_entity_index != inverse.second_entity_index {
-            score_director
-                .after_variable_changed(self.descriptor_index, inverse.second_entity_index);
-        }
+        sublist_swap_undo_move(&self.access(), self.coordinates(), score_director);
     }
 
     fn descriptor_index(&self) -> usize {
@@ -446,74 +273,13 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let layout = derive_segment_swap_layout(
-            self.first_entity_index,
-            self.first_start,
-            self.first_end,
-            self.second_entity_index,
-            self.second_start,
-            self.second_end,
-        );
-        let mut first_value_ids: SmallVec<[u64; 2]> = SmallVec::new();
-        for pos in self.first_start..self.first_end {
-            let value = (self.list_get)(
-                score_director.working_solution(),
-                self.first_entity_index,
-                pos,
-            );
-            first_value_ids.push(encode_option_debug(value.as_ref()));
-        }
-        let mut second_value_ids: SmallVec<[u64; 2]> = SmallVec::new();
-        for pos in self.second_start..self.second_end {
-            let value = (self.list_get)(
-                score_director.working_solution(),
-                self.second_entity_index,
-                pos,
-            );
-            second_value_ids.push(encode_option_debug(value.as_ref()));
-        }
-        let first_entity_id = encode_usize(self.first_entity_index);
-        let second_entity_id = encode_usize(self.second_entity_index);
-        let variable_id = hash_str(self.variable_name);
-        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
-        let mut entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]> =
-            smallvec![scope.entity_token(first_entity_id)];
-        if !self.is_intra_list() {
-            entity_tokens.push(scope.entity_token(second_entity_id));
-        }
-        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = first_value_ids
-            .iter()
-            .chain(second_value_ids.iter())
-            .copied()
-            .map(|value_id| scope.value_token(value_id))
-            .collect();
-        let mut move_id = smallvec![
-            encode_usize(self.descriptor_index),
-            variable_id,
-            encode_usize(layout.exact.first_entity_index),
-            encode_usize(layout.exact.first_range.start),
-            encode_usize(layout.exact.first_range.end),
-            encode_usize(layout.exact.second_entity_index),
-            encode_usize(layout.exact.second_range.start),
-            encode_usize(layout.exact.second_range.end)
-        ];
-        move_id.extend(first_value_ids.iter().copied());
-        move_id.extend(second_value_ids.iter().copied());
-        let mut undo_move_id = smallvec![
-            encode_usize(self.descriptor_index),
-            variable_id,
-            encode_usize(layout.inverse.first_entity_index),
-            encode_usize(layout.inverse.first_range.start),
-            encode_usize(layout.inverse.first_range.end),
-            encode_usize(layout.inverse.second_entity_index),
-            encode_usize(layout.inverse.second_range.start),
-            encode_usize(layout.inverse.second_range.end)
-        ];
-        undo_move_id.extend(second_value_ids.iter().copied());
-        undo_move_id.extend(first_value_ids.iter().copied());
+        sublist_swap_tabu_signature(&self.access(), self.coordinates(), score_director)
+    }
 
-        MoveTabuSignature::new(scope, move_id, undo_move_id)
-            .with_entity_tokens(entity_tokens)
-            .with_destination_value_tokens(destination_value_tokens)
+    fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {
+        Some(sublist_swap_candidate_trace_identity(
+            &self.access(),
+            self.coordinates(),
+        ))
     }
 }

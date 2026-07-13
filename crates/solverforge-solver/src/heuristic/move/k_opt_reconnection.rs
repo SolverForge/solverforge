@@ -174,6 +174,16 @@ impl KOptReconnection {
         &self.segment_order[..self.len as usize]
     }
 
+    pub(crate) const fn inverse_segment_order(&self) -> [u8; 6] {
+        let mut inverse = [0; 6];
+        let mut position = 0;
+        while position < self.len as usize {
+            inverse[self.segment_order[position] as usize] = position as u8;
+            position += 1;
+        }
+        inverse
+    }
+
     // Returns true if this is the identity reconnection (no change).
     const fn is_identity(&self) -> bool {
         if self.reverse_mask != 0 {

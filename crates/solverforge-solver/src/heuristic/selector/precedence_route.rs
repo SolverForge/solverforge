@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 
 pub(crate) struct PrecedenceRouteHooks<S, V> {
-    element_count: fn(&S) -> usize,
-    index_to_element: fn(&S, usize) -> V,
     fixed_successors: fn(&S, V, &mut Vec<V>),
     entity_count: fn(&S) -> usize,
     list_len: fn(&S, usize) -> usize,
@@ -20,32 +18,18 @@ impl<S, V> Copy for PrecedenceRouteHooks<S, V> {}
 
 impl<S, V> PrecedenceRouteHooks<S, V> {
     pub(crate) fn new(
-        element_count: fn(&S) -> usize,
-        index_to_element: fn(&S, usize) -> V,
         fixed_successors: fn(&S, V, &mut Vec<V>),
         entity_count: fn(&S) -> usize,
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
     ) -> Self {
         Self {
-            element_count,
-            index_to_element,
             fixed_successors,
             entity_count,
             list_len,
             list_get,
             _phantom: PhantomData,
         }
-    }
-
-    pub(crate) fn build_graph(&self, solution: &S) -> PrecedenceRouteGraph
-    where
-        V: Clone + PartialEq,
-    {
-        let elements = (0..(self.element_count)(solution))
-            .map(|index| (self.index_to_element)(solution, index))
-            .collect::<Vec<_>>();
-        self.build_graph_with_elements(solution, &elements)
     }
 
     pub(crate) fn build_graph_with_elements(
@@ -56,54 +40,79 @@ impl<S, V> PrecedenceRouteHooks<S, V> {
     where
         V: Clone + PartialEq,
     {
-        let node_count = elements.len();
-        let mut graph = PrecedenceRouteGraph {
-            fixed_successors: vec![Vec::new(); node_count],
-            fixed_predecessors: vec![Vec::new(); node_count],
-            successors: vec![Vec::new(); node_count],
-            predecessors: vec![Vec::new(); node_count],
-            route_nodes: Vec::new(),
-        };
-
-        let mut raw_successors = Vec::new();
-        for (from_idx, element) in elements.iter().enumerate() {
-            raw_successors.clear();
-            (self.fixed_successors)(solution, element.clone(), &mut raw_successors);
-            for successor in &raw_successors {
-                if let Some(to_idx) = node_index(elements, successor) {
-                    graph.push_edge(from_idx, to_idx);
-                    if !graph.fixed_successors[from_idx].contains(&to_idx) {
-                        graph.fixed_successors[from_idx].push(to_idx);
-                        graph.fixed_predecessors[to_idx].push(from_idx);
-                    }
-                }
-            }
-        }
-
-        for owner in 0..(self.entity_count)(solution) {
-            let len = (self.list_len)(solution, owner);
-            let mut nodes = Vec::with_capacity(len);
-            let mut previous = None;
-            for pos in 0..len {
-                let Some(element) = (self.list_get)(solution, owner, pos) else {
-                    previous = None;
-                    continue;
-                };
-                let Some(node) = node_index(elements, &element) else {
-                    previous = None;
-                    continue;
-                };
-                if let Some(from) = previous {
-                    graph.push_edge(from, node);
-                }
-                nodes.push(node);
-                previous = Some(node);
-            }
-            graph.route_nodes.push(nodes);
-        }
-
-        graph
+        build_precedence_route_graph(
+            solution,
+            elements,
+            |solution, element, successors| (self.fixed_successors)(solution, element, successors),
+            self.entity_count,
+            self.list_len,
+            self.list_get,
+        )
     }
+}
+
+/// Builds the immutable route/fixed-successor graph from one physical list
+/// access protocol. Static function-pointer hooks and the compiled runtime
+/// carrier both use this one graph construction path.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_precedence_route_graph<S, V>(
+    solution: &S,
+    elements: &[V],
+    mut fixed_successors: impl FnMut(&S, V, &mut Vec<V>),
+    entity_count: impl Fn(&S) -> usize,
+    list_len: impl Fn(&S, usize) -> usize,
+    list_get: impl Fn(&S, usize, usize) -> Option<V>,
+) -> PrecedenceRouteGraph
+where
+    V: Clone + PartialEq,
+{
+    let node_count = elements.len();
+    let mut graph = PrecedenceRouteGraph {
+        fixed_successors: vec![Vec::new(); node_count],
+        fixed_predecessors: vec![Vec::new(); node_count],
+        successors: vec![Vec::new(); node_count],
+        predecessors: vec![Vec::new(); node_count],
+        route_nodes: Vec::new(),
+    };
+
+    let mut raw_successors = Vec::new();
+    for (from_idx, element) in elements.iter().enumerate() {
+        raw_successors.clear();
+        fixed_successors(solution, element.clone(), &mut raw_successors);
+        for successor in &raw_successors {
+            if let Some(to_idx) = node_index(elements, successor) {
+                graph.push_edge(from_idx, to_idx);
+                if !graph.fixed_successors[from_idx].contains(&to_idx) {
+                    graph.fixed_successors[from_idx].push(to_idx);
+                    graph.fixed_predecessors[to_idx].push(from_idx);
+                }
+            }
+        }
+    }
+
+    for owner in 0..entity_count(solution) {
+        let len = list_len(solution, owner);
+        let mut nodes = Vec::with_capacity(len);
+        let mut previous = None;
+        for position in 0..len {
+            let Some(element) = list_get(solution, owner, position) else {
+                previous = None;
+                continue;
+            };
+            let Some(node) = node_index(elements, &element) else {
+                previous = None;
+                continue;
+            };
+            if let Some(from) = previous {
+                graph.push_edge(from, node);
+            }
+            nodes.push(node);
+            previous = Some(node);
+        }
+        graph.route_nodes.push(nodes);
+    }
+
+    graph
 }
 
 #[derive(Default)]
@@ -116,33 +125,33 @@ pub(crate) struct PrecedenceRouteGraph {
 }
 
 impl PrecedenceRouteGraph {
-    pub(super) fn successors(&self) -> &[Vec<usize>] {
+    pub(crate) fn successors(&self) -> &[Vec<usize>] {
         &self.successors
     }
 
-    pub(super) fn predecessors(&self) -> &[Vec<usize>] {
+    pub(crate) fn predecessors(&self) -> &[Vec<usize>] {
         &self.predecessors
     }
 
-    pub(super) fn route(&self, entity: usize) -> Option<&[usize]> {
+    pub(crate) fn route(&self, entity: usize) -> Option<&[usize]> {
         self.route_nodes.get(entity).map(Vec::as_slice)
     }
 
-    pub(super) fn fixed_successors(&self, node: usize) -> &[usize] {
+    pub(crate) fn fixed_successors(&self, node: usize) -> &[usize] {
         self.fixed_successors
             .get(node)
             .map(Vec::as_slice)
             .unwrap_or(&[])
     }
 
-    pub(super) fn fixed_predecessors(&self, node: usize) -> &[usize] {
+    pub(crate) fn fixed_predecessors(&self, node: usize) -> &[usize] {
         self.fixed_predecessors
             .get(node)
             .map(Vec::as_slice)
             .unwrap_or(&[])
     }
 
-    pub(super) fn node_route_position(&self, node: usize) -> Option<(usize, usize)> {
+    pub(crate) fn node_route_position(&self, node: usize) -> Option<(usize, usize)> {
         self.route_nodes
             .iter()
             .enumerate()
@@ -154,7 +163,7 @@ impl PrecedenceRouteGraph {
             })
     }
 
-    pub(super) fn intra_list_change_introduces_cycle(
+    pub(crate) fn intra_list_change_introduces_cycle(
         &self,
         entity: usize,
         source: usize,
@@ -166,7 +175,7 @@ impl PrecedenceRouteGraph {
         self.route_move_introduces_cycle(route, &route_after_list_change(route, source, dest))
     }
 
-    pub(super) fn intra_list_swap_introduces_cycle(
+    pub(crate) fn intra_list_swap_introduces_cycle(
         &self,
         entity: usize,
         first: usize,
@@ -180,7 +189,7 @@ impl PrecedenceRouteGraph {
         self.route_move_introduces_cycle(route, &after)
     }
 
-    pub(super) fn intra_list_reverse_introduces_cycle(
+    pub(crate) fn intra_list_reverse_introduces_cycle(
         &self,
         entity: usize,
         start: usize,
@@ -194,7 +203,7 @@ impl PrecedenceRouteGraph {
         self.route_move_introduces_cycle(route, &after)
     }
 
-    pub(super) fn intra_sublist_change_introduces_cycle(
+    pub(crate) fn intra_sublist_change_introduces_cycle(
         &self,
         entity: usize,
         source_start: usize,
@@ -210,7 +219,7 @@ impl PrecedenceRouteGraph {
         )
     }
 
-    pub(super) fn intra_sublist_swap_introduces_cycle(
+    pub(crate) fn intra_sublist_swap_introduces_cycle(
         &self,
         entity: usize,
         first_start: usize,
@@ -229,7 +238,7 @@ impl PrecedenceRouteGraph {
         self.route_move_introduces_cycle(route, &after)
     }
 
-    pub(super) fn intra_list_permutation_introduces_cycle(
+    pub(crate) fn intra_list_permutation_introduces_cycle(
         &self,
         entity: usize,
         start: usize,
@@ -245,7 +254,7 @@ impl PrecedenceRouteGraph {
         )
     }
 
-    pub(super) fn multi_intra_list_swaps_introduce_cycle(
+    pub(crate) fn multi_intra_list_swaps_introduce_cycle(
         &self,
         swaps: &[(usize, usize, usize)],
     ) -> bool {

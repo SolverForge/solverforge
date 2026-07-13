@@ -60,6 +60,7 @@ mod tests;
 
 pub use config::KOptConfig;
 pub use distance_meter::{DefaultDistanceMeter, ListPositionDistanceMeter};
+pub(crate) use iterators::cut_combination_at;
 pub use iterators::{binomial, count_cut_combinations, CutCombinationIterator};
 pub use nearby::NearbyKOptMoveSelector;
 pub use selector::KOptMoveSelector;

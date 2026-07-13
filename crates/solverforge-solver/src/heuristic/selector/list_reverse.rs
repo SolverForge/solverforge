@@ -1,57 +1,4 @@
-/* List reverse move selector for 2-opt optimization.
-
-Generates `ListReverseMove`s that reverse contiguous segments within a single
-list. This is the fundamental 2-opt move for TSP and VRP: reversing a segment
-of the tour can eliminate crossing edges and reduce total distance.
-
-For VRP, 2-opt is applied independently within each route (intra-route 2-opt).
-Cross-route 2-opt would require inter-entity reversal, which is a different
-operation modeled by `SublistSwapMove` with same-size segments.
-
-# Complexity
-
-For n entities with average route length m:
-O(n * m²) — all (start, end) pairs per entity where end > start + 1.
-
-# Example
-
-```
-use solverforge_solver::heuristic::selector::list_reverse::ListReverseMoveSelector;
-use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-use solverforge_solver::heuristic::selector::MoveSelector;
-use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::SoftScore;
-
-#[derive(Clone, Debug)]
-struct Vehicle { visits: Vec<i32> }
-
-#[derive(Clone, Debug)]
-struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
-
-impl PlanningSolution for Solution {
-type Score = SoftScore;
-fn score(&self) -> Option<Self::Score> { self.score }
-fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-}
-
-fn list_len(s: &Solution, entity_idx: usize) -> usize {
-s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-}
-fn list_reverse(s: &mut Solution, entity_idx: usize, start: usize, end: usize) {
-if let Some(v) = s.vehicles.get_mut(entity_idx) {
-v.visits[start..end].reverse();
-}
-}
-
-let selector = ListReverseMoveSelector::<Solution, i32, _>::new(
-FromSolutionEntitySelector::new(0),
-list_len,
-list_reverse,
-"visits",
-0,
-);
-```
-*/
+//! Public static adapter for the canonical list-reverse cursor.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -60,52 +7,32 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListReverseMove;
+use crate::heuristic::selector::list_kernel::{
+    NativeReverseEmitter, ReverseCursor, STATIC_REVERSE_ENTITY_SALT,
+};
 
 use super::entity::EntitySelector;
-use super::list_support::ordered_index;
 use super::move_selector::{
-    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
-use super::precedence_route::{PrecedenceRouteGraph, PrecedenceRouteHooks};
 
-/// A move selector that generates 2-opt segment reversal moves.
-///
-/// For each entity, enumerates all valid (start, end) pairs where
-/// `end > start + 1` (at least 2 elements in the reversed segment).
-///
-/// # Type Parameters
-/// * `S` - The solution type
-/// * `V` - The list element type (phantom — only used for type safety)
-/// * `ES` - The entity selector type
 pub struct ListReverseMoveSelector<S, V, ES> {
     entity_selector: ES,
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
     list_reverse: fn(&mut S, usize, usize, usize),
-    precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
     variable_name: &'static str,
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
+/// Public cursor facade over the crate-private generic kernel.
 pub struct ListReverseMoveCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    store: CandidateStore<S, ListReverseMove<S, V>>,
-    entities: Vec<usize>,
-    route_lens: Vec<usize>,
-    context: MoveStreamContext,
-    entity_idx: usize,
-    start_offset: usize,
-    end_offset: usize,
-    list_len: fn(&S, usize) -> usize,
-    list_get: fn(&S, usize, usize) -> Option<V>,
-    list_reverse: fn(&mut S, usize, usize, usize),
-    precedence_route_graph: Option<PrecedenceRouteGraph>,
-    variable_name: &'static str,
-    descriptor_index: usize,
+    inner: ReverseCursor<S, NativeReverseEmitter<S, V>>,
 }
 
 impl<S, V> ListReverseMoveCursor<S, V>
@@ -113,54 +40,8 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        entities: Vec<usize>,
-        route_lens: Vec<usize>,
-        context: MoveStreamContext,
-        list_len: fn(&S, usize) -> usize,
-        list_get: fn(&S, usize, usize) -> Option<V>,
-        list_reverse: fn(&mut S, usize, usize, usize),
-        precedence_route_graph: Option<PrecedenceRouteGraph>,
-        variable_name: &'static str,
-        descriptor_index: usize,
-    ) -> Self {
-        Self {
-            store: CandidateStore::new(),
-            entities,
-            route_lens,
-            context,
-            entity_idx: 0,
-            start_offset: 0,
-            end_offset: 0,
-            list_len,
-            list_get,
-            list_reverse,
-            precedence_route_graph,
-            variable_name,
-            descriptor_index,
-        }
-    }
-
-    pub(crate) fn with_precedence_route_graph(
-        mut self,
-        precedence_route_graph: Option<PrecedenceRouteGraph>,
-    ) -> Self {
-        self.precedence_route_graph = precedence_route_graph;
-        self
-    }
-
-    fn push_move(&mut self, entity: usize, start: usize, end: usize) -> CandidateId {
-        self.store.push(ListReverseMove::new(
-            entity,
-            start,
-            end,
-            self.list_len,
-            self.list_get,
-            self.list_reverse,
-            self.variable_name,
-            self.descriptor_index,
-        ))
+    fn new(inner: ReverseCursor<S, NativeReverseEmitter<S, V>>) -> Self {
+        Self { inner }
     }
 }
 
@@ -170,57 +51,30 @@ where
     V: Clone + Send + Sync + Debug + 'static,
 {
     fn next_candidate(&mut self) -> Option<CandidateId> {
-        loop {
-            let entity = *self.entities.get(self.entity_idx)?;
-            let len = self.route_lens[self.entity_idx];
-            if len < 2 {
-                self.entity_idx += 1;
-                self.start_offset = 0;
-                self.end_offset = 0;
-                continue;
-            }
-
-            while self.start_offset < len {
-                let start = ordered_index(
-                    self.start_offset,
-                    len,
-                    self.context,
-                    0x1157_2A07_0000_0002 ^ entity as u64 ^ self.descriptor_index as u64,
-                );
-                let end_count = len.saturating_sub(start + 1);
-                if self.end_offset < end_count {
-                    let end = start
-                        + 2
-                        + ordered_index(
-                            self.end_offset,
-                            end_count,
-                            self.context,
-                            0x1157_2A07_0000_0003 ^ entity as u64 ^ start as u64,
-                        );
-                    self.end_offset += 1;
-                    if self.precedence_route_graph.as_ref().is_some_and(|graph| {
-                        graph.intra_list_reverse_introduces_cycle(entity, start, end)
-                    }) {
-                        continue;
-                    }
-                    return Some(self.push_move(entity, start, end));
-                }
-                self.start_offset += 1;
-                self.end_offset = 0;
-            }
-
-            self.entity_idx += 1;
-            self.start_offset = 0;
-            self.end_offset = 0;
-        }
+        self.inner.next_candidate()
     }
 
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, ListReverseMove<S, V>>> {
-        self.store.candidate(id)
+        self.inner.candidate(id)
     }
 
     fn take_candidate(&mut self, id: CandidateId) -> ListReverseMove<S, V> {
-        self.store.take_candidate(id)
+        self.inner.take_candidate(id)
+    }
+
+    fn next_owned_candidate(&mut self) -> Option<ListReverseMove<S, V>> {
+        self.inner.next_owned_candidate()
+    }
+
+    fn next_owned_candidate_matching(
+        &mut self,
+        predicate: for<'a> fn(MoveCandidateRef<'a, S, ListReverseMove<S, V>>) -> bool,
+    ) -> Option<ListReverseMove<S, V>> {
+        self.inner.next_owned_candidate_matching(predicate)
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.inner.release_candidate(id)
     }
 }
 
@@ -232,8 +86,7 @@ where
     type Item = ListReverseMove<S, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let id = self.next_candidate()?;
-        Some(self.take_candidate(id))
+        self.next_owned_candidate()
     }
 }
 
@@ -248,14 +101,6 @@ impl<S, V: Debug, ES: Debug> Debug for ListReverseMoveSelector<S, V, ES> {
 }
 
 impl<S, V, ES> ListReverseMoveSelector<S, V, ES> {
-    /// Creates a new list reverse move selector.
-    ///
-    /// # Arguments
-    /// * `entity_selector` - Selects entities (routes) to apply 2-opt to
-    /// * `list_len` - Function to get route length
-    /// * `list_reverse` - Function to reverse `[start, end)` in-place
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
     pub fn new(
         entity_selector: ES,
         list_len: fn(&S, usize) -> usize,
@@ -269,23 +114,10 @@ impl<S, V, ES> ListReverseMoveSelector<S, V, ES> {
             list_len,
             list_get,
             list_reverse,
-            precedence_route_hooks: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
         }
-    }
-
-    pub(crate) fn with_precedence_route_hooks(
-        mut self,
-        precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
-    ) -> Self {
-        self.precedence_route_hooks = precedence_route_hooks;
-        self
-    }
-
-    pub(crate) fn precedence_route_hooks(&self) -> Option<PrecedenceRouteHooks<S, V>> {
-        self.precedence_route_hooks
     }
 }
 
@@ -309,48 +141,45 @@ where
         score_director: &D,
         context: MoveStreamContext,
     ) -> Self::Cursor<'a> {
-        let mut entities: Vec<usize> = self
+        let canonical_entities = self
             .entity_selector
             .iter(score_director)
-            .map(|r| r.entity_index)
-            .collect();
-        let entity_start = context.start_offset(
-            entities.len(),
-            0x1157_2A07_0000_0001 ^ self.descriptor_index as u64,
-        );
-        entities.rotate_left(entity_start);
-
+            .map(|reference| reference.entity_index)
+            .collect::<Vec<_>>();
+        let salt = STATIC_REVERSE_ENTITY_SALT ^ self.descriptor_index as u64;
+        let entities = (0..canonical_entities.len())
+            .map(|offset| {
+                canonical_entities[context.selection_index(offset, canonical_entities.len(), salt)]
+            })
+            .collect::<Vec<_>>();
         let solution = score_director.working_solution();
         let route_lens = entities
             .iter()
             .map(|&entity| (self.list_len)(solution, entity))
             .collect();
-
-        ListReverseMoveCursor::new(
+        ListReverseMoveCursor::new(ReverseCursor::new(
+            NativeReverseEmitter::new(
+                self.list_len,
+                self.list_get,
+                self.list_reverse,
+                self.variable_name,
+                self.descriptor_index,
+            ),
             entities,
             route_lens,
             context,
-            self.list_len,
-            self.list_get,
-            self.list_reverse,
-            None,
-            self.variable_name,
             self.descriptor_index,
-        )
+        ))
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
         let solution = score_director.working_solution();
-        let list_len = self.list_len;
-
         self.entity_selector
             .iter(score_director)
-            .map(|r| {
-                let m = list_len(solution, r.entity_index);
-                // Number of valid (start, end) pairs: m*(m-1)/2 - m = m*(m-1)/2 - m
-                // For start in 0..m, end in start+2..=m: sum = m*(m-1)/2
-                if m >= 2 {
-                    m * (m - 1) / 2
+            .map(|reference| {
+                let len = (self.list_len)(solution, reference.entity_index);
+                if len >= 2 {
+                    len * (len - 1) / 2
                 } else {
                     0
                 }

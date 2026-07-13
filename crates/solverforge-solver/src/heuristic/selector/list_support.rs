@@ -11,9 +11,18 @@ pub(crate) struct SelectedEntities {
 
 impl SelectedEntities {
     pub(crate) fn apply_stream_order(&mut self, context: MoveStreamContext, salt: u64) {
-        let start = context.start_offset(self.entities.len(), salt);
-        self.entities.rotate_left(start);
-        self.route_lens.rotate_left(start);
+        let len = self.entities.len();
+        if len <= 1 {
+            return;
+        }
+        let entities = self.entities.clone();
+        let route_lens = self.route_lens.clone();
+        self.entities = (0..len)
+            .map(|offset| entities[context.selection_index(offset, len, salt)])
+            .collect();
+        self.route_lens = (0..len)
+            .map(|offset| route_lens[context.selection_index(offset, len, salt)])
+            .collect();
     }
 
     pub(crate) fn total_elements(&self) -> usize {
@@ -56,13 +65,7 @@ pub(crate) fn ordered_index(
     salt: u64,
 ) -> usize {
     debug_assert!(offset < len);
-    if len <= 1 {
-        return 0;
-    }
-
-    let start = context.start_offset(len, salt);
-    let stride = context.stride(len, salt ^ 0xD1B5_4A32_D192_ED03);
-    (start + offset * stride) % len
+    context.selection_index(offset, len, salt)
 }
 
 pub(crate) fn collect_selected_entities<S, D, ES>(

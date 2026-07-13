@@ -61,14 +61,14 @@ sublist_insert,
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::k_opt_reconnection::KOptReconnection;
-use super::metadata::{
-    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedValueTabuToken,
+use super::list_kernel::{
+    k_opt_do_move, k_opt_is_doable, k_opt_tabu_signature, k_opt_undo_move, StaticListWindowAccess,
 };
+use super::metadata::hash_str;
 use super::{Move, MoveTabuSignature};
 
 /* A cut point in a route, defining where an edge is removed.
@@ -145,6 +145,7 @@ pub struct KOptMove<S, V> {
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
     // Variable name.
     variable_name: &'static str,
+    variable_id: u64,
     // Descriptor index.
     descriptor_index: usize,
     // Entity index (for intra-route moves).
@@ -163,6 +164,7 @@ impl<S, V> Clone for KOptMove<S, V> {
             sublist_remove: self.sublist_remove,
             sublist_insert: self.sublist_insert,
             variable_name: self.variable_name,
+            variable_id: self.variable_id,
             descriptor_index: self.descriptor_index,
             entity_index: self.entity_index,
             _phantom: PhantomData,
@@ -214,6 +216,31 @@ impl<S, V> KOptMove<S, V> {
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
+        Self::new_with_variable_id(
+            cuts,
+            reconnection,
+            list_len,
+            list_get,
+            sublist_remove,
+            sublist_insert,
+            variable_name,
+            hash_str(variable_name),
+            descriptor_index,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_with_variable_id(
+        cuts: &[CutPoint],
+        reconnection: &KOptReconnection,
+        list_len: fn(&S, usize) -> usize,
+        list_get: fn(&S, usize, usize) -> Option<V>,
+        sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
+        sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+        variable_name: &'static str,
+        variable_id: u64,
+        descriptor_index: usize,
+    ) -> Self {
         assert!(!cuts.is_empty() && cuts.len() <= 5, "k must be 1-5");
 
         let mut cut_array = [CutPoint::default(); 5];
@@ -233,6 +260,7 @@ impl<S, V> KOptMove<S, V> {
             sublist_remove,
             sublist_insert,
             variable_name,
+            variable_id,
             descriptor_index,
             entity_index,
             _phantom: PhantomData,
@@ -255,6 +283,17 @@ impl<S, V> KOptMove<S, V> {
             .iter()
             .all(|c| c.entity_index == first)
     }
+
+    fn access(&self) -> StaticListWindowAccess<S, V> {
+        StaticListWindowAccess {
+            list_len: self.list_len,
+            list_get: self.list_get,
+            sublist_remove: self.sublist_remove,
+            sublist_insert: self.sublist_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+        }
+    }
 }
 
 impl<S, V> Move<S> for KOptMove<S, V>
@@ -265,128 +304,27 @@ where
     type Undo = Vec<V>;
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
-        let solution = score_director.working_solution();
-        let k = self.cut_count as usize;
-
-        // Must have at least 2 cuts for meaningful k-opt
-        if k < 2 {
-            return false;
-        }
-
-        // Verify reconnection pattern matches k
-        if self.reconnection.k() != k {
-            return false;
-        }
-
-        // For intra-route, verify cuts are sorted and within bounds
-        let len = (self.list_len)(solution, self.entity_index);
-
-        // Check cuts are valid positions
-        for cut in &self.cuts[..k] {
-            if cut.position > len {
-                return false;
-            }
-        }
-
-        // For intra-route, cuts must be strictly increasing
-        if self.is_intra_route() {
-            for i in 1..k {
-                if self.cuts[i].position <= self.cuts[i - 1].position {
-                    return false;
-                }
-            }
-            // Need at least 1 element between cuts for meaningful segments
-            // Actually, empty segments are allowed in some cases
-        }
-
-        true
+        k_opt_is_doable(
+            &self.access(),
+            self.cuts(),
+            &self.reconnection,
+            self.entity_index,
+            score_director,
+        )
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
-        let k = self.cut_count as usize;
-        let entity = self.entity_index;
-
-        // Notify before change
-        score_director.before_variable_changed(self.descriptor_index, entity);
-
-        /* For intra-route k-opt, we need to:
-        1. Extract all segments
-        2. Reorder according to reconnection pattern
-        3. Reverse segments as needed
-        4. Rebuild the list
-        */
-
-        /* Calculate segment boundaries (segments are between consecutive cuts)
-        For k cuts at positions [p0, p1, ..., pk-1], we have k+1 segments:
-        Segment 0: [0, p0)
-        Segment 1: [p0, p1)
-        ...
-        Segment k: [pk-1, len)
-        */
-
-        let solution = score_director.working_solution_mut();
-        let len = (self.list_len)(solution, entity);
-
-        // Extract all elements
-        let all_elements = (self.sublist_remove)(solution, entity, 0, len);
-
-        // Build segment boundaries
-        let mut boundaries = Vec::with_capacity(k + 2);
-        boundaries.push(0);
-        for i in 0..k {
-            boundaries.push(self.cuts[i].position);
-        }
-        boundaries.push(len);
-
-        // Extract segments
-        let mut segments: Vec<Vec<V>> = Vec::with_capacity(k + 1);
-        for i in 0..=k {
-            let start = boundaries[i];
-            let end = boundaries[i + 1];
-            segments.push(all_elements[start..end].to_vec());
-        }
-
-        // Reorder and reverse according to reconnection pattern
-        let mut new_elements = Vec::with_capacity(len);
-        for pos in 0..self.reconnection.segment_count() {
-            let seg_idx = self.reconnection.segment_at(pos);
-            let mut seg = std::mem::take(&mut segments[seg_idx]);
-            if self.reconnection.should_reverse(seg_idx) {
-                seg.reverse();
-            }
-            new_elements.extend(seg);
-        }
-
-        // Insert reordered elements back
-        (self.sublist_insert)(
-            score_director.working_solution_mut(),
-            entity,
-            0,
-            new_elements,
-        );
-
-        // Notify after change
-        score_director.after_variable_changed(self.descriptor_index, entity);
-
-        all_elements
+        k_opt_do_move(
+            &self.access(),
+            self.cuts(),
+            &self.reconnection,
+            self.entity_index,
+            score_director,
+        )
     }
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
-        score_director.before_variable_changed(self.descriptor_index, self.entity_index);
-        let len = (self.list_len)(score_director.working_solution(), self.entity_index);
-        let _ = (self.sublist_remove)(
-            score_director.working_solution_mut(),
-            self.entity_index,
-            0,
-            len,
-        );
-        (self.sublist_insert)(
-            score_director.working_solution_mut(),
-            self.entity_index,
-            0,
-            undo,
-        );
-        score_director.after_variable_changed(self.descriptor_index, self.entity_index);
+        k_opt_undo_move(&self.access(), self.entity_index, undo, score_director);
     }
 
     fn descriptor_index(&self) -> usize {
@@ -406,78 +344,13 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let mut touched_value_ids: SmallVec<[u64; 2]> = SmallVec::new();
-        let len = (self.list_len)(score_director.working_solution(), self.entity_index);
-        let k = self.cut_count as usize;
-        let first_pos = self.cuts[0].position;
-        let last_pos = self.cuts[k - 1].position;
-        for pos in first_pos..len.min(last_pos.max(first_pos)) {
-            let value = (self.list_get)(score_director.working_solution(), self.entity_index, pos);
-            touched_value_ids.push(encode_option_debug(value.as_ref()));
-        }
-
-        let entity_id = encode_usize(self.entity_index);
-        let variable_id = hash_str(self.variable_name);
-        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
-        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = touched_value_ids
-            .iter()
-            .copied()
-            .map(|value_id| scope.value_token(value_id))
-            .collect();
-        let mut move_id = smallvec![
-            encode_usize(self.descriptor_index),
-            variable_id,
-            entity_id,
-            encode_usize(k)
-        ];
-        for cut in &self.cuts[..k] {
-            move_id.push(encode_usize(cut.position));
-        }
-        for segment in self.reconnection.segment_order() {
-            move_id.push(u64::from(*segment));
-        }
-        for idx in 0..self.reconnection.segment_count() {
-            move_id.push(if self.reconnection.should_reverse(idx) {
-                1
-            } else {
-                0
-            });
-        }
-        move_id.extend(touched_value_ids.iter().copied());
-
-        let mut inverse_order = vec![0u8; self.reconnection.segment_count()];
-        for (pos, segment) in self
-            .reconnection
-            .segment_order()
-            .iter()
-            .copied()
-            .enumerate()
-        {
-            inverse_order[segment as usize] = pos as u8;
-        }
-        let mut undo_move_id = smallvec![
-            encode_usize(self.descriptor_index),
-            variable_id,
-            entity_id,
-            encode_usize(k)
-        ];
-        for cut in &self.cuts[..k] {
-            undo_move_id.push(encode_usize(cut.position));
-        }
-        for segment in inverse_order {
-            undo_move_id.push(u64::from(segment));
-        }
-        for idx in 0..self.reconnection.segment_count() {
-            undo_move_id.push(if self.reconnection.should_reverse(idx) {
-                1
-            } else {
-                0
-            });
-        }
-        undo_move_id.extend(touched_value_ids.iter().copied());
-
-        MoveTabuSignature::new(scope, move_id, undo_move_id)
-            .with_entity_tokens([scope.entity_token(entity_id)])
-            .with_destination_value_tokens(destination_value_tokens)
+        k_opt_tabu_signature(
+            &self.access(),
+            self.cuts(),
+            &self.reconnection,
+            self.variable_id,
+            self.entity_index,
+            score_director,
+        )
     }
 }

@@ -10,12 +10,12 @@ Uses concrete function pointers for list operations. No `dyn Any`, no downcastin
 
 use std::fmt::Debug;
 
-use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::metadata::{
-    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedEntityTabuToken,
+use super::list_kernel::{
+    change_candidate_trace_identity, change_do_move, change_is_doable, change_tabu_signature,
+    change_undo_move, ChangeCoordinates, ChangeValueTransfer, StaticListChangeAccess,
 };
 use super::{Move, MoveTabuSignature};
 
@@ -172,6 +172,26 @@ impl<S, V> ListChangeMove<S, V> {
     pub fn is_intra_list(&self) -> bool {
         self.source_entity_index == self.dest_entity_index
     }
+
+    fn access(&self) -> StaticListChangeAccess<S, V> {
+        StaticListChangeAccess {
+            list_len: self.list_len,
+            list_get: self.list_get,
+            list_remove: self.list_remove,
+            list_insert: self.list_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+        }
+    }
+
+    fn coordinates(&self) -> ChangeCoordinates {
+        ChangeCoordinates {
+            source_entity: self.source_entity_index,
+            source_position: self.source_position,
+            destination_entity: self.dest_entity_index,
+            destination_position: self.dest_position,
+        }
+    }
 }
 
 impl<S, V> Move<S> for ListChangeMove<S, V>
@@ -182,110 +202,20 @@ where
     type Undo = ();
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
-        let solution = score_director.working_solution();
-
-        // Check source position is valid
-        let source_len = (self.list_len)(solution, self.source_entity_index);
-        if self.source_position >= source_len {
-            return false;
-        }
-
-        /* Check destination position is valid
-        For intra-list, dest uses pre-removal coordinates and can be 0..=len
-        For inter-list, dest can be 0..=len
-        */
-        let dest_len = (self.list_len)(solution, self.dest_entity_index);
-        let max_dest = if self.is_intra_list() {
-            source_len
-        } else {
-            dest_len
-        };
-
-        if self.dest_position > max_dest {
-            return false;
-        }
-
-        /* For intra-list moves, check for no-ops
-        Moving to same position is obviously a no-op
-        Moving forward by 1 position is also a no-op due to index adjustment:
-        remove at source, adjusted_dest = dest-1 = source, insert at source → same list
-        */
-        if self.is_intra_list() {
-            if self.source_position == self.dest_position {
-                return false;
-            }
-            // Forward move by exactly 1 is a no-op
-            if self.dest_position == self.source_position + 1 {
-                return false;
-            }
-        }
-
-        true
+        change_is_doable(&self.access(), self.coordinates(), score_director)
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
-        // Notify before changes
-        score_director.before_variable_changed(self.descriptor_index, self.source_entity_index);
-        if !self.is_intra_list() {
-            score_director.before_variable_changed(self.descriptor_index, self.dest_entity_index);
-        }
-
-        // Remove from source
-        let value = (self.list_remove)(
-            score_director.working_solution_mut(),
-            self.source_entity_index,
-            self.source_position,
-        )
-        .expect("source position should be valid");
-
-        // For intra-list moves, adjust dest position if it was after source
-        let adjusted_dest = if self.is_intra_list() && self.dest_position > self.source_position {
-            self.dest_position - 1
-        } else {
-            self.dest_position
-        };
-
-        // Insert at destination
-        (self.list_insert)(
-            score_director.working_solution_mut(),
-            self.dest_entity_index,
-            adjusted_dest,
-            value.clone(),
+        change_do_move(
+            &self.access(),
+            self.coordinates(),
+            ChangeValueTransfer::CloneBeforeInsert,
+            score_director,
         );
-
-        // Notify after changes
-        score_director.after_variable_changed(self.descriptor_index, self.source_entity_index);
-        if !self.is_intra_list() {
-            score_director.after_variable_changed(self.descriptor_index, self.dest_entity_index);
-        }
     }
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, (): Self::Undo) {
-        let adjusted_dest = if self.is_intra_list() && self.dest_position > self.source_position {
-            self.dest_position - 1
-        } else {
-            self.dest_position
-        };
-        score_director.before_variable_changed(self.descriptor_index, self.dest_entity_index);
-        if !self.is_intra_list() {
-            score_director.before_variable_changed(self.descriptor_index, self.source_entity_index);
-        }
-        let removed = (self.list_remove)(
-            score_director.working_solution_mut(),
-            self.dest_entity_index,
-            adjusted_dest,
-        )
-        .expect("undo destination position should contain moved element");
-        (self.list_insert)(
-            score_director.working_solution_mut(),
-            self.source_entity_index,
-            self.source_position,
-            removed,
-        );
-        score_director.after_variable_changed(self.descriptor_index, self.dest_entity_index);
-        if !self.is_intra_list() {
-            score_director.after_variable_changed(self.descriptor_index, self.source_entity_index);
-        }
+        change_undo_move(&self.access(), self.coordinates(), score_director);
     }
 
     fn descriptor_index(&self) -> usize {
@@ -309,49 +239,13 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let moved_value = (self.list_get)(
-            score_director.working_solution(),
-            self.source_entity_index,
-            self.source_position,
-        );
-        let moved_id = encode_option_debug(moved_value.as_ref());
-        let source_entity_id = encode_usize(self.source_entity_index);
-        let dest_entity_id = encode_usize(self.dest_entity_index);
-        let variable_id = hash_str(self.variable_name);
-        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
-        let adjusted_dest = if self.is_intra_list() && self.dest_position > self.source_position {
-            self.dest_position - 1
-        } else {
-            self.dest_position
-        };
-        let mut entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]> =
-            smallvec![scope.entity_token(source_entity_id)];
-        if !self.is_intra_list() {
-            entity_tokens.push(scope.entity_token(dest_entity_id));
-        }
+        change_tabu_signature(&self.access(), self.coordinates(), score_director)
+    }
 
-        MoveTabuSignature::new(
-            scope,
-            smallvec![
-                encode_usize(self.descriptor_index),
-                variable_id,
-                source_entity_id,
-                encode_usize(self.source_position),
-                dest_entity_id,
-                encode_usize(adjusted_dest),
-                moved_id
-            ],
-            smallvec![
-                encode_usize(self.descriptor_index),
-                variable_id,
-                dest_entity_id,
-                encode_usize(adjusted_dest),
-                source_entity_id,
-                encode_usize(self.source_position),
-                moved_id
-            ],
-        )
-        .with_entity_tokens(entity_tokens)
-        .with_destination_value_tokens([scope.value_token(moved_id)])
+    fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {
+        Some(change_candidate_trace_identity(
+            &self.access(),
+            self.coordinates(),
+        ))
     }
 }

@@ -6,6 +6,7 @@ use crate::heuristic::selector::entity::FromSolutionEntitySelector;
 use crate::heuristic::selector::list_precedence::ListPrecedenceMoveSelector;
 use crate::heuristic::selector::move_selector::{MoveCursor, MoveStreamContext};
 use crate::heuristic::selector::MoveSelector;
+use solverforge_config::SelectionOrder;
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
@@ -406,8 +407,10 @@ fn list_precedence_selector_applies_stream_context_order() {
     let selector = selector();
 
     let canonical = move_debug_order(selector.iter_moves(&director).collect());
-    let mut cursor =
-        selector.open_cursor_with_context(&director, MoveStreamContext::new(11, 23, Some(8)));
+    let mut cursor = selector.open_cursor_with_context(
+        &director,
+        MoveStreamContext::new(11, 23, Some(8)).with_selection_order(SelectionOrder::Shuffled),
+    );
     let mut contextual = Vec::new();
     while let Some(id) = cursor.next_candidate() {
         contextual.push(format!("{:?}", cursor.take_candidate(id)));

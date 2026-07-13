@@ -1,4 +1,4 @@
-// K-opt move selector for tour optimization.
+//! Public static adapter for the canonical exhaustive K-opt cursor.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -6,40 +6,89 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::k_opt_reconnection::KOptReconnection;
 use crate::heuristic::r#move::k_opt_reconnection::{
-    enumerate_reconnections, THREE_OPT_RECONNECTIONS,
+    enumerate_reconnections, KOptReconnection, THREE_OPT_RECONNECTIONS,
 };
 use crate::heuristic::r#move::KOptMove;
+use crate::heuristic::selector::list_kernel::{KOptCursor, NativeKOptEmitter};
 
 use super::super::entity::EntitySelector;
-use super::super::move_selector::{ArenaMoveCursor, MoveSelector};
+use super::super::move_selector::{
+    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+};
 use super::config::KOptConfig;
 use super::iterators::count_cut_combinations;
-use super::iterators::CutCombinationIterator;
 
-/// A move selector that generates k-opt moves.
-///
-/// Enumerates all valid cut point combinations for each selected entity
-/// and generates moves for each reconnection pattern.
+/// Static K-opt selector.  It preserves its public move/cursor types while
+/// common cut and reconnection enumeration is owned by the shared list kernel.
 pub struct KOptMoveSelector<S, V, ES> {
-    // Selects entities (routes) to apply k-opt to.
     entity_selector: ES,
-    // K-opt configuration.
     config: KOptConfig,
-    // Owned reconnection patterns (avoids `Box::leak` for non-k=3 cases).
     owned_patterns: Vec<KOptReconnection>,
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
-    // Remove sublist [start, end).
     sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
-    // Insert elements at position.
     sublist_insert: fn(&mut S, usize, usize, Vec<V>),
-    // Variable name.
     variable_name: &'static str,
-    // Descriptor index.
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
+}
+
+pub struct KOptMoveCursor<'a, S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    inner: KOptCursor<'a, S, NativeKOptEmitter<S, V>>,
+}
+
+impl<'a, S, V> KOptMoveCursor<'a, S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    fn new(inner: KOptCursor<'a, S, NativeKOptEmitter<S, V>>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<S, V> MoveCursor<S, KOptMove<S, V>> for KOptMoveCursor<'_, S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        self.inner.next_candidate()
+    }
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, KOptMove<S, V>>> {
+        self.inner.candidate(id)
+    }
+    fn take_candidate(&mut self, id: CandidateId) -> KOptMove<S, V> {
+        self.inner.take_candidate(id)
+    }
+    fn next_owned_candidate(&mut self) -> Option<KOptMove<S, V>> {
+        self.inner.next_owned_candidate()
+    }
+    fn next_owned_candidate_matching(
+        &mut self,
+        predicate: for<'b> fn(MoveCandidateRef<'b, S, KOptMove<S, V>>) -> bool,
+    ) -> Option<KOptMove<S, V>> {
+        self.inner.next_owned_candidate_matching(predicate)
+    }
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.inner.release_candidate(id)
+    }
+}
+
+impl<S, V> Iterator for KOptMoveCursor<'_, S, V>
+where
+    S: PlanningSolution,
+    V: Clone + Send + Sync + Debug + 'static,
+{
+    type Item = KOptMove<S, V>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_owned_candidate()
+    }
 }
 
 impl<S, V: Debug, ES: Debug> Debug for KOptMoveSelector<S, V, ES> {
@@ -65,14 +114,11 @@ impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
         variable_name: &'static str,
         descriptor_index: usize,
     ) -> Self {
-        // For k=3, copy from the static table; for other k values, generate and own the patterns.
-        // This avoids Box::leak() which permanently leaks memory on every selector creation.
-        let owned_patterns: Vec<KOptReconnection> = if config.k == 3 {
+        let owned_patterns = if config.k == 3 {
             THREE_OPT_RECONNECTIONS.to_vec()
         } else {
             enumerate_reconnections(config.k)
         };
-
         Self {
             entity_selector,
             config,
@@ -95,61 +141,56 @@ where
     V: Clone + Send + Sync + Debug + 'static,
 {
     type Cursor<'a>
-        = ArenaMoveCursor<S, KOptMove<S, V>>
+        = KOptMoveCursor<'a, S, V>
     where
         Self: 'a;
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        let k = self.config.k;
-        let min_seg = self.config.min_segment_len;
-        let patterns = &self.owned_patterns;
-        let list_len = self.list_len;
-        let list_get = self.list_get;
-        let sublist_remove = self.sublist_remove;
-        let sublist_insert = self.sublist_insert;
-        let variable_name = self.variable_name;
-        let descriptor_index = self.descriptor_index;
-        let entity_lens: Vec<_> = self
+        self.open_cursor_with_context(score_director, MoveStreamContext::default())
+    }
+
+    fn open_cursor_with_context<'a, D: Director<S>>(
+        &'a self,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> Self::Cursor<'a> {
+        let entity_lens = self
             .entity_selector
             .iter(score_director)
-            .map(|entity_ref| {
-                let entity_idx = entity_ref.entity_index;
-                let len = list_len(score_director.working_solution(), entity_idx);
-                (entity_idx, len)
+            .map(|reference| {
+                let entity = reference.entity_index;
+                (
+                    entity,
+                    (self.list_len)(score_director.working_solution(), entity),
+                )
             })
             .collect();
-
-        ArenaMoveCursor::from_moves(entity_lens.into_iter().flat_map(move |(entity_idx, len)| {
-            let cuts_iter = CutCombinationIterator::new(k, len, min_seg, entity_idx);
-
-            cuts_iter.flat_map(move |cuts| {
-                patterns.iter().map(move |pattern| {
-                    KOptMove::new(
-                        &cuts,
-                        pattern,
-                        list_len,
-                        list_get,
-                        sublist_remove,
-                        sublist_insert,
-                        variable_name,
-                        descriptor_index,
-                    )
-                })
-            })
-        }))
+        KOptMoveCursor::new(KOptCursor::new(
+            NativeKOptEmitter::new(
+                self.list_len,
+                self.list_get,
+                self.sublist_remove,
+                self.sublist_insert,
+                self.variable_name,
+                self.descriptor_index,
+            ),
+            entity_lens,
+            self.config.k,
+            self.config.min_segment_len,
+            &self.owned_patterns,
+            context,
+            self.descriptor_index,
+        ))
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        let k = self.config.k;
-        let min_seg = self.config.min_segment_len;
-        let pattern_count = self.owned_patterns.len();
-
         self.entity_selector
             .iter(score_director)
-            .map(|entity_ref| {
-                let solution = score_director.working_solution();
-                let len = (self.list_len)(solution, entity_ref.entity_index);
-                count_cut_combinations(k, len, min_seg) * pattern_count
+            .map(|reference| {
+                let len =
+                    (self.list_len)(score_director.working_solution(), reference.entity_index);
+                count_cut_combinations(self.config.k, len, self.config.min_segment_len)
+                    * self.owned_patterns.len()
             })
             .sum()
     }

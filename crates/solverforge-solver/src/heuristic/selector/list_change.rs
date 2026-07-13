@@ -1,49 +1,9 @@
-/* List change move selector for element relocation.
-
-Generates `ListChangeMove`s that relocate elements within or between list variables.
-Essential for vehicle routing and scheduling problems.
-
-# Example
-
-```
-use solverforge_solver::heuristic::selector::list_change::ListChangeMoveSelector;
-use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-use solverforge_solver::heuristic::selector::MoveSelector;
-use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::SoftScore;
-
-#[derive(Clone, Debug)]
-struct Vehicle { visits: Vec<i32> }
-
-#[derive(Clone, Debug)]
-struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
-
-impl PlanningSolution for Solution {
-type Score = SoftScore;
-fn score(&self) -> Option<Self::Score> { self.score }
-fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-}
-
-fn list_len(s: &Solution, entity_idx: usize) -> usize {
-s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-}
-fn list_remove(s: &mut Solution, entity_idx: usize, pos: usize) -> Option<i32> {
-s.vehicles.get_mut(entity_idx).map(|v| v.visits.remove(pos))
-}
-fn list_insert(s: &mut Solution, entity_idx: usize, pos: usize, val: i32) {
-if let Some(v) = s.vehicles.get_mut(entity_idx) { v.visits.insert(pos, val); }
-}
-
-let selector = ListChangeMoveSelector::<Solution, i32, _>::new(
-FromSolutionEntitySelector::new(0),
-list_len,
-list_remove,
-list_insert,
-"visits",
-0,
-);
-```
-*/
+//! Public static adapter for the canonical streamed list-change kernel.
+//!
+//! The selector retains its historic API and emits `ListChangeMove<S, V>`.
+//! Candidate enumeration itself lives in
+//! `heuristic::selector::list_kernel`, shared by static and dynamic
+//! selector facades.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -52,80 +12,43 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListChangeMove;
-use crate::list_placement::{selected_owner_allows, OwnerRestriction, SelectedOwnerRestrictions};
+use crate::heuristic::selector::list_kernel::{
+    ChangeCursor, NativeChangeEmitter, SelectedListOwners, STATIC_CHANGE_SALTS,
+};
+use crate::list_placement::selected_owner_allows;
 
 use super::entity::EntitySelector;
-use super::list_support::{collect_selected_entities, ordered_index};
+use super::list_support::collect_selected_entities;
 use super::move_selector::{
-    CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
+    CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
-use super::precedence_route::{PrecedenceRouteGraph, PrecedenceRouteHooks};
 
-/// A move selector that generates list change moves.
+/// A move selector that relocates elements within or between list variables.
 ///
-/// Enumerates all valid (source_entity, source_pos, dest_entity, dest_pos)
-/// combinations for relocating elements within or between list variables.
-///
-/// # Type Parameters
-/// * `S` - The solution type
-/// * `V` - The list element type
-///
-/// # Complexity
-///
-/// For n entities with average route length m:
-/// - Intra-entity moves: O(n * m * m)
-/// - Inter-entity moves: O(n * n * m * m)
-/// - Total: O(n² * m²) worst case
-///
-/// Use with a forager that quits early for better performance.
+/// Its move type and construction API are stable.  The adapter owns only its
+/// native mutation function pointers; the shared cursor owns candidate order,
+/// ownership pruning, trace-compatible selected-move transfer, and cycle
+/// filtering.
 pub struct ListChangeMoveSelector<S, V, ES> {
-    // Selects entities (vehicles) for moves.
     entity_selector: ES,
     list_len: fn(&S, usize) -> usize,
-    // Read element by position for exact move/value tabu metadata.
     list_get: fn(&S, usize, usize) -> Option<V>,
-    // Remove element at position.
     list_remove: fn(&mut S, usize, usize) -> Option<V>,
-    // Insert element at position.
     list_insert: fn(&mut S, usize, usize, V),
     element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
-    precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
-    // Variable name for notifications.
     variable_name: &'static str,
-    // Entity descriptor index.
     descriptor_index: usize,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-enum ListChangeStage {
-    Intra,
-    Inter,
-}
-
+/// Public cursor facade that keeps the historic type surface while hiding the
+/// crate-private generic emitter/kernel carrier.
 pub struct ListChangeMoveCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    store: CandidateStore<S, ListChangeMove<S, V>>,
-    entities: Vec<usize>,
-    route_lens: Vec<usize>,
-    context: MoveStreamContext,
-    src_idx: usize,
-    src_pos_offset: usize,
-    stage: ListChangeStage,
-    intra_dst_offset: usize,
-    dst_idx: usize,
-    inter_dst_pos_offset: usize,
-    list_len: fn(&S, usize) -> usize,
-    list_get: fn(&S, usize, usize) -> Option<V>,
-    list_remove: fn(&mut S, usize, usize) -> Option<V>,
-    list_insert: fn(&mut S, usize, usize, V),
-    element_owners: Option<Vec<Vec<OwnerRestriction>>>,
-    fixed_to_current_entity: bool,
-    precedence_route_graph: Option<PrecedenceRouteGraph>,
-    variable_name: &'static str,
-    descriptor_index: usize,
+    inner: ChangeCursor<S, NativeChangeEmitter<S, V>>,
 }
 
 impl<S, V> ListChangeMoveCursor<S, V>
@@ -133,107 +56,8 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        entities: Vec<usize>,
-        route_lens: Vec<usize>,
-        context: MoveStreamContext,
-        list_len: fn(&S, usize) -> usize,
-        list_get: fn(&S, usize, usize) -> Option<V>,
-        list_remove: fn(&mut S, usize, usize) -> Option<V>,
-        list_insert: fn(&mut S, usize, usize, V),
-        element_owners: Option<Vec<Vec<OwnerRestriction>>>,
-        fixed_to_current_entity: bool,
-        precedence_route_graph: Option<PrecedenceRouteGraph>,
-        variable_name: &'static str,
-        descriptor_index: usize,
-    ) -> Self {
-        Self {
-            store: CandidateStore::new(),
-            entities,
-            route_lens,
-            context,
-            src_idx: 0,
-            src_pos_offset: 0,
-            stage: ListChangeStage::Intra,
-            intra_dst_offset: 0,
-            dst_idx: 0,
-            inter_dst_pos_offset: 0,
-            list_len,
-            list_get,
-            list_remove,
-            list_insert,
-            element_owners,
-            fixed_to_current_entity,
-            precedence_route_graph,
-            variable_name,
-            descriptor_index,
-        }
-    }
-
-    pub(crate) fn with_precedence_route_graph(
-        mut self,
-        precedence_route_graph: Option<PrecedenceRouteGraph>,
-    ) -> Self {
-        self.precedence_route_graph = precedence_route_graph;
-        self
-    }
-
-    fn owner_allows_destination(&self, src_idx: usize, src_pos: usize, dst_entity: usize) -> bool {
-        self.element_owners
-            .as_ref()
-            .is_none_or(|owners| selected_owner_allows(owners, src_idx, src_pos, dst_entity))
-    }
-
-    fn current_source(&self) -> Option<(usize, usize, usize)> {
-        let src_entity = *self.entities.get(self.src_idx)?;
-        let src_len = self.route_lens[self.src_idx];
-        if src_len == 0 {
-            return Some((src_entity, src_len, 0));
-        }
-        let src_pos = ordered_index(
-            self.src_pos_offset,
-            src_len,
-            self.context,
-            0x1157_C4A4_6E00_0002 ^ src_entity as u64 ^ self.descriptor_index as u64,
-        );
-        Some((src_entity, src_len, src_pos))
-    }
-
-    fn advance_source_position(&mut self) {
-        self.src_pos_offset += 1;
-        self.stage = ListChangeStage::Intra;
-        self.intra_dst_offset = 0;
-        self.dst_idx = 0;
-        self.inter_dst_pos_offset = 0;
-
-        while self.src_idx < self.route_lens.len()
-            && self.src_pos_offset >= self.route_lens[self.src_idx]
-        {
-            self.src_idx += 1;
-            self.src_pos_offset = 0;
-        }
-    }
-
-    fn push_move(
-        &mut self,
-        src_entity: usize,
-        src_pos: usize,
-        dst_entity: usize,
-        dst_pos: usize,
-    ) -> CandidateId {
-        self.store.push(ListChangeMove::new(
-            src_entity,
-            src_pos,
-            dst_entity,
-            dst_pos,
-            self.list_len,
-            self.list_get,
-            self.list_remove,
-            self.list_insert,
-            self.variable_name,
-            self.descriptor_index,
-        ))
+    fn new(inner: ChangeCursor<S, NativeChangeEmitter<S, V>>) -> Self {
+        Self { inner }
     }
 }
 
@@ -243,88 +67,30 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
     fn next_candidate(&mut self) -> Option<CandidateId> {
-        loop {
-            let (src_entity, src_len, src_pos) = self.current_source()?;
-            if src_len == 0 {
-                self.src_idx += 1;
-                continue;
-            }
-
-            match self.stage {
-                ListChangeStage::Intra => {
-                    while self.intra_dst_offset <= src_len {
-                        let dst_pos = ordered_index(
-                            self.intra_dst_offset,
-                            src_len + 1,
-                            self.context,
-                            0x1157_C4A4_6E00_0003 ^ src_entity as u64 ^ src_pos as u64,
-                        );
-                        self.intra_dst_offset += 1;
-                        if src_pos == dst_pos || dst_pos == src_pos + 1 {
-                            continue;
-                        }
-                        if self.element_owners.is_some()
-                            && !self.owner_allows_destination(self.src_idx, src_pos, src_entity)
-                        {
-                            continue;
-                        }
-                        if self.precedence_route_graph.as_ref().is_some_and(|graph| {
-                            graph.intra_list_change_introduces_cycle(src_entity, src_pos, dst_pos)
-                        }) {
-                            continue;
-                        }
-                        return Some(self.push_move(src_entity, src_pos, src_entity, dst_pos));
-                    }
-                    if self.fixed_to_current_entity {
-                        self.advance_source_position();
-                        continue;
-                    }
-                    self.stage = ListChangeStage::Inter;
-                    self.dst_idx = 0;
-                    self.inter_dst_pos_offset = 0;
-                }
-                ListChangeStage::Inter => {
-                    while self.dst_idx < self.entities.len() {
-                        if self.dst_idx == self.src_idx {
-                            self.dst_idx += 1;
-                            self.inter_dst_pos_offset = 0;
-                            continue;
-                        }
-                        let dst_entity = self.entities[self.dst_idx];
-                        let dst_len = self.route_lens[self.dst_idx];
-                        if self.inter_dst_pos_offset <= dst_len {
-                            let dst_pos = ordered_index(
-                                self.inter_dst_pos_offset,
-                                dst_len + 1,
-                                self.context,
-                                0x1157_C4A4_6E00_0004
-                                    ^ src_entity as u64
-                                    ^ dst_entity as u64
-                                    ^ src_pos as u64,
-                            );
-                            self.inter_dst_pos_offset += 1;
-                            if self.element_owners.is_some()
-                                && !self.owner_allows_destination(self.src_idx, src_pos, dst_entity)
-                            {
-                                continue;
-                            }
-                            return Some(self.push_move(src_entity, src_pos, dst_entity, dst_pos));
-                        }
-                        self.dst_idx += 1;
-                        self.inter_dst_pos_offset = 0;
-                    }
-                    self.advance_source_position();
-                }
-            }
-        }
+        self.inner.next_candidate()
     }
 
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, ListChangeMove<S, V>>> {
-        self.store.candidate(id)
+        self.inner.candidate(id)
     }
 
     fn take_candidate(&mut self, id: CandidateId) -> ListChangeMove<S, V> {
-        self.store.take_candidate(id)
+        self.inner.take_candidate(id)
+    }
+
+    fn next_owned_candidate(&mut self) -> Option<ListChangeMove<S, V>> {
+        self.inner.next_owned_candidate()
+    }
+
+    fn next_owned_candidate_matching(
+        &mut self,
+        predicate: for<'a> fn(MoveCandidateRef<'a, S, ListChangeMove<S, V>>) -> bool,
+    ) -> Option<ListChangeMove<S, V>> {
+        self.inner.next_owned_candidate_matching(predicate)
+    }
+
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.inner.release_candidate(id)
     }
 }
 
@@ -336,8 +102,7 @@ where
     type Item = ListChangeMove<S, V>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let id = self.next_candidate()?;
-        Some(self.take_candidate(id))
+        self.next_owned_candidate()
     }
 }
 
@@ -352,15 +117,7 @@ impl<S, V: Debug, ES: Debug> Debug for ListChangeMoveSelector<S, V, ES> {
 }
 
 impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
-    /// Creates a new list change move selector.
-    ///
-    /// # Arguments
-    /// * `entity_selector` - Selects entities to consider for moves
-    /// * `list_len` - Function to get list length for an entity
-    /// * `list_remove` - Function to remove element at position
-    /// * `list_insert` - Function to insert element at position
-    /// * `variable_name` - Name of the list variable
-    /// * `descriptor_index` - Entity descriptor index
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_selector: ES,
         list_len: fn(&S, usize) -> usize,
@@ -377,7 +134,6 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
             list_remove,
             list_insert,
             element_owner_fn: None,
-            precedence_route_hooks: None,
             variable_name,
             descriptor_index,
             _phantom: PhantomData,
@@ -390,18 +146,6 @@ impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
     ) -> Self {
         self.element_owner_fn = element_owner_fn;
         self
-    }
-
-    pub(crate) fn with_precedence_route_hooks(
-        mut self,
-        precedence_route_hooks: Option<PrecedenceRouteHooks<S, V>>,
-    ) -> Self {
-        self.precedence_route_hooks = precedence_route_hooks;
-        self
-    }
-
-    pub(crate) fn precedence_route_hooks(&self) -> Option<PrecedenceRouteHooks<S, V>> {
-        self.precedence_route_hooks
     }
 }
 
@@ -429,7 +173,7 @@ where
             collect_selected_entities(&self.entity_selector, score_director, self.list_len);
         selected.apply_stream_order(
             context,
-            0x1157_C4A4_6E00_0001 ^ self.descriptor_index as u64,
+            STATIC_CHANGE_SALTS.entity ^ self.descriptor_index as u64,
         );
         let owner_restrictions = crate::list_placement::selected_owner_restrictions(
             self.element_owner_fn,
@@ -441,24 +185,23 @@ where
             &selected.route_lens,
             self.list_get,
         );
-        let fixed_to_current_entity = owner_restrictions
-            .as_ref()
-            .is_some_and(SelectedOwnerRestrictions::is_fixed_to_current);
-        let element_owners = owner_restrictions.and_then(SelectedOwnerRestrictions::into_mixed);
-        ListChangeMoveCursor::new(
+        let owners = SelectedListOwners::from_selected_restrictions(owner_restrictions);
+        ListChangeMoveCursor::new(ChangeCursor::new(
+            NativeChangeEmitter::new(
+                self.list_len,
+                self.list_get,
+                self.list_remove,
+                self.list_insert,
+                self.variable_name,
+                self.descriptor_index,
+            ),
             selected.entities,
             selected.route_lens,
             context,
-            self.list_len,
-            self.list_get,
-            self.list_remove,
-            self.list_insert,
-            element_owners,
-            fixed_to_current_entity,
-            None,
-            self.variable_name,
+            STATIC_CHANGE_SALTS,
+            owners,
             self.descriptor_index,
-        )
+        ))
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
@@ -481,35 +224,41 @@ where
             return selected
                 .route_lens
                 .iter()
-                .map(|&src_len| src_len * list_change_intra_destination_count(src_len))
+                .map(|&source_len| source_len * list_change_intra_destination_count(source_len))
                 .sum();
         }
         let element_owners = owner_restrictions
             .mixed()
-            .expect("non-fixed owner restrictions must retain mixed owner matrix");
+            .expect("non-fixed owner restrictions retain their matrix");
 
         let mut count = 0;
-        for (src_idx, (&src_entity, &src_len)) in selected
+        for (source_idx, (&source_entity, &source_len)) in selected
             .entities
             .iter()
             .zip(selected.route_lens.iter())
             .enumerate()
         {
-            for src_pos in 0..src_len {
-                if selected_owner_allows(element_owners, src_idx, src_pos, src_entity) {
-                    count += list_change_intra_destination_count(src_len);
+            for source_position in 0..source_len {
+                if selected_owner_allows(element_owners, source_idx, source_position, source_entity)
+                {
+                    count += list_change_intra_destination_count(source_len);
                 }
-                for (dst_idx, (&dst_entity, &dst_len)) in selected
+                for (destination_idx, (&destination_entity, &destination_len)) in selected
                     .entities
                     .iter()
                     .zip(selected.route_lens.iter())
                     .enumerate()
                 {
-                    if dst_idx == src_idx {
+                    if destination_idx == source_idx {
                         continue;
                     }
-                    if selected_owner_allows(element_owners, src_idx, src_pos, dst_entity) {
-                        count += dst_len + 1;
+                    if selected_owner_allows(
+                        element_owners,
+                        source_idx,
+                        source_position,
+                        destination_entity,
+                    ) {
+                        count += destination_len + 1;
                     }
                 }
             }
@@ -519,6 +268,6 @@ where
 }
 
 #[inline]
-fn list_change_intra_destination_count(src_len: usize) -> usize {
-    src_len.saturating_sub(1)
+fn list_change_intra_destination_count(source_len: usize) -> usize {
+    source_len.saturating_sub(1)
 }

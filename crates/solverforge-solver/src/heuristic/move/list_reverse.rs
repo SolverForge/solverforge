@@ -11,13 +11,12 @@ Uses concrete function pointers for list operations. No `dyn Any`, no downcastin
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::metadata::{
-    encode_option_debug, encode_usize, scoped_move_identity, MoveTabuScope, ScopedValueTabuToken,
-    TABU_OP_LIST_REVERSE,
+use super::list_kernel::{
+    reverse_candidate_trace_identity, reverse_do_move, reverse_is_doable, reverse_tabu_signature,
+    ReverseCoordinates, StaticListReverseAccess,
 };
 use super::{Move, MoveTabuSignature};
 
@@ -144,6 +143,24 @@ impl<S, V> ListReverseMove<S, V> {
     pub fn segment_len(&self) -> usize {
         self.end.saturating_sub(self.start)
     }
+
+    fn access(&self) -> StaticListReverseAccess<S, V> {
+        StaticListReverseAccess {
+            list_len: self.list_len,
+            list_get: self.list_get,
+            list_reverse: self.list_reverse,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+        }
+    }
+
+    fn coordinates(&self) -> ReverseCoordinates {
+        ReverseCoordinates {
+            entity: self.entity_index,
+            start: self.start,
+            end: self.end,
+        }
+    }
 }
 
 impl<S, V> Move<S> for ListReverseMove<S, V>
@@ -154,36 +171,11 @@ where
     type Undo = ();
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
-        let solution = score_director.working_solution();
-
-        // Range must have at least 2 elements to be meaningful
-        if self.end <= self.start + 1 {
-            return false;
-        }
-
-        // Check range is within bounds
-        let len = (self.list_len)(solution, self.entity_index);
-        if self.end > len {
-            return false;
-        }
-
-        true
+        reverse_is_doable(&self.access(), self.coordinates(), score_director)
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
-        // Notify before change
-        score_director.before_variable_changed(self.descriptor_index, self.entity_index);
-
-        // Reverse the segment
-        (self.list_reverse)(
-            score_director.working_solution_mut(),
-            self.entity_index,
-            self.start,
-            self.end,
-        );
-
-        // Notify after change
-        score_director.after_variable_changed(self.descriptor_index, self.entity_index);
+        reverse_do_move(&self.access(), self.coordinates(), score_director);
     }
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, (): Self::Undo) {
@@ -207,26 +199,13 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let mut value_ids: SmallVec<[u64; 2]> = SmallVec::new();
-        for pos in self.start..self.end {
-            let value = (self.list_get)(score_director.working_solution(), self.entity_index, pos);
-            value_ids.push(encode_option_debug(value.as_ref()));
-        }
-        let entity_id = encode_usize(self.entity_index);
-        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
-        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = value_ids
-            .iter()
-            .copied()
-            .map(|value_id| scope.value_token(value_id))
-            .collect();
-        let move_id = scoped_move_identity(
-            scope,
-            TABU_OP_LIST_REVERSE,
-            [entity_id, encode_usize(self.start), encode_usize(self.end)],
-        );
+        reverse_tabu_signature(&self.access(), self.coordinates(), score_director)
+    }
 
-        MoveTabuSignature::new(scope, move_id.clone(), move_id)
-            .with_entity_tokens([scope.entity_token(entity_id)])
-            .with_destination_value_tokens(destination_value_tokens)
+    fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {
+        Some(reverse_candidate_trace_identity(
+            &self.access(),
+            self.coordinates(),
+        ))
     }
 }

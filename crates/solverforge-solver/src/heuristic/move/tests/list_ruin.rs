@@ -466,3 +466,5 @@ fn precedence_ruin_restores_original_when_recreate_has_no_safe_position() {
     assert!(undo.is_empty());
     assert_eq!(director.working_solution().routes[0].stops, vec![1, 2]);
 }
+
+mod transfer;

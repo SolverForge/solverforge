@@ -7,9 +7,9 @@ use smallvec::{smallvec, SmallVec};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::metadata::{
-    encode_option_debug, encode_usize, hash_str, MoveTabuScope, ScopedValueTabuToken,
-    TABU_OP_LIST_PERMUTE,
+use super::list_kernel::{
+    permute_candidate_trace_identity, permute_do_move, permute_is_doable, permute_tabu_signature,
+    permute_undo_move, PermuteCoordinates, StaticListWindowAccess,
 };
 use super::{Move, MoveTabuSignature};
 
@@ -124,6 +124,25 @@ impl<S, V> ListPermuteMove<S, V> {
     pub fn permutation(&self) -> &[usize] {
         &self.permutation
     }
+
+    fn access(&self) -> StaticListWindowAccess<S, V> {
+        StaticListWindowAccess {
+            list_len: self.list_len,
+            list_get: self.list_get,
+            sublist_remove: self.sublist_remove,
+            sublist_insert: self.sublist_insert,
+            variable_name: self.variable_name,
+            descriptor_index: self.descriptor_index,
+        }
+    }
+
+    fn coordinates(&self) -> PermuteCoordinates {
+        PermuteCoordinates {
+            entity: self.entity_index,
+            start: self.start,
+            end: self.end,
+        }
+    }
 }
 
 impl<S, V> Move<S> for ListPermuteMove<S, V>
@@ -134,51 +153,25 @@ where
     type Undo = Vec<V>;
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
-        let solution = score_director.working_solution();
-        let len = (self.list_len)(solution, self.entity_index);
-        self.start < self.end
-            && self.end <= len
-            && valid_non_identity_permutation(&self.permutation)
+        permute_is_doable(
+            &self.access(),
+            self.coordinates(),
+            &self.permutation,
+            score_director,
+        )
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
-        score_director.before_variable_changed(self.descriptor_index, self.entity_index);
-        let segment = (self.sublist_remove)(
-            score_director.working_solution_mut(),
-            self.entity_index,
-            self.start,
-            self.end,
-        );
-        let reordered = self
-            .permutation
-            .iter()
-            .map(|&index| segment[index].clone())
-            .collect();
-        (self.sublist_insert)(
-            score_director.working_solution_mut(),
-            self.entity_index,
-            self.start,
-            reordered,
-        );
-        score_director.after_variable_changed(self.descriptor_index, self.entity_index);
-        segment
+        permute_do_move(
+            &self.access(),
+            self.coordinates(),
+            &self.permutation,
+            score_director,
+        )
     }
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
-        score_director.before_variable_changed(self.descriptor_index, self.entity_index);
-        let _ = (self.sublist_remove)(
-            score_director.working_solution_mut(),
-            self.entity_index,
-            self.start,
-            self.end,
-        );
-        (self.sublist_insert)(
-            score_director.working_solution_mut(),
-            self.entity_index,
-            self.start,
-            undo,
-        );
-        score_director.after_variable_changed(self.descriptor_index, self.entity_index);
+        permute_undo_move(&self.access(), self.coordinates(), undo, score_director);
     }
 
     fn descriptor_index(&self) -> usize {
@@ -198,64 +191,22 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
-        let entity_id = encode_usize(self.entity_index);
-        let variable_id = hash_str(self.variable_name);
-        let mut touched_value_ids = SmallVec::<[u64; 8]>::new();
-        for pos in self.start..self.end {
-            let value = (self.list_get)(score_director.working_solution(), self.entity_index, pos);
-            touched_value_ids.push(encode_option_debug(value.as_ref()));
-        }
-
-        let mut move_id = smallvec![
-            TABU_OP_LIST_PERMUTE,
-            encode_usize(self.descriptor_index),
-            variable_id,
-            entity_id,
-            encode_usize(self.start),
-            encode_usize(self.end),
-        ];
-        move_id.extend(self.permutation.iter().copied().map(encode_usize));
-        move_id.extend(touched_value_ids.iter().copied());
-
-        let mut undo_move_id = smallvec![
-            TABU_OP_LIST_PERMUTE,
-            encode_usize(self.descriptor_index),
-            variable_id,
-            entity_id,
-            encode_usize(self.start),
-            encode_usize(self.end),
-        ];
-        undo_move_id.extend(self.inverse_permutation.iter().copied().map(encode_usize));
-        undo_move_id.extend(touched_value_ids.iter().copied());
-
-        let destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]> = touched_value_ids
-            .iter()
-            .copied()
-            .map(|value_id| scope.value_token(value_id))
-            .collect();
-
-        MoveTabuSignature::new(scope, move_id, undo_move_id)
-            .with_entity_tokens([scope.entity_token(entity_id)])
-            .with_destination_value_tokens(destination_value_tokens)
+        permute_tabu_signature(
+            &self.access(),
+            self.coordinates(),
+            &self.permutation,
+            &self.inverse_permutation,
+            score_director,
+        )
     }
-}
 
-fn valid_non_identity_permutation(permutation: &[usize]) -> bool {
-    let len = permutation.len();
-    if !(2..=MAX_LIST_PERMUTE_WINDOW_SIZE).contains(&len) {
-        return false;
+    fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {
+        Some(permute_candidate_trace_identity(
+            &self.access(),
+            self.coordinates(),
+            &self.permutation,
+        ))
     }
-    let mut seen = [false; MAX_LIST_PERMUTE_WINDOW_SIZE];
-    let mut is_identity = true;
-    for (idx, &value) in permutation.iter().enumerate() {
-        if value >= len || seen[value] {
-            return false;
-        }
-        seen[value] = true;
-        is_identity &= value == idx;
-    }
-    !is_identity
 }
 
 fn inverse_permutation(permutation: &[usize]) -> SmallVec<[usize; MAX_LIST_PERMUTE_WINDOW_SIZE]> {

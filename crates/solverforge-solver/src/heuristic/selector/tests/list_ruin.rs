@@ -59,13 +59,6 @@ fn invalid_owner(_: &VrpSolution, element: &i32) -> Option<usize> {
 fn fixed_owner(_: &VrpSolution, element: &i32) -> Option<usize> {
     Some((*element / 100) as usize)
 }
-fn only_two_owner(_: &VrpSolution, element: &i32) -> Option<usize> {
-    if *element == 2 {
-        Some(0)
-    } else {
-        Some(99)
-    }
-}
 fn precedence_element_count(_: &VrpSolution) -> usize {
     3
 }
@@ -302,36 +295,6 @@ fn precedence_ruin_recreate_skips_cycle_forming_insertions() {
         Some(precedence_successors),
     );
 
-    mov.do_move(&mut director);
-
-    assert_eq!(director.working_solution().routes[0].stops, vec![1, 2, 3]);
-}
-
-#[test]
-fn precedence_ruin_cursor_passes_recreate_filter_to_moves() {
-    let mut director = create_director(vec![vec![1, 2, 3]]);
-    let selector = ListRuinMoveSelector::<VrpSolution, i32>::new(
-        1,
-        1,
-        entity_count,
-        list_len,
-        list_get,
-        list_remove,
-        list_insert,
-        "stops",
-        0,
-    )
-    .with_element_owner_fn(Some(only_two_owner))
-    .with_precedence_hooks(
-        Some(precedence_element_count),
-        Some(precedence_index_to_element),
-        Some(precedence_successors),
-    )
-    .with_moves_per_step(1)
-    .with_seed(7);
-
-    let mov = selector.iter_moves(&director).next().expect("ruin move");
-    assert_eq!(mov.element_indices(), &[1]);
     mov.do_move(&mut director);
 
     assert_eq!(director.working_solution().routes[0].stops, vec![1, 2, 3]);

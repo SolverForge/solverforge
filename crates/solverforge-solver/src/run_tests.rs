@@ -1,9 +1,18 @@
-use super::{build_termination, load_solver_config_from, log_solve_start, AnyTermination};
-use crate::manager::SolverTerminalReason;
+use super::{
+    build_termination, load_solver_config_from, log_solve_start,
+    try_run_solver_with_config_and_search, AnyTermination,
+};
+use crate::builder::{RuntimeModel, SearchContext};
+use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::Phase;
 use crate::scope::{ProgressCallback, SolverScope};
 use crate::solver::Solver;
-use solverforge_config::SolverConfig;
+use crate::stats::{
+    CandidateTraceExternalDigest, CandidateTraceQualificationStatus,
+    QualifiedCandidateTraceRunProvenance,
+};
+use crate::DefaultCrossEntityDistanceMeter;
+use solverforge_config::{CandidateTraceConfig, SolverConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::{
@@ -11,6 +20,11 @@ use solverforge_scoring::{
 };
 use std::any::TypeId;
 use std::fs;
+use std::num::NonZeroUsize;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Clone)]
@@ -137,6 +151,46 @@ fn temp_config_path() -> std::path::PathBuf {
         .join("solver.toml")
 }
 
+fn test_descriptor() -> SolutionDescriptor {
+    SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+}
+
+fn test_entity_count(_solution: &TestSolution, _descriptor_index: usize) -> usize {
+    0
+}
+
+fn noop_log_scale(_solution: &TestSolution) {}
+
+#[test]
+fn zero_variable_run_builds_the_normal_graph_and_search_declaration() {
+    let declarations = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&declarations);
+    let result = try_run_solver_with_config_and_search(
+        TestSolution { score: None },
+        ScoreFromSolutionConstraints,
+        test_descriptor(),
+        test_entity_count,
+        SolverRuntime::detached(),
+        SolverConfig::default(),
+        30,
+        noop_log_scale,
+        None,
+        move |config, descriptor| {
+            observed.fetch_add(1, Ordering::SeqCst);
+            let model = RuntimeModel::<
+                TestSolution,
+                usize,
+                DefaultCrossEntityDistanceMeter,
+                DefaultCrossEntityDistanceMeter,
+            >::new(Vec::new());
+            Ok(SearchContext::try_new(descriptor, model, config.random_seed)?.defaults())
+        },
+    );
+
+    result.unwrap_or_else(|error| panic!("zero-variable compiled run failed: {error}"));
+    assert_eq!(declarations.load(Ordering::SeqCst), 1);
+}
+
 #[test]
 fn load_solver_config_from_preserves_file_settings() {
     let path = temp_config_path();
@@ -173,6 +227,26 @@ fn build_termination_preserves_missing_time_limit_as_unlimited() {
 
     assert!(matches!(termination, AnyTermination::None(_)));
     assert_eq!(time_limit, None);
+}
+
+#[test]
+fn build_termination_treats_empty_and_invalid_only_configs_as_unlimited() {
+    for termination_config in [
+        solverforge_config::TerminationConfig::default(),
+        solverforge_config::TerminationConfig {
+            best_score_limit: Some("not-a-score".to_string()),
+            ..solverforge_config::TerminationConfig::default()
+        },
+    ] {
+        let config = SolverConfig {
+            termination: Some(termination_config),
+            ..SolverConfig::default()
+        };
+        let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+
+        assert!(matches!(termination, AnyTermination::None(_)));
+        assert_eq!(time_limit, None);
+    }
 }
 
 #[test]
@@ -320,4 +394,49 @@ fn log_solve_start_rejects_ambiguous_scale() {
         panic!("unexpected panic payload");
     };
     assert!(message.contains("requires exactly one solve scale"));
+}
+
+#[test]
+fn qualified_solver_trace_preserves_exact_attestation_without_upgrading_normal_trace() {
+    let config = SolverConfig {
+        candidate_trace: Some(CandidateTraceConfig::new(
+            NonZeroUsize::new(1).expect("one is non-zero"),
+        )),
+        ..SolverConfig::default()
+    };
+    let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
+    let director = ScoreDirector::with_descriptor(
+        TestSolution {
+            score: Some(SoftScore::ZERO),
+        },
+        ScoreFromSolutionConstraints,
+        descriptor,
+        |_, _| 1,
+    );
+    let digest = |byte| CandidateTraceExternalDigest::sha256([byte; 32]);
+    let qualified = QualifiedCandidateTraceRunProvenance::externally_attested(
+        digest(1),
+        digest(2),
+        digest(3),
+        digest(4),
+        digest(5),
+        "solverforge-bench",
+    )
+    .expect("complete externally supplied run provenance qualifies");
+
+    let result = Solver::new((IncrementScorePhase { max_score: 0 },))
+        .with_config(config)
+        .with_qualified_candidate_trace_run_provenance(qualified.clone())
+        .solve(director);
+    let trace = result
+        .stats()
+        .snapshot()
+        .candidate_trace
+        .expect("enabled trace is retained in final telemetry");
+
+    assert_eq!(trace.require_qualified_run_provenance(), Ok(&qualified));
+    assert_eq!(
+        trace.provenance_status().qualification,
+        CandidateTraceQualificationStatus::Qualified,
+    );
 }

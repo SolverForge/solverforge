@@ -28,11 +28,18 @@ mod local_search;
 
 pub use construction::ConstructionPhaseFactory;
 pub use k_opt::{KOptPhase, KOptPhaseBuilder};
+pub(crate) use list_clarke_wright::run_clarke_wright;
 pub use list_clarke_wright::ListClarkeWrightPhase;
-pub(crate) use list_construction::solve_specialized_list_construction;
+pub(crate) use list_construction::{
+    run_cheapest, run_regret, run_round_robin, PhaseCheapestInsertionObserver,
+    ScoredListConstructionAccess,
+};
+#[cfg(test)]
+pub(crate) use list_construction::{CheapestInsertionObserver, CheapestInsertionTrial};
 pub use list_construction::{
     ListCheapestInsertionPhase, ListConstructionPhase, ListConstructionPhaseBuilder,
     ListRegretInsertionPhase,
 };
+pub(crate) use list_k_opt::run_list_k_opt;
 pub use list_k_opt::ListKOptPhase;
 pub use local_search::LocalSearchPhaseFactory;

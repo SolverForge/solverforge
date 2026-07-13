@@ -7,21 +7,23 @@ All builders return concrete monomorphized enums — no `Box<dyn Trait>`.
 pub mod acceptor;
 pub mod context;
 pub mod forager;
-mod list_selector;
-mod scalar_selector;
 pub mod search;
-pub mod selector;
+pub(crate) mod selector;
 
 pub use acceptor::{AcceptorBuilder, AnyAcceptor};
 pub use context::{
-    bind_scalar_groups, ConflictRepair, IntraDistanceAdapter, ListVariableSlot, RepairCandidate,
-    RepairLimits, RuntimeModel, ScalarAssignmentBinding, ScalarCandidate, ScalarEdit,
+    bind_scalar_groups, usize_element_source_key, ConflictRepair, IntraDistanceAdapter,
+    ListVariableSlot, RepairCandidate, RepairLimits, RuntimeCandidateMetric,
+    RuntimeCandidateMetricBinding, RuntimeCandidateMetricRegistry, RuntimeHostCompoundProvider,
+    RuntimeHostProviderErrorBoundary, RuntimeModel, RuntimeProviderHandle, RuntimeProviderLimits,
+    RuntimeProviderRegistry, RuntimeScalarEdit, RuntimeScalarSlot, RuntimeScalarSlotId,
+    ScalarAccessCapability, ScalarAssignmentBinding, ScalarCandidate, ScalarEdit,
     ScalarGroupBinding, ScalarGroupBindingKind, ScalarGroupLimits, ScalarGroupMemberBinding,
-    ScalarVariableSlot, ValueSource, VariableSlot,
+    ScalarVariableSlot, StaticConflictRepairProviderBinding, StaticScalarGroupProviderBinding,
+    ValueSource, VariableSlot,
 };
 pub use forager::{AnyForager, ForagerBuilder};
-pub use search::{build_search, local_search, CustomSearchPhase, Search, SearchContext};
-pub use selector::{
-    build_local_search, build_move_selector, GroupedScalarCursor, GroupedScalarSelector,
-    LocalSearch, LocalSearchStrategy, Neighborhood, NeighborhoodLeaf, NeighborhoodMove, Selector,
+pub use search::{
+    local_search, CustomSearchPhase, NoDynamicExtensions, NoTypedExtensions,
+    RuntimeExtensionPolicy, RuntimeExtensionRegistry, Search, SearchContext,
 };

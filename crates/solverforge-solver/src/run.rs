@@ -1,21 +1,34 @@
 /* Solver entry point. */
 
 use std::fmt;
+use std::hash::Hash;
 use std::marker::PhantomData;
-use std::path::Path;
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::time::Duration;
 
-use solverforge_config::SolverConfig;
+#[cfg(test)]
+use std::path::Path;
+
+use solverforge_config::{SolverConfig, TerminationConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::{ConstraintSet, Director, ScoreDirector};
 use tracing::info;
 
+use crate::builder::{RuntimeExtensionRegistry, Search};
 use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::Phase;
+use crate::runtime::compiler::executor::{
+    take_runtime_execution_failure, CompiledRuntimePhaseRunner,
+};
+use crate::runtime::compiler::{compile_runtime_graph, CompiledRuntimeExecutor, RuntimeGraphInput};
+use crate::runtime_build_error::{RuntimeBuildError, RuntimeBuildResult};
 use crate::scope::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 use crate::solver::{NoTermination, Solver};
-use crate::stats::{format_duration, whole_units_per_second};
+use crate::stats::{
+    format_duration, whole_units_per_second, CandidateTraceExecutionPolicy,
+    QualifiedCandidateTraceRunProvenance,
+};
 use crate::termination::{
     BestScoreTermination, OrTermination, StepCountTermination, Termination, TimeTermination,
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
@@ -120,6 +133,71 @@ where
     }
 }
 
+/// Parsed solver termination policy shared by runtime phase assembly and the
+/// top-level termination builder.
+///
+/// `TerminationConfig` historically chooses the first configured score/work
+/// criterion in this order: best score, step count, unimproved steps,
+/// unimproved time. A configured time limit is paired with that criterion, or
+/// is the policy itself when no other criterion is present. Keeping that
+/// precedence here prevents phase assembly from treating an empty or
+/// unparsable configuration as a finite solver boundary.
+#[derive(Clone, Copy)]
+pub(crate) struct ConfiguredTermination<Sc> {
+    time_limit: Option<Duration>,
+    criterion: Option<ConfiguredTerminationCriterion<Sc>>,
+}
+
+#[derive(Clone, Copy)]
+enum ConfiguredTerminationCriterion<Sc> {
+    BestScore(Sc),
+    StepCount(u64),
+    UnimprovedStepCount(u64),
+    UnimprovedTime(Duration),
+}
+
+impl<Sc> ConfiguredTermination<Sc> {
+    pub(crate) fn has_effective_limit(&self) -> bool {
+        self.time_limit.is_some() || self.criterion.is_some()
+    }
+}
+
+pub(crate) fn parse_configured_termination<S>(
+    config: Option<&TerminationConfig>,
+) -> ConfiguredTermination<S::Score>
+where
+    S: PlanningSolution,
+    S::Score: ParseableScore,
+{
+    let time_limit = config.and_then(TerminationConfig::time_limit);
+    let criterion = config.and_then(|config| {
+        config
+            .best_score_limit
+            .as_deref()
+            .and_then(|score| S::Score::parse(score).ok())
+            .map(ConfiguredTerminationCriterion::BestScore)
+            .or_else(|| {
+                config
+                    .step_count_limit
+                    .map(ConfiguredTerminationCriterion::StepCount)
+            })
+            .or_else(|| {
+                config
+                    .unimproved_step_count_limit
+                    .map(ConfiguredTerminationCriterion::UnimprovedStepCount)
+            })
+            .or_else(|| {
+                config
+                    .unimproved_time_limit()
+                    .map(ConfiguredTerminationCriterion::UnimprovedTime)
+            })
+    });
+    ConfiguredTermination {
+        time_limit,
+        criterion,
+    }
+}
+
 /// Builds a termination from config, returning both the termination and the time limit.
 pub fn build_termination<S, C>(
     config: &SolverConfig,
@@ -130,67 +208,173 @@ where
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
 {
-    let term_config = config.termination.as_ref();
-    let configured_time_limit = term_config.and_then(|c| c.time_limit());
+    let ConfiguredTermination {
+        time_limit: configured_time_limit,
+        criterion,
+    } = parse_configured_termination::<S>(config.termination.as_ref());
     let fallback_time_limit = Duration::from_secs(default_secs);
 
-    let best_score_target: Option<S::Score> = term_config
-        .and_then(|c| c.best_score_limit.as_ref())
-        .and_then(|s| S::Score::parse(s).ok());
-
-    let (termination, effective_time_limit) = if let Some(target) = best_score_target {
-        let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
-        let time = TimeTermination::new(effective_time_limit);
-        (
-            AnyTermination::WithBestScore(OrTermination::new((
-                time,
-                BestScoreTermination::new(target),
-            ))),
-            Some(effective_time_limit),
-        )
-    } else if let Some(step_limit) = term_config.and_then(|c| c.step_count_limit) {
-        let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
-        let time = TimeTermination::new(effective_time_limit);
-        (
-            AnyTermination::WithStepCount(OrTermination::new((
-                time,
-                StepCountTermination::new(step_limit),
-            ))),
-            Some(effective_time_limit),
-        )
-    } else if let Some(unimproved_step_limit) =
-        term_config.and_then(|c| c.unimproved_step_count_limit)
-    {
-        let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
-        let time = TimeTermination::new(effective_time_limit);
-        (
-            AnyTermination::WithUnimprovedStep(OrTermination::new((
-                time,
-                UnimprovedStepCountTermination::<S>::new(unimproved_step_limit),
-            ))),
-            Some(effective_time_limit),
-        )
-    } else if let Some(unimproved_time) = term_config.and_then(|c| c.unimproved_time_limit()) {
-        let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
-        let time = TimeTermination::new(effective_time_limit);
-        (
-            AnyTermination::WithUnimprovedTime(OrTermination::new((
-                time,
-                UnimprovedTimeTermination::<S>::new(unimproved_time),
-            ))),
-            Some(effective_time_limit),
-        )
-    } else if let Some(limit) = configured_time_limit {
-        let time = TimeTermination::new(limit);
-        (
-            AnyTermination::Default(OrTermination::new((time,))),
-            Some(limit),
-        )
-    } else {
-        (AnyTermination::None(NoTermination), None)
+    let (termination, effective_time_limit) = match criterion {
+        Some(ConfiguredTerminationCriterion::BestScore(target)) => {
+            let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
+            let time = TimeTermination::new(effective_time_limit);
+            (
+                AnyTermination::WithBestScore(OrTermination::new((
+                    time,
+                    BestScoreTermination::new(target),
+                ))),
+                Some(effective_time_limit),
+            )
+        }
+        Some(ConfiguredTerminationCriterion::StepCount(step_limit)) => {
+            let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
+            let time = TimeTermination::new(effective_time_limit);
+            (
+                AnyTermination::WithStepCount(OrTermination::new((
+                    time,
+                    StepCountTermination::new(step_limit),
+                ))),
+                Some(effective_time_limit),
+            )
+        }
+        Some(ConfiguredTerminationCriterion::UnimprovedStepCount(unimproved_step_limit)) => {
+            let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
+            let time = TimeTermination::new(effective_time_limit);
+            (
+                AnyTermination::WithUnimprovedStep(OrTermination::new((
+                    time,
+                    UnimprovedStepCountTermination::<S>::new(unimproved_step_limit),
+                ))),
+                Some(effective_time_limit),
+            )
+        }
+        Some(ConfiguredTerminationCriterion::UnimprovedTime(unimproved_time)) => {
+            let effective_time_limit = configured_time_limit.unwrap_or(fallback_time_limit);
+            let time = TimeTermination::new(effective_time_limit);
+            (
+                AnyTermination::WithUnimprovedTime(OrTermination::new((
+                    time,
+                    UnimprovedTimeTermination::<S>::new(unimproved_time),
+                ))),
+                Some(effective_time_limit),
+            )
+        }
+        None => configured_time_limit.map_or_else(
+            || (AnyTermination::None(NoTermination), None),
+            |limit| {
+                let time = TimeTermination::new(limit);
+                (
+                    AnyTermination::Default(OrTermination::new((time,))),
+                    Some(limit),
+                )
+            },
+        ),
     };
 
     (termination, effective_time_limit)
+}
+
+/// Records the termination policy the configured runtime actually installed.
+///
+/// This deliberately derives its time guard from `build_termination`'s
+/// returned effective limit rather than from the input TOML.  In particular,
+/// a score/work criterion without an explicit time limit gets the configured
+/// entrypoint's fallback guard, and that injected guard is material to both
+/// bounded-work and fixed-budget comparisons.
+pub(crate) fn configured_execution_policy<S>(
+    config: &SolverConfig,
+    default_secs: u64,
+    effective_time_limit: Option<Duration>,
+) -> CandidateTraceExecutionPolicy
+where
+    S: PlanningSolution,
+    S::Score: ParseableScore + std::fmt::Display,
+{
+    let configured = parse_configured_termination::<S>(config.termination.as_ref());
+    let configured_time_limit = configured.time_limit;
+    let criterion = configured.criterion;
+    let fallback_time_limit = Duration::from_secs(default_secs);
+
+    let time_limit_source = match (configured_time_limit, effective_time_limit) {
+        (Some(_), Some(_)) => "configured",
+        (None, Some(_)) if criterion.is_some() => "configured_entrypoint_fallback",
+        (None, Some(_)) => "internal",
+        (_, None) => "not_installed",
+    };
+    let mut attributes = vec![
+        ("entrypoint".to_string(), "configured_runtime".to_string()),
+        (
+            "configured_time_limit_ns".to_string(),
+            configured_time_limit.map_or_else(|| "none".to_string(), duration_nanos),
+        ),
+        (
+            "configured_entrypoint_default_time_limit_ns".to_string(),
+            duration_nanos(fallback_time_limit),
+        ),
+        (
+            "effective_time_limit_ns".to_string(),
+            effective_time_limit.map_or_else(|| "none".to_string(), duration_nanos),
+        ),
+        (
+            "time_limit_source".to_string(),
+            time_limit_source.to_string(),
+        ),
+    ];
+
+    match criterion {
+        Some(ConfiguredTerminationCriterion::BestScore(target)) => {
+            attributes.push(("criterion".to_string(), "best_score".to_string()));
+            attributes.push(("criterion_target".to_string(), target.to_string()));
+            attributes.push((
+                "termination_composition".to_string(),
+                "time_or_best_score".to_string(),
+            ));
+        }
+        Some(ConfiguredTerminationCriterion::StepCount(limit)) => {
+            attributes.push(("criterion".to_string(), "step_count".to_string()));
+            attributes.push(("criterion_target".to_string(), limit.to_string()));
+            attributes.push((
+                "termination_composition".to_string(),
+                "time_or_step_count".to_string(),
+            ));
+        }
+        Some(ConfiguredTerminationCriterion::UnimprovedStepCount(limit)) => {
+            attributes.push(("criterion".to_string(), "unimproved_step_count".to_string()));
+            attributes.push(("criterion_target".to_string(), limit.to_string()));
+            attributes.push((
+                "termination_composition".to_string(),
+                "time_or_unimproved_step_count".to_string(),
+            ));
+        }
+        Some(ConfiguredTerminationCriterion::UnimprovedTime(limit)) => {
+            attributes.push(("criterion".to_string(), "unimproved_time".to_string()));
+            attributes.push(("criterion_target_ns".to_string(), duration_nanos(limit)));
+            attributes.push((
+                "termination_composition".to_string(),
+                "time_or_unimproved_time".to_string(),
+            ));
+        }
+        None if effective_time_limit.is_some() => {
+            attributes.push(("criterion".to_string(), "none".to_string()));
+            attributes.push((
+                "termination_composition".to_string(),
+                "time_only".to_string(),
+            ));
+        }
+        None => {
+            attributes.push(("criterion".to_string(), "none".to_string()));
+            attributes.push((
+                "termination_composition".to_string(),
+                "unbounded".to_string(),
+            ));
+        }
+    }
+
+    CandidateTraceExecutionPolicy::known("solverforge.execution_policy", attributes)
+}
+
+fn duration_nanos(duration: Duration) -> String {
+    duration.as_nanos().to_string()
 }
 
 pub fn log_solve_start(
@@ -216,89 +400,27 @@ pub fn log_solve_start(
             );
         }
         _ => {
-            panic!("log_solve_start requires exactly one solve scale: list elements or scalar candidates");
+            panic!(
+                "log_solve_start requires exactly one solve scale: list elements or scalar candidates"
+            );
         }
     }
 }
 
+#[cfg(test)]
 fn load_solver_config_from(path: impl AsRef<Path>) -> SolverConfig {
     SolverConfig::load(path).unwrap_or_default()
 }
 
-fn load_solver_config() -> SolverConfig {
-    load_solver_config_from("solver.toml")
-}
-
+/// Runs one configured model through the immutable runtime graph compiler and
+/// retained compiled runner.
+///
+/// `build_search` creates the one descriptor-resolved declaration consumed by
+/// the compiled graph. Every model, including a zero-work model, follows this
+/// one lifecycle; the public API never exposes a graph, prepared source
+/// catalog, or phase-builder fallback.
 #[allow(clippy::too_many_arguments)]
-pub fn run_solver<S, C, P, BuildPhases>(
-    solution: S,
-    constraints_fn: fn() -> C,
-    descriptor: fn() -> SolutionDescriptor,
-    entity_count_by_descriptor: fn(&S, usize) -> usize,
-    runtime: SolverRuntime<S>,
-    default_time_limit_secs: u64,
-    is_trivial: fn(&S) -> bool,
-    log_scale: fn(&S),
-    build_phases: BuildPhases,
-) -> S
-where
-    S: PlanningSolution,
-    S::Score: Score + ParseableScore,
-    C: ConstraintSet<S, S::Score>,
-    P: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>> + Send + std::fmt::Debug,
-    BuildPhases: Fn(&SolverConfig) -> P,
-{
-    let config = load_solver_config();
-    run_solver_with_config(
-        solution,
-        constraints_fn,
-        descriptor,
-        entity_count_by_descriptor,
-        runtime,
-        config,
-        default_time_limit_secs,
-        is_trivial,
-        log_scale,
-        build_phases,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn run_solver_with_config<S, C, P, BuildPhases>(
-    solution: S,
-    constraints_fn: fn() -> C,
-    descriptor: fn() -> SolutionDescriptor,
-    entity_count_by_descriptor: fn(&S, usize) -> usize,
-    runtime: SolverRuntime<S>,
-    config: SolverConfig,
-    default_time_limit_secs: u64,
-    is_trivial: fn(&S) -> bool,
-    log_scale: fn(&S),
-    build_phases: BuildPhases,
-) -> S
-where
-    S: PlanningSolution,
-    S::Score: Score + ParseableScore,
-    C: ConstraintSet<S, S::Score>,
-    P: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>> + Send + std::fmt::Debug,
-    BuildPhases: Fn(&SolverConfig) -> P,
-{
-    run_solver_with_config_parts(
-        solution,
-        constraints_fn(),
-        descriptor(),
-        entity_count_by_descriptor,
-        runtime,
-        config,
-        default_time_limit_secs,
-        is_trivial,
-        log_scale,
-        |config, _descriptor| build_phases(config),
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn run_solver_with_config_parts<S, C, P, BuildPhases>(
+pub fn try_run_solver_with_config_and_search<S, C, V, DM, IDM, Declaration, BuildSearch>(
     solution: S,
     constraints: C,
     descriptor: SolutionDescriptor,
@@ -306,20 +428,127 @@ pub fn run_solver_with_config_parts<S, C, P, BuildPhases>(
     runtime: SolverRuntime<S>,
     config: SolverConfig,
     default_time_limit_secs: u64,
-    is_trivial: fn(&S) -> bool,
     log_scale: fn(&S),
-    build_phases: BuildPhases,
-) -> S
+    qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
+    build_search: BuildSearch,
+) -> RuntimeBuildResult<S>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    S::Score: Score + Copy + Ord + ParseableScore,
+    C: ConstraintSet<S, S::Score>,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + fmt::Debug + 'static,
+    DM: crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>
+        + Clone
+        + Send
+        + Sync
+        + fmt::Debug
+        + 'static,
+    IDM: crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>
+        + Clone
+        + Send
+        + Sync
+        + fmt::Debug
+        + 'static,
+    Declaration: Search<S, V, DM, IDM>,
+    Declaration::Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>,
+    BuildSearch: FnOnce(&SolverConfig, SolutionDescriptor) -> RuntimeBuildResult<Declaration>,
+{
+    try_run_solver_with_config_and_search_request(
+        solution,
+        constraints,
+        descriptor,
+        entity_count_by_descriptor,
+        runtime,
+        config,
+        default_time_limit_secs,
+        log_scale,
+        qualified_candidate_trace_provenance,
+        build_search,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn try_run_solver_with_config_and_search_request<S, C, V, DM, IDM, Declaration, BuildSearch>(
+    solution: S,
+    constraints: C,
+    descriptor: SolutionDescriptor,
+    entity_count_by_descriptor: fn(&S, usize) -> usize,
+    runtime: SolverRuntime<S>,
+    config: SolverConfig,
+    default_time_limit_secs: u64,
+    log_scale: fn(&S),
+    qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
+    build_search: BuildSearch,
+) -> RuntimeBuildResult<S>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    S::Score: Score + Copy + Ord + ParseableScore,
+    C: ConstraintSet<S, S::Score>,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + fmt::Debug + 'static,
+    DM: crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>
+        + Clone
+        + Send
+        + Sync
+        + fmt::Debug
+        + 'static,
+    IDM: crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>
+        + Clone
+        + Send
+        + Sync
+        + fmt::Debug
+        + 'static,
+    Declaration: Search<S, V, DM, IDM>,
+    Declaration::Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>,
+    BuildSearch: FnOnce(&SolverConfig, SolutionDescriptor) -> RuntimeBuildResult<Declaration>,
+{
+    try_run_solver_with_candidate_trace_request(
+        solution,
+        constraints,
+        descriptor,
+        entity_count_by_descriptor,
+        runtime,
+        config,
+        default_time_limit_secs,
+        log_scale,
+        qualified_candidate_trace_provenance,
+        move |config, descriptor| {
+            let declaration = build_search(config, descriptor.clone())?;
+            let (context, extensions) = declaration.into_runtime_parts();
+            let graph = compile_runtime_graph(config, RuntimeGraphInput::new(context, extensions))
+                .map_err(|error| {
+                    let message = error.to_string();
+                    RuntimeBuildError::Compilation {
+                        path: error.path,
+                        message,
+                    }
+                })?;
+            let executor = CompiledRuntimeExecutor::new(graph);
+            CompiledRuntimePhaseRunner::try_new(&executor)
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn try_run_solver_with_candidate_trace_request<S, C, Runner, BuildRunner>(
+    solution: S,
+    constraints: C,
+    descriptor: SolutionDescriptor,
+    entity_count_by_descriptor: fn(&S, usize) -> usize,
+    runtime: SolverRuntime<S>,
+    config: SolverConfig,
+    default_time_limit_secs: u64,
+    log_scale: fn(&S),
+    qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
+    build_runner: BuildRunner,
+) -> RuntimeBuildResult<S>
 where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
-    P: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>> + Send + std::fmt::Debug,
-    BuildPhases: Fn(&SolverConfig, &SolutionDescriptor) -> P,
+    Runner: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>> + Send + std::fmt::Debug,
+    BuildRunner: FnOnce(&SolverConfig, &SolutionDescriptor) -> RuntimeBuildResult<Runner>,
 {
     log_scale(&solution);
-    let trivial = is_trivial(&solution);
-
     let director = ScoreDirector::with_descriptor(
         solution,
         constraints,
@@ -327,50 +556,44 @@ where
         entity_count_by_descriptor,
     );
 
-    if trivial {
-        let mut solver_scope = SolverScope::new(director);
-        solver_scope = solver_scope.with_runtime(Some(runtime));
-        solver_scope = solver_scope.with_environment_mode(config.environment_mode);
-        if let Some(seed) = config.random_seed {
-            solver_scope = solver_scope.with_seed(seed);
-        }
-        solver_scope.start_solving();
-        let score = solver_scope.calculate_score();
-        let solution = solver_scope.score_director().clone_working_solution();
-        solver_scope.set_best_solution(solution.clone(), score);
-        solver_scope.report_best_solution();
-        solver_scope.pause_if_requested();
-        info!(event = "solve_end", score = %score);
-        let telemetry = solver_scope.stats().snapshot();
-        if runtime.is_cancel_requested() {
-            runtime.emit_cancelled(Some(score), Some(score), telemetry);
-        } else {
-            runtime.emit_completed(
-                solution.clone(),
-                Some(score),
-                score,
-                telemetry,
-                SolverTerminalReason::Completed,
-            );
-        }
-        return solution;
-    }
-
     let (termination, time_limit) = build_termination::<S, C>(&config, default_time_limit_secs);
+    let execution_policy =
+        configured_execution_policy::<S>(&config, default_time_limit_secs, time_limit);
 
     let callback = ChannelProgressCallback::new(runtime);
 
-    let phases = build_phases(&config, &descriptor);
-    let mut solver = Solver::new((phases,))
+    let runner = match build_runner(&config, &descriptor) {
+        Ok(runner) => runner,
+        Err(error) => {
+            runtime.emit_failed(error.to_string());
+            return Err(error);
+        }
+    };
+    let mut solver = Solver::new((runner,))
         .with_config(config.clone())
+        .with_candidate_trace_execution_policy(execution_policy)
         .with_termination(termination)
         .with_runtime(runtime)
         .with_progress_callback(callback);
+    if let Some(provenance) = qualified_candidate_trace_provenance {
+        solver = solver.with_qualified_candidate_trace_run_provenance(provenance);
+    }
     if let Some(time_limit) = time_limit {
         solver = solver.with_time_limit(time_limit);
     }
 
-    let result = solver.with_terminate(runtime.cancel_flag()).solve(director);
+    let result = match catch_unwind(AssertUnwindSafe(|| {
+        solver.with_terminate(runtime.cancel_flag()).solve(director)
+    })) {
+        Ok(result) => result,
+        Err(payload) => match take_runtime_execution_failure(payload) {
+            Ok(error) => {
+                runtime.emit_failed(error.to_string());
+                return Err(error);
+            }
+            Err(payload) => resume_unwind(payload),
+        },
+    };
 
     let crate::solver::SolveResult {
         solution,
@@ -410,7 +633,7 @@ where
         moves_speed = final_move_speed,
         acceptance_rate = format!("{:.1}%", stats.acceptance_rate() * 100.0),
     );
-    solution
+    Ok(solution)
 }
 
 #[cfg(test)]

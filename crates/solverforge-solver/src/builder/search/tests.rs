@@ -1,18 +1,16 @@
 use std::any::TypeId;
 
-use solverforge_config::{CustomPhaseConfig, PartitionedSearchConfig, PhaseConfig, SolverConfig};
 use solverforge_core::domain::{
     DynamicModelBackend, DynamicScalarVariableSlot, EntityClassId, EntityDescriptor,
     PlanningSolution, SolutionDescriptor, VariableDescriptor, VariableId,
 };
 use solverforge_core::score::SoftScore;
-use solverforge_scoring::ScoreDirector;
 
-use crate::run::ChannelProgressCallback;
-use crate::scope::{ProgressCallback, SolverScope};
-
-use super::{CustomSearchPhase, Search, SearchContext};
 use crate::builder::{RuntimeModel, VariableSlot};
+use crate::scope::{ProgressCallback, SolverScope};
+use crate::RuntimeBuildError;
+
+use super::{CustomSearchPhase, RuntimeExtensionRegistry, SearchContext};
 
 #[derive(Clone, Debug)]
 struct TestSolution {
@@ -98,6 +96,16 @@ impl DynamicModelBackend for TestSolution {
     ) -> &[usize] {
         &[]
     }
+
+    fn scalar_value_is_legal(
+        &self,
+        _entity: EntityClassId,
+        _row: usize,
+        _variable: VariableId,
+        _value: usize,
+    ) -> bool {
+        false
+    }
 }
 
 #[derive(Debug)]
@@ -127,7 +135,7 @@ fn search_context() -> SearchContext<TestSolution> {
 }
 
 #[test]
-fn search_context_resolves_dynamic_slots_for_custom_phase_builders() {
+fn search_context_resolves_dynamic_slots_for_custom_search() {
     let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
         .with_entity(
             EntityDescriptor::new("Vehicle", TypeId::of::<TestSolution>(), "vehicles")
@@ -145,7 +153,8 @@ fn search_context_resolves_dynamic_slots_for_custom_phase_builders() {
     let model: RuntimeModel<TestSolution, usize, (), ()> =
         RuntimeModel::new(vec![VariableSlot::DynamicScalar(scalar)]);
 
-    let context = SearchContext::new(descriptor, model, Some(7));
+    let context = SearchContext::try_new(descriptor, model, Some(7))
+        .expect("descriptor-backed dynamic slot should resolve");
     let scalar = context
         .model()
         .dynamic_scalar_variables()
@@ -156,49 +165,42 @@ fn search_context_resolves_dynamic_slots_for_custom_phase_builders() {
     assert_eq!(scalar.descriptor_index(), 1);
 }
 
-fn custom_config(names: &[&str]) -> SolverConfig {
-    SolverConfig {
-        phases: names
-            .iter()
-            .map(|name| {
-                PhaseConfig::Custom(CustomPhaseConfig {
-                    name: (*name).to_string(),
-                })
-            })
-            .collect(),
-        ..SolverConfig::default()
-    }
-}
+#[test]
+fn search_context_reports_descriptor_resolution_as_a_runtime_build_error() {
+    let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
+    let scalar = DynamicScalarVariableSlot::new(
+        EntityClassId(99),
+        VariableId(0),
+        "Missing",
+        "worker",
+        false,
+    );
+    let model: RuntimeModel<TestSolution, usize, (), ()> =
+        RuntimeModel::new(vec![VariableSlot::DynamicScalar(scalar)]);
 
-fn partitioned_config(name: &str) -> SolverConfig {
-    SolverConfig {
-        phases: vec![PhaseConfig::PartitionedSearch(PartitionedSearchConfig {
-            partitioner: Some(name.to_string()),
-            ..Default::default()
-        })],
-        ..SolverConfig::default()
+    let error = match SearchContext::try_new(descriptor, model, Some(7)) {
+        Ok(_) => panic!("unknown dynamic entity must fail declaration construction"),
+        Err(error) => error,
+    };
+
+    match error {
+        RuntimeBuildError::Declaration { message } => assert!(!message.is_empty()),
+        other => panic!("expected declaration error, got {other:?}"),
     }
 }
 
 #[test]
-fn custom_search_builds_registered_names_in_configured_order() {
+fn search_builder_transfers_only_declaration_parts() {
     let search = search_context()
         .defaults()
         .phase("weekend_repair", |_| MarkerPhase("weekend_repair"))
-        .phase("nurse_search", |_| MarkerPhase("nurse_search"));
-    let phases = Search::<TestSolution>::build::<
-        ScoreDirector<TestSolution, ()>,
-        ChannelProgressCallback<TestSolution>,
-    >(search, &custom_config(&["nurse_search", "weekend_repair"]));
-    let debug = format!("{phases:?}");
+        .partitioned_phase("by_task", |_context, _config| MarkerPhase("by_task"));
 
-    let nurse_pos = debug
-        .find("nurse_search")
-        .expect("configured nurse_search phase should be built");
-    let weekend_pos = debug
-        .find("weekend_repair")
-        .expect("configured weekend_repair phase should be built");
-    assert!(nurse_pos < weekend_pos);
+    let (context, extensions) = search.into_runtime_parts();
+
+    assert_eq!(context.seed(), Some(7));
+    assert!(extensions.contains_custom("weekend_repair"));
+    assert!(extensions.contains_partitioned("by_task"));
 }
 
 #[test]
@@ -208,73 +210,4 @@ fn custom_search_rejects_duplicate_registered_names() {
         .defaults()
         .phase("repair", |_| MarkerPhase("first"))
         .phase("repair", |_| MarkerPhase("second"));
-}
-
-#[test]
-#[should_panic(
-    expected = "custom phase `missing` was not registered by the solution search function"
-)]
-fn custom_search_rejects_unregistered_configured_name() {
-    let search = search_context()
-        .defaults()
-        .phase("registered", |_| MarkerPhase("registered"));
-    let _ = Search::<TestSolution>::build::<
-        ScoreDirector<TestSolution, ()>,
-        ChannelProgressCallback<TestSolution>,
-    >(search, &custom_config(&["missing"]));
-}
-
-#[test]
-fn partitioned_search_builds_registered_partitioner_name() {
-    let search = search_context()
-        .defaults()
-        .partitioned_phase("by_task", |_context, config| {
-            assert_eq!(config.partitioner.as_deref(), Some("by_task"));
-            MarkerPhase("by_task")
-        });
-    let phases = Search::<TestSolution>::build::<
-        ScoreDirector<TestSolution, ()>,
-        ChannelProgressCallback<TestSolution>,
-    >(search, &partitioned_config("by_task"));
-    let debug = format!("{phases:?}");
-
-    assert!(debug.contains("by_task"));
-}
-
-#[test]
-#[should_panic(
-    expected = "partitioned_search partitioner `missing` was not registered by the solution search function"
-)]
-fn partitioned_search_rejects_unregistered_partitioner_name() {
-    let search = search_context()
-        .defaults()
-        .partitioned_phase("registered", |_context, _config| MarkerPhase("registered"));
-    let _ = Search::<TestSolution>::build::<
-        ScoreDirector<TestSolution, ()>,
-        ChannelProgressCallback<TestSolution>,
-    >(search, &partitioned_config("missing"));
-}
-
-#[test]
-#[should_panic(expected = "custom phase `missing` requires a typed solution search function")]
-fn stock_runtime_rejects_custom_phase_without_search_registration() {
-    let context = search_context();
-    let _ = crate::runtime::build_phases(
-        &custom_config(&["missing"]),
-        context.descriptor(),
-        context.model(),
-    );
-}
-
-#[test]
-#[should_panic(
-    expected = "partitioned_search partitioner `missing` requires typed partitioner registration"
-)]
-fn stock_runtime_rejects_partitioned_search_without_registration() {
-    let context = search_context();
-    let _ = crate::runtime::build_phases(
-        &partitioned_config("missing"),
-        context.descriptor(),
-        context.model(),
-    );
 }

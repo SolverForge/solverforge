@@ -29,23 +29,23 @@ pub mod planning;
 pub mod realtime;
 pub mod run;
 pub mod runtime;
+mod runtime_build_error;
 pub mod scope;
 pub mod solver;
 pub mod stats;
 pub mod termination;
 
 pub use builder::{
-    build_local_search, build_move_selector, local_search, AcceptorBuilder, AnyAcceptor,
-    AnyForager, CustomSearchPhase, ForagerBuilder, GroupedScalarCursor, GroupedScalarSelector,
-    IntraDistanceAdapter, ListVariableSlot, LocalSearch, LocalSearchStrategy, Neighborhood,
-    NeighborhoodLeaf, NeighborhoodMove, RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding,
-    ScalarVariableSlot, Search, SearchContext, Selector, ValueSource, VariableSlot,
+    local_search, AcceptorBuilder, AnyAcceptor, AnyForager, CustomSearchPhase, ForagerBuilder,
+    IntraDistanceAdapter, ListVariableSlot, RuntimeCandidateMetric, RuntimeCandidateMetricBinding,
+    RuntimeCandidateMetricRegistry, RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding,
+    ScalarVariableSlot, Search, SearchContext, ValueSource, VariableSlot,
 };
 pub use descriptor::{
-    build_descriptor_move_selector, descriptor_has_bindings, DescriptorConstruction,
-    DescriptorFlatSelector, DescriptorLeafSelector, DescriptorMoveUnion,
-    DescriptorPillarChangeMove, DescriptorPillarSwapMove, DescriptorRuinRecreateMove,
-    DescriptorSelector, DescriptorSelectorNode,
+    build_descriptor_move_selector, descriptor_has_bindings, DescriptorFlatSelector,
+    DescriptorLeafSelector, DescriptorMoveUnion, DescriptorPillarChangeMove,
+    DescriptorPillarSwapMove, DescriptorRuinRecreateMove, DescriptorSelector,
+    DescriptorSelectorNode,
 };
 pub use heuristic::{
     // K-opt reconnection patterns
@@ -67,6 +67,9 @@ pub use heuristic::{
     DynamicListChangeMoveSelector,
     DynamicScalarChangeMove,
     DynamicScalarChangeMoveSelector,
+    DynamicScalarNearbyChangeMoveSelector,
+    DynamicScalarNearbySwapMoveSelector,
+    DynamicScalarSwapMove,
     EntityReference,
     EntitySelector,
     FromSolutionEntitySelector,
@@ -95,6 +98,7 @@ pub use heuristic::{
     RuinMove,
     RuinMoveSelector,
     RuinVariableAccess,
+    ScalarNeighborhoodBindingError,
     SelectionOrder,
     StaticValueSelector,
     SubPillarConfig,
@@ -110,16 +114,15 @@ pub use manager::{
     ListConstructionPhaseBuilder, ListKOptPhase, ListRegretInsertionPhase, LocalSearchAcceptorType,
     LocalSearchPhaseFactory, PhaseFactory, ScoreAnalysis, Solvable, SolverEvent,
     SolverEventMetadata, SolverFactory, SolverFactoryBuilder, SolverLifecycleState, SolverManager,
-    SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
-    SolverTerminalReason,
+    SolverManagerError, SolverPanicPayload, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis,
+    SolverStatus, SolverTelemetryDetail, SolverTerminalReason,
 };
 pub use model_support::PlanningModelSupport;
 pub use phase::{
     construction::{
         BestFitForager, ConstructionChoice, ConstructionForager, ConstructionHeuristicConfig,
-        ConstructionHeuristicPhase, EntityPlacer, FirstFeasibleForager, FirstFitForager,
-        ForagerType, Placement, QueuedEntityPlacer, ScalarAssignmentMoveCursor,
-        ScalarAssignmentMoveOptions, ScalarAssignmentRequiredStreamingCursor,
+        ConstructionHeuristicPhase, EntityPlacer, EntityPlacerCursor, FirstFeasibleForager,
+        FirstFitForager, ForagerType, Placement, QueuedEntityPlacer,
     },
     exhaustive::{
         BounderType, ExhaustiveSearchConfig, ExhaustiveSearchDecider, ExhaustiveSearchNode,
@@ -145,13 +148,14 @@ pub use planning::{
     ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits,
     ScalarTarget,
 };
-pub use run::{log_solve_start, run_solver, run_solver_with_config, run_solver_with_config_parts};
+pub use run::{log_solve_start, try_run_solver_with_config_and_search};
 pub use runtime::{ListVariableEntity, ListVariableMetadata};
+pub use runtime_build_error::{RuntimeBuildError, RuntimeBuildResult};
 pub use scope::{PhaseScope, SolverScope, StepScope};
 pub use solver::{MaybeTermination, NoTermination, SolveResult, Solver};
 pub use stats::{
-    AppliedMoveTelemetry, MoveTelemetry, PhaseStats, SelectorTelemetry, SolverStats,
-    SolverTelemetry,
+    AppliedMoveTelemetry, MoveTelemetry, PhaseStats, PhaseTelemetry, SelectorTelemetry,
+    SolverStats, SolverTelemetry,
 };
 pub use termination::{
     AndTermination, BestScoreFeasibleTermination, BestScoreTermination,

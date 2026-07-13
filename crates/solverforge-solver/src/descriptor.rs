@@ -1,17 +1,9 @@
 mod bindings;
-mod construction;
 mod move_types;
 mod selectors;
 
-pub(crate) use bindings::{
-    collect_bindings, find_resolved_binding, scalar_work_remaining_with_frontier,
-    ResolvedVariableBinding,
-};
-pub use bindings::{descriptor_has_bindings, scalar_target_matches, scalar_work_remaining};
-#[cfg(test)]
-pub(crate) use construction::build_descriptor_construction;
-pub(crate) use construction::build_descriptor_construction_from_bindings;
-pub use construction::{DescriptorConstruction, DescriptorEntityPlacer};
+pub use bindings::descriptor_has_bindings;
+pub(crate) use bindings::{collect_bindings, ResolvedVariableBinding};
 pub use move_types::{
     DescriptorChangeMove, DescriptorMoveUnion, DescriptorPillarChangeMove,
     DescriptorPillarSwapMove, DescriptorRuinRecreateMove, DescriptorSwapMove,

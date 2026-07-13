@@ -24,7 +24,12 @@ mod mod_tests_integration;
 
 pub use builder::{SolverBuildError, SolverFactoryBuilder};
 pub use config::{ConstructionType, LocalSearchAcceptorType, PhaseConfig};
-pub(crate) use phase_factory::solve_specialized_list_construction;
+pub(crate) use phase_factory::{
+    run_cheapest, run_clarke_wright, run_list_k_opt, run_regret, run_round_robin,
+    PhaseCheapestInsertionObserver, ScoredListConstructionAccess,
+};
+#[cfg(test)]
+pub(crate) use phase_factory::{CheapestInsertionObserver, CheapestInsertionTrial};
 pub use phase_factory::{
     ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListCheapestInsertionPhase,
     ListClarkeWrightPhase, ListConstructionPhase, ListConstructionPhaseBuilder, ListKOptPhase,
@@ -35,6 +40,6 @@ pub use solution_manager::{analyze, Analyzable, ConstraintAnalysis, ScoreAnalysi
 pub use solver_factory::{solver_factory_builder, SolverFactory};
 pub use solver_manager::{
     Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager,
-    SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
-    SolverTerminalReason,
+    SolverManagerError, SolverPanicPayload, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis,
+    SolverStatus, SolverTelemetryDetail, SolverTerminalReason,
 };

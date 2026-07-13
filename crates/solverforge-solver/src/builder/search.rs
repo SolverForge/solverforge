@@ -1,25 +1,23 @@
-use std::fmt::{self, Debug};
+use std::fmt::Debug;
 use std::hash::Hash;
 
-use solverforge_config::{PhaseConfig, SolverConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::MoveSelector;
+use crate::phase::localsearch::SelectorCursorSource;
 use crate::phase::localsearch::{Acceptor, LocalSearchForager, LocalSearchPhase};
-use crate::phase::{Phase, PhaseSequence};
-use crate::runtime::{build_phases, Construction, RuntimePhase};
-use crate::scope::{ProgressCallback, SolverScope};
+use crate::RuntimeBuildResult;
 
-use super::{LocalSearchStrategy, RuntimeModel};
+use super::RuntimeModel;
 
 mod custom;
-pub(crate) mod defaults;
 
 pub use custom::{
-    CustomPhaseNode, CustomSearchPhase, NoCustomPhase, NoCustomPhases, PartitionedPhaseNode,
+    CustomPhaseNode, CustomSearchPhase, NoDynamicExtensions, NoRuntimeExtensionPhase,
+    NoTypedExtensions, PartitionedPhaseNode, RuntimeExtensionPolicy, RuntimeExtensionRegistry,
 };
 
 pub struct SearchContext<
@@ -44,14 +42,25 @@ where
         model: RuntimeModel<S, V, DM, IDM>,
         random_seed: Option<u64>,
     ) -> Self {
+        Self::try_new(descriptor, model, random_seed).unwrap_or_else(|error| match error {
+            crate::RuntimeBuildError::Declaration { message } => panic!("{message}"),
+            other => panic!("{other}"),
+        })
+    }
+
+    pub fn try_new(
+        descriptor: SolutionDescriptor,
+        model: RuntimeModel<S, V, DM, IDM>,
+        random_seed: Option<u64>,
+    ) -> RuntimeBuildResult<Self> {
         let model = model
             .resolve_dynamic_descriptor_indexes(&descriptor)
-            .unwrap_or_else(|message| panic!("{message}"));
-        Self {
+            .map_err(crate::RuntimeBuildError::declaration)?;
+        Ok(Self {
             descriptor,
             model,
             random_seed,
-        }
+        })
     }
 
     pub fn descriptor(&self) -> &SolutionDescriptor {
@@ -66,14 +75,19 @@ where
         self.random_seed
     }
 
-    pub fn defaults(self) -> SearchBuilder<S, V, DM, IDM, NoCustomPhases> {
+    pub fn defaults(self) -> SearchBuilder<S, V, DM, IDM, NoTypedExtensions> {
         SearchBuilder {
             context: self,
-            custom_phases: NoCustomPhases,
+            extensions: NoTypedExtensions,
         }
     }
 }
 
+/// Typed search authoring declaration consumed by the configured runtime.
+///
+/// Implementations declare one descriptor-resolved runtime model and one
+/// concrete typed-extension registry. The configured runner is the sole owner
+/// of graph compilation and per-solve phase preparation.
 pub trait Search<
     S,
     V = usize,
@@ -86,53 +100,61 @@ pub trait Search<
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
 {
-    type Phase<D, ProgressCb>: Phase<S, D, ProgressCb> + Debug + Send
-    where
-        D: solverforge_scoring::Director<S>,
-        ProgressCb: ProgressCallback<S>;
+    /// Concrete typed extension registry transferred with this declaration.
+    type Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>;
 
-    fn build<D, ProgressCb>(
-        self,
-        config: &SolverConfig,
-    ) -> PhaseSequence<Self::Phase<D, ProgressCb>>
-    where
-        D: solverforge_scoring::Director<S>,
-        ProgressCb: ProgressCallback<S>;
+    /// Transfers descriptor-resolved authoring to the configured runtime.
+    ///
+    /// This intentionally exposes declaration parts rather than the private
+    /// compiled graph. Bindings cannot construct, inspect, cache, or replace
+    /// runtime compiler input or prepared phases.
+    #[doc(hidden)]
+    fn into_runtime_parts(self) -> (SearchContext<S, V, DM, IDM>, Self::Extensions);
 }
 
-pub struct SearchBuilder<S, V, DM, IDM, CustomPhases>
+pub struct SearchBuilder<S, V, DM, IDM, Extensions>
 where
     S: PlanningSolution,
 {
     context: SearchContext<S, V, DM, IDM>,
-    custom_phases: CustomPhases,
+    extensions: Extensions,
 }
 
-impl<S, V, DM, IDM, CustomPhases> SearchBuilder<S, V, DM, IDM, CustomPhases>
+impl<S, V, DM, IDM, Extensions> SearchBuilder<S, V, DM, IDM, Extensions>
+where
+    S: PlanningSolution,
+{
+    /// Transfers this typed authoring declaration without building phases.
+    pub fn into_runtime_parts(self) -> (SearchContext<S, V, DM, IDM>, Extensions) {
+        (self.context, self.extensions)
+    }
+}
+
+impl<S, V, DM, IDM, Extensions> SearchBuilder<S, V, DM, IDM, Extensions>
 where
     S: PlanningSolution + 'static,
     S::Score: Score + ParseableScore,
     V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
-    CustomPhases: custom::CustomPhaseRegistry<S, V, DM, IDM>,
+    Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>,
 {
     pub fn phase<P, F>(
         self,
         name: &'static str,
         builder: F,
-    ) -> SearchBuilder<S, V, DM, IDM, CustomPhaseNode<CustomPhases, F, P>>
+    ) -> SearchBuilder<S, V, DM, IDM, CustomPhaseNode<Extensions, F, P>>
     where
         F: Fn(&SearchContext<S, V, DM, IDM>) -> P + Send + Sync + 'static,
         P: CustomSearchPhase<S> + 'static,
     {
         assert!(
-            !self.custom_phases.contains(name) && !self.custom_phases.contains_partitioned(name),
+            !self.extensions.contains_custom(name) && !self.extensions.contains_partitioned(name),
             "custom phase `{name}` was registered more than once",
         );
         SearchBuilder {
             context: self.context,
-            custom_phases: CustomPhaseNode::new(self.custom_phases, name, builder),
+            extensions: CustomPhaseNode::new(self.extensions, name, builder),
         }
     }
 
@@ -140,7 +162,7 @@ where
         self,
         name: &'static str,
         builder: F,
-    ) -> SearchBuilder<S, V, DM, IDM, PartitionedPhaseNode<CustomPhases, F, P>>
+    ) -> SearchBuilder<S, V, DM, IDM, PartitionedPhaseNode<Extensions, F, P>>
     where
         F: Fn(&SearchContext<S, V, DM, IDM>, &solverforge_config::PartitionedSearchConfig) -> P
             + Send
@@ -149,164 +171,37 @@ where
         P: CustomSearchPhase<S> + 'static,
     {
         assert!(
-            !self.custom_phases.contains(name) && !self.custom_phases.contains_partitioned(name),
+            !self.extensions.contains_custom(name) && !self.extensions.contains_partitioned(name),
             "partitioned_search partitioner `{name}` was registered more than once",
         );
         SearchBuilder {
             context: self.context,
-            custom_phases: PartitionedPhaseNode::new(self.custom_phases, name, builder),
+            extensions: PartitionedPhaseNode::new(self.extensions, name, builder),
         }
     }
 }
 
-impl<S, V, DM, IDM, CustomPhases> Search<S, V, DM, IDM>
-    for SearchBuilder<S, V, DM, IDM, CustomPhases>
+impl<S, V, DM, IDM, Extensions> Search<S, V, DM, IDM> for SearchBuilder<S, V, DM, IDM, Extensions>
 where
     S: PlanningSolution + 'static,
     S::Score: Score + ParseableScore,
     V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
     DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
-    CustomPhases: custom::CustomPhaseRegistry<S, V, DM, IDM>,
+    Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>,
 {
-    type Phase<D, ProgressCb>
-        = SearchRuntimePhase<
-        RuntimePhase<Construction<S, V, DM, IDM>, LocalSearchStrategy<S, V, DM, IDM>>,
-        CustomPhases::Phase,
-    >
-    where
-        D: solverforge_scoring::Director<S>,
-        ProgressCb: ProgressCallback<S>;
+    type Extensions = Extensions;
 
-    fn build<D, ProgressCb>(
-        self,
-        config: &SolverConfig,
-    ) -> PhaseSequence<Self::Phase<D, ProgressCb>>
-    where
-        D: solverforge_scoring::Director<S>,
-        ProgressCb: ProgressCallback<S>,
-    {
-        let mut phases = Vec::new();
-        if config.phases.is_empty() {
-            for phase in
-                build_phases(config, &self.context.descriptor, &self.context.model).into_phases()
-            {
-                phases.push(SearchRuntimePhase::Builtin(phase));
-            }
-            return PhaseSequence::new(phases);
-        }
-
-        for phase in &config.phases {
-            match phase {
-                PhaseConfig::Custom(custom) => {
-                    let phase = self
-                        .custom_phases
-                        .build_named(&custom.name, &self.context)
-                        .unwrap_or_else(|| {
-                            panic!(
-                                "custom phase `{}` was not registered by the solution search function",
-                                custom.name
-                            )
-                        });
-                    phases.push(SearchRuntimePhase::Custom(phase));
-                }
-                PhaseConfig::PartitionedSearch(partitioned) => {
-                    let name = partitioned.partitioner.as_deref().unwrap_or_else(|| {
-                        panic!("partitioned_search requires a `partitioner` name")
-                    });
-                    let phase = self
-                        .custom_phases
-                        .build_partitioned_named(name, partitioned, &self.context)
-                        .unwrap_or_else(|| {
-                            panic!(
-                                "partitioned_search partitioner `{name}` was not registered by the solution search function"
-                            )
-                        });
-                    phases.push(SearchRuntimePhase::Custom(phase));
-                }
-                PhaseConfig::ConstructionHeuristic(_) | PhaseConfig::LocalSearch(_) => {
-                    let mut single = config.clone();
-                    single.phases = vec![phase.clone()];
-                    let mut built =
-                        build_phases(&single, &self.context.descriptor, &self.context.model)
-                            .into_phases();
-                    assert_eq!(
-                        built.len(),
-                        1,
-                        "built-in phase expansion must produce one phase"
-                    );
-                    phases.push(SearchRuntimePhase::Builtin(built.remove(0)));
-                }
-            }
-        }
-        PhaseSequence::new(phases)
+    fn into_runtime_parts(self) -> (SearchContext<S, V, DM, IDM>, Self::Extensions) {
+        SearchBuilder::into_runtime_parts(self)
     }
-}
-
-pub enum SearchRuntimePhase<Builtin, Custom> {
-    Builtin(Builtin),
-    Custom(Custom),
-}
-
-impl<Builtin: Debug, Custom: Debug> Debug for SearchRuntimePhase<Builtin, Custom> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Builtin(phase) => f
-                .debug_tuple("SearchRuntimePhase::Builtin")
-                .field(phase)
-                .finish(),
-            Self::Custom(phase) => f
-                .debug_tuple("SearchRuntimePhase::Custom")
-                .field(phase)
-                .finish(),
-        }
-    }
-}
-
-impl<S, D, ProgressCb, Builtin, Custom> Phase<S, D, ProgressCb>
-    for SearchRuntimePhase<Builtin, Custom>
-where
-    S: PlanningSolution,
-    D: solverforge_scoring::Director<S>,
-    ProgressCb: ProgressCallback<S>,
-    Builtin: Phase<S, D, ProgressCb>,
-    Custom: CustomSearchPhase<S>,
-{
-    fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
-        match self {
-            Self::Builtin(phase) => phase.solve(solver_scope),
-            Self::Custom(phase) => CustomSearchPhase::solve(phase, solver_scope),
-        }
-    }
-
-    fn phase_type_name(&self) -> &'static str {
-        "SearchRuntimePhase"
-    }
-}
-
-pub fn build_search<S, V, DM, IDM, D, ProgressCb, T>(
-    search: T,
-    config: &SolverConfig,
-) -> PhaseSequence<T::Phase<D, ProgressCb>>
-where
-    S: PlanningSolution + 'static,
-    S::Score: Score + ParseableScore,
-    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static,
-    DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
-    IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,
-    D: solverforge_scoring::Director<S>,
-    ProgressCb: ProgressCallback<S>,
-    T: Search<S, V, DM, IDM>,
-    T::Phase<D, ProgressCb>: Phase<S, D, ProgressCb>,
-{
-    search.build::<D, ProgressCb>(config)
 }
 
 pub fn local_search<S, M, MS, A, Fo>(
     move_selector: MS,
     acceptor: A,
     forager: Fo,
-) -> LocalSearchPhase<S, M, MS, A, Fo>
+) -> LocalSearchPhase<S, M, SelectorCursorSource<MS>, A, Fo>
 where
     S: PlanningSolution,
     M: Move<S> + 'static,

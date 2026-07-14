@@ -17,6 +17,15 @@ fn validate_planning_entity_field_attributes(
         if let Some(attr) = get_attribute(&field.attrs, "inverse_relation_shadow_variable") {
             validate_shadow_variable_attribute(attr, "inverse_relation_shadow_variable")?;
         }
+        if let Some(attr) = get_attribute(&field.attrs, "index_shadow_variable") {
+            validate_shadow_variable_attribute(attr, "index_shadow_variable")?;
+            if !field_is_option_usize(&field.ty) {
+                return Err(Error::new_spanned(
+                    field,
+                    "#[index_shadow_variable] fields must be Option<usize>",
+                ));
+            }
+        }
         if let Some(attr) = get_attribute(&field.attrs, "previous_element_shadow_variable") {
             validate_shadow_variable_attribute(attr, "previous_element_shadow_variable")?;
         }

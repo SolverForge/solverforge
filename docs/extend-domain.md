@@ -15,7 +15,10 @@ Use the scaffold as a thin starter, then model the real problem in your app.
   `Vec<usize>` of element indexes; list-aware construction and neighborhoods
   preserve the sequence representation. Configure inverse, index, previous,
   next, custom, cascading, or piggyback shadows when the application needs
-  derived views of that list state.
+  derived views of that list state. For example,
+  `#[shadow_variable_updates(list_owner = "routes", index_field = "index")]`
+  keeps an `Option<usize>` element field synchronized with its current list
+  position.
 - Keep `src/domain/mod.rs` as a `solverforge::planning_model!` manifest with
   `root = "src/domain"`, normal `mod name;` declarations, and the public
   exports for the model. Entity, fact, and solution files stay separate.

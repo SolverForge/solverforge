@@ -62,6 +62,11 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         .filter(|f| has_attribute(&f.attrs, "inverse_relation_shadow_variable"))
         .collect();
 
+    let index_vars: Vec<_> = fields
+        .iter()
+        .filter(|f| has_attribute(&f.attrs, "index_shadow_variable"))
+        .collect();
+
     let previous_element_vars: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "previous_element_shadow_variable"))
@@ -312,6 +317,23 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         })
         .collect();
 
+    let index_descriptors: Vec<_> = index_vars
+        .iter()
+        .map(|field| {
+            let field_name = field.ident.as_ref().unwrap();
+            let field_name_str = field_name.to_string();
+            let attr = get_attribute(&field.attrs, "index_shadow_variable").unwrap();
+            let source_var = parse_attribute_string(attr, "source_variable_name")
+                .unwrap_or_else(|| "visits".to_string());
+            quote! {
+                ::solverforge::__internal::VariableDescriptor::shadow(
+                    #field_name_str,
+                    ::solverforge::__internal::ShadowVariableKind::Index
+                ).with_source(#name_str, #source_var)
+            }
+        })
+        .collect();
+
     let previous_element_descriptors: Vec<_> = previous_element_vars
         .iter()
         .map(|field| {
@@ -411,6 +433,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                 #pin_field_descriptor
                 #( desc = desc.with_variable(#genuine_variable_descriptors); )*
                 #( desc = desc.with_variable(#inverse_relation_descriptors); )*
+                #( desc = desc.with_variable(#index_descriptors); )*
                 #( desc = desc.with_variable(#previous_element_descriptors); )*
                 #( desc = desc.with_variable(#next_element_descriptors); )*
                 #( desc = desc.with_variable(#cascading_update_descriptors); )*

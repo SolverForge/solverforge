@@ -101,6 +101,7 @@ const SHADOW_VARIABLE_ARGS: &[AttributeArgSpec] =
 const SHADOW_UPDATES_ARGS: &[AttributeArgSpec] = &[
     AttributeArgSpec::string("list_owner"),
     AttributeArgSpec::string("inverse_field"),
+    AttributeArgSpec::string("index_field"),
     AttributeArgSpec::string("previous_field"),
     AttributeArgSpec::string("next_field"),
     AttributeArgSpec::string("cascading_listener"),

@@ -1,0 +1,6 @@
+error: #[index_shadow_variable] fields must be Option<usize>
+ --> tests/ui/fail/index_shadow_non_usize.rs:8:5
+  |
+8 | /     #[index_shadow_variable(source_variable_name = "visits")]
+9 | |     pub index: usize,
+  | |____________________^

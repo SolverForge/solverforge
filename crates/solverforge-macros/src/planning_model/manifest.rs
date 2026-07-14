@@ -123,6 +123,7 @@ struct ModelMetadata {
 struct ShadowConfig {
     list_owner: Option<String>,
     inverse_field: Option<String>,
+    index_field: Option<String>,
     previous_field: Option<String>,
     next_field: Option<String>,
     cascading_listener: Option<String>,

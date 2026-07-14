@@ -128,33 +128,84 @@ fn test_single_owner_list_sources_are_field_scoped() {
 }
 
 #[test]
-fn test_multi_owner_shadow_updates_are_descriptor_scoped() {
+fn test_multi_owner_list_shadows_are_descriptor_scoped_and_positioned() {
     let mut plan = MultiOwnerShadowPlan {
-        routes: vec![ShadowRoute {
-            id: 1,
-            visits: vec![0],
-        }],
+        routes: vec![
+            ShadowRoute {
+                id: 1,
+                visits: vec![2, 0],
+            },
+            ShadowRoute {
+                id: 2,
+                visits: vec![1],
+            },
+        ],
         shifts: vec![ShadowShift {
-            id: 2,
+            id: 3,
             visits: vec![0],
         }],
-        routed_visits: vec![RoutedVisit {
-            id: 10,
-            route: None,
-        }],
+        routed_visits: (0..3)
+            .map(|id| RoutedVisit {
+                id: id + 10,
+                route: None,
+                index: None,
+                previous: None,
+                next: None,
+            })
+            .collect(),
         shift_visits: vec![ShiftVisit { id: 20 }],
         score: None,
     };
 
     <MultiOwnerShadowPlan as PlanningSolutionTrait>::update_entity_shadows(&mut plan, 1, 0);
-    assert_eq!(plan.routed_visits[0].route, None);
+    assert!(plan
+        .routed_visits
+        .iter()
+        .all(|visit| visit.route.is_none() && visit.index.is_none()));
 
     <MultiOwnerShadowPlan as PlanningSolutionTrait>::update_entity_shadows(&mut plan, 0, 0);
+    assert_eq!(plan.routed_visits[2].route, Some(0));
+    assert_eq!(plan.routed_visits[2].index, Some(0));
+    assert_eq!(plan.routed_visits[2].previous, None);
+    assert_eq!(plan.routed_visits[2].next, Some(0));
     assert_eq!(plan.routed_visits[0].route, Some(0));
+    assert_eq!(plan.routed_visits[0].index, Some(1));
+    assert_eq!(plan.routed_visits[0].previous, Some(2));
+    assert_eq!(plan.routed_visits[0].next, None);
+    assert_eq!(plan.routed_visits[1].route, None);
+    assert_eq!(plan.routed_visits[1].index, None);
 
-    plan.routed_visits[0].route = None;
+    plan.routed_visits.push(RoutedVisit {
+        id: 13,
+        route: None,
+        index: Some(99),
+        previous: None,
+        next: None,
+    });
     <MultiOwnerShadowPlan as PlanningSolutionTrait>::update_all_shadows(&mut plan);
+    assert_eq!(plan.routed_visits[1].route, Some(1));
+    assert_eq!(plan.routed_visits[1].index, Some(0));
+    assert_eq!(plan.routed_visits[1].previous, None);
+    assert_eq!(plan.routed_visits[1].next, None);
+    assert_eq!(plan.routed_visits[3].index, None);
+
+    plan.routes[0].visits = vec![0];
+    plan.routes[1].visits = vec![2, 1];
+    <MultiOwnerShadowPlan as PlanningSolutionTrait>::update_entity_shadows(&mut plan, 0, 0);
+    <MultiOwnerShadowPlan as PlanningSolutionTrait>::update_entity_shadows(&mut plan, 0, 1);
+
     assert_eq!(plan.routed_visits[0].route, Some(0));
+    assert_eq!(plan.routed_visits[0].index, Some(0));
+    assert_eq!(plan.routed_visits[0].previous, None);
+    assert_eq!(plan.routed_visits[0].next, None);
+    assert_eq!(plan.routed_visits[2].route, Some(1));
+    assert_eq!(plan.routed_visits[2].index, Some(0));
+    assert_eq!(plan.routed_visits[2].previous, None);
+    assert_eq!(plan.routed_visits[2].next, Some(1));
+    assert_eq!(plan.routed_visits[1].route, Some(1));
+    assert_eq!(plan.routed_visits[1].index, Some(1));
+    assert_eq!(plan.routed_visits[1].previous, Some(2));
+    assert_eq!(plan.routed_visits[1].next, None);
 }
 
 #[test]
@@ -171,6 +222,9 @@ fn test_multi_owner_list_sources_are_owner_field_scoped() {
         routed_visits: vec![RoutedVisit {
             id: 10,
             route: None,
+            index: None,
+            previous: None,
+            next: None,
         }],
         shift_visits: vec![ShiftVisit { id: 20 }],
         score: None,

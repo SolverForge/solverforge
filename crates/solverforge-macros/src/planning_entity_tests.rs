@@ -113,3 +113,23 @@ fn list_metadata_forwards_element_owner_fn() {
     assert!(expanded.contains("\"visits\""));
     assert!(expanded.contains("__solverforge_list_element_owner :: < Solution >"));
 }
+
+#[test]
+fn entity_descriptor_includes_index_shadow_metadata() {
+    let input = parse_quote! {
+        struct Visit {
+            #[planning_id]
+            id: usize,
+            #[index_shadow_variable(source_variable_name = "visits")]
+            index: Option<usize>,
+        }
+    };
+
+    let expanded = expand_derive(input)
+        .expect("index shadow expansion should succeed")
+        .to_string();
+
+    assert!(expanded.contains("VariableDescriptor :: shadow"));
+    assert!(expanded.contains("ShadowVariableKind :: Index"));
+    assert!(expanded.contains("with_source (\"Visit\" , \"visits\")"));
+}

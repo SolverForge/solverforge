@@ -1,10 +1,18 @@
+struct GeneratedListShadowUpdate {
+    update: TokenStream,
+    reset: TokenStream,
+    descriptor: Option<(usize, Ident)>,
+}
+
 fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
     let solution_module = &model.solution.module_ident;
     let solution_ident = &model.solution.ident;
     let solution_path = quote! { #solution_module::#solution_ident };
-    let (list_update, list_descriptor) = generate_list_shadow_update(model, &solution_path)?;
+    let generated = generate_list_shadow_update(model, &solution_path)?;
+    let list_update = generated.update;
+    let list_reset = generated.reset;
 
-    let Some((descriptor_index, collection_accessor)) = list_descriptor else {
+    let Some((descriptor_index, collection_accessor)) = generated.descriptor else {
         return Ok(quote! {
             fn update_entity_shadows(
                 _solution: &mut Self,
@@ -32,6 +40,7 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
         }
 
         fn update_all_shadows(solution: &mut Self) -> bool {
+            #list_reset
             for entity_index in 0..#solution_path::#collection_accessor(solution).len() {
                 let _ = <Self as ::solverforge::__internal::PlanningModelSupport>::update_entity_shadows(
                     solution,
@@ -47,10 +56,14 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
 fn generate_list_shadow_update(
     model: &ModelMetadata,
     solution_path: &TokenStream,
-) -> Result<(TokenStream, Option<(usize, Ident)>)> {
+) -> Result<GeneratedListShadowUpdate> {
     let config = &model.solution.shadow_config;
     if !list_shadow_updates_requested(config) {
-        return Ok((TokenStream::new(), None));
+        return Ok(GeneratedListShadowUpdate {
+            update: TokenStream::new(),
+            reset: TokenStream::new(),
+            descriptor: None,
+        });
     }
 
     let list_owner = config.list_owner.as_deref().ok_or_else(|| {
@@ -128,6 +141,28 @@ fn generate_list_shadow_update(
             }
         }
     });
+    let index_update = config.index_field.as_ref().map(|field| {
+        let field_ident = Ident::new(field, proc_macro2::Span::call_site());
+        quote! {
+            {
+                let elements = #solution_path::#element_mut_accessor(solution);
+                for (offset, &element_idx) in element_indices.iter().enumerate() {
+                    elements[element_idx].#field_ident = Some(offset);
+                }
+            }
+        }
+    });
+    let index_reset = config.index_field.as_ref().map(|field| {
+        let field_ident = Ident::new(field, proc_macro2::Span::call_site());
+        quote! {
+            {
+                let elements = #solution_path::#element_mut_accessor(solution);
+                for element in elements {
+                    element.#field_ident = None;
+                }
+            }
+        }
+    });
     let previous_update = config.previous_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
@@ -180,6 +215,7 @@ fn generate_list_shadow_update(
                 .#list_variable_ident
                 .to_vec();
             #inverse_update
+            #index_update
             #previous_update
             #next_update
             #cascading_update
@@ -189,7 +225,11 @@ fn generate_list_shadow_update(
             updated = true;
         }
     };
-    Ok((update, Some((descriptor_index, owner_accessor))))
+    Ok(GeneratedListShadowUpdate {
+        update,
+        reset: index_reset.unwrap_or_default(),
+        descriptor: Some((descriptor_index, owner_accessor)),
+    })
 }
 
 fn generate_list_aggregate_updates(
@@ -244,6 +284,7 @@ fn generate_list_compute_updates(
 
 fn list_shadow_updates_requested(config: &ShadowConfig) -> bool {
     config.inverse_field.is_some()
+        || config.index_field.is_some()
         || config.previous_field.is_some()
         || config.next_field.is_some()
         || config.cascading_listener.is_some()

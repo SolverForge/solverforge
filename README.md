@@ -244,7 +244,10 @@ List construction assigns unassigned elements to owners. List change, swap,
 sublist, reversal, k-opt, ruin/recreate, and nearby selectors then operate on
 the same representation and retain exact undo. Configure inverse, index,
 previous, next, cascading, custom, or piggyback shadows only when constraints or
-application logic need those derived views.
+application logic need those derived views. Generated index maintenance uses an
+`Option<usize>` field on each element and is enabled with
+`#[shadow_variable_updates(list_owner = "routes", index_field = "index")]` on
+the planning solution.
 
 When `move_selector` is omitted from `acceptor_forager` local search, the
 canonical runtime uses explicit streaming defaults instead of broad exhaustive

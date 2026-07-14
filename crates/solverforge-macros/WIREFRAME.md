@@ -161,6 +161,7 @@ Internal module responsibilities:
   scoring/selectors.
 - `#[planning_pin]` — boolean field controlling entity pinning
 - `#[inverse_relation_shadow_variable(source_variable_name = "field")]` — inverse relation shadow
+- `#[index_shadow_variable(source_variable_name = "field")]` — list index shadow
 - `#[previous_element_shadow_variable(source_variable_name = "field")]` — previous element shadow
 - `#[next_element_shadow_variable(source_variable_name = "field")]` — next element shadow
 - `#[cascading_update_shadow_variable]` — cascading update shadow
@@ -204,6 +205,7 @@ arguments are compile errors.
 **`#[shadow_variable_updates]` parameters:**
 - `list_owner = "field"` — selects the `#[planning_entity_collection]` field whose entity owns the list shadow updates
 - `inverse_field = "field"` — field on element for inverse mapping
+- `index_field = "field"` — `Option<usize>` field on element for its current list position
 - `previous_field = "field"` — field on element for previous pointer
 - `next_field = "field"` — field on element for next pointer
 - `cascading_listener = "method"` — method name for cascading updates per element
@@ -293,6 +295,7 @@ semantics should omit `domain = "cvrp"` and declare explicit hook paths instead.
 struct ShadowConfig {
     list_owner: Option<String>,
     inverse_field: Option<String>,
+    index_field: Option<String>,
     previous_field: Option<String>,
     next_field: Option<String>,
     cascading_listener: Option<String>,
@@ -334,9 +337,9 @@ Rust module declaration order is not a user contract.
 
 When configured through `#[shadow_variable_updates]`,
 `update_entity_shadows(descriptor_index, entity_idx)` collects the list owner's
-`element_indices`, then updates inverse, previous, next, cascading, aggregate,
-compute, and post-update fields in that order. `update_all_shadows()` visits the
-configured list owner once.
+`element_indices`, then updates inverse, index, previous, next, cascading,
+aggregate, compute, and post-update fields in that order. `update_all_shadows()`
+visits the configured list owner once.
 
 ## Test Coverage
 

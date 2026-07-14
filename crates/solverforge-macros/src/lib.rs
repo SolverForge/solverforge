@@ -45,6 +45,7 @@ pub fn planning_model(input: TokenStream) -> TokenStream {
         planning_list_variable,
         planning_pin,
         inverse_relation_shadow_variable,
+        index_shadow_variable,
         previous_element_shadow_variable,
         next_element_shadow_variable,
         cascading_update_shadow_variable

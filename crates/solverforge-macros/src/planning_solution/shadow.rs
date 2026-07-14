@@ -6,6 +6,7 @@ use super::config::ShadowConfig;
 
 fn shadow_updates_requested(config: &ShadowConfig) -> bool {
     config.inverse_field.is_some()
+        || config.index_field.is_some()
         || config.previous_field.is_some()
         || config.next_field.is_some()
         || config.cascading_listener.is_some()

@@ -72,6 +72,7 @@ fn parse_shadow_config(attrs: &[Attribute]) -> Result<ShadowConfig> {
         validate_shadow_updates_attribute(attr)?;
         config.list_owner = parse_attribute_string(attr, "list_owner");
         config.inverse_field = parse_attribute_string(attr, "inverse_field");
+        config.index_field = parse_attribute_string(attr, "index_field");
         config.previous_field = parse_attribute_string(attr, "previous_field");
         config.next_field = parse_attribute_string(attr, "next_field");
         config.cascading_listener = parse_attribute_string(attr, "cascading_listener");
@@ -245,6 +246,9 @@ fn validate_entity_fields(
         }
         if let Some(attr) = get_attribute(&field.attrs, "inverse_relation_shadow_variable") {
             validate_shadow_variable_attribute(attr, "inverse_relation_shadow_variable")?;
+        }
+        if let Some(attr) = get_attribute(&field.attrs, "index_shadow_variable") {
+            validate_shadow_variable_attribute(attr, "index_shadow_variable")?;
         }
         if let Some(attr) = get_attribute(&field.attrs, "previous_element_shadow_variable") {
             validate_shadow_variable_attribute(attr, "previous_element_shadow_variable")?;

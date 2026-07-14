@@ -6,6 +6,7 @@ use crate::attr_parse::{get_attribute, parse_attribute_list, parse_attribute_str
 pub(super) struct ShadowConfig {
     pub(super) list_owner: Option<String>,
     pub(super) inverse_field: Option<String>,
+    pub(super) index_field: Option<String>,
     pub(super) previous_field: Option<String>,
     pub(super) next_field: Option<String>,
     pub(super) cascading_listener: Option<String>,
@@ -59,6 +60,7 @@ pub(super) fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {
     if let Some(attr) = get_attribute(attrs, "shadow_variable_updates") {
         config.list_owner = parse_attribute_string(attr, "list_owner");
         config.inverse_field = parse_attribute_string(attr, "inverse_field");
+        config.index_field = parse_attribute_string(attr, "index_field");
         config.previous_field = parse_attribute_string(attr, "previous_field");
         config.next_field = parse_attribute_string(attr, "next_field");
         config.cascading_listener = parse_attribute_string(attr, "cascading_listener");

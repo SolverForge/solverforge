@@ -57,6 +57,10 @@ When versions change across the workspace, publish crates in dependency order:
    CPU topology, CPU 10 available by default, and optional unprivileged `perf`
    counters, run:
    `BENCH_CPU=10 WARMUPS=5 TRIALS=51 make bench-zero-regression`
+   For an apples-to-apples comparison against a baseline that already uses the
+   cursor-owned construction API, set
+   `BASELINE=<commit> BASELINE_CURSOR_API=1`; the default historical baseline
+   keeps `BASELINE_CURSOR_API=0` for its former eager construction harness.
    This is a separate required release qualification. It is intentionally not
    part of portable `make pre-release`; inability to run it is not a pass.
 8. Verify publishability.

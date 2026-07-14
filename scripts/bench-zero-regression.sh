@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 BASELINE=${BASELINE:-82ee720da76e}
+BASELINE_CURSOR_API=${BASELINE_CURSOR_API:-0}
 BENCH_CPU=${BENCH_CPU:-10}
 WARMUPS=${WARMUPS:-5}
 TRIALS=${TRIALS:-51}
@@ -15,6 +16,11 @@ if [[ -n ${BENCH_CASES:-} ]]; then
     read -r -a CASES <<<"$BENCH_CASES"
 else
     CASES=("${DEFAULT_CASES[@]}")
+fi
+
+if [[ $BASELINE_CURSOR_API != 0 && $BASELINE_CURSOR_API != 1 ]]; then
+    echo "BASELINE_CURSOR_API must be 0 or 1" >&2
+    exit 2
 fi
 BENCH_SOURCE="$ROOT/crates/solverforge-solver/benches/selector_cursor_gate.rs"
 
@@ -98,7 +104,7 @@ build_case_binary() {
     local manifest="$RESULTS/harnesses/$side/Cargo.toml"
     local target="$RESULTS/targets/$side"
     local feature_args=()
-    if [[ $side == candidate ]]; then
+    if [[ $side == candidate || ($side == baseline && $BASELINE_CURSOR_API == 1) ]]; then
         feature_args=(--features candidate)
     fi
     SOLVERFORGE_BENCH_CASE="$case_name" CARGO_TARGET_DIR="$target" \
@@ -144,7 +150,7 @@ CANDIDATE_TREE_SHA256=$(
 )
 
 cat >"$RESULTS/environment.json" <<EOF
-{"baseline_requested":"$BASELINE","baseline_commit":"$BASELINE_COMMIT","candidate_head":"$(git -C "$ROOT" rev-parse HEAD)","candidate_dirty":$CANDIDATE_DIRTY,"candidate_tree_sha256":"$CANDIDATE_TREE_SHA256","profile":"release(codegen-units=1,incremental=false)","case_isolated_binaries":true,"cpu_model":"$CPU_MODEL","affinity_cpu":$BENCH_CPU,"thread_siblings":"$SIBLINGS","governor":"$GOVERNOR","toolchain":"$TOOLCHAIN","warmups":$WARMUPS,"trials":$TRIALS,"measure_iterations":{"default":$MEASURE_ITERATIONS,"cartesian":$CARTESIAN_MEASURE_ITERATIONS},"perf_available":$PERF_AVAILABLE}
+{"baseline_requested":"$BASELINE","baseline_commit":"$BASELINE_COMMIT","baseline_cursor_api":$BASELINE_CURSOR_API,"candidate_head":"$(git -C "$ROOT" rev-parse HEAD)","candidate_dirty":$CANDIDATE_DIRTY,"candidate_tree_sha256":"$CANDIDATE_TREE_SHA256","profile":"release(codegen-units=1,incremental=false)","case_isolated_binaries":true,"cpu_model":"$CPU_MODEL","affinity_cpu":$BENCH_CPU,"thread_siblings":"$SIBLINGS","governor":"$GOVERNOR","toolchain":"$TOOLCHAIN","warmups":$WARMUPS,"trials":$TRIALS,"measure_iterations":{"default":$MEASURE_ITERATIONS,"cartesian":$CARTESIAN_MEASURE_ITERATIONS},"perf_available":$PERF_AVAILABLE}
 EOF
 
 for case_name in "${CASES[@]}"; do

@@ -95,7 +95,6 @@ fn parse_entity(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Entit
     let mut list_construction_element_order_key = None;
     let mut list_precedence_duration_fn = None;
     let mut list_precedence_successors_fn = None;
-
     for field in fields {
         if has_attribute(&field.attrs, "planning_variable") {
             let Some(field_ident) = field.ident.as_ref() else {
@@ -107,9 +106,6 @@ fn parse_entity(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Entit
                     field,
                     "#[planning_variable] fields must be Option<usize>; scalar variables store candidate indexes, not external IDs",
                 ));
-            }
-            if parse_attribute_bool(attr, "chained").unwrap_or(false) {
-                continue;
             }
             scalar_variables.push(ScalarVariableMetadata {
                 field_name: field_ident.to_string(),

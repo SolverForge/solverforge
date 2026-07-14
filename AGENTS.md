@@ -26,13 +26,20 @@ Publishing order: `core -> macros -> scoring -> config -> solver -> bridge -> cv
 
 Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
 
-Current workspace release version: `0.18.0`.
+Current workspace release version: `0.19.0`.
 
 Use `README.md`, crate manifests, and the crate wireframes to confirm current details before changing public APIs.
 
 Canonical generated domains use `solverforge::planning_model!` in
 `src/domain/mod.rs` as the model-owned metadata manifest. Entity, fact, and
 solution files remain normal separate Rust modules listed in that manifest.
+
+Model ordered sequences and routes with planning list variables. List owners
+store `Vec<usize>` element indexes, while configured inverse, index, previous,
+next, custom, cascading, and piggyback shadows remain derived state. Ordinary
+scalar construction and local search stay on their direct single-slot mutation
+path; do not introduce compound or batch mutation solely to emulate sequence
+topology in a scalar field.
 
 ## Documentation Layer
 

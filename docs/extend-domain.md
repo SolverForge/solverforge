@@ -10,6 +10,12 @@ Use the scaffold as a thin starter, then model the real problem in your app.
 - Scalar `#[planning_variable]` fields are candidate indexes and must be
   `Option<usize>`. Keep external IDs on problem facts or entities, and map them
   through the value range provider collection.
+- Use `#[planning_list_variable(element_collection = "elements")]` when the
+  solver decides both ownership and order. The owning entity stores a
+  `Vec<usize>` of element indexes; list-aware construction and neighborhoods
+  preserve the sequence representation. Configure inverse, index, previous,
+  next, custom, cascading, or piggyback shadows when the application needs
+  derived views of that list state.
 - Keep `src/domain/mod.rs` as a `solverforge::planning_model!` manifest with
   `root = "src/domain"`, normal `mod name;` declarations, and the public
   exports for the model. Entity, fact, and solution files stay separate.

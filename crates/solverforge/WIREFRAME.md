@@ -3,7 +3,7 @@
 Facade crate: re-exports the public API from all sub-crates under a single `solverforge` dependency.
 
 **Location:** `crates/solverforge/`
-**Workspace Release:** `0.18.0`
+**Workspace Release:** `0.19.0`
 
 The CLI lives in the standalone `solverforge-cli` repository and is not part of this workspace or facade crate.
 
@@ -362,7 +362,7 @@ and uses source indexes rather than payload equality or hashing.
 - `PhaseFactory`, `SolverFactory`
 - `ProgressCallback`, `SolverScope`
 - `SolverRuntime`, `SolverEvent`, `SolverTelemetry`
-- `log_solve_start`, `RuntimeBuildResult`, `try_run_solver_with_config_and_search`
+- `log_solve_start`, `RuntimeBuildError`, `RuntimeBuildResult`, `try_run_solver_with_config_and_search`
 - `ListVariableEntity`, `ListVariableMetadata`
 - `PlanningModelSupport`
 

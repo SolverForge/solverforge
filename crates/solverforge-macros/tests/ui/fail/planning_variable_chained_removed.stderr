@@ -1,0 +1,5 @@
+error: unsupported planning_variable argument `chained`; supported arguments are allows_unassigned, value_range_provider, countable_range, candidate_values, nearby_value_candidates, nearby_entity_candidates, nearby_value_distance_meter, nearby_entity_distance_meter, construction_entity_order_key, construction_value_order_key
+ --> tests/ui/fail/planning_variable_chained_removed.rs:8:25
+  |
+8 |     #[planning_variable(chained = true, value_range_provider = "tasks")]
+  |                         ^^^^^^^^^^^^^^

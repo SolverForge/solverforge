@@ -86,8 +86,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                 let attr = get_attribute(&field.attrs, "planning_variable").unwrap();
                 let allows_unassigned =
                     parse_attribute_bool(attr, "allows_unassigned").unwrap_or(false);
-                let is_chained = parse_attribute_bool(attr, "chained").unwrap_or(false);
-                let supports_scalar_helpers = field_is_option_usize(&field.ty) && !is_chained;
+                let supports_scalar_helpers = field_is_option_usize(&field.ty);
                 let value_range_provider = parse_attribute_string(attr, "value_range_provider");
                 let countable_range = parse_attribute_string(attr, "countable_range");
                 let getter_name = syn::Ident::new(
@@ -99,19 +98,15 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                     proc_macro2::Span::call_site(),
                 );
 
-                let base = if is_chained {
-                    quote! { ::solverforge::__internal::VariableDescriptor::chained(#field_name_str) }
+                let maybe_usize_accessors = if supports_scalar_helpers {
+                    quote! { .with_usize_accessors(Self::#getter_name, Self::#setter_name) }
                 } else {
-                    let maybe_usize_accessors = if supports_scalar_helpers {
-                        quote! { .with_usize_accessors(Self::#getter_name, Self::#setter_name) }
-                    } else {
-                        TokenStream::new()
-                    };
-                    quote! {
-                        ::solverforge::__internal::VariableDescriptor::genuine(#field_name_str)
-                            .with_allows_unassigned(#allows_unassigned)
-                            #maybe_usize_accessors
-                    }
+                    TokenStream::new()
+                };
+                let base = quote! {
+                    ::solverforge::__internal::VariableDescriptor::genuine(#field_name_str)
+                        .with_allows_unassigned(#allows_unassigned)
+                        #maybe_usize_accessors
                 };
 
                 let provider_is_entity_field =
@@ -193,8 +188,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             let field_name = field.ident.as_ref().unwrap();
             let field_name_str = field_name.to_string();
             let attr = get_attribute(&field.attrs, "planning_variable").unwrap();
-            let is_chained = parse_attribute_bool(attr, "chained").unwrap_or(false);
-            let supports_scalar_helpers = field_is_option_usize(&field.ty) && !is_chained;
+            let supports_scalar_helpers = field_is_option_usize(&field.ty);
             let value_range_provider = parse_attribute_string(attr, "value_range_provider");
             let provider_helper = value_range_provider
                 .filter(|provider_id| {

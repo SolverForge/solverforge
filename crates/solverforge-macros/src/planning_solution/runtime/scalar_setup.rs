@@ -206,4 +206,3 @@ fn generate_scalar_runtime_setup(
         #(#scalar_slot_pushes)*
     }
 }
-

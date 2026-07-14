@@ -3,7 +3,7 @@
 Proc-macro crate providing attribute macros and derive macros for SolverForge domain model structs.
 
 **Location:** `crates/solverforge-macros/`
-**Workspace Release:** `0.18.0`
+**Workspace Release:** `0.19.0`
 
 ## Dependencies
 
@@ -71,7 +71,8 @@ the same Rust modules and exports plus `include_str!` dependencies for every
 read module, enforces exactly one `#[planning_solution]`, validates entity and
 fact collection types, validates list element collection references, and
 generates the hidden `PlanningModelSupport` impl used by the solution derive for
-scalar hooks, runtime scalar slots, model validation, and list-shadow updates.
+scalar hooks, runtime scalar and list slots, model validation, and configured
+list-shadow updates.
 
 ## Attribute Macros (proc_macro_attribute)
 
@@ -134,7 +135,7 @@ Internal module responsibilities:
 
 **Consumed attributes on fields:**
 - `#[planning_id]` — marks the unique ID field
-- `#[planning_variable(allows_unassigned = bool, chained = bool, value_range_provider = "name")]` — genuine planning variable on an `Option<usize>` field. The stored value is a candidate index into the declared value range, not an external domain ID.
+- `#[planning_variable(allows_unassigned = bool, value_range_provider = "name")]` — genuine planning variable on an `Option<usize>` field. Scalar values are candidate indexes into the declared value range.
   canonical scalar candidate and nearby hooks are declared here as well:
   `candidate_values = "fn_name"`, `nearby_value_candidates = "fn_name"`,
   `nearby_entity_candidates = "fn_name"`,
@@ -231,7 +232,7 @@ is rejected unless the override repeats the exact stock path. Custom routing
 semantics should omit `domain = "cvrp"` and declare explicit hook paths instead.
 
 **Generated code:**
-- `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, plus `update_entity_shadows()` / `update_all_shadows()` overrides when shadow updates are configured
+- `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, plus `update_entity_shadows()` / `update_all_shadows()` delegation to the manifest-owned support implementation when `#[shadow_variable_updates(...)]` configures list shadows.
 - `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors, reusing entity-generated descriptors so field-level variable order and metadata are preserved
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
 - Private owner-specific list operations used by the canonical runtime: `__solverforge_list_len_<owner>()`, `__solverforge_list_remove_<owner>()`, `__solverforge_list_insert_<owner>()`, `__solverforge_list_get_<owner>()`, `__solverforge_list_set_<owner>()`, `__solverforge_list_reverse_<owner>()`, `__solverforge_sublist_remove_<owner>()`, `__solverforge_sublist_insert_<owner>()`, `__solverforge_ruin_remove_<owner>()`, `__solverforge_ruin_insert_<owner>()`, `__solverforge_list_remove_for_construction_<owner>()`, `__solverforge_index_to_element_<owner>()`, `__solverforge_element_source_key_<owner>()`, `__solverforge_element_count_<owner>()`, `__solverforge_assigned_elements_<owner>()`, `__solverforge_n_entities_<owner>()`, `__solverforge_assign_element_<owner>()`, plus aggregate helpers `__solverforge_total_list_entities()` and `__solverforge_total_list_elements()`
@@ -326,22 +327,18 @@ emits hidden per-entity scalar helpers in declaration order; that compact
 the declared modules and generates the `PlanningModelSupport` impl that attaches
 descriptor hooks and runtime `ScalarVariableSlot` hooks by descriptor index
 plus variable name, then orders runtime variables from descriptor order. The
-modeling syntax is unchanged, and Rust module declaration order is not a user
-contract.
+generated runtime retains ordinary scalar candidate and legality semantics.
+Rust module declaration order is not a user contract.
 
 ### Shadow Variable Update Order
 
-When `#[shadow_variable_updates]` is configured, `update_entity_shadows(descriptor_index, entity_idx)` first ignores non-owner descriptors, then executes in this order for the configured owner:
-1. Collect `element_indices` from the configured list owner's list variable
-2. Inverse field update (set element's inverse to entity_idx)
-3. Previous element update (chain previous pointers)
-4. Next element update (chain next pointers)
-5. Cascading listener (call method per element)
-6. Entity aggregates (sum element fields onto entity)
-7. Entity computes (call method to compute entity fields)
-8. Post-update listener (call method once per entity)
+When configured through `#[shadow_variable_updates]`,
+`update_entity_shadows(descriptor_index, entity_idx)` collects the list owner's
+`element_indices`, then updates inverse, previous, next, cascading, aggregate,
+compute, and post-update fields in that order. `update_all_shadows()` visits the
+configured list owner once.
 
 ## Test Coverage
 
-- `tests/trybuild.rs` — compile-pass and compile-fail coverage for the public macros
+- `tests/trybuild.rs` — compile-pass and compile-fail coverage for the public macros, including rejection of removed field arguments and unsupported shadow annotations
 - `planning_entity_tests.rs` and `planning_solution_tests.rs` — token-level golden checks for generated code shape

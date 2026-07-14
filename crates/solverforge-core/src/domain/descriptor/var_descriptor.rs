@@ -70,33 +70,6 @@ impl VariableDescriptor {
         }
     }
 
-    /// Creates a new chained variable descriptor.
-    ///
-    /// Chained variables form chains rooted at anchor problem facts.
-    /// For example, in vehicle routing: Vehicle ← Customer1 ← Customer2
-    pub fn chained(name: &'static str) -> Self {
-        VariableDescriptor {
-            name,
-            logical_id: None,
-            variable_type: VariableType::Chained,
-            allows_unassigned: false,
-            value_range_provider: None,
-            value_range_type: ValueRangeType::Collection,
-            source_variable: None,
-            source_entity: None,
-            usize_getter: None,
-            usize_setter: None,
-            entity_value_provider: None,
-            candidate_values: None,
-            nearby_value_candidates: None,
-            nearby_entity_candidates: None,
-            nearby_value_distance_meter: None,
-            nearby_entity_distance_meter: None,
-            construction_entity_order_key: None,
-            construction_value_order_key: None,
-        }
-    }
-
     pub fn list(name: &'static str) -> Self {
         VariableDescriptor {
             name,

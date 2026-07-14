@@ -28,9 +28,7 @@ pub(super) fn generate_scalar_helpers(
         let attr = get_attribute(&field.attrs, "planning_variable").unwrap();
         let value_range_provider = parse_attribute_string(attr, "value_range_provider");
         let countable_range = parse_attribute_string(attr, "countable_range");
-        let is_chained = parse_attribute_bool(attr, "chained").unwrap_or(false);
-
-        let supports_scalar_helpers = field_is_option_usize(&field.ty) && !is_chained;
+        let supports_scalar_helpers = field_is_option_usize(&field.ty);
 
         let scalar_getter_name = syn::Ident::new(
             &format!("__solverforge_get_{}_scalar", field_name_str),

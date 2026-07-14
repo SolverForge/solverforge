@@ -125,6 +125,9 @@ and `MoveSelector`.
 - **Dynamic Bridge**: `solverforge-bridge` contracts for host-language integrations, with logical entity/fact/variable IDs, dynamic score support, descriptor-resolved scalar/list slots, lazy nearby-source adapters, and explicit dynamic-list access and metadata capabilities
 - **Scalar Variables**: `#[planning_variable]` fields store candidate indexes
   as `Option<usize>`; keep external IDs on facts or entities.
+- **List Variables**: `#[planning_list_variable]` fields store ordered element
+  indexes in their owning entities, with list-aware construction and local
+  search plus inverse, index, previous, and next shadow support.
 - **CVRP List Profile**: `#[planning_list_variable(domain = "cvrp")]` wires
   stock CVRP distance meters plus split route/savings hooks. Route-local phases
   use strict capacity, time-window, and unreachable-leg feasibility;
@@ -205,8 +208,43 @@ If you are building directly against the runtime crates instead of starting from
 
 ```toml
 [dependencies]
-solverforge = { version = "0.18.0", features = ["console"] }
+solverforge = { version = "0.19.0", features = ["console"] }
 ```
+
+### List planning variables
+
+Use a list variable whenever planning decides assignment and order together.
+The owner stores element indexes directly, so route and sequence topology has
+one canonical representation rather than a scalar predecessor graph.
+
+```rust
+#[planning_entity]
+pub struct Route {
+    #[planning_id]
+    pub id: usize,
+
+    #[planning_list_variable(element_collection = "visits")]
+    pub visit_order: Vec<usize>,
+}
+
+#[planning_solution]
+pub struct Plan {
+    #[problem_fact_collection]
+    pub visits: Vec<Visit>,
+
+    #[planning_entity_collection]
+    pub routes: Vec<Route>,
+
+    #[planning_score]
+    pub score: Option<HardSoftScore>,
+}
+```
+
+List construction assigns unassigned elements to owners. List change, swap,
+sublist, reversal, k-opt, ruin/recreate, and nearby selectors then operate on
+the same representation and retain exact undo. Configure inverse, index,
+previous, next, cascading, custom, or piggyback shadows only when constraints or
+application logic need those derived views.
 
 When `move_selector` is omitted from `acceptor_forager` local search, the
 canonical runtime uses explicit streaming defaults instead of broad exhaustive
@@ -376,7 +414,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.18.0 - Zero-Erasure Constraint Solver
+                   v0.19.0 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -600,7 +638,7 @@ controlled gate has not completed release qualification.
 
 ## Status
 
-**Current workspace version:** 0.18.0
+**Current workspace version:** 0.19.0
 
 The current checked-in workspace exposes:
 
@@ -608,7 +646,8 @@ The current checked-in workspace exposes:
 - the `solverforge-bridge` crate for dynamic host-language binding contracts;
 - `solverforge-cli` as the recommended first project path;
 - model-owned `planning_model!` domains with generated collection sources;
-- scalar, list, grouped-scalar, assignment-backed scalar-group,
+- scalar, list, grouped-scalar,
+  assignment-backed scalar-group,
   conflict-repair, ruin-recreate, cartesian, and nearby neighborhoods;
 - retained `SolverManager` jobs with progress events, exact pause/resume,
   snapshots, checkpoint status, telemetry, and snapshot-bound analysis;

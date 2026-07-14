@@ -69,7 +69,6 @@ const SOLUTION_ARGS: &[AttributeArgSpec] = &[
 
 const PLANNING_VARIABLE_ARGS: &[AttributeArgSpec] = &[
     AttributeArgSpec::bool("allows_unassigned"),
-    AttributeArgSpec::bool("chained"),
     AttributeArgSpec::string("value_range_provider"),
     AttributeArgSpec::string("countable_range"),
     AttributeArgSpec::string("candidate_values"),

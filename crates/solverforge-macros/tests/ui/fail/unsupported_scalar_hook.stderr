@@ -1,4 +1,4 @@
-error: scalar runtime hook attributes require a non-chained Option<usize> planning variable
+error: scalar runtime hook attributes require an Option<usize> planning variable
   --> tests/ui/fail/unsupported_scalar_hook.rs:8:5
    |
  8 | /     #[planning_variable(

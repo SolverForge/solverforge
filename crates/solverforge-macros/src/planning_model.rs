@@ -10,8 +10,7 @@ use syn::{
 };
 
 use crate::attr_parse::{
-    get_attribute, has_attribute, parse_attribute_bool, parse_attribute_list,
-    parse_attribute_string,
+    get_attribute, has_attribute, parse_attribute_list, parse_attribute_string,
 };
 use crate::attr_validation::{
     validate_list_element_collection_attribute, validate_no_attribute_args,

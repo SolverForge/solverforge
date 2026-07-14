@@ -2,8 +2,9 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
     let solution_module = &model.solution.module_ident;
     let solution_ident = &model.solution.ident;
     let solution_path = quote! { #solution_module::#solution_ident };
-    let config = &model.solution.shadow_config;
-    if !shadow_updates_requested(config) {
+    let (list_update, list_descriptor) = generate_list_shadow_update(model, &solution_path)?;
+
+    let Some((descriptor_index, collection_accessor)) = list_descriptor else {
         return Ok(quote! {
             fn update_entity_shadows(
                 _solution: &mut Self,
@@ -17,15 +18,48 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
                 false
             }
         });
+    };
+
+    Ok(quote! {
+        fn update_entity_shadows(
+            solution: &mut Self,
+            descriptor_index: usize,
+            entity_index: usize,
+        ) -> bool {
+            let mut updated = false;
+            #list_update
+            updated
+        }
+
+        fn update_all_shadows(solution: &mut Self) -> bool {
+            for entity_index in 0..#solution_path::#collection_accessor(solution).len() {
+                let _ = <Self as ::solverforge::__internal::PlanningModelSupport>::update_entity_shadows(
+                    solution,
+                    #descriptor_index,
+                    entity_index,
+                );
+            }
+            true
+        }
+    })
+}
+
+fn generate_list_shadow_update(
+    model: &ModelMetadata,
+    solution_path: &TokenStream,
+) -> Result<(TokenStream, Option<(usize, Ident)>)> {
+    let config = &model.solution.shadow_config;
+    if !list_shadow_updates_requested(config) {
+        return Ok((TokenStream::new(), None));
     }
 
     let list_owner = config.list_owner.as_deref().ok_or_else(|| {
         Error::new(
             proc_macro2::Span::call_site(),
-            "#[shadow_variable_updates(...)] requires `list_owner = \"entity_collection_field\"` when shadow updates are configured",
+            "#[shadow_variable_updates(...)] requires `list_owner = \"entity_collection_field\"` when list shadow updates are configured",
         )
     })?;
-    let list_owner_collection = model
+    let owner_collection = model
         .solution
         .collections
         .iter()
@@ -40,12 +74,11 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
                 ),
             )
         })?;
-    let list_owner_ident = &list_owner_collection.field_ident;
-    let list_owner_accessor = format_ident!("__solverforge_collection_{}", list_owner_ident);
-    let list_owner_mut_accessor =
-        format_ident!("__solverforge_collection_{}_mut", list_owner_ident);
-    let list_owner_descriptor_index = list_owner_collection.descriptor_index.unwrap();
-    let entity_type_name = canonical_type_name(&model.aliases, &list_owner_collection.type_name);
+    let owner_ident = &owner_collection.field_ident;
+    let owner_accessor = format_ident!("__solverforge_collection_{}", owner_ident);
+    let owner_mut_accessor = format_ident!("__solverforge_collection_{}_mut", owner_ident);
+    let descriptor_index = owner_collection.descriptor_index.unwrap();
+    let entity_type_name = canonical_type_name(&model.aliases, &owner_collection.type_name);
     let entity = model
         .entities
         .get(entity_type_name)
@@ -75,56 +108,50 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
             Error::new(
                 proc_macro2::Span::call_site(),
                 format!(
-                    "planning solution with list owner `{list_owner}` requires a `#[planning_entity_collection]` or `#[problem_fact_collection]` field named `{element_collection_name}`",
+                    "planning solution with list owner `{list_owner}` requires a collection field named `{element_collection_name}`",
                 ),
             )
         })?;
-    let element_collection_ident = &element_collection.field_ident;
-    let element_collection_accessor =
-        format_ident!("__solverforge_collection_{}", element_collection_ident);
-    let element_collection_mut_accessor =
-        format_ident!("__solverforge_collection_{}_mut", element_collection_ident);
+    let element_accessor =
+        format_ident!("__solverforge_collection_{}", element_collection.field_ident);
+    let element_mut_accessor =
+        format_ident!("__solverforge_collection_{}_mut", element_collection.field_ident);
 
     let inverse_update = config.inverse_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
             {
-                let elements = #solution_path::#element_collection_mut_accessor(solution);
+                let elements = #solution_path::#element_mut_accessor(solution);
                 for &element_idx in &element_indices {
                     elements[element_idx].#field_ident = Some(entity_index);
                 }
             }
         }
     });
-
     let previous_update = config.previous_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
             {
-                let elements = #solution_path::#element_collection_mut_accessor(solution);
-                let mut prev_idx: Option<usize> = None;
+                let elements = #solution_path::#element_mut_accessor(solution);
+                let mut previous = None;
                 for &element_idx in &element_indices {
-                    elements[element_idx].#field_ident = prev_idx;
-                    prev_idx = Some(element_idx);
+                    elements[element_idx].#field_ident = previous;
+                    previous = Some(element_idx);
                 }
             }
         }
     });
-
     let next_update = config.next_field.as_ref().map(|field| {
         let field_ident = Ident::new(field, proc_macro2::Span::call_site());
         quote! {
             {
-                let elements = #solution_path::#element_collection_mut_accessor(solution);
-                let len = element_indices.len();
-                for (i, &element_idx) in element_indices.iter().enumerate() {
-                    let next_idx = if i + 1 < len { Some(element_indices[i + 1]) } else { None };
-                    elements[element_idx].#field_ident = next_idx;
+                let elements = #solution_path::#element_mut_accessor(solution);
+                for (offset, &element_idx) in element_indices.iter().enumerate() {
+                    elements[element_idx].#field_ident = element_indices.get(offset + 1).copied();
                 }
             }
         }
     });
-
     let cascading_update = config.cascading_listener.as_ref().map(|method| {
         let method_ident = Ident::new(method, proc_macro2::Span::call_site());
         quote! {
@@ -133,76 +160,25 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
             }
         }
     });
-
     let post_update = config.post_update_listener.as_ref().map(|method| {
         let method_ident = Ident::new(method, proc_macro2::Span::call_site());
-        quote! {
-            solution.#method_ident(entity_index);
-        }
+        quote! { solution.#method_ident(entity_index); }
     });
+    let aggregate_updates = generate_list_aggregate_updates(
+        config,
+        solution_path,
+        &element_accessor,
+        &owner_mut_accessor,
+    );
+    let compute_updates = generate_list_compute_updates(config, solution_path, &owner_mut_accessor);
 
-    let aggregate_updates: Vec<_> = config
-        .entity_aggregates
-        .iter()
-        .filter_map(|spec| {
-            let parts: Vec<&str> = spec.split(':').collect();
-            if parts.len() != 3 {
-                return None;
-            }
-            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
-            let aggregation = parts[1];
-            let source_field = Ident::new(parts[2], proc_macro2::Span::call_site());
-
-            match aggregation {
-                "sum" => Some(quote! {
-                    let aggregate_value = {
-                        let elements = #solution_path::#element_collection_accessor(solution);
-                        element_indices
-                            .iter()
-                            .map(|&idx| elements[idx].#source_field)
-                            .sum()
-                    };
-                    #solution_path::#list_owner_mut_accessor(solution)[entity_index].#target_field =
-                        aggregate_value;
-                }),
-                _ => None,
-            }
-        })
-        .collect();
-
-    let compute_updates: Vec<_> = config
-        .entity_computes
-        .iter()
-        .filter_map(|spec| {
-            let parts: Vec<&str> = spec.split(':').collect();
-            if parts.len() != 2 {
-                return None;
-            }
-            let target_field = Ident::new(parts[0], proc_macro2::Span::call_site());
-            let method_name = Ident::new(parts[1], proc_macro2::Span::call_site());
-
-            Some(quote! {
-                let computed_value = solution.#method_name(entity_index);
-                #solution_path::#list_owner_mut_accessor(solution)[entity_index].#target_field =
-                    computed_value;
-            })
-        })
-        .collect();
-
-    Ok(quote! {
-        fn update_entity_shadows(
-            solution: &mut Self,
-            descriptor_index: usize,
-            entity_index: usize,
-        ) -> bool {
-            if descriptor_index != #list_owner_descriptor_index {
-                return false;
-            }
-
-            let element_indices: Vec<usize> =
-                #solution_path::#list_owner_accessor(solution)[entity_index].#list_variable_ident
-                    .to_vec();
-
+    let update = quote! {
+        if descriptor_index == #descriptor_index
+            && entity_index < #solution_path::#owner_accessor(solution).len()
+        {
+            let element_indices = #solution_path::#owner_accessor(solution)[entity_index]
+                .#list_variable_ident
+                .to_vec();
             #inverse_update
             #previous_update
             #next_update
@@ -210,24 +186,63 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
             #(#aggregate_updates)*
             #(#compute_updates)*
             #post_update
-
-            true
+            updated = true;
         }
-
-        fn update_all_shadows(solution: &mut Self) -> bool {
-            for entity_index in 0..#solution_path::#list_owner_accessor(solution).len() {
-                <Self as ::solverforge::__internal::PlanningModelSupport>::update_entity_shadows(
-                    solution,
-                    #list_owner_descriptor_index,
-                    entity_index,
-                );
-            }
-            true
-        }
-    })
+    };
+    Ok((update, Some((descriptor_index, owner_accessor))))
 }
 
-fn shadow_updates_requested(config: &ShadowConfig) -> bool {
+fn generate_list_aggregate_updates(
+    config: &ShadowConfig,
+    solution_path: &TokenStream,
+    element_accessor: &Ident,
+    owner_mut_accessor: &Ident,
+) -> Vec<TokenStream> {
+    config
+        .entity_aggregates
+        .iter()
+        .filter_map(|spec| {
+            let parts = spec.split(':').collect::<Vec<_>>();
+            if parts.len() != 3 || parts[1] != "sum" {
+                return None;
+            }
+            let target = Ident::new(parts[0], proc_macro2::Span::call_site());
+            let source = Ident::new(parts[2], proc_macro2::Span::call_site());
+            Some(quote! {
+                let aggregate_value = {
+                    let elements = #solution_path::#element_accessor(solution);
+                    element_indices.iter().map(|&index| elements[index].#source).sum()
+                };
+                #solution_path::#owner_mut_accessor(solution)[entity_index].#target = aggregate_value;
+            })
+        })
+        .collect()
+}
+
+fn generate_list_compute_updates(
+    config: &ShadowConfig,
+    solution_path: &TokenStream,
+    owner_mut_accessor: &Ident,
+) -> Vec<TokenStream> {
+    config
+        .entity_computes
+        .iter()
+        .filter_map(|spec| {
+            let parts = spec.split(':').collect::<Vec<_>>();
+            if parts.len() != 2 {
+                return None;
+            }
+            let target = Ident::new(parts[0], proc_macro2::Span::call_site());
+            let method = Ident::new(parts[1], proc_macro2::Span::call_site());
+            Some(quote! {
+                let computed_value = solution.#method(entity_index);
+                #solution_path::#owner_mut_accessor(solution)[entity_index].#target = computed_value;
+            })
+        })
+        .collect()
+}
+
+fn list_shadow_updates_requested(config: &ShadowConfig) -> bool {
     config.inverse_field.is_some()
         || config.previous_field.is_some()
         || config.next_field.is_some()
@@ -236,4 +251,3 @@ fn shadow_updates_requested(config: &ShadowConfig) -> bool {
         || !config.entity_aggregates.is_empty()
         || !config.entity_computes.is_empty()
 }
-

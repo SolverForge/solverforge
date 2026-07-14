@@ -5,7 +5,7 @@ allowing them to update shadow variables accordingly.
 
 # Architecture
 
-- [`VariableListener`]: Listens to basic/chained variable changes
+- [`VariableListener`]: Listens to scalar variable changes
 - [`ListVariableListener`]: Listens to list variable changes with range info
 
 # Listener Types

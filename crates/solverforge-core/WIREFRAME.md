@@ -3,7 +3,7 @@
 Core types and traits for the SolverForge constraint solver framework.
 
 **Location:** `crates/solverforge-core/`
-**Workspace Release:** `0.18.0`
+**Workspace Release:** `0.19.0`
 
 ## Dependencies
 
@@ -51,7 +51,7 @@ src/
 │   │   ├── backend.rs                     — DynamicModelBackend-backed scalar/list access adapters
 │   │   └── resolution.rs                  — Logical ID to descriptor-index resolution and validation
 │   ├── entity_ref.rs                      — EntityRef, EntityExtractor trait, EntityCollectionExtractor
-│   ├── variable.rs                        — VariableType, ShadowVariableKind, ValueRangeType, ChainedVariableInfo
+│   ├── variable.rs                        — VariableType, ShadowVariableKind, ValueRangeType
 │   ├── value_range.rs                     — ValueRangeProvider trait, FieldValueRangeProvider, ComputedValueRangeProvider, StaticValueRange, IntegerRange
 │   ├── descriptor/
 │   │   ├── mod.rs                         — Re-exports descriptor types
@@ -72,15 +72,14 @@ src/
 │   ├── supply/
 │   │   ├── mod.rs                         — Re-exports supply types
 │   │   ├── inverse.rs                     — InverseSupply<V>: value → entity_index mapping
-│   │   ├── anchor.rs                      — AnchorSupply: entity_idx → anchor_idx mapping
 │   │   ├── list_state.rs                  — ListStateSupply<E>: element → (entity_idx, list_idx) mapping; ElementPosition
-│   │   └── tests.rs                       — Supply tests (inverse, anchor, list_state)
+│   │   └── tests.rs                       — Supply tests (inverse, list_state)
 │   └── tests/
 │       ├── mod.rs                         — Test module declarations
 │       ├── dynamic_list_tests.rs          — Dynamic list access, metadata, and slot validation tests
 │       ├── entity_ref_tests.rs            — EntityCollectionExtractor tests
 │       ├── value_range_tests.rs           — ValueRangeProvider tests
-│       └── variable_tests.rs             — VariableType, ShadowVariableKind, ChainedVariableInfo tests
+│       └── variable_tests.rs             — VariableType and ShadowVariableKind tests
 ```
 
 ## Public Re-exports (lib.rs)
@@ -354,20 +353,19 @@ Implements: `EntityExtractor`, `Debug`
 ```rust
 pub enum VariableType {
     Genuine,
-    Chained,
     List,
     Shadow(ShadowVariableKind),
 }
 ```
 
-Methods: `is_genuine()`, `is_shadow()`, `is_list()`, `is_chained()`, `is_basic()`
+Methods: `is_genuine()`, `is_shadow()`, `is_list()`, `is_basic()`
 
 #### `ShadowVariableKind`
 
 ```rust
 pub enum ShadowVariableKind {
     Custom, InverseRelation, Index, NextElement,
-    PreviousElement, Anchor, Cascading, Piggyback,
+    PreviousElement, Cascading, Piggyback,
 }
 ```
 
@@ -382,18 +380,6 @@ pub enum ValueRangeType {
     EntityDependent,
 }
 ```
-
-#### `ChainedVariableInfo`
-
-```rust
-pub struct ChainedVariableInfo {
-    pub anchor_type_id: TypeId,
-    pub entity_type_id: TypeId,
-    pub has_anchor_shadow: bool,
-}
-```
-
-Methods: `new::<Anchor, Entity>()`, `with_anchor_shadow::<Anchor, Entity>()`, `is_anchor_type(TypeId)`, `is_entity_type(TypeId)`
 
 ### Value Range Providers
 
@@ -507,7 +493,7 @@ pub struct VariableDescriptor {
 }
 ```
 
-Constructors: `genuine(&str)`, `chained(&str)`, `list(&str)`, `shadow(&str, ShadowVariableKind)`, `piggyback(&str, &str)`
+Constructors: `genuine(&str)`, `list(&str)`, `shadow(&str, ShadowVariableKind)`, `piggyback(&str, &str)`
 
 Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_logical_id()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_candidate_values()`, `with_nearby_value_candidates()`, `with_nearby_entity_candidates()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`, `with_construction_entity_order_key()`, `with_construction_value_order_key()`
 
@@ -566,8 +552,8 @@ methods: `resolve_descriptor_index(&SolutionDescriptor)`,
 `resolved_against(&SolutionDescriptor)`, `is_descriptor_resolved()`,
 `descriptor_index()`, and `descriptor_variable_index()`.
 `resolve_descriptor_index()` validates the complete logical target and
-establishes both indexes; `is_descriptor_resolved()` is true only when both
-indexes are present. Runtime access methods:
+establishes both indexes.
+`is_descriptor_resolved()` is true only when both indexes are present. Runtime access methods:
 `matches_target()`, `entity_count()`, `current_value()`, `set_value()`,
 `candidate_values()`, `has_nearby_value_candidates()`,
 `visit_nearby_value_candidates()`, `nearby_value_distance()`,
@@ -644,12 +630,6 @@ surface is index-based.
 Index-based mapping: value → entity_index. Backed by `HashMap<V, usize>`.
 
 Methods: `new()`, `with_capacity(usize)`, `get(&V) -> Option<usize>`, `insert(V, usize) -> Option<usize>`, `remove(&V) -> Option<usize>`, `update(Option<&V>, V, usize)`, `clear()`, `len()`, `is_empty()`, `iter()`
-
-#### `AnchorSupply`
-
-Index-based mapping: entity_idx → anchor_idx. Backed by `HashMap<usize, usize>`.
-
-Methods: `new()`, `with_capacity(usize)`, `get(usize) -> Option<usize>`, `set(usize, usize) -> Option<usize>`, `remove(usize) -> Option<usize>`, `cascade(impl IntoIterator<Item=usize>, usize)`, `clear()`, `len()`, `is_empty()`, `iter()`, `entities_for_anchor(usize) -> Vec<usize>`
 
 #### `ListStateSupply<E>` where `E: Eq + Hash`
 
@@ -756,7 +736,7 @@ Internal values are stored multiplied by 100,000 (`SCALE` constant). `of()` auto
 
 ### Supply Zero-Erasure Design
 
-All three supply types (InverseSupply, AnchorSupply, ListStateSupply) follow strict zero-erasure:
+Both supply types (`InverseSupply` and `ListStateSupply`) follow strict zero-erasure:
 - Index-based: store `usize` indices, not cloned domain objects
 - Owned: no `Arc`, `Box`, or `dyn`
 - Mutation via `&mut self`: no interior mutability

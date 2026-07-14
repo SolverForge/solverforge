@@ -10,18 +10,6 @@ fn test_genuine() {
     assert!(!desc.allows_unassigned);
     assert!(desc.variable_type.is_genuine());
     assert!(desc.variable_type.is_basic());
-    assert!(!desc.variable_type.is_chained());
-}
-
-#[test]
-fn test_chained() {
-    let desc = VariableDescriptor::chained("previous");
-    assert_eq!(desc.name, "previous");
-    assert_eq!(desc.variable_type, VariableType::Chained);
-    assert!(!desc.allows_unassigned); // Chained vars must point to something
-    assert!(desc.variable_type.is_genuine()); // Chained is a genuine variable type
-    assert!(!desc.variable_type.is_basic()); // But not basic
-    assert!(desc.variable_type.is_chained());
 }
 
 #[test]
@@ -31,7 +19,6 @@ fn test_list() {
     assert_eq!(desc.variable_type, VariableType::List);
     assert!(desc.variable_type.is_list());
     assert!(desc.variable_type.is_genuine());
-    assert!(!desc.variable_type.is_chained());
 }
 
 #[test]

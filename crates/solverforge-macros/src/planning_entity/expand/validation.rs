@@ -50,17 +50,10 @@ fn validate_scalar_hook_targets(planning_variables: &[&syn::Field]) -> Result<()
             continue;
         }
 
-        if parse_attribute_bool(attr, "chained").unwrap_or(false) {
-            return Err(Error::new_spanned(
-                *field,
-                "chained planning variables cannot declare scalar runtime hook attributes",
-            ));
-        }
-
         if !field_is_option_usize(&field.ty) {
             return Err(Error::new_spanned(
                 *field,
-                "scalar runtime hook attributes require a non-chained Option<usize> planning variable",
+                "scalar runtime hook attributes require an Option<usize> planning variable",
             ));
         }
     }

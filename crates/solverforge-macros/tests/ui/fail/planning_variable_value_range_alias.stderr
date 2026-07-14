@@ -1,4 +1,4 @@
-error: unsupported planning_variable argument `value_range`; supported arguments are allows_unassigned, chained, value_range_provider, countable_range, candidate_values, nearby_value_candidates, nearby_entity_candidates, nearby_value_distance_meter, nearby_entity_distance_meter, construction_entity_order_key, construction_value_order_key
+error: unsupported planning_variable argument `value_range`; supported arguments are allows_unassigned, value_range_provider, countable_range, candidate_values, nearby_value_candidates, nearby_entity_candidates, nearby_value_distance_meter, nearby_entity_distance_meter, construction_entity_order_key, construction_value_order_key
  --> tests/ui/fail/planning_variable_value_range_alias.rs:8:25
   |
 8 |     #[planning_variable(value_range = "workers")]

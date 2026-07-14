@@ -35,10 +35,10 @@ pub use entity_ref::{EntityCollectionExtractor, EntityExtractor, EntityRef};
 pub use listener::{
     ListVariableListener, ListVariableNotification, VariableListener, VariableNotification,
 };
-pub use supply::{AnchorSupply, ElementPosition, InverseSupply, ListStateSupply};
+pub use supply::{ElementPosition, InverseSupply, ListStateSupply};
 pub use traits::{ListVariableSolution, PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use value_range::{
     ComputedValueRangeProvider, FieldValueRangeProvider, IntegerRange, StaticValueRange,
     ValueRangeProvider,
 };
-pub use variable::{ChainedVariableInfo, ShadowVariableKind, ValueRangeType, VariableType};
+pub use variable::{ShadowVariableKind, ValueRangeType, VariableType};

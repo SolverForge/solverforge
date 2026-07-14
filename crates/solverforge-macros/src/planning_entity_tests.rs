@@ -90,45 +90,6 @@ fn entity_descriptor_preserves_mixed_variable_declaration_order() {
 }
 
 #[test]
-fn chained_option_usize_does_not_enter_scalar_helper_indexing() {
-    let input = parse_quote! {
-        struct Task {
-            #[planning_id]
-            id: String,
-            #[planning_variable(chained = true, value_range_provider = "tasks")]
-            previous: Option<usize>,
-            #[planning_variable(allows_unassigned = true, value_range_provider = "workers")]
-            worker: Option<usize>,
-        }
-    };
-
-    let expanded = expand_derive(input)
-        .expect("entity expansion should succeed")
-        .to_string();
-
-    assert!(expanded.contains("VariableDescriptor :: chained (\"previous\")"));
-    assert!(expanded.contains("VariableDescriptor :: genuine (\"worker\")"));
-    assert!(!expanded.contains("__solverforge_get_previous_scalar"));
-    assert!(!expanded.contains("__solverforge_set_previous_scalar"));
-    assert!(expanded.contains("__solverforge_get_worker_scalar"));
-    assert!(expanded.contains("__solverforge_set_worker_scalar"));
-    assert!(expanded.contains(
-        "pub (crate) const fn __solverforge_scalar_variable_count () -> usize { 1usize }"
-    ));
-
-    let name_helper_pos = expanded
-        .find("fn __solverforge_scalar_variable_name_by_index")
-        .expect("indexed scalar name helper should exist");
-    let name_helper_end = expanded[name_helper_pos..]
-        .find("fn __solverforge_scalar_allows_unassigned_by_index")
-        .map(|offset| name_helper_pos + offset)
-        .expect("next scalar helper should exist");
-    let name_helper = &expanded[name_helper_pos..name_helper_end];
-    assert!(name_helper.contains("0usize => :: core :: option :: Option :: Some (\"worker\")"));
-    assert!(!name_helper.contains("\"previous\""));
-}
-
-#[test]
 fn list_metadata_forwards_element_owner_fn() {
     let input = parse_quote! {
         struct Route {

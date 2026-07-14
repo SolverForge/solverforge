@@ -3,7 +3,7 @@
 Public dynamic model bridge contracts for SolverForge host-language bindings.
 
 **Location:** `crates/solverforge-bridge/`
-**Workspace Release:** `0.18.0`
+**Workspace Release:** `0.19.0`
 
 This crate is the boundary between monomorphized Rust models and dynamic
 binding models. It is additive: the macro-generated Rust path remains in

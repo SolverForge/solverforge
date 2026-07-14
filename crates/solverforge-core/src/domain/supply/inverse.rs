@@ -12,8 +12,8 @@ use std::hash::Hash;
 
 /* Index-based inverse variable supply.
 
-For a chained variable where `entity.previous = value`, this supply answers:
-"Given `value`, which entity index has `entities[idx].previous == value`?"
+For an inverse relationship where `entity.assignment = value`, this supply
+answers: "Given `value`, which entity index references it?"
 
 Returns entity indices - caller accesses actual entity via `solution.entities[idx]`.
 

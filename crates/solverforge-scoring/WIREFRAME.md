@@ -385,7 +385,14 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
 
 **`ScoreDirector<S, C>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`
 - Primary incremental scoring director. Zero-erasure.
-- Key methods: `new()`, `with_descriptor()`, `simple()` (convenience for `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor), `calculate_score()`, `before_variable_changed()`, `after_variable_changed()`, `do_change()`, `get_score()`, `constraint_metadata()`, `constraint_match_totals()`, `into_working_solution()`, `take_solution()`
+- Public methods: `new()`, `with_descriptor()`, `simple()` (convenience for
+  `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor),
+  `working_solution()`, `working_solution_mut()`, `into_working_solution()`,
+  `calculate_score()`, `before_variable_changed()`,
+  `after_variable_changed()`, `do_change()`, `get_score()`, `reset()`,
+  `clone_working_solution()`, `constraints()`, `constraints_mut()`,
+  `constraint_metadata()`, `constraint_count()`, `is_initialized()`,
+  `constraint_match_totals()`, and `take_solution()`
 - Returns borrowed constraint metadata views from the monomorphized `ConstraintSet` on demand.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
@@ -405,7 +412,12 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`IncrementalPentaConstraint<S, A, K, E, KE, F, W, Sc>`** — Self-join penta constraint. Joined filters receive the five source entity indexes.
 
-**`constraint::cross_bi_incremental::Bi<S, A, B, K, EA, EB, KA, KB, F, W, Sc>`** — Cross-collection bi constraint (two different collections joined by key). Stateless `evaluate()`, `match_count()`, and `get_matches()` rebuild the keyed B-side index directly, so retained analysis works even before `initialize()`. Filters receive the A and B source indexes on every direct, grouped, and projected finalization path. The low-level `new(...)` constructor preserves index-aware weights via `Fn(&S, usize, usize) -> Sc`; fluent stream builders use `PairWeight<W>` internally for `Fn(&A, &B) -> Sc` weights without cloning streams or extractors.
+**`ListPrecedenceMakespanConstraint<S>`** — Stock incremental
+list-plus-fixed-precedence constraint over `HardSoftScore`. `new(...)` binds the
+list descriptor, node/owner accessors, durations, and fixed successors;
+`with_expected_owner(...)` optionally adds fixed-owner validation.
+
+**`constraint::cross_bi_incremental::Bi<S, A, B, K, EA, EB, KA, KB, F, W, Sc>`** — Cross-collection bi constraint (two different collections joined by key). Stateless `evaluate()`, `match_count()`, and `get_matches()` rebuild the keyed B-side index directly, so retained analysis works even before `initialize()`. Filters receive the A and B source indexes on every direct, grouped, and projected finalization path. The low-level `new(...)` constructor preserves index-aware weights via `Fn(&S, usize, usize) -> Sc`; `new_pair_weight(...)` and fluent stream builders use `PairWeight<W>` for `Fn(&A, &B) -> Sc` weights without cloning streams or extractors.
 
 **`CrossBiWeight<S, A, B, Sc>`**, **`IndexWeight<W>`**, **`PairWeight<W>`** — Zero-erasure cross-bi weight strategies. They keep low-level index-aware scoring and fluent pair-aware scoring as separate monomorphized paths.
 
@@ -472,6 +484,20 @@ alias of the common grouped terminal scorer. These support symbols are
 module-level compiler bridges (several are `#[doc(hidden)]`); they are not
 crate-root modeling APIs and do not introduce runtime node caches.
 
+Shared grouped node states expose `update_count()`, `changed_key_count()`, and
+`evaluation_state()` for compiler diagnostics. `GroupedTerminalScorer` exposes
+`refresh_all()`, `refresh_changed()`, and `refresh_count()` for the concrete
+shared-set dispatch path.
+
+**`SharedNodeId(pub usize)`** — Stable diagnostic identifier for one shared
+compiler node.
+
+**`SharedNodeOperation`** — `Grouped`, `ProjectedGrouped`, `CrossGrouped`,
+`CrossComplementedGrouped`, or `ProjectedComplementedGrouped`.
+
+**`SharedNodeDiagnostics`** — Public fields `{ id, fingerprint, operation,
+terminal_consumers, update_count, changed_key_count }`; construct with `new(...)`.
+
 ### Analysis Types
 
 Constraints own their `ConstraintRef` once. Metadata and analysis types borrow that identity so package-qualified constraint names remain intact without cloning `ConstraintRef` in scoring or reporting paths.
@@ -484,7 +510,8 @@ Constraints own their `ConstraintRef` once. Metadata and analysis types borrow t
 - Methods: `new()`, `with_display()`, `as_entity::<T>()`, `short_type_name()`
 - Implements `Hash + Eq` (by display string)
 
-**`ConstraintJustification`** — `{ entities: Vec<EntityRef>, description: String }`
+**`ConstraintJustification`** — `{ entities: Vec<EntityRef>, description: String }`.
+Construct with `new(entities)` or `with_description(entities, description)`.
 
 **`DetailedConstraintMatch<'a, Sc: Score>`** — `{ constraint_ref: &'a ConstraintRef, score: Sc, justification: ConstraintJustification }`
 
@@ -584,18 +611,26 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 **`stream::projected::Grouped` / `stream::projected::GroupedBuilder`** — Grouped projected rows using stock collectors such as `sum()`, `count()`, `collect_vec()`, `consecutive_runs()`, and `indexed_presence()`. Grouped retained state uses the same `RowOwner` ownership index as ungrouped projected rows. Collector values do not need `Clone`; retained grouped state stores the projected row once by `RowCoordinate` and caches accumulator retraction tokens for exact retracts. Grouped weights use the canonical `penalize(|key, result| ...)` / `reward(|key, result| ...)` shape. `complement()` and `complement_with_key()` continue to `stream::projected::ComplementedGrouped`; `named()` → `constraint::projected::Grouped`.
 
 **`BiConstraintStream<S, A, K, E, KE, F, Sc>`** — Self-join bi stream (macro-generated).
-- Operations: `filter()`, `join()` → TriStream, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
+- Operations: `filter()`, `join()` → `TriConstraintStream`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
+- Low-level constructors: `new_self_join()`, `new_self_join_with_filter()`
 
 **`BiConstraintBuilder<S, A, K, E, KE, F, W, Sc>`** — `named()` → `IncrementalBiConstraint`
 
-**`TriConstraintStream/Builder`** — Same pattern, tri-arity. `join()` → QuadStream.
+**`TriConstraintStream/Builder`** — Same pattern, tri-arity. `join()` →
+`QuadConstraintStream`; low-level constructors are `new_self_join()` and
+`new_self_join_with_filter()`.
 
-**`QuadConstraintStream/Builder`** — Same pattern, quad-arity. `join()` → PentaStream.
+**`QuadConstraintStream/Builder`** — Same pattern, quad-arity. `join()` →
+`PentaConstraintStream`; low-level constructors are `new_self_join()` and
+`new_self_join_with_filter()`.
 
-**`PentaConstraintStream/Builder`** — Same pattern, penta-arity. Terminal (no further joins).
+**`PentaConstraintStream/Builder`** — Same pattern, penta-arity. Terminal (no
+further joins); low-level constructors are `new_self_join()` and
+`new_self_join_with_filter()`.
 
 **`stream::cross::Bi<S, A, B, K, EA, EB, KA, KB, F, Sc>`** — Cross-collection bi stream.
-- Operations: `filter()`, `group_by(|left, right| key, collector)` → stream::cross::Grouped, `project(|left, right| row)` → stream::projected::Stream, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `flatten_last()` → FlattenedBiStream
+- Operations: `filter()`, `group_by(|left, right| key, collector)` → `stream::cross::Grouped`, `project(|left, right| row)` → `stream::projected::Stream`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `flatten_last()` → `FlattenedBiConstraintStream`
+- Low-level constructors: `new()`, `new_with_filter()`
 
 **`stream::cross::Builder`** — `named()` → `constraint::cross_bi_incremental::Bi`
 
@@ -604,7 +639,7 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 **`stream::cross::ComplementedGrouped/Builder`** — Direct grouped cross-join complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::cross_complemented_grouped::ComplementedGrouped`. Complement defaults are produced from the complement entity and weighted by key plus collector result. Complement sources use the same `CollectionExtract::contains(...)` membership contract as joined sources.
 
 **`GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>`** — Grouped stream.
-- Operations: `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `complement()`, `complement_with_key()` → ComplementedStream
+- Operations: `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `complement()`, `complement_with_key()` → `ComplementedConstraintStream`
 - Dynamic weighted operations use one canonical key-aware closure shape: `Fn(&K, &R) -> Sc`.
 
 **`GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** — `named()` → `constraint::grouped::Uni`

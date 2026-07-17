@@ -470,13 +470,14 @@ solverforge
   `-- solverforge-console   optional tracing console feature
 
 Dependency layers:
+  solverforge          -> all listed SolverForge crates (console optional)
   solverforge-scoring -> solverforge-core
   solverforge-config  -> solverforge-core
-  solverforge-solver  -> solverforge-core + solverforge-scoring + solverforge-config
+  solverforge-solver  -> solverforge-core + solverforge-scoring + solverforge-config + tokio sync
   solverforge-bridge  -> solverforge-core + solverforge-scoring + solverforge-config + solverforge-solver
   solverforge-cvrp    -> solverforge-solver
   solverforge-macros  -> proc-macro dependencies only; generated code references the facade
-  solverforge-console -> tracing only
+  solverforge-console -> tracing + tracing-subscriber + owo-colors + num-format
 ```
 
 ## Crate Overview

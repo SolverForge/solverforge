@@ -8,7 +8,6 @@ which generates concrete types at compile time.
 */
 
 mod builder;
-mod config;
 mod phase_factory;
 mod phase_factory_trait;
 mod solution_manager;
@@ -23,7 +22,6 @@ mod mod_tests;
 mod mod_tests_integration;
 
 pub use builder::{SolverBuildError, SolverFactoryBuilder};
-pub use config::{ConstructionType, LocalSearchAcceptorType, PhaseConfig};
 pub(crate) use phase_factory::{
     run_cheapest, run_clarke_wright, run_list_k_opt, run_regret, run_round_robin,
     PhaseCheapestInsertionObserver, ScoredListConstructionAccess,

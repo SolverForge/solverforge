@@ -310,7 +310,6 @@ src/
 │
 ├── manager/
 │   ├── mod.rs                           — PhaseFactory trait, re-exports
-│   ├── config.rs                        — LocalSearchAcceptorType, ConstructionType, PhaseConfig enums
 │   ├── builder.rs                       — SolverFactoryBuilder, SolverBuildError
 │   ├── solver_factory.rs               — SolverFactory, solver_factory_builder() free fn
 │   ├── solver_manager.rs               — Re-exports retained lifecycle manager surface

@@ -6,7 +6,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
-use super::{ConstructionType, LocalSearchAcceptorType, SolverFactoryBuilder};
+use super::SolverFactoryBuilder;
 
 #[derive(Clone, Debug)]
 struct TestSolution {
@@ -65,35 +65,4 @@ fn test_builder_with_step_limit() {
     };
     let score = factory.calculate_score(&solution);
     assert_eq!(score, SoftScore::of(-10));
-}
-
-#[test]
-fn test_local_acceptor_types() {
-    assert_eq!(
-        LocalSearchAcceptorType::default(),
-        LocalSearchAcceptorType::HillClimbing
-    );
-
-    let tabu = LocalSearchAcceptorType::TabuSearch { tabu_size: 10 };
-    assert!(matches!(
-        tabu,
-        LocalSearchAcceptorType::TabuSearch { tabu_size: 10 }
-    ));
-
-    let sa = LocalSearchAcceptorType::SimulatedAnnealing {
-        starting_temp: 1.0,
-        decay_rate: 0.99,
-    };
-    assert!(matches!(
-        sa,
-        LocalSearchAcceptorType::SimulatedAnnealing {
-            starting_temp: 1.0,
-            decay_rate: 0.99
-        }
-    ));
-}
-
-#[test]
-fn test_construction_types() {
-    assert_eq!(ConstructionType::default(), ConstructionType::FirstFit);
 }

@@ -109,13 +109,13 @@ pub use heuristic::{
     VecUnionSelector,
 };
 pub use manager::{
-    analyze, Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, ConstructionType, KOptPhase,
-    KOptPhaseBuilder, ListCheapestInsertionPhase, ListClarkeWrightPhase, ListConstructionPhase,
-    ListConstructionPhaseBuilder, ListKOptPhase, ListRegretInsertionPhase, LocalSearchAcceptorType,
-    LocalSearchPhaseFactory, PhaseFactory, ScoreAnalysis, Solvable, SolverEvent,
-    SolverEventMetadata, SolverFactory, SolverFactoryBuilder, SolverLifecycleState, SolverManager,
-    SolverManagerError, SolverPanicPayload, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis,
-    SolverStatus, SolverTelemetryDetail, SolverTerminalReason,
+    analyze, Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder,
+    ListCheapestInsertionPhase, ListClarkeWrightPhase, ListConstructionPhase,
+    ListConstructionPhaseBuilder, ListKOptPhase, ListRegretInsertionPhase, LocalSearchPhaseFactory,
+    PhaseFactory, ScoreAnalysis, Solvable, SolverEvent, SolverEventMetadata, SolverFactory,
+    SolverFactoryBuilder, SolverLifecycleState, SolverManager, SolverManagerError,
+    SolverPanicPayload, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
+    SolverTelemetryDetail, SolverTerminalReason,
 };
 pub use model_support::PlanningModelSupport;
 pub use phase::{

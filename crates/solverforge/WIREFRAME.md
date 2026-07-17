@@ -22,6 +22,7 @@ The CLI lives in the standalone `solverforge-cli` repository and is not part of 
 
 | Feature | Effect |
 |---------|--------|
+| `default` | Empty default feature set |
 | `decimal` | Forwards the currently empty `solverforge-core/decimal` feature; fixed-scale `HardSoftDecimalScore` is always available |
 | `serde` | Enables `solverforge-core/serde` (Serialize/Deserialize for score types) |
 | `console` | Enables `dep:solverforge-console` (terminal output) |

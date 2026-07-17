@@ -374,9 +374,6 @@ local-search selectors.
 **Config (from `solverforge-config`):**
 - `PhaseConfig`, `SolverConfig`
 
-**Async bridge types:**
-- `tokio::sync::mpsc::UnboundedSender`
-
 **Stream types for macro-generated source methods (from `solverforge-scoring`):**
 - `ChangeSource`, `CollectionExtract`, `SourceExtract`
 - `UniConstraintStream`, `UniConstraintBuilder`

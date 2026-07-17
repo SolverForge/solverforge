@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.19.0](///compare/v0.18.0...v0.19.0) (2026-07-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **solver:** solverforge-solver no longer exports ConstructionType, LocalSearchAcceptorType, or manager::PhaseConfig.
+* **model:** Remove #[planning_variable(chained = true)], VariableType::Chained, ChainedVariableInfo, VariableDescriptor::chained, ShadowVariableKind::Anchor, AnchorSupply, and #[anchor_shadow_variable]; use planning list variables for ordered sequences and routes.
+
+* **solver:** remove inert manager phase config d5039fd
+
+
+### Features
+
+* **model:** make lists the sole sequence representation 38b1c13
+
+
+### Bug Fixes
+
+* **bench:** compare cursor-era baselines directly c164145
+* **macros:** generate list index shadows 260b51e
+
 ## [0.18.0](///compare/v0.17.2...v0.18.0) (2026-07-13)
 
 

@@ -18,6 +18,8 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 - `serde` (workspace) — Serialization
 - `tokio` (sync feature) — `mpsc` channels for solution streaming
 
+**Features:** `default` is an empty feature set.
+
 ## File Map
 
 ```
@@ -103,7 +105,7 @@ src/
 │   │   ├── k_opt_reconnection_tests.rs — Tests
 │   │   ├── compound_scalar.rs          — CompoundScalarMove<S> for atomic multi-scalar edits with exact undo, tabu identity, and affected-entity reporting
 │   │   ├── conflict_repair.rs          — ConflictRepairMove<S> wrapper over framework-owned compound repair edits
-│   │   ├── dynamic_scalar_change.rs    — DynamicScalarChangeMove<S> and opaque multi-edit DynamicScalarChangeUndo over descriptor-resolved DynamicScalarVariableSlot<S>
+│   │   ├── dynamic_scalar_change.rs    — DynamicScalarChangeMove<S> with `Option<usize>` undo over a descriptor-resolved DynamicScalarVariableSlot<S>
 │   │   ├── dynamic_scalar_swap.rs      — DynamicScalarSwapMove<S> over descriptor-resolved DynamicScalarVariableSlot<S>
 │   │   ├── dynamic_list_change.rs      — DynamicListChangeMove<S> over descriptor-resolved DynamicListVariableSlot<S>
 │   │   ├── runtime_compound.rs         — RuntimeCompoundMove<S> and RuntimeCompoundMoveKind for frozen provider candidates
@@ -361,7 +363,7 @@ src/
 ├── scope/
 │   ├── mod.rs                           — Re-exports
 │   ├── solver.rs                        — SolverScope<'t, S, D, ProgressCb = ()>, ProgressCallback trait, lifecycle-aware SolveResult, and included scope chunks
-│   ├── solver/progress.rs               — SolverProgressRef, SolverProgressKind, SolverProgressStatus, and ProgressCallback dispatch
+│   ├── solver/progress.rs               — SolverProgressRef, SolverProgressKind, SolverLifecycleState status, and ProgressCallback dispatch
 │   ├── solver/scope_core.rs             — Core SolverScope construction, shared phase progress pulse, runtime publication, lifecycle control, mutation, and child-scope helpers
 │   ├── solver/scope_progress.rs         — SolverScope score/best-solution/progress/stat reporting helpers
 │   ├── phase.rs                         — PhaseScope<'t, 'a, S, D, BestCb = ()>
@@ -969,6 +971,10 @@ The public function-pointer aliases used by this slot are `ScalarGetter<S>`,
 `NearbyValueDistanceMeter<S>`, `NearbyEntityDistanceMeter<S>`,
 `ConstructionEntityOrderKey<S>`, and `ConstructionValueOrderKey<S>`.
 
+**`ValueSource<S>`** — Scalar source enum with `Empty`, `CountableRange { from,
+to }`, `SolutionCount { count_fn, provider_index }`, and `EntitySlice {
+values_for_entity }` variants.
+
 Runtime scalar construction resolves one canonical binding set per variable by
 overlaying these runtime hooks onto descriptor-discovered scalar bindings by
 descriptor index and variable name. Validation and execution use that
@@ -1330,7 +1336,16 @@ scan.
 
 ### `ProgressCallback<S>` — `scope/solver.rs`
 
-Sealed trait for zero-allocation callback dispatch. Implemented for `()` (no-op) and any `F: for<'a> Fn(SolverProgressRef<'a, S>) + Send + Sync`.
+Public zero-allocation callback dispatch trait. Implemented for `()` (no-op) and
+any `F: for<'a> Fn(SolverProgressRef<'a, S>) + Send + Sync`. Its public
+`invoke()` method receives one borrowed progress payload; the hidden
+`PUBLISHES_PROGRESS` constant lets the runtime compile out no-op publication.
+
+**`SolverProgressKind`** — `Progress` or `BestSolution`.
+
+**`SolverProgressRef<'a, S>`** — Borrowed callback payload with public `kind`,
+`status: SolverLifecycleState`, optional `solution`, `current_score`, and
+`best_score` references, plus owned aggregate `telemetry`.
 
 ### `SolverScope<'t, S, D, ProgressCb = ()>`
 
@@ -1581,9 +1596,10 @@ existing provenance. `CandidateTraceQualificationStatus` is `NotRequested` or
 `Qualified`; `CandidateTraceQualificationError` distinguishes a request that
 was absent, an empty producer, and missing core-tree/build digests. A normal
 trace with optional provenance is never silently upgraded. Candidate-trace
-types are public through `solverforge_solver::stats`; only
-`AppliedMoveTelemetry` and `MoveTelemetry` are additionally crate-root
-re-exports.
+types are public through `solverforge_solver::stats`. Aggregate telemetry types
+`AppliedMoveTelemetry`, `MoveTelemetry`, `PhaseStats`, `PhaseTelemetry`,
+`SelectorTelemetry`, `SolverStats`, and `SolverTelemetry` are additionally
+crate-root re-exports.
 
 ### `runtime.rs`
 

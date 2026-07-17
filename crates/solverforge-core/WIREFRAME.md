@@ -594,12 +594,13 @@ one `Send + Sync` metadata object against one group-owned dynamic scalar slot;
 it does not register a construction phase, selector, move stream, thread-local
 lookup, or group-name lookup callback.
 
-`DynamicScalarAssignmentMetadataCapabilities` declares whether the group has
-required-entity, capacity-key, position-key, sequence-key, entity-order,
-value-order, or assignment-rule metadata. These are structural declarations,
-not values inferred during a solve. If a capability is false, its corresponding
-method must return the neutral result (`false`, `None`, or `true` for
-`assignment_edge_allowed`). An assignment rule requires sequence-key metadata.
+`DynamicScalarAssignmentMetadataCapabilities` exposes the boolean fields
+`required_entity`, `capacity_key`, `position_key`, `sequence_key`,
+`entity_order`, `value_order`, and `assignment_rule`. These are structural
+declarations, not values inferred during a solve. If a capability is false, its
+corresponding method must return the neutral result (`false`, `None`, or `true`
+for `assignment_edge_allowed`). An assignment rule requires sequence-key
+metadata.
 
 The metadata methods are `required_entity()`, `capacity_key()`,
 `position_key()`, `sequence_key()`, `entity_order_key()`,

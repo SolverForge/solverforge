@@ -28,6 +28,8 @@ src/
 ├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
 ├── runtime.rs                           — List-variable metadata plus the sole immutable compiled runtime-graph entrypoint
 ├── runtime/compiler/                    — Immutable runtime-graph compiler, prepared runner, default policy, and executor kernels; every reached source-backed construction boundary validates stable element keys against the frozen declared stream before deciding whether work remains
+├── runtime/compiler/executor/completion.rs — Structural mandatory-work gate and deferred best-solution publication
+├── runtime/compiler/executor/runner/failure.rs — Cold propagation of configured-runtime execution failures to the public run boundary
 ├── runtime/provider_cursor.rs           — One lazy compound-provider cursor; static Rust providers retain typed candidates/function pointers, while host callbacks alone use raw named edits and object-safe dispatch
 ├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model/solution validation, and shadow updates
 ├── list_placement.rs                    — Private partial fixed-owner restriction helpers for list construction, ruin/recreate, Clarke-Wright, and list selectors; detects all-selected-elements-fixed-to-current so intra-owner reordering still streams while cross-owner moves are filtered
@@ -317,6 +319,7 @@ src/
 │   ├── solver_manager.rs               — Re-exports retained lifecycle manager surface
 │   ├── solver_manager/types.rs         — SolverLifecycleState, SolverTerminalReason, SolverStatus, SolverTelemetryDetail, SolverEventMetadata, SolverEvent, snapshots, and SolverManagerError
 │   ├── solver_manager/runtime.rs       — SolverRuntime retained lifecycle publisher and SolverPanicPayload
+│   ├── solver_manager/runtime/pause.rs — Pause settlement with or without a public snapshot according to structural completion
 │   ├── solver_manager/slot.rs          — Internal retained-job slots and snapshot records
 │   ├── solver_manager/manager.rs       — MAX_JOBS, Solvable trait, SolverManager
 │   ├── solution_manager.rs             — analyze() free fn, Analyzable trait, ScoreAnalysis, ConstraintAnalysis

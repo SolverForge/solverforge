@@ -23,6 +23,11 @@ application that depends on `solverforge`.
   remain accurate. Generated moves, evaluated moves, accepted moves, and
   generation/evaluation `Duration`s now flow through retained telemetry exactly;
   only human-facing rates are derived at the edge.
+- Keep configured solver and phase limits binding during construction. The
+  compiled runtime withholds best-solution publication until every list element,
+  required assignment row, and non-optional scalar row is assigned. Reaching a
+  limit first uses the existing `Failed` lifecycle, and a pause before structural
+  completion remains resumable without exposing a partial solution snapshot.
 - Prefer small, app-specific extensions over forking the scaffold templates.
 
 ## Construction routing
@@ -60,14 +65,21 @@ ad hoc special cases:
 If `move_selector` is omitted, the runtime keeps one streaming-first default
 story:
 
-- scalar-only models default to nearby scalar change/swap selectors when hooks
-  are declared, then plain `ChangeMoveSelector` plus `SwapMoveSelector`
-  fallback selectors for every non-assignment-owned scalar slot
-- list-only models default to `NearbyListChangeMoveSelector(20)`,
-  `NearbyListSwapMoveSelector(20)`, `SublistChangeMoveSelector`,
-  `SublistSwapMoveSelector`, and `ListReverseMoveSelector`, with k-opt enabled
-  only when route hooks exist and list ruin enabled for supported list slots
-- mixed models use the list defaults first, then the scalar defaults
+- non-assignment-owned scalar slots receive nearby change/swap selectors when
+  their matching model hooks are declared, followed by plain change/swap
+  selectors; assignment-owned slots remain on their named grouped-scalar path
+- list slots with the complete precedence bundle receive precedence repair plus
+  list permutation; slots with cross-position distance receive nearby change
+  and, when set access exists, nearby swap with a limit of 20, while slots
+  without that metric receive the corresponding plain change/swap families
+- sublist change/swap, reversal, and k-opt are added only when their required
+  list operations are declared; k-opt uses the nearby form when intra-position
+  distance is available and the unbounded form otherwise; every bound list slot
+  receives list ruin
+- mixed models preserve the compiled policy order: list families, nearby scalar
+  families, grouped scalar, compound conflict repair, then ordinary scalar
+  families. Leaf order is seeded `Random`; one family is `Sequential`, while a
+  multi-family union is `StratifiedRandom`
 
 Omitted config builds construction plus one streaming local-search phase. Broad
 stock unions use fair ordering and finite accepted-count horizons; explicit

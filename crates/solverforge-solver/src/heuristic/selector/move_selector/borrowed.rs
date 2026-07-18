@@ -225,7 +225,9 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
     fn next_candidate(&mut self) -> Option<CandidateId>;
 
     /// Pulls the next candidate while allowing expensive cursor implementations
-    /// to observe solve control between units of generation work.
+    /// to observe solve control between units of generation work. A `None`
+    /// result may mean either exhaustion or requested interruption, so callers
+    /// must recheck the same control signal before resolving an exhausted scan.
     fn next_candidate_with_control<ShouldStop>(
         &mut self,
         should_stop: &mut ShouldStop,

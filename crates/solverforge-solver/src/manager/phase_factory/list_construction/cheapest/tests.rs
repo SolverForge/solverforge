@@ -144,6 +144,10 @@ fn zero_score(_: &Plan) -> HardSoftScore {
     HardSoftScore::ZERO
 }
 
+fn assigned_count_score(plan: &Plan) -> HardSoftScore {
+    HardSoftScore::of_soft(plan.routes.iter().map(Vec::len).sum::<usize>() as i64)
+}
+
 fn unit_duration(_: &Plan, _: usize) -> usize {
     1
 }
@@ -201,24 +205,24 @@ fn public_cheapest_streams_progress_from_the_first_candidate() {
     let progress_events = Arc::new(Mutex::new(Vec::new()));
     let captured = Arc::clone(&progress_events);
     let mut scope = SolverScope::new_with_callback(
-        director(plan, zero_score),
+        director(plan, assigned_count_score),
         move |progress: SolverProgressRef<'_, Plan>| {
             if progress.kind == SolverProgressKind::Progress {
+                let phase = progress
+                    .telemetry
+                    .phase
+                    .expect("construction progress should include phase telemetry");
                 captured
                     .lock()
                     .expect("progress recorder should lock")
-                    .push(
-                        progress
-                            .telemetry
-                            .phase
-                            .expect("construction progress should include phase telemetry"),
-                    );
+                    .push((phase, progress.current_score.copied()));
             }
         },
         None,
         None,
     );
     scope.start_solving();
+    assert_eq!(scope.calculate_score(), HardSoftScore::ZERO);
     let mut phase = phase();
 
     phase.solve(&mut scope);
@@ -226,12 +230,13 @@ fn public_cheapest_streams_progress_from_the_first_candidate() {
     let events = progress_events
         .lock()
         .expect("progress recorder should lock");
-    let first = events
+    let (first, current_score) = events
         .first()
         .expect("the first evaluated construction candidate should publish progress");
     assert_eq!(first.phase_type, "Cheapest-Insertion Construction");
     assert!(first.moves_generated > 0);
     assert!(first.moves_evaluated > 0);
+    assert_eq!(*current_score, Some(HardSoftScore::ZERO));
     assert!(scope.stats().moves_accepted > 0);
     assert!(scope.stats().moves_applied > 0);
 }

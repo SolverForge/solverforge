@@ -100,7 +100,7 @@ where
         self.phase_scope
             .score_director_mut()
             .after_variable_changed(descriptor_index, trial.entity_index);
-        let score = self.phase_scope.calculate_score();
+        let score = self.phase_scope.score_director_mut().calculate_score();
         self.phase_scope
             .score_director_mut()
             .before_variable_changed(descriptor_index, trial.entity_index);
@@ -115,6 +115,7 @@ where
         self.phase_scope
             .score_director_mut()
             .restore_score_state(score_state);
+        self.phase_scope.record_score_calculation();
         if let Some(trace) = trace {
             self.phase_scope
                 .record_candidate_trace_disposition(trace, CandidateTraceDisposition::Evaluated);

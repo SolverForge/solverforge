@@ -8,6 +8,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::super::distance_arithmetic::sum_two;
+use crate::phase::construction::run_construction_phase;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
@@ -45,18 +46,31 @@ pub(crate) fn run_list_k_opt<S, A, D, BestCb>(
     D: Director<S>,
     BestCb: ProgressCallback<S>,
 {
+    run_construction_phase(solver_scope, 0, "List K-Opt", |phase_scope| {
+        run_list_k_opt_in_phase(access, k, control_policy, phase_scope);
+    });
+}
+
+fn run_list_k_opt_in_phase<S, A, D, BestCb>(
+    access: &A,
+    k: usize,
+    control_policy: StepControlPolicy,
+    phase_scope: &mut PhaseScope<'_, '_, S, D, BestCb>,
+) where
+    S: PlanningSolution,
+    A: ListKOptAccess<S>,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+{
     if k != 2 {
         tracing::warn!(
             k,
             "ListKOptPhase: only k=2 is implemented; skipping k-opt polishing"
         );
-        let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, "List K-Opt");
         let _score = phase_scope.score_director_mut().calculate_score();
         phase_scope.update_best_solution();
         return;
     }
-
-    let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, "List K-Opt");
 
     let n_entities = {
         let solution = phase_scope.score_director().working_solution();
@@ -191,8 +205,7 @@ pub(crate) fn run_list_k_opt<S, A, D, BestCb>(
         }
 
         if changed {
-            let mut step_scope =
-                StepScope::new_with_control_policy(&mut phase_scope, control_policy);
+            let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
             step_scope.apply_committed_change(|sd| {
                 sd.before_variable_changed(descriptor_index, entity_idx);
                 access.replace_route(sd.working_solution_mut(), entity_idx, route);

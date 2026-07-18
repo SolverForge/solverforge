@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use solverforge_config::ConstructionObligation;
 use solverforge_core::domain::PlanningSolution;
@@ -13,6 +13,7 @@ use super::evaluation::evaluate_trial_move;
 use super::{ConstructionChoice, Placement, StrongestFitForager, WeakestFitForager};
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{CandidateId, MoveCursor};
+use crate::phase::construction::report_construction_progress_if_due;
 use crate::phase::control::{
     settle_construction_interrupt, should_interrupt_before_evaluation, StepInterrupt,
 };
@@ -100,14 +101,24 @@ where
     D: Director<S>,
     BestCb: ProgressCallback<S>,
 {
-    if step_scope.progress_polling_required() {
-        step_scope.phase_scope_mut().report_progress_if_due();
-    }
     should_interrupt_before_evaluation(step_scope)
         && matches!(
             settle_construction_interrupt(step_scope),
             StepInterrupt::TerminatePhase
         )
+}
+
+fn record_evaluated_candidate<S, D, BestCb>(
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
+    duration: Duration,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+{
+    let phase_scope = step_scope.phase_scope_mut();
+    phase_scope.record_evaluated_move(duration);
+    report_construction_progress_if_due(phase_scope);
 }
 
 #[allow(clippy::drop_non_drop)]
@@ -152,9 +163,7 @@ where
                 CandidateTraceDisposition::NotDoable,
                 step_scope,
             );
-            step_scope
-                .phase_scope_mut()
-                .record_evaluated_move(evaluation_started.elapsed());
+            record_evaluated_candidate(step_scope, evaluation_started.elapsed());
             continue;
         }
 
@@ -168,9 +177,7 @@ where
             drop(candidate);
             true
         };
-        step_scope
-            .phase_scope_mut()
-            .record_evaluated_move(evaluation_started.elapsed());
+        record_evaluated_candidate(step_scope, evaluation_started.elapsed());
         mark_candidate_disposition(
             placement,
             candidate_id,
@@ -243,18 +250,14 @@ where
                 CandidateTraceDisposition::NotDoable,
                 step_scope,
             );
-            step_scope
-                .phase_scope_mut()
-                .record_evaluated_move(evaluation_started.elapsed());
+            record_evaluated_candidate(step_scope, evaluation_started.elapsed());
             continue;
         }
         let score = evaluate_trial_move(step_scope.score_director_mut(), &candidate);
         drop(candidate);
         placement.record_candidate_score(candidate_id, score);
         step_scope.phase_scope_mut().record_score_calculation();
-        step_scope
-            .phase_scope_mut()
-            .record_evaluated_move(evaluation_started.elapsed());
+        record_evaluated_candidate(step_scope, evaluation_started.elapsed());
         mark_candidate_disposition(
             placement,
             candidate_id,
@@ -348,18 +351,14 @@ where
                 CandidateTraceDisposition::NotDoable,
                 step_scope,
             );
-            step_scope
-                .phase_scope_mut()
-                .record_evaluated_move(evaluation_started.elapsed());
+            record_evaluated_candidate(step_scope, evaluation_started.elapsed());
             continue;
         }
         let score = evaluate_trial_move(step_scope.score_director_mut(), &candidate);
         drop(candidate);
         placement.record_candidate_score(candidate_id, score);
         step_scope.phase_scope_mut().record_score_calculation();
-        step_scope
-            .phase_scope_mut()
-            .record_evaluated_move(evaluation_started.elapsed());
+        record_evaluated_candidate(step_scope, evaluation_started.elapsed());
         mark_candidate_disposition(
             placement,
             candidate_id,
@@ -473,9 +472,7 @@ where
                 CandidateTraceDisposition::NotDoable,
                 step_scope,
             );
-            step_scope
-                .phase_scope_mut()
-                .record_evaluated_move(evaluation_started.elapsed());
+            record_evaluated_candidate(step_scope, evaluation_started.elapsed());
             continue;
         }
         let candidate_strength = match candidate {
@@ -486,9 +483,7 @@ where
                 unreachable!("construction candidates are concrete atomic moves")
             }
         };
-        step_scope
-            .phase_scope_mut()
-            .record_evaluated_move(evaluation_started.elapsed());
+        record_evaluated_candidate(step_scope, evaluation_started.elapsed());
         mark_candidate_disposition(
             placement,
             candidate_id,

@@ -1,10 +1,13 @@
 //! Live score-director observer for canonical cheapest insertion.
 
+use std::time::Instant;
+
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::super::ScoredListConstructionAccess;
 use super::kernel::{CheapestInsertionObserver, CheapestInsertionTrial};
+use crate::phase::construction::record_construction_candidate;
 use crate::scope::{PhaseScope, ProgressCallback, StepControlPolicy, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTracePullToken,
@@ -65,6 +68,7 @@ where
         trial: CheapestInsertionTrial,
     ) -> (Option<S::Score>, Option<Self::Trial>) {
         let descriptor_index = access.descriptor_index();
+        let generation_started = Instant::now();
         let trace = self.phase_scope.record_candidate_operation(
             trial.source,
             None,
@@ -81,6 +85,8 @@ where
                 trial.insertion_index as u64,
             ],
         );
+        let generation_duration = generation_started.elapsed();
+        let evaluation_started = Instant::now();
         let score_state = self.phase_scope.score_director().snapshot_score_state();
         self.phase_scope
             .score_director_mut()
@@ -113,6 +119,11 @@ where
             self.phase_scope
                 .record_candidate_trace_disposition(trace, CandidateTraceDisposition::Evaluated);
         }
+        record_construction_candidate(
+            self.phase_scope,
+            generation_duration,
+            evaluation_started.elapsed(),
+        );
         (Some(score), trace)
     }
 
@@ -138,6 +149,7 @@ where
         let descriptor_index = access.descriptor_index();
         let mut step_scope =
             StepScope::new_with_control_policy(self.phase_scope, self.control_policy);
+        step_scope.phase_scope_mut().record_move_accepted();
         step_scope.apply_committed_change(|director| {
             director.before_variable_changed(descriptor_index, entity_index);
             access.insert_element(
@@ -148,6 +160,7 @@ where
             );
             director.after_variable_changed(descriptor_index, entity_index);
         });
+        step_scope.phase_scope_mut().record_move_applied();
         if let Some(trace) = trace {
             step_scope
                 .phase_scope_mut()

@@ -8,7 +8,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::super::distance_arithmetic::sum_two;
-use crate::phase::construction::run_construction_phase;
+use crate::phase::construction::{record_construction_candidate, run_construction_phase};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
@@ -67,7 +67,7 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
             k,
             "ListKOptPhase: only k=2 is implemented; skipping k-opt polishing"
         );
-        let _score = phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }
@@ -78,7 +78,7 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
     };
 
     if n_entities == 0 {
-        let _score = phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }
@@ -154,6 +154,11 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
                             CandidateTraceDisposition::Evaluated,
                         );
                     }
+                    record_construction_candidate(
+                        phase_scope,
+                        std::time::Duration::ZERO,
+                        std::time::Duration::ZERO,
+                    );
                     if proposed_distance < current_distance {
                         route[i..=j].reverse();
                         if !access.route_feasible(
@@ -176,6 +181,7 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
                                 CandidateTraceDisposition::Selected,
                             );
                         }
+                        phase_scope.record_move_accepted();
                         improved = true;
                         changed = true;
                         if let Some(token) = trace_token {
@@ -184,6 +190,7 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
                                 CandidateTraceDisposition::Applied,
                             );
                         }
+                        phase_scope.record_move_applied();
                     } else if let Some(token) = trace_token {
                         phase_scope.record_candidate_trace_disposition(
                             token,

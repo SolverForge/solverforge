@@ -15,7 +15,7 @@ use crate::builder::RuntimeScalarSlot;
 use crate::heuristic::r#move::Move;
 use crate::phase::construction::decision::{is_first_fit_improvement, keep_current_allowed};
 use crate::phase::construction::evaluation::evaluate_trial_move;
-use crate::phase::construction::run_construction_phase;
+use crate::phase::construction::{record_construction_candidate, run_construction_phase};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTracePullToken,
@@ -656,7 +656,6 @@ where
         Some(target),
         move_,
     );
-    phase_scope.record_generated_move(std::time::Duration::ZERO);
     let started = Instant::now();
     if !move_.is_doable(phase_scope.score_director()) {
         if let Some(token) = trace {
@@ -665,12 +664,12 @@ where
             phase_scope
                 .record_candidate_trace_disposition(token, CandidateTraceDisposition::NotDoable);
         }
-        phase_scope.record_evaluated_move(started.elapsed());
+        record_construction_candidate(phase_scope, std::time::Duration::ZERO, started.elapsed());
         return None;
     }
     let score = evaluate_trial_move(phase_scope.score_director_mut(), move_);
     phase_scope.record_score_calculation();
-    phase_scope.record_evaluated_move(started.elapsed());
+    record_construction_candidate(phase_scope, std::time::Duration::ZERO, started.elapsed());
     if let Some(token) = trace {
         phase_scope.record_candidate_trace_disposition(token, CandidateTraceDisposition::Evaluated);
     }

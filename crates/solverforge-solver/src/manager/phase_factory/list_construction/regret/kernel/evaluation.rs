@@ -1,47 +1,68 @@
 //! Score-trial and selection primitives for canonical regret insertion.
 
+use std::time::Instant;
+
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::{candidate_entities, RegretAccess, RegretEvaluation, RegretValue};
 use crate::builder::context::SourceElement;
+use crate::phase::construction::record_construction_candidate;
 use crate::scope::{PhaseScope, ProgressCallback, StepControlPolicy};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTracePullToken,
     CandidateTraceSource,
 };
 
-pub(super) fn eval_insertion<S, A, D>(
+pub(super) fn eval_insertion<S, A, D, BestCb>(
     access: &A,
     entry: &SourceElement<A::Element>,
     entity_index: usize,
     position: usize,
-    score_director: &mut D,
+    phase_scope: &mut PhaseScope<'_, '_, S, D, BestCb>,
 ) -> S::Score
 where
     S: PlanningSolution,
     A: RegretAccess<S>,
     D: Director<S>,
+    BestCb: ProgressCallback<S>,
 {
+    let evaluation_started = Instant::now();
     let descriptor_index = access.descriptor_index();
-    let score_state = score_director.snapshot_score_state();
-    score_director.before_variable_changed(descriptor_index, entity_index);
+    let score_state = phase_scope.score_director().snapshot_score_state();
+    phase_scope
+        .score_director_mut()
+        .before_variable_changed(descriptor_index, entity_index);
     access.insert_element(
-        score_director.working_solution_mut(),
+        phase_scope.score_director_mut().working_solution_mut(),
         entity_index,
         position,
         entry.element.clone(),
     );
-    score_director.after_variable_changed(descriptor_index, entity_index);
-    let score = score_director.calculate_score();
-    score_director.before_variable_changed(descriptor_index, entity_index);
+    phase_scope
+        .score_director_mut()
+        .after_variable_changed(descriptor_index, entity_index);
+    let score = phase_scope.score_director_mut().calculate_score();
+    phase_scope
+        .score_director_mut()
+        .before_variable_changed(descriptor_index, entity_index);
     access.remove_element(
-        score_director.working_solution_mut(),
+        phase_scope.score_director_mut().working_solution_mut(),
         entity_index,
         position,
     );
-    score_director.after_variable_changed(descriptor_index, entity_index);
-    score_director.restore_score_state(score_state);
+    phase_scope
+        .score_director_mut()
+        .after_variable_changed(descriptor_index, entity_index);
+    phase_scope
+        .score_director_mut()
+        .restore_score_state(score_state);
+    phase_scope.record_score_calculation();
+    record_construction_candidate(
+        phase_scope,
+        std::time::Duration::ZERO,
+        evaluation_started.elapsed(),
+    );
     score
 }
 
@@ -151,14 +172,7 @@ where
                 entity_index,
                 position,
             );
-            let score = eval_insertion(
-                access,
-                entry,
-                entity_index,
-                position,
-                phase_scope.score_director_mut(),
-            );
-            phase_scope.record_score_calculation();
+            let score = eval_insertion(access, entry, entity_index, position, phase_scope);
             if let Some(token) = trace_token {
                 phase_scope.record_candidate_trace_disposition(
                     token,
@@ -250,14 +264,7 @@ where
             owner_index,
             position,
         );
-        let score = eval_insertion(
-            access,
-            entry,
-            owner_index,
-            position,
-            phase_scope.score_director_mut(),
-        );
-        phase_scope.record_score_calculation();
+        let score = eval_insertion(access, entry, owner_index, position, phase_scope);
         if let Some(token) = trace_token {
             phase_scope
                 .record_candidate_trace_disposition(token, CandidateTraceDisposition::Evaluated);

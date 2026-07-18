@@ -10,6 +10,7 @@ use super::{
 };
 use crate::builder::context::{RuntimeListSourceIndex, SourceElement};
 use crate::list_placement::OwnerRestriction;
+use crate::phase::construction::record_construction_candidate;
 use crate::scope::{PhaseScope, ProgressCallback, StepControlPolicy, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
@@ -209,10 +210,17 @@ fn apply_owner_ordered_append<S, A, D, BestCb>(
             phase_scope
                 .record_candidate_trace_disposition(token, CandidateTraceDisposition::Selected);
         }
+        record_construction_candidate(
+            phase_scope,
+            std::time::Duration::ZERO,
+            std::time::Duration::ZERO,
+        );
         let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
+        step_scope.phase_scope_mut().record_move_accepted();
         step_scope.apply_committed_change(|director| {
             apply_insertion(access, entry, owner, insertion_position, director);
         });
+        step_scope.phase_scope_mut().record_move_applied();
         if let Some(token) = trace_token {
             step_scope
                 .phase_scope_mut()
@@ -293,14 +301,7 @@ fn apply_owner_ordered_best_insertion<S, A, D, BestCb>(
                 owner,
                 position,
             );
-            let score = eval_insertion(
-                access,
-                entry,
-                owner,
-                position,
-                phase_scope.score_director_mut(),
-            );
-            phase_scope.record_score_calculation();
+            let score = eval_insertion(access, entry, owner, position, phase_scope);
             if let Some(token) = trace_token {
                 phase_scope.record_candidate_trace_disposition(
                     token,
@@ -327,6 +328,7 @@ fn apply_owner_ordered_best_insertion<S, A, D, BestCb>(
             continue;
         };
         let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
+        step_scope.phase_scope_mut().record_move_accepted();
         if let Some(token) = trace_token {
             step_scope
                 .phase_scope_mut()
@@ -335,6 +337,7 @@ fn apply_owner_ordered_best_insertion<S, A, D, BestCb>(
         step_scope.apply_committed_change(|director| {
             apply_insertion(access, entry, owner, position, director);
         });
+        step_scope.phase_scope_mut().record_move_applied();
         if let Some(token) = trace_token {
             step_scope
                 .phase_scope_mut()

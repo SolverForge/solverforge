@@ -1,7 +1,7 @@
 # SolverForge
 
 <div align="center">
-
+    
 <img src="assets/solverforge-mascot.png" alt="SolverForge mascot" width="180">
 
 [![CI](https://github.com/SolverForge/solverforge/actions/workflows/ci.yml/badge.svg)](https://github.com/SolverForge/solverforge/actions/workflows/ci.yml)

@@ -26,11 +26,24 @@ where
     S: PlanningSolution,
     ShouldStop: FnMut() -> bool,
 {
-    let mut entities =
-        required_entities_by_scarcity(group, solution, state, options.value_candidate_limit);
+    let mut entities = required_entities_by_scarcity(
+        group,
+        solution,
+        state,
+        options.value_candidate_limit,
+        should_stop,
+    )?;
     order_candidates(&mut entities, options, 0xA551_6EED_0000_0004);
-    let value_degrees =
-        required_value_degrees(group, solution, &entities, options.value_candidate_limit);
+    if should_stop() {
+        return None;
+    }
+    let value_degrees = required_value_degrees(
+        group,
+        solution,
+        &entities,
+        options.value_candidate_limit,
+        should_stop,
+    )?;
     let mut scalar_edits = Vec::new();
     let mut edited_entities = HashSet::new();
     let mut batch_changes = Vec::new();

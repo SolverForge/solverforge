@@ -34,29 +34,46 @@ pub(super) enum AssignmentFamilyCursor {
 }
 
 impl AssignmentFamilyCursor {
-    pub(super) fn required_entity_values<S>(
+    pub(super) fn required_entity_values<S, ShouldStop>(
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &ScalarAssignmentState,
         options: ScalarAssignmentMoveOptions,
-    ) -> Self
+        should_stop: &mut ShouldStop,
+    ) -> Option<Self>
     where
         S: PlanningSolution,
+        ShouldStop: FnMut() -> bool,
     {
         let mut entities = if options.required_scarcity_ordering {
-            required_entities_by_scarcity(group, solution, state, options.value_candidate_limit)
+            required_entities_by_scarcity(
+                group,
+                solution,
+                state,
+                options.value_candidate_limit,
+                should_stop,
+            )?
         } else {
             super::assignment_candidate::ordered_entities(group, solution, |entity_index| {
                 state.is_required(entity_index) && state.current_value(entity_index).is_none()
             })
         };
+        if should_stop() {
+            return None;
+        }
         order_candidates(&mut entities, options, 0xA551_6EED_0000_000B);
         let value_degrees = if options.required_scarcity_ordering {
-            required_value_degrees(group, solution, &entities, options.value_candidate_limit)
+            required_value_degrees(
+                group,
+                solution,
+                &entities,
+                options.value_candidate_limit,
+                should_stop,
+            )?
         } else {
             HashMap::new()
         };
-        Self::EntityValues(EntityValueCursor {
+        Some(Self::EntityValues(EntityValueCursor {
             entities,
             entity_pos: 0,
             values: Vec::new(),
@@ -64,7 +81,7 @@ impl AssignmentFamilyCursor {
             value_degrees,
             options,
             kind: AssignmentMoveKind::Required,
-        })
+        }))
     }
 
     pub(super) fn entity_values(

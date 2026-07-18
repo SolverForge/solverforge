@@ -27,6 +27,37 @@ fn test_construction_phase_reports_one_best_solution_on_improvement() {
 }
 
 #[test]
+fn construction_reports_progress_for_a_single_first_fit_candidate() {
+    let progress_events = Arc::new(AtomicUsize::new(0));
+    let progress_events_for_callback = Arc::clone(&progress_events);
+    let mut solver_scope = SolverScope::new_with_callback(
+        create_simple_nqueens_director(1),
+        move |progress: crate::scope::SolverProgressRef<'_, NQueensSolution>| {
+            if progress.kind == crate::scope::SolverProgressKind::Progress {
+                let phase = progress
+                    .telemetry
+                    .phase
+                    .expect("construction progress should include phase telemetry");
+                assert_eq!(phase.phase_type, "Construction Heuristic");
+                assert_eq!(phase.moves_generated, 1);
+                assert_eq!(phase.moves_evaluated, 1);
+                progress_events_for_callback.fetch_add(1, Ordering::SeqCst);
+            }
+        },
+        None,
+        None,
+    );
+    solver_scope.start_solving();
+
+    let placer = create_placer(vec![0]);
+    let mut phase = ConstructionHeuristicPhase::new(placer, FirstFitForager::new());
+
+    phase.solve(&mut solver_scope);
+
+    assert_eq!(progress_events.load(Ordering::SeqCst), 1);
+}
+
+#[test]
 fn construction_reports_progress_before_a_long_phase_ends() {
     let gate = BlockingEvaluationGate::delaying(Duration::from_millis(400));
     let progress_events = Arc::new(AtomicUsize::new(0));

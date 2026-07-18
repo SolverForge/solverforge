@@ -1,4 +1,5 @@
 use std::any::TypeId;
+use std::sync::{Arc, Mutex};
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{HardSoftScore, SoftScore};
@@ -9,7 +10,7 @@ use crate::builder::context::{bind_runtime_list_source, ListConstructionKernelEr
 use crate::builder::usize_element_source_key;
 use crate::manager::SolverTerminalReason;
 use crate::phase::Phase;
-use crate::scope::SolverScope;
+use crate::scope::{SolverProgressKind, SolverProgressRef, SolverScope};
 
 #[path = "tests/parity.rs"]
 mod parity;
@@ -188,6 +189,51 @@ fn public_cheapest_observes_ordinary_limits() {
         scope.terminal_reason(),
         SolverTerminalReason::TerminatedByConfig
     );
+}
+
+#[test]
+fn public_cheapest_streams_progress_from_the_first_candidate() {
+    let plan = Plan {
+        elements: vec![0],
+        routes: vec![Vec::new()],
+        score: None,
+    };
+    let progress_events = Arc::new(Mutex::new(Vec::new()));
+    let captured = Arc::clone(&progress_events);
+    let mut scope = SolverScope::new_with_callback(
+        director(plan, zero_score),
+        move |progress: SolverProgressRef<'_, Plan>| {
+            if progress.kind == SolverProgressKind::Progress {
+                captured
+                    .lock()
+                    .expect("progress recorder should lock")
+                    .push(
+                        progress
+                            .telemetry
+                            .phase
+                            .expect("construction progress should include phase telemetry"),
+                    );
+            }
+        },
+        None,
+        None,
+    );
+    scope.start_solving();
+    let mut phase = phase();
+
+    phase.solve(&mut scope);
+
+    let events = progress_events
+        .lock()
+        .expect("progress recorder should lock");
+    let first = events
+        .first()
+        .expect("the first evaluated construction candidate should publish progress");
+    assert_eq!(first.phase_type, "Cheapest-Insertion Construction");
+    assert!(first.moves_generated > 0);
+    assert!(first.moves_evaluated > 0);
+    assert!(scope.stats().moves_accepted > 0);
+    assert!(scope.stats().moves_applied > 0);
 }
 
 #[test]

@@ -11,8 +11,9 @@ use crate::builder::context::{
     RuntimeListSourceIndex,
 };
 use crate::list_placement::OwnerRestriction;
+use crate::phase::construction::run_construction_phase;
 use crate::phase::Phase;
-use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy};
+use crate::scope::{ProgressCallback, SolverScope, StepControlPolicy};
 
 mod kernel;
 mod live;
@@ -247,13 +248,18 @@ where
                 "ListCheapestInsertionPhase assignment refresh failed before phase execution: {error:?}"
             )
         });
-        let mut phase_scope =
-            PhaseScope::with_phase_type(solver_scope, 0, "Cheapest-Insertion Construction");
-        let mut observer = PhaseCheapestInsertionObserver::new(
-            &mut phase_scope,
-            StepControlPolicy::ObserveConfigLimits,
+        run_construction_phase(
+            solver_scope,
+            0,
+            "Cheapest-Insertion Construction",
+            |phase_scope| {
+                let mut observer = PhaseCheapestInsertionObserver::new(
+                    phase_scope,
+                    StepControlPolicy::ObserveConfigLimits,
+                );
+                run_cheapest(self, &source_index, &unassigned, &mut observer);
+            },
         );
-        run_cheapest(self, &source_index, &unassigned, &mut observer);
     }
 
     fn phase_type_name(&self) -> &'static str {

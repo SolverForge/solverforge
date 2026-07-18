@@ -7,20 +7,19 @@ use std::time::Instant;
 use solverforge_config::ConstructionObligation;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
-use tracing::info;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::MoveCursor;
 use crate::phase::construction::decision::keep_current_allowed;
 use crate::phase::construction::{
-    ConstructionChoice, ConstructionForager, ConstructionTarget, EntityPlacer, EntityPlacerCursor,
-    Placement,
+    run_construction_phase, ConstructionChoice, ConstructionForager, ConstructionTarget,
+    EntityPlacer, EntityPlacerCursor, Placement,
 };
 use crate::phase::control::{settle_construction_interrupt, StepInterrupt};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
-use crate::scope::{PhaseScope, SolverScope, StepScope};
-use crate::stats::{format_duration, whole_units_per_second, CandidateTraceDisposition};
+use crate::scope::{SolverScope, StepScope};
+use crate::stats::CandidateTraceDisposition;
 
 include!("phase/phase_type.rs");
 include!("phase/selection.rs");

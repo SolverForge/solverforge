@@ -15,6 +15,7 @@ use super::route_state::{
 };
 use super::savings::{sort_savings, SavingsEntry};
 use super::{owner_allows, ClarkeWrightAccess, RuntimeListSourceIndex, SourceElement};
+use crate::phase::construction::run_construction_phase;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
@@ -37,8 +38,34 @@ pub(crate) fn run_clarke_wright<S, A, D, BestCb>(
     D: Director<S>,
     BestCb: ProgressCallback<S>,
 {
-    let mut phase_scope =
-        PhaseScope::with_phase_type(solver_scope, 0, "Clarke-Wright Construction");
+    run_construction_phase(
+        solver_scope,
+        0,
+        "Clarke-Wright Construction",
+        |phase_scope| {
+            run_clarke_wright_in_phase(
+                access,
+                source_index,
+                bound_unassigned,
+                control_policy,
+                phase_scope,
+            );
+        },
+    );
+}
+
+fn run_clarke_wright_in_phase<S, A, D, BestCb>(
+    access: &A,
+    source_index: &RuntimeListSourceIndex<A::Element>,
+    bound_unassigned: &[SourceElement<A::Element>],
+    control_policy: StepControlPolicy,
+    phase_scope: &mut PhaseScope<'_, '_, S, D, BestCb>,
+) where
+    S: PlanningSolution,
+    A: ClarkeWrightAccess<S>,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+{
     let solution = phase_scope.score_director().working_solution();
     let n_entities = access.entity_count(solution);
     let n_elements = source_index.source_count();
@@ -370,7 +397,7 @@ pub(crate) fn run_clarke_wright<S, A, D, BestCb>(
         && owner_ineligible_routes == 0
     {
         complete_routes_by_insertion(
-            &mut phase_scope,
+            phase_scope,
             access,
             source_index,
             &owner_slots,
@@ -400,7 +427,7 @@ pub(crate) fn run_clarke_wright<S, A, D, BestCb>(
 
     if let Some(completed_routes) = completion_routes {
         let descriptor_index = access.descriptor_index();
-        let mut step_scope = StepScope::new_with_control_policy(&mut phase_scope, control_policy);
+        let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
         step_scope.apply_committed_change(|director| {
             for (entity_idx, route) in completed_routes {
                 director.before_variable_changed(descriptor_index, entity_idx);
@@ -413,7 +440,7 @@ pub(crate) fn run_clarke_wright<S, A, D, BestCb>(
         step_scope.complete();
     } else if matched_count > 0 {
         let descriptor_index = access.descriptor_index();
-        let mut step_scope = StepScope::new_with_control_policy(&mut phase_scope, control_policy);
+        let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
         step_scope.apply_committed_change(|director| {
             for (index_route, entity_idx) in assignable_routes.into_iter().zip(route_to_owner) {
                 let Some(entity_idx) = entity_idx else {

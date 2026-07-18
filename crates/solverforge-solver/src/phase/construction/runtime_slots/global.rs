@@ -15,6 +15,7 @@ use crate::builder::RuntimeScalarSlot;
 use crate::heuristic::r#move::Move;
 use crate::phase::construction::decision::{is_first_fit_improvement, keep_current_allowed};
 use crate::phase::construction::evaluation::evaluate_trial_move;
+use crate::phase::construction::run_construction_phase;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTracePullToken,
@@ -55,51 +56,52 @@ where
         ),
         "global runtime-slot construction supports only its declared first-fit or cheapest-insertion schedules"
     );
-    let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, "Construction Heuristic");
-    let previous_best_score = phase_scope.solver_scope().best_score().copied();
-    let mut ran_step = false;
-    loop {
-        if phase_scope
-            .solver_scope_mut()
-            .should_terminate_construction()
-        {
-            break;
-        }
-        let progress = match config.construction_heuristic_type {
-            ConstructionHeuristicType::FirstFit => first_fit_iteration(
-                &scalar_slots,
-                &list_slots,
-                &slot_order,
-                config.value_candidate_limit,
-                config.construction_obligation,
-                &mut phase_scope,
-            ),
-            ConstructionHeuristicType::CheapestInsertion => cheapest_iteration(
-                &scalar_slots,
-                &list_slots,
-                &slot_order,
-                config.value_candidate_limit,
-                config.construction_obligation,
-                &mut phase_scope,
-            ),
-            _ => unreachable!("global construction heuristic was validated above"),
-        };
-        match progress {
-            Iteration::None => break,
-            Iteration::CompletedOnly => ran_step = true,
-            Iteration::Candidate(candidate) => {
-                ran_step = true;
-                commit(candidate, &mut phase_scope);
+    run_construction_phase(solver_scope, 0, "Construction Heuristic", |phase_scope| {
+        let previous_best_score = phase_scope.solver_scope().best_score().copied();
+        let mut ran_step = false;
+        loop {
+            if phase_scope
+                .solver_scope_mut()
+                .should_terminate_construction()
+            {
+                break;
+            }
+            let progress = match config.construction_heuristic_type {
+                ConstructionHeuristicType::FirstFit => first_fit_iteration(
+                    &scalar_slots,
+                    &list_slots,
+                    &slot_order,
+                    config.value_candidate_limit,
+                    config.construction_obligation,
+                    phase_scope,
+                ),
+                ConstructionHeuristicType::CheapestInsertion => cheapest_iteration(
+                    &scalar_slots,
+                    &list_slots,
+                    &slot_order,
+                    config.value_candidate_limit,
+                    config.construction_obligation,
+                    phase_scope,
+                ),
+                _ => unreachable!("global construction heuristic was validated above"),
+            };
+            match progress {
+                Iteration::None => break,
+                Iteration::CompletedOnly => ran_step = true,
+                Iteration::Candidate(candidate) => {
+                    ran_step = true;
+                    commit(candidate, phase_scope);
+                }
             }
         }
-    }
-    if ran_step {
-        phase_scope.update_best_solution();
-        if phase_scope.solver_scope().current_score() == previous_best_score.as_ref() {
-            phase_scope.promote_current_solution_on_score_tie();
+        if ran_step {
+            phase_scope.update_best_solution();
+            if phase_scope.solver_scope().current_score() == previous_best_score.as_ref() {
+                phase_scope.promote_current_solution_on_score_tie();
+            }
         }
-    }
-    ran_step
+        ran_step
+    })
 }
 
 #[expect(

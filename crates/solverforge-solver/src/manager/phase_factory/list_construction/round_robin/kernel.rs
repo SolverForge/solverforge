@@ -5,6 +5,7 @@ use solverforge_scoring::Director;
 
 use crate::builder::context::SourceElement;
 use crate::list_placement::OwnerRestriction;
+use crate::phase::construction::run_construction_phase;
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
@@ -51,8 +52,36 @@ pub(crate) fn run_round_robin<S, A, D, BestCb>(
     D: Director<S>,
     BestCb: ProgressCallback<S>,
 {
-    let mut phase_scope =
-        PhaseScope::with_phase_type(solver_scope, 0, "Round-Robin List Construction");
+    run_construction_phase(
+        solver_scope,
+        0,
+        "Round-Robin List Construction",
+        |phase_scope| {
+            run_round_robin_in_phase(
+                access,
+                source_count,
+                all_assigned,
+                bound_unassigned,
+                control_policy,
+                phase_scope,
+            );
+        },
+    );
+}
+
+fn run_round_robin_in_phase<S, A, D, BestCb>(
+    access: &A,
+    source_count: usize,
+    all_assigned: bool,
+    bound_unassigned: &[SourceElement<A::Element>],
+    control_policy: StepControlPolicy,
+    phase_scope: &mut PhaseScope<'_, '_, S, D, BestCb>,
+) where
+    S: PlanningSolution,
+    A: RoundRobinAccess<S>,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+{
     let n_entities = access.entity_count(phase_scope.score_director().working_solution());
 
     if n_entities == 0 || source_count == 0 {
@@ -114,7 +143,7 @@ pub(crate) fn run_round_robin<S, A, D, BestCb>(
                 .record_candidate_trace_disposition(token, CandidateTraceDisposition::Selected);
         }
 
-        let mut step_scope = StepScope::new_with_control_policy(&mut phase_scope, control_policy);
+        let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
         step_scope.apply_committed_change(|sd| {
             sd.before_variable_changed(descriptor_index, target_entity);
             access.append_element(sd.working_solution_mut(), target_entity, entry.element);

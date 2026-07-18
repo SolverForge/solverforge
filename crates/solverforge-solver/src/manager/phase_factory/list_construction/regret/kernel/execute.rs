@@ -11,6 +11,7 @@ use crate::stats::{CandidateTraceDisposition, CandidateTracePullToken};
 
 use super::fallback::solve_oversized_owner_restricted;
 use super::precedence::precedence_downstream_by_source;
+use crate::phase::construction::run_construction_phase;
 
 /// Runs the one canonical regret-insertion algorithm over a frozen source.
 ///
@@ -29,8 +30,34 @@ pub(crate) fn run_regret<S, A, D, BestCb>(
     D: Director<S>,
     BestCb: ProgressCallback<S>,
 {
-    let mut phase_scope =
-        PhaseScope::with_phase_type(solver_scope, 0, "Regret-Insertion Construction");
+    run_construction_phase(
+        solver_scope,
+        0,
+        "Regret-Insertion Construction",
+        |phase_scope| {
+            run_regret_in_phase(
+                access,
+                source_index,
+                bound_unassigned,
+                control_policy,
+                phase_scope,
+            );
+        },
+    );
+}
+
+fn run_regret_in_phase<S, A, D, BestCb>(
+    access: &A,
+    source_index: &RuntimeListSourceIndex<A::Element>,
+    bound_unassigned: &[SourceElement<A::Element>],
+    control_policy: StepControlPolicy,
+    phase_scope: &mut PhaseScope<'_, '_, S, D, BestCb>,
+) where
+    S: PlanningSolution,
+    A: RegretAccess<S>,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+{
     let source_count = source_index.source_count();
     let entity_count = access.entity_count(phase_scope.score_director().working_solution());
     if entity_count == 0 || source_count == 0 {
@@ -58,7 +85,7 @@ pub(crate) fn run_regret<S, A, D, BestCb>(
 
     if solve_oversized_owner_restricted(
         access,
-        &mut phase_scope,
+        phase_scope,
         source_index,
         &unassigned,
         entity_count,
@@ -87,19 +114,14 @@ pub(crate) fn run_regret<S, A, D, BestCb>(
                 interrupted = true;
                 break;
             }
-            let result = match evaluate_regret(
-                access,
-                entry,
-                entity_count,
-                control_policy,
-                &mut phase_scope,
-            ) {
-                RegretEvaluation::Complete(result) => result,
-                RegretEvaluation::Interrupted => {
-                    interrupted = true;
-                    break;
-                }
-            };
+            let result =
+                match evaluate_regret(access, entry, entity_count, control_policy, phase_scope) {
+                    RegretEvaluation::Complete(result) => result,
+                    RegretEvaluation::Interrupted => {
+                        interrupted = true;
+                        break;
+                    }
+                };
             let Some((regret, entity_index, position, score, trace_token)) = result else {
                 continue;
             };
@@ -159,7 +181,7 @@ pub(crate) fn run_regret<S, A, D, BestCb>(
             break;
         };
         let entry = unassigned.remove(list_index);
-        let mut step_scope = StepScope::new_with_control_policy(&mut phase_scope, control_policy);
+        let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
         if let Some(token) = trace_token {
             step_scope
                 .phase_scope_mut()

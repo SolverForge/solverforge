@@ -16,6 +16,7 @@ mod phase;
 mod placer;
 mod runtime_slots;
 mod slot;
+mod telemetry;
 
 pub use config::{ConstructionHeuristicConfig, ForagerType};
 pub use forager::{
@@ -40,3 +41,4 @@ pub(crate) use slot::{
     ConstructionGroupSlotId, ConstructionGroupSlotKey, ConstructionListElementId,
     ConstructionSlotId,
 };
+pub(crate) use telemetry::run_construction_phase;

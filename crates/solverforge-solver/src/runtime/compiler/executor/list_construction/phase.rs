@@ -12,7 +12,8 @@ use crate::builder::context::{
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::manager::{run_cheapest, PhaseCheapestInsertionObserver};
-use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy};
+use crate::phase::construction::run_construction_phase;
+use crate::scope::{ProgressCallback, SolverScope, StepControlPolicy};
 
 /// Executes canonical cheapest insertion against a caller-owned prepared
 /// source binding.
@@ -38,10 +39,15 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    let mut phase_scope =
-        PhaseScope::with_phase_type(solver_scope, 0, "Cheapest-Insertion Construction");
-    let mut observer = PhaseCheapestInsertionObserver::new(&mut phase_scope, control_policy);
-    run_cheapest(slot, source_index, unassigned, &mut observer);
+    run_construction_phase(
+        solver_scope,
+        0,
+        "Cheapest-Insertion Construction",
+        |phase_scope| {
+            let mut observer = PhaseCheapestInsertionObserver::new(phase_scope, control_policy);
+            run_cheapest(slot, source_index, unassigned, &mut observer);
+        },
+    );
     Ok(())
 }
 

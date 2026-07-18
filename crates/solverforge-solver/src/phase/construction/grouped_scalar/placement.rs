@@ -88,23 +88,8 @@ pub(super) fn principal_assignment_edit<S>(
         .find(|edit| edit.entity_index == entity_index && edit.to_value.is_some())
 }
 
-pub(super) fn assignment_move_target<S>(
-    target: &crate::builder::ScalarGroupMemberBinding<S>,
-    group_slot: &ConstructionGroupSlotId,
-    mov: &CompoundScalarMove<S>,
-) -> ConstructionTarget {
-    let scalar_slots = mov
-        .edits()
-        .iter()
-        .filter(|edit| {
-            edit.descriptor_index == target.descriptor_index
-                && edit.variable_index == target.variable_index
-        })
-        .map(|edit| ConstructionSlotId::new(target.construction_binding_index(), edit.entity_index))
-        .collect::<Vec<_>>();
-    ConstructionTarget::new()
-        .with_scalar_slots(scalar_slots)
-        .with_group_slot(group_slot.clone())
+pub(super) fn assignment_move_target(group_slot: &ConstructionGroupSlotId) -> ConstructionTarget {
+    ConstructionTarget::new().with_group_slot(group_slot.clone())
 }
 
 pub(crate) fn scalar_group_move_strength<S>(mov: &CompoundScalarMove<S>, _solution: &S) -> i64

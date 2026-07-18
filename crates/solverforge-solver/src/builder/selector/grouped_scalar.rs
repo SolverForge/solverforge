@@ -189,6 +189,19 @@ where
     S: PlanningSolution + 'static,
 {
     fn next_candidate(&mut self) -> Option<CandidateId> {
+        self.next_candidate_with_control(&mut || false)
+    }
+
+    fn next_candidate_with_control<ShouldStop>(
+        &mut self,
+        should_stop: &mut ShouldStop,
+    ) -> Option<CandidateId>
+    where
+        ShouldStop: FnMut() -> bool,
+    {
+        if should_stop() {
+            return None;
+        }
         self.activate();
         if self.next_index < self.store.len() {
             let id = CandidateId::new(self.next_index);
@@ -197,7 +210,7 @@ where
         }
         let assignment_cursor = self.assignment_cursor.as_mut()?;
         let mov = assignment_cursor
-            .next_move()?
+            .next_move_with_control(should_stop)?
             .with_require_hard_improvement(self.require_hard_improvement);
         let id = self.store.push(ScalarMoveUnion::CompoundScalar(mov));
         self.next_index = id.index() + 1;

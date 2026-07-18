@@ -141,31 +141,55 @@ where
         }
     }
 
-    pub(crate) fn next_move(&mut self) -> Option<CompoundScalarMove<S>> {
+    pub(crate) fn next_move_with_control<ShouldStop>(
+        &mut self,
+        should_stop: &mut ShouldStop,
+    ) -> Option<CompoundScalarMove<S>>
+    where
+        ShouldStop: FnMut() -> bool,
+    {
+        if should_stop() {
+            return None;
+        }
         if self.options.max_moves == 0 || self.yielded >= self.options.max_moves {
             return None;
         }
 
         if self.batch_required {
-            self.batch_required = false;
-            if let Some(candidate) =
-                required_batch_move(&self.group, &self.solution, &mut self.state, self.options)
-            {
+            let candidate = required_batch_move(
+                &self.group,
+                &self.solution,
+                &mut self.state,
+                self.options,
+                should_stop,
+            );
+            if let Some(candidate) = candidate {
+                self.batch_required = false;
                 self.seen.insert(normalized_move_key(&candidate));
                 self.yielded += 1;
                 return Some(candidate);
             }
+            if should_stop() {
+                return None;
+            }
+            self.batch_required = false;
         }
 
         let mut exhausted_turns = 0;
         while exhausted_turns < self.family_slots.len() {
+            if should_stop() {
+                return None;
+            }
             let slot_index = self.family_pos % self.family_slots.len();
             self.family_pos = (slot_index + 1) % self.family_slots.len();
             if self.family_slots[slot_index].exhausted {
                 exhausted_turns += 1;
                 continue;
             }
-            let Some(candidate) = self.next_slot_move(slot_index) else {
+            let Some(candidate) = self.next_slot_move(slot_index, should_stop) else {
+                if should_stop() {
+                    return None;
+                }
                 exhausted_turns += 1;
                 continue;
             };
@@ -179,7 +203,14 @@ where
         None
     }
 
-    fn next_slot_move(&mut self, slot_index: usize) -> Option<CompoundScalarMove<S>> {
+    fn next_slot_move<ShouldStop>(
+        &mut self,
+        slot_index: usize,
+        should_stop: &mut ShouldStop,
+    ) -> Option<CompoundScalarMove<S>>
+    where
+        ShouldStop: FnMut() -> bool,
+    {
         if matches!(
             self.family_slots[slot_index].cursor,
             AssignmentFamilyCursor::Empty
@@ -197,9 +228,15 @@ where
 
         let candidate = {
             let cursor = &mut self.family_slots[slot_index].cursor;
-            next_family_move(cursor, &self.group, &self.solution, &mut self.state)
+            next_family_move(
+                cursor,
+                &self.group,
+                &self.solution,
+                &mut self.state,
+                should_stop,
+            )
         };
-        if candidate.is_none() {
+        if candidate.is_none() && !should_stop() {
             self.family_slots[slot_index].exhausted = true;
         }
         candidate
@@ -333,26 +370,31 @@ where
     }
 }
 
-fn next_family_move<S>(
+fn next_family_move<S, ShouldStop>(
     cursor: &mut AssignmentFamilyCursor,
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
     state: &mut ScalarAssignmentState,
+    should_stop: &mut ShouldStop,
 ) -> Option<CompoundScalarMove<S>>
 where
     S: PlanningSolution,
+    ShouldStop: FnMut() -> bool,
 {
+    if should_stop() {
+        return None;
+    }
     match cursor {
         AssignmentFamilyCursor::EntityValues(entity_cursor) => {
-            let candidate = entity_cursor.next(group, solution, state);
-            if candidate.is_none() {
+            let candidate = entity_cursor.next(group, solution, state, should_stop);
+            if candidate.is_none() && !should_stop() {
                 *cursor = AssignmentFamilyCursor::Empty;
             }
             candidate
         }
         AssignmentFamilyCursor::Capacity(capacity_cursor) => {
-            let candidate = capacity_cursor.next(group, solution, state);
-            if candidate.is_none() {
+            let candidate = capacity_cursor.next(group, solution, state, should_stop);
+            if candidate.is_none() && !should_stop() {
                 *cursor = AssignmentFamilyCursor::Empty;
             }
             candidate

@@ -20,6 +20,9 @@ mod placement;
 mod placer;
 mod placer_stream;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) use assignment_candidate::ScalarAssignmentMoveOptions;
 pub(crate) use assignment_stream::ScalarAssignmentMoveCursor;
 pub(crate) use move_build::compound_move_for_group_candidate;

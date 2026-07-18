@@ -131,6 +131,19 @@ where
     S: PlanningSolution + 'static,
 {
     fn next_candidate(&mut self) -> Option<CandidateId> {
+        self.next_candidate_with_control(&mut || false)
+    }
+
+    fn next_candidate_with_control<ShouldStop>(
+        &mut self,
+        should_stop: &mut ShouldStop,
+    ) -> Option<CandidateId>
+    where
+        ShouldStop: FnMut() -> bool,
+    {
+        if should_stop() {
+            return None;
+        }
         let (mov, target) = match &mut self.source {
             ScalarGroupCandidateSource::Empty => return None,
             ScalarGroupCandidateSource::Candidates { group, candidates } => {
@@ -150,7 +163,7 @@ where
                     first
                 } else {
                     let (entity_index, mov, target) =
-                        next_assignment_candidate(generator, completed_slots)?;
+                        next_assignment_candidate(generator, completed_slots, should_stop)?;
                     if entity_index != *active_entity {
                         generator.pending = Some(mov);
                         return None;
@@ -222,7 +235,7 @@ where
     let completed_slots = completed_assignment_slots(&generator, &mut is_completed);
     if generator.accepted < generator.options.max_moves && !should_stop() {
         let (entity_index, mov, target) =
-            next_assignment_candidate(&mut generator, &completed_slots)?;
+            next_assignment_candidate(&mut generator, &completed_slots, &mut should_stop)?;
         let group_slot = assignment_group_slot(generator.group_index, entity_index);
         let scalar_slots = target.scalar_slots().to_vec();
         let allows_unassigned = generator.assignment.target.allows_unassigned;
@@ -246,21 +259,27 @@ where
     None
 }
 
-fn next_assignment_candidate<S>(
+fn next_assignment_candidate<S, ShouldStop>(
     generator: &mut AssignmentPlacementGenerator<S>,
     completed_slots: &HashSet<ConstructionSlotId>,
+    should_stop: &mut ShouldStop,
 ) -> Option<(usize, CompoundScalarMove<S>, ConstructionTarget)>
 where
     S: PlanningSolution + 'static,
+    ShouldStop: FnMut() -> bool,
 {
     loop {
+        if should_stop() {
+            return None;
+        }
         if generator.accepted >= generator.options.max_moves {
             return None;
         }
-        let mov = generator
-            .pending
-            .take()
-            .or_else(|| generator.cursor.next_move())?;
+        let mov = if let Some(pending) = generator.pending.take() {
+            pending
+        } else {
+            generator.cursor.next_move_with_control(should_stop)?
+        };
         if mov.edits().iter().any(|edit| {
             completed_slots.contains(&ConstructionSlotId::new(
                 generator.assignment.target().construction_binding_index(),
@@ -281,7 +300,8 @@ where
         let anchor = mov
             .edits()
             .iter()
-            .find(|edit| edit.to_value.is_some())
+            .find(|edit| edit.current_value(snapshot).is_none() && edit.to_value.is_some())
+            .or_else(|| mov.edits().iter().find(|edit| edit.to_value.is_some()))
             .or_else(|| mov.edits().first())?;
         let entity_index = anchor.entity_index;
         let order_key = principal_assignment_edit(&mov, entity_index)
@@ -293,7 +313,7 @@ where
             });
         let mov = mov.with_construction_value_order_key(order_key);
         let group_slot = assignment_group_slot(generator.group_index, entity_index);
-        let target = assignment_move_target(generator.assignment.target(), &group_slot, &mov);
+        let target = assignment_move_target(&group_slot);
         return Some((entity_index, mov, target));
     }
 }

@@ -50,6 +50,12 @@ where
         "PhaseSequence"
     }
 
+    fn defers_initial_best_solution_publication(&self) -> bool {
+        self.phases
+            .iter()
+            .any(Phase::defers_initial_best_solution_publication)
+    }
+
     fn on_solver_terminal(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
         for phase in &mut self.phases {
             phase.on_solver_terminal(solver_scope);

@@ -11,12 +11,16 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub fn report_progress(&self) {
+        let best_score = self
+            .best_solution_publication_enabled
+            .then_some(self.best_score.as_ref())
+            .flatten();
         self.progress_callback.invoke(SolverProgressRef {
             kind: SolverProgressKind::Progress,
             status: self.progress_state(),
             solution: None,
             current_score: self.current_score.as_ref(),
-            best_score: self.best_score.as_ref(),
+            best_score,
             telemetry: self.stats.snapshot_without_applied_move_trace(),
         });
     }
@@ -52,6 +56,10 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub(crate) fn report_phase_progress(&self, phase: crate::stats::PhaseTelemetry) {
+        let best_score = self
+            .best_solution_publication_enabled
+            .then_some(self.best_score.as_ref())
+            .flatten();
         let mut telemetry = self.stats.snapshot_without_applied_move_trace();
         telemetry.phase = Some(phase);
         self.progress_callback.invoke(SolverProgressRef {
@@ -59,12 +67,15 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             status: self.progress_state(),
             solution: None,
             current_score: self.current_score.as_ref(),
-            best_score: self.best_score.as_ref(),
+            best_score,
             telemetry,
         });
     }
 
     pub fn report_best_solution(&self) {
+        if !self.best_solution_publication_enabled {
+            return;
+        }
         self.progress_callback.invoke(SolverProgressRef {
             kind: SolverProgressKind::BestSolution,
             status: self.progress_state(),
@@ -121,6 +132,14 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.last_best_elapsed = self.elapsed();
         self.best_solution_revision = Some(self.solution_revision);
         self.observe_phase_score(score, self.total_step_count);
+    }
+
+    pub(crate) fn publish_current_solution_as_best(&mut self) {
+        let score = self.calculate_score();
+        let solution = self.score_director.clone_working_solution();
+        self.set_best_solution(solution, score);
+        self.best_solution_publication_enabled = true;
+        self.report_best_solution();
     }
 
     pub fn rng(&mut self) -> &mut StdRng {
@@ -228,23 +247,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             || self.inphase_score_calc_count_limit.is_some()
     }
 
-    pub(crate) fn mandatory_control_polling_required(&self) -> bool {
-        self.yielded_to_parent || self.terminate.is_some() || self.runtime.is_some()
-    }
-
-    pub(crate) fn mandatory_construction_pending_control(&self) -> PendingControl {
-        if self.yielded_to_parent || self.is_terminate_early() {
-            return PendingControl::CancelRequested;
-        }
-        if self
-            .runtime
-            .is_some_and(|runtime| runtime.is_pause_requested())
-        {
-            return PendingControl::PauseRequested;
-        }
-        PendingControl::Continue
-    }
-
     pub(crate) fn work_should_stop(&self) -> bool {
         self.yielded_to_parent
             || self.is_terminate_early()
@@ -255,14 +257,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             || self.inphase_step_count_limit_reached()
             || self.inphase_move_count_limit_reached()
             || self.inphase_score_calc_count_limit_reached()
-    }
-
-    pub(crate) fn mandatory_construction_work_should_stop(&self) -> bool {
-        self.yielded_to_parent
-            || self.is_terminate_early()
-            || self
-                .runtime
-                .is_some_and(|runtime| runtime.is_pause_requested())
     }
 
     pub fn set_time_limit(&mut self, limit: Duration) {
@@ -319,18 +313,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             || self.inphase_score_calc_count_limit_reached()
         {
             self.mark_terminated_by_config();
-            return true;
-        }
-        false
-    }
-
-    pub(crate) fn should_interrupt_mandatory_construction(&mut self) -> bool {
-        self.settle_pause_if_requested();
-        if self.yielded_to_parent {
-            return true;
-        }
-        if self.is_terminate_early() {
-            self.mark_cancelled();
             return true;
         }
         false

@@ -173,7 +173,7 @@ mod tests {
             &slot,
             &source_index,
             &unassigned,
-            StepControlPolicy::CompleteMandatoryConstruction,
+            StepControlPolicy::ObserveConfigLimits,
             &mut scope,
         )
         .expect("prepared cheapest insertion executes");
@@ -188,7 +188,7 @@ mod tests {
             &slot,
             &source_index,
             &unassigned,
-            StepControlPolicy::CompleteMandatoryConstruction,
+            StepControlPolicy::ObserveConfigLimits,
             &mut scope,
         )
         .expect("prepared cheapest insertion refreshes current assignment");

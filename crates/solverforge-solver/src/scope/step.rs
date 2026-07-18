@@ -11,16 +11,11 @@ use super::{PhaseScope, SolverScope};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StepControlPolicy {
     ObserveConfigLimits,
-    CompleteMandatoryConstruction,
 }
 
 impl StepControlPolicy {
-    pub(crate) fn for_required_construction(required_only: bool) -> Self {
-        if required_only {
-            Self::CompleteMandatoryConstruction
-        } else {
-            Self::ObserveConfigLimits
-        }
+    pub(crate) fn for_required_construction(_required_only: bool) -> Self {
+        Self::ObserveConfigLimits
     }
 
     pub(crate) fn should_terminate_construction<S, D, ProgressCb>(
@@ -32,12 +27,7 @@ impl StepControlPolicy {
         D: Director<S>,
         ProgressCb: ProgressCallback<S>,
     {
-        match self {
-            Self::ObserveConfigLimits => solver_scope.should_terminate_construction(),
-            Self::CompleteMandatoryConstruction => {
-                solver_scope.should_interrupt_mandatory_construction()
-            }
-        }
+        solver_scope.should_terminate_construction()
     }
 }
 
@@ -74,14 +64,7 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
         control_policy: StepControlPolicy,
     ) -> Self {
         let step_index = phase_scope.step_count();
-        let control_polling_required = match control_policy {
-            StepControlPolicy::ObserveConfigLimits => {
-                phase_scope.solver_scope().config_control_polling_required()
-            }
-            StepControlPolicy::CompleteMandatoryConstruction => phase_scope
-                .solver_scope()
-                .mandatory_control_polling_required(),
-        };
+        let control_polling_required = phase_scope.solver_scope().config_control_polling_required();
         Self {
             phase_scope,
             step_index,
@@ -109,15 +92,7 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
         if !self.control_polling_required {
             return PendingControl::Continue;
         }
-        match self.control_policy {
-            StepControlPolicy::ObserveConfigLimits => {
-                self.phase_scope.solver_scope().pending_control()
-            }
-            StepControlPolicy::CompleteMandatoryConstruction => self
-                .phase_scope
-                .solver_scope()
-                .mandatory_construction_pending_control(),
-        }
+        self.phase_scope.solver_scope().pending_control()
     }
 
     pub(crate) fn progress_polling_required(&self) -> bool {

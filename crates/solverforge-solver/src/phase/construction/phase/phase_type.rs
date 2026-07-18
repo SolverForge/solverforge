@@ -17,7 +17,6 @@ where
 {
     placer: P,
     forager: Fo,
-    complete_mandatory_construction: bool,
     construction_obligation: ConstructionObligation,
     _phantom: PhantomData<fn() -> (S, M)>,
 }
@@ -33,15 +32,9 @@ where
         Self {
             placer,
             forager,
-            complete_mandatory_construction: false,
             construction_obligation: ConstructionObligation::default(),
             _phantom: PhantomData,
         }
-    }
-
-    pub fn with_mandatory_construction_completion(mut self) -> Self {
-        self.complete_mandatory_construction = true;
-        self
     }
 
     pub fn with_construction_obligation(
@@ -92,10 +85,10 @@ where
         let mut placement_cursor = self.placer.open_cursor(phase_scope.score_director());
 
         loop {
-            if construction_phase_should_stop(
-                phase_scope.solver_scope_mut(),
-                self.complete_mandatory_construction,
-            ) {
+            if phase_scope
+                .solver_scope_mut()
+                .should_terminate_construction()
+            {
                 break;
             }
 
@@ -105,33 +98,23 @@ where
                 phase_scope.score_director(),
                 |placement| placement_completed(placement, phase_scope.solver_scope()),
                 || {
-                    let should_stop = construction_work_should_stop(
-                        phase_scope.solver_scope(),
-                        self.complete_mandatory_construction,
-                    );
+                    let should_stop = phase_scope.solver_scope().work_should_stop();
                     placement_generation_interrupted |= should_stop;
                     should_stop
                 },
             );
             phase_scope.record_generation_time(placement_generation_started.elapsed());
             let Some(mut placement) = next_placement else {
-                let terminated = construction_phase_should_stop(
-                    phase_scope.solver_scope_mut(),
-                    self.complete_mandatory_construction,
-                );
+                let terminated = phase_scope
+                    .solver_scope_mut()
+                    .should_terminate_construction();
                 if placement_generation_interrupted && !terminated {
                     continue;
                 }
                 break;
             };
 
-            let control_policy = if self.complete_mandatory_construction {
-                StepControlPolicy::CompleteMandatoryConstruction
-            } else {
-                StepControlPolicy::ObserveConfigLimits
-            };
-            let mut step_scope =
-                StepScope::new_with_control_policy(&mut phase_scope, control_policy);
+            let mut step_scope = StepScope::new(&mut phase_scope);
 
             // Time the whole streamed selection once. Per-candidate evaluation
             // time is tracked separately, so the remainder is cursor generation
@@ -214,37 +197,5 @@ where
 
     fn phase_type_name(&self) -> &'static str {
         "ConstructionHeuristic"
-    }
-}
-
-fn construction_phase_should_stop<S, D, BestCb>(
-    solver_scope: &mut SolverScope<'_, S, D, BestCb>,
-    complete_mandatory_construction: bool,
-) -> bool
-where
-    S: PlanningSolution,
-    D: Director<S>,
-    BestCb: ProgressCallback<S>,
-{
-    if complete_mandatory_construction {
-        solver_scope.should_interrupt_mandatory_construction()
-    } else {
-        solver_scope.should_terminate_construction()
-    }
-}
-
-fn construction_work_should_stop<S, D, BestCb>(
-    solver_scope: &SolverScope<'_, S, D, BestCb>,
-    complete_mandatory_construction: bool,
-) -> bool
-where
-    S: PlanningSolution,
-    D: Director<S>,
-    BestCb: ProgressCallback<S>,
-{
-    if complete_mandatory_construction {
-        solver_scope.mandatory_construction_work_should_stop()
-    } else {
-        solver_scope.work_should_stop()
     }
 }

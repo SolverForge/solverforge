@@ -80,8 +80,8 @@ pub(crate) struct DefaultListPolicyProvenance {
 pub(crate) struct ResolvedDefaultConstructionStep<S, V, DM, IDM> {
     pub kind: DefaultConstructionStepKind,
     pub construction: CompiledConstruction<S, V, DM, IDM>,
-    /// Required assignment completion intentionally bypasses ordinary phase
-    /// limits, matching the existing grouped-assignment construction phase.
+    /// Required-only selection changes which assignment rows are considered;
+    /// it never changes the configured termination policy.
     pub required_only: bool,
     pub target: Option<RuntimeScalarSlotId>,
     pub list_policies: Option<DefaultListPolicyProvenance>,

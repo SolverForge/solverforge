@@ -247,7 +247,7 @@ where
             self,
             &source_index,
             &unassigned,
-            StepControlPolicy::CompleteMandatoryConstruction,
+            StepControlPolicy::ObserveConfigLimits,
             solver_scope,
         );
     }

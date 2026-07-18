@@ -440,9 +440,10 @@ Requires: `Send + Debug`.
 |--------|-----------|
 | `solve` | `fn(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>)` |
 | `phase_type_name` | `fn(&self) -> &'static str` |
+| `defers_initial_best_solution_publication` | `fn(&self) -> bool` (default `false`) |
 | `on_solver_terminal` | `fn(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>)` (default no-op) |
 
-All concrete phase types implement `Phase<S, D, ProgressCb>` for all `ProgressCb: ProgressCallback<S>`. The solver invokes `on_solver_terminal` once for every configured top-level phase after the phase loop and before final statistics are taken, including a phase skipped by cancellation or configured termination. `PhaseSequence`, tuple, and runtime wrappers propagate that one terminal notification to their active children. Tuple implementations are via `tuple_impl.rs`.
+All concrete phase types implement `Phase<S, D, ProgressCb>` for all `ProgressCb: ProgressCallback<S>`. Compiled runtime phases report whether their graph contains mandatory planning work through `defers_initial_best_solution_publication`; the solver then withholds public best-solution events until the compiled runtime proves that work complete. The solver invokes `on_solver_terminal` once for every configured top-level phase after the phase loop and before final statistics are taken, including a phase skipped by cancellation or configured termination. `PhaseSequence`, tuple, and runtime wrappers propagate both capabilities to their active children. Tuple implementations are via `tuple_impl.rs`.
 
 ### `Termination<S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S> = ()>` — `termination/mod.rs`
 
@@ -1083,7 +1084,7 @@ there is no dynamic phase, TLS lookup, direct cursor, or selector escape hatch.
 
 ### Construction Heuristic
 
-**`ConstructionHeuristicPhase<S, M, P, Fo>`** — Bounds: `P: EntityPlacer<S, M>`, `Fo: ConstructionForager<S, M>`. The phase opens one placer cursor and requests one live placement at each step; descriptor and grouped placers own any required live-refresh behavior inside that single cursor path. `with_mandatory_construction_completion()` lets mandatory construction slots finish even after ordinary construction limits have expired. Forager step selection is dispatched through the concrete `Fo` type; stock foragers provide prompt/control-aware selection without `dyn Any` routing.
+**`ConstructionHeuristicPhase<S, M, P, Fo>`** — Bounds: `P: EntityPlacer<S, M>`, `Fo: ConstructionForager<S, M>`. The phase opens one placer cursor and requests one live placement at each step; descriptor and grouped placers own any required live-refresh behavior inside that single cursor path. Every construction step observes the configured solver and phase limits, including required assignment work. Forager step selection is dispatched through the concrete `Fo` type; stock foragers provide prompt/control-aware selection without `dyn Any` routing.
 
 Long-running construction uses the shared metadata-only one-second phase pulse.
 Completed placement boundaries report it automatically, while bounded inner
@@ -1349,7 +1350,7 @@ any `F: for<'a> Fn(SolverProgressRef<'a, S>) + Send + Sync`. Its public
 
 ### `SolverScope<'t, S, D, ProgressCb = ()>`
 
-Top-level scope for a retained solve. Holds score director, current score, best solution, best score, RNG, active timing, stats, runtime bridge, terminal reason, and termination state.
+Top-level scope for a retained solve. Holds score director, current score, best solution, best score, RNG, active timing, stats, runtime bridge, terminal reason, termination state, and the internal configured-runtime publication gate. Configured execution defers best-solution publication until the compiled graph proves mandatory structural completion; partial construction scores remain internal.
 
 Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `score_director()`, `working_solution()`, `mutate(...)`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. The current implementation also owns the one-second phase progress pulse and tracks a working-solution revision for built-in descriptor-driven construction completion; committed mutation goes through `mutate(...)` (or the equivalent crate-private step boundary), which clears `current_score` and advances that revision exactly once. Speculative phase evaluation uses `Move::do_move`, the returned typed undo value, `Move::undo_move`, and `DirectorScoreState` snapshots to restore both solution values and committed score state after scoring a candidate. An internal phase-relative termination overlay records the best and last-improving committed scores only while an explicit runtime construction or local-search phase executes; it is neither a public `SolverScope` setting nor child-scope state. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination.
 
@@ -1362,6 +1363,15 @@ Borrows `&mut SolverScope`. Tracks per-phase state: phase_index, starting_score,
 ### `StepScope<'t, 'a, 'b, S, D, BestCb = ()>`
 
 Borrows `&mut PhaseScope`. Tracks per-step state: step_index, step_score. `complete()` records step in stats, while public committed mutation delegates to the same `mutate(...)` boundary used by `SolverScope`. Crate-private committed move helpers apply selected moves by ownership after candidate evaluation has used typed undo for rollback.
+
+The compiled runtime checks mandatory completion from the frozen graph bindings:
+all declared list elements must be assigned exactly once, assignment groups may
+leave only non-required rows unassigned, and scalar slots outside assignment
+groups may remain unassigned only when their slot declares that capability.
+Local search cannot start before this gate passes. Config or phase termination
+with unresolved mandatory work travels through `RuntimeBuildError::Execution`
+and the existing `Failed` manager lifecycle, without a `BestSolution`, completed
+snapshot, or partial paused snapshot.
 
 ## Termination Types
 

@@ -290,7 +290,7 @@ where
             source_index.source_count(),
             all_assigned,
             &unassigned,
-            StepControlPolicy::CompleteMandatoryConstruction,
+            StepControlPolicy::ObserveConfigLimits,
             solver_scope,
         );
     }

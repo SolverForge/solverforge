@@ -77,6 +77,7 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     terminate: Option<&'t AtomicBool>,
     runtime: Option<SolverRuntime<S>>,
     publication: Publication,
+    best_solution_publication_enabled: bool,
     yielded_to_parent: bool,
     environment_mode: EnvironmentMode,
     stats: SolverStats,
@@ -351,6 +352,7 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             terminate: None,
             runtime: None,
             publication: Publication::Enabled,
+            best_solution_publication_enabled: true,
             yielded_to_parent: false,
             environment_mode: EnvironmentMode::default(),
             stats: SolverStats::default(),
@@ -395,6 +397,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             terminate,
             runtime,
             publication: Publication::Enabled,
+            best_solution_publication_enabled: true,
             yielded_to_parent: false,
             environment_mode: EnvironmentMode::default(),
             stats: SolverStats::default(),
@@ -429,6 +432,14 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub(crate) fn without_publication(mut self) -> Self {
         self.publication = Publication::Disabled;
         self
+    }
+
+    pub(crate) fn defer_best_solution_publication(&mut self) {
+        self.best_solution_publication_enabled = false;
+    }
+
+    pub(crate) fn best_solution_publication_enabled(&self) -> bool {
+        self.best_solution_publication_enabled
     }
 
     pub(crate) fn yielded_to_parent(&self) -> bool {
@@ -542,6 +553,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             terminate: self.terminate,
             runtime: self.runtime,
             publication: self.publication,
+            best_solution_publication_enabled: self.best_solution_publication_enabled,
             yielded_to_parent: self.yielded_to_parent,
             environment_mode: self.environment_mode,
             stats: self.stats,

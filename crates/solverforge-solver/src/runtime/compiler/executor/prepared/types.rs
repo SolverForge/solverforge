@@ -163,6 +163,24 @@ where
         Ok(unassigned)
     }
 
+    pub(crate) fn current_list_unassigned_count(
+        &mut self,
+        phase_index: usize,
+        slot: &CompiledListSlot<S, V, DM, IDM>,
+        solution: &S,
+    ) -> Result<usize, RuntimeInstantiationError> {
+        let target = slot.identity();
+        let catalog_index =
+            self.list_source_catalog
+                .index_for(slot)
+                .ok_or(RuntimeInstantiationError {
+                    phase_index,
+                    kind: super::RuntimeInstantiationErrorKind::MissingRegisteredSource { target },
+                })?;
+        self.current_list_source_work(PreparedListSlot::new(phase_index, catalog_index), solution)
+            .map(|unassigned| unassigned.len())
+    }
+
     /// Borrows an already-bound source without a map lookup or rebinding.
     pub(crate) fn bound_list_source(
         &self,

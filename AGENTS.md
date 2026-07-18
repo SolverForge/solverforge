@@ -238,6 +238,16 @@ Use `rayon` for CPU-bound work and `tokio` for async coordination.
 - Do not add `std::thread::sleep`.
 - Prefer ownership transfer over callback APIs that only expose `&Self`.
 
+### Configured Completion
+
+Configured time, step, move, score-calculation, and phase limits remain binding
+during all construction work. Required scalar or list construction is not an
+exemption. The compiled runtime owns the structural completion gate: every list
+element, required assignment row, and non-optional scalar row must be assigned
+before local search, best-solution publication, snapshots, or completed output.
+If configured termination is reached first, use the existing `Failed` lifecycle;
+do not add a second status, publish a partial solution, or rely on a watchdog.
+
 ### PhantomData
 
 For phantom type parameters, prefer `PhantomData<fn() -> T>` rather than `PhantomData<T>` so the phantom does not inherit unnecessary `Send`, `Sync`, or `Clone` bounds.

@@ -80,7 +80,7 @@ fn inphase_best_score_limit_requests_construction_config_termination() {
 }
 
 #[test]
-fn mandatory_construction_control_ignores_config_termination() {
+fn required_construction_control_observes_config_termination() {
     let director = create_simple_nqueens_director(2);
     let mut scope = SolverScope::new(director);
     scope.start_solving();
@@ -94,12 +94,13 @@ fn mandatory_construction_control_ignores_config_termination() {
         PendingControl::ConfigTerminationRequested
     );
     assert!(scope.work_should_stop());
+    let policy = StepControlPolicy::for_required_construction(true);
+    assert_eq!(policy, StepControlPolicy::ObserveConfigLimits);
+    assert!(policy.should_terminate_construction(&mut scope));
     assert_eq!(
-        scope.mandatory_construction_pending_control(),
-        PendingControl::Continue
+        scope.terminal_reason(),
+        SolverTerminalReason::TerminatedByConfig
     );
-    assert!(!scope.mandatory_construction_work_should_stop());
-    assert!(!scope.should_interrupt_mandatory_construction());
 }
 
 #[test]

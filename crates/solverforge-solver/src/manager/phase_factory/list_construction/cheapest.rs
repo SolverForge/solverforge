@@ -251,7 +251,7 @@ where
             PhaseScope::with_phase_type(solver_scope, 0, "Cheapest-Insertion Construction");
         let mut observer = PhaseCheapestInsertionObserver::new(
             &mut phase_scope,
-            StepControlPolicy::CompleteMandatoryConstruction,
+            StepControlPolicy::ObserveConfigLimits,
         );
         run_cheapest(self, &source_index, &unassigned, &mut observer);
     }

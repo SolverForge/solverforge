@@ -31,6 +31,12 @@ pub trait Phase<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>
 
     fn phase_type_name(&self) -> &'static str;
 
+    /// Whether this phase owns a structural completion gate that must pass
+    /// before the initial working solution can be published as a best solution.
+    fn defers_initial_best_solution_publication(&self) -> bool {
+        false
+    }
+
     /// Runs once when the enclosing solver reaches its terminal boundary.
     ///
     /// The solver invokes this after it has attempted every configured

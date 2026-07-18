@@ -617,7 +617,14 @@ where
         SolverTerminalReason::Cancelled => {
             runtime.emit_cancelled(current_score, Some(final_score), final_telemetry);
         }
-        SolverTerminalReason::Failed => unreachable!("solver completion cannot report failure"),
+        SolverTerminalReason::Failed => {
+            let error = RuntimeBuildError::Execution {
+                phase_index: 0,
+                message: "configured solver reported a failed terminal state".to_string(),
+            };
+            runtime.emit_failed(error.to_string());
+            return Err(error);
+        }
     }
 
     info!(

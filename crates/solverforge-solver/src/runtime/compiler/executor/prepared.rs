@@ -72,6 +72,7 @@ where
         // a declared stream, inspect current assignments, or invoke a host
         // callback. Typed extension builders retain their established eager
         // preparation timing below.
+        self.register_list_slots(0, &self.graph.default_bindings().list_slots, &mut sources)?;
         for (phase_index, phase) in self.graph.phases().iter().enumerate() {
             self.register_phase_sources(phase_index, phase, &mut sources)?;
         }

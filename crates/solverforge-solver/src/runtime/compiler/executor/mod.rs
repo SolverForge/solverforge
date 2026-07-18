@@ -3,6 +3,7 @@
 //! This module owns no schema discovery. It lowers frozen declarations into
 //! the shared neighborhood kernels and executes the resulting phase sequence.
 
+mod completion;
 mod execute;
 mod execution_record;
 pub(crate) mod list_construction;

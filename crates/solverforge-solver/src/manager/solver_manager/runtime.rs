@@ -4,12 +4,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use solverforge_core::domain::PlanningSolution;
 
-use super::slot::{
-    JobSlot, SLOT_CANCELLED, SLOT_COMPLETED, SLOT_FAILED, SLOT_PAUSED, SLOT_SOLVING,
-};
+use super::slot::{JobSlot, SLOT_CANCELLED, SLOT_COMPLETED, SLOT_FAILED, SLOT_SOLVING};
 use super::types::{SolverEvent, SolverLifecycleState, SolverTerminalReason};
-use crate::scope::{ProgressCallback, SolverScope};
 use crate::stats::SolverTelemetry;
+
+mod pause;
 
 /// Preserves a foreign-runtime error object while giving retained solving a
 /// stable, displayable failure message.
@@ -280,92 +279,6 @@ impl<S: PlanningSolution> SolverRuntime<S> {
                 let _ = sender.send(SolverEvent::Failed { metadata, error });
             }
         });
-    }
-
-    pub(crate) fn pause_if_requested<D, ProgressCb>(
-        &self,
-        solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
-    ) where
-        D: solverforge_scoring::Director<S>,
-        ProgressCb: ProgressCallback<S>,
-    {
-        if !self.slot.pause_requested.load(Ordering::Acquire) || self.is_cancel_requested() {
-            return;
-        }
-
-        solver_scope.pause_timers();
-
-        let solution = solver_scope.score_director().clone_working_solution();
-        let current_score = solver_scope.current_score().copied();
-        let best_score = solver_scope.best_score().copied();
-        let telemetry = solver_scope.stats().snapshot();
-        let _ = self.pause_with_snapshot(solution, current_score, best_score, telemetry);
-        solver_scope.resume_timers();
-    }
-
-    pub fn pause_with_snapshot(
-        &self,
-        solution: S,
-        current_score: Option<S::Score>,
-        best_score: Option<S::Score>,
-        telemetry: SolverTelemetry,
-    ) -> bool {
-        if !self.slot.pause_requested.load(Ordering::Acquire) || self.is_cancel_requested() {
-            return false;
-        }
-
-        let (telemetry, candidate_trace) = telemetry.split_candidate_trace();
-        let published = self.slot.with_publication(|sender, record| {
-            if !self.slot.pause_requested.load(Ordering::Acquire)
-                || self.is_cancel_requested()
-                || self.current_state().is_terminal()
-            {
-                return false;
-            }
-            self.slot.state.store(SLOT_PAUSED, Ordering::SeqCst);
-            let terminal_reason = record.terminal_reason;
-            record.checkpoint_available = true;
-            record.current_score = current_score;
-            record.best_score = best_score;
-            record.publish_telemetry_with_candidate_trace(telemetry.clone(), candidate_trace);
-
-            let snapshot_revision = record.push_snapshot(super::types::SolverSnapshot {
-                job_id: self.job_id,
-                snapshot_revision: 0,
-                lifecycle_state: SolverLifecycleState::Paused,
-                terminal_reason,
-                current_score,
-                best_score,
-                telemetry: record.telemetry.clone(),
-                solution,
-            });
-
-            let metadata = record.next_metadata(
-                self.job_id,
-                SolverLifecycleState::Paused,
-                Some(snapshot_revision),
-            );
-            if let Some(sender) = sender {
-                let _ = sender.send(SolverEvent::Paused { metadata });
-            }
-            true
-        });
-        if !published {
-            return false;
-        }
-
-        let mut guard = self.slot.pause_gate.lock().unwrap();
-        while self.slot.pause_requested.load(Ordering::Acquire) && !self.is_cancel_requested() {
-            guard = self.slot.pause_condvar.wait(guard).unwrap();
-        }
-        drop(guard);
-
-        if self.is_cancel_requested() {
-            return false;
-        }
-
-        self.emit_non_snapshot_event(current_score, best_score, telemetry, EventKind::Resumed);
-        true
     }
 
     pub(crate) fn is_terminal(&self) -> bool {

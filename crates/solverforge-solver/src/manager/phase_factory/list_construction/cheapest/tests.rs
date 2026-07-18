@@ -7,6 +7,7 @@ use solverforge_scoring::{ConstraintMetadata, Director, ScoreDirector};
 use super::*;
 use crate::builder::context::{bind_runtime_list_source, ListConstructionKernelError};
 use crate::builder::usize_element_source_key;
+use crate::manager::SolverTerminalReason;
 use crate::phase::Phase;
 use crate::scope::SolverScope;
 
@@ -169,7 +170,7 @@ fn duplicate_declared_source_key_fails_before_cheapest_construction() {
 }
 
 #[test]
-fn public_cheapest_completes_mandatory_construction_past_ordinary_limits() {
+fn public_cheapest_observes_ordinary_limits() {
     let plan = Plan {
         elements: vec![0, 1, 2],
         routes: vec![Vec::new()],
@@ -182,7 +183,11 @@ fn public_cheapest_completes_mandatory_construction_past_ordinary_limits() {
 
     phase.solve(&mut scope);
 
-    assert_eq!(scope.working_solution().routes[0].len(), 3);
+    assert_eq!(scope.working_solution().routes[0].len(), 0);
+    assert_eq!(
+        scope.terminal_reason(),
+        SolverTerminalReason::TerminatedByConfig
+    );
 }
 
 #[test]

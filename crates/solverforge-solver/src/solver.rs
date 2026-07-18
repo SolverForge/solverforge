@@ -390,6 +390,9 @@ macro_rules! impl_solver {
                 if let Some(limit) = time_limit {
                     solver_scope.set_time_limit(limit);
                 }
+                if false $(|| phases.$idx.defers_initial_best_solution_publication())+ {
+                    solver_scope.defer_best_solution_publication();
+                }
                 solver_scope.initialize_working_solution_as_best();
                 solver_scope.report_best_solution();
                 solver_scope.pause_if_requested();

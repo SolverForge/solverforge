@@ -129,21 +129,18 @@ where
             ScalarGroupConstruction::First(build_phase(
                 placer,
                 construction_obligation,
-                required_only,
                 FirstFitForager::new(),
             ))
         }
         ConstructionHeuristicType::CheapestInsertion => ScalarGroupConstruction::Best(build_phase(
             placer,
             construction_obligation,
-            required_only,
             BestFitForager::new(),
         )),
         ConstructionHeuristicType::WeakestFit | ConstructionHeuristicType::WeakestFitDecreasing => {
             ScalarGroupConstruction::Weakest(build_phase(
                 placer,
                 construction_obligation,
-                required_only,
                 WeakestFitForager::new(scalar_group_move_strength::<S>),
             ))
         }
@@ -152,7 +149,6 @@ where
             ScalarGroupConstruction::Strongest(build_phase(
                 placer,
                 construction_obligation,
-                required_only,
                 StrongestFitForager::new(scalar_group_move_strength::<S>),
             ))
         }
@@ -210,20 +206,14 @@ pub(crate) fn record_scalar_assignment_remaining<S, D, ProgressCb>(
 fn build_phase<S, Fo>(
     placer: ScalarGroupPlacer<S>,
     construction_obligation: ConstructionObligation,
-    required_only: bool,
     forager: Fo,
 ) -> ConstructionHeuristicPhase<S, CompoundScalarMove<S>, ScalarGroupPlacer<S>, Fo>
 where
     S: PlanningSolution + 'static,
     Fo: ConstructionForager<S, CompoundScalarMove<S>>,
 {
-    let phase = ConstructionHeuristicPhase::new(placer, forager)
-        .with_construction_obligation(construction_obligation);
-    if required_only {
-        phase.with_mandatory_construction_completion()
-    } else {
-        phase
-    }
+    ConstructionHeuristicPhase::new(placer, forager)
+        .with_construction_obligation(construction_obligation)
 }
 
 fn effective_group_limits(

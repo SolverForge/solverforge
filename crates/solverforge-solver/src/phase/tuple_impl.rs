@@ -34,6 +34,11 @@ where
         "PhaseTuple"
     }
 
+    fn defers_initial_best_solution_publication(&self) -> bool {
+        self.0.defers_initial_best_solution_publication()
+            || self.1.defers_initial_best_solution_publication()
+    }
+
     fn on_solver_terminal(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>) {
         self.0.on_solver_terminal(solver_scope);
         self.1.on_solver_terminal(solver_scope);

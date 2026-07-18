@@ -6,6 +6,7 @@ use solverforge_scoring::ScoreDirector;
 
 use super::*;
 use crate::builder::usize_element_source_key;
+use crate::manager::SolverTerminalReason;
 use crate::phase::Phase;
 use crate::scope::SolverScope;
 
@@ -42,7 +43,7 @@ fn phase() -> ListConstructionPhase<Plan, usize> {
 }
 
 #[test]
-fn public_round_robin_completes_mandatory_construction_past_ordinary_limits() {
+fn public_round_robin_observes_ordinary_limits() {
     let plan = Plan {
         elements: vec![0, 1, 2],
         routes: vec![Vec::new()],
@@ -57,5 +58,9 @@ fn public_round_robin_completes_mandatory_construction_past_ordinary_limits() {
 
     phase.solve(&mut scope);
 
-    assert_eq!(scope.working_solution().routes[0].len(), 3);
+    assert_eq!(scope.working_solution().routes[0].len(), 0);
+    assert_eq!(
+        scope.terminal_reason(),
+        SolverTerminalReason::TerminatedByConfig
+    );
 }

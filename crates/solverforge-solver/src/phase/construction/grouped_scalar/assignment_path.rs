@@ -9,18 +9,24 @@ use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 use crate::planning::ScalarEdit;
 
-pub(super) fn assignment_move_for_entity_value<S>(
+pub(super) fn assignment_move_for_entity_value<S, ShouldStop>(
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
     state: &mut ScalarAssignmentState,
-    entity_index: usize,
-    value: usize,
+    assignment: AssignmentRequest,
     options: ScalarAssignmentMoveOptions,
     intent: AssignmentMoveIntent,
+    should_stop: &mut ShouldStop,
 ) -> Option<CompoundScalarMove<S>>
 where
     S: PlanningSolution,
+    ShouldStop: FnMut() -> bool,
 {
+    if should_stop() {
+        return None;
+    }
+    let entity_index = assignment.entity_index;
+    let value = assignment.value;
     if state.current_value(entity_index) == Some(value) {
         return None;
     }
@@ -35,14 +41,11 @@ where
     };
     let produced = search.assign(
         state,
-        AssignmentRequest {
-            entity_index,
-            value,
-            depth: options.max_depth,
-        },
+        assignment,
         &mut visiting,
         &mut changes,
         &mut edits,
+        should_stop,
     );
     let mov = if produced && state.scalar_edits_feasible(group, solution, &edits) {
         move_from_edits(group, solution, &edits, intent.reason)
@@ -54,10 +57,20 @@ where
 }
 
 #[derive(Clone, Copy)]
-struct AssignmentRequest {
+pub(super) struct AssignmentRequest {
     entity_index: usize,
     value: usize,
     depth: usize,
+}
+
+impl AssignmentRequest {
+    pub(super) fn root(entity_index: usize, value: usize, max_depth: usize) -> Self {
+        Self {
+            entity_index,
+            value,
+            depth: max_depth,
+        }
+    }
 }
 
 struct AugmentingPathSearch<'a, S> {
@@ -68,14 +81,21 @@ struct AugmentingPathSearch<'a, S> {
 }
 
 impl<S> AugmentingPathSearch<'_, S> {
-    fn assign(
+    fn assign<ShouldStop>(
         &self,
         state: &mut ScalarAssignmentState,
         assignment: AssignmentRequest,
         visiting: &mut HashSet<usize>,
         changes: &mut Vec<(usize, Option<usize>)>,
         edits: &mut Vec<ScalarEdit<S>>,
-    ) -> bool {
+        should_stop: &mut ShouldStop,
+    ) -> bool
+    where
+        ShouldStop: FnMut() -> bool,
+    {
+        if should_stop() {
+            return false;
+        }
         let entity_index = assignment.entity_index;
         let value = assignment.value;
         if !self
@@ -134,6 +154,10 @@ impl<S> AugmentingPathSearch<'_, S> {
             self.group
                 .candidate_values(self.solution, blocker, self.value_candidate_limit);
         for alternative in alternatives {
+            if should_stop() {
+                visiting.remove(&entity_index);
+                return false;
+            }
             if state.current_value(blocker) == Some(alternative) {
                 continue;
             }
@@ -149,6 +173,7 @@ impl<S> AugmentingPathSearch<'_, S> {
                 visiting,
                 changes,
                 edits,
+                should_stop,
             ) {
                 let blockers_after_reassignment =
                     state.blockers(self.group, self.solution, entity_index, value);

@@ -5,7 +5,9 @@ use solverforge_core::domain::PlanningSolution;
 use super::assignment_candidate::{
     order_candidates, ordered_entities, AssignmentMoveIntent, ScalarAssignmentMoveOptions,
 };
-use super::assignment_path::{assignment_move_for_entity_value, move_from_edits};
+use super::assignment_path::{
+    assignment_move_for_entity_value, move_from_edits, AssignmentRequest,
+};
 use super::assignment_state::{CapacityConflict, ScalarAssignmentState};
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
@@ -21,17 +23,22 @@ pub(super) struct EntityValueCursor {
 }
 
 impl EntityValueCursor {
-    pub(super) fn next<S>(
+    pub(super) fn next<S, ShouldStop>(
         &mut self,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &mut ScalarAssignmentState,
+        should_stop: &mut ShouldStop,
     ) -> Option<CompoundScalarMove<S>>
     where
         S: PlanningSolution,
+        ShouldStop: FnMut() -> bool,
     {
         let intent = self.kind.intent();
         while self.entity_pos < self.entities.len() {
+            if should_stop() {
+                return None;
+            }
             let entity_index = self.entities[self.entity_pos];
             if self.kind == AssignmentMoveKind::Required
                 && state.current_value(entity_index).is_some()
@@ -69,16 +76,20 @@ impl EntityValueCursor {
             }
             while self.value_pos < self.values.len() {
                 let value = self.values[self.value_pos];
-                self.value_pos += 1;
-                if let Some(mov) = assignment_move_for_entity_value(
+                let candidate = assignment_move_for_entity_value(
                     group,
                     solution,
                     state,
-                    entity_index,
-                    value,
+                    AssignmentRequest::root(entity_index, value, self.options.max_depth),
                     self.options,
                     intent,
-                ) {
+                    should_stop,
+                );
+                if should_stop() {
+                    return None;
+                }
+                self.value_pos += 1;
+                if let Some(mov) = candidate {
                     return Some(mov);
                 }
             }
@@ -135,19 +146,27 @@ impl CapacityCursor {
         }
     }
 
-    pub(super) fn next<S>(
+    pub(super) fn next<S, ShouldStop>(
         &mut self,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &mut ScalarAssignmentState,
+        should_stop: &mut ShouldStop,
     ) -> Option<CompoundScalarMove<S>>
     where
         S: PlanningSolution,
+        ShouldStop: FnMut() -> bool,
     {
         loop {
+            if should_stop() {
+                return None;
+            }
             if let Some(cursor) = &mut self.repair_cursor {
-                if let Some(mov) = cursor.next(group, solution, state) {
+                if let Some(mov) = cursor.next(group, solution, state, should_stop) {
                     return Some(mov);
+                }
+                if should_stop() {
+                    return None;
                 }
                 self.repair_cursor = None;
             }

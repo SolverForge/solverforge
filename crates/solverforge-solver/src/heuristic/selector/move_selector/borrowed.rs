@@ -224,6 +224,22 @@ where
 pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
     fn next_candidate(&mut self) -> Option<CandidateId>;
 
+    /// Pulls the next candidate while allowing expensive cursor implementations
+    /// to observe solve control between units of generation work.
+    fn next_candidate_with_control<ShouldStop>(
+        &mut self,
+        should_stop: &mut ShouldStop,
+    ) -> Option<CandidateId>
+    where
+        ShouldStop: FnMut() -> bool,
+    {
+        if should_stop() {
+            None
+        } else {
+            self.next_candidate()
+        }
+    }
+
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>>;
 
     fn take_candidate(&mut self, id: CandidateId) -> M;

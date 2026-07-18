@@ -14,7 +14,8 @@ use super::{ConstructionChoice, Placement, StrongestFitForager, WeakestFitForage
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{CandidateId, MoveCursor};
 use crate::phase::control::{
-    settle_construction_interrupt, should_interrupt_before_evaluation, StepInterrupt,
+    settle_construction_interrupt, should_interrupt_before_candidate,
+    should_interrupt_before_evaluation, StepInterrupt,
 };
 use crate::scope::{ProgressCallback, StepScope};
 use crate::stats::{
@@ -32,7 +33,9 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    let candidate_id = placement.candidates_mut().next_candidate()?;
+    let candidate_id = placement
+        .candidates_mut()
+        .next_candidate_with_control(&mut || should_interrupt_before_candidate(step_scope))?;
     let construction_target = CandidateTraceConstructionTarget {
         descriptor_index: placement.entity_ref.descriptor_index,
         entity_index: placement.entity_ref.entity_index,

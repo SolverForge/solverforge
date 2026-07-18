@@ -216,7 +216,8 @@ where
             AssignmentFamilyCursor::Empty
         ) {
             let family = self.family_slots[slot_index].family;
-            self.family_slots[slot_index].cursor = self.open_family_cursor(family, self.options);
+            let cursor = self.open_family_cursor(family, self.options, should_stop)?;
+            self.family_slots[slot_index].cursor = cursor;
             if matches!(
                 self.family_slots[slot_index].cursor,
                 AssignmentFamilyCursor::Empty
@@ -242,18 +243,26 @@ where
         candidate
     }
 
-    fn open_family_cursor(
+    fn open_family_cursor<ShouldStop>(
         &mut self,
         family: AssignmentMoveFamily,
         options: ScalarAssignmentMoveOptions,
-    ) -> AssignmentFamilyCursor {
-        match family {
-            AssignmentMoveFamily::Required => AssignmentFamilyCursor::required_entity_values(
+        should_stop: &mut ShouldStop,
+    ) -> Option<AssignmentFamilyCursor>
+    where
+        ShouldStop: FnMut() -> bool,
+    {
+        if matches!(family, AssignmentMoveFamily::Required) {
+            return AssignmentFamilyCursor::required_entity_values(
                 &self.group,
                 &self.solution,
                 &self.state,
                 options,
-            ),
+                should_stop,
+            );
+        }
+        let cursor = match family {
+            AssignmentMoveFamily::Required => unreachable!("required cursor opened above"),
             AssignmentMoveFamily::OptionalAssign => AssignmentFamilyCursor::entity_values(
                 ordered_entities(&self.group, &self.solution, |entity_index| {
                     !self.state.is_required(entity_index)
@@ -366,6 +375,11 @@ where
                 CapacityCursor::new(&self.group, &self.solution, &self.state, options),
             ),
             AssignmentMoveFamily::Done => AssignmentFamilyCursor::Empty,
+        };
+        if should_stop() {
+            None
+        } else {
+            Some(cursor)
         }
     }
 }

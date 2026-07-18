@@ -11,6 +11,7 @@ use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
 use super::assignment_candidate::{AssignmentMoveIntent, ScalarAssignmentMoveOptions};
+use super::assignment_entity::required_value_degrees;
 use super::assignment_path::{assignment_move_for_entity_value, AssignmentRequest};
 use super::assignment_state::ScalarAssignmentState;
 use super::assignment_stream::ScalarAssignmentMoveCursor;
@@ -21,6 +22,7 @@ use crate::builder::{
 };
 use crate::descriptor::{collect_bindings, ResolvedVariableBinding};
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
+use crate::phase::control::GENERATION_POLL_INTERVAL;
 use crate::phase::Phase;
 use crate::planning::{ScalarGroup, ScalarGroupLimits, ScalarTarget};
 use crate::scope::SolverScope;
@@ -100,9 +102,19 @@ fn capacity_key(_: &AssignmentPlan, _: usize, value: usize) -> Option<usize> {
     Some(value)
 }
 
+type TestCandidateValues = for<'a> fn(&'a AssignmentPlan, usize, usize) -> &'a [usize];
+
 fn assignment_group(
     descriptor: &SolutionDescriptor,
     limits: ScalarGroupLimits,
+) -> ScalarGroupBinding<AssignmentPlan> {
+    assignment_group_with_candidate_values(descriptor, limits, candidates)
+}
+
+fn assignment_group_with_candidate_values(
+    descriptor: &SolutionDescriptor,
+    limits: ScalarGroupLimits,
+    candidate_values: TestCandidateValues,
 ) -> ScalarGroupBinding<AssignmentPlan> {
     let slot = ScalarVariableSlot::new(
         0,
@@ -113,11 +125,11 @@ fn assignment_group(
         current_value,
         set_value,
         ValueSource::EntitySlice {
-            values_for_entity: candidates,
+            values_for_entity: candidate_values,
         },
         true,
     )
-    .with_candidate_values(candidates);
+    .with_candidate_values(candidate_values);
     let groups = bind_scalar_groups(
         vec![ScalarGroup::assignment(
             "worker_assignment",
@@ -144,7 +156,15 @@ fn assignment_binding(
     descriptor: &SolutionDescriptor,
     limits: ScalarGroupLimits,
 ) -> ScalarAssignmentBinding<AssignmentPlan> {
-    let group = assignment_group(descriptor, limits);
+    assignment_binding_with_candidate_values(descriptor, limits, candidates)
+}
+
+fn assignment_binding_with_candidate_values(
+    descriptor: &SolutionDescriptor,
+    limits: ScalarGroupLimits,
+    candidate_values: TestCandidateValues,
+) -> ScalarAssignmentBinding<AssignmentPlan> {
+    let group = assignment_group_with_candidate_values(descriptor, limits, candidate_values);
     match group.kind {
         ScalarGroupBindingKind::Assignment(assignment) => assignment,
         ScalarGroupBindingKind::Candidates { .. } => {
@@ -274,4 +294,68 @@ fn interrupted_required_batch_can_resume_without_partial_state() {
         .next_move_with_control(&mut || false)
         .expect("required batch must restart after interrupted generation");
     assert_eq!(resumed.edits().len(), entity_total);
+}
+
+static PREPROCESSING_CANDIDATE_READS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+fn tracked_preprocessing_candidates(plan: &AssignmentPlan, entity: usize, _: usize) -> &[usize] {
+    let previous = PREPROCESSING_CANDIDATE_READS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(
+        previous, 0,
+        "degree preprocessing read candidates after control requested interruption"
+    );
+    &plan.candidates[entity]
+}
+
+#[test]
+fn required_batch_polls_control_between_scarcity_and_degree_preprocessing() {
+    PREPROCESSING_CANDIDATE_READS.store(0, std::sync::atomic::Ordering::SeqCst);
+    let descriptor = descriptor();
+    let limits = ScalarGroupLimits::new();
+    let assignment = assignment_binding_with_candidate_values(
+        &descriptor,
+        limits,
+        tracked_preprocessing_candidates,
+    );
+    let solution = AssignmentPlan {
+        score: None,
+        assignments: vec![None],
+        candidates: vec![vec![0]],
+    };
+    let options = ScalarAssignmentMoveOptions::for_construction(limits);
+    let mut cursor =
+        ScalarAssignmentMoveCursor::required_construction(assignment, solution, options);
+    let interrupted = cursor.next_move_with_control(&mut || {
+        PREPROCESSING_CANDIDATE_READS.load(std::sync::atomic::Ordering::SeqCst) >= 1
+    });
+
+    assert!(interrupted.is_none());
+    assert_eq!(
+        PREPROCESSING_CANDIDATE_READS.load(std::sync::atomic::Ordering::SeqCst),
+        1
+    );
+}
+
+#[test]
+fn required_value_degrees_bounds_control_polling_for_dense_rows() {
+    let descriptor = descriptor();
+    let limits = ScalarGroupLimits::new();
+    let assignment = assignment_binding(&descriptor, limits);
+    let candidate_count = GENERATION_POLL_INTERVAL * 2;
+    let solution = AssignmentPlan {
+        score: None,
+        assignments: vec![None],
+        candidates: vec![(0..candidate_count).collect()],
+    };
+    let mut polls = 0;
+
+    let degrees = required_value_degrees(&assignment, &solution, &[0], None, &mut || {
+        polls += 1;
+        false
+    })
+    .expect("uninterrupted degree preprocessing must complete");
+
+    assert_eq!(degrees.len(), candidate_count);
+    assert_eq!(polls, 4, "poll once per row, interval, and final boundary");
 }

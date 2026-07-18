@@ -11,6 +11,7 @@ use super::assignment_path::{
 use super::assignment_state::{CapacityConflict, ScalarAssignmentState};
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
+use crate::phase::control::GENERATION_POLL_INTERVAL;
 
 pub(super) struct EntityValueCursor {
     pub(super) entities: Vec<usize>,
@@ -373,53 +374,78 @@ pub(super) fn assigned_entities_by_position<S>(
     entities
 }
 
-pub(super) fn required_entities_by_scarcity<S>(
+pub(super) fn required_entities_by_scarcity<S, ShouldStop>(
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
     state: &ScalarAssignmentState,
     value_candidate_limit: Option<usize>,
-) -> Vec<usize>
+    should_stop: &mut ShouldStop,
+) -> Option<Vec<usize>>
 where
     S: PlanningSolution,
+    ShouldStop: FnMut() -> bool,
 {
-    let mut entities = (0..group.entity_count(solution))
-        .filter(|entity_index| {
-            state.is_required(*entity_index) && state.current_value(*entity_index).is_none()
-        })
-        .map(|entity_index| {
-            let candidate_count = group
-                .candidate_values(solution, entity_index, value_candidate_limit)
-                .len();
-            (
-                candidate_count,
-                group.entity_order_key(solution, entity_index),
-                entity_index,
-            )
-        })
-        .collect::<Vec<_>>();
+    let mut entities = Vec::new();
+    for entity_index in 0..group.entity_count(solution) {
+        if should_stop() {
+            return None;
+        }
+        if !state.is_required(entity_index) || state.current_value(entity_index).is_some() {
+            continue;
+        }
+        let candidate_count = group
+            .candidate_values(solution, entity_index, value_candidate_limit)
+            .len();
+        if should_stop() {
+            return None;
+        }
+        entities.push((
+            candidate_count,
+            group.entity_order_key(solution, entity_index),
+            entity_index,
+        ));
+    }
     entities.sort_unstable();
-    entities
-        .into_iter()
-        .map(|(_, _, entity_index)| entity_index)
-        .collect()
+    if should_stop() {
+        return None;
+    }
+    Some(
+        entities
+            .into_iter()
+            .map(|(_, _, entity_index)| entity_index)
+            .collect(),
+    )
 }
 
-pub(super) fn required_value_degrees<S>(
+pub(super) fn required_value_degrees<S, ShouldStop>(
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
     entities: &[usize],
     value_candidate_limit: Option<usize>,
-) -> HashMap<usize, usize>
+    should_stop: &mut ShouldStop,
+) -> Option<HashMap<usize, usize>>
 where
     S: PlanningSolution,
+    ShouldStop: FnMut() -> bool,
 {
     let mut degrees = HashMap::new();
+    let mut processed_edges = 0usize;
     for entity_index in entities {
+        if should_stop() {
+            return None;
+        }
         for value in group.candidate_values(solution, *entity_index, value_candidate_limit) {
             *degrees.entry(value).or_insert(0) += 1;
+            processed_edges += 1;
+            if processed_edges.is_multiple_of(GENERATION_POLL_INTERVAL) && should_stop() {
+                return None;
+            }
         }
     }
-    degrees
+    if should_stop() {
+        return None;
+    }
+    Some(degrees)
 }
 
 pub(super) fn sort_values_by_required_scarcity<S>(

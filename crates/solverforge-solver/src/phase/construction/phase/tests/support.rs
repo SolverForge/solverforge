@@ -31,6 +31,7 @@ enum ConstructionPauseSolvableMode {
     FirstFitMax64,
     FirstFitDecisive,
     BestFitKeepCurrent,
+    BestFitInterruptedPull,
 }
 
 impl ConstructionPauseSolution {
@@ -463,6 +464,9 @@ impl Solvable for ConstructionPauseSolution {
                     BestFitForager::new(),
                 );
                 phase.solve(&mut solver_scope);
+            }
+            ConstructionPauseSolvableMode::BestFitInterruptedPull => {
+                solve_best_fit_interrupted_pull(&mut solver_scope, eval_gate)
             }
         }
 

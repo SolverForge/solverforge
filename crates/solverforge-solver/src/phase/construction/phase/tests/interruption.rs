@@ -200,3 +200,185 @@ fn pause_after_decisive_evaluation_snapshots_the_committed_selection() {
     }
     MANAGER.delete(job_id).expect("delete decisive job");
 }
+
+impl ConstructionPauseSolution {
+    fn best_fit_interrupted_pull(gate: BlockingEvaluationGate) -> Self {
+        Self {
+            eval_gate: Some(gate),
+            solvable_mode: ConstructionPauseSolvableMode::BestFitInterruptedPull,
+            ..Self::new(None)
+        }
+    }
+}
+
+fn solve_best_fit_interrupted_pull(
+    solver_scope: &mut SolverScope<'_, ConstructionPauseSolution, ConstructionPauseDirector>,
+    gate: Option<BlockingEvaluationGate>,
+) {
+    let placer = InterruptAfterRetainedCandidatePlacer {
+        gate: gate.expect("interrupted-pull solve requires a generation gate"),
+    };
+    let mut phase = ConstructionHeuristicPhase::new(placer, BestFitForager::new());
+    phase.solve(solver_scope);
+}
+
+struct InterruptAfterRetainedCandidateCursor {
+    candidate: Option<ConstructionPauseMove>,
+    pulled: bool,
+    gate: BlockingEvaluationGate,
+}
+
+impl InterruptAfterRetainedCandidateCursor {
+    fn new(gate: BlockingEvaluationGate) -> Self {
+        Self {
+            candidate: Some(ConstructionPauseMove::new(0, 7, true, None)),
+            pulled: false,
+            gate,
+        }
+    }
+}
+
+impl MoveCursor<ConstructionPauseSolution, ConstructionPauseMove>
+    for InterruptAfterRetainedCandidateCursor
+{
+    fn next_candidate(&mut self) -> Option<CandidateId> {
+        if self.pulled {
+            None
+        } else {
+            self.pulled = true;
+            Some(CandidateId::new(0))
+        }
+    }
+
+    fn next_candidate_with_control<ShouldStop>(
+        &mut self,
+        should_stop: &mut ShouldStop,
+    ) -> Option<CandidateId>
+    where
+        ShouldStop: FnMut() -> bool,
+    {
+        if !self.pulled {
+            return self.next_candidate();
+        }
+        self.gate.on_evaluation();
+        let _ = should_stop();
+        None
+    }
+
+    fn candidate(
+        &self,
+        id: CandidateId,
+    ) -> Option<MoveCandidateRef<'_, ConstructionPauseSolution, ConstructionPauseMove>> {
+        if id.index() != 0 {
+            return None;
+        }
+        self.candidate.as_ref().map(MoveCandidateRef::Borrowed)
+    }
+
+    fn take_candidate(&mut self, id: CandidateId) -> ConstructionPauseMove {
+        assert_eq!(id.index(), 0);
+        self.candidate
+            .take()
+            .expect("retained construction candidate must remain live")
+    }
+}
+
+#[derive(Clone, Debug)]
+struct InterruptAfterRetainedCandidatePlacer {
+    gate: BlockingEvaluationGate,
+}
+
+impl EntityPlacerCursor<ConstructionPauseSolution, ConstructionPauseMove>
+    for InterruptAfterRetainedCandidatePlacer
+{
+    type CandidateCursor = InterruptAfterRetainedCandidateCursor;
+
+    fn next_placement<D, IsCompleted, ShouldStop>(
+        &mut self,
+        _score_director: &D,
+        mut is_completed: IsCompleted,
+        mut should_stop: ShouldStop,
+    ) -> Option<Placement<ConstructionPauseSolution, ConstructionPauseMove, Self::CandidateCursor>>
+    where
+        D: Director<ConstructionPauseSolution>,
+        IsCompleted: FnMut(
+            &Placement<ConstructionPauseSolution, ConstructionPauseMove, Self::CandidateCursor>,
+        ) -> bool,
+        ShouldStop: FnMut() -> bool,
+    {
+        if should_stop() {
+            return None;
+        }
+        let placement = Placement::new(
+            EntityReference::new(0, 0),
+            InterruptAfterRetainedCandidateCursor::new(self.gate.clone()),
+        )
+        .with_slot_id(crate::phase::construction::ConstructionSlotId::new(0, 0));
+        (!is_completed(&placement)).then_some(placement)
+    }
+}
+
+impl EntityPlacer<ConstructionPauseSolution, ConstructionPauseMove>
+    for InterruptAfterRetainedCandidatePlacer
+{
+    type Cursor<'a>
+        = Self
+    where
+        Self: 'a;
+
+    fn open_cursor<'a, D: Director<ConstructionPauseSolution>>(
+        &'a self,
+        _score_director: &D,
+    ) -> Self::Cursor<'a> {
+        Self {
+            gate: self.gate.clone(),
+        }
+    }
+}
+
+#[test]
+fn paused_candidate_pull_restarts_without_committing_or_completing_retained_selection() {
+    static MANAGER: SolverManager<ConstructionPauseSolution> = SolverManager::new();
+
+    let gate = BlockingEvaluationGate::new(1);
+    let (job_id, mut receiver) = MANAGER
+        .solve(ConstructionPauseSolution::best_fit_interrupted_pull(
+            gate.clone(),
+        ))
+        .expect("interrupted-pull construction job should start");
+    gate.wait_until_blocked();
+    MANAGER.pause(job_id).expect("pause should be accepted");
+    assert!(matches!(
+        receiver.blocking_recv().expect("pause requested event"),
+        SolverEvent::PauseRequested { .. }
+    ));
+    gate.release();
+
+    let paused_revision = match receiver.blocking_recv().expect("paused event") {
+        SolverEvent::Paused { metadata } => metadata
+            .snapshot_revision
+            .expect("paused snapshot revision"),
+        other => panic!("unexpected event: {other:?}"),
+    };
+    let paused_snapshot = MANAGER
+        .get_snapshot(job_id, Some(paused_revision))
+        .expect("paused snapshot");
+
+    MANAGER.resume(job_id).expect("resume should be accepted");
+    assert!(matches!(
+        receiver.blocking_recv().expect("resumed event"),
+        SolverEvent::Resumed { .. }
+    ));
+    let completed_solution = match receiver.blocking_recv().expect("completed event") {
+        SolverEvent::Completed { solution, .. } => solution,
+        other => panic!("unexpected event: {other:?}"),
+    };
+    MANAGER.delete(job_id).expect("delete resumed job");
+
+    assert_eq!(paused_snapshot.solution.entities[0].value, None);
+    assert_eq!(paused_snapshot.telemetry.moves_generated, 1);
+    assert_eq!(paused_snapshot.telemetry.moves_evaluated, 1);
+    assert_eq!(paused_snapshot.telemetry.moves_accepted, 0);
+    assert_eq!(paused_snapshot.telemetry.moves_applied, 0);
+    assert_eq!(completed_solution.entities[0].value, Some(7));
+}

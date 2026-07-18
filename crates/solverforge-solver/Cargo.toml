@@ -11,9 +11,9 @@ autobenches = false
 default = []
 
 [dependencies]
-solverforge-core = { version = "0.19.0", path = "../solverforge-core" }
-solverforge-scoring = { version = "0.19.0", path = "../solverforge-scoring" }
-solverforge-config = { version = "0.19.0", path = "../solverforge-config" }
+solverforge-core = { version = "0.19.1", path = "../solverforge-core" }
+solverforge-scoring = { version = "0.19.1", path = "../solverforge-scoring" }
+solverforge-config = { version = "0.19.1", path = "../solverforge-config" }
 thiserror.workspace = true
 tracing.workspace = true
 rand.workspace = true

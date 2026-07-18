@@ -3,7 +3,7 @@
 Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 
 **Location:** `crates/solverforge-scoring/`
-**Workspace Release:** `0.19.0`
+**Workspace Release:** `0.19.1`
 
 ## Dependencies
 

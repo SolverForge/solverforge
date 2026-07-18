@@ -4,7 +4,7 @@ Domain helpers for Capacitated Vehicle Routing Problems (CVRP), including the
 stock `domain = "cvrp"` list-variable profile internals.
 
 **Location:** `crates/solverforge-cvrp/`
-**Workspace Release:** `0.19.0`
+**Workspace Release:** `0.19.1`
 
 ## Dependencies
 

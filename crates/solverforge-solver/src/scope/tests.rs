@@ -1,6 +1,8 @@
 // Tests for scope types.
 
 use std::any::TypeId;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use super::*;
 use crate::manager::SolverTerminalReason;
@@ -202,6 +204,33 @@ fn phase_progress_elapsed_uses_the_pause_aware_solver_clock() {
     assert_eq!(phase.phase_type, "PauseAwarePhase");
     assert_eq!(phase.elapsed, frozen_elapsed);
     assert!(phase.elapsed < raw_after);
+}
+
+#[test]
+fn phase_progress_reports_first_real_work_then_resumes_the_time_cadence() {
+    let publications = Arc::new(AtomicUsize::new(0));
+    let captured = Arc::clone(&publications);
+    let callback = move |progress: SolverProgressRef<'_, TestSolution>| {
+        if progress.kind == SolverProgressKind::Progress {
+            captured.fetch_add(1, Ordering::SeqCst);
+        }
+    };
+    let mut solver_scope =
+        SolverScope::new_with_callback(create_minimal_director(), callback, None, None);
+    solver_scope.start_solving();
+
+    let mut phase_scope = PhaseScope::with_phase_type(&mut solver_scope, 0, "ImmediatePhase");
+    assert!(!phase_scope.report_progress_if_due());
+
+    phase_scope.record_generated_move(std::time::Duration::ZERO);
+    phase_scope.record_evaluated_move(std::time::Duration::ZERO);
+    assert!(phase_scope.report_progress_if_due());
+    assert_eq!(publications.load(Ordering::SeqCst), 1);
+
+    phase_scope.record_generated_move(std::time::Duration::ZERO);
+    phase_scope.record_evaluated_move(std::time::Duration::ZERO);
+    assert!(!phase_scope.report_progress_if_due());
+    assert_eq!(publications.load(Ordering::SeqCst), 1);
 }
 
 #[test]

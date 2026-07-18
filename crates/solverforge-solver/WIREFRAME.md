@@ -235,6 +235,7 @@ src/
 │   │   ├── slot.rs                      — ConstructionSlotId, exact-keyed ConstructionGroupSlotId, ConstructionGroupSlotKey, and ConstructionListElementId for construction frontier tracking
 │   │   ├── runtime_slots.rs             — Canonical scalar/list/mixed runtime-slot construction root
 │   │   ├── runtime_slots/*.rs           — Global placement, move, and per-slot construction chunks
+│   │   ├── telemetry.rs                 — Shared construction lifecycle events, candidate counters, and bounded progress polling
 │   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroup candidates and assignment groups bound to runtime scalar slots
 │   │   ├── grouped_scalar/assignment_candidate.rs — Assignment move options, required assignment moves, capacity-conflict moves, reassignment moves, and remaining-required telemetry
 │   │   ├── grouped_scalar/assignment_block.rs — Required-assignment block planning helpers

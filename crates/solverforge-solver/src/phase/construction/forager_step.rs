@@ -95,6 +95,27 @@ fn release<S, D, BestCb, M, C>(
     assert!(placement.candidates_mut().release_candidate(candidate_id));
 }
 
+fn mark_retained_ignored<S, D, BestCb, M, C>(
+    placement: &Placement<S, M, C>,
+    retained: Option<CandidateId>,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    if let Some(candidate_id) = retained {
+        mark_candidate_disposition(
+            placement,
+            candidate_id,
+            CandidateTraceDisposition::ForagerIgnored,
+            step_scope,
+        );
+    }
+}
+
 fn evaluation_should_terminate<S, D, BestCb>(
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
 ) -> bool
@@ -134,6 +155,9 @@ where
             return None;
         }
         let Some(candidate_id) = next_candidate(placement, step_scope) else {
+            if should_interrupt_before_candidate(step_scope) {
+                return None;
+            }
             break;
         };
         let evaluation_started = Instant::now();
@@ -214,17 +238,22 @@ where
     let mut retained: Option<(CandidateId, S::Score)> = None;
     loop {
         if evaluation_should_terminate(step_scope) {
-            if let Some((candidate_id, _)) = retained {
-                mark_candidate_disposition(
-                    placement,
-                    candidate_id,
-                    CandidateTraceDisposition::ForagerIgnored,
-                    step_scope,
-                );
-            }
+            mark_retained_ignored(
+                placement,
+                retained.map(|(candidate_id, _)| candidate_id),
+                step_scope,
+            );
             return None;
         }
         let Some(candidate_id) = next_candidate(placement, step_scope) else {
+            if should_interrupt_before_candidate(step_scope) {
+                mark_retained_ignored(
+                    placement,
+                    retained.map(|(candidate_id, _)| candidate_id),
+                    step_scope,
+                );
+                return None;
+            }
             break;
         };
         let evaluation_started = Instant::now();
@@ -319,17 +348,22 @@ where
     let mut retained: Option<(CandidateId, S::Score)> = None;
     loop {
         if evaluation_should_terminate(step_scope) {
-            if let Some((candidate_id, _)) = retained {
-                mark_candidate_disposition(
-                    placement,
-                    candidate_id,
-                    CandidateTraceDisposition::ForagerIgnored,
-                    step_scope,
-                );
-            }
+            mark_retained_ignored(
+                placement,
+                retained.map(|(candidate_id, _)| candidate_id),
+                step_scope,
+            );
             return None;
         }
         let Some(candidate_id) = next_candidate(placement, step_scope) else {
+            if should_interrupt_before_candidate(step_scope) {
+                mark_retained_ignored(
+                    placement,
+                    retained.map(|(candidate_id, _)| candidate_id),
+                    step_scope,
+                );
+                return None;
+            }
             break;
         };
         let evaluation_started = Instant::now();
@@ -444,17 +478,22 @@ where
     let mut retained: Option<(CandidateId, i64)> = None;
     loop {
         if evaluation_should_terminate(step_scope) {
-            if let Some((candidate_id, _)) = retained {
-                mark_candidate_disposition(
-                    placement,
-                    candidate_id,
-                    CandidateTraceDisposition::ForagerIgnored,
-                    step_scope,
-                );
-            }
+            mark_retained_ignored(
+                placement,
+                retained.map(|(candidate_id, _)| candidate_id),
+                step_scope,
+            );
             return None;
         }
         let Some(candidate_id) = next_candidate(placement, step_scope) else {
+            if should_interrupt_before_candidate(step_scope) {
+                mark_retained_ignored(
+                    placement,
+                    retained.map(|(candidate_id, _)| candidate_id),
+                    step_scope,
+                );
+                return None;
+            }
             break;
         };
         let evaluation_started = Instant::now();

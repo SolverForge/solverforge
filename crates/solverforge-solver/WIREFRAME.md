@@ -512,7 +512,10 @@ entity/value/child order without boxing cursors or erasing selector types.
 `MoveCursor::selector_index()` reports the stable child index for telemetry
 through union selectors. Cursor implementations store only discovered
 candidates, and broad scalar/list selectors generate the next candidate from
-cursor-native loop state instead of prebuilding full move vectors. The cursor
+cursor-native loop state instead of prebuilding full move vectors.
+`next_candidate_with_control()` lets expensive cursors poll solve control during
+generation; because `None` can mean either interruption or exhaustion, callers
+recheck the same control signal before resolving an exhausted scan. The cursor
 contract also provides `release_candidate()`, `apply_owned_candidate()`,
 `next_owned_candidate()`, `next_owned_candidate_matching()`, and
 `next_owned_candidate_inspected()` so phases can end candidate residency
@@ -757,7 +760,7 @@ union variants and keep speculative rollback statically typed.
 
 **`MoveArena<M>`** — Reusable-capacity arena. `new()`, `with_capacity()`, `push()`, `get()`, `iter()`, `iter_mut()`, `take(index)`, `reset()`, `extend()`, `shuffle()`, `len()`, `is_empty()`, and `capacity()`. `take()` transfers exactly one selected slot per reset cycle; `reset()` drops the remaining live slots while retaining allocated capacity and panics are used to reject double-take.
 
-**`MoveCursor<S, M>`** — cursor contract with `next_candidate()`, `candidate(id)`, `take_candidate(id)`, `release_candidate(id)`, `apply_owned_candidate(id)`, `next_owned_candidate()`, `next_owned_candidate_matching()`, `next_owned_candidate_inspected()`, and optional `selector_index(id)`. Consumers may stop after any candidate; dropping a cursor releases retained candidates and unconsumed source state without exhausting the tail. Implementations must not require full enumeration for cleanup or callbacks.
+**`MoveCursor<S, M>`** — cursor contract with `next_candidate()`, `next_candidate_with_control(should_stop)`, `candidate(id)`, `take_candidate(id)`, `release_candidate(id)`, `apply_owned_candidate(id)`, `next_owned_candidate()`, `next_owned_candidate_matching()`, `next_owned_candidate_inspected()`, and optional `selector_index(id)`. Consumers may stop after any candidate; dropping a cursor releases retained candidates and unconsumed source state without exhausting the tail. Implementations must not require full enumeration for cleanup or callbacks.
 
 **`MoveCandidateRef<'a, S, M>`** — borrowable move view: either `Borrowed(&M)` or `Sequential(SequentialCompositeMoveRef<'a, S, M>)`.
 

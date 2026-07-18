@@ -61,13 +61,13 @@ fn run_regret_in_phase<S, A, D, BestCb>(
     let source_count = source_index.source_count();
     let entity_count = access.entity_count(phase_scope.score_director().working_solution());
     if entity_count == 0 || source_count == 0 {
-        phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }
     if bound_unassigned.is_empty() {
         tracing::info!("All elements already assigned, skipping regret insertion");
-        phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }
@@ -182,6 +182,7 @@ fn run_regret_in_phase<S, A, D, BestCb>(
         };
         let entry = unassigned.remove(list_index);
         let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
+        step_scope.phase_scope_mut().record_move_accepted();
         if let Some(token) = trace_token {
             step_scope
                 .phase_scope_mut()
@@ -190,6 +191,7 @@ fn run_regret_in_phase<S, A, D, BestCb>(
         step_scope.apply_committed_change(|director| {
             apply_insertion(access, &entry, entity_index, position, director);
         });
+        step_scope.phase_scope_mut().record_move_applied();
         if let Some(token) = trace_token {
             step_scope
                 .phase_scope_mut()

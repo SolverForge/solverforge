@@ -41,4 +41,6 @@ pub(crate) use slot::{
     ConstructionGroupSlotId, ConstructionGroupSlotKey, ConstructionListElementId,
     ConstructionSlotId,
 };
-pub(crate) use telemetry::run_construction_phase;
+pub(crate) use telemetry::{
+    record_construction_candidate, report_construction_progress_if_due, run_construction_phase,
+};

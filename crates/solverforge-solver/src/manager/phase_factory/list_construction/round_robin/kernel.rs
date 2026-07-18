@@ -5,7 +5,7 @@ use solverforge_scoring::Director;
 
 use crate::builder::context::SourceElement;
 use crate::list_placement::OwnerRestriction;
-use crate::phase::construction::run_construction_phase;
+use crate::phase::construction::{record_construction_candidate, run_construction_phase};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
@@ -85,14 +85,14 @@ fn run_round_robin_in_phase<S, A, D, BestCb>(
     let n_entities = access.entity_count(phase_scope.score_director().working_solution());
 
     if n_entities == 0 || source_count == 0 {
-        phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }
 
     if all_assigned {
         tracing::info!("All elements already assigned, skipping construction");
-        phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }
@@ -142,13 +142,20 @@ fn run_round_robin_in_phase<S, A, D, BestCb>(
             phase_scope
                 .record_candidate_trace_disposition(token, CandidateTraceDisposition::Selected);
         }
+        record_construction_candidate(
+            phase_scope,
+            std::time::Duration::ZERO,
+            std::time::Duration::ZERO,
+        );
 
         let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
+        step_scope.phase_scope_mut().record_move_accepted();
         step_scope.apply_committed_change(|sd| {
             sd.before_variable_changed(descriptor_index, target_entity);
             access.append_element(sd.working_solution_mut(), target_entity, entry.element);
             sd.after_variable_changed(descriptor_index, target_entity);
         });
+        step_scope.phase_scope_mut().record_move_applied();
         if let Some(token) = trace_token {
             step_scope
                 .phase_scope_mut()

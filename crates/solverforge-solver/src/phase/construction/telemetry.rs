@@ -1,9 +1,40 @@
+use std::time::Duration;
+
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 use tracing::info;
 
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope};
 use crate::stats::{format_duration, whole_units_per_second};
+
+const CONSTRUCTION_PROGRESS_POLL_INTERVAL: u64 = 256;
+
+pub(crate) fn record_construction_candidate<S, D, ProgressCb>(
+    phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
+    generation_duration: Duration,
+    evaluation_duration: Duration,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    phase_scope.record_generated_move(generation_duration);
+    phase_scope.record_evaluated_move(evaluation_duration);
+    report_construction_progress_if_due(phase_scope);
+}
+
+pub(crate) fn report_construction_progress_if_due<S, D, ProgressCb>(
+    phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    let evaluated = phase_scope.stats().moves_evaluated;
+    if evaluated == 1 || evaluated.is_multiple_of(CONSTRUCTION_PROGRESS_POLL_INTERVAL) {
+        phase_scope.report_progress_if_due();
+    }
+}
 
 /// Runs one construction kernel inside the shared lifecycle telemetry boundary.
 ///

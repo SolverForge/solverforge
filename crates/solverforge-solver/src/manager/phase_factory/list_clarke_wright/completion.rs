@@ -8,6 +8,7 @@ use super::{
     insertion_delta, owner_allows, route_owner_allows, ClarkeWrightAccess, CompletionAssignment,
     RuntimeListSourceIndex,
 };
+use crate::phase::construction::record_construction_candidate;
 use crate::scope::{PhaseScope, ProgressCallback, StepControlPolicy};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTracePullToken,
@@ -120,6 +121,11 @@ where
                             CandidateTraceDisposition::ForagerIgnored,
                         );
                     }
+                    record_construction_candidate(
+                        phase_scope,
+                        std::time::Duration::ZERO,
+                        std::time::Duration::ZERO,
+                    );
                     continue;
                 }
 
@@ -141,6 +147,11 @@ where
                             CandidateTraceDisposition::ForagerIgnored,
                         );
                     }
+                    record_construction_candidate(
+                        phase_scope,
+                        std::time::Duration::ZERO,
+                        std::time::Duration::ZERO,
+                    );
                     continue;
                 }
 
@@ -159,6 +170,11 @@ where
                         CandidateTraceDisposition::Evaluated,
                     );
                 }
+                record_construction_candidate(
+                    phase_scope,
+                    std::time::Duration::ZERO,
+                    std::time::Duration::ZERO,
+                );
                 let candidate_key = (delta, assignment.route_indices.len(), assignment_idx);
                 let best_key = best.map(|(delta, assignment_idx, _, _)| {
                     (
@@ -189,6 +205,7 @@ where
             phase_scope
                 .record_candidate_trace_disposition(token, CandidateTraceDisposition::Selected);
         }
+        phase_scope.record_move_accepted();
         assignments[assignment_idx]
             .route_indices
             .insert(insert_idx, element_idx);
@@ -196,6 +213,7 @@ where
             phase_scope
                 .record_candidate_trace_disposition(token, CandidateTraceDisposition::Applied);
         }
+        phase_scope.record_move_applied();
     }
 
     Some(

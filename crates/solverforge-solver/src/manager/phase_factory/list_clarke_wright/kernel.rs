@@ -15,7 +15,7 @@ use super::route_state::{
 };
 use super::savings::{sort_savings, SavingsEntry};
 use super::{owner_allows, ClarkeWrightAccess, RuntimeListSourceIndex, SourceElement};
-use crate::phase::construction::run_construction_phase;
+use crate::phase::construction::{record_construction_candidate, run_construction_phase};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
@@ -70,7 +70,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
     let n_entities = access.entity_count(solution);
     let n_elements = source_index.source_count();
     if n_entities == 0 || n_elements == 0 {
-        let _score = phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }
@@ -89,7 +89,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         .collect::<Vec<_>>();
     if unassigned.is_empty() {
         tracing::info!("All elements already assigned, skipping Clarke-Wright construction");
-        let _score = phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }
@@ -99,7 +99,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
             unassigned_elements = unassigned.len(),
             "ListClarkeWright found no empty entity slots for remaining work; leaving preassigned routes untouched"
         );
-        let _score = phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }
@@ -191,6 +191,11 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                         CandidateTraceDisposition::ForagerIgnored,
                     );
                 }
+                record_construction_candidate(
+                    phase_scope,
+                    std::time::Duration::ZERO,
+                    std::time::Duration::ZERO,
+                );
                 if (savings.len() & 0x3FF) == 0
                     && control_policy.should_terminate_construction(phase_scope.solver_scope_mut())
                 {
@@ -233,6 +238,11 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                     CandidateTraceDisposition::Evaluated,
                 );
             }
+            record_construction_candidate(
+                phase_scope,
+                std::time::Duration::ZERO,
+                std::time::Duration::ZERO,
+            );
             let (Some(ri), Some(rj)) = (route_of[entry.left_idx], route_of[entry.right_idx]) else {
                 if let Some(token) = trace_token {
                     phase_scope.record_candidate_trace_disposition(
@@ -329,6 +339,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                 phase_scope
                     .record_candidate_trace_disposition(token, CandidateTraceDisposition::Selected);
             }
+            phase_scope.record_move_accepted();
             routes[ri].visits = test_ri;
             routes[ri].scored_metric_class = Some(entry.metric_class);
             routes[ri].feasible_for_all_owners = false;
@@ -346,6 +357,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                 phase_scope
                     .record_candidate_trace_disposition(token, CandidateTraceDisposition::Applied);
             }
+            phase_scope.record_move_applied();
             merged_in_pass = true;
         }
         if construction_interrupted || !merged_in_pass {
@@ -359,7 +371,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         .filter(|route| !route.visits.is_empty())
         .collect::<Vec<_>>();
     if construction_interrupted {
-        let _score = phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }
@@ -420,7 +432,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
             matched_routes = matched_count,
             "ListClarkeWright could not match every constructed route to a feasible empty entity"
         );
-        let _score = phase_scope.score_director_mut().calculate_score();
+        phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
     }

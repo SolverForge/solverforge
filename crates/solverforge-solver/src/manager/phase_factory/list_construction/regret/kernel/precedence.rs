@@ -330,6 +330,7 @@ where
         let entry = &entries[entry_position];
         let owner = owners[entry_position];
         let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
+        step_scope.phase_scope_mut().record_move_accepted();
         if let Some(token) = trace_token {
             step_scope
                 .phase_scope_mut()
@@ -338,6 +339,7 @@ where
         step_scope.apply_committed_change(|director| {
             apply_insertion(access, entry, owner, position, director);
         });
+        step_scope.phase_scope_mut().record_move_applied();
         if let Some(token) = trace_token {
             step_scope
                 .phase_scope_mut()

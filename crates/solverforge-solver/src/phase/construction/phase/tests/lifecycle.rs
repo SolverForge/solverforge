@@ -36,7 +36,6 @@ fn construction_reports_progress_before_a_long_phase_ends() {
         ConstructionPauseDirector::new(solution),
         move |progress: crate::scope::SolverProgressRef<'_, ConstructionPauseSolution>| {
             if progress.kind == crate::scope::SolverProgressKind::Progress {
-                assert!(progress.telemetry.step_count > 0);
                 assert!(progress.telemetry.moves_evaluated > 0);
                 progress_events_for_callback.fetch_add(1, Ordering::SeqCst);
             }

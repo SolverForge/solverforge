@@ -11,6 +11,7 @@ pub(crate) struct ProgressTick {
 struct ProgressPulse {
     phase_index: usize,
     phase_type: &'static str,
+    initial_report_pending: bool,
     next_deadline: Instant,
     last_reported_at: Instant,
     last_step_count: u64,
@@ -28,6 +29,7 @@ impl ProgressPulse {
         Self {
             phase_index,
             phase_type,
+            initial_report_pending: true,
             next_deadline: now + PROGRESS_INTERVAL,
             last_reported_at: now,
             last_step_count: step_count,
@@ -47,7 +49,9 @@ impl ProgressPulse {
             *self = Self::new(now, phase_index, phase_type, step_count, move_count);
             return None;
         }
-        if now < self.next_deadline {
+        let has_new_work = step_count > self.last_step_count || move_count > self.last_move_count;
+        let is_initial_report = self.initial_report_pending && has_new_work;
+        if !is_initial_report && now < self.next_deadline {
             return None;
         }
         let tick = ProgressTick {
@@ -58,8 +62,13 @@ impl ProgressPulse {
         self.last_reported_at = now;
         self.last_step_count = step_count;
         self.last_move_count = move_count;
-        while self.next_deadline <= now {
-            self.next_deadline += PROGRESS_INTERVAL;
+        if is_initial_report {
+            self.initial_report_pending = false;
+            self.next_deadline = now + PROGRESS_INTERVAL;
+        } else {
+            while self.next_deadline <= now {
+                self.next_deadline += PROGRESS_INTERVAL;
+            }
         }
         Some(tick)
     }

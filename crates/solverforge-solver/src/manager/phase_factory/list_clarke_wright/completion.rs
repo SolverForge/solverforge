@@ -8,7 +8,7 @@ use super::{
     insertion_delta, owner_allows, route_owner_allows, ClarkeWrightAccess, CompletionAssignment,
     RuntimeListSourceIndex,
 };
-use crate::phase::construction::record_construction_candidate;
+use crate::phase::construction::{record_construction_candidate, PendingConstructionMoveTelemetry};
 use crate::scope::{PhaseScope, ProgressCallback, StepControlPolicy};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTracePullToken,
@@ -24,6 +24,7 @@ pub(super) fn complete_routes_by_insertion<S, A, D, BestCb>(
     routes: &[ConstructedRoute],
     entity_count: usize,
     control_policy: StepControlPolicy,
+    pending_move_telemetry: &mut PendingConstructionMoveTelemetry,
 ) -> Option<Vec<(usize, Vec<usize>)>>
 where
     S: PlanningSolution,
@@ -201,19 +202,10 @@ where
         }
 
         let (_, assignment_idx, insert_idx, trace_token) = best?;
-        if let Some(token) = trace_token {
-            phase_scope
-                .record_candidate_trace_disposition(token, CandidateTraceDisposition::Selected);
-        }
-        phase_scope.record_move_accepted();
+        pending_move_telemetry.record_accepted(phase_scope, trace_token);
         assignments[assignment_idx]
             .route_indices
             .insert(insert_idx, element_idx);
-        if let Some(token) = trace_token {
-            phase_scope
-                .record_candidate_trace_disposition(token, CandidateTraceDisposition::Applied);
-        }
-        phase_scope.record_move_applied();
     }
 
     Some(

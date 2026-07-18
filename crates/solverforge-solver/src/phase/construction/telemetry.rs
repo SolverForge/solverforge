@@ -5,9 +5,80 @@ use solverforge_scoring::Director;
 use tracing::info;
 
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope};
-use crate::stats::{format_duration, whole_units_per_second};
+use crate::stats::{
+    format_duration, whole_units_per_second, CandidateTraceDisposition, CandidateTracePullToken,
+};
 
 const CONSTRUCTION_PROGRESS_POLL_INTERVAL: u64 = 256;
+
+/// Telemetry for accepted construction moves whose solution changes are still
+/// buffered outside the score director.
+///
+/// Accepted moves remain visible while a route is assembled, but applied
+/// counters and trace dispositions are published only after the caller commits
+/// that route to the working solution.
+#[derive(Default)]
+pub(crate) struct PendingConstructionMoveTelemetry {
+    accepted_count: u64,
+    trace_tokens: Vec<CandidateTracePullToken>,
+}
+
+impl PendingConstructionMoveTelemetry {
+    pub(crate) fn record_accepted<S, D, ProgressCb>(
+        &mut self,
+        phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
+        trace_token: Option<CandidateTracePullToken>,
+    ) where
+        S: PlanningSolution,
+        D: Director<S>,
+        ProgressCb: ProgressCallback<S>,
+    {
+        phase_scope.record_move_accepted();
+        self.accepted_count += 1;
+        if let Some(trace_token) = trace_token {
+            self.trace_tokens.push(trace_token);
+        }
+    }
+
+    pub(crate) fn record_committed<S, D, ProgressCb>(
+        self,
+        phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
+    ) where
+        S: PlanningSolution,
+        D: Director<S>,
+        ProgressCb: ProgressCallback<S>,
+    {
+        for trace_token in self.trace_tokens {
+            phase_scope.record_candidate_trace_disposition(
+                trace_token,
+                CandidateTraceDisposition::Selected,
+            );
+            phase_scope.record_candidate_trace_disposition(
+                trace_token,
+                CandidateTraceDisposition::Applied,
+            );
+        }
+        for _ in 0..self.accepted_count {
+            phase_scope.record_move_applied();
+        }
+    }
+
+    pub(crate) fn record_discarded<S, D, ProgressCb>(
+        self,
+        phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
+    ) where
+        S: PlanningSolution,
+        D: Director<S>,
+        ProgressCb: ProgressCallback<S>,
+    {
+        for trace_token in self.trace_tokens {
+            phase_scope.record_candidate_trace_disposition(
+                trace_token,
+                CandidateTraceDisposition::ForagerIgnored,
+            );
+        }
+    }
+}
 
 pub(crate) fn record_construction_candidate<S, D, ProgressCb>(
     phase_scope: &mut PhaseScope<'_, '_, S, D, ProgressCb>,
@@ -102,7 +173,7 @@ mod tests {
     use tracing::span::{Attributes, Id, Record};
     use tracing::{Event, Metadata, Subscriber};
 
-    use super::run_construction_phase;
+    use super::{run_construction_phase, PendingConstructionMoveTelemetry};
     use crate::scope::SolverScope;
     use crate::test_utils::create_minimal_director;
 
@@ -191,5 +262,24 @@ mod tests {
                 phase_index: Some(3),
             }
         );
+    }
+
+    #[test]
+    fn pending_construction_moves_publish_applied_counts_only_on_commit() {
+        let mut solver_scope = SolverScope::new(create_minimal_director());
+        let mut phase_scope =
+            crate::scope::PhaseScope::with_phase_type(&mut solver_scope, 0, "Test Construction");
+        let mut pending_move_telemetry = PendingConstructionMoveTelemetry::default();
+
+        pending_move_telemetry.record_accepted(&mut phase_scope, None);
+        pending_move_telemetry.record_accepted(&mut phase_scope, None);
+        assert_eq!(phase_scope.stats().moves_accepted, 2);
+        assert_eq!(phase_scope.stats().moves_applied, 0);
+
+        pending_move_telemetry.record_committed(&mut phase_scope);
+        assert_eq!(phase_scope.stats().moves_applied, 2);
+        drop(phase_scope);
+        assert_eq!(solver_scope.stats().moves_accepted, 2);
+        assert_eq!(solver_scope.stats().moves_applied, 2);
     }
 }

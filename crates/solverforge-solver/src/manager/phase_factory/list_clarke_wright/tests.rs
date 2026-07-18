@@ -7,6 +7,7 @@ use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
 mod compiled_parity;
+mod interruption;
 mod metric_class;
 mod owner_binding;
 mod public_compiled_parity;

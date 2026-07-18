@@ -15,7 +15,9 @@ use super::route_state::{
 };
 use super::savings::{sort_savings, SavingsEntry};
 use super::{owner_allows, ClarkeWrightAccess, RuntimeListSourceIndex, SourceElement};
-use crate::phase::construction::{record_construction_candidate, run_construction_phase};
+use crate::phase::construction::{
+    record_construction_candidate, run_construction_phase, PendingConstructionMoveTelemetry,
+};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
@@ -206,6 +208,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         }
     }
     sort_savings(&mut savings);
+    let mut pending_move_telemetry = PendingConstructionMoveTelemetry::default();
 
     let mut merge_pass = 0usize;
     loop {
@@ -335,11 +338,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                 continue;
             }
 
-            if let Some(token) = trace_token {
-                phase_scope
-                    .record_candidate_trace_disposition(token, CandidateTraceDisposition::Selected);
-            }
-            phase_scope.record_move_accepted();
+            pending_move_telemetry.record_accepted(phase_scope, trace_token);
             routes[ri].visits = test_ri;
             routes[ri].scored_metric_class = Some(entry.metric_class);
             routes[ri].feasible_for_all_owners = false;
@@ -353,11 +352,6 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                 route_of[source_idx] = Some(ri);
             }
             routes[ri].visits.extend(test_rj);
-            if let Some(token) = trace_token {
-                phase_scope
-                    .record_candidate_trace_disposition(token, CandidateTraceDisposition::Applied);
-            }
-            phase_scope.record_move_applied();
             merged_in_pass = true;
         }
         if construction_interrupted || !merged_in_pass {
@@ -371,6 +365,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         .filter(|route| !route.visits.is_empty())
         .collect::<Vec<_>>();
     if construction_interrupted {
+        pending_move_telemetry.record_discarded(phase_scope);
         phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
@@ -416,6 +411,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
             &non_empty,
             n_entities,
             control_policy,
+            &mut pending_move_telemetry,
         )
     } else {
         None
@@ -432,6 +428,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
             matched_routes = matched_count,
             "ListClarkeWright could not match every constructed route to a feasible empty entity"
         );
+        pending_move_telemetry.record_discarded(phase_scope);
         phase_scope.calculate_score();
         phase_scope.update_best_solution();
         return;
@@ -447,6 +444,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                 director.after_variable_changed(descriptor_index, entity_idx);
             }
         });
+        pending_move_telemetry.record_committed(step_scope.phase_scope_mut());
         let step_score = step_scope.calculate_score();
         step_scope.set_step_score(step_score);
         step_scope.complete();
@@ -464,9 +462,12 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
                 director.after_variable_changed(descriptor_index, entity_idx);
             }
         });
+        pending_move_telemetry.record_committed(step_scope.phase_scope_mut());
         let step_score = step_scope.calculate_score();
         step_scope.set_step_score(step_score);
         step_scope.complete();
+    } else {
+        pending_move_telemetry.record_discarded(phase_scope);
     }
     phase_scope.update_best_solution();
 }

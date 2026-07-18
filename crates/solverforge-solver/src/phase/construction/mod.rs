@@ -43,4 +43,5 @@ pub(crate) use slot::{
 };
 pub(crate) use telemetry::{
     record_construction_candidate, report_construction_progress_if_due, run_construction_phase,
+    PendingConstructionMoveTelemetry,
 };

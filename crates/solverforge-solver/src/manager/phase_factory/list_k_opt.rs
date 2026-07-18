@@ -448,4 +448,41 @@ mod tests {
         assert!(calls.contains(&0));
         assert!(calls.contains(&1));
     }
+
+    #[test]
+    fn list_k_opt_interruption_discards_buffered_reversal_telemetry() {
+        let original_route = vec![3, 1, 2, 4];
+        let plan = Plan {
+            routes: vec![Route {
+                visits: original_route.clone(),
+            }],
+            score: None,
+        };
+        let mut solver_scope = SolverScope::new(director(plan));
+        solver_scope.start_solving();
+        solver_scope.inphase_move_count_limit = Some(1);
+        let mut phase = ListKOptPhase::<Plan, usize>::new(
+            2,
+            entity_count,
+            get_route,
+            set_route,
+            depot,
+            line_distance,
+            None,
+            0,
+        );
+
+        phase.solve(&mut solver_scope);
+
+        assert_eq!(
+            solver_scope.working_solution().routes[0].visits,
+            original_route
+        );
+        assert_eq!(solver_scope.stats().moves_accepted, 1);
+        assert_eq!(solver_scope.stats().moves_applied, 0);
+        assert_eq!(
+            solver_scope.terminal_reason(),
+            crate::manager::SolverTerminalReason::TerminatedByConfig
+        );
+    }
 }

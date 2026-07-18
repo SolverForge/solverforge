@@ -8,7 +8,9 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use super::super::distance_arithmetic::sum_two;
-use crate::phase::construction::{record_construction_candidate, run_construction_phase};
+use crate::phase::construction::{
+    record_construction_candidate, run_construction_phase, PendingConstructionMoveTelemetry,
+};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy, StepScope};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
@@ -103,6 +105,7 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
 
         let mut changed = false;
         let mut interrupted = false;
+        let mut pending_move_telemetry = PendingConstructionMoveTelemetry::default();
 
         // 2-opt: try all (i, j) segment reversals.
         loop {
@@ -175,22 +178,9 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
                             }
                             continue;
                         }
-                        if let Some(token) = trace_token {
-                            phase_scope.record_candidate_trace_disposition(
-                                token,
-                                CandidateTraceDisposition::Selected,
-                            );
-                        }
-                        phase_scope.record_move_accepted();
+                        pending_move_telemetry.record_accepted(phase_scope, trace_token);
                         improved = true;
                         changed = true;
-                        if let Some(token) = trace_token {
-                            phase_scope.record_candidate_trace_disposition(
-                                token,
-                                CandidateTraceDisposition::Applied,
-                            );
-                        }
-                        phase_scope.record_move_applied();
                     } else if let Some(token) = trace_token {
                         phase_scope.record_candidate_trace_disposition(
                             token,
@@ -208,6 +198,7 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
         }
 
         if interrupted {
+            pending_move_telemetry.record_discarded(phase_scope);
             break 'entities;
         }
 
@@ -218,6 +209,7 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
                 access.replace_route(sd.working_solution_mut(), entity_idx, route);
                 sd.after_variable_changed(descriptor_index, entity_idx);
             });
+            pending_move_telemetry.record_committed(step_scope.phase_scope_mut());
             let step_score = step_scope.calculate_score();
             step_scope.set_step_score(step_score);
             step_scope.complete();

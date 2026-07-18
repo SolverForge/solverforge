@@ -329,6 +329,12 @@ pipeline. Retained status/events expose generated, evaluated, and accepted move
 counts together with generation and evaluation durations; human-facing
 `moves/s` remains a display-only derived value.
 
+Generic and specialized construction phases publish the same engine-owned
+lifecycle and progress telemetry as local search. With verbose logging, the
+first observed phase work is reported promptly and long-running phases continue
+at roughly one-second intervals; Rust applications and host-language bindings
+consume those same events without synthesizing construction output.
+
 Neighborhood selector cleanup is benchmark-gated in the runtime crates. Shared
 support code backs exact sizing and reusable bookkeeping, while the
 move-enumeration hot loops for list and sublist neighborhoods stay explicit and
@@ -339,7 +345,7 @@ monomorphized.
 | Feature | Description |
 |---------|-------------|
 | `console` | Colorful console output with progress tracking |
-| `verbose-logging` | DEBUG-level phase progress updates (1/sec during long-running work) |
+| `verbose-logging` | DEBUG-level construction and local-search progress: prompt first work, then about once/sec during long-running phases |
 | `decimal` | Forwards the currently empty `solverforge-core/decimal` feature; fixed-scale `HardSoftDecimalScore` is always available |
 | `serde` | Serialization support for score types |
 
@@ -421,6 +427,7 @@ models show average `candidates`.
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
+  0.001s ⚡ Construction Heuristic │          0 steps │       14,000/s │ 1 moves │ 0 accepted │ 1 calcs │ 0.0% │ -14hard/0soft │ 1 generated
   0.002s ◀ Construction Heuristic ended │ 1ms │ 14 steps │ 14,000 moves/s │ 14 moves │ 14 generated │ 14 accepted moves │ 14 calcs │ 0hard/-50soft
   0.002s ▶ Local Search started │ 0hard/-50soft
   1.002s ⚡    12,456 steps │      445,000/s │ 12,456 moves │ 1,234 accepted │ 12,456 calcs │ 9.9% │ -2hard/8soft │ 12,456 generated
@@ -449,7 +456,7 @@ models show average `candidates`.
 | Level | Content | When |
 |-------|---------|------|
 | INFO | Lifecycle events (solve/phase start/end) | Default |
-| DEBUG | Phase progress updates (1/sec with phase, speed, and score) | `verbose-logging` feature |
+| DEBUG | Construction and local-search progress: prompt first work, then about once/sec with phase, speed, and score | `verbose-logging` feature |
 | TRACE | Individual move evaluations | `RUST_LOG=solverforge_solver=trace` |
 
 ## Architecture

@@ -60,7 +60,7 @@ The formatter recognizes these `event` field values:
 | `solve_start` | Solve banner line with entity count, list element or scalar candidate count, problem scale, optional constraint count, and optional time limit |
 | `phase_start` | Phase start line, including score when the event carries `score` |
 | `phase_end` | Phase end line with duration, steps, throughput, accepted/generated/evaluated counts, score calculations, generation/evaluation time, and score |
-| `progress` | Periodic progress line with phase name, steps, speed, evaluated/accepted/generated move counts, score calculations, acceptance rate, current score, and best score when distinct |
+| `progress` | Prompt first-work and then periodic construction/local-search progress with phase name, steps, speed, evaluated/accepted/generated move counts, score calculations, acceptance rate, current score, and best score when distinct |
 | `step` | TRACE-only individual move evaluation line keyed by `move_index` |
 | `solve_end` | Final solve line and summary box with score, generated/evaluated/accepted move counts, step count, score calculations, timing, throughput, and acceptance rate |
 
@@ -70,6 +70,7 @@ solves render `candidates`.
 ## Architectural Notes
 
 - **Formatting-only crate.** Solver behavior, telemetry collection, and lifecycle state live in `solverforge-solver`.
+- **Shared engine events.** Generic and specialized construction kernels publish the same structured lifecycle and progress events consumed by Rust applications and host-language bindings; the console does not synthesize construction steps.
 - **Version line uses crate metadata.** The banner reads `env!("CARGO_PKG_VERSION")`, so release bumps update console output through normal Cargo metadata.
 - **Subscriber setup is idempotent.** `init()` uses `OnceLock` and can be called multiple times safely.
 - **No solver dependency.** The crate consumes structured tracing fields and does not depend on solver internals.

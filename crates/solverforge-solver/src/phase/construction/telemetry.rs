@@ -9,8 +9,6 @@ use crate::stats::{
     format_duration, whole_units_per_second, CandidateTraceDisposition, CandidateTracePullToken,
 };
 
-const CONSTRUCTION_PROGRESS_POLL_INTERVAL: u64 = 256;
-
 /// Telemetry for accepted construction moves whose solution changes are still
 /// buffered outside the score director.
 ///
@@ -101,10 +99,7 @@ pub(crate) fn report_construction_progress_if_due<S, D, ProgressCb>(
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    let evaluated = phase_scope.stats().moves_evaluated;
-    if evaluated == 1 || evaluated.is_multiple_of(CONSTRUCTION_PROGRESS_POLL_INTERVAL) {
-        phase_scope.report_progress_if_due();
-    }
+    phase_scope.report_progress_if_due();
 }
 
 /// Runs one construction kernel inside the shared lifecycle telemetry boundary.
@@ -173,9 +168,11 @@ mod tests {
     use tracing::span::{Attributes, Id, Record};
     use tracing::{Event, Metadata, Subscriber};
 
-    use super::{run_construction_phase, PendingConstructionMoveTelemetry};
-    use crate::scope::SolverScope;
-    use crate::test_utils::create_minimal_director;
+    use super::{
+        record_construction_candidate, run_construction_phase, PendingConstructionMoveTelemetry,
+    };
+    use crate::scope::{SolverProgressKind, SolverProgressRef, SolverScope};
+    use crate::test_utils::{create_minimal_director, TestSolution};
 
     #[derive(Clone, Default)]
     struct CaptureSubscriber {
@@ -261,6 +258,55 @@ mod tests {
                 phase: Some("Test Construction".to_string()),
                 phase_index: Some(3),
             }
+        );
+    }
+
+    #[test]
+    fn every_construction_candidate_delegates_progress_to_the_phase_pulse() {
+        let published_moves = Arc::new(Mutex::new(Vec::new()));
+        let captured = Arc::clone(&published_moves);
+        let mut solver_scope = SolverScope::new_with_callback(
+            create_minimal_director(),
+            move |progress: SolverProgressRef<'_, TestSolution>| {
+                if progress.kind == SolverProgressKind::Progress {
+                    captured
+                        .lock()
+                        .expect("progress recorder should lock")
+                        .push(
+                            progress
+                                .telemetry
+                                .phase
+                                .expect("construction progress should include phase telemetry")
+                                .moves_evaluated,
+                        );
+                }
+            },
+            None,
+            None,
+        );
+        solver_scope.start_solving();
+
+        let mut phase_scope =
+            crate::scope::PhaseScope::with_phase_type(&mut solver_scope, 0, "Test Construction");
+        record_construction_candidate(
+            &mut phase_scope,
+            std::time::Duration::ZERO,
+            std::time::Duration::ZERO,
+        );
+        phase_scope
+            .solver_scope_mut()
+            .begin_phase_progress(0, "Test Construction", 0, 1);
+        record_construction_candidate(
+            &mut phase_scope,
+            std::time::Duration::ZERO,
+            std::time::Duration::ZERO,
+        );
+
+        assert_eq!(
+            *published_moves
+                .lock()
+                .expect("progress recorder should lock"),
+            vec![1, 2]
         );
     }
 

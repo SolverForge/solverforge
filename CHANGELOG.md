@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.19.2](///compare/v0.19.1...v0.19.2) (2026-07-19)
+
+
+### Bug Fixes
+
+* **solver:** bound required preprocessing control polls 54ce892
+* **solver:** commit buffered route telemetry atomically e360dfd
+* **solver:** complete required assignment construction 6c468f2
+* **solver:** poll construction progress by deadline 106954a
+* **solver:** preserve committed score during cheapest trials ab80caa
+* **solver:** propagate interrupted construction pulls 0aa1a1c
+* **solver:** publish first phase progress promptly a032da4
+* **solver:** stream specialized construction progress 8176f5e
+* **solver:** unify construction phase lifecycle 7648481
+
 ## [0.19.1](///compare/v0.19.0...v0.19.1) (2026-07-18)
 
 

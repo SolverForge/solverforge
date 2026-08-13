@@ -1,12 +1,11 @@
-//! Canonical Clarke-Wright completion-insertion pass.
+// Canonical Clarke-Wright completion-insertion pass.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::route_state::{route_elements, route_values, ConstructedRoute};
+use super::route_state::{route_values, ConstructedRoute};
 use super::{
-    insertion_delta, owner_allows, route_owner_allows, ClarkeWrightAccess, CompletionAssignment,
-    RuntimeListSourceIndex,
+    insertion_delta, owner_allows, ClarkeWrightAccess, CompletionAssignment, RuntimeListSourceIndex,
 };
 use crate::phase::construction::{record_construction_candidate, PendingConstructionMoveTelemetry};
 use crate::scope::{PhaseScope, ProgressCallback, StepControlPolicy};
@@ -14,6 +13,12 @@ use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTracePullToken,
     CandidateTraceSource,
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum CompletionSelection {
+    Balanced,
+    Cheapest,
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn complete_routes_by_insertion<S, A, D, BestCb>(
@@ -23,6 +28,7 @@ pub(super) fn complete_routes_by_insertion<S, A, D, BestCb>(
     owner_slots: &[super::owner_assignment::OwnerSlot],
     routes: &[ConstructedRoute],
     entity_count: usize,
+    selection: CompletionSelection,
     control_policy: StepControlPolicy,
     pending_move_telemetry: &mut PendingConstructionMoveTelemetry,
 ) -> Option<Vec<(usize, Vec<usize>)>>
@@ -40,6 +46,9 @@ where
         })
         .collect::<Vec<_>>();
     let mut element_order = Vec::new();
+    let route_values_by_source_index = (0..source_index.source_count())
+        .map(|index| access.route_value(source_index.element(index)))
+        .collect::<Vec<_>>();
 
     for (route_idx, route) in routes.iter().enumerate() {
         if route.visits.is_empty() {
@@ -48,7 +57,7 @@ where
         for (visit_position, &element_idx) in route.visits.iter().enumerate() {
             let solution = phase_scope.score_director().working_solution();
             let element = source_index.element(element_idx);
-            let value = [access.route_value(element)];
+            let value = [route_values_by_source_index[element_idx]];
             let feasible_owner_count = owner_slots
                 .iter()
                 .filter(|slot| {
@@ -63,6 +72,7 @@ where
         }
     }
     element_order.sort_unstable();
+    let mut candidate_values = Vec::with_capacity(element_order.len());
 
     for (_, _, _, element_idx) in element_order {
         if control_policy.should_terminate_construction(phase_scope.solver_scope_mut()) {
@@ -104,9 +114,18 @@ where
                     "clarke_wright_completion_insertion_trial",
                     [element_idx, owner_idx, insert_idx],
                 );
-                let mut candidate = assignment.route_indices.clone();
-                candidate.insert(insert_idx, element_idx);
-                let candidate_values = route_values(access, source_index, &candidate);
+                candidate_values.clear();
+                candidate_values.extend(
+                    assignment.route_indices[..insert_idx]
+                        .iter()
+                        .map(|&index| route_values_by_source_index[index]),
+                );
+                candidate_values.push(route_values_by_source_index[element_idx]);
+                candidate_values.extend(
+                    assignment.route_indices[insert_idx..]
+                        .iter()
+                        .map(|&index| route_values_by_source_index[index]),
+                );
                 if !access.savings_feasible(
                     phase_scope.score_director().working_solution(),
                     owner_idx,
@@ -130,41 +149,18 @@ where
                     continue;
                 }
 
-                let candidate_elements = route_elements::<S, A>(source_index, &candidate);
-                if !route_owner_allows(
-                    access,
-                    phase_scope.score_director().working_solution(),
-                    entity_count,
-                    owner_idx,
-                    &candidate_elements,
-                ) {
-                    if let Some(token) = trace_token {
-                        phase_scope.record_candidate_trace_disposition(
-                            token,
-                            CandidateTraceDisposition::Evaluated,
-                        );
-                        phase_scope.record_candidate_trace_disposition(
-                            token,
-                            CandidateTraceDisposition::ForagerIgnored,
-                        );
-                    }
-                    record_construction_candidate(
-                        phase_scope,
-                        std::time::Duration::ZERO,
-                        std::time::Duration::ZERO,
-                    );
-                    continue;
-                }
-
-                let delta = insertion_delta(
-                    phase_scope.score_director().working_solution(),
-                    owner_idx,
-                    &assignment.route_indices,
-                    insert_idx,
-                    element_idx,
-                    access,
-                    source_index,
-                );
+                let delta = match selection {
+                    CompletionSelection::Balanced => 0,
+                    CompletionSelection::Cheapest => insertion_delta(
+                        phase_scope.score_director().working_solution(),
+                        owner_idx,
+                        &assignment.route_indices,
+                        insert_idx,
+                        element_idx,
+                        access,
+                        &route_values_by_source_index,
+                    ),
+                };
                 if let Some(token) = trace_token {
                     phase_scope.record_candidate_trace_disposition(
                         token,
@@ -197,6 +193,9 @@ where
                         token,
                         CandidateTraceDisposition::ForagerIgnored,
                     );
+                }
+                if selection == CompletionSelection::Balanced {
+                    break;
                 }
             }
         }

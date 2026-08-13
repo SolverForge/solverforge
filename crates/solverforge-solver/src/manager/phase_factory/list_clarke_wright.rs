@@ -1,8 +1,8 @@
-//! The public Clarke-Wright facade and its one canonical access protocol.
-//!
-//! The savings/merge/matching/completion algorithm lives in `kernel.rs`.
-//! Both this established public phase and compiled `RuntimeListSlot` instances
-//! adapt to that one kernel; neither owns a second construction algorithm.
+/* The public Clarke-Wright facade and its one canonical access protocol.
+
+The savings/merge/matching/completion algorithm lives in `kernel.rs`.
+Both this established public phase and compiled `RuntimeListSlot` instances
+adapt to that one kernel; neither owns a second construction algorithm. */
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
@@ -17,6 +17,7 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::Phase;
 use crate::scope::{ProgressCallback, SolverScope, StepControlPolicy};
 
+mod commit;
 mod completion;
 mod kernel;
 mod owner_assignment;
@@ -25,13 +26,13 @@ mod savings;
 
 pub(crate) use kernel::run_clarke_wright;
 
-/// The declaration-resolved operations used by canonical Clarke-Wright.
-///
-/// The type is deliberately small: it exposes exactly the source, savings,
-/// owner, and route-replacement semantics that the algorithm consumes. It is
-/// implemented by the public function-pointer facade and by `RuntimeListSlot`.
-/// Thus static and dynamic models run the same savings ordering, merge logic,
-/// completion logic, and trace sources.
+/* The declaration-resolved operations used by canonical Clarke-Wright.
+
+The type is deliberately small: it exposes exactly the source, savings,
+owner, and route-replacement semantics that the algorithm consumes. It is
+implemented by the public function-pointer facade and by `RuntimeListSlot`.
+Thus static and dynamic models run the same savings ordering, merge logic,
+completion logic, and trace sources. */
 pub(crate) trait ClarkeWrightAccess<S>: ListSourceAccess<S> {
     fn entity_type_name(&self) -> &'static str;
     fn variable_name(&self) -> &'static str;
@@ -155,21 +156,21 @@ pub(super) fn insertion_delta<S, A>(
     insert_idx: usize,
     element_idx: usize,
     access: &A,
-    source_index: &RuntimeListSourceIndex<A::Element>,
+    route_values_by_source_index: &[usize],
 ) -> i64
 where
     A: ClarkeWrightAccess<S>,
 {
     let depot = access.savings_depot(solution, owner_idx);
-    let value = access.route_value(source_index.element(element_idx));
+    let value = route_values_by_source_index[element_idx];
     let previous = if insert_idx == 0 {
         depot
     } else {
-        access.route_value(source_index.element(route_indices[insert_idx - 1]))
+        route_values_by_source_index[route_indices[insert_idx - 1]]
     };
     let next = route_indices
         .get(insert_idx)
-        .map(|&idx| access.route_value(source_index.element(idx)))
+        .map(|&idx| route_values_by_source_index[idx])
         .unwrap_or(depot);
     sum_two_minus_one(
         access.savings_distance(solution, owner_idx, previous, value),

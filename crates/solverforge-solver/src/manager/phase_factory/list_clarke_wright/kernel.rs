@@ -1,11 +1,12 @@
-//! Canonical Clarke-Wright savings and merge execution.
+// Canonical Clarke-Wright savings and merge execution.
 
 use std::collections::{HashMap, HashSet};
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use super::completion::complete_routes_by_insertion;
+use super::commit::{commit_complete_routes, try_commit_balanced_assignment};
+use super::completion::{complete_routes_by_insertion, CompletionSelection};
 use super::owner_assignment::{
     feasible_owners_for_scored_elements, match_route_owners, owner_slots,
     representative_owner_slots,
@@ -18,16 +19,16 @@ use super::{owner_allows, ClarkeWrightAccess, RuntimeListSourceIndex, SourceElem
 use crate::phase::construction::{
     record_construction_candidate, run_construction_phase, PendingConstructionMoveTelemetry,
 };
-use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy, StepScope};
+use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy};
 use crate::stats::{
     CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
 };
 
-/// Runs the one canonical Clarke-Wright algorithm against a pre-bound source.
-///
-/// The caller must bind declarations and assigned values before entering this
-/// function. That keeps source errors outside phase execution for direct and
-/// retained runtime callers.
+/* Runs the one canonical Clarke-Wright algorithm against a pre-bound source.
+
+The caller must bind declarations and assigned values before entering this
+function. That keeps source errors outside phase execution for direct and
+retained runtime callers. */
 pub(crate) fn run_clarke_wright<S, A, D, BestCb>(
     access: &A,
     source_index: &RuntimeListSourceIndex<A::Element>,
@@ -131,6 +132,21 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
     let mut route_of = vec![None; n_elements];
     for (route_idx, entry) in unassigned.iter().enumerate() {
         route_of[entry.source_index] = Some(route_idx);
+    }
+
+    try_commit_balanced_assignment(
+        phase_scope,
+        access,
+        source_index,
+        &owner_slots,
+        &routes,
+        n_entities,
+        &available_entity_slots,
+        control_policy,
+    );
+    if control_policy.should_terminate_construction(phase_scope.solver_scope_mut()) {
+        phase_scope.calculate_score();
+        return;
     }
 
     let mut savings = Vec::with_capacity(
@@ -367,7 +383,6 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
     if construction_interrupted {
         pending_move_telemetry.record_discarded(phase_scope);
         phase_scope.calculate_score();
-        phase_scope.update_best_solution();
         return;
     }
     let solution = phase_scope.score_director().working_solution();
@@ -399,28 +414,24 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         .iter()
         .filter(|owner| owner.is_some())
         .count();
-    let completion_routes = if matched_count < assignable_routes.len()
-        && !construction_interrupted
-        && owner_ineligible_routes == 0
-    {
-        complete_routes_by_insertion(
-            phase_scope,
-            access,
-            source_index,
-            &owner_slots,
-            &non_empty,
-            n_entities,
-            control_policy,
-            &mut pending_move_telemetry,
-        )
-    } else {
-        None
-    };
+    let completion_routes =
+        if matched_count < assignable_routes.len() && owner_ineligible_routes == 0 {
+            complete_routes_by_insertion(
+                phase_scope,
+                access,
+                source_index,
+                &owner_slots,
+                &non_empty,
+                n_entities,
+                CompletionSelection::Cheapest,
+                control_policy,
+                &mut pending_move_telemetry,
+            )
+        } else {
+            None
+        };
 
-    if matched_count < assignable_routes.len()
-        && !construction_interrupted
-        && completion_routes.is_none()
-    {
+    if matched_count < assignable_routes.len() && completion_routes.is_none() {
         tracing::warn!(
             constructed_routes = constructed_route_count,
             owner_ineligible_routes,
@@ -430,42 +441,37 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         );
         pending_move_telemetry.record_discarded(phase_scope);
         phase_scope.calculate_score();
-        phase_scope.update_best_solution();
         return;
     }
 
     if let Some(completed_routes) = completion_routes {
-        let descriptor_index = access.descriptor_index();
-        let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
-        step_scope.apply_committed_change(|director| {
-            for (entity_idx, route) in completed_routes {
-                director.before_variable_changed(descriptor_index, entity_idx);
-                access.replace_route(director.working_solution_mut(), entity_idx, route);
-                director.after_variable_changed(descriptor_index, entity_idx);
-            }
-        });
-        pending_move_telemetry.record_committed(step_scope.phase_scope_mut());
-        let step_score = step_scope.calculate_score();
-        step_scope.set_step_score(step_score);
-        step_scope.complete();
+        commit_complete_routes(
+            phase_scope,
+            access,
+            &available_entity_slots,
+            completed_routes,
+            control_policy,
+            pending_move_telemetry,
+        );
     } else if matched_count > 0 {
-        let descriptor_index = access.descriptor_index();
-        let mut step_scope = StepScope::new_with_control_policy(phase_scope, control_policy);
-        step_scope.apply_committed_change(|director| {
-            for (index_route, entity_idx) in assignable_routes.into_iter().zip(route_to_owner) {
-                let Some(entity_idx) = entity_idx else {
-                    continue;
-                };
-                director.before_variable_changed(descriptor_index, entity_idx);
-                let route = route_values(access, source_index, &index_route.visits);
-                access.replace_route(director.working_solution_mut(), entity_idx, route);
-                director.after_variable_changed(descriptor_index, entity_idx);
-            }
-        });
-        pending_move_telemetry.record_committed(step_scope.phase_scope_mut());
-        let step_score = step_scope.calculate_score();
-        step_scope.set_step_score(step_score);
-        step_scope.complete();
+        let completed_routes = assignable_routes
+            .into_iter()
+            .zip(route_to_owner)
+            .filter_map(|(index_route, entity_idx)| {
+                entity_idx.map(|entity_idx| {
+                    let route = route_values(access, source_index, &index_route.visits);
+                    (entity_idx, route)
+                })
+            })
+            .collect();
+        commit_complete_routes(
+            phase_scope,
+            access,
+            &available_entity_slots,
+            completed_routes,
+            control_policy,
+            pending_move_telemetry,
+        );
     } else {
         pending_move_telemetry.record_discarded(phase_scope);
     }

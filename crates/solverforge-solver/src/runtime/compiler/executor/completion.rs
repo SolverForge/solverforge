@@ -30,10 +30,16 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    if matches!(
-        solver_scope.terminal_reason(),
-        SolverTerminalReason::Cancelled | SolverTerminalReason::Failed
-    ) {
+    if solver_scope.terminal_reason() == SolverTerminalReason::Cancelled {
+        retain_complete_working_solution_after_cancellation(
+            execution,
+            bindings,
+            phase_index,
+            solver_scope,
+        )?;
+        return Ok(false);
+    }
+    if solver_scope.terminal_reason() == SolverTerminalReason::Failed {
         return Ok(false);
     }
     let unresolved = unresolved_mandatory_work(
@@ -58,6 +64,50 @@ where
     Ok(true)
 }
 
+fn retain_complete_working_solution_after_cancellation<S, V, DM, IDM, Extension, D, ProgressCb>(
+    execution: &mut PreparedRuntimeExecution<S, V, DM, IDM, Extension>,
+    bindings: &DefaultRuntimeBindings<S, V, DM, IDM>,
+    phase_index: usize,
+    solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
+) -> RuntimeBuildResult<()>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    S::Score: Score + Copy + Ord + ParseableScore,
+    V: Clone + PartialEq + Into<usize> + Send + Sync + Debug + 'static,
+    DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
+    IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+{
+    let working_unresolved = unresolved_mandatory_work(
+        execution,
+        bindings,
+        phase_index,
+        solver_scope.working_solution(),
+    )
+    .map_err(|error| RuntimeBuildError::Execution {
+        phase_index: error.phase_index,
+        message: error.to_string(),
+    })?;
+    if working_unresolved.is_some() {
+        return Ok(());
+    }
+    let best_is_complete = if let Some(best_solution) = solver_scope.best_solution() {
+        unresolved_mandatory_work(execution, bindings, phase_index, best_solution)
+            .map_err(|error| RuntimeBuildError::Execution {
+                phase_index: error.phase_index,
+                message: error.to_string(),
+            })?
+            .is_none()
+    } else {
+        false
+    };
+    if !best_is_complete {
+        solver_scope.retain_current_solution_as_best();
+    }
+    Ok(())
+}
+
 pub(super) fn require_mandatory_completion<S, V, DM, IDM, Extension, D, ProgressCb>(
     execution: &mut PreparedRuntimeExecution<S, V, DM, IDM, Extension>,
     bindings: &DefaultRuntimeBindings<S, V, DM, IDM>,
@@ -74,10 +124,16 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    if matches!(
-        solver_scope.terminal_reason(),
-        SolverTerminalReason::Cancelled | SolverTerminalReason::Failed
-    ) {
+    if solver_scope.terminal_reason() == SolverTerminalReason::Cancelled {
+        retain_complete_working_solution_after_cancellation(
+            execution,
+            bindings,
+            phase_index,
+            solver_scope,
+        )?;
+        return Ok(false);
+    }
+    if solver_scope.terminal_reason() == SolverTerminalReason::Failed {
         return Ok(false);
     }
     let unresolved = unresolved_mandatory_work(

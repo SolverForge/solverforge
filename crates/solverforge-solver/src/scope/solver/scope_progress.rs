@@ -135,11 +135,15 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub(crate) fn publish_current_solution_as_best(&mut self) {
+        self.retain_current_solution_as_best();
+        self.best_solution_publication_enabled = true;
+        self.report_best_solution();
+    }
+
+    pub(crate) fn retain_current_solution_as_best(&mut self) {
         let score = self.calculate_score();
         let solution = self.score_director.clone_working_solution();
         self.set_best_solution(solution, score);
-        self.best_solution_publication_enabled = true;
-        self.report_best_solution();
     }
 
     pub fn rng(&mut self) -> &mut StdRng {

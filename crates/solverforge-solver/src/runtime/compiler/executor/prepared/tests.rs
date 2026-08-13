@@ -35,6 +35,8 @@ use crate::runtime_build_error::RuntimeBuildError;
 use crate::scope::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 use crate::solver::Solver;
 
+mod completion;
+
 type Meter = DefaultCrossEntityDistanceMeter;
 type Model = RuntimeModel<Plan, usize, Meter, Meter>;
 

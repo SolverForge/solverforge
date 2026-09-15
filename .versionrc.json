@@ -1,0 +1,8 @@
+{
+  "tagPrefix": "v",
+  "releaseCommitMessageFormat": "chore(release): {{currentTag}}",
+  "commitUrlFormat": "https://github.com/SolverForge/solverforge/commit/{{hash}}",
+  "compareUrlFormat": "https://github.com/SolverForge/solverforge/compare/{{previousTag}}...{{currentTag}}",
+  "packageFiles": [],
+  "bumpFiles": []
+}

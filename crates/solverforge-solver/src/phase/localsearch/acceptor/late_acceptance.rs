@@ -108,9 +108,7 @@ impl<S: PlanningSolution> Acceptor<S> for LateAcceptanceAcceptor<S> {
 
     fn phase_started(&mut self, initial_score: &S::Score) {
         // Initialize history with the initial score
-        for slot in &mut self.score_history {
-            *slot = Some(*initial_score);
-        }
+        self.score_history.fill(Some(*initial_score));
         self.current_index = 0;
     }
 

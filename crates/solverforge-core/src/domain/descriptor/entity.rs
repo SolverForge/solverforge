@@ -87,6 +87,10 @@ impl EntityDescriptor {
         })
     }
 
+    pub fn has_pin_predicate(&self) -> bool {
+        self.pin_predicate.is_some()
+    }
+
     pub fn genuine_variable_descriptors(&self) -> impl Iterator<Item = &VariableDescriptor> {
         self.variable_descriptors
             .iter()

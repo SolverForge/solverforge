@@ -172,9 +172,12 @@ fn pin_predicate_reads_current_entity_state_and_survives_clone() {
         ],
     };
 
+    assert!(descriptor.has_pin_predicate());
     assert!(descriptor.is_pinned(&solution, 0));
     assert!(!descriptor.is_pinned(&solution, 1));
     solution.entities[0].id = 3;
     assert!(!descriptor.clone().is_pinned(&solution, 0));
-    assert!(!create_test_entity_descriptor().is_pinned(&solution, 0));
+    let unpinned = create_test_entity_descriptor();
+    assert!(!unpinned.has_pin_predicate());
+    assert!(!unpinned.is_pinned(&solution, 0));
 }

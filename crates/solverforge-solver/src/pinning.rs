@@ -21,6 +21,14 @@ pub(crate) fn move_changes_pinned<S: PlanningSolution, D: Director<S>, M: Move<S
     mov: &M,
     director: &D,
 ) -> bool {
+    if !director
+        .solution_descriptor()
+        .entity_descriptors
+        .iter()
+        .any(|descriptor| descriptor.has_pin_predicate())
+    {
+        return false;
+    }
     let mut pinned = false;
     mov.for_each_affected_entity(&mut |entity| {
         if !pinned {

@@ -15,12 +15,76 @@
       "updater": "scripts/version/workspace-version.js"
     },
     {
+      "filename": "Cargo.lock",
+      "updater": "scripts/version/cargo-lock-updater.js"
+    },
+    {
       "filename": "AGENTS.md",
       "updater": "scripts/version/agents-md-updater.js"
     },
     {
       "filename": "README.md",
       "updater": "scripts/version/readme-updater.js"
+    },
+    {
+      "filename": "crates/solverforge-bridge/Cargo.toml",
+      "updater": "scripts/version/cargo-dependency-version.js"
+    },
+    {
+      "filename": "crates/solverforge-config/Cargo.toml",
+      "updater": "scripts/version/cargo-dependency-version.js"
+    },
+    {
+      "filename": "crates/solverforge-cvrp/Cargo.toml",
+      "updater": "scripts/version/cargo-dependency-version.js"
+    },
+    {
+      "filename": "crates/solverforge-scoring/Cargo.toml",
+      "updater": "scripts/version/cargo-dependency-version.js"
+    },
+    {
+      "filename": "crates/solverforge-solver/Cargo.toml",
+      "updater": "scripts/version/cargo-dependency-version.js"
+    },
+    {
+      "filename": "crates/solverforge/Cargo.toml",
+      "updater": "scripts/version/cargo-dependency-version.js"
+    },
+    {
+      "filename": "crates/solverforge-bridge/WIREFRAME.md",
+      "updater": "scripts/version/wireframe-release-version.js"
+    },
+    {
+      "filename": "crates/solverforge-config/WIREFRAME.md",
+      "updater": "scripts/version/wireframe-release-version.js"
+    },
+    {
+      "filename": "crates/solverforge-console/WIREFRAME.md",
+      "updater": "scripts/version/wireframe-release-version.js"
+    },
+    {
+      "filename": "crates/solverforge-core/WIREFRAME.md",
+      "updater": "scripts/version/wireframe-release-version.js"
+    },
+    {
+      "filename": "crates/solverforge-cvrp/WIREFRAME.md",
+      "updater": "scripts/version/wireframe-release-version.js"
+    },
+    {
+      "filename": "crates/solverforge-macros/WIREFRAME.md",
+      "updater": "scripts/version/wireframe-release-version.js"
+    },
+    {
+      "filename": "crates/solverforge-scoring/WIREFRAME.md",
+      "updater": "scripts/version/wireframe-release-version.js"
+    },
+    {
+      "filename": "crates/solverforge-solver/WIREFRAME.md",
+      "updater": "scripts/version/wireframe-release-version.js"
+    },
+    {
+      "filename": "crates/solverforge/WIREFRAME.md",
+      "updater": "scripts/version/wireframe-release-version.js"
     }
   ]
 }

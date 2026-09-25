@@ -1,5 +1,5 @@
 use super::*;
-use solverforge_core::domain::SolutionDescriptor;
+use solverforge_core::domain::{EntityCollectionExtractor, EntityDescriptor, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
@@ -58,4 +58,46 @@ fn simple_decider_replays_and_resets_assignment_nodes() {
 
     decider.apply_assignment(&node, &mut director);
     assert_eq!(director.working_solution().values, vec![None, Some(30)]);
+}
+
+#[test]
+fn simple_decider_keeps_pinned_input_values_through_reset_and_replay() {
+    let decider: SimpleDecider<TestSolution, i32> =
+        SimpleDecider::new(0, "row", vec![10, 20], set_row);
+    let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+        .with_entity(
+            EntityDescriptor::new("Row", TypeId::of::<Option<i32>>(), "values")
+                .with_extractor(Box::new(EntityCollectionExtractor::new(
+                    "Row",
+                    "values",
+                    |solution: &TestSolution| &solution.values,
+                    |solution: &mut TestSolution| &mut solution.values,
+                )))
+                .with_pin_predicate(|entity| {
+                    *entity.downcast_ref::<Option<i32>>().unwrap() == Some(7)
+                }),
+        );
+    let mut director = ScoreDirector::simple(
+        TestSolution {
+            values: vec![Some(7), Some(8)],
+            score: None,
+        },
+        descriptor,
+        |solution, _| solution.values.len(),
+    );
+
+    decider.reset_assignments(&mut director);
+    assert_eq!(director.working_solution().values, vec![Some(7), None]);
+    let root = ExhaustiveSearchNode::root(SoftScore::of(0));
+    let pinned = decider.expand(0, &root, &mut director);
+    assert_eq!(pinned.len(), 1);
+    assert_eq!(pinned[0].depth(), 1);
+    assert!(pinned[0].candidate_value_index().is_none());
+    let free = decider.expand(1, &pinned[0], &mut director);
+    assert_eq!(free.len(), 2);
+
+    decider.reset_assignments(&mut director);
+    decider.apply_assignment(&pinned[0], &mut director);
+    decider.apply_assignment(&free[1], &mut director);
+    assert_eq!(director.working_solution().values, vec![Some(7), Some(20)]);
 }

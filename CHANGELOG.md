@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.19.6](https://github.com/SolverForge/solverforge/compare/v0.19.5...v0.19.6) (2026-09-25)
+
+### Features
+
+* **core:** expose typed planning pin predicate 76839ed
+
+### Bug Fixes
+
+* **solver:** preserve pinned list owners across construction and search ca05d32
+* **solver:** reject scalar edits to pinned entities 10aa801
+* **solver:** retain pinned assignments in exhaustive search 4c9f2bf
+
 ## [0.19.5](https://github.com/SolverForge/solverforge/compare/v0.19.4...v0.19.5) (2026-09-15)
 
 ### Bug Fixes

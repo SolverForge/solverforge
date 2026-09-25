@@ -665,7 +665,7 @@ controlled gate has not completed release qualification.
 
 ## Status
 
-**Current workspace version:** 0.19.5
+**Current workspace version:** 0.19.6
 
 The current checked-in workspace exposes:
 

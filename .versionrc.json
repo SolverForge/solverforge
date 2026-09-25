@@ -3,6 +3,24 @@
   "releaseCommitMessageFormat": "chore(release): {{currentTag}}",
   "commitUrlFormat": "https://github.com/SolverForge/solverforge/commit/{{hash}}",
   "compareUrlFormat": "https://github.com/SolverForge/solverforge/compare/{{previousTag}}...{{currentTag}}",
-  "packageFiles": [],
-  "bumpFiles": []
+  "packageFiles": [
+    {
+      "filename": "Cargo.toml",
+      "updater": "scripts/version/workspace-version.js"
+    }
+  ],
+  "bumpFiles": [
+    {
+      "filename": "Cargo.toml",
+      "updater": "scripts/version/workspace-version.js"
+    },
+    {
+      "filename": "AGENTS.md",
+      "updater": "scripts/version/agents-md-updater.js"
+    },
+    {
+      "filename": "README.md",
+      "updater": "scripts/version/readme-updater.js"
+    }
+  ]
 }

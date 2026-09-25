@@ -26,6 +26,8 @@ pub struct EntityDescriptor {
     pub id_field: Option<&'static str>,
     // The pinning field name, if any.
     pub pin_field: Option<&'static str>,
+    // Typed access to the entity's pin state, when pinning is configured.
+    pin_predicate: Option<fn(&dyn Any) -> bool>,
 }
 
 impl EntityDescriptor {
@@ -40,6 +42,7 @@ impl EntityDescriptor {
             extractor: None,
             id_field: None,
             pin_field: None,
+            pin_predicate: None,
         }
     }
 
@@ -66,6 +69,26 @@ impl EntityDescriptor {
     pub fn with_pin_field(mut self, field: &'static str) -> Self {
         self.pin_field = Some(field);
         self
+    }
+
+    /// Supplies the entity-level pin predicate for a manually assembled descriptor.
+    pub fn with_pin_predicate(mut self, predicate: fn(&dyn Any) -> bool) -> Self {
+        self.pin_predicate = Some(predicate);
+        self
+    }
+
+    /// Returns whether this entity is pinned. Descriptors without a predicate are unrestricted.
+    pub fn is_pinned(&self, solution: &dyn Any, index: usize) -> bool {
+        self.pin_predicate.is_some_and(|predicate| {
+            predicate(
+                self.get_entity(solution, index)
+                    .expect("pinned entity lookup must match its descriptor"),
+            )
+        })
+    }
+
+    pub fn has_pin_predicate(&self) -> bool {
+        self.pin_predicate.is_some()
     }
 
     pub fn genuine_variable_descriptors(&self) -> impl Iterator<Item = &VariableDescriptor> {
@@ -158,6 +181,7 @@ impl Clone for EntityDescriptor {
             extractor: self.extractor.clone(),
             id_field: self.id_field,
             pin_field: self.pin_field,
+            pin_predicate: self.pin_predicate,
         }
     }
 }

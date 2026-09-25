@@ -138,6 +138,20 @@ where
             return Vec::new();
         }
 
+        if crate::pinning::entity_is_pinned(score_director, self.descriptor_index, entity_index) {
+            let mut child = ExhaustiveSearchNode::pinned_child(
+                parent_index,
+                new_depth,
+                score_director.calculate_score(),
+            );
+            if let Some(ref bounder) = self.bounder {
+                if let Some(bound) = bounder.calculate_optimistic_bound(score_director) {
+                    child.set_optimistic_bound(bound);
+                }
+            }
+            return vec![child];
+        }
+
         let mut children = Vec::with_capacity(self.values.len());
 
         for (value_index, value) in self.values.iter().enumerate() {
@@ -188,6 +202,10 @@ where
 
     fn reset_assignments(&self, score_director: &mut D) {
         for entity_index in 0..self.total_entities(score_director) {
+            if crate::pinning::entity_is_pinned(score_director, self.descriptor_index, entity_index)
+            {
+                continue;
+            }
             score_director.before_variable_changed(self.descriptor_index, entity_index);
             (self.setter)(score_director.working_solution_mut(), entity_index, None);
             score_director.after_variable_changed(self.descriptor_index, entity_index);
@@ -207,6 +225,10 @@ where
         let Some(candidate_value_index) = node.candidate_value_index() else {
             return;
         };
+
+        if crate::pinning::entity_is_pinned(score_director, self.descriptor_index, entity_index) {
+            return;
+        }
 
         assert_eq!(descriptor_index, self.descriptor_index);
         assert_eq!(variable_index, self.variable_index);

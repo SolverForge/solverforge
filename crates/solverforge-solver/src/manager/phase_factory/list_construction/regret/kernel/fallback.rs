@@ -185,6 +185,9 @@ fn apply_owner_ordered_append<S, A, D, BestCb>(
         if control_policy.should_terminate_construction(phase_scope.solver_scope_mut()) {
             break;
         }
+        if crate::pinning::entity_is_pinned(phase_scope.score_director(), descriptor_index, owner) {
+            continue;
+        }
         let entry = &entries[entry_position];
         let insertion_position =
             access.list_len(phase_scope.score_director().working_solution(), owner);
@@ -278,6 +281,13 @@ fn apply_owner_ordered_best_insertion<S, A, D, BestCb>(
     'entries: for &(entry_position, owner) in order {
         if control_policy.should_terminate_construction(phase_scope.solver_scope_mut()) {
             break;
+        }
+        if crate::pinning::entity_is_pinned(
+            phase_scope.score_director(),
+            access.descriptor_index(),
+            owner,
+        ) {
+            continue;
         }
         let entry = &entries[entry_position];
         let len = access.list_len(phase_scope.score_director().working_solution(), owner);

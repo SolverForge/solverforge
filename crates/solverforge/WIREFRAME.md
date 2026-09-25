@@ -404,6 +404,9 @@ local-search selectors.
   `#[planning_list_variable]`. Construction order-key hooks are
   construction-only and do not reorder local-search scalar candidate or list
   neighborhoods.
+- **Entity pinning.** `#[planning_pin]` preserves a planning entity's input
+  genuine scalar or list variables during solver-generated construction and
+  search; a pinned required scalar must already be assigned.
 - **Partial fixed list ownership.** List variables can declare
   `element_owner_fn`; macro-generated runtime slots forward the hook to
   `solverforge-solver`, where `None` means unrestricted and valid `Some(owner)`

@@ -242,6 +242,56 @@ fn compound_scalar_reports_each_affected_scope_and_tabu_token() {
 }
 
 #[test]
+fn sequential_move_checks_pins_in_each_child_descriptor() {
+    let solution = CompoundSolution {
+        left: vec![Some(0)],
+        right: vec![Some(1)],
+        score: None,
+    };
+    let descriptor = SolutionDescriptor::new("CompoundSolution", TypeId::of::<CompoundSolution>())
+        .with_entity(
+            EntityDescriptor::new("Left", TypeId::of::<Option<usize>>(), "left").with_extractor(
+                Box::new(EntityCollectionExtractor::new(
+                    "Left",
+                    "left",
+                    |solution: &CompoundSolution| &solution.left,
+                    |solution: &mut CompoundSolution| &mut solution.left,
+                )),
+            ),
+        )
+        .with_entity(
+            EntityDescriptor::new("Right", TypeId::of::<Option<usize>>(), "right")
+                .with_extractor(Box::new(EntityCollectionExtractor::new(
+                    "Right",
+                    "right",
+                    |solution: &CompoundSolution| &solution.right,
+                    |solution: &mut CompoundSolution| &mut solution.right,
+                )))
+                .with_pin_predicate(|entity| {
+                    *entity.downcast_ref::<Option<usize>>().unwrap() == Some(1)
+                }),
+        );
+    let director = ScoreDirector::simple(solution, descriptor, |solution, index| match index {
+        0 => solution.left.len(),
+        1 => solution.right.len(),
+        _ => 0,
+    });
+    let left = ChangeMove::new(0, Some(2), get_left, set_left, 0, "left", 0);
+    let right = ChangeMove::new(0, Some(3), get_right, set_right, 0, "right", 1);
+    let signature = MoveTabuSignature::new(
+        crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "left"),
+        smallvec::smallvec![],
+        smallvec::smallvec![],
+    );
+    let composite =
+        SequentialCompositeMoveRef::new(&left, &right, 0, &[0], "left", &signature, false);
+
+    assert!(!crate::pinning::move_changes_pinned(&left, &director));
+    assert!(crate::pinning::move_changes_pinned(&composite, &director));
+    assert_eq!(director.working_solution().right, vec![Some(1)]);
+}
+
+#[test]
 fn compound_scalar_rejects_noop_and_illegal_edits() {
     let solution = CompoundSolution {
         left: vec![Some(0)],

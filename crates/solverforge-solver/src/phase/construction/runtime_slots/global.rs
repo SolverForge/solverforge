@@ -657,7 +657,9 @@ where
         move_,
     );
     let started = Instant::now();
-    if !move_.is_doable(phase_scope.score_director()) {
+    if crate::pinning::move_changes_pinned(move_, phase_scope.score_director())
+        || !move_.is_doable(phase_scope.score_director())
+    {
         if let Some(token) = trace {
             phase_scope
                 .record_candidate_trace_disposition(token, CandidateTraceDisposition::Evaluated);

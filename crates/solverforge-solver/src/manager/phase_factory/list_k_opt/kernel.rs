@@ -91,6 +91,13 @@ fn run_list_k_opt_in_phase<S, A, D, BestCb>(
         if control_policy.should_terminate_construction(phase_scope.solver_scope_mut()) {
             break;
         }
+        if crate::pinning::entity_is_pinned(
+            phase_scope.score_director(),
+            descriptor_index,
+            entity_idx,
+        ) {
+            continue;
+        }
         let (depot, mut route) = {
             let solution = phase_scope.score_director().working_solution();
             let depot = access.route_depot(solution, entity_idx);

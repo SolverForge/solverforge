@@ -25,6 +25,7 @@ pub(crate) mod list_placement;
 pub mod manager;
 pub mod model_support;
 pub mod phase;
+pub(crate) mod pinning;
 pub mod planning;
 pub mod realtime;
 pub mod run;

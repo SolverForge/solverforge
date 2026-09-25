@@ -15,7 +15,7 @@ Each node represents a partial solution state, containing:
 */
 #[derive(Clone, Debug)]
 pub struct ExhaustiveSearchNode<S: PlanningSolution> {
-    // Depth in the search tree (0 = root, number of assignments made).
+    // Depth in the search tree (0 = root, number of entity positions processed).
     depth: usize,
 
     // The score at this node after applying all moves.
@@ -76,6 +76,21 @@ impl<S: PlanningSolution> ExhaustiveSearchNode<S> {
             variable_index: Some(variable_index),
             entity_index: Some(entity_index),
             candidate_value_index: Some(candidate_value_index),
+            parent_index: Some(parent_index),
+            expanded: false,
+        }
+    }
+
+    /// Advances past an input-pinned row without adding an assignment to replay.
+    pub(crate) fn pinned_child(parent_index: usize, depth: usize, score: S::Score) -> Self {
+        Self {
+            depth,
+            score,
+            optimistic_bound: None,
+            descriptor_index: None,
+            variable_index: None,
+            entity_index: None,
+            candidate_value_index: None,
             parent_index: Some(parent_index),
             expanded: false,
         }

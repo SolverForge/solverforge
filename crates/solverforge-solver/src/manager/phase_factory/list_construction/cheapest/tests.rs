@@ -1,7 +1,9 @@
 use std::any::TypeId;
 use std::sync::{Arc, Mutex};
 
-use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+use solverforge_core::domain::{
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
+};
 use solverforge_core::score::{HardSoftScore, SoftScore};
 use solverforge_scoring::{ConstraintMetadata, Director, ScoreDirector};
 
@@ -138,6 +140,32 @@ impl Director<Plan> for TestDirector {
 
 fn director(plan: Plan, score: fn(&Plan) -> HardSoftScore) -> TestDirector {
     TestDirector::new(plan, score)
+}
+
+#[test]
+fn cheapest_insertion_excludes_pinned_owners_from_score_trials() {
+    let plan = Plan {
+        elements: vec![9, 0],
+        routes: vec![vec![9], vec![]],
+        score: None,
+    };
+    let mut director = director(plan, zero_score);
+    director.descriptor = descriptor().with_entity(
+        EntityDescriptor::new("Route", TypeId::of::<Vec<usize>>(), "routes")
+            .with_extractor(Box::new(EntityCollectionExtractor::new(
+                "Route",
+                "routes",
+                |plan: &Plan| &plan.routes,
+                |plan: &mut Plan| &mut plan.routes,
+            )))
+            .with_pin_predicate(|entity| entity.downcast_ref::<Vec<usize>>().unwrap().contains(&9)),
+    );
+    let mut scope = SolverScope::new(director);
+    scope.start_solving();
+
+    phase().solve(&mut scope);
+
+    assert_eq!(scope.working_solution().routes, vec![vec![9], vec![0]]);
 }
 
 fn zero_score(_: &Plan) -> HardSoftScore {

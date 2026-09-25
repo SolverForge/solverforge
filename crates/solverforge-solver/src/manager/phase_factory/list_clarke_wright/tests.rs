@@ -10,6 +10,7 @@ mod compiled_parity;
 mod interruption;
 mod metric_class;
 mod owner_binding;
+mod pinning;
 mod public_compiled_parity;
 mod source_key;
 

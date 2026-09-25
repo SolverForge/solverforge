@@ -18,7 +18,7 @@ use solverforge_scoring::{ConstraintMetadata, Director, DirectorScoreState};
 
 use crate::stats::CandidateTraceIdentity;
 
-use super::{Move, MoveArena, MoveTabuSignature};
+use super::{Move, MoveAffectedEntity, MoveArena, MoveTabuSignature};
 
 /// A move that applies two moves in sequence via arena indices.
 ///
@@ -428,6 +428,11 @@ where
             ],
         ))
     }
+
+    fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {
+        self.first.for_each_affected_entity(visitor);
+        self.second.for_each_affected_entity(visitor);
+    }
 }
 
 impl<S, M> Clone for SequentialCompositeMove<S, M>
@@ -497,6 +502,11 @@ where
 
     fn entity_indices(&self) -> &[usize] {
         &self.entity_indices
+    }
+
+    fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {
+        self.first_move().for_each_affected_entity(visitor);
+        self.second_move().for_each_affected_entity(visitor);
     }
 
     fn variable_name(&self) -> &str {

@@ -176,7 +176,9 @@ where
             .candidates()
             .candidate(candidate_id)
             .expect("construction candidate must remain live");
-        if !candidate.is_doable(step_scope.score_director()) {
+        if crate::pinning::move_changes_pinned(&candidate, step_scope.score_director())
+            || !candidate.is_doable(step_scope.score_director())
+        {
             drop(candidate);
             mark_candidate_disposition(
                 placement,
@@ -268,7 +270,9 @@ where
             .candidates()
             .candidate(candidate_id)
             .expect("construction candidate must remain live");
-        if !candidate.is_doable(step_scope.score_director()) {
+        if crate::pinning::move_changes_pinned(&candidate, step_scope.score_director())
+            || !candidate.is_doable(step_scope.score_director())
+        {
             drop(candidate);
             mark_candidate_disposition(
                 placement,
@@ -374,7 +378,9 @@ where
             .candidates()
             .candidate(candidate_id)
             .expect("construction candidate must remain live");
-        if !candidate.is_doable(step_scope.score_director()) {
+        if crate::pinning::move_changes_pinned(&candidate, step_scope.score_director())
+            || !candidate.is_doable(step_scope.score_director())
+        {
             drop(candidate);
             mark_candidate_disposition(
                 placement,
@@ -500,7 +506,9 @@ where
             .candidates()
             .candidate(candidate_id)
             .expect("construction candidate must remain live");
-        if !candidate.is_doable(step_scope.score_director()) {
+        if crate::pinning::move_changes_pinned(&candidate, step_scope.score_director())
+            || !candidate.is_doable(step_scope.score_director())
+        {
             drop(candidate);
             mark_candidate_disposition(
                 placement,

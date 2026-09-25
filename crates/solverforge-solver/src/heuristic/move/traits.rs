@@ -34,7 +34,7 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
 
     A move is not doable if:
     - The source value equals the destination value (no change)
-    - Required entities are pinned
+    - The move's own structural and value-domain rules reject it
     - The move would violate hard constraints that can be detected early
     */
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool;

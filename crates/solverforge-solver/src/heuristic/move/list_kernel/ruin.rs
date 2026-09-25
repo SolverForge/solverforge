@@ -102,14 +102,25 @@ where
         return false;
     }
     let solution = score_director.working_solution();
+    if sources.iter().any(|(entity, _)| {
+        crate::pinning::entity_is_pinned(score_director, access.descriptor_index(), *entity)
+    }) {
+        return false;
+    }
+    let entity_count = access.entity_count(solution);
     if !access.has_owner_binding() {
-        return sources.iter().all(|(entity, indices)| {
+        return (0..entity_count).any(|destination| {
+            !crate::pinning::entity_is_pinned(
+                score_director,
+                access.descriptor_index(),
+                destination,
+            )
+        }) && sources.iter().all(|(entity, indices)| {
             let len = access.list_len(solution, *entity);
             indices.iter().all(|&index| index < len)
         });
     }
 
-    let entity_count = access.entity_count(solution);
     sources.iter().all(|(entity, indices)| {
         let len = access.list_len(solution, *entity);
         indices.iter().all(|&index| {
@@ -120,7 +131,14 @@ where
                 return false;
             };
             let restriction = access.owner_restriction(solution, entity_count, &element);
-            (0..entity_count).any(|destination| restriction.allows(destination))
+            (0..entity_count).any(|destination| {
+                restriction.allows(destination)
+                    && !crate::pinning::entity_is_pinned(
+                        score_director,
+                        access.descriptor_index(),
+                        destination,
+                    )
+            })
         })
     })
 }
@@ -176,7 +194,13 @@ where
             let restriction =
                 access.owner_restriction(score_director.working_solution(), entity_count, element);
             for destination_entity in 0..entity_count {
-                if !restriction.allows(destination_entity) {
+                if !restriction.allows(destination_entity)
+                    || crate::pinning::entity_is_pinned(
+                        score_director,
+                        descriptor_index,
+                        destination_entity,
+                    )
+                {
                     continue;
                 }
                 let destination_len =

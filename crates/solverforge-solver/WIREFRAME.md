@@ -32,6 +32,7 @@ src/
 ├── runtime/compiler/executor/runner/failure.rs — Cold propagation of configured-runtime execution failures to the public run boundary
 ├── runtime/provider_cursor.rs           — One lazy compound-provider cursor; static Rust providers retain typed candidates/function pointers, while host callbacks alone use raw named edits and object-safe dispatch
 ├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model/solution validation, and shadow updates
+├── pinning.rs                           — Internal descriptor-backed pin checks for solver-generated moves and entity mutations
 ├── list_placement.rs                    — Private partial fixed-owner restriction helpers for list construction, ruin/recreate, Clarke-Wright, and list selectors; detects all-selected-elements-fixed-to-current so intra-owner reordering still streams while cross-owner moves are filtered
 ├── descriptor.rs                        — Re-exports descriptor bindings, selectors, move types, and internal construction/runtime helpers
 ├── descriptor/
@@ -764,6 +765,8 @@ union variants and keep speculative rollback statically typed.
 **`MoveCursor<S, M>`** — cursor contract with `next_candidate()`, `next_candidate_with_control(should_stop)`, `candidate(id)`, `take_candidate(id)`, `release_candidate(id)`, `apply_owned_candidate(id)`, `next_owned_candidate()`, `next_owned_candidate_matching()`, `next_owned_candidate_inspected()`, and optional `selector_index(id)`. Consumers may stop after any candidate; dropping a cursor releases retained candidates and unconsumed source state without exhausting the tail. Implementations must not require full enumeration for cleanup or callbacks.
 
 **`MoveCandidateRef<'a, S, M>`** — borrowable move view: either `Borrowed(&M)` or `Sequential(SequentialCompositeMoveRef<'a, S, M>)`.
+
+Pinning is enforced when solver phases evaluate candidates: local search and scalar construction reject any move editing a pinned entity, including compound and sequential children. List construction and ruin/recreate exclude pinned owners before insertion, removal, route replacement, or destination scoring. Exhaustive search advances past pinned rows without clearing their input values. A pinned required row left unassigned still fails the compiled mandatory-completion gate; optional unassigned rows remain valid. Directly applying a public move outside a solver phase does not perform this phase-level pin check.
 
 **`MoveStreamContext`** — `{ step_index, step_seed, accepted_count_limit, selection_order }`. Methods: `new()`, `with_selection_order()`, `selection_order()`, `step_index()`, `step_seed()`, `accepted_count_limit()`, `start_offset()`, `stride()`, and `offset_seed()`.
 

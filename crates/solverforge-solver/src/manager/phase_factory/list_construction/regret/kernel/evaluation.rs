@@ -149,6 +149,13 @@ where
         &entry.element,
     );
     for entity_index in candidate_entities(restriction, entity_count) {
+        if crate::pinning::entity_is_pinned(
+            phase_scope.score_director(),
+            access.descriptor_index(),
+            entity_index,
+        ) {
+            continue;
+        }
         let len = access.list_len(
             phase_scope.score_director().working_solution(),
             entity_index,
@@ -242,6 +249,13 @@ where
     D: Director<S>,
     BestCb: ProgressCallback<S>,
 {
+    if crate::pinning::entity_is_pinned(
+        phase_scope.score_director(),
+        access.descriptor_index(),
+        owner_index,
+    ) {
+        return RegretEvaluation::Complete(None);
+    }
     let len = access.list_len(phase_scope.score_director().working_solution(), owner_index);
     let mut best: Option<(usize, S::Score, Option<CandidateTracePullToken>)> = None;
     let mut second_best: Option<S::Score> = None;

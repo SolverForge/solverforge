@@ -2,7 +2,9 @@ use std::any::TypeId;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
+use solverforge_core::domain::{
+    EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
+};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
@@ -42,6 +44,32 @@ fn phase() -> ListConstructionPhase<Plan, usize> {
         0,
     )
     .create_phase()
+}
+
+#[test]
+fn round_robin_keeps_a_pinned_route_unchanged() {
+    let plan = Plan {
+        elements: vec![9, 0, 1],
+        routes: vec![vec![9], vec![]],
+        score: None,
+    };
+    let descriptor = SolutionDescriptor::new("Plan", TypeId::of::<Plan>()).with_entity(
+        EntityDescriptor::new("Route", TypeId::of::<Vec<usize>>(), "routes")
+            .with_extractor(Box::new(EntityCollectionExtractor::new(
+                "Route",
+                "routes",
+                |plan: &Plan| &plan.routes,
+                |plan: &mut Plan| &mut plan.routes,
+            )))
+            .with_pin_predicate(|entity| entity.downcast_ref::<Vec<usize>>().unwrap().contains(&9)),
+    );
+    let director = ScoreDirector::simple(plan, descriptor, |plan, _| plan.routes.len());
+    let mut scope = SolverScope::new(director);
+    scope.start_solving();
+
+    phase().solve(&mut scope);
+
+    assert_eq!(scope.working_solution().routes, vec![vec![9], vec![0, 1]]);
 }
 
 #[test]

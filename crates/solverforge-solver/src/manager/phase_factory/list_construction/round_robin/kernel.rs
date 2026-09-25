@@ -113,17 +113,40 @@ fn run_round_robin_in_phase<S, A, D, BestCb>(
         }
 
         let solution = phase_scope.score_director().working_solution();
+        let descriptor_index = access.descriptor_index();
         let (target_entity, advance_round_robin) =
             match access.owner_restriction(solution, n_entities, &entry.element) {
-                OwnerRestriction::Unrestricted => (entity_idx, true),
-                OwnerRestriction::Fixed(owner_idx) => (owner_idx, false),
+                OwnerRestriction::Unrestricted => {
+                    let Some(owner) = (0..n_entities)
+                        .map(|offset| (entity_idx + offset) % n_entities)
+                        .find(|&owner| {
+                            !crate::pinning::entity_is_pinned(
+                                phase_scope.score_director(),
+                                descriptor_index,
+                                owner,
+                            )
+                        })
+                    else {
+                        break;
+                    };
+                    (owner, true)
+                }
+                OwnerRestriction::Fixed(owner_idx)
+                    if !crate::pinning::entity_is_pinned(
+                        phase_scope.score_director(),
+                        descriptor_index,
+                        owner_idx,
+                    ) =>
+                {
+                    (owner_idx, false)
+                }
+                OwnerRestriction::Fixed(_) => continue,
                 OwnerRestriction::Invalid => {
                     tracing::warn!("No valid owner found for list element");
                     continue;
                 }
             };
 
-        let descriptor_index = access.descriptor_index();
         let trace_token = phase_scope.record_candidate_operation(
             CandidateTraceSource::ListRoundRobinConstruction,
             None,
@@ -167,7 +190,7 @@ fn run_round_robin_in_phase<S, A, D, BestCb>(
         step_scope.complete();
 
         if advance_round_robin {
-            entity_idx = (entity_idx + 1) % n_entities;
+            entity_idx = (target_entity + 1) % n_entities;
         }
     }
 

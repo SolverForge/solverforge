@@ -9,6 +9,7 @@ use solverforge_scoring::{IncrementalConstraint, IncrementalConstraintSealed};
 #[derive(Clone, Debug)]
 struct Route {
     stops: Vec<i32>,
+    pinned: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -47,12 +48,20 @@ fn list_get(s: &VrpSolution, entity_idx: usize, pos: usize) -> Option<i32> {
         .copied()
 }
 fn list_remove(s: &mut VrpSolution, entity_idx: usize, idx: usize) -> i32 {
+    assert!(
+        !s.routes[entity_idx].pinned,
+        "pinned route must not be changed"
+    );
     s.routes
         .get_mut(entity_idx)
         .map(|r| r.stops.remove(idx))
         .unwrap_or(0)
 }
 fn list_insert(s: &mut VrpSolution, entity_idx: usize, idx: usize, v: i32) {
+    assert!(
+        !s.routes[entity_idx].pinned,
+        "pinned route must not be changed"
+    );
     if let Some(r) = s.routes.get_mut(entity_idx) {
         r.stops.insert(idx, v);
     }
@@ -75,7 +84,10 @@ fn two_node_cycle_successors(_: &VrpSolution, element: i32, out: &mut Vec<i32>) 
 }
 
 fn create_director(stops: Vec<i32>) -> ScoreDirector<VrpSolution, ()> {
-    let routes = vec![Route { stops }];
+    let routes = vec![Route {
+        stops,
+        pinned: false,
+    }];
     let solution = VrpSolution {
         routes,
         score: None,
@@ -150,7 +162,10 @@ fn create_director_with_score(
     score_fn: fn(&VrpSolution) -> SoftScore,
 ) -> ScoreDirector<VrpSolution, RouteScoreConstraint> {
     let solution = VrpSolution {
-        routes: vec![Route { stops }],
+        routes: vec![Route {
+            stops,
+            pinned: false,
+        }],
         score: None,
     };
     ScoreDirector::with_descriptor(
@@ -185,8 +200,9 @@ fn solution_descriptor() -> SolutionDescriptor {
         get_routes,
         get_routes_mut,
     ));
-    let entity_desc =
-        EntityDescriptor::new("Route", TypeId::of::<Route>(), "routes").with_extractor(extractor);
+    let entity_desc = EntityDescriptor::new("Route", TypeId::of::<Route>(), "routes")
+        .with_extractor(extractor)
+        .with_pin_predicate(|entity| entity.downcast_ref::<Route>().unwrap().pinned);
     SolutionDescriptor::new("VrpSolution", TypeId::of::<VrpSolution>()).with_entity(entity_desc)
 }
 
@@ -308,6 +324,7 @@ fn ruin_recreate_restores_multiple_source_entities() {
     let mut director = create_director_with_score(vec![1, 2, 3, 4], prefer_four_before_two);
     director.working_solution_mut().routes.push(Route {
         stops: vec![5, 6, 7],
+        pinned: false,
     });
 
     let m = ListRuinMove::<VrpSolution, i32>::new_multi_source(
@@ -467,4 +484,5 @@ fn precedence_ruin_restores_original_when_recreate_has_no_safe_position() {
     assert_eq!(director.working_solution().routes[0].stops, vec![1, 2]);
 }
 
+mod pinning;
 mod transfer;

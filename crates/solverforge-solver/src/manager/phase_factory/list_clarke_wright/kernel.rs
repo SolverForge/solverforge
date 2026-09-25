@@ -79,7 +79,14 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
     }
 
     let available_entity_slots = (0..n_entities)
-        .filter(|&entity_idx| access.route_len(solution, entity_idx) == 0)
+        .filter(|&entity_idx| {
+            access.route_len(solution, entity_idx) == 0
+                && !crate::pinning::entity_is_pinned(
+                    phase_scope.score_director(),
+                    access.descriptor_index(),
+                    entity_idx,
+                )
+        })
         .collect::<Vec<_>>();
     let depot_values = available_entity_slots
         .iter()

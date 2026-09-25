@@ -56,6 +56,14 @@ where
         self.phase_scope.score_director().working_solution()
     }
 
+    fn owner_is_pinned(&self, descriptor_index: usize, entity_index: usize) -> bool {
+        crate::pinning::entity_is_pinned(
+            self.phase_scope.score_director(),
+            descriptor_index,
+            entity_index,
+        )
+    }
+
     fn should_interrupt_construction(&mut self) -> bool {
         self.control_policy
             .should_terminate_construction(self.phase_scope.solver_scope_mut())

@@ -31,6 +31,7 @@ where
     type Trial: Copy;
 
     fn solution(&self) -> &S;
+    fn owner_is_pinned(&self, descriptor_index: usize, entity_index: usize) -> bool;
     fn should_interrupt_construction(&mut self) -> bool;
     fn evaluate_insertion(
         &mut self,
@@ -88,6 +89,9 @@ pub(crate) fn run_cheapest<S, A, O>(
         for entity_index in
             legal_entities(access, observer.solution(), &entry.element, entity_count)
         {
+            if observer.owner_is_pinned(access.descriptor_index(), entity_index) {
+                continue;
+            }
             let length = access.list_len(observer.solution(), entity_index);
             for insertion_index in 0..=length {
                 if observer.should_interrupt_construction() {

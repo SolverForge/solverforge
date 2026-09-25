@@ -249,10 +249,12 @@ where
                 }
                 candidate_ordinal += 1;
 
-                let is_doable = cursor
+                let candidate = cursor
                     .candidate(candidate_id)
-                    .expect("k-opt candidate id must remain live during evaluation")
-                    .is_doable(step_scope.score_director());
+                    .expect("k-opt candidate id must remain live during evaluation");
+                let is_doable =
+                    !crate::pinning::move_changes_pinned(&candidate, step_scope.score_director())
+                        && candidate.is_doable(step_scope.score_director());
                 if !is_doable {
                     if let Some(token) = trace_token {
                         let phase_scope = step_scope.phase_scope_mut();

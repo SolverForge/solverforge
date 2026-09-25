@@ -199,6 +199,10 @@ impl CheapestInsertionObserver<Plan, Slot> for NoCandidateObserver {
         &self.plan
     }
 
+    fn owner_is_pinned(&self, _descriptor_index: usize, _entity_index: usize) -> bool {
+        false
+    }
+
     fn should_interrupt_construction(&mut self) -> bool {
         self.candidate_callbacks += 1;
         false

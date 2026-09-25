@@ -766,6 +766,8 @@ union variants and keep speculative rollback statically typed.
 
 **`MoveCandidateRef<'a, S, M>`** — borrowable move view: either `Borrowed(&M)` or `Sequential(SequentialCompositeMoveRef<'a, S, M>)`.
 
+Pinning is enforced when solver phases evaluate candidates: local search and scalar construction reject any move editing a pinned entity, including compound and sequential children. List construction and ruin/recreate exclude pinned owners before insertion, removal, route replacement, or destination scoring. Exhaustive search advances past pinned rows without clearing their input values. A pinned required row left unassigned still fails the compiled mandatory-completion gate; optional unassigned rows remain valid. Directly applying a public move outside a solver phase does not perform this phase-level pin check.
+
 **`MoveStreamContext`** — `{ step_index, step_seed, accepted_count_limit, selection_order }`. Methods: `new()`, `with_selection_order()`, `selection_order()`, `step_index()`, `step_seed()`, `accepted_count_limit()`, `start_offset()`, `stride()`, and `offset_seed()`.
 
 **`CutPoint`** — `{ entity_index: usize, position: usize }`. Derives: Clone, Copy, Debug, Default, PartialEq, Eq.

@@ -106,8 +106,9 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
 ///
 /// # Pinning
 ///
-/// Entities can be "pinned" to prevent the solver from changing them.
-/// Override `is_pinned()` to return true for pinned entities.
+/// Entities can be "pinned" to preserve their input genuine planning variables
+/// during solving. Override `is_pinned()` to return true for pinned entities;
+/// manually assembled entity descriptors must also supply a pin predicate.
 pub trait PlanningEntity: Clone + Send + Sync + Any + 'static {
     /* Returns true if this entity is pinned (should not be changed).
 

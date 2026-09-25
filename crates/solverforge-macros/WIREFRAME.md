@@ -159,7 +159,7 @@ Internal module responsibilities:
   declare plain `fn(&Solution, element) -> usize` and
   `fn(&Solution, element, &mut Vec<usize>)` hooks for stock list-precedence
   scoring/selectors.
-- `#[planning_pin]` — boolean field controlling entity pinning
+- `#[planning_pin]` — boolean field preserving an entity's input genuine variables during solving. Pinned required scalars must already be assigned; optional unassigned scalars may stay unassigned. A pinned list owner retains its input list.
 - `#[inverse_relation_shadow_variable(source_variable_name = "field")]` — inverse relation shadow
 - `#[index_shadow_variable(source_variable_name = "field")]` — list index shadow
 - `#[previous_element_shadow_variable(source_variable_name = "field")]` — previous element shadow

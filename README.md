@@ -217,6 +217,12 @@ Use a list variable whenever planning decides assignment and order together.
 The owner stores element indexes directly, so route and sequence topology has
 one canonical representation rather than a scalar predecessor graph.
 
+Add `#[planning_pin]` to a boolean planning-entity field to preserve that
+entity's input planning variables during solving. A pinned route owner keeps its
+list contents and order; a pinned scalar keeps its input value. Pinned required
+assignments that start unassigned cannot be completed and cause the solve to
+fail; an optional pinned scalar may remain unassigned.
+
 ```rust
 #[planning_entity]
 pub struct Route {

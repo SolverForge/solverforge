@@ -404,7 +404,13 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 
     let pin_field_descriptor = if let Some(field) = pin_field {
         let field_name = field.ident.as_ref().unwrap();
-        quote! { desc = desc.with_pin_field(stringify!(#field_name)); }
+        quote! {
+            desc = desc.with_pin_field(stringify!(#field_name)).with_pin_predicate(|entity| {
+                <Self as ::solverforge::__internal::PlanningEntity>::is_pinned(
+                    entity.downcast_ref::<Self>().expect("pin predicate entity type must match descriptor")
+                )
+            });
+        }
     } else {
         TokenStream::new()
     };

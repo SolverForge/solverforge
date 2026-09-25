@@ -173,7 +173,7 @@ runtime scalar surface is candidate-index based.
 **Generated code:**
 - `impl PlanningEntity for T` — `is_pinned()`, `as_any()`, `as_any_mut()`
 - `impl PlanningId for T` (if `#[planning_id]` present) — `type Id` set to field type, `planning_id()` returns field value
-- `impl T { pub fn entity_descriptor(solution_field: &'static str) -> EntityDescriptor }` — builds descriptor with all variable descriptors (genuine, list, shadow) and preserves `#[planning_id]` / `#[planning_pin]` metadata
+- `impl T { pub fn entity_descriptor(solution_field: &'static str) -> EntityDescriptor }` — builds descriptor with all variable descriptors (genuine, list, shadow) and preserves `#[planning_id]` metadata; `#[planning_pin]` supplies both the pin field name and a typed predicate that calls `PlanningEntity::is_pinned()`
 - Hidden scalar metadata bridge: private indexed helpers for scalar variable count, name, allows-unassigned, value-source metadata, getter/setter, and entity-local value slices. Helper order matches `entity_descriptor()` genuine scalar variable order; the index is used for generated getter/setter dispatch, while manifest hook attachment resolves descriptor variables by descriptor index plus variable name.
 - Hidden list metadata bridge (when the entity has a `#[planning_list_variable]` field): public cross-module `__SOLVERFORGE_LIST_VARIABLE_COUNT` plus private `__SOLVERFORGE_LIST_VARIABLE_NAME`, `__SOLVERFORGE_LIST_ELEMENT_COLLECTION`, `__solverforge_list_field()`, `__solverforge_list_field_mut()`, `__solverforge_list_metadata()`
 - Hidden list metadata bridge implementation (when the entity has a `#[planning_list_variable]` field): `impl __internal::ListVariableEntity<Solution> for Entity`

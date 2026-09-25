@@ -154,3 +154,27 @@ fn test_no_extractor() {
     assert!(descriptor.get_entity(&solution as &dyn Any, 0).is_none());
     assert!(descriptor.entity_refs(&solution as &dyn Any).is_empty());
 }
+
+#[test]
+fn pin_predicate_reads_current_entity_state_and_survives_clone() {
+    let descriptor = create_test_entity_descriptor()
+        .with_pin_predicate(|entity| entity.downcast_ref::<TestEntity>().unwrap().id == 1);
+    let mut solution = TestSolution {
+        entities: vec![
+            TestEntity {
+                id: 1,
+                row: Some(10),
+            },
+            TestEntity {
+                id: 2,
+                row: Some(20),
+            },
+        ],
+    };
+
+    assert!(descriptor.is_pinned(&solution, 0));
+    assert!(!descriptor.is_pinned(&solution, 1));
+    solution.entities[0].id = 3;
+    assert!(!descriptor.clone().is_pinned(&solution, 0));
+    assert!(!create_test_entity_descriptor().is_pinned(&solution, 0));
+}

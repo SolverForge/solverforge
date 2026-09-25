@@ -425,9 +425,10 @@ pub struct EntityDescriptor {
 }
 ```
 
-Builder methods: `with_extractor()`, `with_logical_id()`, `with_variable()`, `with_id_field()`, `with_pin_field()`
+Builder methods: `with_extractor()`, `with_logical_id()`, `with_variable()`, `with_id_field()`, `with_pin_field()`, `with_pin_predicate()`.
+`is_pinned(solution, index)` reads the current entity pin state through the typed predicate; descriptors without one return `false`. Manually assembled descriptors must supply `with_pin_predicate()` to make a custom `PlanningEntity::is_pinned()` visible to the solver.
 
-Query methods: `genuine_variable_descriptors()`, `shadow_variable_descriptors()`, `find_variable(&str)`, `has_genuine_variables()`, `has_extractor()`, `entity_count(&dyn Any)`, `get_entity()`, `get_entity_mut()`, `entity_refs()`, `for_each_entity()`, `for_each_entity_mut()`
+Query methods: `genuine_variable_descriptors()`, `shadow_variable_descriptors()`, `find_variable(&str)`, `has_genuine_variables()`, `has_extractor()`, `entity_count(&dyn Any)`, `is_pinned(&dyn Any, usize)`, `get_entity()`, `get_entity_mut()`, `entity_refs()`, `for_each_entity()`, `for_each_entity_mut()`
 
 Manual `Clone` and `Debug` impls.
 

@@ -7,6 +7,8 @@ pub struct Shift {
     pub day: i64,
     pub slot: usize,
     pub required: bool,
+    #[planning_pin]
+    pub pinned: bool,
 
     #[planning_variable(value_range_provider = "nurses", allows_unassigned = true)]
     pub nurse_idx: Option<usize>,

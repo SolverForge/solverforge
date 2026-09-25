@@ -32,6 +32,7 @@ src/
 ├── runtime/compiler/executor/runner/failure.rs — Cold propagation of configured-runtime execution failures to the public run boundary
 ├── runtime/provider_cursor.rs           — One lazy compound-provider cursor; static Rust providers retain typed candidates/function pointers, while host callbacks alone use raw named edits and object-safe dispatch
 ├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model/solution validation, and shadow updates
+├── pinning.rs                           — Internal descriptor-backed pin checks for solver-generated moves and entity mutations
 ├── list_placement.rs                    — Private partial fixed-owner restriction helpers for list construction, ruin/recreate, Clarke-Wright, and list selectors; detects all-selected-elements-fixed-to-current so intra-owner reordering still streams while cross-owner moves are filtered
 ├── descriptor.rs                        — Re-exports descriptor bindings, selectors, move types, and internal construction/runtime helpers
 ├── descriptor/

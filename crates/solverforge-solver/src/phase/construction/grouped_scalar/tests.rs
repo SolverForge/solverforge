@@ -263,6 +263,43 @@ fn required_construction_can_rematch_rows_assigned_by_its_batch_move() {
 }
 
 #[test]
+fn required_construction_does_not_displace_a_pinned_assignment() {
+    let mut descriptor = descriptor();
+    descriptor.entity_descriptors[0] = descriptor.entity_descriptors[0]
+        .clone()
+        .with_pin_predicate(|entity| *entity.downcast_ref::<Option<usize>>().unwrap() == Some(0));
+    let limits = ScalarGroupLimits {
+        max_augmenting_depth: Some(4),
+        max_rematch_size: Some(8),
+        ..ScalarGroupLimits::new()
+    };
+    let group = assignment_group(&descriptor, limits);
+    let bindings = collect_bindings(&descriptor)
+        .into_iter()
+        .map(ResolvedVariableBinding::new)
+        .collect();
+    let input = AssignmentPlan {
+        score: None,
+        assignments: vec![Some(0), None, None],
+        candidates: vec![vec![0, 1], vec![0], vec![2]],
+    };
+    let director = ScoreDirector::simple(input, descriptor, |plan, _| plan.assignments.len());
+    let mut scope = SolverScope::new(director);
+    let config = ConstructionHeuristicConfig {
+        construction_heuristic_type: ConstructionHeuristicType::FirstFit,
+        construction_obligation: ConstructionObligation::AssignWhenCandidateExists,
+        ..ConstructionHeuristicConfig::default()
+    };
+    let mut phase = build_scalar_group_construction(Some(&config), 0, group, bindings, true);
+
+    phase.solve(&mut scope);
+
+    assert_eq!(scope.working_solution().assignments[0], Some(0));
+    assert_eq!(scope.working_solution().assignments[1], None);
+    assert_eq!(scope.working_solution().assignments[2], Some(2));
+}
+
+#[test]
 fn augmenting_assignment_observes_control_during_recursive_search() {
     let descriptor = descriptor();
     let limits = ScalarGroupLimits {

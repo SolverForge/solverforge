@@ -7,6 +7,7 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::MoveCandidateRef;
 use crate::phase::hard_delta::{hard_score_delta, HardScoreDelta};
+use crate::pinning::move_changes_pinned;
 use crate::scope::{ProgressCallback, StepScope};
 
 pub(crate) enum CandidateEvaluation<Sc> {
@@ -30,7 +31,9 @@ where
     ProgressCb: ProgressCallback<S>,
     M: Move<S>,
 {
-    if !mov.is_doable(step_scope.score_director()) {
+    if move_changes_pinned(mov, step_scope.score_director())
+        || !mov.is_doable(step_scope.score_director())
+    {
         let move_label = mov.telemetry_label();
         record_evaluated_move(step_scope, selector_index, evaluation_started);
         step_scope

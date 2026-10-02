@@ -105,7 +105,7 @@ and `MoveSelector`.
 ## Features
 
 - **Score Types**: SoftScore, HardSoftScore, HardMediumSoftScore, BendableScore, HardSoftDecimalScore
-- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, filtered join sources, single-source and cross-join projected scoring rows, symmetric and directed projected self-joins, direct cross-join grouping and grouped complements, projected grouped complements, existence checks, joins, grouping, `collect_vec`, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
+- **ConstraintStream API**: Declarative constraints with fluent builders, model-owned collection sources, filtered join sources, three-source keyed joins (`stream::cross::Tri`), single-source and cross-join projected scoring rows, symmetric and directed projected self-joins, direct cross-join grouping and grouped complements, projected grouped complements, existence checks, joins, grouping, `collect_vec`, `consecutive_runs`, `indexed_presence`, and balance/complemented streams
 - **SERIO Engine**: Scoring Engine for Real-time Incremental Optimization
 - **Solver Phases**:
   - Generic Construction Heuristics (`FirstFit`, `CheapestInsertion`) through one compiled runtime graph: scalar-only targets use its descriptor-placement schedule, mixed/list-bearing targets use its declaration-order global scan, and specialized list phases provide `ListRoundRobin`, `ListCheapestInsertion`, `ListRegretInsertion`, owner-aware `ListClarkeWright`, and `ListKOpt`

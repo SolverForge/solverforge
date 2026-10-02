@@ -45,6 +45,10 @@ src/
 │   ├── complemented/*.rs                           — Retained complemented state, incremental callbacks, helpers, and debug accessors
 │   ├── cross_bi_incremental.rs                     — constraint::cross_bi_incremental::Bi module root and re-exports
 │   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
+│   ├── cross_incremental.rs                        — Hidden shared arity-generic cross-join engine module root
+│   ├── cross_incremental/engine.rs                 — CrossJoinEngine<N, K, Sc> retained row/key-index/bucket state shared by cross arities
+│   ├── cross_tri_incremental.rs                    — constraint::cross_tri_incremental::Tri module root and re-exports
+│   ├── cross_tri_incremental/*.rs                  — Retained cross-tri state, weights, incremental callbacks, and debug accessors
 │   ├── cross_grouped.rs                            — constraint::cross_grouped::Grouped module root and re-exports
 │   ├── cross_grouped/*.rs                          — indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, updates.rs, view.rs for retained direct cross grouped state
 │   ├── cross_complemented_grouped.rs               — constraint::cross_complemented_grouped::ComplementedGrouped module root and internal shared engine re-exports
@@ -127,6 +131,8 @@ src/
 │   ├── cross_bi_stream/grouped.rs                  — stream::cross::Grouped and builder
 │   ├── cross_bi_stream/complemented_grouped.rs     — stream::cross::ComplementedGrouped and builder
 │   ├── cross_bi_stream/weighting.rs                — stream::cross::Builder
+│   ├── cross_tri_stream.rs                         — Re-exports
+│   ├── cross_tri_stream/base.rs                    — stream::cross::Tri and builder
 │   ├── flattened_bi_stream.rs                      — Re-exports
 │   ├── flattened_bi_stream/base.rs                 — FlattenedBiConstraintStream
 │   ├── flattened_bi_stream/builder.rs              — FlattenedBiConstraintBuilder
@@ -202,6 +208,7 @@ pub use constraint::{
 // constraint::grouped::Uni
 // constraint::complemented::Grouped
 // constraint::cross_bi_incremental::Bi
+// constraint::cross_tri_incremental::Tri
 // constraint::cross_grouped::Grouped
 // constraint::cross_complemented_grouped::ComplementedGrouped
 // constraint::projected::{Uni, Bi, DirectedBi, Grouped, ComplementedGrouped}
@@ -232,7 +239,7 @@ pub use stream::{
 };
 
 // Short cross/projected stream names are intentionally module-scoped:
-// stream::cross::{Bi, Builder, Grouped, GroupedBuilder, ComplementedGrouped, ComplementedGroupedBuilder}
+// stream::cross::{Bi, Builder, Grouped, GroupedBuilder, ComplementedGrouped, ComplementedGroupedBuilder, Tri}
 // stream::projected::{Stream, Builder, Bi, BiBuilder, DirectedBi, DirectedBiBuilder, Grouped, GroupedBuilder, ComplementedGrouped, ComplementedGroupedBuilder}
 ```
 
@@ -328,7 +335,8 @@ All `Send + Sync`:
 
 Joined filter indexes are semantic source indexes, not builder-local
 placeholders. Same-source joins pass canonical entity indexes; cross-bi passes
-left and right source indexes; flattened-bi passes the A source index and the
+left and right source indexes; cross-tri passes the A, B, and C source slice
+indexes; flattened-bi passes the A source index and the
 owning B source index for the flattened row; projected-bi passes each projected
 row's primary owner entity index while `RowCoordinate` still owns row
 orientation.

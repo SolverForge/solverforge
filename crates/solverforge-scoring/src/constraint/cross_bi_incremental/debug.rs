@@ -9,7 +9,7 @@ impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc: Score> std::fmt::Debug
         f.debug_struct("Bi")
             .field("name", &self.constraint_ref.name)
             .field("impact_type", &self.impact_type)
-            .field("match_count", &self.matches.len())
+            .field("match_count", &self.engine.match_count())
             .finish()
     }
 }

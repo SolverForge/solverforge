@@ -21,6 +21,7 @@ pub mod complemented;
 pub mod cross_bi_incremental;
 pub mod cross_complemented_grouped;
 pub mod cross_grouped;
+pub(crate) mod cross_incremental;
 pub mod exists;
 pub mod flattened_bi;
 pub mod grouped;

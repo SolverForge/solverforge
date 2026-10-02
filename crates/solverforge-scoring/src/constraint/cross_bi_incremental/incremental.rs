@@ -81,7 +81,7 @@ where
                 continue;
             }
             let key = (self.key_a)(&entities_a[a_idx]);
-            let b_indices = self.b_by_key.get(&key).cloned().unwrap_or_default();
+            let b_indices = self.engine.key_indexes_for(1, &key);
             for b_idx in b_indices {
                 total = total + self.add_match(solution, entities_a, entities_b, a_idx, b_idx);
             }
@@ -137,14 +137,7 @@ where
     }
 
     fn reset(&mut self) {
-        self.matches.clear();
-        self.match_rows.clear();
-        self.a_to_matches.clear();
-        self.b_to_matches.clear();
-        self.a_by_key.clear();
-        self.b_by_key.clear();
-        self.a_index_to_key.clear();
-        self.b_index_to_key.clear();
+        self.engine.clear();
     }
 
     fn name(&self) -> &str {

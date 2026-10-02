@@ -69,6 +69,7 @@ pub mod collection_extract;
 pub mod collector;
 mod complemented_stream;
 mod cross_bi_stream;
+mod cross_tri_stream;
 mod existence_stream;
 mod existence_target;
 mod factory;
@@ -93,6 +94,7 @@ pub mod cross {
     pub use super::cross_bi_stream::{
         Bi, Builder, ComplementedGrouped, ComplementedGroupedBuilder, Grouped, GroupedBuilder,
     };
+    pub use super::cross_tri_stream::Tri;
 }
 
 pub mod projected {

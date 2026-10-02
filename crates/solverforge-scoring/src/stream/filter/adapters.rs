@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use super::traits::{BiFilter, UniFilter};
+use super::traits::{BiFilter, TriFilter, UniFilter};
 
 // Applies a uni-filter to both elements of a pair (for self-joins).
 pub struct UniBiFilter<F, A> {
@@ -57,6 +57,45 @@ where
     #[inline]
     fn test(&self, solution: &S, a: &A, _: &B, _a_idx: usize, _b_idx: usize) -> bool {
         self.filter.test(solution, a)
+    }
+}
+
+// Lifts a bi-filter over (A, B) into the tri chain over (A, B, C),
+// preserving the A and B source slice indexes and ignoring C.
+#[doc(hidden)]
+pub struct TriAsBiFilter<F, A, B> {
+    filter: F,
+    _phantom: PhantomData<(fn() -> A, fn() -> B)>,
+}
+
+impl<F, A, B> TriAsBiFilter<F, A, B> {
+    // Creates a tri-filter from a bi-filter over the first two sources.
+    #[inline]
+    pub fn new(filter: F) -> Self {
+        Self {
+            filter,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, A, B, C, F> TriFilter<S, A, B, C> for TriAsBiFilter<F, A, B>
+where
+    F: BiFilter<S, A, B>,
+    C: Send + Sync,
+{
+    #[inline]
+    fn test(
+        &self,
+        solution: &S,
+        a: &A,
+        b: &B,
+        _c: &C,
+        a_idx: usize,
+        b_idx: usize,
+        _c_idx: usize,
+    ) -> bool {
+        self.filter.test(solution, a, b, a_idx, b_idx)
     }
 }
 

@@ -5,6 +5,7 @@ mod cross_bi_incr;
 mod cross_complemented_grouped;
 mod cross_grouped;
 mod cross_tri_incr;
+mod cross_tri_stream_chain;
 mod exists;
 mod exists_storage;
 mod flattened_bi;

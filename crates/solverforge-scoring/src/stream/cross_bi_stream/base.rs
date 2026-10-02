@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 
 use super::super::collection_extract::CollectionExtract;
-use super::super::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter};
+use super::super::filter::{AndBiFilter, BiFilter, FnBiFilter, TriAsBiFilter, TrueFilter};
 use super::super::flattened_bi_stream::FlattenedBiConstraintStream;
 use super::super::projected_stream::{JoinedSource, Stream};
 use super::grouped::Grouped;
@@ -113,6 +113,46 @@ where
             ),
             _phantom: PhantomData,
         }
+    }
+
+    /* Extends the joined (A, B) pairs with a third source C.
+
+    The retained tri rows satisfy key_a(a) == key_b(b) == key_c(c); the
+    bi stream's own keys stay authoritative for A and B, and `key_c`
+    positions the new source in the shared key domain.
+    */
+    pub fn join<C, EC, KC>(
+        self,
+        target: (EC, KC),
+    ) -> super::super::cross_tri_stream::Tri<
+        S,
+        A,
+        B,
+        C,
+        K,
+        EA,
+        EB,
+        EC,
+        KA,
+        KB,
+        KC,
+        TriAsBiFilter<F, A, B>,
+        Sc,
+    >
+    where
+        C: Clone + Send + Sync + 'static,
+        EC: CollectionExtract<S, Item = C>,
+        KC: Fn(&C) -> K + Send + Sync,
+    {
+        super::super::cross_tri_stream::Tri::new_with_filter(
+            self.extractor_a,
+            self.extractor_b,
+            target.0,
+            self.key_a,
+            self.key_b,
+            target.1,
+            TriAsBiFilter::new(self.filter),
+        )
     }
 
     /* Expands items from entity B into separate (A, C) pairs with O(1) lookup. */

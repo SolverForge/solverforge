@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.19.8](https://github.com/SolverForge/solverforge/compare/v0.19.7...v0.19.8) (2026-10-02)
+
+
+### Features
+
+* **scoring:** add cross-tri incremental constraint a240f3f
+* **scoring:** extend cross Bi streams with a third join source 829509c
+
+
+### Bug Fixes
+
+* **build:** complete ci-local Rust checks 89ffdb1
+
 ## [0.19.7](https://github.com/SolverForge/solverforge/compare/v0.19.6...v0.19.7) (2026-09-25)
 
 ## [0.19.6](https://github.com/SolverForge/solverforge/compare/v0.19.5...v0.19.6) (2026-09-25)

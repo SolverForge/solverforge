@@ -72,6 +72,9 @@ planning variables with independent planning lists, and they use the same
 - Generated app work starts in the standalone
   [`solverforge-cli`](https://github.com/solverforge/solverforge-cli)
   repository, then continues against the runtime crates in this workspace.
+- [`docs/architecture.html`](docs/architecture.html) is the system wiring map:
+  how the crates, configuration, solve pipeline, and runtime fit together on one
+  page. Regenerate it with `python3 assets/solverforge-architecture.py`.
 - `docs/extend-domain.md` and `docs/extend-solver.md` cover scaffold extension
   workflows.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps for each crate.
@@ -469,6 +472,14 @@ models show average `candidates`.
 | TRACE | Individual move evaluations | `RUST_LOG=solverforge_solver=trace` |
 
 ## Architecture
+
+![SolverForge system wiring: your code, the crate graph, the solve pipeline, and the runtime](assets/solverforge-architecture.png)
+
+The wiring map above shows the whole system on one page: your model and
+configuration on top, the crate graph underneath, the solve pipeline
+(Build → Construct → Search → Complete), the zero-erasure runtime path, and the
+consumers built on top. Open [`docs/architecture.html`](docs/architecture.html)
+for the interactive version with full-resolution labels.
 
 ![SERIO incremental scoring](assets/SERIO.jpg)
 

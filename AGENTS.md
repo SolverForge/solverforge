@@ -56,6 +56,12 @@ Treat the repository documentation as a coordinated surface, not as isolated fil
   file or in crate wireframes. Do not add standalone contract, charter, audit,
   or historical plan documents under `docs/`; current public APIs belong in the
   README and matching wireframes, while durable repository rules belong here.
+- `docs/architecture.html` is the generated system wiring map (crates,
+  configuration, solve pipeline, runtime anatomy, consumers) with its PNG
+  export at `docs/architecture.png` and the README copy at
+  `assets/solverforge-architecture.png`. Regenerate all three from
+  `assets/solverforge-architecture.py` in the same change as any structural
+  shift they depict; do not hand-edit the generated files.
 - `AGENTS.md` records repository-specific rules for future coding agents. Update it when the engineering workflow or documentation policy changes.
 - Documentation must describe the current checked-in code and public surface, not an intended future design. If a refactor is incomplete, document the shipped boundary and current limitation explicitly instead of documenting the target state as if it already exists.
 - Distinguish crate-root re-exports from module-level exports and hidden `__internal` bridges. Do not document a module-only or macro-only symbol as if it were a supported root-level facade export.

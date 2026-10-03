@@ -7,14 +7,14 @@
 <style>
 :root{--sf-bg:#f7fbf8;--sf-panel:#fff;--sf-panel-soft:#eef7f1;--sf-panel-dark:#062f28;--sf-panel-dark-soft:#0d473c;--sf-border:rgba(6,47,40,.12);--sf-text:#163830;--sf-text-soft:#48655d;--sf-text-invert:#ecfdf5;--sf-accent:#10b981;--sf-accent-strong:#059669;--sf-gold:#eab308;--sf-radius:5px;--sf-shadow:0 24px 60px rgba(6,47,40,.12);--sf-width:min(1180px,calc(100% - 2rem))}
 *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:7rem}body{margin:0;font-family:'Source Sans 3',system-ui,sans-serif;color:var(--sf-text);background:radial-gradient(circle at top left,rgba(16,185,129,.09),transparent 28rem),linear-gradient(180deg,#fbfefc,#f3faf6);line-height:1.65}
-a{color:var(--sf-accent-strong);text-underline-offset:.18em}a:hover{color:#047857}h1,h2,h3{font-family:Outfit,system-ui,sans-serif;line-height:1.05;letter-spacing:-.04em;margin:0 0 1rem}h1{font-size:clamp(2.8rem,5vw,4.6rem)}h2{font-size:clamp(1.8rem,3vw,2.8rem)}p{margin:0}svg{display:block;width:100%;height:auto}code{font-family:'JetBrains Mono',monospace;font-size:.85em}
+a{color:var(--sf-accent-strong);text-underline-offset:.18em}a:hover{color:#047857}h1,h2,h3{font-family:Outfit,system-ui,sans-serif;line-height:1.05;letter-spacing:-.04em;margin:0 0 1rem}h1{font-size:clamp(2.8rem,5vw,4.6rem)}h2{font-size:1.4rem}p{margin:0}svg{display:block;width:100%;height:auto}code{font-family:'JetBrains Mono',monospace;font-size:.85em}
 .site-header{position:sticky;top:0;z-index:20;backdrop-filter:blur(18px);background:rgba(6,47,40,.94);border-bottom:1px solid rgba(236,253,245,.08)}.header-inner{width:var(--sf-width);margin:auto;min-height:5.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}.brand{width:210px;flex-shrink:0}.header-links{display:flex;gap:1.5rem;align-items:center}.header-links a{color:rgba(236,253,245,.9);font-weight:600;text-decoration:none}.header-links .active{background:rgba(16,185,129,.16);padding:.65rem .85rem;border-radius:5px;color:#fff}
-main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;grid-template-columns:1.25fr .75fr;gap:2rem;align-items:end;padding:clamp(2rem,4vw,3rem);background:radial-gradient(circle at top right,rgba(16,185,129,.2),transparent 20rem),linear-gradient(135deg,#062f28,#0b4a3f);border:1px solid var(--sf-border);border-radius:5px;box-shadow:var(--sf-shadow);color:var(--sf-text-invert)}.hero h1{max-width:12ch}.hero h1 span{color:#6ee7b7}.eyebrow{font-family:Outfit,system-ui,sans-serif;font-size:.82rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--sf-accent-strong);margin:0 0 .8rem}.hero .eyebrow{color:#6ee7b7}.lede{font-size:1.2rem;color:rgba(236,253,245,.82);max-width:44ch}.hero-rail{border-left:1px solid rgba(110,231,183,.22);padding-left:2rem}.rail-item{padding:.7rem 0;border-bottom:1px solid rgba(110,231,183,.14)}.rail-item:last-child{border:0}.rail-item strong{display:block;font-family:Outfit;font-size:1.2rem}.rail-item small{color:#a7c9bf}.version{font-family:'JetBrains Mono',monospace;color:#6ee7b7;font-size:.85rem;margin-bottom:.5rem}
-.section-nav{display:flex;flex-wrap:wrap;gap:.35rem;margin:1.5rem 0 2.5rem;padding:.6rem;background:rgba(6,47,40,.06);border-radius:5px}.section-nav a{flex:1;padding:.6rem .65rem;color:var(--sf-text-soft);font-size:.95rem;font-weight:600;text-decoration:none;border-radius:5px;white-space:nowrap}.section-nav a:hover{background:#062f28;color:#ecfdf5}.section-nav span{color:#059669;margin-right:.45rem;font-family:'JetBrains Mono';font-size:.75rem}
-.architecture-panel{margin:0 0 1.5rem;padding:1.8rem;border:1px solid var(--sf-border);border-radius:5px;background:var(--sf-panel);box-shadow:0 14px 36px rgba(6,47,40,.06)}.panel-heading{display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:end;margin-bottom:1.4rem}.panel-heading h2{margin-bottom:0}.panel-heading>p{color:var(--sf-text-soft);font-size:1.05rem}.diagram-scroll{overflow-x:auto;border-top:1px solid var(--sf-border);padding-top:1rem}.diagram-scroll svg{min-width:1050px}.diagram-scroll:focus-visible{outline:2px solid var(--sf-accent);outline-offset:4px}
-.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:2rem}.note{border-left:3px solid var(--sf-accent);background:var(--sf-panel-soft);padding:1.1rem 1.2rem;border-radius:5px}.note h3{font-size:1.3rem}.note p{color:var(--sf-text-soft)}.note.gold{border-left-color:var(--sf-gold)}footer{background:var(--sf-panel-dark);color:rgba(236,253,245,.8);padding:2rem 0}.footer-inner{width:var(--sf-width);margin:auto;display:flex;justify-content:space-between;gap:2rem}footer a{color:#6ee7b7}
-@media(max-width:980px){.hero{grid-template-columns:1fr}.hero-rail{padding:0;border-left:0;display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.rail-item{border:0}.notes{grid-template-columns:1fr}.panel-heading{grid-template-columns:1fr;gap:.8rem}}
-@media(max-width:760px){.header-inner{min-height:4.5rem}.brand{width:170px}.header-links a:not(.active){display:none}.hero{padding:1.5rem}.hero-rail{grid-template-columns:1fr}.rail-item{padding:.3rem 0}.architecture-panel{padding:1rem}.section-nav a{flex-basis:45%}.footer-inner{flex-direction:column;gap:.7rem}.diagram-scroll svg{min-width:1050px}}
+main{width:var(--sf-width);margin:auto;padding:1.5rem 0 2rem}.page-heading{margin-bottom:1rem}.page-heading h1{font-size:2rem;margin-bottom:.4rem}.page-heading p,.legend{color:var(--sf-text-soft)}.eyebrow{font-size:.75rem;color:var(--sf-accent-strong);margin:0 0 .4rem}
+.section-nav{display:flex;flex-wrap:wrap;gap:.35rem;margin:1rem 0;padding:.6rem;background:rgba(6,47,40,.06);border-radius:5px}.section-nav a{flex:1;padding:.6rem .65rem;color:var(--sf-text-soft);font-size:.95rem;font-weight:600;text-decoration:none;border-radius:5px;white-space:nowrap}.section-nav a:hover{background:#062f28;color:#ecfdf5}.section-nav span{color:#059669;margin-right:.45rem;font-family:'JetBrains Mono';font-size:.75rem}
+.architecture-panel{margin:0 0 1.5rem;padding:1rem;border:1px solid var(--sf-border);border-radius:5px;background:var(--sf-panel);box-shadow:0 14px 36px rgba(6,47,40,.06)}.panel-heading{display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:end;margin-bottom:1.4rem}.panel-heading h2{margin-bottom:0}.panel-heading>p{color:var(--sf-text-soft);font-size:1.05rem}.diagram-scroll{overflow-x:auto;border-top:1px solid var(--sf-border);padding-top:1rem}.diagram-scroll svg{min-width:1050px}.diagram-scroll:focus-visible{outline:2px solid var(--sf-accent);outline-offset:4px}
+.legend{font-size:.9rem;margin-top:1rem}
+@media(max-width:980px){.panel-heading{grid-template-columns:1fr;gap:.5rem}}
+@media(max-width:760px){.header-inner{min-height:4rem;flex-wrap:wrap;padding:.6rem 0}.brand{width:150px}.header-links{gap:.8rem;font-size:.9rem}.header-links .active{display:none}.architecture-panel{padding:1rem}.section-nav a{flex-basis:45%}.diagram-scroll svg{min-width:1050px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 @media print{.site-header,.section-nav{display:none}.architecture-panel{break-inside:avoid;box-shadow:none}.diagram-scroll svg{min-width:0}main{width:100%;padding:0}}
 </style></head><body>
@@ -59,28 +59,14 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
     </text>
   </g>
 </svg></a><nav class="header-links" aria-label="Site"><a href="https://solverforge.org/docs/">Documentation</a><a href="https://github.com/SolverForge/solverforge">Source</a><a class="active" href="#model">Architecture</a></nav></div></header>
-<main><section class="hero" aria-labelledby="page-title"><div><p class="eyebrow">SolverForge / Architecture</p><h1 id="page-title">The whole system.<br><span>One clear map.</span></h1><p class="lede">From the model you write to the solution you keep. Follow the crates, configuration, and search loop that connect them.</p></div><aside class="hero-rail"><p class="version">WORKSPACE 0.19.8</p><div class="rail-item"><strong>One public facade</strong><small>Nine crates, one application dependency.</small></div><div class="rail-item"><strong>Concrete native runtime</strong><small>Typed moves and incremental scoring.</small></div><div class="rail-item"><strong>Explicit integration boundaries</strong><small>Dynamic bindings stay at declared seams.</small></div></aside></section>
-<nav class="section-nav" aria-label="Diagram sections"><a href="#model"><span>01</span>Your model. Your rules.</a><a href="#crates"><span>02</span>One dependency. Nine crates.</a><a href="#pipeline"><span>03</span>From problem to solution.</a><a href="#runtime"><span>04</span>Inside the search loop.</a><a href="#ecosystem"><span>05</span>A kernel, not a monolith.</a></nav>
+<main><section class="page-heading" aria-labelledby="page-title"><h1 id="page-title">SolverForge architecture</h1><p>Workspace 0.19.8 · Model, crate dependencies, solve pipeline, runtime, and integrations.</p></section>
+<nav class="section-nav" aria-label="Diagram sections"><a href="#model"><span>01</span>Model and configuration</a><a href="#crates"><span>02</span>Crate dependencies</a><a href="#pipeline"><span>03</span>Solve pipeline</a><a href="#runtime"><span>04</span>Runtime</a><a href="#ecosystem"><span>05</span>Examples and integrations</a></nav>
 <section class="architecture-panel" id="model" aria-labelledby="model-title">
-  <div class="panel-heading"><div><p class="eyebrow">01 / model</p><h2 id="model-title">Your model. Your rules.</h2></div><p>Entities, facts, variables, and configuration enter through the public facade.</p></div>
+  <div class="panel-heading"><div><p class="eyebrow">01 / model</p><h2 id="model-title">Model and configuration</h2></div><p>Entities, facts, variables, and configuration enter through the public facade.</p></div>
   <div class="diagram-scroll" tabindex="0" aria-label="model wiring diagram; scroll horizontally on small screens"><svg viewBox="60 142 1480 190" xmlns="http://www.w3.org/2000/svg" role="img"
          aria-label="Entities, facts, variables, and configuration enter through the public facade.">
       <defs>
-<marker id="model-ar-slate" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#48655d"/>
-</marker>
-<marker id="model-ar-emerald" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#059669"/>
-</marker>
-<marker id="model-ar-rose" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#b58b08"/>
-</marker>
-<marker id="model-ar-violet" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#059669"/>
-</marker>
-<marker id="model-ar-amber" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#b58b08"/>
-</marker>
+<marker id="model-arrow" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 8 4 L 0 8 L 2 4 Z" fill="#48655d"/></marker>
 <linearGradient id="model-sf-grad" x1="0%" y1="0%" x2="100%" y2="100%">
 <stop offset="0%" stop-color="#10b981"/>
 <stop offset="50%" stop-color="#059669"/>
@@ -142,131 +128,55 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 <text x="1016" y="210.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverManager::new(problem).solve()</text>
 <text x="1016" y="226.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">snapshots · events · analyze()</text>
 </g>
-<path d="M 280 332 V 290" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-slate)"/>
-<text x="292" y="312" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400">planning_model! expands the model</text>
-<path d="M 750 290 V 332" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-slate)"/>
-<text x="762" y="314" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400">reads SolverConfig</text>
-<path d="M 1100 290 V 332" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-slate)"/>
-<text x="1112" y="306" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400">single dependency</text>
+<path d="M 290 264 V 312 Q 290 320 298 320 H 1432 Q 1440 320 1440 312 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"/><text x="400" y="312" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">generated model</text>
+<path d="M 750 264 V 280 Q 750 288 758 288 H 1092 Q 1100 288 1100 280 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"/><text x="830" y="280" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">SolverConfig</text>
+<g data-panel="crates">
+<path data-from="solverforge" data-to="solverforge-bridge" d="M 281.14 529.60 C 322.62 519.88 372.70 508.15 414.20 498.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge depends on solverforge-bridge</title></path>
+<path data-from="solverforge" data-to="solverforge-config" d="M 222.70 529.57 C 254.73 505.79 314.71 466.80 381.50 451.26 602.30 399.87 884.03 447.90 1019.87 477.53" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge depends on solverforge-config</title></path>
+<path data-from="solverforge" data-to="solverforge-console" d="M 236.10 568.39 C 272.18 586.30 328.67 612.96 381.50 632.13 394.32 636.78 408.36 641.23 422.09 645.26" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)" stroke-dasharray="5 4"><title>solverforge depends on solverforge-console (console feature)</title></path>
+<path data-from="solverforge" data-to="solverforge-core" d="M 215.91 529.66 C 244.29 500.68 304.73 447.17 381.50 426.00 715.17 334.03 1162.61 432.92 1332.44 477.47" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge depends on solverforge-core</title></path>
+<path data-from="solverforge" data-to="solverforge-cvrp" d="M 314.28 557.88 C 336.28 559.56 359.29 561.31 381.28 562.99" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge depends on solverforge-cvrp</title></path>
+<path data-from="solverforge" data-to="solverforge-macros" d="M 215.90 568.47 C 244.93 598.89 307.00 657.84 381.50 692.42 388.85 695.83 396.90 698.89 405.23 701.62" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge depends on solverforge-macros</title></path>
+<path data-from="solverforge" data-to="solverforge-scoring" d="M 252.53 568.42 C 288.05 579.99 336.14 593.55 381.50 599.54 614.75 630.37 683.08 628.14 917.00 599.54 959.78 594.31 1005.38 582.77 1040.39 572.51" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge depends on solverforge-scoring</title></path>
+<path data-from="solverforge" data-to="solverforge-solver" d="M 314.21 542.35 C 398.15 538.81 514.19 536.58 615.50 544.14 639.35 545.91 664.60 548.96 688.50 552.39" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge depends on solverforge-solver</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-config" d="M 615.89 482.43 C 721.93 485.59 877.85 490.25 983.96 493.41" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge-bridge depends on solverforge-config</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-core" d="M 615.97 471.14 C 758.46 462.99 1007.09 453.41 1218.50 469.18 1242.35 470.96 1267.64 474.00 1291.49 477.43" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge-bridge depends on solverforge-core</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-scoring" d="M 615.89 493.30 C 721.93 506.39 877.85 525.64 983.96 538.74" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge-bridge depends on solverforge-scoring</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-solver" d="M 573.42 498.38 C 587.56 502.48 602.13 506.96 615.50 511.55 646.87 522.32 651.63 528.48 683.00 539.25 696.37 543.84 710.94 548.32 725.08 552.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge-bridge depends on solverforge-solver</title></path>
+<path data-from="solverforge-config" data-to="solverforge-core" d="M 1218.77 496.89 C 1240.82 496.89 1263.77 496.89 1285.82 496.89" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge-config depends on solverforge-core</title></path>
+<path data-from="solverforge-cvrp" data-to="solverforge-solver" d="M 615.78 571.84 C 637.77 571.84 660.79 571.84 682.78 571.84" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge-cvrp depends on solverforge-solver</title></path>
+<path data-from="solverforge-scoring" data-to="solverforge-core" d="M 1206.08 533.67 C 1235.96 528.06 1268.54 521.93 1298.42 516.31" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge-scoring depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-config" d="M 877.42 552.41 C 910.32 544.06 949.28 534.20 984.50 525.40 996.38 522.44 1008.89 519.34 1021.13 516.30" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge-solver depends on solverforge-config</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-core" d="M 917.41 587.62 C 1002.68 596.05 1120.40 601.03 1218.50 580.80 1280.06 568.12 1338.83 536.60 1372.58 516.00" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge-solver depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-scoring" d="M 917.28 564.57 C 939.27 563.19 962.29 561.75 984.32 560.37" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"><title>solverforge-solver depends on solverforge-scoring</title></path>
+<rect data-node="solverforge" x="80.00" y="529.96" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-
-<g>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="#ffffff"/>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-bridge" x="381.50" y="459.89" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-config" x="984.50" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-</g>
-<g>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="#ffffff"/>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.72" stroke-width="1.8"/>
+<rect data-node="solverforge-console" x="381.50" y="645.66" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-core" x="1286.00" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-</g>
-<path d="M 570 436 H 530" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
-<path d="M 1010 490 V 500" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
+<rect data-node="solverforge-cvrp" x="381.50" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-
-<g>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-macros" x="381.50" y="701.87" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-scoring" x="984.50" y="534.04" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-</g>
-<g>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-
-</g>
-<g>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="#ffffff"/>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-
-
-
+<rect data-node="solverforge-solver" x="683.00" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
 </g>
-<g>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-
-</g>
-<g>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<g>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<g>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="rgba(234,179,8,0.07)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<path d="M 370 601 H 330" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-violet)"/>
-<path d="M 650 601 H 610" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-emerald)"/>
-<path d="M 650 704 H 610" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-emerald)"/>
-<path d="M 930 601 H 890" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-emerald)"/>
-
-<path d="M 930 704 H 890" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-rose)"/>
-
-<path d="M 770 548 V 524 H 210 V 548" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-violet)"/>
-
-
-
-
-
-
-<path d="M 1234 608.0 V 615.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#model-ar-violet)"/>
-
-
-<path d="M 1234 623.5 V 631.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#model-ar-violet)"/>
-
-
-<path d="M 1234 639.0 V 646.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#model-ar-violet)"/>
-
-
-<path d="M 1234 654.5 V 662.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#model-ar-violet)"/>
-
-
-<path d="M 1234 670.0 V 677.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#model-ar-violet)"/>
-
-
-<path d="M 1234 685.5 V 693.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#model-ar-violet)"/>
-
-
-<path d="M 1234 701.0 V 708.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#model-ar-violet)"/>
-
-
-<path d="M 1234 716.5 V 724.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#model-ar-violet)"/>
-
-
 
 
 
@@ -302,12 +212,9 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 420 865 H 460" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-emerald)"/>
-<path d="M 800 865 H 840" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-emerald)"/>
-<path d="M 1180 865 H 1220" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-emerald)"/>
-<path d="M 1370 916 V 970" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
-
-
+<path d="M 420 865 H 460" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#model-arrow)"/>
+<path d="M 800 865 H 840" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#model-arrow)"/>
+<path d="M 1180 865 H 1220" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#model-arrow)"/>
 
 
 
@@ -324,8 +231,8 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 </g>
 <g>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="#ffffff"/>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="#ffffff"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
@@ -342,24 +249,26 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 740 1069 H 800" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-slate)"/>
-<path d="M 1140 1069 H 1160" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-slate)"/>
-<path d="M 970 980 V 958 H 410" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#model-ar-rose)"/>
-<path d="M 410 958 V 969" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#model-ar-rose)"/>
+<path d="M 1100 1100 H 1160" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"/>
 
-<path d="M 970 1158 V 1168 H 410 V 1158" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4"/>
-<path d="M 410 1168 V 1184" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#model-ar-rose)"/>
+<path d="M 1160 1130 H 1100" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"/>
+
+<path d="M 410 1158 V 1204" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"/>
+
+<path d="M 970 1158 V 1180 Q 970 1188 962 1188 H 778 Q 770 1188 770 1196 V 1222 Q 770 1230 762 1230 H 740" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"/>
+
+<path d="M 740 1252 H 772 Q 780 1252 780 1244 V 974 Q 780 966 788 966 H 962 Q 970 966 970 974 V 980" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)" stroke-dasharray="5 4"/>
 
 <g>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="#ffffff"/>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="rgba(234,179,8,0.10)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="#ffffff"/>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="rgba(234,179,8,0.10)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
 </g>
 <g>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="#ffffff"/>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="#ffffff"/>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
@@ -395,8 +304,8 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 540 1430 H 580" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-amber)"/>
-<path d="M 1040 1430 H 1080" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-amber)"/>
+
+
 
 
 <rect x="120" y="1568" width="15" height="13" rx="3" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.5"/>
@@ -411,34 +320,20 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 <rect x="1170" y="1568" width="15" height="13" rx="3" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.5"/>
 
-<path d="M 1372 1574 H 1414" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#model-ar-emerald)"/>
+<path d="M 1372 1574 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#model-arrow)"/>
 
-<path d="M 1372 1604 H 1414" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#model-ar-rose)"/>
+<path d="M 1372 1604 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#model-arrow)"/>
 
 
     </svg>
 </div>
 </section>
 <section class="architecture-panel" id="crates" aria-labelledby="crates-title">
-  <div class="panel-heading"><div><p class="eyebrow">02 / Crate graph</p><h2 id="crates-title">One dependency. Nine crates.</h2></div><p>The facade brings the runtime together. Arrows point toward dependencies; the publish rail shows release order.</p></div>
+  <div class="panel-heading"><div><p class="eyebrow">02 / Crate graph</p><h2 id="crates-title">Crate dependencies</h2></div><p>Every direct workspace dependency is shown, pointing to the dependency. The dashed facade-to-console edge is feature-gated.</p></div>
   <div class="diagram-scroll" tabindex="0" aria-label="crates wiring diagram; scroll horizontally on small screens"><svg viewBox="60 378 1480 372" xmlns="http://www.w3.org/2000/svg" role="img"
-         aria-label="The facade brings the runtime together. Arrows point toward dependencies; the publish rail shows release order.">
+         aria-label="Every direct workspace dependency is shown, pointing to the dependency. The dashed facade-to-console edge is feature-gated.">
       <defs>
-<marker id="crates-ar-slate" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#48655d"/>
-</marker>
-<marker id="crates-ar-emerald" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#059669"/>
-</marker>
-<marker id="crates-ar-rose" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#b58b08"/>
-</marker>
-<marker id="crates-ar-violet" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#059669"/>
-</marker>
-<marker id="crates-ar-amber" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#b58b08"/>
-</marker>
+<marker id="crates-arrow" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 8 4 L 0 8 L 2 4 Z" fill="#48655d"/></marker>
 <linearGradient id="crates-sf-grad" x1="0%" y1="0%" x2="100%" y2="100%">
 <stop offset="0%" stop-color="#10b981"/>
 <stop offset="50%" stop-color="#059669"/>
@@ -500,131 +395,55 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 280 332 V 290" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-slate)"/>
-
-<path d="M 750 290 V 332" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-slate)"/>
-
-<path d="M 1100 290 V 332" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-slate)"/>
-
-
-
-
-<g>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="#ffffff"/>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="106" y="407" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-macros</text>
-<text x="106" y="429" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">planning_model! · #[planning_*] attributes</text>
-<text x="106" y="444.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">#[solverforge_constraints] — grouped node sharing</text>
-<text x="106" y="460.20000000000005" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">proc-macro only — no runtime deps · emits ::solverforge::__internal::*</text>
+<path d="M 290 264 V 312 Q 290 320 298 320 H 1432 Q 1440 320 1440 312 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"/>
+<path d="M 750 264 V 280 Q 750 288 758 288 H 1092 Q 1100 288 1100 280 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"/>
+<g data-panel="crates">
+<path data-from="solverforge" data-to="solverforge-bridge" d="M 281.14 529.60 C 322.62 519.88 372.70 508.15 414.20 498.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge depends on solverforge-bridge</title></path>
+<path data-from="solverforge" data-to="solverforge-config" d="M 222.70 529.57 C 254.73 505.79 314.71 466.80 381.50 451.26 602.30 399.87 884.03 447.90 1019.87 477.53" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge depends on solverforge-config</title></path>
+<path data-from="solverforge" data-to="solverforge-console" d="M 236.10 568.39 C 272.18 586.30 328.67 612.96 381.50 632.13 394.32 636.78 408.36 641.23 422.09 645.26" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)" stroke-dasharray="5 4"><title>solverforge depends on solverforge-console (console feature)</title></path>
+<path data-from="solverforge" data-to="solverforge-core" d="M 215.91 529.66 C 244.29 500.68 304.73 447.17 381.50 426.00 715.17 334.03 1162.61 432.92 1332.44 477.47" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge depends on solverforge-core</title></path>
+<path data-from="solverforge" data-to="solverforge-cvrp" d="M 314.28 557.88 C 336.28 559.56 359.29 561.31 381.28 562.99" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge depends on solverforge-cvrp</title></path>
+<path data-from="solverforge" data-to="solverforge-macros" d="M 215.90 568.47 C 244.93 598.89 307.00 657.84 381.50 692.42 388.85 695.83 396.90 698.89 405.23 701.62" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge depends on solverforge-macros</title></path>
+<path data-from="solverforge" data-to="solverforge-scoring" d="M 252.53 568.42 C 288.05 579.99 336.14 593.55 381.50 599.54 614.75 630.37 683.08 628.14 917.00 599.54 959.78 594.31 1005.38 582.77 1040.39 572.51" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge depends on solverforge-scoring</title></path>
+<path data-from="solverforge" data-to="solverforge-solver" d="M 314.21 542.35 C 398.15 538.81 514.19 536.58 615.50 544.14 639.35 545.91 664.60 548.96 688.50 552.39" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge depends on solverforge-solver</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-config" d="M 615.89 482.43 C 721.93 485.59 877.85 490.25 983.96 493.41" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge-bridge depends on solverforge-config</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-core" d="M 615.97 471.14 C 758.46 462.99 1007.09 453.41 1218.50 469.18 1242.35 470.96 1267.64 474.00 1291.49 477.43" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge-bridge depends on solverforge-core</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-scoring" d="M 615.89 493.30 C 721.93 506.39 877.85 525.64 983.96 538.74" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge-bridge depends on solverforge-scoring</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-solver" d="M 573.42 498.38 C 587.56 502.48 602.13 506.96 615.50 511.55 646.87 522.32 651.63 528.48 683.00 539.25 696.37 543.84 710.94 548.32 725.08 552.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge-bridge depends on solverforge-solver</title></path>
+<path data-from="solverforge-config" data-to="solverforge-core" d="M 1218.77 496.89 C 1240.82 496.89 1263.77 496.89 1285.82 496.89" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge-config depends on solverforge-core</title></path>
+<path data-from="solverforge-cvrp" data-to="solverforge-solver" d="M 615.78 571.84 C 637.77 571.84 660.79 571.84 682.78 571.84" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge-cvrp depends on solverforge-solver</title></path>
+<path data-from="solverforge-scoring" data-to="solverforge-core" d="M 1206.08 533.67 C 1235.96 528.06 1268.54 521.93 1298.42 516.31" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge-scoring depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-config" d="M 877.42 552.41 C 910.32 544.06 949.28 534.20 984.50 525.40 996.38 522.44 1008.89 519.34 1021.13 516.30" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge-solver depends on solverforge-config</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-core" d="M 917.41 587.62 C 1002.68 596.05 1120.40 601.03 1218.50 580.80 1280.06 568.12 1338.83 536.60 1372.58 516.00" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge-solver depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-scoring" d="M 917.28 564.57 C 939.27 563.19 962.29 561.75 984.32 560.37" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"><title>solverforge-solver depends on solverforge-scoring</title></path>
+<rect data-node="solverforge" x="80.00" y="529.96" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="197.00" y="546.02" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge</text>
+<text x="197.00" y="563.02" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">public facade</text>
+<rect data-node="solverforge-bridge" x="381.50" y="459.89" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="498.50" y="475.96" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-bridge</text>
+<text x="498.50" y="492.96" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">host-language contracts</text>
+<rect data-node="solverforge-config" x="984.50" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="1101.50" y="493.89" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-config</text>
+<text x="1101.50" y="510.89" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">TOML / YAML configuration</text>
+<rect data-node="solverforge-console" x="381.50" y="645.66" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="498.50" y="661.72" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-console</text>
+<text x="498.50" y="678.72" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">optional tracing output</text>
+<rect data-node="solverforge-core" x="1286.00" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="1403.00" y="493.89" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-core</text>
+<text x="1403.00" y="510.89" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">scores · domain contracts</text>
+<rect data-node="solverforge-cvrp" x="381.50" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="498.50" y="568.84" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-cvrp</text>
+<text x="498.50" y="585.84" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">route hooks · distance meters</text>
+<rect data-node="solverforge-macros" x="381.50" y="701.87" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="498.50" y="717.94" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-macros</text>
+<text x="498.50" y="734.94" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">compile-time model generation</text>
+<rect data-node="solverforge-scoring" x="984.50" y="534.04" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="1101.50" y="550.10" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-scoring</text>
+<text x="1101.50" y="567.10" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">streams · incremental scoring</text>
+<rect data-node="solverforge-solver" x="683.00" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="800.00" y="568.84" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-solver</text>
+<text x="800.00" y="585.84" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">phases · moves · runtime</text>
 </g>
-<g>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="#ffffff"/>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.72" stroke-width="1.8"/>
-<text x="586" y="407" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge — the facade</text>
-<text x="586" y="429" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">prelude · stream · planning · cvrp · __internal (doc-hidden) · console via feature</text>
-<text x="586" y="444.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">re-exports macros + core + scoring + config + solver + bridge + cvrp</text>
-<text x="586" y="460.20000000000005" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">apps &amp; examples depend on this crate only · v0.19.8</text>
-</g>
-<path d="M 570 436 H 530" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
-<path d="M 1010 490 V 500" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
-<text x="1022" y="505" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400">re-exports all sub-crates</text>
-
-<text x="76" y="536" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400" font-style="italic">sub-crates — 7 of 9 published; arrow points at the dependency</text>
-<g>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="106" y="573" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-core</text>
-<text x="106" y="595" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">score types · domain traits</text>
-<text x="106" y="610.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">descriptors · logical IDs</text>
-<text x="106" y="626.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">dynamic slot contracts</text>
-</g>
-<g>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="386" y="573" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-scoring</text>
-<text x="386" y="595" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">ConstraintFactory streams</text>
-<text x="386" y="610.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SERIO incremental state</text>
-<text x="386" y="626.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">Director · ScoreDirector</text>
-</g>
-<g>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="#ffffff"/>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="666" y="573" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-solver</text>
-<text x="666" y="595" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">runtime compiler — frozen graph</text>
-<text x="666" y="610.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">phases · moves · selectors</text>
-<text x="666" y="626.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">acceptors · foragers</text>
-<text x="666" y="641.8000000000001" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">termination · completion gate</text>
-<text x="666" y="657.4000000000001" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverManager · realtime</text>
-<text x="666" y="673.0000000000001" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">telemetry · candidate traces</text>
-<text x="666" y="688.6000000000001" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">element-key validation</text>
-</g>
-<g>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="946" y="573" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-cvrp</text>
-<text x="946" y="595" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">VrpSolution · ProblemData</text>
-<text x="946" y="610.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">distance meters</text>
-<text x="946" y="626.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">route &amp; savings hooks</text>
-</g>
-<g>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="106" y="689" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-console</text>
-<text x="106" y="711" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">tracing layer · banner</text>
-<text x="106" y="726.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">phase &amp; progress output</text>
-</g>
-<g>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="386" y="689" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-config</text>
-<text x="386" y="711" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverConfig · TOML / YAML</text>
-<text x="386" y="726.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">phases · selectors · termination</text>
-</g>
-<g>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="rgba(234,179,8,0.07)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="946" y="689" fill="#715709" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-bridge</text>
-<text x="946" y="711" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">dynamic slots · DynamicScore</text>
-<text x="946" y="726.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">host runner contract</text>
-</g>
-<path d="M 370 601 H 330" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-violet)"/>
-<path d="M 650 601 H 610" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-emerald)"/>
-<path d="M 650 704 H 610" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-emerald)"/>
-<path d="M 930 601 H 890" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-emerald)"/>
-<text x="910" y="597" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="middle" font-weight="400">meters</text>
-<path d="M 930 704 H 890" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-rose)"/>
-<text x="910" y="700" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="middle" font-weight="400">drives</text>
-<path d="M 770 548 V 524 H 210 V 548" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-violet)"/>
-<text x="490" y="532" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="middle" font-weight="400">descriptors</text>
-
-<text x="1226" y="572" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="700" letter-spacing="1.2">PUBLISH ORDER — CRATES.IO</text>
-<text x="1226" y="588" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="7.8" text-anchor="start" font-weight="400">staggered: core first, facade last</text>
-<text x="1248" y="604.0" fill="#059669" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">01</text>
-<text x="1272" y="604.0" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">core</text>
-<path d="M 1234 608.0 V 615.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#crates-ar-violet)"/>
-<text x="1248" y="619.5" fill="#059669" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">02</text>
-<text x="1272" y="619.5" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">macros</text>
-<path d="M 1234 623.5 V 631.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#crates-ar-violet)"/>
-<text x="1248" y="635.0" fill="#059669" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">03</text>
-<text x="1272" y="635.0" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">scoring</text>
-<path d="M 1234 639.0 V 646.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#crates-ar-violet)"/>
-<text x="1248" y="650.5" fill="#059669" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">04</text>
-<text x="1272" y="650.5" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">config</text>
-<path d="M 1234 654.5 V 662.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#crates-ar-violet)"/>
-<text x="1248" y="666.0" fill="#059669" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">05</text>
-<text x="1272" y="666.0" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">solver</text>
-<path d="M 1234 670.0 V 677.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#crates-ar-violet)"/>
-<text x="1248" y="681.5" fill="#059669" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">06</text>
-<text x="1272" y="681.5" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">bridge</text>
-<path d="M 1234 685.5 V 693.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#crates-ar-violet)"/>
-<text x="1248" y="697.0" fill="#059669" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">07</text>
-<text x="1272" y="697.0" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">cvrp</text>
-<path d="M 1234 701.0 V 708.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#crates-ar-violet)"/>
-<text x="1248" y="712.5" fill="#059669" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">08</text>
-<text x="1272" y="712.5" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">console</text>
-<path d="M 1234 716.5 V 724.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#crates-ar-violet)"/>
-<text x="1248" y="728.0" fill="#059669" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">09</text>
-<text x="1272" y="728.0" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">facade</text>
 
 
 
@@ -660,12 +479,9 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 420 865 H 460" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-emerald)"/>
-<path d="M 800 865 H 840" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-emerald)"/>
-<path d="M 1180 865 H 1220" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-emerald)"/>
-<path d="M 1370 916 V 970" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
-
-
+<path d="M 420 865 H 460" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#crates-arrow)"/>
+<path d="M 800 865 H 840" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#crates-arrow)"/>
+<path d="M 1180 865 H 1220" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#crates-arrow)"/>
 
 
 
@@ -682,8 +498,8 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 </g>
 <g>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="#ffffff"/>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="#ffffff"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
@@ -700,24 +516,26 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 740 1069 H 800" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-slate)"/>
-<path d="M 1140 1069 H 1160" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-slate)"/>
-<path d="M 970 980 V 958 H 410" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#crates-ar-rose)"/>
-<path d="M 410 958 V 969" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#crates-ar-rose)"/>
+<path d="M 1100 1100 H 1160" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"/>
 
-<path d="M 970 1158 V 1168 H 410 V 1158" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4"/>
-<path d="M 410 1168 V 1184" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#crates-ar-rose)"/>
+<path d="M 1160 1130 H 1100" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"/>
+
+<path d="M 410 1158 V 1204" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"/>
+
+<path d="M 970 1158 V 1180 Q 970 1188 962 1188 H 778 Q 770 1188 770 1196 V 1222 Q 770 1230 762 1230 H 740" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)"/>
+
+<path d="M 740 1252 H 772 Q 780 1252 780 1244 V 974 Q 780 966 788 966 H 962 Q 970 966 970 974 V 980" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#crates-arrow)" stroke-dasharray="5 4"/>
 
 <g>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="#ffffff"/>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="rgba(234,179,8,0.10)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="#ffffff"/>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="rgba(234,179,8,0.10)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
 </g>
 <g>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="#ffffff"/>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="#ffffff"/>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
@@ -753,8 +571,8 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 540 1430 H 580" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-amber)"/>
-<path d="M 1040 1430 H 1080" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-amber)"/>
+
+
 
 
 <rect x="120" y="1568" width="15" height="13" rx="3" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.5"/>
@@ -769,34 +587,20 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 <rect x="1170" y="1568" width="15" height="13" rx="3" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.5"/>
 
-<path d="M 1372 1574 H 1414" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#crates-ar-emerald)"/>
+<path d="M 1372 1574 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#crates-arrow)"/>
 
-<path d="M 1372 1604 H 1414" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#crates-ar-rose)"/>
+<path d="M 1372 1604 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#crates-arrow)"/>
 
 
     </svg>
 </div>
 </section>
 <section class="architecture-panel" id="pipeline" aria-labelledby="pipeline-title">
-  <div class="panel-heading"><div><p class="eyebrow">03 / pipeline</p><h2 id="pipeline-title">From problem to solution.</h2></div><p>Build the runtime, complete required assignments, search, and retain the result. Configured limits remain binding during construction.</p></div>
+  <div class="panel-heading"><div><p class="eyebrow">03 / pipeline</p><h2 id="pipeline-title">Solve pipeline</h2></div><p>Build the runtime, complete required assignments, search, and retain the result. Configured limits remain binding during construction.</p></div>
   <div class="diagram-scroll" tabindex="0" aria-label="pipeline wiring diagram; scroll horizontally on small screens"><svg viewBox="60 810 1480 135" xmlns="http://www.w3.org/2000/svg" role="img"
          aria-label="Build the runtime, complete required assignments, search, and retain the result. Configured limits remain binding during construction.">
       <defs>
-<marker id="pipeline-ar-slate" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#48655d"/>
-</marker>
-<marker id="pipeline-ar-emerald" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#059669"/>
-</marker>
-<marker id="pipeline-ar-rose" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#b58b08"/>
-</marker>
-<marker id="pipeline-ar-violet" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#059669"/>
-</marker>
-<marker id="pipeline-ar-amber" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#b58b08"/>
-</marker>
+<marker id="pipeline-arrow" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 8 4 L 0 8 L 2 4 Z" fill="#48655d"/></marker>
 <linearGradient id="pipeline-sf-grad" x1="0%" y1="0%" x2="100%" y2="100%">
 <stop offset="0%" stop-color="#10b981"/>
 <stop offset="50%" stop-color="#059669"/>
@@ -858,131 +662,55 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 280 332 V 290" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-slate)"/>
-
-<path d="M 750 290 V 332" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-slate)"/>
-
-<path d="M 1100 290 V 332" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-slate)"/>
-
-
-
-
-<g>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="#ffffff"/>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-
-</g>
-<g>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="#ffffff"/>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.72" stroke-width="1.8"/>
-
-
-
-
-</g>
-<path d="M 570 436 H 530" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
-<path d="M 1010 490 V 500" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 290 264 V 312 Q 290 320 298 320 H 1432 Q 1440 320 1440 312 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"/>
+<path d="M 750 264 V 280 Q 750 288 758 288 H 1092 Q 1100 288 1100 280 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"/>
+<g data-panel="crates">
+<path data-from="solverforge" data-to="solverforge-bridge" d="M 281.14 529.60 C 322.62 519.88 372.70 508.15 414.20 498.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge depends on solverforge-bridge</title></path>
+<path data-from="solverforge" data-to="solverforge-config" d="M 222.70 529.57 C 254.73 505.79 314.71 466.80 381.50 451.26 602.30 399.87 884.03 447.90 1019.87 477.53" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge depends on solverforge-config</title></path>
+<path data-from="solverforge" data-to="solverforge-console" d="M 236.10 568.39 C 272.18 586.30 328.67 612.96 381.50 632.13 394.32 636.78 408.36 641.23 422.09 645.26" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)" stroke-dasharray="5 4"><title>solverforge depends on solverforge-console (console feature)</title></path>
+<path data-from="solverforge" data-to="solverforge-core" d="M 215.91 529.66 C 244.29 500.68 304.73 447.17 381.50 426.00 715.17 334.03 1162.61 432.92 1332.44 477.47" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge depends on solverforge-core</title></path>
+<path data-from="solverforge" data-to="solverforge-cvrp" d="M 314.28 557.88 C 336.28 559.56 359.29 561.31 381.28 562.99" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge depends on solverforge-cvrp</title></path>
+<path data-from="solverforge" data-to="solverforge-macros" d="M 215.90 568.47 C 244.93 598.89 307.00 657.84 381.50 692.42 388.85 695.83 396.90 698.89 405.23 701.62" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge depends on solverforge-macros</title></path>
+<path data-from="solverforge" data-to="solverforge-scoring" d="M 252.53 568.42 C 288.05 579.99 336.14 593.55 381.50 599.54 614.75 630.37 683.08 628.14 917.00 599.54 959.78 594.31 1005.38 582.77 1040.39 572.51" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge depends on solverforge-scoring</title></path>
+<path data-from="solverforge" data-to="solverforge-solver" d="M 314.21 542.35 C 398.15 538.81 514.19 536.58 615.50 544.14 639.35 545.91 664.60 548.96 688.50 552.39" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge depends on solverforge-solver</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-config" d="M 615.89 482.43 C 721.93 485.59 877.85 490.25 983.96 493.41" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge-bridge depends on solverforge-config</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-core" d="M 615.97 471.14 C 758.46 462.99 1007.09 453.41 1218.50 469.18 1242.35 470.96 1267.64 474.00 1291.49 477.43" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge-bridge depends on solverforge-core</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-scoring" d="M 615.89 493.30 C 721.93 506.39 877.85 525.64 983.96 538.74" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge-bridge depends on solverforge-scoring</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-solver" d="M 573.42 498.38 C 587.56 502.48 602.13 506.96 615.50 511.55 646.87 522.32 651.63 528.48 683.00 539.25 696.37 543.84 710.94 548.32 725.08 552.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge-bridge depends on solverforge-solver</title></path>
+<path data-from="solverforge-config" data-to="solverforge-core" d="M 1218.77 496.89 C 1240.82 496.89 1263.77 496.89 1285.82 496.89" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge-config depends on solverforge-core</title></path>
+<path data-from="solverforge-cvrp" data-to="solverforge-solver" d="M 615.78 571.84 C 637.77 571.84 660.79 571.84 682.78 571.84" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge-cvrp depends on solverforge-solver</title></path>
+<path data-from="solverforge-scoring" data-to="solverforge-core" d="M 1206.08 533.67 C 1235.96 528.06 1268.54 521.93 1298.42 516.31" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge-scoring depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-config" d="M 877.42 552.41 C 910.32 544.06 949.28 534.20 984.50 525.40 996.38 522.44 1008.89 519.34 1021.13 516.30" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge-solver depends on solverforge-config</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-core" d="M 917.41 587.62 C 1002.68 596.05 1120.40 601.03 1218.50 580.80 1280.06 568.12 1338.83 536.60 1372.58 516.00" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge-solver depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-scoring" d="M 917.28 564.57 C 939.27 563.19 962.29 561.75 984.32 560.37" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"><title>solverforge-solver depends on solverforge-scoring</title></path>
+<rect data-node="solverforge" x="80.00" y="529.96" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-
-<g>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-bridge" x="381.50" y="459.89" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-config" x="984.50" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-</g>
-<g>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-console" x="381.50" y="645.66" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-core" x="1286.00" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-</g>
-<g>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="#ffffff"/>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-cvrp" x="381.50" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-macros" x="381.50" y="701.87" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-scoring" x="984.50" y="534.04" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-solver" x="683.00" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
 </g>
-<g>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-
-</g>
-<g>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<g>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<g>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="rgba(234,179,8,0.07)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<path d="M 370 601 H 330" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-violet)"/>
-<path d="M 650 601 H 610" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-emerald)"/>
-<path d="M 650 704 H 610" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-emerald)"/>
-<path d="M 930 601 H 890" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-emerald)"/>
-
-<path d="M 930 704 H 890" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-rose)"/>
-
-<path d="M 770 548 V 524 H 210 V 548" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-violet)"/>
-
-
-
-
-
-
-<path d="M 1234 608.0 V 615.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#pipeline-ar-violet)"/>
-
-
-<path d="M 1234 623.5 V 631.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#pipeline-ar-violet)"/>
-
-
-<path d="M 1234 639.0 V 646.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#pipeline-ar-violet)"/>
-
-
-<path d="M 1234 654.5 V 662.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#pipeline-ar-violet)"/>
-
-
-<path d="M 1234 670.0 V 677.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#pipeline-ar-violet)"/>
-
-
-<path d="M 1234 685.5 V 693.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#pipeline-ar-violet)"/>
-
-
-<path d="M 1234 701.0 V 708.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#pipeline-ar-violet)"/>
-
-
-<path d="M 1234 716.5 V 724.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#pipeline-ar-violet)"/>
-
-
 
 
 
@@ -1018,12 +746,9 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 <text x="1236" y="876.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">best solution published</text>
 <text x="1236" y="892.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverStatus · snapshot · telemetry</text>
 </g>
-<path d="M 420 865 H 460" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-emerald)"/>
-<path d="M 800 865 H 840" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-emerald)"/>
-<path d="M 1180 865 H 1220" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-emerald)"/>
-<path d="M 1370 916 V 970" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
-<text x="1382" y="926" fill="#047857" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8.6" text-anchor="start" font-weight="400">retained job lifecycle</text>
-<text x="1382" y="941" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400">Solving · Paused · Completed · Cancelled · Failed</text>
+<path d="M 420 865 H 460" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#pipeline-arrow)"/>
+<path d="M 800 865 H 840" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#pipeline-arrow)"/>
+<path d="M 1180 865 H 1220" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#pipeline-arrow)"/>
 
 
 
@@ -1040,8 +765,8 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 </g>
 <g>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="#ffffff"/>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="#ffffff"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
@@ -1058,24 +783,26 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 740 1069 H 800" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-slate)"/>
-<path d="M 1140 1069 H 1160" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-slate)"/>
-<path d="M 970 980 V 958 H 410" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#pipeline-ar-rose)"/>
-<path d="M 410 958 V 969" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#pipeline-ar-rose)"/>
+<path d="M 1100 1100 H 1160" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"/>
 
-<path d="M 970 1158 V 1168 H 410 V 1158" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4"/>
-<path d="M 410 1168 V 1184" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#pipeline-ar-rose)"/>
+<path d="M 1160 1130 H 1100" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"/>
+
+<path d="M 410 1158 V 1204" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"/>
+
+<path d="M 970 1158 V 1180 Q 970 1188 962 1188 H 778 Q 770 1188 770 1196 V 1222 Q 770 1230 762 1230 H 740" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)"/>
+
+<path d="M 740 1252 H 772 Q 780 1252 780 1244 V 974 Q 780 966 788 966 H 962 Q 970 966 970 974 V 980" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#pipeline-arrow)" stroke-dasharray="5 4"/>
 
 <g>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="#ffffff"/>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="rgba(234,179,8,0.10)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="#ffffff"/>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="rgba(234,179,8,0.10)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
 </g>
 <g>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="#ffffff"/>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="#ffffff"/>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
@@ -1111,8 +838,8 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 540 1430 H 580" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-amber)"/>
-<path d="M 1040 1430 H 1080" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-amber)"/>
+
+
 
 
 <rect x="120" y="1568" width="15" height="13" rx="3" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.5"/>
@@ -1127,34 +854,20 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 <rect x="1170" y="1568" width="15" height="13" rx="3" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.5"/>
 
-<path d="M 1372 1574 H 1414" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#pipeline-ar-emerald)"/>
+<path d="M 1372 1574 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#pipeline-arrow)"/>
 
-<path d="M 1372 1604 H 1414" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#pipeline-ar-rose)"/>
+<path d="M 1372 1604 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#pipeline-arrow)"/>
 
 
     </svg>
 </div>
 </section>
 <section class="architecture-panel" id="runtime" aria-labelledby="runtime-title">
-  <div class="panel-heading"><div><p class="eyebrow">04 / runtime</p><h2 id="runtime-title">Inside the search loop.</h2></div><p>Selectors own candidates. Scoring retains incremental state. Only the selected move transfers by ownership.</p></div>
+  <div class="panel-heading"><div><p class="eyebrow">04 / runtime</p><h2 id="runtime-title">Runtime</h2></div><p>Selectors own candidates. Scoring retains incremental state. Only the selected move transfers by ownership.</p></div>
   <div class="diagram-scroll" tabindex="0" aria-label="runtime wiring diagram; scroll horizontally on small screens"><svg viewBox="60 952 1480 335" xmlns="http://www.w3.org/2000/svg" role="img"
          aria-label="Selectors own candidates. Scoring retains incremental state. Only the selected move transfers by ownership.">
       <defs>
-<marker id="runtime-ar-slate" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#48655d"/>
-</marker>
-<marker id="runtime-ar-emerald" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#059669"/>
-</marker>
-<marker id="runtime-ar-rose" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#b58b08"/>
-</marker>
-<marker id="runtime-ar-violet" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#059669"/>
-</marker>
-<marker id="runtime-ar-amber" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#b58b08"/>
-</marker>
+<marker id="runtime-arrow" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 8 4 L 0 8 L 2 4 Z" fill="#48655d"/></marker>
 <linearGradient id="runtime-sf-grad" x1="0%" y1="0%" x2="100%" y2="100%">
 <stop offset="0%" stop-color="#10b981"/>
 <stop offset="50%" stop-color="#059669"/>
@@ -1216,131 +929,55 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 280 332 V 290" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-slate)"/>
-
-<path d="M 750 290 V 332" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-slate)"/>
-
-<path d="M 1100 290 V 332" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-slate)"/>
-
-
-
-
-<g>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="#ffffff"/>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-
-</g>
-<g>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="#ffffff"/>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.72" stroke-width="1.8"/>
-
-
-
-
-</g>
-<path d="M 570 436 H 530" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
-<path d="M 1010 490 V 500" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 290 264 V 312 Q 290 320 298 320 H 1432 Q 1440 320 1440 312 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"/>
+<path d="M 750 264 V 280 Q 750 288 758 288 H 1092 Q 1100 288 1100 280 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"/>
+<g data-panel="crates">
+<path data-from="solverforge" data-to="solverforge-bridge" d="M 281.14 529.60 C 322.62 519.88 372.70 508.15 414.20 498.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge depends on solverforge-bridge</title></path>
+<path data-from="solverforge" data-to="solverforge-config" d="M 222.70 529.57 C 254.73 505.79 314.71 466.80 381.50 451.26 602.30 399.87 884.03 447.90 1019.87 477.53" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge depends on solverforge-config</title></path>
+<path data-from="solverforge" data-to="solverforge-console" d="M 236.10 568.39 C 272.18 586.30 328.67 612.96 381.50 632.13 394.32 636.78 408.36 641.23 422.09 645.26" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)" stroke-dasharray="5 4"><title>solverforge depends on solverforge-console (console feature)</title></path>
+<path data-from="solverforge" data-to="solverforge-core" d="M 215.91 529.66 C 244.29 500.68 304.73 447.17 381.50 426.00 715.17 334.03 1162.61 432.92 1332.44 477.47" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge depends on solverforge-core</title></path>
+<path data-from="solverforge" data-to="solverforge-cvrp" d="M 314.28 557.88 C 336.28 559.56 359.29 561.31 381.28 562.99" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge depends on solverforge-cvrp</title></path>
+<path data-from="solverforge" data-to="solverforge-macros" d="M 215.90 568.47 C 244.93 598.89 307.00 657.84 381.50 692.42 388.85 695.83 396.90 698.89 405.23 701.62" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge depends on solverforge-macros</title></path>
+<path data-from="solverforge" data-to="solverforge-scoring" d="M 252.53 568.42 C 288.05 579.99 336.14 593.55 381.50 599.54 614.75 630.37 683.08 628.14 917.00 599.54 959.78 594.31 1005.38 582.77 1040.39 572.51" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge depends on solverforge-scoring</title></path>
+<path data-from="solverforge" data-to="solverforge-solver" d="M 314.21 542.35 C 398.15 538.81 514.19 536.58 615.50 544.14 639.35 545.91 664.60 548.96 688.50 552.39" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge depends on solverforge-solver</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-config" d="M 615.89 482.43 C 721.93 485.59 877.85 490.25 983.96 493.41" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge-bridge depends on solverforge-config</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-core" d="M 615.97 471.14 C 758.46 462.99 1007.09 453.41 1218.50 469.18 1242.35 470.96 1267.64 474.00 1291.49 477.43" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge-bridge depends on solverforge-core</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-scoring" d="M 615.89 493.30 C 721.93 506.39 877.85 525.64 983.96 538.74" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge-bridge depends on solverforge-scoring</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-solver" d="M 573.42 498.38 C 587.56 502.48 602.13 506.96 615.50 511.55 646.87 522.32 651.63 528.48 683.00 539.25 696.37 543.84 710.94 548.32 725.08 552.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge-bridge depends on solverforge-solver</title></path>
+<path data-from="solverforge-config" data-to="solverforge-core" d="M 1218.77 496.89 C 1240.82 496.89 1263.77 496.89 1285.82 496.89" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge-config depends on solverforge-core</title></path>
+<path data-from="solverforge-cvrp" data-to="solverforge-solver" d="M 615.78 571.84 C 637.77 571.84 660.79 571.84 682.78 571.84" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge-cvrp depends on solverforge-solver</title></path>
+<path data-from="solverforge-scoring" data-to="solverforge-core" d="M 1206.08 533.67 C 1235.96 528.06 1268.54 521.93 1298.42 516.31" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge-scoring depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-config" d="M 877.42 552.41 C 910.32 544.06 949.28 534.20 984.50 525.40 996.38 522.44 1008.89 519.34 1021.13 516.30" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge-solver depends on solverforge-config</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-core" d="M 917.41 587.62 C 1002.68 596.05 1120.40 601.03 1218.50 580.80 1280.06 568.12 1338.83 536.60 1372.58 516.00" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge-solver depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-scoring" d="M 917.28 564.57 C 939.27 563.19 962.29 561.75 984.32 560.37" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"><title>solverforge-solver depends on solverforge-scoring</title></path>
+<rect data-node="solverforge" x="80.00" y="529.96" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-
-<g>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-bridge" x="381.50" y="459.89" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-config" x="984.50" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-</g>
-<g>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-console" x="381.50" y="645.66" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-core" x="1286.00" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-</g>
-<g>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="#ffffff"/>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-cvrp" x="381.50" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-macros" x="381.50" y="701.87" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-scoring" x="984.50" y="534.04" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-solver" x="683.00" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
 </g>
-<g>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-
-</g>
-<g>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<g>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<g>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="rgba(234,179,8,0.07)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<path d="M 370 601 H 330" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-violet)"/>
-<path d="M 650 601 H 610" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-emerald)"/>
-<path d="M 650 704 H 610" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-emerald)"/>
-<path d="M 930 601 H 890" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-emerald)"/>
-
-<path d="M 930 704 H 890" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-rose)"/>
-
-<path d="M 770 548 V 524 H 210 V 548" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-violet)"/>
-
-
-
-
-
-
-<path d="M 1234 608.0 V 615.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#runtime-ar-violet)"/>
-
-
-<path d="M 1234 623.5 V 631.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#runtime-ar-violet)"/>
-
-
-<path d="M 1234 639.0 V 646.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#runtime-ar-violet)"/>
-
-
-<path d="M 1234 654.5 V 662.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#runtime-ar-violet)"/>
-
-
-<path d="M 1234 670.0 V 677.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#runtime-ar-violet)"/>
-
-
-<path d="M 1234 685.5 V 693.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#runtime-ar-violet)"/>
-
-
-<path d="M 1234 701.0 V 708.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#runtime-ar-violet)"/>
-
-
-<path d="M 1234 716.5 V 724.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#runtime-ar-violet)"/>
-
-
 
 
 
@@ -1376,12 +1013,9 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 420 865 H 460" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-emerald)"/>
-<path d="M 800 865 H 840" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-emerald)"/>
-<path d="M 1180 865 H 1220" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-emerald)"/>
-
-
-
+<path d="M 420 865 H 460" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#runtime-arrow)"/>
+<path d="M 800 865 H 840" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#runtime-arrow)"/>
+<path d="M 1180 865 H 1220" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#runtime-arrow)"/>
 
 
 
@@ -1398,8 +1032,8 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 <text x="96" y="1120.5999999999995" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">score: HardSoftScore · HardMediumSoftScore · SoftScore · BendableScore · Decimal</text>
 </g>
 <g>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="#ffffff"/>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="#ffffff"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
 <text x="816" y="1005" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">search phases · solverforge-solver</text>
 <text x="816" y="1027" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">ConstructionHeuristic · LocalSearch · VND</text>
 <text x="816" y="1042.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">PartitionedSearch — rayon work split</text>
@@ -1416,27 +1050,29 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 <text x="1176" y="1073.7999999999997" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">tabu / late acceptance / simulated annealing</text>
 <text x="1176" y="1089.3999999999996" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">foragers: accepted count · best score · first best</text>
 </g>
-<path d="M 740 1069 H 800" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-slate)"/>
-<path d="M 1140 1069 H 1160" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-slate)"/>
-<path d="M 970 980 V 958 H 410" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#runtime-ar-rose)"/>
-<path d="M 410 958 V 969" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#runtime-ar-rose)"/>
-
-<path d="M 970 1158 V 1168 H 410 V 1158" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4"/>
-<path d="M 410 1168 V 1184" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#runtime-ar-rose)"/>
-<text x="700" y="1162" fill="#715709" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8.4" text-anchor="middle" font-weight="400">each applied move → incremental delta update — no full rescore</text>
+<path d="M 1100 1100 H 1160" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"/>
+<text x="1106" y="1092" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">select</text>
+<path d="M 1160 1130 H 1100" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"/>
+<text x="1106" y="1145" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">winner</text>
+<path d="M 410 1158 V 1204" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"/>
+<text x="424" y="1204" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">compile constraints</text>
+<path d="M 970 1158 V 1180 Q 970 1188 962 1188 H 778 Q 770 1188 770 1196 V 1222 Q 770 1230 762 1230 H 740" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)"/>
+<text x="1000" y="1204" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">apply / score / undo</text>
+<path d="M 740 1252 H 772 Q 780 1252 780 1244 V 974 Q 780 966 788 966 H 962 Q 970 966 970 974 V 980" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#runtime-arrow)" stroke-dasharray="5 4"/>
+<text x="808" y="960" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">score feedback</text>
 <g>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="#ffffff"/>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="rgba(234,179,8,0.10)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="96" y="1209" fill="#715709" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">director &amp; delta scoring · zero-erasure hot path</text>
-<text x="96" y="1231" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">&amp;dyn is allowed only at declared boundaries (scorer arg, dynamic slots, problem change)</text>
-<text x="96" y="1246.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">moves are never cloned — cursors own candidates, the winner is taken by ownership</text>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="#ffffff"/>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="rgba(234,179,8,0.10)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
+<text x="96" y="1229" fill="#715709" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">director &amp; delta scoring · zero-erasure hot path</text>
+<text x="96" y="1251" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">&amp;dyn is allowed only at declared boundaries (scorer arg, dynamic slots, problem change)</text>
+<text x="96" y="1266.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">moves are never cloned — cursors own candidates, the winner is taken by ownership</text>
 </g>
 <g>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="#ffffff"/>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="816" y="1209" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">native hot-path invariants</text>
-<text x="816" y="1231" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">monomorphized generics end-to-end · no Box&lt;dyn&gt; · no Arc/Rc · no clone in move eval</text>
-<text x="816" y="1246.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">deterministic selector seeds from SolverConfig.random_seed · canonical enumeration order</text>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="#ffffff"/>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
+<text x="816" y="1229" fill="#163830" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">native hot-path invariants</text>
+<text x="816" y="1251" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">monomorphized generics end-to-end · no Box&lt;dyn&gt; · no Arc/Rc · no clone in move eval</text>
+<text x="816" y="1266.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">deterministic selector seeds from SolverConfig.random_seed · canonical enumeration order</text>
 </g>
 
 
@@ -1469,8 +1105,8 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 540 1430 H 580" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-amber)"/>
-<path d="M 1040 1430 H 1080" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-amber)"/>
+
+
 
 
 <rect x="120" y="1568" width="15" height="13" rx="3" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.5"/>
@@ -1485,34 +1121,20 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 <rect x="1170" y="1568" width="15" height="13" rx="3" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.5"/>
 
-<path d="M 1372 1574 H 1414" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#runtime-ar-emerald)"/>
+<path d="M 1372 1574 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#runtime-arrow)"/>
 
-<path d="M 1372 1604 H 1414" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#runtime-ar-rose)"/>
+<path d="M 1372 1604 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#runtime-arrow)"/>
 
 
     </svg>
 </div>
 </section>
 <section class="architecture-panel" id="ecosystem" aria-labelledby="ecosystem-title">
-  <div class="panel-heading"><div><p class="eyebrow">05 / ecosystem</p><h2 id="ecosystem-title">A kernel, not a monolith.</h2></div><p>Workspace examples use the same facade. CLI, bindings, and visualization tools live in separate repositories.</p></div>
+  <div class="panel-heading"><div><p class="eyebrow">05 / ecosystem</p><h2 id="ecosystem-title">Examples and integrations</h2></div><p>Workspace examples use the same facade. CLI, bindings, and visualization tools live in separate repositories.</p></div>
   <div class="diagram-scroll" tabindex="0" aria-label="ecosystem wiring diagram; scroll horizontally on small screens"><svg viewBox="60 1350 1480 160" xmlns="http://www.w3.org/2000/svg" role="img"
          aria-label="Workspace examples use the same facade. CLI, bindings, and visualization tools live in separate repositories.">
       <defs>
-<marker id="ecosystem-ar-slate" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#48655d"/>
-</marker>
-<marker id="ecosystem-ar-emerald" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#059669"/>
-</marker>
-<marker id="ecosystem-ar-rose" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#b58b08"/>
-</marker>
-<marker id="ecosystem-ar-violet" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#059669"/>
-</marker>
-<marker id="ecosystem-ar-amber" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#b58b08"/>
-</marker>
+<marker id="ecosystem-arrow" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 8 4 L 0 8 L 2 4 Z" fill="#48655d"/></marker>
 <linearGradient id="ecosystem-sf-grad" x1="0%" y1="0%" x2="100%" y2="100%">
 <stop offset="0%" stop-color="#10b981"/>
 <stop offset="50%" stop-color="#059669"/>
@@ -1574,131 +1196,55 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 280 332 V 290" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-slate)"/>
-
-<path d="M 750 290 V 332" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-slate)"/>
-
-<path d="M 1100 290 V 332" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-slate)"/>
-
-
-
-
-<g>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="#ffffff"/>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-
-</g>
-<g>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="#ffffff"/>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.72" stroke-width="1.8"/>
-
-
-
-
-</g>
-<path d="M 570 436 H 530" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
-<path d="M 1010 490 V 500" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 290 264 V 312 Q 290 320 298 320 H 1432 Q 1440 320 1440 312 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"/>
+<path d="M 750 264 V 280 Q 750 288 758 288 H 1092 Q 1100 288 1100 280 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"/>
+<g data-panel="crates">
+<path data-from="solverforge" data-to="solverforge-bridge" d="M 281.14 529.60 C 322.62 519.88 372.70 508.15 414.20 498.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge depends on solverforge-bridge</title></path>
+<path data-from="solverforge" data-to="solverforge-config" d="M 222.70 529.57 C 254.73 505.79 314.71 466.80 381.50 451.26 602.30 399.87 884.03 447.90 1019.87 477.53" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge depends on solverforge-config</title></path>
+<path data-from="solverforge" data-to="solverforge-console" d="M 236.10 568.39 C 272.18 586.30 328.67 612.96 381.50 632.13 394.32 636.78 408.36 641.23 422.09 645.26" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)" stroke-dasharray="5 4"><title>solverforge depends on solverforge-console (console feature)</title></path>
+<path data-from="solverforge" data-to="solverforge-core" d="M 215.91 529.66 C 244.29 500.68 304.73 447.17 381.50 426.00 715.17 334.03 1162.61 432.92 1332.44 477.47" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge depends on solverforge-core</title></path>
+<path data-from="solverforge" data-to="solverforge-cvrp" d="M 314.28 557.88 C 336.28 559.56 359.29 561.31 381.28 562.99" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge depends on solverforge-cvrp</title></path>
+<path data-from="solverforge" data-to="solverforge-macros" d="M 215.90 568.47 C 244.93 598.89 307.00 657.84 381.50 692.42 388.85 695.83 396.90 698.89 405.23 701.62" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge depends on solverforge-macros</title></path>
+<path data-from="solverforge" data-to="solverforge-scoring" d="M 252.53 568.42 C 288.05 579.99 336.14 593.55 381.50 599.54 614.75 630.37 683.08 628.14 917.00 599.54 959.78 594.31 1005.38 582.77 1040.39 572.51" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge depends on solverforge-scoring</title></path>
+<path data-from="solverforge" data-to="solverforge-solver" d="M 314.21 542.35 C 398.15 538.81 514.19 536.58 615.50 544.14 639.35 545.91 664.60 548.96 688.50 552.39" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge depends on solverforge-solver</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-config" d="M 615.89 482.43 C 721.93 485.59 877.85 490.25 983.96 493.41" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge-bridge depends on solverforge-config</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-core" d="M 615.97 471.14 C 758.46 462.99 1007.09 453.41 1218.50 469.18 1242.35 470.96 1267.64 474.00 1291.49 477.43" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge-bridge depends on solverforge-core</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-scoring" d="M 615.89 493.30 C 721.93 506.39 877.85 525.64 983.96 538.74" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge-bridge depends on solverforge-scoring</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-solver" d="M 573.42 498.38 C 587.56 502.48 602.13 506.96 615.50 511.55 646.87 522.32 651.63 528.48 683.00 539.25 696.37 543.84 710.94 548.32 725.08 552.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge-bridge depends on solverforge-solver</title></path>
+<path data-from="solverforge-config" data-to="solverforge-core" d="M 1218.77 496.89 C 1240.82 496.89 1263.77 496.89 1285.82 496.89" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge-config depends on solverforge-core</title></path>
+<path data-from="solverforge-cvrp" data-to="solverforge-solver" d="M 615.78 571.84 C 637.77 571.84 660.79 571.84 682.78 571.84" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge-cvrp depends on solverforge-solver</title></path>
+<path data-from="solverforge-scoring" data-to="solverforge-core" d="M 1206.08 533.67 C 1235.96 528.06 1268.54 521.93 1298.42 516.31" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge-scoring depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-config" d="M 877.42 552.41 C 910.32 544.06 949.28 534.20 984.50 525.40 996.38 522.44 1008.89 519.34 1021.13 516.30" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge-solver depends on solverforge-config</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-core" d="M 917.41 587.62 C 1002.68 596.05 1120.40 601.03 1218.50 580.80 1280.06 568.12 1338.83 536.60 1372.58 516.00" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge-solver depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-scoring" d="M 917.28 564.57 C 939.27 563.19 962.29 561.75 984.32 560.37" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"><title>solverforge-solver depends on solverforge-scoring</title></path>
+<rect data-node="solverforge" x="80.00" y="529.96" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-
-<g>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-bridge" x="381.50" y="459.89" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-config" x="984.50" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-</g>
-<g>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-console" x="381.50" y="645.66" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-core" x="1286.00" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
-</g>
-<g>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="#ffffff"/>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect data-node="solverforge-cvrp" x="381.50" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-macros" x="381.50" y="701.87" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-scoring" x="984.50" y="534.04" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
+<rect data-node="solverforge-solver" x="683.00" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
 
 
 </g>
-<g>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="#ffffff"/>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-
-</g>
-<g>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<g>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<g>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="#ffffff"/>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="rgba(234,179,8,0.07)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
-
-
-
-</g>
-<path d="M 370 601 H 330" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-violet)"/>
-<path d="M 650 601 H 610" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-emerald)"/>
-<path d="M 650 704 H 610" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-emerald)"/>
-<path d="M 930 601 H 890" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-emerald)"/>
-
-<path d="M 930 704 H 890" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-rose)"/>
-
-<path d="M 770 548 V 524 H 210 V 548" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-violet)"/>
-
-
-
-
-
-
-<path d="M 1234 608.0 V 615.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ecosystem-ar-violet)"/>
-
-
-<path d="M 1234 623.5 V 631.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ecosystem-ar-violet)"/>
-
-
-<path d="M 1234 639.0 V 646.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ecosystem-ar-violet)"/>
-
-
-<path d="M 1234 654.5 V 662.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ecosystem-ar-violet)"/>
-
-
-<path d="M 1234 670.0 V 677.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ecosystem-ar-violet)"/>
-
-
-<path d="M 1234 685.5 V 693.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ecosystem-ar-violet)"/>
-
-
-<path d="M 1234 701.0 V 708.5" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ecosystem-ar-violet)"/>
-
-
-<path d="M 1234 716.5 V 724.0" fill="none" stroke="#059669" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ecosystem-ar-violet)"/>
-
-
 
 
 
@@ -1734,12 +1280,9 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 420 865 H 460" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-emerald)"/>
-<path d="M 800 865 H 840" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-emerald)"/>
-<path d="M 1180 865 H 1220" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-emerald)"/>
-<path d="M 1370 916 V 970" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
-
-
+<path d="M 420 865 H 460" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#ecosystem-arrow)"/>
+<path d="M 800 865 H 840" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#ecosystem-arrow)"/>
+<path d="M 1180 865 H 1220" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#ecosystem-arrow)"/>
 
 
 
@@ -1756,8 +1299,8 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 </g>
 <g>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="#ffffff"/>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="#ffffff"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
@@ -1774,24 +1317,26 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 
 </g>
-<path d="M 740 1069 H 800" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-slate)"/>
-<path d="M 1140 1069 H 1160" fill="none" stroke="#48655d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-slate)"/>
-<path d="M 970 980 V 958 H 410" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#ecosystem-ar-rose)"/>
-<path d="M 410 958 V 969" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#ecosystem-ar-rose)"/>
+<path d="M 1100 1100 H 1160" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"/>
 
-<path d="M 970 1158 V 1168 H 410 V 1158" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4"/>
-<path d="M 410 1168 V 1184" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#ecosystem-ar-rose)"/>
+<path d="M 1160 1130 H 1100" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"/>
+
+<path d="M 410 1158 V 1204" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"/>
+
+<path d="M 970 1158 V 1180 Q 970 1188 962 1188 H 778 Q 770 1188 770 1196 V 1222 Q 770 1230 762 1230 H 740" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)"/>
+
+<path d="M 740 1252 H 772 Q 780 1252 780 1244 V 974 Q 780 966 788 966 H 962 Q 970 966 970 974 V 980" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ecosystem-arrow)" stroke-dasharray="5 4"/>
 
 <g>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="#ffffff"/>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="rgba(234,179,8,0.10)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="#ffffff"/>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="rgba(234,179,8,0.10)" stroke="#b58b08" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
 </g>
 <g>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="#ffffff"/>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="#ffffff"/>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.32" stroke-width="1.2"/>
 
 
 
@@ -1828,8 +1373,8 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 <text x="1096" y="1434.1999999999998" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">solverforge.org — site &amp; docs</text>
 <text x="1096" y="1449.7999999999997" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">GitHub Actions CI — make ci-local mirror</text>
 </g>
-<path d="M 540 1430 H 580" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-amber)"/>
-<path d="M 1040 1430 H 1080" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-amber)"/>
+
+
 
 
 <rect x="120" y="1568" width="15" height="13" rx="3" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.5"/>
@@ -1844,14 +1389,14 @@ main{width:var(--sf-width);margin:auto;padding:3rem 0 4rem}.hero{display:grid;gr
 
 <rect x="1170" y="1568" width="15" height="13" rx="3" fill="rgba(6,47,40,0.03)" stroke="#48655d" stroke-opacity="0.5"/>
 
-<path d="M 1372 1574 H 1414" fill="none" stroke="#059669" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ecosystem-ar-emerald)"/>
+<path d="M 1372 1574 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#ecosystem-arrow)"/>
 
-<path d="M 1372 1604 H 1414" fill="none" stroke="#b58b08" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#ecosystem-ar-rose)"/>
+<path d="M 1372 1604 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#ecosystem-arrow)"/>
 
 
     </svg>
 </div>
 </section>
-<div class="notes"><article class="note"><h3>Read the connections</h3><p>In the crate graph, arrows point to the dependency. In the solve pipeline, arrows show execution order. Dashed runtime lines show scoring feedback.</p></article><article class="note gold"><h3>Completion is structural</h3><p>Required assignments must be complete before local search or completed output. If configured termination arrives first, the lifecycle is <code>Failed</code>.</p></article><article class="note"><h3>Extend the right layer</h3><p>Use the <a href="https://github.com/SolverForge/solverforge/blob/main/docs/extend-domain.md">domain guide</a> for models and scoring, or the <a href="https://github.com/SolverForge/solverforge/blob/main/docs/extend-solver.md">solver guide</a> for phases and search policies.</p></article></div>
-</main><footer><div class="footer-inner"><p>SolverForge · Open source constraint optimization</p><p>Workspace 0.19.8 · <a href="https://github.com/SolverForge/solverforge">Crate wireframes and source</a></p></div></footer>
+<p class="legend">Solid arrows indicate dependencies or control flow. Dashed arrows indicate the optional console dependency or runtime score feedback.</p>
+</main>
 </body></html>

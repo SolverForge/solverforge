@@ -1,21 +1,7 @@
 <svg viewBox="0 0 1600 1660" xmlns="http://www.w3.org/2000/svg" role="img"
          aria-label="SolverForge architecture: your code, crate graph, solve pipeline, runtime anatomy, consumers">
       <defs>
-<marker id="ar-slate" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#6ea99b"/>
-</marker>
-<marker id="ar-emerald" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#34d399"/>
-</marker>
-<marker id="ar-rose" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#fb7185"/>
-</marker>
-<marker id="ar-violet" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#a78bfa"/>
-</marker>
-<marker id="ar-amber" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" orient="auto" markerUnits="strokeWidth">
-<path d="M0,0 L9,5 L0,10 z" fill="#fcd34d"/>
-</marker>
+<marker id="arrow" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 8 4 L 0 8 L 2 4 Z" fill="#48655d"/></marker>
 <linearGradient id="sf-grad" x1="0%" y1="0%" x2="100%" y2="100%">
 <stop offset="0%" stop-color="#6ee7b7"/>
 <stop offset="50%" stop-color="#34d399"/>
@@ -80,131 +66,55 @@
 <text x="1016" y="210.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverManager::new(problem).solve()</text>
 <text x="1016" y="226.2" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">snapshots · events · analyze()</text>
 </g>
-<path d="M 280 332 V 290" fill="none" stroke="#6ea99b" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-slate)"/>
-<text x="292" y="312" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400">planning_model! expands the model</text>
-<path d="M 750 290 V 332" fill="none" stroke="#6ea99b" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-slate)"/>
-<text x="762" y="314" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400">reads SolverConfig</text>
-<path d="M 1100 290 V 332" fill="none" stroke="#6ea99b" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-slate)"/>
-<text x="1112" y="306" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400">single dependency</text>
-<rect x="40" y="346" width="1520" height="420" rx="10" fill="none" stroke="#a78bfa" stroke-opacity="0.3" stroke-width="1.1" stroke-dasharray="8 6"/>
-<text x="58" y="369" fill="#c4b5fd" font-family="'Outfit', 'Space Grotesk', system-ui, sans-serif" font-size="11" text-anchor="start" font-weight="700" letter-spacing="2.6">02 · CRATE GRAPH</text>
-<text x="230" y="369" fill="#5e8a7e" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" text-anchor="start" font-weight="400">9 published crates · one facade</text>
-<g>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="#083029"/>
-<rect x="90" y="382" width="440" height="108" rx="5" fill="rgba(20,184,166,0.10)" stroke="#5eead4" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="106" y="407" fill="#99f6e4" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-macros</text>
-<text x="106" y="429" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">planning_model! · #[planning_*] attributes</text>
-<text x="106" y="444.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">#[solverforge_constraints] — grouped node sharing</text>
-<text x="106" y="460.20000000000005" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">proc-macro only — no runtime deps · emits ::solverforge::__internal::*</text>
+<path d="M 290 264 V 312 Q 290 320 298 320 H 1432 Q 1440 320 1440 312 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/><text x="400" y="312" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">generated model</text>
+<path d="M 750 264 V 280 Q 750 288 758 288 H 1092 Q 1100 288 1100 280 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/><text x="830" y="280" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">SolverConfig</text>
+<g data-panel="crates">
+<path data-from="solverforge" data-to="solverforge-bridge" d="M 281.14 529.60 C 322.62 519.88 372.70 508.15 414.20 498.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge depends on solverforge-bridge</title></path>
+<path data-from="solverforge" data-to="solverforge-config" d="M 222.70 529.57 C 254.73 505.79 314.71 466.80 381.50 451.26 602.30 399.87 884.03 447.90 1019.87 477.53" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge depends on solverforge-config</title></path>
+<path data-from="solverforge" data-to="solverforge-console" d="M 236.10 568.39 C 272.18 586.30 328.67 612.96 381.50 632.13 394.32 636.78 408.36 641.23 422.09 645.26" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="5 4"><title>solverforge depends on solverforge-console (console feature)</title></path>
+<path data-from="solverforge" data-to="solverforge-core" d="M 215.91 529.66 C 244.29 500.68 304.73 447.17 381.50 426.00 715.17 334.03 1162.61 432.92 1332.44 477.47" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge depends on solverforge-core</title></path>
+<path data-from="solverforge" data-to="solverforge-cvrp" d="M 314.28 557.88 C 336.28 559.56 359.29 561.31 381.28 562.99" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge depends on solverforge-cvrp</title></path>
+<path data-from="solverforge" data-to="solverforge-macros" d="M 215.90 568.47 C 244.93 598.89 307.00 657.84 381.50 692.42 388.85 695.83 396.90 698.89 405.23 701.62" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge depends on solverforge-macros</title></path>
+<path data-from="solverforge" data-to="solverforge-scoring" d="M 252.53 568.42 C 288.05 579.99 336.14 593.55 381.50 599.54 614.75 630.37 683.08 628.14 917.00 599.54 959.78 594.31 1005.38 582.77 1040.39 572.51" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge depends on solverforge-scoring</title></path>
+<path data-from="solverforge" data-to="solverforge-solver" d="M 314.21 542.35 C 398.15 538.81 514.19 536.58 615.50 544.14 639.35 545.91 664.60 548.96 688.50 552.39" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge depends on solverforge-solver</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-config" d="M 615.89 482.43 C 721.93 485.59 877.85 490.25 983.96 493.41" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge-bridge depends on solverforge-config</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-core" d="M 615.97 471.14 C 758.46 462.99 1007.09 453.41 1218.50 469.18 1242.35 470.96 1267.64 474.00 1291.49 477.43" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge-bridge depends on solverforge-core</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-scoring" d="M 615.89 493.30 C 721.93 506.39 877.85 525.64 983.96 538.74" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge-bridge depends on solverforge-scoring</title></path>
+<path data-from="solverforge-bridge" data-to="solverforge-solver" d="M 573.42 498.38 C 587.56 502.48 602.13 506.96 615.50 511.55 646.87 522.32 651.63 528.48 683.00 539.25 696.37 543.84 710.94 548.32 725.08 552.42" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge-bridge depends on solverforge-solver</title></path>
+<path data-from="solverforge-config" data-to="solverforge-core" d="M 1218.77 496.89 C 1240.82 496.89 1263.77 496.89 1285.82 496.89" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge-config depends on solverforge-core</title></path>
+<path data-from="solverforge-cvrp" data-to="solverforge-solver" d="M 615.78 571.84 C 637.77 571.84 660.79 571.84 682.78 571.84" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge-cvrp depends on solverforge-solver</title></path>
+<path data-from="solverforge-scoring" data-to="solverforge-core" d="M 1206.08 533.67 C 1235.96 528.06 1268.54 521.93 1298.42 516.31" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge-scoring depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-config" d="M 877.42 552.41 C 910.32 544.06 949.28 534.20 984.50 525.40 996.38 522.44 1008.89 519.34 1021.13 516.30" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge-solver depends on solverforge-config</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-core" d="M 917.41 587.62 C 1002.68 596.05 1120.40 601.03 1218.50 580.80 1280.06 568.12 1338.83 536.60 1372.58 516.00" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge-solver depends on solverforge-core</title></path>
+<path data-from="solverforge-solver" data-to="solverforge-scoring" d="M 917.28 564.57 C 939.27 563.19 962.29 561.75 984.32 560.37" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"><title>solverforge-solver depends on solverforge-scoring</title></path>
+<rect data-node="solverforge" x="80.00" y="529.96" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="197.00" y="546.02" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge</text>
+<text x="197.00" y="563.02" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">public facade</text>
+<rect data-node="solverforge-bridge" x="381.50" y="459.89" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="498.50" y="475.96" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-bridge</text>
+<text x="498.50" y="492.96" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">host-language contracts</text>
+<rect data-node="solverforge-config" x="984.50" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="1101.50" y="493.89" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-config</text>
+<text x="1101.50" y="510.89" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">TOML / YAML configuration</text>
+<rect data-node="solverforge-console" x="381.50" y="645.66" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="498.50" y="661.72" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-console</text>
+<text x="498.50" y="678.72" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">optional tracing output</text>
+<rect data-node="solverforge-core" x="1286.00" y="477.82" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="1403.00" y="493.89" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-core</text>
+<text x="1403.00" y="510.89" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">scores · domain contracts</text>
+<rect data-node="solverforge-cvrp" x="381.50" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="498.50" y="568.84" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-cvrp</text>
+<text x="498.50" y="585.84" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">route hooks · distance meters</text>
+<rect data-node="solverforge-macros" x="381.50" y="701.87" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="498.50" y="717.94" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-macros</text>
+<text x="498.50" y="734.94" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">compile-time model generation</text>
+<rect data-node="solverforge-scoring" x="984.50" y="534.04" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="1101.50" y="550.10" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-scoring</text>
+<text x="1101.50" y="567.10" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">streams · incremental scoring</text>
+<rect data-node="solverforge-solver" x="683.00" y="552.77" width="234.00" height="38.13" rx="6" fill="#f1faf6" stroke="#92bcae" stroke-width="1.2"/>
+<text x="800.00" y="568.84" text-anchor="middle" fill="#047857" font-family="JetBrains Mono,monospace" font-size="14" font-weight="600">solverforge-solver</text>
+<text x="800.00" y="585.84" text-anchor="middle" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="11">phases · moves · runtime</text>
 </g>
-<g>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="#083029"/>
-<rect x="570" y="382" width="880" height="108" rx="5" fill="rgba(167,139,250,0.10)" stroke="#a78bfa" stroke-opacity="0.72" stroke-width="1.8"/>
-<text x="586" y="407" fill="#c4b5fd" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge — the facade</text>
-<text x="586" y="429" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">prelude · stream · planning · cvrp · __internal (doc-hidden) · console via feature</text>
-<text x="586" y="444.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">re-exports macros + core + scoring + config + solver + bridge + cvrp</text>
-<text x="586" y="460.20000000000005" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">apps &amp; examples depend on this crate only · v0.19.8</text>
-</g>
-<path d="M 570 436 H 530" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round"/>
-<path d="M 1010 490 V 500" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round"/>
-<text x="1022" y="505" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400">re-exports all sub-crates</text>
-<rect x="60" y="514" width="1480" height="236" rx="10" fill="none" stroke="#6ea99b" stroke-opacity="0.22" stroke-width="1.1" stroke-dasharray="6 5"/>
-<text x="76" y="536" fill="#5e8a7e" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400" font-style="italic">sub-crates — 7 of 9 published; arrow points at the dependency</text>
-<g>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="#083029"/>
-<rect x="90" y="548" width="240" height="116" rx="5" fill="rgba(167,139,250,0.10)" stroke="#a78bfa" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="106" y="573" fill="#c4b5fd" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-core</text>
-<text x="106" y="595" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">score types · domain traits</text>
-<text x="106" y="610.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">descriptors · logical IDs</text>
-<text x="106" y="626.2" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">dynamic slot contracts</text>
-</g>
-<g>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="#083029"/>
-<rect x="370" y="548" width="240" height="116" rx="5" fill="rgba(167,139,250,0.10)" stroke="#a78bfa" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="386" y="573" fill="#c4b5fd" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-scoring</text>
-<text x="386" y="595" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">ConstraintFactory streams</text>
-<text x="386" y="610.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SERIO incremental state</text>
-<text x="386" y="626.2" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">Director · ScoreDirector</text>
-</g>
-<g>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="#083029"/>
-<rect x="650" y="548" width="240" height="190" rx="5" fill="rgba(16,185,129,0.12)" stroke="#6ee7b7" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="666" y="573" fill="#a7f3d0" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-solver</text>
-<text x="666" y="595" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">runtime compiler — frozen graph</text>
-<text x="666" y="610.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">phases · moves · selectors</text>
-<text x="666" y="626.2" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">acceptors · foragers</text>
-<text x="666" y="641.8000000000001" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">termination · completion gate</text>
-<text x="666" y="657.4000000000001" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverManager · realtime</text>
-<text x="666" y="673.0000000000001" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">telemetry · candidate traces</text>
-<text x="666" y="688.6000000000001" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">element-key validation</text>
-</g>
-<g>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="#083029"/>
-<rect x="930" y="548" width="240" height="116" rx="5" fill="rgba(16,185,129,0.12)" stroke="#6ee7b7" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="946" y="573" fill="#a7f3d0" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-cvrp</text>
-<text x="946" y="595" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">VrpSolution · ProblemData</text>
-<text x="946" y="610.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">distance meters</text>
-<text x="946" y="626.2" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">route &amp; savings hooks</text>
-</g>
-<g>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="#083029"/>
-<rect x="90" y="664" width="240" height="74" rx="5" fill="rgba(110,169,155,0.08)" stroke="#6ea99b" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="106" y="689" fill="#c6e2d8" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-console</text>
-<text x="106" y="711" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">tracing layer · banner</text>
-<text x="106" y="726.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">phase &amp; progress output</text>
-</g>
-<g>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="#083029"/>
-<rect x="370" y="664" width="240" height="74" rx="5" fill="rgba(167,139,250,0.10)" stroke="#a78bfa" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="386" y="689" fill="#c4b5fd" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-config</text>
-<text x="386" y="711" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverConfig · TOML / YAML</text>
-<text x="386" y="726.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">phases · selectors · termination</text>
-</g>
-<g>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="#083029"/>
-<rect x="930" y="664" width="240" height="74" rx="5" fill="rgba(251,113,133,0.10)" stroke="#fb7185" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="946" y="689" fill="#fda4af" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">solverforge-bridge</text>
-<text x="946" y="711" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">dynamic slots · DynamicScore</text>
-<text x="946" y="726.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">host runner contract</text>
-</g>
-<path d="M 370 601 H 330" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-violet)"/>
-<path d="M 650 601 H 610" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-emerald)"/>
-<path d="M 650 704 H 610" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-emerald)"/>
-<path d="M 930 601 H 890" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-emerald)"/>
-<text x="910" y="597" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="middle" font-weight="400">meters</text>
-<path d="M 930 704 H 890" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-rose)"/>
-<text x="910" y="700" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="middle" font-weight="400">drives</text>
-<path d="M 770 548 V 524 H 210 V 548" fill="none" stroke="#a78bfa" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-violet)"/>
-<text x="490" y="532" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="middle" font-weight="400">descriptors</text>
-<rect x="1210" y="548" width="290" height="196" rx="10" fill="none" stroke="#a78bfa" stroke-opacity="0.22" stroke-width="1.1" stroke-dasharray="6 5"/>
-<text x="1226" y="572" fill="#c4b5fd" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="700" letter-spacing="1.2">PUBLISH ORDER — CRATES.IO</text>
-<text x="1226" y="588" fill="#5e8a7e" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="7.8" text-anchor="start" font-weight="400">staggered: core first, facade last</text>
-<text x="1248" y="604.0" fill="#34d399" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">01</text>
-<text x="1272" y="604.0" fill="#cfe9df" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">core</text>
-<path d="M 1234 608.0 V 615.5" fill="none" stroke="#a78bfa" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ar-violet)"/>
-<text x="1248" y="619.5" fill="#34d399" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">02</text>
-<text x="1272" y="619.5" fill="#cfe9df" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">macros</text>
-<path d="M 1234 623.5 V 631.0" fill="none" stroke="#a78bfa" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ar-violet)"/>
-<text x="1248" y="635.0" fill="#34d399" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">03</text>
-<text x="1272" y="635.0" fill="#cfe9df" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">scoring</text>
-<path d="M 1234 639.0 V 646.5" fill="none" stroke="#a78bfa" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ar-violet)"/>
-<text x="1248" y="650.5" fill="#34d399" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">04</text>
-<text x="1272" y="650.5" fill="#cfe9df" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">config</text>
-<path d="M 1234 654.5 V 662.0" fill="none" stroke="#a78bfa" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ar-violet)"/>
-<text x="1248" y="666.0" fill="#34d399" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">05</text>
-<text x="1272" y="666.0" fill="#cfe9df" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">solver</text>
-<path d="M 1234 670.0 V 677.5" fill="none" stroke="#a78bfa" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ar-violet)"/>
-<text x="1248" y="681.5" fill="#34d399" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">06</text>
-<text x="1272" y="681.5" fill="#cfe9df" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">bridge</text>
-<path d="M 1234 685.5 V 693.0" fill="none" stroke="#a78bfa" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ar-violet)"/>
-<text x="1248" y="697.0" fill="#34d399" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">07</text>
-<text x="1272" y="697.0" fill="#cfe9df" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">cvrp</text>
-<path d="M 1234 701.0 V 708.5" fill="none" stroke="#a78bfa" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ar-violet)"/>
-<text x="1248" y="712.5" fill="#34d399" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">08</text>
-<text x="1272" y="712.5" fill="#cfe9df" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">console</text>
-<path d="M 1234 716.5 V 724.0" fill="none" stroke="#a78bfa" stroke-width="1.1" stroke-linecap="round" marker-end="url(#ar-violet)"/>
-<text x="1248" y="728.0" fill="#34d399" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.5" text-anchor="start" font-weight="700">09</text>
-<text x="1272" y="728.0" fill="#cfe9df" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" text-anchor="start" font-weight="400">facade</text>
 <rect x="40" y="780" width="1520" height="150" rx="10" fill="none" stroke="#6ee7b7" stroke-opacity="0.3" stroke-width="1.1" stroke-dasharray="8 6"/>
 <text x="58" y="803" fill="#a7f3d0" font-family="'Outfit', 'Space Grotesk', system-ui, sans-serif" font-size="11" text-anchor="start" font-weight="700" letter-spacing="2.6">03 · SOLVE PIPELINE</text>
 <text x="258" y="803" fill="#5e8a7e" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" text-anchor="start" font-weight="400">SolverManager::solve()</text>
@@ -240,12 +150,9 @@
 <text x="1236" y="876.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">best solution published</text>
 <text x="1236" y="892.2" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverStatus · snapshot · telemetry</text>
 </g>
-<path d="M 420 865 H 460" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-emerald)"/>
-<path d="M 800 865 H 840" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-emerald)"/>
-<path d="M 1180 865 H 1220" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-emerald)"/>
-<path d="M 1370 916 V 970" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
-<text x="1382" y="926" fill="#a7f3d0" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8.6" text-anchor="start" font-weight="400">retained job lifecycle</text>
-<text x="1382" y="941" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8" text-anchor="start" font-weight="400">Solving · Paused · Completed · Cancelled · Failed</text>
+<path d="M 420 865 H 460" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#arrow)"/>
+<path d="M 800 865 H 840" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#arrow)"/>
+<path d="M 1180 865 H 1220" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#arrow)"/>
 <rect x="40" y="946" width="1520" height="352" rx="10" fill="none" stroke="#fb7185" stroke-opacity="0.3" stroke-width="1.1" stroke-dasharray="8 6"/>
 <text x="58" y="969" fill="#fda4af" font-family="'Outfit', 'Space Grotesk', system-ui, sans-serif" font-size="11" text-anchor="start" font-weight="700" letter-spacing="2.6">04 · INSIDE A RUN</text>
 <text x="228" y="969" fill="#5e8a7e" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="10" text-anchor="start" font-weight="400">the zero-erasure path</text>
@@ -262,8 +169,8 @@
 <text x="96" y="1120.5999999999995" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">score: HardSoftScore · HardMediumSoftScore · SoftScore · BendableScore · Decimal</text>
 </g>
 <g>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="#083029"/>
-<rect x="800" y="980" width="340" height="178" rx="5" fill="rgba(16,185,129,0.12)" stroke="#6ee7b7" stroke-opacity="0.32" stroke-width="1.2"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="#083029"/>
+<rect x="800" y="980" width="300" height="178" rx="5" fill="rgba(16,185,129,0.12)" stroke="#6ee7b7" stroke-opacity="0.32" stroke-width="1.2"/>
 <text x="816" y="1005" fill="#a7f3d0" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">search phases · solverforge-solver</text>
 <text x="816" y="1027" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">ConstructionHeuristic · LocalSearch · VND</text>
 <text x="816" y="1042.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">PartitionedSearch — rayon work split</text>
@@ -280,27 +187,29 @@
 <text x="1176" y="1073.7999999999997" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">tabu / late acceptance / simulated annealing</text>
 <text x="1176" y="1089.3999999999996" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">foragers: accepted count · best score · first best</text>
 </g>
-<path d="M 740 1069 H 800" fill="none" stroke="#6ea99b" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-slate)"/>
-<path d="M 1140 1069 H 1160" fill="none" stroke="#6ea99b" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-slate)"/>
-<path d="M 970 980 V 958 H 410" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#ar-rose)"/>
-<path d="M 410 958 V 969" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#ar-rose)"/>
-<text x="690" y="948" fill="#fda4af" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="8.2" text-anchor="middle" font-weight="400">move selection loop</text>
-<path d="M 970 1158 V 1168 H 410 V 1158" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4"/>
-<path d="M 410 1168 V 1184" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#ar-rose)"/>
-<text x="700" y="1162" fill="#fda4af" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8.4" text-anchor="middle" font-weight="400">each applied move → incremental delta update — no full rescore</text>
+<path d="M 1100 1100 H 1160" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="1106" y="1092" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">select</text>
+<path d="M 1160 1130 H 1100" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="1106" y="1145" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">winner</text>
+<path d="M 410 1158 V 1204" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="424" y="1204" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">compile constraints</text>
+<path d="M 970 1158 V 1180 Q 970 1188 962 1188 H 778 Q 770 1188 770 1196 V 1222 Q 770 1230 762 1230 H 740" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<text x="1000" y="1204" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">apply / score / undo</text>
+<path d="M 740 1252 H 772 Q 780 1252 780 1244 V 974 Q 780 966 788 966 H 962 Q 970 966 970 974 V 980" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="5 4"/>
+<text x="808" y="960" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">score feedback</text>
 <g>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="#083029"/>
-<rect x="80" y="1184" width="660" height="96" rx="5" fill="rgba(234,179,8,0.10)" stroke="#fcd34d" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="96" y="1209" fill="#fde68a" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">director &amp; delta scoring · zero-erasure hot path</text>
-<text x="96" y="1231" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">&amp;dyn is allowed only at declared boundaries (scorer arg, dynamic slots, problem change)</text>
-<text x="96" y="1246.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">moves are never cloned — cursors own candidates, the winner is taken by ownership</text>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="#083029"/>
+<rect x="80" y="1204" width="660" height="76" rx="5" fill="rgba(234,179,8,0.10)" stroke="#fcd34d" stroke-opacity="0.32" stroke-width="1.2"/>
+<text x="96" y="1229" fill="#fde68a" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">director &amp; delta scoring · zero-erasure hot path</text>
+<text x="96" y="1251" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">&amp;dyn is allowed only at declared boundaries (scorer arg, dynamic slots, problem change)</text>
+<text x="96" y="1266.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">moves are never cloned — cursors own candidates, the winner is taken by ownership</text>
 </g>
 <g>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="#083029"/>
-<rect x="800" y="1184" width="720" height="96" rx="5" fill="rgba(110,169,155,0.08)" stroke="#6ea99b" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="816" y="1209" fill="#c6e2d8" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">native hot-path invariants</text>
-<text x="816" y="1231" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">monomorphized generics end-to-end · no Box&lt;dyn&gt; · no Arc/Rc · no clone in move eval</text>
-<text x="816" y="1246.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">deterministic selector seeds from SolverConfig.random_seed · canonical enumeration order</text>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="#083029"/>
+<rect x="800" y="1204" width="720" height="76" rx="5" fill="rgba(110,169,155,0.08)" stroke="#6ea99b" stroke-opacity="0.32" stroke-width="1.2"/>
+<text x="816" y="1229" fill="#c6e2d8" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">native hot-path invariants</text>
+<text x="816" y="1251" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">monomorphized generics end-to-end · no Box&lt;dyn&gt; · no Arc/Rc · no clone in move eval</text>
+<text x="816" y="1266.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">deterministic selector seeds from SolverConfig.random_seed · canonical enumeration order</text>
 </g>
 <rect x="40" y="1322" width="1520" height="208" rx="10" fill="none" stroke="#fcd34d" stroke-opacity="0.3" stroke-width="1.1" stroke-dasharray="8 6"/>
 <text x="58" y="1345" fill="#fde68a" font-family="'Outfit', 'Space Grotesk', system-ui, sans-serif" font-size="11" text-anchor="start" font-weight="700" letter-spacing="2.6">05 · CONSUMERS &amp; ECOSYSTEM</text>
@@ -334,8 +243,8 @@
 <text x="1096" y="1434.1999999999998" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">solverforge.org — site &amp; docs</text>
 <text x="1096" y="1449.7999999999997" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">GitHub Actions CI — make ci-local mirror</text>
 </g>
-<path d="M 540 1430 H 580" fill="none" stroke="#fcd34d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-amber)"/>
-<path d="M 1040 1430 H 1080" fill="none" stroke="#fcd34d" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-amber)"/>
+
+
 <rect x="40" y="1556" width="1520" height="92" rx="10" fill="none" stroke="#6ea99b" stroke-opacity="0.18" stroke-width="1.1" stroke-dasharray="6 5"/>
 <text x="58" y="1578" fill="#5e8a7e" font-family="'Outfit', 'Space Grotesk', system-ui, sans-serif" font-size="9" text-anchor="start" font-weight="700" letter-spacing="2">LEGEND</text>
 <rect x="120" y="1568" width="15" height="13" rx="3" fill="rgba(20,184,166,0.10)" stroke="#5eead4" stroke-opacity="0.5"/>
@@ -350,9 +259,9 @@
 <text x="983" y="1579" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8.8" text-anchor="start" font-weight="400">runtime invariants</text>
 <rect x="1170" y="1568" width="15" height="13" rx="3" fill="rgba(110,169,155,0.08)" stroke="#6ea99b" stroke-opacity="0.5"/>
 <text x="1193" y="1579" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8.8" text-anchor="start" font-weight="400">neutral / published</text>
-<path d="M 1372 1574 H 1414" fill="none" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" marker-end="url(#ar-emerald)"/>
+<path d="M 1372 1574 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" marker-end="url(#arrow)"/>
 <text x="1424" y="1579" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8.8" text-anchor="start" font-weight="400">dependency / flow</text>
-<path d="M 1372 1604 H 1414" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#ar-rose)"/>
+<path d="M 1372 1604 H 1414" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="4 4" marker-end="url(#arrow)"/>
 <text x="1424" y="1609" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8.8" text-anchor="start" font-weight="400">delta feedback · boundary</text>
 <text x="58" y="1609" fill="#5e8a7e" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="8.2" text-anchor="start" font-weight="400">Dashed frames = logical grouping only — every box is a module or crate in this repo, except sibling-checkout repos named above.</text>
     </svg>

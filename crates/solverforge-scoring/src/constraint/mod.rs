@@ -30,6 +30,7 @@ pub mod incremental;
 mod incremental_markers;
 pub mod list_precedence;
 pub mod projected;
+pub mod relational;
 pub mod shared;
 
 #[cfg(test)]

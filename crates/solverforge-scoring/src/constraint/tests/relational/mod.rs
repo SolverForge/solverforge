@@ -9,3 +9,6 @@ mod fixtures;
 mod identity;
 mod independent_keys;
 mod oracle;
+mod primitives;
+mod terminal;
+mod updates;

@@ -6,8 +6,9 @@ their incremental bookkeeping to this engine instead of hand-copying the
 swap_remove row maintenance per arity.
 
 Row storage is the shared relational `DenseRowStore` behind stable
-generational `RowHandle`s: reverse links name handles, so retraction needs
-no position-repair bookkeeping. Key indexes stay per-source `HashMap`s;
+generational `RowHandle`s. Reverse links name handles; a per-row position
+record keeps bucket unlinking O(1) under high fan-out, exactly like the
+positional scheme it replaces. Key indexes stay per-source `HashMap`s;
 per-join typed indexes arrive with the relational operators.
 */
 
@@ -34,6 +35,7 @@ where
     matches: HashMap<[usize; N], RowHandle>,
     match_rows: DenseRowStore<RetainedRow<N, Sc>>,
     to_matches: [HashMap<usize, Vec<RowHandle>>; N],
+    row_pos: HashMap<RowHandle, [usize; N]>,
     by_key: [HashMap<K, Vec<usize>>; N],
     index_to_key: [HashMap<usize, K>; N],
 }
@@ -47,6 +49,7 @@ where
             matches: HashMap::new(),
             match_rows: DenseRowStore::new(),
             to_matches: std::array::from_fn(|_| HashMap::new()),
+            row_pos: HashMap::new(),
             by_key: std::array::from_fn(|_| HashMap::new()),
             index_to_key: std::array::from_fn(|_| HashMap::new()),
         }
@@ -55,6 +58,7 @@ where
     pub(crate) fn clear(&mut self) {
         self.matches.clear();
         self.match_rows.clear();
+        self.row_pos.clear();
         for buckets in self.to_matches.iter_mut() {
             buckets.clear();
         }
@@ -79,16 +83,20 @@ where
 
     Runs at the end of every mutation in debug builds, so bookkeeping
     drift from future operator work fails fast at the site of the drift
-    instead of surfacing as a wrong score later. Zero release cost.
+    instead of surfacing as a wrong score later. The `cfg!` gate keeps
+    release builds at zero cost: without it the traversal itself
+    (not just the assertions) would run on every mutation.
     */
     fn debug_check(&self) {
-        debug_assert_eq!(self.matches.len(), self.match_rows.len());
-        if self.matches.is_empty() {
-            debug_assert!(self.match_rows.is_empty());
-        }
-        for (tuple, handle) in &self.matches {
-            let row = self.match_rows.get(*handle).expect("reverse link resolves");
-            debug_assert_eq!(&row.tuple, tuple);
+        if cfg!(debug_assertions) {
+            debug_assert_eq!(self.matches.len(), self.match_rows.len());
+            if self.matches.is_empty() {
+                debug_assert!(self.match_rows.is_empty());
+            }
+            for (tuple, handle) in &self.matches {
+                let row = self.match_rows.get(*handle).expect("reverse link resolves");
+                debug_assert_eq!(&row.tuple, tuple);
+            }
         }
     }
 }
@@ -134,32 +142,44 @@ where
     // already decided the tuple matches.
     pub(crate) fn add_row(&mut self, tuple: [usize; N], score: Sc) -> Sc {
         let handle = self.match_rows.insert(RetainedRow { tuple, score });
+        let mut pos = [0usize; N];
         for (source, bucket) in self.to_matches.iter_mut().enumerate() {
-            bucket.entry(tuple[source]).or_default().push(handle);
+            let entry = bucket.entry(tuple[source]).or_default();
+            pos[source] = entry.len();
+            entry.push(handle);
         }
+        self.row_pos.insert(handle, pos);
         self.matches.insert(tuple, handle);
         self.debug_check();
         score
     }
 
     // Removes the retained row named by `handle`, unlinking it from every
-    // reverse bucket, and returns the negated row score. Handles are stable
-    // across removals, so no position repair is needed. A stale handle is
-    // an internal bookkeeping bug and panics; callers only pass handles
-    // obtained from `row_indexes_for`.
+    // reverse bucket in O(1) via the recorded positions, and returns the
+    // negated row score. A stale handle is an internal bookkeeping bug and
+    // panics; callers only pass handles obtained from `row_indexes_for`.
     pub(crate) fn remove_row_at(&mut self, handle: RowHandle) -> Sc {
         let removed = self
             .match_rows
             .retract(handle)
             .expect("stale row handle in join engine");
         self.matches.remove(&removed.tuple);
+        let pos = self
+            .row_pos
+            .remove(&handle)
+            .expect("row position missing in join engine");
 
         for (source, bucket) in self.to_matches.iter_mut().enumerate() {
             let idx = removed.tuple[source];
             let mut remove_bucket = false;
             if let Some(handles) = bucket.get_mut(&idx) {
-                if let Some(pos) = handles.iter().position(|candidate| *candidate == handle) {
-                    handles.swap_remove(pos);
+                debug_assert_eq!(handles[pos[source]], handle);
+                handles.swap_remove(pos[source]);
+                if pos[source] < handles.len() {
+                    let moved = handles[pos[source]];
+                    if let Some(moved_pos) = self.row_pos.get_mut(&moved) {
+                        moved_pos[source] = pos[source];
+                    }
                 }
                 remove_bucket = handles.is_empty();
             }

@@ -13,7 +13,8 @@ migration of the fluent stream families:
 - `stream::relational::{Leaf<'a, A>, Concat<'a, L, A>}` provides borrowed row
   views. `RowHandle` is a hidden generational identity bridge.
 - `stream::relational::operator::Operator<S>` defines `View<'a>: Copy`,
-  `visit_all`, `clear`, `initialize`, `handles`, `resolve`, `visit_provenance`,
+  owned `Evaluation`, `prepare_evaluation`, `visit_evaluation`, `visit_all`,
+  `clear`, `initialize`, `handles`, `resolve`, `visit_provenance`,
   `retract`, and `insert`. Views borrow entities; entities need not be Copy.
 - `CollectionNode<S, E>::new(extractor, binding)` adapts `CollectionExtract`.
 - `FilterNode<O, F>::new(input, predicate)` preserves accepted input identities
@@ -21,6 +22,11 @@ migration of the fluent stream families:
   membership transitions propagate retract/insert deltas without copying rows.
 - `MergeNode<L, R>::new(left, right)` unions compatible borrowed row views with
   branch-specific output identities; equal-valued emissions remain separate.
+- `ProjectNode<O, F, T>::new(input, mapper)` owns zero or more emissions per
+  input row. The mapper takes `(&S, &O::View<'a>)` and returns `Vec<T>`.
+  `ProjectView<'a, V, T>` exposes `input: V`, `value: &'a T`, and `emission:
+  usize`; payloads need not implement Clone, Copy, Debug, or PartialEq.
+  Explanations and provenance retain the complete upstream row.
 - `JoinNode<S, L, R, P>::new(left, right, condition)` compiles a condition and
   produces `Pair<L::View<'a>, R::View<'a>>`; either input can itself be a join.
   `Pair<L, R>` has public `left` and `right` fields. Depth is recursive rather
@@ -47,15 +53,15 @@ migration of the fluent stream families:
   existing `Concat<Leaf<A>, B>` view using semantic indexes.
 
 New file map: `stream/relational/operator.rs`,
-`stream/relational/operator/{analysis,collection,filter,join,merge}.rs`,
+`stream/relational/operator/{analysis,collection,filter,join,merge,project}.rs`,
 `stream/joiner/plan.rs`, `stream/joiner/plan/{executable,hash_scan,conjunction,
 composite,mixed_equality,ordered_interval}.rs`, `stream/joiner/row_key.rs`,
 `stream/relational/index/{hash,ordered,interval}.rs`, and
 `constraint/relational/operator_terminal.rs`. Generational direct side-tables
 are internal in `stream/relational/handle_map.rs`.
 
-This surface currently supports collection/filtered/merged/joined borrowed producers. Owned
-projection/group/complement producers and uniform fluent migration are not
+This surface supports collection/filtered/merged/joined and owned projection
+producers. Group/complement producers and uniform fluent migration are not
 provided by this low-level surface. Existing specialized families still exist.
 See [Extending typed relational scoring](../../docs/extend-scoring.md) for
 execution, ownership, and verification boundaries.

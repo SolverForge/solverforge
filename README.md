@@ -108,8 +108,9 @@ and `MoveSelector`.
 Typed row-operator extension contracts and their current ownership boundary are
 in [Extending typed relational scoring](docs/extend-scoring.md). Equality
 conditions use indexed candidates; arbitrary predicates require opposite-input
-scans. The low-level recursive operator tree is not yet a replacement for every
-public fluent stream family.
+scans. The recursive operator tree supports owned non-Clone projection values
+on either join input through a fresh full-evaluation owner; it is not yet a
+replacement for every public fluent stream family.
 
 ## Features
 

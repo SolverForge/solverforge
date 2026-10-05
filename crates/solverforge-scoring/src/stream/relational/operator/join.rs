@@ -132,26 +132,41 @@ where
     for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,
 {
     type View<'a> = Pair<L::View<'a>, R::View<'a>>;
+    type Evaluation = (L::Evaluation, R::Evaluation);
     #[inline]
-    fn visit_all<'a>(&'a self, solution: &'a S, visitor: &mut impl FnMut(Self::View<'a>)) {
+    fn prepare_evaluation(&self, solution: &S) -> Self::Evaluation {
+        (
+            self.left.prepare_evaluation(solution),
+            self.right.prepare_evaluation(solution),
+        )
+    }
+    #[inline]
+    fn visit_evaluation<'a>(
+        &'a self,
+        solution: &'a S,
+        evaluation: &'a Self::Evaluation,
+        visitor: &mut impl FnMut(Self::View<'a>),
+    ) {
         let mut indexes = self.plan.new_indexes();
         // Evaluation has no retractions or slot reuse: ordinals are sufficient.
         // Keep generational storage only for retained rows across notifications.
         let mut right_rows = Vec::new();
-        self.right.visit_all(solution, &mut |right| {
-            let handle = RowHandle::new(right_rows.len() as u32, 0);
-            right_rows.push(right);
-            self.plan
-                .insert_right_transient(&mut indexes, handle, &right);
-        });
-        self.left.visit_all(solution, &mut |left| {
-            for &handle in self.plan.right_candidates(&indexes, &left).iter() {
-                let right = right_rows[handle.slot() as usize];
-                if self.plan.candidate_matches(&left, &right) {
-                    visitor(Pair { left, right });
+        self.right
+            .visit_evaluation(solution, &evaluation.1, &mut |right| {
+                let handle = RowHandle::new(right_rows.len() as u32, 0);
+                right_rows.push(right);
+                self.plan
+                    .insert_right_transient(&mut indexes, handle, &right);
+            });
+        self.left
+            .visit_evaluation(solution, &evaluation.0, &mut |left| {
+                for &handle in self.plan.right_candidates(&indexes, &left).iter() {
+                    let right = right_rows[handle.slot() as usize];
+                    if self.plan.candidate_matches(&left, &right) {
+                        visitor(Pair { left, right });
+                    }
                 }
-            }
-        });
+            });
     }
     fn clear(&mut self) {
         self.left.clear();

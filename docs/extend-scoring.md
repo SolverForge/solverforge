@@ -66,15 +66,30 @@ Full evaluation and match counting are meaningful before initialization.
 Explanation payload conversion is confined to the existing cold `EntityRef`
 boundary.
 
-## Current ownership boundary
+## Evaluation ownership
 
-The current full-traversal signature ties emitted views to the operator/solution
-borrow. Collection and joined borrowed rows satisfy that contract. It does not
-yet supply an evaluation-state owner for newly computed non-Clone projected or
-grouped values. Do not implement such producers by leaking temporaries, cloning
-collector results, caching solution references, or reusing a stale initialized
-result. Owned derived producers and compiler-owned derived-consumer sharing
-require further protocol integration; they are not supplied by `JoinNode` alone.
+`prepare_evaluation` creates a concrete `Evaluation` owner independent of retained
+incremental state. `visit_evaluation` borrows that owner for the duration of a
+traversal. The root `visit_all` accepts a higher-ranked visitor, so newly computed
+owned values cannot escape their local owner. Collection evaluation state is
+unit; joins, filters, and unions compose child owners without materializing root
+output rows. A join still streams its left input while indexing borrowed right
+views.
+
+`ProjectNode` owns zero or more mapped values per input identity. Its full
+evaluation owner stores fresh emissions, and its retained store owns incremental
+emissions separately. `ProjectView` carries the borrowed value, emission position,
+and complete upstream view. The projection mapper is called once per input in
+each full evaluation; upstream traversal is replayed to attach borrowed input
+views without self-referential storage. Callbacks must be pure and deterministic,
+including their emission ordering. Projected payloads need not be Clone, Copy,
+Debug, or PartialEq. Explanations traverse original contributors rather than
+cloning produced payloads.
+
+Never leak temporaries, cache solution references, or reuse stale initialized
+results for recomputation. Group/complement integration and compiler-owned
+derived-consumer sharing remain separate work; they are not supplied by a
+projection or join alone.
 
 ## Verify extensions
 

@@ -21,6 +21,7 @@ mod merged_operators;
 mod operator_terminal;
 mod operator_tree;
 mod oracle;
+mod owned_projection;
 mod primitives;
 mod terminal;
 mod triple_terminal;

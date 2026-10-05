@@ -28,8 +28,16 @@ where
     E::Item: 'static,
 {
     type View<'a> = Leaf<'a, E::Item>;
+    type Evaluation = ();
     #[inline]
-    fn visit_all<'a>(&'a self, solution: &'a S, visitor: &mut impl FnMut(Self::View<'a>)) {
+    fn prepare_evaluation(&self, _: &S) {}
+    #[inline]
+    fn visit_evaluation<'a>(
+        &'a self,
+        solution: &'a S,
+        _: &'a (),
+        visitor: &mut impl FnMut(Self::View<'a>),
+    ) {
         for (index, entity) in self.extractor.extract(solution).iter().enumerate() {
             if self.extractor.contains(solution, entity) {
                 visitor(Leaf::new(entity, index));

@@ -22,13 +22,24 @@ where
     F: for<'a> Fn(&S, &O::View<'a>) -> bool + 'static,
 {
     type View<'a> = O::View<'a>;
+    type Evaluation = O::Evaluation;
     #[inline]
-    fn visit_all<'a>(&'a self, solution: &'a S, visitor: &mut impl FnMut(Self::View<'a>)) {
-        self.input.visit_all(solution, &mut |row| {
-            if (self.predicate)(solution, &row) {
-                visitor(row);
-            }
-        });
+    fn prepare_evaluation(&self, solution: &S) -> Self::Evaluation {
+        self.input.prepare_evaluation(solution)
+    }
+    #[inline]
+    fn visit_evaluation<'a>(
+        &'a self,
+        solution: &'a S,
+        evaluation: &'a Self::Evaluation,
+        visitor: &mut impl FnMut(Self::View<'a>),
+    ) {
+        self.input
+            .visit_evaluation(solution, evaluation, &mut |row| {
+                if (self.predicate)(solution, &row) {
+                    visitor(row);
+                }
+            });
     }
     fn clear(&mut self) {
         self.input.clear();

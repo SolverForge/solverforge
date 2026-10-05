@@ -5,7 +5,9 @@ mod analysis;
 mod collection;
 mod filter;
 mod merge;
+mod project;
 pub use merge::MergeNode;
+pub use project::{ProjectEvaluation, ProjectNode, ProjectView};
 mod join;
 pub use filter::FilterNode;
 
@@ -22,7 +24,22 @@ pub struct Pair<L, R> {
 
 pub trait Operator<S: 'static>: 'static {
     type View<'a>: Copy;
-    fn visit_all<'a>(&'a self, solution: &'a S, visitor: &mut impl FnMut(Self::View<'a>));
+    /// Fresh owned derived values for one full evaluation, independent of retained state.
+    type Evaluation;
+    fn prepare_evaluation(&self, solution: &S) -> Self::Evaluation;
+    /// Views may borrow the evaluation owner, but never outlive it.
+    fn visit_evaluation<'a>(
+        &'a self,
+        solution: &'a S,
+        evaluation: &'a Self::Evaluation,
+        visitor: &mut impl FnMut(Self::View<'a>),
+    );
+    /// Streaming root traversal. Only producers of owned values materialize payloads.
+    #[inline]
+    fn visit_all(&self, solution: &S, visitor: &mut impl for<'a> FnMut(Self::View<'a>)) {
+        let evaluation = self.prepare_evaluation(solution);
+        self.visit_evaluation(solution, &evaluation, visitor);
+    }
     fn clear(&mut self);
     fn initialize(&mut self, solution: &S);
     fn handles(&self) -> Vec<RowHandle>;

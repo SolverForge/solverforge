@@ -40,10 +40,24 @@ where
     for<'a> R: Operator<S, View<'a> = L::View<'a>>,
 {
     type View<'a> = L::View<'a>;
+    type Evaluation = (L::Evaluation, R::Evaluation);
     #[inline]
-    fn visit_all<'a>(&'a self, solution: &'a S, visitor: &mut impl FnMut(Self::View<'a>)) {
-        self.left.visit_all(solution, visitor);
-        self.right.visit_all(solution, visitor);
+    fn prepare_evaluation(&self, solution: &S) -> Self::Evaluation {
+        (
+            self.left.prepare_evaluation(solution),
+            self.right.prepare_evaluation(solution),
+        )
+    }
+    #[inline]
+    fn visit_evaluation<'a>(
+        &'a self,
+        solution: &'a S,
+        evaluation: &'a Self::Evaluation,
+        visitor: &mut impl FnMut(Self::View<'a>),
+    ) {
+        self.left.visit_evaluation(solution, &evaluation.0, visitor);
+        self.right
+            .visit_evaluation(solution, &evaluation.1, visitor);
     }
     fn clear(&mut self) {
         self.left.clear();

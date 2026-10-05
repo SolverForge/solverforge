@@ -87,9 +87,31 @@ Debug, or PartialEq. Explanations traverse original contributors rather than
 cloning produced payloads.
 
 Never leak temporaries, cache solution references, or reuse stale initialized
-results for recomputation. Group/complement integration and compiler-owned
-derived-consumer sharing remain separate work; they are not supplied by a
-projection or join alone.
+results for recomputation.
+
+## Group results and replacement deltas
+
+`GroupNode` consumes arbitrary row producers and retains exactly the token returned
+by each owned accumulation. Group results are producers, not finalized scores.
+`GroupView::with_result` borrows the accumulator's result without a Clone bound;
+its scope also supports collectors that compute a temporary result view. The
+view retains a borrowed lineage owner rather than copying contributor payloads
+into downstream rows. Cold explanations resolve every contributing input row,
+including repeated bindings in joined input.
+
+Both `retract` and `insert` return `RowChanges` with removed and inserted handles.
+Removing a contributor from a surviving group replaces its old aggregate row
+immediately. Returning only removed handles on retraction is incorrect: it loses
+changed nonempty groups, and a semi/anti join can also gain membership during
+retraction. Consumers remove all old indexes/scores before inserting replacement
+rows. Source retractions still have no inserts; their behavior is unchanged.
+A group coalesces every affected contributor in one notification before publishing
+one final replacement per changed group. Old keys, scores, and collector tokens
+are retained independently, so downstream invalidation does not recompute an old
+value from a mutated accumulator.
+
+Complement integration and compiler-owned derived-consumer sharing remain
+separate work; they are not supplied by a projection, group, or join alone.
 
 ## Verify extensions
 

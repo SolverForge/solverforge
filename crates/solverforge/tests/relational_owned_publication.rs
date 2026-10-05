@@ -81,3 +81,50 @@ fn facade_projection_can_be_the_indexed_left_input_without_clone_payloads() {
     c.reset();
     assert_eq!(c.evaluate(&m), score);
 }
+
+#[test]
+fn facade_group_result_can_join_and_publish_partial_group_replacement() {
+    use solverforge::stream::collector::{count, CountAccumulator};
+    use solverforge::stream::relational::operator::{GroupNode, GroupView, Operator};
+    fn grouped_key<O: Operator<Model>>(
+        row: &GroupView<'_, Model, O, u32, CountAccumulator, (), usize>,
+    ) -> u32 {
+        *row.key
+    }
+    fn group_weight<O: Operator<Model>>(
+        _: &Model,
+        row: &Pair<GroupView<'_, Model, O, u32, CountAccumulator, (), usize>, Leaf<'_, Entity>>,
+    ) -> SoftScore {
+        row.left.with_result(|count| SoftScore::of(*count as i64))
+    }
+    let leaf = |binding| {
+        CollectionNode::new(
+            source(
+                entities as fn(&Model) -> &[Entity],
+                ChangeSource::Descriptor(0),
+            ),
+            binding,
+        )
+    };
+    let group = GroupNode::new(leaf(0), leaf_key, count());
+    let tree = JoinNode::new(group, leaf(1), equal_bi(grouped_key, leaf_key));
+    let mut c = OperatorTerminal::new(
+        ConstraintRef::new("public", "grouped"),
+        ImpactType::Reward,
+        tree,
+        group_weight,
+        false,
+    );
+    let mut m = Model {
+        entities: vec![Entity { key: 1, weight: 2 }, Entity { key: 1, weight: 3 }],
+    };
+    assert_eq!(c.evaluate(&m), SoftScore::of(4));
+    let mut score = c.initialize(&m);
+    score = score + c.on_retract(&m, 0, 0);
+    assert_eq!(score, SoftScore::of(1));
+    m.entities[0].key = 2;
+    score = score + c.on_insert(&m, 0, 0);
+    assert_eq!(score, SoftScore::of(2));
+    assert_eq!(c.evaluate(&m), score);
+    assert_eq!(c.get_matches(&m).len(), 2);
+}

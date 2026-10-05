@@ -1,4 +1,4 @@
-use super::Operator;
+use super::{Operator, RowChanges};
 use crate::stream::relational::{DenseRowStore, HandleMap, RowHandle};
 
 #[derive(Clone, Copy)]
@@ -32,6 +32,29 @@ impl<L, R> MergeNode<L, R> {
             self.left_rows.insert(input, h);
         }
         h
+    }
+}
+impl<L, R> MergeNode<L, R> {
+    fn apply_changes(&mut self, left: RowChanges, right: RowChanges) -> RowChanges {
+        let mut removed = Vec::new();
+        let mut inserted = Vec::new();
+        for (right, changes) in [(false, left), (true, right)] {
+            for input in changes.removed {
+                let h = if right {
+                    self.right_rows.remove(input)
+                } else {
+                    self.left_rows.remove(input)
+                };
+                if let Some(h) = h {
+                    self.rows.retract(h);
+                    removed.push(h);
+                }
+            }
+            for input in changes.inserted {
+                inserted.push(self.add(input, right));
+            }
+        }
+        RowChanges { removed, inserted }
     }
 }
 impl<S: 'static, L, R> Operator<S> for MergeNode<L, R>
@@ -99,34 +122,14 @@ where
             }
         }
     }
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle> {
+    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
         let left = self.left.retract(solution, descriptor, index);
         let right = self.right.retract(solution, descriptor, index);
-        let mut removed = Vec::new();
-        for (right, inputs) in [(false, left), (true, right)] {
-            for input in inputs {
-                let h = if right {
-                    self.right_rows.remove(input)
-                } else {
-                    self.left_rows.remove(input)
-                };
-                if let Some(h) = h {
-                    self.rows.retract(h);
-                    removed.push(h);
-                }
-            }
-        }
-        removed
+        self.apply_changes(left, right)
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle> {
+    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
         let left = self.left.insert(solution, descriptor, index);
         let right = self.right.insert(solution, descriptor, index);
-        let mut inserted = Vec::new();
-        for (right, inputs) in [(false, left), (true, right)] {
-            for input in inputs {
-                inserted.push(self.add(input, right));
-            }
-        }
-        inserted
+        self.apply_changes(left, right)
     }
 }

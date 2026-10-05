@@ -126,7 +126,7 @@ where
         let index = (seed as usize) % 3;
         let removed = tree.retract(&m, descriptor, index);
         assert!(tree.retract(&m, descriptor, index).is_empty());
-        for h in removed {
+        for h in removed.removed {
             assert!(tree.resolve(&m, h).is_none());
         }
         let values = if descriptor == 0 {

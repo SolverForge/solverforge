@@ -1,4 +1,4 @@
-use super::{ExplainRow, Operator};
+use super::{ExplainRow, Operator, RowChanges};
 use crate::api::analysis::EntityRef;
 use crate::stream::relational::{DenseRowStore, HandleMap, RowHandle};
 
@@ -58,6 +58,31 @@ impl<O, F, T> ProjectNode<O, F, T> {
             outputs.push(h);
             inserted.push(h);
         }
+    }
+}
+impl<O, F, T: 'static> ProjectNode<O, F, T> {
+    fn apply_changes<S: 'static>(&mut self, solution: &S, changes: RowChanges) -> RowChanges
+    where
+        O: Operator<S>,
+        F: for<'a> Fn(&S, &O::View<'a>) -> Vec<T> + 'static,
+    {
+        let mut removed = Vec::new();
+        for input in changes.removed {
+            for h in self.outputs.remove(input).unwrap_or_default() {
+                self.rows.retract(h);
+                removed.push(h);
+            }
+        }
+        let mut inserted = Vec::new();
+        for input in changes.inserted {
+            let row = self
+                .input
+                .resolve(solution, input)
+                .expect("inserted projected input");
+            let values = (self.mapper)(solution, &row);
+            self.add(input, values, &mut inserted);
+        }
+        RowChanges { removed, inserted }
     }
 }
 impl<S: 'static, O, F, T: 'static> Operator<S> for ProjectNode<O, F, T>
@@ -128,28 +153,12 @@ where
             self.input.visit_provenance(row.input, visitor);
         }
     }
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle> {
-        let inputs = self.input.retract(solution, descriptor, index);
-        let mut removed = Vec::new();
-        for input in inputs {
-            for h in self.outputs.remove(input).unwrap_or_default() {
-                self.rows.retract(h);
-                removed.push(h);
-            }
-        }
-        removed
+    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
+        let changes = self.input.retract(solution, descriptor, index);
+        self.apply_changes(solution, changes)
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle> {
-        let inputs = self.input.insert(solution, descriptor, index);
-        let mut inserted = Vec::new();
-        for input in inputs {
-            let row = self
-                .input
-                .resolve(solution, input)
-                .expect("inserted projected input");
-            let values = (self.mapper)(solution, &row);
-            self.add(input, values, &mut inserted);
-        }
-        inserted
+    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
+        let changes = self.input.insert(solution, descriptor, index);
+        self.apply_changes(solution, changes)
     }
 }

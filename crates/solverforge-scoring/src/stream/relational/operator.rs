@@ -2,8 +2,14 @@
 use super::RowHandle;
 
 mod analysis;
+mod changes;
+pub use changes::RowChanges;
 mod collection;
 mod filter;
+mod group;
+mod group_view;
+pub use group::{GroupEvaluation, GroupNode};
+pub use group_view::GroupView;
 mod merge;
 mod project;
 pub use merge::MergeNode;
@@ -45,6 +51,6 @@ pub trait Operator<S: 'static>: 'static {
     fn handles(&self) -> Vec<RowHandle>;
     fn resolve<'a>(&'a self, solution: &'a S, handle: RowHandle) -> Option<Self::View<'a>>;
     fn visit_provenance(&self, handle: RowHandle, visitor: &mut impl FnMut(u32, usize, usize));
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle>;
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle>;
+    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges;
+    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges;
 }

@@ -101,6 +101,11 @@ impl<T> DenseRowStore<T> {
             .map(|position| &self.entries[position].payload)
     }
 
+    pub(crate) fn get_mut(&mut self, handle: RowHandle) -> Option<&mut T> {
+        let position = self.resolve(handle)?;
+        Some(&mut self.entries[position].payload)
+    }
+
     /* Removes a row, returning its owned payload.
 
     Unknown or stale handles resolve to `None` and change nothing, so

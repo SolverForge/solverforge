@@ -51,6 +51,39 @@ impl<S, O, W, Sc: Score> OperatorTerminal<S, O, W, Sc> {
         }
     }
 }
+impl<S, O, W, Sc> OperatorTerminal<S, O, W, Sc>
+where
+    S: 'static,
+    O: Operator<S>,
+    W: for<'a> Fn(&S, &O::View<'a>) -> Sc,
+    Sc: Score,
+{
+    fn apply_changes(
+        &mut self,
+        solution: &S,
+        changes: crate::stream::relational::operator::RowChanges,
+    ) -> Sc {
+        let mut total = Sc::zero();
+        for h in changes.removed {
+            if let Some(score) = self.scores.remove(h) {
+                total = total + (-score);
+            }
+        }
+        for h in changes.inserted {
+            let row = self
+                .operator
+                .resolve(solution, h)
+                .expect("inserted terminal row");
+            let score = self.signed((self.weight)(solution, &row));
+            assert!(
+                self.scores.insert(h, score).is_none(),
+                "duplicate terminal delta"
+            );
+            total = total + score;
+        }
+        total
+    }
+}
 impl<S, O, W, Sc> IncrementalConstraint<S, Sc> for OperatorTerminal<S, O, W, Sc>
 where
     S: Send + Sync + 'static,
@@ -90,33 +123,12 @@ where
         total
     }
     fn on_retract(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc {
-        self.operator
-            .retract(solution, descriptor, index)
-            .into_iter()
-            .fold(Sc::zero(), |total, handle| {
-                total
-                    + self
-                        .scores
-                        .remove(handle)
-                        .map(|score| -score)
-                        .unwrap_or_else(Sc::zero)
-            })
+        let changes = self.operator.retract(solution, descriptor, index);
+        self.apply_changes(solution, changes)
     }
     fn on_insert(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc {
-        let mut total = Sc::zero();
-        for handle in self.operator.insert(solution, descriptor, index) {
-            let row = self
-                .operator
-                .resolve(solution, handle)
-                .expect("inserted terminal row");
-            let score = self.signed((self.weight)(solution, &row));
-            assert!(
-                self.scores.insert(handle, score).is_none(),
-                "duplicate terminal delta"
-            );
-            total = total + score;
-        }
-        total
+        let changes = self.operator.insert(solution, descriptor, index);
+        self.apply_changes(solution, changes)
     }
     fn reset(&mut self) {
         self.scores.clear();

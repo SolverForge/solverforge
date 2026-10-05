@@ -1,5 +1,5 @@
 use super::super::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
-use super::{Operator, Pair};
+use super::{Operator, Pair, RowChanges};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -34,6 +34,49 @@ where
             right_outputs: HandleMap::new(),
             marker: PhantomData,
         }
+    }
+    fn apply_changes(&mut self, solution: &S, left: RowChanges, right: RowChanges) -> RowChanges {
+        let mut removed = Vec::new();
+        for handle in left.removed {
+            self.plan.remove_left(&mut self.indexes, handle);
+            for output in self.left_outputs.remove(handle).unwrap_or_default() {
+                if self.rows.get(output).is_some() {
+                    self.remove_output(output);
+                    removed.push(output);
+                }
+            }
+        }
+        for handle in right.removed {
+            self.plan.remove_right(&mut self.indexes, handle);
+            for output in self.right_outputs.remove(handle).unwrap_or_default() {
+                if self.rows.get(output).is_some() {
+                    self.remove_output(output);
+                    removed.push(output);
+                }
+            }
+        }
+        for &handle in &left.inserted {
+            let row = self
+                .left
+                .resolve(solution, handle)
+                .expect("inserted left row");
+            self.plan.insert_left(&mut self.indexes, handle, &row);
+        }
+        for &handle in &right.inserted {
+            let row = self
+                .right
+                .resolve(solution, handle)
+                .expect("inserted right row");
+            self.plan.insert_right(&mut self.indexes, handle, &row);
+        }
+        let mut inserted = Vec::new();
+        for handle in left.inserted {
+            self.probe_left(solution, handle, &mut |h| inserted.push(h));
+        }
+        for handle in right.inserted {
+            self.probe_right(solution, handle, &mut |h| inserted.push(h));
+        }
+        RowChanges { removed, inserted }
     }
     fn remove_output(&mut self, handle: RowHandle) {
         if let Some(identity) = self.rows.retract(handle) {
@@ -216,55 +259,15 @@ where
             self.right.visit_provenance(identity.right(), visitor);
         }
     }
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle> {
+    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
         let left = self.left.retract(solution, descriptor, index);
         let right = self.right.retract(solution, descriptor, index);
-        let mut removed = Vec::new();
-        for handle in left {
-            self.plan.remove_left(&mut self.indexes, handle);
-            for output in self.left_outputs.remove(handle).unwrap_or_default() {
-                if self.rows.get(output).is_some() {
-                    self.remove_output(output);
-                    removed.push(output);
-                }
-            }
-        }
-        for handle in right {
-            self.plan.remove_right(&mut self.indexes, handle);
-            for output in self.right_outputs.remove(handle).unwrap_or_default() {
-                if self.rows.get(output).is_some() {
-                    self.remove_output(output);
-                    removed.push(output);
-                }
-            }
-        }
-        removed
+        self.apply_changes(solution, left, right)
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle> {
+    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
         let left = self.left.insert(solution, descriptor, index);
         let right = self.right.insert(solution, descriptor, index);
-        for &handle in &left {
-            let row = self
-                .left
-                .resolve(solution, handle)
-                .expect("inserted left row");
-            self.plan.insert_left(&mut self.indexes, handle, &row);
-        }
-        for &handle in &right {
-            let row = self
-                .right
-                .resolve(solution, handle)
-                .expect("inserted right row");
-            self.plan.insert_right(&mut self.indexes, handle, &row);
-        }
-        let mut inserted = Vec::new();
-        for handle in left {
-            self.probe_left(solution, handle, &mut |h| inserted.push(h));
-        }
-        for handle in right {
-            self.probe_right(solution, handle, &mut |h| inserted.push(h));
-        }
-        inserted
+        self.apply_changes(solution, left, right)
     }
 }
 

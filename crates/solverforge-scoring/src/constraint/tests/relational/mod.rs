@@ -13,6 +13,7 @@ mod evaluation;
 mod filtered_operators;
 mod fixtures;
 mod fluent_chain;
+mod group_producer;
 mod handle_map;
 mod identity;
 mod independent_keys;

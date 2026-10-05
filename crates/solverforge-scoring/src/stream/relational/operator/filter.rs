@@ -1,4 +1,4 @@
-use super::Operator;
+use super::{Operator, RowChanges};
 use crate::stream::relational::{HandleMap, RowHandle};
 
 /// Membership filter retaining input identities, not copied row payloads.
@@ -14,6 +14,31 @@ impl<O, F> FilterNode<O, F> {
             predicate,
             accepted: HandleMap::new(),
         }
+    }
+}
+impl<O, F> FilterNode<O, F> {
+    fn apply_changes<S: 'static>(&mut self, solution: &S, changes: RowChanges) -> RowChanges
+    where
+        O: Operator<S>,
+        F: for<'a> Fn(&S, &O::View<'a>) -> bool + 'static,
+    {
+        let removed = changes
+            .removed
+            .into_iter()
+            .filter(|h| self.accepted.remove(*h).is_some())
+            .collect();
+        let mut inserted = Vec::new();
+        for h in changes.inserted {
+            let row = self
+                .input
+                .resolve(solution, h)
+                .expect("inserted filtered input");
+            if (self.predicate)(solution, &row) {
+                self.accepted.insert(h, ());
+                inserted.push(h);
+            }
+        }
+        RowChanges { removed, inserted }
     }
 }
 impl<S: 'static, O, F> Operator<S> for FilterNode<O, F>
@@ -74,26 +99,12 @@ where
             self.input.visit_provenance(handle, visitor);
         }
     }
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle> {
-        self.input
-            .retract(solution, descriptor, index)
-            .into_iter()
-            .filter(|h| self.accepted.remove(*h).is_some())
-            .collect()
+    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
+        let changes = self.input.retract(solution, descriptor, index);
+        self.apply_changes(solution, changes)
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle> {
-        let inserted = self.input.insert(solution, descriptor, index);
-        let mut accepted = Vec::new();
-        for h in inserted {
-            let row = self
-                .input
-                .resolve(solution, h)
-                .expect("inserted filtered input");
-            if (self.predicate)(solution, &row) {
-                self.accepted.insert(h, ());
-                accepted.push(h);
-            }
-        }
-        accepted
+    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
+        let changes = self.input.insert(solution, descriptor, index);
+        self.apply_changes(solution, changes)
     }
 }

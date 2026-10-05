@@ -1,5 +1,5 @@
 use super::super::{BindingId, DenseRowStore, Leaf, RowHandle};
-use super::Operator;
+use super::{Operator, RowChanges};
 use crate::stream::collection_extract::CollectionExtract;
 use std::marker::PhantomData;
 
@@ -78,41 +78,47 @@ where
             visitor(self.binding.0, descriptor, *index);
         }
     }
-    fn retract(&mut self, _: &S, descriptor: usize, index: usize) -> Vec<RowHandle> {
+    fn retract(&mut self, _: &S, descriptor: usize, index: usize) -> RowChanges {
         if !self
             .extractor
             .change_source()
             .assert_localizes(descriptor, "relational source")
         {
-            return Vec::new();
+            return RowChanges::default();
         }
         if let Some(slot) = self.handles.get_mut(index) {
             if let Some(handle) = slot.take() {
                 self.rows.retract(handle);
-                return vec![handle];
+                return RowChanges {
+                    removed: vec![handle],
+                    inserted: Vec::new(),
+                };
             }
         }
-        Vec::new()
+        RowChanges::default()
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> Vec<RowHandle> {
+    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
         if !self
             .extractor
             .change_source()
             .assert_localizes(descriptor, "relational source")
         {
-            return Vec::new();
+            return RowChanges::default();
         }
         if self.handles.get(index).is_some_and(Option::is_some) {
-            return Vec::new();
+            return RowChanges::default();
         }
         if let Some(entity) = self.extractor.extract(solution).get(index) {
             if self.extractor.contains(solution, entity) {
                 let handle = self.rows.insert(index);
                 self.handles.resize(self.handles.len().max(index + 1), None);
                 self.handles[index] = Some(handle);
-                return vec![handle];
+                return RowChanges {
+                    removed: Vec::new(),
+                    inserted: vec![handle],
+                };
             }
         }
-        Vec::new()
+        RowChanges::default()
     }
 }

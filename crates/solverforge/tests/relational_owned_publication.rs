@@ -170,3 +170,68 @@ fn facade_anti_join_updates_both_bindings_of_one_descriptor() {
     assert_eq!(c.evaluate(&m), score);
     assert_eq!(c.match_count(&m), 2);
 }
+
+#[test]
+fn facade_flatten_borrows_non_clone_children_from_owned_projection_evaluation() {
+    use solverforge::stream::relational::operator::{FlattenNode, FlattenView};
+    struct Parent(Vec<Payload>);
+    fn parent(_: &Model, row: &Leaf<'_, Entity>) -> Vec<Parent> {
+        vec![Parent(
+            (0..2)
+                .map(|_| Payload {
+                    key: row.entity.key,
+                    weight: row.entity.weight,
+                })
+                .collect(),
+        )]
+    }
+    fn children<'a>(_: &'a Model, row: ProjectView<'a, Leaf<'a, Entity>, Parent>) -> &'a [Payload] {
+        &row.value.0
+    }
+    fn child_key(row: &FlattenView<'_, ProjectView<'_, Leaf<'_, Entity>, Parent>, Payload>) -> u32 {
+        row.value.key
+    }
+    fn weight(
+        _: &Model,
+        row: &Pair<
+            FlattenView<'_, ProjectView<'_, Leaf<'_, Entity>, Parent>, Payload>,
+            Leaf<'_, Entity>,
+        >,
+    ) -> SoftScore {
+        SoftScore::of(row.left.value.weight)
+    }
+    let leaf = |binding| {
+        CollectionNode::new(
+            source(
+                entities as fn(&Model) -> &[Entity],
+                ChangeSource::Descriptor(0),
+            ),
+            binding,
+        )
+    };
+    let flat = FlattenNode::new(ProjectNode::new(leaf(0), parent), children);
+    let tree = JoinNode::new(flat, leaf(1), equal_bi(child_key, leaf_key));
+    let mut c = OperatorTerminal::new(
+        ConstraintRef::new("public", "flatten"),
+        ImpactType::Reward,
+        tree,
+        weight,
+        false,
+    );
+    let mut m = Model {
+        entities: vec![Entity { key: 1, weight: 2 }, Entity { key: 1, weight: 3 }],
+    };
+    assert_eq!(c.evaluate(&m), SoftScore::of(20));
+    assert_eq!(c.match_count(&m), 8);
+    let mut score = c.initialize(&m);
+    score = score + c.on_retract(&m, 0, 0);
+    m.entities[0] = Entity { key: 2, weight: 9 };
+    score = score + c.on_insert(&m, 0, 0);
+    assert_eq!(score, SoftScore::of(24));
+    assert_eq!(c.evaluate(&m), score);
+    assert_eq!(c.match_count(&m), 4);
+    assert!(c
+        .get_matches(&m)
+        .iter()
+        .all(|x| x.justification.entities.len() == 2));
+}

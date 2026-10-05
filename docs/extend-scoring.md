@@ -121,6 +121,15 @@ bindings only, as the right relation is a membership test rather than a new
 binding. Grouped right replacements are processed atomically, including during
 contributor retraction.
 
+`FlattenNode` borrows child slices from arbitrary input rows and retains only
+the parent handle and child position. `FlattenView` carries the complete parent
+view, so source semantic indexes and all contributing bindings stay available.
+The extractor takes an explicitly lifetime-bound solution reference as well as
+the borrowed input view; this makes lending function items legal despite GAT
+input lifetime elision in Rust's higher-ranked `Fn` output bounds. Full evaluation
+streams child rows and borrows any projected parent from its evaluation owner.
+Duplicate children are distinct positions, not deduplicated values.
+
 ## Verify extensions
 
 Compare full and retained row multisets with an independent nested-loop oracle.

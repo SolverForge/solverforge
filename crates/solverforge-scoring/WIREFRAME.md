@@ -39,6 +39,11 @@ migration of the fluent stream families:
   left rows, using the same compiled index strategies as joins. `exists=true`
   selects semi-join membership and `false` selects anti-join membership. Matching
   links retain multiplicity counts; 1↔2 transitions do not publish row changes.
+- `FlattenNode<O, F, T>::new(input, extractor)` emits borrowed child slices
+  without cloning children or retaining solution references. The extractor takes
+  `(&'a S, O::View<'a>)` and returns `&'a [T]`. `FlattenView<'a, V, T>` exposes
+  `input: V`, `value: &'a T`, and `child: usize`; parent row provenance and its
+  semantic source indexes are preserved, including for owned projected parents.
 - `JoinNode<S, L, R, P>::new(left, right, condition)` compiles a condition and
   produces `Pair<L::View<'a>, R::View<'a>>`; either input can itself be a join.
   `Pair<L, R>` has public `left` and `right` fields. Depth is recursive rather
@@ -65,7 +70,7 @@ migration of the fluent stream families:
   existing `Concat<Leaf<A>, B>` view using semantic indexes.
 
 New file map: `stream/relational/operator.rs`,
-`stream/relational/operator/{analysis,changes,collection,existence,filter,group,group_view,
+`stream/relational/operator/{analysis,changes,collection,existence,filter,flatten,group,group_view,
 join,merge,project}.rs`,
 `stream/joiner/plan.rs`, `stream/joiner/plan/{executable,hash_scan,conjunction,
 composite,mixed_equality,ordered_interval}.rs`, `stream/joiner/row_key.rs`,

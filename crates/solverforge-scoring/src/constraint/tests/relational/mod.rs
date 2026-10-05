@@ -13,6 +13,7 @@ mod evaluation;
 mod existence_producer;
 mod filtered_operators;
 mod fixtures;
+mod flatten_producer;
 mod fluent_chain;
 mod group_producer;
 mod handle_map;

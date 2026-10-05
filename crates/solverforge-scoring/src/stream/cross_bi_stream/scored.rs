@@ -47,21 +47,17 @@ impl<P> CompileCondition for BiPredicatePlan<P> {
 
 impl<P> IndexedPlan for BiPredicatePlan<P> {
     type Kind = super::super::joiner::plan::ResidualKind;
-    type Indexes = (
-        std::collections::BTreeSet<RowHandle>,
-        std::collections::BTreeSet<RowHandle>,
-    );
+    // The scan side keeps its handles in one contiguous list so candidate
+    // probing borrows them directly instead of rebuilding a Vec per left row.
+    type Indexes = (Vec<RowHandle>, Vec<RowHandle>);
     fn new_indexes(&self) -> Self::Indexes {
-        (
-            std::collections::BTreeSet::new(),
-            std::collections::BTreeSet::new(),
-        )
+        (Vec::new(), Vec::new())
     }
     fn remove_left(&self, i: &mut Self::Indexes, h: RowHandle) {
-        i.0.remove(&h);
+        i.0.retain(|x| *x != h);
     }
     fn remove_right(&self, i: &mut Self::Indexes, h: RowHandle) {
-        i.1.remove(&h);
+        i.1.retain(|x| *x != h);
     }
 }
 
@@ -79,16 +75,16 @@ where
     P: Fn(&A, &B) -> bool + Send + Sync,
 {
     fn insert_left(&self, i: &mut Self::Indexes, h: RowHandle, _: &Leaf<'x, A>) {
-        i.0.insert(h);
+        i.0.push(h);
     }
     fn insert_right(&self, i: &mut Self::Indexes, h: RowHandle, _: &Leaf<'x, B>) {
-        i.1.insert(h);
+        i.1.push(h);
     }
     fn right_candidates<'i>(&self, i: &'i Self::Indexes, _: &Leaf<'x, A>) -> Cow<'i, [RowHandle]> {
-        Cow::Owned(i.1.iter().copied().collect())
+        Cow::Borrowed(i.1.as_slice())
     }
     fn left_candidates<'i>(&self, i: &'i Self::Indexes, _: &Leaf<'x, B>) -> Cow<'i, [RowHandle]> {
-        Cow::Owned(i.0.iter().copied().collect())
+        Cow::Borrowed(i.0.as_slice())
     }
 }
 

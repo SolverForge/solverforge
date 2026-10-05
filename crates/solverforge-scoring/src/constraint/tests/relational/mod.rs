@@ -7,6 +7,7 @@ production results must agree with it on scores, row multisets, and counts.
 
 mod chained;
 mod fixtures;
+mod fluent_chain;
 mod identity;
 mod independent_keys;
 mod oracle;

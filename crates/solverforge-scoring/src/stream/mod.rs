@@ -82,7 +82,7 @@ pub mod key_extract;
 mod penta_stream;
 mod projected_stream;
 mod quad_stream;
-pub(crate) mod relational;
+pub mod relational;
 mod tri_stream;
 mod unassigned;
 mod uni_stream;
@@ -93,7 +93,8 @@ mod tests;
 
 pub mod cross {
     pub use super::cross_bi_stream::{
-        Bi, Builder, ComplementedGrouped, ComplementedGroupedBuilder, Grouped, GroupedBuilder,
+        Bi, Builder, ChainedBuilder, ChainedTri, ComplementedGrouped, ComplementedGroupedBuilder,
+        Grouped, GroupedBuilder,
     };
     pub use super::cross_tri_stream::Tri;
 }

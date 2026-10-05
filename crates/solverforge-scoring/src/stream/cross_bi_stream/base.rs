@@ -155,6 +155,48 @@ where
         )
     }
 
+    /* Extends the joined (A, B) pairs with a third source C on its own key type.
+
+    Unlike [`Bi::join`], the second relationship owns an independent key
+    domain `K2`: the left closure receives the whole left row
+    (`&Concat<Leaf<A>, B>`) so it can inspect any earlier binding, and the
+    right closure sees only the new C entity. Pass the pair as
+    `(extractor_c, equal_on(left_row_key, right_key))`.
+    */
+    pub fn join_on<C, EC, K2, LK, KC>(
+        self,
+        target: (
+            EC,
+            super::super::joiner::EqualJoiner<LK, KC, K2, super::super::joiner::Directed>,
+        ),
+    ) -> super::chained::ChainedTri<S, A, B, C, K, K2, EA, EB, EC, KA, KB, LK, KC, F, TrueFilter, Sc>
+    where
+        C: Clone + Send + Sync + 'static,
+        EC: CollectionExtract<S, Item = C>,
+        K2: Eq + Hash + Clone + Send + Sync,
+        LK: for<'r> Fn(
+                &super::super::relational::Concat<super::super::relational::Leaf<'r, A>, B>,
+            ) -> K2
+            + Send
+            + Sync,
+        KC: Fn(&C) -> K2 + Send + Sync,
+    {
+        let (extractor_c, joiner) = target;
+        let (left_key, right_key) = joiner.into_keys();
+        super::chained::ChainedTri {
+            extractor_a: self.extractor_a,
+            extractor_b: self.extractor_b,
+            extractor_c,
+            key_a: self.key_a,
+            key_b: self.key_b,
+            left_key,
+            right_key,
+            filter_ab: self.filter,
+            filter: TrueFilter,
+            _phantom: PhantomData,
+        }
+    }
+
     /* Expands items from entity B into separate (A, C) pairs with O(1) lookup. */
     pub fn flatten_last<C, CK, Flatten, CKeyFn, ALookup>(
         self,

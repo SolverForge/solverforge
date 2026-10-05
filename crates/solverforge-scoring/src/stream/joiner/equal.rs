@@ -87,6 +87,31 @@ where
     }
 }
 
+/* Creates a joiner whose left key inspects the whole joined left row.
+
+The left closure receives the borrowed left row (recursive `Concat` of
+`Leaf` views), so the second relationship in a chain can inspect any
+earlier binding or combine several. The right closure sees only the new
+right entity. Successive joins keep independent key types: each `join_on`
+carries its own `K2` domain rather than inheriting the first join's key.
+
+Row and right-input types stay method-generic (never impl generics), so
+successive joins keep heterogeneous key types without unifying domains.
+See `constraint::tests::relational::chained` for the exercised shapes.
+*/
+pub fn equal_on<Row, C, K2, LK, KC>(left: LK, right: KC) -> EqualJoiner<LK, KC, K2, Directed>
+where
+    K2: PartialEq,
+    LK: Fn(&Row) -> K2 + Send + Sync,
+    KC: Fn(&C) -> K2 + Send + Sync,
+{
+    EqualJoiner {
+        left,
+        right,
+        _phantom: PhantomData,
+    }
+}
+
 /* A joiner that matches when extracted values are equal.
 
 Created by the [`equal()`] or [`equal_bi()`] functions.

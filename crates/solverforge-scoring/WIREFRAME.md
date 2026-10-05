@@ -208,6 +208,7 @@ src/
 │   ├── complemented_stream.rs                      — ComplementedConstraintStream, ComplementedConstraintBuilder
 │   ├── cross_bi_stream.rs                          — Re-exports
 │   ├── cross_bi_stream/base.rs                     — stream::cross::Bi
+│   ├── cross_bi_stream/scored.rs                   — BiUnaryPlan, BiPredicatePlan, BiScored (first-join execution)
 │   ├── cross_bi_stream/grouped.rs                  — stream::cross::Grouped and builder
 │   ├── cross_bi_stream/complemented_grouped.rs     — stream::cross::ComplementedGrouped and builder
 │   ├── cross_bi_stream/weighting.rs                — stream::cross::Builder
@@ -249,7 +250,7 @@ src/
 │   │   ├── mod.rs                                  — Re-exports filter types
 │   │   ├── traits.rs                               — UniFilter, BiFilter, TriFilter, QuadFilter, PentaFilter traits
 │   │   ├── wrappers.rs                             — TrueFilter, FnUniFilter, FnBiFilter, FnTriFilter, FnQuadFilter, FnPentaFilter
-│   │   ├── adapters.rs                             — UniBiFilter, UniLeftBiFilter, and hidden PairFilter adapters
+│   │   ├── adapters.rs                             — UniBiFilter, UniLeftBiFilter, UniPairFilter, and hidden PairFilter adapters
 │   │   ├── composition.rs                          — AndUniFilter, AndBiFilter, AndTriFilter, AndQuadFilter, AndPentaFilter
 │   │   └── tests/
 │   │       ├── mod.rs                              — Test module declarations
@@ -631,7 +632,7 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 - Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `stream::projected::Stream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 - `UniConstraintStream` implements `CollectionExtract` by delegating extraction to its source and applying its accumulated filter through `contains(...)`.
 - Stream targets preserve their own source filters when passed to keyed or predicate cross-joins. This lets `.join((ConstraintFactory::new().for_each(source).filter(pred), equal_bi(...)))` keep the right-side source predicate inside the joined stream.
-- `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `stream::cross::Bi`; `(other_stream, |a, b| pred)` → predicate `stream::cross::Bi`
+- `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `stream::cross::Bi` (`BiUnaryPlan`); `(other_stream, |a, b| pred)` → predicate `stream::cross::Bi` (`BiPredicatePlan`, an explicit opposite-input scan — never a synthetic constant equality key)
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
 **`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `named()` → `IncrementalUniConstraint`
@@ -712,9 +713,9 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 further joins); low-level constructors are `new_self_join()` and
 `new_self_join_with_filter()`.
 
-**`stream::cross::Bi<S, A, B, K, EA, EB, KA, KB, F, Sc>`** — Cross-collection bi stream.
-- Operations: `filter()`, `group_by(|left, right| key, collector)` → `stream::cross::Grouped`, `project(|left, right| row)` → `stream::projected::Stream`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `flatten_last()` → `FlattenedBiConstraintStream`
-- Low-level constructors: `new()`, `new_with_filter()`
+**`stream::cross::Bi<S, A, B, P, EA, EB, F, Sc>`** — Cross-collection bi stream, generic over its compiled first-relationship plan `P` (`BiUnaryPlan` for a keyed join, `BiPredicatePlan` for a predicate join).
+- Operations: `filter()`, `group_by(|left, right| key, collector)` → `stream::cross::Grouped`, `project(|left, right| row)` → `stream::projected::Stream`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `flatten_last()` → `FlattenedBiConstraintStream`. The group/project/flatten methods are specialized to the keyed plan, which is where a unary key pair exists to rederive.
+- Low-level constructors: `new()`, `new_with_filter()` (keyed)
 
 **`stream::cross::Builder`** — `named()` → `constraint::relational::OperatorTerminal` over a `JoinNode` compiled from the stream's unary key pair
 
@@ -801,7 +802,7 @@ It has no public constructor and is not a crate-root modeling symbol.
 
 **`UniLeftBiFilter<F, B>`** — Adapts UniFilter to BiFilter (tests left arg only).
 
-**`PairFilter<L, R, P>`** — Hidden internal adapter that composes the left stream filter, right stream filter, and user pair predicate for predicate joins.
+**`UniPairFilter<L, R>`** — Internal adapter that composes the left and right stream membership filters for a predicate join, whose relationship predicate is carried by `BiPredicatePlan` (not re-run as a residual).
 
 ### Joiner Types
 

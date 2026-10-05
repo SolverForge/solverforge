@@ -82,6 +82,7 @@ pub mod key_extract;
 mod penta_stream;
 mod projected_stream;
 mod quad_stream;
+pub(crate) mod relational;
 mod tri_stream;
 mod unassigned;
 mod uni_stream;

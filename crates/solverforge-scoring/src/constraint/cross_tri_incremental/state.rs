@@ -361,8 +361,8 @@ where
     pub(super) fn retract_a(&mut self, a_idx: usize) -> Sc {
         self.engine.remove_source_index(0, a_idx);
         let mut total = Sc::zero();
-        for row_idx in self.engine.row_indexes_for(0, a_idx) {
-            total = total + self.engine.remove_row_at(row_idx);
+        for handle in self.engine.row_indexes_for(0, a_idx) {
+            total = total + self.engine.remove_row_at(handle);
         }
         total
     }
@@ -401,8 +401,8 @@ where
     pub(super) fn retract_b(&mut self, b_idx: usize) -> Sc {
         self.engine.remove_source_index(1, b_idx);
         let mut total = Sc::zero();
-        for row_idx in self.engine.row_indexes_for(1, b_idx) {
-            total = total + self.engine.remove_row_at(row_idx);
+        for handle in self.engine.row_indexes_for(1, b_idx) {
+            total = total + self.engine.remove_row_at(handle);
         }
         total
     }
@@ -441,8 +441,8 @@ where
     pub(super) fn retract_c(&mut self, c_idx: usize) -> Sc {
         self.engine.remove_source_index(2, c_idx);
         let mut total = Sc::zero();
-        for row_idx in self.engine.row_indexes_for(2, c_idx) {
-            total = total + self.engine.remove_row_at(row_idx);
+        for handle in self.engine.row_indexes_for(2, c_idx) {
+            total = total + self.engine.remove_row_at(handle);
         }
         total
     }

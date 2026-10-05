@@ -4,6 +4,11 @@ Owns the retained match-row storage, per-source key indexes, and per-source
 inverted row buckets once, so cross arity families (bi, tri, ...) delegate
 their incremental bookkeeping to this engine instead of hand-copying the
 swap_remove row maintenance per arity.
+
+Row storage is the shared relational `DenseRowStore` behind stable
+generational `RowHandle`s: reverse links name handles, so retraction needs
+no position-repair bookkeeping. Key indexes stay per-source `HashMap`s;
+per-join typed indexes arrive with the relational operators.
 */
 
 use std::collections::HashMap;
@@ -11,23 +16,24 @@ use std::hash::Hash;
 
 use solverforge_core::score::Score;
 
+use crate::stream::relational::{DenseRowStore, RowHandle};
+
 #[derive(Clone)]
-pub(crate) struct MatchRow<const N: usize, Sc>
+struct RetainedRow<const N: usize, Sc>
 where
     Sc: Score,
 {
     tuple: [usize; N],
     score: Sc,
-    pos: [usize; N],
 }
 
 pub(crate) struct CrossJoinEngine<const N: usize, K, Sc>
 where
     Sc: Score,
 {
-    matches: HashMap<[usize; N], usize>,
-    match_rows: Vec<MatchRow<N, Sc>>,
-    to_matches: [HashMap<usize, Vec<usize>>; N],
+    matches: HashMap<[usize; N], RowHandle>,
+    match_rows: DenseRowStore<RetainedRow<N, Sc>>,
+    to_matches: [HashMap<usize, Vec<RowHandle>>; N],
     by_key: [HashMap<K, Vec<usize>>; N],
     index_to_key: [HashMap<usize, K>; N],
 }
@@ -39,7 +45,7 @@ where
     pub(crate) fn new() -> Self {
         Self {
             matches: HashMap::new(),
-            match_rows: Vec::new(),
+            match_rows: DenseRowStore::new(),
             to_matches: std::array::from_fn(|_| HashMap::new()),
             by_key: std::array::from_fn(|_| HashMap::new()),
             index_to_key: std::array::from_fn(|_| HashMap::new()),
@@ -62,6 +68,28 @@ where
 
     pub(crate) fn match_count(&self) -> usize {
         self.match_rows.len()
+    }
+
+    /* Retained tuples for structural debug output, in store order. */
+    pub(crate) fn retained_tuples(&self) -> Vec<[usize; N]> {
+        self.match_rows.iter().map(|(_, row)| row.tuple).collect()
+    }
+
+    /* Debug-only cross-check: the tuple map and the row store agree.
+
+    Runs at the end of every mutation in debug builds, so bookkeeping
+    drift from future operator work fails fast at the site of the drift
+    instead of surfacing as a wrong score later. Zero release cost.
+    */
+    fn debug_check(&self) {
+        debug_assert_eq!(self.matches.len(), self.match_rows.len());
+        if self.matches.is_empty() {
+            debug_assert!(self.match_rows.is_empty());
+        }
+        for (tuple, handle) in &self.matches {
+            let row = self.match_rows.get(*handle).expect("reverse link resolves");
+            debug_assert_eq!(&row.tuple, tuple);
+        }
     }
 }
 
@@ -101,61 +129,50 @@ where
 
     // -- retained row maintenance ----------------------------------------
 
-    // Adds a retained match row for `tuple` with `score`, recording per-source
-    // bucket positions. Caller has already decided the tuple matches.
+    // Adds a retained match row for `tuple` with `score`, recording reverse
+    // links from every source index to the row's stable handle. Caller has
+    // already decided the tuple matches.
     pub(crate) fn add_row(&mut self, tuple: [usize; N], score: Sc) -> Sc {
-        let row_idx = self.match_rows.len();
-        let mut pos = [0usize; N];
+        let handle = self.match_rows.insert(RetainedRow { tuple, score });
         for (source, bucket) in self.to_matches.iter_mut().enumerate() {
-            let entry = bucket.entry(tuple[source]).or_default();
-            pos[source] = entry.len();
-            entry.push(row_idx);
+            bucket.entry(tuple[source]).or_default().push(handle);
         }
-        self.match_rows.push(MatchRow { tuple, score, pos });
-        self.matches.insert(tuple, row_idx);
+        self.matches.insert(tuple, handle);
+        self.debug_check();
         score
     }
 
-    // Removes the retained row at `row_idx`, repairing the swapped-in row's
-    // stored positions, and returns the negated row score.
-    pub(crate) fn remove_row_at(&mut self, row_idx: usize) -> Sc {
-        let row = self.match_rows[row_idx].clone();
-        self.matches.remove(&row.tuple);
+    // Removes the retained row named by `handle`, unlinking it from every
+    // reverse bucket, and returns the negated row score. Handles are stable
+    // across removals, so no position repair is needed. A stale handle is
+    // an internal bookkeeping bug and panics; callers only pass handles
+    // obtained from `row_indexes_for`.
+    pub(crate) fn remove_row_at(&mut self, handle: RowHandle) -> Sc {
+        let removed = self
+            .match_rows
+            .retract(handle)
+            .expect("stale row handle in join engine");
+        self.matches.remove(&removed.tuple);
 
         for (source, bucket) in self.to_matches.iter_mut().enumerate() {
-            let idx = row.tuple[source];
-            let pos = row.pos[source];
+            let idx = removed.tuple[source];
             let mut remove_bucket = false;
-            if let Some(rows) = bucket.get_mut(&idx) {
-                debug_assert_eq!(rows[pos], row_idx);
-                rows.swap_remove(pos);
-                if pos < rows.len() {
-                    let moved_row_idx = rows[pos];
-                    self.match_rows[moved_row_idx].pos[source] = pos;
+            if let Some(handles) = bucket.get_mut(&idx) {
+                if let Some(pos) = handles.iter().position(|candidate| *candidate == handle) {
+                    handles.swap_remove(pos);
                 }
-                remove_bucket = rows.is_empty();
+                remove_bucket = handles.is_empty();
             }
             if remove_bucket {
                 bucket.remove(&idx);
             }
         }
 
-        let last_idx = self.match_rows.len() - 1;
-        self.match_rows.swap_remove(row_idx);
-        if row_idx != last_idx {
-            let moved = self.match_rows[row_idx].clone();
-            self.matches.insert(moved.tuple, row_idx);
-            for source in 0..N {
-                if let Some(rows) = self.to_matches[source].get_mut(&moved.tuple[source]) {
-                    rows[moved.pos[source]] = row_idx;
-                }
-            }
-        }
-
-        -row.score
+        self.debug_check();
+        -removed.score
     }
 
-    pub(crate) fn row_indexes_for(&self, source: usize, idx: usize) -> Vec<usize> {
+    pub(crate) fn row_indexes_for(&self, source: usize, idx: usize) -> Vec<RowHandle> {
         self.to_matches[source]
             .get(&idx)
             .cloned()

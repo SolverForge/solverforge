@@ -4,7 +4,6 @@ use std::sync::{
 };
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::constraint::cross_bi_incremental::Bi as CrossBiConstraint;
 use crate::stream::collection_extract::{source, ChangeSource, CollectionExtract};
 use crate::stream::collector::sum;
 use crate::stream::cross::Bi as CrossBiStream;
@@ -12,7 +11,6 @@ use crate::stream::filter::FnBiFilter;
 use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
 use solverforge_core::score::{Score, SoftScore};
-use solverforge_core::{ConstraintRef, ImpactType};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct Employee {
@@ -68,42 +66,46 @@ impl CollectionExtract<Schedule> for CountingEmployeeExtract {
     }
 }
 
+fn shifts_src(schedule: &Schedule) -> &[Shift] {
+    schedule.shifts.as_slice()
+}
+
+fn employees_src(schedule: &Schedule) -> &[Employee] {
+    schedule.employees.as_slice()
+}
+
 fn create_unavailable_employee_constraint() -> impl IncrementalConstraint<Schedule, SoftScore> {
-    CrossBiConstraint::new(
-        ConstraintRef::new("", "Unavailable employee"),
-        ImpactType::Penalty,
-        source(
-            (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
+    ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
+            shifts_src as fn(&Schedule) -> &[Shift],
             ChangeSource::Descriptor(0),
-        ),
-        source(
-            (|schedule: &Schedule| schedule.employees.as_slice()) as fn(&Schedule) -> &[Employee],
-            ChangeSource::Descriptor(1),
-        ),
-        |shift: &Shift| shift.employee_id,
-        |employee: &Employee| Some(employee.id),
-        |_schedule: &Schedule,
-         shift: &Shift,
-         employee: &Employee,
-         _shift_idx: usize,
-         _employee_idx: usize| {
+        ))
+        .join((
+            source(
+                employees_src as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            equal_bi(
+                |shift: &Shift| shift.employee_id,
+                |employee: &Employee| Some(employee.id),
+            ),
+        ))
+        .filter(|shift: &Shift, employee: &Employee| {
             shift.employee_id.is_some() && employee.unavailable_days.contains(&shift.day)
-        },
-        |_schedule: &Schedule, _shift_idx: usize, _employee_idx: usize| SoftScore::of(1),
-        false,
-    )
+        })
+        .penalize(SoftScore::of(1))
+        .named("Unavailable employee")
 }
 
 fn create_grouped_shift_count_constraint() -> impl IncrementalConstraint<Schedule, SoftScore> {
     ConstraintFactory::<Schedule, SoftScore>::new()
         .for_each(source(
-            (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
+            shifts_src as fn(&Schedule) -> &[Shift],
             ChangeSource::Descriptor(0),
         ))
         .join((
             source(
-                (|schedule: &Schedule| schedule.employees.as_slice())
-                    as fn(&Schedule) -> &[Employee],
+                employees_src as fn(&Schedule) -> &[Employee],
                 ChangeSource::Descriptor(1),
             ),
             equal_bi(
@@ -167,27 +169,24 @@ fn two_employee_schedule() -> Schedule {
 fn cross_bi_unrelated_insert_skips_extractors() {
     let shift_extract_calls = Arc::new(AtomicUsize::new(0));
     let employee_extract_calls = Arc::new(AtomicUsize::new(0));
-    let mut constraint = CrossBiConstraint::new(
-        ConstraintRef::new("", "Unavailable employee"),
-        ImpactType::Penalty,
-        CountingShiftExtract {
+    let mut constraint = ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(CountingShiftExtract {
             calls: Arc::clone(&shift_extract_calls),
-        },
-        CountingEmployeeExtract {
-            calls: Arc::clone(&employee_extract_calls),
-        },
-        |shift: &Shift| shift.employee_id,
-        |employee: &Employee| Some(employee.id),
-        |_schedule: &Schedule,
-         shift: &Shift,
-         employee: &Employee,
-         _shift_idx: usize,
-         _employee_idx: usize| {
+        })
+        .join((
+            CountingEmployeeExtract {
+                calls: Arc::clone(&employee_extract_calls),
+            },
+            equal_bi(
+                |shift: &Shift| shift.employee_id,
+                |employee: &Employee| Some(employee.id),
+            ),
+        ))
+        .filter(|shift: &Shift, employee: &Employee| {
             shift.employee_id.is_some() && employee.unavailable_days.contains(&shift.day)
-        },
-        |_schedule: &Schedule, _shift_idx: usize, _employee_idx: usize| SoftScore::of(1),
-        false,
-    );
+        })
+        .penalize(SoftScore::of(1))
+        .named("Unavailable employee");
     let schedule = sample_schedule();
 
     assert_eq!(constraint.initialize(&schedule), SoftScore::of(-1));
@@ -382,26 +381,23 @@ fn cross_bi_unrelated_descriptor_is_noop() {
 #[test]
 #[should_panic(expected = "cannot localize entity indexes")]
 fn cross_bi_unknown_source_panics_on_localized_callback() {
-    let mut constraint = CrossBiConstraint::new(
-        ConstraintRef::new("", "Unavailable employee"),
-        ImpactType::Penalty,
-        (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
-        source(
-            (|schedule: &Schedule| schedule.employees.as_slice()) as fn(&Schedule) -> &[Employee],
-            ChangeSource::Descriptor(1),
-        ),
-        |shift: &Shift| shift.employee_id,
-        |employee: &Employee| Some(employee.id),
-        |_schedule: &Schedule,
-         shift: &Shift,
-         employee: &Employee,
-         _shift_idx: usize,
-         _employee_idx: usize| {
+    let mut constraint = ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each((|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift])
+        .join((
+            source(
+                employees_src as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            equal_bi(
+                |shift: &Shift| shift.employee_id,
+                |employee: &Employee| Some(employee.id),
+            ),
+        ))
+        .filter(|shift: &Shift, employee: &Employee| {
             shift.employee_id.is_some() && employee.unavailable_days.contains(&shift.day)
-        },
-        |_schedule: &Schedule, _shift_idx: usize, _employee_idx: usize| SoftScore::of(1),
-        false,
-    );
+        })
+        .penalize(SoftScore::of(1))
+        .named("Unavailable employee");
     let schedule = sample_schedule();
 
     constraint.initialize(&schedule);

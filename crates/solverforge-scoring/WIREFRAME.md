@@ -129,10 +129,6 @@ src/
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
 │   ├── complemented.rs                             — constraint::complemented::Grouped module root and re-exports
 │   ├── complemented/*.rs                           — Retained complemented state, incremental callbacks, helpers, and debug accessors
-│   ├── cross_bi_incremental.rs                     — constraint::cross_bi_incremental::Bi module root and re-exports
-│   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
-│   ├── cross_incremental.rs                        — Hidden shared arity-generic cross-join engine module root
-│   ├── cross_incremental/engine.rs                 — CrossJoinEngine<N, K, Sc> retained row/key-index/bucket state shared by cross arities
 │   ├── cross_grouped.rs                            — constraint::cross_grouped::Grouped module root and re-exports
 │   ├── cross_grouped/*.rs                          — indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, updates.rs, view.rs for retained direct cross grouped state
 │   ├── cross_complemented_grouped.rs               — constraint::cross_complemented_grouped::ComplementedGrouped module root and internal shared engine re-exports
@@ -163,7 +159,7 @@ src/
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
 │       ├── bi_incr.rs                              — IncrementalBiConstraint tests
-│       ├── cross_bi_incr.rs                        — constraint::cross_bi_incremental::Bi tests
+│       ├── cross_bi_incr.rs                        — Fluent cross-bi join tests on the generic operator terminal
 │       ├── tri_incr.rs                             — IncrementalTriConstraint tests
 │       ├── quad_incr.rs                            — IncrementalQuadConstraint tests
 │       ├── penta_incr.rs                           — IncrementalPentaConstraint tests
@@ -291,7 +287,6 @@ pub use constraint::{
 // Short family names are intentionally module-scoped:
 // constraint::grouped::Uni
 // constraint::complemented::Grouped
-// constraint::cross_bi_incremental::Bi
 // constraint::cross_grouped::Grouped
 // constraint::cross_complemented_grouped::ComplementedGrouped
 // constraint::projected::{Uni, Bi, DirectedBi, Grouped, ComplementedGrouped}
@@ -508,9 +503,7 @@ list-plus-fixed-precedence constraint over `HardSoftScore`. `new(...)` binds the
 list descriptor, node/owner accessors, durations, and fixed successors;
 `with_expected_owner(...)` optionally adds fixed-owner validation.
 
-**`constraint::cross_bi_incremental::Bi<S, A, B, K, EA, EB, KA, KB, F, W, Sc>`** — Cross-collection bi constraint (two different collections joined by key). Stateless `evaluate()`, `match_count()`, and `get_matches()` rebuild the keyed B-side index directly, so retained analysis works even before `initialize()`. Filters receive the A and B source indexes on every direct, grouped, and projected finalization path. The low-level `new(...)` constructor preserves index-aware weights via `Fn(&S, usize, usize) -> Sc`; `new_pair_weight(...)` and fluent stream builders use `PairWeight<W>` for `Fn(&A, &B) -> Sc` weights without cloning streams or extractors.
-
-**`CrossBiWeight<S, A, B, Sc>`**, **`IndexWeight<W>`**, **`PairWeight<W>`** — Zero-erasure cross-bi weight strategies. They keep low-level index-aware scoring and fluent pair-aware scoring as separate monomorphized paths.
+**`stream::cross::{Bi, Tri}` finalization** — Cross-collection joins finalize onto the generic `constraint::relational::OperatorTerminal`. Each join is a concrete `JoinNode` over a compiled condition plan: the fluent `.join((target, joiner))` carries its own key/condition type, and a row-aware joiner receives the whole borrowed left row. Stateless `evaluate()`, `match_count()`, and `get_matches()` traverse the operator tree directly, so retained analysis works before `initialize()`. Authored bi/tri filters run inside the scored operator, so filters receive the A/B/C source indexes on every path (direct, grouped, and projected) and are applied exactly once across evaluate and retained mutations.
 
 **`constraint::grouped::Uni<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&A>` — Group-by with collector and weight on `(&K, &R)`.
 
@@ -723,7 +716,7 @@ further joins); low-level constructors are `new_self_join()` and
 - Operations: `filter()`, `group_by(|left, right| key, collector)` → `stream::cross::Grouped`, `project(|left, right| row)` → `stream::projected::Stream`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `flatten_last()` → `FlattenedBiConstraintStream`
 - Low-level constructors: `new()`, `new_with_filter()`
 
-**`stream::cross::Builder`** — `named()` → `constraint::cross_bi_incremental::Bi`
+**`stream::cross::Builder`** — `named()` → `constraint::relational::OperatorTerminal` over a `JoinNode` compiled from the stream's unary key pair
 
 **`stream::cross::Grouped/Builder`** — Direct grouped cross-join stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::cross_grouped::Grouped`. `complement(source, key, default)` → `stream::cross::ComplementedGrouped`. Collectors receive the joined pair shape as `(&A, &B)`.
 

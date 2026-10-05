@@ -25,8 +25,8 @@ struct Entry<T> {
 
 Insert returns a fresh handle; retract returns the owned payload so
 callers can reuse retained keys/scores/tokens without re-reading them.
-Point lookup, full traversal, and length are all available for the
-retained-state invariant checks the operator tests run after every event.
+Point lookup, full traversal, and length back the retained-state
+invariant checks the operator tests run after every event.
 */
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DenseRowStore<T> {
@@ -44,10 +44,13 @@ impl<T> DenseRowStore<T> {
         }
     }
 
+    /* Live row count for retained-state invariant assertions. */
+    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.entries.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }

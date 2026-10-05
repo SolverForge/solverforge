@@ -6,7 +6,6 @@ use crate::stream::projected::Source;
 
 use super::{
     complemented::Grouped as ComplementedGrouped,
-    cross_bi_incremental::Bi as CrossBi,
     cross_complemented_grouped::ComplementedGrouped as CrossComplementedGrouped,
     cross_grouped::Grouped as CrossGrouped,
     grouped::Uni as GroupedUni,
@@ -50,13 +49,6 @@ where
 
 impl<S, A, K, E, KE, F, W, Sc> IncrementalConstraintSealed
     for IncrementalPentaConstraint<S, A, K, E, KE, F, W, Sc>
-where
-    Sc: Score,
-{
-}
-
-impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> IncrementalConstraintSealed
-    for CrossBi<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
 where
     Sc: Score,
 {

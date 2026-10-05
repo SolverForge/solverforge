@@ -36,9 +36,9 @@ pub(crate) enum DeltaKind {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct JoinDelta {
-    pub kind: DeltaKind,
-    pub left_idx: usize,
-    pub right_idx: usize,
+    pub(crate) kind: DeltaKind,
+    pub(crate) left_idx: usize,
+    pub(crate) right_idx: usize,
 }
 
 struct Output {
@@ -49,7 +49,7 @@ struct Output {
 }
 
 /* Binary equi-join with its own key domain and retained output rows. */
-pub(crate) struct EquiJoin<S, A, B, EA, EB, K, KA, KB, F> {
+pub struct EquiJoin<S, A, B, EA, EB, K, KA, KB, F> {
     left: Source<S, A, EA, K, KA>,
     right: Source<S, B, EB, K, KB>,
     left_descriptor: usize,
@@ -245,6 +245,11 @@ where
             buckets.clear();
         }
         self.deltas.begin();
+    }
+
+    /* Stable handle of one live output pair, if still retained. */
+    pub(crate) fn output_handle(&self, a_idx: usize, b_idx: usize) -> Option<RowHandle> {
+        self.output_of.get(&(a_idx, b_idx)).copied()
     }
 
     /* Retained provenance for one output pair, if still live. */

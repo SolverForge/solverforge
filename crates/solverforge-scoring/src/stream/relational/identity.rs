@@ -24,11 +24,13 @@ impl RowHandle {
         RowHandle { slot, generation }
     }
 
-    pub(super) fn slot(self) -> u32 {
+    /* Slot index for dense engine-side bookkeeping arrays. */
+    pub(crate) fn slot(self) -> u32 {
         self.slot
     }
 
-    pub(super) fn generation(self) -> u32 {
+    /* Generation check for slot-indexed records under slot reuse. */
+    pub(crate) fn generation(self) -> u32 {
         self.generation
     }
 }

@@ -6,10 +6,12 @@ their incremental bookkeeping to this engine instead of hand-copying the
 swap_remove row maintenance per arity.
 
 Row storage is the shared relational `DenseRowStore` behind stable
-generational `RowHandle`s. Reverse links name handles; a per-row position
-record keeps bucket unlinking O(1) under high fan-out, exactly like the
-positional scheme it replaces. Key indexes stay per-source `HashMap`s;
-per-join typed indexes arrive with the relational operators.
+generational `RowHandle`s. Reverse links name handles; a dense
+slot-indexed position record keeps bucket unlinking O(1) under high
+fan-out at the exact cost profile of the positional scheme it replaces —
+array indexing with a generation check, no hashing on the row path. Key
+indexes stay per-source `HashMap`s; per-join typed indexes arrive with
+the relational operators.
 */
 
 use std::collections::HashMap;
@@ -35,7 +37,10 @@ where
     matches: HashMap<[usize; N], RowHandle>,
     match_rows: DenseRowStore<RetainedRow<N, Sc>>,
     to_matches: [HashMap<usize, Vec<RowHandle>>; N],
-    row_pos: HashMap<RowHandle, [usize; N]>,
+    // Dense slot-indexed bucket positions with generation guards. Slot
+    // reuse across generations must not alias a live record: every read
+    // checks the generation first, exactly like handle resolution.
+    row_pos: Vec<([usize; N], u32)>,
     by_key: [HashMap<K, Vec<usize>>; N],
     index_to_key: [HashMap<usize, K>; N],
 }
@@ -49,7 +54,7 @@ where
             matches: HashMap::new(),
             match_rows: DenseRowStore::new(),
             to_matches: std::array::from_fn(|_| HashMap::new()),
-            row_pos: HashMap::new(),
+            row_pos: Vec::new(),
             by_key: std::array::from_fn(|_| HashMap::new()),
             index_to_key: std::array::from_fn(|_| HashMap::new()),
         }
@@ -137,6 +142,31 @@ where
 
     // -- retained row maintenance ----------------------------------------
 
+    // Records this row's bucket positions under its slot, growing the
+    // dense record on first use of a slot. The generation guard travels
+    // with the positions so slot reuse can never alias a live record.
+    fn record_pos(&mut self, handle: RowHandle, pos: [usize; N]) {
+        let slot = handle.slot() as usize;
+        if slot >= self.row_pos.len() {
+            self.row_pos.resize(slot + 1, ([0usize; N], u32::MAX));
+        }
+        self.row_pos[slot] = (pos, handle.generation());
+    }
+
+    // Reads this row's bucket positions, rejecting stale generations.
+    // A missing or generation-mismatched record is an internal
+    // bookkeeping bug and panics; handles here always come from
+    // `row_indexes_for` on live rows.
+    fn take_pos(&mut self, handle: RowHandle) -> [usize; N] {
+        let slot = handle.slot() as usize;
+        let record = self.row_pos.get_mut(slot).expect("row position missing");
+        debug_assert_eq!(record.1, handle.generation(), "stale row position");
+        // Tombstone the generation so a double removal fails loudly in
+        // debug builds instead of unlinking a reused slot's buckets.
+        record.1 = record.1.wrapping_add(1);
+        record.0
+    }
+
     // Adds a retained match row for `tuple` with `score`, recording reverse
     // links from every source index to the row's stable handle. Caller has
     // already decided the tuple matches.
@@ -148,7 +178,7 @@ where
             pos[source] = entry.len();
             entry.push(handle);
         }
-        self.row_pos.insert(handle, pos);
+        self.record_pos(handle, pos);
         self.matches.insert(tuple, handle);
         self.debug_check();
         score
@@ -164,10 +194,7 @@ where
             .retract(handle)
             .expect("stale row handle in join engine");
         self.matches.remove(&removed.tuple);
-        let pos = self
-            .row_pos
-            .remove(&handle)
-            .expect("row position missing in join engine");
+        let pos = self.take_pos(handle);
 
         for (source, bucket) in self.to_matches.iter_mut().enumerate() {
             let idx = removed.tuple[source];
@@ -177,8 +204,10 @@ where
                 handles.swap_remove(pos[source]);
                 if pos[source] < handles.len() {
                     let moved = handles[pos[source]];
-                    if let Some(moved_pos) = self.row_pos.get_mut(&moved) {
-                        moved_pos[source] = pos[source];
+                    let moved_slot = moved.slot() as usize;
+                    if let Some(moved_record) = self.row_pos.get_mut(moved_slot) {
+                        debug_assert_eq!(moved_record.1, moved.generation());
+                        moved_record.0[source] = pos[source];
                     }
                 }
                 remove_bucket = handles.is_empty();

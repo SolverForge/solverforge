@@ -5,10 +5,12 @@ suites live here. The oracle never calls production indexes or traversal;
 production results must agree with it on scores, row multisets, and counts.
 */
 
+mod chained;
 mod fixtures;
 mod identity;
 mod independent_keys;
 mod oracle;
 mod primitives;
 mod terminal;
+mod triple_terminal;
 mod updates;

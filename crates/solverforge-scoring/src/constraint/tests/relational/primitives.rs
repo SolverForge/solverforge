@@ -1,32 +1,45 @@
 /* Relational primitive contracts: borrowed rows, provenance, delta coalescing.
 
-Pins the `stream::relational` behavior the operators build on: leaf rows
-borrow without entity cloning or solution borrows, provenance keeps every
-authored binding in tuple orientation, and delta epochs coalesce
-duplicate paths with retract-before-insert ordering. Recursive row
-concatenation and physical dependency traversal arrive with the chaining
-operator and root update router that consume them.
+Pins the `stream::relational` behavior the operators build on: rows nest
+structurally without entity cloning or solution borrows, provenance keeps
+every authored binding in tuple orientation, and delta epochs coalesce
+duplicate paths with retract-before-insert ordering. Physical dependency
+traversal arrives with the root update router that consumes it.
 */
 
 #[test]
-fn borrowed_leaf_rows_carry_entities_and_semantic_indexes() {
-    use crate::stream::relational::Leaf;
+fn borrowed_rows_nest_without_cloning_or_solution_borrows() {
+    use crate::stream::relational::{Concat, Leaf, Row};
 
     #[derive(Debug, PartialEq)]
     struct Assignment {
         shift_id: u32,
     }
+    #[derive(Debug, PartialEq)]
+    struct Shift {
+        id: u32,
+    }
 
     let assignment = Assignment { shift_id: 10 };
+    let shift = Shift { id: 10 };
 
     // Leaf rows borrow entities with semantic source indexes.
     let leaf = Leaf::new(&assignment, 2);
     assert_eq!(leaf.entity.shift_id, 10);
     assert_eq!(leaf.index, 2);
+    assert_eq!(<Leaf<'_, Assignment> as Row>::DEPTH, 1);
+
+    // Concatenation nests structurally with static depth: the chained
+    // join's row shape carries both bindings with left-spine orientation.
+    let pair = Concat::new(leaf, &shift, 0);
+    assert_eq!(<Concat<'_, Leaf<'_, Assignment>, Shift> as Row>::DEPTH, 2);
+    assert_eq!(pair.left.entity.shift_id, 10);
+    assert_eq!(pair.right.entity.id, 10);
+    assert_eq!(pair.right.index, 0);
 
     // Rows are Copy over shared borrows: re-traversal costs nothing.
-    let again = leaf;
-    assert_eq!(again.entity.shift_id, 10);
+    let again = pair;
+    assert_eq!(again.right.entity.id, 10);
 }
 
 #[test]

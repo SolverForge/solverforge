@@ -113,6 +113,14 @@ value from a mutated accumulator.
 Complement integration and compiler-owned derived-consumer sharing remain
 separate work; they are not supplied by a projection, group, or join alone.
 
+`ExistenceNode` uses the same compiled condition plans for semi/anti joins over
+arbitrary producers. It retains matching links/counts, not scored pair rows.
+Only 0↔nonzero counts change left membership; right updates that keep a match
+present do not rescore an unchanged left row. Output lineage contains left
+bindings only, as the right relation is a membership test rather than a new
+binding. Grouped right replacements are processed atomically, including during
+contributor retraction.
+
 ## Verify extensions
 
 Compare full and retained row multisets with an independent nested-loop oracle.

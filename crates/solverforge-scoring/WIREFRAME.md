@@ -35,6 +35,10 @@ migration of the fluent stream families:
   accumulator-owned result, including non-Clone `CollectedVec<T>` payloads.
   Either join input can be a grouped producer. Contributor changes replace
   aggregate rows on both callbacks and coalesce within one root notification.
+- `ExistenceNode<S, L, R, P>::new(left, right, condition, exists)` publishes only
+  left rows, using the same compiled index strategies as joins. `exists=true`
+  selects semi-join membership and `false` selects anti-join membership. Matching
+  links retain multiplicity counts; 1↔2 transitions do not publish row changes.
 - `JoinNode<S, L, R, P>::new(left, right, condition)` compiles a condition and
   produces `Pair<L::View<'a>, R::View<'a>>`; either input can itself be a join.
   `Pair<L, R>` has public `left` and `right` fields. Depth is recursive rather
@@ -61,7 +65,7 @@ migration of the fluent stream families:
   existing `Concat<Leaf<A>, B>` view using semantic indexes.
 
 New file map: `stream/relational/operator.rs`,
-`stream/relational/operator/{analysis,changes,collection,filter,group,group_view,
+`stream/relational/operator/{analysis,changes,collection,existence,filter,group,group_view,
 join,merge,project}.rs`,
 `stream/joiner/plan.rs`, `stream/joiner/plan/{executable,hash_scan,conjunction,
 composite,mixed_equality,ordered_interval}.rs`, `stream/joiner/row_key.rs`,

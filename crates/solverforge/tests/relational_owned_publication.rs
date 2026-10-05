@@ -128,3 +128,45 @@ fn facade_group_result_can_join_and_publish_partial_group_replacement() {
     assert_eq!(c.evaluate(&m), score);
     assert_eq!(c.get_matches(&m).len(), 2);
 }
+
+#[test]
+fn facade_anti_join_updates_both_bindings_of_one_descriptor() {
+    use solverforge::stream::joiner::filtering;
+    use solverforge::stream::relational::operator::ExistenceNode;
+    fn weight(_: &Model, row: &Leaf<'_, Entity>) -> SoftScore {
+        SoftScore::of(row.entity.weight)
+    }
+    fn different(a: &Leaf<'_, Entity>, b: &Leaf<'_, Entity>) -> bool {
+        a.index != b.index
+    }
+    let leaf = |binding| {
+        CollectionNode::new(
+            source(
+                entities as fn(&Model) -> &[Entity],
+                ChangeSource::Descriptor(0),
+            ),
+            binding,
+        )
+    };
+    let condition = equal_bi(leaf_key, leaf_key).and(filtering(different));
+    let tree = ExistenceNode::new(leaf(0), leaf(1), condition, false);
+    let mut c = OperatorTerminal::new(
+        ConstraintRef::new("public", "anti"),
+        ImpactType::Reward,
+        tree,
+        weight,
+        false,
+    );
+    let mut m = Model {
+        entities: vec![Entity { key: 1, weight: 2 }, Entity { key: 1, weight: 3 }],
+    };
+    assert_eq!(c.evaluate(&m), SoftScore::of(0));
+    let mut score = c.initialize(&m);
+    score = score + c.on_retract(&m, 0, 0);
+    assert_eq!(score, SoftScore::of(3));
+    m.entities[0].key = 2;
+    score = score + c.on_insert(&m, 0, 0);
+    assert_eq!(score, SoftScore::of(5));
+    assert_eq!(c.evaluate(&m), score);
+    assert_eq!(c.match_count(&m), 2);
+}

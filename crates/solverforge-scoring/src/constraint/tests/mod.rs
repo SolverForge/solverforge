@@ -13,6 +13,7 @@ mod grouped;
 mod penta_incr;
 mod projected;
 mod quad_incr;
+mod relational;
 mod tri_incr;
 
 mod repro_unknown;

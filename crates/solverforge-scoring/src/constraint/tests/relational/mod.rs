@@ -27,6 +27,7 @@ mod operator_tree;
 mod oracle;
 mod owned_projection;
 mod primitives;
+mod sharing;
 mod terminal;
 mod triple_terminal;
 mod updates;

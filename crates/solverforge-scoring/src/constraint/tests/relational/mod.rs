@@ -7,6 +7,7 @@ production results must agree with it on scores, row multisets, and counts.
 
 mod chained;
 mod compiled_conditions;
+mod condition_mutations;
 mod conditions;
 mod evaluation;
 mod fixtures;

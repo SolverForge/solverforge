@@ -235,3 +235,75 @@ fn facade_flatten_borrows_non_clone_children_from_owned_projection_evaluation() 
         .iter()
         .all(|x| x.justification.entities.len() == 2));
 }
+
+#[test]
+fn facade_complement_owns_one_group_and_replaces_filtered_real_rows_with_defaults() {
+    use solverforge::stream::collector::{count, CountAccumulator};
+    use solverforge::stream::relational::operator::{
+        ComplementNode, ComplementView, FilterNode, GroupNode, GroupView, Operator,
+    };
+    fn grouped_key<O: Operator<Model>>(
+        row: &GroupView<'_, Model, O, u32, CountAccumulator, (), usize>,
+    ) -> u32 {
+        *row.key
+    }
+    fn default(_: &Model, row: &Leaf<'_, Entity>) -> Payload {
+        Payload {
+            key: row.entity.key,
+            weight: -10,
+        }
+    }
+    fn weight<O: Operator<Model>>(
+        _: &Model,
+        row: &ComplementView<
+            '_,
+            Leaf<'_, Entity>,
+            GroupView<'_, Model, O, u32, CountAccumulator, (), usize>,
+            Payload,
+        >,
+    ) -> SoftScore {
+        match row {
+            ComplementView::Real(pair) => pair
+                .right
+                .with_result(|count| SoftScore::of(*count as i64 * 5)),
+            ComplementView::Default(projected) => SoftScore::of(projected.value.weight),
+        }
+    }
+    fn accepted(_: &Model, row: &Leaf<'_, Entity>) -> bool {
+        row.entity.weight > 0
+    }
+    let leaf = |binding| {
+        CollectionNode::new(
+            source(
+                entities as fn(&Model) -> &[Entity],
+                ChangeSource::Descriptor(0),
+            ),
+            binding,
+        )
+    };
+    let grouped = GroupNode::new(FilterNode::new(leaf(0), accepted), leaf_key, count());
+    let complemented =
+        ComplementNode::new(leaf(1), grouped, equal_bi(leaf_key, grouped_key), default);
+    let mut c = OperatorTerminal::new(
+        ConstraintRef::new("public", "complement"),
+        ImpactType::Reward,
+        complemented,
+        weight,
+        false,
+    );
+    let mut m = Model {
+        entities: vec![Entity { key: 1, weight: 0 }, Entity { key: 1, weight: 3 }],
+    };
+    assert_eq!(c.evaluate(&m), SoftScore::of(10));
+    let mut score = c.initialize(&m);
+    score = score + c.on_retract(&m, 1, 0);
+    assert_eq!(score, SoftScore::of(-10));
+    m.entities[1].weight = 0;
+    score = score + c.on_insert(&m, 1, 0);
+    assert_eq!(score, SoftScore::of(-20));
+    assert_eq!(c.evaluate(&m), score);
+    assert!(c
+        .get_matches(&m)
+        .iter()
+        .all(|m| m.justification.entities.len() == 1));
+}

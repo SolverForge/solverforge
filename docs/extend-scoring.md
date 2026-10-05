@@ -110,8 +110,8 @@ one final replacement per changed group. Old keys, scores, and collector tokens
 are retained independently, so downstream invalidation does not recompute an old
 value from a mutated accumulator.
 
-Complement integration and compiler-owned derived-consumer sharing remain
-separate work; they are not supplied by a projection, group, or join alone.
+Compiler-owned derived-consumer sharing remains separate work; it is not supplied
+by a projection, group, or join alone.
 
 `ExistenceNode` uses the same compiled condition plans for semi/anti joins over
 arbitrary producers. It retains matching links/counts, not scored pair rows.
@@ -129,6 +129,15 @@ the borrowed input view; this makes lending function items legal despite GAT
 input lifetime elision in Rust's higher-ranked `Fn` output bounds. Full evaluation
 streams child rows and borrows any projected parent from its evaluation owner.
 Duplicate children are distinct positions, not deduplicated values.
+
+`ComplementNode` owns one indexed membership relation containing its target and
+result producers. It publishes matched target/result pairs and owned defaults
+for unmatched targets. Only the target domain produces outputs: a real group
+without a matching target does not fabricate a complemented row. Duplicate
+target keys remain separate target identities and receive separate contributions.
+Default↔real replacements remove the old output before publishing the new one;
+real grouped results borrow their existing accumulator rather than copying it.
+The enum borrowed view remains usable by downstream conditions and projections.
 
 ## Verify extensions
 

@@ -41,6 +41,67 @@ where
             marker: PhantomData,
         }
     }
+    pub(super) fn left(&self) -> &L {
+        &self.left
+    }
+    pub(super) fn right(&self) -> &R {
+        &self.right
+    }
+    pub(super) fn right_matches(&self, left: RowHandle) -> &[RowHandle] {
+        self.left_matches.get(left).map_or(&[], Vec::as_slice)
+    }
+    pub(super) fn left_matches(&self, right: RowHandle) -> &[RowHandle] {
+        self.right_matches.get(right).map_or(&[], Vec::as_slice)
+    }
+    pub(super) fn update(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        retract: bool,
+    ) -> (RowChanges, RowChanges, RowChanges) {
+        let left = if retract {
+            self.left.retract(solution, descriptor, index)
+        } else {
+            self.left.insert(solution, descriptor, index)
+        };
+        let right = if retract {
+            self.right.retract(solution, descriptor, index)
+        } else {
+            self.right.insert(solution, descriptor, index)
+        };
+        let membership = self.apply_changes(solution, &left, &right);
+        (membership, left, right)
+    }
+    pub(super) fn visit_outer_evaluation<'a>(
+        &'a self,
+        solution: &'a S,
+        evaluation: &'a (L::Evaluation, R::Evaluation),
+        visitor: &mut impl FnMut(L::View<'a>, Option<R::View<'a>>),
+    ) {
+        let mut indexes = self.plan.new_indexes();
+        let mut right_rows = Vec::new();
+        self.right
+            .visit_evaluation(solution, &evaluation.1, &mut |row| {
+                let h = RowHandle::new(right_rows.len() as u32, 0);
+                self.plan.insert_right_transient(&mut indexes, h, &row);
+                right_rows.push(row);
+            });
+        self.left
+            .visit_evaluation(solution, &evaluation.0, &mut |left| {
+                let mut matched = false;
+                for &h in self.plan.right_candidates(&indexes, &left).iter() {
+                    let right = right_rows[h.slot() as usize];
+                    if self.plan.candidate_matches(&left, &right) {
+                        matched = true;
+                        visitor(left, Some(right));
+                    }
+                }
+                if !matched {
+                    visitor(left, None);
+                }
+            });
+    }
     fn link(&mut self, left: RowHandle, right: RowHandle) {
         let matches = self.left_matches.get_or_insert_with(left, Vec::new);
         if matches.contains(&right) {
@@ -92,10 +153,10 @@ where
             changed.insert(left);
         }
     }
-    fn apply_changes(&mut self, solution: &S, left: RowChanges, right: RowChanges) -> RowChanges {
+    fn apply_changes(&mut self, solution: &S, left: &RowChanges, right: &RowChanges) -> RowChanges {
         let mut changed = HashSet::new();
         let mut removed = Vec::new();
-        for h in left.removed {
+        for h in left.removed.iter().copied() {
             self.plan.remove_left(&mut self.indexes, h);
             for r in self.left_matches.remove(h).unwrap_or_default() {
                 if let Some(matches) = self.right_matches.get_mut(r) {
@@ -106,7 +167,7 @@ where
                 removed.push(h);
             }
         }
-        for h in right.removed {
+        for h in right.removed.iter().copied() {
             self.plan.remove_right(&mut self.indexes, h);
             for l in self.right_matches.remove(h).unwrap_or_default() {
                 if let Some(matches) = self.left_matches.get_mut(l) {
@@ -129,11 +190,11 @@ where
                 .expect("inserted semi-join right row");
             self.plan.insert_right(&mut self.indexes, h, &row);
         }
-        for h in left.inserted {
+        for h in left.inserted.iter().copied() {
             self.probe_left(solution, h);
             changed.insert(h);
         }
-        for h in right.inserted {
+        for h in right.inserted.iter().copied() {
             self.probe_right(solution, h, &mut changed);
         }
         let mut inserted = Vec::new();
@@ -207,11 +268,11 @@ where
         self.right.initialize(solution);
         self.apply_changes(
             solution,
-            RowChanges {
+            &RowChanges {
                 removed: Vec::new(),
                 inserted: self.left.handles(),
             },
-            RowChanges {
+            &RowChanges {
                 removed: Vec::new(),
                 inserted: self.right.handles(),
             },
@@ -234,13 +295,9 @@ where
         }
     }
     fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let left = self.left.retract(solution, descriptor, index);
-        let right = self.right.retract(solution, descriptor, index);
-        self.apply_changes(solution, left, right)
+        self.update(solution, descriptor, index, true).0
     }
     fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let left = self.left.insert(solution, descriptor, index);
-        let right = self.right.insert(solution, descriptor, index);
-        self.apply_changes(solution, left, right)
+        self.update(solution, descriptor, index, false).0
     }
 }

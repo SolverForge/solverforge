@@ -44,6 +44,11 @@ migration of the fluent stream families:
   `(&'a S, O::View<'a>)` and returns `&'a [T]`. `FlattenView<'a, V, T>` exposes
   `input: V`, `value: &'a T`, and `child: usize`; parent row provenance and its
   semantic source indexes are preserved, including for owned projected parents.
+- `ComplementNode<S, L, R, P, F, T>::new(targets, results, condition, default)`
+  produces a typed target-domain outer relation. Real matches retain target and
+  result bindings; unmatched targets own their default payloads. `ComplementView`
+  is `Real(Pair<L, R>)` or `Default(ProjectView<'a, L, T>)`. Duplicate target
+  rows preserve bag multiplicity, and grouped results have one accumulator owner.
 - `JoinNode<S, L, R, P>::new(left, right, condition)` compiles a condition and
   produces `Pair<L::View<'a>, R::View<'a>>`; either input can itself be a join.
   `Pair<L, R>` has public `left` and `right` fields. Depth is recursive rather
@@ -70,7 +75,8 @@ migration of the fluent stream families:
   existing `Concat<Leaf<A>, B>` view using semantic indexes.
 
 New file map: `stream/relational/operator.rs`,
-`stream/relational/operator/{analysis,changes,collection,existence,filter,flatten,group,group_view,
+`stream/relational/operator/{analysis,changes,collection,complement,complement_view,
+existence,filter,flatten,group,group_view,
 join,merge,project}.rs`,
 `stream/joiner/plan.rs`, `stream/joiner/plan/{executable,hash_scan,conjunction,
 composite,mixed_equality,ordered_interval}.rs`, `stream/joiner/row_key.rs`,
@@ -78,9 +84,10 @@ composite,mixed_equality,ordered_interval}.rs`, `stream/joiner/row_key.rs`,
 `constraint/relational/operator_terminal.rs`. Generational direct side-tables
 are internal in `stream/relational/handle_map.rs`.
 
-This surface supports collection/filtered/merged/joined, owned projection, and
-group producers. Complement producers and uniform fluent migration are not
-provided by this low-level surface. Existing specialized families still exist.
+This surface supports collection/filtered/merged/joined, owned projection,
+group/complement, existence, and flattened producers. Uniform fluent migration
+and compiler-owned derived-consumer sharing are not provided by this low-level
+surface. Existing specialized families still exist.
 See [Extending typed relational scoring](../../docs/extend-scoring.md) for
 execution, ownership, and verification boundaries.
 

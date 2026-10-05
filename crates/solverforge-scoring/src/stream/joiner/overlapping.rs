@@ -45,7 +45,7 @@ assert!(!overlap.matches(
 ));
 ```
 */
-pub fn overlapping<A, B, T, Fsa, Fea, Fsb, Feb>(
+pub fn overlapping<T, Fsa, Fea, Fsb, Feb>(
     start_a: Fsa,
     end_a: Fea,
     start_b: Fsb,
@@ -53,10 +53,10 @@ pub fn overlapping<A, B, T, Fsa, Fea, Fsb, Feb>(
 ) -> OverlappingJoiner<Fsa, Fea, Fsb, Feb, T>
 where
     T: Ord,
-    Fsa: Fn(&A) -> T + Send + Sync,
-    Fea: Fn(&A) -> T + Send + Sync,
-    Fsb: Fn(&B) -> T + Send + Sync,
-    Feb: Fn(&B) -> T + Send + Sync,
+    Fsa: Send + Sync,
+    Fea: Send + Sync,
+    Fsb: Send + Sync,
+    Feb: Send + Sync,
 {
     OverlappingJoiner {
         start_a,
@@ -67,16 +67,61 @@ where
     }
 }
 
+/* Creates a joiner matching when the left row's interval overlaps the right's.
+
+Row-aware form of [`overlapping`]: start/end closures for the left side
+receive the whole borrowed row; the right side sees only the new entity.
+Half-open endpoint semantics are unchanged: `[s, e)` overlaps iff
+`start_row < end_c AND start_c < end_row`. Bound extractors stay
+accessible for interval candidate planning.
+*/
+pub fn overlap_on<T, LS, LE, CS, CE>(
+    start_row: LS,
+    end_row: LE,
+    start_c: CS,
+    end_c: CE,
+) -> OverlappingJoiner<LS, LE, CS, CE, T>
+where
+    T: Ord,
+    LS: Send + Sync,
+    LE: Send + Sync,
+    CS: Send + Sync,
+    CE: Send + Sync,
+{
+    OverlappingJoiner {
+        start_a: start_row,
+        end_a: end_row,
+        start_b: start_c,
+        end_b: end_c,
+        _phantom: PhantomData,
+    }
+}
+
 /* A joiner that matches when two intervals overlap.
 
 Created by the [`overlapping()`] function.
 */
 pub struct OverlappingJoiner<Fsa, Fea, Fsb, Feb, T> {
-    start_a: Fsa,
-    end_a: Fea,
-    start_b: Fsb,
-    end_b: Feb,
+    pub(super) start_a: Fsa,
+    pub(super) end_a: Fea,
+    pub(super) start_b: Fsb,
+    pub(super) end_b: Feb,
     _phantom: PhantomData<fn() -> T>,
+}
+
+impl<Fsa, Fea, Fsb, Feb, T> OverlappingJoiner<Fsa, Fea, Fsb, Feb, T> {
+    /// Compose without prematurely binding a borrowed row lifetime.
+    pub fn and<J>(self, other: J) -> super::AndJoiner<Self, J> {
+        super::AndJoiner {
+            first: self,
+            second: other,
+        }
+    }
+    /* Consumes the joiner and returns the bound extractors for index planning. */
+    #[inline]
+    pub fn into_bounds(self) -> (Fsa, Fea, Fsb, Feb) {
+        (self.start_a, self.end_a, self.start_b, self.end_b)
+    }
 }
 
 impl<A, B, T, Fsa, Fea, Fsb, Feb> Joiner<A, B> for OverlappingJoiner<Fsa, Fea, Fsb, Feb, T>

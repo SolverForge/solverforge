@@ -30,8 +30,18 @@ pub trait Joiner<A, B>: Send + Sync {
 Created by calling `joiner.and(other)`.
 */
 pub struct AndJoiner<J1, J2> {
-    first: J1,
-    second: J2,
+    pub(super) first: J1,
+    pub(super) second: J2,
+}
+
+impl<J1, J2> AndJoiner<J1, J2> {
+    /// Compose without prematurely binding a borrowed row lifetime.
+    pub fn and<J>(self, other: J) -> AndJoiner<Self, J> {
+        AndJoiner {
+            first: self,
+            second: other,
+        }
+    }
 }
 
 impl<A, B, J1, J2> Joiner<A, B> for AndJoiner<J1, J2>

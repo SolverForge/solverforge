@@ -5,6 +5,56 @@ Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 **Location:** `crates/solverforge-scoring/`
 **Workspace Release:** `0.19.8`
 
+## Typed relational operator surface
+
+These are module-level low-level exports, not facade-root exports or a completed
+migration of the fluent stream families:
+
+- `stream::relational::{Leaf<'a, A>, Concat<'a, L, A>}` provides borrowed row
+  views. `RowHandle` is a hidden generational identity bridge.
+- `stream::relational::operator::Operator<S>` defines `View<'a>: Copy`,
+  `visit_all`, `clear`, `initialize`, `handles`, `resolve`, `visit_provenance`,
+  `retract`, and `insert`. Views borrow entities; entities need not be Copy.
+- `CollectionNode<S, E>::new(extractor, binding)` adapts `CollectionExtract`.
+- `JoinNode<S, L, R, P>::new(left, right, condition)` compiles a condition and
+  produces `Pair<L::View<'a>, R::View<'a>>`; either input can itself be a join.
+  `Pair<L, R>` has public `left` and `right` fields. Depth is recursive rather
+  than fixed to a named arity.
+- `constraint::relational::OperatorTerminal<S, O, W, Sc>::new(constraint_ref,
+  impact, operator, weight, hard)` scores a generic operator; its weight takes
+  `(&S, &O::View<'a>)`. It implements incremental scoring, reset, full counts,
+  and cold explanations. `ExplainRow` is a hidden analysis bridge.
+- `stream::joiner::plan::{CompileCondition, IndexedPlan, ExecutablePlan}`
+  separates condition compilation, owned index state, and borrowed-row execution.
+  Candidate probes return `Cow<'i, [RowHandle]>`: equality borrows an exact
+  bucket; ordered, interval, and explicit scan plans may own candidate lists.
+  `candidate_matches` checks residual semantics. Full traversal uses transient
+  insertion without retaining equality reverse keys.
+- `CompositeEquality<A, B>` and `EqualityWithResidual<E, P, FIRST>` are concrete
+  compiled plan types. `ComposePlans`, `EqualityPlan`, `EqualityKeys`,
+  `EqualityKind`, and `ResidualKind` supply structural dispatch. All equality
+  components form one heterogeneous tuple key, including components separated
+  by residual conditions.
+- `PlannedCondition`, `Strategy`, and `plan_strategy` report deterministic
+  structural strategy. Equality takes precedence over ordered/interval/scan
+  conditions; the residual preserves the complete authored relationship.
+- `stream::joiner::pair_row(a, a_index, b, b_index)` constructs the
+  existing `Concat<Leaf<A>, B>` view using semantic indexes.
+
+New file map: `stream/relational/operator.rs`,
+`stream/relational/operator/{analysis,collection,join}.rs`,
+`stream/joiner/plan.rs`, `stream/joiner/plan/{executable,hash_scan,conjunction,
+composite,mixed_equality,ordered_interval}.rs`, `stream/joiner/row_key.rs`,
+`stream/relational/index/{hash,ordered,interval}.rs`, and
+`constraint/relational/operator_terminal.rs`. Generational direct side-tables
+are internal in `stream/relational/handle_map.rs`.
+
+This surface currently supports collection/joined borrowed producers. Owned
+projection/group/complement producers and uniform fluent migration are not
+provided by this low-level surface. Existing specialized families still exist.
+See [Extending typed relational scoring](../../docs/extend-scoring.md) for
+execution, ownership, and verification boundaries.
+
 ## Dependencies
 
 - `solverforge-core` (path) — Score types, domain traits, descriptors, ConstraintRef, ImpactType

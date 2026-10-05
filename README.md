@@ -105,6 +105,12 @@ paths retain their concrete collection and selector types. Public concrete
 adapters and selector APIs are `EntityCollectionExtractor`, `ValueSelector`,
 and `MoveSelector`.
 
+Typed row-operator extension contracts and their current ownership boundary are
+in [Extending typed relational scoring](docs/extend-scoring.md). Equality
+conditions use indexed candidates; arbitrary predicates require opposite-input
+scans. The low-level recursive operator tree is not yet a replacement for every
+public fluent stream family.
+
 ## Features
 
 - **Score Types**: SoftScore, HardSoftScore, HardMediumSoftScore, BendableScore, HardSoftDecimalScore

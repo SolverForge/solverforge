@@ -6,10 +6,17 @@ production results must agree with it on scores, row multisets, and counts.
 */
 
 mod chained;
+mod compiled_conditions;
+mod conditions;
+mod evaluation;
 mod fixtures;
 mod fluent_chain;
+mod handle_map;
 mod identity;
 mod independent_keys;
+mod indexes;
+mod operator_terminal;
+mod operator_tree;
 mod oracle;
 mod primitives;
 mod terminal;

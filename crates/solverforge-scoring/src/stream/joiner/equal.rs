@@ -74,11 +74,11 @@ assert!(by_id.matches(&emp, &task1));
 assert!(!by_id.matches(&emp, &task2));
 ```
 */
-pub fn equal_bi<A, B, T, Fa, Fb>(left: Fa, right: Fb) -> EqualJoiner<Fa, Fb, T, Directed>
+pub fn equal_bi<T, Fa, Fb>(left: Fa, right: Fb) -> EqualJoiner<Fa, Fb, T, Directed>
 where
     T: PartialEq,
-    Fa: Fn(&A) -> T + Send + Sync,
-    Fb: Fn(&B) -> T + Send + Sync,
+    Fa: Send + Sync,
+    Fb: Send + Sync,
 {
     EqualJoiner {
         left,
@@ -99,11 +99,11 @@ Row and right-input types stay method-generic (never impl generics), so
 successive joins keep heterogeneous key types without unifying domains.
 See `constraint::tests::relational::chained` for the exercised shapes.
 */
-pub fn equal_on<Row, C, K2, LK, KC>(left: LK, right: KC) -> EqualJoiner<LK, KC, K2, Directed>
+pub fn equal_on<K2, LK, KC>(left: LK, right: KC) -> EqualJoiner<LK, KC, K2, Directed>
 where
     K2: PartialEq,
-    LK: Fn(&Row) -> K2 + Send + Sync,
-    KC: Fn(&C) -> K2 + Send + Sync,
+    LK: Send + Sync,
+    KC: Send + Sync,
 {
     EqualJoiner {
         left,
@@ -123,6 +123,13 @@ pub struct EqualJoiner<Fa, Fb, T, Mode = Directed> {
 }
 
 impl<Fa, Fb, T, Mode> EqualJoiner<Fa, Fb, T, Mode> {
+    /// Compose conditions without fixing a borrowed row's lifetime during construction.
+    pub fn and<J>(self, other: J) -> super::AndJoiner<Self, J> {
+        super::AndJoiner {
+            first: self,
+            second: other,
+        }
+    }
     // Extracts the join key from an A entity.
     #[inline]
     pub fn key_a<A>(&self, a: &A) -> T

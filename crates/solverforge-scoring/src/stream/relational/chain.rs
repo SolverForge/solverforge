@@ -229,7 +229,7 @@ where
         let (Some(a), Some(b)) = (entities_a.get(a_idx), entities_b.get(b_idx)) else {
             return None;
         };
-        let row = Concat::new(Leaf::new(a, a_idx), b, b_idx);
+        let row = super::super::joiner::pair_row(a, a_idx, b, b_idx);
         Some((self.left_key)(&row))
     }
 

@@ -13,8 +13,8 @@ touching payloads. Handles are store-relative, like `usize` into a
 specific `Vec`: only the minting store resolves them, and a generation
 bump retires them within that store.
 */
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct RowHandle {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct RowHandle {
     slot: u32,
     generation: u32,
 }

@@ -7,5 +7,9 @@ overlap conditions. Predicate scans need no index and stay explicit.
 */
 
 mod hash;
+mod interval;
+mod ordered;
 
 pub(crate) use hash::HashIndex;
+pub(crate) use interval::IntervalIndex;
+pub(crate) use ordered::OrderedIndex;

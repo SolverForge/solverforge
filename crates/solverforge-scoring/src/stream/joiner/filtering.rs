@@ -26,11 +26,35 @@ assert!(!higher_priority.matches(
 ));
 ```
 */
-pub fn filtering<A, B, F>(predicate: F) -> FilteringJoiner<F>
+pub fn filtering<F>(predicate: F) -> FilteringJoiner<F>
 where
-    F: Fn(&A, &B) -> bool + Send + Sync,
+    F: Send + Sync,
 {
     FilteringJoiner { predicate }
+}
+
+/* Creates a joiner that matches a whole left row against the new right entity.
+
+The predicate receives the borrowed left row plus the right entity, so a
+later relationship can inspect any earlier binding or combine several.
+Non-indexable by construction: plans compile this to an explicit scan
+over retained opposite-input rows, never a fabricated equality key.
+*/
+pub fn filtering_on<F>(predicate: F) -> FilteringJoiner<F>
+where
+    F: Send + Sync,
+{
+    FilteringJoiner { predicate }
+}
+
+impl<F> FilteringJoiner<F> {
+    /// Compose without prematurely binding a borrowed row lifetime.
+    pub fn and<J>(self, other: J) -> super::AndJoiner<Self, J> {
+        super::AndJoiner {
+            first: self,
+            second: other,
+        }
+    }
 }
 
 // A joiner that matches based on a custom predicate.

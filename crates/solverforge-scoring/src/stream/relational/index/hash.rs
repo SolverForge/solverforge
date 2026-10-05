@@ -10,26 +10,26 @@ without re-deriving keys from mutated values.
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use super::super::identity::RowHandle;
+use super::super::{identity::RowHandle, HandleMap};
 
-#[derive(Clone, Debug, Default)]
-pub(crate) struct HashIndex<K> {
+#[derive(Clone, Debug)]
+pub struct HashIndex<K> {
     by_key: HashMap<K, Vec<RowHandle>>,
-    key_of: HashMap<RowHandle, K>,
+    key_of: HandleMap<K>,
 }
 
 impl<K> HashIndex<K>
 where
     K: Eq + Hash + Clone,
 {
-    pub(crate) fn new() -> HashIndex<K> {
+    pub fn new() -> HashIndex<K> {
         HashIndex {
             by_key: HashMap::new(),
-            key_of: HashMap::new(),
+            key_of: HandleMap::new(),
         }
     }
 
-    pub(crate) fn insert(&mut self, handle: RowHandle, key: K) {
+    pub fn insert(&mut self, handle: RowHandle, key: K) {
         // Refresh path reinserts live handles: drop the stale reverse link
         // first so a changed key leaves no ghost bucket entry.
         if let Some(old) = self.key_of.insert(handle, key.clone()) {
@@ -51,8 +51,14 @@ where
         self.by_key.entry(key).or_default().push(handle);
     }
 
-    pub(crate) fn remove(&mut self, handle: RowHandle) {
-        if let Some(key) = self.key_of.remove(&handle) {
+    /// Insert a fresh transient row without reverse retention.
+    /// Only use for traversal indexes whose rows are never retracted.
+    pub(crate) fn insert_transient(&mut self, handle: RowHandle, key: K) {
+        self.by_key.entry(key).or_default().push(handle);
+    }
+
+    pub fn remove(&mut self, handle: RowHandle) {
+        if let Some(key) = self.key_of.remove(handle) {
             let mut drop_bucket = false;
             if let Some(bucket) = self.by_key.get_mut(&key) {
                 if let Some(pos) = bucket.iter().position(|h| *h == handle) {
@@ -66,12 +72,13 @@ where
         }
     }
 
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.by_key.clear();
         self.key_of.clear();
     }
 
-    pub(crate) fn lookup(&self, key: &K) -> &[RowHandle] {
+    #[inline]
+    pub fn lookup(&self, key: &K) -> &[RowHandle] {
         self.by_key.get(key).map(Vec::as_slice).unwrap_or(&[])
     }
 }

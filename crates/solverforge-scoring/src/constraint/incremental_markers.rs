@@ -21,6 +21,8 @@ use super::{
     IncrementalUniConstraint,
 };
 
+impl<S, O, W, Sc> IncrementalConstraintSealed for super::relational::OperatorTerminal<S, O, W, Sc> {}
+
 impl<S, A, E, F, W, Sc> IncrementalConstraintSealed for IncrementalUniConstraint<S, A, E, F, W, Sc> where
     Sc: Score
 {

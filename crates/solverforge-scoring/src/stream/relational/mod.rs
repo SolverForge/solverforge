@@ -9,9 +9,11 @@ API: everything here is concrete and monomorphized.
 
 mod chain;
 mod delta;
+mod handle_map;
 mod identity;
-mod index;
+pub(crate) mod index;
 mod join;
+pub mod operator;
 mod provenance;
 mod row;
 mod source;
@@ -19,7 +21,10 @@ mod storage;
 
 pub(crate) use chain::ChainedJoin;
 pub(crate) use delta::{DeltaBuffer, OutputDelta};
-pub(crate) use identity::{BindingId, JoinedIdentity, RowHandle};
+pub(crate) use handle_map::HandleMap;
+#[doc(hidden)]
+pub use identity::RowHandle;
+pub(crate) use identity::{BindingId, JoinedIdentity};
 pub(crate) use index::HashIndex;
 pub(crate) use join::{DeltaKind, EquiJoin};
 pub(crate) use provenance::{Participation, Provenance};

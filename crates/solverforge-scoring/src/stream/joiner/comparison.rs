@@ -28,11 +28,30 @@ assert!(!sequential.matches(
 ));
 ```
 */
-pub fn less_than<A, B, T, Fa, Fb>(left: Fa, right: Fb) -> LessThanJoiner<Fa, Fb, T>
+pub fn less_than<T, Fa, Fb>(left: Fa, right: Fb) -> LessThanJoiner<Fa, Fb, T>
 where
     T: Ord,
-    Fa: Fn(&A) -> T + Send + Sync,
-    Fb: Fn(&B) -> T + Send + Sync,
+    Fa: Send + Sync,
+    Fb: Send + Sync,
+{
+    LessThanJoiner {
+        left,
+        right,
+        _phantom: PhantomData,
+    }
+}
+
+/* Creates a joiner matching when the left row's key is less than the right's.
+
+Row-aware form of [`less_than`]: the left closure receives the whole
+borrowed left row, so a chained comparison can inspect any earlier
+binding. Extractors stay accessible for ordered index planning.
+*/
+pub fn less_than_on<T, LK, KC>(left: LK, right: KC) -> LessThanJoiner<LK, KC, T>
+where
+    T: Ord,
+    LK: Send + Sync,
+    KC: Send + Sync,
 {
     LessThanJoiner {
         left,
@@ -43,9 +62,24 @@ where
 
 // A joiner that matches when `left(a) < right(b)`.
 pub struct LessThanJoiner<Fa, Fb, T> {
-    left: Fa,
-    right: Fb,
+    pub(super) left: Fa,
+    pub(super) right: Fb,
     _phantom: PhantomData<fn() -> T>,
+}
+
+impl<Fa, Fb, T> LessThanJoiner<Fa, Fb, T> {
+    /// Compose without prematurely binding a borrowed row lifetime.
+    pub fn and<J>(self, other: J) -> super::AndJoiner<Self, J> {
+        super::AndJoiner {
+            first: self,
+            second: other,
+        }
+    }
+    /* Consumes the joiner and returns the key extractors for index planning. */
+    #[inline]
+    pub fn into_keys(self) -> (Fa, Fb) {
+        (self.left, self.right)
+    }
 }
 
 impl<A, B, T, Fa, Fb> Joiner<A, B> for LessThanJoiner<Fa, Fb, T>
@@ -74,11 +108,26 @@ assert!(joiner.matches(&5, &5));
 assert!(!joiner.matches(&10, &5));
 ```
 */
-pub fn less_than_or_equal<A, B, T, Fa, Fb>(left: Fa, right: Fb) -> LessThanOrEqualJoiner<Fa, Fb, T>
+pub fn less_than_or_equal<T, Fa, Fb>(left: Fa, right: Fb) -> LessThanOrEqualJoiner<Fa, Fb, T>
 where
     T: Ord,
-    Fa: Fn(&A) -> T + Send + Sync,
-    Fb: Fn(&B) -> T + Send + Sync,
+    Fa: Send + Sync,
+    Fb: Send + Sync,
+{
+    LessThanOrEqualJoiner {
+        left,
+        right,
+        _phantom: PhantomData,
+    }
+}
+
+/* Row-aware form of [`less_than_or_equal`]: strict/inclusive direction
+preserved, left closure over the whole borrowed row. */
+pub fn less_than_or_equal_on<T, LK, KC>(left: LK, right: KC) -> LessThanOrEqualJoiner<LK, KC, T>
+where
+    T: Ord,
+    LK: Send + Sync,
+    KC: Send + Sync,
 {
     LessThanOrEqualJoiner {
         left,
@@ -89,9 +138,24 @@ where
 
 // A joiner that matches when `left(a) <= right(b)`.
 pub struct LessThanOrEqualJoiner<Fa, Fb, T> {
-    left: Fa,
-    right: Fb,
+    pub(super) left: Fa,
+    pub(super) right: Fb,
     _phantom: PhantomData<fn() -> T>,
+}
+
+impl<Fa, Fb, T> LessThanOrEqualJoiner<Fa, Fb, T> {
+    /// Compose without prematurely binding a borrowed row lifetime.
+    pub fn and<J>(self, other: J) -> super::AndJoiner<Self, J> {
+        super::AndJoiner {
+            first: self,
+            second: other,
+        }
+    }
+    /* Consumes the joiner and returns the key extractors for index planning. */
+    #[inline]
+    pub fn into_keys(self) -> (Fa, Fb) {
+        (self.left, self.right)
+    }
 }
 
 impl<A, B, T, Fa, Fb> Joiner<A, B> for LessThanOrEqualJoiner<Fa, Fb, T>
@@ -120,11 +184,26 @@ assert!(!joiner.matches(&5, &10));
 assert!(!joiner.matches(&5, &5));
 ```
 */
-pub fn greater_than<A, B, T, Fa, Fb>(left: Fa, right: Fb) -> GreaterThanJoiner<Fa, Fb, T>
+pub fn greater_than<T, Fa, Fb>(left: Fa, right: Fb) -> GreaterThanJoiner<Fa, Fb, T>
 where
     T: Ord,
-    Fa: Fn(&A) -> T + Send + Sync,
-    Fb: Fn(&B) -> T + Send + Sync,
+    Fa: Send + Sync,
+    Fb: Send + Sync,
+{
+    GreaterThanJoiner {
+        left,
+        right,
+        _phantom: PhantomData,
+    }
+}
+
+/* Row-aware form of [`greater_than`]: direction preserved, left closure
+over the whole borrowed row. */
+pub fn greater_than_on<T, LK, KC>(left: LK, right: KC) -> GreaterThanJoiner<LK, KC, T>
+where
+    T: Ord,
+    LK: Send + Sync,
+    KC: Send + Sync,
 {
     GreaterThanJoiner {
         left,
@@ -135,9 +214,24 @@ where
 
 // A joiner that matches when `left(a) > right(b)`.
 pub struct GreaterThanJoiner<Fa, Fb, T> {
-    left: Fa,
-    right: Fb,
+    pub(super) left: Fa,
+    pub(super) right: Fb,
     _phantom: PhantomData<fn() -> T>,
+}
+
+impl<Fa, Fb, T> GreaterThanJoiner<Fa, Fb, T> {
+    /// Compose without prematurely binding a borrowed row lifetime.
+    pub fn and<J>(self, other: J) -> super::AndJoiner<Self, J> {
+        super::AndJoiner {
+            first: self,
+            second: other,
+        }
+    }
+    /* Consumes the joiner and returns the key extractors for index planning. */
+    #[inline]
+    pub fn into_keys(self) -> (Fa, Fb) {
+        (self.left, self.right)
+    }
 }
 
 impl<A, B, T, Fa, Fb> Joiner<A, B> for GreaterThanJoiner<Fa, Fb, T>
@@ -166,14 +260,29 @@ assert!(joiner.matches(&5, &5));
 assert!(!joiner.matches(&5, &10));
 ```
 */
-pub fn greater_than_or_equal<A, B, T, Fa, Fb>(
-    left: Fa,
-    right: Fb,
-) -> GreaterThanOrEqualJoiner<Fa, Fb, T>
+pub fn greater_than_or_equal<T, Fa, Fb>(left: Fa, right: Fb) -> GreaterThanOrEqualJoiner<Fa, Fb, T>
 where
     T: Ord,
-    Fa: Fn(&A) -> T + Send + Sync,
-    Fb: Fn(&B) -> T + Send + Sync,
+    Fa: Send + Sync,
+    Fb: Send + Sync,
+{
+    GreaterThanOrEqualJoiner {
+        left,
+        right,
+        _phantom: PhantomData,
+    }
+}
+
+/* Row-aware form of [`greater_than_or_equal`]: direction preserved, left
+closure over the whole borrowed row. */
+pub fn greater_than_or_equal_on<T, LK, KC>(
+    left: LK,
+    right: KC,
+) -> GreaterThanOrEqualJoiner<LK, KC, T>
+where
+    T: Ord,
+    LK: Send + Sync,
+    KC: Send + Sync,
 {
     GreaterThanOrEqualJoiner {
         left,
@@ -184,9 +293,24 @@ where
 
 // A joiner that matches when `left(a) >= right(b)`.
 pub struct GreaterThanOrEqualJoiner<Fa, Fb, T> {
-    left: Fa,
-    right: Fb,
+    pub(super) left: Fa,
+    pub(super) right: Fb,
     _phantom: PhantomData<fn() -> T>,
+}
+
+impl<Fa, Fb, T> GreaterThanOrEqualJoiner<Fa, Fb, T> {
+    /// Compose without prematurely binding a borrowed row lifetime.
+    pub fn and<J>(self, other: J) -> super::AndJoiner<Self, J> {
+        super::AndJoiner {
+            first: self,
+            second: other,
+        }
+    }
+    /* Consumes the joiner and returns the key extractors for index planning. */
+    #[inline]
+    pub fn into_keys(self) -> (Fa, Fb) {
+        (self.left, self.right)
+    }
 }
 
 impl<A, B, T, Fa, Fb> Joiner<A, B> for GreaterThanOrEqualJoiner<Fa, Fb, T>

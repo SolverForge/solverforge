@@ -19,6 +19,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use crate::api::analysis::{ConstraintJustification, DetailedConstraintMatch, EntityRef};
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collection_extract::CollectionExtract;
+use crate::stream::joiner::pair_row;
 use crate::stream::relational::{ChainedJoin, Concat, DeltaKind, Leaf};
 
 use super::weight::RelationalWeight3;
@@ -162,7 +163,7 @@ where
                 if !(first_filter)(solution, a, b, a_idx, b_idx) {
                     continue;
                 }
-                let row = Concat::new(Leaf::new(a, a_idx), b, b_idx);
+                let row = pair_row(a, a_idx, b, b_idx);
                 let left_key = (self.operator.left_key())(&row);
                 for (c_idx, c) in self.right_entities(solution).iter().enumerate() {
                     if !self.right_contains(solution, c) {
@@ -213,7 +214,7 @@ where
                 if !(first_filter)(solution, a, b, a_idx, b_idx) {
                     continue;
                 }
-                let row = Concat::new(Leaf::new(a, a_idx), b, b_idx);
+                let row = pair_row(a, a_idx, b, b_idx);
                 let left_key = (self.operator.left_key())(&row);
                 for (c_idx, c) in self.right_entities(solution).iter().enumerate() {
                     if !self.right_contains(solution, c) {
@@ -438,7 +439,7 @@ where
                 if !(first_filter)(solution, a, b, a_idx, b_idx) {
                     continue;
                 }
-                let row = Concat::new(Leaf::new(a, a_idx), b, b_idx);
+                let row = pair_row(a, a_idx, b, b_idx);
                 let left_key = (self.operator.left_key())(&row);
                 for (c_idx, c) in entities_c.iter().enumerate() {
                     if !self.right_contains(solution, c) {

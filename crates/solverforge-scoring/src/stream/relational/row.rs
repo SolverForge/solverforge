@@ -13,7 +13,7 @@ The lifetime is the traversal borrow, not a stored solution reference.
 `index` carries the semantic source slice index alongside the entity so
 low-level filters keep exact index semantics without storage-ID leakage.
 */
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Leaf<'r, T> {
     pub entity: &'r T,
     pub index: usize,
@@ -22,6 +22,13 @@ pub struct Leaf<'r, T> {
 impl<'r, T> Leaf<'r, T> {
     pub fn new(entity: &'r T, index: usize) -> Leaf<'r, T> {
         Leaf { entity, index }
+    }
+}
+
+impl<T> Copy for Leaf<'_, T> {}
+impl<T> Clone for Leaf<'_, T> {
+    fn clone(&self) -> Self {
+        *self
     }
 }
 

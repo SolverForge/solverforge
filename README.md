@@ -211,6 +211,51 @@ fn define_constraints() -> impl ConstraintSet<Schedule, HardSoftScore> {
 Repeated same-binding grouped terminals share incremental grouped work.
 Terminal identity, ordering, metadata, and score explanation remain independent.
 
+Joins compose with independent conditions per relationship. The fluent
+`.join((target, condition))` carries its own key or predicate type; a later
+join's left key receives the whole borrowed row, so it can read any earlier
+binding or combine several. This model relates assignments to shifts on a
+`u32` shift id and then to employees on a `String` employee code — two
+independent key domains on one chain:
+
+```rust
+use solverforge::prelude::*;
+use solverforge::stream::joiner::{equal_bi, equal_on};
+use solverforge::stream::relational::{Leaf, operator::Pair};
+
+fn night_shift_staffed() -> impl IncrementalConstraint<Schedule, SoftScore> {
+    ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(Schedule::assignments())
+        // Relationship 1 (u32): assignment.shift_id == shift.id
+        .join((
+            ConstraintFactory::<Schedule, SoftScore>::new().for_each(Schedule::shifts()),
+            equal_bi(
+                |a: &Assignment| a.shift_id,
+                |s: &Shift| s.id,
+            ),
+        ))
+        // Relationship 2 (String): the whole (assignment, shift) row
+        // joined to an employee on the employee code.
+        .join((
+            ConstraintFactory::<Schedule, SoftScore>::new().for_each(Schedule::employees()),
+            equal_on(
+                |row: &Pair<Leaf<'_, Assignment>, Leaf<'_, Shift>>| {
+                    row.left.entity.employee_code.clone()
+                },
+                |e: &Leaf<'_, Employee>| e.entity.code.clone(),
+            ),
+        ))
+        .filter(|_a: &Assignment, s: &Shift, _e: &Employee| s.night)
+        .penalize(SoftScore::of(1))
+        .named("night shift staffed")
+}
+```
+
+Equality conditions probe indexed candidates; an arbitrary predicate
+relationship scans retained opposite rows instead, and the two may be mixed
+across a chain. `docs/extend-scoring.md` covers the low-level typed row and
+condition-plan protocol for writing new operators.
+
 ## Installation
 
 If you are building directly against the runtime crates instead of starting from

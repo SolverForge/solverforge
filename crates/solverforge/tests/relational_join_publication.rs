@@ -147,6 +147,46 @@ fn sample() -> RelSchedule {
     }
 }
 
+/* The README chain written with inline closures rather than fn items, so the
+documented form is exercised, not just the fn-pointer form above. */
+fn closure_chain_constraint() -> impl IncrementalConstraint<RelSchedule, SoftScore> {
+    ConstraintFactory::<RelSchedule, SoftScore>::new()
+        .for_each(source(
+            rel_assignments as fn(&RelSchedule) -> &[RelAssignment],
+            ChangeSource::Descriptor(1),
+        ))
+        .join((
+            source(
+                rel_shifts as fn(&RelSchedule) -> &[RelShift],
+                ChangeSource::Descriptor(0),
+            ),
+            joiner::equal_bi(|a: &RelAssignment| a.shift_id, |s: &RelShift| s.id),
+        ))
+        .join((
+            source(
+                rel_employees as fn(&RelSchedule) -> &[RelEmployee],
+                ChangeSource::Descriptor(2),
+            ),
+            joiner::equal_on(
+                |row: &Pair<Leaf<'_, RelAssignment>, Leaf<'_, RelShift>>| {
+                    row.left.entity.employee_code.clone()
+                },
+                |e: &Leaf<'_, RelEmployee>| e.entity.code.clone(),
+            ),
+        ))
+        .filter(|_a: &RelAssignment, s: &RelShift, _e: &RelEmployee| s.night)
+        .penalize(SoftScore::of(1))
+        .named("night shift staffed (closures)")
+}
+
+#[test]
+fn readme_closure_chain_compiles_and_scores() {
+    let schedule = sample();
+    let constraint = closure_chain_constraint();
+    assert_eq!(constraint.match_count(&schedule), 2);
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
+}
+
 #[test]
 fn relational_chain_publishes_hard_scores_through_facade() {
     let schedule = sample();

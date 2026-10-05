@@ -133,8 +133,6 @@ src/
 │   ├── cross_bi_incremental/*.rs                   — Retained cross-bi state, weights, incremental callbacks, and debug accessors
 │   ├── cross_incremental.rs                        — Hidden shared arity-generic cross-join engine module root
 │   ├── cross_incremental/engine.rs                 — CrossJoinEngine<N, K, Sc> retained row/key-index/bucket state shared by cross arities
-│   ├── cross_tri_incremental.rs                    — constraint::cross_tri_incremental::Tri module root and re-exports
-│   ├── cross_tri_incremental/*.rs                  — Retained cross-tri state, weights, incremental callbacks, and debug accessors
 │   ├── cross_grouped.rs                            — constraint::cross_grouped::Grouped module root and re-exports
 │   ├── cross_grouped/*.rs                          — indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, updates.rs, view.rs for retained direct cross grouped state
 │   ├── cross_complemented_grouped.rs               — constraint::cross_complemented_grouped::ComplementedGrouped module root and internal shared engine re-exports
@@ -294,7 +292,6 @@ pub use constraint::{
 // constraint::grouped::Uni
 // constraint::complemented::Grouped
 // constraint::cross_bi_incremental::Bi
-// constraint::cross_tri_incremental::Tri
 // constraint::cross_grouped::Grouped
 // constraint::cross_complemented_grouped::ComplementedGrouped
 // constraint::projected::{Uni, Bi, DirectedBi, Grouped, ComplementedGrouped}

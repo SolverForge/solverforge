@@ -9,7 +9,6 @@ use super::{
     cross_bi_incremental::Bi as CrossBi,
     cross_complemented_grouped::ComplementedGrouped as CrossComplementedGrouped,
     cross_grouped::Grouped as CrossGrouped,
-    cross_tri_incremental::Tri as CrossTri,
     grouped::Uni as GroupedUni,
     projected::{
         Bi as ProjectedBi, ComplementedGrouped as ProjectedComplementedGrouped,
@@ -58,13 +57,6 @@ where
 
 impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> IncrementalConstraintSealed
     for CrossBi<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-where
-    Sc: Score,
-{
-}
-
-impl<S, A, B, C, K, EA, EB, EC, KA, KB, KC, F, W, Sc> IncrementalConstraintSealed
-    for CrossTri<S, A, B, C, K, EA, EB, EC, KA, KB, KC, F, W, Sc>
 where
     Sc: Score,
 {

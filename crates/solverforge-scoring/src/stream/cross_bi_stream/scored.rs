@@ -20,6 +20,78 @@ use super::super::relational::index::HashIndex;
 use super::super::relational::operator::{CollectionNode, JoinNode, Operator, Pair, RowChanges};
 use super::super::relational::{HandleMap, Leaf, RowHandle};
 
+/* The predicate first-join plan: an explicit opposite-input scan.
+
+Non-indexable by construction, so it never fabricates a constant equality
+key. It executes the raw entity predicate on the borrowed `Leaf` views the
+join operator probes with, and names the plan type so the fluent stream can
+avoid `impl Trait` in associated-type position.
+*/
+pub struct BiPredicatePlan<P> {
+    predicate: P,
+}
+
+impl<P> BiPredicatePlan<P> {
+    #[doc(hidden)]
+    pub fn new(predicate: P) -> Self {
+        Self { predicate }
+    }
+}
+
+impl<P> CompileCondition for BiPredicatePlan<P> {
+    type Plan = Self;
+    fn compile(self) -> Self {
+        self
+    }
+}
+
+impl<P> IndexedPlan for BiPredicatePlan<P> {
+    type Kind = super::super::joiner::plan::ResidualKind;
+    type Indexes = (
+        std::collections::BTreeSet<RowHandle>,
+        std::collections::BTreeSet<RowHandle>,
+    );
+    fn new_indexes(&self) -> Self::Indexes {
+        (
+            std::collections::BTreeSet::new(),
+            std::collections::BTreeSet::new(),
+        )
+    }
+    fn remove_left(&self, i: &mut Self::Indexes, h: RowHandle) {
+        i.0.remove(&h);
+    }
+    fn remove_right(&self, i: &mut Self::Indexes, h: RowHandle) {
+        i.1.remove(&h);
+    }
+}
+
+impl<'x, A, B, P> Joiner<Leaf<'x, A>, Leaf<'x, B>> for BiPredicatePlan<P>
+where
+    P: Fn(&A, &B) -> bool + Send + Sync,
+{
+    fn matches(&self, left: &Leaf<'x, A>, right: &Leaf<'x, B>) -> bool {
+        (self.predicate)(left.entity, right.entity)
+    }
+}
+
+impl<'x, A, B, P> ExecutablePlan<Leaf<'x, A>, Leaf<'x, B>> for BiPredicatePlan<P>
+where
+    P: Fn(&A, &B) -> bool + Send + Sync,
+{
+    fn insert_left(&self, i: &mut Self::Indexes, h: RowHandle, _: &Leaf<'x, A>) {
+        i.0.insert(h);
+    }
+    fn insert_right(&self, i: &mut Self::Indexes, h: RowHandle, _: &Leaf<'x, B>) {
+        i.1.insert(h);
+    }
+    fn right_candidates<'i>(&self, i: &'i Self::Indexes, _: &Leaf<'x, A>) -> Cow<'i, [RowHandle]> {
+        Cow::Owned(i.1.iter().copied().collect())
+    }
+    fn left_candidates<'i>(&self, i: &'i Self::Indexes, _: &Leaf<'x, B>) -> Cow<'i, [RowHandle]> {
+        Cow::Owned(i.0.iter().copied().collect())
+    }
+}
+
 /* The first-join plan as compiled from a Bi stream's unary key pair.
 
 Keys take entities, not rows; the adapter lifts them onto the borrowed
@@ -33,12 +105,21 @@ pub struct BiUnaryPlan<K, KA, KB> {
 }
 
 impl<K, KA, KB> BiUnaryPlan<K, KA, KB> {
-    pub(super) fn new(key_a: KA, key_b: KB) -> Self {
+    #[doc(hidden)]
+    pub fn new(key_a: KA, key_b: KB) -> Self {
         Self {
             key_a,
             key_b,
             marker: PhantomData,
         }
+    }
+
+    /* Borrows the unary key pair for stream methods that need the raw keys
+    (grouping, projection, flattening). The join/finalize paths use the plan
+    itself, never these accessors. */
+    #[doc(hidden)]
+    pub fn into_keys(self) -> (KA, KB) {
+        (self.key_a, self.key_b)
     }
 }
 

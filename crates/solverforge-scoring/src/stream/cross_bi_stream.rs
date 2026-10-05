@@ -14,4 +14,5 @@ mod weighting;
 pub use base::Bi;
 pub use complemented_grouped::{ComplementedGrouped, ComplementedGroupedBuilder};
 pub use grouped::{Grouped, GroupedBuilder};
+pub(crate) use scored::{BiPredicatePlan, BiUnaryPlan};
 pub use weighting::Builder;

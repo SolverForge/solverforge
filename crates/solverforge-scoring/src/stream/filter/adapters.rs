@@ -117,6 +117,34 @@ impl<L, R, P> PairFilter<L, R, P> {
     }
 }
 
+// Applies the two stream membership filters to a joined pair (no predicate).
+// Used when the join condition already carries the relationship predicate.
+pub struct UniPairFilter<L, R> {
+    left_filter: L,
+    right_filter: R,
+}
+
+impl<L, R> UniPairFilter<L, R> {
+    #[inline]
+    pub fn new(left_filter: L, right_filter: R) -> Self {
+        Self {
+            left_filter,
+            right_filter,
+        }
+    }
+}
+
+impl<S, A, B, L, R> BiFilter<S, A, B> for UniPairFilter<L, R>
+where
+    L: UniFilter<S, A>,
+    R: UniFilter<S, B>,
+{
+    #[inline]
+    fn test(&self, solution: &S, a: &A, b: &B, _a_idx: usize, _b_idx: usize) -> bool {
+        self.left_filter.test(solution, a) && self.right_filter.test(solution, b)
+    }
+}
+
 impl<S, A, B, L, R, P> BiFilter<S, A, B> for PairFilter<L, R, P>
 where
     L: UniFilter<S, A>,

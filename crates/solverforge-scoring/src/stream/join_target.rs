@@ -12,8 +12,8 @@ use solverforge_core::score::Score;
 
 use super::bi_stream::BiConstraintStream;
 use super::collection_extract::CollectionExtract;
-use super::cross_bi_stream::Bi;
-use super::filter::{PairFilter, UniBiFilter, UniFilter, UniLeftBiFilter};
+use super::cross_bi_stream::{Bi, BiPredicatePlan, BiUnaryPlan};
+use super::filter::{UniBiFilter, UniFilter, UniLeftBiFilter, UniPairFilter};
 use super::joiner::{EqualJoiner, Symmetric};
 use super::key_extract::EntityKeyAdapter;
 use super::UniConstraintStream;
@@ -69,17 +69,25 @@ where
     KB: Fn(&B) -> K + Send + Sync,
     Sc: Score + 'static,
 {
-    type Output = Bi<S, A, B, K, E, EB, KA, KB, UniLeftBiFilter<F, B>, Sc>;
+    type Output = Bi<S, A, B, BiUnaryPlan<K, KA, KB>, E, EB, UniLeftBiFilter<F, B>, Sc>;
 
     fn apply(self, extractor_a: E, filter_a: F) -> Self::Output {
         let (extractor_b, joiner) = self;
         let (key_a, key_b) = joiner.into_keys();
         let bi_filter = UniLeftBiFilter::new(filter_a);
-        Bi::new_with_filter(extractor_a, extractor_b, key_a, key_b, bi_filter)
+        Bi::from_condition(
+            extractor_a,
+            extractor_b,
+            BiUnaryPlan::new(key_a, key_b),
+            bi_filter,
+        )
     }
 }
 
-// Predicate cross-join: `.join((other_stream, |a, b| predicate))` — O(n*m) nested loop.
+// Predicate cross-join: `.join((other_stream, |a, b| predicate))` — an
+// explicit opposite-input scan under the exact predicate. The relationship
+// compiles to `FilteringJoiner`, so no synthetic constant equality key is
+// ever built for a non-indexable condition.
 impl<S, A, B, E, F, EB, FB, P, Sc> JoinTarget<S, A, E, F, Sc>
     for (UniConstraintStream<S, B, EB, FB, Sc>, P)
 where
@@ -93,17 +101,16 @@ where
     P: Fn(&A, &B) -> bool + Send + Sync + 'static,
     Sc: Score + 'static,
 {
-    type Output = Bi<S, A, B, u8, E, EB, fn(&A) -> u8, fn(&B) -> u8, PairFilter<F, FB, P>, Sc>;
+    type Output = Bi<S, A, B, BiPredicatePlan<P>, E, EB, UniPairFilter<F, FB>, Sc>;
 
     fn apply(self, extractor_a: E, filter_a: F) -> Self::Output {
         let (other_stream, predicate) = self;
         let (extractor_b, filter_b) = other_stream.into_parts();
-        let combined_filter = PairFilter::new(filter_a, filter_b, predicate);
-        Bi::new_with_filter(
+        let combined_filter = UniPairFilter::new(filter_a, filter_b);
+        Bi::from_condition(
             extractor_a,
             extractor_b,
-            (|_: &A| 0u8) as fn(&A) -> u8,
-            (|_: &B| 0u8) as fn(&B) -> u8,
+            BiPredicatePlan::new(predicate),
             combined_filter,
         )
     }

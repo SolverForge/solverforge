@@ -62,6 +62,14 @@ pub struct FilteringJoiner<F> {
     predicate: F,
 }
 
+impl<F> FilteringJoiner<F> {
+    // Creates a predicate joiner from an explicit condition.
+    #[inline]
+    pub fn new(predicate: F) -> Self {
+        Self { predicate }
+    }
+}
+
 impl<A, B, F> Joiner<A, B> for FilteringJoiner<F>
 where
     F: Fn(&A, &B) -> bool + Send + Sync,

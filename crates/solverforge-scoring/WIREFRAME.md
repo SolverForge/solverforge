@@ -19,6 +19,8 @@ migration of the fluent stream families:
 - `FilterNode<O, F>::new(input, predicate)` preserves accepted input identities
   and semantic source indexes. Its predicate takes `(&S, &O::View<'a>)`;
   membership transitions propagate retract/insert deltas without copying rows.
+- `MergeNode<L, R>::new(left, right)` unions compatible borrowed row views with
+  branch-specific output identities; equal-valued emissions remain separate.
 - `JoinNode<S, L, R, P>::new(left, right, condition)` compiles a condition and
   produces `Pair<L::View<'a>, R::View<'a>>`; either input can itself be a join.
   `Pair<L, R>` has public `left` and `right` fields. Depth is recursive rather
@@ -45,14 +47,14 @@ migration of the fluent stream families:
   existing `Concat<Leaf<A>, B>` view using semantic indexes.
 
 New file map: `stream/relational/operator.rs`,
-`stream/relational/operator/{analysis,collection,filter,join}.rs`,
+`stream/relational/operator/{analysis,collection,filter,join,merge}.rs`,
 `stream/joiner/plan.rs`, `stream/joiner/plan/{executable,hash_scan,conjunction,
 composite,mixed_equality,ordered_interval}.rs`, `stream/joiner/row_key.rs`,
 `stream/relational/index/{hash,ordered,interval}.rs`, and
 `constraint/relational/operator_terminal.rs`. Generational direct side-tables
 are internal in `stream/relational/handle_map.rs`.
 
-This surface currently supports collection/filtered/joined borrowed producers. Owned
+This surface currently supports collection/filtered/merged/joined borrowed producers. Owned
 projection/group/complement producers and uniform fluent migration are not
 provided by this low-level surface. Existing specialized families still exist.
 See [Extending typed relational scoring](../../docs/extend-scoring.md) for

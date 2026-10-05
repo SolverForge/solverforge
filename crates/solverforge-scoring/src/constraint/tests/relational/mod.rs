@@ -17,6 +17,7 @@ mod handle_map;
 mod identity;
 mod independent_keys;
 mod indexes;
+mod merged_operators;
 mod operator_terminal;
 mod operator_tree;
 mod oracle;

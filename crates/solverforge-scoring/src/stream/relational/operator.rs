@@ -4,6 +4,8 @@ use super::RowHandle;
 mod analysis;
 mod collection;
 mod filter;
+mod merge;
+pub use merge::MergeNode;
 mod join;
 pub use filter::FilterNode;
 

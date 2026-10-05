@@ -248,7 +248,7 @@ fn test_cross_bi_get_matches_works_without_initialize() {
 }
 
 #[test]
-fn test_cross_bi_incremental_updates_still_work() {
+fn cross_bi_retract_insert_updates_matches() {
     let mut constraint = create_unavailable_employee_constraint();
     let schedule = sample_schedule();
 

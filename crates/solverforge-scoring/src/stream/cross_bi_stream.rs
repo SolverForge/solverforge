@@ -8,6 +8,7 @@ preserved at compile time - no Arc, no dyn, fully monomorphized.
 mod base;
 mod complemented_grouped;
 mod grouped;
+mod scored;
 mod weighting;
 
 pub use base::Bi;

@@ -29,7 +29,7 @@ fn borrowed_rows_nest_without_cloning_or_solution_borrows() {
     assert_eq!(leaf.index, 2);
     assert_eq!(<Leaf<'_, Assignment> as Row>::DEPTH, 1);
 
-    // Concatenation nests structurally with static depth: the chained
+    // Concatenation nests structurally with static depth: the nested
     // join's row shape carries both bindings with left-spine orientation.
     let pair = Concat::new(leaf, &shift, 0);
     assert_eq!(<Concat<'_, Leaf<'_, Assignment>, Shift> as Row>::DEPTH, 2);

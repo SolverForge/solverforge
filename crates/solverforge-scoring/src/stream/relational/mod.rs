@@ -7,7 +7,6 @@ traversal, and delta coalescing. Terminal scoring lives under
 API: everything here is concrete and monomorphized.
 */
 
-mod chain;
 mod delta;
 mod handle_map;
 mod identity;
@@ -19,7 +18,6 @@ mod row;
 mod source;
 mod storage;
 
-pub(crate) use chain::ChainedJoin;
 pub(crate) use delta::{DeltaBuffer, OutputDelta};
 pub(crate) use handle_map::HandleMap;
 #[doc(hidden)]

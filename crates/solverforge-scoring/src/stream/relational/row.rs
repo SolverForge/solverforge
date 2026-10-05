@@ -34,7 +34,7 @@ impl<T> Clone for Leaf<'_, T> {
 
 /* Recursive concatenation of a prior row with a new entity reference.
 
-The chained join's left key closure receives the whole prior row in this
+A later join's left key closure receives the whole prior row in this
 shape, so it can inspect any earlier binding or combine several. Binding
 order walks the left spine first, matching authored tuple orientation.
 */

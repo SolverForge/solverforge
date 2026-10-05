@@ -14,7 +14,7 @@ pub use comparison::{
     less_than_on, less_than_or_equal, less_than_or_equal_on, GreaterThanJoiner,
     GreaterThanOrEqualJoiner, LessThanJoiner, LessThanOrEqualJoiner,
 };
-pub use equal::{equal, equal_bi, equal_on, Directed, EqualJoiner, Symmetric};
+pub use equal::{equal, equal_bi, equal_on, equal_raw, Directed, EqualJoiner, Symmetric};
 pub use filtering::{filtering, filtering_on, FilteringJoiner};
 pub use match_condition::{AndJoiner, FnJoiner, Joiner};
 pub use overlapping::{overlap_on, overlapping, OverlappingJoiner};

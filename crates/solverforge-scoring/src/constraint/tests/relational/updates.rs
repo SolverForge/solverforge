@@ -14,7 +14,7 @@ use crate::stream::relational::{DeltaKind, EquiJoin};
 use super::fixtures::{rel_assignments, rel_shifts, sample, RelAssignment, RelSchedule, RelShift};
 
 /* Test-domain wiring: shifts own descriptor 0, assignments descriptor 1,
-employees (chained next slice) descriptor 2. All key/filter functions are
+employees (joined next) descriptor 2. All key/filter functions are
 `fn` items so the operator type stays nameable. */
 pub(super) type AssignmentShiftJoin = EquiJoin<
     RelSchedule,

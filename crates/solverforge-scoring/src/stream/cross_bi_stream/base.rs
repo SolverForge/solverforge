@@ -3,6 +3,8 @@ use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
 
+/* The first-join plan as compiled from the Bi stream's adapted unary keys. */
+
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::{AndBiFilter, BiFilter, FnBiFilter, TriAsBiFilter, TrueFilter};
 use super::super::flattened_bi_stream::FlattenedBiConstraintStream;
@@ -117,84 +119,69 @@ where
 
     /* Extends the joined (A, B) pairs with a third source C.
 
-    The retained tri rows satisfy key_a(a) == key_b(b) == key_c(c); the
-    bi stream's own keys stay authoritative for A and B, and `key_c`
-    positions the new source in the shared key domain.
+    One uniform `.join()`: the target tuple's joiner type chooses
+    execution through `CompileCondition`. A row-aware joiner
+    (`equal_on`) relates the whole borrowed (A, B) row to C on its own
+    key domain; a unary joiner (`equal_bi`) is adapted onto the row so
+    the same independent-domain tree executes it. Shared-key retention
+    is not involved at any depth.
     */
-    pub fn join<C, EC, KC>(
+    pub fn join<C, EC, P2>(
         self,
-        target: (EC, KC),
+        target: (EC, P2),
     ) -> super::super::cross_tri_stream::Tri<
         S,
         A,
         B,
         C,
-        K,
         EA,
         EB,
         EC,
-        KA,
-        KB,
-        KC,
+        impl super::super::joiner::plan::CompileCondition<
+            Plan: for<'c> super::super::joiner::plan::ExecutablePlan<
+                super::super::relational::Leaf<'c, A>,
+                super::super::relational::Leaf<'c, B>,
+            > + super::super::joiner::plan::IndexedPlan<Indexes: Send + Sync>,
+        >,
+        P2,
         TriAsBiFilter<F, A, B>,
         Sc,
     >
     where
         C: Clone + Send + Sync + 'static,
-        EC: CollectionExtract<S, Item = C>,
-        KC: Fn(&C) -> K + Send + Sync,
+        EC: CollectionExtract<S, Item = C> + 'static,
+        P2: super::super::joiner::plan::CompileCondition + 'static,
+        P2::Plan: super::super::joiner::plan::IndexedPlan,
+        KA: 'static,
+        KB: 'static,
+        K: 'static,
+        EA: 'static,
+        EB: 'static,
+        for<'a> P2::Plan: super::super::joiner::plan::ExecutablePlan<
+            super::super::relational::operator::Pair<
+                super::super::relational::Leaf<'a, A>,
+                super::super::relational::Leaf<'a, B>,
+            >,
+            super::super::relational::Leaf<'a, C>,
+        >,
     {
-        super::super::cross_tri_stream::Tri::new_with_filter(
+        let (extractor_c, condition) = target;
+        // The AB plan lifts the stream's unary keys onto the leaf views the
+        // JoinNode probes with; both closures are concrete and monomorphized.
+        let key_a = self.key_a;
+        let key_b = self.key_b;
+        let ab_plan = super::super::joiner::equal_raw(
+            move |leaf: &super::super::relational::Leaf<'_, A>| key_a(leaf.entity),
+            move |leaf: &super::super::relational::Leaf<'_, B>| key_b(leaf.entity),
+        );
+        super::super::cross_tri_stream::assemble_tri(
             self.extractor_a,
             self.extractor_b,
-            target.0,
-            self.key_a,
-            self.key_b,
-            target.1,
+            extractor_c,
+            ab_plan,
+            condition,
             TriAsBiFilter::new(self.filter),
         )
-    }
-
-    /* Extends the joined (A, B) pairs with a third source C on its own key type.
-
-    Unlike [`Bi::join`], the second relationship owns an independent key
-    domain `K2`: the left closure receives the whole left row
-    (`&Concat<Leaf<A>, B>`) so it can inspect any earlier binding, and the
-    right closure sees only the new C entity. Pass the pair as
-    `(extractor_c, equal_on(left_row_key, right_key))`.
-    */
-    pub fn join_on<C, EC, K2, LK, KC>(
-        self,
-        target: (
-            EC,
-            super::super::joiner::EqualJoiner<LK, KC, K2, super::super::joiner::Directed>,
-        ),
-    ) -> super::chained::ChainedTri<S, A, B, C, K, K2, EA, EB, EC, KA, KB, LK, KC, F, TrueFilter, Sc>
-    where
-        C: Clone + Send + Sync + 'static,
-        EC: CollectionExtract<S, Item = C>,
-        K2: Eq + Hash + Clone + Send + Sync,
-        LK: for<'r> Fn(
-                &super::super::relational::Concat<super::super::relational::Leaf<'r, A>, B>,
-            ) -> K2
-            + Send
-            + Sync,
-        KC: Fn(&C) -> K2 + Send + Sync,
-    {
-        let (extractor_c, joiner) = target;
-        let (left_key, right_key) = joiner.into_keys();
-        super::chained::ChainedTri {
-            extractor_a: self.extractor_a,
-            extractor_b: self.extractor_b,
-            extractor_c,
-            key_a: self.key_a,
-            key_b: self.key_b,
-            left_key,
-            right_key,
-            filter_ab: self.filter,
-            filter: TrueFilter,
-            _phantom: PhantomData,
-        }
     }
 
     /* Expands items from entity B into separate (A, C) pairs with O(1) lookup. */

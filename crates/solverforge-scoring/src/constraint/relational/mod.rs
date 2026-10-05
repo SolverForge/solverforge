@@ -4,7 +4,7 @@ Owns one operator's state plus the retained signed score per terminal
 row. The operator decides WHICH pairs join; the terminal decides WHAT
 each pair scores and publishes signed deltas through
 `IncrementalConstraint`. One operator family serves every arity: binary
-joins land first, chained/deeper rows follow without new terminal logic.
+joins land first; deeper rows follow without new terminal logic.
 */
 
 mod debug;
@@ -12,11 +12,9 @@ mod incremental;
 mod operator_terminal;
 mod shared_set;
 mod state;
-mod triple;
 mod weight;
 
 pub use operator_terminal::OperatorTerminal;
 pub use shared_set::{OperatorConsumer, SharedOperatorSet};
 pub use state::Terminal;
-pub use triple::TripleTerminal;
 pub use weight::{RelationalWeight, RelationalWeight3};

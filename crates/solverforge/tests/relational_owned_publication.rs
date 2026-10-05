@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)] // Test closures spell full row-view types deliberately.
+
 use solverforge::stream::{
     joiner::equal_bi,
     relational::{

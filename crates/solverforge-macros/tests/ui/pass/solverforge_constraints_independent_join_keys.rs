@@ -48,16 +48,18 @@ fn shift_id(shift: &RelShift) -> u32 {
 }
 
 fn row_employee_code(
-    row: &solverforge::stream::relational::Concat<
+    row: &solverforge::stream::relational::operator::Pair<
         solverforge::stream::relational::Leaf<'_, RelAssignment>,
-        RelShift,
+        solverforge::stream::relational::Leaf<'_, RelShift>,
     >,
 ) -> String {
     row.left.entity.employee_code.clone()
 }
 
-fn employee_code(employee: &RelEmployee) -> String {
-    employee.code.clone()
+fn employee_leaf_code(
+    employee: &solverforge::stream::relational::Leaf<'_, RelEmployee>,
+) -> String {
+    employee.entity.code.clone()
 }
 
 #[solverforge_constraints]
@@ -73,17 +75,18 @@ fn constraints() -> impl ConstraintSet<RelSchedule, SoftScore> {
                     shift_id as fn(&RelShift) -> u32,
                 ),
             ))
-            .join_on((
+            .join((
                 employees as fn(&RelSchedule) -> &[RelEmployee],
                 joiner::equal_on(
                     row_employee_code
                         as fn(
-                            &solverforge::stream::relational::Concat<
+                            &solverforge::stream::relational::operator::Pair<
                                 solverforge::stream::relational::Leaf<'_, RelAssignment>,
-                                RelShift,
+                                solverforge::stream::relational::Leaf<'_, RelShift>,
                             >,
                         ) -> String,
-                    employee_code as fn(&RelEmployee) -> String,
+                    employee_leaf_code
+                        as fn(&solverforge::stream::relational::Leaf<'_, RelEmployee>) -> String,
                 ),
             ))
             .filter(|_assignment: &RelAssignment, shift: &RelShift, _employee: &RelEmployee| {

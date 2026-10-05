@@ -93,6 +93,9 @@ fn sample() -> StreamSchedule {
 
 fn day_off_constraint() -> impl IncrementalConstraint<StreamSchedule, SoftScore> {
     use crate::stream::collection_extract::{source, ChangeSource};
+    use crate::stream::joiner::filtering_on;
+    use crate::stream::relational::operator::Pair;
+    use crate::stream::relational::Leaf;
 
     ConstraintFactory::<StreamSchedule, SoftScore>::new()
         .for_each(source(
@@ -114,7 +117,12 @@ fn day_off_constraint() -> impl IncrementalConstraint<StreamSchedule, SoftScore>
                 stream_days_off as fn(&StreamSchedule) -> &[StreamDayOff],
                 ChangeSource::Descriptor(2),
             ),
-            |day_off: &StreamDayOff| day_off.employee_id,
+            filtering_on(
+                |row: &Pair<Leaf<'_, StreamShift>, Leaf<'_, StreamEmployee>>,
+                 day_off: &Leaf<'_, StreamDayOff>| {
+                    row.left.entity.employee_id == day_off.entity.employee_id
+                },
+            ),
         ))
         .filter(
             |shift: &StreamShift, _employee: &StreamEmployee, day_off: &StreamDayOff| {

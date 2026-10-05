@@ -1,4 +1,4 @@
-/* P3 RED: independent-key chain through the public fluent stream API.
+/* Independent-key chain through the public fluent stream API.
 
 The first join relates assignments to shifts on `u32` shift ids; the
 second relates the whole left row to employees on `String` employee
@@ -12,15 +12,15 @@ use solverforge_core::score::SoftScore;
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::joiner::{equal_bi, equal_on};
-use crate::stream::relational::{Concat, Leaf};
+use crate::stream::relational::{operator::Pair, Leaf};
 use crate::stream::ConstraintFactory;
 
-use super::chained::row_employee_code;
 use super::fixtures::{
     rel_assignments, rel_employees, rel_shifts, sample, RelAssignment, RelEmployee, RelSchedule,
     RelShift,
 };
 use super::oracle::{oracle_rows, oracle_score};
+use super::row_keys::{employee_key, row_pair_employee_code};
 use super::updates::{assignment_key, shift_key};
 
 fn fluent_night_staffed() -> impl IncrementalConstraint<RelSchedule, SoftScore> {
@@ -39,14 +39,15 @@ fn fluent_night_staffed() -> impl IncrementalConstraint<RelSchedule, SoftScore> 
                 shift_key as fn(&RelShift) -> u32,
             ),
         ))
-        .join_on((
+        .join((
             source(
                 rel_employees as fn(&RelSchedule) -> &[RelEmployee],
                 ChangeSource::Descriptor(2),
             ),
             equal_on(
-                row_employee_code as fn(&Concat<Leaf<'_, RelAssignment>, RelShift>) -> String,
-                super::chained::employee_key as fn(&RelEmployee) -> String,
+                row_pair_employee_code
+                    as fn(&Pair<Leaf<'_, RelAssignment>, Leaf<'_, RelShift>>) -> String,
+                employee_key as fn(&Leaf<'_, RelEmployee>) -> String,
             ),
         ))
         .filter(

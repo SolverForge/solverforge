@@ -8,7 +8,8 @@ compilation under the attribute; this test proves scores and mutations.
 */
 
 use solverforge::prelude::*;
-use solverforge::stream::relational::{Concat, Leaf};
+use solverforge::stream::relational::operator::Pair;
+use solverforge::stream::relational::Leaf;
 use solverforge::stream::{source, ChangeSource};
 use solverforge::IncrementalConstraint;
 
@@ -56,12 +57,12 @@ fn shift_id(shift: &RelShift) -> u32 {
     shift.id
 }
 
-fn row_employee_code(row: &Concat<Leaf<'_, RelAssignment>, RelShift>) -> String {
+fn row_employee_code(row: &Pair<Leaf<'_, RelAssignment>, Leaf<'_, RelShift>>) -> String {
     row.left.entity.employee_code.clone()
 }
 
-fn employee_code(employee: &RelEmployee) -> String {
-    employee.code.clone()
+fn employee_leaf_code(employee: &Leaf<'_, RelEmployee>) -> String {
+    employee.entity.code.clone()
 }
 
 fn night_filter(assignment: &RelAssignment, shift: &RelShift, _employee: &RelEmployee) -> bool {
@@ -93,14 +94,15 @@ fn staffed_constraint() -> impl IncrementalConstraint<RelSchedule, HardSoftScore
                 shift_id as fn(&RelShift) -> u32,
             ),
         ))
-        .join_on((
+        .join((
             source(
                 rel_employees as fn(&RelSchedule) -> &[RelEmployee],
                 ChangeSource::Descriptor(2),
             ),
             joiner::equal_on(
-                row_employee_code as fn(&Concat<Leaf<'_, RelAssignment>, RelShift>) -> String,
-                employee_code as fn(&RelEmployee) -> String,
+                row_employee_code
+                    as fn(&Pair<Leaf<'_, RelAssignment>, Leaf<'_, RelShift>>) -> String,
+                employee_leaf_code as fn(&Leaf<'_, RelEmployee>) -> String,
             ),
         ))
         .filter(night_filter as fn(&RelAssignment, &RelShift, &RelEmployee) -> bool)

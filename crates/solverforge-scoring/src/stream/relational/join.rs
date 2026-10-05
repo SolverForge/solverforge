@@ -247,11 +247,6 @@ where
         self.deltas.begin();
     }
 
-    /* Stable handle of one live output pair, if still retained. */
-    pub(crate) fn output_handle(&self, a_idx: usize, b_idx: usize) -> Option<RowHandle> {
-        self.output_of.get(&(a_idx, b_idx)).copied()
-    }
-
     /* Retained provenance for one output pair, if still live. */
     pub(crate) fn provenance_of(&self, a_idx: usize, b_idx: usize) -> Option<&Provenance> {
         let handle = self.output_of.get(&(a_idx, b_idx))?;

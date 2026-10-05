@@ -91,16 +91,16 @@ fn row_aware_overlap_keeps_half_open_endpoint_semantics() {
 #[test]
 fn planned_strategies_route_indexable_conditions_to_indexes() {
     use crate::stream::joiner::Strategy;
-    use crate::stream::joiner::{equal_on, filtering_on, less_than_on, overlap_on, plan_strategy};
+    use crate::stream::joiner::{equal_bi, filtering_on, less_than, overlap_on, plan_strategy};
 
-    let eq = equal_on(
-        |row: &Concat<Leaf<'_, RelAssignment>, RelShift>| row.left.entity.shift_id,
+    let eq = equal_bi(
+        |assignment: &RelAssignment| assignment.shift_id,
         |shift: &RelShift| shift.id,
     );
     assert_eq!(plan_strategy(&eq), Strategy::EquiHash);
 
-    let cmp = less_than_on(
-        |row: &Concat<Leaf<'_, RelAssignment>, RelShift>| row.left.entity.shift_id,
+    let cmp = less_than(
+        |assignment: &RelAssignment| assignment.shift_id,
         |shift: &RelShift| shift.id,
     );
     assert_eq!(plan_strategy(&cmp), Strategy::OrderedScan);
@@ -124,18 +124,19 @@ fn planned_strategies_route_indexable_conditions_to_indexes() {
 #[test]
 fn and_normalizes_heterogeneous_conditions_with_combined_residual() {
     use crate::stream::joiner::{equal_on, less_than_on, plan_strategy, Joiner, Strategy};
+    use crate::stream::relational::{operator::Pair, Leaf};
 
-    fn eq_key(row: &Concat<Leaf<'_, RelAssignment>, RelShift>) -> u32 {
+    fn eq_key(row: &Pair<Leaf<'_, RelAssignment>, Leaf<'_, RelShift>>) -> u32 {
         row.left.entity.shift_id
     }
-    fn eq_right(shift: &RelShift) -> u32 {
-        shift.id
+    fn eq_right(shift: &Leaf<'_, RelShift>) -> u32 {
+        shift.entity.id
     }
-    fn cmp_key(row: &Concat<Leaf<'_, RelAssignment>, RelShift>) -> i64 {
+    fn cmp_key(row: &Pair<Leaf<'_, RelAssignment>, Leaf<'_, RelShift>>) -> i64 {
         row.left.entity.shift_id as i64
     }
-    fn cmp_right(shift: &RelShift) -> i64 {
-        shift.id as i64 + 50
+    fn cmp_right(shift: &Leaf<'_, RelShift>) -> i64 {
+        shift.entity.id as i64 + 50
     }
 
     // Reordering AND conditions changes neither strategy nor matches.
@@ -156,16 +157,20 @@ fn and_normalizes_heterogeneous_conditions_with_combined_residual() {
         id: 10,
         night: true,
     };
-    let row = sample_row(&assignment, &shift);
+    let row = Pair {
+        left: Leaf::new(&assignment, 0),
+        right: Leaf::new(&shift, 0),
+    };
     // eq: 10 == 10 hit; cmp: 10 < 60 hit.
     assert!(equal_on(eq_key, eq_right)
         .and(less_than_on(cmp_key, cmp_right))
-        .matches(&row, &shift));
+        .matches(&row, &row.right));
     let low = RelShift { id: 0, night: true };
+    let low_leaf = Leaf::new(&low, 1);
     // eq: 10 == 0 miss (cmp alone would hit: 10 < 50).
     assert!(!equal_on(eq_key, eq_right)
         .and(less_than_on(cmp_key, cmp_right))
-        .matches(&row, &low));
+        .matches(&row, &low_leaf));
 }
 
 #[test]

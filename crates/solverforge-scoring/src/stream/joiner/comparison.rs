@@ -44,7 +44,7 @@ where
 /* Creates a joiner matching when the left row's key is less than the right's.
 
 Row-aware form of [`less_than`]: the left closure receives the whole
-borrowed left row, so a chained comparison can inspect any earlier
+borrowed left row, so a later comparison can inspect any earlier
 binding. Extractors stay accessible for ordered index planning.
 */
 pub fn less_than_on<T, LK, KC>(left: LK, right: KC) -> LessThanJoiner<LK, KC, T>

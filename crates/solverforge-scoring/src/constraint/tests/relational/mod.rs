@@ -5,7 +5,6 @@ suites live here. The oracle never calls production indexes or traversal;
 production results must agree with it on scores, row multisets, and counts.
 */
 
-mod chained;
 mod compiled_conditions;
 mod complement_producer;
 mod condition_mutations;
@@ -27,7 +26,7 @@ mod operator_tree;
 mod oracle;
 mod owned_projection;
 mod primitives;
+mod row_keys;
 mod sharing;
 mod terminal;
-mod triple_terminal;
 mod updates;

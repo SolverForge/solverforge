@@ -33,7 +33,15 @@ fn constraints() -> impl ConstraintSet<Schedule, SoftScore> {
             ))
             .join((
                 days_off as fn(&Schedule) -> &[Option<usize>],
-                |day_off: &Option<usize>| *day_off,
+                joiner::filtering_on(
+                    |row: &solverforge::stream::relational::operator::Pair<
+                        solverforge::stream::relational::Leaf<'_, Option<usize>>,
+                        solverforge::stream::relational::Leaf<'_, usize>,
+                    >,
+                     day_off: &solverforge::stream::relational::Leaf<'_, Option<usize>>| {
+                        row.left.entity == day_off.entity
+                    },
+                ),
             ))
             .penalize(|shift: &Option<usize>, _employee: &usize, day_off: &Option<usize>| {
                 SoftScore::of((*shift == *day_off) as i64)

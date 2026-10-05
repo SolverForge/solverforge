@@ -93,8 +93,7 @@ mod tests;
 
 pub mod cross {
     pub use super::cross_bi_stream::{
-        Bi, Builder, ChainedBuilder, ChainedTri, ComplementedGrouped, ComplementedGroupedBuilder,
-        Grouped, GroupedBuilder,
+        Bi, Builder, ComplementedGrouped, ComplementedGroupedBuilder, Grouped, GroupedBuilder,
     };
     pub use super::cross_tri_stream::Tri;
 }

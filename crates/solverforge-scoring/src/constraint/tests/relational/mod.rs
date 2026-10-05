@@ -10,6 +10,7 @@ mod compiled_conditions;
 mod condition_mutations;
 mod conditions;
 mod evaluation;
+mod filtered_operators;
 mod fixtures;
 mod fluent_chain;
 mod handle_map;

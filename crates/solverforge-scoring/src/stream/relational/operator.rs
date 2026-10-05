@@ -3,7 +3,9 @@ use super::RowHandle;
 
 mod analysis;
 mod collection;
+mod filter;
 mod join;
+pub use filter::FilterNode;
 
 #[doc(hidden)]
 pub use analysis::ExplainRow;

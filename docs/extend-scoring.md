@@ -12,7 +12,9 @@ stream families have not all migrated to this protocol.
 handle enumeration and resolution, provenance traversal, and descriptor-local
 retract/insert deltas. Copy applies to the view, not its entities.
 `CollectionNode` produces `Leaf<'a, A>`; `JoinNode` produces recursive
-`Pair<L::View<'a>, R::View<'a>>`. Join either branch with another operator;
+`Pair<L::View<'a>, R::View<'a>>`. `FilterNode` preserves accepted input
+identities and checks membership at its own boundary, including on a right
+join target. Join either branch with another operator;
 there is no internal binding-count limit. Public named arity adapters remain
 separate from this low-level row form.
 

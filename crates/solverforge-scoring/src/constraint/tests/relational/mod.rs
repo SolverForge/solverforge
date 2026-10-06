@@ -8,6 +8,7 @@ production results must agree with it on scores, row multisets, and counts.
 mod analysis;
 mod compiled_conditions;
 mod complement_producer;
+mod condition_arity;
 mod condition_mutations;
 mod conditions;
 mod deep_chain;

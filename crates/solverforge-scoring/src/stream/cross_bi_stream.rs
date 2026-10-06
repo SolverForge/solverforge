@@ -9,10 +9,12 @@ mod base;
 mod complemented_grouped;
 mod grouped;
 mod scored;
+mod view_comparison;
 mod weighting;
 
 pub use base::Bi;
 pub use complemented_grouped::{ComplementedGrouped, ComplementedGroupedBuilder};
 pub use grouped::{Grouped, GroupedBuilder};
 pub(crate) use scored::{BiPredicatePlan, BiUnaryPlan};
+pub use view_comparison::{ViewComparisonPlan, ViewOverlapPlan};
 pub use weighting::Builder;

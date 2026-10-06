@@ -35,6 +35,17 @@ pub struct AndJoiner<J1, J2> {
 }
 
 impl<J1, J2> AndJoiner<J1, J2> {
+    /* Builds a conjunction from its two operands. */
+    pub fn new(first: J1, second: J2) -> Self {
+        Self { first, second }
+    }
+
+    /* Consumes the conjunction and returns both operands, so a stream can
+    convert each side to a view-compatible plan. */
+    pub fn into_parts(self) -> (J1, J2) {
+        (self.first, self.second)
+    }
+
     /// Compose without prematurely binding a borrowed row lifetime.
     pub fn and<J>(self, other: J) -> AndJoiner<Self, J> {
         AndJoiner {

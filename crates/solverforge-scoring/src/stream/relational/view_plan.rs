@@ -156,6 +156,27 @@ impl<K, KeyA, KeyB> CompileCondition for ViewEqualPlan<K, KeyA, KeyB> {
     }
 }
 
+impl<K: Eq + Hash + Clone, KeyA, KeyB> crate::stream::joiner::plan::EqualityPlan
+    for ViewEqualPlan<K, KeyA, KeyB>
+{
+    type Key = K;
+}
+
+impl<'x, A, B, K, KeyA, KeyB> crate::stream::joiner::plan::EqualityKeys<Leaf<'x, A>, Leaf<'x, B>>
+    for ViewEqualPlan<K, KeyA, KeyB>
+where
+    K: Eq + Hash + Clone,
+    KeyA: ViewKey<Leaf<'x, A>, Key = K>,
+    KeyB: ViewKey<Leaf<'x, B>, Key = K>,
+{
+    fn left_key(&self, row: &Leaf<'x, A>) -> K {
+        self.key_a.key(row)
+    }
+    fn right_key(&self, row: &Leaf<'x, B>) -> K {
+        self.key_b.key(row)
+    }
+}
+
 impl<K: Eq + Hash + Clone, KeyA, KeyB> IndexedPlan for ViewEqualPlan<K, KeyA, KeyB> {
     type Kind = EqualityKind;
     type Indexes = (HashIndex<K>, HashIndex<K>);

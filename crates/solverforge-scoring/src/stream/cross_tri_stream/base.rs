@@ -14,7 +14,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use super::super::collection_extract::CollectionExtract;
-use super::super::filter::{AndTriFilter, FnTriFilter, TriFilter};
+use super::super::filter::{AndTriFilter, FnTriFilter, TriAsQuadFilter, TriFilter};
 use super::super::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use super::super::relational::operator::{
     CollectionNode, ExplainRow, JoinNode, Operator, Pair, RowChanges,
@@ -212,6 +212,56 @@ where
             impact_type,
             weight,
             is_hard,
+            _phantom: PhantomData,
+        }
+    }
+
+    /* Extends this triple with a fourth source D.
+
+    The target tuple's condition compiles fresh, so its left closure receives
+    the whole borrowed (A, B, C) row and the fourth key domain is independent
+    of every earlier relationship.
+    */
+    pub fn join<D, ED, P3>(
+        self,
+        target: (ED, P3),
+    ) -> crate::stream::cross_quad_stream::Quad<
+        S,
+        A,
+        B,
+        C,
+        D,
+        EA,
+        EB,
+        EC,
+        ED,
+        P1,
+        P2,
+        P3,
+        TriAsQuadFilter<F, A, B, C>,
+        Sc,
+    >
+    where
+        D: Clone + Send + Sync + 'static,
+        ED: CollectionExtract<S, Item = D> + 'static,
+        P3: CompileCondition + 'static,
+        P3::Plan: IndexedPlan,
+        for<'a> P3::Plan:
+            ExecutablePlan<Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>, Leaf<'a, D>>,
+        for<'a> BuiltTri<S, EA, EB, EC, P1, P2>:
+            Operator<S, View<'a> = Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>>,
+        for<'a> JoinNode<
+            S,
+            BuiltTri<S, EA, EB, EC, P1, P2>,
+            CollectionNode<S, ED>,
+            <P3 as CompileCondition>::Plan,
+        >: Operator<S>,
+    {
+        let (extractor_d, condition) = target;
+        let tree = JoinNode::new(self.tree, CollectionNode::new(extractor_d, 3), condition);
+        crate::stream::cross_quad_stream::Quad {
+            tree,
+            filter: TriAsQuadFilter::new(self.filter),
             _phantom: PhantomData,
         }
     }

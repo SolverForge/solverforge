@@ -158,3 +158,90 @@ where
             && (self.predicate)(a, b)
     }
 }
+
+// Lifts a tri-filter over (A, B, C) into the quad chain over (A, B, C, D),
+// preserving the A, B and C source slice indexes and ignoring D.
+#[doc(hidden)]
+pub struct TriAsQuadFilter<F, A, B, C> {
+    filter: F,
+    _phantom: PhantomData<(fn() -> A, fn() -> B, fn() -> C)>,
+}
+
+impl<F, A, B, C> TriAsQuadFilter<F, A, B, C> {
+    // Creates a quad-filter from a tri-filter over the first three sources.
+    #[inline]
+    pub fn new(filter: F) -> Self {
+        Self {
+            filter,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, A, B, C, D, F> super::traits::QuadFilter<S, A, B, C, D> for TriAsQuadFilter<F, A, B, C>
+where
+    F: TriFilter<S, A, B, C>,
+    D: Send + Sync,
+{
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    fn test(
+        &self,
+        solution: &S,
+        a: &A,
+        b: &B,
+        c: &C,
+        _d: &D,
+        a_idx: usize,
+        b_idx: usize,
+        c_idx: usize,
+        _d_idx: usize,
+    ) -> bool {
+        self.filter.test(solution, a, b, c, a_idx, b_idx, c_idx)
+    }
+}
+
+// Lifts a quad-filter over (A, B, C, D) into the penta chain over (A, B, C, D, E),
+// preserving source slice indexes and ignoring E.
+#[doc(hidden)]
+pub struct QuadAsPentaFilter<F, A, B, C, D> {
+    filter: F,
+    _phantom: PhantomData<(fn() -> A, fn() -> B, fn() -> C, fn() -> D)>,
+}
+
+impl<F, A, B, C, D> QuadAsPentaFilter<F, A, B, C, D> {
+    #[inline]
+    pub fn new(filter: F) -> Self {
+        Self {
+            filter,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<S, A, B, C, D, E, F> super::traits::PentaFilter<S, A, B, C, D, E>
+    for QuadAsPentaFilter<F, A, B, C, D>
+where
+    F: super::traits::QuadFilter<S, A, B, C, D>,
+    E: Send + Sync,
+{
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    fn test(
+        &self,
+        solution: &S,
+        a: &A,
+        b: &B,
+        c: &C,
+        d: &D,
+        _e: &E,
+        a_idx: usize,
+        b_idx: usize,
+        c_idx: usize,
+        d_idx: usize,
+        _e_idx: usize,
+    ) -> bool {
+        self.filter
+            .test(solution, a, b, c, d, a_idx, b_idx, c_idx, d_idx)
+    }
+}

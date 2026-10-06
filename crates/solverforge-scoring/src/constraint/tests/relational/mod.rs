@@ -29,6 +29,7 @@ mod operator_tree;
 mod oracle;
 mod owned_projection;
 mod primitives;
+mod quad_fluent_chain;
 mod row_keys;
 mod self_join_node;
 mod sharing;

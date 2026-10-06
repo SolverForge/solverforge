@@ -12,15 +12,8 @@ impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
 where
     Acc: Accumulator<V, R>,
     GK: Eq + Hash,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
 {
-    pub(super) fn find_group(&self, hash: u64, key: &GK) -> Option<usize> {
-        let group_ids = self.groups_by_hash.get(&hash)?;
-        group_ids
-            .iter()
-            .copied()
-            .find(|group_id| self.groups[*group_id].key == *key)
-    }
-
     fn visit_complement_slot<Visit>(&self, t_idx: usize, visit: &mut Visit)
     where
         Visit: FnMut(usize, Option<(&GK, &R)>),
@@ -127,6 +120,7 @@ impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
     >
 where
     GK: Eq + Hash,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
     Acc: Accumulator<V, R>,
 {
     fn for_each_complement_result<Visit>(&self, mut visit: Visit)

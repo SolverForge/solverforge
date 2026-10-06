@@ -4,10 +4,13 @@ use std::marker::PhantomData;
 
 use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::collector::{Accumulator, Collector};
+use crate::stream::relational::operator::{CollectionNode, JoinNode};
+use crate::stream::relational::view_plan::{EntityKey, ViewEqualPlan};
 
-use super::indexes::{key_hash, matching_indexed_indices, remove_index_from_group_bucket};
+use super::indexes::key_hash;
 
-type CollectorRetraction<Acc, V, R> = <Acc as Accumulator<V, R>>::Retraction;
+// Local alias so the long accumulator-token type stays readable in signatures.
+pub(super) type CollectorRetraction<Acc, V, R> = <Acc as Accumulator<V, R>>::Retraction;
 
 pub(super) struct GroupState<K, Acc> {
     pub(super) key: K,
@@ -15,14 +18,23 @@ pub(super) struct GroupState<K, Acc> {
     pub(super) count: usize,
 }
 
+/* One retained match: its (A index, B index) domain coordinates, the group it
+feeds, and the accumulator token that retracts exactly this contributor. */
 pub(super) struct MatchRow<Retraction> {
     pub(super) pair: (usize, usize),
     pub(super) group_id: usize,
     pub(super) retraction: Retraction,
-    pub(super) a_pos: usize,
-    pub(super) b_pos: usize,
 }
 
+/* Completed shared state for the cross-complemented-grouped family.
+
+Match and filter retention belongs to the common operator tree: a `JoinNode`
+over the A and B leaf collections, keyed by a typed view-equality plan, with
+the authored residual predicate applied to each candidate pair. The
+complement-side layer — target default values, target-to-group membership, and
+group accumulators — stays local, because it is a real derived-state concern
+shared by several dependent functions, not a duplicate join engine.
+*/
 pub struct ComplementedGroupedNodeState<
     S,
     A,
@@ -45,12 +57,9 @@ pub struct ComplementedGroupedNodeState<
     D,
 > where
     Acc: Accumulator<V, R>,
+    JK: Eq + Hash + Clone,
 {
-    pub(super) extractor_a: EA,
-    pub(super) extractor_b: EB,
     pub(super) extractor_t: ET,
-    pub(super) key_a: KA,
-    pub(super) key_b: KB,
     pub(super) filter: F,
     pub(super) group_key_fn: GF,
     pub(super) key_t: KT,
@@ -59,14 +68,19 @@ pub struct ComplementedGroupedNodeState<
     pub(super) a_source: ChangeSource,
     pub(super) b_source: ChangeSource,
     pub(super) t_source: ChangeSource,
-    pub(super) matches: HashMap<(usize, usize), usize>,
+    /* Common join operator owns typed key indexing and candidate enumeration. */
+    pub(super) join: JoinNode<
+        S,
+        CollectionNode<S, EA>,
+        CollectionNode<S, EB>,
+        ViewEqualPlan<JK, EntityKey<KA>, EntityKey<KB>>,
+    >,
     pub(super) match_rows: Vec<MatchRow<CollectorRetraction<Acc, V, R>>>,
+    /* Reverse contributor -> match-row links, used to retract a changed
+    entity's rows without scanning the retained match set. */
     pub(super) a_to_matches: HashMap<usize, Vec<usize>>,
     pub(super) b_to_matches: HashMap<usize, Vec<usize>>,
-    pub(super) a_by_hash: HashMap<u64, Vec<usize>>,
-    pub(super) b_by_hash: HashMap<u64, Vec<usize>>,
-    pub(super) a_index_to_key: HashMap<usize, JK>,
-    pub(super) b_index_to_key: HashMap<usize, JK>,
+    /* Complement layer: target membership and default results. */
     pub(super) t_by_group: HashMap<usize, Vec<usize>>,
     pub(super) t_index_to_group: HashMap<usize, usize>,
     pub(super) t_defaults: HashMap<usize, R>,
@@ -74,17 +88,9 @@ pub struct ComplementedGroupedNodeState<
     pub(super) groups_by_hash: HashMap<u64, Vec<usize>>,
     pub(super) changed_groups: Vec<usize>,
     pub(super) changed_complements: Vec<usize>,
-    update_count: usize,
-    changed_key_count: usize,
-    pub(super) _phantom: PhantomData<(
-        fn() -> S,
-        fn() -> A,
-        fn() -> B,
-        fn() -> T,
-        fn() -> V,
-        fn() -> R,
-        fn() -> Acc,
-    )>,
+    pub(super) update_count: usize,
+    pub(super) changed_key_count: usize,
+    pub(super) _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> T, fn() -> V)>,
 }
 
 pub struct ComplementedGroupedEvaluationState<GK, V, R, Acc>
@@ -100,16 +106,16 @@ impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
     ComplementedGroupedNodeState<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
 where
     S: Send + Sync + 'static,
-    A: Send + Sync + 'static,
-    B: Send + Sync + 'static,
+    A: 'static,
+    B: 'static,
     T: Send + Sync + 'static,
-    JK: Eq + Hash + Send + Sync,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
     GK: Eq + Hash + Send + Sync,
-    EA: CollectionExtract<S, Item = A> + Send + Sync,
-    EB: CollectionExtract<S, Item = B> + Send + Sync,
-    ET: CollectionExtract<S, Item = T> + Send + Sync,
-    KA: Fn(&A) -> JK + Send + Sync,
-    KB: Fn(&B) -> JK + Send + Sync,
+    EA: CollectionExtract<S, Item = A> + 'static,
+    EB: CollectionExtract<S, Item = B> + 'static,
+    ET: CollectionExtract<S, Item = T> + 'static,
+    KA: Fn(&A) -> JK + Send + Sync + 'static,
+    KB: Fn(&B) -> JK + Send + Sync + 'static,
     F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
     GF: Fn(&A, &B) -> GK + Send + Sync,
     KT: Fn(&T) -> GK + Send + Sync,
@@ -135,12 +141,13 @@ where
         let a_source = extractor_a.change_source();
         let b_source = extractor_b.change_source();
         let t_source = extractor_t.change_source();
+        let join = JoinNode::new(
+            CollectionNode::new(extractor_a, 1),
+            CollectionNode::new(extractor_b, 0),
+            ViewEqualPlan::new(EntityKey::new(key_a), EntityKey::new(key_b)),
+        );
         Self {
-            extractor_a,
-            extractor_b,
             extractor_t,
-            key_a,
-            key_b,
             filter,
             group_key_fn,
             key_t,
@@ -149,14 +156,10 @@ where
             a_source,
             b_source,
             t_source,
-            matches: HashMap::new(),
+            join,
             match_rows: Vec::new(),
             a_to_matches: HashMap::new(),
             b_to_matches: HashMap::new(),
-            a_by_hash: HashMap::new(),
-            b_by_hash: HashMap::new(),
-            a_index_to_key: HashMap::new(),
-            b_index_to_key: HashMap::new(),
             t_by_group: HashMap::new(),
             t_index_to_group: HashMap::new(),
             t_defaults: HashMap::new(),
@@ -170,153 +173,6 @@ where
         }
     }
 
-    pub fn evaluation_state(
-        &self,
-        solution: &S,
-    ) -> ComplementedGroupedEvaluationState<GK, V, R, Acc> {
-        let entities_a = self.extractor_a.extract(solution);
-        let entities_b = self.extractor_b.extract(solution);
-        let entities_t = self.extractor_t.extract(solution);
-        let b_by_key = self.b_index_for(solution, entities_b);
-        let mut groups = HashMap::<GK, Acc>::new();
-
-        for (a_idx, a) in entities_a.iter().enumerate() {
-            if !self.extractor_a.contains(solution, a) {
-                continue;
-            }
-            for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
-                let b = &entities_b[b_idx];
-                if !(self.filter)(solution, a, b, a_idx, b_idx) {
-                    continue;
-                }
-                let key = (self.group_key_fn)(a, b);
-                let value = self.collector.extract((a, b));
-                groups
-                    .entry(key)
-                    .or_insert_with(|| self.collector.create_accumulator())
-                    .accumulate(value);
-            }
-        }
-
-        let mut targets = Vec::new();
-        for target in entities_t {
-            if self.extractor_t.contains(solution, target) {
-                targets.push(((self.key_t)(target), (self.default_fn)(target)));
-            }
-        }
-
-        ComplementedGroupedEvaluationState {
-            groups,
-            targets,
-            _phantom: PhantomData,
-        }
-    }
-
-    pub fn initialize(&mut self, solution: &S) {
-        self.reset();
-        let entities_a = self.extractor_a.extract(solution);
-        let entities_b = self.extractor_b.extract(solution);
-        let entities_t = self.extractor_t.extract(solution);
-        self.build_join_indexes(solution, entities_a, entities_b);
-
-        for t_idx in 0..entities_t.len() {
-            self.insert_complement(solution, entities_t, t_idx);
-        }
-        for a_idx in 0..entities_a.len() {
-            if !self.extractor_a.contains(solution, &entities_a[a_idx]) {
-                continue;
-            }
-            let key = (self.key_a)(&entities_a[a_idx]);
-            let b_indices = self.matching_indexed_b_indices(&key);
-            for b_idx in b_indices {
-                self.add_match(solution, entities_a, entities_b, a_idx, b_idx);
-            }
-        }
-        self.changed_groups.clear();
-        self.changed_complements.clear();
-    }
-
-    pub fn on_insert(
-        &mut self,
-        solution: &S,
-        entity_index: usize,
-        descriptor_index: usize,
-        node_name: &str,
-    ) {
-        self.changed_groups.clear();
-        self.changed_complements.clear();
-        let a_changed = self.a_source.assert_localizes(descriptor_index, node_name);
-        let b_changed = self.b_source.assert_localizes(descriptor_index, node_name);
-        let t_changed = self.t_source.assert_localizes(descriptor_index, node_name);
-        if !a_changed && !b_changed && !t_changed {
-            return;
-        }
-
-        let entities_a = self.extractor_a.extract(solution);
-        let entities_b = self.extractor_b.extract(solution);
-        let entities_t = self.extractor_t.extract(solution);
-        if a_changed {
-            self.insert_a(solution, entities_a, entities_b, entity_index);
-        }
-        if b_changed {
-            self.insert_b(solution, entities_a, entities_b, entity_index);
-        }
-        if t_changed {
-            self.insert_complement(solution, entities_t, entity_index);
-        }
-        self.update_count += 1;
-        self.changed_key_count += self.changed_groups.len();
-    }
-
-    pub fn on_retract(&mut self, entity_index: usize, descriptor_index: usize, node_name: &str) {
-        self.changed_groups.clear();
-        self.changed_complements.clear();
-        let a_changed = self.a_source.assert_localizes(descriptor_index, node_name);
-        let b_changed = self.b_source.assert_localizes(descriptor_index, node_name);
-        let t_changed = self.t_source.assert_localizes(descriptor_index, node_name);
-        if !a_changed && !b_changed && !t_changed {
-            return;
-        }
-
-        if a_changed {
-            self.retract_a(entity_index);
-        }
-        if b_changed {
-            self.retract_b(entity_index);
-        }
-        if t_changed {
-            self.retract_complement(entity_index);
-        }
-        self.update_count += 1;
-        self.changed_key_count += self.changed_groups.len();
-    }
-
-    pub fn reset(&mut self) {
-        self.matches.clear();
-        self.match_rows.clear();
-        self.a_to_matches.clear();
-        self.b_to_matches.clear();
-        self.a_by_hash.clear();
-        self.b_by_hash.clear();
-        self.a_index_to_key.clear();
-        self.b_index_to_key.clear();
-        self.t_by_group.clear();
-        self.t_index_to_group.clear();
-        self.t_defaults.clear();
-        self.groups.clear();
-        self.groups_by_hash.clear();
-        self.changed_groups.clear();
-        self.changed_complements.clear();
-    }
-
-    pub fn update_count(&self) -> usize {
-        self.update_count
-    }
-
-    pub fn changed_key_count(&self) -> usize {
-        self.changed_key_count
-    }
-
     pub(super) fn mark_changed(&mut self, group_id: usize) {
         if !self.changed_groups.contains(&group_id) {
             self.changed_groups.push(group_id);
@@ -327,71 +183,6 @@ where
         if !self.changed_complements.contains(&t_idx) {
             self.changed_complements.push(t_idx);
         }
-    }
-
-    pub(super) fn b_index_for(&self, solution: &S, entities_b: &[B]) -> HashMap<JK, Vec<usize>> {
-        let mut b_by_key = HashMap::<JK, Vec<usize>>::new();
-        for (b_idx, b) in entities_b.iter().enumerate() {
-            if !self.extractor_b.contains(solution, b) {
-                continue;
-            }
-            let key = (self.key_b)(b);
-            b_by_key.entry(key).or_default().push(b_idx);
-        }
-        b_by_key
-    }
-
-    pub(super) fn build_join_indexes(&mut self, solution: &S, entities_a: &[A], entities_b: &[B]) {
-        self.a_by_hash.clear();
-        self.b_by_hash.clear();
-        self.a_index_to_key.clear();
-        self.b_index_to_key.clear();
-        for (a_idx, a) in entities_a.iter().enumerate() {
-            if !self.extractor_a.contains(solution, a) {
-                continue;
-            }
-            let key = (self.key_a)(a);
-            let hash = key_hash(&key);
-            self.a_by_hash.entry(hash).or_default().push(a_idx);
-            self.a_index_to_key.insert(a_idx, key);
-        }
-        for (b_idx, b) in entities_b.iter().enumerate() {
-            if !self.extractor_b.contains(solution, b) {
-                continue;
-            }
-            let key = (self.key_b)(b);
-            let hash = key_hash(&key);
-            self.b_by_hash.entry(hash).or_default().push(b_idx);
-            self.b_index_to_key.insert(b_idx, key);
-        }
-    }
-
-    #[inline]
-    pub(super) fn matching_b_indices_in<'a>(
-        &self,
-        b_by_key: &'a HashMap<JK, Vec<usize>>,
-        a: &A,
-    ) -> &'a [usize] {
-        let key = (self.key_a)(a);
-        b_by_key.get(&key).map_or(&[], Vec::as_slice)
-    }
-
-    pub(super) fn matching_indexed_a_indices(&self, key: &JK) -> Vec<usize> {
-        matching_indexed_indices(&self.a_by_hash, &self.a_index_to_key, key)
-    }
-
-    pub(super) fn matching_indexed_b_indices(&self, key: &JK) -> Vec<usize> {
-        matching_indexed_indices(&self.b_by_hash, &self.b_index_to_key, key)
-    }
-
-    pub(super) fn index_complement(&mut self, group_id: usize, t_idx: usize) {
-        if let Some(old_group_id) = self.t_index_to_group.insert(t_idx, group_id) {
-            remove_index_from_group_bucket(&mut self.t_by_group, old_group_id, t_idx);
-            self.mark_changed(old_group_id);
-        }
-        self.t_by_group.entry(group_id).or_default().push(t_idx);
-        self.mark_complement_changed(t_idx);
-        self.mark_changed(group_id);
     }
 
     pub(super) fn insert_value(
@@ -436,5 +227,21 @@ where
         });
         self.groups_by_hash.entry(hash).or_default().push(group_id);
         group_id
+    }
+}
+
+impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
+    ComplementedGroupedNodeState<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D>
+where
+    Acc: Accumulator<V, R>,
+    GK: Eq + Hash,
+    JK: Eq + Hash + Clone,
+{
+    pub(super) fn find_group(&self, hash: u64, key: &GK) -> Option<usize> {
+        let group_ids = self.groups_by_hash.get(&hash)?;
+        group_ids
+            .iter()
+            .copied()
+            .find(|group_id| self.groups[*group_id].key == *key)
     }
 }

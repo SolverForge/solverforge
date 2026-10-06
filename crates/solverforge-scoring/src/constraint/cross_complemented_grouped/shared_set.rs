@@ -37,6 +37,7 @@ pub struct SharedComplementedGroupedSet<
     Sc,
 > where
     Acc: Accumulator<V, R>,
+    JK: Eq + Hash + Clone,
     Sc: Score,
 {
     pub(super) state: ComplementedGroupedNodeState<
@@ -96,11 +97,12 @@ where
     T: Send + Sync + 'static,
     JK: Eq + Hash + Send + Sync + 'static,
     GK: Eq + Hash + Send + Sync + 'static,
-    EA: CollectionExtract<S, Item = A> + Send + Sync,
-    EB: CollectionExtract<S, Item = B> + Send + Sync,
-    ET: CollectionExtract<S, Item = T> + Send + Sync,
-    KA: Fn(&A) -> JK + Send + Sync,
-    KB: Fn(&B) -> JK + Send + Sync,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
+    EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,
+    EB: CollectionExtract<S, Item = B> + Send + Sync + 'static,
+    ET: CollectionExtract<S, Item = T> + Send + Sync + 'static,
+    KA: Fn(&A) -> JK + Send + Sync + 'static,
+    KB: Fn(&B) -> JK + Send + Sync + 'static,
     F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
     GF: Fn(&A, &B) -> GK + Send + Sync,
     KT: Fn(&T) -> GK + Send + Sync,
@@ -207,11 +209,12 @@ where
     T: Send + Sync + 'static,
     JK: Eq + Hash + Send + Sync + 'static,
     GK: Eq + Hash + Send + Sync + 'static,
-    EA: CollectionExtract<S, Item = A> + Send + Sync,
-    EB: CollectionExtract<S, Item = B> + Send + Sync,
-    ET: CollectionExtract<S, Item = T> + Send + Sync,
-    KA: Fn(&A) -> JK + Send + Sync,
-    KB: Fn(&B) -> JK + Send + Sync,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
+    EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,
+    EB: CollectionExtract<S, Item = B> + Send + Sync + 'static,
+    ET: CollectionExtract<S, Item = T> + Send + Sync + 'static,
+    KA: Fn(&A) -> JK + Send + Sync + 'static,
+    KB: Fn(&B) -> JK + Send + Sync + 'static,
     F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
     GF: Fn(&A, &B) -> GK + Send + Sync,
     KT: Fn(&T) -> GK + Send + Sync,
@@ -267,7 +270,7 @@ where
     ) -> Sc {
         let node_name = &self.scorers.primary_constraint_ref().name;
         self.state
-            .on_retract(entity_index, descriptor_index, node_name);
+            .on_retract(_solution, entity_index, descriptor_index, node_name);
         self.refresh_from_state()
     }
 
@@ -306,6 +309,7 @@ where
     Acc: Accumulator<V, R>,
     Scorers: ComplementedGroupedScorerSet<GK, R, Sc>,
     GK: Eq + Hash,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
     Sc: Score,
 {
     fn refresh_from_state(&mut self) -> Sc {

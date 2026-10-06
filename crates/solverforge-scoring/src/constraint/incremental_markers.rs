@@ -74,6 +74,7 @@ impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>
     >
 where
     Acc: Accumulator<V, R>,
+    JK: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
     Sc: Score,
 {
 }

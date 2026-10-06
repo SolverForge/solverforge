@@ -5,10 +5,12 @@ suites live here. The oracle never calls production indexes or traversal;
 production results must agree with it on scores, row multisets, and counts.
 */
 
+mod analysis;
 mod compiled_conditions;
 mod complement_producer;
 mod condition_mutations;
 mod conditions;
+mod deep_chain;
 mod evaluation;
 mod existence_producer;
 mod filtered_operators;

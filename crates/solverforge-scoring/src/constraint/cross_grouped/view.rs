@@ -61,6 +61,7 @@ impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc> GroupedStateView<GK, 
     for GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
     GK: Eq + Hash,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
     Acc: Accumulator<V, R>,
 {
     fn for_each_group_result<Visit>(&self, mut visit: Visit)

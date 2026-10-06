@@ -12,6 +12,10 @@ pub struct CollectionNode<S, E> {
 }
 
 impl<S, E> CollectionNode<S, E> {
+    /* Borrows the source extractor this node was built from. */
+    pub(crate) fn extractor(&self) -> &E {
+        &self.extractor
+    }
     pub fn new(extractor: E, binding: u32) -> Self {
         Self {
             extractor,

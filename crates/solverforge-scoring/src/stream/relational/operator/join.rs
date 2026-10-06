@@ -16,6 +16,17 @@ pub struct JoinNode<S, L, R, P: IndexedPlan> {
     marker: PhantomData<fn() -> S>,
 }
 
+impl<S: 'static, L, R, P: IndexedPlan + 'static> JoinNode<S, L, R, P> {
+    /* Borrows the left input operator. */
+    pub(crate) fn left(&self) -> &L {
+        &self.left
+    }
+    /* Borrows the right input operator. */
+    pub(crate) fn right(&self) -> &R {
+        &self.right
+    }
+}
+
 impl<S: 'static, L: Operator<S>, R: Operator<S>, P: IndexedPlan + 'static> JoinNode<S, L, R, P>
 where
     for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,

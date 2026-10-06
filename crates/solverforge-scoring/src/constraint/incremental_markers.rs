@@ -42,6 +42,7 @@ impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc> IncrementalCon
     for CrossGrouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
 where
     Acc: Accumulator<V, R>,
+    JK: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
     Sc: Score,
 {
 }

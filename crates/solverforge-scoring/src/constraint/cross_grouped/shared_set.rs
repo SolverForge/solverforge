@@ -16,6 +16,7 @@ use super::state::GroupedNodeState;
 pub struct SharedGroupedSet<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Scorers, Sc>
 where
     Acc: Accumulator<V, R>,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
     Sc: Score,
 {
     state: GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>,
@@ -27,6 +28,7 @@ where
 pub struct GroupedSetBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Scorers, W, Sc>
 where
     Acc: Accumulator<V, R>,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
     Sc: Score,
 {
     state: GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>,
@@ -46,10 +48,11 @@ where
     B: Send + Sync + 'static,
     JK: Eq + Hash + Send + Sync + 'static,
     GK: Eq + Hash + Send + Sync + 'static,
-    EA: CollectionExtract<S, Item = A> + Send + Sync,
-    EB: CollectionExtract<S, Item = B> + Send + Sync,
-    KA: Fn(&A) -> JK + Send + Sync,
-    KB: Fn(&B) -> JK + Send + Sync,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
+    EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,
+    EB: CollectionExtract<S, Item = B> + Send + Sync + 'static,
+    KA: Fn(&A) -> JK + Send + Sync + 'static,
+    KB: Fn(&B) -> JK + Send + Sync + 'static,
     F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
     GF: Fn(&A, &B) -> GK + Send + Sync,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc> + Send + Sync,
@@ -176,10 +179,11 @@ where
     B: Send + Sync + 'static,
     JK: Eq + Hash + Send + Sync + 'static,
     GK: Eq + Hash + Send + Sync + 'static,
-    EA: CollectionExtract<S, Item = A> + Send + Sync,
-    EB: CollectionExtract<S, Item = B> + Send + Sync,
-    KA: Fn(&A) -> JK + Send + Sync,
-    KB: Fn(&B) -> JK + Send + Sync,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
+    EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,
+    EB: CollectionExtract<S, Item = B> + Send + Sync + 'static,
+    KA: Fn(&A) -> JK + Send + Sync + 'static,
+    KB: Fn(&B) -> JK + Send + Sync + 'static,
     F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
     GF: Fn(&A, &B) -> GK + Send + Sync,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc> + Send + Sync,
@@ -235,10 +239,11 @@ where
     B: Send + Sync + 'static,
     JK: Eq + Hash + Send + Sync + 'static,
     GK: Eq + Hash + Send + Sync + 'static,
-    EA: CollectionExtract<S, Item = A> + Send + Sync,
-    EB: CollectionExtract<S, Item = B> + Send + Sync,
-    KA: Fn(&A) -> JK + Send + Sync,
-    KB: Fn(&B) -> JK + Send + Sync,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
+    EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,
+    EB: CollectionExtract<S, Item = B> + Send + Sync + 'static,
+    KA: Fn(&A) -> JK + Send + Sync + 'static,
+    KB: Fn(&B) -> JK + Send + Sync + 'static,
     F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
     GF: Fn(&A, &B) -> GK + Send + Sync,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc> + Send + Sync,
@@ -292,7 +297,7 @@ where
     ) -> Sc {
         let node_name = &self.scorers.primary_constraint_ref().name;
         self.state
-            .on_retract(entity_index, descriptor_index, node_name);
+            .on_retract(_solution, entity_index, descriptor_index, node_name);
         self.refresh_from_state()
     }
 
@@ -309,6 +314,7 @@ where
     Acc: Accumulator<V, R>,
     Scorers: GroupedScorerSet<GK, R, Sc>,
     GK: Eq + Hash,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
     Sc: Score,
 {
     fn refresh_from_state(&mut self) -> Sc {

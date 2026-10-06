@@ -4,8 +4,11 @@ use std::marker::PhantomData;
 
 use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::collector::{Accumulator, Collector};
+use crate::stream::relational::operator::{CollectionNode, JoinNode, Operator};
+use crate::stream::relational::view_plan::{EntityKey, ViewEqualPlan};
+use crate::stream::relational::{DenseRowStore, RowHandle};
 
-use super::indexes::{key_hash, matching_indexed_indices};
+use super::indexes::key_hash;
 
 pub(super) type CollectorRetraction<Acc, V, R> = <Acc as Accumulator<V, R>>::Retraction;
 
@@ -15,48 +18,51 @@ pub(super) struct GroupState<K, Acc> {
     pub(super) count: usize,
 }
 
+/* One retained match: its (A index, B index) domain coordinates, the group it
+feeds, and the accumulator token that retracts exactly this contributor. */
 pub(super) struct MatchRow<Retraction> {
     pub(super) pair: (usize, usize),
     pub(super) group_id: usize,
     pub(super) retraction: Retraction,
-    pub(super) a_pos: usize,
-    pub(super) b_pos: usize,
 }
 
+/* Shared grouped-over-join state.
+
+Match and filter retention belongs to the common operator tree: a `JoinNode`
+over the two leaf collections, keyed by a typed view-equality plan, with the
+authored residual predicate applied to each candidate pair. This state owns
+only the grouped accumulator layer — which group each joined row contributes
+to, the exact retraction token per contributor, and the reverse contributor->
+row links used to retract a changed entity's rows.
+*/
 pub struct GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
+    JK: Eq + std::hash::Hash + Clone,
 {
-    pub(super) extractor_a: EA,
-    pub(super) extractor_b: EB,
-    pub(super) key_a: KA,
-    pub(super) key_b: KB,
     pub(super) filter: F,
     pub(super) group_key_fn: GF,
     pub(super) collector: C,
     pub(super) a_source: ChangeSource,
     pub(super) b_source: ChangeSource,
-    pub(super) matches: HashMap<(usize, usize), usize>,
+    /* Common join operator owns typed key indexing and candidate enumeration. */
+    pub(super) join: JoinNode<
+        S,
+        CollectionNode<S, EA>,
+        CollectionNode<S, EB>,
+        ViewEqualPlan<JK, EntityKey<KA>, EntityKey<KB>>,
+    >,
+    pub(super) rows: DenseRowStore<RowHandle>,
     pub(super) match_rows: Vec<MatchRow<CollectorRetraction<Acc, V, R>>>,
     pub(super) a_to_matches: HashMap<usize, Vec<usize>>,
     pub(super) b_to_matches: HashMap<usize, Vec<usize>>,
-    pub(super) a_by_hash: HashMap<u64, Vec<usize>>,
-    pub(super) b_by_hash: HashMap<u64, Vec<usize>>,
-    pub(super) a_index_to_key: HashMap<usize, JK>,
-    pub(super) b_index_to_key: HashMap<usize, JK>,
     pub(super) groups: Vec<GroupState<GK, Acc>>,
     pub(super) groups_by_hash: HashMap<u64, Vec<usize>>,
     pub(super) changed_groups: Vec<usize>,
     pub(super) update_count: usize,
     pub(super) changed_key_count: usize,
-    _phantom: PhantomData<(
-        fn() -> S,
-        fn() -> A,
-        fn() -> B,
-        fn() -> V,
-        fn() -> R,
-        fn() -> Acc,
-    )>,
+    _phantom: PhantomData<(fn() -> A, fn() -> B, fn() -> V, fn() -> R)>,
 }
 
 pub struct GroupedEvaluationState<GK, V, R, Acc>
@@ -71,20 +77,22 @@ impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
     GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
     S: Send + Sync + 'static,
-    A: Send + Sync + 'static,
-    B: Send + Sync + 'static,
-    JK: Eq + Hash + Send + Sync,
+    A: 'static,
+    B: 'static,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
     GK: Eq + Hash + Send + Sync,
-    EA: CollectionExtract<S, Item = A> + Send + Sync,
-    EB: CollectionExtract<S, Item = B> + Send + Sync,
-    KA: Fn(&A) -> JK + Send + Sync,
-    KB: Fn(&B) -> JK + Send + Sync,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
+    EA: CollectionExtract<S, Item = A> + 'static,
+    EB: CollectionExtract<S, Item = B> + 'static,
+    KA: Fn(&A) -> JK + Send + Sync + 'static,
+    KB: Fn(&B) -> JK + Send + Sync + 'static,
     F: Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
     GF: Fn(&A, &B) -> GK + Send + Sync,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc> + Send + Sync,
     V: Send + Sync,
     R: Send + Sync,
     Acc: Accumulator<V, R> + Send + Sync,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -98,24 +106,22 @@ where
     ) -> Self {
         let a_source = extractor_a.change_source();
         let b_source = extractor_b.change_source();
+        let join = JoinNode::new(
+            CollectionNode::new(extractor_a, 1),
+            CollectionNode::new(extractor_b, 0),
+            ViewEqualPlan::new(EntityKey::new(key_a), EntityKey::new(key_b)),
+        );
         Self {
-            extractor_a,
-            extractor_b,
-            key_a,
-            key_b,
             filter,
             group_key_fn,
             collector,
             a_source,
             b_source,
-            matches: HashMap::new(),
+            join,
+            rows: DenseRowStore::new(),
             match_rows: Vec::new(),
             a_to_matches: HashMap::new(),
             b_to_matches: HashMap::new(),
-            a_by_hash: HashMap::new(),
-            b_by_hash: HashMap::new(),
-            a_index_to_key: HashMap::new(),
-            b_index_to_key: HashMap::new(),
             groups: Vec::new(),
             groups_by_hash: HashMap::new(),
             changed_groups: Vec::new(),
@@ -125,30 +131,59 @@ where
         }
     }
 
-    pub fn evaluation_state(&self, solution: &S) -> GroupedEvaluationState<GK, V, R, Acc> {
-        let entities_a = self.extractor_a.extract(solution);
-        let entities_b = self.extractor_b.extract(solution);
-        let b_by_key = self.b_index_for(solution, entities_b);
-        let mut groups = HashMap::<GK, Acc>::new();
-
-        for (a_idx, a) in entities_a.iter().enumerate() {
-            if !self.extractor_a.contains(solution, a) {
-                continue;
+    /* Enumerates every matching pair through the common join operator and
+    accumulates each into its group. Used for both full evaluation and the
+    retained-state rebuild after a localized change. */
+    /* Retains every accepted joined row after a full (re)initialization.
+    Matching pairs are collected as owned (A index, B index) coordinates, then
+    materialized, so no join borrow is held across the mutable accumulation. */
+    fn rebuild_grouped(&mut self, solution: &S) {
+        let mut accepted: Vec<(usize, usize)> = Vec::new();
+        self.join.visit_all(solution, &mut |row| {
+            let (a_idx, b_idx) = (row.left.index, row.right.index);
+            if (self.filter)(solution, row.left.entity, row.right.entity, a_idx, b_idx) {
+                accepted.push((a_idx, b_idx));
             }
-            for &b_idx in self.matching_b_indices_in(&b_by_key, a) {
-                let b = &entities_b[b_idx];
-                if !(self.filter)(solution, a, b, a_idx, b_idx) {
-                    continue;
-                }
-                let key = (self.group_key_fn)(a, b);
-                let value = self.collector.extract((a, b));
-                groups
-                    .entry(key)
-                    .or_insert_with(|| self.collector.create_accumulator())
-                    .accumulate(value);
-            }
+        });
+        for (a_idx, b_idx) in accepted {
+            self.retain(solution, a_idx, b_idx);
         }
+    }
 
+    /* Borrows the (A, B) entities for a retained pair from the join's sources,
+    then accumulates. Keeps the borrow confined to the argument evaluation. */
+    fn retain(&mut self, solution: &S, a_idx: usize, b_idx: usize) {
+        let (group_key, value) = {
+            let a = &self.join.left().extractor().extract(solution)[a_idx];
+            let b = &self.join.right().extractor().extract(solution)[b_idx];
+            ((self.group_key_fn)(a, b), self.collector.extract((a, b)))
+        };
+        let (group_id, retraction) = self.insert_value(group_key, value);
+        let row_idx = self.match_rows.len();
+        self.a_to_matches.entry(a_idx).or_default().push(row_idx);
+        self.b_to_matches.entry(b_idx).or_default().push(row_idx);
+        self.match_rows.push(MatchRow {
+            pair: (a_idx, b_idx),
+            group_id,
+            retraction,
+        });
+    }
+
+    pub fn evaluation_state(&self, solution: &S) -> GroupedEvaluationState<GK, V, R, Acc> {
+        let mut groups = HashMap::<GK, Acc>::new();
+        self.join.visit_all(solution, &mut |row| {
+            let a = row.left.entity;
+            let b = row.right.entity;
+            if !(self.filter)(solution, a, b, row.left.index, row.right.index) {
+                return;
+            }
+            let key = (self.group_key_fn)(a, b);
+            let value = self.collector.extract((a, b));
+            groups
+                .entry(key)
+                .or_insert_with(|| self.collector.create_accumulator())
+                .accumulate(value);
+        });
         GroupedEvaluationState {
             groups,
             _phantom: PhantomData,
@@ -157,20 +192,8 @@ where
 
     pub fn initialize(&mut self, solution: &S) {
         self.reset();
-        let entities_a = self.extractor_a.extract(solution);
-        let entities_b = self.extractor_b.extract(solution);
-        self.build_indexes(solution, entities_a, entities_b);
-
-        for a_idx in 0..entities_a.len() {
-            if !self.extractor_a.contains(solution, &entities_a[a_idx]) {
-                continue;
-            }
-            let key = (self.key_a)(&entities_a[a_idx]);
-            let b_indices = self.matching_indexed_b_indices(&key);
-            for b_idx in b_indices {
-                self.add_match(solution, entities_a, entities_b, a_idx, b_idx);
-            }
-        }
+        self.join.initialize(solution);
+        self.rebuild_grouped(solution);
         self.changed_groups.clear();
     }
 
@@ -187,46 +210,55 @@ where
         if !a_changed && !b_changed {
             return;
         }
-
-        let entities_a = self.extractor_a.extract(solution);
-        let entities_b = self.extractor_b.extract(solution);
         if a_changed {
-            self.insert_a(solution, entities_a, entities_b, entity_index);
+            self.retract_by_a(entity_index);
         }
         if b_changed {
-            self.insert_b(solution, entities_a, entities_b, entity_index);
+            self.retract_by_b(entity_index);
+        }
+        let changes = self.join.insert(solution, descriptor_index, entity_index);
+        for handle in changes.inserted {
+            if let Some(row) = self.join.resolve(solution, handle) {
+                let (a_idx, b_idx) = (row.left.index, row.right.index);
+                if (self.filter)(solution, row.left.entity, row.right.entity, a_idx, b_idx) {
+                    self.retain(solution, a_idx, b_idx);
+                }
+            }
         }
         self.update_count += 1;
         self.changed_key_count += self.changed_groups.len();
     }
 
-    pub fn on_retract(&mut self, entity_index: usize, descriptor_index: usize, node_name: &str) {
+    pub fn on_retract(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+        node_name: &str,
+    ) {
         self.changed_groups.clear();
         let a_changed = self.a_source.assert_localizes(descriptor_index, node_name);
         let b_changed = self.b_source.assert_localizes(descriptor_index, node_name);
         if !a_changed && !b_changed {
             return;
         }
-
         if a_changed {
-            self.retract_a(entity_index);
+            self.retract_by_a(entity_index);
         }
         if b_changed {
-            self.retract_b(entity_index);
+            self.retract_by_b(entity_index);
         }
+        self.join.retract(solution, descriptor_index, entity_index);
         self.update_count += 1;
         self.changed_key_count += self.changed_groups.len();
     }
 
     pub fn reset(&mut self) {
-        self.matches.clear();
+        self.join.clear();
+        self.rows.clear();
         self.match_rows.clear();
         self.a_to_matches.clear();
         self.b_to_matches.clear();
-        self.a_by_hash.clear();
-        self.b_by_hash.clear();
-        self.a_index_to_key.clear();
-        self.b_index_to_key.clear();
         self.groups.clear();
         self.groups_by_hash.clear();
         self.changed_groups.clear();
@@ -246,58 +278,74 @@ where
         }
     }
 
-    fn b_index_for(&self, solution: &S, entities_b: &[B]) -> HashMap<JK, Vec<usize>> {
-        let mut b_by_key = HashMap::<JK, Vec<usize>>::new();
-        for (b_idx, b) in entities_b.iter().enumerate() {
-            if !self.extractor_b.contains(solution, b) {
-                continue;
-            }
-            let key = (self.key_b)(b);
-            b_by_key.entry(key).or_default().push(b_idx);
-        }
-        b_by_key
-    }
-
-    fn build_indexes(&mut self, solution: &S, entities_a: &[A], entities_b: &[B]) {
-        self.a_by_hash.clear();
-        self.b_by_hash.clear();
-        self.a_index_to_key.clear();
-        self.b_index_to_key.clear();
-        for (a_idx, a) in entities_a.iter().enumerate() {
-            if !self.extractor_a.contains(solution, a) {
-                continue;
-            }
-            let key = (self.key_a)(a);
-            let hash = key_hash(&key);
-            self.a_by_hash.entry(hash).or_default().push(a_idx);
-            self.a_index_to_key.insert(a_idx, key);
-        }
-        for (b_idx, b) in entities_b.iter().enumerate() {
-            if !self.extractor_b.contains(solution, b) {
-                continue;
-            }
-            let key = (self.key_b)(b);
-            let hash = key_hash(&key);
-            self.b_by_hash.entry(hash).or_default().push(b_idx);
-            self.b_index_to_key.insert(b_idx, key);
+    /* Retracts every retained row contributed by A index `a_idx`. */
+    pub(super) fn retract_by_a(&mut self, a_idx: usize) {
+        while let Some(row_idx) = self
+            .a_to_matches
+            .get(&a_idx)
+            .and_then(|bucket| bucket.last())
+            .copied()
+        {
+            self.remove_match(row_idx);
         }
     }
 
-    fn matching_b_indices_in<'a>(
-        &self,
-        b_by_key: &'a HashMap<JK, Vec<usize>>,
-        a: &A,
-    ) -> &'a [usize] {
-        let key = (self.key_a)(a);
-        b_by_key.get(&key).map_or(&[], Vec::as_slice)
+    /* Retracts every retained row contributed by B index `b_idx`. */
+    pub(super) fn retract_by_b(&mut self, b_idx: usize) {
+        while let Some(row_idx) = self
+            .b_to_matches
+            .get(&b_idx)
+            .and_then(|bucket| bucket.last())
+            .copied()
+        {
+            self.remove_match(row_idx);
+        }
     }
 
-    pub(super) fn matching_indexed_a_indices(&self, key: &JK) -> Vec<usize> {
-        matching_indexed_indices(&self.a_by_hash, &self.a_index_to_key, key)
+    /* Removes one retained match by exact token and repairs the swap-removed
+    positions in both contributor buckets. */
+    pub(super) fn remove_match(&mut self, row_idx: usize) {
+        if row_idx >= self.match_rows.len() {
+            return;
+        }
+        let last_idx = self.match_rows.len() - 1;
+        let removed = self.match_rows.swap_remove(row_idx);
+        Self::remove_from_bucket(&mut self.a_to_matches, removed.pair.0, row_idx);
+        Self::remove_from_bucket(&mut self.b_to_matches, removed.pair.1, row_idx);
+        if row_idx != last_idx {
+            let moved_pair = self.match_rows[row_idx].pair;
+            Self::replace_position(&mut self.a_to_matches, moved_pair.0, last_idx, row_idx);
+            Self::replace_position(&mut self.b_to_matches, moved_pair.1, last_idx, row_idx);
+        }
+        self.retract_value(removed.group_id, removed.retraction);
     }
 
-    pub(super) fn matching_indexed_b_indices(&self, key: &JK) -> Vec<usize> {
-        matching_indexed_indices(&self.b_by_hash, &self.b_index_to_key, key)
+    fn remove_from_bucket(buckets: &mut HashMap<usize, Vec<usize>>, key: usize, row_idx: usize) {
+        let mut empty = false;
+        if let Some(bucket) = buckets.get_mut(&key) {
+            if let Some(position) = bucket.iter().position(|held| *held == row_idx) {
+                bucket.swap_remove(position);
+            }
+            empty = bucket.is_empty();
+        }
+        if empty {
+            buckets.remove(&key);
+        }
+    }
+
+    fn replace_position(
+        buckets: &mut HashMap<usize, Vec<usize>>,
+        key: usize,
+        from: usize,
+        to: usize,
+    ) {
+        if let Some(bucket) = buckets.get_mut(&key) {
+            for held in bucket.iter_mut() {
+                if *held == from {
+                    *held = to;
+                }
+            }
+        }
     }
 
     pub(super) fn insert_value(
@@ -349,7 +397,9 @@ impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
     GroupedNodeState<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
     GK: Eq + Hash,
+    JK: Eq + Hash + Clone + Send + Sync + 'static,
 {
     pub(super) fn find_group(&self, hash: u64, key: &GK) -> Option<usize> {
         let group_ids = self.groups_by_hash.get(&hash)?;

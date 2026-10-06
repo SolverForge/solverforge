@@ -52,6 +52,18 @@ impl<L, R, E: Joiner<L, R>, P: Joiner<L, R>, const FIRST: bool> PlannedCondition
         self.matches(left, right)
     }
 }
+/* Already a compiled mixed plan: composing it further is a no-op, so it is
+its own compiled condition. This lets an equality+residual conjunction be the
+condition a stream hands to `from_condition`. */
+impl<E: EqualityPlan, P, const FIRST: bool> super::CompileCondition
+    for EqualityWithResidual<E, P, FIRST>
+{
+    type Plan = Self;
+    fn compile(self) -> Self {
+        self
+    }
+}
+
 impl<E: EqualityPlan, P, const FIRST: bool> IndexedPlan for EqualityWithResidual<E, P, FIRST> {
     type Kind = EqualityKind;
     type Indexes = (HashIndex<E::Key>, HashIndex<E::Key>);

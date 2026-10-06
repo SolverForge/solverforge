@@ -13,7 +13,7 @@ use solverforge_core::score::SoftScore;
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::count;
-use crate::stream::joiner::less_than;
+use crate::stream::joiner::{equal_bi, less_than};
 use crate::stream::ConstraintFactory;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -133,6 +133,54 @@ fn comparison_condition_composes_in_a_chain() {
     // Relationship is shift.start < employee.id.
     // start 5: 5<0 false, 5<3 false. start 1: 1<0 false, 1<3 true.
     // Exactly one matching pair.
+    assert_eq!(c.evaluate(&schedule), SoftScore::of(-1));
+    assert_eq!(c.match_count(&schedule), 1);
+}
+
+// Equality composed with a comparison in one relationship: the equality keys
+// the probe, the comparison stays an exact residual check.
+fn equality_plus_comparison() -> impl IncrementalConstraint<Schedule, SoftScore> {
+    ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ))
+        .join((
+            source(
+                employees as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            equal_bi(|s: &Shift| s.employee_id, |e: &Employee| Some(e.id))
+                .and(less_than(|s: &Shift| s.start, |_e: &Employee| 3i64)),
+        ))
+        .penalize(SoftScore::of(1))
+        .named("equality plus comparison")
+}
+
+#[test]
+fn equality_and_comparison_compose() {
+    let schedule = Schedule {
+        shifts: vec![
+            Shift {
+                employee_id: Some(0),
+                start: 5,
+                end: 6,
+            }, // start >= 3: excluded by the comparison
+            Shift {
+                employee_id: Some(0),
+                start: 1,
+                end: 2,
+            }, // start < 3: included
+            Shift {
+                employee_id: None,
+                start: 0,
+                end: 1,
+            }, // no employee key: excluded by equality
+        ],
+        employees: vec![Employee { id: 0 }, Employee { id: 1 }],
+    };
+    let c = equality_plus_comparison();
+    // Only the second shift joins employee 0 with start < 3.
     assert_eq!(c.evaluate(&schedule), SoftScore::of(-1));
     assert_eq!(c.match_count(&schedule), 1);
 }

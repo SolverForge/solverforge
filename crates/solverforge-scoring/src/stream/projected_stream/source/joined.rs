@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
 use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::filter::BiFilter;
+use crate::stream::relational::{DenseRowStore, HashIndex};
 
 use super::{RowCoordinate, Source};
 
@@ -38,58 +38,94 @@ impl<S, A, B, K, EA, EB, KA, KB, F, P, Out> JoinedSource<S, A, B, K, EA, EB, KA,
     }
 }
 
+/* Retained join index state.
+
+Uses the shared `HashIndex` and `DenseRowStore` rather than a bespoke
+`HashMap<K, Vec<usize>>` pair: each accepted entity gets a stable handle
+with a reverse handle-to-old-key link, so retraction removes the exact
+bucket entry without re-deriving a key from mutated data. The store
+payload is the entity's semantic slice index, keeping reverse lookups
+free.
+*/
 pub struct JoinedState<K> {
-    a_by_key: HashMap<K, Vec<usize>>,
-    b_by_key: HashMap<K, Vec<usize>>,
+    left_by_key: HashIndex<K>,
+    right_by_key: HashIndex<K>,
+    left_rows: DenseRowStore<usize>,
+    right_rows: DenseRowStore<usize>,
 }
 
-impl<K> Default for JoinedState<K> {
+impl<K> Default for JoinedState<K>
+where
+    K: Eq + Hash + Clone,
+{
     fn default() -> Self {
         Self {
-            a_by_key: HashMap::new(),
-            b_by_key: HashMap::new(),
+            left_by_key: HashIndex::new(),
+            right_by_key: HashIndex::new(),
+            left_rows: DenseRowStore::new(),
+            right_rows: DenseRowStore::new(),
         }
     }
 }
 
 impl<K> JoinedState<K>
 where
-    K: Eq + Hash,
+    K: Eq + Hash + Clone,
 {
     fn insert_left(&mut self, entity_index: usize, key: K) {
-        self.a_by_key.entry(key).or_default().push(entity_index);
+        let handle = self.left_rows.insert(entity_index);
+        self.left_by_key.insert(handle, key);
     }
 
     fn insert_right(&mut self, entity_index: usize, key: K) {
-        self.b_by_key.entry(key).or_default().push(entity_index);
+        let handle = self.right_rows.insert(entity_index);
+        self.right_by_key.insert(handle, key);
     }
 
-    fn retract_left(&mut self, entity_index: usize, key: &K) {
-        Self::remove_index_from_key_bucket(&mut self.a_by_key, key, entity_index);
-    }
+    /* Drops one entity's handle, key, and bucket entry.
 
-    fn retract_right(&mut self, entity_index: usize, key: &K) {
-        Self::remove_index_from_key_bucket(&mut self.b_by_key, key, entity_index);
-    }
-
-    fn remove_index_from_key_bucket(
-        indexes_by_key: &mut HashMap<K, Vec<usize>>,
-        key: &K,
-        entity_index: usize,
-    ) {
-        let mut remove_bucket = false;
-        if let Some(indices) = indexes_by_key.get_mut(key) {
-            if let Some(pos) = indices
-                .iter()
-                .position(|candidate| *candidate == entity_index)
-            {
-                indices.swap_remove(pos);
-            }
-            remove_bucket = indices.is_empty();
+    The reverse handle-to-old-key link is what lets the shared index drop
+    the exact bucket entry; callers may pass a stale key without harm.
+    */
+    fn retract_left(&mut self, entity_index: usize, _key: &K) {
+        let handle = self
+            .left_rows
+            .iter()
+            .find(|(_, idx)| **idx == entity_index)
+            .map(|(h, _)| h);
+        if let Some(handle) = handle {
+            self.left_by_key.remove(handle);
+            self.left_rows.retract(handle);
         }
-        if remove_bucket {
-            indexes_by_key.remove(key);
+    }
+
+    fn retract_right(&mut self, entity_index: usize, _key: &K) {
+        let handle = self
+            .right_rows
+            .iter()
+            .find(|(_, idx)| **idx == entity_index)
+            .map(|(h, _)| h);
+        if let Some(handle) = handle {
+            self.right_by_key.remove(handle);
+            self.right_rows.retract(handle);
         }
+    }
+
+    /* Semantic slice indexes of the opposite side matching `key`. */
+    fn left_indexes(&self, key: &K) -> Vec<usize> {
+        self.left_by_key
+            .lookup(key)
+            .iter()
+            .filter_map(|h| self.left_rows.get(*h).copied())
+            .collect()
+    }
+
+    fn right_indexes(&self, key: &K) -> Vec<usize> {
+        self.right_by_key
+            .lookup(key)
+            .iter()
+            .filter_map(|h| self.right_rows.get(*h).copied())
+            .collect()
     }
 }
 
@@ -99,7 +135,7 @@ where
     S: Send + Sync + 'static,
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
-    K: Eq + Hash + Send + Sync + 'static,
+    K: Eq + Hash + Clone + Send + Sync + 'static,
     EA: CollectionExtract<S, Item = A>,
     EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> K + Send + Sync,
@@ -152,10 +188,7 @@ where
                 continue;
             }
             let key = (self.key_a)(entity);
-            let Some(b_indices) = state.b_by_key.get(&key) else {
-                continue;
-            };
-            for &b_idx in b_indices {
+            for b_idx in state.right_indexes(&key) {
                 self.project_pair(solution, entities_a, entities_b, a_idx, b_idx, &mut visit);
             }
         }
@@ -182,10 +215,7 @@ where
                     return;
                 }
                 let key = (self.key_a)(entity);
-                let Some(b_indices) = state.b_by_key.get(&key) else {
-                    return;
-                };
-                for &b_idx in b_indices {
+                for b_idx in state.right_indexes(&key) {
                     self.project_pair(
                         solution,
                         entities_a,
@@ -204,10 +234,7 @@ where
                     return;
                 }
                 let key = (self.key_b)(entity);
-                let Some(a_indices) = state.a_by_key.get(&key) else {
-                    return;
-                };
-                for &a_idx in a_indices {
+                for a_idx in state.left_indexes(&key) {
                     self.project_pair(
                         solution,
                         entities_a,

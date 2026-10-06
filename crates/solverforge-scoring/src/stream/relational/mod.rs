@@ -19,6 +19,7 @@ pub(crate) use handle_map::HandleMap;
 #[doc(hidden)]
 pub use identity::RowHandle;
 pub(crate) use identity::{BindingId, JoinedIdentity};
+pub(crate) use index::HashIndex;
 #[allow(unused_imports)]
 pub(crate) use row::Row;
 pub use row::{Concat, Leaf};

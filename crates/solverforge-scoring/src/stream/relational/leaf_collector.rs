@@ -76,3 +76,30 @@ where
 {
     move |leaf: &Leaf<'_, A>| f(leaf.entity)
 }
+
+/* Adapts an entity filter to a `FilterNode` predicate over a leaf view, so a
+stream's authored filter stays binding when the row is grouped and joined. */
+pub struct LeafFilter<S, A, F> {
+    filter: F,
+    marker: PhantomData<fn() -> (S, A)>,
+}
+
+impl<S, A, F> LeafFilter<S, A, F> {
+    pub fn new(filter: F) -> Self {
+        Self {
+            filter,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<S, A, F> crate::stream::relational::operator::FilterPredicate<S, Leaf<'_, A>>
+    for LeafFilter<S, A, F>
+where
+    F: crate::stream::filter::UniFilter<S, A>,
+{
+    #[inline]
+    fn accepts(&self, solution: &S, row: &Leaf<'_, A>) -> bool {
+        self.filter.test(solution, row.entity)
+    }
+}

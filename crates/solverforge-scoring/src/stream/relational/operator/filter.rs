@@ -1,4 +1,20 @@
 use super::{Operator, RowChanges};
+
+/* A row predicate over a borrowed operator view. Named as a trait so a filter
+node's predicate type need not be a bare closure in an operator's type. */
+pub trait FilterPredicate<S, V>: Send + Sync {
+    fn accepts(&self, solution: &S, row: &V) -> bool;
+}
+
+impl<S, V, F> FilterPredicate<S, V> for F
+where
+    F: Fn(&S, &V) -> bool + Send + Sync,
+{
+    #[inline]
+    fn accepts(&self, solution: &S, row: &V) -> bool {
+        self(solution, row)
+    }
+}
 use crate::stream::relational::{HandleMap, RowHandle};
 
 /// Membership filter retaining input identities, not copied row payloads.
@@ -20,7 +36,7 @@ impl<O, F> FilterNode<O, F> {
     fn apply_changes<S: 'static>(&mut self, solution: &S, changes: RowChanges) -> RowChanges
     where
         O: Operator<S>,
-        F: for<'a> Fn(&S, &O::View<'a>) -> bool + 'static,
+        F: for<'a> FilterPredicate<S, O::View<'a>> + 'static,
     {
         let removed = changes
             .removed
@@ -33,7 +49,7 @@ impl<O, F> FilterNode<O, F> {
                 .input
                 .resolve(solution, h)
                 .expect("inserted filtered input");
-            if (self.predicate)(solution, &row) {
+            if self.predicate.accepts(solution, &row) {
                 self.accepted.insert(h, ());
                 inserted.push(h);
             }
@@ -44,7 +60,7 @@ impl<O, F> FilterNode<O, F> {
 impl<S: 'static, O, F> Operator<S> for FilterNode<O, F>
 where
     O: Operator<S>,
-    F: for<'a> Fn(&S, &O::View<'a>) -> bool + 'static,
+    F: for<'a> FilterPredicate<S, O::View<'a>> + 'static,
 {
     type View<'a> = O::View<'a>;
     type Evaluation = O::Evaluation;
@@ -61,7 +77,7 @@ where
     ) {
         self.input
             .visit_evaluation(solution, evaluation, &mut |row| {
-                if (self.predicate)(solution, &row) {
+                if self.predicate.accepts(solution, &row) {
                     visitor(row);
                 }
             });
@@ -78,7 +94,7 @@ where
                 .input
                 .resolve(solution, h)
                 .expect("live filtered input");
-            if (self.predicate)(solution, &row) {
+            if self.predicate.accepts(solution, &row) {
                 self.accepted.insert(h, ());
             }
         }

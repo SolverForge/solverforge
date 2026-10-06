@@ -6,6 +6,7 @@ All type information is preserved at compile time - no Arc, no dyn.
 */
 
 mod base;
+mod joined;
 mod weighting;
 
 pub use base::GroupedConstraintStream;

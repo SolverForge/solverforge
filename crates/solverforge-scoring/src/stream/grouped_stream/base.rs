@@ -178,6 +178,32 @@ where
         )
     }
 
+    /* Relates the grouped result to a second collection by the group key.
+
+    The result is a join of the group (key + aggregate) with every entity of
+    the second collection whose key equals the group key. Weighting sees the
+    group key, its aggregated result, and the matched entity.
+    */
+    pub fn join<B, EB, KB>(
+        self,
+        target: (EB, KB),
+    ) -> super::joined::GroupedJoinedStream<S, A, B, K, E, EB, Fi, KF, C, V, R, Acc, KB, Sc>
+    where
+        B: Clone + Send + Sync + 'static,
+        EB: CollectionExtract<S, Item = B> + 'static,
+        KB: Fn(&B) -> K + Send + Sync + 'static,
+    {
+        let (extractor_b, right_key) = target;
+        super::joined::GroupedJoinedStream::new(
+            self.extractor,
+            self.filter,
+            self.key_fn,
+            self.collector,
+            extractor_b,
+            right_key,
+        )
+    }
+
     /* Adds complement entities with a custom key function for filtering. */
     pub fn complement_with_key<B, EB, KA2, KB, D>(
         self,

@@ -18,6 +18,7 @@ mod fixtures;
 mod flatten_producer;
 mod fluent_chain;
 mod group_producer;
+mod grouped_join_fluent;
 mod handle_map;
 mod identity;
 mod independent_keys;

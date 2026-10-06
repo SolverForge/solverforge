@@ -24,7 +24,7 @@ mod self_join;
 pub use merge::MergeNode;
 pub use project::{ProjectEvaluation, ProjectNode, ProjectView};
 mod join;
-pub use filter::FilterNode;
+pub use filter::{FilterNode, FilterPredicate};
 pub use self_join::SelfJoinNode;
 
 #[doc(hidden)]

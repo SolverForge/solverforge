@@ -47,8 +47,7 @@ assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
 super::arity_stream_macros::impl_arity_stream!(
     penta,
     PentaConstraintStream,
-    PentaConstraintBuilder,
-    IncrementalPentaConstraint
+    PentaConstraintBuilder
 );
 
 // Additional doctests for individual methods

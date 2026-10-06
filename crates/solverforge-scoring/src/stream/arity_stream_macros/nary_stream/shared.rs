@@ -48,7 +48,6 @@ macro_rules! impl_nary_arity_stream_common {
     (
         stream = $stream:ident,
         builder = $builder:ident,
-        constraint = $constraint:ident,
         filter_trait = $filter_trait:ident,
         and_filter = $and_filter:ident,
         fn_filter = $fn_filter:ident,

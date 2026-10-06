@@ -13,9 +13,6 @@ fully monomorphized.
 
 #[macro_use]
 pub mod macros;
-#[macro_use]
-pub mod nary_incremental;
-
 pub mod balance;
 pub mod complemented;
 pub mod cross_complemented_grouped;
@@ -34,7 +31,3 @@ mod tests;
 pub use balance::BalanceConstraint;
 pub use incremental::IncrementalUniConstraint;
 pub use list_precedence::ListPrecedenceMakespanConstraint;
-pub use nary_incremental::{
-    IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
-    IncrementalTriConstraint,
-};

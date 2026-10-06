@@ -1,9 +1,8 @@
 macro_rules! impl_tri_arity_stream {
-    ($stream:ident, $builder:ident, $constraint:ident) => {
+    ($stream:ident, $builder:ident) => {
         impl_nary_arity_stream_common!(
             stream = $stream,
             builder = $builder,
-            constraint = $constraint,
             filter_trait = TriFilter,
             and_filter = AndTriFilter,
             fn_filter = FnTriFilter,

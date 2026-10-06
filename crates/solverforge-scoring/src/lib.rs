@@ -2,7 +2,7 @@
 Zero-erasure incremental constraint scoring for SolverForge.
 
 This crate provides monomorphized incremental scoring infrastructure:
-- Zero-erasure incremental constraints (IncrementalUniConstraint, IncrementalBiConstraint, etc.)
+- Zero-erasure incremental constraints (IncrementalUniConstraint, etc.)
 - Incremental score directors (ScoreDirector)
 - Tuple-based constraint sets (zero virtual dispatch)
 
@@ -25,10 +25,7 @@ Zero-Erasure Incremental Constraints
 ============================================================================
 */
 
-pub use constraint::{
-    IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
-    IncrementalTriConstraint, IncrementalUniConstraint, ListPrecedenceMakespanConstraint,
-};
+pub use constraint::{IncrementalUniConstraint, ListPrecedenceMakespanConstraint};
 
 /* ============================================================================
 Constraint Set (Tuple-Based, Zero-Erasure)

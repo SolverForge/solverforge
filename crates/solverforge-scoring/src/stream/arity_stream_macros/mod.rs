@@ -13,17 +13,17 @@ Doctests and unique methods (should be defined outside the macro
 in the individual stream files.
 */
 macro_rules! impl_arity_stream {
-    (bi, $stream:ident, $builder:ident, $constraint:ident) => {
-        impl_bi_arity_stream!($stream, $builder, $constraint);
+    (bi, $stream:ident, $builder:ident) => {
+        impl_bi_arity_stream!($stream, $builder);
     };
-    (tri, $stream:ident, $builder:ident, $constraint:ident) => {
-        impl_tri_arity_stream!($stream, $builder, $constraint);
+    (tri, $stream:ident, $builder:ident) => {
+        impl_tri_arity_stream!($stream, $builder);
     };
-    (quad, $stream:ident, $builder:ident, $constraint:ident) => {
-        impl_quad_arity_stream!($stream, $builder, $constraint);
+    (quad, $stream:ident, $builder:ident) => {
+        impl_quad_arity_stream!($stream, $builder);
     };
-    (penta, $stream:ident, $builder:ident, $constraint:ident) => {
-        impl_penta_arity_stream!($stream, $builder, $constraint);
+    (penta, $stream:ident, $builder:ident) => {
+        impl_penta_arity_stream!($stream, $builder);
     };
 }
 

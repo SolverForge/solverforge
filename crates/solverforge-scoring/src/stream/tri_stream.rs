@@ -49,12 +49,7 @@ use super::filter::{FnQuadFilter, QuadFilter, TriFilter};
 use super::joiner::Joiner;
 use super::quad_stream::QuadConstraintStream;
 
-super::arity_stream_macros::impl_arity_stream!(
-    tri,
-    TriConstraintStream,
-    TriConstraintBuilder,
-    IncrementalTriConstraint
-);
+super::arity_stream_macros::impl_arity_stream!(tri, TriConstraintStream, TriConstraintBuilder);
 
 // join method - transitions to QuadConstraintStream
 impl<S, A, K, E, KE, F, Sc> TriConstraintStream<S, A, K, E, KE, F, Sc>

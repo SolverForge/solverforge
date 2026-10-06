@@ -51,12 +51,7 @@ use super::filter::{FnPentaFilter, PentaFilter, QuadFilter};
 use super::joiner::Joiner;
 use super::penta_stream::PentaConstraintStream;
 
-super::arity_stream_macros::impl_arity_stream!(
-    quad,
-    QuadConstraintStream,
-    QuadConstraintBuilder,
-    IncrementalQuadConstraint
-);
+super::arity_stream_macros::impl_arity_stream!(quad, QuadConstraintStream, QuadConstraintBuilder);
 
 // join method - transitions to PentaConstraintStream
 impl<S, A, K, E, KE, F, Sc> QuadConstraintStream<S, A, K, E, KE, F, Sc>

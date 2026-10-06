@@ -1,6 +1,5 @@
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::incremental::IncrementalUniConstraint;
-use crate::constraint::IncrementalBiConstraint;
 use crate::director::score_director::ScoreDirector;
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::joiner::equal_bi;
@@ -132,20 +131,17 @@ fn bench_incremental_moves() {
         false,
     );
 
-    let overlapping = IncrementalBiConstraint::new(
-        ConstraintRef::new("", "Overlapping"),
-        ImpactType::Penalty,
-        source(
+    let overlapping = ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
             shifts as fn(&Schedule) -> &[Shift],
             ChangeSource::Descriptor(0),
-        ),
-        |_sol: &Schedule, s: &Shift, _idx: usize| s.employee_id,
-        |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
+        ))
+        .join(crate::stream::joiner::equal(|s: &Shift| s.employee_id))
+        .filter(|a: &Shift, b: &Shift| {
             a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
-        },
-        |_s: &Schedule, _shifts: &[Shift], _a_idx: usize, _b_idx: usize| SoftScore::of(10),
-        false,
-    );
+        })
+        .penalize(SoftScore::of(10))
+        .named("Overlapping");
 
     let constraints = (unassigned, overlapping);
     let mut director = ScoreDirector::new(schedule, constraints);
@@ -210,20 +206,17 @@ fn bench_compare_approaches() {
             false,
         );
 
-        let overlapping = IncrementalBiConstraint::new(
-            ConstraintRef::new("", "Overlapping"),
-            ImpactType::Penalty,
-            source(
+        let overlapping = ConstraintFactory::<Schedule, SoftScore>::new()
+            .for_each(source(
                 shifts as fn(&Schedule) -> &[Shift],
                 ChangeSource::Descriptor(0),
-            ),
-            |_sol: &Schedule, s: &Shift, _idx: usize| s.employee_id,
-            |_sol: &Schedule, a: &Shift, b: &Shift, _ai: usize, _bi: usize| {
+            ))
+            .join(crate::stream::joiner::equal(|s: &Shift| s.employee_id))
+            .filter(|a: &Shift, b: &Shift| {
                 a.id < b.id && a.start_hour < b.end_hour && b.start_hour < a.end_hour
-            },
-            |_s: &Schedule, _shifts: &[Shift], _a_idx: usize, _b_idx: usize| SoftScore::of(10),
-            false,
-        );
+            })
+            .penalize(SoftScore::of(10))
+            .named("Overlapping");
 
         let constraints = (unassigned, overlapping);
         let mut director = ScoreDirector::new(schedule.clone(), constraints);

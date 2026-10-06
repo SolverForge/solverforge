@@ -46,12 +46,7 @@ use super::filter::{BiFilter, FnTriFilter, TriFilter};
 use super::joiner::Joiner;
 use super::tri_stream::TriConstraintStream;
 
-super::arity_stream_macros::impl_arity_stream!(
-    bi,
-    BiConstraintStream,
-    BiConstraintBuilder,
-    IncrementalBiConstraint
-);
+super::arity_stream_macros::impl_arity_stream!(bi, BiConstraintStream, BiConstraintBuilder);
 
 // join method - transitions to TriConstraintStream
 impl<S, A, K, E, KE, F, Sc> BiConstraintStream<S, A, K, E, KE, F, Sc>

@@ -77,7 +77,7 @@ migration of the fluent stream families:
 New file map: `stream/relational/operator.rs`,
 `stream/relational/operator/{analysis,changes,collection,complement,complement_view,
 existence,filter,flatten,group,group_view,
-join,merge,project}.rs`,
+join,merge,project,self_join}.rs`,
 `stream/joiner/plan.rs`, `stream/joiner/plan/{executable,hash_scan,conjunction,
 composite,mixed_equality,ordered_interval}.rs`, `stream/joiner/row_key.rs`,
 `stream/relational/index/{hash,ordered,interval}.rs`, and
@@ -147,22 +147,11 @@ src/
 │   ├── projected/complemented_grouped.rs           — projected::ComplementedGrouped module root and shared complemented-grouped re-exports
 │   ├── projected/grouped/*.rs                      — scorer.rs, shared_set.rs, state.rs, terminal.rs for projected grouped retained state
 │   ├── projected/complemented_grouped/*.rs         — indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, view.rs for projected grouped complements
-│   ├── nary_incremental/
-│   │   ├── mod.rs                                  — Re-exports all nary constraint macros
-│   │   ├── bi.rs                                   — impl_incremental_bi_constraint! macro → IncrementalBiConstraint
-│   │   ├── higher_arity.rs                         — Re-exports tri/quad/penta incremental constraint macros
-│   │   └── higher_arity/
-│   │       ├── shared.rs                           — Shared higher-arity detailed-match helpers
-│   │       ├── tri.rs                              — impl_incremental_tri_constraint! macro → IncrementalTriConstraint
-│   │       ├── quad.rs                             — impl_incremental_quad_constraint! macro → IncrementalQuadConstraint
-│   │       └── penta.rs                            — impl_incremental_penta_constraint! macro → IncrementalPentaConstraint
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
-│       ├── bi_incr.rs                              — IncrementalBiConstraint tests
 │       ├── cross_bi_incr.rs                        — Fluent cross-bi join tests on the generic operator terminal
-│       ├── tri_incr.rs                             — IncrementalTriConstraint tests
-│       ├── quad_incr.rs                            — IncrementalQuadConstraint tests
-│       ├── penta_incr.rs                           — IncrementalPentaConstraint tests
+│       ├── self_join_bi_fluent.rs                  — Fluent same-collection self-join tests
+│       ├── relational/self_join_node.rs            — SelfJoinNode unique-combination and delta tests
 │       ├── grouped.rs                              — constraint::grouped::Uni and shared grouped node tests
 │       ├── cross_grouped.rs                        — Shared direct cross grouped node tests
 │       ├── balance.rs                              — BalanceConstraint tests
@@ -280,10 +269,7 @@ src/
 
 ```rust
 // Root constraint exports keep globally distinct names only.
-pub use constraint::{
-    IncrementalBiConstraint, IncrementalPentaConstraint, IncrementalQuadConstraint,
-    IncrementalTriConstraint, IncrementalUniConstraint, ListPrecedenceMakespanConstraint,
-};
+pub use constraint::{IncrementalUniConstraint, ListPrecedenceMakespanConstraint};
 
 // Short family names are intentionally module-scoped:
 // constraint::grouped::Uni
@@ -491,13 +477,7 @@ All implement `IncrementalConstraint<S, Sc>`.
 
 **`IncrementalUniConstraint<S, A, E, F, W, Sc>`** — Single-collection constraint with filter and weight.
 
-**`IncrementalBiConstraint<S, A, K, E, KE, F, W, Sc>`** — Self-join bi constraint (pairs from same collection). Joined filters receive the two source entity indexes.
-
-**`IncrementalTriConstraint<S, A, K, E, KE, F, W, Sc>`** — Self-join tri constraint (triples). Joined filters receive the three source entity indexes.
-
-**`IncrementalQuadConstraint<S, A, K, E, KE, F, W, Sc>`** — Self-join quad constraint. Joined filters receive the four source entity indexes.
-
-**`IncrementalPentaConstraint<S, A, K, E, KE, F, W, Sc>`** — Self-join penta constraint. Joined filters receive the five source entity indexes.
+**`OperatorTerminal<S, O, W, Sc>`** — Generic scoring terminal over a concrete operator tree, independent of row arity. Same-collection self-joins finalize here over a `SelfJoinNode`, so bi/tri/quad/penta share one terminal instead of per-arity engines.
 
 **`ListPrecedenceMakespanConstraint<S>`** — Stock incremental
 list-plus-fixed-precedence constraint over `HardSoftScore`. `new(...)` binds the
@@ -699,7 +679,7 @@ ConstraintFactory::<Plan, HardSoftScore>::new()
 - Operations: `filter()`, `join()` → `TriConstraintStream`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 - Low-level constructors: `new_self_join()`, `new_self_join_with_filter()`
 
-**`BiConstraintBuilder<S, A, K, E, KE, F, W, Sc>`** — `named()` → `IncrementalBiConstraint`
+**`BiConstraintBuilder<S, A, K, E, KE, F, W, Sc>`** — `named()` → `OperatorTerminal` over a `SelfJoinNode` + `FilterNode` tree
 
 **`TriConstraintStream/Builder`** — Same pattern, tri-arity. `join()` →
 `QuadConstraintStream`; low-level constructors are `new_self_join()` and
@@ -873,21 +853,19 @@ The `ScoreDirector` delegates to `ConstraintSet::on_retract_all()` / `on_insert_
 
 `ConstraintSet` is implemented for every singleton `IncrementalConstraint<S, Sc>` and for tuples of up to 32 nested `ConstraintSet` elements via a macro. Operations iterate over all nested sets, summing scores and flattening per-constraint raw metadata/results without erasure; the public metadata view is deduplicated after ordering. This is the zero-erasure alternative to `Vec<Box<dyn Constraint>>`.
 
-### N-ary Constraint Macros
+### Self-Join Operator
 
-`IncrementalBiConstraint`, `IncrementalTriConstraint`, `IncrementalQuadConstraint`, `IncrementalPentaConstraint` are all generated by declarative macros (`impl_incremental_bi_constraint!`, etc.). They share the same structure:
-- `entity_to_matches: HashMap<usize, HashSet<(usize, ...)>>` — per-entity match tracking
-- `matches: HashSet<(usize, ...)>` — all current matches
-- `key_to_indices: HashMap<K, HashSet<usize>>` — key-based index for join
-- `index_to_key: HashMap<usize, K>` — reverse key lookup
-
-The exported `impl_incremental_nary_constraint!` dispatcher accepts
-`bi`, `tri`, `quad`, or `penta` plus the generated struct name and forwards to
-the corresponding arity macro.
+Same-collection n-ary streams build a `SelfJoinNode<S, A, O, K, KE, N>` over
+their collection source. It buckets input rows by key, emits every increasing
+handle tuple of arity `N` per bucket (unique ordered combinations, so a triple
+is `i < j < k` for one key), and maintains exact insert/retract deltas over a
+retained combo set. The view is `[Leaf<'a, A>; N]` in canonical index order.
+The authored filter runs in a `FilterNode` on top, and the terminal is the
+shared `OperatorTerminal`. No per-arity incremental engine remains.
 
 ### Stream Arity Macros
 
-`impl_bi_arity_stream!`, `impl_tri_arity_stream!`, `impl_quad_arity_stream!`, `impl_penta_arity_stream!` generate the stream and builder structs for each arity level. All four macros live under `arity_stream_macros/nary_stream/`. They share the same field layout and method pattern but differ in the number of entity arguments to filter/weight functions.
+`impl_bi_arity_stream!`, `impl_tri_arity_stream!`, `impl_quad_arity_stream!`, `impl_penta_arity_stream!` generate the stream and builder structs for each arity level. All four macros live under `arity_stream_macros/nary_stream/`. They share the same field layout and method pattern but differ in the number of entity arguments to filter/weight functions. Each passes an explicit `arity` literal and a canonical position table used to unpack the `[Leaf; N]` self-join view.
 
 ### PhantomData Pattern
 

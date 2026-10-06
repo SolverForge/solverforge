@@ -1,5 +1,4 @@
 mod balance;
-mod bi_incr;
 mod complemented;
 mod cross_bi_incr;
 mod cross_complemented_grouped;
@@ -8,10 +7,8 @@ mod cross_tri_stream_chain;
 mod exists;
 mod flattened_bi;
 mod grouped;
-mod penta_incr;
 mod projected;
-mod quad_incr;
 mod relational;
-mod tri_incr;
 
 mod repro_unknown;
+mod self_join_bi_fluent;

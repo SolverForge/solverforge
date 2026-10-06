@@ -27,6 +27,7 @@ mod oracle;
 mod owned_projection;
 mod primitives;
 mod row_keys;
+mod self_join_node;
 mod sharing;
 mod terminal;
 mod updates;

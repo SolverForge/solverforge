@@ -20,10 +20,12 @@ pub use group::{GroupEvaluation, GroupNode};
 pub use group_view::GroupView;
 mod merge;
 mod project;
+mod self_join;
 pub use merge::MergeNode;
 pub use project::{ProjectEvaluation, ProjectNode, ProjectView};
 mod join;
 pub use filter::FilterNode;
+pub use self_join::SelfJoinNode;
 
 #[doc(hidden)]
 pub use analysis::ExplainRow;

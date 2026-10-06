@@ -1,7 +1,6 @@
 use super::{ExplainRow, Operator, RowChanges};
 use crate::api::analysis::EntityRef;
-use crate::stream::relational::{DenseRowStore, HandleMap, RowHandle};
-use std::marker::PhantomData;
+use crate::stream::relational::{DenseRowStore, HandleMap, Leaf, RowHandle};
 
 /// A borrowed child with its complete owning row and child position.
 pub struct FlattenView<'a, V, T> {
@@ -20,32 +19,87 @@ impl<V: ExplainRow, T> ExplainRow for FlattenView<'_, V, T> {
         self.input.explain(entities);
     }
 }
+
+/* Named source of borrowed children for one input operator.
+
+`FlattenNode` borrows children out of the solution and ties the result to the
+solution borrow. Spelled as a raw `for<'a> Fn(&'a S, O::View<'a>) -> &'a [T]`
+that bound cannot appear in a struct field or a return type, so a stream that
+owns a flattened operator could not name its own type. `FlattenSource<S, O>`
+is that bound as a name: `O` carries the borrowed view, so both an ordinary
+closure (blanket impl) and a concrete adapter (`ParentFlatten`) satisfy it.
+*/
+pub trait FlattenSource<S: 'static, O: Operator<S>> {
+    type Item: 'static;
+
+    fn flatten<'a>(&self, solution: &'a S, view: O::View<'a>) -> &'a [Self::Item];
+}
+
+/* Ordinary closures keep the current shape. */
+impl<S: 'static, O: Operator<S>, F, T: 'static> FlattenSource<S, O> for F
+where
+    F: for<'a> Fn(&'a S, O::View<'a>) -> &'a [T],
+{
+    type Item = T;
+
+    #[inline]
+    fn flatten<'a>(&self, solution: &'a S, view: O::View<'a>) -> &'a [T] {
+        (self)(solution, view)
+    }
+}
+
+/* A nameable flattened extractor: any `FlattenExtract<P>` lifted onto a
+collection operator over `P`. */
+pub struct ParentFlatten<Inner> {
+    inner: Inner,
+}
+
+impl<Inner> ParentFlatten<Inner> {
+    pub fn new(inner: Inner) -> Self {
+        Self { inner }
+    }
+}
+
+impl<S, E, Inner, P, B> FlattenSource<S, super::CollectionNode<S, E>> for ParentFlatten<Inner>
+where
+    S: 'static,
+    E: crate::stream::collection_extract::CollectionExtract<S, Item = P> + 'static,
+    Inner: crate::stream::collection_extract::FlattenExtract<P, Item = B> + Send + Sync,
+    P: 'static,
+    B: 'static,
+{
+    type Item = B;
+
+    #[inline]
+    fn flatten<'a>(&self, _solution: &'a S, view: Leaf<'a, P>) -> &'a [B] {
+        self.inner.extract(view.entity)
+    }
+}
+
 struct Child {
     input: RowHandle,
     child: usize,
 }
 /// Flatten borrowed child slices from arbitrary input rows; retention owns only identities.
-pub struct FlattenNode<O, F, T> {
+pub struct FlattenNode<O, F> {
     input: O,
     extractor: F,
     rows: DenseRowStore<Child>,
     outputs: HandleMap<Vec<RowHandle>>,
-    marker: PhantomData<fn() -> T>,
 }
-impl<O, F, T> FlattenNode<O, F, T> {
+impl<O, F> FlattenNode<O, F> {
     pub fn new(input: O, extractor: F) -> Self {
         Self {
             input,
             extractor,
             rows: DenseRowStore::new(),
             outputs: HandleMap::new(),
-            marker: PhantomData,
         }
     }
     fn apply_changes<S: 'static>(&mut self, solution: &S, changes: RowChanges) -> RowChanges
     where
         O: Operator<S>,
-        F: for<'a> Fn(&'a S, O::View<'a>) -> &'a [T],
+        F: FlattenSource<S, O>,
     {
         let mut removed = Vec::new();
         for input in changes.removed {
@@ -60,7 +114,7 @@ impl<O, F, T> FlattenNode<O, F, T> {
                 .input
                 .resolve(solution, input)
                 .expect("inserted flattened input");
-            let count = (self.extractor)(solution, row).len();
+            let count = self.extractor.flatten(solution, row).len();
             let outputs = self.outputs.get_or_insert_with(input, Vec::new);
             for child in 0..count {
                 let h = self.rows.insert(Child { input, child });
@@ -71,11 +125,10 @@ impl<O, F, T> FlattenNode<O, F, T> {
         RowChanges { removed, inserted }
     }
 }
-impl<S: 'static, O: Operator<S>, F, T: 'static> Operator<S> for FlattenNode<O, F, T>
-where
-    F: for<'a> Fn(&'a S, O::View<'a>) -> &'a [T] + 'static,
+impl<S: 'static, O: Operator<S>, F: FlattenSource<S, O> + 'static> Operator<S>
+    for FlattenNode<O, F>
 {
-    type View<'a> = FlattenView<'a, O::View<'a>, T>;
+    type View<'a> = FlattenView<'a, O::View<'a>, F::Item>;
     type Evaluation = O::Evaluation;
     fn prepare_evaluation(&self, solution: &S) -> Self::Evaluation {
         self.input.prepare_evaluation(solution)
@@ -88,7 +141,7 @@ where
     ) {
         self.input
             .visit_evaluation(solution, evaluation, &mut |input| {
-                for (child, value) in (self.extractor)(solution, input).iter().enumerate() {
+                for (child, value) in self.extractor.flatten(solution, input).iter().enumerate() {
                     visitor(FlattenView {
                         input,
                         value,
@@ -119,7 +172,7 @@ where
     fn resolve<'a>(&'a self, solution: &'a S, h: RowHandle) -> Option<Self::View<'a>> {
         let child = self.rows.get(h)?;
         let input = self.input.resolve(solution, child.input)?;
-        let value = (self.extractor)(solution, input).get(child.child)?;
+        let value = self.extractor.flatten(solution, input).get(child.child)?;
         Some(FlattenView {
             input,
             value,

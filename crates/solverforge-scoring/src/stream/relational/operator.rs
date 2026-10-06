@@ -13,7 +13,7 @@ mod existence;
 mod filter;
 mod flatten;
 pub use existence::ExistenceNode;
-pub use flatten::{FlattenNode, FlattenView};
+pub use flatten::{FlattenNode, FlattenSource, FlattenView, ParentFlatten};
 mod group;
 mod group_view;
 pub use group::{GroupEvaluation, GroupNode};

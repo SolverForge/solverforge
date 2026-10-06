@@ -5,17 +5,17 @@ use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct A {
     id: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct B {
     id: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct State {
     a: Vec<A>,
     b: Vec<B>,

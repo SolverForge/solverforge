@@ -20,7 +20,6 @@ pub mod balance;
 pub mod complemented;
 pub mod cross_complemented_grouped;
 pub mod cross_grouped;
-pub mod exists;
 pub mod flattened_bi;
 pub mod grouped;
 pub mod incremental;
@@ -34,7 +33,6 @@ pub mod shared;
 mod tests;
 
 pub use balance::BalanceConstraint;
-pub use exists::IncrementalExistsConstraint;
 pub use flattened_bi::FlattenedBiConstraint;
 pub use incremental::IncrementalUniConstraint;
 pub use list_precedence::ListPrecedenceMakespanConstraint;

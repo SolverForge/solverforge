@@ -323,7 +323,7 @@ fn run_flattened_exists_storage_bench<K, F>(
     make_key: F,
 ) -> (SoftScore, f64)
 where
-    K: Copy + Clone + Eq + Hash + Send + Sync + 'static,
+    K: Copy + Clone + std::fmt::Debug + Eq + Hash + Send + Sync + 'static,
     F: Fn(usize) -> K + Copy,
 {
     let mut state = make_exists_bench_state(

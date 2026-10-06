@@ -5,18 +5,18 @@ use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::joiner::equal_bi;
 use crate::stream::ConstraintFactory;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Task {
     assignee: Option<usize>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Worker {
     id: usize,
     available: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TaskSchedule {
     tasks: Vec<Task>,
     workers: Vec<Worker>,
@@ -82,7 +82,7 @@ fn test_exists_updates_all_matching_a_entities_when_b_descriptor_changes() {
     assert_eq!(total, SoftScore::of(-2));
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct CustomerState {
     customers: Vec<usize>,
     routes: Vec<Vec<usize>>,
@@ -131,13 +131,13 @@ fn test_flattened_not_exists_updates_all_matching_a_entities_when_route_changes(
     assert_eq!(total, SoftScore::of(0));
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TaggedItem {
     key: usize,
     enabled: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct TaggedItems {
     items: Vec<TaggedItem>,
 }

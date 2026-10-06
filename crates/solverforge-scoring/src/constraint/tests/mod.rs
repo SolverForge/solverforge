@@ -6,7 +6,6 @@ mod cross_complemented_grouped;
 mod cross_grouped;
 mod cross_tri_stream_chain;
 mod exists;
-mod exists_storage;
 mod flattened_bi;
 mod grouped;
 mod penta_incr;

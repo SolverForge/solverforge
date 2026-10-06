@@ -14,9 +14,8 @@ use super::{
         DirectedBi as ProjectedDirectedBi, Grouped as ProjectedGrouped, Uni as ProjectedUni,
     },
     relational::Terminal as RelationalTerminal,
-    BalanceConstraint, FlattenedBiConstraint, IncrementalBiConstraint, IncrementalExistsConstraint,
-    IncrementalPentaConstraint, IncrementalQuadConstraint, IncrementalTriConstraint,
-    IncrementalUniConstraint,
+    BalanceConstraint, FlattenedBiConstraint, IncrementalBiConstraint, IncrementalPentaConstraint,
+    IncrementalQuadConstraint, IncrementalTriConstraint, IncrementalUniConstraint,
 };
 
 impl<S, O, W, Sc> IncrementalConstraintSealed for super::relational::OperatorTerminal<S, O, W, Sc> {}
@@ -120,13 +119,6 @@ impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>
     >
 where
     Acc: Accumulator<V, R>,
-    Sc: Score,
-{
-}
-
-impl<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc> IncrementalConstraintSealed
-    for IncrementalExistsConstraint<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>
-where
     Sc: Score,
 {
 }

@@ -12,6 +12,7 @@ mod handle_map;
 mod identity;
 pub(crate) mod index;
 mod join;
+pub(crate) mod leaf_collector;
 pub mod operator;
 mod provenance;
 mod row;

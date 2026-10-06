@@ -127,8 +127,6 @@ src/
 │   ├── grouped.rs                                  — grouped::Uni module root, shared node state, terminal scorers, scorer sets, shared set
 │   ├── grouped/*.rs                                — scorer.rs, complemented_scorer.rs, scorer_set.rs, shared_set.rs, state.rs, terminal.rs for GroupedNodeState, terminal scorer sets, SharedGroupedConstraintSet, and the one-terminal wrapper
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
-│   ├── complemented.rs                             — constraint::complemented::Grouped module root and re-exports
-│   ├── complemented/*.rs                           — Retained complemented state, incremental callbacks, helpers, and debug accessors
 │   ├── cross_grouped.rs                            — constraint::cross_grouped::Grouped module root and re-exports
 │   ├── cross_grouped/*.rs                          — indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, updates.rs, view.rs for retained direct cross grouped state
 │   ├── cross_complemented_grouped.rs               — constraint::cross_complemented_grouped::ComplementedGrouped module root and internal shared engine re-exports
@@ -155,7 +153,7 @@ src/
 │       ├── grouped.rs                              — constraint::grouped::Uni and shared grouped node tests
 │       ├── cross_grouped.rs                        — Shared direct cross grouped node tests
 │       ├── balance.rs                              — BalanceConstraint tests
-│       ├── complemented.rs                         — constraint::complemented::Grouped tests
+│       ├── complemented.rs                         — Fluent complemented grouped tests
 │       ├── cross_complemented_grouped.rs           — Direct cross-join grouped complement tests
 │       ├── flattened_bi.rs                         — FlattenedBiConstraint tests
 │       ├── exists.rs                               — IncrementalExistsConstraint update tests
@@ -273,7 +271,6 @@ pub use constraint::{IncrementalUniConstraint, ListPrecedenceMakespanConstraint}
 
 // Short family names are intentionally module-scoped:
 // constraint::grouped::Uni
-// constraint::complemented::Grouped
 // constraint::cross_grouped::Grouped
 // constraint::cross_complemented_grouped::ComplementedGrouped
 // constraint::projected::{Uni, Bi, DirectedBi, Grouped, ComplementedGrouped}
@@ -507,7 +504,7 @@ state while preserving independent terminal metadata.
 
 **`BalanceConstraint<S, A, K, E, F, KF, Sc>`** — Load balancing using sum-of-squared-deviations.
 
-**`constraint::complemented::Grouped<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&A>` — Group-by complemented against a second collection (for supply vs demand).
+**`ComplementNode<S, L, R, P, F, T>`** (operator layer) — Target-domain left outer join with owned defaults, over a grouped result domain. `group_by().complement()` finalizes into this node inside the shared `OperatorTerminal`.
 
 **`constraint::projected::Uni<S, Out, Src, F, W, Sc>`** — Terminal constraint for scoring retained projected rows one row at a time.
 
@@ -711,7 +708,7 @@ further joins); low-level constructors are `new_self_join()` and
 
 **`BalanceConstraintStream/Builder`** — Balance stream. `penalize(weight)`, `reward(weight)`, `named()` → `BalanceConstraint`
 
-**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::complemented::Grouped`. Dynamic weighted operations receive the real or complemented key as `Fn(&K, &R) -> Sc`.
+**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `OperatorTerminal` over a `ComplementNode` + `GroupNode` tree. Dynamic weighted operations receive the real or complemented key as `Fn(&K, &R) -> Sc`.
 
 **`stream::projected::ComplementedGrouped/Builder`** — Projected grouped complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::projected::ComplementedGrouped`. Complement defaults are produced from the complement entity and weighted by key plus collector result.
 

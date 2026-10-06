@@ -14,7 +14,6 @@ fully monomorphized.
 #[macro_use]
 pub mod macros;
 pub mod balance;
-pub mod complemented;
 pub mod cross_complemented_grouped;
 pub mod cross_grouped;
 pub mod grouped;

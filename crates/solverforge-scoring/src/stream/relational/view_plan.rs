@@ -114,6 +114,24 @@ where
     }
 }
 
+/* Reads a grouped row's own key, for matching against a target domain. */
+pub struct GroupKey;
+
+impl<S, O, K, A, V, R> ViewKey<super::operator::GroupView<'_, S, O, K, A, V, R>> for GroupKey
+where
+    S: 'static,
+    O: super::operator::Operator<S>,
+    K: Clone,
+    A: super::super::collector::Accumulator<V, R>,
+{
+    type Key = K;
+
+    #[inline]
+    fn key(&self, view: &super::operator::GroupView<'_, S, O, K, A, V, R>) -> K {
+        view.key.clone()
+    }
+}
+
 /* Typed hash-equality plan over two named view keys. */
 pub struct ViewEqualPlan<K, KeyA, KeyB> {
     key_a: KeyA,

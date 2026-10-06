@@ -12,8 +12,14 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use super::collection_extract::CollectionExtract;
 use super::collector::{Accumulator, Collector};
+use super::relational::leaf_collector::{leaf_key, LeafCollector, OptionalEntityKey};
+use super::relational::operator::{
+    CollectionNode, ComplementNode, ComplementView, GroupNode, GroupView,
+};
+use super::relational::view_plan::{GroupKey, ViewEqualPlan};
+use super::relational::Leaf;
 use super::weighting_support::ConstraintWeight;
-use crate::constraint::complemented::Grouped;
+use crate::constraint::relational::OperatorTerminal;
 
 /* Zero-erasure constraint stream with complemented groups.
 
@@ -270,10 +276,10 @@ where
     A: Clone + Send + Sync + 'static,
     B: Clone + Send + Sync + 'static,
     K: Clone + Eq + Hash + Send + Sync + 'static,
-    EA: CollectionExtract<S, Item = A>,
-    EB: CollectionExtract<S, Item = B>,
-    KA: Fn(&A) -> Option<K> + Send + Sync,
-    KB: Fn(&B) -> K + Send + Sync,
+    EA: CollectionExtract<S, Item = A> + 'static,
+    EB: CollectionExtract<S, Item = B> + 'static,
+    KA: Fn(&A) -> Option<K> + Send + Sync + 'static,
+    KB: Fn(&B) -> K + Send + Sync + Clone + 'static,
     C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
     V: Send + Sync + 'static,
     R: Send + Sync + 'static,
@@ -282,17 +288,78 @@ where
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    pub fn named(self, name: &str) -> Grouped<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc> {
-        Grouped::new(
+    pub fn named(
+        self,
+        name: &str,
+    ) -> OperatorTerminal<
+        S,
+        ComplementNode<
+            S,
+            CollectionNode<S, EB>,
+            GroupNode<
+                CollectionNode<S, EA>,
+                impl for<'l> Fn(&Leaf<'l, A>) -> Option<K> + Send + Sync,
+                LeafCollector<C, V, R, Acc>,
+                Option<K>,
+                Acc,
+                V,
+                R,
+            >,
+            ViewEqualPlan<Option<K>, OptionalEntityKey<KB>, GroupKey>,
+            impl for<'l> Fn(&S, &Leaf<'l, B>) -> R + Send + Sync,
+            R,
+        >,
+        impl for<'l> Fn(
+                &S,
+                &ComplementView<
+                    'l,
+                    Leaf<'l, B>,
+                    GroupView<'l, S, CollectionNode<S, EA>, Option<K>, Acc, V, R>,
+                    R,
+                >,
+            ) -> Sc
+            + Send
+            + Sync,
+        Sc,
+    > {
+        let key_a = self.key_a;
+        let key_b = self.key_b;
+        let key_b_weight = key_b.clone();
+        let default_fn = self.default_fn;
+        let weight_fn = self.weight_fn;
+        let group = GroupNode::new(
+            CollectionNode::new(self.extractor_a, 0),
+            leaf_key(key_a),
+            LeafCollector::new(self.collector),
+        );
+        let targets = CollectionNode::new(self.extractor_b, 1);
+        let tree = ComplementNode::new(
+            targets,
+            group,
+            ViewEqualPlan::new(OptionalEntityKey::new(key_b.clone()), GroupKey),
+            move |_s: &S, row: &Leaf<'_, B>| default_fn(row.entity),
+        );
+        let weight = move |_s: &S,
+                           row: &ComplementView<
+            '_,
+            Leaf<'_, B>,
+            GroupView<'_, S, CollectionNode<S, EA>, Option<K>, Acc, V, R>,
+            R,
+        >| match row {
+            ComplementView::Real(pair) => {
+                let key = key_b_weight(pair.left.entity);
+                pair.right.with_result(|r| weight_fn(&key, r))
+            }
+            ComplementView::Default(projected) => {
+                let key = key_b_weight(projected.input.entity);
+                weight_fn(&key, projected.value)
+            }
+        };
+        OperatorTerminal::new(
             ConstraintRef::new("", name),
             self.impact_type,
-            self.extractor_a,
-            self.extractor_b,
-            self.key_a,
-            self.key_b,
-            self.collector,
-            self.default_fn,
-            self.weight_fn,
+            tree,
+            weight,
             self.is_hard,
         )
     }

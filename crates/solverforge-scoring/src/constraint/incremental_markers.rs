@@ -5,7 +5,6 @@ use crate::stream::collector::Accumulator;
 use crate::stream::projected::Source;
 
 use super::{
-    complemented::Grouped as ComplementedGrouped,
     cross_complemented_grouped::ComplementedGrouped as CrossComplementedGrouped,
     cross_grouped::Grouped as CrossGrouped,
     grouped::Uni as GroupedUni,
@@ -41,14 +40,6 @@ where
 
 impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc> IncrementalConstraintSealed
     for CrossGrouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
-where
-    Acc: Accumulator<V, R>,
-    Sc: Score,
-{
-}
-
-impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc> IncrementalConstraintSealed
-    for ComplementedGrouped<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     Acc: Accumulator<V, R>,
     Sc: Score,

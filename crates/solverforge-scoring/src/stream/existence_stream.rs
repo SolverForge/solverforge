@@ -14,148 +14,16 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use super::relational::index::HashIndex;
-use super::relational::operator::{ExistenceNode, FlattenView, Operator};
-use super::relational::{Leaf, RowHandle};
+use super::relational::operator::{ExistenceNode, Operator};
+use super::relational::Leaf;
 use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
-use crate::stream::joiner::plan::{CompileCondition, EqualityKind, ExecutablePlan, IndexedPlan};
-use crate::stream::joiner::Joiner;
-use std::borrow::Cow;
-use std::hash::Hash;
+use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExistenceMode {
     Exists,
     NotExists,
-}
-
-/* Reads a join key out of an operator view. Named so an existence stream's
-condition type is spellable: `impl Fn` cannot appear in an associated type. */
-pub trait ViewKey<V> {
-    type Key;
-
-    fn key(&self, view: &V) -> Self::Key;
-}
-
-/* Wraps an entity key extractor onto a leaf view. */
-pub struct EntityKey<F>(F);
-
-impl<F> EntityKey<F> {
-    pub(super) fn new(inner: F) -> Self {
-        Self(inner)
-    }
-}
-
-impl<A, F, K> ViewKey<Leaf<'_, A>> for EntityKey<F>
-where
-    F: Fn(&A) -> K,
-{
-    type Key = K;
-
-    #[inline]
-    fn key(&self, view: &Leaf<'_, A>) -> K {
-        (self.0)(view.entity)
-    }
-}
-
-/* Wraps an entity key extractor onto a flattened child view. */
-pub struct ChildKey<F>(F);
-
-impl<F> ChildKey<F> {
-    pub(super) fn new(inner: F) -> Self {
-        Self(inner)
-    }
-}
-
-impl<V, B, F, K> ViewKey<FlattenView<'_, V, B>> for ChildKey<F>
-where
-    F: Fn(&B) -> K,
-{
-    type Key = K;
-
-    #[inline]
-    fn key(&self, view: &FlattenView<'_, V, B>) -> K {
-        (self.0)(view.value)
-    }
-}
-
-/* Equality relationship between two operator views.
-
-Each side owns a named `ViewKey`, so the plan type is fully spellable: a
-direct right input uses `EntityKey<KB>` over leaves, a flattened one uses
-`ChildKey<KB>` over child views. Typed hash indexes on both sides, exact
-equality on every candidate.
-*/
-pub struct ExistsEqualPlan<K, KeyA, KeyB> {
-    key_a: KeyA,
-    key_b: KeyB,
-    marker: PhantomData<fn() -> K>,
-}
-
-impl<K, KeyA, KeyB> ExistsEqualPlan<K, KeyA, KeyB> {
-    pub(super) fn new(key_a: KeyA, key_b: KeyB) -> Self {
-        Self {
-            key_a,
-            key_b,
-            marker: PhantomData,
-        }
-    }
-}
-
-impl<K, KeyA, KeyB> CompileCondition for ExistsEqualPlan<K, KeyA, KeyB> {
-    type Plan = Self;
-    fn compile(self) -> Self {
-        self
-    }
-}
-
-impl<K: Eq + Hash + Clone, KeyA, KeyB> IndexedPlan for ExistsEqualPlan<K, KeyA, KeyB> {
-    type Kind = EqualityKind;
-    type Indexes = (HashIndex<K>, HashIndex<K>);
-    fn new_indexes(&self) -> Self::Indexes {
-        (HashIndex::new(), HashIndex::new())
-    }
-    fn remove_left(&self, i: &mut Self::Indexes, h: RowHandle) {
-        i.0.remove(h);
-    }
-    fn remove_right(&self, i: &mut Self::Indexes, h: RowHandle) {
-        i.1.remove(h);
-    }
-}
-
-impl<L, R, K, KeyA, KeyB> Joiner<L, R> for ExistsEqualPlan<K, KeyA, KeyB>
-where
-    K: PartialEq,
-    KeyA: ViewKey<L, Key = K> + Send + Sync,
-    KeyB: ViewKey<R, Key = K> + Send + Sync,
-{
-    fn matches(&self, left: &L, right: &R) -> bool {
-        self.key_a.key(left) == self.key_b.key(right)
-    }
-}
-
-impl<L, R, K, KeyA, KeyB> ExecutablePlan<L, R> for ExistsEqualPlan<K, KeyA, KeyB>
-where
-    K: Eq + Hash + Clone,
-    KeyA: ViewKey<L, Key = K> + Send + Sync,
-    KeyB: ViewKey<R, Key = K> + Send + Sync,
-{
-    fn insert_left(&self, i: &mut Self::Indexes, h: RowHandle, row: &L) {
-        i.0.insert(h, self.key_a.key(row));
-    }
-    fn insert_right(&self, i: &mut Self::Indexes, h: RowHandle, row: &R) {
-        i.1.insert(h, self.key_b.key(row));
-    }
-    fn insert_right_transient(&self, i: &mut Self::Indexes, h: RowHandle, row: &R) {
-        i.1.insert_transient(h, self.key_b.key(row));
-    }
-    fn right_candidates<'i>(&self, i: &'i Self::Indexes, row: &L) -> Cow<'i, [RowHandle]> {
-        Cow::Borrowed(i.1.lookup(&self.key_a.key(row)))
-    }
-    fn left_candidates<'i>(&self, i: &'i Self::Indexes, row: &R) -> Cow<'i, [RowHandle]> {
-        Cow::Borrowed(i.0.lookup(&self.key_b.key(row)))
-    }
 }
 
 /* Zero-erasure existence stream: a left operator, a right operator, and the

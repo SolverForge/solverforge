@@ -17,6 +17,7 @@ mod provenance;
 mod row;
 mod source;
 mod storage;
+pub(crate) mod view_plan;
 
 pub(crate) use delta::{DeltaBuffer, OutputDelta};
 pub(crate) use handle_map::HandleMap;

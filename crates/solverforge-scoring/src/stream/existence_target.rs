@@ -14,12 +14,11 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 
 use super::collection_extract::{CollectionExtract, FlattenExtract};
-use super::existence_stream::{
-    ChildKey, EntityKey, ExistenceMode, ExistsConstraintStream, ExistsEqualPlan,
-};
+use super::existence_stream::{ExistenceMode, ExistsConstraintStream};
 use super::filter::UniFilter;
 use super::joiner::EqualJoiner;
 use super::relational::operator::{CollectionNode, FlattenNode, ParentFlatten};
+use super::relational::view_plan::{ChildKey, EntityKey, ViewEqualPlan};
 use super::uni_stream::UniConstraintStream;
 
 pub struct FlattenedCollectionTarget<S, P, B, EP, FP, Flatten, Sc>
@@ -69,7 +68,7 @@ where
         A,
         CollectionNode<S, UniConstraintStream<S, A, EA, FA, Sc>>,
         CollectionNode<S, UniConstraintStream<S, B, EB, FB, Sc>>,
-        ExistsEqualPlan<K, EntityKey<KA>, EntityKey<KB>>,
+        ViewEqualPlan<K, EntityKey<KA>, EntityKey<KB>>,
         Sc,
     >;
 
@@ -79,7 +78,7 @@ where
         let left_stream = UniConstraintStream::from_parts(extractor_a, filter_a);
         let left = CollectionNode::new(left_stream, 0);
         let right = CollectionNode::new(right_stream, 1);
-        let condition = ExistsEqualPlan::new(EntityKey::new(key_a), EntityKey::new(key_b));
+        let condition = ViewEqualPlan::new(EntityKey::new(key_a), EntityKey::new(key_b));
         ExistsConstraintStream::new(mode, left, right, condition)
     }
 }
@@ -117,7 +116,7 @@ where
             CollectionNode<S, UniConstraintStream<S, P, EP, FP, Sc>>,
             ParentFlatten<Flatten>,
         >,
-        ExistsEqualPlan<K, EntityKey<KA>, ChildKey<KB>>,
+        ViewEqualPlan<K, EntityKey<KA>, ChildKey<KB>>,
         Sc,
     >;
 
@@ -133,7 +132,7 @@ where
         let left = CollectionNode::new(left_stream, 0);
         let parents = CollectionNode::new(right_stream, 1);
         let right = FlattenNode::new(parents, ParentFlatten::new(flatten));
-        let condition = ExistsEqualPlan::new(EntityKey::new(key_a), ChildKey::new(key_b));
+        let condition = ViewEqualPlan::new(EntityKey::new(key_a), ChildKey::new(key_b));
         ExistsConstraintStream::new(mode, left, right, condition)
     }
 }

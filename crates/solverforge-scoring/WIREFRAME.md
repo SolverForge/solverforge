@@ -191,6 +191,7 @@ src/
 │   ├── grouped_stream.rs                           — Re-exports
 │   ├── grouped_stream/base.rs                      — GroupedConstraintStream
 │   ├── grouped_stream/weighting.rs                 — GroupedConstraintBuilder
+│   ├── grouped_stream/joined.rs                    — GroupedJoinedStream/Builder: group as a join input
 │   ├── balance_stream.rs                           — BalanceConstraintStream, BalanceConstraintBuilder
 │   ├── complemented_stream.rs                      — ComplementedConstraintStream, ComplementedConstraintBuilder
 │   ├── cross_bi_stream.rs                          — Re-exports
@@ -701,10 +702,13 @@ further joins); low-level constructors are `new_self_join()` and
 **`stream::cross::ComplementedGrouped/Builder`** — Direct grouped cross-join complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::cross_complemented_grouped::ComplementedGrouped`. Complement defaults are produced from the complement entity and weighted by key plus collector result. Complement sources use the same `CollectionExtract::contains(...)` membership contract as joined sources.
 
 **`GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>`** — Grouped stream.
-- Operations: `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `complement()`, `complement_with_key()` → `ComplementedConstraintStream`
+- Operations: `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `join((collection, key))` → `GroupedJoinedStream`, `complement()`, `complement_with_key()` → `ComplementedConstraintStream`
 - Dynamic weighted operations use one canonical key-aware closure shape: `Fn(&K, &R) -> Sc`.
+- `join(...)` relates a group (key + aggregate) to a second collection by the group key; the weight receives `Fn(&K, &R, &B) -> Sc` (group key, aggregate, matched entity) and finalizes to an `OperatorTerminal` over a `JoinNode(GroupNode(FilterNode(source)))` tree.
 
-**`GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** — `named()` → `constraint::grouped::Uni`
+**`GroupedJoinedStream/Builder`** — Group-as-join-input. `penalize`/`reward` take `Fn(&K, &R, &B) -> Sc`; `named()` → `OperatorTerminal` over a `JoinNode` + `GroupNode` + `FilterNode` tree.
+
+**`GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** — `named()` → `constraint::grouped::Uni` (weighting terminal; group-as-join-input uses `GroupedJoinedStream`)
 
 **`BalanceConstraintStream/Builder`** — Balance stream. `penalize(weight)`, `reward(weight)`, `named()` → `BalanceConstraint`
 

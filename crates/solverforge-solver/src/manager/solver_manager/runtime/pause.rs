@@ -184,9 +184,15 @@ mod tests {
             assert!(record.snapshots.is_empty());
             assert!(record.best_score.is_none());
         }
-
-        slot.pause_requested.store(false, Ordering::Release);
-        slot.pause_condvar.notify_all();
+        // Clearing the request while holding the pause gate means the worker
+        // cannot be between its predicate check and its wait: it either has not
+        // yet checked (and will see false) or is already waiting (and is woken).
+        // This is the same gate discipline `clear_pause_and_wake` uses.
+        {
+            let _gate = slot.pause_gate.lock().unwrap();
+            slot.pause_requested.store(false, Ordering::Release);
+            slot.pause_condvar.notify_all();
+        }
         assert!(worker.join().expect("pause worker must resume"));
     }
 }

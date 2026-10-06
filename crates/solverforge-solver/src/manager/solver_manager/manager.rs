@@ -229,10 +229,9 @@ where
                     state,
                 });
             }
-            slot.pause_requested.store(false, Ordering::SeqCst);
             Ok(())
         })?;
-        slot.pause_condvar.notify_one();
+        slot.clear_pause_and_wake();
         Ok(())
     }
 
@@ -256,10 +255,9 @@ where
             }
 
             slot.terminate.store(true, Ordering::SeqCst);
-            slot.pause_requested.store(false, Ordering::SeqCst);
             Ok(())
         })?;
-        slot.pause_condvar.notify_one();
+        slot.clear_pause_and_wake();
         Ok(())
     }
 

@@ -189,6 +189,16 @@ impl<S: PlanningSolution> JobSlot<S> {
         f(sender, &mut record)
     }
 
+    /// Clears the pause request and wakes a paused worker while holding the
+    /// pause gate. `wait_for_resume` tests and waits on `pause_requested`
+    /// under this same gate, so a resume or cancel that lands between the
+    /// worker's predicate check and its wait cannot be lost.
+    pub(super) fn clear_pause_and_wake(&self) {
+        let _gate = self.pause_gate.lock().unwrap();
+        self.pause_requested.store(false, Ordering::SeqCst);
+        self.pause_condvar.notify_all();
+    }
+
     /// Claims a free slot and initializes every public record field under the
     /// same publication lock used by status/detail readers.  A reader can
     /// therefore never observe `SOLVING` paired with the previous job's

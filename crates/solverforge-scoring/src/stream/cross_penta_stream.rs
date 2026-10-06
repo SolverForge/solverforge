@@ -267,6 +267,76 @@ where
 }
 
 /* Zero-erasure builder for finalizing a canonical penta constraint. */
+impl<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, Sc>
+    Penta<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, Sc>
+where
+    S: Send + Sync + 'static,
+    A: Clone + Send + Sync + 'static,
+    B: Clone + Send + Sync + 'static,
+    C: Clone + Send + Sync + 'static,
+    D: Clone + Send + Sync + 'static,
+    E: Clone + Send + Sync + 'static,
+    EA: 'static,
+    EB: 'static,
+    EC: 'static,
+    ED: 'static,
+    EE: 'static,
+    P1: CompileCondition<Plan: IndexedPlan> + 'static,
+    P2: CompileCondition<Plan: IndexedPlan> + 'static,
+    P3: CompileCondition<Plan: IndexedPlan> + 'static,
+    P4: CompileCondition<Plan: IndexedPlan> + 'static,
+    F: PentaFilter<S, A, B, C, D, E> + 'static,
+    Sc: Score + 'static,
+    for<'a> BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>: Operator<
+        S,
+        View<'a> = Pair<
+            Pair<Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>, Leaf<'a, D>>,
+            Leaf<'a, E>,
+        >,
+    >,
+    BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>: Send + Sync,
+{
+    /* Continues the chain past the named arities.
+
+    Returns a `Chain` wrapping this penta's tree; subsequent `.join(...)`
+    calls nest further `JoinNode`s with no fixed ceiling. The continuation
+    drops the penta's authored filter slot, so apply `.filter(...)` on the
+    returned chain instead.
+    */
+    pub fn join<G, EG, P5>(
+        self,
+        target: (EG, P5),
+    ) -> super::chain_stream::Chain<
+        S,
+        JoinNode<
+            S,
+            BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>,
+            CollectionNode<S, EG>,
+            <P5 as CompileCondition>::Plan,
+        >,
+        Sc,
+    >
+    where
+        G: Clone + Send + Sync + 'static,
+        EG: super::collection_extract::CollectionExtract<S, Item = G> + 'static,
+        P5: CompileCondition + 'static,
+        P5::Plan: IndexedPlan,
+        for<'a> P5::Plan: super::joiner::plan::ExecutablePlan<
+            PentaRow<'a, S, EA, EB, EC, ED, EE, P1, P2, P3, P4>,
+            Leaf<'a, G>,
+        >,
+        for<'a> JoinNode<
+            S,
+            BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>,
+            CollectionNode<S, EG>,
+            <P5 as CompileCondition>::Plan,
+        >: Operator<S>,
+    {
+        let chain = super::chain_stream::Chain::new(self.tree, 5);
+        chain.join(target)
+    }
+}
+
 pub struct PentaBuilder<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, W, Sc>
 where
     Sc: Score,

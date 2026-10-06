@@ -19,6 +19,7 @@ mod filtered_operators;
 mod fixtures;
 mod flatten_producer;
 mod fluent_chain;
+mod fluent_deep_chain;
 mod group_producer;
 mod grouped_join_fluent;
 mod handle_map;

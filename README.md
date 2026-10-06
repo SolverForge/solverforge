@@ -258,10 +258,13 @@ own indexes; an arbitrary predicate relationship scans retained opposite rows
 instead. Compose several with `.and(...)` — `equal_bi(..).and(less_than(..))`
 indexes the usable equality portion and keeps the comparison as an exact
 residual check. Right-hand inputs may be collections or compatible derived
-streams (joined, filtered, projected, grouped, complemented).
-`docs/extend-scoring.md` covers the low-level typed row and condition-plan
-protocol for writing new operators, including how entity-authored conditions
-(`Fn(&A) -> T`) execute over the operator tree's leaf views.
+streams (joined, filtered, projected, grouped, complemented). There is no
+arity ceiling: `Uni`/`Bi`/`Tri`/`Quad`/`Penta` are ergonomic adapters, and
+`Penta::join` continues into the arity-free `Chain`, whose `.join(...)` nests
+further typed joins as deep as needed. `docs/extend-scoring.md` covers the
+low-level typed row and condition-plan protocol for writing new operators,
+including how entity-authored conditions (`Fn(&A) -> T`) execute over the
+operator tree's leaf views.
 
 ## Installation
 

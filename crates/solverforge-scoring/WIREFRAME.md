@@ -53,6 +53,12 @@ migration of the fluent stream families:
   produces `Pair<L::View<'a>, R::View<'a>>`; either input can itself be a join.
   `Pair<L, R>` has public `left` and `right` fields. Depth is recursive rather
   than fixed to a named arity.
+- `stream::chain::Chain<S, O, Sc>` is the arity-free fluent continuation:
+  `Penta::join` returns one, and `Chain::join` nests further `JoinNode`s with no
+  ceiling; `Chain::filter` wraps the tree in an identity-preserving
+  `FilterNode`; `Chain::penalize`/`reward` then `ChainBuilder::named` finalize
+  into `OperatorTerminal`. The named `Bi`/`Tri`/`Quad`/`Penta` streams are
+  ergonomic adapters over the same operator tree, not separate engines.
 - `constraint::relational::OperatorTerminal<S, O, W, Sc>::new(constraint_ref,
   impact, operator, weight, hard)` scores a generic operator; its weight takes
   `(&S, &O::View<'a>)`. It implements incremental scoring, reset, full counts,
@@ -153,6 +159,7 @@ src/
 │       ├── relational/condition_arity.rs           — Comparison/overlap/composed join conditions and None-key complement
 │       ├── relational/derived_right_input.rs       — Filtered and complemented producers as right-hand join inputs
 │       ├── relational/join_depth.rs                — Six-binding typed join chain (depth beyond Penta)
+│       ├── relational/fluent_deep_chain.rs         — Six- and seven-source fluent chains via Penta::join → Chain
 │       ├── grouped.rs                              — constraint::grouped::Uni and shared grouped node tests
 │       ├── cross_grouped.rs                        — Shared direct cross grouped node tests
 │       ├── balance.rs                              — BalanceConstraint tests
@@ -191,6 +198,8 @@ src/
 │   ├── tri_stream.rs                               — TriConstraintStream, TriConstraintBuilder (via macro)
 │   ├── quad_stream.rs                              — QuadConstraintStream, QuadConstraintBuilder (via macro)
 │   ├── penta_stream.rs                             — PentaConstraintStream, PentaConstraintBuilder (via macro)
+│   ├── chain_stream.rs                             — Chain/ChainBuilder: arity-free fluent join continuation
+│   ├── cross_penta_stream.rs                       — stream::cross::Penta and its Penta::join → Chain
 │   ├── grouped_stream.rs                           — Re-exports
 │   ├── grouped_stream/base.rs                      — GroupedConstraintStream
 │   ├── grouped_stream/weighting.rs                 — GroupedConstraintBuilder

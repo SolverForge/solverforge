@@ -65,6 +65,7 @@ virtual dispatch in the hot path.
 mod arity_stream_macros;
 mod balance_stream;
 mod bi_stream;
+mod chain_stream;
 pub mod collection_extract;
 pub mod collector;
 mod complemented_stream;

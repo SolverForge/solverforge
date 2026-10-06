@@ -61,6 +61,14 @@ will never retract: there is no need to retain reverse old keys in that case.
 Persistent initialization must retain reverse keys, because retraction removes
 old entries before changed keys are extracted.
 
+Join depth is recursive, not per-arity. `Bi`/`Tri`/`Quad`/`Penta` are fluent
+adapters over the same tree; `Penta::join` returns an arity-free
+`stream::chain::Chain`, and `Chain::join` nests another `JoinNode` whose plan's
+left view is the whole borrowed prior row. Use named `fn` items with explicit
+lifetimes for keys over nested pair rows — a closure annotated over a nested
+row fixes the borrow lifetime and fails the higher-ranked `ExecutablePlan`
+bound. `Chain::filter` wraps the tree in an identity-preserving `FilterNode`.
+
 ## Notifications and terminal scoring
 
 Route each descriptor notification through every applicable binding. A binary

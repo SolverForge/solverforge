@@ -150,6 +150,9 @@ src/
 │       ├── cross_bi_incr.rs                        — Fluent cross-bi join tests on the generic operator terminal
 │       ├── self_join_bi_fluent.rs                  — Fluent same-collection self-join tests
 │       ├── relational/self_join_node.rs            — SelfJoinNode unique-combination and delta tests
+│       ├── relational/condition_arity.rs           — Comparison/overlap/composed join conditions and None-key complement
+│       ├── relational/derived_right_input.rs       — Filtered and complemented producers as right-hand join inputs
+│       ├── relational/join_depth.rs                — Six-binding typed join chain (depth beyond Penta)
 │       ├── grouped.rs                              — constraint::grouped::Uni and shared grouped node tests
 │       ├── cross_grouped.rs                        — Shared direct cross grouped node tests
 │       ├── balance.rs                              — BalanceConstraint tests
@@ -197,6 +200,7 @@ src/
 │   ├── cross_bi_stream.rs                          — Re-exports
 │   ├── cross_bi_stream/base.rs                     — stream::cross::Bi
 │   ├── cross_bi_stream/scored.rs                   — BiUnaryPlan, BiPredicatePlan, BiScored (first-join execution)
+│   ├── cross_bi_stream/view_comparison.rs          — ViewComparisonPlan, ViewOverlapPlan (entity conditions over leaf views)
 │   ├── cross_bi_stream/grouped.rs                  — stream::cross::Grouped and builder
 │   ├── cross_bi_stream/complemented_grouped.rs     — stream::cross::ComplementedGrouped and builder
 │   ├── cross_bi_stream/weighting.rs                — stream::cross::Builder
@@ -223,7 +227,7 @@ src/
 │   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata, VecExtract wrapper, vec() constructor
 │   ├── unassigned.rs                               — Hidden UnassignedEntity hook and `.unassigned()` stream method
 │   ├── weighting_support.rs                        — ConstraintWeight, FixedWeight, HardWeight, and dynamic closure-weight adapters
-│   ├── join_target.rs                              — JoinTarget trait impls for self-join, keyed cross-join, and predicate cross-join
+│   ├── join_target.rs                              — JoinTarget/ToViewPlan dispatch for self-join, keyed cross-join, comparison, overlap, composed, and predicate cross-join
 │   ├── key_extract.rs                              — KeyExtract trait, EntityKeyAdapter struct
 │   ├── arity_stream_macros/
 │   │   ├── mod.rs                                  — impl_arity_stream! dispatcher macro
@@ -610,7 +614,7 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 - Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `stream::projected::Stream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 - `UniConstraintStream` implements `CollectionExtract` by delegating extraction to its source and applying its accumulated filter through `contains(...)`.
 - Stream targets preserve their own source filters when passed to keyed or predicate cross-joins. This lets `.join((ConstraintFactory::new().for_each(source).filter(pred), equal_bi(...)))` keep the right-side source predicate inside the joined stream.
-- `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `stream::cross::Bi` (`BiUnaryPlan`); `(other_stream, |a, b| pred)` → predicate `stream::cross::Bi` (`BiPredicatePlan`, an explicit opposite-input scan — never a synthetic constant equality key)
+- `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `stream::cross::Bi` (`BiUnaryPlan`); `(extractor_b, less_than/greater_than/…_or_equal(a, b))` → comparison `stream::cross::Bi` (`ViewComparisonPlan`); `(extractor_b, overlapping(sa, ea, sb, eb))` → overlap `stream::cross::Bi` (`ViewOverlapPlan`); `(extractor_b, a.and(b))` → composed `stream::cross::Bi` (operands convert via `ToViewPlan` into one concrete conjunction, `EqualityWithResidual` when equality keys the probe); `(other_stream, |a, b| pred)` → predicate `stream::cross::Bi` (`BiPredicatePlan`, an explicit opposite-input scan — never a synthetic constant equality key)
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
 **`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `named()` → `IncrementalUniConstraint`
@@ -755,7 +759,13 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 ### Join Support Types
 
 **`JoinTarget<S, A, E, F, Sc>`** — Trait for `.join()` dispatch on `UniConstraintStream`.
-- Impl groups: `EqualJoiner<KA, KA, K, Symmetric>` (self-join from `equal(...)`), any `CollectionExtract` target with `EqualJoiner<KA, KB, K, Mode>` (keyed cross-join from `equal_bi(...)`, including filtered `UniConstraintStream` targets), and `(UniConstraintStream<...>, P)` (predicate cross-join with filtered stream target).
+- Impl groups: `EqualJoiner<KA, KA, K, Symmetric>` (self-join from `equal(...)`), any `CollectionExtract` target with `EqualJoiner<KA, KB, K, Mode>` (keyed cross-join from `equal_bi(...)`, producing `BiUnaryPlan`), comparison joiners (`LessThanJoiner`, `LessThanOrEqualJoiner`, `GreaterThanJoiner`, `GreaterThanOrEqualJoiner`) and `OverlappingJoiner` (each converting an entity-authored condition to a leaf-view plan), `(EB, AndJoiner<J1, J2>)` (composed conditions via `ToViewPlan`), and `(UniConstraintStream<...>, P)` (predicate cross-join with filtered stream target).
+
+**`ToViewPlan<A, B>`** — Converts an entity-authored condition into the leaf-view plan the operator tree executes. Implemented for `EqualJoiner`, the four comparison joiners, `OverlappingJoiner`, and `AndJoiner<J1, J2>` (composing both operands). Used by the conjunction dispatch; top-level equality/comparison/overlap impls build their plans directly so the equality path keeps producing `BiUnaryPlan`.
+
+**`ViewComparisonPlan<K, KA, KB, const LESS: bool, const INCLUSIVE: bool>`** — Ordered comparison over leaf views. `LESS` selects `left < right` (else `>`); `INCLUSIVE` widens to `<=`/`>=`.
+
+**`ViewOverlapPlan<K, SA, EA, SB, EBd>`** — Interval overlap over leaf views.
 
 **`ProjectedJoinTarget<S, Out, Src, F, Sc>`** — Trait for `.join()` dispatch on `stream::projected::Stream`.
 - `equal(|row| key)` dispatches to `stream::projected::Bi` and preserves symmetric coordinate-stable pair ordering.

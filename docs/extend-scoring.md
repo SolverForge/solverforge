@@ -41,6 +41,16 @@ apply the exact interval predicate. Arbitrary predicate plans explicitly scan
 retained opposite rows. Never replace a predicate scan with a fabricated
 constant equality key.
 
+Conditions may be authored over entities (`Fn(&A) -> T`) while the operator
+tree hands plans leaf views. Convert at the boundary with a named plan that
+stores the entity closures and reads `.entity` off each leaf: `BiUnaryPlan`
+for equality, `ViewComparisonPlan`/`ViewOverlapPlan` for ordered and interval
+conditions. `ToViewPlan` performs that conversion for composed conjunctions
+and keeps the equality path unchanged, so downstream grouping, projection, and
+flattening keep their `into_keys`. A mixed equality+residual conjunction
+compiles to `EqualityWithResidual`, which is itself a compiled condition and
+composes into a single stream relationship.
+
 `candidate_matches` may omit only predicates already guaranteed by candidate
 selection. `matches` remains the complete relationship. Preserve authored
 short-circuit order for residual conditions. Key and predicate functions must

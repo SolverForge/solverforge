@@ -10,6 +10,40 @@ macro_rules! repeat_tokens {
     };
 }
 
+// Position of each entity in canonical order (a -> 0, b -> 1, ...).
+macro_rules! repeat_nary_arity_position {
+    (a) => {
+        0usize
+    };
+    (b) => {
+        1usize
+    };
+    (c) => {
+        2usize
+    };
+    (d) => {
+        3usize
+    };
+    (e) => {
+        4usize
+    };
+    (a_idx) => {
+        0usize
+    };
+    (b_idx) => {
+        1usize
+    };
+    (c_idx) => {
+        2usize
+    };
+    (d_idx) => {
+        3usize
+    };
+    (e_idx) => {
+        4usize
+    };
+}
+
 macro_rules! impl_nary_arity_stream_common {
     (
         stream = $stream:ident,
@@ -18,6 +52,7 @@ macro_rules! impl_nary_arity_stream_common {
         filter_trait = $filter_trait:ident,
         and_filter = $and_filter:ident,
         fn_filter = $fn_filter:ident,
+        arity = $arity:literal,
         entities = [$($entity:ident),+],
         weight_indices = [$($weight_idx:ident),+],
         filter_indices = [$($filter_idx:ident),*]
@@ -228,44 +263,62 @@ macro_rules! impl_nary_arity_stream_common {
             pub fn named(
                 self,
                 name: &str,
-            ) -> $constraint<
+            ) -> crate::constraint::relational::OperatorTerminal<
                 S,
-                A,
-                K,
-                E,
-                KE,
-                impl Fn(
-                    &S,
-                    $(repeat_tokens!($entity => &A)),+
-                    $(, repeat_tokens!($filter_idx => usize))*
-                ) -> bool
-                       + Send
-                       + Sync,
-                impl Fn(
-                    &S,
-                    &[A],
-                    $(repeat_tokens!($weight_idx => usize)),+
-                ) -> Sc + Send + Sync,
+                crate::stream::relational::operator::FilterNode<
+                    crate::stream::relational::operator::SelfJoinNode<
+                        S,
+                        A,
+                        crate::stream::relational::operator::CollectionNode<S, E>,
+                        K,
+                        KE,
+                        $arity,
+                    >,
+                    impl for<'a, 'b> Fn(
+                            &'a S,
+                            &[crate::stream::relational::Leaf<'b, A>; $arity],
+                        ) -> bool
+                        + Send
+                        + Sync,
+                >,
+                impl for<'a, 'b> Fn(
+                        &'a S,
+                        &[crate::stream::relational::Leaf<'b, A>; $arity],
+                    ) -> Sc
+                    + Send
+                    + Sync,
                 Sc,
             > {
                 let filter = self.filter;
-                let combined_filter =
-                    move |s: &S, $($entity: &A),+ $(, $filter_idx: usize)*| {
-                        filter.test(s, $($entity),+ $(, $filter_idx)*)
-                    };
-
                 let user_weight = self.weight;
-                let adapted_weight = move |_solution: &S, entities: &[A], $($weight_idx: usize),+| {
-                    user_weight($(&entities[$weight_idx]),+)
+                let input = crate::stream::relational::operator::CollectionNode::new(self.extractor, 0);
+                let node = crate::stream::relational::operator::SelfJoinNode::new(
+                    input,
+                    self.key_extractor,
+                );
+                let scored = crate::stream::relational::operator::FilterNode::new(
+                    node,
+                    move |s: &S, view: &[crate::stream::relational::Leaf<'_, A>; $arity]| {
+                        let arr = view;
+                        filter.test(
+                            s,
+                            $(&arr[repeat_nary_arity_position!($entity)].entity,)+
+                            $(arr[repeat_nary_arity_position!($filter_idx)].index),+
+                        )
+                    },
+                );
+                let weight_fn = move |
+                    _s: &S,
+                    view: &[crate::stream::relational::Leaf<'_, A>; $arity],
+                | {
+                    let arr = view;
+                    user_weight($(&arr[repeat_nary_arity_position!($entity)].entity),+)
                 };
-
-                $constraint::new(
+                crate::constraint::relational::OperatorTerminal::new(
                     solverforge_core::ConstraintRef::new("", name),
                     self.impact_type,
-                    self.extractor,
-                    self.key_extractor,
-                    combined_filter,
-                    adapted_weight,
+                    scored,
+                    weight_fn,
                     self.is_hard,
                 )
             }

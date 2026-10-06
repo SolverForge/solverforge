@@ -18,3 +18,11 @@ impl<L: ExplainRow, R: ExplainRow> ExplainRow for Pair<L, R> {
         self.right.explain(entities);
     }
 }
+
+impl<E: ExplainRow, const N: usize> ExplainRow for [E; N] {
+    fn explain(&self, entities: &mut Vec<EntityRef>) {
+        for row in self {
+            row.explain(entities);
+        }
+    }
+}

@@ -44,8 +44,6 @@ assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
 ```
 */
 
-use crate::constraint::IncrementalPentaConstraint;
-
 super::arity_stream_macros::impl_arity_stream!(
     penta,
     PentaConstraintStream,

@@ -7,6 +7,7 @@ macro_rules! impl_bi_arity_stream {
             filter_trait = BiFilter,
             and_filter = AndBiFilter,
             fn_filter = FnBiFilter,
+            arity = 2,
             entities = [a, b],
             weight_indices = [a_idx, b_idx],
             filter_indices = [a_idx, b_idx]

@@ -11,6 +11,7 @@ each member's own provenance.
 */
 
 use super::{Operator, RowChanges};
+use crate::stream::key_extract::KeyExtract;
 use crate::stream::relational::{DenseRowStore, HandleMap, Leaf, RowHandle};
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -103,7 +104,7 @@ where
     O: Operator<S>,
     for<'a> O: Operator<S, View<'a> = Leaf<'a, A>>,
     K: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
-    KE: Fn(&S, &A, usize) -> K + Send + Sync + 'static,
+    KE: KeyExtract<S, A, K> + 'static,
 {
     type View<'a> = [Leaf<'a, A>; N];
     type Evaluation = O::Evaluation;
@@ -123,7 +124,7 @@ where
         let mut buckets: HashMap<K, Vec<Leaf<'a, A>>> = HashMap::new();
         self.input
             .visit_evaluation(solution, evaluation, &mut |leaf: Leaf<'a, A>| {
-                let key = (self.key)(solution, leaf.entity, leaf.index);
+                let key = self.key.extract(solution, leaf.entity, leaf.index);
                 buckets.entry(key).or_default().push(leaf);
             });
         for bucket in buckets.values_mut() {
@@ -234,7 +235,7 @@ where
     O: Operator<S>,
     for<'a> O: Operator<S, View<'a> = Leaf<'a, A>>,
     K: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
-    KE: Fn(&S, &A, usize) -> K + Send + Sync + 'static,
+    KE: KeyExtract<S, A, K> + 'static,
 {
     fn view<'a>(&'a self, solution: &'a S, tuple: &[RowHandle; N]) -> Option<[Leaf<'a, A>; N]> {
         let mut out = Vec::with_capacity(N);
@@ -249,7 +250,7 @@ where
             return Vec::new();
         };
         let index = leaf.index;
-        let key = (self.key)(solution, leaf.entity, index);
+        let key = self.key.extract(solution, leaf.entity, index);
         self.handle_index.insert(handle, index);
         let bucket = self.by_key.entry(key).or_default();
         let at = bucket.partition_point(|(i, _)| *i < index);

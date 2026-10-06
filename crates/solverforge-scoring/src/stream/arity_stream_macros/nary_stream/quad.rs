@@ -7,6 +7,7 @@ macro_rules! impl_quad_arity_stream {
             filter_trait = QuadFilter,
             and_filter = AndQuadFilter,
             fn_filter = FnQuadFilter,
+            arity = 4,
             entities = [a, b, c, d],
             weight_indices = [a_idx, b_idx, c_idx, d_idx],
             filter_indices = [a_idx, b_idx, c_idx, d_idx]

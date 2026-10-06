@@ -7,6 +7,7 @@ macro_rules! impl_penta_arity_stream {
             filter_trait = PentaFilter,
             and_filter = AndPentaFilter,
             fn_filter = FnPentaFilter,
+            arity = 5,
             entities = [a, b, c, d, e],
             weight_indices = [a_idx, b_idx, c_idx, d_idx, e_idx],
             filter_indices = [a_idx, b_idx, c_idx, d_idx, e_idx]

@@ -42,8 +42,6 @@ use std::hash::Hash;
 
 use solverforge_core::score::Score;
 
-use crate::constraint::IncrementalBiConstraint;
-
 use super::filter::{BiFilter, FnTriFilter, TriFilter};
 use super::joiner::Joiner;
 use super::tri_stream::TriConstraintStream;

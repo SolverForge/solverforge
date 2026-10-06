@@ -175,9 +175,19 @@ for payloads solely so `collect_vec` can retain them. `collect_vec` returns a
 Constraint-stream node sharing belongs in the `#[solverforge_constraints]`
 compiler and the shared grouped node-state engine. Do not implement sharing as
 ad hoc runtime caches, global memoization, interior-mutability shortcuts, or
-public `share`/`derive` modeling APIs. Shared grouped, projected grouped, and
-cross grouped nodes own the retained incremental state once; terminal scorers
-remain independent for identity, ordering, metadata, and explanation.
+public `share`/`derive` modeling APIs.
+
+- The common operator tree (`stream/relational/operator`) owns join, filter,
+  flatten, existence, projection, group, and complement row state. Every
+  family's retention is a concrete operator composition, not a bespoke
+  per-family engine.
+- Shared grouped, projected grouped, and cross grouped nodes keep the shared
+  accumulator state and the compiler-owned terminal sharing; terminal scorers
+  remain independent for identity, ordering, metadata, and explanation. A
+  grouped terminal exposes chained `penalize`/`reward` so the compiler can
+  build several terminals from one grouped owner.
+- Grouped join retention composes the common operator tree with that shared
+  accumulator layer rather than re-implementing per-family pair indexing.
 
 ### Joined Filter Indexes
 

@@ -231,3 +231,129 @@ fn overlap_condition_composes_in_a_chain() {
     assert_eq!(c.evaluate(&schedule), SoftScore::of(-1));
     assert_eq!(c.match_count(&schedule), 1);
 }
+
+// Named key fns over nested rows: explicit lifetimes keep them higher-ranked.
+type PairRow<'a> = crate::stream::relational::operator::Pair<
+    crate::stream::relational::Leaf<'a, Shift>,
+    crate::stream::relational::Leaf<'a, Employee>,
+>;
+fn pair_right_id(row: &PairRow<'_>) -> i64 {
+    row.right.entity.id as i64
+}
+fn pair_right_start(row: &PairRow<'_>) -> i64 {
+    row.left.entity.start
+}
+fn pair_right_end(row: &PairRow<'_>) -> i64 {
+    row.left.entity.end
+}
+fn leaf_employee_id(row: &crate::stream::relational::Leaf<'_, Employee>) -> i64 {
+    row.entity.id as i64
+}
+fn leaf_employee_end(row: &crate::stream::relational::Leaf<'_, Employee>) -> i64 {
+    row.entity.id as i64 + 2
+}
+
+// A comparison and an overlap at the SECOND relationship of a tri chain, so
+// non-equality conditions are proven at an arity above the first join.
+fn later_arity_comparison() -> impl IncrementalConstraint<Schedule, SoftScore> {
+    ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ))
+        // relationship 1: equality on the employee id
+        .join((
+            source(
+                employees as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            equal_bi(|s: &Shift| s.employee_id, |e: &Employee| Some(e.id)),
+        ))
+        // relationship 2: comparison over the (shift, employee) row
+        .join((
+            source(
+                employees as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            less_than(pair_right_id, leaf_employee_id),
+        ))
+        .penalize(SoftScore::of(1))
+        .named("later arity comparison")
+}
+
+// The same second relationship written as an overlap.
+fn later_arity_overlap() -> impl IncrementalConstraint<Schedule, SoftScore> {
+    ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ))
+        .join((
+            source(
+                employees as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            equal_bi(|s: &Shift| s.employee_id, |e: &Employee| Some(e.id)),
+        ))
+        .join((
+            source(
+                employees as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            overlapping(
+                pair_right_start,
+                pair_right_end,
+                leaf_employee_id,
+                leaf_employee_end,
+            ),
+        ))
+        .penalize(SoftScore::of(1))
+        .named("later arity overlap")
+}
+
+#[test]
+fn comparison_composes_at_a_later_fluent_arity() {
+    let schedule = Schedule {
+        shifts: vec![
+            Shift {
+                employee_id: Some(0),
+                start: 0,
+                end: 2,
+            },
+            Shift {
+                employee_id: Some(1),
+                start: 0,
+                end: 2,
+            },
+        ],
+        employees: vec![Employee { id: 0 }, Employee { id: 1 }, Employee { id: 2 }],
+    };
+    // relationship 1 pairs shift.employee_id with employee.id.
+    //   shift 0 -> employee 0; shift 1 -> employee 1.
+    // relationship 2 is employee.id < other.id over the pair row.
+    //   pair (s0,e0): 0 < {0,1,2} -> 2 matches.
+    //   pair (s1,e1): 1 < {0,1,2} -> 1 match.
+    assert_eq!(
+        later_arity_comparison().evaluate(&schedule),
+        SoftScore::of(-3)
+    );
+    assert_eq!(later_arity_comparison().match_count(&schedule), 3);
+}
+
+#[test]
+fn overlap_composes_at_a_later_fluent_arity() {
+    let schedule = Schedule {
+        shifts: vec![Shift {
+            employee_id: Some(0),
+            start: 0,
+            end: 2,
+        }],
+        employees: vec![Employee { id: 0 }, Employee { id: 1 }, Employee { id: 2 }],
+    };
+    // pair (s0,e0): shift window [0,2) vs each employee's [id, id+2).
+    //   id 0: [0,2) overlaps [0,2) -> yes
+    //   id 1: [0,2) vs [1,3) -> yes
+    //   id 2: [0,2) vs [2,4) -> no (half-open)
+    assert_eq!(later_arity_overlap().evaluate(&schedule), SoftScore::of(-2));
+    assert_eq!(later_arity_overlap().match_count(&schedule), 2);
+}

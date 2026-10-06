@@ -251,10 +251,17 @@ fn night_shift_staffed() -> impl IncrementalConstraint<Schedule, SoftScore> {
 }
 ```
 
-Equality conditions probe indexed candidates; an arbitrary predicate
-relationship scans retained opposite rows instead, and the two may be mixed
-across a chain. `docs/extend-scoring.md` covers the low-level typed row and
-condition-plan protocol for writing new operators.
+Conditions compose, and each relationship may mix them. Equality probes
+indexed candidates; comparison (`less_than`, `greater_than`, and their
+`_or_equal` forms) and interval `overlapping` narrow candidates through their
+own indexes; an arbitrary predicate relationship scans retained opposite rows
+instead. Compose several with `.and(...)` — `equal_bi(..).and(less_than(..))`
+indexes the usable equality portion and keeps the comparison as an exact
+residual check. Right-hand inputs may be collections or compatible derived
+streams (joined, filtered, projected, grouped, complemented).
+`docs/extend-scoring.md` covers the low-level typed row and condition-plan
+protocol for writing new operators, including how entity-authored conditions
+(`Fn(&A) -> T`) execute over the operator tree's leaf views.
 
 ## Installation
 

@@ -13,7 +13,7 @@ use solverforge_core::score::SoftScore;
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::count;
-use crate::stream::joiner::{equal_bi, less_than};
+use crate::stream::joiner::{equal_bi, less_than, overlapping};
 use crate::stream::ConstraintFactory;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -181,6 +181,53 @@ fn equality_and_comparison_compose() {
     };
     let c = equality_plus_comparison();
     // Only the second shift joins employee 0 with start < 3.
+    assert_eq!(c.evaluate(&schedule), SoftScore::of(-1));
+    assert_eq!(c.match_count(&schedule), 1);
+}
+
+// Interval overlap in a chain: a shift overlaps an employee's availability
+// window. Bounds are authored over entities and executed over leaf views.
+fn overlap_condition_chain() -> impl IncrementalConstraint<Schedule, SoftScore> {
+    ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
+            shifts as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        ))
+        .join((
+            source(
+                employees as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            overlapping(
+                |s: &Shift| s.start,
+                |s: &Shift| s.end,
+                |e: &Employee| e.id as i64,
+                |e: &Employee| e.id as i64 + 2,
+            ),
+        ))
+        .penalize(SoftScore::of(1))
+        .named("overlap chain")
+}
+
+#[test]
+fn overlap_condition_composes_in_a_chain() {
+    let schedule = Schedule {
+        shifts: vec![
+            Shift {
+                employee_id: Some(0),
+                start: 0,
+                end: 2,
+            }, // [0,2) overlaps employee 0's [0,2)
+            Shift {
+                employee_id: Some(0),
+                start: 5,
+                end: 6,
+            }, // [5,6) overlaps nothing
+        ],
+        employees: vec![Employee { id: 0 }],
+    };
+    let c = overlap_condition_chain();
+    // Only the first shift overlaps the single employee window [0,2).
     assert_eq!(c.evaluate(&schedule), SoftScore::of(-1));
     assert_eq!(c.match_count(&schedule), 1);
 }

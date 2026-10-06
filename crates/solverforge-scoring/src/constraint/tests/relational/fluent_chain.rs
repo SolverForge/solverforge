@@ -15,13 +15,13 @@ use crate::stream::joiner::{equal_bi, equal_on};
 use crate::stream::relational::{operator::Pair, Leaf};
 use crate::stream::ConstraintFactory;
 
+use super::fixtures::{assignment_key, shift_key};
 use super::fixtures::{
     rel_assignments, rel_employees, rel_shifts, sample, RelAssignment, RelEmployee, RelSchedule,
     RelShift,
 };
 use super::oracle::{oracle_rows, oracle_score};
 use super::row_keys::{employee_key, row_pair_employee_code};
-use super::updates::{assignment_key, shift_key};
 
 fn fluent_night_staffed() -> impl IncrementalConstraint<RelSchedule, SoftScore> {
     ConstraintFactory::<RelSchedule, SoftScore>::new()

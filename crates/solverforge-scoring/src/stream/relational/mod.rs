@@ -1,35 +1,25 @@
-/* Typed relational row machinery shared by join operators and scoring terminals.
+/* Typed relational row machinery for the common operator tree.
 
-Produces reusable rows independently of scoring: stable generational
-identities, dense swap_remove storage, borrowed row shapes, provenance
-traversal, and delta coalescing. Terminal scoring lives under
-`constraint::relational`. Neither module introduces a public erased graph
-API: everything here is concrete and monomorphized.
+Stable generational identities, dense swap_remove storage, borrowed row
+shapes, concrete index strategies, and the operator protocol. Scoring
+terminals live under `constraint::relational`. Nothing here introduces a
+public erased graph API: every type is concrete and monomorphized.
 */
 
-mod delta;
 mod handle_map;
 mod identity;
 pub(crate) mod index;
-mod join;
 pub(crate) mod leaf_collector;
 pub mod operator;
-mod provenance;
 mod row;
-mod source;
 mod storage;
 pub(crate) mod view_plan;
 
-pub(crate) use delta::{DeltaBuffer, OutputDelta};
 pub(crate) use handle_map::HandleMap;
 #[doc(hidden)]
 pub use identity::RowHandle;
 pub(crate) use identity::{BindingId, JoinedIdentity};
-pub(crate) use index::HashIndex;
-pub(crate) use join::{DeltaKind, EquiJoin};
-pub(crate) use provenance::{Participation, Provenance};
 #[allow(unused_imports)]
 pub(crate) use row::Row;
 pub use row::{Concat, Leaf};
-pub(crate) use source::Source;
 pub(crate) use storage::DenseRowStore;

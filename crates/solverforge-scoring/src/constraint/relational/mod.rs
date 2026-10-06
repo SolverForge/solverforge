@@ -1,20 +1,12 @@
-/* Generic relational scoring terminal over composable join operators.
+/* Generic relational scoring terminal over the common operator tree.
 
-Owns one operator's state plus the retained signed score per terminal
-row. The operator decides WHICH pairs join; the terminal decides WHAT
-each pair scores and publishes signed deltas through
-`IncrementalConstraint`. One operator family serves every arity: binary
-joins land first; deeper rows follow without new terminal logic.
+One terminal scores any operator tree and retains a signed score per
+terminal row; the operator decides WHICH rows exist, the terminal decides
+WHAT each row scores and publishes signed deltas through
+`IncrementalConstraint`. Arity lives entirely in the operator tree, so one
+terminal serves every depth.
 */
 
-mod debug;
-mod incremental;
 mod operator_terminal;
-mod shared_set;
-mod state;
-mod weight;
 
 pub use operator_terminal::OperatorTerminal;
-pub use shared_set::{OperatorConsumer, SharedOperatorSet};
-pub use state::Terminal;
-pub use weight::{RelationalWeight, RelationalWeight3};

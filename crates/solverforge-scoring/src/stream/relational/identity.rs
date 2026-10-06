@@ -73,8 +73,4 @@ impl JoinedIdentity {
     pub(crate) fn right(self) -> RowHandle {
         self.right
     }
-
-    pub(crate) fn emission(self) -> u32 {
-        self.emission
-    }
 }

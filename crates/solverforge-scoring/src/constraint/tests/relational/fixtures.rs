@@ -133,3 +133,12 @@ pub(super) fn coincidence_sample() -> RelSchedule {
         score: None,
     }
 }
+
+// Shared relationship keys for the fixtures' assignment↔shift topology.
+pub(super) fn assignment_key(assignment: &RelAssignment) -> u32 {
+    assignment.shift_id
+}
+
+pub(super) fn shift_key(shift: &RelShift) -> u32 {
+    shift.id
+}

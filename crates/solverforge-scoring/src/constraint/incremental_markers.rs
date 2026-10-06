@@ -12,7 +12,6 @@ use super::{
         Bi as ProjectedBi, ComplementedGrouped as ProjectedComplementedGrouped,
         DirectedBi as ProjectedDirectedBi, Grouped as ProjectedGrouped, Uni as ProjectedUni,
     },
-    relational::Terminal as RelationalTerminal,
     BalanceConstraint, IncrementalUniConstraint,
 };
 
@@ -20,13 +19,6 @@ impl<S, O, W, Sc> IncrementalConstraintSealed for super::relational::OperatorTer
 
 impl<S, A, E, F, W, Sc> IncrementalConstraintSealed for IncrementalUniConstraint<S, A, E, F, W, Sc> where
     Sc: Score
-{
-}
-
-impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> IncrementalConstraintSealed
-    for RelationalTerminal<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-where
-    Sc: Score,
 {
 }
 

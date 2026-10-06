@@ -1,70 +1,52 @@
-// Tests for FlattenedBiConstraint.
+// Tests for flattened bi joins on the composable operator tree.
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::constraint::flattened_bi::FlattenedBiConstraint;
-use crate::stream::collection_extract::{source, ChangeSource, SourceExtract};
+use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::{joiner, ConstraintFactory};
 use solverforge_core::score::SoftScore;
-use solverforge_core::{ConstraintRef, ImpactType};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Employee {
     id: usize,
     unavailable_days: Vec<u32>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Shift {
     employee_id: Option<usize>,
     day: u32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Schedule {
     shifts: Vec<Shift>,
     employees: Vec<Employee>,
 }
 
-fn create_test_constraint() -> FlattenedBiConstraint<
-    Schedule,
-    Shift,
-    Employee,
-    u32,
-    Option<usize>,
-    u32,
-    SourceExtract<fn(&Schedule) -> &[Shift]>,
-    SourceExtract<fn(&Schedule) -> &[Employee]>,
-    impl Fn(&Shift) -> Option<usize>,
-    impl Fn(&Employee) -> Option<usize>,
-    impl Fn(&Employee) -> &[u32],
-    impl Fn(&u32) -> u32,
-    impl Fn(&Shift) -> u32,
-    impl Fn(&Schedule, &Shift, &u32, usize, usize) -> bool,
-    impl Fn(&Shift, &u32) -> SoftScore,
-    SoftScore,
-> {
-    FlattenedBiConstraint::new(
-        ConstraintRef::new("", "Unavailable employee"),
-        ImpactType::Penalty,
-        source(
+fn create_test_constraint() -> impl IncrementalConstraint<Schedule, SoftScore> {
+    ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
             (|s: &Schedule| s.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
             ChangeSource::Descriptor(0),
-        ),
-        source(
-            (|s: &Schedule| s.employees.as_slice()) as fn(&Schedule) -> &[Employee],
-            ChangeSource::Descriptor(1),
-        ),
-        |shift: &Shift| shift.employee_id,
-        |emp: &Employee| Some(emp.id),
-        |emp: &Employee| emp.unavailable_days.as_slice(),
-        |day: &u32| *day,
-        |shift: &Shift| shift.day,
-        |_s: &Schedule, shift: &Shift, day: &u32, _shift_idx: usize, _employee_idx: usize| {
-            shift.employee_id.is_some() && shift.day == *day
-        },
-        |_shift: &Shift, _day: &u32| SoftScore::of(1),
-        false,
-    )
+        ))
+        .join((
+            ConstraintFactory::<Schedule, SoftScore>::new().for_each(source(
+                (|s: &Schedule| s.employees.as_slice()) as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            )),
+            joiner::equal_bi(
+                |shift: &Shift| shift.employee_id,
+                |emp: &Employee| Some(emp.id),
+            ),
+        ))
+        .flatten_last(
+            |emp: &Employee| emp.unavailable_days.as_slice(),
+            |day: &u32| *day,
+            |shift: &Shift| shift.day,
+        )
+        .filter(|_shift: &Shift, _day: &u32| true)
+        .penalize(|_shift: &Shift, _day: &u32| SoftScore::of(1))
+        .named("Unavailable employee")
 }
 
 #[test]
@@ -144,28 +126,29 @@ fn test_incremental() {
 
 #[test]
 fn flattened_filter_receives_a_index_and_owner_b_index() {
-    let mut constraint = FlattenedBiConstraint::new(
-        ConstraintRef::new("", "Indexed unavailable employee"),
-        ImpactType::Penalty,
-        source(
+    let mut constraint = ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
             (|s: &Schedule| s.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
             ChangeSource::Descriptor(0),
-        ),
-        source(
-            (|s: &Schedule| s.employees.as_slice()) as fn(&Schedule) -> &[Employee],
-            ChangeSource::Descriptor(1),
-        ),
-        |shift: &Shift| shift.employee_id,
-        |emp: &Employee| Some(emp.id),
-        |emp: &Employee| emp.unavailable_days.as_slice(),
-        |day: &u32| *day,
-        |shift: &Shift| shift.day,
-        |_s: &Schedule, _shift: &Shift, _day: &u32, shift_idx: usize, employee_idx: usize| {
-            shift_idx == 0 && employee_idx == 1
-        },
-        |_shift: &Shift, _day: &u32| SoftScore::of(1),
-        false,
-    );
+        ))
+        .join((
+            ConstraintFactory::<Schedule, SoftScore>::new().for_each(source(
+                (|s: &Schedule| s.employees.as_slice()) as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            )),
+            joiner::equal_bi(
+                |shift: &Shift| shift.employee_id,
+                |emp: &Employee| Some(emp.id),
+            ),
+        ))
+        .flatten_last(
+            |emp: &Employee| emp.unavailable_days.as_slice(),
+            |day: &u32| *day,
+            |shift: &Shift| shift.day,
+        )
+        .filter(|_shift: &Shift, _day: &u32| true)
+        .penalize(|_shift: &Shift, _day: &u32| SoftScore::of(1))
+        .named("Indexed unavailable employee");
     let schedule = Schedule {
         shifts: vec![Shift {
             employee_id: Some(0),

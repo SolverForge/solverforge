@@ -14,7 +14,7 @@ use super::{
         DirectedBi as ProjectedDirectedBi, Grouped as ProjectedGrouped, Uni as ProjectedUni,
     },
     relational::Terminal as RelationalTerminal,
-    BalanceConstraint, FlattenedBiConstraint, IncrementalBiConstraint, IncrementalPentaConstraint,
+    BalanceConstraint, IncrementalBiConstraint, IncrementalPentaConstraint,
     IncrementalQuadConstraint, IncrementalTriConstraint, IncrementalUniConstraint,
 };
 
@@ -55,14 +55,6 @@ where
 
 impl<S, A, B, K, EA, EB, KA, KB, F, W, Sc> IncrementalConstraintSealed
     for RelationalTerminal<S, A, B, K, EA, EB, KA, KB, F, W, Sc>
-where
-    Sc: Score,
-{
-}
-
-impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>
-    IncrementalConstraintSealed
-    for FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>
 where
     Sc: Score,
 {

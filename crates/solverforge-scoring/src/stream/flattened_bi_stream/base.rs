@@ -2,13 +2,20 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
+use solverforge_core::ImpactType;
 
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::{AndBiFilter, BiFilter, FnBiFilter, TrueFilter};
+use super::super::weighting_support::ConstraintWeight;
 
-/* O(1) flattened bi-constraint stream.
+use super::builder::FlattenedBiConstraintBuilder;
 
-Pre-indexes C items by key for O(1) lookup.
+/* Flattened bi-constraint stream.
+
+Joins each A entity to the flattened C items of the B entity sharing its join
+key, matching on a second lookup key. The relationship is a `ViewEqualPlan`
+over `(join key, lookup key)` on the left and `(owner key, child key)` on the
+right; the right input is a `FlattenNode` over a B collection.
 */
 pub struct FlattenedBiConstraintStream<
     S,
@@ -164,6 +171,112 @@ where
             ),
             _phantom: PhantomData,
         }
+    }
+
+    fn into_weighted_builder<W>(
+        self,
+        impact_type: ImpactType,
+        weight: W,
+        is_hard: bool,
+    ) -> FlattenedBiConstraintBuilder<
+        S,
+        A,
+        B,
+        C,
+        K,
+        CK,
+        EA,
+        EB,
+        KA,
+        KB,
+        Flatten,
+        CKeyFn,
+        ALookup,
+        F,
+        W,
+        Sc,
+    >
+    where
+        W: Fn(&A, &C) -> Sc + Send + Sync,
+    {
+        FlattenedBiConstraintBuilder {
+            extractor_a: self.extractor_a,
+            extractor_b: self.extractor_b,
+            key_a: self.key_a,
+            key_b: self.key_b,
+            flatten: self.flatten,
+            c_key_fn: self.c_key_fn,
+            a_lookup_fn: self.a_lookup_fn,
+            filter: self.filter,
+            impact_type,
+            weight,
+            is_hard,
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn penalize<W>(
+        self,
+        weight: W,
+    ) -> FlattenedBiConstraintBuilder<
+        S,
+        A,
+        B,
+        C,
+        K,
+        CK,
+        EA,
+        EB,
+        KA,
+        KB,
+        Flatten,
+        CKeyFn,
+        ALookup,
+        F,
+        impl Fn(&A, &C) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W: for<'w> ConstraintWeight<(&'w A, &'w C), Sc> + Send + Sync,
+    {
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            ImpactType::Penalty,
+            move |a: &A, c: &C| weight.score((a, c)),
+            is_hard,
+        )
+    }
+
+    pub fn reward<W>(
+        self,
+        weight: W,
+    ) -> FlattenedBiConstraintBuilder<
+        S,
+        A,
+        B,
+        C,
+        K,
+        CK,
+        EA,
+        EB,
+        KA,
+        KB,
+        Flatten,
+        CKeyFn,
+        ALookup,
+        F,
+        impl Fn(&A, &C) -> Sc + Send + Sync,
+        Sc,
+    >
+    where
+        W: for<'w> ConstraintWeight<(&'w A, &'w C), Sc> + Send + Sync,
+    {
+        let is_hard = weight.is_hard();
+        self.into_weighted_builder(
+            ImpactType::Reward,
+            move |a: &A, c: &C| weight.score((a, c)),
+            is_hard,
+        )
     }
 }
 

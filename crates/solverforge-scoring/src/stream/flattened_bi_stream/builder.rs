@@ -4,12 +4,19 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use crate::constraint::flattened_bi::FlattenedBiConstraint;
-
 use super::super::collection_extract::CollectionExtract;
 use super::super::filter::BiFilter;
+use super::super::relational::operator::FlattenView;
+use super::super::relational::operator::{CollectionNode, FlattenNode, Pair};
+use super::super::relational::view_plan::{EntityKey, FlattenedPairKey, PairKey, ViewEqualPlan};
+use super::super::relational::Leaf;
+use super::scored::FlattenedBiScored;
+use crate::constraint::relational::OperatorTerminal;
 
-// Builder for finalizing an O(1) indexed flattened bi-constraint.
+/* Finalizes a flattened bi-constraint onto the shared operator tree: a
+`JoinNode` between the A collection and a `FlattenNode` over the B collection,
+joined on `(join key, lookup key) == (owner key, child key)`. Scoring is the
+generic `OperatorTerminal`. */
 pub struct FlattenedBiConstraintBuilder<
     S,
     A,
@@ -73,60 +80,71 @@ impl<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>
     >
 where
     S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
+    A: Clone + Send + Sync + std::fmt::Debug + 'static,
     B: Clone + Send + Sync + 'static,
-    C: Clone + Send + Sync + 'static,
-    K: Eq + Hash + Clone + Send + Sync,
-    CK: Eq + Hash + Clone + Send + Sync,
-    EA: CollectionExtract<S, Item = A>,
-    EB: CollectionExtract<S, Item = B>,
-    KA: Fn(&A) -> K + Send + Sync,
-    KB: Fn(&B) -> K + Send + Sync,
-    Flatten: Fn(&B) -> &[C] + Send + Sync,
-    CKeyFn: Fn(&C) -> CK + Send + Sync,
-    ALookup: Fn(&A) -> CK + Send + Sync,
-    F: BiFilter<S, A, C>,
+    C: 'static,
+    K: Eq + Hash + Clone + Send + Sync + 'static,
+    CK: Eq + Hash + Clone + Send + Sync + 'static,
+    EA: CollectionExtract<S, Item = A> + Send + Sync + 'static,
+    EB: CollectionExtract<S, Item = B> + Send + Sync + 'static,
+    KA: Fn(&A) -> K + Send + Sync + 'static,
+    KB: Fn(&B) -> K + Send + Sync + 'static,
+    Flatten: for<'a> Fn(&'a B) -> &'a [C] + Send + Sync + 'static,
+    CKeyFn: Fn(&C) -> CK + Send + Sync + 'static,
+    ALookup: Fn(&A) -> CK + Send + Sync + 'static,
+    F: BiFilter<S, A, C> + 'static,
     W: Fn(&A, &C) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     pub fn named(
         self,
         name: &str,
-    ) -> FlattenedBiConstraint<
+    ) -> OperatorTerminal<
         S,
-        A,
-        B,
-        C,
-        K,
-        CK,
-        EA,
-        EB,
-        KA,
-        KB,
-        Flatten,
-        CKeyFn,
-        ALookup,
-        impl Fn(&S, &A, &C, usize, usize) -> bool + Send + Sync,
-        W,
+        FlattenedBiScored<
+            S,
+            A,
+            B,
+            C,
+            super::super::relational::operator::JoinNode<
+                S,
+                CollectionNode<S, EA>,
+                FlattenNode<
+                    CollectionNode<S, EB>,
+                    super::super::relational::operator::ParentFlatten<Flatten>,
+                >,
+                ViewEqualPlan<
+                    (K, CK),
+                    PairKey<EntityKey<KA>, EntityKey<ALookup>>,
+                    FlattenedPairKey<KB, CKeyFn>,
+                >,
+            >,
+            F,
+        >,
+        impl for<'a> Fn(&S, &Pair<Leaf<'a, A>, FlattenView<'a, Leaf<'a, B>, C>>) -> Sc + Send + Sync,
         Sc,
     > {
-        let filter = self.filter;
-        let combined_filter = move |s: &S, a: &A, c: &C, a_idx: usize, b_idx: usize| {
-            filter.test(s, a, c, a_idx, b_idx)
+        let plan = ViewEqualPlan::new(
+            PairKey::new(EntityKey::new(self.key_a), EntityKey::new(self.a_lookup_fn)),
+            FlattenedPairKey::new(self.key_b, self.c_key_fn),
+        );
+        let left = CollectionNode::new(self.extractor_a, 1);
+        let right = FlattenNode::new(
+            CollectionNode::new(self.extractor_b, 0),
+            super::super::relational::operator::ParentFlatten::new(self.flatten),
+        );
+        let tree = super::super::relational::operator::JoinNode::new(left, right, plan);
+        let scored = FlattenedBiScored::new(tree, self.filter);
+        let weight = self.weight;
+        let weight_fn = move |_: &S, row: &Pair<Leaf<'_, A>, FlattenView<'_, Leaf<'_, B>, C>>| {
+            let (a, c) = super::scored::FlattenedBiEntities::entities(row);
+            weight(a, c)
         };
-
-        FlattenedBiConstraint::new(
+        OperatorTerminal::new(
             ConstraintRef::new("", name),
             self.impact_type,
-            self.extractor_a,
-            self.extractor_b,
-            self.key_a,
-            self.key_b,
-            self.flatten,
-            self.c_key_fn,
-            self.a_lookup_fn,
-            combined_filter,
-            self.weight,
+            scored,
+            weight_fn,
             self.is_hard,
         )
     }

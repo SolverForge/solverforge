@@ -5,7 +5,7 @@ Provides O(1) lookup for flattened items by pre-indexing C items by key.
 
 mod base;
 mod builder;
-mod weighting;
+mod scored;
 
 pub use base::FlattenedBiConstraintStream;
 pub use builder::FlattenedBiConstraintBuilder;

@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.19.9](https://github.com/SolverForge/solverforge/compare/v0.19.8...v0.19.9) (2026-10-08)
+
+### Features
+
+* **scoring:** add an arity-free fluent join chain past Penta 0d634da
+* **scoring:** add an arity-generic self-join uniqueness operator 4c07663
+* **scoring:** add chained relational join with row-aware keys and triple terminal bccb4b3
+* **scoring:** add relational binary equi-join operator and generic terminal 30bddbe
+* **scoring:** add row-aware chained fluent join with independent key types 1a6783d
+* **scoring:** compose indexed semi and anti row producers 35bbad3
+* **scoring:** compose membership filters on either join input 8e620c6
+* **scoring:** compose target-domain complements with owned defaults e26d80f
+* **scoring:** dispatch comparison, overlap, and composed join conditions 48a7771
+* **scoring:** flatten borrowed children from arbitrary owned rows c86d784
+* **scoring:** fluent join chaining to four and five sources ac3cfc8
+* **scoring:** let grouped results join a second collection 7d7e9b0
+* **scoring:** own fresh derived values during relational evaluation 9382b76
+* **scoring:** publish owned grouped rows through composable operators 7835656
+* **scoring:** retain branch identities in generic bag unions 9b58c2e
+* **scoring:** share one operator tree across score consumers c153eee
+
+### Bug Fixes
+
+* **solver:** clear the pause request under the pause gate 5c17b92
+
 ## [0.19.8](https://github.com/SolverForge/solverforge/compare/v0.19.7...v0.19.8) (2026-10-02)
 
 

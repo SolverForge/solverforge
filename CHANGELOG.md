@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.19.10](https://github.com/SolverForge/solverforge/compare/v0.19.9...v0.19.10) (2026-10-09)
+
+### Bug Fixes
+
+* **bench:** make the zero-regression gate satisfiable and layout-fair cab2e1e
+* **bench:** stage both gate sides into equal-length paths 21f7879
+* **docs:** synchronize documentation and release generation 51edad1
+* **scoring:** filter unary sources before keyed join initialization b0e97d0
+* **solver:** advance optional construction past completed roots b7ab523
+
 ## [0.19.9](https://github.com/SolverForge/solverforge/compare/v0.19.8...v0.19.9) (2026-10-08)
 
 ### Features

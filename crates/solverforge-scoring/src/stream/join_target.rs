@@ -77,17 +77,25 @@ where
     KB: Fn(&B) -> K + Send + Sync,
     Sc: Score + 'static,
 {
-    type Output = Bi<S, A, B, BiUnaryPlan<K, KA, KB>, E, EB, UniLeftBiFilter<F, B>, Sc>;
+    type Output = Bi<
+        S,
+        A,
+        B,
+        BiUnaryPlan<K, KA, KB>,
+        super::collection_extract::FilteredExtract<E, F>,
+        EB,
+        super::filter::TrueFilter,
+        Sc,
+    >;
 
     fn apply(self, extractor_a: E, filter_a: F) -> Self::Output {
         let (extractor_b, joiner) = self;
         let (key_a, key_b) = joiner.into_keys();
-        let bi_filter = UniLeftBiFilter::new(filter_a);
         Bi::from_condition(
-            extractor_a,
+            super::collection_extract::FilteredExtract::new(extractor_a, filter_a),
             extractor_b,
             BiUnaryPlan::new(key_a, key_b),
-            bi_filter,
+            super::filter::TrueFilter,
         )
     }
 }

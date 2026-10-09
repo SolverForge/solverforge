@@ -46,6 +46,41 @@ pub trait CollectionExtract<S>: Send + Sync {
     }
 }
 
+/* Preserves a unary stream's membership at the source boundary, before
+indexed joins build keys or materialize pairs. The original slice and index
+mapping remain unchanged so descriptor-local mutations keep their identity. */
+#[doc(hidden)]
+pub struct FilteredExtract<E, F> {
+    extractor: E,
+    filter: F,
+}
+
+impl<E, F> FilteredExtract<E, F> {
+    pub fn new(extractor: E, filter: F) -> Self {
+        Self { extractor, filter }
+    }
+}
+
+impl<S, E, F> CollectionExtract<S> for FilteredExtract<E, F>
+where
+    E: CollectionExtract<S>,
+    F: super::filter::UniFilter<S, E::Item>,
+{
+    type Item = E::Item;
+
+    fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item] {
+        self.extractor.extract(s)
+    }
+
+    fn contains(&self, s: &S, item: &Self::Item) -> bool {
+        self.extractor.contains(s, item) && self.filter.test(s, item)
+    }
+
+    fn change_source(&self) -> ChangeSource {
+        self.extractor.change_source()
+    }
+}
+
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChangeSource {

@@ -166,6 +166,74 @@ fn two_employee_schedule() -> Schedule {
 }
 
 #[test]
+fn cross_bi_prefilter_excludes_unassigned_rows_before_keying() {
+    let keys = Arc::new(AtomicUsize::new(0));
+    let counted_keys = Arc::clone(&keys);
+    let src = || {
+        source(
+            shifts_src as fn(&Schedule) -> &[Shift],
+            ChangeSource::Descriptor(0),
+        )
+    };
+    let mut constraint = ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(src())
+        .filter(|shift: &Shift| shift.employee_id.is_some())
+        .join((
+            src(),
+            equal_bi(
+                move |shift: &Shift| {
+                    counted_keys.fetch_add(1, Ordering::Relaxed);
+                    shift.employee_id
+                },
+                |shift: &Shift| shift.employee_id,
+            ),
+        ))
+        .filter(|left: &Shift, right: &Shift| left.day < right.day)
+        .penalize(SoftScore::of(1))
+        .named("prefiltered assignment pairs");
+    let mut schedule = Schedule {
+        shifts: (0..64)
+            .map(|day| Shift {
+                employee_id: None,
+                day,
+            })
+            .collect(),
+        employees: Vec::new(),
+    };
+    let started = std::time::Instant::now();
+    assert_eq!(constraint.initialize(&schedule), SoftScore::zero());
+    eprintln!(
+        "unassigned startup: {:?}, left key calls: {}",
+        started.elapsed(),
+        keys.load(Ordering::Relaxed)
+    );
+    assert_eq!(
+        keys.swap(0, Ordering::Relaxed),
+        0,
+        "rejected source rows must not enter the retained join or its None-key bucket"
+    );
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::zero());
+    assert_eq!(
+        keys.swap(0, Ordering::Relaxed),
+        0,
+        "stateless evaluation must honor the same source membership"
+    );
+
+    assert_eq!(constraint.on_retract(&schedule, 0, 0), SoftScore::zero());
+    schedule.shifts[0].employee_id = Some(7);
+    assert_eq!(constraint.on_insert(&schedule, 0, 0), SoftScore::zero());
+    assert_eq!(constraint.on_retract(&schedule, 0, 1), SoftScore::zero());
+    assert_eq!(constraint.on_retract(&schedule, 1, 0), SoftScore::zero());
+    schedule.shifts[1].employee_id = Some(7);
+    assert_eq!(constraint.on_insert(&schedule, 1, 0), SoftScore::of(-1));
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-1));
+    assert_eq!(constraint.on_retract(&schedule, 0, 0), SoftScore::of(1));
+    schedule.shifts[0].employee_id = None;
+    assert_eq!(constraint.on_insert(&schedule, 0, 0), SoftScore::zero());
+    assert_eq!(constraint.evaluate(&schedule), SoftScore::zero());
+}
+
+#[test]
 fn cross_bi_unrelated_insert_skips_extractors() {
     let shift_extract_calls = Arc::new(AtomicUsize::new(0));
     let employee_extract_calls = Arc::new(AtomicUsize::new(0));

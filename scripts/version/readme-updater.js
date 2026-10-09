@@ -4,7 +4,7 @@
 
 const VERSION = String.raw`[0-9]+\.[0-9]+\.[0-9]+`;
 const patterns = [
-  new RegExp(String.raw`(Current workspace version:\*\* )(${VERSION})`, "g"),
+  new RegExp(String.raw`(Current workspace version:\*\* )(${VERSION})()`, "g"),
   new RegExp(
     String.raw`(solverforge = \{ version = ")(${VERSION})(", features = \["console"\])`,
     "g",
@@ -30,7 +30,11 @@ module.exports.writeVersion = function (contents, version) {
     pattern.lastIndex = 0;
     if (pattern.test(updated)) {
       pattern.lastIndex = 0;
-      updated = updated.replace(pattern, `$1${version}$3`);
+      updated = updated.replace(
+        pattern,
+        (_match, prefix, _previousVersion, suffix = "") =>
+          `${prefix}${version}${suffix}`,
+      );
       replaced = true;
     }
   }

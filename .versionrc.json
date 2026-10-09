@@ -1,8 +1,12 @@
 {
   "tagPrefix": "v",
+  "commitAll": true,
   "releaseCommitMessageFormat": "chore(release): {{currentTag}}",
   "commitUrlFormat": "https://github.com/SolverForge/solverforge/commit/{{hash}}",
   "compareUrlFormat": "https://github.com/SolverForge/solverforge/compare/{{previousTag}}...{{currentTag}}",
+  "scripts": {
+    "postbump": "node scripts/solverforge-architecture.js && git add docs/architecture.html"
+  },
   "packageFiles": [
     {
       "filename": "Cargo.toml",

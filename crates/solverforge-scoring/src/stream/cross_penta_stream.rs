@@ -296,13 +296,12 @@ where
     >,
     BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>: Send + Sync,
 {
-    /* Continues the chain past the named arities.
-
-    Returns a `Chain` wrapping this penta's tree; subsequent `.join(...)`
-    calls nest further `JoinNode`s with no fixed ceiling. The continuation
-    drops the penta's authored filter slot, so apply `.filter(...)` on the
-    returned chain instead.
-    */
+    /// Continues the chain past the named cross-stream arities.
+    ///
+    /// Returns a `Chain` wrapping this penta's tree; subsequent `.join(...)`
+    /// calls nest further `JoinNode`s with no fixed ceiling. The continuation
+    /// drops the penta's authored filter slot, so apply `.filter(...)` on the
+    /// returned chain instead.
     pub fn join<G, EG, P5>(
         self,
         target: (EG, P5),

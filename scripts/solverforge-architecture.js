@@ -34,8 +34,7 @@ light = light.replace(/rgba\(167,139,250,0\.10\)|rgba\(20,184,166,0\.10\)|rgba\(
   .replace(/<text[^>]*>SolverManager::solve\(\)<\/text>/g, '')
   .replace(/<text[^>]*>the zero-erasure path<\/text>/g, '')
   .replace(/<text[^>]*>the repo is the kernel; everything else builds on it<\/text>/g, '')
-  .replace(/kernel repo \/srv\/lab\/dev\/solverforge\/solverforge/g, 'native Rust planning engine')
-  .replaceAll('v0.19.8', `v${version}`);
+  .replace(/kernel repo \/srv\/lab\/dev\/solverforge\/solverforge/g, 'native Rust planning engine');
 
 // SVG fragment identifiers are local to each panel, including referenced markers.
 function diagram(svg, id, viewBox, label) {
@@ -54,7 +53,7 @@ function diagram(svg, id, viewBox, label) {
 const panels = [
   ['model', '01', 'Model and configuration', 'Entities, facts, variables, and configuration enter through the public facade.', '60 142 1480 190'],
   ['crates', '02', 'Crate dependencies', 'Every direct workspace dependency is shown, pointing to the dependency. The dashed facade-to-console edge is feature-gated.', '60 378 1480 372'],
-  ['pipeline', '03', 'Solve pipeline', 'Build the runtime, complete required assignments, search, and retain the result. Configured limits remain binding during construction.', '60 810 1480 135'],
+  ['pipeline', '03', 'Solve pipeline', 'Build the runtime, complete required assignments, run eligible search, and retain the result. Default search requires effective solver termination; configured limits remain binding during construction.', '60 810 1480 135'],
   ['runtime', '04', 'Runtime', 'Selectors own candidates. Scoring retains incremental state. Only the selected move transfers by ownership.', '60 952 1480 335'],
   ['ecosystem', '05', 'Examples and integrations', 'Workspace examples use the same facade. CLI, bindings, and visualization tools live in separate repositories.', '60 1350 1480 160'],
 ];

@@ -251,17 +251,25 @@ fn night_shift_staffed() -> impl IncrementalConstraint<Schedule, SoftScore> {
 }
 ```
 
+On the first unary keyed equality cross-join, unary source filters exclude rows
+before key extraction and pair creation; filters authored after the join operate
+on joined rows. This left-source pushdown does not apply to comparison, overlap,
+composed-condition, predicate, or same-source self-join dispatch.
+
 Conditions compose, and each relationship may mix them. Equality probes
 indexed candidates; comparison (`less_than`, `greater_than`, and their
 `_or_equal` forms) and interval `overlapping` narrow candidates through their
 own indexes; an arbitrary predicate relationship scans retained opposite rows
 instead. Compose several with `.and(...)` — `equal_bi(..).and(less_than(..))`
 indexes the usable equality portion and keeps the comparison as an exact
-residual check. Right-hand inputs may be collections or compatible derived
-streams (joined, filtered, projected, grouped, complemented). There is no
+residual check. Fluent right-hand targets implement `CollectionExtract`, including
+filtered unary streams. At the low-level operator layer, either `JoinNode` input
+may be a compatible derived producer. There is no
 arity ceiling: `Uni`/`Bi`/`Tri`/`Quad`/`Penta` are ergonomic adapters, and
-`Penta::join` continues into the arity-free `Chain`, whose `.join(...)` nests
-further typed joins as deep as needed. `docs/extend-scoring.md` covers the
+`stream::cross::Penta::join` continues into the arity-free `Chain`, whose `.join(...)` nests
+further typed joins as deep as needed. The current cross-Penta continuation
+discards its authored penta filter; apply the row filter on the returned `Chain`.
+Same-source `PentaConstraintStream` is terminal. `docs/extend-scoring.md` covers the
 low-level typed row and condition-plan protocol for writing new operators,
 including how entity-authored conditions (`Fn(&A) -> T`) execute over the
 operator tree's leaf views.
@@ -368,15 +376,17 @@ list slot, they share the frozen declaration binding but refresh current
 assignments before each phase, so later phases cannot reinsert earlier work or
 reread declaration callbacks.
 
-Those omitted-config defaults run as one streaming acceptor/forager local
-search phase after construction. Multi-family unions use stratified-random
+When top-level termination contains an effective parsed limit, those defaults
+run as one streaming acceptor/forager local-search phase after construction.
+Absent termination, an empty termination object, or invalid score-only
+termination leaves omitted phases construction-only. Multi-family unions use stratified-random
 selection and the stock forager applies finite accepted-count horizons where
 applicable; `limited_neighborhood` remains the explicit cap for configured
 exhaustive selectors. Variable Neighborhood Descent is never prepended
 implicitly.
 
-When full `phases` are omitted, construction runs model-aware defaults before
-that local search: list variables use the matching specialized list
+When full `phases` are omitted, construction runs state-aware model defaults
+before any eligible default local search: list variables use the matching specialized list
 construction, assignment-backed scalar groups commit the hard-first required
 allocation through named grouped `FirstFit`, then run grouped
 `CheapestInsertion` for optional slots, and remaining non-assignment-owned
@@ -384,6 +394,9 @@ scalar variables use descriptor-backed single-slot construction.
 The dense required batch collects independent assignments directly; bounded
 augmenting rematches remain available to the following required cursor instead
 of being explored inside a batch that cannot retain multi-entity edits.
+Keeping an optional assignment unassigned completes that decision without ending
+the optional pass. Completed optional roots are skipped before candidate-domain
+reads or move generation, leaving the candidate budget available for later rows.
 Explicit scalar construction targets that name an assignment-owned variable
 must use the owning `group_name`.
 
@@ -736,7 +749,7 @@ controlled gate has not completed release qualification.
 
 ## Status
 
-**Current workspace version:** 0.19.9$3$3$3$3
+**Current workspace version:** 0.19.9
 
 The current checked-in workspace exposes:
 

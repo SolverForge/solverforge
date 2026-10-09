@@ -102,7 +102,12 @@ where
         }
     }
 
-    /* Joins this stream using the provided join target. */
+    /// Joins this stream using the provided join target.
+    ///
+    /// First keyed equality cross-joins apply this stream's accumulated unary
+    /// filter as source membership before key extraction and pair creation.
+    /// Post-join filters operate on joined rows. Other join dispatches do not
+    /// receive this left-source filter pushdown.
     pub fn join<J>(self, target: J) -> J::Output
     where
         J: super::super::join_target::JoinTarget<S, A, E, F, Sc>,

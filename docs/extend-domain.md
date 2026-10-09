@@ -57,6 +57,35 @@ Use the scaffold as a thin starter, then model the real problem in your app.
 - Add derived fields, validation helpers, and sample data beside the domain
   model, not in the scaffold templates.
 
+## Assignment-backed scalar groups
+
+Use `#[planning_solution(scalar_groups = "scalar_groups")]` to register a
+model-owned function returning `Vec<ScalarGroup<Schedule>>`. Declare an
+assignment group with
+`ScalarGroup::assignment("shift_assignment", Schedule::shifts().scalar("nurse_idx"))`.
+Add `with_required_entity` to identify mandatory rows, `with_capacity_key` for
+shared resource capacity, and ordering hooks when the construction heuristic
+requires them. The complete implementation is in the
+[minimal shift-scheduling model](../examples/minimal-shift-scheduling/src/domain/schedule.rs).
+
+Field-level `allows_unassigned` permits a nullable scalar value; the assignment
+group's required-row predicate separately determines which rows must be assigned
+before publication. Assignment-owned variables use named grouped construction
+and the configured `grouped_scalar_move_selector`, not generic scalar selectors.
+Keeping an optional row unassigned completes that construction decision and
+allows the pass to continue to later rows.
+
+## Filter nullable scoring sources before equality joins
+
+On the first unary keyed equality cross-join, put
+`.filter(|row| row.assignment_idx.is_some())` before `.join(...)` on every unary
+input whose unassigned rows should be excluded. Source membership then excludes
+those rows before key extraction and pair creation, preserving original source
+indexes and incremental membership transitions. A pair filter after `.join(...)`
+does not prevent key extraction. This left-source pushdown is specific to that
+equality dispatch, not comparison, composed-condition, predicate, or self-joins.
+See [typed scoring extension guidance](extend-scoring.md) for the exact boundary.
+
 ## Choose the right hook
 
 - Use `nearby_entity_distance_meter` or `nearby_value_distance_meter` only to

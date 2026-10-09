@@ -1004,7 +1004,11 @@ applied as one `CompoundScalarMove<S>` after framework legality, duplicate, and
 not-doable checks. Grouped construction is opt-in by `ConstructionHeuristicConfig
 { group_name }`; without a group name scalar construction remains single-slot.
 `ScalarGroupLimits` separates `value_candidate_limit`,
-`group_candidate_limit`, and `max_moves_per_step`. Grouped construction uses
+`group_candidate_limit`, `max_moves_per_step`, `max_augmenting_depth`, and
+`max_rematch_size`. The latter two bound assignment augmenting-path depth and
+sequence/position rematch size through model-owned `with_limits`; stock defaults
+are depth 3 and rematch size 4, with rematch size clamped to at least 2.
+Grouped construction uses
 config values first and falls back to model-owned `ScalarGroup::with_limits`
 values; it passes effective limits to providers or stock assignment candidate
 generation and applies `group_candidate_limit` after framework normalization.
@@ -1148,6 +1152,10 @@ and use assignment-rule legality through the shared assignment state. With
 `construction_obligation = assign_when_candidate_exists`, required assignment
 construction may commit a doable candidate even when the unassigned baseline
 scores better. Optional assignments remain score-improving only.
+Keeping an optional assignment unassigned completes its anchor decision and
+continues the pass. Completed optional roots are skipped before reading candidate
+domains or generating moves, so they cannot exhaust later rows' candidate budget.
+Assigned occupants remain available for required augmenting rematches.
 
 Assignment-backed grouped scalar selectors emit `CompoundScalarMove`
 candidates for unassigned required entities, capacity conflicts, bounded
@@ -1555,10 +1563,12 @@ repair provider/filter/exposure counters, `construction_slots_assigned`,
 `scalar_assignment_required_remaining`, which
 distinguish scalar construction slots that received a candidate, legally kept
 their current unassigned value, had no doable candidate, or remain uncovered
-after scalar assignment construction. Grouped scalar
+after scalar assignment construction. Candidate-backed grouped scalar
 construction records completion against the exact grouped slot and also marks
 every scalar slot covered by the grouped decision, so later construction phases
-cannot fill those members one by one. `SelectorTelemetry` exposes
+cannot fill those members one by one. Assignment-backed decisions complete only
+the anchor group slot; assigned occupants remain available to required augmenting
+rematches. `SelectorTelemetry` exposes
 `selector_index`, `selector_label`, generated, evaluated, accepted, applied,
 not-doable, acceptor-rejected, forager-ignored, hard-delta, conflict-repair,
 generation-time, and evaluation-time counters for local-search and VND

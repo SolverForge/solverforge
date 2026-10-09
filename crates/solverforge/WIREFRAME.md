@@ -285,6 +285,12 @@ pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollec
 
 Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")`. Use `.join(target)` for all join patterns: self-join, keyed cross-join, and predicate cross-join. Keyed and predicate cross-joins can take a right-hand `UniConstraintStream`, including one with its own `.filter(...)`. Keyed cross joins can either score pairs directly, group joined pairs with `.group_by(|left, right| key, collector)`, complement those grouped pairs with `.complement(source, key, default)`, or project joined pairs into rows with `.project(|left, right| row)`. A keyed cross Bi stream extends to a third source with `.join((extractor_c, key_c))`, yielding `stream::cross::Tri` rows `(A, B, C)` where `key_a(a) == key_b(b) == key_c(c)`; the bi stream's own keys stay authoritative for A and B. `#[planning_solution]` also generates a solution-named convenience trait, such as `PlanConstraintStreams`, so callers can import the trait and write `ConstraintFactory::new().assignments()` for the same concrete source stream.
 
+For the first unary keyed equality cross-join, filters on unary sources exclude
+rows before key extraction and pair creation while preserving original source
+indexes and descriptor-local change metadata. Filters after the join operate on
+joined rows. The left-source pushdown is not provided by comparison, overlap,
+composed-condition, predicate, or same-source self-join dispatch.
+
 Collector helpers are available at `solverforge::stream::collector`, and the
 prelude re-exports `collect_vec`, `count`, `sum`, `load_balance`,
 `consecutive_runs`, `indexed_presence`, `CollectedVec`, `IndexedPresence`,

@@ -19,6 +19,14 @@ values across branches. Join either branch with another operator;
 there is no internal binding-count limit. Public named arity adapters remain
 separate from this low-level row form.
 
+For the first unary keyed equality cross-join, the left unary filter becomes
+source membership before key extraction and pair creation; a filtered unary
+right target supplies its own membership. Original source indexes and change
+metadata are preserved across incremental membership transitions. Post-join
+filters operate on joined rows. This left-filter pushdown does not apply to
+comparison, overlap, composed-condition, predicate, or same-source self-join
+dispatch. The membership adapter is hidden, not a public modeling API.
+
 Resolve source entities against the current solution. Never retain solution
 references across notifications. Output identities refer to generational input
 handles, not equality keys, entity values, or source indexes. Preserve every
@@ -62,12 +70,17 @@ Persistent initialization must retain reverse keys, because retraction removes
 old entries before changed keys are extracted.
 
 Join depth is recursive, not per-arity. `Bi`/`Tri`/`Quad`/`Penta` are fluent
-adapters over the same tree; `Penta::join` returns an arity-free
+cross-stream adapters over the same tree; `stream::cross::Penta::join` returns an arity-free
 `stream::chain::Chain`, and `Chain::join` nests another `JoinNode` whose plan's
 left view is the whole borrowed prior row. Use named `fn` items with explicit
 lifetimes for keys over nested pair rows — a closure annotated over a nested
 row fixes the borrow lifetime and fails the higher-ranked `ExecutablePlan`
 bound. `Chain::filter` wraps the tree in an identity-preserving `FilterNode`.
+The current cross-Penta continuation discards its authored penta filter; apply
+the row filter on the returned `Chain`. Same-source `PentaConstraintStream` is
+terminal. Fluent right-hand targets implement `CollectionExtract`, including
+filtered unary streams; arbitrary derived producers are inputs to low-level
+`JoinNode`, not interchangeable fluent targets.
 
 ## Notifications and terminal scoring
 

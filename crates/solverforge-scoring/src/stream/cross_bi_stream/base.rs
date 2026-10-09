@@ -75,7 +75,7 @@ where
     F: BiFilter<S, A, B>,
     Sc: Score + 'static,
 {
-    /* Builds a keyed cross-bi stream with an initial membership filter. */
+    /// Builds a keyed cross-bi stream with an initial joined-pair filter.
     pub fn new_with_filter(
         extractor_a: EA,
         extractor_b: EB,

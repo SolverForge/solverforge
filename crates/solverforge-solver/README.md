@@ -25,14 +25,19 @@ engine as candidate-backed groups, and support assignment-aware local-search
 moves for required slots, capacity conflicts, reassignments, and bounded
 sequence/position rematches.
 
-`GroupedScalarMoveSelector` exposes the same declared groups during local search.
+Keeping an optional assignment unassigned completes that decision without ending
+the optional construction pass. Completed optional roots are skipped before
+candidate-domain reads or move generation; assigned occupants remain available
+for required augmenting rematches.
+
+The configured `grouped_scalar_move_selector` exposes the same declared groups during local search.
 It is a first-class scalar neighborhood, not cartesian-product composition.
 Assignment-owned scalar slots stay on this grouped path: ungrouped scalar
 construction targets and generic scalar repair selectors do not edit them.
 
 ## Compound Conflict Repair
 
-`CompoundConflictRepairMoveSelector` is the stock conflict-aware repair
+The configured `compound_conflict_repair_move_selector` is the stock conflict-aware repair
 primitive. Domain providers still supply candidate edit hints, but the framework
 owns selector limits, duplicate filtering, legality checks, not-doable filtering,
 hard-improvement filtering, scoring, tabu identity, and affected-entity

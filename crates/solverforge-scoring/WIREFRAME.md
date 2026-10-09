@@ -54,11 +54,13 @@ migration of the fluent stream families:
   `Pair<L, R>` has public `left` and `right` fields. Depth is recursive rather
   than fixed to a named arity.
 - `stream::chain::Chain<S, O, Sc>` is the arity-free fluent continuation:
-  `Penta::join` returns one, and `Chain::join` nests further `JoinNode`s with no
+  `stream::cross::Penta::join` returns one, and `Chain::join` nests further `JoinNode`s with no
   ceiling; `Chain::filter` wraps the tree in an identity-preserving
   `FilterNode`; `Chain::penalize`/`reward` then `ChainBuilder::named` finalize
   into `OperatorTerminal`. The named `Bi`/`Tri`/`Quad`/`Penta` streams are
   ergonomic adapters over the same operator tree, not separate engines.
+  The current cross-Penta continuation discards its authored penta filter; apply
+  the row filter on the returned `Chain`. Same-source `PentaConstraintStream` is terminal.
 - `constraint::relational::OperatorTerminal<S, O, W, Sc>::new(constraint_ref,
   impact, operator, weight, hard)` scores a generic operator; its weight takes
   `(&S, &O::View<'a>)`. It implements incremental scoring, reset, full counts,
@@ -233,7 +235,7 @@ src/
 │   ├── projected_stream/source/filtered.rs         — Row-level filtered projected source
 │   ├── projected_stream/source/merged.rs           — Merged projected sources with source-slot offsets
 │   ├── projected_stream/source/joined.rs           — Cross-join `.project(...)` projected source
-│   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata, VecExtract wrapper, vec() constructor
+│   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata and FilteredExtract membership adapter, VecExtract wrapper, vec() constructor
 │   ├── unassigned.rs                               — Hidden UnassignedEntity hook and `.unassigned()` stream method
 │   ├── weighting_support.rs                        — ConstraintWeight, FixedWeight, HardWeight, and dynamic closure-weight adapters
 │   ├── join_target.rs                              — JoinTarget/ToViewPlan dispatch for self-join, keyed cross-join, comparison, overlap, composed, and predicate cross-join
@@ -623,6 +625,7 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 - Operations: `filter()`, `unassigned()` when the entity implements hidden `UnassignedEntity<S>`, `join(target)` (single dispatch via `JoinTarget`), `group_by()`, `balance()`, `project(projection)` → `stream::projected::Stream`, `flattened(flatten)` → `FlattenedCollectionTarget`, `if_exists(target)`, `if_not_exists(target)`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 - `UniConstraintStream` implements `CollectionExtract` by delegating extraction to its source and applying its accumulated filter through `contains(...)`.
 - Stream targets preserve their own source filters when passed to keyed or predicate cross-joins. This lets `.join((ConstraintFactory::new().for_each(source).filter(pred), equal_bi(...)))` keep the right-side source predicate inside the joined stream.
+- For the first unary keyed equality cross-join, the left unary filter is preserved through hidden source membership before key extraction and pair creation. Original source indexes and change metadata remain intact across incremental membership transitions. Post-join filters remain joined-row filters. This left-filter pushdown does not apply to comparison, overlap, composed-condition, predicate, or same-source self-join dispatch.
 - `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `stream::cross::Bi` (`BiUnaryPlan`); `(extractor_b, less_than/greater_than/…_or_equal(a, b))` → comparison `stream::cross::Bi` (`ViewComparisonPlan`); `(extractor_b, overlapping(sa, ea, sb, eb))` → overlap `stream::cross::Bi` (`ViewOverlapPlan`); `(extractor_b, a.and(b))` → composed `stream::cross::Bi` (operands convert via `ToViewPlan` into one concrete conjunction, `EqualityWithResidual` when equality keys the probe); `(other_stream, |a, b| pred)` → predicate `stream::cross::Bi` (`BiPredicatePlan`, an explicit opposite-input scan — never a synthetic constant equality key)
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 

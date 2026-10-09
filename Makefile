@@ -1,4 +1,4 @@
-# SolverForge Makefile v0.9.2
+# SolverForge Makefile
 # Rust-only build system with colorized output
 
 # ============== Colors & Symbols ==============
@@ -186,6 +186,7 @@ bump-dry:
 # ============== Pre-Release Validation ==============
 
 pre-release: banner
+	@node scripts/version/check-updaters.js
 	@printf "$(CYAN)$(BOLD)╔══════════════════════════════════════════════════════════╗$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)║            Pre-Release Validation v$(VERSION)                  ║$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"

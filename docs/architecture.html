@@ -59,7 +59,7 @@ main{width:var(--sf-width);margin:auto;padding:1.5rem 0 2rem}.page-heading{margi
     </text>
   </g>
 </svg></a><nav class="header-links" aria-label="Site"><a href="https://solverforge.org/docs/">Documentation</a><a href="https://github.com/SolverForge/solverforge">Source</a><a class="active" href="#model">Architecture</a></nav></div></header>
-<main><section class="page-heading" aria-labelledby="page-title"><h1 id="page-title">SolverForge architecture</h1><p>Workspace 0.19.8 · Model, crate dependencies, solve pipeline, runtime, and integrations.</p></section>
+<main><section class="page-heading" aria-labelledby="page-title"><h1 id="page-title">SolverForge architecture</h1><p>Workspace 0.19.9 · Model, crate dependencies, solve pipeline, runtime, and integrations.</p></section>
 <nav class="section-nav" aria-label="Diagram sections"><a href="#model"><span>01</span>Model and configuration</a><a href="#crates"><span>02</span>Crate dependencies</a><a href="#pipeline"><span>03</span>Solve pipeline</a><a href="#runtime"><span>04</span>Runtime</a><a href="#ecosystem"><span>05</span>Examples and integrations</a></nav>
 <section class="architecture-panel" id="model" aria-labelledby="model-title">
   <div class="panel-heading"><div><p class="eyebrow">01 / model</p><h2 id="model-title">Model and configuration</h2></div><p>Entities, facts, variables, and configuration enter through the public facade.</p></div>
@@ -124,8 +124,8 @@ main{width:var(--sf-width);margin:auto;padding:1.5rem 0 2rem}.page-heading{margi
 <rect x="1000" y="148" width="520" height="116" rx="5" fill="#ffffff"/>
 <rect x="1000" y="148" width="520" height="116" rx="5" fill="rgba(16,185,129,0.07)" stroke="#059669" stroke-opacity="0.32" stroke-width="1.2"/>
 <text x="1016" y="173" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">Your app — main.rs</text>
-<text x="1016" y="195" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">use solverforge::prelude::*;</text>
-<text x="1016" y="210.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverManager::new(problem).solve()</text>
+<text x="1016" y="195" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">static MANAGER: SolverManager&lt;Plan&gt; = SolverManager::new();</text>
+<text x="1016" y="210.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">MANAGER.solve(problem)</text>
 <text x="1016" y="226.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">snapshots · events · analyze()</text>
 </g>
 <path d="M 290 264 V 312 Q 290 320 298 320 H 1432 Q 1440 320 1440 312 V 264" fill="none" stroke="#48655d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#model-arrow)"/><text x="400" y="312" fill="#48655d" font-family="Source Sans 3,sans-serif" font-size="10">generated model</text>
@@ -596,9 +596,9 @@ main{width:var(--sf-width);margin:auto;padding:1.5rem 0 2rem}.page-heading{margi
 </div>
 </section>
 <section class="architecture-panel" id="pipeline" aria-labelledby="pipeline-title">
-  <div class="panel-heading"><div><p class="eyebrow">03 / pipeline</p><h2 id="pipeline-title">Solve pipeline</h2></div><p>Build the runtime, complete required assignments, search, and retain the result. Configured limits remain binding during construction.</p></div>
+  <div class="panel-heading"><div><p class="eyebrow">03 / pipeline</p><h2 id="pipeline-title">Solve pipeline</h2></div><p>Build the runtime, complete required assignments, run eligible search, and retain the result. Default search requires effective solver termination; configured limits remain binding during construction.</p></div>
   <div class="diagram-scroll" tabindex="0" aria-label="pipeline wiring diagram; scroll horizontally on small screens"><svg viewBox="60 810 1480 135" xmlns="http://www.w3.org/2000/svg" role="img"
-         aria-label="Build the runtime, complete required assignments, search, and retain the result. Configured limits remain binding during construction.">
+         aria-label="Build the runtime, complete required assignments, run eligible search, and retain the result. Default search requires effective solver termination; configured limits remain binding during construction.">
       <defs>
 <marker id="pipeline-arrow" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 8 4 L 0 8 L 2 4 Z" fill="#48655d"/></marker>
 <linearGradient id="pipeline-sf-grad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -718,7 +718,7 @@ main{width:var(--sf-width);margin:auto;padding:1.5rem 0 2rem}.page-heading{margi
 <rect x="80" y="814" width="340" height="102" rx="5" fill="#ffffff"/>
 <rect x="80" y="814" width="340" height="102" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
 <text x="96" y="839" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">1 · Build</text>
-<text x="96" y="861" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverManager::new(problem)</text>
+<text x="96" y="861" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">static SolverManager::new() → solve(problem)</text>
 <text x="96" y="876.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">load solver.toml → SolverConfig</text>
 <text x="96" y="892.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">compile RuntimeModel&lt;…&gt; — frozen solver graph</text>
 </g>
@@ -733,16 +733,16 @@ main{width:var(--sf-width);margin:auto;padding:1.5rem 0 2rem}.page-heading{margi
 <g>
 <rect x="840" y="814" width="340" height="102" rx="5" fill="#ffffff"/>
 <rect x="840" y="814" width="340" height="102" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
-<text x="856" y="839" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">3 · Search</text>
+<text x="856" y="839" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">3 · Search (when eligible)</text>
 <text x="856" y="861" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">LocalSearch — moves · selectors · acceptors</text>
 <text x="856" y="876.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">VND · PartitionedSearch (rayon) · Custom (typed)</text>
-<text x="856" y="892.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">incremental SERIO delta scoring per move</text>
+<text x="856" y="892.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">default search requires effective solver termination</text>
 </g>
 <g>
 <rect x="1220" y="814" width="300" height="102" rx="5" fill="#ffffff"/>
 <rect x="1220" y="814" width="300" height="102" rx="5" fill="rgba(16,185,129,0.07)" stroke="#10b981" stroke-opacity="0.32" stroke-width="1.2"/>
 <text x="1236" y="839" fill="#047857" font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="12" font-weight="600" letter-spacing="0.2">4 · Complete</text>
-<text x="1236" y="861" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">termination reached</text>
+<text x="1236" y="861" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">phases exhausted or termination reached</text>
 <text x="1236" y="876.6" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">best solution published</text>
 <text x="1236" y="892.2" fill="#48655d" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">SolverStatus · snapshot · telemetry</text>
 </g>

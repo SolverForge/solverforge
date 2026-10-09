@@ -59,6 +59,10 @@ ad hoc special cases:
   entities only when score-improving, and capacity blockers repaired through
   bounded augmenting paths. Decreasing and strength-based assignment heuristics
   require the corresponding `with_entity_order` and `with_value_order` hooks.
+  Keeping an optional assignment unassigned completes that decision, not the
+  optional pass. Completed optional roots are excluded before candidate-domain
+  reads and move generation, so they do not consume later assignments' budget.
+  Assigned occupants remain available to required augmenting rematches.
 
 ## Canonical selector defaults
 
@@ -81,7 +85,10 @@ story:
   families. Leaf order is seeded `Random`; one family is `Sequential`, while a
   multi-family union is `StratifiedRandom`
 
-Omitted config builds construction plus one streaming local-search phase. Broad
+Omitted phases run state-aware construction. One streaming default local-search
+phase is eligible only when top-level termination has an effective parsed limit.
+Absent termination, an empty termination object, or invalid score-only
+termination stays construction-only. Broad
 stock unions use fair ordering and finite accepted-count horizons; explicit
 `limited_neighborhood` remains the user-facing cap when a configured selector
 would otherwise be exhaustive. VND is still available, but only when the local

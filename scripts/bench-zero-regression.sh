@@ -58,8 +58,13 @@ if [[ -e "$RESULTS" ]]; then
     exit 2
 fi
 
-mkdir -p "$RESULTS/raw" "$RESULTS/harnesses" "$RESULTS/targets" "$RESULTS/binaries"
-BASELINE_TREE="$RESULTS/baseline-tree"
+mkdir -p "$RESULTS/raw" "$RESULTS/harnesses" "$RESULTS/targets" "$RESULTS/binaries" "$RESULTS/trees"
+# Both sides are staged into equal-length sibling paths. Path dependencies
+# embed their paths in the binary; unequal path lengths shift string constants
+# and code layout, which alone can move hardware counters by several percent
+# between identical sources.
+BASELINE_TREE="$RESULTS/trees/base"
+CANDIDATE_TREE="$RESULTS/trees/cand"
 BASELINE_REGISTERED=0
 cleanup() {
     if [[ $BASELINE_REGISTERED == 1 ]]; then
@@ -71,6 +76,14 @@ trap cleanup EXIT
 BASELINE_COMMIT=$(git -C "$ROOT" rev-parse "${BASELINE}^{commit}")
 git -C "$ROOT" worktree add --detach "$BASELINE_TREE" "$BASELINE_COMMIT" >/dev/null
 BASELINE_REGISTERED=1
+# Candidate side: the current working tree (tracked + untracked, not ignored),
+# so a dirty tree can still be measured, against the same-length path.
+mkdir -p "$CANDIDATE_TREE"
+(
+    cd "$ROOT"
+    git ls-files -co --exclude-standard -z |
+        tar --null -T - -cf - | (cd "$CANDIDATE_TREE" && tar xf -)
+)
 
 make_harness() {
     local side=$1
@@ -107,7 +120,7 @@ EOF
 # identical symbol mangling and .text layout; the sides differ only by which
 # dependency tree each harness points at.
 make_harness baseline "$BASELINE_TREE"
-make_harness candidate "$ROOT"
+make_harness candidate "$CANDIDATE_TREE"
 
 build_case_binary() {
     local side=$1

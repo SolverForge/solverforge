@@ -71,8 +71,12 @@ When versions change across the workspace, publish crates in dependency order:
    cursor-owned construction API, set
    `BASELINE=<commit> BASELINE_CURSOR_API=1`; the default historical baseline
    keeps `BASELINE_CURSOR_API=0` for its former eager construction harness.
-   This is a separate required release qualification. It is intentionally not
-   part of portable `make pre-release`; inability to run it is not a pass.
+   The gate requires exact equality for the deterministic allocation counters
+   and grades noisy wall-time and hardware-counter medians against the
+   documented `BENCH_TOLERANCE_PERCENT` median regression budget (5% by
+   default). This is a separate required release qualification. It is
+   intentionally not part of portable `make pre-release`; inability to run it
+   is not a pass.
 8. Verify publishability.
    Run real package dry-runs for crates that can be verified before publish:
    `cargo publish --dry-run -p solverforge-core`

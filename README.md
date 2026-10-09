@@ -742,9 +742,13 @@ qualification also requires the separate controlled-host
 readable `/sys` CPU topology, and the selected `BENCH_CPU` available (CPU 10 by
 default); `perf` counters are collected when permitted. The gate builds an
 independently linked binary for each case, alternates paired trials, verifies
-full-enumeration candidate count and order separately from first-fit work, and
-rejects a positive median or paired 95% upper bound for wall time, allocations,
-peak memory, or available hardware counters. A host that cannot run the
+full-enumeration candidate count and order separately from first-fit work,
+requires exact equality for the deterministic allocation counters, and grades
+noisy wall-time and hardware-counter medians against the documented
+`BENCH_TOLERANCE_PERCENT` median regression budget (5% by default). Both
+harness sides share one package name so identical sources produce identical
+symbol mangling and code layout, and the report records per-case `.text`
+SHA-256 fingerprints for both binaries. A host that cannot run the
 controlled gate has not completed release qualification.
 
 ## Status

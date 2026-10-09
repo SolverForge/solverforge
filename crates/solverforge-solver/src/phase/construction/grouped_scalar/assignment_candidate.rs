@@ -1,4 +1,27 @@
 use crate::builder::ScalarAssignmentBinding;
+
+pub(super) type AssignmentMoveKey = Vec<(usize, usize, usize, &'static str, Option<usize>)>;
+
+pub(super) fn normalized_move_key<S>(
+    candidate: &crate::heuristic::r#move::CompoundScalarMove<S>,
+) -> AssignmentMoveKey {
+    let mut key = candidate
+        .edits()
+        .iter()
+        .map(|edit| {
+            (
+                edit.descriptor_index,
+                edit.entity_index,
+                edit.variable_index,
+                edit.variable_name,
+                edit.to_value,
+            )
+        })
+        .collect::<Vec<_>>();
+    key.sort_unstable();
+    key
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ScalarAssignmentMoveOptions {
     pub(crate) value_candidate_limit: Option<usize>,

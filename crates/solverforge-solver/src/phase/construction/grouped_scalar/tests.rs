@@ -1,5 +1,8 @@
 use std::any::{Any, TypeId};
 
+#[path = "tests/optional.rs"]
+mod optional;
+
 use solverforge_config::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation, SelectionOrder,
 };

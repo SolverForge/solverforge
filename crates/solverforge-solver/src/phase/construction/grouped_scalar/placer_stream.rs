@@ -234,6 +234,9 @@ where
 {
     let completed_slots = completed_assignment_slots(&generator, &mut is_completed);
     if generator.accepted < generator.options.max_moves && !should_stop() {
+        generator
+            .cursor
+            .exclude_completed_optional_entities(&completed_slots);
         let (entity_index, mov, target) =
             next_assignment_candidate(&mut generator, &completed_slots, &mut should_stop)?;
         let group_slot = assignment_group_slot(generator.group_index, entity_index);
@@ -334,11 +337,22 @@ where
                 generator.assignment.target().construction_binding_index(),
                 entity_index,
             );
-            let placement = Placement::new(
+            let mut placement = Placement::new(
                 EntityReference::new(generator.assignment.target.descriptor_index, entity_index),
                 ScalarGroupCandidateCursor::empty(),
             )
             .with_scalar_slots(vec![slot_id]);
+            // Assignment decisions complete group slots, not scalar slots. Only
+            // protect kept-unassigned roots here; assigned batch members remain
+            // available as blockers in a later required augmenting rematch.
+            if generator
+                .assignment
+                .current_value(generator.cursor.construction_snapshot(), entity_index)
+                .is_none()
+            {
+                placement = placement
+                    .with_group_slot(assignment_group_slot(generator.group_index, entity_index));
+            }
             is_completed(&placement).then_some(slot_id)
         })
         .collect()

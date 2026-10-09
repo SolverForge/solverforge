@@ -2,7 +2,9 @@ use std::collections::HashSet;
 
 use solverforge_core::domain::PlanningSolution;
 
-use super::assignment_candidate::{ordered_entities, ScalarAssignmentMoveOptions};
+use super::assignment_candidate::{
+    normalized_move_key, ordered_entities, AssignmentMoveKey, ScalarAssignmentMoveOptions,
+};
 use super::assignment_cycle::CycleWindowCursor;
 use super::assignment_entity::{AssignmentMoveKind, CapacityCursor, OptionalAdjustmentCursor};
 use super::assignment_family::{AssignmentFamilyCursor, AssignmentMoveFamily};
@@ -11,8 +13,7 @@ use super::assignment_required_batch::required_batch_move;
 use super::assignment_state::ScalarAssignmentState;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
-
-type AssignmentMoveKey = Vec<(usize, usize, usize, &'static str, Option<usize>)>;
+use crate::phase::construction::ConstructionSlotId;
 
 pub(crate) struct ScalarAssignmentMoveCursor<S>
 where
@@ -70,11 +71,29 @@ where
             true,
         )
     }
-
     pub(crate) fn construction_snapshot(&self) -> &S {
         &self.solution
     }
-
+    pub(super) fn exclude_completed_optional_entities(
+        &mut self,
+        completed: &HashSet<ConstructionSlotId>,
+    ) {
+        if self.family_slots.len() != 1
+            || self.family_slots[0].family != AssignmentMoveFamily::OptionalAssign
+        {
+            return;
+        }
+        // Keep occupancy intact: completed rows can still block an assignment.
+        // Exclude roots before generation so they cannot consume the move budget.
+        let binding_index = self.group.target().construction_binding_index();
+        self.family_slots[0].cursor = AssignmentFamilyCursor::optional_entity_values(
+            &self.group,
+            &self.solution,
+            &self.state,
+            self.options,
+            |entity| completed.contains(&ConstructionSlotId::new(binding_index, entity)),
+        );
+    }
     pub(crate) fn required(
         group: ScalarAssignmentBinding<S>,
         solution: S,
@@ -263,13 +282,12 @@ where
         }
         let cursor = match family {
             AssignmentMoveFamily::Required => unreachable!("required cursor opened above"),
-            AssignmentMoveFamily::OptionalAssign => AssignmentFamilyCursor::entity_values(
-                ordered_entities(&self.group, &self.solution, |entity_index| {
-                    !self.state.is_required(entity_index)
-                        && self.state.current_value(entity_index).is_none()
-                }),
+            AssignmentMoveFamily::OptionalAssign => AssignmentFamilyCursor::optional_entity_values(
+                &self.group,
+                &self.solution,
+                &self.state,
                 options,
-                AssignmentMoveKind::Optional,
+                |_| false,
             ),
             AssignmentMoveFamily::SequenceWindow => AssignmentFamilyCursor::PairWindow(
                 PairWindowCursor::sequence_window(&self.group, &self.solution, options),
@@ -478,22 +496,4 @@ where
         }
         AssignmentFamilyCursor::Empty => None,
     }
-}
-
-fn normalized_move_key<S>(candidate: &CompoundScalarMove<S>) -> AssignmentMoveKey {
-    let mut key = candidate
-        .edits()
-        .iter()
-        .map(|edit| {
-            (
-                edit.descriptor_index,
-                edit.entity_index,
-                edit.variable_index,
-                edit.variable_name,
-                edit.to_value,
-            )
-        })
-        .collect::<Vec<_>>();
-    key.sort_unstable();
-    key
 }

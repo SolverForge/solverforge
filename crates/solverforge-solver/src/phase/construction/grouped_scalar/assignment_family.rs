@@ -34,6 +34,24 @@ pub(super) enum AssignmentFamilyCursor {
 }
 
 impl AssignmentFamilyCursor {
+    pub(super) fn optional_entity_values<S, IsCompleted>(
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
+        state: &ScalarAssignmentState,
+        options: ScalarAssignmentMoveOptions,
+        mut is_completed: IsCompleted,
+    ) -> Self
+    where
+        IsCompleted: FnMut(usize) -> bool,
+    {
+        let entities = super::assignment_candidate::ordered_entities(group, solution, |entity| {
+            !state.is_required(entity)
+                && state.current_value(entity).is_none()
+                && !is_completed(entity)
+        });
+        Self::entity_values(entities, options, AssignmentMoveKind::Optional)
+    }
+
     pub(super) fn required_entity_values<S, ShouldStop>(
         group: &ScalarAssignmentBinding<S>,
         solution: &S,

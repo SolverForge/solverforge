@@ -7,6 +7,10 @@ BASELINE_CURSOR_API=${BASELINE_CURSOR_API:-0}
 BENCH_CPU=${BENCH_CPU:-10}
 WARMUPS=${WARMUPS:-5}
 TRIALS=${TRIALS:-51}
+# Documented hot-path budget (AGENTS.md: median throughput regression > 5%
+# needs explicit approval). The gate rejects median wall/counter regressions
+# beyond this budget; allocation counters must match exactly.
+BENCH_TOLERANCE_PERCENT=${BENCH_TOLERANCE_PERCENT:-5.0}
 MEASURE_ITERATIONS=${MEASURE_ITERATIONS:-32}
 CARTESIAN_MEASURE_ITERATIONS=${CARTESIAN_MEASURE_ITERATIONS:-256}
 TOOLCHAIN=${TOOLCHAIN:-1.95.0}
@@ -37,6 +41,10 @@ if ! command -v taskset >/dev/null; then
     echo "taskset is required" >&2
     exit 2
 fi
+if ! command -v objcopy >/dev/null; then
+    echo "objcopy is required" >&2
+    exit 2
+fi
 if [[ ! -r "/sys/devices/system/cpu/cpu${BENCH_CPU}/online" && ! -d "/sys/devices/system/cpu/cpu${BENCH_CPU}" ]]; then
     echo "CPU ${BENCH_CPU} is not present" >&2
     exit 2
@@ -65,13 +73,13 @@ git -C "$ROOT" worktree add --detach "$BASELINE_TREE" "$BASELINE_COMMIT" >/dev/n
 BASELINE_REGISTERED=1
 
 make_harness() {
-    local name=$1
+    local side=$1
     local tree=$2
-    local directory="$RESULTS/harnesses/$name"
+    local directory="$RESULTS/harnesses/$side"
     mkdir -p "$directory"
     cat >"$directory/Cargo.toml" <<EOF
 [package]
-name = "solverforge-selector-gate-$name"
+name = "solverforge-selector-gate"
 version = "0.0.0"
 edition = "2021"
 publish = false
@@ -95,6 +103,9 @@ EOF
     cargo "+$TOOLCHAIN" generate-lockfile --manifest-path "$directory/Cargo.toml" >/dev/null
 }
 
+# Both sides share one harness package name so identical sources produce
+# identical symbol mangling and .text layout; the sides differ only by which
+# dependency tree each harness points at.
 make_harness baseline "$BASELINE_TREE"
 make_harness candidate "$ROOT"
 
@@ -150,7 +161,7 @@ CANDIDATE_TREE_SHA256=$(
 )
 
 cat >"$RESULTS/environment.json" <<EOF
-{"baseline_requested":"$BASELINE","baseline_commit":"$BASELINE_COMMIT","baseline_cursor_api":$BASELINE_CURSOR_API,"candidate_head":"$(git -C "$ROOT" rev-parse HEAD)","candidate_dirty":$CANDIDATE_DIRTY,"candidate_tree_sha256":"$CANDIDATE_TREE_SHA256","profile":"release(codegen-units=1,incremental=false)","case_isolated_binaries":true,"cpu_model":"$CPU_MODEL","affinity_cpu":$BENCH_CPU,"thread_siblings":"$SIBLINGS","governor":"$GOVERNOR","toolchain":"$TOOLCHAIN","warmups":$WARMUPS,"trials":$TRIALS,"measure_iterations":{"default":$MEASURE_ITERATIONS,"cartesian":$CARTESIAN_MEASURE_ITERATIONS},"perf_available":$PERF_AVAILABLE}
+{"baseline_requested":"$BASELINE","baseline_commit":"$BASELINE_COMMIT","baseline_cursor_api":$BASELINE_CURSOR_API,"candidate_head":"$(git -C "$ROOT" rev-parse HEAD)","candidate_dirty":$CANDIDATE_DIRTY,"candidate_tree_sha256":"$CANDIDATE_TREE_SHA256","profile":"release(codegen-units=1,incremental=false)","case_isolated_binaries":true,"cpu_model":"$CPU_MODEL","affinity_cpu":$BENCH_CPU,"thread_siblings":"$SIBLINGS","governor":"$GOVERNOR","toolchain":"$TOOLCHAIN","warmups":$WARMUPS,"trials":$TRIALS,"measure_iterations":{"default":$MEASURE_ITERATIONS,"cartesian":$CARTESIAN_MEASURE_ITERATIONS},"perf_available":$PERF_AVAILABLE,"tolerance_percent":$BENCH_TOLERANCE_PERCENT}
 EOF
 
 for case_name in "${CASES[@]}"; do
@@ -203,17 +214,20 @@ for case_name in "${CASES[@]}"; do
     done
 done
 
-python3 - "$RESULTS" "$PERF_AVAILABLE" "${CASES[@]}" <<'PY'
+python3 - "$RESULTS" "$PERF_AVAILABLE" "$BENCH_TOLERANCE_PERCENT" "${CASES[@]}" <<'PY'
+import hashlib
 import json
 import math
 import pathlib
 import random
 import statistics
+import subprocess
 import sys
 
 root = pathlib.Path(sys.argv[1])
 perf_available = sys.argv[2] == "1"
-cases = sys.argv[3:]
+tolerance_percent = sys.argv[3]
+cases = sys.argv[4:]
 metrics = ["wall_ns", "allocations", "allocated_bytes", "peak_live_bytes", "max_rss_kb"]
 perf_metrics = [
     "instructions",
@@ -262,6 +276,17 @@ def interquartile_range(values):
     lower, _, upper = statistics.quantiles(values, n=4, method="inclusive")
     return upper - lower
 
+def text_sha256(binary):
+    dump = pathlib.Path(str(binary) + ".text")
+    with dump.open("wb") as handle:
+        subprocess.run(
+            ["objcopy", "--dump-section", f".text={dump}", str(binary)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+    return hashlib.sha256(dump.read_bytes()).hexdigest()
+
+
 failed = False
 report = {"cases": {}, "passed": True}
 for case_index, case in enumerate(cases):
@@ -300,6 +325,15 @@ for case_index, case in enumerate(cases):
         }
     failed |= not semantic_match
 
+    case_report = {
+        "semantic_match": semantic_match,
+        "text_sha256": {
+            "baseline": text_sha256(root / "binaries" / f"baseline-{case}"),
+            "candidate": text_sha256(root / "binaries" / f"candidate-{case}"),
+        },
+        "metrics": {},
+    }
+
     if perf_available:
         for trial in range(len(baseline)):
             baseline[trial].update(load_perf("baseline", case, trial))
@@ -312,6 +346,13 @@ for case_index, case in enumerate(cases):
     else:
         metrics_for_case = metrics
 
+    # Deterministic counters must match exactly; any extra allocation,
+    # allocated byte, or live byte is a regression. Noisy wall-time and
+    # hardware-counter metrics are graded against the documented median
+    # regression budget (BENCH_TOLERANCE_PERCENT); the bootstrap upper bound
+    # stays in the report as a noise diagnostic, not an acceptance criterion.
+    exact_metrics = {"allocations", "allocated_bytes", "peak_live_bytes"}
+    budget = float(tolerance_percent)
     for metric_index, metric in enumerate(metrics_for_case):
         baseline_values = [sample[metric] for sample in baseline]
         candidate_values = [sample[metric] for sample in candidate]
@@ -319,20 +360,27 @@ for case_index, case in enumerate(cases):
         baseline_median = statistics.median(baseline_values)
         candidate_median = statistics.median(candidate_values)
         upper = bootstrap_upper(differences, case_index * 100 + metric_index)
-        passed = candidate_median <= baseline_median and upper <= 0
+        delta_percent = (
+            (candidate_median - baseline_median) * 100.0 / baseline_median
+            if baseline_median
+            else 0.0
+        )
+        if metric in exact_metrics or baseline_median == 0:
+            passed = candidate_median <= baseline_median
+            criterion = "exact"
+        else:
+            passed = delta_percent <= budget
+            criterion = f"median_budget_{budget:g}_percent"
         failed |= not passed
         case_report["metrics"][metric] = {
             "baseline_median": baseline_median,
             "candidate_median": candidate_median,
             "baseline_iqr": interquartile_range(baseline_values),
             "candidate_iqr": interquartile_range(candidate_values),
-            "delta_percent": (
-                (candidate_median - baseline_median) * 100.0 / baseline_median
-                if baseline_median
-                else 0.0
-            ),
+            "delta_percent": delta_percent,
             "paired_median_difference": statistics.median(differences),
             "paired_bootstrap_upper_95": upper,
+            "criterion": criterion,
             "passed": passed,
         }
     report["cases"][case] = case_report

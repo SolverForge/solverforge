@@ -8,7 +8,7 @@ use solverforge_scoring::Director;
 use super::commit::{commit_complete_routes, try_commit_balanced_assignment};
 use super::completion::{complete_routes_by_insertion, CompletionSelection};
 use super::owner_assignment::{
-    feasible_owners_for_scored_elements, match_route_owners, owner_slots,
+    assign_buffered_routes, feasible_owners_for_scored_elements, match_route_owners, owner_slots,
     representative_owner_slots,
 };
 use super::route_state::{
@@ -388,6 +388,31 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         .filter(|route| !route.visits.is_empty())
         .collect::<Vec<_>>();
     if construction_interrupted {
+        // A merge leaves one buffered route empty, so a survivor count below the
+        // element count is exactly "the loop merged something". Every merge it
+        // admitted left the whole buffered route set matchable by metric class,
+        // so those merges are a strictly better complete assignment than the
+        // seed. Publish them instead of letting a tight budget throw the
+        // construction work away.
+        if non_empty.len() < n {
+            if let Some(completed_routes) = assign_buffered_routes(
+                access,
+                source_index,
+                &owner_slots,
+                &available_entity_slots,
+                &non_empty,
+            ) {
+                commit_complete_routes(
+                    phase_scope,
+                    access,
+                    &available_entity_slots,
+                    completed_routes,
+                    control_policy,
+                    pending_move_telemetry,
+                );
+                return;
+            }
+        }
         pending_move_telemetry.record_discarded(phase_scope);
         phase_scope.calculate_score();
         return;

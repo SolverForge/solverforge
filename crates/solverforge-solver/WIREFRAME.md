@@ -340,7 +340,7 @@ src/
 │   │   ├── list_clarke_wright.rs       — ListClarkeWrightPhase
 │   │   ├── list_clarke_wright/kernel.rs — Canonical savings construction shared by public/static/dynamic adapters
 │   │   ├── list_clarke_wright/tests.rs — Tests
-│   │   ├── list_clarke_wright/owner_assignment.rs — Owner-specific route assignment and preservation helpers
+│   │   ├── list_clarke_wright/owner_assignment.rs — Owner-specific route assignment, buffered-merge publication on interruption, and preservation helpers
 │   │   ├── list_clarke_wright/route_state.rs — Route state and merge bookkeeping
 │   │   ├── list_clarke_wright/savings.rs — Metric-class savings computation
 │   │   ├── list_clarke_wright/tests/metric_class.rs — Shared metric-class and owner-feasibility tests

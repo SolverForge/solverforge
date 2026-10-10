@@ -117,7 +117,7 @@ fn interrupted_clarke_wright_savings_preserves_committed_complete_assignment() {
 }
 
 #[test]
-fn interrupted_clarke_wright_merge_discards_only_buffered_refinement() {
+fn interrupted_clarke_wright_merge_publishes_buffered_merges() {
     let customer_count = 24usize;
     let plan = Plan {
         customer_values: (1..=customer_count).collect(),
@@ -139,8 +139,14 @@ fn interrupted_clarke_wright_merge_discards_only_buffered_refinement() {
     assigned.sort_unstable();
     assert_eq!(assigned, (1..=customer_count).collect::<Vec<_>>());
     assert!(solver_scope.stats().moves_accepted > 0);
-    assert_eq!(solver_scope.stats().moves_applied, customer_count as u64);
-    assert!(solver_scope.stats().moves_accepted > solver_scope.stats().moves_applied);
+    // The buffered merges are a strictly better complete assignment than the
+    // balanced seed, so an interrupted phase publishes them rather than
+    // dropping them and leaving the seed as the best solution.
+    assert!(solver_scope.stats().moves_applied > customer_count as u64);
+    assert_eq!(
+        solver_scope.stats().moves_applied,
+        solver_scope.stats().moves_accepted
+    );
     assert_eq!(
         solver_scope.terminal_reason(),
         crate::manager::SolverTerminalReason::TerminatedByConfig
@@ -161,8 +167,88 @@ fn interrupted_clarke_wright_merge_discards_only_buffered_refinement() {
         pull.source == CandidateTraceSource::ListClarkeWrightMerge
             && pull
                 .dispositions
-                .contains(&CandidateTraceDisposition::ForagerIgnored)
+                .contains(&CandidateTraceDisposition::Applied)
     }));
+}
+
+static MERGE_PHASE_DISTANCE_CALLS: AtomicUsize = AtomicUsize::new(0);
+static TERMINATE_INSIDE_MERGE: AtomicBool = AtomicBool::new(false);
+
+fn merge_phase_distance(plan: &Plan, owner: usize, left: usize, right: usize) -> i64 {
+    MERGE_PHASE_DISTANCE_CALLS.fetch_add(1, Ordering::SeqCst);
+    line_distance(plan, owner, left, right)
+}
+
+/// Savings generation is the only caller of the distance hook, so once the last
+/// savings pair has been priced the phase is inside the merge loop. Flipping the
+/// terminate flag from the next feasibility probe therefore interrupts with
+/// merges already buffered.
+fn merge_phase_feasible(plan: &Plan, owner: usize, route: &[usize]) -> bool {
+    let expected = MERGE_PHASE_EXPECTED_DISTANCE_CALLS.load(Ordering::SeqCst);
+    if expected > 0 && MERGE_PHASE_DISTANCE_CALLS.load(Ordering::SeqCst) >= expected {
+        TERMINATE_INSIDE_MERGE.store(true, Ordering::SeqCst);
+    }
+    always_feasible(plan, owner, route)
+}
+
+static MERGE_PHASE_EXPECTED_DISTANCE_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+#[test]
+fn interrupted_clarke_wright_publishes_a_partially_merged_route_set() {
+    let element_total = 40usize;
+    let plan = Plan {
+        customer_values: (1..=element_total).collect(),
+        routes: (0..element_total)
+            .map(|_| Route { visits: Vec::new() })
+            .collect(),
+        score: None,
+    };
+    TERMINATE_INSIDE_MERGE.store(false, Ordering::SeqCst);
+    MERGE_PHASE_DISTANCE_CALLS.store(0, Ordering::SeqCst);
+    MERGE_PHASE_EXPECTED_DISTANCE_CALLS.store(
+        3 * element_total * (element_total - 1) / 2,
+        Ordering::SeqCst,
+    );
+    let mut solver_scope =
+        SolverScope::new(director(plan)).with_terminate(Some(&TERMINATE_INSIDE_MERGE));
+    solver_scope.start_solving();
+    let mut phase = ListClarkeWrightPhase::new(
+        element_count,
+        get_assigned,
+        entity_count,
+        route_len,
+        assign_route,
+        index_to_element,
+        crate::builder::usize_element_source_key,
+        depot,
+        merge_phase_distance,
+        merge_phase_feasible,
+        0,
+    );
+
+    phase.solve(&mut solver_scope);
+
+    let solution = solver_scope.working_solution();
+    let mut assigned: Vec<usize> = solution
+        .routes
+        .iter()
+        .flat_map(|route| route.visits.iter().copied())
+        .collect();
+    assigned.sort_unstable();
+    assert_eq!(assigned, (1..=element_total).collect::<Vec<_>>());
+    let non_empty_routes = solution
+        .routes
+        .iter()
+        .filter(|route| !route.visits.is_empty())
+        .count();
+    assert!(
+        non_empty_routes < element_total,
+        "interrupted construction published {non_empty_routes} routes, expected the buffered merges"
+    );
+    assert_eq!(
+        solver_scope.terminal_reason(),
+        crate::manager::SolverTerminalReason::Cancelled
+    );
 }
 
 #[test]

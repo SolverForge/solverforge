@@ -7,6 +7,7 @@ public erased graph API: every type is concrete and monomorphized.
 */
 
 mod handle_map;
+pub(crate) mod hash;
 mod identity;
 pub(crate) mod index;
 pub(crate) mod leaf_collector;
@@ -16,6 +17,7 @@ mod storage;
 pub(crate) mod view_plan;
 
 pub(crate) use handle_map::HandleMap;
+pub(crate) use hash::{FastMap, FastSet};
 #[doc(hidden)]
 pub use identity::RowHandle;
 pub(crate) use identity::{BindingId, JoinedIdentity};

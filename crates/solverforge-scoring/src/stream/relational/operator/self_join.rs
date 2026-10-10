@@ -12,8 +12,7 @@ each member's own provenance.
 
 use super::{Operator, RowChanges};
 use crate::stream::key_extract::KeyExtract;
-use crate::stream::relational::{DenseRowStore, HandleMap, Leaf, RowHandle};
-use std::collections::HashMap;
+use crate::stream::relational::{DenseRowStore, FastMap, HandleMap, Leaf, RowHandle};
 use std::marker::PhantomData;
 
 /* Enumerates every increasing `N`-combination of `items` (already index-sorted). */
@@ -74,10 +73,10 @@ pub struct SelfJoinNode<S, A, O, K, KE, const N: usize> {
     input: O,
     key: KE,
     /* Key bucket: source index plus handle, kept sorted by index. */
-    by_key: HashMap<K, Vec<(usize, RowHandle)>>,
-    handle_index: HashMap<RowHandle, usize>,
+    by_key: FastMap<K, Vec<(usize, RowHandle)>>,
+    handle_index: HandleMap<usize>,
     rows: DenseRowStore<[RowHandle; N]>,
-    combos: HashMap<[RowHandle; N], RowHandle>,
+    combos: FastMap<[RowHandle; N], RowHandle>,
     of_input: HandleMap<Vec<[RowHandle; N]>>,
     marker: PhantomData<fn() -> (S, A)>,
 }
@@ -87,10 +86,10 @@ impl<S, A, O, K, KE, const N: usize> SelfJoinNode<S, A, O, K, KE, N> {
         Self {
             input,
             key,
-            by_key: HashMap::new(),
-            handle_index: HashMap::new(),
+            by_key: FastMap::default(),
+            handle_index: HandleMap::new(),
             rows: DenseRowStore::new(),
-            combos: HashMap::new(),
+            combos: FastMap::default(),
             of_input: HandleMap::new(),
             marker: PhantomData,
         }
@@ -121,7 +120,7 @@ where
         visitor: &mut impl FnMut(Self::View<'a>),
     ) {
         // Stream the input's own evaluation; bucket by key, then enumerate.
-        let mut buckets: HashMap<K, Vec<Leaf<'a, A>>> = HashMap::new();
+        let mut buckets: FastMap<K, Vec<Leaf<'a, A>>> = FastMap::default();
         self.input
             .visit_evaluation(solution, evaluation, &mut |leaf: Leaf<'a, A>| {
                 let key = self.key.extract(solution, leaf.entity, leaf.index);
@@ -189,7 +188,7 @@ where
                     removed.push(output);
                 }
             }
-            if let Some(index) = self.handle_index.remove(&handle) {
+            if let Some(index) = self.handle_index.remove(handle) {
                 if let Some(key) = self
                     .by_key
                     .keys()

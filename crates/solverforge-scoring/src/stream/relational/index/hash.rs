@@ -7,15 +7,15 @@ handle-to-old-key link, so retraction removes the exact bucket entry
 without re-deriving keys from mutated values.
 */
 
-use std::collections::HashMap;
 use std::hash::Hash;
 
-use super::super::{identity::RowHandle, HandleMap};
+use super::super::{identity::RowHandle, FastMap, HandleMap};
 
 #[derive(Clone, Debug)]
 pub struct HashIndex<K> {
-    by_key: HashMap<K, Vec<RowHandle>>,
+    by_key: FastMap<K, Vec<RowHandle>>,
     key_of: HandleMap<K>,
+    retired: Vec<Vec<RowHandle>>,
 }
 
 impl<K> HashIndex<K>
@@ -24,8 +24,31 @@ where
 {
     pub fn new() -> HashIndex<K> {
         HashIndex {
-            by_key: HashMap::new(),
+            by_key: FastMap::default(),
             key_of: HandleMap::new(),
+            retired: Vec::new(),
+        }
+    }
+
+    /// Takes the bucket for `key` out of the table, or draws a retired one.
+    ///
+    /// Buckets are per-key and short lived: a variable change retracts and
+    /// re-inserts the row, so its bucket is emptied and rebuilt on every event.
+    /// Retired buckets are kept so the steady state reuses one allocation per
+    /// key instead of one allocation per event.
+    fn take_bucket(&mut self, key: &K) -> Vec<RowHandle> {
+        match self.by_key.remove(key) {
+            Some(bucket) => bucket,
+            None => self.retired.pop().unwrap_or_default(),
+        }
+    }
+
+    fn put_bucket(&mut self, key: K, mut bucket: Vec<RowHandle>) {
+        if bucket.is_empty() {
+            bucket.clear();
+            self.retired.push(bucket);
+        } else {
+            self.by_key.insert(key, bucket);
         }
     }
 
@@ -34,47 +57,43 @@ where
         // first so a changed key leaves no ghost bucket entry.
         if let Some(old) = self.key_of.insert(handle, key.clone()) {
             if old != key {
-                if let Some(bucket) = self.by_key.get_mut(&old) {
-                    if let Some(pos) = bucket.iter().position(|h| *h == handle) {
-                        bucket.swap_remove(pos);
-                    }
-                    if bucket.is_empty() {
-                        self.by_key.remove(&old);
-                    }
+                let mut bucket = self.take_bucket(&old);
+                if let Some(pos) = bucket.iter().position(|h| *h == handle) {
+                    bucket.swap_remove(pos);
                 }
-            } else if let Some(bucket) = self.by_key.get(&key) {
-                if bucket.contains(&handle) {
-                    return;
-                }
+                self.put_bucket(old, bucket);
+            } else if self.by_key.get(&key).is_some_and(|b| b.contains(&handle)) {
+                return;
             }
         }
-        self.by_key.entry(key).or_default().push(handle);
+        let mut bucket = self.take_bucket(&key);
+        bucket.push(handle);
+        self.put_bucket(key, bucket);
     }
 
     /// Insert a fresh transient row without reverse retention.
     /// Only use for traversal indexes whose rows are never retracted.
     pub(crate) fn insert_transient(&mut self, handle: RowHandle, key: K) {
-        self.by_key.entry(key).or_default().push(handle);
+        let mut bucket = self.take_bucket(&key);
+        bucket.push(handle);
+        self.put_bucket(key, bucket);
     }
 
     pub fn remove(&mut self, handle: RowHandle) {
-        if let Some(key) = self.key_of.remove(handle) {
-            let mut drop_bucket = false;
-            if let Some(bucket) = self.by_key.get_mut(&key) {
-                if let Some(pos) = bucket.iter().position(|h| *h == handle) {
-                    bucket.swap_remove(pos);
-                }
-                drop_bucket = bucket.is_empty();
-            }
-            if drop_bucket {
-                self.by_key.remove(&key);
-            }
+        let Some(key) = self.key_of.remove(handle) else {
+            return;
+        };
+        let mut bucket = self.take_bucket(&key);
+        if let Some(pos) = bucket.iter().position(|h| *h == handle) {
+            bucket.swap_remove(pos);
         }
+        self.put_bucket(key, bucket);
     }
 
     pub fn clear(&mut self) {
         self.by_key.clear();
         self.key_of.clear();
+        self.retired.clear();
     }
 
     #[inline]

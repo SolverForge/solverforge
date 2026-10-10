@@ -1,7 +1,6 @@
 use super::{Operator, RowChanges};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
-use crate::stream::relational::{HandleMap, RowHandle};
-use std::collections::HashSet;
+use crate::stream::relational::{FastSet, HandleMap, RowHandle};
 use std::marker::PhantomData;
 
 /// Semi/anti join over concrete row producers. Matching links maintain counts;
@@ -14,6 +13,16 @@ pub struct ExistenceNode<S, L, R, P: IndexedPlan> {
     left_matches: HandleMap<Vec<RowHandle>>,
     right_matches: HandleMap<Vec<RowHandle>>,
     accepted: HandleMap<()>,
+    /// Link buffers retired by an unlink, reused by the next link.
+    ///
+    /// A variable change retracts and re-inserts the changed row, so every
+    /// maintained link is torn down and rebuilt on each event. Reusing the
+    /// retired buffers keeps each row's link list in one allocation for the
+    /// life of the search instead of one per event.
+    retired: Vec<Vec<RowHandle>>,
+    /// Per-event scratch, kept across events so no event allocates for it.
+    changed: FastSet<RowHandle>,
+    probed: Vec<RowHandle>,
     exists: bool,
     marker: PhantomData<fn() -> S>,
 }
@@ -37,6 +46,9 @@ where
             left_matches: HandleMap::new(),
             right_matches: HandleMap::new(),
             accepted: HandleMap::new(),
+            retired: Vec::new(),
+            changed: FastSet::default(),
+            probed: Vec::new(),
             exists,
             marker: PhantomData,
         }
@@ -103,23 +115,35 @@ where
             });
     }
     fn link(&mut self, left: RowHandle, right: RowHandle) {
-        let matches = self.left_matches.get_or_insert_with(left, Vec::new);
-        if matches.contains(&right) {
+        if self
+            .left_matches
+            .get(left)
+            .is_some_and(|matches| matches.contains(&right))
+        {
             return;
         }
-        matches.push(right);
-        self.right_matches
-            .get_or_insert_with(right, Vec::new)
-            .push(left);
+        let mut left_matches = match self.left_matches.remove(left) {
+            Some(matches) => matches,
+            None => self.retired.pop().unwrap_or_default(),
+        };
+        left_matches.push(right);
+        self.left_matches.insert(left, left_matches);
+
+        let mut right_matches = match self.right_matches.remove(right) {
+            Some(matches) => matches,
+            None => self.retired.pop().unwrap_or_default(),
+        };
+        right_matches.push(left);
+        self.right_matches.insert(right, right_matches);
     }
     fn probe_left(&mut self, solution: &S, left: RowHandle) {
         let row = self
             .left
             .resolve(solution, left)
             .expect("live semi-join left row");
-        let candidates = self.plan.right_candidates(&self.indexes, &row);
-        let mut matches = Vec::new();
-        for &right in candidates.iter() {
+        let mut matches = std::mem::take(&mut self.probed);
+        matches.clear();
+        for &right in self.plan.right_candidates(&self.indexes, &row).iter() {
             let r = self
                 .right
                 .resolve(solution, right)
@@ -128,18 +152,19 @@ where
                 matches.push(right);
             }
         }
-        for right in matches {
+        for right in matches.drain(..) {
             self.link(left, right);
         }
+        self.probed = matches;
     }
-    fn probe_right(&mut self, solution: &S, right: RowHandle, changed: &mut HashSet<RowHandle>) {
+    fn probe_right(&mut self, solution: &S, right: RowHandle, changed: &mut FastSet<RowHandle>) {
         let row = self
             .right
             .resolve(solution, right)
             .expect("live semi-join right row");
-        let candidates = self.plan.left_candidates(&self.indexes, &row);
-        let mut matches = Vec::new();
-        for &left in candidates.iter() {
+        let mut matches = std::mem::take(&mut self.probed);
+        matches.clear();
+        for &left in self.plan.left_candidates(&self.indexes, &row).iter() {
             let l = self
                 .left
                 .resolve(solution, left)
@@ -148,20 +173,25 @@ where
                 matches.push(left);
             }
         }
-        for left in matches {
+        for left in matches.drain(..) {
             self.link(left, right);
             changed.insert(left);
         }
+        self.probed = matches;
     }
     fn apply_changes(&mut self, solution: &S, left: &RowChanges, right: &RowChanges) -> RowChanges {
-        let mut changed = HashSet::new();
+        let mut changed = std::mem::take(&mut self.changed);
+        changed.clear();
         let mut removed = Vec::new();
         for h in left.removed.iter().copied() {
             self.plan.remove_left(&mut self.indexes, h);
-            for r in self.left_matches.remove(h).unwrap_or_default() {
-                if let Some(matches) = self.right_matches.get_mut(r) {
-                    matches.retain(|l| *l != h);
+            if let Some(mut matches) = self.left_matches.remove(h) {
+                for r in matches.drain(..) {
+                    if let Some(right) = self.right_matches.get_mut(r) {
+                        right.retain(|l| *l != h);
+                    }
                 }
+                self.retired.push(matches);
             }
             if self.accepted.remove(h).is_some() {
                 removed.push(h);
@@ -169,12 +199,16 @@ where
         }
         for h in right.removed.iter().copied() {
             self.plan.remove_right(&mut self.indexes, h);
-            for l in self.right_matches.remove(h).unwrap_or_default() {
-                if let Some(matches) = self.left_matches.get_mut(l) {
-                    matches.retain(|r| *r != h);
+            let Some(mut matches) = self.right_matches.remove(h) else {
+                continue;
+            };
+            for l in matches.drain(..) {
+                if let Some(left) = self.left_matches.get_mut(l) {
+                    left.retain(|r| *r != h);
                 }
                 changed.insert(l);
             }
+            self.retired.push(matches);
         }
         for &h in &left.inserted {
             let row = self
@@ -198,7 +232,7 @@ where
             self.probe_right(solution, h, &mut changed);
         }
         let mut inserted = Vec::new();
-        for h in changed {
+        for h in changed.drain() {
             if self.left.resolve(solution, h).is_none() {
                 continue;
             }
@@ -213,6 +247,7 @@ where
                 removed.push(h);
             }
         }
+        self.changed = changed;
         RowChanges { removed, inserted }
     }
 }
@@ -261,6 +296,9 @@ where
         self.left_matches.clear();
         self.right_matches.clear();
         self.accepted.clear();
+        self.retired.clear();
+        self.changed.clear();
+        self.probed.clear();
     }
     fn initialize(&mut self, solution: &S) {
         self.clear();

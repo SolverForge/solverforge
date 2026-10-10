@@ -1,25 +1,25 @@
 // Ordered candidate buckets with retained old keys for exact retraction.
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::ops::Bound::{Excluded, Included, Unbounded};
 
-use super::super::RowHandle;
+use super::super::{HandleMap, RowHandle};
 
 #[derive(Debug)]
 pub struct OrderedIndex<K> {
     buckets: BTreeMap<K, Vec<RowHandle>>,
-    keys: HashMap<RowHandle, K>,
+    keys: HandleMap<K>,
 }
 
 impl<K: Ord + Clone> OrderedIndex<K> {
     pub fn new() -> Self {
         Self {
             buckets: BTreeMap::new(),
-            keys: HashMap::new(),
+            keys: HandleMap::new(),
         }
     }
 
     pub fn insert(&mut self, handle: RowHandle, key: K) {
-        if self.keys.get(&handle) == Some(&key) {
+        if self.keys.get(handle) == Some(&key) {
             return;
         }
         self.remove(handle);
@@ -28,7 +28,7 @@ impl<K: Ord + Clone> OrderedIndex<K> {
     }
 
     pub fn remove(&mut self, handle: RowHandle) {
-        if let Some(key) = self.keys.remove(&handle) {
+        if let Some(key) = self.keys.remove(handle) {
             if let Some(bucket) = self.buckets.get_mut(&key) {
                 bucket.retain(|h| *h != handle);
                 if bucket.is_empty() {

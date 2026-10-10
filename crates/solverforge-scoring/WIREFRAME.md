@@ -88,9 +88,11 @@ existence,filter,flatten,group,group_view,
 join,merge,project,self_join}.rs`,
 `stream/joiner/plan.rs`, `stream/joiner/plan/{executable,hash_scan,conjunction,
 composite,mixed_equality,ordered_interval}.rs`, `stream/joiner/row_key.rs`,
-`stream/relational/index/{hash,ordered,interval}.rs`, and
+`stream/relational/index/{hash,ordered,interval}.rs`,
+`stream/relational/hash.rs`, and
 `constraint/relational/operator_terminal.rs`. Generational direct side-tables
-are internal in `stream/relational/handle_map.rs`.
+are internal in `stream/relational/handle_map.rs`; `stream/relational/hash.rs`
+holds the deterministic fast hasher the internal index maps build on.
 
 This surface supports collection/filtered/merged/joined, owned projection,
 group/complement, existence, and flattened producers. Uniform fluent migration

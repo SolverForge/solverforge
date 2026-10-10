@@ -1,7 +1,6 @@
 use super::{group_view::Contributors, GroupView, Operator, RowChanges};
 use crate::stream::collector::{Accumulator, Collector};
-use crate::stream::relational::{DenseRowStore, HandleMap, RowHandle};
-use std::collections::{HashMap, HashSet};
+use crate::stream::relational::{DenseRowStore, FastMap, FastSet, HandleMap, RowHandle};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -27,7 +26,7 @@ pub struct GroupNode<O, F, C, K, A: Accumulator<V, R>, V, R> {
     key: F,
     collector: C,
     groups: DenseRowStore<Group<K, A>>,
-    by_key: HashMap<K, RowHandle>,
+    by_key: FastMap<K, RowHandle>,
     tokens: HandleMap<(RowHandle, A::Retraction)>,
     rows: DenseRowStore<RowHandle>,
     output_of: HandleMap<RowHandle>,
@@ -40,7 +39,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
             key,
             collector,
             groups: DenseRowStore::new(),
-            by_key: HashMap::new(),
+            by_key: FastMap::default(),
             tokens: HandleMap::new(),
             rows: DenseRowStore::new(),
             output_of: HandleMap::new(),
@@ -54,7 +53,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
         for<'a> C: Collector<O::View<'a>, Value = V, Result = R, Accumulator = A>,
         K: Eq + Hash + Clone,
     {
-        let mut changed = HashSet::new();
+        let mut changed = FastSet::default();
         for h in changes.removed {
             if let Some((group, token)) = self.tokens.remove(h) {
                 let g = self
@@ -128,7 +127,7 @@ where
     fn prepare_evaluation(&self, solution: &S) -> Self::Evaluation {
         let input = self.input.prepare_evaluation(solution);
         let mut groups: Vec<EvaluatedGroup<K, A>> = Vec::new();
-        let mut by_key = HashMap::new();
+        let mut by_key = FastMap::default();
         let mut ordinal = 0;
         self.input.visit_evaluation(solution, &input, &mut |row| {
             let key = (self.key)(&row);

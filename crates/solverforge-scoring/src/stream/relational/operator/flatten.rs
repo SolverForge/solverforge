@@ -86,6 +86,14 @@ pub struct FlattenNode<O, F> {
     extractor: F,
     rows: DenseRowStore<Child>,
     outputs: HandleMap<Vec<RowHandle>>,
+    /// Child-handle vectors retired by a retraction, kept for the next insert.
+    ///
+    /// A variable change retracts and re-inserts its owning row, so the same
+    /// parent is rebuilt with a fresh handle on every event. Handing the retired
+    /// buffer to that rebuild keeps the child handles in one allocation instead
+    /// of re-growing a vector per event, which is the dominant heap traffic of a
+    /// large local-search step.
+    retired: Vec<Vec<RowHandle>>,
 }
 impl<O, F> FlattenNode<O, F> {
     pub fn new(input: O, extractor: F) -> Self {
@@ -94,6 +102,7 @@ impl<O, F> FlattenNode<O, F> {
             extractor,
             rows: DenseRowStore::new(),
             outputs: HandleMap::new(),
+            retired: Vec::new(),
         }
     }
     fn apply_changes<S: 'static>(&mut self, solution: &S, changes: RowChanges) -> RowChanges
@@ -103,10 +112,15 @@ impl<O, F> FlattenNode<O, F> {
     {
         let mut removed = Vec::new();
         for input in changes.removed {
-            for h in self.outputs.remove(input).unwrap_or_default() {
-                self.rows.retract(h);
-                removed.push(h);
+            let Some(mut handles) = self.outputs.remove(input) else {
+                continue;
+            };
+            removed.extend_from_slice(&handles);
+            for handle in handles.drain(..) {
+                self.rows.retract(handle);
             }
+            handles.clear();
+            self.retired.push(handles);
         }
         let mut inserted = Vec::new();
         for input in changes.inserted {
@@ -115,12 +129,21 @@ impl<O, F> FlattenNode<O, F> {
                 .resolve(solution, input)
                 .expect("inserted flattened input");
             let count = self.extractor.flatten(solution, row).len();
-            let outputs = self.outputs.get_or_insert_with(input, Vec::new);
+            let mut outputs = match self.outputs.remove(input) {
+                Some(mut handles) => {
+                    handles.clear();
+                    handles
+                }
+                None => self.retired.pop().unwrap_or_default(),
+            };
+            outputs.reserve(count);
+            inserted.reserve(count);
             for child in 0..count {
                 let h = self.rows.insert(Child { input, child });
                 outputs.push(h);
                 inserted.push(h);
             }
+            self.outputs.insert(input, outputs);
         }
         RowChanges { removed, inserted }
     }
@@ -154,6 +177,7 @@ impl<S: 'static, O: Operator<S>, F: FlattenSource<S, O> + 'static> Operator<S>
         self.input.clear();
         self.rows.clear();
         self.outputs.clear();
+        self.retired.clear();
     }
     fn initialize(&mut self, solution: &S) {
         self.clear();

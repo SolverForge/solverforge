@@ -208,6 +208,9 @@ where
     KeyA: ViewKey<L, Key = K> + Send + Sync,
     KeyB: ViewKey<R, Key = K> + Send + Sync,
 {
+    fn candidate_matches(&self, _left: &L, _right: &R) -> bool {
+        true
+    }
     fn insert_left(&self, i: &mut Self::Indexes, h: RowHandle, row: &L) {
         i.0.insert(h, self.key_a.key(row));
     }

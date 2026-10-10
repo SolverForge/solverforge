@@ -91,3 +91,29 @@ fn full_evaluation_consumes_compiled_index_instead_of_cartesian_scan() {
         "full evaluation must map right keys once, not repeat indexed equality checks"
     );
 }
+
+#[test]
+fn view_equality_candidates_do_not_repeat_key_extraction() {
+    use crate::stream::relational::view_plan::{EntityKey, ViewEqualPlan};
+
+    static VIEW_CALLS: AtomicUsize = AtomicUsize::new(0);
+    VIEW_CALLS.store(0, Ordering::Relaxed);
+    let leaf = |binding| {
+        CollectionNode::new(
+            source(values as fn(&Model) -> &[u32], ChangeSource::Descriptor(0)),
+            binding,
+        )
+    };
+    let plan = ViewEqualPlan::new(
+        EntityKey::new(|v: &u32| *v),
+        EntityKey::new(|v: &u32| {
+            VIEW_CALLS.fetch_add(1, Ordering::Relaxed);
+            *v
+        }),
+    );
+    let tree = JoinNode::new(leaf(0), leaf(1), plan);
+    let mut rows = 0;
+    tree.visit_all(&Model((0..64).collect()), &mut |_| rows += 1);
+    assert_eq!(rows, 64);
+    assert_eq!(VIEW_CALLS.load(Ordering::Relaxed), 64);
+}

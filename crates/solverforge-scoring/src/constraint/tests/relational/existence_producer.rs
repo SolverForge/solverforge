@@ -1,7 +1,7 @@
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::relational::OperatorTerminal;
 use crate::stream::collection_extract::{source, ChangeSource};
-use crate::stream::joiner::equal_bi;
+use crate::stream::joiner::{equal_bi, filtering};
 use crate::stream::relational::{
     operator::{CollectionNode, ExistenceNode, Operator},
     Leaf,
@@ -27,6 +27,85 @@ fn key(v: &Leaf<'_, Entity>) -> u32 {
 }
 fn weight(_: &Model, v: &Leaf<'_, Entity>) -> SoftScore {
     SoftScore::of(v.entity.weight)
+}
+
+#[test]
+fn many_to_many_links_preserve_residuals_across_refresh_and_slot_reuse() {
+    for exists in [true, false] {
+        let l = CollectionNode::new(
+            source(left as fn(&Model) -> &[Entity], ChangeSource::Descriptor(0)),
+            0,
+        );
+        let r = CollectionNode::new(
+            source(
+                right as fn(&Model) -> &[Entity],
+                ChangeSource::Descriptor(1),
+            ),
+            1,
+        );
+        let condition =
+            equal_bi(key, key).and(filtering(|l: &Leaf<'_, Entity>, r: &Leaf<'_, Entity>| {
+                l.entity.weight < r.entity.weight
+            }));
+        let tree = ExistenceNode::new(l, r, condition, exists);
+        let mut c = OperatorTerminal::new(
+            ConstraintRef::new("test", "many links"),
+            ImpactType::Reward,
+            tree,
+            weight,
+            false,
+        );
+        let mut m = Model {
+            left: (0..16)
+                .map(|i| Entity {
+                    key: i % 3,
+                    weight: i as i64,
+                })
+                .collect(),
+            right: (0..8)
+                .map(|i| Entity {
+                    key: i % 3,
+                    weight: (i * 4) as i64,
+                })
+                .collect(),
+        };
+        let oracle = |m: &Model| {
+            SoftScore::of(
+                m.left
+                    .iter()
+                    .filter(|l| {
+                        m.right
+                            .iter()
+                            .any(|r| l.key == r.key && l.weight < r.weight)
+                            == exists
+                    })
+                    .map(|l| l.weight)
+                    .sum(),
+            )
+        };
+        let mut score = c.initialize(&m);
+        assert_eq!(score, oracle(&m));
+        for step in 0..160 {
+            let descriptor = step % 2;
+            let index = (step / 2) % if descriptor == 0 { 16 } else { 8 };
+            score = score + c.on_retract(&m, index, descriptor);
+            assert_eq!(c.on_retract(&m, index, descriptor), SoftScore::ZERO);
+            let values = if descriptor == 0 {
+                &mut m.left
+            } else {
+                &mut m.right
+            };
+            values[index].key = ((step / 7) % 5) as u32;
+            values[index].weight = (step % 31) as i64 - 10;
+            score = score + c.on_insert(&m, index, descriptor);
+            assert_eq!(c.on_insert(&m, index, descriptor), SoftScore::ZERO);
+            assert_eq!(score, oracle(&m));
+            assert_eq!(c.evaluate(&m), score);
+            assert_eq!(c.get_matches(&m).len(), c.match_count(&m));
+        }
+        c.reset();
+        assert_eq!(c.initialize(&m), oracle(&m));
+    }
 }
 #[test]
 fn semi_and_anti_joins_publish_only_zero_crossings_and_preserve_left_identity() {

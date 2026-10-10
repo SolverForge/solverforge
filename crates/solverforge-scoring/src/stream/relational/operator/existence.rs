@@ -122,19 +122,12 @@ where
         {
             return;
         }
-        let mut left_matches = match self.left_matches.remove(left) {
-            Some(matches) => matches,
-            None => self.retired.pop().unwrap_or_default(),
-        };
-        left_matches.push(right);
-        self.left_matches.insert(left, left_matches);
-
-        let mut right_matches = match self.right_matches.remove(right) {
-            Some(matches) => matches,
-            None => self.retired.pop().unwrap_or_default(),
-        };
-        right_matches.push(left);
-        self.right_matches.insert(right, right_matches);
+        self.left_matches
+            .get_or_insert_with(left, || self.retired.pop().unwrap_or_default())
+            .push(right);
+        self.right_matches
+            .get_or_insert_with(right, || self.retired.pop().unwrap_or_default())
+            .push(left);
     }
     fn probe_left(&mut self, solution: &S, left: RowHandle) {
         let row = self

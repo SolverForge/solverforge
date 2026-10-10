@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.19.11](https://github.com/SolverForge/solverforge/compare/v0.19.10...v0.19.11) (2026-10-10)
+
+### Bug Fixes
+
+* **scoring:** avoid repeating exact indexed equality extraction abacb7f
+* **scoring:** reuse relational buffers across incremental updates dec3f35
+* **solver:** retain complete buffered Clarke-Wright merges on interruption 75925ba
+
 ## [0.19.10](https://github.com/SolverForge/solverforge/compare/v0.19.9...v0.19.10) (2026-10-09)
 
 ### Bug Fixes

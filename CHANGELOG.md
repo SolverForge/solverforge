@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.19.12](https://github.com/SolverForge/solverforge/compare/v0.19.11...v0.19.12) (2026-10-10)
+
+### Bug Fixes
+
+* **scoring:** avoid repeated retained relationship bookkeeping 8c0e4bc
+
 ## [0.19.11](https://github.com/SolverForge/solverforge/compare/v0.19.10...v0.19.11) (2026-10-10)
 
 ### Bug Fixes

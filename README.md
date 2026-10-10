@@ -281,7 +281,7 @@ If you are building directly against the runtime crates instead of starting from
 
 ```toml
 [dependencies]
-solverforge = { version = "0.19.11", features = ["console"] }
+solverforge = { version = "0.19.12", features = ["console"] }
 ```
 
 ### List planning variables
@@ -510,7 +510,7 @@ models show average `candidates`.
  ___) | (_) | |\ V /  __/ |   |  _| (_) | | | (_| |  __/
 |____/ \___/|_| \_/ \___|_|   |_|  \___/|_|  \__, |\___|
                                              |___/
-                   v0.19.11 - Zero-Erasure Constraint Solver
+                   v0.19.12 - Zero-Erasure Constraint Solver
 
   0.000s ▶ Solving │ 14 entities │ 5 candidates │ scale 9.799 x 10^0
   0.001s ▶ Construction Heuristic started
@@ -753,7 +753,7 @@ controlled gate has not completed release qualification.
 
 ## Status
 
-**Current workspace version:** 0.19.11
+**Current workspace version:** 0.19.12
 
 The current checked-in workspace exposes:
 

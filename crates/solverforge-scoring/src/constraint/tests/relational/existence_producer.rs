@@ -36,8 +36,8 @@ use crate::stream::relational::RowHandle;
 
 #[test]
 fn semi_and_anti_joins_publish_only_zero_crossings_and_preserve_left_identity() {
-        let mut rm: Vec<RowHandle> = Vec::new();
-        let mut ins: Vec<RowHandle> = Vec::new();
+    let mut rm: Vec<RowHandle> = Vec::new();
+    let mut ins: Vec<RowHandle> = Vec::new();
     for exists in [true, false] {
         let l = CollectionNode::new(
             source(left as fn(&Model) -> &[Entity], ChangeSource::Descriptor(0)),

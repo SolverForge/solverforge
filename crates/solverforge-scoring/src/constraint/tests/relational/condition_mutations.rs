@@ -120,7 +120,10 @@ where
         assert_eq!(retained, expected);
     };
     check(&tree, &m);
-    { tree.retract(&m, 99, 0, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
+    {
+        tree.retract(&m, 99, 0, &mut rm, &mut ins);
+        assert!(rm.is_empty() && ins.is_empty());
+    }
     let mut seed = 19u64;
     for step in 0..120 {
         seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
@@ -144,7 +147,7 @@ where
         } else {
             values[index].key = ((seed >> 8) % 7) as i32 - 3;
         }
-tree.insert(&m, descriptor, index, &mut rm, &mut ins);
+        tree.insert(&m, descriptor, index, &mut rm, &mut ins);
         check(&tree, &m);
     }
     tree.clear();

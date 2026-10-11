@@ -151,11 +151,15 @@ where
         rm.clear();
         ri.clear();
         if retract {
-            self.targets.retract(solution, descriptor, index, &mut lm, &mut li);
-            self.results.retract(solution, descriptor, index, &mut rm, &mut ri);
+            self.targets
+                .retract(solution, descriptor, index, &mut lm, &mut li);
+            self.results
+                .retract(solution, descriptor, index, &mut rm, &mut ri);
         } else {
-            self.targets.insert(solution, descriptor, index, &mut lm, &mut li);
-            self.results.insert(solution, descriptor, index, &mut rm, &mut ri);
+            self.targets
+                .insert(solution, descriptor, index, &mut lm, &mut li);
+            self.results
+                .insert(solution, descriptor, index, &mut rm, &mut ri);
         }
         self.apply_changes(
             solution,

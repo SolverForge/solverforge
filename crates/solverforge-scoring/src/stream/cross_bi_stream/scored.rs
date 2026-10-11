@@ -331,7 +331,13 @@ where
         let mut inner_inserted = inner_inserted;
         inner_removed.clear();
         inner_inserted.clear();
-        self.inner.retract(solution, descriptor, index, &mut inner_removed, &mut inner_inserted);
+        self.inner.retract(
+            solution,
+            descriptor,
+            index,
+            &mut inner_removed,
+            &mut inner_inserted,
+        );
         for h in inner_removed.drain(..) {
             if self.accepted.remove(h).is_some() {
                 removed.push(h);
@@ -353,9 +359,18 @@ where
         let mut inner_inserted = std::mem::take(&mut self.child_inserted);
         inner_removed.clear();
         inner_inserted.clear();
-        self.inner.insert(solution, descriptor, index, &mut inner_removed, &mut inner_inserted);
+        self.inner.insert(
+            solution,
+            descriptor,
+            index,
+            &mut inner_removed,
+            &mut inner_inserted,
+        );
         for handle in inner_inserted.drain(..) {
-            let row = self.inner.resolve(solution, handle).expect("live scored row");
+            let row = self
+                .inner
+                .resolve(solution, handle)
+                .expect("live scored row");
             if self.test(solution, row) {
                 self.accepted.insert(handle, ());
                 inserted.push(handle);

@@ -177,7 +177,13 @@ where
         let mut in_inserted = std::mem::take(&mut self.child_inserted);
         in_removed.clear();
         in_inserted.clear();
-        self.input.retract(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        self.input.retract(
+            solution,
+            descriptor,
+            index,
+            &mut in_removed,
+            &mut in_inserted,
+        );
         self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
         self.child_removed = in_removed;
         self.child_inserted = in_inserted;
@@ -196,7 +202,13 @@ where
         let mut in_inserted = std::mem::take(&mut self.child_inserted);
         in_removed.clear();
         in_inserted.clear();
-        self.input.insert(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        self.input.insert(
+            solution,
+            descriptor,
+            index,
+            &mut in_removed,
+            &mut in_inserted,
+        );
         self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
         self.child_removed = in_removed;
         self.child_inserted = in_inserted;

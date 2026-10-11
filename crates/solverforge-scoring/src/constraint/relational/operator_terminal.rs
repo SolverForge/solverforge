@@ -63,12 +63,7 @@ where
     W: for<'a> Fn(&S, &O::View<'a>) -> Sc,
     Sc: Score,
 {
-    fn apply_changes(
-        &mut self,
-        solution: &S,
-        removed: &[RowHandle],
-        inserted: &[RowHandle],
-    ) -> Sc {
+    fn apply_changes(&mut self, solution: &S, removed: &[RowHandle], inserted: &[RowHandle]) -> Sc {
         let mut total = Sc::zero();
         for h in removed.iter().copied() {
             if let Some(score) = self.scores.remove(h) {
@@ -133,7 +128,8 @@ where
         let mut inserted = std::mem::take(&mut self.inserted);
         removed.clear();
         inserted.clear();
-        self.operator.retract(solution, descriptor, index, &mut removed, &mut inserted);
+        self.operator
+            .retract(solution, descriptor, index, &mut removed, &mut inserted);
         let score = self.apply_changes(solution, &removed, &inserted);
         self.removed = removed;
         self.inserted = inserted;
@@ -144,7 +140,8 @@ where
         let mut inserted = std::mem::take(&mut self.inserted);
         removed.clear();
         inserted.clear();
-        self.operator.insert(solution, descriptor, index, &mut removed, &mut inserted);
+        self.operator
+            .insert(solution, descriptor, index, &mut removed, &mut inserted);
         let score = self.apply_changes(solution, &removed, &inserted);
         self.removed = removed;
         self.inserted = inserted;

@@ -155,7 +155,9 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
                     out.push(key_from_raw::<K>(raw));
                 }
             }
-            Self::Hashed { touched, marked, .. } => {
+            Self::Hashed {
+                touched, marked, ..
+            } => {
                 marked.clear();
                 out.append(touched);
             }

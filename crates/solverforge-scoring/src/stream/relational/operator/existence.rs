@@ -1,8 +1,8 @@
-use crate::stream::relational::count_state::KeyState;
-use super::{Operator, PairDelta};
 use super::group_view::GroupView;
-use crate::stream::collector::Accumulator;
+use super::{Operator, PairDelta};
 use crate::stream::collection_extract::FlattenExtract;
+use crate::stream::collector::Accumulator;
+use crate::stream::relational::count_state::KeyState;
 use crate::stream::relational::view_plan::ViewKey;
 use crate::stream::relational::{FastMap, HandleMap, Leaf, RowHandle};
 use std::hash::Hash;
@@ -189,11 +189,35 @@ where
         right_removed.clear();
         right_inserted.clear();
         if retract {
-            self.left.retract(solution, descriptor, index, &mut left_removed, &mut left_inserted);
-            self.right.retract(solution, descriptor, index, &mut right_removed, &mut right_inserted);
+            self.left.retract(
+                solution,
+                descriptor,
+                index,
+                &mut left_removed,
+                &mut left_inserted,
+            );
+            self.right.retract(
+                solution,
+                descriptor,
+                index,
+                &mut right_removed,
+                &mut right_inserted,
+            );
         } else {
-            self.left.insert(solution, descriptor, index, &mut left_removed, &mut left_inserted);
-            self.right.insert(solution, descriptor, index, &mut right_removed, &mut right_inserted);
+            self.left.insert(
+                solution,
+                descriptor,
+                index,
+                &mut left_removed,
+                &mut left_inserted,
+            );
+            self.right.insert(
+                solution,
+                descriptor,
+                index,
+                &mut right_removed,
+                &mut right_inserted,
+            );
         }
         self.apply_changes(
             solution,

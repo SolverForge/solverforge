@@ -218,7 +218,13 @@ where
         }
         let mut removed = Vec::new();
         let mut inserted = Vec::new();
-        self.join.insert(solution, descriptor_index, entity_index, &mut removed, &mut inserted);
+        self.join.insert(
+            solution,
+            descriptor_index,
+            entity_index,
+            &mut removed,
+            &mut inserted,
+        );
         for handle in inserted {
             if let Some(row) = self.join.resolve(solution, handle) {
                 let (a_idx, b_idx) = (row.left.index, row.right.index);
@@ -252,7 +258,13 @@ where
         }
         let mut removed = Vec::new();
         let mut inserted = Vec::new();
-        self.join.retract(solution, descriptor_index, entity_index, &mut removed, &mut inserted);
+        self.join.retract(
+            solution,
+            descriptor_index,
+            entity_index,
+            &mut removed,
+            &mut inserted,
+        );
         self.update_count += 1;
         self.changed_key_count += self.changed_groups.len();
     }

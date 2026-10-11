@@ -157,12 +157,14 @@ where
         let mut li = std::mem::take(&mut self.child_l_inserted);
         lm.clear();
         li.clear();
-        self.left.retract(solution, descriptor, index, &mut lm, &mut li);
+        self.left
+            .retract(solution, descriptor, index, &mut lm, &mut li);
         let mut rm = std::mem::take(&mut self.child_r_removed);
         let mut ri = std::mem::take(&mut self.child_r_inserted);
         rm.clear();
         ri.clear();
-        self.right.retract(solution, descriptor, index, &mut rm, &mut ri);
+        self.right
+            .retract(solution, descriptor, index, &mut rm, &mut ri);
         self.apply_changes(&lm, &li, &rm, &ri, removed, inserted);
         self.child_l_removed = lm;
         self.child_l_inserted = li;
@@ -183,12 +185,14 @@ where
         let mut li = std::mem::take(&mut self.child_l_inserted);
         lm.clear();
         li.clear();
-        self.left.insert(solution, descriptor, index, &mut lm, &mut li);
+        self.left
+            .insert(solution, descriptor, index, &mut lm, &mut li);
         let mut rm = std::mem::take(&mut self.child_r_removed);
         let mut ri = std::mem::take(&mut self.child_r_inserted);
         rm.clear();
         ri.clear();
-        self.right.insert(solution, descriptor, index, &mut rm, &mut ri);
+        self.right
+            .insert(solution, descriptor, index, &mut rm, &mut ri);
         self.apply_changes(&lm, &li, &rm, &ri, removed, inserted);
         self.child_l_removed = lm;
         self.child_l_inserted = li;

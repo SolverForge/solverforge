@@ -6,11 +6,11 @@ terminals live under `constraint::relational`. Nothing here introduces a
 public erased graph API: every type is concrete and monomorphized.
 */
 
+pub(crate) mod count_state;
 mod handle_map;
 pub(crate) mod hash;
 mod identity;
 pub(crate) mod index;
-pub(crate) mod count_state;
 pub(crate) mod keyed_plan;
 pub(crate) mod leaf_collector;
 pub mod operator;

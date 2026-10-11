@@ -14,9 +14,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use super::filter::{AndPentaFilter, FnPentaFilter, PentaFilter};
 use super::joiner::plan::{CompileCondition, IndexedPlan};
-use super::relational::operator::{
-    CollectionNode, ExplainRow, JoinNode, Operator, Pair,
-};
+use super::relational::operator::{CollectionNode, ExplainRow, JoinNode, Operator, Pair};
 use super::relational::{HandleMap, Leaf, RowHandle};
 use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
@@ -552,7 +550,13 @@ where
         let mut inner_inserted = inner_inserted;
         inner_removed.clear();
         inner_inserted.clear();
-        self.inner.retract(solution, descriptor, index, &mut inner_removed, &mut inner_inserted);
+        self.inner.retract(
+            solution,
+            descriptor,
+            index,
+            &mut inner_removed,
+            &mut inner_inserted,
+        );
         for h in inner_removed.drain(..) {
             if self.accepted.remove(h).is_some() {
                 removed.push(h);
@@ -574,9 +578,18 @@ where
         let mut inner_inserted = std::mem::take(&mut self.child_inserted);
         inner_removed.clear();
         inner_inserted.clear();
-        self.inner.insert(solution, descriptor, index, &mut inner_removed, &mut inner_inserted);
+        self.inner.insert(
+            solution,
+            descriptor,
+            index,
+            &mut inner_removed,
+            &mut inner_inserted,
+        );
         for handle in inner_inserted.drain(..) {
-            let row = self.inner.resolve(solution, handle).expect("live scored row");
+            let row = self
+                .inner
+                .resolve(solution, handle)
+                .expect("live scored row");
             if self.test(solution, row) {
                 self.accepted.insert(handle, ());
                 inserted.push(handle);

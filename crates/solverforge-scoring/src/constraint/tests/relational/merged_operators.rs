@@ -29,11 +29,23 @@ fn merged_branch_ids_preserve_bags_and_invalidate_both_bindings() {
     let mut full = 0;
     tree.visit_all(&m, &mut |_| full += 1);
     assert_eq!(full, 8);
-    {tree.retract(&m, 0, 0, &mut rm, &mut ins); assert_eq!(rm.len() + ins.len(), 6);}
-    { tree.retract(&m, 0, 0, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
+    {
+        tree.retract(&m, 0, 0, &mut rm, &mut ins);
+        assert_eq!(rm.len() + ins.len(), 6);
+    }
+    {
+        tree.retract(&m, 0, 0, &mut rm, &mut ins);
+        assert!(rm.is_empty() && ins.is_empty());
+    }
     m.0[0] = 8;
-    {tree.insert(&m, 0, 0, &mut rm, &mut ins); assert_eq!(rm.len() + ins.len(), 2);}
-    { tree.insert(&m, 0, 0, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
+    {
+        tree.insert(&m, 0, 0, &mut rm, &mut ins);
+        assert_eq!(rm.len() + ins.len(), 2);
+    }
+    {
+        tree.insert(&m, 0, 0, &mut rm, &mut ins);
+        assert!(rm.is_empty() && ins.is_empty());
+    }
     assert_eq!(tree.handles().len(), 4);
     let mut full = 0;
     tree.visit_all(&m, &mut |_| full += 1);

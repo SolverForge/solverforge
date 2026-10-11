@@ -46,16 +46,34 @@ fn filters_on_both_inputs_preserve_membership_and_semantic_indexes() {
     };
     Operator::initialize(&mut tree, &m);
     check(&tree, &m, 2);
-    { tree.retract(&m, 0, 0, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
+    {
+        tree.retract(&m, 0, 0, &mut rm, &mut ins);
+        assert!(rm.is_empty() && ins.is_empty());
+    }
     m.left[0] = 1;
-    {tree.insert(&m, 0, 0, &mut rm, &mut ins); assert_eq!(rm.len() + ins.len(), 1);}
+    {
+        tree.insert(&m, 0, 0, &mut rm, &mut ins);
+        assert_eq!(rm.len() + ins.len(), 1);
+    }
     check(&tree, &m, 3);
-    {tree.retract(&m, 0, 1, &mut rm, &mut ins); assert_eq!(rm.len() + ins.len(), 1);}
+    {
+        tree.retract(&m, 0, 1, &mut rm, &mut ins);
+        assert_eq!(rm.len() + ins.len(), 1);
+    }
     m.left[1] = -1;
-    { tree.insert(&m, 0, 1, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
+    {
+        tree.insert(&m, 0, 1, &mut rm, &mut ins);
+        assert!(rm.is_empty() && ins.is_empty());
+    }
     check(&tree, &m, 2);
-    { tree.retract(&m, 1, 1, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
+    {
+        tree.retract(&m, 1, 1, &mut rm, &mut ins);
+        assert!(rm.is_empty() && ins.is_empty());
+    }
     m.right[1] = 3;
-    { tree.insert(&m, 1, 1, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
+    {
+        tree.insert(&m, 1, 1, &mut rm, &mut ins);
+        assert!(rm.is_empty() && ins.is_empty());
+    }
     check(&tree, &m, 2);
 }

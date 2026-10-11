@@ -35,7 +35,8 @@ pub struct JoinerExistenceNode<S, L, R, P: IndexedPlan> {
     exists: bool,
     marker: PhantomData<fn() -> S>,
 }
-impl<S: 'static, L: Operator<S>, R: Operator<S>, P: IndexedPlan + 'static> JoinerExistenceNode<S, L, R, P>
+impl<S: 'static, L: Operator<S>, R: Operator<S>, P: IndexedPlan + 'static>
+    JoinerExistenceNode<S, L, R, P>
 where
     for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,
 {
@@ -76,19 +77,27 @@ where
         retract: bool,
         side: usize,
     ) -> (Vec<RowHandle>, Vec<RowHandle>) {
-        let (removed, inserted) = if side == 0 { (&mut self.child_l_removed, &mut self.child_l_inserted) } else { (&mut self.child_r_removed, &mut self.child_r_inserted) };
+        let (removed, inserted) = if side == 0 {
+            (&mut self.child_l_removed, &mut self.child_l_inserted)
+        } else {
+            (&mut self.child_r_removed, &mut self.child_r_inserted)
+        };
         removed.clear();
         inserted.clear();
         if side == 0 {
             if retract {
-                self.left.retract(solution, descriptor, index, removed, inserted);
+                self.left
+                    .retract(solution, descriptor, index, removed, inserted);
             } else {
-                self.left.insert(solution, descriptor, index, removed, inserted);
+                self.left
+                    .insert(solution, descriptor, index, removed, inserted);
             }
         } else if retract {
-            self.right.retract(solution, descriptor, index, removed, inserted);
+            self.right
+                .retract(solution, descriptor, index, removed, inserted);
         } else {
-            self.right.insert(solution, descriptor, index, removed, inserted);
+            self.right
+                .insert(solution, descriptor, index, removed, inserted);
         }
         let r = if side == 0 {
             std::mem::take(&mut self.child_l_removed)

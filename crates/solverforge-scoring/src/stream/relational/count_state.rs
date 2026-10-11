@@ -205,31 +205,36 @@ impl DenseKeys {
             self.left_buckets.resize_with(raw + 1, Vec::new);
         }
     }
+    /* add/take are per-key-per-event hot calls: in-Touched check inlined
+    (no separate `touch` frame), and the grow branch is the cheap len compare
+    — `grow` itself only runs during warmup, never again. */
     #[inline]
     pub fn add(&mut self, raw: usize, n: usize) -> usize {
-        self.grow(raw);
+        if self.counts.len() <= raw {
+            self.grow(raw);
+        }
         self.counts[raw] += n as u32;
-        self.touch(raw);
-        self.counts[raw] as usize
-    }
-    #[inline]
-    pub fn take(&mut self, raw: usize, n: usize) {
-        self.grow(raw);
-        debug_assert!(self.counts[raw] >= n as u32, "count underflow");
-        self.counts[raw] -= n as u32;
-        self.touch(raw);
-    }
-    #[inline]
-    pub fn alive(&self, raw: usize) -> bool {
-        self.counts.get(raw).copied().unwrap_or(0) > 0
-    }
-    #[inline]
-    fn touch(&mut self, raw: usize) {
-        self.grow(raw);
         if !self.in_touched[raw] {
             self.in_touched[raw] = true;
             self.touched.push(raw);
         }
+        self.counts[raw] as usize
+    }
+    #[inline]
+    pub fn take(&mut self, raw: usize, n: usize) {
+        if self.counts.len() <= raw {
+            self.grow(raw);
+        }
+        debug_assert!(self.counts[raw] >= n as u32, "count underflow");
+        self.counts[raw] -= n as u32;
+        if !self.in_touched[raw] {
+            self.in_touched[raw] = true;
+            self.touched.push(raw);
+        }
+    }
+    #[inline]
+    pub fn alive(&self, raw: usize) -> bool {
+        self.counts.get(raw).copied().unwrap_or(0) > 0
     }
     #[inline]
     pub fn left_insert(&mut self, raw: usize, handle: RowHandle) {

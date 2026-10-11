@@ -16,8 +16,10 @@ migration of the fluent stream families:
   owned `Evaluation`, `prepare_evaluation`, `visit_evaluation`, `visit_all`,
   `clear`, `initialize`, `handles`, `resolve`, `visit_provenance`,
   `retract`, and `insert`. Views borrow entities; entities need not be Copy.
-  Both notification methods return `RowChanges { removed, inserted }`: a
-  contributor retraction can replace a surviving aggregate row.
+  Both notification methods append into caller-owned reused buffers
+  `(&mut Vec<RowHandle> removed, &mut Vec<RowHandle> inserted)` and clear them
+  first: an event costs one memcpy per hop and no heap traffic. A contributor
+  retraction can still replace a surviving aggregate row within one event.
 - `CollectionNode<S, E>::new(extractor, binding)` adapts `CollectionExtract`.
 - `FilterNode<O, F>::new(input, predicate)` preserves accepted input identities
   and semantic source indexes. Its predicate takes `(&S, &O::View<'a>)`;
@@ -35,10 +37,22 @@ migration of the fluent stream families:
   accumulator-owned result, including non-Clone `CollectedVec<T>` payloads.
   Either join input can be a grouped producer. Contributor changes replace
   aggregate rows on both callbacks and coalesce within one root notification.
-- `ExistenceNode<S, L, R, P>::new(left, right, condition, exists)` publishes only
-  left rows, using the same compiled index strategies as joins. `exists=true`
-  selects semi-join membership and `false` selects anti-join membership. Matching
-  links retain multiplicity counts; 1↔2 transitions do not publish row changes.
+- `ExistenceNode<S, L, R, K, LK, RK>::new(left, right, left_key, right_keys,
+  exists)` answers a pure-key semi/anti join from per-key occurrence counts
+  (dense arrays for `usize` planning ids via `KeyState` in
+  `stream/relational/count_state.rs`, hash tables otherwise). The left key
+  adapter implements `ViewKey<L::View<'a>>`; the right adapter implements
+  `RightKeySet<R::View<'a>>` (`UnitKeys` for one key per right row,
+  `ParentChildKeys` to expand flattened children in place, `GroupRightKeys`
+  for grouped rows keyed off their accumulator result). Right-side children
+  never become rows and never receive handles; only left rows are published
+  for scoring.
+- `JoinerExistenceNode<S, L, R, P>::new(left, right, condition, exists)` is
+  the per-pair companion for relationships WITH a residual predicate
+  (`.and(filtering(...))` over an `EqualJoiner`): it compiles the condition's
+  plan, retains passing pair rows and their reverse links, and publishes left
+  rows by membership. Use the count-backed `ExistenceNode` when no residual
+  predicate exists.
 - `FlattenNode<O, F, T>::new(input, extractor)` emits borrowed child slices
   without cloning children or retaining solution references. The extractor takes
   `(&'a S, O::View<'a>)` and returns `&'a [T]`. `FlattenView<'a, V, T>` exposes
@@ -83,9 +97,10 @@ migration of the fluent stream families:
   existing `Concat<Leaf<A>, B>` view using semantic indexes.
 
 New file map: `stream/relational/operator.rs`,
-`stream/relational/operator/{analysis,changes,collection,complement,complement_view,
-existence,filter,flatten,group,group_view,
-join,merge,project,self_join}.rs`,
+`stream/relational/operator/{analysis,collection,complement,complement_view,
+existence,filter,flatten,group,group_view,join,joiner_existence,merge,project,
+self_join}.rs`,
+`stream/relational/{count_state,keyed_plan,view_plan}.rs`,
 `stream/joiner/plan.rs`, `stream/joiner/plan/{executable,hash_scan,conjunction,
 composite,mixed_equality,ordered_interval}.rs`, `stream/joiner/row_key.rs`,
 `stream/relational/index/{hash,ordered,interval}.rs`,

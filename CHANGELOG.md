@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.19.13](https://github.com/SolverForge/solverforge/compare/v0.19.12...v0.19.13) (2026-10-11)
+
 ## [0.19.12](https://github.com/SolverForge/solverforge/compare/v0.19.11...v0.19.12) (2026-10-10)
 
 ### Bug Fixes

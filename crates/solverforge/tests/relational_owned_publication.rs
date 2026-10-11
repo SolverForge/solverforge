@@ -134,7 +134,7 @@ fn facade_group_result_can_join_and_publish_partial_group_replacement() {
 #[test]
 fn facade_anti_join_updates_both_bindings_of_one_descriptor() {
     use solverforge::stream::joiner::filtering;
-    use solverforge::stream::relational::operator::ExistenceNode;
+    use solverforge::stream::relational::operator::JoinerExistenceNode;
     fn weight(_: &Model, row: &Leaf<'_, Entity>) -> SoftScore {
         SoftScore::of(row.entity.weight)
     }
@@ -151,7 +151,7 @@ fn facade_anti_join_updates_both_bindings_of_one_descriptor() {
         )
     };
     let condition = equal_bi(leaf_key, leaf_key).and(filtering(different));
-    let tree = ExistenceNode::new(leaf(0), leaf(1), condition, false);
+    let tree = JoinerExistenceNode::new(leaf(0), leaf(1), condition, false);
     let mut c = OperatorTerminal::new(
         ConstraintRef::new("public", "anti"),
         ImpactType::Reward,

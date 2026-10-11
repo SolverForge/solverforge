@@ -1,4 +1,4 @@
-use super::{ExplainRow, Operator, RowChanges};
+use super::{ExplainRow, Operator};
 use crate::api::analysis::EntityRef;
 use crate::stream::relational::{DenseRowStore, HandleMap, RowHandle};
 
@@ -31,6 +31,9 @@ pub struct ProjectNode<O, F, T> {
     mapper: F,
     rows: DenseRowStore<Output<T>>,
     outputs: HandleMap<Vec<RowHandle>>,
+    /// Child notification scratch, reused across events.
+    child_removed: Vec<RowHandle>,
+    child_inserted: Vec<RowHandle>,
 }
 /// Fresh projection payloads with an independent owner for upstream derived values.
 #[doc(hidden)]
@@ -45,6 +48,8 @@ impl<O, F, T> ProjectNode<O, F, T> {
             mapper,
             rows: DenseRowStore::new(),
             outputs: HandleMap::new(),
+            child_removed: Vec::new(),
+            child_inserted: Vec::new(),
         }
     }
     fn add(&mut self, input: RowHandle, values: Vec<T>, inserted: &mut Vec<RowHandle>) {
@@ -61,28 +66,31 @@ impl<O, F, T> ProjectNode<O, F, T> {
     }
 }
 impl<O, F, T: 'static> ProjectNode<O, F, T> {
-    fn apply_changes<S: 'static>(&mut self, solution: &S, changes: RowChanges) -> RowChanges
-    where
+    fn apply_changes<S: 'static>(
+        &mut self,
+        solution: &S,
+        input_removed: &[RowHandle],
+        input_inserted: &[RowHandle],
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) where
         O: Operator<S>,
         F: for<'a> Fn(&S, &O::View<'a>) -> Vec<T> + 'static,
     {
-        let mut removed = Vec::new();
-        for input in changes.removed {
+        for input in input_removed.iter().copied() {
             for h in self.outputs.remove(input).unwrap_or_default() {
                 self.rows.retract(h);
                 removed.push(h);
             }
         }
-        let mut inserted = Vec::new();
-        for input in changes.inserted {
+        for input in input_inserted.iter().copied() {
             let row = self
                 .input
                 .resolve(solution, input)
                 .expect("inserted projected input");
             let values = (self.mapper)(solution, &row);
-            self.add(input, values, &mut inserted);
+            self.add(input, values, inserted);
         }
-        RowChanges { removed, inserted }
     }
 }
 impl<S: 'static, O, F, T: 'static> Operator<S> for ProjectNode<O, F, T>
@@ -123,6 +131,8 @@ where
         self.input.clear();
         self.rows.clear();
         self.outputs.clear();
+        self.child_removed.clear();
+        self.child_inserted.clear();
     }
     fn initialize(&mut self, solution: &S) {
         self.input.initialize(solution);
@@ -153,12 +163,42 @@ where
             self.input.visit_provenance(row.input, visitor);
         }
     }
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let changes = self.input.retract(solution, descriptor, index);
-        self.apply_changes(solution, changes)
+    fn retract(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut in_removed = std::mem::take(&mut self.child_removed);
+        let mut in_inserted = std::mem::take(&mut self.child_inserted);
+        in_removed.clear();
+        in_inserted.clear();
+        self.input.retract(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
+        self.child_removed = in_removed;
+        self.child_inserted = in_inserted;
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let changes = self.input.insert(solution, descriptor, index);
-        self.apply_changes(solution, changes)
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut in_removed = std::mem::take(&mut self.child_removed);
+        let mut in_inserted = std::mem::take(&mut self.child_inserted);
+        in_removed.clear();
+        in_inserted.clear();
+        self.input.insert(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
+        self.child_removed = in_removed;
+        self.child_inserted = in_inserted;
     }
 }

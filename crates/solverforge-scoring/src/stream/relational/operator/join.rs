@@ -1,5 +1,5 @@
 use super::super::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
-use super::{Operator, Pair, RowChanges};
+use super::{Operator, Pair, PairDelta};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -13,6 +13,11 @@ pub struct JoinNode<S, L, R, P: IndexedPlan> {
     outputs: HashMap<JoinedIdentity, RowHandle>,
     left_outputs: HandleMap<Vec<RowHandle>>,
     right_outputs: HandleMap<Vec<RowHandle>>,
+    /// Child notification scratch, reused across events (L/R, removed/inserted).
+    child_l_removed: Vec<RowHandle>,
+    child_l_inserted: Vec<RowHandle>,
+    child_r_removed: Vec<RowHandle>,
+    child_r_inserted: Vec<RowHandle>,
     marker: PhantomData<fn() -> S>,
 }
 
@@ -43,12 +48,27 @@ where
             outputs: HashMap::new(),
             left_outputs: HandleMap::new(),
             right_outputs: HandleMap::new(),
+            child_l_removed: Vec::new(),
+            child_l_inserted: Vec::new(),
+            child_r_removed: Vec::new(),
+            child_r_inserted: Vec::new(),
             marker: PhantomData,
         }
     }
-    fn apply_changes(&mut self, solution: &S, left: RowChanges, right: RowChanges) -> RowChanges {
-        let mut removed = Vec::new();
-        for handle in left.removed {
+    fn apply_changes(
+        &mut self,
+        solution: &S,
+        delta: PairDelta<'_>,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        let PairDelta {
+            left_removed,
+            left_inserted,
+            right_removed,
+            right_inserted,
+        } = delta;
+        for handle in left_removed.iter().copied() {
             self.plan.remove_left(&mut self.indexes, handle);
             for output in self.left_outputs.remove(handle).unwrap_or_default() {
                 if self.rows.get(output).is_some() {
@@ -57,7 +77,7 @@ where
                 }
             }
         }
-        for handle in right.removed {
+        for handle in right_removed.iter().copied() {
             self.plan.remove_right(&mut self.indexes, handle);
             for output in self.right_outputs.remove(handle).unwrap_or_default() {
                 if self.rows.get(output).is_some() {
@@ -66,28 +86,26 @@ where
                 }
             }
         }
-        for &handle in &left.inserted {
+        for handle in left_inserted.iter().copied() {
             let row = self
                 .left
                 .resolve(solution, handle)
                 .expect("inserted left row");
             self.plan.insert_left(&mut self.indexes, handle, &row);
         }
-        for &handle in &right.inserted {
+        for handle in right_inserted.iter().copied() {
             let row = self
                 .right
                 .resolve(solution, handle)
                 .expect("inserted right row");
             self.plan.insert_right(&mut self.indexes, handle, &row);
         }
-        let mut inserted = Vec::new();
-        for handle in left.inserted {
+        for handle in left_inserted.iter().copied() {
             self.probe_left(solution, handle, &mut |h| inserted.push(h));
         }
-        for handle in right.inserted {
+        for handle in right_inserted.iter().copied() {
             self.probe_right(solution, handle, &mut |h| inserted.push(h));
         }
-        RowChanges { removed, inserted }
     }
     fn remove_output(&mut self, handle: RowHandle) {
         if let Some(identity) = self.rows.retract(handle) {
@@ -230,6 +248,10 @@ where
         self.outputs.clear();
         self.left_outputs.clear();
         self.right_outputs.clear();
+        self.child_l_removed.clear();
+        self.child_l_inserted.clear();
+        self.child_r_removed.clear();
+        self.child_r_inserted.clear();
     }
     fn initialize(&mut self, solution: &S) {
         self.left.initialize(solution);
@@ -270,15 +292,77 @@ where
             self.right.visit_provenance(identity.right(), visitor);
         }
     }
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let left = self.left.retract(solution, descriptor, index);
-        let right = self.right.retract(solution, descriptor, index);
-        self.apply_changes(solution, left, right)
+    fn retract(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut lm = std::mem::take(&mut self.child_l_removed);
+        let mut li = std::mem::take(&mut self.child_l_inserted);
+        lm.clear();
+        li.clear();
+        self.left.retract(solution, descriptor, index, &mut lm, &mut li);
+        let mut rm = std::mem::take(&mut self.child_r_removed);
+        let mut ri = std::mem::take(&mut self.child_r_inserted);
+        rm.clear();
+        ri.clear();
+        self.right.retract(solution, descriptor, index, &mut rm, &mut ri);
+        self.apply_changes(
+            solution,
+            PairDelta {
+                left_removed: &lm,
+                left_inserted: &li,
+                right_removed: &rm,
+                right_inserted: &ri,
+            },
+            removed,
+            inserted,
+        );
+        self.child_l_removed = lm;
+        self.child_l_inserted = li;
+        self.child_r_removed = rm;
+        self.child_r_inserted = ri;
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let left = self.left.insert(solution, descriptor, index);
-        let right = self.right.insert(solution, descriptor, index);
-        self.apply_changes(solution, left, right)
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut lm = std::mem::take(&mut self.child_l_removed);
+        let mut li = std::mem::take(&mut self.child_l_inserted);
+        lm.clear();
+        li.clear();
+        self.left.insert(solution, descriptor, index, &mut lm, &mut li);
+        let mut rm = std::mem::take(&mut self.child_r_removed);
+        let mut ri = std::mem::take(&mut self.child_r_inserted);
+        rm.clear();
+        ri.clear();
+        self.right.insert(solution, descriptor, index, &mut rm, &mut ri);
+        self.apply_changes(
+            solution,
+            PairDelta {
+                left_removed: &lm,
+                left_inserted: &li,
+                right_removed: &rm,
+                right_inserted: &ri,
+            },
+            removed,
+            inserted,
+        );
+        self.child_l_removed = lm;
+        self.child_l_inserted = li;
+        self.child_r_removed = rm;
+        self.child_r_inserted = ri;
     }
 }
 

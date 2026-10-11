@@ -131,8 +131,10 @@ where
         }
 
         if a_changed || b_changed {
-            let changes = self.join.insert(solution, descriptor_index, entity_index);
-            for handle in changes.inserted {
+            let mut removed = Vec::new();
+            let mut inserted = Vec::new();
+            self.join.insert(solution, descriptor_index, entity_index, &mut removed, &mut inserted);
+            for handle in inserted {
                 if let Some(row) = self.join.resolve(solution, handle) {
                     let (a_idx, b_idx) = (row.left.index, row.right.index);
                     if (self.filter)(solution, row.left.entity, row.right.entity, a_idx, b_idx) {
@@ -174,7 +176,9 @@ where
             self.retract_complement(entity_index);
         }
         if a_changed || b_changed {
-            self.join.retract(solution, descriptor_index, entity_index);
+            let mut removed = Vec::new();
+            let mut inserted = Vec::new();
+            self.join.retract(solution, descriptor_index, entity_index, &mut removed, &mut inserted);
         }
         self.update_count += 1;
         self.changed_key_count += self.changed_groups.len();

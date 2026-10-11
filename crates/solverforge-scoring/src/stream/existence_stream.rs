@@ -1,12 +1,12 @@
-/* Semi/anti existence streams over the composable operator tree.
+/* Semi/anti existence streams over the count-backed membership engine.
 
 An existence constraint is a semi/anti join: it retains only left rows whose
-matching-right count is nonzero (or zero, for `NotExists`). There is no third
-retention engine — the relationship is a compiled `EqualJoiner` over the two
-operators' views, the left is a collection over the left stream (whose
+matching-right key is alive (or dead, for `NotExists`). There is no third
+retention engine — the relationship is a named pair of key adapters over the
+two operators' views, the left is a collection over the left stream (whose
 membership is the stream's own filter), the right is a collection over the
-right stream or a `FlattenNode` over it, and scoring is the generic
-`OperatorTerminal`.
+right stream (children expanded in place by the key adapter), and scoring is
+the generic `OperatorTerminal`.
 */
 
 use std::marker::PhantomData;
@@ -14,11 +14,10 @@ use std::marker::PhantomData;
 use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
-use super::relational::operator::{ExistenceNode, Operator};
+use super::relational::operator::ExistenceNode;
 use super::relational::Leaf;
 use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
-use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExistenceMode {
@@ -27,45 +26,59 @@ pub enum ExistenceMode {
 }
 
 /* Zero-erasure existence stream: a left operator, a right operator, and the
-compiled relationship between them. `named()` builds the `ExistenceNode` and
-its generic terminal. */
-pub struct ExistsConstraintStream<S, A, L, R, C, Sc>
+named key adapters between them. `named()` builds the count-backed
+`ExistenceNode` and its generic terminal. */
+pub struct ExistsConstraintStream<S, A, K, L, R, LK, RK, Sc>
 where
-    C: CompileCondition,
     Sc: Score,
 {
     pub(super) mode: ExistenceMode,
     pub(super) left: L,
     pub(super) right: R,
-    pub(super) condition: C,
-    pub(super) _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
+    pub(super) left_key: LK,
+    pub(super) right_keys: RK,
+    pub(super) _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
 }
 
-impl<S, A, L, R, C, Sc> ExistsConstraintStream<S, A, L, R, C, Sc>
+impl<S, A, K, L, R, LK, RK, Sc> ExistsConstraintStream<S, A, K, L, R, LK, RK, Sc>
 where
-    S: Send + Sync + 'static,
-    A: Clone + Send + Sync + 'static,
-    L: Operator<S>,
-    for<'a> L: Operator<S, View<'a> = Leaf<'a, A>>,
-    C: CompileCondition,
-    Sc: Score + 'static,
+    Sc: Score,
 {
-    pub(super) fn new(mode: ExistenceMode, left: L, right: R, condition: C) -> Self {
+    pub(super) fn new(
+        mode: ExistenceMode,
+        left: L,
+        right: R,
+        left_key: LK,
+        right_keys: RK,
+    ) -> Self {
         Self {
             mode,
             left,
             right,
-            condition,
+            left_key,
+            right_keys,
             _phantom: PhantomData,
         }
     }
+}
 
+impl<S, A, K, L, R, LK, RK, Sc> ExistsConstraintStream<S, A, K, L, R, LK, RK, Sc>
+where
+    S: Send + Sync + 'static,
+    A: Clone + Send + Sync + 'static,
+    K: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
+    L: super::relational::operator::Operator<S>,
+    for<'a> LK: super::relational::view_plan::ViewKey<L::View<'a>, Key = K>,
+    R: super::relational::operator::Operator<S>,
+    for<'a> RK: crate::stream::relational::operator::RightKeySet<R::View<'a>, Key = K>,
+    Sc: Score + 'static,
+{
     fn into_weighted_builder<W>(
         self,
         impact_type: ImpactType,
         weight: W,
         is_hard: bool,
-    ) -> ExistsConstraintBuilder<S, A, L, R, C, W, Sc>
+    ) -> ExistsConstraintBuilder<S, A, K, L, R, LK, RK, W, Sc>
     where
         W: for<'a> Fn(&S, &Leaf<'a, A>) -> Sc,
     {
@@ -73,7 +86,8 @@ where
             mode: self.mode,
             left: self.left,
             right: self.right,
-            condition: self.condition,
+            left_key: self.left_key,
+            right_keys: self.right_keys,
             impact_type,
             weight,
             is_hard,
@@ -87,9 +101,11 @@ where
     ) -> ExistsConstraintBuilder<
         S,
         A,
+        K,
         L,
         R,
-        C,
+        LK,
+        RK,
         impl for<'a> Fn(&S, &Leaf<'a, A>) -> Sc + Send + Sync,
         Sc,
     >
@@ -110,9 +126,11 @@ where
     ) -> ExistsConstraintBuilder<
         S,
         A,
+        K,
         L,
         R,
-        C,
+        LK,
+        RK,
         impl for<'a> Fn(&S, &Leaf<'a, A>) -> Sc + Send + Sync,
         Sc,
     >
@@ -128,45 +146,45 @@ where
     }
 }
 
-pub struct ExistsConstraintBuilder<S, A, L, R, C, W, Sc>
+pub struct ExistsConstraintBuilder<S, A, K, L, R, LK, RK, W, Sc>
 where
-    C: CompileCondition,
     Sc: Score,
 {
     mode: ExistenceMode,
     left: L,
     right: R,
-    condition: C,
+    left_key: LK,
+    right_keys: RK,
     impact_type: ImpactType,
     weight: W,
     is_hard: bool,
-    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> Sc)>,
+    _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> K, fn() -> Sc)>,
 }
 
-impl<S, A, L, R, C, W, Sc> ExistsConstraintBuilder<S, A, L, R, C, W, Sc>
+impl<S, A, K, L, R, LK, RK, W, Sc> ExistsConstraintBuilder<S, A, K, L, R, LK, RK, W, Sc>
 where
     S: Send + Sync + 'static,
     A: 'static,
-    L: Operator<S>,
-    for<'a> L: Operator<S, View<'a> = Leaf<'a, A>>,
-    R: Operator<S>,
-    C: CompileCondition + 'static,
-    C::Plan: IndexedPlan + 'static,
-    for<'a> C::Plan: ExecutablePlan<L::View<'a>, R::View<'a>>,
+    K: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
+    L: super::relational::operator::Operator<S>,
+    for<'a> LK: super::relational::view_plan::ViewKey<L::View<'a>, Key = K>,
+    R: super::relational::operator::Operator<S>,
+    for<'a> RK: crate::stream::relational::operator::RightKeySet<R::View<'a>, Key = K>,
     W: for<'a> Fn(&S, &Leaf<'a, A>) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     pub fn named(
         self,
         name: &str,
-    ) -> OperatorTerminal<
-        S,
-        ExistenceNode<S, L, R, C::Plan>,
-        impl for<'a> Fn(&S, &L::View<'a>) -> Sc + Send + Sync,
-        Sc,
-    > {
+    ) -> OperatorTerminal<S, ExistenceNode<S, L, R, K, LK, RK>, W, Sc> {
         let exists = matches!(self.mode, ExistenceMode::Exists);
-        let node = ExistenceNode::new(self.left, self.right, self.condition, exists);
+        let node = ExistenceNode::new(
+            self.left,
+            self.right,
+            self.left_key,
+            self.right_keys,
+            exists,
+        );
         OperatorTerminal::new(
             ConstraintRef::new("", name),
             self.impact_type,
@@ -177,9 +195,8 @@ where
     }
 }
 
-impl<S, A, L, R, C, Sc: Score> std::fmt::Debug for ExistsConstraintStream<S, A, L, R, C, Sc>
-where
-    C: CompileCondition,
+impl<S, A, K, L, R, LK, RK, Sc: Score> std::fmt::Debug
+    for ExistsConstraintStream<S, A, K, L, R, LK, RK, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExistsConstraintStream")
@@ -188,9 +205,8 @@ where
     }
 }
 
-impl<S, A, L, R, C, W, Sc: Score> std::fmt::Debug for ExistsConstraintBuilder<S, A, L, R, C, W, Sc>
-where
-    C: CompileCondition,
+impl<S, A, K, L, R, LK, RK, W, Sc: Score> std::fmt::Debug
+    for ExistsConstraintBuilder<S, A, K, L, R, LK, RK, W, Sc>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExistsConstraintBuilder")

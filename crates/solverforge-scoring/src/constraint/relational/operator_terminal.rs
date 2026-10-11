@@ -4,7 +4,7 @@ use crate::api::{
 };
 use crate::stream::relational::{
     operator::{ExplainRow, Operator},
-    HandleMap,
+    HandleMap, RowHandle,
 };
 use solverforge_core::{score::Score, ConstraintRef, ImpactType};
 use std::marker::PhantomData;
@@ -19,6 +19,9 @@ pub struct OperatorTerminal<S, O, W, Sc> {
     weight: W,
     hard: bool,
     scores: HandleMap<Sc>,
+    /// Reused notification buffers for the incremental contract.
+    removed: Vec<RowHandle>,
+    inserted: Vec<RowHandle>,
     initialized: bool,
     marker: PhantomData<fn() -> S>,
 }
@@ -38,6 +41,8 @@ impl<S, O, W, Sc> OperatorTerminal<S, O, W, Sc> {
             weight,
             hard,
             scores: HandleMap::new(),
+            removed: Vec::new(),
+            inserted: Vec::new(),
             initialized: false,
             marker: PhantomData,
         }
@@ -61,15 +66,16 @@ where
     fn apply_changes(
         &mut self,
         solution: &S,
-        changes: crate::stream::relational::operator::RowChanges,
+        removed: &[RowHandle],
+        inserted: &[RowHandle],
     ) -> Sc {
         let mut total = Sc::zero();
-        for h in changes.removed {
+        for h in removed.iter().copied() {
             if let Some(score) = self.scores.remove(h) {
                 total = total + (-score);
             }
         }
-        for h in changes.inserted {
+        for h in inserted.iter().copied() {
             let row = self
                 .operator
                 .resolve(solution, h)
@@ -123,15 +129,31 @@ where
         total
     }
     fn on_retract(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc {
-        let changes = self.operator.retract(solution, descriptor, index);
-        self.apply_changes(solution, changes)
+        let mut removed = std::mem::take(&mut self.removed);
+        let mut inserted = std::mem::take(&mut self.inserted);
+        removed.clear();
+        inserted.clear();
+        self.operator.retract(solution, descriptor, index, &mut removed, &mut inserted);
+        let score = self.apply_changes(solution, &removed, &inserted);
+        self.removed = removed;
+        self.inserted = inserted;
+        score
     }
     fn on_insert(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc {
-        let changes = self.operator.insert(solution, descriptor, index);
-        self.apply_changes(solution, changes)
+        let mut removed = std::mem::take(&mut self.removed);
+        let mut inserted = std::mem::take(&mut self.inserted);
+        removed.clear();
+        inserted.clear();
+        self.operator.insert(solution, descriptor, index, &mut removed, &mut inserted);
+        let score = self.apply_changes(solution, &removed, &inserted);
+        self.removed = removed;
+        self.inserted = inserted;
+        score
     }
     fn reset(&mut self) {
         self.scores.clear();
+        self.removed.clear();
+        self.inserted.clear();
         self.operator.clear();
         self.initialized = false;
     }

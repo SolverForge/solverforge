@@ -1,4 +1,4 @@
-use super::{Operator, RowChanges};
+use super::Operator;
 
 /* A row predicate over a borrowed operator view. Named as a trait so a filter
 node's predicate type need not be a bare closure in an operator's type. */
@@ -22,6 +22,9 @@ pub struct FilterNode<O, F> {
     input: O,
     predicate: F,
     accepted: HandleMap<()>,
+    /// Child notification scratch, reused across events.
+    child_removed: Vec<RowHandle>,
+    child_inserted: Vec<RowHandle>,
 }
 impl<O, F> FilterNode<O, F> {
     pub fn new(input: O, predicate: F) -> Self {
@@ -29,22 +32,29 @@ impl<O, F> FilterNode<O, F> {
             input,
             predicate,
             accepted: HandleMap::new(),
+            child_removed: Vec::new(),
+            child_inserted: Vec::new(),
         }
     }
 }
 impl<O, F> FilterNode<O, F> {
-    fn apply_changes<S: 'static>(&mut self, solution: &S, changes: RowChanges) -> RowChanges
-    where
+    fn apply_changes<S: 'static>(
+        &mut self,
+        solution: &S,
+        input_removed: &[RowHandle],
+        input_inserted: &[RowHandle],
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) where
         O: Operator<S>,
         F: for<'a> FilterPredicate<S, O::View<'a>> + 'static,
     {
-        let removed = changes
-            .removed
-            .into_iter()
-            .filter(|h| self.accepted.remove(*h).is_some())
-            .collect();
-        let mut inserted = Vec::new();
-        for h in changes.inserted {
+        for h in input_removed.iter().copied() {
+            if self.accepted.remove(h).is_some() {
+                removed.push(h);
+            }
+        }
+        for h in input_inserted.iter().copied() {
             let row = self
                 .input
                 .resolve(solution, h)
@@ -54,7 +64,6 @@ impl<O, F> FilterNode<O, F> {
                 inserted.push(h);
             }
         }
-        RowChanges { removed, inserted }
     }
 }
 impl<S: 'static, O, F> Operator<S> for FilterNode<O, F>
@@ -85,6 +94,8 @@ where
     fn clear(&mut self) {
         self.input.clear();
         self.accepted.clear();
+        self.child_removed.clear();
+        self.child_inserted.clear();
     }
     fn initialize(&mut self, solution: &S) {
         self.input.initialize(solution);
@@ -115,12 +126,42 @@ where
             self.input.visit_provenance(handle, visitor);
         }
     }
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let changes = self.input.retract(solution, descriptor, index);
-        self.apply_changes(solution, changes)
+    fn retract(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut in_removed = std::mem::take(&mut self.child_removed);
+        let mut in_inserted = std::mem::take(&mut self.child_inserted);
+        in_removed.clear();
+        in_inserted.clear();
+        self.input.retract(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
+        self.child_removed = in_removed;
+        self.child_inserted = in_inserted;
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let changes = self.input.insert(solution, descriptor, index);
-        self.apply_changes(solution, changes)
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut in_removed = std::mem::take(&mut self.child_removed);
+        let mut in_inserted = std::mem::take(&mut self.child_inserted);
+        in_removed.clear();
+        in_inserted.clear();
+        self.input.insert(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
+        self.child_removed = in_removed;
+        self.child_inserted = in_inserted;
     }
 }

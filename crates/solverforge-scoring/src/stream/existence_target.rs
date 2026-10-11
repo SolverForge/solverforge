@@ -1,11 +1,12 @@
 /* Existence targets: turn a left filtered stream plus a right stream (direct
-or flattened) into an operator-backed existence constraint.
+or flattened) into a count-backed existence constraint.
 
-The relationship is a named equality plan over the two operators' views.
-There is no separate key/row engine: the left input is a `CollectionNode` over
-the left stream (whose membership is the stream's own filter), and the right
-input is a `CollectionNode` over the right stream, or a `FlattenNode` over it
-when the right stream is flattened.
+The relationship is a named pair of key adapters over the two operators'
+views. The left input is a `CollectionNode` over the left stream (whose
+membership is the stream's own filter); the right input is a `CollectionNode`
+over the right stream, or the parent collection with a `ParentChildKeys`
+adapter when the right stream is flattened. Right-side children are read
+straight from the solution and never become rows.
 */
 
 use std::hash::Hash;
@@ -17,8 +18,8 @@ use super::collection_extract::{CollectionExtract, FlattenExtract};
 use super::existence_stream::{ExistenceMode, ExistsConstraintStream};
 use super::filter::UniFilter;
 use super::joiner::EqualJoiner;
-use super::relational::operator::{CollectionNode, FlattenNode, ParentFlatten};
-use super::relational::view_plan::{ChildKey, EntityKey, ViewEqualPlan};
+use super::relational::operator::{CollectionNode, ParentChildKeys, UnitKeys};
+use super::relational::view_plan::EntityKey;
 use super::uni_stream::UniConstraintStream;
 
 pub struct FlattenedCollectionTarget<S, P, B, EP, FP, Flatten, Sc>
@@ -66,9 +67,11 @@ where
     type Output = ExistsConstraintStream<
         S,
         A,
+        K,
         CollectionNode<S, UniConstraintStream<S, A, EA, FA, Sc>>,
         CollectionNode<S, UniConstraintStream<S, B, EB, FB, Sc>>,
-        ViewEqualPlan<K, EntityKey<KA>, EntityKey<KB>>,
+        EntityKey<KA>,
+        UnitKeys<EntityKey<KB>>,
         Sc,
     >;
 
@@ -78,15 +81,20 @@ where
         let left_stream = UniConstraintStream::from_parts(extractor_a, filter_a);
         let left = CollectionNode::new(left_stream, 0);
         let right = CollectionNode::new(right_stream, 1);
-        let condition = ViewEqualPlan::new(EntityKey::new(key_a), EntityKey::new(key_b));
-        ExistsConstraintStream::new(mode, left, right, condition)
+        ExistsConstraintStream::new(
+            mode,
+            left,
+            right,
+            EntityKey::new(key_a),
+            UnitKeys::new(EntityKey::new(key_b)),
+        )
     }
 }
 
 /* Flattened existence: `.if_not_exists((stream.flattened(|p| ..), equal_bi(..)))`.
 
-The right input is a `FlattenNode` over the parent collection; the
-relationship's right key unwraps the flattened child row.
+The right input is the parent collection; the key adapter expands each
+parent's children in place from the solution, so no child rows are created.
 */
 impl<S, A, P, B, EA, FA, EP, FP, K, KA, KB, Mode, Flatten, Sc> ExistenceTarget<S, A, EA, FA, Sc>
     for (
@@ -111,12 +119,11 @@ where
     type Output = ExistsConstraintStream<
         S,
         A,
+        K,
         CollectionNode<S, UniConstraintStream<S, A, EA, FA, Sc>>,
-        FlattenNode<
-            CollectionNode<S, UniConstraintStream<S, P, EP, FP, Sc>>,
-            ParentFlatten<Flatten>,
-        >,
-        ViewEqualPlan<K, EntityKey<KA>, ChildKey<KB>>,
+        CollectionNode<S, UniConstraintStream<S, P, EP, FP, Sc>>,
+        EntityKey<KA>,
+        ParentChildKeys<KB, Flatten>,
         Sc,
     >;
 
@@ -130,9 +137,13 @@ where
         let (key_a, key_b) = joiner.into_keys();
         let left_stream = UniConstraintStream::from_parts(extractor_a, filter_a);
         let left = CollectionNode::new(left_stream, 0);
-        let parents = CollectionNode::new(right_stream, 1);
-        let right = FlattenNode::new(parents, ParentFlatten::new(flatten));
-        let condition = ViewEqualPlan::new(EntityKey::new(key_a), ChildKey::new(key_b));
-        ExistsConstraintStream::new(mode, left, right, condition)
+        let right = CollectionNode::new(right_stream, 1);
+        ExistsConstraintStream::new(
+            mode,
+            left,
+            right,
+            EntityKey::new(key_a),
+            ParentChildKeys::new(key_b, flatten),
+        )
     }
 }

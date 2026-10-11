@@ -36,6 +36,8 @@ where
     C::Plan: IndexedPlan + 'static,
     for<'a> C::Plan: ExecutablePlan<Leaf<'a, Entity>, Leaf<'a, Entity>>,
 {
+    let mut rm = Vec::new();
+    let mut ins = Vec::new();
     let l = CollectionNode::new(
         source(left as fn(&Model) -> &[Entity], ChangeSource::Descriptor(0)),
         0,
@@ -118,17 +120,17 @@ where
         assert_eq!(retained, expected);
     };
     check(&tree, &m);
-    assert!(tree.retract(&m, 99, 0).is_empty());
+    { tree.retract(&m, 99, 0, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
     let mut seed = 19u64;
     for step in 0..120 {
         seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
         let descriptor = (step % 2) as usize;
         let index = (seed as usize) % 3;
-        let removed = tree.retract(&m, descriptor, index);
-        assert!(tree.retract(&m, descriptor, index).is_empty());
-        for h in removed.removed {
+        tree.retract(&m, descriptor, index, &mut rm, &mut ins);
+        for h in rm.drain(..) {
             assert!(tree.resolve(&m, h).is_none());
         }
+        ins.clear();
         let values = if descriptor == 0 {
             &mut m.left
         } else {
@@ -142,8 +144,7 @@ where
         } else {
             values[index].key = ((seed >> 8) % 7) as i32 - 3;
         }
-        tree.insert(&m, descriptor, index);
-        assert!(tree.insert(&m, descriptor, index).is_empty());
+tree.insert(&m, descriptor, index, &mut rm, &mut ins);
         check(&tree, &m);
     }
     tree.clear();

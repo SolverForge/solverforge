@@ -19,6 +19,8 @@ fn key(v: &Leaf<'_, i32>) -> i32 {
 }
 #[test]
 fn filters_on_both_inputs_preserve_membership_and_semantic_indexes() {
+    let mut rm = Vec::new();
+    let mut ins = Vec::new();
     let l = CollectionNode::new(
         source(left as fn(&Model) -> &[i32], ChangeSource::Descriptor(0)),
         0,
@@ -44,16 +46,16 @@ fn filters_on_both_inputs_preserve_membership_and_semantic_indexes() {
     };
     Operator::initialize(&mut tree, &m);
     check(&tree, &m, 2);
-    assert!(tree.retract(&m, 0, 0).is_empty());
+    { tree.retract(&m, 0, 0, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
     m.left[0] = 1;
-    assert_eq!(tree.insert(&m, 0, 0).len(), 1);
+    {tree.insert(&m, 0, 0, &mut rm, &mut ins); assert_eq!(rm.len() + ins.len(), 1);}
     check(&tree, &m, 3);
-    assert_eq!(tree.retract(&m, 0, 1).len(), 1);
+    {tree.retract(&m, 0, 1, &mut rm, &mut ins); assert_eq!(rm.len() + ins.len(), 1);}
     m.left[1] = -1;
-    assert!(tree.insert(&m, 0, 1).is_empty());
+    { tree.insert(&m, 0, 1, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
     check(&tree, &m, 2);
-    assert!(tree.retract(&m, 1, 1).is_empty());
+    { tree.retract(&m, 1, 1, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
     m.right[1] = 3;
-    assert!(tree.insert(&m, 1, 1).is_empty());
+    { tree.insert(&m, 1, 1, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
     check(&tree, &m, 2);
 }

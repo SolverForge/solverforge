@@ -1,4 +1,4 @@
-use super::{ExplainRow, Operator, RowChanges};
+use super::{ExplainRow, Operator};
 use crate::api::analysis::EntityRef;
 use crate::stream::relational::{DenseRowStore, HandleMap, Leaf, RowHandle};
 
@@ -94,6 +94,9 @@ pub struct FlattenNode<O, F> {
     /// of re-growing a vector per event, which is the dominant heap traffic of a
     /// large local-search step.
     retired: Vec<Vec<RowHandle>>,
+    /// Child notification scratch, reused across events.
+    child_removed: Vec<RowHandle>,
+    child_inserted: Vec<RowHandle>,
 }
 impl<O, F> FlattenNode<O, F> {
     pub fn new(input: O, extractor: F) -> Self {
@@ -103,16 +106,23 @@ impl<O, F> FlattenNode<O, F> {
             rows: DenseRowStore::new(),
             outputs: HandleMap::new(),
             retired: Vec::new(),
+            child_removed: Vec::new(),
+            child_inserted: Vec::new(),
         }
     }
-    fn apply_changes<S: 'static>(&mut self, solution: &S, changes: RowChanges) -> RowChanges
-    where
+    fn apply_changes<S: 'static>(
+        &mut self,
+        solution: &S,
+        input_removed: &[RowHandle],
+        input_inserted: &[RowHandle],
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) where
         O: Operator<S>,
         F: FlattenSource<S, O>,
     {
-        let mut removed = Vec::new();
-        for input in changes.removed {
-            let Some(mut handles) = self.outputs.remove(input) else {
+        for input in input_removed {
+            let Some(mut handles) = self.outputs.remove(*input) else {
                 continue;
             };
             removed.extend_from_slice(&handles);
@@ -122,8 +132,7 @@ impl<O, F> FlattenNode<O, F> {
             handles.clear();
             self.retired.push(handles);
         }
-        let mut inserted = Vec::new();
-        for input in changes.inserted {
+        for input in input_inserted.iter().copied() {
             let row = self
                 .input
                 .resolve(solution, input)
@@ -145,7 +154,6 @@ impl<O, F> FlattenNode<O, F> {
             }
             self.outputs.insert(input, outputs);
         }
-        RowChanges { removed, inserted }
     }
 }
 impl<S: 'static, O: Operator<S>, F: FlattenSource<S, O> + 'static> Operator<S>
@@ -178,16 +186,21 @@ impl<S: 'static, O: Operator<S>, F: FlattenSource<S, O> + 'static> Operator<S>
         self.rows.clear();
         self.outputs.clear();
         self.retired.clear();
+        self.child_removed.clear();
+        self.child_inserted.clear();
     }
     fn initialize(&mut self, solution: &S) {
         self.clear();
         self.input.initialize(solution);
+        let inserted = self.input.handles();
+        let mut sink_removed = Vec::new();
+        let mut sink_inserted = Vec::new();
         self.apply_changes(
             solution,
-            RowChanges {
-                removed: Vec::new(),
-                inserted: self.input.handles(),
-            },
+            &[],
+            &inserted,
+            &mut sink_removed,
+            &mut sink_inserted,
         );
     }
     fn handles(&self) -> Vec<RowHandle> {
@@ -208,12 +221,42 @@ impl<S: 'static, O: Operator<S>, F: FlattenSource<S, O> + 'static> Operator<S>
             self.input.visit_provenance(child.input, visitor);
         }
     }
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let changes = self.input.retract(solution, descriptor, index);
-        self.apply_changes(solution, changes)
+    fn retract(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut in_removed = std::mem::take(&mut self.child_removed);
+        let mut in_inserted = std::mem::take(&mut self.child_inserted);
+        in_removed.clear();
+        in_inserted.clear();
+        self.input.retract(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
+        self.child_removed = in_removed;
+        self.child_inserted = in_inserted;
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let changes = self.input.insert(solution, descriptor, index);
-        self.apply_changes(solution, changes)
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut in_removed = std::mem::take(&mut self.child_removed);
+        let mut in_inserted = std::mem::take(&mut self.child_inserted);
+        in_removed.clear();
+        in_inserted.clear();
+        self.input.insert(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
+        self.child_removed = in_removed;
+        self.child_inserted = in_inserted;
     }
 }

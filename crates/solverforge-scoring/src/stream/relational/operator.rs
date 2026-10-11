@@ -2,17 +2,17 @@
 use super::RowHandle;
 
 mod analysis;
-mod changes;
-pub use changes::RowChanges;
 mod collection;
 mod complement;
 mod complement_view;
 pub use complement::{ComplementEvaluation, ComplementNode};
 pub use complement_view::ComplementView;
 mod existence;
+mod joiner_existence;
 mod filter;
 mod flatten;
-pub use existence::ExistenceNode;
+pub use existence::{ExistenceNode, GroupRightKeys, ParentChildKeys, RightKeySet, UnitKeys};
+pub use joiner_existence::JoinerExistenceNode;
 pub use flatten::{FlattenNode, FlattenSource, FlattenView, ParentFlatten};
 mod group;
 mod group_view;
@@ -38,6 +38,14 @@ pub struct Pair<L, R> {
     pub right: R,
 }
 
+/* The four input slices of one join-shaped event. Passed by value; no heap. */
+pub(crate) struct PairDelta<'a> {
+    pub left_removed: &'a [RowHandle],
+    pub left_inserted: &'a [RowHandle],
+    pub right_removed: &'a [RowHandle],
+    pub right_inserted: &'a [RowHandle],
+}
+
 pub trait Operator<S: 'static>: 'static {
     type View<'a>: Copy;
     /// Fresh owned derived values for one full evaluation, independent of retained state.
@@ -61,6 +69,26 @@ pub trait Operator<S: 'static>: 'static {
     fn handles(&self) -> Vec<RowHandle>;
     fn resolve<'a>(&'a self, solution: &'a S, handle: RowHandle) -> Option<Self::View<'a>>;
     fn visit_provenance(&self, handle: RowHandle, visitor: &mut impl FnMut(u32, usize, usize));
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges;
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges;
+    /* Incremental notifications, emitted into caller-owned buffers.
+
+    The caller passes empty lists and reuses them across events; nodes append
+    their retracted and inserted row handles without allocating. Every node
+    chains its own scratch pairs through its children, so a full event costs
+    one copy per hop and no heap traffic. */
+    fn retract(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    );
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    );
 }

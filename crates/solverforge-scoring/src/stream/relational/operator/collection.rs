@@ -1,5 +1,5 @@
 use super::super::{BindingId, DenseRowStore, Leaf, RowHandle};
-use super::{Operator, RowChanges};
+use super::Operator;
 use crate::stream::collection_extract::CollectionExtract;
 use std::marker::PhantomData;
 
@@ -82,47 +82,55 @@ where
             visitor(self.binding.0, descriptor, *index);
         }
     }
-    fn retract(&mut self, _: &S, descriptor: usize, index: usize) -> RowChanges {
+    fn retract(
+        &mut self,
+        _: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        _inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
         if !self
             .extractor
             .change_source()
             .assert_localizes(descriptor, "relational source")
         {
-            return RowChanges::default();
+            return;
         }
         if let Some(slot) = self.handles.get_mut(index) {
             if let Some(handle) = slot.take() {
                 self.rows.retract(handle);
-                return RowChanges {
-                    removed: vec![handle],
-                    inserted: Vec::new(),
-                };
+                removed.push(handle);
             }
         }
-        RowChanges::default()
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        _removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        inserted.clear();
         if !self
             .extractor
             .change_source()
             .assert_localizes(descriptor, "relational source")
         {
-            return RowChanges::default();
+            return;
         }
         if self.handles.get(index).is_some_and(Option::is_some) {
-            return RowChanges::default();
+            return;
         }
         if let Some(entity) = self.extractor.extract(solution).get(index) {
             if self.extractor.contains(solution, entity) {
                 let handle = self.rows.insert(index);
                 self.handles.resize(self.handles.len().max(index + 1), None);
                 self.handles[index] = Some(handle);
-                return RowChanges {
-                    removed: Vec::new(),
-                    inserted: vec![handle],
-                };
+                inserted.push(handle);
             }
         }
-        RowChanges::default()
     }
 }

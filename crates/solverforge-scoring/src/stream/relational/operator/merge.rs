@@ -1,4 +1,4 @@
-use super::{Operator, RowChanges};
+use super::Operator;
 use crate::stream::relational::{DenseRowStore, HandleMap, RowHandle};
 
 #[derive(Clone, Copy)]
@@ -13,6 +13,11 @@ pub struct MergeNode<L, R> {
     rows: DenseRowStore<BranchRow>,
     left_rows: HandleMap<RowHandle>,
     right_rows: HandleMap<RowHandle>,
+    /// Child notification scratch, reused across events (L/R, removed/inserted).
+    child_l_removed: Vec<RowHandle>,
+    child_l_inserted: Vec<RowHandle>,
+    child_r_removed: Vec<RowHandle>,
+    child_r_inserted: Vec<RowHandle>,
 }
 impl<L, R> MergeNode<L, R> {
     pub fn new(left: L, right: R) -> Self {
@@ -22,6 +27,10 @@ impl<L, R> MergeNode<L, R> {
             rows: DenseRowStore::new(),
             left_rows: HandleMap::new(),
             right_rows: HandleMap::new(),
+            child_l_removed: Vec::new(),
+            child_l_inserted: Vec::new(),
+            child_r_removed: Vec::new(),
+            child_r_inserted: Vec::new(),
         }
     }
     fn add(&mut self, input: RowHandle, right: bool) -> RowHandle {
@@ -35,11 +44,20 @@ impl<L, R> MergeNode<L, R> {
     }
 }
 impl<L, R> MergeNode<L, R> {
-    fn apply_changes(&mut self, left: RowChanges, right: RowChanges) -> RowChanges {
-        let mut removed = Vec::new();
-        let mut inserted = Vec::new();
-        for (right, changes) in [(false, left), (true, right)] {
-            for input in changes.removed {
+    fn apply_changes(
+        &mut self,
+        left_removed: &[RowHandle],
+        left_inserted: &[RowHandle],
+        right_removed: &[RowHandle],
+        right_inserted: &[RowHandle],
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        for (right, removed_inputs, inserted_inputs) in [
+            (false, left_removed, left_inserted),
+            (true, right_removed, right_inserted),
+        ] {
+            for &input in removed_inputs {
                 let h = if right {
                     self.right_rows.remove(input)
                 } else {
@@ -50,11 +68,10 @@ impl<L, R> MergeNode<L, R> {
                     removed.push(h);
                 }
             }
-            for input in changes.inserted {
+            for &input in inserted_inputs {
                 inserted.push(self.add(input, right));
             }
         }
-        RowChanges { removed, inserted }
     }
 }
 impl<S: 'static, L, R> Operator<S> for MergeNode<L, R>
@@ -88,6 +105,10 @@ where
         self.rows.clear();
         self.left_rows.clear();
         self.right_rows.clear();
+        self.child_l_removed.clear();
+        self.child_l_inserted.clear();
+        self.child_r_removed.clear();
+        self.child_r_inserted.clear();
     }
     fn initialize(&mut self, solution: &S) {
         self.left.initialize(solution);
@@ -122,14 +143,56 @@ where
             }
         }
     }
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let left = self.left.retract(solution, descriptor, index);
-        let right = self.right.retract(solution, descriptor, index);
-        self.apply_changes(left, right)
+    fn retract(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut lm = std::mem::take(&mut self.child_l_removed);
+        let mut li = std::mem::take(&mut self.child_l_inserted);
+        lm.clear();
+        li.clear();
+        self.left.retract(solution, descriptor, index, &mut lm, &mut li);
+        let mut rm = std::mem::take(&mut self.child_r_removed);
+        let mut ri = std::mem::take(&mut self.child_r_inserted);
+        rm.clear();
+        ri.clear();
+        self.right.retract(solution, descriptor, index, &mut rm, &mut ri);
+        self.apply_changes(&lm, &li, &rm, &ri, removed, inserted);
+        self.child_l_removed = lm;
+        self.child_l_inserted = li;
+        self.child_r_removed = rm;
+        self.child_r_inserted = ri;
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let left = self.left.insert(solution, descriptor, index);
-        let right = self.right.insert(solution, descriptor, index);
-        self.apply_changes(left, right)
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut lm = std::mem::take(&mut self.child_l_removed);
+        let mut li = std::mem::take(&mut self.child_l_inserted);
+        lm.clear();
+        li.clear();
+        self.left.insert(solution, descriptor, index, &mut lm, &mut li);
+        let mut rm = std::mem::take(&mut self.child_r_removed);
+        let mut ri = std::mem::take(&mut self.child_r_inserted);
+        rm.clear();
+        ri.clear();
+        self.right.insert(solution, descriptor, index, &mut rm, &mut ri);
+        self.apply_changes(&lm, &li, &rm, &ri, removed, inserted);
+        self.child_l_removed = lm;
+        self.child_l_inserted = li;
+        self.child_r_removed = rm;
+        self.child_r_inserted = ri;
     }
 }

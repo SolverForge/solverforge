@@ -17,7 +17,7 @@ use super::super::filter::BiFilter;
 use super::super::joiner::plan::{CompileCondition, EqualityKind, ExecutablePlan, IndexedPlan};
 use super::super::joiner::Joiner;
 use super::super::relational::index::HashIndex;
-use super::super::relational::operator::{CollectionNode, JoinNode, Operator, Pair, RowChanges};
+use super::super::relational::operator::{CollectionNode, JoinNode, Operator, Pair};
 use super::super::relational::{HandleMap, Leaf, RowHandle};
 
 /* The predicate first-join plan: an explicit opposite-input scan.
@@ -212,6 +212,9 @@ where
     inner: JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, P>,
     filter: F,
     accepted: HandleMap<()>,
+    /// Child notification scratch, reused across events.
+    child_removed: Vec<RowHandle>,
+    child_inserted: Vec<RowHandle>,
     marker: PhantomData<fn() -> (A, B)>,
 }
 
@@ -228,6 +231,8 @@ where
             inner,
             filter,
             accepted: HandleMap::new(),
+            child_removed: Vec::new(),
+            child_inserted: Vec::new(),
             marker: PhantomData,
         }
     }
@@ -275,11 +280,15 @@ where
     fn clear(&mut self) {
         self.inner.clear();
         self.accepted.clear();
+        self.child_removed.clear();
+        self.child_inserted.clear();
     }
 
     fn initialize(&mut self, solution: &S) {
         self.inner.initialize(solution);
         self.accepted.clear();
+        self.child_removed.clear();
+        self.child_inserted.clear();
         for handle in self.inner.handles() {
             let row = self.inner.resolve(solution, handle).expect("live bi row");
             if self.test(solution, row) {
@@ -307,26 +316,53 @@ where
         }
     }
 
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let mut changes = self.inner.retract(solution, descriptor, index);
-        changes
-            .removed
-            .retain(|h| self.accepted.remove(*h).is_some());
-        changes
-    }
-
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let mut changes = self.inner.insert(solution, descriptor, index);
-        let mut accepted = Vec::with_capacity(changes.inserted.len());
-        for handle in changes.inserted.drain(..) {
-            let row = self.inner.resolve(solution, handle).expect("live bi row");
-            if self.test(solution, row) {
-                self.accepted.insert(handle, ());
-                accepted.push(handle);
+    fn retract(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        _inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        let inner_removed = std::mem::take(&mut self.child_removed);
+        let inner_inserted = std::mem::take(&mut self.child_inserted);
+        let mut inner_removed = inner_removed;
+        let mut inner_inserted = inner_inserted;
+        inner_removed.clear();
+        inner_inserted.clear();
+        self.inner.retract(solution, descriptor, index, &mut inner_removed, &mut inner_inserted);
+        for h in inner_removed.drain(..) {
+            if self.accepted.remove(h).is_some() {
+                removed.push(h);
             }
         }
-        changes.inserted = accepted;
-        changes
+        self.child_removed = inner_removed;
+        self.child_inserted = inner_inserted;
+    }
+
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        _removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        let mut inner_removed = std::mem::take(&mut self.child_removed);
+        let mut inner_inserted = std::mem::take(&mut self.child_inserted);
+        inner_removed.clear();
+        inner_inserted.clear();
+        self.inner.insert(solution, descriptor, index, &mut inner_removed, &mut inner_inserted);
+        for handle in inner_inserted.drain(..) {
+            let row = self.inner.resolve(solution, handle).expect("live scored row");
+            if self.test(solution, row) {
+                self.accepted.insert(handle, ());
+                inserted.push(handle);
+            }
+        }
+        self.child_removed = inner_removed;
+        self.child_inserted = inner_inserted;
     }
 }
 

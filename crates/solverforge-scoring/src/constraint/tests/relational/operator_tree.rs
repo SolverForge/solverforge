@@ -15,6 +15,8 @@ fn leaf_key(v: &Leaf<'_, i32>) -> i32 {
 
 #[test]
 fn arbitrary_tree_routes_one_descriptor_to_both_joined_branches_once() {
+    let mut rm = Vec::new();
+    let mut ins = Vec::new();
     let left = CollectionNode::new(
         source(values as fn(&Model) -> &[i32], ChangeSource::Descriptor(0)),
         0,
@@ -29,15 +31,15 @@ fn arbitrary_tree_routes_one_descriptor_to_both_joined_branches_once() {
     };
     Operator::initialize(&mut tree, &m);
     assert_eq!(tree.handles().len(), 5);
-    let deltas = tree.retract(&m, 0, 0);
-    assert_eq!(deltas.len(), 3);
+    tree.retract(&m, 0, 0, &mut rm, &mut ins);
+    assert_eq!(rm.len() + ins.len(), 3);
     assert_eq!(tree.handles().len(), 2);
-    assert!(tree.retract(&m, 0, 0).is_empty());
+    { tree.retract(&m, 0, 0, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
     m.values[0] = 2;
-    let deltas = tree.insert(&m, 0, 0);
-    assert_eq!(deltas.len(), 3);
+    tree.insert(&m, 0, 0, &mut rm, &mut ins);
+    assert_eq!(rm.len() + ins.len(), 3);
     assert_eq!(tree.handles().len(), 5);
-    assert!(tree.insert(&m, 0, 0).is_empty());
+    { tree.insert(&m, 0, 0, &mut rm, &mut ins); assert!(rm.is_empty() && ins.is_empty()); }
     for h in tree.handles() {
         let row = tree.resolve(&m, h).unwrap();
         assert_eq!(row.left.entity, row.right.entity);
@@ -62,9 +64,9 @@ fn joined_inputs_are_valid_on_both_sides_with_bag_multiplicity() {
     let m = Model { values: vec![7, 7] };
     Operator::initialize(&mut tree, &m);
     assert_eq!(Operator::handles(&tree).len(), 8);
-    assert_eq!(Operator::retract(&mut tree, &m, 0, 0).len(), 8);
+    { let mut rm = Vec::new(); let mut ins = Vec::new(); Operator::retract(&mut tree, &m, 0, 0, &mut rm, &mut ins); assert_eq!(rm.len() + ins.len(), 8); }
     assert!(Operator::handles(&tree).is_empty());
-    assert_eq!(Operator::insert(&mut tree, &m, 0, 0).len(), 8);
+    { let mut rm = Vec::new(); let mut ins = Vec::new(); Operator::insert(&mut tree, &m, 0, 0, &mut rm, &mut ins); assert_eq!(rm.len() + ins.len(), 8); }
 }
 
 #[test]
@@ -116,9 +118,9 @@ fn six_binding_tree_keeps_all_binding_provenance_and_targeted_deltas() {
         );
         assert!(provenance.iter().all(|p| p.1 == 0));
     }
-    assert_eq!(Operator::retract(&mut six, &m, 0, 0).len(), 63);
+    { let mut rm = Vec::new(); let mut ins = Vec::new(); Operator::retract(&mut six, &m, 0, 0, &mut rm, &mut ins); assert_eq!(rm.len() + ins.len(), 63); }
     assert_eq!(Operator::handles(&six).len(), 1);
-    assert_eq!(Operator::insert(&mut six, &m, 0, 0).len(), 63);
+    { let mut rm = Vec::new(); let mut ins = Vec::new(); Operator::insert(&mut six, &m, 0, 0, &mut rm, &mut ins); assert_eq!(rm.len() + ins.len(), 63); }
 }
 
 #[test]

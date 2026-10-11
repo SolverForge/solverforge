@@ -59,6 +59,8 @@ fn enumerates_unique_pairs_per_key() {
 
 #[test]
 fn incremental_insert_and_retract_match_full_evaluation() {
+    let mut rm = Vec::new();
+    let mut ins = Vec::new();
     let mut m = Model {
         items: vec![Item { key: 1 }, Item { key: 1 }],
     };
@@ -68,15 +70,15 @@ fn incremental_insert_and_retract_match_full_evaluation() {
 
     // Insert a third key-1 item: two new pairs appear.
     m.items.push(Item { key: 1 });
-    let changes = n.insert(&m, 0, 2);
-    assert_eq!(changes.inserted.len(), 2);
+    n.insert(&m, 0, 2, &mut rm, &mut ins);
+    assert_eq!(ins.len(), 2);
     assert_eq!(n.handles().len(), 3);
     assert_eq!(n.handles().len(), rows(&n, &m));
 
     // Retract it: both pairs disappear.
     m.items.pop();
-    let changes = n.retract(&m, 0, 2);
-    assert_eq!(changes.removed.len(), 2);
+    n.retract(&m, 0, 2, &mut rm, &mut ins);
+    assert_eq!(rm.len(), 2);
     assert_eq!(n.handles().len(), 1);
     assert_eq!(n.handles().len(), rows(&n, &m));
 }
@@ -125,6 +127,8 @@ fn unique_triples_per_key() {
 
 #[test]
 fn triple_incremental_matches_full_evaluation() {
+    let mut rm = Vec::new();
+    let mut ins = Vec::new();
     let mut m = Model {
         items: vec![Item { key: 1 }, Item { key: 1 }, Item { key: 1 }],
     };
@@ -134,15 +138,15 @@ fn triple_incremental_matches_full_evaluation() {
 
     // A fourth key-1 item adds C(3,2)=3 new triples.
     m.items.push(Item { key: 1 });
-    let changes = n.insert(&m, 0, 3);
-    assert_eq!(changes.inserted.len(), 3);
+    n.insert(&m, 0, 3, &mut rm, &mut ins);
+    assert_eq!(ins.len(), 3);
     assert_eq!(n.handles().len(), 4);
     assert_eq!(n.handles().len(), tri_rows(&n, &m));
 
     // Remove the second item: every triple containing it retracts (3 of them).
     m.items.remove(1);
-    let changes = n.retract(&m, 0, 1);
-    assert_eq!(changes.removed.len(), 3);
+    n.retract(&m, 0, 1, &mut rm, &mut ins);
+    assert_eq!(rm.len(), 3);
     assert_eq!(n.handles().len(), 1); // C(3,3)=1 remains
     assert_eq!(n.handles().len(), tri_rows(&n, &m));
 }

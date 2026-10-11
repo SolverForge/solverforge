@@ -15,7 +15,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 use super::filter::{AndQuadFilter, FnQuadFilter, QuadAsPentaFilter, QuadFilter};
 use super::joiner::plan::{CompileCondition, IndexedPlan};
 use super::relational::operator::{
-    CollectionNode, ExplainRow, JoinNode, Operator, Pair, RowChanges,
+    CollectionNode, ExplainRow, JoinNode, Operator, Pair,
 };
 use super::relational::{HandleMap, Leaf, RowHandle};
 use super::weighting_support::ConstraintWeight;
@@ -347,6 +347,8 @@ where
             inner: self.tree,
             filter: self.filter,
             accepted: HandleMap::new(),
+            child_removed: Vec::new(),
+            child_inserted: Vec::new(),
             marker: PhantomData,
         };
         let weight_fn = move |_: &S, row: &QuadRow<'_, S, EA, EB, EC, ED, P1, P2, P3>| {
@@ -379,6 +381,9 @@ pub struct QuadScored<
     inner: BuiltQuad<S, EA, EB, EC, ED, P1, P2, P3>,
     filter: F,
     accepted: HandleMap<()>,
+    /// Child notification scratch, reused across events.
+    child_removed: Vec<RowHandle>,
+    child_inserted: Vec<RowHandle>,
     marker: PhantomData<fn() -> (S, A, B, C, D)>,
 }
 
@@ -427,11 +432,15 @@ where
     fn clear(&mut self) {
         self.inner.clear();
         self.accepted.clear();
+        self.child_removed.clear();
+        self.child_inserted.clear();
     }
 
     fn initialize(&mut self, solution: &S) {
         self.inner.initialize(solution);
         self.accepted.clear();
+        self.child_removed.clear();
+        self.child_inserted.clear();
         for handle in self.inner.handles() {
             let row = self.inner.resolve(solution, handle).expect("live quad row");
             if self.test(solution, row) {
@@ -459,26 +468,53 @@ where
         }
     }
 
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let mut changes = self.inner.retract(solution, descriptor, index);
-        changes
-            .removed
-            .retain(|h| self.accepted.remove(*h).is_some());
-        changes
-    }
-
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let mut changes = self.inner.insert(solution, descriptor, index);
-        let mut accepted = Vec::with_capacity(changes.inserted.len());
-        for handle in changes.inserted.drain(..) {
-            let row = self.inner.resolve(solution, handle).expect("live quad row");
-            if self.test(solution, row) {
-                self.accepted.insert(handle, ());
-                accepted.push(handle);
+    fn retract(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        _inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        let inner_removed = std::mem::take(&mut self.child_removed);
+        let inner_inserted = std::mem::take(&mut self.child_inserted);
+        let mut inner_removed = inner_removed;
+        let mut inner_inserted = inner_inserted;
+        inner_removed.clear();
+        inner_inserted.clear();
+        self.inner.retract(solution, descriptor, index, &mut inner_removed, &mut inner_inserted);
+        for h in inner_removed.drain(..) {
+            if self.accepted.remove(h).is_some() {
+                removed.push(h);
             }
         }
-        changes.inserted = accepted;
-        changes
+        self.child_removed = inner_removed;
+        self.child_inserted = inner_inserted;
+    }
+
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        _removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        let mut inner_removed = std::mem::take(&mut self.child_removed);
+        let mut inner_inserted = std::mem::take(&mut self.child_inserted);
+        inner_removed.clear();
+        inner_inserted.clear();
+        self.inner.insert(solution, descriptor, index, &mut inner_removed, &mut inner_inserted);
+        for handle in inner_inserted.drain(..) {
+            let row = self.inner.resolve(solution, handle).expect("live scored row");
+            if self.test(solution, row) {
+                self.accepted.insert(handle, ());
+                inserted.push(handle);
+            }
+        }
+        self.child_removed = inner_removed;
+        self.child_inserted = inner_inserted;
     }
 }
 

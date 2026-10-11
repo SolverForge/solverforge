@@ -1,4 +1,4 @@
-use super::{group_view::Contributors, GroupView, Operator, RowChanges};
+use super::{group_view::Contributors, GroupView, Operator};
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::relational::{DenseRowStore, FastMap, FastSet, HandleMap, RowHandle};
 use std::hash::Hash;
@@ -30,6 +30,9 @@ pub struct GroupNode<O, F, C, K, A: Accumulator<V, R>, V, R> {
     tokens: HandleMap<(RowHandle, A::Retraction)>,
     rows: DenseRowStore<RowHandle>,
     output_of: HandleMap<RowHandle>,
+    /// Child notification scratch, reused across events.
+    child_removed: Vec<RowHandle>,
+    child_inserted: Vec<RowHandle>,
     marker: PhantomData<fn() -> (V, R)>,
 }
 impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
@@ -43,18 +46,26 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
             tokens: HandleMap::new(),
             rows: DenseRowStore::new(),
             output_of: HandleMap::new(),
+            child_removed: Vec::new(),
+            child_inserted: Vec::new(),
             marker: PhantomData,
         }
     }
-    fn apply_changes<S: 'static>(&mut self, solution: &S, changes: RowChanges) -> RowChanges
-    where
+    fn apply_changes<S: 'static>(
+        &mut self,
+        solution: &S,
+        input_removed: &[RowHandle],
+        input_inserted: &[RowHandle],
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) where
         O: Operator<S>,
         F: for<'a> Fn(&O::View<'a>) -> K,
         for<'a> C: Collector<O::View<'a>, Value = V, Result = R, Accumulator = A>,
         K: Eq + Hash + Clone,
     {
         let mut changed = FastSet::default();
-        for h in changes.removed {
+        for h in input_removed.iter().copied() {
             if let Some((group, token)) = self.tokens.remove(h) {
                 let g = self
                     .groups
@@ -65,7 +76,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
                 changed.insert(group);
             }
         }
-        for h in changes.inserted {
+        for h in input_inserted.iter().copied() {
             assert!(
                 self.tokens.get(h).is_none(),
                 "duplicate grouped contributor"
@@ -92,8 +103,6 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
             self.tokens.insert(h, (group, token));
             changed.insert(group);
         }
-        let mut removed = Vec::new();
-        let mut inserted = Vec::new();
         // Publish exactly one final replacement per group after all contributors update.
         for group in changed {
             if let Some(output) = self.output_of.remove(group) {
@@ -110,7 +119,6 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
                 inserted.push(output);
             }
         }
-        RowChanges { removed, inserted }
     }
 }
 impl<S: 'static, O, F, C, K, A, V: 'static, R: 'static> Operator<S>
@@ -171,16 +179,21 @@ where
         self.tokens.clear();
         self.rows.clear();
         self.output_of.clear();
+        self.child_removed.clear();
+        self.child_inserted.clear();
     }
     fn initialize(&mut self, solution: &S) {
         self.clear();
         self.input.initialize(solution);
+        let inserted = self.input.handles();
+        let mut sink_removed = Vec::new();
+        let mut sink_inserted = Vec::new();
         self.apply_changes(
             solution,
-            RowChanges {
-                removed: Vec::new(),
-                inserted: self.input.handles(),
-            },
+            &[],
+            &inserted,
+            &mut sink_removed,
+            &mut sink_inserted,
         );
     }
     fn handles(&self) -> Vec<RowHandle> {
@@ -204,12 +217,42 @@ where
             }
         }
     }
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let changes = self.input.retract(solution, descriptor, index);
-        self.apply_changes(solution, changes)
+    fn retract(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut in_removed = std::mem::take(&mut self.child_removed);
+        let mut in_inserted = std::mem::take(&mut self.child_inserted);
+        in_removed.clear();
+        in_inserted.clear();
+        self.input.retract(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
+        self.child_removed = in_removed;
+        self.child_inserted = in_inserted;
     }
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let changes = self.input.insert(solution, descriptor, index);
-        self.apply_changes(solution, changes)
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        inserted.clear();
+        let mut in_removed = std::mem::take(&mut self.child_removed);
+        let mut in_inserted = std::mem::take(&mut self.child_inserted);
+        in_removed.clear();
+        in_inserted.clear();
+        self.input.insert(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        self.apply_changes(solution, &in_removed, &in_inserted, removed, inserted);
+        self.child_removed = in_removed;
+        self.child_inserted = in_inserted;
     }
 }

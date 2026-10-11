@@ -10,7 +10,7 @@ input handle tuples; identities resolve on demand, and provenance falls out of
 each member's own provenance.
 */
 
-use super::{Operator, RowChanges};
+use super::Operator;
 use crate::stream::key_extract::KeyExtract;
 use crate::stream::relational::{DenseRowStore, FastMap, HandleMap, Leaf, RowHandle};
 use std::marker::PhantomData;
@@ -78,6 +78,9 @@ pub struct SelfJoinNode<S, A, O, K, KE, const N: usize> {
     rows: DenseRowStore<[RowHandle; N]>,
     combos: FastMap<[RowHandle; N], RowHandle>,
     of_input: HandleMap<Vec<[RowHandle; N]>>,
+    /// Child notification scratch, reused across events.
+    child_removed: Vec<RowHandle>,
+    child_inserted: Vec<RowHandle>,
     marker: PhantomData<fn() -> (S, A)>,
 }
 
@@ -91,6 +94,8 @@ impl<S, A, O, K, KE, const N: usize> SelfJoinNode<S, A, O, K, KE, N> {
             rows: DenseRowStore::new(),
             combos: FastMap::default(),
             of_input: HandleMap::new(),
+            child_removed: Vec::new(),
+            child_inserted: Vec::new(),
             marker: PhantomData,
         }
     }
@@ -143,6 +148,8 @@ where
         self.rows.clear();
         self.combos.clear();
         self.of_input.clear();
+        self.child_removed.clear();
+        self.child_inserted.clear();
     }
 
     fn initialize(&mut self, solution: &S) {
@@ -171,59 +178,46 @@ where
         }
     }
 
-    fn retract(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let changes = self.input.retract(solution, descriptor, index);
-        let mut removed = Vec::new();
-        for handle in changes.removed {
-            for tuple in self.of_input.remove(handle).unwrap_or_default() {
-                if let Some(output) = self.combos.remove(&tuple) {
-                    self.rows.retract(output);
-                    for member in tuple {
-                        if member != handle {
-                            if let Some(list) = self.of_input.get_mut(member) {
-                                list.retain(|t| *t != tuple);
-                            }
-                        }
-                    }
-                    removed.push(output);
-                }
-            }
-            if let Some(index) = self.handle_index.remove(handle) {
-                if let Some(key) = self
-                    .by_key
-                    .keys()
-                    .find(|k| {
-                        self.by_key
-                            .get(*k)
-                            .is_some_and(|b| b.iter().any(|(i, _)| *i == index))
-                    })
-                    .cloned()
-                {
-                    if let Some(bucket) = self.by_key.get_mut(&key) {
-                        bucket.retain(|(i, _)| *i != index);
-                        if bucket.is_empty() {
-                            self.by_key.remove(&key);
-                        }
-                    }
-                }
-            }
+    fn retract(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        removed: &mut Vec<RowHandle>,
+        _inserted: &mut Vec<RowHandle>,
+    ) {
+        removed.clear();
+        let mut in_removed = std::mem::take(&mut self.child_removed);
+        let mut in_inserted = std::mem::take(&mut self.child_inserted);
+        in_removed.clear();
+        in_inserted.clear();
+        self.input.retract(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        for handle in in_removed.drain(..) {
+            removed.extend(self.retract_row(handle));
         }
-        RowChanges {
-            removed,
-            inserted: Vec::new(),
-        }
+        self.child_removed = in_removed;
+        self.child_inserted = in_inserted;
     }
 
-    fn insert(&mut self, solution: &S, descriptor: usize, index: usize) -> RowChanges {
-        let changes = self.input.insert(solution, descriptor, index);
-        let mut inserted = Vec::new();
-        for handle in changes.inserted {
+    fn insert(
+        &mut self,
+        solution: &S,
+        descriptor: usize,
+        index: usize,
+        _removed: &mut Vec<RowHandle>,
+        inserted: &mut Vec<RowHandle>,
+    ) {
+        inserted.clear();
+        let mut in_removed = std::mem::take(&mut self.child_removed);
+        let mut in_inserted = std::mem::take(&mut self.child_inserted);
+        in_removed.clear();
+        in_inserted.clear();
+        self.input.insert(solution, descriptor, index, &mut in_removed, &mut in_inserted);
+        for handle in in_inserted.drain(..) {
             inserted.extend(self.insert_row(solution, handle));
         }
-        RowChanges {
-            removed: Vec::new(),
-            inserted,
-        }
+        self.child_removed = in_removed;
+        self.child_inserted = in_inserted;
     }
 }
 
@@ -242,6 +236,45 @@ where
             out.push(self.input.resolve(solution, *handle)?);
         }
         out.try_into().ok()
+    }
+
+    /// Removes one input row's combinations, unlinks its tuples, and returns
+    /// the retracted handles.
+    fn retract_row(&mut self, handle: RowHandle) -> Vec<RowHandle> {
+        let mut removed = Vec::new();
+        for tuple in self.of_input.remove(handle).unwrap_or_default() {
+            if let Some(output) = self.combos.remove(&tuple) {
+                self.rows.retract(output);
+                for member in tuple {
+                    if member != handle {
+                        if let Some(list) = self.of_input.get_mut(member) {
+                            list.retain(|t| *t != tuple);
+                        }
+                    }
+                }
+                removed.push(output);
+            }
+        }
+        if let Some(index) = self.handle_index.remove(handle) {
+            if let Some(key) = self
+                .by_key
+                .keys()
+                .find(|k| {
+                    self.by_key
+                        .get(*k)
+                        .is_some_and(|b| b.iter().any(|(i, _)| *i == index))
+                })
+                .cloned()
+            {
+                if let Some(bucket) = self.by_key.get_mut(&key) {
+                    bucket.retain(|(i, _)| *i != index);
+                    if bucket.is_empty() {
+                        self.by_key.remove(&key);
+                    }
+                }
+            }
+        }
+        removed
     }
 
     fn insert_row(&mut self, solution: &S, handle: RowHandle) -> Vec<RowHandle> {

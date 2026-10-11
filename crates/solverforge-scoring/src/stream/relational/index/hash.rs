@@ -128,4 +128,11 @@ where
     pub fn lookup(&self, key: &K) -> &[RowHandle] {
         self.by_key.get(key).map(Vec::as_slice).unwrap_or(&[])
     }
+
+    /// The retained key of one live row, for code that needs the key domain
+    /// (not just candidates) after the row is gone from other state.
+    #[inline]
+    pub fn key_of(&self, handle: RowHandle) -> Option<&K> {
+        self.key_of.get(handle)
+    }
 }

@@ -231,6 +231,10 @@ impl ScalarAssignmentState {
             && self.assignment_rule_allows_value(group, solution, entity_index, value)
     }
 
+    /// Collects the entities blocking (entity_index, value) and returns the
+    /// assignment verdict when the rule machinery computed it; `None` when
+    /// the group has no assignment rule (callers evaluate the verdict
+    /// themselves, exactly where their previous short-circuits did).
     pub(super) fn blockers<S>(
         &mut self,
         group: &ScalarAssignmentBinding<S>,
@@ -238,13 +242,14 @@ impl ScalarAssignmentState {
         entity_index: usize,
         value: usize,
         blockers: &mut Vec<usize>,
-    ) {
+    ) -> Option<bool> {
         blockers.clear();
         let Some(key) = group.capacity_key(solution, entity_index, value) else {
-            self.push_assignment_rule_blockers(group, solution, entity_index, value, blockers);
+            let verdict =
+                self.push_assignment_rule_blockers(group, solution, entity_index, value, blockers);
             blockers.sort_unstable();
             blockers.dedup();
-            return;
+            return verdict;
         };
         if let Some(entities) = self.occupancy.get(&key) {
             blockers.extend(
@@ -254,9 +259,11 @@ impl ScalarAssignmentState {
                     .filter(|occupant| *occupant != entity_index),
             );
         }
-        self.push_assignment_rule_blockers(group, solution, entity_index, value, blockers);
+        let verdict =
+            self.push_assignment_rule_blockers(group, solution, entity_index, value, blockers);
         blockers.sort_unstable();
         blockers.dedup();
+        verdict
     }
 
     pub(super) fn capacity_conflicts<S>(
@@ -593,6 +600,9 @@ impl ScalarAssignmentState {
         )
     }
 
+    /// Appends rule blockers for a disallowed assignment and returns the
+    /// verdict it computed; `None` when the group has no assignment rule
+    /// (no verdict was evaluated).
     fn push_assignment_rule_blockers<S>(
         &mut self,
         group: &ScalarAssignmentBinding<S>,
@@ -600,15 +610,17 @@ impl ScalarAssignmentState {
         entity_index: usize,
         value: usize,
         blockers: &mut Vec<usize>,
-    ) {
-        if !group.has_assignment_rule()
-            || self.assignment_allowed(group, solution, entity_index, value)
-        {
-            return;
+    ) -> Option<bool> {
+        if !group.has_assignment_rule() {
+            return None;
+        }
+        let allowed = self.assignment_allowed(group, solution, entity_index, value);
+        if allowed {
+            return Some(true);
         }
 
         let Some(target_sequence) = group.sequence_key(solution, entity_index, value) else {
-            return;
+            return Some(false);
         };
         for sequence_key in adjacent_sequences(target_sequence) {
             let Some(entities) = self.assigned_by_sequence.get(&(value, sequence_key)) else {
@@ -620,6 +632,7 @@ impl ScalarAssignmentState {
                 }
             }
         }
+        Some(false)
     }
 }
 

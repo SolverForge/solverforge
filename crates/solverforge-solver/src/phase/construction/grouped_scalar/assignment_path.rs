@@ -108,7 +108,7 @@ impl<S> AugmentingPathSearch<'_, S> {
         }
 
         let mut blockers = Vec::new();
-        state.blockers(
+        let mut rule_verdict = state.blockers(
             self.group,
             self.solution,
             entity_index,
@@ -123,7 +123,9 @@ impl<S> AugmentingPathSearch<'_, S> {
                 state.set_value_recording(self.group, self.solution, blocker, None, changes);
                 edits.push(self.group.edit(blocker, None));
             }
-            state.blockers(
+            // State changed after the displacements; re-derive both blockers
+            // and any rule verdict on the new state.
+            rule_verdict = state.blockers(
                 self.group,
                 self.solution,
                 entity_index,
@@ -133,7 +135,10 @@ impl<S> AugmentingPathSearch<'_, S> {
         }
 
         if blockers.is_empty()
-            && !state.assignment_allowed(self.group, self.solution, entity_index, value)
+            && !match rule_verdict {
+                Some(allowed) => allowed,
+                None => state.assignment_allowed(self.group, self.solution, entity_index, value),
+            }
         {
             return false;
         }
@@ -188,7 +193,7 @@ impl<S> AugmentingPathSearch<'_, S> {
                 should_stop,
             ) {
                 let mut blockers_after_reassignment = Vec::new();
-                state.blockers(
+                let reassign_verdict = state.blockers(
                     self.group,
                     self.solution,
                     entity_index,
@@ -196,7 +201,12 @@ impl<S> AugmentingPathSearch<'_, S> {
                     &mut blockers_after_reassignment,
                 );
                 if !blockers_after_reassignment.is_empty()
-                    || !state.assignment_allowed(self.group, self.solution, entity_index, value)
+                    || !match reassign_verdict {
+                        Some(allowed) => allowed,
+                        None => {
+                            state.assignment_allowed(self.group, self.solution, entity_index, value)
+                        }
+                    }
                 {
                     state.rollback(self.group, self.solution, changes, change_checkpoint);
                     edits.truncate(edit_checkpoint);

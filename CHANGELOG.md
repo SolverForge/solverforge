@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.20.3](https://github.com/SolverForge/solverforge/compare/v0.20.2...v0.20.3) (2026-10-12)
+
+### Features
+
+* **solver:** model-declared guided ordering for scalar search 149eb50
+
+### Bug Fixes
+
+* **solver:** reuse the rule verdict blockers already computed 575f2af
+
 ## [0.20.2](https://github.com/SolverForge/solverforge/compare/v0.20.1...v0.20.2) (2026-10-12)
 
 ### Bug Fixes

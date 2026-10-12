@@ -1,4 +1,3 @@
-use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -6,6 +5,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
+use crate::stream::relational::hash::{FastMap, FastSet};
 use crate::stream::filter::{BiFilter, UniFilter};
 use crate::stream::projected::{RowCoordinate, RowOwner, Source};
 
@@ -30,9 +30,9 @@ where
     source_state: Option<Src::State>,
     rows: Vec<Option<ProjectedJoinRow<Out>>>,
     free_row_ids: Vec<usize>,
-    rows_by_owner: HashMap<RowOwner, Vec<usize>>,
-    row_ids_by_coordinate: HashMap<RowCoordinate, usize>,
-    rows_by_key: HashMap<K, Vec<usize>>,
+    rows_by_owner: FastMap<RowOwner, Vec<usize>>,
+    row_ids_by_coordinate: FastMap<RowCoordinate, usize>,
+    rows_by_key: FastMap<K, Vec<usize>>,
     _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> Sc)>,
 }
 
@@ -71,9 +71,9 @@ where
             source_state: None,
             rows: Vec::new(),
             free_row_ids: Vec::new(),
-            rows_by_owner: HashMap::new(),
-            row_ids_by_coordinate: HashMap::new(),
-            rows_by_key: HashMap::new(),
+            rows_by_owner: FastMap::default(),
+            row_ids_by_coordinate: FastMap::default(),
+            rows_by_key: FastMap::default(),
             _phantom: PhantomData,
         }
     }
@@ -325,7 +325,7 @@ where
     }
 
     fn row_ids_for_owners(&self, owners: &[RowOwner]) -> Vec<usize> {
-        let mut seen = HashSet::new();
+        let mut seen = FastSet::default();
         let mut row_ids = Vec::new();
         for owner in owners {
             let Some(ids) = self.rows_by_owner.get(owner) else {

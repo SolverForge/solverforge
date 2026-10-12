@@ -1,4 +1,3 @@
-use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 
@@ -6,6 +5,7 @@ use crate::constraint::grouped::GroupedStateView;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
 use crate::stream::projected::{RowCoordinate, RowOwner, Source};
+use crate::stream::relational::hash::{FastMap, FastSet};
 
 struct GroupState<K, Acc> {
     key: K,
@@ -26,10 +26,10 @@ where
     collector: C,
     source_state: Option<Src::State>,
     groups: Vec<GroupState<K, Acc>>,
-    groups_by_hash: HashMap<u64, Vec<usize>>,
-    row_groups: HashMap<RowCoordinate, usize>,
-    row_retractions: HashMap<RowCoordinate, CollectorRetraction<Acc, V, R>>,
-    rows_by_owner: HashMap<RowOwner, Vec<RowCoordinate>>,
+    groups_by_hash: FastMap<u64, Vec<usize>>,
+    row_groups: FastMap<RowCoordinate, usize>,
+    row_retractions: FastMap<RowCoordinate, CollectorRetraction<Acc, V, R>>,
+    rows_by_owner: FastMap<RowOwner, Vec<RowCoordinate>>,
     changed_groups: Vec<usize>,
     update_count: usize,
     changed_key_count: usize,
@@ -40,7 +40,7 @@ pub struct GroupedEvaluationState<K, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
 {
-    groups: HashMap<K, Acc>,
+    groups: FastMap<K, Acc>,
     _phantom: PhantomData<(fn() -> V, fn() -> R)>,
 }
 
@@ -65,10 +65,10 @@ where
             collector,
             source_state: None,
             groups: Vec::new(),
-            groups_by_hash: HashMap::new(),
-            row_groups: HashMap::new(),
-            row_retractions: HashMap::new(),
-            rows_by_owner: HashMap::new(),
+            groups_by_hash: FastMap::default(),
+            row_groups: FastMap::default(),
+            row_retractions: FastMap::default(),
+            rows_by_owner: FastMap::default(),
             changed_groups: Vec::new(),
             update_count: 0,
             changed_key_count: 0,
@@ -78,7 +78,7 @@ where
 
     pub fn evaluation_state(&self, solution: &S) -> GroupedEvaluationState<K, V, R, Acc> {
         let state = self.source.build_state(solution);
-        let mut groups = HashMap::<K, Acc>::new();
+        let mut groups = FastMap::default();
         self.source.collect_all(solution, &state, |_, output| {
             if !self.filter.test(solution, &output) {
                 return;
@@ -285,7 +285,7 @@ where
     }
 
     fn coordinates_for_owners(&self, owners: &[RowOwner]) -> Vec<RowCoordinate> {
-        let mut seen = HashSet::new();
+        let mut seen = FastSet::default();
         let mut coordinates = Vec::new();
         for owner in owners {
             let Some(rows) = self.rows_by_owner.get(owner) else {

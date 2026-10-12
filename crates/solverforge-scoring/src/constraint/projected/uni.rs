@@ -1,4 +1,3 @@
-use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
@@ -6,6 +5,7 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::filter::UniFilter;
+use crate::stream::relational::hash::{FastMap, FastSet};
 use crate::stream::projected::{RowCoordinate, RowOwner, Source};
 
 pub struct Uni<S, Out, Src, F, W, Sc>
@@ -20,8 +20,8 @@ where
     weight: W,
     is_hard: bool,
     source_state: Option<Src::State>,
-    row_contributions: HashMap<RowCoordinate, Sc>,
-    rows_by_owner: HashMap<RowOwner, Vec<RowCoordinate>>,
+    row_contributions: FastMap<RowCoordinate, Sc>,
+    rows_by_owner: FastMap<RowOwner, Vec<RowCoordinate>>,
     _phantom: PhantomData<(fn() -> S, fn() -> Out)>,
 }
 
@@ -50,8 +50,8 @@ where
             weight,
             is_hard,
             source_state: None,
-            row_contributions: HashMap::new(),
-            rows_by_owner: HashMap::new(),
+            row_contributions: FastMap::default(),
+            rows_by_owner: FastMap::default(),
             _phantom: PhantomData,
         }
     }
@@ -129,7 +129,7 @@ where
     }
 
     fn coordinates_for_owners(&self, owners: &[RowOwner]) -> Vec<RowCoordinate> {
-        let mut seen = HashSet::new();
+        let mut seen = FastSet::default();
         let mut coordinates = Vec::new();
         for owner in owners {
             let Some(rows) = self.rows_by_owner.get(owner) else {

@@ -2,8 +2,8 @@ use super::{ComplementView, Operator, Pair, PairDelta, ProjectView};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use crate::stream::relational::keyed_plan::{KeyOf, RightKeyOf};
 use crate::stream::relational::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
-use std::collections::HashMap;
 use std::marker::PhantomData;
+use crate::stream::relational::hash::FastMap;
 
 enum Output<T> {
     Real(JoinedIdentity),
@@ -38,7 +38,7 @@ pub struct ComplementNode<
     indexes: P::Indexes,
     default: F,
     rows: DenseRowStore<Output<T>>,
-    real_outputs: HashMap<JoinedIdentity, RowHandle>,
+    real_outputs: FastMap<JoinedIdentity, RowHandle>,
     default_outputs: HandleMap<RowHandle>,
     left_outputs: HandleMap<Vec<RowHandle>>,
     right_outputs: HandleMap<Vec<RowHandle>>,
@@ -70,7 +70,7 @@ where
             indexes,
             default,
             rows: DenseRowStore::new(),
-            real_outputs: HashMap::new(),
+            real_outputs: FastMap::default(),
             default_outputs: HandleMap::new(),
             left_outputs: HandleMap::new(),
             right_outputs: HandleMap::new(),
@@ -98,7 +98,7 @@ where
     }
     fn emit_real(
         rows: &mut DenseRowStore<Output<T>>,
-        outputs: &mut HashMap<JoinedIdentity, RowHandle>,
+        outputs: &mut FastMap<JoinedIdentity, RowHandle>,
         left_outputs: &mut HandleMap<Vec<RowHandle>>,
         right_outputs: &mut HandleMap<Vec<RowHandle>>,
         left: RowHandle,

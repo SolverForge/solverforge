@@ -16,6 +16,7 @@ triggers on these tuples but the pattern is architecturally required.
 pub mod constraint;
 pub mod domain;
 pub mod error;
+pub mod fast_hash;
 pub mod score;
 
 #[cfg(test)]

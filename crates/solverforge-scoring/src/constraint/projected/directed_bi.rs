@@ -1,4 +1,3 @@
-use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -6,6 +5,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::stream::filter::{BiFilter, UniFilter};
+use crate::stream::relational::hash::{FastMap, FastSet};
 use crate::stream::projected::{RowCoordinate, RowOwner, Source};
 
 pub(super) struct ProjectedDirectedJoinRow<Out> {
@@ -30,10 +30,10 @@ where
     pub(super) source_state: Option<Src::State>,
     pub(super) rows: Vec<Option<ProjectedDirectedJoinRow<Out>>>,
     pub(super) free_row_ids: Vec<usize>,
-    pub(super) rows_by_owner: HashMap<RowOwner, Vec<usize>>,
-    pub(super) row_ids_by_coordinate: HashMap<RowCoordinate, usize>,
-    pub(super) rows_by_left_key: HashMap<K, Vec<usize>>,
-    pub(super) rows_by_right_key: HashMap<K, Vec<usize>>,
+    pub(super) rows_by_owner: FastMap<RowOwner, Vec<usize>>,
+    pub(super) row_ids_by_coordinate: FastMap<RowCoordinate, usize>,
+    pub(super) rows_by_left_key: FastMap<K, Vec<usize>>,
+    pub(super) rows_by_right_key: FastMap<K, Vec<usize>>,
     pub(super) _phantom: PhantomData<(fn() -> S, fn() -> Out, fn() -> Sc)>,
 }
 
@@ -75,10 +75,10 @@ where
             source_state: None,
             rows: Vec::new(),
             free_row_ids: Vec::new(),
-            rows_by_owner: HashMap::new(),
-            row_ids_by_coordinate: HashMap::new(),
-            rows_by_left_key: HashMap::new(),
-            rows_by_right_key: HashMap::new(),
+            rows_by_owner: FastMap::default(),
+            row_ids_by_coordinate: FastMap::default(),
+            rows_by_left_key: FastMap::default(),
+            rows_by_right_key: FastMap::default(),
             _phantom: PhantomData,
         }
     }
@@ -194,7 +194,7 @@ where
         });
     }
 
-    fn remove_row_from_key(index: &mut HashMap<K, Vec<usize>>, key: &K, row_id: usize) {
+    fn remove_row_from_key(index: &mut FastMap<K, Vec<usize>>, key: &K, row_id: usize) {
         let mut remove_bucket = false;
         if let Some(ids) = index.get_mut(key) {
             ids.retain(|&id| id != row_id);
@@ -309,8 +309,8 @@ where
     pub(super) fn right_index_for(
         &self,
         rows: &[ProjectedDirectedJoinRow<Out>],
-    ) -> HashMap<K, Vec<usize>> {
-        let mut right_index = HashMap::new();
+    ) -> FastMap<K, Vec<usize>> {
+        let mut right_index = FastMap::default();
         for (index, row) in rows.iter().enumerate() {
             right_index
                 .entry((self.right_key_fn)(&row.output))
@@ -366,7 +366,7 @@ where
     }
 
     pub(super) fn row_ids_for_owners(&self, owners: &[RowOwner]) -> Vec<usize> {
-        let mut seen = HashSet::new();
+        let mut seen = FastSet::default();
         let mut row_ids = Vec::new();
         for owner in owners {
             let Some(ids) = self.rows_by_owner.get(owner) else {

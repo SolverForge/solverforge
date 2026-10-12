@@ -1,4 +1,3 @@
-use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -6,6 +5,7 @@ use crate::stream::collection_extract::{ChangeSource, CollectionExtract};
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
 use crate::stream::projected::{RowCoordinate, RowOwner, Source};
+use crate::stream::relational::hash::{FastMap, FastSet};
 
 use super::indexes::key_hash;
 
@@ -32,13 +32,13 @@ where
     pub(super) b_source: ChangeSource,
     pub(super) source_state: Option<Src::State>,
     pub(super) groups: Vec<GroupState<K, Acc>>,
-    pub(super) groups_by_hash: HashMap<u64, Vec<usize>>,
-    row_groups: HashMap<RowCoordinate, usize>,
-    row_retractions: HashMap<RowCoordinate, CollectorRetraction<Acc, V, R>>,
-    rows_by_owner: HashMap<RowOwner, Vec<RowCoordinate>>,
-    pub(super) complement_groups: HashMap<usize, usize>,
-    pub(super) complements_by_group: HashMap<usize, Vec<usize>>,
-    pub(super) complement_defaults: HashMap<usize, R>,
+    pub(super) groups_by_hash: FastMap<u64, Vec<usize>>,
+    row_groups: FastMap<RowCoordinate, usize>,
+    row_retractions: FastMap<RowCoordinate, CollectorRetraction<Acc, V, R>>,
+    rows_by_owner: FastMap<RowOwner, Vec<RowCoordinate>>,
+    pub(super) complement_groups: FastMap<usize, usize>,
+    pub(super) complements_by_group: FastMap<usize, Vec<usize>>,
+    pub(super) complement_defaults: FastMap<usize, R>,
     pub(super) changed_groups: Vec<usize>,
     pub(super) changed_complements: Vec<usize>,
     update_count: usize,
@@ -57,7 +57,7 @@ pub struct ComplementedGroupedEvaluationState<K, V, R, Acc>
 where
     Acc: Accumulator<V, R>,
 {
-    pub(super) groups: HashMap<K, Acc>,
+    pub(super) groups: FastMap<K, Acc>,
     pub(super) complements: Vec<(K, R)>,
     pub(super) _phantom: PhantomData<fn() -> V>,
 }
@@ -102,13 +102,13 @@ where
             b_source,
             source_state: None,
             groups: Vec::new(),
-            groups_by_hash: HashMap::new(),
-            row_groups: HashMap::new(),
-            row_retractions: HashMap::new(),
-            rows_by_owner: HashMap::new(),
-            complement_groups: HashMap::new(),
-            complements_by_group: HashMap::new(),
-            complement_defaults: HashMap::new(),
+            groups_by_hash: FastMap::default(),
+            row_groups: FastMap::default(),
+            row_retractions: FastMap::default(),
+            rows_by_owner: FastMap::default(),
+            complement_groups: FastMap::default(),
+            complements_by_group: FastMap::default(),
+            complement_defaults: FastMap::default(),
             changed_groups: Vec::new(),
             changed_complements: Vec::new(),
             update_count: 0,
@@ -123,7 +123,7 @@ where
     ) -> ComplementedGroupedEvaluationState<K, V, R, Acc> {
         let entities_b = self.extractor_b.extract(solution);
         let state = self.source.build_state(solution);
-        let mut groups = HashMap::<K, Acc>::new();
+        let mut groups = FastMap::default();
         self.source.collect_all(solution, &state, |_, output| {
             if !self.filter.test(solution, &output) {
                 return;
@@ -404,7 +404,7 @@ where
     }
 
     pub(super) fn coordinates_for_owners(&self, owners: &[RowOwner]) -> Vec<RowCoordinate> {
-        let mut seen = HashSet::new();
+        let mut seen = FastSet::default();
         let mut coordinates = Vec::new();
         for owner in owners {
             let Some(rows) = self.rows_by_owner.get(owner) else {

@@ -1,4 +1,4 @@
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::hash_map::Entry;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -6,6 +6,7 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
+use crate::stream::relational::hash::{FastMap, FastSet};
 use crate::constraint::grouped::GroupedTerminalScorer;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
@@ -37,10 +38,10 @@ where
     weight_fn: W,
     is_hard: bool,
     source_state: Option<Src::State>,
-    groups: HashMap<K, GroupState<Acc>>,
-    row_outputs: HashMap<RowCoordinate, Out>,
-    row_retractions: HashMap<RowCoordinate, CollectorRetraction<Acc, V, R>>,
-    rows_by_owner: HashMap<RowOwner, Vec<RowCoordinate>>,
+    groups: FastMap<K, GroupState<Acc>>,
+    row_outputs: FastMap<RowCoordinate, Out>,
+    row_retractions: FastMap<RowCoordinate, CollectorRetraction<Acc, V, R>>,
+    rows_by_owner: FastMap<RowOwner, Vec<RowCoordinate>>,
     _phantom: PhantomData<(
         fn() -> S,
         fn() -> Out,
@@ -87,10 +88,10 @@ where
             weight_fn,
             is_hard,
             source_state: None,
-            groups: HashMap::new(),
-            row_outputs: HashMap::new(),
-            row_retractions: HashMap::new(),
-            rows_by_owner: HashMap::new(),
+            groups: FastMap::default(),
+            row_outputs: FastMap::default(),
+            row_retractions: FastMap::default(),
+            rows_by_owner: FastMap::default(),
             _phantom: PhantomData,
         }
     }
@@ -255,7 +256,7 @@ where
     }
 
     fn coordinates_for_owners(&self, owners: &[RowOwner]) -> Vec<RowCoordinate> {
-        let mut seen = HashSet::new();
+        let mut seen = FastSet::default();
         let mut coordinates = Vec::new();
         for owner in owners {
             let Some(rows) = self.rows_by_owner.get(owner) else {
@@ -367,7 +368,7 @@ where
 {
     fn evaluate(&self, solution: &S) -> Sc {
         let state = self.source.build_state(solution);
-        let mut groups: HashMap<K, Acc> = HashMap::new();
+        let mut groups: FastMap<K, Acc> = FastMap::default();
         self.source.collect_all(solution, &state, |_, output| {
             if !self.filter.test(solution, &output) {
                 return;
@@ -386,7 +387,7 @@ where
 
     fn match_count(&self, solution: &S) -> usize {
         let state = self.source.build_state(solution);
-        let mut keys = HashMap::<K, ()>::new();
+        let mut keys = FastMap::default();
         self.source.collect_all(solution, &state, |_, output| {
             if self.filter.test(solution, &output) {
                 keys.insert((self.key_fn)(&output), ());

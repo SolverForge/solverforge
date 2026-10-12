@@ -1,7 +1,7 @@
 use super::super::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
+use crate::stream::relational::hash::FastMap;
 use super::{Operator, Pair, PairDelta};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
-use std::collections::HashMap;
 use std::marker::PhantomData;
 
 pub struct JoinNode<S, L, R, P: IndexedPlan> {
@@ -10,7 +10,7 @@ pub struct JoinNode<S, L, R, P: IndexedPlan> {
     plan: P,
     indexes: P::Indexes,
     rows: DenseRowStore<JoinedIdentity>,
-    outputs: HashMap<JoinedIdentity, RowHandle>,
+    outputs: FastMap<JoinedIdentity, RowHandle>,
     left_outputs: HandleMap<Vec<RowHandle>>,
     right_outputs: HandleMap<Vec<RowHandle>>,
     /// Child notification scratch, reused across events (L/R, removed/inserted).
@@ -45,7 +45,7 @@ where
             plan,
             indexes,
             rows: DenseRowStore::new(),
-            outputs: HashMap::new(),
+            outputs: FastMap::default(),
             left_outputs: HandleMap::new(),
             right_outputs: HandleMap::new(),
             child_l_removed: Vec::new(),
@@ -122,7 +122,7 @@ where
 {
     fn emit_output(
         rows: &mut DenseRowStore<JoinedIdentity>,
-        outputs: &mut HashMap<JoinedIdentity, RowHandle>,
+        outputs: &mut FastMap<JoinedIdentity, RowHandle>,
         left_outputs: &mut HandleMap<Vec<RowHandle>>,
         right_outputs: &mut HandleMap<Vec<RowHandle>>,
         left: RowHandle,

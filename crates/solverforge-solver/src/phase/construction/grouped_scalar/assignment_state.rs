@@ -1,17 +1,18 @@
-use std::collections::HashMap;
+
 
 use crate::builder::ScalarAssignmentBinding;
 use crate::planning::ScalarEdit;
 
 use super::assignment_edge::{ForcedAssignment, SequenceEdge};
 use super::assignment_index::{push_indexed_entity, remove_indexed_entity};
+use solverforge_core::fast_hash::FastMap;
 
 pub(super) struct ScalarAssignmentState {
     values: Vec<Option<usize>>,
     required: Vec<bool>,
-    occupancy: HashMap<usize, Vec<usize>>,
-    assigned_by_value: HashMap<usize, Vec<usize>>,
-    assigned_by_sequence: HashMap<(usize, usize), Vec<usize>>,
+    occupancy: FastMap<usize, Vec<usize>>,
+    assigned_by_value: FastMap<usize, Vec<usize>>,
+    assigned_by_sequence: FastMap<(usize, usize), Vec<usize>>,
 }
 
 pub(super) struct CapacityConflict {
@@ -24,9 +25,9 @@ impl ScalarAssignmentState {
         let entity_count = group.entity_count(solution);
         let mut values = Vec::with_capacity(entity_count);
         let mut required = Vec::with_capacity(entity_count);
-        let mut occupancy: HashMap<usize, Vec<usize>> = HashMap::new();
-        let mut assigned_by_value: HashMap<usize, Vec<usize>> = HashMap::new();
-        let mut assigned_by_sequence: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
+        let mut occupancy: FastMap<usize, Vec<usize>> = FastMap::default();
+        let mut assigned_by_value: FastMap<usize, Vec<usize>> = FastMap::default();
+        let mut assigned_by_sequence: FastMap<(usize, usize), Vec<usize>> = FastMap::default();
         for entity_index in 0..entity_count {
             let value = group.current_value(solution, entity_index);
             values.push(value);

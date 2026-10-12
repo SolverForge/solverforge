@@ -1,10 +1,10 @@
-use std::collections::HashSet;
 
 use solverforge_core::domain::PlanningSolution;
 
 use crate::builder::context::{ScalarAssignmentBinding, ScalarCandidate, ScalarGroupBinding};
 use crate::heuristic::r#move::CompoundScalarMove;
 use crate::planning::ScalarEdit;
+use solverforge_core::fast_hash::FastSet;
 
 pub(crate) fn compound_move_for_group_candidate<S>(
     group: &ScalarGroupBinding<S>,
@@ -53,7 +53,7 @@ where
         return None;
     }
 
-    let mut targets = HashSet::new();
+    let mut targets = FastSet::default();
     let mut compound_edits = Vec::with_capacity(edits.len());
     for edit in edits {
         if !targets.insert(edit.entity_index()) {

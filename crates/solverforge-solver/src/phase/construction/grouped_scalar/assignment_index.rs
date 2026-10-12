@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use solverforge_core::fast_hash::FastMap;
+
 
 pub(super) fn push_indexed_entity<K>(
-    index: &mut HashMap<K, Vec<usize>>,
+    index: &mut FastMap<K, Vec<usize>>,
     key: K,
     entity_index: usize,
 ) where
@@ -14,7 +15,7 @@ pub(super) fn push_indexed_entity<K>(
 }
 
 pub(super) fn remove_indexed_entity<K>(
-    index: &mut HashMap<K, Vec<usize>>,
+    index: &mut FastMap<K, Vec<usize>>,
     key: K,
     entity_index: usize,
 ) where

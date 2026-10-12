@@ -1,6 +1,6 @@
-use std::collections::HashSet;
 
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::fast_hash::FastSet;
 
 use super::assignment_candidate::{
     order_candidates, AssignmentMoveIntent, ScalarAssignmentMoveOptions,
@@ -45,7 +45,7 @@ where
         should_stop,
     )?;
     let mut scalar_edits = Vec::new();
-    let mut edited_entities = HashSet::new();
+    let mut edited_entities = FastSet::default();
     let mut batch_changes = Vec::new();
     for entity_index in entities {
         if should_stop() {

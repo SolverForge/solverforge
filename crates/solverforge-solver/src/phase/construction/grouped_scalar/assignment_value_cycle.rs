@@ -1,4 +1,3 @@
-use std::collections::{HashMap, HashSet};
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -8,11 +7,12 @@ use super::assignment_state::ScalarAssignmentState;
 use super::assignment_value_index::assigned_value_sequence_index;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
+use solverforge_core::fast_hash::{FastMap, FastSet};
 
 pub(super) struct ValueWindowCycleCursor {
     triples: Vec<(usize, usize, usize)>,
     sequence_keys: Vec<usize>,
-    by_value_sequence: HashMap<(usize, usize), Vec<usize>>,
+    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     triple_pos: usize,
     start_pos: usize,
     len: usize,
@@ -133,7 +133,7 @@ impl ValueWindowCycleCursor {
         S: PlanningSolution,
     {
         let mut edits = Vec::new();
-        let mut touched = HashSet::new();
+        let mut touched = FastSet::default();
         let (first, second, third) = cycle;
         for sequence_key in sequence_window {
             self.push_cycle_edits(
@@ -178,7 +178,7 @@ impl ValueWindowCycleCursor {
 
     fn push_cycle_edits<S>(
         &self,
-        touched: &mut HashSet<usize>,
+        touched: &mut FastSet<usize>,
         edits: &mut Vec<(usize, Option<usize>)>,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,

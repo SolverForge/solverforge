@@ -1,4 +1,5 @@
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::fast_hash::FastSet;
 
 use crate::builder::context::{ScalarCandidate, ScalarGroupBinding};
 use crate::descriptor::ResolvedVariableBinding;
@@ -16,7 +17,7 @@ pub(super) fn scalar_slots_for_candidate<S>(
 where
     S: PlanningSolution,
 {
-    let mut targets = std::collections::HashSet::new();
+    let mut targets = FastSet::default();
     let mut scalar_slots = Vec::with_capacity(candidate.edits().len());
     let mut keep_current_legal = true;
     let mut has_unfinished_unassigned_slot = false;

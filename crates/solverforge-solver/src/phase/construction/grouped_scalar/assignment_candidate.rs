@@ -1,6 +1,6 @@
 use crate::builder::ScalarAssignmentBinding;
 
-pub(super) type AssignmentMoveKey = Vec<(usize, usize, usize, &'static str, Option<usize>)>;
+pub(super) type AssignmentMoveKey = Vec<(usize, usize, usize, Option<usize>)>;
 
 pub(super) fn normalized_move_key<S>(
     candidate: &crate::heuristic::r#move::CompoundScalarMove<S>,
@@ -13,7 +13,6 @@ pub(super) fn normalized_move_key<S>(
                 edit.descriptor_index,
                 edit.entity_index,
                 edit.variable_index,
-                edit.variable_name,
                 edit.to_value,
             )
         })

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -11,6 +11,7 @@ use super::assignment_entity::{
     required_entities_by_scarcity, required_value_degrees, AssignmentMoveKind, CapacityCursor,
     EntityValueCursor, OptionalAdjustmentCursor,
 };
+use solverforge_core::fast_hash::FastMap;
 use super::assignment_pair::PairWindowCursor;
 use super::assignment_state::ScalarAssignmentState;
 use super::assignment_value_cycle::ValueWindowCycleCursor;
@@ -89,7 +90,7 @@ impl AssignmentFamilyCursor {
                 should_stop,
             )?
         } else {
-            HashMap::new()
+            FastMap::default()
         };
         Some(Self::EntityValues(EntityValueCursor {
             entities,
@@ -113,7 +114,7 @@ impl AssignmentFamilyCursor {
             entity_pos: 0,
             values: Vec::new(),
             value_pos: 0,
-            value_degrees: HashMap::new(),
+            value_degrees: FastMap::default(),
             options,
             kind,
         })

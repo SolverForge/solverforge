@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -8,11 +8,12 @@ use super::assignment_state::ScalarAssignmentState;
 use super::assignment_value_index::assigned_value_sequence_index;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
+use solverforge_core::fast_hash::{FastMap, FastSet};
 
 pub(super) struct ValueWindowCursor {
     pairs: Vec<(usize, usize)>,
     sequence_keys: Vec<usize>,
-    by_value_sequence: HashMap<(usize, usize), Vec<usize>>,
+    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     pair_pos: usize,
     start_pos: usize,
     len: usize,
@@ -22,7 +23,7 @@ pub(super) struct ValueWindowCursor {
 pub(super) struct ValueLongWindowCursor {
     pairs: Vec<(usize, usize)>,
     sequence_keys: Vec<usize>,
-    by_value_sequence: HashMap<(usize, usize), Vec<usize>>,
+    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     pair_pos: usize,
     length_pos: usize,
     start_pos: usize,
@@ -32,7 +33,7 @@ pub(super) struct ValueLongWindowCursor {
 pub(super) struct ValueBlockReassignmentCursor {
     pairs: Vec<(usize, usize)>,
     sequence_keys: Vec<usize>,
-    by_value_sequence: HashMap<(usize, usize), Vec<usize>>,
+    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     pair_pos: usize,
     start_pos: usize,
     len: usize,
@@ -345,7 +346,7 @@ impl ValueBlockReassignmentCursor {
 }
 
 fn value_window_edits<S>(
-    by_value_sequence: &HashMap<(usize, usize), Vec<usize>>,
+    by_value_sequence: &FastMap<(usize, usize), Vec<usize>>,
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
     state: &ScalarAssignmentState,
@@ -357,7 +358,7 @@ where
     S: PlanningSolution,
 {
     let mut edits = Vec::new();
-    let mut touched = HashSet::new();
+    let mut touched = FastSet::default();
     for sequence_key in sequence_window {
         if let Some(left_entities) = by_value_sequence.get(&(left_value, *sequence_key)) {
             for entity_index in left_entities {

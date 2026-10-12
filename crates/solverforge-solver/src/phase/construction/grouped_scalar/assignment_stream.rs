@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -10,6 +9,7 @@ use super::assignment_entity::{AssignmentMoveKind, CapacityCursor, OptionalAdjus
 use super::assignment_family::{AssignmentFamilyCursor, AssignmentMoveFamily};
 use super::assignment_pair::PairWindowCursor;
 use super::assignment_required_batch::required_batch_move;
+use solverforge_core::fast_hash::FastSet;
 use super::assignment_state::ScalarAssignmentState;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
@@ -26,7 +26,7 @@ where
     batch_required: bool,
     family_slots: Vec<AssignmentFamilySlot>,
     family_pos: usize,
-    seen: HashSet<AssignmentMoveKey>,
+    seen: FastSet<AssignmentMoveKey>,
     yielded: usize,
 }
 
@@ -76,7 +76,7 @@ where
     }
     pub(super) fn exclude_completed_optional_entities(
         &mut self,
-        completed: &HashSet<ConstructionSlotId>,
+        completed: &FastSet<ConstructionSlotId>,
     ) {
         if self.family_slots.len() != 1
             || self.family_slots[0].family != AssignmentMoveFamily::OptionalAssign
@@ -155,7 +155,7 @@ where
                 })
                 .collect(),
             family_pos: 0,
-            seen: HashSet::new(),
+            seen: FastSet::default(),
             yielded: 0,
         }
     }

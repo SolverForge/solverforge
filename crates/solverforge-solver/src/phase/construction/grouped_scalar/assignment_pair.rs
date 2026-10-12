@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -8,6 +8,7 @@ use super::assignment_path::move_from_edits;
 use super::assignment_state::ScalarAssignmentState;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
+use solverforge_core::fast_hash::FastMap;
 
 enum PairWindowKind {
     SequenceWindow,
@@ -76,7 +77,7 @@ impl PairWindowCursor {
         state: &ScalarAssignmentState,
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
-        let mut by_sequence: HashMap<Option<usize>, Vec<usize>> = HashMap::new();
+        let mut by_sequence: FastMap<Option<usize>, Vec<usize>> = FastMap::default();
         for entity_index in 0..group.entity_count(solution) {
             let Some(value) = state.current_value(entity_index) else {
                 continue;

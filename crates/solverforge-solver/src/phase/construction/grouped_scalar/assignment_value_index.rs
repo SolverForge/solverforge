@@ -1,15 +1,15 @@
-use std::collections::{HashMap, HashSet};
 
 use solverforge_core::domain::PlanningSolution;
 
 use super::assignment_candidate::{order_candidates, ScalarAssignmentMoveOptions};
 use super::assignment_state::ScalarAssignmentState;
 use crate::builder::ScalarAssignmentBinding;
+use solverforge_core::fast_hash::{FastMap, FastSet};
 
 pub(super) struct AssignedValueSequenceIndex {
     pub(super) values: Vec<usize>,
     pub(super) sequence_keys: Vec<usize>,
-    pub(super) by_value_sequence: HashMap<(usize, usize), Vec<usize>>,
+    pub(super) by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
 }
 
 pub(super) fn assigned_value_sequence_index<S>(
@@ -21,9 +21,9 @@ pub(super) fn assigned_value_sequence_index<S>(
 where
     S: PlanningSolution,
 {
-    let mut assigned_values = HashSet::new();
-    let mut sequence_keys = HashSet::new();
-    let mut by_value_sequence: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
+    let mut assigned_values = FastSet::default();
+    let mut sequence_keys = FastSet::default();
+    let mut by_value_sequence: FastMap<(usize, usize), Vec<usize>> = FastMap::default();
 
     for entity_index in 0..group.entity_count(solution) {
         let Some(value) = state.current_value(entity_index) else {

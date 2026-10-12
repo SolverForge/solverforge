@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 
 use solverforge_config::{ConstructionHeuristicType, ConstructionObligation};
 use solverforge_core::domain::PlanningSolution;
@@ -13,6 +12,7 @@ use crate::heuristic::selector::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor,
 };
 use crate::heuristic::selector::EntityReference;
+use solverforge_core::fast_hash::FastSet;
 use crate::phase::construction::{
     ConstructionGroupSlotId, ConstructionSlotId, ConstructionTarget, Placement,
 };
@@ -63,7 +63,7 @@ where
     Assignment {
         generator: AssignmentPlacementGenerator<S>,
         active_entity: usize,
-        completed_slots: HashSet<ConstructionSlotId>,
+        completed_slots: FastSet<ConstructionSlotId>,
         first: Option<(CompoundScalarMove<S>, ConstructionTarget)>,
     },
 }
@@ -103,7 +103,7 @@ where
     fn assignment(
         generator: AssignmentPlacementGenerator<S>,
         active_entity: usize,
-        completed_slots: HashSet<ConstructionSlotId>,
+        completed_slots: FastSet<ConstructionSlotId>,
         first: (CompoundScalarMove<S>, ConstructionTarget),
     ) -> Self {
         Self {
@@ -264,7 +264,7 @@ where
 
 fn next_assignment_candidate<S, ShouldStop>(
     generator: &mut AssignmentPlacementGenerator<S>,
-    completed_slots: &HashSet<ConstructionSlotId>,
+    completed_slots: &FastSet<ConstructionSlotId>,
     should_stop: &mut ShouldStop,
 ) -> Option<(usize, CompoundScalarMove<S>, ConstructionTarget)>
 where
@@ -324,7 +324,7 @@ where
 fn completed_assignment_slots<S, IsCompleted>(
     generator: &AssignmentPlacementGenerator<S>,
     is_completed: &mut IsCompleted,
-) -> HashSet<ConstructionSlotId>
+) -> FastSet<ConstructionSlotId>
 where
     S: PlanningSolution + 'static,
     IsCompleted: FnMut(&Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>) -> bool,

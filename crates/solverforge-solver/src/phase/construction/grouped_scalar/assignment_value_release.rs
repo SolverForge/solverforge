@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -8,11 +7,12 @@ use super::assignment_state::ScalarAssignmentState;
 use super::assignment_value_index::assigned_value_sequence_index;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
+use solverforge_core::fast_hash::FastMap;
 
 pub(super) struct ValueRunReleaseCursor {
     values: Vec<usize>,
     sequence_keys: Vec<usize>,
-    by_value_sequence: HashMap<(usize, usize), Vec<usize>>,
+    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     value_pos: usize,
     start_pos: usize,
     len: usize,

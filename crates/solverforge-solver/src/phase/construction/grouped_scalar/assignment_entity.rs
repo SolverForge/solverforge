@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -10,6 +10,7 @@ use super::assignment_path::{
 };
 use super::assignment_state::{CapacityConflict, ScalarAssignmentState};
 use crate::builder::ScalarAssignmentBinding;
+use solverforge_core::fast_hash::{FastMap, FastSet};
 use crate::heuristic::r#move::CompoundScalarMove;
 use crate::phase::control::GENERATION_POLL_INTERVAL;
 
@@ -18,7 +19,7 @@ pub(super) struct EntityValueCursor {
     pub(super) entity_pos: usize,
     pub(super) values: Vec<usize>,
     pub(super) value_pos: usize,
-    pub(super) value_degrees: HashMap<usize, usize>,
+    pub(super) value_degrees: FastMap<usize, usize>,
     pub(super) options: ScalarAssignmentMoveOptions,
     pub(super) kind: AssignmentMoveKind,
 }
@@ -125,7 +126,7 @@ pub(super) struct CapacityCursor {
     conflicts: Vec<CapacityConflict>,
     conflict_pos: usize,
     occupant_pos: usize,
-    seen_entities: HashSet<usize>,
+    seen_entities: FastSet<usize>,
     repair_cursor: Option<EntityValueCursor>,
     options: ScalarAssignmentMoveOptions,
 }
@@ -141,7 +142,7 @@ impl CapacityCursor {
             conflicts: state.capacity_conflicts(group, solution),
             conflict_pos: 0,
             occupant_pos: 0,
-            seen_entities: HashSet::new(),
+            seen_entities: FastSet::default(),
             repair_cursor: None,
             options,
         }
@@ -207,7 +208,7 @@ impl CapacityCursor {
                 entity_pos: 0,
                 values: Vec::new(),
                 value_pos: 0,
-                value_degrees: HashMap::new(),
+                value_degrees: FastMap::default(),
                 options: self.options,
                 kind: AssignmentMoveKind::CapacityRepair,
             });
@@ -423,12 +424,12 @@ pub(super) fn required_value_degrees<S, ShouldStop>(
     entities: &[usize],
     value_candidate_limit: Option<usize>,
     should_stop: &mut ShouldStop,
-) -> Option<HashMap<usize, usize>>
+) -> Option<FastMap<usize, usize>>
 where
     S: PlanningSolution,
     ShouldStop: FnMut() -> bool,
 {
-    let mut degrees = HashMap::new();
+    let mut degrees = FastMap::default();
     let mut processed_edges = 0usize;
     for entity_index in entities {
         if should_stop() {
@@ -452,7 +453,7 @@ pub(super) fn sort_values_by_required_scarcity<S>(
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
     entity_index: usize,
-    degrees: &HashMap<usize, usize>,
+    degrees: &FastMap<usize, usize>,
     values: &mut [usize],
 ) {
     values.sort_by_key(|value| {

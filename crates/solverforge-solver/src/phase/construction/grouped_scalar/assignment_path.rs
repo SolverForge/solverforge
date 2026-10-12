@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -8,6 +7,7 @@ use super::move_build::compound_move_for_assignment_edits;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 use crate::planning::ScalarEdit;
+use solverforge_core::fast_hash::FastSet;
 
 pub(super) fn assignment_move_for_entity_value<S, ShouldStop>(
     group: &ScalarAssignmentBinding<S>,
@@ -32,7 +32,7 @@ where
     }
     let mut changes = Vec::new();
     let mut edits = Vec::new();
-    let mut visiting = HashSet::new();
+    let mut visiting = FastSet::default();
     let search = AugmentingPathSearch {
         group,
         solution,
@@ -85,7 +85,7 @@ impl<S> AugmentingPathSearch<'_, S> {
         &self,
         state: &mut ScalarAssignmentState,
         assignment: AssignmentRequest,
-        visiting: &mut HashSet<usize>,
+        visiting: &mut FastSet<usize>,
         changes: &mut Vec<(usize, Option<usize>)>,
         edits: &mut Vec<ScalarEdit<S>>,
         should_stop: &mut ShouldStop,

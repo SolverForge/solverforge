@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -8,11 +7,12 @@ use super::assignment_state::ScalarAssignmentState;
 use super::assignment_value_index::assigned_value_sequence_index;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
+use solverforge_core::fast_hash::FastMap;
 
 pub(super) struct ValueRunGapSwapCursor {
     pairs: Vec<(usize, usize)>,
     sequence_keys: Vec<usize>,
-    by_value_sequence: HashMap<(usize, usize), Vec<usize>>,
+    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     pair_pos: usize,
     fill_pos: usize,
     release_pos: usize,
@@ -240,7 +240,7 @@ impl ValueRunGapSwapCursor {
 }
 
 fn is_single_island(
-    by_value_sequence: &HashMap<(usize, usize), Vec<usize>>,
+    by_value_sequence: &FastMap<(usize, usize), Vec<usize>>,
     value: usize,
     sequence: usize,
 ) -> bool {
@@ -254,7 +254,7 @@ fn is_single_island(
 }
 
 fn has_value(
-    by_value_sequence: &HashMap<(usize, usize), Vec<usize>>,
+    by_value_sequence: &FastMap<(usize, usize), Vec<usize>>,
     value: usize,
     sequence: usize,
 ) -> bool {

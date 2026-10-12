@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.20.2](https://github.com/SolverForge/solverforge/compare/v0.20.1...v0.20.2) (2026-10-12)
+
+### Bug Fixes
+
+* **solver:** batch construction candidate stop polls ac97d1d
+* **solver:** batch the wall-clock stop checks in search control loops 8c0a701
+* **solver:** pool grouped-scalar assignment index rows 65c1cfc
+* **solver:** short-circuit fully-forced assignment rule edges f193f67
+
 ## [0.20.1](https://github.com/SolverForge/solverforge/compare/v0.20.0...v0.20.1) (2026-10-12)
 
 ### Bug Fixes

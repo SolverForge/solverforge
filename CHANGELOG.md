@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.20.0](https://github.com/SolverForge/solverforge/compare/v0.19.14...v0.20.0) (2026-10-12)
+
+### Features
+
+* **solver:** accepted-count foraging for grouped scalar models a901a2b
+
 ## [0.19.14](https://github.com/SolverForge/solverforge/compare/v0.19.13...v0.19.14) (2026-10-12)
 
 ## [0.19.13](https://github.com/SolverForge/solverforge/compare/v0.19.12...v0.19.13) (2026-10-11)

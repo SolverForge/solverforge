@@ -455,6 +455,29 @@ impl ScalarAssignmentState {
     ) -> bool {
         let mut left_scratch = [0usize; 1];
         let mut right_scratch = [0usize; 1];
+        let left_forced = edge
+            .forced_left
+            .filter(|forced| forced.value == edge.value)
+            .map(|forced| {
+                left_scratch[0] = forced.entity_index;
+            });
+        let right_forced = edge
+            .forced_right
+            .filter(|forced| forced.value == edge.value)
+            .map(|forced| {
+                right_scratch[0] = forced.entity_index;
+            });
+        if let (Some(_), Some(_)) = (left_forced, right_forced) {
+            // Both sides forced: no sequence-index lookup can change the
+            // row contents, so test the single forced pair directly.
+            let left = left_scratch[0];
+            let right = right_scratch[0];
+            if left == right || pair_was_checked(checked, left, right) {
+                return true;
+            }
+            checked.push((left, right));
+            return group.assignment_edge_allowed(solution, left, edge.value, right, edge.value);
+        }
         let left_entities = match edge.forced_left {
             Some(forced) if forced.value == edge.value => {
                 left_scratch[0] = forced.entity_index;

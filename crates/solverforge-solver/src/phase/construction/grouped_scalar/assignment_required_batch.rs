@@ -1,4 +1,3 @@
-
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::fast_hash::FastSet;
 

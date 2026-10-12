@@ -1,5 +1,3 @@
-
-
 use solverforge_core::domain::PlanningSolution;
 
 use super::assignment_block::{
@@ -11,13 +9,13 @@ use super::assignment_entity::{
     required_entities_by_scarcity, required_value_degrees, AssignmentMoveKind, CapacityCursor,
     EntityValueCursor, OptionalAdjustmentCursor,
 };
-use solverforge_core::fast_hash::FastMap;
 use super::assignment_pair::PairWindowCursor;
 use super::assignment_state::ScalarAssignmentState;
 use super::assignment_value_cycle::ValueWindowCycleCursor;
 use super::assignment_value_release::ValueRunReleaseCursor;
 use super::assignment_value_run::ValueRunGapSwapCursor;
 use crate::builder::ScalarAssignmentBinding;
+use solverforge_core::fast_hash::FastMap;
 
 pub(super) enum AssignmentFamilyCursor {
     EntityValues(EntityValueCursor),

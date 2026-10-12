@@ -5,8 +5,8 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::stream::filter::{BiFilter, UniFilter};
-use crate::stream::relational::hash::{FastMap, FastSet};
 use crate::stream::projected::{RowCoordinate, RowOwner, Source};
+use crate::stream::relational::hash::{FastMap, FastSet};
 
 pub(super) struct ProjectedDirectedJoinRow<Out> {
     pub(super) output: Out,

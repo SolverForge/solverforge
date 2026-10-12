@@ -1,5 +1,3 @@
-
-
 use solverforge_core::domain::PlanningSolution;
 
 use super::assignment_candidate::{
@@ -10,9 +8,9 @@ use super::assignment_path::{
 };
 use super::assignment_state::{CapacityConflict, ScalarAssignmentState};
 use crate::builder::ScalarAssignmentBinding;
-use solverforge_core::fast_hash::{FastMap, FastSet};
 use crate::heuristic::r#move::CompoundScalarMove;
 use crate::phase::control::GENERATION_POLL_INTERVAL;
+use solverforge_core::fast_hash::{FastMap, FastSet};
 
 pub(super) struct EntityValueCursor {
     pub(super) entities: Vec<usize>,

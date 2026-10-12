@@ -5,9 +5,9 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::stream::relational::hash::{FastMap, FastSet};
 use crate::stream::filter::{BiFilter, UniFilter};
 use crate::stream::projected::{RowCoordinate, RowOwner, Source};
+use crate::stream::relational::hash::{FastMap, FastSet};
 
 struct ProjectedJoinRow<Out> {
     output: Out,

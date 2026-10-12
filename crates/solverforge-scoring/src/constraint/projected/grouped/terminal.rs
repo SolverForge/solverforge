@@ -6,11 +6,11 @@ use solverforge_core::score::Score;
 use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
-use crate::stream::relational::hash::{FastMap, FastSet};
 use crate::constraint::grouped::GroupedTerminalScorer;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
 use crate::stream::projected::{RowCoordinate, RowOwner, Source};
+use crate::stream::relational::hash::{FastMap, FastSet};
 use crate::stream::ConstraintWeight;
 
 use super::shared_set::SharedGroupedSet;

@@ -458,10 +458,17 @@ impl ListPrecedenceState {
         self.scratch_assignment_counts.clear();
         self.scratch_assignment_keys.clear();
         for &node in old_elements {
-            if self.scratch_assignment_counts.insert(node, (1, 0)).is_none() {
+            if self
+                .scratch_assignment_counts
+                .insert(node, (1, 0))
+                .is_none()
+            {
                 self.scratch_assignment_keys.push(node);
             } else {
-                self.scratch_assignment_counts.get_mut(&node).expect("just inserted").0 += 1;
+                self.scratch_assignment_counts
+                    .get_mut(&node)
+                    .expect("just inserted")
+                    .0 += 1;
             }
         }
         for &node in new_elements {

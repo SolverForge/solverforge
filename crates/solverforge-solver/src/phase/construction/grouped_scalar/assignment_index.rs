@@ -1,6 +1,5 @@
 use solverforge_core::fast_hash::FastMap;
 
-
 pub(super) fn push_indexed_entity<K>(
     index: &mut FastMap<K, Vec<usize>>,
     key: K,

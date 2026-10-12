@@ -5,8 +5,8 @@ use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::stream::filter::UniFilter;
-use crate::stream::relational::hash::{FastMap, FastSet};
 use crate::stream::projected::{RowCoordinate, RowOwner, Source};
+use crate::stream::relational::hash::{FastMap, FastSet};
 
 pub struct Uni<S, Out, Src, F, W, Sc>
 where

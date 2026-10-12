@@ -1,4 +1,3 @@
-
 use solverforge_core::domain::PlanningSolution;
 
 use super::assignment_candidate::{order_candidates, ScalarAssignmentMoveOptions};

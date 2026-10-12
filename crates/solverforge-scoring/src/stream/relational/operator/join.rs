@@ -1,7 +1,7 @@
 use super::super::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
-use crate::stream::relational::hash::FastMap;
 use super::{Operator, Pair, PairDelta};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
+use crate::stream::relational::hash::FastMap;
 use std::marker::PhantomData;
 
 pub struct JoinNode<S, L, R, P: IndexedPlan> {

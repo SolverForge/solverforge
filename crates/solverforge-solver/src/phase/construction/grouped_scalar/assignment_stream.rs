@@ -1,4 +1,3 @@
-
 use solverforge_core::domain::PlanningSolution;
 
 use super::assignment_candidate::{
@@ -9,12 +8,12 @@ use super::assignment_entity::{AssignmentMoveKind, CapacityCursor, OptionalAdjus
 use super::assignment_family::{AssignmentFamilyCursor, AssignmentMoveFamily};
 use super::assignment_pair::PairWindowCursor;
 use super::assignment_required_batch::required_batch_move;
-use solverforge_core::fast_hash::FastSet;
 use super::assignment_state::ScalarAssignmentState;
-use super::assignment_value_index::{AssignedValueSequenceIndex, assigned_value_sequence_index};
+use super::assignment_value_index::{assigned_value_sequence_index, AssignedValueSequenceIndex};
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 use crate::phase::construction::ConstructionSlotId;
+use solverforge_core::fast_hash::FastSet;
 
 pub(crate) struct ScalarAssignmentMoveCursor<S>
 where
@@ -276,12 +275,8 @@ where
         if let Some(index) = &self.index_cache {
             return index.clone();
         }
-        let index = assigned_value_sequence_index(
-            &self.group,
-            &self.solution,
-            &self.state,
-            self.options,
-        );
+        let index =
+            assigned_value_sequence_index(&self.group, &self.solution, &self.state, self.options);
         self.index_cache = Some(index.clone());
         index
     }
@@ -333,25 +328,31 @@ where
                 AssignmentFamilyCursor::ValueWindow(
                     super::assignment_block::ValueWindowCursor::new(options, index),
                 )
-            },
+            }
             AssignmentMoveFamily::ValueLongWindowSwap => {
                 let index = self.shared_index();
                 AssignmentFamilyCursor::ValueLongWindow(
                     super::assignment_block::ValueLongWindowCursor::new(options, index),
                 )
-            },
+            }
             AssignmentMoveFamily::ValueRunGapSwap => {
                 let index = self.shared_index();
-                AssignmentFamilyCursor::ValueRunGapSwap(super::assignment_value_run::ValueRunGapSwapCursor::new(options, index))
-            },
+                AssignmentFamilyCursor::ValueRunGapSwap(
+                    super::assignment_value_run::ValueRunGapSwapCursor::new(options, index),
+                )
+            }
             AssignmentMoveFamily::ValueRunRelease => {
                 let index = self.shared_index();
-                AssignmentFamilyCursor::ValueRunRelease(super::assignment_value_release::ValueRunReleaseCursor::new(options, index))
-            },
+                AssignmentFamilyCursor::ValueRunRelease(
+                    super::assignment_value_release::ValueRunReleaseCursor::new(options, index),
+                )
+            }
             AssignmentMoveFamily::ValueWindowCycle => {
                 let index = self.shared_index();
-                AssignmentFamilyCursor::ValueWindowCycle(super::assignment_value_cycle::ValueWindowCycleCursor::new(options, index))
-            },
+                AssignmentFamilyCursor::ValueWindowCycle(
+                    super::assignment_value_cycle::ValueWindowCycleCursor::new(options, index),
+                )
+            }
             AssignmentMoveFamily::ValueBlockReassignment => {
                 let index = self.shared_index();
                 AssignmentFamilyCursor::ValueBlockReassignment(

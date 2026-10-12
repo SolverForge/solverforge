@@ -1,4 +1,3 @@
-
 use solverforge_core::domain::PlanningSolution;
 
 use crate::builder::context::{ScalarAssignmentBinding, ScalarCandidate, ScalarGroupBinding};

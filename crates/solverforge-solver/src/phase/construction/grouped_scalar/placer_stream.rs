@@ -1,4 +1,3 @@
-
 use solverforge_config::{ConstructionHeuristicType, ConstructionObligation};
 use solverforge_core::domain::PlanningSolution;
 
@@ -12,10 +11,10 @@ use crate::heuristic::selector::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor,
 };
 use crate::heuristic::selector::EntityReference;
-use solverforge_core::fast_hash::FastSet;
 use crate::phase::construction::{
     ConstructionGroupSlotId, ConstructionSlotId, ConstructionTarget, Placement,
 };
+use solverforge_core::fast_hash::FastSet;
 
 pub(super) struct CandidatePlacementSeed<S>
 where

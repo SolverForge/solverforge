@@ -1,9 +1,9 @@
 use super::{ComplementView, Operator, Pair, PairDelta, ProjectView};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
+use crate::stream::relational::hash::FastMap;
 use crate::stream::relational::keyed_plan::{KeyOf, RightKeyOf};
 use crate::stream::relational::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
 use std::marker::PhantomData;
-use crate::stream::relational::hash::FastMap;
 
 enum Output<T> {
     Real(JoinedIdentity),

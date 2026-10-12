@@ -1,5 +1,3 @@
-
-
 use crate::builder::ScalarAssignmentBinding;
 use crate::planning::ScalarEdit;
 

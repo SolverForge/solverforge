@@ -144,6 +144,11 @@ Internal module responsibilities:
   `construction_entity_order_key = "fn_name"` and
   `construction_value_order_key = "fn_name"`. These are emitted for
   construction routing and are not local-search selector ordering hooks.
+  guided search ordering hooks are declared here too:
+  `search_entity_order_key = "fn_name"` and
+  `search_value_order_key = "fn_name"`; search-guided keys rank local-search
+  scalar change/swap enumeration (lower key first, seeded-random tie-break)
+  and are ignored by construction routing.
 - `#[planning_list_variable(...)]` — list planning variable
   currently requires `Vec<usize>` and `element_collection = "solution_field"`;
   optional `element_owner_fn = "path"` declares partial fixed ownership; the

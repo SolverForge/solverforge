@@ -976,6 +976,12 @@ slot plus public `entity_index` and `to_value` fields and exposes `id()`.
 - `with_nearby_entity_distance_meter(fn(&S, usize, usize, usize) -> Option<f64>)` to rank/filter nearby entity candidates
 - `with_construction_entity_order_key(fn(&S, usize, usize) -> Option<i64>)` for decreasing or queue-style entity ordering
 - `with_construction_value_order_key(fn(&S, usize, usize, usize) -> Option<i64>)` for weakest-fit, strongest-fit, or queue-style value ordering
+- `with_search_entity_order_key(fn(&S, usize, usize) -> Option<i64>)` for guided local-search entity ordering (lower key tried first, seeded-random tie-break)
+- `with_search_value_order_key(fn(&S, usize, usize, usize) -> Option<i64>)` for guided local-search value ordering
+
+The change and swap neighborhood cursors consume the search order keys when
+declared; variables without them enumerate the seeded-random candidate order
+exactly as before.
 
 The public function-pointer aliases used by this slot are `ScalarGetter<S>`,
 `ScalarSetter<S>`, `ScalarCandidateValues<S>`,

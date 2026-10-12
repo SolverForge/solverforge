@@ -99,6 +99,13 @@ See [typed scoring extension guidance](extend-scoring.md) for the exact boundary
 - Keep these separate. Nearby hooks guide local-search neighborhood shape;
   construction order keys guide construction-phase ordering and are not read by
   local-search scalar selectors.
+- Use `search_entity_order_key = "fn_name"` and/or
+  `search_value_order_key = "fn_name"` when local-search scalar change and
+  swap should rank entities and values by predicted impact through guided
+  enumeration: lower keys are tried first, equal keys keep the seeded-random
+  order, and variables without the hooks keep the unguided walk. The model
+  function signatures mirror construction keys:
+  `fn(&S, &Entity) -> i64` and `fn(&S, &Entity, value: usize) -> i64`.
 
 ## When the scaffold is no longer enough
 

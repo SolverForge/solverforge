@@ -491,12 +491,14 @@ pub struct VariableDescriptor {
     pub nearby_entity_distance_meter: Option<UsizeNearbyEntityDistanceMeter>,
     pub construction_entity_order_key: Option<UsizeConstructionEntityOrderKey>,
     pub construction_value_order_key: Option<UsizeConstructionValueOrderKey>,
+    pub search_entity_order_key: Option<UsizeSearchEntityOrderKey>,
+    pub search_value_order_key: Option<UsizeSearchValueOrderKey>,
 }
 ```
 
 Constructors: `genuine(&str)`, `list(&str)`, `shadow(&str, ShadowVariableKind)`, `piggyback(&str, &str)`
 
-Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_logical_id()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_candidate_values()`, `with_nearby_value_candidates()`, `with_nearby_entity_candidates()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`, `with_construction_entity_order_key()`, `with_construction_value_order_key()`
+Builder methods: `with_value_range()`, `with_allows_unassigned()`, `with_logical_id()`, `with_value_range_type()`, `with_source()`, `with_usize_accessors()`, `with_entity_value_provider()`, `with_candidate_values()`, `with_nearby_value_candidates()`, `with_nearby_entity_candidates()`, `with_nearby_value_distance_meter()`, `with_nearby_entity_distance_meter()`, `with_construction_entity_order_key()`, `with_construction_value_order_key()`, `with_search_entity_order_key()`, `with_search_value_order_key()`
 
 ### Dynamic Binding Slots
 

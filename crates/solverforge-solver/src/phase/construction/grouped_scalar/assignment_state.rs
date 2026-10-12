@@ -17,6 +17,7 @@ pub(super) struct ScalarAssignmentState {
     scratch_touched: Vec<usize>,
     scratch_edited: Vec<(usize, Option<usize>, Option<usize>)>,
     scratch_checked: Vec<(usize, usize)>,
+    vec_pool: Vec<Vec<usize>>,
 }
 
 pub(super) struct CapacityConflict {
@@ -62,6 +63,7 @@ impl ScalarAssignmentState {
             scratch_touched: Vec::new(),
             scratch_edited: Vec::new(),
             scratch_checked: Vec::new(),
+            vec_pool: Vec::new(),
         }
     }
 
@@ -505,14 +507,22 @@ impl ScalarAssignmentState {
             if let Some(entities) = self.occupancy.get_mut(&key) {
                 entities.retain(|occupant| *occupant != entity_index);
                 if entities.is_empty() {
-                    self.occupancy.remove(&key);
+                    if let Some(entities) = self.occupancy.remove(&key) {
+                        self.vec_pool.push(entities);
+                    }
                 }
             }
         }
-        remove_indexed_entity(&mut self.assigned_by_value, value, entity_index);
+        remove_indexed_entity(
+            &mut self.assigned_by_value,
+            &mut self.vec_pool,
+            value,
+            entity_index,
+        );
         if let Some(sequence_key) = group.sequence_key(solution, entity_index, value) {
             remove_indexed_entity(
                 &mut self.assigned_by_sequence,
+                &mut self.vec_pool,
                 (value, sequence_key),
                 entity_index,
             );
@@ -528,16 +538,22 @@ impl ScalarAssignmentState {
         value: usize,
     ) {
         self.values[entity_index] = Some(value);
-        push_indexed_entity(&mut self.assigned_by_value, value, entity_index);
+        push_indexed_entity(
+            &mut self.assigned_by_value,
+            &mut self.vec_pool,
+            value,
+            entity_index,
+        );
         if let Some(sequence_key) = group.sequence_key(solution, entity_index, value) {
             push_indexed_entity(
                 &mut self.assigned_by_sequence,
+                &mut self.vec_pool,
                 (value, sequence_key),
                 entity_index,
             );
         }
         if let Some(key) = group.capacity_key(solution, entity_index, value) {
-            push_indexed_entity(&mut self.occupancy, key, entity_index);
+            push_indexed_entity(&mut self.occupancy, &mut self.vec_pool, key, entity_index);
         }
     }
 

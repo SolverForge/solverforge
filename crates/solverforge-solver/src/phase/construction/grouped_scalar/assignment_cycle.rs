@@ -258,10 +258,11 @@ where
     }
     for offset in 0..values.len() {
         let value = values[(attempt + offset) % values.len()];
-        if state
-            .blockers(group, solution, entity_index, value)
-            .is_empty()
-            && state.assignment_allowed(group, solution, entity_index, value)
+        let mut blockers = Vec::new();
+        if {
+            state.blockers(group, solution, entity_index, value, &mut blockers);
+            blockers.is_empty()
+        } && state.assignment_allowed(group, solution, entity_index, value)
         {
             return Some(value);
         }

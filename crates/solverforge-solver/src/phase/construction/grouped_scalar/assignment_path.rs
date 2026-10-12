@@ -107,7 +107,14 @@ impl<S> AugmentingPathSearch<'_, S> {
             return true;
         }
 
-        let mut blockers = state.blockers(self.group, self.solution, entity_index, value);
+        let mut blockers = Vec::new();
+        state.blockers(
+            self.group,
+            self.solution,
+            entity_index,
+            value,
+            &mut blockers,
+        );
         if self.allow_optional_displacement {
             for blocker in blockers.iter().copied() {
                 if state.is_required(blocker) {
@@ -116,7 +123,13 @@ impl<S> AugmentingPathSearch<'_, S> {
                 state.set_value_recording(self.group, self.solution, blocker, None, changes);
                 edits.push(self.group.edit(blocker, None));
             }
-            blockers = state.blockers(self.group, self.solution, entity_index, value);
+            state.blockers(
+                self.group,
+                self.solution,
+                entity_index,
+                value,
+                &mut blockers,
+            );
         }
 
         if blockers.is_empty()
@@ -174,8 +187,14 @@ impl<S> AugmentingPathSearch<'_, S> {
                 edits,
                 should_stop,
             ) {
-                let blockers_after_reassignment =
-                    state.blockers(self.group, self.solution, entity_index, value);
+                let mut blockers_after_reassignment = Vec::new();
+                state.blockers(
+                    self.group,
+                    self.solution,
+                    entity_index,
+                    value,
+                    &mut blockers_after_reassignment,
+                );
                 if !blockers_after_reassignment.is_empty()
                     || !state.assignment_allowed(self.group, self.solution, entity_index, value)
                 {

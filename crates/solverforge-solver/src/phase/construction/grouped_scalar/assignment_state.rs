@@ -11,6 +11,12 @@ pub(super) struct ScalarAssignmentState {
     occupancy: FastMap<usize, Vec<usize>>,
     assigned_by_value: FastMap<usize, Vec<usize>>,
     assigned_by_sequence: FastMap<(usize, usize), Vec<usize>>,
+    /* Pooled scratch for the hot per-candidate feasibility path; each field
+    serves one nesting level (take/restore, allocated once grown). */
+    scratch_changes: Vec<(usize, Option<usize>)>,
+    scratch_touched: Vec<usize>,
+    scratch_edited: Vec<(usize, Option<usize>, Option<usize>)>,
+    scratch_checked: Vec<(usize, usize)>,
 }
 
 pub(super) struct CapacityConflict {
@@ -52,6 +58,10 @@ impl ScalarAssignmentState {
             occupancy,
             assigned_by_value,
             assigned_by_sequence,
+            scratch_changes: Vec::new(),
+            scratch_touched: Vec::new(),
+            scratch_edited: Vec::new(),
+            scratch_checked: Vec::new(),
         }
     }
 
@@ -209,7 +219,7 @@ impl ScalarAssignmentState {
     }
 
     pub(super) fn assignment_allowed<S>(
-        &self,
+        &mut self,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         entity_index: usize,
@@ -225,13 +235,14 @@ impl ScalarAssignmentState {
         solution: &S,
         entity_index: usize,
         value: usize,
-    ) -> Vec<usize> {
-        let mut blockers = Vec::new();
+        blockers: &mut Vec<usize>,
+    ) {
+        blockers.clear();
         let Some(key) = group.capacity_key(solution, entity_index, value) else {
-            self.push_assignment_rule_blockers(group, solution, entity_index, value, &mut blockers);
+            self.push_assignment_rule_blockers(group, solution, entity_index, value, blockers);
             blockers.sort_unstable();
             blockers.dedup();
-            return blockers;
+            return;
         };
         if let Some(entities) = self.occupancy.get(&key) {
             blockers.extend(
@@ -241,10 +252,9 @@ impl ScalarAssignmentState {
                     .filter(|occupant| *occupant != entity_index),
             );
         }
-        self.push_assignment_rule_blockers(group, solution, entity_index, value, &mut blockers);
+        self.push_assignment_rule_blockers(group, solution, entity_index, value, blockers);
         blockers.sort_unstable();
         blockers.dedup();
-        blockers
     }
 
     pub(super) fn capacity_conflicts<S>(
@@ -286,14 +296,20 @@ impl ScalarAssignmentState {
         solution: &S,
         edits: &[(usize, Option<usize>)],
     ) -> bool {
-        let mut changes = Vec::with_capacity(edits.len());
-        let mut touched_capacity_keys = Vec::new();
-        let mut edited = Vec::with_capacity(edits.len());
+        let mut changes = std::mem::take(&mut self.scratch_changes);
+        changes.clear();
+        let mut touched_capacity_keys = std::mem::take(&mut self.scratch_touched);
+        touched_capacity_keys.clear();
+        let mut edited = std::mem::take(&mut self.scratch_edited);
+        edited.clear();
         for (entity_index, value) in edits {
             if *entity_index >= self.values.len()
                 || !group.value_is_legal(solution, *entity_index, *value)
             {
                 self.rollback(group, solution, &mut changes, 0);
+                self.scratch_changes = std::mem::take(&mut changes);
+                self.scratch_touched = std::mem::take(&mut touched_capacity_keys);
+                self.scratch_edited = std::mem::take(&mut edited);
                 return false;
             }
             let previous = self.current_value(*entity_index);
@@ -315,10 +331,16 @@ impl ScalarAssignmentState {
                 .get(key)
                 .is_none_or(|occupants| occupants.len() <= 1)
         });
-        let rule_feasible =
-            capacity_feasible && self.assignment_rule_edges_feasible(group, solution, &edited);
+        let mut checked = std::mem::take(&mut self.scratch_checked);
+        checked.clear();
+        let rule_feasible = capacity_feasible
+            && self.assignment_rule_edges_feasible(group, solution, &edited, &mut checked);
+        self.scratch_checked = std::mem::take(&mut checked);
         let feasible = capacity_feasible && rule_feasible;
         self.rollback(group, solution, &mut changes, 0);
+        self.scratch_changes = std::mem::take(&mut changes);
+        self.scratch_touched = std::mem::take(&mut touched_capacity_keys);
+        self.scratch_edited = std::mem::take(&mut edited);
         feasible
     }
 
@@ -336,7 +358,7 @@ impl ScalarAssignmentState {
     }
 
     fn assignment_rule_allows_value<S>(
-        &self,
+        &mut self,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         entity_index: usize,
@@ -349,7 +371,8 @@ impl ScalarAssignmentState {
         let Some(sequence_key) = group.sequence_key(solution, entity_index, value) else {
             return true;
         };
-        let mut checked = Vec::new();
+        let mut checked = std::mem::take(&mut self.scratch_checked);
+        checked.clear();
         let forced = ForcedAssignment {
             entity_index,
             value,
@@ -371,9 +394,11 @@ impl ScalarAssignmentState {
                 SequenceEdge::new(value, sequence_key, next_sequence).with_forced_left(forced),
                 &mut checked,
             ) {
+                self.scratch_checked = std::mem::take(&mut checked);
                 return false;
             }
         }
+        self.scratch_checked = std::mem::take(&mut checked);
         true
     }
 
@@ -382,12 +407,13 @@ impl ScalarAssignmentState {
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         edited: &[(usize, Option<usize>, Option<usize>)],
+        checked: &mut Vec<(usize, usize)>,
     ) -> bool {
         if !group.has_assignment_rule() {
             return true;
         }
 
-        let mut checked = Vec::new();
+        checked.clear();
         for (entity_index, previous, next) in edited {
             for value in [*previous, *next].into_iter().flatten() {
                 let Some(sequence_key) = group.sequence_key(solution, *entity_index, value) else {
@@ -398,7 +424,7 @@ impl ScalarAssignmentState {
                         group,
                         solution,
                         SequenceEdge::new(value, previous_sequence, sequence_key),
-                        &mut checked,
+                        checked,
                     ) {
                         return false;
                     }
@@ -408,7 +434,7 @@ impl ScalarAssignmentState {
                         group,
                         solution,
                         SequenceEdge::new(value, sequence_key, next_sequence),
-                        &mut checked,
+                        checked,
                     ) {
                         return false;
                     }

@@ -144,7 +144,7 @@ where
                     {
                         continue;
                     }
-                    if self.precedence_route_graph.as_ref().is_some_and(|graph| {
+                    if self.precedence_route_graph.as_mut().is_some_and(|graph| {
                         graph.intra_list_swap_introduces_cycle(
                             source_entity,
                             source_position,

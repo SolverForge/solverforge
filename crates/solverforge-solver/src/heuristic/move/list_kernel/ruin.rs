@@ -187,7 +187,8 @@ where
     let entity_count = access.entity_count(score_director.working_solution());
 
     while !remaining.is_empty() {
-        let precedence_graph = access.recreate_precedence_graph(score_director.working_solution());
+        let mut precedence_graph =
+            access.recreate_precedence_graph(score_director.working_solution());
         let mut best_choice: Option<(usize, usize, usize, S::Score)> = None;
 
         for (remaining_index, (_, _, _, element)) in remaining.iter().enumerate() {
@@ -209,7 +210,7 @@ where
                     continue;
                 }
                 for destination_position in 0..=destination_len {
-                    if precedence_graph.as_ref().is_some_and(|(elements, graph)| {
+                    if precedence_graph.as_mut().is_some_and(|(elements, graph)| {
                         let Some(element_node) = node_index(elements, element) else {
                             return false;
                         };

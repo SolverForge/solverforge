@@ -36,21 +36,25 @@ pub(super) fn critical_adjacent_swaps(blocks: &[CriticalBlock]) -> Vec<AdjacentS
 
 pub(super) fn support_adjacent_swaps(
     blocks: &[CriticalBlock],
-    route_graph: &PrecedenceRouteGraph,
+    route_graph: &mut PrecedenceRouteGraph,
 ) -> Vec<AdjacentSwap> {
     let mut swaps = Vec::new();
     for block in blocks {
+        // Route nodes are copied out so the &mut graph passes below are the
+        // only borrows in the loop body.
         let Some(route) = route_graph.route(block.entity) else {
             continue;
         };
-        for position in block.start..=block.end {
-            let Some(&node) = route.get(position) else {
-                continue;
-            };
-            for &successor in route_graph.fixed_successors(node) {
+        let positions = &route[block.start..=block.end]; // may panic if out of bounds? guarded by block invariants
+        let nodes: Vec<usize> = positions.to_vec();
+        let _ = positions;
+        for &node in &nodes {
+            let successors: Vec<usize> = route_graph.fixed_successors(node).to_vec();
+            for &successor in &successors {
                 push_support_adjacent_swaps(route_graph, successor, &mut swaps);
             }
-            for &predecessor in route_graph.fixed_predecessors(node) {
+            let predecessors: Vec<usize> = route_graph.fixed_predecessors(node).to_vec();
+            for &predecessor in &predecessors {
                 push_support_adjacent_swaps(route_graph, predecessor, &mut swaps);
             }
         }
@@ -107,7 +111,7 @@ pub(super) fn multi_support_swaps(
 
 pub(crate) fn filtered_multi_support_swap_count(
     blocks: &[CriticalBlock],
-    route_graph: &PrecedenceRouteGraph,
+    route_graph: &mut PrecedenceRouteGraph,
 ) -> usize {
     let critical = critical_adjacent_swaps(blocks);
     let support = support_adjacent_swaps(blocks, route_graph);
@@ -164,7 +168,7 @@ pub(super) fn multi_critical_ruin_sources(
 }
 
 fn push_support_adjacent_swaps(
-    route_graph: &PrecedenceRouteGraph,
+    route_graph: &mut PrecedenceRouteGraph,
     node: usize,
     swaps: &mut Vec<AdjacentSwap>,
 ) {

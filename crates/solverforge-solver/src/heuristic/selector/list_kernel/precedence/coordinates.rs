@@ -251,7 +251,7 @@ pub(super) fn critical_permutation(
 
 pub(crate) fn filtered_move_count(
     block: CriticalBlock,
-    route_graph: &PrecedenceRouteGraph,
+    route_graph: &mut PrecedenceRouteGraph,
 ) -> usize {
     (0..block.move_count())
         .filter(|&move_index| !move_introduces_route_cycle(block, move_index, route_graph))
@@ -261,7 +261,7 @@ pub(crate) fn filtered_move_count(
 pub(super) fn move_introduces_route_cycle(
     block: CriticalBlock,
     move_index: usize,
-    route_graph: &PrecedenceRouteGraph,
+    route_graph: &mut PrecedenceRouteGraph,
 ) -> bool {
     let Some(route) = route_graph.route(block.entity) else {
         return false;

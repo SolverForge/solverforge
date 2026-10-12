@@ -95,7 +95,7 @@ where
                             STATIC_REVERSE_END_SALT ^ entity as u64 ^ start as u64,
                         );
                     self.end_offset += 1;
-                    if self.precedence_route_graph.as_ref().is_some_and(|graph| {
+                    if self.precedence_route_graph.as_mut().is_some_and(|graph| {
                         graph.intra_list_reverse_introduces_cycle(entity, start, end)
                     }) {
                         continue;

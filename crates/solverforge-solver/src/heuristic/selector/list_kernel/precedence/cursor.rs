@@ -47,13 +47,13 @@ where
 {
     pub(crate) fn new(
         blocks: Vec<CriticalBlock>,
-        route_graph: PrecedenceRouteGraph,
+        mut route_graph: PrecedenceRouteGraph,
         context: MoveStreamContext,
         emitter: E,
         descriptor_index: usize,
     ) -> Self {
         let critical_swaps = critical_adjacent_swaps(&blocks);
-        let support_swaps = support_adjacent_swaps(&blocks, &route_graph);
+        let support_swaps = support_adjacent_swaps(&blocks, &mut route_graph);
         let multi_swap_count = multi_support_swap_count(&critical_swaps, &support_swaps);
         let multi_ruin_count = multi_critical_ruin_count(&blocks);
         Self {
@@ -235,7 +235,7 @@ where
                         ^ ((block.end as u64) << 32),
                 );
                 self.move_index += 1;
-                if move_introduces_route_cycle(block, move_index, &self.route_graph) {
+                if move_introduces_route_cycle(block, move_index, &mut self.route_graph) {
                     continue;
                 }
                 return Some(self.push_move(block, move_index));

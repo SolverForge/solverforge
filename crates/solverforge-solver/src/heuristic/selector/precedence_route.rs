@@ -73,6 +73,7 @@ where
         successors: vec![Vec::new(); node_count],
         predecessors: vec![Vec::new(); node_count],
         route_nodes: Vec::new(),
+        ..PrecedenceRouteGraph::default()
     };
 
     let mut raw_successors = Vec::new();
@@ -122,6 +123,19 @@ pub(crate) struct PrecedenceRouteGraph {
     successors: Vec<Vec<usize>>,
     predecessors: Vec<Vec<usize>>,
     route_nodes: Vec<Vec<usize>>,
+    /* Reusable scratch for hypothetical-move cycle checks: never allocates
+    per candidate. `after_route` holds the hypothesized route; the cycle
+    topologies read the live successor lists plus the small edge delta. */
+    scratch_after_route: Vec<usize>,
+    scratch_before_edges: Vec<(usize, usize)>,
+    scratch_after_edges: Vec<(usize, usize)>,
+    scratch_removed: Vec<(usize, usize)>,
+    scratch_added: Vec<(usize, usize)>,
+    scratch_indegree: Vec<usize>,
+    scratch_ready: Vec<usize>,
+    scratch_visited: Vec<bool>,
+    scratch_stack: Vec<usize>,
+    scratch_active_added: Vec<(usize, usize)>,
 }
 
 impl PrecedenceRouteGraph {
@@ -164,7 +178,7 @@ impl PrecedenceRouteGraph {
     }
 
     pub(crate) fn intra_list_change_introduces_cycle(
-        &self,
+        &mut self,
         entity: usize,
         source: usize,
         dest: usize,
@@ -172,11 +186,13 @@ impl PrecedenceRouteGraph {
         let Some(route) = self.route(entity) else {
             return false;
         };
-        self.route_move_introduces_cycle(route, &route_after_list_change(route, source, dest))
+        let route = route.to_vec();
+        route_after_list_change_into(&route, source, dest, &mut self.scratch_after_route);
+        self.route_move_introduces_cycle(&route)
     }
 
     pub(crate) fn intra_list_swap_introduces_cycle(
-        &self,
+        &mut self,
         entity: usize,
         first: usize,
         second: usize,
@@ -184,13 +200,15 @@ impl PrecedenceRouteGraph {
         let Some(route) = self.route(entity) else {
             return false;
         };
-        let mut after = route.to_vec();
-        after.swap(first, second);
-        self.route_move_introduces_cycle(route, &after)
+        let route = route.to_vec();
+        self.scratch_after_route.clear();
+        self.scratch_after_route.extend_from_slice(&route);
+        self.scratch_after_route.swap(first, second);
+        self.route_move_introduces_cycle(&route)
     }
 
     pub(crate) fn intra_list_reverse_introduces_cycle(
-        &self,
+        &mut self,
         entity: usize,
         start: usize,
         end: usize,
@@ -198,13 +216,15 @@ impl PrecedenceRouteGraph {
         let Some(route) = self.route(entity) else {
             return false;
         };
-        let mut after = route.to_vec();
-        after[start..end].reverse();
-        self.route_move_introduces_cycle(route, &after)
+        let route = route.to_vec();
+        self.scratch_after_route.clear();
+        self.scratch_after_route.extend_from_slice(&route);
+        self.scratch_after_route[start..end].reverse();
+        self.route_move_introduces_cycle(&route)
     }
 
     pub(crate) fn intra_sublist_change_introduces_cycle(
-        &self,
+        &mut self,
         entity: usize,
         source_start: usize,
         source_end: usize,
@@ -213,14 +233,19 @@ impl PrecedenceRouteGraph {
         let Some(route) = self.route(entity) else {
             return false;
         };
-        self.route_move_introduces_cycle(
-            route,
-            &route_after_sublist_change(route, source_start, source_end, dest),
-        )
+        let route = route.to_vec();
+        route_after_sublist_change_into(
+            &route,
+            source_start,
+            source_end,
+            dest,
+            &mut self.scratch_after_route,
+        );
+        self.route_move_introduces_cycle(&route)
     }
 
     pub(crate) fn intra_sublist_swap_introduces_cycle(
-        &self,
+        &mut self,
         entity: usize,
         first_start: usize,
         first_end: usize,
@@ -230,16 +255,22 @@ impl PrecedenceRouteGraph {
         let Some(route) = self.route(entity) else {
             return false;
         };
-        let Some(after) =
-            route_after_sublist_swap(route, first_start, first_end, second_start, second_end)
-        else {
+        let route = route.to_vec();
+        if !route_after_sublist_swap_into(
+            &route,
+            first_start,
+            first_end,
+            second_start,
+            second_end,
+            &mut self.scratch_after_route,
+        ) {
             return false;
-        };
-        self.route_move_introduces_cycle(route, &after)
+        }
+        self.route_move_introduces_cycle(&route)
     }
 
     pub(crate) fn intra_list_permutation_introduces_cycle(
-        &self,
+        &mut self,
         entity: usize,
         start: usize,
         end: usize,
@@ -248,18 +279,23 @@ impl PrecedenceRouteGraph {
         let Some(route) = self.route(entity) else {
             return false;
         };
-        self.route_move_introduces_cycle(
-            route,
-            &route_after_permutation(route, start, end, permutation),
-        )
+        let route = route.to_vec();
+        route_after_permutation_into(
+            &route,
+            start,
+            end,
+            permutation,
+            &mut self.scratch_after_route,
+        );
+        self.route_move_introduces_cycle(&route)
     }
 
     pub(crate) fn multi_intra_list_swaps_introduce_cycle(
-        &self,
+        &mut self,
         swaps: &[(usize, usize, usize)],
     ) -> bool {
-        let mut removed = Vec::new();
-        let mut added = Vec::new();
+        self.scratch_removed.clear();
+        self.scratch_added.clear();
         for &(entity, first, second) in swaps {
             let Some(route) = self.route(entity) else {
                 continue;
@@ -267,33 +303,56 @@ impl PrecedenceRouteGraph {
             if first >= route.len() || second >= route.len() {
                 continue;
             }
-            let mut after = route.to_vec();
-            after.swap(first, second);
-            let (route_removed, route_added) = changed_route_edges(route, &after);
-            removed.extend(route_removed);
-            added.extend(route_added);
+            let route = route.to_vec();
+            self.scratch_after_route.clear();
+            self.scratch_after_route.extend_from_slice(&route);
+            self.scratch_after_route.swap(first, second);
+            changed_route_edges_into(
+                &route,
+                &self.scratch_after_route,
+                &mut self.scratch_before_edges,
+                &mut self.scratch_after_edges,
+                &mut self.scratch_removed,
+                &mut self.scratch_added,
+            );
         }
-        route_delta_has_cycle(&self.fixed_successors, &self.successors, &removed, &added)
+        route_delta_has_cycle_into(
+            &self.fixed_successors,
+            &self.successors,
+            &self.scratch_removed,
+            &self.scratch_added,
+            &mut self.scratch_indegree,
+            &mut self.scratch_ready,
+            &mut self.scratch_visited,
+        )
     }
 
     pub(crate) fn insertion_introduces_cycle(
-        &self,
+        &mut self,
         previous: Option<usize>,
         element: usize,
         next: Option<usize>,
     ) -> bool {
-        let mut removed = Vec::new();
-        let mut added = Vec::new();
+        self.scratch_removed.clear();
+        self.scratch_added.clear();
         if let Some(previous) = previous {
-            added.push((previous, element));
+            self.scratch_added.push((previous, element));
             if let Some(next) = next {
-                removed.push((previous, next));
+                self.scratch_removed.push((previous, next));
             }
         }
         if let Some(next) = next {
-            added.push((element, next));
+            self.scratch_added.push((element, next));
         }
-        route_delta_has_cycle(&self.fixed_successors, &self.successors, &removed, &added)
+        route_delta_has_cycle_into(
+            &self.fixed_successors,
+            &self.successors,
+            &self.scratch_removed,
+            &self.scratch_added,
+            &mut self.scratch_indegree,
+            &mut self.scratch_ready,
+            &mut self.scratch_visited,
+        )
     }
 
     fn push_edge(&mut self, from: usize, to: usize) {
@@ -303,95 +362,130 @@ impl PrecedenceRouteGraph {
         }
     }
 
-    fn route_move_introduces_cycle(&self, before: &[usize], after: &[usize]) -> bool {
-        let (removed, added) = changed_route_edges(before, after);
-        added_edges_introduce_cycle(&self.fixed_successors, &self.successors, &removed, &added)
+    /* `after` must have been staged in `scratch_after_route` by the caller. */
+    fn route_move_introduces_cycle(&mut self, before: &[usize]) -> bool {
+        changed_route_edges_into(
+            before,
+            &self.scratch_after_route,
+            &mut self.scratch_before_edges,
+            &mut self.scratch_after_edges,
+            &mut self.scratch_removed,
+            &mut self.scratch_added,
+        );
+        added_edges_introduce_cycle(
+            &self.fixed_successors,
+            &self.successors,
+            &self.scratch_removed,
+            &self.scratch_added,
+            &mut self.scratch_active_added,
+            &mut self.scratch_visited,
+            &mut self.scratch_stack,
+        )
     }
 }
 
-fn route_after_list_change(route: &[usize], source: usize, dest: usize) -> Vec<usize> {
-    let mut after = route.to_vec();
-    let node = after.remove(source);
+/* Hypothetical route mutation writers: each stages the post-move route into
+the caller-owned scratch (no per-candidate allocation), keeping the same
+arithmetic as the value-returning forms they replace.
+
+`in_place` scratch may alias `route`'s contents — they are copied first. */
+fn route_after_list_change_into(
+    route: &[usize],
+    source: usize,
+    dest: usize,
+    scratch: &mut Vec<usize>,
+) {
+    scratch.clear();
+    scratch.extend_from_slice(route);
+    let node = scratch.remove(source);
     let insert_pos = if dest > source { dest - 1 } else { dest };
-    after.insert(insert_pos, node);
-    after
+    scratch.insert(insert_pos, node);
 }
 
-fn route_after_sublist_change(
+fn route_after_sublist_change_into(
     route: &[usize],
     source_start: usize,
     source_end: usize,
     dest: usize,
-) -> Vec<usize> {
-    let mut after = route.to_vec();
-    let moved = after.drain(source_start..source_end).collect::<Vec<_>>();
-    after.splice(dest..dest, moved);
-    after
+    scratch: &mut Vec<usize>,
+) {
+    scratch.clear();
+    scratch.extend_from_slice(route);
+    let moved = scratch.drain(source_start..source_end).collect::<Vec<_>>();
+    scratch.splice(dest..dest, moved);
 }
 
-fn route_after_sublist_swap(
+fn route_after_sublist_swap_into(
     route: &[usize],
     first_start: usize,
     first_end: usize,
     second_start: usize,
     second_end: usize,
-) -> Option<Vec<usize>> {
+    scratch: &mut Vec<usize>,
+) -> bool {
     let (left_start, left_end, right_start, right_end) = if first_start <= second_start {
         (first_start, first_end, second_start, second_end)
     } else {
         (second_start, second_end, first_start, first_end)
     };
     if left_end > right_start || right_end > route.len() {
-        return None;
+        return false;
     }
 
-    let mut after = Vec::with_capacity(route.len());
-    after.extend_from_slice(&route[..left_start]);
-    after.extend_from_slice(&route[right_start..right_end]);
-    after.extend_from_slice(&route[left_end..right_start]);
-    after.extend_from_slice(&route[left_start..left_end]);
-    after.extend_from_slice(&route[right_end..]);
-    Some(after)
+    scratch.clear();
+    scratch.reserve(route.len());
+    scratch.extend_from_slice(&route[..left_start]);
+    scratch.extend_from_slice(&route[right_start..right_end]);
+    scratch.extend_from_slice(&route[left_end..right_start]);
+    scratch.extend_from_slice(&route[left_start..left_end]);
+    scratch.extend_from_slice(&route[right_end..]);
+    true
 }
 
-fn route_after_permutation(
+fn route_after_permutation_into(
     route: &[usize],
     start: usize,
     end: usize,
     permutation: &[usize],
-) -> Vec<usize> {
-    let mut after = route.to_vec();
+    scratch: &mut Vec<usize>,
+) {
+    scratch.clear();
+    scratch.extend_from_slice(route);
     for (offset, &source_offset) in permutation.iter().enumerate() {
-        after[start + offset] = route[start + source_offset];
+        scratch[start + offset] = route[start + source_offset];
     }
     debug_assert_eq!(start + permutation.len(), end);
-    after
 }
 
-fn changed_route_edges(
+/* Edge diff into reusable buffers; contains() checks run on the small
+per-route edge vectors (routes are short; the win is zero allocation). */
+fn route_edges_into(route: &[usize], edges: &mut Vec<(usize, usize)>) {
+    edges.clear();
+    edges.extend(route.windows(2).map(|window| (window[0], window[1])));
+}
+
+fn changed_route_edges_into(
     before: &[usize],
     after: &[usize],
-) -> (Vec<(usize, usize)>, Vec<(usize, usize)>) {
-    let before_edges = route_edges(before);
-    let after_edges = route_edges(after);
-    let removed = before_edges
-        .iter()
-        .copied()
-        .filter(|edge| !after_edges.contains(edge))
-        .collect();
-    let added = after_edges
-        .iter()
-        .copied()
-        .filter(|edge| !before_edges.contains(edge))
-        .collect();
-    (removed, added)
-}
-
-fn route_edges(route: &[usize]) -> Vec<(usize, usize)> {
-    route
-        .windows(2)
-        .map(|window| (window[0], window[1]))
-        .collect()
+    before_edges: &mut Vec<(usize, usize)>,
+    after_edges: &mut Vec<(usize, usize)>,
+    removed: &mut Vec<(usize, usize)>,
+    added: &mut Vec<(usize, usize)>,
+) {
+    route_edges_into(before, before_edges);
+    route_edges_into(after, after_edges);
+    removed.clear();
+    added.clear();
+    for edge in before_edges.iter().copied() {
+        if !after_edges.contains(&edge) {
+            removed.push(edge);
+        }
+    }
+    for edge in after_edges.iter().copied() {
+        if !before_edges.contains(&edge) {
+            added.push(edge);
+        }
+    }
 }
 
 fn added_edges_introduce_cycle(
@@ -399,6 +493,9 @@ fn added_edges_introduce_cycle(
     successors: &[Vec<usize>],
     removed: &[(usize, usize)],
     added: &[(usize, usize)],
+    active_added: &mut Vec<(usize, usize)>,
+    visited: &mut Vec<bool>,
+    stack: &mut Vec<usize>,
 ) -> bool {
     let route_delta = RouteDeltaView {
         fixed_successors,
@@ -406,11 +503,12 @@ fn added_edges_introduce_cycle(
         removed,
         added: &[],
     };
-    let mut active_added = Vec::new();
-    let mut visited = vec![false; successors.len()];
-    let mut stack = Vec::new();
+    active_added.clear();
+    if visited.len() < successors.len() {
+        visited.resize(successors.len(), false);
+    }
     for &(from, to) in added {
-        if route_delta.with_added(&active_added).edge_active(from, to) {
+        if route_delta.with_added(active_added).edge_active(from, to) {
             continue;
         }
         visited.fill(false);
@@ -418,9 +516,9 @@ fn added_edges_introduce_cycle(
         if reaches_with_route_delta(
             to,
             from,
-            route_delta.with_added(&active_added),
-            &mut visited,
-            &mut stack,
+            route_delta.with_added(active_added),
+            visited,
+            stack,
         ) {
             return true;
         }
@@ -429,15 +527,29 @@ fn added_edges_introduce_cycle(
     false
 }
 
-fn route_delta_has_cycle(
+/* Topological cycle check over the live successor lists plus the delta:
+indegree is recomputed into a reusable buffer; adjacency stays implicit
+(the live lists minus removed plus added, with fixed successors pinned). */
+fn route_delta_has_cycle_into(
     fixed_successors: &[Vec<usize>],
     successors: &[Vec<usize>],
     removed: &[(usize, usize)],
     added: &[(usize, usize)],
+    indegree: &mut Vec<usize>,
+    ready: &mut Vec<usize>,
+    processed: &mut Vec<bool>,
 ) -> bool {
     let node_count = successors.len();
-    let mut adjacency = vec![Vec::new(); node_count];
-    let mut indegree = vec![0usize; node_count];
+    if indegree.len() < node_count {
+        indegree.resize(node_count, 0);
+    }
+    indegree
+        .iter_mut()
+        .take(node_count)
+        .for_each(|degree| *degree = 0);
+    if processed.len() < node_count {
+        processed.resize(node_count, false);
+    }
 
     for (from, nodes) in successors.iter().enumerate() {
         for &to in nodes {
@@ -451,42 +563,69 @@ fn route_delta_has_cycle(
             {
                 continue;
             }
-            if !adjacency[from].contains(&to) {
-                adjacency[from].push(to);
-                indegree[to] += 1;
-            }
+            indegree[to] += 1;
         }
     }
-
     for &(from, to) in added {
         if from >= node_count || to >= node_count {
             continue;
         }
-        if !adjacency[from].contains(&to) {
-            adjacency[from].push(to);
+        if !successors
+            .get(from)
+            .is_some_and(|nodes| nodes.contains(&to))
+            || removed.contains(&(from, to))
+        {
             indegree[to] += 1;
         }
     }
 
-    let mut ready = Vec::new();
+    ready.clear();
     for (node, &degree) in indegree.iter().enumerate() {
         if degree == 0 {
             ready.push(node);
         }
     }
 
-    let mut visited = 0usize;
+    let mut visited_count = 0usize;
     while let Some(node) = ready.pop() {
-        visited += 1;
-        for &successor in &adjacency[node] {
+        visited_count += 1;
+        let stack_node = node;
+        for &successor in successors.get(stack_node).map(Vec::as_slice).unwrap_or(&[]) {
+            if successor >= node_count {
+                continue;
+            }
+            if removed.contains(&(stack_node, successor))
+                && !fixed_successors
+                    .get(stack_node)
+                    .is_some_and(|fixed| fixed.contains(&successor))
+            {
+                continue;
+            }
             indegree[successor] -= 1;
             if indegree[successor] == 0 {
                 ready.push(successor);
             }
         }
+        for &(from, to) in added {
+            if from == stack_node && to < node_count {
+                let live = successors
+                    .get(from)
+                    .is_some_and(|nodes| nodes.contains(&to))
+                    && !(removed.contains(&(from, to))
+                        && !fixed_successors
+                            .get(from)
+                            .is_some_and(|fixed| fixed.contains(&to)));
+                if !live {
+                    indegree[to] -= 1;
+                    if indegree[to] == 0 {
+                        ready.push(to);
+                    }
+                }
+            }
+        }
     }
 
-    visited != node_count
+    visited_count != node_count
 }
 
 #[derive(Clone, Copy)]

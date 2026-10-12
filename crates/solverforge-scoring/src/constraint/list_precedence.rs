@@ -82,7 +82,9 @@ impl<S> ListPrecedenceMakespanConstraint<S> {
         }
 
         for owner in 0..owner_count {
-            state.add_owner_route(solution, owner, access);
+            let mut change = state.take_route_change_scratch();
+            state.replace_owner_route_scratch_with(&mut change, solution, owner, access);
+            state.restore_route_change_scratch(change);
         }
         state.refresh_score_full();
         state
@@ -146,8 +148,10 @@ where
             return HardSoftScore::ZERO;
         }
         let before = state.score;
-        let change = state.add_owner_route(solution, entity_index, access);
+        let mut change = state.take_route_change_scratch();
+        state.replace_owner_route_scratch_with(&mut change, solution, entity_index, access);
         let after = state.refresh_score_after_route_change(&change);
+        state.restore_route_change_scratch(change);
         after - before
     }
 
@@ -166,10 +170,16 @@ where
         if entity_index >= state.owner_edges.len() {
             return HardSoftScore::ZERO;
         }
-        let before = state.score;
-        let change = state.remove_owner_route(entity_index);
-        let after = state.refresh_score_after_route_change(&change);
-        after - before
+        let mut change = state.take_route_change_scratch();
+        state.replace_owner_route_scratch_with_removal(&mut change, entity_index);
+        state.defer_removed_edges(&change);
+        state.restore_route_change_scratch(change);
+        // The re-timing is deferred to the matching insert so a move's
+        // remove+add pair walks the downstream cone once. The retract event
+        // itself therefore contributes no score delta; the insert event
+        // re-times the union of all pending removals and its own additions
+        // and reports the full after-before delta.
+        HardSoftScore::ZERO
     }
 
     fn reset(&mut self) {
@@ -211,6 +221,7 @@ struct ListPrecedenceState {
     score: HardSoftScore,
     hard_penalty: usize,
     makespan: i64,
+    max_finish_nodes: usize,
     scratch_queued: Vec<usize>,
     scratch_queue: Vec<NodeId>,
     scratch_queue_head: usize,
@@ -226,6 +237,10 @@ struct ListPrecedenceState {
     scratch_assignment_keys: Vec<NodeId>,
     scratch_edge_counts: HashMap<Edge, (usize, usize)>,
     scratch_edge_keys: Vec<Edge>,
+    scratch_route_change: RouteChange,
+    deferred_seeds: Vec<NodeId>,
+    deferred_seed_seen: Vec<usize>,
+    deferred_seed_stamp: usize,
 }
 
 #[derive(Default)]
@@ -295,6 +310,7 @@ impl ListPrecedenceState {
             score: HardSoftScore::ZERO,
             hard_penalty: 0,
             makespan: 0,
+            max_finish_nodes: 0,
             scratch_queued: Vec::new(),
             scratch_queue: Vec::new(),
             scratch_queue_head: 0,
@@ -310,6 +326,10 @@ impl ListPrecedenceState {
             scratch_assignment_keys: Vec::new(),
             scratch_edge_counts: HashMap::new(),
             scratch_edge_keys: Vec::new(),
+            scratch_route_change: RouteChange::default(),
+            deferred_seeds: Vec::new(),
+            deferred_seed_seen: Vec::new(),
+            deferred_seed_stamp: 0,
         }
     }
 
@@ -362,22 +382,6 @@ impl ListPrecedenceState {
         self.assigned_counts[node] = new_count;
     }
 
-    fn add_owner_route<S>(
-        &mut self,
-        solution: &S,
-        owner: OwnerId,
-        access: ListPrecedenceAccess<S>,
-    ) -> RouteChange {
-        self.owner_route_snapshot(solution, owner, access);
-        self.replace_owner_route_scratch(owner)
-    }
-
-    fn remove_owner_route(&mut self, owner: OwnerId) -> RouteChange {
-        self.scratch_elements.clear();
-        self.scratch_edges.clear();
-        self.replace_owner_route_scratch(owner)
-    }
-
     // Snapshots the owner's route into the reusable scratch buffers. The
     // scratch slots must not be aliased by `replace_owner_route_scratch`'s
     // diff bookkeeping (it swaps them into the owner route storage).
@@ -423,9 +427,62 @@ impl ListPrecedenceState {
         self.scratch_violation_count = violation_count;
     }
 
-    fn replace_owner_route_scratch(&mut self, owner: OwnerId) -> RouteChange {
-        let mut change = RouteChange::default();
+    fn take_route_change_scratch(&mut self) -> RouteChange {
+        std::mem::take(&mut self.scratch_route_change)
+    }
 
+    fn restore_route_change_scratch(&mut self, change: RouteChange) {
+        self.scratch_route_change = change;
+    }
+
+    fn replace_owner_route_scratch_with<S>(
+        &mut self,
+        change: &mut RouteChange,
+        solution: &S,
+        owner: OwnerId,
+        access: ListPrecedenceAccess<S>,
+    ) {
+        self.owner_route_snapshot(solution, owner, access);
+        self.replace_owner_route_scratch(change, owner);
+    }
+
+    fn defer_removed_edges(&mut self, change: &RouteChange) {
+        if change.removed_edges.is_empty() {
+            return;
+        }
+        self.deferred_seed_stamp = self.deferred_seed_stamp.wrapping_add(1);
+        if self.deferred_seed_stamp == 0 {
+            self.deferred_seed_seen
+                .iter_mut()
+                .for_each(|stamp| *stamp = 0);
+            self.deferred_seed_stamp = 1;
+        }
+        if self.deferred_seed_seen.len() < self.node_count {
+            self.deferred_seed_seen.resize(self.node_count, 0);
+        }
+        for edge in &change.removed_edges {
+            let node = edge.1;
+            if self.deferred_seed_seen[node] == self.deferred_seed_stamp {
+                continue;
+            }
+            self.deferred_seed_seen[node] = self.deferred_seed_stamp;
+            self.deferred_seeds.push(edge.1);
+        }
+    }
+
+    fn replace_owner_route_scratch_with_removal(
+        &mut self,
+        change: &mut RouteChange,
+        owner: OwnerId,
+    ) {
+        self.scratch_elements.clear();
+        self.scratch_edges.clear();
+        self.replace_owner_route_scratch(change, owner);
+    }
+
+    fn replace_owner_route_scratch(&mut self, change: &mut RouteChange, owner: OwnerId) {
+        change.added_edges.clear();
+        change.removed_edges.clear();
         let previous_invalid = self.owner_invalid_counts[owner];
         let previous_violation = self.owner_violation_counts[owner];
 
@@ -438,7 +495,7 @@ impl ListPrecedenceState {
 
         let mut old_edges = std::mem::take(&mut self.owner_edges[owner]);
         let mut new_edges = std::mem::take(&mut self.scratch_edges);
-        self.diff_owner_edges(&old_edges, &new_edges, &mut change);
+        self.diff_owner_edges(&old_edges, &new_edges, change);
         std::mem::swap(&mut old_edges, &mut new_edges);
         self.scratch_edges = new_edges;
         self.owner_edges[owner] = old_edges;
@@ -450,8 +507,6 @@ impl ListPrecedenceState {
         self.owner_violation_total -= previous_violation;
         self.owner_violation_total += self.scratch_violation_count;
         self.owner_violation_counts[owner] = self.scratch_violation_count;
-
-        change
     }
 
     fn diff_owner_assignments(&mut self, old_elements: &[NodeId], new_elements: &[NodeId]) {
@@ -576,7 +631,7 @@ impl ListPrecedenceState {
     }
 
     fn refresh_graph_after_route_change(&mut self, change: &RouteChange) -> GraphRefreshKind {
-        if change.is_empty() {
+        if change.is_empty() && self.deferred_seeds.is_empty() {
             return GraphRefreshKind::Skipped;
         }
 
@@ -608,6 +663,17 @@ impl ListPrecedenceState {
                 self.scratch_queue.push(node);
             }
         }
+        for node in self.deferred_seeds.iter().copied() {
+            if self.scratch_queued[node] != self.scratch_visited_stamp {
+                self.scratch_queued[node] = self.scratch_visited_stamp;
+                self.scratch_queue.push(node);
+            }
+        }
+        self.deferred_seeds.clear();
+        self.deferred_seed_seen
+            .iter_mut()
+            .for_each(|stamp| *stamp = 0);
+        self.deferred_seed_stamp = 0;
 
         let mut head = 0usize;
         let mut visited = 0;
@@ -647,11 +713,11 @@ impl ListPrecedenceState {
             self.scratch_visited_stamp = 1;
         }
         self.scratch_queue_head = 0;
-        self.makespan = self.max_finish();
         GraphRefreshKind::Incremental { visited }
     }
 
     fn rebuild_graph_summary(&mut self) {
+        self.clear_deferred_seeds();
         let mut indegree: Vec<usize> = self.predecessors.iter().map(Vec::len).collect();
         let mut earliest = vec![0i64; self.node_count];
         let mut finishes = vec![0i64; self.node_count];
@@ -664,11 +730,17 @@ impl ListPrecedenceState {
 
         let mut processed = 0usize;
         let mut makespan = 0i64;
+        let mut max_finish_nodes = 0usize;
         while let Some(node) = ready.pop_front() {
             processed += 1;
             let finish = earliest[node].saturating_add(self.durations[node]);
             finishes[node] = finish;
-            makespan = makespan.max(finish);
+            if finish > makespan {
+                makespan = finish;
+                max_finish_nodes = 1;
+            } else if finish == makespan {
+                max_finish_nodes += 1;
+            }
             for &successor in &self.successors[node] {
                 earliest[successor] = earliest[successor].max(finish);
                 indegree[successor] -= 1;
@@ -686,24 +758,30 @@ impl ListPrecedenceState {
             self.cycle_penalty = 0;
             self.cycle_added_edges.clear();
             self.makespan = makespan;
+            self.max_finish_nodes = max_finish_nodes;
         }
     }
 
     fn mark_cyclic_from_route_change(&mut self, change: &RouteChange) {
+        self.clear_deferred_seeds();
         self.cycle_added_edges = change.added_edges.clone();
         self.cycle_penalty = self.node_count;
         self.makespan = 0;
+        self.max_finish_nodes = self.node_count;
     }
 
     fn mark_cyclic_without_cache(&mut self) {
+        self.clear_deferred_seeds();
         self.earliest.fill(0);
         self.finishes.fill(0);
         self.cycle_added_edges.clear();
         self.cycle_penalty = self.node_count;
         self.makespan = 0;
+        self.max_finish_nodes = self.node_count;
     }
 
     fn recover_cached_cycle(&mut self, change: &RouteChange) -> bool {
+        self.clear_deferred_seeds();
         if self.cycle_added_edges.is_empty() || !change.added_edges.is_empty() {
             return false;
         }
@@ -716,7 +794,7 @@ impl ListPrecedenceState {
         }
         self.cycle_penalty = 0;
         self.cycle_added_edges.clear();
-        self.makespan = self.max_finish();
+        self.recount_max_finish();
         true
     }
 
@@ -725,15 +803,47 @@ impl ListPrecedenceState {
         self.earliest[node] = new_earliest;
         let new_finish = new_earliest.saturating_add(self.durations[node]);
         self.finishes[node] = new_finish;
-        if new_finish >= self.makespan {
+        if new_finish > self.makespan {
             self.makespan = new_finish;
+            self.max_finish_nodes = 1;
+        } else if new_finish == self.makespan {
+            if old_finish != self.makespan {
+                self.max_finish_nodes += 1;
+            }
         } else if old_finish == self.makespan {
-            self.makespan = self.max_finish();
+            self.max_finish_nodes -= 1;
+            if self.max_finish_nodes == 0 {
+                self.recount_max_finish();
+            }
         }
     }
 
-    fn max_finish(&self) -> i64 {
-        self.finishes.iter().copied().max().unwrap_or(0)
+    /// Full O(N) recount; only runs when the last max-finish node drops
+    /// (rare: the makespan must strictly shrink to zero achievers) and
+    /// after bulk graph rebuilds.
+    /// All non-incremental refresh paths rescan the full graph, so the
+    /// deferred-retract seeds carry no information once one of them runs.
+    fn clear_deferred_seeds(&mut self) {
+        self.deferred_seeds.clear();
+        self.deferred_seed_seen
+            .iter_mut()
+            .for_each(|stamp| *stamp = 0);
+        self.deferred_seed_stamp = 0;
+    }
+
+    fn recount_max_finish(&mut self) {
+        let mut max = 0i64;
+        let mut count = 0usize;
+        for &finish in &self.finishes {
+            if finish > max {
+                max = finish;
+                count = 1;
+            } else if finish == max {
+                count += 1;
+            }
+        }
+        self.makespan = max;
+        self.max_finish_nodes = count;
     }
 
     fn added_edges_introduce_cycle(&mut self, added_edges: &[Edge]) -> bool {
@@ -747,10 +857,17 @@ impl ListPrecedenceState {
         if self.probe_queued.len() < self.node_count {
             self.probe_queued.resize(self.node_count, 0);
         }
-        self.probe_queued.iter_mut().for_each(|stamp| *stamp = 0);
-        self.probe_visited_stamp = 1;
-        for (probe_offset, &(from, to)) in added_edges.iter().enumerate() {
-            let visit_stamp = self.probe_visited_stamp + probe_offset;
+        // One fresh stamp per probe: a probe's visited marks never leak into
+        // the next probe, and stale stamps from previous refreshes read as
+        // unvisited because the counter only moves forward (the BFS mask
+        // follows the same scheme; no O(N) clearing per refresh).
+        for &(from, to) in added_edges {
+            self.probe_visited_stamp = self.probe_visited_stamp.wrapping_add(1);
+            if self.probe_visited_stamp == 0 {
+                self.probe_queued.iter_mut().for_each(|stamp| *stamp = 0);
+                self.probe_visited_stamp = 1;
+            }
+            let visit_stamp = self.probe_visited_stamp;
             if self.reaches_with_scratch(to, from, visit_stamp) {
                 return true;
             }
@@ -1121,10 +1238,21 @@ mod tests {
         let constraint = constraint();
         let access = constraint.access();
         let mut state = ListPrecedenceState::new(4, 1, vec![1, 1, 1, 1]);
-        state.add_owner_route(&four_task_plan(vec![vec![0, 1, 2]]), 0, access);
+        let mut change = state.take_route_change_scratch();
+        state.replace_owner_route_scratch_with(
+            &mut change,
+            &four_task_plan(vec![vec![0, 1, 2]]),
+            0,
+            access,
+        );
         state.refresh_score_full();
 
-        let mut change = state.add_owner_route(&four_task_plan(vec![vec![0, 1, 3]]), 0, access);
+        state.replace_owner_route_scratch_with(
+            &mut change,
+            &four_task_plan(vec![vec![0, 1, 3]]),
+            0,
+            access,
+        );
         change.added_edges.sort_unstable();
         change.removed_edges.sort_unstable();
 
@@ -1211,8 +1339,11 @@ mod tests {
         let mut score = constraint.initialize(&solution);
         assert_eq!(score, HardSoftScore::of(0, -5));
 
-        score = score + constraint.on_retract(&solution, 0, 0);
-        assert_eq!(score, HardSoftScore::of(-1, -5));
+        // Retraction defers the re-timing to the matching insert: the
+        // event itself contributes no delta, the insert re-times the union
+        // of pending removals plus its own additions and carries the whole
+        // after-before delta.
+        assert_eq!(constraint.on_retract(&solution, 0, 0), HardSoftScore::ZERO);
 
         solution.routes[0].tasks = vec![0, 1];
         score = score + constraint.on_insert(&solution, 0, 0);

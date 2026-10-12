@@ -286,7 +286,7 @@ where
                         continue;
                     }
                     if first_entity == second_entity
-                        && self.precedence_route_graph.as_ref().is_some_and(|graph| {
+                        && self.precedence_route_graph.as_mut().is_some_and(|graph| {
                             graph.intra_sublist_swap_introduces_cycle(
                                 first_entity,
                                 first.start,

@@ -197,14 +197,14 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        let analysis = self.analysis(score_director);
+        let mut analysis = self.analysis(score_director);
         analysis
             .blocks
             .iter()
             .copied()
-            .map(|block| filtered_move_count(block, &analysis.route_graph))
+            .map(|block| filtered_move_count(block, &mut analysis.route_graph))
             .sum::<usize>()
-            + filtered_multi_support_swap_count(&analysis.blocks, &analysis.route_graph)
+            + filtered_multi_support_swap_count(&analysis.blocks, &mut analysis.route_graph)
             + multi_critical_ruin_count(&analysis.blocks)
     }
 }

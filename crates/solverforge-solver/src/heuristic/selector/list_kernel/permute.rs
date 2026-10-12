@@ -125,7 +125,7 @@ where
                     ) + 1;
                     self.permutation_offset += 1;
                     let permutation = nth_permutation(size, rank);
-                    if self.precedence_route_graph.as_ref().is_some_and(|graph| {
+                    if self.precedence_route_graph.as_mut().is_some_and(|graph| {
                         graph.intra_list_permutation_introduces_cycle(
                             entity,
                             start,

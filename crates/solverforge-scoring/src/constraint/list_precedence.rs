@@ -211,6 +211,21 @@ struct ListPrecedenceState {
     score: HardSoftScore,
     hard_penalty: usize,
     makespan: i64,
+    scratch_queued: Vec<usize>,
+    scratch_queue: Vec<NodeId>,
+    scratch_queue_head: usize,
+    scratch_visited_stamp: usize,
+    probe_queued: Vec<usize>,
+    probe_visited_stamp: usize,
+    scratch_probe_stack: Vec<NodeId>,
+    scratch_elements: Vec<NodeId>,
+    scratch_edges: Vec<Edge>,
+    scratch_invalid_count: usize,
+    scratch_violation_count: usize,
+    scratch_assignment_counts: HashMap<NodeId, (usize, usize)>,
+    scratch_assignment_keys: Vec<NodeId>,
+    scratch_edge_counts: HashMap<Edge, (usize, usize)>,
+    scratch_edge_keys: Vec<Edge>,
 }
 
 #[derive(Default)]
@@ -230,14 +245,6 @@ impl RouteChange {
             .chain(self.removed_edges.iter())
             .map(|&(_, to)| to)
     }
-}
-
-#[derive(Default)]
-struct OwnerRouteSnapshot {
-    elements: Vec<NodeId>,
-    edges: Vec<Edge>,
-    invalid_count: usize,
-    violation_count: usize,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -288,6 +295,21 @@ impl ListPrecedenceState {
             score: HardSoftScore::ZERO,
             hard_penalty: 0,
             makespan: 0,
+            scratch_queued: Vec::new(),
+            scratch_queue: Vec::new(),
+            scratch_queue_head: 0,
+            scratch_visited_stamp: 1,
+            probe_queued: Vec::new(),
+            probe_visited_stamp: 1,
+            scratch_probe_stack: Vec::new(),
+            scratch_elements: Vec::new(),
+            scratch_edges: Vec::new(),
+            scratch_invalid_count: 0,
+            scratch_violation_count: 0,
+            scratch_assignment_counts: HashMap::new(),
+            scratch_assignment_keys: Vec::new(),
+            scratch_edge_counts: HashMap::new(),
+            scratch_edge_keys: Vec::new(),
         }
     }
 
@@ -346,90 +368,115 @@ impl ListPrecedenceState {
         owner: OwnerId,
         access: ListPrecedenceAccess<S>,
     ) -> RouteChange {
-        let snapshot = self.owner_route_snapshot(solution, owner, access);
-        self.replace_owner_route(owner, snapshot)
+        self.owner_route_snapshot(solution, owner, access);
+        self.replace_owner_route_scratch(owner)
     }
 
     fn remove_owner_route(&mut self, owner: OwnerId) -> RouteChange {
-        self.replace_owner_route(owner, OwnerRouteSnapshot::default())
+        self.scratch_elements.clear();
+        self.scratch_edges.clear();
+        self.replace_owner_route_scratch(owner)
     }
 
+    // Snapshots the owner's route into the reusable scratch buffers. The
+    // scratch slots must not be aliased by `replace_owner_route_scratch`'s
+    // diff bookkeeping (it swaps them into the owner route storage).
     fn owner_route_snapshot<S>(
-        &self,
+        &mut self,
         solution: &S,
         owner: OwnerId,
         access: ListPrecedenceAccess<S>,
-    ) -> OwnerRouteSnapshot {
-        let mut snapshot = OwnerRouteSnapshot::default();
+    ) {
+        self.scratch_elements.clear();
+        self.scratch_edges.clear();
         let len = (access.list_len)(solution, owner);
         let mut previous = None;
+        let mut invalid_count = 0;
+        let mut violation_count = 0;
         for pos in 0..len {
             let Some(node) = (access.list_get)(solution, owner, pos) else {
-                snapshot.invalid_count += 1;
+                invalid_count += 1;
                 previous = None;
                 continue;
             };
             if node >= self.node_count {
-                snapshot.invalid_count += 1;
+                invalid_count += 1;
                 previous = None;
                 continue;
             }
 
-            snapshot.elements.push(node);
+            self.scratch_elements.push(node);
             if access
                 .expected_owner
                 .and_then(|expected_owner| expected_owner(solution, node))
                 .is_some_and(|expected| expected != owner)
             {
-                snapshot.violation_count += 1;
+                violation_count += 1;
             }
             if let Some(from) = previous {
                 let edge = (from, node);
-                snapshot.edges.push(edge);
+                self.scratch_edges.push(edge);
             }
             previous = Some(node);
         }
-        snapshot
+        self.scratch_invalid_count = invalid_count;
+        self.scratch_violation_count = violation_count;
     }
 
-    fn replace_owner_route(&mut self, owner: OwnerId, snapshot: OwnerRouteSnapshot) -> RouteChange {
+    fn replace_owner_route_scratch(&mut self, owner: OwnerId) -> RouteChange {
         let mut change = RouteChange::default();
-        let OwnerRouteSnapshot {
-            elements,
-            edges,
-            invalid_count,
-            violation_count,
-        } = snapshot;
 
-        let old_elements = std::mem::take(&mut self.owner_elements[owner]);
-        self.diff_owner_assignments(&old_elements, &elements);
-        self.owner_elements[owner] = elements;
+        let previous_invalid = self.owner_invalid_counts[owner];
+        let previous_violation = self.owner_violation_counts[owner];
 
-        let old_edges = std::mem::take(&mut self.owner_edges[owner]);
-        self.diff_owner_edges(&old_edges, &edges, &mut change);
-        self.owner_edges[owner] = edges;
+        let mut old_elements = std::mem::take(&mut self.owner_elements[owner]);
+        let mut new_elements = std::mem::take(&mut self.scratch_elements);
+        self.diff_owner_assignments(&old_elements, &new_elements);
+        std::mem::swap(&mut old_elements, &mut new_elements);
+        self.scratch_elements = new_elements;
+        self.owner_elements[owner] = old_elements;
 
-        self.owner_invalid_total -= self.owner_invalid_counts[owner];
-        self.owner_invalid_total += invalid_count;
-        self.owner_invalid_counts[owner] = invalid_count;
+        let mut old_edges = std::mem::take(&mut self.owner_edges[owner]);
+        let mut new_edges = std::mem::take(&mut self.scratch_edges);
+        self.diff_owner_edges(&old_edges, &new_edges, &mut change);
+        std::mem::swap(&mut old_edges, &mut new_edges);
+        self.scratch_edges = new_edges;
+        self.owner_edges[owner] = old_edges;
 
-        self.owner_violation_total -= self.owner_violation_counts[owner];
-        self.owner_violation_total += violation_count;
-        self.owner_violation_counts[owner] = violation_count;
+        self.owner_invalid_total -= previous_invalid;
+        self.owner_invalid_total += self.scratch_invalid_count;
+        self.owner_invalid_counts[owner] = self.scratch_invalid_count;
+
+        self.owner_violation_total -= previous_violation;
+        self.owner_violation_total += self.scratch_violation_count;
+        self.owner_violation_counts[owner] = self.scratch_violation_count;
 
         change
     }
 
     fn diff_owner_assignments(&mut self, old_elements: &[NodeId], new_elements: &[NodeId]) {
-        let mut counts = HashMap::<NodeId, (usize, usize)>::new();
+        self.scratch_assignment_counts.clear();
+        self.scratch_assignment_keys.clear();
         for &node in old_elements {
-            counts.entry(node).or_default().0 += 1;
+            if self.scratch_assignment_counts.insert(node, (1, 0)).is_none() {
+                self.scratch_assignment_keys.push(node);
+            } else {
+                self.scratch_assignment_counts.get_mut(&node).expect("just inserted").0 += 1;
+            }
         }
         for &node in new_elements {
-            counts.entry(node).or_default().1 += 1;
+            match self.scratch_assignment_counts.get_mut(&node) {
+                Some(entry) => entry.1 += 1,
+                None => {
+                    self.scratch_assignment_counts.insert(node, (0, 1));
+                    self.scratch_assignment_keys.push(node);
+                }
+            }
         }
 
-        for (node, (old_count, new_count)) in counts {
+        for index in 0..self.scratch_assignment_keys.len() {
+            let node = self.scratch_assignment_keys[index];
+            let (old_count, new_count) = self.scratch_assignment_counts[&node];
             if old_count == new_count {
                 continue;
             }
@@ -445,15 +492,44 @@ impl ListPrecedenceState {
         new_edges: &[Edge],
         change: &mut RouteChange,
     ) {
-        let mut counts = HashMap::<Edge, (usize, usize)>::new();
-        for &edge in old_edges {
-            counts.entry(edge).or_default().0 += 1;
+        // Common prefix/suffix shrink the diff to the touched middle; the
+        // middle itself is diffed by counting per edge in reusable scratch.
+        let mut prefix = 0;
+        let common = old_edges.len().min(new_edges.len());
+        while prefix < common && old_edges[prefix] == new_edges[prefix] {
+            prefix += 1;
         }
-        for &edge in new_edges {
-            counts.entry(edge).or_default().1 += 1;
+        let mut suffix = 0;
+        while suffix < common - prefix
+            && old_edges[old_edges.len() - 1 - suffix] == new_edges[new_edges.len() - 1 - suffix]
+        {
+            suffix += 1;
         }
+        let old_middle = &old_edges[prefix..old_edges.len() - suffix];
+        let new_middle = &new_edges[prefix..new_edges.len() - suffix];
 
-        for (edge, (old_count, new_count)) in counts {
+        self.scratch_edge_keys.clear();
+        for &edge in old_middle {
+            match self.scratch_edge_counts.get_mut(&edge) {
+                Some(entry) => entry.0 += 1,
+                None => {
+                    self.scratch_edge_counts.insert(edge, (1, 0));
+                    self.scratch_edge_keys.push(edge);
+                }
+            }
+        }
+        for &edge in new_middle {
+            match self.scratch_edge_counts.get_mut(&edge) {
+                Some(entry) => entry.1 += 1,
+                None => {
+                    self.scratch_edge_counts.insert(edge, (0, 1));
+                    self.scratch_edge_keys.push(edge);
+                }
+            }
+        }
+        for index in 0..self.scratch_edge_keys.len() {
+            let edge = self.scratch_edge_keys[index];
+            let (old_count, new_count) = self.scratch_edge_counts[&edge];
             if old_count > new_count {
                 for _ in 0..(old_count - new_count) {
                     if self.remove_edge(edge) {
@@ -468,6 +544,7 @@ impl ListPrecedenceState {
                 }
             }
         }
+        self.scratch_edge_counts.clear();
     }
 
     fn refresh_score_full(&mut self) -> HardSoftScore {
@@ -513,18 +590,27 @@ impl ListPrecedenceState {
             return GraphRefreshKind::CycleDetected;
         }
 
-        let mut queued = vec![false; self.node_count];
-        let mut queue = VecDeque::new();
+        let node_count = self.node_count;
+        if self.scratch_queued.len() < node_count {
+            self.scratch_queued.resize(node_count, 0);
+        }
+        self.scratch_queue.clear();
         for node in change.seeds() {
-            if node < self.node_count && !queued[node] {
-                queued[node] = true;
-                queue.push_back(node);
+            if node < node_count && self.scratch_queued[node] != self.scratch_visited_stamp {
+                self.scratch_queued[node] = self.scratch_visited_stamp;
+                self.scratch_queue.push(node);
             }
         }
 
+        let mut head = 0usize;
         let mut visited = 0;
-        while let Some(node) = queue.pop_front() {
-            queued[node] = false;
+        while head < self.scratch_queue.len() {
+            let node = self.scratch_queue[head];
+            head += 1;
+            // Mirror the former VecDeque semantics exactly: pop releases the
+            // queued marker so the node can be re-queued and re-processed if
+            // a later update in the same refresh shifts its earliest again.
+            self.scratch_queued[node] = 0;
             visited += 1;
 
             let new_earliest = self.predecessors[node]
@@ -540,12 +626,20 @@ impl ListPrecedenceState {
 
             self.replace_earliest(node, new_earliest);
             for &successor in &self.successors[node] {
-                if !queued[successor] {
-                    queued[successor] = true;
-                    queue.push_back(successor);
+                if successor < node_count
+                    && self.scratch_queued[successor] != self.scratch_visited_stamp
+                {
+                    self.scratch_queued[successor] = self.scratch_visited_stamp;
+                    self.scratch_queue.push(successor);
                 }
             }
         }
+        self.scratch_visited_stamp = self.scratch_visited_stamp.wrapping_add(1);
+        if self.scratch_visited_stamp == 0 {
+            self.scratch_queued.iter_mut().for_each(|stamp| *stamp = 0);
+            self.scratch_visited_stamp = 1;
+        }
+        self.scratch_queue_head = 0;
         self.makespan = self.max_finish();
         GraphRefreshKind::Incremental { visited }
     }
@@ -635,45 +729,49 @@ impl ListPrecedenceState {
         self.finishes.iter().copied().max().unwrap_or(0)
     }
 
-    fn added_edges_introduce_cycle(&self, added_edges: &[Edge]) -> bool {
+    fn added_edges_introduce_cycle(&mut self, added_edges: &[Edge]) -> bool {
         if added_edges.is_empty() {
             return false;
         }
 
-        let mut visited = vec![0usize; self.node_count];
-        let mut stack = Vec::new();
-        for (visit_id, &(from, to)) in added_edges.iter().enumerate() {
-            if self.reaches_with_scratch(to, from, visit_id + 1, &mut visited, &mut stack) {
+        // Probe visits share NO stamps with the BFS refresh mask: they use
+        // their own mask + counter so a probe can never suppress a BFS push
+        // (and vice versa) across events.
+        if self.probe_queued.len() < self.node_count {
+            self.probe_queued.resize(self.node_count, 0);
+        }
+        self.probe_queued.iter_mut().for_each(|stamp| *stamp = 0);
+        self.probe_visited_stamp = 1;
+        for (probe_offset, &(from, to)) in added_edges.iter().enumerate() {
+            let visit_stamp = self.probe_visited_stamp + probe_offset;
+            if self.reaches_with_scratch(to, from, visit_stamp) {
                 return true;
             }
         }
         false
     }
 
-    fn reaches_with_scratch(
-        &self,
-        start: NodeId,
-        target: NodeId,
-        visit_id: usize,
-        visited: &mut [usize],
-        stack: &mut Vec<NodeId>,
-    ) -> bool {
+    // DFS probe over successors with a generation-stamped visit mask; the
+    // stack lives in scratch storage so repeated probes never reallocate.
+    // Stamps must stay < u32::MAX probes per refresh call; the caller resets
+    // scratch_queued whenever scratch_visited_stamp wraps to keep stamps unique.
+    fn reaches_with_scratch(&mut self, start: NodeId, target: NodeId, visit_id: usize) -> bool {
         if start == target {
             return true;
         }
-        stack.clear();
-        stack.push(start);
-        while let Some(node) = stack.pop() {
-            if visited[node] == visit_id {
+        self.scratch_probe_stack.clear();
+        self.scratch_probe_stack.push(start);
+        while let Some(node) = self.scratch_probe_stack.pop() {
+            if self.probe_queued[node] == visit_id {
                 continue;
             }
-            visited[node] = visit_id;
+            self.probe_queued[node] = visit_id;
             for &successor in &self.successors[node] {
                 if successor == target {
                     return true;
                 }
-                if visited[successor] != visit_id {
-                    stack.push(successor);
+                if self.probe_queued[successor] != visit_id {
+                    self.scratch_probe_stack.push(successor);
                 }
             }
         }

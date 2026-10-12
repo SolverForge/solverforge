@@ -244,6 +244,10 @@ where
         })
     }
 
+    fn needs_clock(&self) -> bool {
+        self.time_limit.is_some() || self.unimproved_time_limit.is_some()
+    }
+
     fn is_reached(
         &self,
         total_step_count: u64,
@@ -515,7 +519,15 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 
     fn phase_termination_reached(&self) -> bool {
         self.phase_termination.as_ref().is_some_and(|termination| {
-            termination.is_reached(self.total_step_count, self.elapsed().unwrap_or_default())
+            // Only scoped terminations with clock-based limits need the
+            // wall clock; step/budget/score limits run on counters and the
+            // control poll calls this per candidate.
+            let elapsed = if termination.needs_clock() {
+                self.elapsed().unwrap_or_default()
+            } else {
+                Duration::ZERO
+            };
+            termination.is_reached(self.total_step_count, elapsed)
         })
     }
 

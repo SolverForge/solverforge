@@ -4,6 +4,7 @@ use solverforge_scoring::Director;
 use crate::scope::{PendingControl, ProgressCallback, StepScope};
 
 pub(crate) const GENERATION_POLL_INTERVAL: usize = 256;
+pub(crate) const CONTROL_POLL_INTERVAL: usize = 64;
 pub(crate) const EVALUATION_POLL_INTERVAL: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

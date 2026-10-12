@@ -8,7 +8,7 @@ use tracing::trace;
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{CandidateId, ResourceMoveCursor};
 use crate::phase::control::{
-    should_interrupt_before_candidate, should_interrupt_before_evaluation,
+    should_interrupt_before_candidate, should_interrupt_before_evaluation, CONTROL_POLL_INTERVAL,
 };
 use crate::phase::localsearch::evaluation::{
     evaluate_candidate, record_evaluated_move, CandidateEvaluation,
@@ -21,7 +21,6 @@ use super::{candidate_selector_label, take_trace_token, StepMoveLabelCounts};
 
 const PROGRESS_POLL_INTERVAL: u64 = 256;
 // Candidate iterations between control polls in the step loop.
-const CONTROL_POLL_INTERVAL: u64 = 64;
 
 pub(super) struct CandidateLoopState {
     pub(super) interrupted: bool,
@@ -70,7 +69,7 @@ where
     // batching). The step loop therefore polls once per batch window; a
     // stop stays latched, and per-evaluation interruption still runs on
     // its every-64-evaluations schedule below.
-    let mut control_polls = 0u64;
+    let mut control_polls = 0usize;
     let mut control_latched = false;
     while !forager.is_quit_early() {
         if state.interrupted {

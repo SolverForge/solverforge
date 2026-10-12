@@ -16,7 +16,7 @@ use crate::heuristic::selector::move_selector::{CandidateId, MoveCursor};
 use crate::phase::construction::report_construction_progress_if_due;
 use crate::phase::control::{
     settle_construction_interrupt, should_interrupt_before_candidate,
-    should_interrupt_before_evaluation, StepInterrupt,
+    should_interrupt_before_evaluation, StepInterrupt, CONTROL_POLL_INTERVAL,
 };
 use crate::scope::{ProgressCallback, StepScope};
 use crate::stats::{
@@ -34,9 +34,21 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
+    // The assignment machinery invokes the stop closure at candidate-
+    // enumeration granularity; forwarding every call reads the wall clock
+    // per inner iteration (measured ~9% of wall at NRP scale). The batcher
+    // forwards at most once per window and latches the verdict.
+    let mut stop_polls = 0usize;
+    let mut stop_latched = false;
     let candidate_id = placement
         .candidates_mut()
-        .next_candidate_with_control(&mut || should_interrupt_before_candidate(step_scope))?;
+        .next_candidate_with_control(&mut || {
+            stop_polls += 1;
+            if !stop_latched && stop_polls.is_multiple_of(CONTROL_POLL_INTERVAL) {
+                stop_latched = should_interrupt_before_candidate(step_scope);
+            }
+            stop_latched
+        })?;
     let construction_target = CandidateTraceConstructionTarget {
         descriptor_index: placement.entity_ref.descriptor_index,
         entity_index: placement.entity_ref.entity_index,

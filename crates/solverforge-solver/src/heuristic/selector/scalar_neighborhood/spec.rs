@@ -264,5 +264,7 @@ fn capability_label(capability: ScalarAccessCapability) -> &'static str {
         ScalarAccessCapability::NearbyEntity => "nearby scalar entity source",
         ScalarAccessCapability::ConstructionEntityOrder => "construction entity-order source",
         ScalarAccessCapability::ConstructionValueOrder => "construction value-order source",
+        ScalarAccessCapability::SearchEntityOrder => "search entity-order source",
+        ScalarAccessCapability::SearchValueOrder => "search value-order source",
     }
 }

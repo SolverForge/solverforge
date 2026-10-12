@@ -55,13 +55,35 @@ where
             STATIC_CHANGE_ENTITY_SALT
         };
         let entity_count = slot.entity_count(&solution);
-        let rows = (0..entity_count)
+        let entity_guided =
+            slot.has_capability(crate::builder::ScalarAccessCapability::SearchEntityOrder);
+        let value_guided =
+            slot.has_capability(crate::builder::ScalarAccessCapability::SearchValueOrder);
+        let mut entity_order = (0..entity_count)
             .map(|entity_offset| {
                 let entity_index = context.selection_index_without_replacement(
                     entity_offset,
                     entity_count,
                     entity_salt ^ identity,
                 );
+                // Guided enumeration reuses the slot's search order key:
+                // entities with a lower key are tried first; equal keys keep
+                // the seeded-random order. Models without the key enumerate
+                // exactly the seeded-random permutation as before.
+                let order = if entity_guided {
+                    slot.search_entity_order_key(&solution, entity_index)
+                } else {
+                    None
+                };
+                (order.unwrap_or(i64::MAX), entity_offset, entity_index)
+            })
+            .collect::<Vec<_>>();
+        if entity_guided {
+            entity_order.sort_by_key(|(order, entity_offset, _)| (*order, *entity_offset));
+        }
+        let rows = entity_order
+            .into_iter()
+            .map(|(_, _, entity_index)| {
                 let mut canonical_values = Vec::new();
                 slot.visit_candidate_values(
                     &solution,
@@ -70,15 +92,25 @@ where
                     &mut |value| canonical_values.push(value),
                 );
                 let value_count = canonical_values.len();
-                let values = (0..value_count)
+                let mut value_order = (0..value_count)
                     .map(|value_offset| {
-                        canonical_values[context.selection_index(
+                        let value = canonical_values[context.selection_index(
                             value_offset,
                             value_count,
                             value_salt ^ entity_index as u64 ^ identity,
-                        )]
+                        )];
+                        let key = if value_guided {
+                            slot.search_value_order_key(&solution, entity_index, value)
+                        } else {
+                            None
+                        };
+                        (key.unwrap_or(i64::MAX), value_offset, value)
                     })
-                    .collect();
+                    .collect::<Vec<_>>();
+                if value_guided {
+                    value_order.sort_by_key(|(order, value_offset, _)| (*order, *value_offset));
+                }
+                let values = value_order.into_iter().map(|(_, _, value)| value).collect();
                 ChangeRow {
                     entity_index,
                     values,

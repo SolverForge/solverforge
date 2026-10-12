@@ -24,6 +24,7 @@ pub(super) struct SwapCursor<S> {
     solution: S,
     snapshot: SwapSnapshot,
     context: MoveStreamContext,
+    entity_order: Vec<usize>,
     left_offset: usize,
     right_offset: usize,
 }
@@ -59,14 +60,54 @@ where
             }
             RuntimeScalarSlot::Dynamic(_) => SwapSnapshot::Dynamic,
         };
+        let entity_order = Self::guided_entity_order(&slot, &solution, &context);
         Self {
             slot,
             solution,
             snapshot,
             context,
+            entity_order,
             left_offset: 0,
             right_offset: 0,
         }
+    }
+
+    fn guided_entity_order(
+        slot: &RuntimeScalarSlot<S>,
+        solution: &S,
+        context: &MoveStreamContext,
+    ) -> Vec<usize> {
+        // Guided swap ordering: when the slot declares a search entity order
+        // key, entities sort by ascending key with the seeded-random left
+        // permutation as tie-break; the pair filters then run over this
+        // sequence. Without the key the permutation IS the order.
+        let count = slot.entity_count(solution);
+        if !slot.has_capability(crate::builder::ScalarAccessCapability::SearchEntityOrder)
+            || count <= 1
+        {
+            return (0..count).collect();
+        }
+        let identity = slot_identity(slot);
+        let mut order = (0..count)
+            .map(|offset| {
+                let entity_index = context.selection_index_without_replacement(
+                    offset,
+                    count,
+                    SWAP_LEFT_SALT ^ identity,
+                );
+                (
+                    slot.search_entity_order_key(solution, entity_index)
+                        .unwrap_or(i64::MAX),
+                    offset,
+                    entity_index,
+                )
+            })
+            .collect::<Vec<_>>();
+        order.sort_by_key(|(key, offset, _)| (*key, *offset));
+        order
+            .into_iter()
+            .map(|(_, _, entity_index)| entity_index)
+            .collect()
     }
 
     fn entity_count(&self) -> usize {
@@ -76,12 +117,8 @@ where
         }
     }
 
-    fn ordered_left_entity(&self, count: usize, offset: usize, salt: u64) -> usize {
-        if count <= 1 {
-            return 0;
-        }
-        self.context
-            .selection_index_without_replacement(offset, count, salt ^ ENTITY_STRIDE_MIX)
+    fn ordered_left_entity(&self, offset: usize) -> usize {
+        self.entity_order[offset % self.entity_order.len()]
     }
 
     fn ordered_right_entity(&self, count: usize, offset: usize, salt: u64) -> usize {
@@ -124,10 +161,8 @@ where
 
     pub(super) fn next_recipe(&mut self) -> Option<RuntimeScalarRecipe<S>> {
         let entity_count = self.entity_count();
-        let identity = slot_identity(&self.slot);
         while self.left_offset < entity_count {
-            let left_entity_index =
-                self.ordered_left_entity(entity_count, self.left_offset, SWAP_LEFT_SALT ^ identity);
+            let left_entity_index = self.ordered_left_entity(self.left_offset);
             while self.right_offset < entity_count {
                 let right_entity_index = self.ordered_right_entity(
                     entity_count,

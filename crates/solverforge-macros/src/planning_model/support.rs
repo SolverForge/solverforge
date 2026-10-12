@@ -437,6 +437,112 @@ fn generate_support_impl(model: &ModelMetadata) -> Result<TokenStream> {
                     }
                 });
             }
+
+            if let Some(path) = &variable.hooks.search_entity_order_key {
+                let helper = format_ident!(
+                    "__solverforge_descriptor_search_entity_order_key_{}_{}",
+                    entity_field,
+                    variable.field_name
+                );
+                let runtime_helper = format_ident!(
+                    "__solverforge_runtime_search_entity_order_key_{}_{}",
+                    entity_field,
+                    variable.field_name
+                );
+                descriptor_helpers.push(quote! {
+                    fn #helper(
+                        solution: &dyn ::std::any::Any,
+                        entity_index: usize,
+                    ) -> i64 {
+                        let solution = solution
+                            .downcast_ref::<#solution_path>()
+                            .expect("solution type mismatch for search entity order key");
+                        let entity = #solution_path::#entity_accessor(solution, entity_index);
+                        #path(solution, entity)
+                    }
+                });
+                descriptor_attachments.push(quote! {
+                    attach_scalar_variable_hook(
+                        descriptor,
+                        #descriptor_index,
+                        #variable_name,
+                        |variable| {
+                            variable.search_entity_order_key = ::core::option::Option::Some(#helper);
+                        },
+                    );
+                });
+                runtime_helpers.push(quote! {
+                    fn #runtime_helper(
+                        solution: &#solution_path,
+                        entity_index: usize,
+                        _variable_index: usize,
+                    ) -> ::core::option::Option<i64> {
+                        let entity = #solution_path::#entity_accessor(solution, entity_index);
+                        ::core::option::Option::Some(#path(solution, entity))
+                    }
+                });
+                runtime_attachments.push(quote! {
+                    if slot.descriptor_index == #descriptor_index
+                        && slot.variable_name == #variable_name
+                    {
+                        slot = slot.with_search_entity_order_key(#runtime_helper);
+                    }
+                });
+            }
+
+            if let Some(path) = &variable.hooks.search_value_order_key {
+                let helper = format_ident!(
+                    "__solverforge_descriptor_search_value_order_key_{}_{}",
+                    entity_field,
+                    variable.field_name
+                );
+                let runtime_helper = format_ident!(
+                    "__solverforge_runtime_search_value_order_key_{}_{}",
+                    entity_field,
+                    variable.field_name
+                );
+                descriptor_helpers.push(quote! {
+                    fn #helper(
+                        solution: &dyn ::std::any::Any,
+                        entity_index: usize,
+                        value: usize,
+                    ) -> i64 {
+                        let solution = solution
+                            .downcast_ref::<#solution_path>()
+                            .expect("solution type mismatch for search value order key");
+                        let entity = #solution_path::#entity_accessor(solution, entity_index);
+                        #path(solution, entity, value)
+                    }
+                });
+                descriptor_attachments.push(quote! {
+                    attach_scalar_variable_hook(
+                        descriptor,
+                        #descriptor_index,
+                        #variable_name,
+                        |variable| {
+                            variable.search_value_order_key = ::core::option::Option::Some(#helper);
+                        },
+                    );
+                });
+                runtime_helpers.push(quote! {
+                    fn #runtime_helper(
+                        solution: &#solution_path,
+                        entity_index: usize,
+                        _variable_index: usize,
+                        value: usize,
+                    ) -> ::core::option::Option<i64> {
+                        let entity = #solution_path::#entity_accessor(solution, entity_index);
+                        ::core::option::Option::Some(#path(solution, entity, value))
+                    }
+                });
+                runtime_attachments.push(quote! {
+                    if slot.descriptor_index == #descriptor_index
+                        && slot.variable_name == #variable_name
+                    {
+                        slot = slot.with_search_value_order_key(#runtime_helper);
+                    }
+                });
+            }
         }
 
         if let (Some(variable_name), Some(path)) =

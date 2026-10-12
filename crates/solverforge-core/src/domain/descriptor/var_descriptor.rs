@@ -13,6 +13,8 @@ pub type UsizeNearbyValueDistanceMeter = fn(&dyn Any, usize, usize) -> f64;
 pub type UsizeNearbyEntityDistanceMeter = fn(&dyn Any, usize, usize) -> f64;
 pub type UsizeConstructionEntityOrderKey = fn(&dyn Any, usize) -> i64;
 pub type UsizeConstructionValueOrderKey = fn(&dyn Any, usize, usize) -> i64;
+pub type UsizeSearchEntityOrderKey = fn(&dyn Any, usize) -> i64;
+pub type UsizeSearchValueOrderKey = fn(&dyn Any, usize, usize) -> i64;
 
 // Describes a planning variable at runtime.
 #[derive(Debug, Clone)]
@@ -44,6 +46,8 @@ pub struct VariableDescriptor {
     pub nearby_entity_distance_meter: Option<UsizeNearbyEntityDistanceMeter>,
     pub construction_entity_order_key: Option<UsizeConstructionEntityOrderKey>,
     pub construction_value_order_key: Option<UsizeConstructionValueOrderKey>,
+    pub search_entity_order_key: Option<UsizeSearchEntityOrderKey>,
+    pub search_value_order_key: Option<UsizeSearchValueOrderKey>,
 }
 
 impl VariableDescriptor {
@@ -67,6 +71,8 @@ impl VariableDescriptor {
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
             construction_value_order_key: None,
+            search_entity_order_key: None,
+            search_value_order_key: None,
         }
     }
 
@@ -90,6 +96,8 @@ impl VariableDescriptor {
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
             construction_value_order_key: None,
+            search_entity_order_key: None,
+            search_value_order_key: None,
         }
     }
 
@@ -113,6 +121,8 @@ impl VariableDescriptor {
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
             construction_value_order_key: None,
+            search_entity_order_key: None,
+            search_value_order_key: None,
         }
     }
 
@@ -155,6 +165,8 @@ impl VariableDescriptor {
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
             construction_value_order_key: None,
+            search_entity_order_key: None,
+            search_value_order_key: None,
         }
     }
 

@@ -23,7 +23,8 @@ pub use descriptor::{
     EntityClassId, EntityDescriptor, ProblemFactClassId, ProblemFactDescriptor, SolutionDescriptor,
     UsizeCandidateValues, UsizeConstructionEntityOrderKey, UsizeConstructionValueOrderKey,
     UsizeEntityValueProvider, UsizeGetter, UsizeNearbyEntityDistanceMeter,
-    UsizeNearbyValueDistanceMeter, UsizeSetter, VariableDescriptor, VariableId,
+    UsizeNearbyValueDistanceMeter, UsizeSearchEntityOrderKey, UsizeSearchValueOrderKey,
+    UsizeSetter, VariableDescriptor, VariableId,
 };
 pub use dynamic::{
     DynamicListAccess, DynamicListAccessCapabilities, DynamicListMetadata,

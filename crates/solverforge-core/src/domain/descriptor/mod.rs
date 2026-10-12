@@ -18,7 +18,8 @@ pub use solution::SolutionDescriptor;
 pub use var_descriptor::{
     UsizeCandidateValues, UsizeConstructionEntityOrderKey, UsizeConstructionValueOrderKey,
     UsizeEntityValueProvider, UsizeGetter, UsizeNearbyEntityDistanceMeter,
-    UsizeNearbyValueDistanceMeter, UsizeSetter, VariableDescriptor,
+    UsizeNearbyValueDistanceMeter, UsizeSearchEntityOrderKey, UsizeSearchValueOrderKey,
+    UsizeSetter, VariableDescriptor,
 };
 
 #[cfg(test)]

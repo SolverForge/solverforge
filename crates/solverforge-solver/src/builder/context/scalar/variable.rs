@@ -9,6 +9,8 @@ pub type NearbyValueDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f64
 pub type NearbyEntityDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f64>;
 pub type ConstructionEntityOrderKey<S> = fn(&S, usize, usize) -> Option<i64>;
 pub type ConstructionValueOrderKey<S> = fn(&S, usize, usize, usize) -> Option<i64>;
+pub type SearchEntityOrderKey<S> = fn(&S, usize, usize) -> Option<i64>;
+pub type SearchValueOrderKey<S> = fn(&S, usize, usize, usize) -> Option<i64>;
 
 pub struct ScalarVariableSlot<S> {
     pub descriptor_index: usize,
@@ -27,6 +29,8 @@ pub struct ScalarVariableSlot<S> {
     pub nearby_entity_distance_meter: Option<NearbyEntityDistanceMeter<S>>,
     pub construction_entity_order_key: Option<ConstructionEntityOrderKey<S>>,
     pub construction_value_order_key: Option<ConstructionValueOrderKey<S>>,
+    pub search_entity_order_key: Option<SearchEntityOrderKey<S>>,
+    pub search_value_order_key: Option<SearchValueOrderKey<S>>,
 }
 
 impl<S> Clone for ScalarVariableSlot<S> {
@@ -67,6 +71,8 @@ impl<S> ScalarVariableSlot<S> {
             nearby_entity_distance_meter: None,
             construction_entity_order_key: None,
             construction_value_order_key: None,
+            search_entity_order_key: None,
+            search_value_order_key: None,
         }
     }
 
@@ -111,6 +117,16 @@ impl<S> ScalarVariableSlot<S> {
         order_key: ConstructionValueOrderKey<S>,
     ) -> Self {
         self.construction_value_order_key = Some(order_key);
+        self
+    }
+
+    pub fn with_search_entity_order_key(mut self, order_key: SearchEntityOrderKey<S>) -> Self {
+        self.search_entity_order_key = Some(order_key);
+        self
+    }
+
+    pub fn with_search_value_order_key(mut self, order_key: SearchValueOrderKey<S>) -> Self {
+        self.search_value_order_key = Some(order_key);
         self
     }
 
@@ -267,6 +283,21 @@ impl<S> ScalarVariableSlot<S> {
         self.construction_value_order_key
             .and_then(|order_key| order_key(solution, entity_index, self.variable_index, value))
     }
+
+    pub fn search_entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
+        self.search_entity_order_key
+            .and_then(|order_key| order_key(solution, entity_index, self.variable_index))
+    }
+
+    pub fn search_value_order_key(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value: usize,
+    ) -> Option<i64> {
+        self.search_value_order_key
+            .and_then(|order_key| order_key(solution, entity_index, self.variable_index, value))
+    }
 }
 
 impl<S> fmt::Debug for ScalarVariableSlot<S> {
@@ -302,6 +333,14 @@ impl<S> fmt::Debug for ScalarVariableSlot<S> {
             .field(
                 "has_construction_value_order_key",
                 &self.construction_value_order_key.is_some(),
+            )
+            .field(
+                "has_search_entity_order_key",
+                &self.search_entity_order_key.is_some(),
+            )
+            .field(
+                "has_search_value_order_key",
+                &self.search_value_order_key.is_some(),
             )
             .finish()
     }

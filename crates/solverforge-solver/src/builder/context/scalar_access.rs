@@ -64,6 +64,8 @@ pub enum ScalarAccessCapability {
     NearbyEntity,
     ConstructionEntityOrder,
     ConstructionValueOrder,
+    SearchEntityOrder,
+    SearchValueOrder,
 }
 
 /// Physical payload carrier.  This is the only typed/dynamic distinction
@@ -123,6 +125,12 @@ impl<S> RuntimeScalarSlot<S> {
             (Self::Static(slot), ScalarAccessCapability::ConstructionValueOrder) => {
                 slot.construction_value_order_key.is_some()
             }
+            (Self::Static(slot), ScalarAccessCapability::SearchEntityOrder) => {
+                slot.search_entity_order_key.is_some()
+            }
+            (Self::Static(slot), ScalarAccessCapability::SearchValueOrder) => {
+                slot.search_value_order_key.is_some()
+            }
             (Self::Dynamic(slot), ScalarAccessCapability::NearbyValue) => {
                 slot.has_nearby_value_candidates()
             }
@@ -133,7 +141,9 @@ impl<S> RuntimeScalarSlot<S> {
             // order metadata. It is intentionally not recreated by a wrapper
             // callback or ad hoc model scan.
             (Self::Dynamic(_), ScalarAccessCapability::ConstructionEntityOrder)
-            | (Self::Dynamic(_), ScalarAccessCapability::ConstructionValueOrder) => false,
+            | (Self::Dynamic(_), ScalarAccessCapability::ConstructionValueOrder)
+            | (Self::Dynamic(_), ScalarAccessCapability::SearchEntityOrder)
+            | (Self::Dynamic(_), ScalarAccessCapability::SearchValueOrder) => false,
         }
     }
 
@@ -357,6 +367,25 @@ impl<S> RuntimeScalarSlot<S> {
     ) -> Option<i64> {
         match self {
             Self::Static(slot) => slot.construction_value_order_key(solution, entity_index, value),
+            Self::Dynamic(_) => None,
+        }
+    }
+
+    pub(crate) fn search_entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
+        match self {
+            Self::Static(slot) => slot.search_entity_order_key(solution, entity_index),
+            Self::Dynamic(_) => None,
+        }
+    }
+
+    pub(crate) fn search_value_order_key(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value: usize,
+    ) -> Option<i64> {
+        match self {
+            Self::Static(slot) => slot.search_value_order_key(solution, entity_index, value),
             Self::Dynamic(_) => None,
         }
     }

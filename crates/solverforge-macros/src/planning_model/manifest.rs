@@ -77,6 +77,8 @@ struct HookPaths {
     nearby_entity_distance_meter: Option<syn::Path>,
     construction_entity_order_key: Option<syn::Path>,
     construction_value_order_key: Option<syn::Path>,
+    search_entity_order_key: Option<syn::Path>,
+    search_value_order_key: Option<syn::Path>,
 }
 
 #[derive(Clone)]

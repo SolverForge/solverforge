@@ -78,6 +78,8 @@ const PLANNING_VARIABLE_ARGS: &[AttributeArgSpec] = &[
     AttributeArgSpec::string("nearby_entity_distance_meter"),
     AttributeArgSpec::string("construction_entity_order_key"),
     AttributeArgSpec::string("construction_value_order_key"),
+    AttributeArgSpec::string("search_entity_order_key"),
+    AttributeArgSpec::string("search_value_order_key"),
 ];
 
 const PLANNING_LIST_VARIABLE_ARGS: &[AttributeArgSpec] = &[

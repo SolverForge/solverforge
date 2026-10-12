@@ -153,6 +153,18 @@ fn parse_entity(module: &ModuleSource, item_struct: &ItemStruct) -> Result<Entit
                         &module.ident,
                         field,
                     )?,
+                    search_entity_order_key: parse_hook_path(
+                        attr,
+                        "search_entity_order_key",
+                        &module.ident,
+                        field,
+                    )?,
+                    search_value_order_key: parse_hook_path(
+                        attr,
+                        "search_value_order_key",
+                        &module.ident,
+                        field,
+                    )?,
                 },
             });
         }

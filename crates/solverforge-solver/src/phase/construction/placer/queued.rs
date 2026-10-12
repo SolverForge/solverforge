@@ -32,6 +32,9 @@ where
     _phantom: PhantomData<fn() -> V>,
 }
 
+// Entity visits between wall-clock stop checks inside one placement scan.
+const STOP_POLL_INTERVAL: u64 = 64;
+
 impl<S, V, ES, VS> QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
@@ -250,7 +253,16 @@ where
         IsCompleted: FnMut(&Placement<S, ChangeMove<S, V>, Self::CandidateCursor>) -> bool,
         ShouldStop: FnMut() -> bool,
     {
-        while !should_stop() {
+        // The wall-clock stop check reads the solver clock; iterating every
+        // assigned-away entity through it costs real throughput at scale.
+        // The per-placement poll in the construction phase still enforces
+        // the limit, so this loop batches its own stop checks.
+        let mut visited = 0u64;
+        loop {
+            visited += 1;
+            if visited.is_multiple_of(STOP_POLL_INTERVAL) && should_stop() {
+                return None;
+            }
             let entity_ref = self.entities.next()?;
             if (self.placer.getter)(
                 score_director.working_solution(),
@@ -291,7 +303,6 @@ where
                 return Some(placement);
             }
         }
-        None
     }
 }
 

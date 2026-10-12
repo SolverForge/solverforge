@@ -20,6 +20,8 @@ use crate::stats::{CandidateTraceDisposition, CandidateTracePullToken, Candidate
 use super::{candidate_selector_label, take_trace_token, StepMoveLabelCounts};
 
 const PROGRESS_POLL_INTERVAL: u64 = 256;
+// Candidate iterations between control polls in the step loop.
+const CONTROL_POLL_INTERVAL: u64 = 64;
 
 pub(super) struct CandidateLoopState {
     pub(super) interrupted: bool,
@@ -63,16 +65,26 @@ where
     A: Acceptor<S>,
     Fo: LocalSearchForager<S, M>,
 {
+    // The control poll reads the wall clock; forwarding every candidate
+    // iteration makes it measurable at scale (measured ~9% of wall before
+    // batching). The step loop therefore polls once per batch window; a
+    // stop stays latched, and per-evaluation interruption still runs on
+    // its every-64-evaluations schedule below.
+    let mut control_polls = 0u64;
+    let mut control_latched = false;
     while !forager.is_quit_early() {
-        if state.interrupted || should_interrupt_before_candidate(step_scope) {
-            state.interrupted = true;
+        if state.interrupted {
             break;
         }
-        if step_scope
-            .phase_scope_mut()
-            .solver_scope_mut()
-            .should_terminate()
-        {
+        control_polls += 1;
+        if !control_latched && control_polls.is_multiple_of(CONTROL_POLL_INTERVAL) {
+            control_latched = should_interrupt_before_candidate(step_scope)
+                || step_scope
+                    .phase_scope_mut()
+                    .solver_scope_mut()
+                    .should_terminate();
+        }
+        if control_latched {
             state.interrupted = true;
             break;
         }

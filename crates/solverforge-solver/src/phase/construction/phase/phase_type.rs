@@ -21,6 +21,10 @@ where
     _phantom: PhantomData<fn() -> (S, M)>,
 }
 
+// Candidate-enumeration calls between wall-clock stop checks in the
+// grouped-scalar placement machinery.
+const STOP_POLL_INTERVAL: u64 = 64;
+
 impl<S, M, P, Fo> ConstructionHeuristicPhase<S, M, P, Fo>
 where
     S: PlanningSolution,
@@ -85,13 +89,25 @@ where
 
                 let placement_generation_started = Instant::now();
                 let mut placement_generation_interrupted = false;
+                // The grouped-scalar placement machinery invokes the stop
+                // closure at candidate-enumeration granularity (dozens of
+                // sites per candidate try); forwarding every call to the
+                // solver control poll makes the wall-clock read dominate
+                // construction at scale. A batcher forwards at most once
+                // per poll window, keeping the verdict latched so a stop
+                // seen on any forwarded call stays sticky for the window.
+                let mut stop_polls = 0u64;
+                let mut stop_latched = false;
                 let next_placement = placement_cursor.next_placement(
                     phase_scope.score_director(),
                     |placement| placement_completed(placement, phase_scope.solver_scope()),
                     || {
-                        let should_stop = phase_scope.solver_scope().work_should_stop();
-                        placement_generation_interrupted |= should_stop;
-                        should_stop
+                        stop_polls += 1;
+                        if !stop_latched && stop_polls.is_multiple_of(STOP_POLL_INTERVAL) {
+                            stop_latched = phase_scope.solver_scope().work_should_stop();
+                        }
+                        placement_generation_interrupted |= stop_latched;
+                        stop_latched
                     },
                 );
                 phase_scope.record_generation_time(placement_generation_started.elapsed());

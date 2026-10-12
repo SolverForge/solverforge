@@ -300,6 +300,13 @@ where
     /// calls nest further `JoinNode`s with no fixed ceiling. The continuation
     /// drops the penta's authored filter slot, so apply `.filter(...)` on the
     /// returned chain instead.
+    ///
+    /// # Key shapes
+    ///
+    /// This join also takes VIEW keys, not entity keys: the left key closure
+    /// receives the whole borrowed (A, B, C, D, E) row and the right key
+    /// receives `&Leaf<'_, G>` (read fields via `.entity`). `equal_bi` with
+    /// entity closures does NOT typecheck here (E0631) — use `equal_on`.
     pub fn join<G, EG, P5>(
         self,
         target: (EG, P5),

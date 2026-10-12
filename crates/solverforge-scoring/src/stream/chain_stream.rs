@@ -74,6 +74,18 @@ where
     The target's condition compiles fresh, so its left key receives the whole
     borrowed row (`O::View<'a>`) and `target`'s key domain is independent of
     every earlier relationship.
+
+    # Key shapes
+
+    Later joins of a chain take VIEW keys, not entity keys:
+
+    - left key — the whole borrowed row so far, spelled here as
+      `|row: &O::View<'_>| ...` (e.g. `row.left.entity.key` on a `Pair`)
+    - right key — `|c: &Leaf<'_, B>| c.entity.key`, reading fields via `.entity`
+
+    `equal_bi` with entity closures does NOT typecheck here (E0631, expected
+    a closure over the row view) — use `equal_on`. The first join of a chain
+    keeps `equal_bi` with plain entity keys.
     */
     pub fn join<B, EB, P>(
         self,

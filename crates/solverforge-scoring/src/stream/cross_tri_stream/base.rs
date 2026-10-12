@@ -219,6 +219,18 @@ where
     The target tuple's condition compiles fresh, so its left closure receives
     the whole borrowed (A, B, C) row and the fourth key domain is independent
     of every earlier relationship.
+
+    # Key shapes
+
+    Later joins of a chain take VIEW keys, not entity keys:
+
+    - left key — the whole borrowed row so far (for a Tri this is
+      `&Pair<Pair<Leaf<'_, A>, Leaf<'_, B>>, Leaf<'_, C>>`)
+    - right key — `&Leaf<'_, D>` of the new entity, reading fields via `.entity`
+
+    `equal_bi` with entity closures does NOT typecheck here (E0631, expected
+    `fn(&Pair<...>)`) — use `equal_on`. The first join of a chain keeps
+    `equal_bi` with plain entity keys.
     */
     pub fn join<D, ED, P3>(
         self,

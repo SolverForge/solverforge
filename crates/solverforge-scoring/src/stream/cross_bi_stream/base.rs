@@ -158,6 +158,22 @@ where
     unary joiner (`equal_bi`) is adapted onto the row so the same
     independent-domain tree executes it. Shared-key retention is not
     involved at any depth.
+
+    # Key shapes
+
+    This is the SECOND or later join of a chain, so its keys are view
+    keys, not entity keys:
+
+    - left key — called on the whole borrowed row so far:
+      `|row: &Pair<Leaf<'_, A>, Leaf<'_, B>>| row.left.entity.key`
+      (any earlier binding is reachable through `row.left` / `row.right`)
+    - right key — called on a `Leaf` view of the new entity:
+      `|c: &Leaf<'_, C>| c.entity.key`
+
+    `equal_bi(|a: &A| ..., |b: &B| ...)` does NOT typecheck here (error E0631
+    "expected fn(&'b Pair<Leaf<'a, A>, Leaf<'a, B>>)") — the left row of a
+    later join is the join result, and an ambiguous entity key cannot say
+    WHICH side of a self-join it reads. Use `equal_on`.
     */
     pub fn join<C, EC, P2>(
         self,

@@ -151,7 +151,13 @@ where
         }
     }
 
-    /* Extends this quadruple with a fifth source E. */
+    /* Extends this quadruple with a fifth source E.
+
+    Later joins of a chain take VIEW keys, not entity keys: the left key
+    closure receives the whole borrowed (A, B, C, D) row, the right key
+    receives `&Leaf<'_, E>` and reads fields via `.entity`. `equal_bi` with
+    entity closures does NOT typecheck here (E0631) — use `equal_on`.
+    */
     #[allow(clippy::type_complexity)]
     pub fn join<E, EE, P4>(
         self,

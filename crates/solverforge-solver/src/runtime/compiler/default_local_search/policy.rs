@@ -61,8 +61,8 @@ where
     };
 
     let forager = if has_groups && !has_lists {
-        DefaultLocalSearchForagerPolicy::FirstLastStepScoreImproving {
-            accepted_count_limit: None,
+        DefaultLocalSearchForagerPolicy::AcceptedCount {
+            limit: DEFAULT_LOCAL_SEARCH_ACCEPTED_COUNT,
         }
     } else if has_precedence {
         DefaultLocalSearchForagerPolicy::FirstLastStepScoreImproving {

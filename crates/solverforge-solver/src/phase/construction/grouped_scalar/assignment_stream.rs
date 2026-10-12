@@ -11,6 +11,7 @@ use super::assignment_pair::PairWindowCursor;
 use super::assignment_required_batch::required_batch_move;
 use solverforge_core::fast_hash::FastSet;
 use super::assignment_state::ScalarAssignmentState;
+use super::assignment_value_index::{AssignedValueSequenceIndex, assigned_value_sequence_index};
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 use crate::phase::construction::ConstructionSlotId;
@@ -23,6 +24,10 @@ where
     solution: S,
     options: ScalarAssignmentMoveOptions,
     state: ScalarAssignmentState,
+    // Built lazily on the first value-driven family open of a step; every
+    // candidate build rolls the state back, so the index content is
+    // identical for every open within one step.
+    index_cache: Option<AssignedValueSequenceIndex>,
     batch_required: bool,
     family_slots: Vec<AssignmentFamilySlot>,
     family_pos: usize,
@@ -155,6 +160,7 @@ where
                 })
                 .collect(),
             family_pos: 0,
+            index_cache: None,
             seen: FastSet::default(),
             yielded: 0,
         }
@@ -262,6 +268,24 @@ where
         candidate
     }
 
+    // Builds the assigned value/sequence index once per step; later
+    // value-driven family opens clone it. Builds are pure reads of the
+    // committed solution/state (every candidate build rolls back), so the
+    // content is identical across opens within a step.
+    fn shared_index(&mut self) -> AssignedValueSequenceIndex {
+        if let Some(index) = &self.index_cache {
+            return index.clone();
+        }
+        let index = assigned_value_sequence_index(
+            &self.group,
+            &self.solution,
+            &self.state,
+            self.options,
+        );
+        self.index_cache = Some(index.clone());
+        index
+    }
+
     fn open_family_cursor<ShouldStop>(
         &mut self,
         family: AssignmentMoveFamily,
@@ -304,54 +328,34 @@ where
             AssignmentMoveFamily::PairedReassignment => AssignmentFamilyCursor::PairWindow(
                 PairWindowCursor::paired(&self.group, &self.solution, &self.state, options),
             ),
-            AssignmentMoveFamily::ValueWindowSwap => AssignmentFamilyCursor::ValueWindow(
-                super::assignment_block::ValueWindowCursor::new(
-                    &self.group,
-                    &self.solution,
-                    &self.state,
-                    options,
-                ),
-            ),
-            AssignmentMoveFamily::ValueLongWindowSwap => AssignmentFamilyCursor::ValueLongWindow(
-                super::assignment_block::ValueLongWindowCursor::new(
-                    &self.group,
-                    &self.solution,
-                    &self.state,
-                    options,
-                ),
-            ),
-            AssignmentMoveFamily::ValueRunGapSwap => AssignmentFamilyCursor::ValueRunGapSwap(
-                super::assignment_value_run::ValueRunGapSwapCursor::new(
-                    &self.group,
-                    &self.solution,
-                    &self.state,
-                    options,
-                ),
-            ),
-            AssignmentMoveFamily::ValueRunRelease => AssignmentFamilyCursor::ValueRunRelease(
-                super::assignment_value_release::ValueRunReleaseCursor::new(
-                    &self.group,
-                    &self.solution,
-                    &self.state,
-                    options,
-                ),
-            ),
-            AssignmentMoveFamily::ValueWindowCycle => AssignmentFamilyCursor::ValueWindowCycle(
-                super::assignment_value_cycle::ValueWindowCycleCursor::new(
-                    &self.group,
-                    &self.solution,
-                    &self.state,
-                    options,
-                ),
-            ),
+            AssignmentMoveFamily::ValueWindowSwap => {
+                let index = self.shared_index();
+                AssignmentFamilyCursor::ValueWindow(
+                    super::assignment_block::ValueWindowCursor::new(options, index),
+                )
+            },
+            AssignmentMoveFamily::ValueLongWindowSwap => {
+                let index = self.shared_index();
+                AssignmentFamilyCursor::ValueLongWindow(
+                    super::assignment_block::ValueLongWindowCursor::new(options, index),
+                )
+            },
+            AssignmentMoveFamily::ValueRunGapSwap => {
+                let index = self.shared_index();
+                AssignmentFamilyCursor::ValueRunGapSwap(super::assignment_value_run::ValueRunGapSwapCursor::new(options, index))
+            },
+            AssignmentMoveFamily::ValueRunRelease => {
+                let index = self.shared_index();
+                AssignmentFamilyCursor::ValueRunRelease(super::assignment_value_release::ValueRunReleaseCursor::new(options, index))
+            },
+            AssignmentMoveFamily::ValueWindowCycle => {
+                let index = self.shared_index();
+                AssignmentFamilyCursor::ValueWindowCycle(super::assignment_value_cycle::ValueWindowCycleCursor::new(options, index))
+            },
             AssignmentMoveFamily::ValueBlockReassignment => {
+                let index = self.shared_index();
                 AssignmentFamilyCursor::ValueBlockReassignment(
-                    super::assignment_block::ValueBlockReassignmentCursor::new(
-                        &self.group,
-                        &self.solution,
-                        &self.state,
-                        options,
-                    ),
+                    super::assignment_block::ValueBlockReassignmentCursor::new(options, index),
                 )
             }
             AssignmentMoveFamily::Reassignment => AssignmentFamilyCursor::entity_values(

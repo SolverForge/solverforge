@@ -6,6 +6,7 @@ use super::assignment_state::ScalarAssignmentState;
 use crate::builder::ScalarAssignmentBinding;
 use solverforge_core::fast_hash::{FastMap, FastSet};
 
+#[derive(Clone)]
 pub(super) struct AssignedValueSequenceIndex {
     pub(super) values: Vec<usize>,
     pub(super) sequence_keys: Vec<usize>,

@@ -4,7 +4,7 @@ use solverforge_core::domain::PlanningSolution;
 use super::assignment_candidate::ScalarAssignmentMoveOptions;
 use super::assignment_path::move_from_edits;
 use super::assignment_state::ScalarAssignmentState;
-use super::assignment_value_index::assigned_value_sequence_index;
+use super::assignment_value_index::AssignedValueSequenceIndex;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 use solverforge_core::fast_hash::FastMap;
@@ -36,16 +36,10 @@ struct ValueStep {
 }
 
 impl ValueRunGapSwapCursor {
-    pub(super) fn new<S>(
-        group: &ScalarAssignmentBinding<S>,
-        solution: &S,
-        state: &ScalarAssignmentState,
+    pub(super) fn new(
         options: ScalarAssignmentMoveOptions,
-    ) -> Self
-    where
-        S: PlanningSolution,
-    {
-        let index = assigned_value_sequence_index(group, solution, state, options);
+        index: AssignedValueSequenceIndex,
+    ) -> Self {
         let mut pairs = Vec::new();
         for target in &index.values {
             for source in &index.values {

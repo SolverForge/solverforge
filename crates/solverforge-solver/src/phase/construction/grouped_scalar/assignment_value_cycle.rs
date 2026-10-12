@@ -4,7 +4,7 @@ use solverforge_core::domain::PlanningSolution;
 use super::assignment_candidate::ScalarAssignmentMoveOptions;
 use super::assignment_path::move_from_edits;
 use super::assignment_state::ScalarAssignmentState;
-use super::assignment_value_index::assigned_value_sequence_index;
+use super::assignment_value_index::AssignedValueSequenceIndex;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 use solverforge_core::fast_hash::{FastMap, FastSet};
@@ -27,16 +27,10 @@ struct CycleStep {
 }
 
 impl ValueWindowCycleCursor {
-    pub(super) fn new<S>(
-        group: &ScalarAssignmentBinding<S>,
-        solution: &S,
-        state: &ScalarAssignmentState,
+    pub(super) fn new(
         options: ScalarAssignmentMoveOptions,
-    ) -> Self
-    where
-        S: PlanningSolution,
-    {
-        let index = assigned_value_sequence_index(group, solution, state, options);
+        index: AssignedValueSequenceIndex,
+    ) -> Self {
         let mut triples = Vec::new();
         for first_pos in 0..index.values.len() {
             for second_pos in first_pos + 1..index.values.len() {

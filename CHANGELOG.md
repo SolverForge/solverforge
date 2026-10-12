@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.20.1](https://github.com/SolverForge/solverforge/compare/v0.20.0...v0.20.1) (2026-10-12)
+
+### Bug Fixes
+
+* **scoring,solver:** drop per-candidate allocation from precedence scoring and cycle checks b286c8f
+* **solver:** pool grouped-scalar construction feasibility scratch a0f825f
+
 ## [0.20.0](https://github.com/SolverForge/solverforge/compare/v0.19.14...v0.20.0) (2026-10-12)
 
 ### Features

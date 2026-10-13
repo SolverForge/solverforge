@@ -230,8 +230,7 @@ fn real_gap_swap_releases_an_island_after_filling_the_gap() {
 }
 
 #[test]
-#[ignore = "release-mode coordinate setup/traversal benchmark"]
-fn bench_value_coordinates() {
+fn release_mode_value_coordinates_traversal_is_not_slower_than_eager_order() {
     use std::{hint::black_box, time::Instant};
     fn median(mut run: impl FnMut(usize) -> usize, repeats: usize) -> f64 {
         let mut samples = Vec::new();
@@ -289,6 +288,14 @@ fn bench_value_coordinates() {
                 kind == ValuePairKind::Directed,
                 after / before
             );
+            // The lazy cursor replaces eager tuple collection plus ordering, so its
+            // traversal must stay at or below that cost in release builds.
+            #[cfg(not(debug_assertions))]
+            assert!(
+                after <= before * 1.15,
+                "lazy pair traversal must not exceed eager materialization (ratio={:.3})",
+                after / before
+            );
         }
     }
     for n in [16, 64] {
@@ -327,6 +334,14 @@ fn bench_value_coordinates() {
         );
         println!(
             "cycle n={n} before_ns={before:.3} after_ns={after:.3} ratio={:.3}",
+            after / before
+        );
+        // The lazy cursor must not pay for its laziness: traversal stays at or
+        // below the eager-order materialization cost in release builds.
+        #[cfg(not(debug_assertions))]
+        assert!(
+            after <= before * 1.15,
+            "lazy cycle traversal must not exceed eager materialization (ratio={:.3})",
             after / before
         );
     }

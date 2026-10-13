@@ -161,7 +161,10 @@ where
         let entities = self
             .entity_selector
             .iter(score_director)
-            .map(|reference| reference.entity_index)
+            .map(|reference| {
+                let entity = reference.entity_index;
+                (entity, (self.list_len)(solution, entity))
+            })
             .collect();
         NearbyKOptMoveCursor::new(NearbyKOptCursor::new(
             NativeKOptEmitter::new(
@@ -172,14 +175,12 @@ where
                 self.variable_name,
                 self.descriptor_index,
             ),
-            solution.clone(),
             &self.distance_meter,
             entities,
             self.config.k,
             self.config.min_segment_len,
             self.max_nearby,
             &self.patterns,
-            self.list_len,
             context,
             self.descriptor_index,
         ))

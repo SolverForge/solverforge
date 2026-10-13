@@ -20,7 +20,6 @@ where
 {
     store: CandidateStore<S, E::Move>,
     emitter: E,
-    solution: S,
     distance: P,
     entity_lens: Vec<(usize, usize)>,
     entity_offset: usize,
@@ -44,21 +43,16 @@ where
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         emitter: E,
-        solution: S,
         distance: P,
-        entities: Vec<usize>,
+        entities: Vec<(usize, usize)>,
         k: usize,
         min_segment_len: usize,
         max_nearby: usize,
         patterns: &'a [KOptReconnection],
-        route_len: impl Fn(&S, usize) -> usize,
         context: MoveStreamContext,
         descriptor_index: usize,
     ) -> Self {
-        let mut entity_lens = entities
-            .into_iter()
-            .map(|entity| (entity, route_len(&solution, entity)))
-            .collect::<Vec<_>>();
+        let mut entity_lens = entities;
         context.apply_selection_order_without_replacement(
             &mut entity_lens,
             0x4B0F_7E11_72EA_0003 ^ descriptor_index as u64,
@@ -66,7 +60,6 @@ where
         Self {
             store: CandidateStore::new(),
             emitter,
-            solution,
             distance,
             entity_lens,
             entity_offset: 0,
@@ -109,7 +102,7 @@ where
     E: KOptEmitter<S>,
     P: KOptDistanceProbe<S>,
 {
-    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
         loop {
             if let Some(cuts) = self.pending_cuts.as_ref() {
                 if self.pattern_offset < self.patterns.len() {
@@ -135,7 +128,7 @@ where
                 return None;
             }
             if let Some(state) = self.cut_state.as_mut() {
-                if let Some(mut cuts) = state.next_cuts(&self.solution, &self.distance) {
+                if let Some(mut cuts) = state.next_cuts(solution, &self.distance) {
                     cuts.sort_by_key(|cut| cut.position());
                     self.pending_cuts = Some(cuts);
                     self.pattern_offset = 0;

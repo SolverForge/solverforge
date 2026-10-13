@@ -425,18 +425,17 @@ where
             min_segment_len,
             max_nearby,
         } => {
-            let entities = (0..ListAccess::entity_count(&slot, solution)).collect();
-            let length_slot = slot.clone();
+            let entities = (0..ListAccess::entity_count(&slot, solution))
+                .map(|entity| (entity, ListAccess::list_len(&slot, solution, entity)))
+                .collect();
             RuntimeListSlotCursor::NearbyKOpt(NearbyKOptCursor::new(
                 RuntimeListEmitter::new(slot.clone(), false),
-                (*solution).clone(),
                 RuntimeKOptProbe::new(slot),
                 entities,
                 k,
                 min_segment_len,
                 max_nearby,
                 kopt_patterns,
-                move |solution, entity| ListAccess::list_len(&length_slot, solution, entity),
                 context,
                 descriptor_index,
             ))

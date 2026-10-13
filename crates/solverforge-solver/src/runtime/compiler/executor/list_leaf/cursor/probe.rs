@@ -14,26 +14,23 @@ use crate::heuristic::selector::precedence_route::{
 use crate::list_placement::OwnerRestriction;
 
 /// Immutable nearby probe over the one compiled list carrier.
-#[derive(Clone)]
-pub(super) struct RuntimeNearbyProbe<S, V, DM, IDM> {
-    slot: RuntimeListSlot<S, V, DM, IDM>,
+pub(super) struct RuntimeNearbyProbe<'a, S, V, DM, IDM> {
+    slot: &'a RuntimeListSlot<S, V, DM, IDM>,
 }
 
-/// Owned intra-route metric probe for nearby K-opt. Keeping the slot owned
-/// avoids a self-referential cursor while preserving one runtime access path.
-#[derive(Clone)]
-pub(super) struct RuntimeKOptProbe<S, V, DM, IDM> {
-    slot: RuntimeListSlot<S, V, DM, IDM>,
+/// Intra-route metric probe borrowed from the immutable selector declaration.
+pub(super) struct RuntimeKOptProbe<'a, S, V, DM, IDM> {
+    slot: &'a RuntimeListSlot<S, V, DM, IDM>,
 }
 
-impl<S, V, DM, IDM> RuntimeKOptProbe<S, V, DM, IDM> {
-    pub(super) fn new(slot: RuntimeListSlot<S, V, DM, IDM>) -> Self {
+impl<'a, S, V, DM, IDM> RuntimeKOptProbe<'a, S, V, DM, IDM> {
+    pub(super) fn new(slot: &'a RuntimeListSlot<S, V, DM, IDM>) -> Self {
         Self { slot }
     }
 }
 
 impl<S, V, DM, IDM> crate::heuristic::selector::list_kernel::KOptDistanceProbe<S>
-    for RuntimeKOptProbe<S, V, DM, IDM>
+    for RuntimeKOptProbe<'_, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
@@ -41,18 +38,18 @@ where
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
     fn distance(&self, solution: &S, entity: usize, from: usize, to: usize) -> f64 {
-        ListAccess::intra_position_distance(&self.slot, solution, entity, from, to)
+        ListAccess::intra_position_distance(self.slot, solution, entity, from, to)
             .expect("compiled nearby K-opt requires validated intra-position distance")
     }
 }
 
-impl<S, V, DM, IDM> RuntimeNearbyProbe<S, V, DM, IDM> {
-    pub(super) fn new(slot: RuntimeListSlot<S, V, DM, IDM>) -> Self {
+impl<'a, S, V, DM, IDM> RuntimeNearbyProbe<'a, S, V, DM, IDM> {
+    pub(super) fn new(slot: &'a RuntimeListSlot<S, V, DM, IDM>) -> Self {
         Self { slot }
     }
 }
 
-impl<S, V, DM, IDM> fmt::Debug for RuntimeNearbyProbe<S, V, DM, IDM>
+impl<S, V, DM, IDM> fmt::Debug for RuntimeNearbyProbe<'_, S, V, DM, IDM>
 where
     RuntimeListSlot<S, V, DM, IDM>: fmt::Debug,
 {
@@ -64,7 +61,7 @@ where
     }
 }
 
-impl<S, V, DM, IDM> RuntimeNearbyProbe<S, V, DM, IDM>
+impl<S, V, DM, IDM> RuntimeNearbyProbe<'_, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
@@ -81,9 +78,9 @@ where
         if !self.slot.ownership_policy().is_explicit() {
             return None;
         }
-        let element = ListAccess::list_get(&self.slot, solution, entity, position)?;
+        let element = ListAccess::list_get(self.slot, solution, entity, position)?;
         Some(owner_restriction(
-            &self.slot,
+            self.slot,
             solution,
             entity_count,
             &element,
@@ -92,7 +89,7 @@ where
 }
 
 impl<S, V, DM, IDM> crate::heuristic::selector::list_kernel::NearbyChangeProbe<S>
-    for RuntimeNearbyProbe<S, V, DM, IDM>
+    for RuntimeNearbyProbe<'_, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
@@ -108,7 +105,7 @@ where
         destination_position: usize,
     ) -> f64 {
         ListAccess::cross_position_distance(
-            &self.slot,
+            self.slot,
             solution,
             source_entity,
             source_position,
@@ -134,7 +131,7 @@ where
 }
 
 impl<S, V, DM, IDM> crate::heuristic::selector::list_kernel::NearbySwapProbe<S>
-    for RuntimeNearbyProbe<S, V, DM, IDM>
+    for RuntimeNearbyProbe<'_, S, V, DM, IDM>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,

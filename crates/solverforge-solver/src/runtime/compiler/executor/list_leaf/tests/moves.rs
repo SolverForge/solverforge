@@ -196,25 +196,33 @@ fn cursor_setup_and_enumeration_never_clone_solutions() {
 
 #[test]
 fn candidate_enumeration_never_clones_full_slot_meters() {
-    let selector = selector(ListLeafKind::Change, static_slot(), Some(71));
-    let score_director = director(initial_plan());
-    let mut stream_state = selector.new_stream_state();
-    reset_meter_clones();
+    for kind in ALL_KINDS {
+        let selector = selector(kind, static_slot_for(kind), Some(71));
+        let score_director = director(initial_plan());
+        let mut stream_state = selector.new_stream_state();
+        reset_meter_clones();
 
-    let mut cursor = selector.open_cursor_with_stream_state(
-        &mut stream_state,
-        &score_director,
-        crate::heuristic::selector::move_selector::MoveStreamContext::default(),
-    );
-    let setup_clones = meter_clones();
-    assert_eq!(setup_clones, 2, "the cursor clones each plan meter once");
+        let mut cursor = selector.open_cursor_with_stream_state(
+            &mut stream_state,
+            &score_director,
+            crate::heuristic::selector::move_selector::MoveStreamContext::default(),
+        );
+        assert_eq!(
+            meter_clones(),
+            0,
+            "{kind:?} cursor setup borrows plan meters"
+        );
 
-    while let Some(id) = cursor.next_candidate(score_director.working_solution()) {
-        assert!(cursor.release_candidate(id));
+        let mut count = 0;
+        while let Some(id) = cursor.next_candidate(score_director.working_solution()) {
+            assert!(cursor.release_candidate(id));
+            count += 1;
+        }
+        assert!(count > 0, "{kind:?} exercises candidate enumeration");
+        assert_eq!(
+            meter_clones(),
+            0,
+            "{kind:?} enumeration borrows plan meters"
+        );
     }
-    assert_eq!(
-        meter_clones(),
-        setup_clones,
-        "candidate moves retain meter-free access instead of cloning the full slot"
-    );
 }

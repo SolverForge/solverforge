@@ -73,7 +73,6 @@ where
             .plan
             .slots
             .iter()
-            .cloned()
             .enumerate()
             .map(|(slot_index, slot)| {
                 open_slot_cursor(

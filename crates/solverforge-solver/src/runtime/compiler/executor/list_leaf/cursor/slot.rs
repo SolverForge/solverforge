@@ -36,20 +36,33 @@ where
 {
     Change(ChangeCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
     NearbyChange(
-        NearbyChangeCursor<S, RuntimeListEmitter<S, V, DM, IDM>, RuntimeNearbyProbe<S, V, DM, IDM>>,
+        NearbyChangeCursor<
+            S,
+            RuntimeListEmitter<S, V, DM, IDM>,
+            RuntimeNearbyProbe<'a, S, V, DM, IDM>,
+        >,
     ),
     Swap(SwapCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
     Permute(PermuteCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
     Precedence(PrecedenceCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
     NearbySwap(
-        NearbySwapCursor<S, RuntimeListEmitter<S, V, DM, IDM>, RuntimeNearbyProbe<S, V, DM, IDM>>,
+        NearbySwapCursor<
+            S,
+            RuntimeListEmitter<S, V, DM, IDM>,
+            RuntimeNearbyProbe<'a, S, V, DM, IDM>,
+        >,
     ),
     SublistChange(SublistChangeCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
     SublistSwap(SublistSwapCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
     Reverse(ReverseCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
     KOpt(KOptCursor<'a, S, RuntimeListEmitter<S, V, DM, IDM>>),
     NearbyKOpt(
-        NearbyKOptCursor<'a, S, RuntimeListEmitter<S, V, DM, IDM>, RuntimeKOptProbe<S, V, DM, IDM>>,
+        NearbyKOptCursor<
+            'a,
+            S,
+            RuntimeListEmitter<S, V, DM, IDM>,
+            RuntimeKOptProbe<'a, S, V, DM, IDM>,
+        >,
     ),
     Ruin(RuinCursor<S, RuntimeListEmitter<S, V, DM, IDM>>),
     Empty,
@@ -174,7 +187,7 @@ where
 #[allow(clippy::too_many_arguments)]
 pub(super) fn open_slot_cursor<'a, S, V, DM, IDM>(
     spec: RuntimeListNeighborhoodSpec,
-    slot: RuntimeListSlot<S, V, DM, IDM>,
+    slot: &'a RuntimeListSlot<S, V, DM, IDM>,
     solution: &S,
     context: MoveStreamContext,
     kopt_patterns: &'a [KOptReconnection],
@@ -188,7 +201,7 @@ where
     IDM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
 {
     let descriptor_index = slot.descriptor_index();
-    let precedence_route_graph = runtime_precedence_graph(&slot, solution);
+    let precedence_route_graph = runtime_precedence_graph(slot, solution);
     // Only list-change has a public dynamic selector. Its
     // salt profile is preserved below. Dynamic bindings for the other list
     // families are newly exposed by this compiled leaf and intentionally use
@@ -199,20 +212,20 @@ where
             // profile as data. Every other operation remains a single common
             // implementation; this only preserves the already-public seeded
             // order of DynamicListChangeMoveSelector.
-            let salts = match &slot {
+            let salts = match slot {
                 RuntimeListSlot::Static { .. } => STATIC_CHANGE_SALTS,
                 RuntimeListSlot::Dynamic(_) => DYNAMIC_CHANGE_SALTS,
             };
             let (entities, route_lens) = selected_entities(
-                &slot,
+                slot,
                 solution,
                 context,
                 Some(salts.entity ^ descriptor_index as u64),
             );
-            let owners = runtime_selected_owners(&slot, solution, &entities, &route_lens);
+            let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
             RuntimeListSlotCursor::Change(
                 ChangeCursor::new(
-                    RuntimeListEmitter::new(&slot, false),
+                    RuntimeListEmitter::new(slot, false),
                     entities,
                     route_lens,
                     context,
@@ -225,16 +238,16 @@ where
         }
         RuntimeListNeighborhoodSpec::NearbyChange { max_nearby } => {
             let (entities, route_lens) = selected_entities(
-                &slot,
+                slot,
                 solution,
                 context,
                 Some(STATIC_NEARBY_CHANGE_ENTITY_SALT ^ descriptor_index as u64),
             );
-            let owners = runtime_selected_owners(&slot, solution, &entities, &route_lens);
-            let entity_count = ListAccess::entity_count(&slot, solution);
+            let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
+            let entity_count = ListAccess::entity_count(slot, solution);
             RuntimeListSlotCursor::NearbyChange(
                 NearbyChangeCursor::new(
-                    RuntimeListEmitter::new(&slot, false),
+                    RuntimeListEmitter::new(slot, false),
                     RuntimeNearbyProbe::new(slot),
                     entities,
                     route_lens,
@@ -250,15 +263,15 @@ where
         }
         RuntimeListNeighborhoodSpec::Swap => {
             let (entities, route_lens) = selected_entities(
-                &slot,
+                slot,
                 solution,
                 context,
                 Some(STATIC_SWAP_SALTS.entity ^ descriptor_index as u64),
             );
-            let owners = runtime_selected_owners(&slot, solution, &entities, &route_lens);
+            let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
             RuntimeListSlotCursor::Swap(
                 SwapCursor::new(
-                    RuntimeListEmitter::new(&slot, false),
+                    RuntimeListEmitter::new(slot, false),
                     entities,
                     route_lens,
                     context,
@@ -274,15 +287,15 @@ where
             max_window_size,
         } => {
             let (entities, route_lens) = selected_entities(
-                &slot,
+                slot,
                 solution,
                 context,
                 Some(0x91D7_9E8A_0000_0001 ^ descriptor_index as u64),
             );
-            let owners = runtime_selected_owners(&slot, solution, &entities, &route_lens);
+            let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
             RuntimeListSlotCursor::Permute(
                 PermuteCursor::new(
-                    RuntimeListEmitter::new(&slot, false),
+                    RuntimeListEmitter::new(slot, false),
                     entities,
                     route_lens,
                     context,
@@ -296,7 +309,7 @@ where
         }
         RuntimeListNeighborhoodSpec::Precedence => {
             let Some(analysis) =
-                runtime_precedence_analysis(&slot, solution, precedence_route_graph)
+                runtime_precedence_analysis(slot, solution, precedence_route_graph)
             else {
                 return RuntimeListSlotCursor::Empty;
             };
@@ -304,22 +317,22 @@ where
                 analysis.blocks,
                 analysis.route_graph,
                 context,
-                RuntimeListEmitter::new(&slot, false),
+                RuntimeListEmitter::new(slot, false),
                 descriptor_index,
             ))
         }
         RuntimeListNeighborhoodSpec::NearbySwap { max_nearby } => {
             let (entities, route_lens) = selected_entities(
-                &slot,
+                slot,
                 solution,
                 context,
                 Some(STATIC_NEARBY_SWAP_ENTITY_SALT ^ descriptor_index as u64),
             );
-            let owners = runtime_selected_owners(&slot, solution, &entities, &route_lens);
-            let entity_count = ListAccess::entity_count(&slot, solution);
+            let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
+            let entity_count = ListAccess::entity_count(slot, solution);
             RuntimeListSlotCursor::NearbySwap(
                 NearbySwapCursor::new(
-                    RuntimeListEmitter::new(&slot, false),
+                    RuntimeListEmitter::new(slot, false),
                     RuntimeNearbyProbe::new(slot),
                     entities,
                     route_lens,
@@ -338,15 +351,15 @@ where
             max_sublist_size,
         } => {
             let (entities, route_lens) = selected_entities(
-                &slot,
+                slot,
                 solution,
                 context,
                 Some(STATIC_SUBLIST_CHANGE_SALTS.entity ^ descriptor_index as u64),
             );
-            let owners = runtime_selected_owners(&slot, solution, &entities, &route_lens);
+            let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
             RuntimeListSlotCursor::SublistChange(
                 SublistChangeCursor::new(
-                    RuntimeListEmitter::new(&slot, false),
+                    RuntimeListEmitter::new(slot, false),
                     entities,
                     route_lens,
                     context,
@@ -364,15 +377,15 @@ where
             max_sublist_size,
         } => {
             let (entities, route_lens) = selected_entities(
-                &slot,
+                slot,
                 solution,
                 context,
                 Some(STATIC_SUBLIST_SWAP_ENTITY_SALT ^ descriptor_index as u64),
             );
-            let owners = runtime_selected_owners(&slot, solution, &entities, &route_lens);
+            let owners = runtime_selected_owners(slot, solution, &entities, &route_lens);
             RuntimeListSlotCursor::SublistSwap(
                 SublistSwapCursor::new(
-                    RuntimeListEmitter::new(&slot, false),
+                    RuntimeListEmitter::new(slot, false),
                     entities,
                     route_lens,
                     context,
@@ -386,14 +399,14 @@ where
         }
         RuntimeListNeighborhoodSpec::Reverse => {
             let (entities, route_lens) = selected_entities(
-                &slot,
+                slot,
                 solution,
                 context,
                 Some(STATIC_REVERSE_ENTITY_SALT ^ descriptor_index as u64),
             );
             RuntimeListSlotCursor::Reverse(
                 ReverseCursor::new(
-                    RuntimeListEmitter::new(&slot, false),
+                    RuntimeListEmitter::new(slot, false),
                     entities,
                     route_lens,
                     context,
@@ -407,11 +420,11 @@ where
             min_segment_len,
             max_nearby: 0,
         } => {
-            let entities = (0..ListAccess::entity_count(&slot, solution))
-                .map(|entity| (entity, ListAccess::list_len(&slot, solution, entity)))
+            let entities = (0..ListAccess::entity_count(slot, solution))
+                .map(|entity| (entity, ListAccess::list_len(slot, solution, entity)))
                 .collect();
             RuntimeListSlotCursor::KOpt(KOptCursor::new(
-                RuntimeListEmitter::new(&slot, false),
+                RuntimeListEmitter::new(slot, false),
                 entities,
                 k,
                 min_segment_len,
@@ -425,11 +438,11 @@ where
             min_segment_len,
             max_nearby,
         } => {
-            let entities = (0..ListAccess::entity_count(&slot, solution))
-                .map(|entity| (entity, ListAccess::list_len(&slot, solution, entity)))
+            let entities = (0..ListAccess::entity_count(slot, solution))
+                .map(|entity| (entity, ListAccess::list_len(slot, solution, entity)))
                 .collect();
             RuntimeListSlotCursor::NearbyKOpt(NearbyKOptCursor::new(
-                RuntimeListEmitter::new(&slot, false),
+                RuntimeListEmitter::new(slot, false),
                 RuntimeKOptProbe::new(slot),
                 entities,
                 k,
@@ -450,9 +463,9 @@ where
             let Some(seed) = ruin_seed else {
                 return RuntimeListSlotCursor::Empty;
             };
-            let source_pool = runtime_ruin_source_pool(&slot, solution, max_source_list_len);
+            let source_pool = runtime_ruin_source_pool(slot, solution, max_source_list_len);
             RuntimeListSlotCursor::Ruin(RuinCursor::new(
-                RuntimeListEmitter::new(&slot, skip_empty_destinations),
+                RuntimeListEmitter::new(slot, skip_empty_destinations),
                 SmallRng::seed_from_u64(seed),
                 source_pool,
                 moves_per_step,

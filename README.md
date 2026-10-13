@@ -170,10 +170,13 @@ ConstraintFactory::<Schedule, HardSoftScore>::new()
 ```
 
 Collectors retain mapped values by ownership. The same collector protocol covers
-unary rows and joined pairs: direct cross-join grouping passes `(&A, &B)` to the
-collector mapper, while both direct cross-join grouped streams and projected
-grouped streams can continue into `complement(...)` for supply/demand-style
-scoring. `collect_vec` exposes a
+unary rows and joined tuples. `Tri`, `Quad`, and `Penta` cross streams and the
+same-source arity streams expose `.group_by(key, collector)`: the key receives
+three, four, or five entity arguments, and the collector mapper receives the
+corresponding borrowed tuple. Grouped scoring weights receive `(&key, &result)`.
+Upstream filters remain binding during full and incremental scoring. Direct
+cross-join grouped pairs and projected grouped streams can continue into
+`complement(...)` for supply/demand-style scoring. `collect_vec` exposes a
 `CollectedVec<T>` result view, so grouped payloads such as `String` labels do
 not need `Copy`, `Clone`, or `PartialEq` just to be collected.
 

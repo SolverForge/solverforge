@@ -7,7 +7,7 @@ domain stays independent. One uniform `.join()` on the Bi stream builds
 it — no per-arity engine, no shared-key retention at any depth.
 */
 
-mod base;
+pub(crate) mod base;
 
 pub(crate) use base::assemble_tri;
 pub use base::Tri;

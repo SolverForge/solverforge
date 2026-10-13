@@ -1,13 +1,29 @@
 use solverforge_config::SelectionOrder;
 
-pub struct MoveSelectorIter<S, M, C>
+pub struct MoveSelectorIter<'a, S, M, C>
 where
     S: PlanningSolution,
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
     cursor: C,
-    _phantom: PhantomData<(fn() -> S, fn() -> M)>,
+    solution: &'a S,
+    _phantom: PhantomData<fn() -> M>,
+}
+
+impl<'a, S, M, C> MoveSelectorIter<'a, S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    C: MoveCursor<S, M>,
+{
+    fn new(cursor: C, solution: &'a S) -> Self {
+        Self {
+            cursor,
+            solution,
+            _phantom: PhantomData,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -206,21 +222,7 @@ fn gcd(mut left: usize, mut right: usize) -> usize {
     left
 }
 
-impl<S, M, C> MoveSelectorIter<S, M, C>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    C: MoveCursor<S, M>,
-{
-    fn new(cursor: C) -> Self {
-        Self {
-            cursor,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<S, M, C> Iterator for MoveSelectorIter<S, M, C>
+impl<'a, S, M, C> Iterator for MoveSelectorIter<'a, S, M, C>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -230,7 +232,7 @@ where
 
     #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
-        self.cursor.next_owned_candidate()
+        self.cursor.next_owned_candidate(self.solution)
     }
 }
 
@@ -257,18 +259,22 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
     /// configuration errors retain their cursor-open timing.
     fn validate_cursor<D: Director<S>>(&self, _score_director: &D) {}
 
-    fn iter_moves<'a, D: Director<S>>(
+    fn iter_moves<'a, 'd, D: Director<S>>(
         &'a self,
-        score_director: &D,
-    ) -> MoveSelectorIter<S, M, Self::Cursor<'a>> {
-        MoveSelectorIter::new(self.open_cursor(score_director))
+        score_director: &'d D,
+    ) -> MoveSelectorIter<'d, S, M, Self::Cursor<'a>> {
+        MoveSelectorIter::new(
+            self.open_cursor(score_director),
+            score_director.working_solution(),
+        )
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
     fn append_moves<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>) {
         let mut cursor = self.open_cursor(score_director);
-        for id in collect_cursor_indices::<S, M, _>(&mut cursor) {
+        let solution = score_director.working_solution();
+        for id in collect_cursor_indices::<S, M, _>(&mut cursor, solution) {
             arena.push(cursor.take_candidate(id));
         }
     }

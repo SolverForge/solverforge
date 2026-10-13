@@ -57,8 +57,8 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        self.inner.next_candidate()
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.inner.next_candidate(solution)
     }
     fn candidate(
         &self,
@@ -69,28 +69,19 @@ where
     fn take_candidate(&mut self, id: CandidateId) -> SublistChangeMove<S, V> {
         self.inner.take_candidate(id)
     }
-    fn next_owned_candidate(&mut self) -> Option<SublistChangeMove<S, V>> {
-        self.inner.next_owned_candidate()
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<SublistChangeMove<S, V>> {
+        self.inner.next_owned_candidate(solution)
     }
     fn next_owned_candidate_matching(
         &mut self,
+        solution: &S,
         predicate: for<'a> fn(MoveCandidateRef<'a, S, SublistChangeMove<S, V>>) -> bool,
     ) -> Option<SublistChangeMove<S, V>> {
-        self.inner.next_owned_candidate_matching(predicate)
+        self.inner
+            .next_owned_candidate_matching(solution, predicate)
     }
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.inner.release_candidate(id)
-    }
-}
-
-impl<S, V> Iterator for SublistChangeMoveCursor<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-{
-    type Item = SublistChangeMove<S, V>;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }
 

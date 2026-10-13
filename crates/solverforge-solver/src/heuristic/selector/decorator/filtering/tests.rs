@@ -95,8 +95,10 @@ fn filters_cartesian_candidates_without_materializing_the_full_stream() {
     let filtered = FilteringMoveSelector::new(cartesian, keep_first_value_10);
 
     let mut cursor = filtered.open_cursor(&director);
-    let indices =
-        collect_cursor_indices::<TaskSolution, ScalarMoveUnion<TaskSolution, i32>, _>(&mut cursor);
+    let indices = collect_cursor_indices::<TaskSolution, ScalarMoveUnion<TaskSolution, i32>, _>(
+        &mut cursor,
+        director.working_solution(),
+    );
 
     assert!(indices.len() >= 2);
     assert!(indices.iter().all(|&index| {

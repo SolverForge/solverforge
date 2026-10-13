@@ -41,8 +41,8 @@ impl<S> MoveCursor<S, DynamicListChangeMove<S>> for DynamicListChangeMoveCursor<
 where
     S: PlanningSolution,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        self.inner.next_candidate()
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.inner.next_candidate(solution)
     }
 
     fn candidate(
@@ -56,30 +56,21 @@ where
         self.inner.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self) -> Option<DynamicListChangeMove<S>> {
-        self.inner.next_owned_candidate()
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<DynamicListChangeMove<S>> {
+        self.inner.next_owned_candidate(solution)
     }
 
     fn next_owned_candidate_matching(
         &mut self,
+        solution: &S,
         predicate: for<'a> fn(MoveCandidateRef<'a, S, DynamicListChangeMove<S>>) -> bool,
     ) -> Option<DynamicListChangeMove<S>> {
-        self.inner.next_owned_candidate_matching(predicate)
+        self.inner
+            .next_owned_candidate_matching(solution, predicate)
     }
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.inner.release_candidate(id)
-    }
-}
-
-impl<S> Iterator for DynamicListChangeMoveCursor<S>
-where
-    S: PlanningSolution,
-{
-    type Item = DynamicListChangeMove<S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }
 
@@ -167,8 +158,9 @@ where
         score_director: &D,
         arena: &mut MoveArena<DynamicListChangeMove<S>>,
     ) {
+        let solution = score_director.working_solution();
         let mut cursor = self.open_cursor(score_director);
-        while let Some(id) = cursor.next_candidate() {
+        while let Some(id) = cursor.next_candidate(solution) {
             arena.push(cursor.take_candidate(id));
         }
     }

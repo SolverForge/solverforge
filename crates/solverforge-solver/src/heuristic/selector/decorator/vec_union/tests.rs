@@ -82,6 +82,10 @@ impl Director<TestSolution> for TestDirector {
     }
 }
 
+fn blank_solution() -> TestSolution {
+    TestSolution { score: None }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct TestMove(i32);
 
@@ -136,7 +140,7 @@ impl TestCursor {
 }
 
 impl MoveCursor<TestSolution, TestMove> for TestCursor {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &TestSolution) -> Option<CandidateId> {
         if self.next_index >= self.count {
             return None;
         }
@@ -154,9 +158,12 @@ impl MoveCursor<TestSolution, TestMove> for TestCursor {
     }
 }
 
-fn drain_values(mut cursor: VecUnionMoveCursor<TestSolution, TestMove, TestCursor>) -> Vec<i32> {
+fn drain_values(
+    mut cursor: VecUnionMoveCursor<TestSolution, TestMove, TestCursor>,
+    solution: &TestSolution,
+) -> Vec<i32> {
     let mut values = Vec::new();
-    while let Some(id) = cursor.next_candidate() {
+    while let Some(id) = cursor.next_candidate(solution) {
         values.push(cursor.take_candidate(id).0);
     }
     values
@@ -210,7 +217,10 @@ fn sequential_drains_each_child_before_next_child() {
         vec![1; 2],
     );
 
-    assert_eq!(drain_values(cursor), vec![1, 2, 3, 10, 11]);
+    assert_eq!(
+        drain_values(cursor, &blank_solution()),
+        vec![1, 2, 3, 10, 11]
+    );
 }
 
 #[test]
@@ -227,7 +237,10 @@ fn round_robin_interleaves_uneven_child_lengths_and_skips_empty_children() {
         vec![1; 4],
     );
 
-    assert_eq!(drain_values(cursor), vec![1, 10, 20, 2, 21, 3]);
+    assert_eq!(
+        drain_values(cursor, &blank_solution()),
+        vec![1, 10, 20, 2, 21, 3]
+    );
 }
 
 #[test]
@@ -239,9 +252,9 @@ fn round_robin_candidates_remain_borrowable_and_takeable_after_interleaving() {
         vec![1; 2],
     );
 
-    let first = cursor.next_candidate().unwrap();
-    let second = cursor.next_candidate().unwrap();
-    let third = cursor.next_candidate().unwrap();
+    let first = cursor.next_candidate(&blank_solution()).unwrap();
+    let second = cursor.next_candidate(&blank_solution()).unwrap();
+    let third = cursor.next_candidate(&blank_solution()).unwrap();
 
     assert_eq!(cursor.selector_index(first), Some(0));
     assert_eq!(cursor.selector_index(second), Some(1));
@@ -273,7 +286,7 @@ fn rotating_round_robin_uses_stream_context_offset_without_changing_child_order(
         2 => vec![20, 1, 10, 21, 2, 11],
         _ => unreachable!(),
     };
-    assert_eq!(drain_values(cursor), expected);
+    assert_eq!(drain_values(cursor, &blank_solution()), expected);
 }
 
 #[test]
@@ -289,7 +302,7 @@ fn stratified_random_keeps_each_child_live_without_materializing_child_moves() {
         vec![1; 3],
     );
 
-    let values = drain_values(cursor);
+    let values = drain_values(cursor, &blank_solution());
     assert_eq!(values.len(), 6);
     assert!(values.contains(&1));
     assert!(values.contains(&10));
@@ -391,10 +404,11 @@ impl ResourceTestCursor {
 impl ResourceMoveCursor<TestSolution, TestMove, Vec<&'static str>> for ResourceTestCursor {
     fn next_candidate_with_resources(
         &mut self,
+        _solution: &TestSolution,
         reasons: &mut Vec<&'static str>,
     ) -> Option<CandidateId> {
         self.pulls.set(self.pulls.get() + 1);
-        let candidate = self.inner.next_candidate()?;
+        let candidate = self.inner.next_candidate(_solution)?;
         if !reasons.contains(&self.reason) {
             reasons.push(self.reason);
         }
@@ -442,7 +456,7 @@ fn resource_union_lends_one_reason_store_only_to_reached_children() {
     let mut reasons = Vec::new();
 
     let first = cursor
-        .next_candidate_with_resources(&mut reasons)
+        .next_candidate_with_resources(&blank_solution(), &mut reasons)
         .expect("first candidate");
     assert_eq!(cursor.take_candidate(first), TestMove(1));
 
@@ -469,7 +483,7 @@ fn resource_union_preserves_round_robin_order_and_shared_reason_interning() {
     );
     let mut reasons = Vec::new();
     let mut values = Vec::new();
-    while let Some(id) = cursor.next_candidate_with_resources(&mut reasons) {
+    while let Some(id) = cursor.next_candidate_with_resources(&blank_solution(), &mut reasons) {
         values.push(cursor.take_candidate(id).0);
     }
 

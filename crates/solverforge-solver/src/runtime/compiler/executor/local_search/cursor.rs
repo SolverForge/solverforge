@@ -92,17 +92,18 @@ where
 
     fn next_move(
         &mut self,
+        solution: &S,
         resources: &mut ProviderExecutionResources<S>,
     ) -> Option<RuntimeNeighborhoodMove<S, V, DM, IDM>> {
         match &mut self.inner {
             RuntimeNeighborhoodLeafCursorInner::Scalar(cursor) => cursor
-                .next_owned_candidate()
+                .next_owned_candidate(solution)
                 .map(RuntimeNeighborhoodMove::Scalar),
             RuntimeNeighborhoodLeafCursorInner::List(cursor) => cursor
-                .next_owned_candidate()
+                .next_owned_candidate(solution)
                 .map(RuntimeNeighborhoodMove::List),
             RuntimeNeighborhoodLeafCursorInner::Grouped(cursor) => cursor
-                .next_owned_candidate()
+                .next_owned_candidate(solution)
                 .map(RuntimeNeighborhoodMove::Grouped),
             RuntimeNeighborhoodLeafCursorInner::Provider(cursor) => {
                 let candidate = cursor.next_candidate(resources)?;
@@ -126,9 +127,11 @@ where
 {
     fn next_candidate_with_resources(
         &mut self,
+        solution: &S,
         resources: &mut ProviderExecutionResources<S>,
     ) -> Option<CandidateId> {
-        self.next_move(resources).map(|mov| self.store.push(mov))
+        self.next_move(solution, resources)
+            .map(|mov| self.store.push(mov))
     }
 
     fn candidate(
@@ -224,7 +227,10 @@ where
             .as_ref()
             .expect("metric-backed selector must retain its cursor-open solution snapshot");
         let mut candidates = Vec::new();
-        while let Some(candidate_id) = self.inner.next_candidate_with_resources(resources) {
+        while let Some(candidate_id) = self
+            .inner
+            .next_candidate_with_resources(solution, resources)
+        {
             let candidate = self
                 .inner
                 .candidate(candidate_id)
@@ -290,6 +296,7 @@ where
 {
     fn next_candidate_with_resources(
         &mut self,
+        _solution: &S,
         resources: &mut ProviderExecutionResources<S>,
     ) -> Option<CandidateId> {
         if self.candidate_order.requires_complete_stream() {
@@ -302,7 +309,8 @@ where
             self.ordered_offset += usize::from(candidate.is_some());
             candidate
         } else {
-            self.inner.next_candidate_with_resources(resources)
+            self.inner
+                .next_candidate_with_resources(_solution, resources)
         }
     }
 

@@ -19,7 +19,7 @@ impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorPillarChangeMoveCurs
 where
     S: PlanningSolution + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         while let Some(input) = self.inputs.get(self.input_offset) {
             if let Some(value) = input.values.get(self.value_offset).copied() {
                 self.value_offset += 1;
@@ -51,16 +51,6 @@ where
     }
 }
 
-impl<S> Iterator for DescriptorPillarChangeMoveCursor<S>
-where
-    S: PlanningSolution + 'static,
-{
-    type Item = DescriptorMoveUnion<S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
-    }
-}
 
 pub struct DescriptorPillarSwapMoveCursor<S>
 where
@@ -77,7 +67,7 @@ impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorPillarSwapMoveCursor
 where
     S: PlanningSolution + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         let (left_index, right_index) = self.pairs.next()?;
         Some(self.store.push(DescriptorMoveUnion::PillarSwap(
             DescriptorPillarSwapMove::new(
@@ -102,16 +92,6 @@ where
     }
 }
 
-impl<S> Iterator for DescriptorPillarSwapMoveCursor<S>
-where
-    S: PlanningSolution + 'static,
-{
-    type Item = DescriptorMoveUnion<S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
-    }
-}
 
 pub struct DescriptorRuinRecreateMoveCursor<S>
 where
@@ -131,7 +111,7 @@ where
     S: PlanningSolution + 'static,
     S::Score: Score,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         for indices in self.subsets.by_ref() {
             if indices.is_empty()
                 || (!self.binding.allows_unassigned
@@ -167,17 +147,6 @@ where
     }
 }
 
-impl<S> Iterator for DescriptorRuinRecreateMoveCursor<S>
-where
-    S: PlanningSolution + 'static,
-    S::Score: Score,
-{
-    type Item = DescriptorMoveUnion<S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
-    }
-}
 
 fn build_sub_pillar_config(minimum_size: usize, maximum_size: usize) -> SubPillarConfig {
     if minimum_size == 0 || maximum_size == 0 {
@@ -275,7 +244,13 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        self.open_cursor(score_director).count()
+        let solution = score_director.working_solution();
+        let mut cursor = self.open_cursor(score_director);
+        let mut count = 0;
+        while cursor.next_candidate(solution).is_some() {
+            count += 1;
+        }
+        count
     }
 }
 
@@ -360,7 +335,13 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        self.open_cursor(score_director).count()
+        let solution = score_director.working_solution();
+        let mut cursor = self.open_cursor(score_director);
+        let mut count = 0;
+        while cursor.next_candidate(solution).is_some() {
+            count += 1;
+        }
+        count
     }
 }
 

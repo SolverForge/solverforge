@@ -391,23 +391,34 @@ fn cursor_generates_list_ruin_moves_lazily() {
     .with_seed(7);
 
     let mut cursor = selector.open_cursor(&director);
-    let first_id = cursor.next_candidate().expect("first candidate");
+    let first_id = cursor
+        .next_candidate(director.working_solution())
+        .expect("first candidate");
     let first = cursor.candidate(first_id).expect("first candidate ref");
     let MoveCandidateRef::Borrowed(first) = first else {
         panic!("list ruin cursor should yield borrowed candidates");
     };
     assert!((1..=2).contains(&first.ruin_count()));
 
-    let second_id = cursor.next_candidate().expect("second candidate");
+    let second_id = cursor
+        .next_candidate(director.working_solution())
+        .expect("second candidate");
     let second = cursor.candidate(second_id).expect("second candidate ref");
     let MoveCandidateRef::Borrowed(second) = second else {
         panic!("list ruin cursor should yield borrowed candidates");
     };
     assert!((1..=2).contains(&second.ruin_count()));
 
-    let remaining = std::iter::from_fn(|| cursor.next_candidate()).count();
+    let remaining = {
+        let solution = director.working_solution();
+        let mut count = 0;
+        while cursor.next_candidate(solution).is_some() {
+            count += 1;
+        }
+        count
+    };
     assert_eq!(remaining, 2);
-    assert!(cursor.next_candidate().is_none());
+    assert!(cursor.next_candidate(director.working_solution()).is_none());
 }
 
 #[test]

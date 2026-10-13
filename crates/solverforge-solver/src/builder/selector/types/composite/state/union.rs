@@ -70,8 +70,13 @@ where
     M: SequentialMoveCarrier<S> + 'static,
     Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
 {
-    fn next_candidate_with_resources(&mut self, resources: &mut Resources) -> Option<CandidateId> {
-        self.cursor.next_candidate_with_resources(resources)
+    fn next_candidate_with_resources(
+        &mut self,
+        solution: &S,
+        resources: &mut Resources,
+    ) -> Option<CandidateId> {
+        self.cursor
+            .next_candidate_with_resources(solution, resources)
     }
 
     fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {

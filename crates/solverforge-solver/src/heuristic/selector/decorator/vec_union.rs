@@ -468,11 +468,11 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
         let cursor_count = self.cursors.len();
-        let (cursor_index, child_index) = self
-            .scheduler
-            .next_child(cursor_count, |index| self.cursors[index].next_candidate())?;
+        let (cursor_index, child_index) = self.scheduler.next_child(cursor_count, |index| {
+            self.cursors[index].next_candidate(solution)
+        })?;
         Some(self.push_discovered(cursor_index, child_index))
     }
 
@@ -506,20 +506,6 @@ where
         self.discovered
             .get(index.index())
             .map(|(cursor_index, _)| *cursor_index)
-    }
-}
-
-impl<S, M, C> Iterator for VecUnionMoveCursor<S, M, C>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    C: MoveCursor<S, M>,
-{
-    type Item = M;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let id = self.next_candidate()?;
-        Some(self.take_candidate(id))
     }
 }
 
@@ -570,10 +556,14 @@ where
     M: Move<S>,
     C: ResourceMoveCursor<S, M, Resources>,
 {
-    fn next_candidate_with_resources(&mut self, resources: &mut Resources) -> Option<CandidateId> {
+    fn next_candidate_with_resources(
+        &mut self,
+        solution: &S,
+        resources: &mut Resources,
+    ) -> Option<CandidateId> {
         let cursor_count = self.cursors.len();
         let (cursor_index, child_index) = self.scheduler.next_child(cursor_count, |index| {
-            self.cursors[index].next_candidate_with_resources(resources)
+            self.cursors[index].next_candidate_with_resources(solution, resources)
         })?;
         let global_id = CandidateId::new(self.discovered.len());
         self.discovered.push((cursor_index, child_index));

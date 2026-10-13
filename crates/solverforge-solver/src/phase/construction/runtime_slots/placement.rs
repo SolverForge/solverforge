@@ -241,7 +241,7 @@ impl<S> MoveCursor<S, RuntimeScalarConstructionMove<S>> for RuntimeScalarCandida
 where
     S: PlanningSolution,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         let value = self.values.next()?;
         Some(self.store.push(RuntimeScalarConstructionMove::new(
             self.slot.clone(),

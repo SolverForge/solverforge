@@ -67,7 +67,7 @@ struct CountingCursor {
 }
 
 impl MoveCursor<TestSolution, TestMove> for CountingCursor {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &TestSolution) -> Option<CandidateId> {
         if self.generated.load(Ordering::Relaxed) >= self.total {
             return None;
         }
@@ -106,13 +106,16 @@ fn limited_cursor_stops_inner_generation_at_limit() {
         total: 100,
     };
     let mut cursor = LimitedMoveCursor::new(inner, 3);
+    let solution = TestSolution { score: None };
 
     for _ in 0..3 {
-        let id = cursor.next_candidate().expect("candidate should exist");
+        let id = cursor
+            .next_candidate(&solution)
+            .expect("candidate should exist");
         assert!(cursor.candidate(id).is_some());
         assert_eq!(cursor.selector_index(id), Some(7));
     }
 
-    assert!(cursor.next_candidate().is_none());
+    assert!(cursor.next_candidate(&solution).is_none());
     assert_eq!(generated.load(Ordering::Relaxed), 3);
 }

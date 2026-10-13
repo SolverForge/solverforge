@@ -117,11 +117,11 @@ impl MoveSelector<Sol, ScalarMoveUnion<Sol, i32>> for TestSelector {
     }
 }
 
-fn collect_indices<C>(cursor: &mut C) -> Vec<CandidateId>
+fn collect_indices<C>(cursor: &mut C, solution: &Sol) -> Vec<CandidateId>
 where
     C: MoveCursor<Sol, ScalarMoveUnion<Sol, i32>>,
 {
-    collect_cursor_indices::<Sol, ScalarMoveUnion<Sol, i32>, _>(cursor)
+    collect_cursor_indices::<Sol, ScalarMoveUnion<Sol, i32>, _>(cursor, solution)
 }
 
 fn x_move(value: i32) -> ScalarMoveUnion<Sol, i32> {
@@ -226,7 +226,7 @@ fn cartesian_product_skips_rows_with_illegal_left_moves() {
     );
 
     let mut cursor = selector.open_cursor(&director);
-    let indices = collect_indices(&mut cursor);
+    let indices = collect_indices(&mut cursor, director.working_solution());
 
     assert_eq!(selector.size(&director), 2);
     assert_eq!(indices.len(), 1);
@@ -259,7 +259,7 @@ fn cartesian_product_skips_pairs_with_illegal_right_moves() {
     );
 
     let mut cursor = selector.open_cursor(&director);
-    let indices = collect_indices(&mut cursor);
+    let indices = collect_indices(&mut cursor, director.working_solution());
 
     assert_eq!(selector.size(&director), 2);
     assert_eq!(indices.len(), 1);
@@ -297,7 +297,7 @@ fn cartesian_product_preview_updates_shadows_before_building_right_row() {
     );
 
     let mut cursor = selector.open_cursor(&director);
-    let indices = collect_indices(&mut cursor);
+    let indices = collect_indices(&mut cursor, director.working_solution());
 
     assert_eq!(selector.size(&director), 1);
     assert_eq!(indices.len(), 1);
@@ -337,14 +337,14 @@ fn cartesian_product_moves_remain_stable_after_selector_reuse() {
     );
 
     let mut first_cursor = selector.open_cursor(&director);
-    let first_indices = collect_indices(&mut first_cursor);
+    let first_indices = collect_indices(&mut first_cursor, director.working_solution());
     assert_eq!(first_indices.len(), 1);
 
     set_x(director.working_solution_mut(), 0, 0, Some(5));
     director.working_solution_mut().update_entity_shadows(0, 0);
 
     let mut second_cursor = selector.open_cursor(&director);
-    let second_indices = collect_indices(&mut second_cursor);
+    let second_indices = collect_indices(&mut second_cursor, director.working_solution());
     assert_eq!(second_indices.len(), 1);
 
     first_cursor
@@ -420,13 +420,20 @@ fn cartesian_product_opens_right_rows_only_as_iteration_reaches_them() {
     );
 
     let mut cursor = selector.open_cursor(&director);
+    let solution = director.working_solution();
     assert_eq!(selector.right.open_count.get(), 0);
 
-    let first = cursor.next_candidate().expect("first pair must exist");
+    let first = cursor
+        .next_candidate(solution)
+        .expect("first pair must exist");
     assert_eq!(selector.right.open_count.get(), 1);
-    let second = cursor.next_candidate().expect("second pair must exist");
+    let second = cursor
+        .next_candidate(solution)
+        .expect("second pair must exist");
     assert_eq!(selector.right.open_count.get(), 1);
-    let third = cursor.next_candidate().expect("third pair must exist");
+    let third = cursor
+        .next_candidate(solution)
+        .expect("third pair must exist");
     assert_eq!(selector.right.open_count.get(), 2);
 
     assert!(cursor.candidate(first).is_some());
@@ -451,7 +458,7 @@ fn cartesian_product_releases_all_losers_before_owned_commit() {
     );
 
     let mut cursor = selector.open_cursor(&director);
-    let indices = collect_indices(&mut cursor);
+    let indices = collect_indices(&mut cursor, director.working_solution());
     assert_eq!(indices.len(), 4);
     for &loser in &indices[1..] {
         assert!(cursor.release_candidate(loser));
@@ -481,7 +488,7 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
     );
 
     let mut forward_cursor = forward_selector.open_cursor(&director);
-    let forward_index = collect_indices(&mut forward_cursor)[0];
+    let forward_index = collect_indices(&mut forward_cursor, director.working_solution())[0];
     let forward_move = forward_cursor
         .candidate(forward_index)
         .expect("forward cartesian candidate must remain valid");
@@ -498,7 +505,7 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
     );
 
     let mut reverse_cursor = reverse_selector.open_cursor(&director);
-    let reverse_index = collect_indices(&mut reverse_cursor)[0];
+    let reverse_index = collect_indices(&mut reverse_cursor, director.working_solution())[0];
     let reverse_signature = reverse_cursor
         .candidate(reverse_index)
         .expect("reverse cartesian candidate must remain valid")

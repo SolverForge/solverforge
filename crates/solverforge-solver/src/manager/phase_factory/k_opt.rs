@@ -224,7 +224,9 @@ where
             let mut interrupted_step = false;
             let mut candidate_ordinal = 0usize;
 
-            while let Some(candidate_id) = cursor.next_candidate() {
+            while let Some(candidate_id) =
+                cursor.next_candidate(step_scope.score_director().working_solution())
+            {
                 let candidate = cursor
                     .candidate(candidate_id)
                     .expect("k-opt candidate id must remain live after pull");

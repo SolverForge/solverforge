@@ -82,13 +82,13 @@ impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorLeafCursor<S>
 where
     S: PlanningSolution + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
         match self {
-            Self::Change(cursor) => cursor.next_candidate(),
-            Self::Swap(cursor) => cursor.next_candidate(),
-            Self::PillarChange(cursor) => cursor.next_candidate(),
-            Self::PillarSwap(cursor) => cursor.next_candidate(),
-            Self::RuinRecreate(cursor) => cursor.next_candidate(),
+            Self::Change(cursor) => cursor.next_candidate(solution),
+            Self::Swap(cursor) => cursor.next_candidate(solution),
+            Self::PillarChange(cursor) => cursor.next_candidate(solution),
+            Self::PillarSwap(cursor) => cursor.next_candidate(solution),
+            Self::RuinRecreate(cursor) => cursor.next_candidate(solution),
         }
     }
 
@@ -145,10 +145,10 @@ impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorSelectorCursor<'_, S
 where
     S: PlanningSolution + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
         match self {
-            Self::Leaf(cursor) => cursor.next_candidate(),
-            Self::Cartesian(cursor) => cursor.next_candidate(),
+            Self::Leaf(cursor) => cursor.next_candidate(solution),
+            Self::Cartesian(cursor) => cursor.next_candidate(solution),
         }
     }
 

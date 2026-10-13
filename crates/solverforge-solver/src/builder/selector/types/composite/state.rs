@@ -278,12 +278,18 @@ where
     M: SequentialMoveCarrier<S> + 'static,
     Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
 {
-    fn next_candidate_with_resources(&mut self, resources: &mut Resources) -> Option<CandidateId> {
+    fn next_candidate_with_resources(
+        &mut self,
+        solution: &S,
+        resources: &mut Resources,
+    ) -> Option<CandidateId> {
         match self {
-            Self::Flat { cursor, .. } => cursor.next_candidate_with_resources(resources),
-            Self::Limited { cursor, .. } => cursor.next_candidate_with_resources(resources),
-            Self::Union(cursor) => cursor.next_candidate_with_resources(resources),
-            Self::Cartesian(cursor) => cursor.next_candidate_with_resources(resources),
+            Self::Flat { cursor, .. } => cursor.next_candidate_with_resources(solution, resources),
+            Self::Limited { cursor, .. } => {
+                cursor.next_candidate_with_resources(solution, resources)
+            }
+            Self::Union(cursor) => cursor.next_candidate_with_resources(solution, resources),
+            Self::Cartesian(cursor) => cursor.next_candidate_with_resources(solution, resources),
         }
     }
 

@@ -63,11 +63,11 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
         if !self.budget.can_pull() {
             return None;
         }
-        let id = self.inner.next_candidate()?;
+        let id = self.inner.next_candidate(solution)?;
         self.budget.record_pull();
         Some(id)
     }
@@ -99,11 +99,17 @@ where
     M: Move<S>,
     C: ResourceMoveCursor<S, M, Resources>,
 {
-    fn next_candidate_with_resources(&mut self, resources: &mut Resources) -> Option<CandidateId> {
+    fn next_candidate_with_resources(
+        &mut self,
+        solution: &S,
+        resources: &mut Resources,
+    ) -> Option<CandidateId> {
         if !self.budget.can_pull() {
             return None;
         }
-        let id = self.inner.next_candidate_with_resources(resources)?;
+        let id = self
+            .inner
+            .next_candidate_with_resources(solution, resources)?;
         self.budget.record_pull();
         Some(id)
     }

@@ -60,8 +60,8 @@ where
     V: Clone + Send + Sync + Debug + 'static,
     D: ListPositionDistanceMeter<S>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        self.inner.next_candidate()
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.inner.next_candidate(solution)
     }
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, KOptMove<S, V>>> {
         self.inner.candidate(id)
@@ -69,29 +69,19 @@ where
     fn take_candidate(&mut self, id: CandidateId) -> KOptMove<S, V> {
         self.inner.take_candidate(id)
     }
-    fn next_owned_candidate(&mut self) -> Option<KOptMove<S, V>> {
-        self.inner.next_owned_candidate()
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<KOptMove<S, V>> {
+        self.inner.next_owned_candidate(solution)
     }
     fn next_owned_candidate_matching(
         &mut self,
+        solution: &S,
         predicate: for<'b> fn(MoveCandidateRef<'b, S, KOptMove<S, V>>) -> bool,
     ) -> Option<KOptMove<S, V>> {
-        self.inner.next_owned_candidate_matching(predicate)
+        self.inner
+            .next_owned_candidate_matching(solution, predicate)
     }
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.inner.release_candidate(id)
-    }
-}
-
-impl<S, V, D> Iterator for NearbyKOptMoveCursor<'_, S, V, D>
-where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
-    D: ListPositionDistanceMeter<S>,
-{
-    type Item = KOptMove<S, V>;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }
 

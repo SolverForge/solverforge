@@ -102,7 +102,11 @@ fn test_queued_placer_all_uninitialized() {
     let mut placements = Vec::new();
     while let Some(mut placement) = cursor.next_placement(&director, |_| false, || false) {
         let mut candidate_count = 0;
-        while placement.candidates_mut().next_candidate().is_some() {
+        while placement
+            .candidates_mut()
+            .next_candidate(director.working_solution())
+            .is_some()
+        {
             candidate_count += 1;
         }
         placements.push((placement.entity_ref, candidate_count));

@@ -13,7 +13,7 @@ use std::sync::{
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{
-    CandidateStore, ChangeMoveSelector, MoveSelector, SwapMoveSelector,
+    CandidateStore, ChangeMoveSelector, MoveCursor, MoveSelector, SwapMoveSelector,
 };
 
 #[derive(Clone, Debug)]
@@ -366,12 +366,16 @@ fn change_selector_materializes_values_on_open_and_moves_on_demand() {
 
     assert_eq!(cloned.load(Ordering::SeqCst), 10);
 
-    let first = cursor.next().expect("first move should be available");
+    let first = cursor
+        .next_owned_candidate(director.working_solution())
+        .expect("first move should be available");
     assert_eq!(first.entity_index(), 0);
     assert_eq!(first.to_value().map(|value| value.id), Some(0));
     assert_eq!(cloned.load(Ordering::SeqCst), 11);
 
-    let next_two: Vec<_> = cursor.by_ref().take(2).collect();
+    let next_two: Vec<_> = (0..2)
+        .filter_map(|_| cursor.next_owned_candidate(director.working_solution()))
+        .collect();
     assert_eq!(next_two.len(), 2);
     assert_eq!(
         next_two

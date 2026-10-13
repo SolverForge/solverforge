@@ -33,7 +33,7 @@ fn first_doable(
     );
     loop {
         let id = cursor
-            .next_candidate()
+            .next_candidate(score_director.working_solution())
             .expect("test neighborhood must contain a doable candidate");
         let doable = cursor
             .candidate(id)
@@ -150,14 +150,14 @@ fn borrowed_candidates_release_once_and_selected_moves_outlive_every_cursor() {
                 crate::heuristic::selector::move_selector::MoveStreamContext::default(),
             );
             let rejected = cursor
-                .next_candidate()
+                .next_candidate(score_director.working_solution())
                 .unwrap_or_else(|| panic!("{kind:?} has a first candidate"));
             assert!(cursor.candidate(rejected).is_some());
             assert!(cursor.release_candidate(rejected));
             assert!(cursor.candidate(rejected).is_none());
             assert!(!cursor.release_candidate(rejected));
             cursor
-                .next_owned_candidate()
+                .next_owned_candidate(score_director.working_solution())
                 .unwrap_or_else(|| panic!("{kind:?} retains an owned candidate after release"))
         };
         assert!(
@@ -187,7 +187,7 @@ fn cursor_setup_clones_solutions_only_for_lazy_nearby_probes() {
         ));
         assert_eq!(setup_clones, expected, "{kind:?} setup clone count");
 
-        while let Some(id) = cursor.next_candidate() {
+        while let Some(id) = cursor.next_candidate(score_director.working_solution()) {
             assert!(cursor.release_candidate(id));
         }
         assert_eq!(
@@ -213,7 +213,7 @@ fn candidate_enumeration_never_clones_full_slot_meters() {
     let setup_clones = meter_clones();
     assert_eq!(setup_clones, 2, "the cursor clones each plan meter once");
 
-    while let Some(id) = cursor.next_candidate() {
+    while let Some(id) = cursor.next_candidate(score_director.working_solution()) {
         assert!(cursor.release_candidate(id));
     }
     assert_eq!(

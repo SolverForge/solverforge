@@ -247,7 +247,7 @@ where
     LeftCursor: MoveCursor<S, M>,
     Right: MoveSelector<S, M>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
         loop {
             if self.active_row.is_some() {
                 let inspected = {
@@ -261,25 +261,30 @@ where
                         .expect("active cartesian row must remain live");
                     let left = &row.left;
                     let left_signature = &active.left_signature;
-                    active.right_cursor.next_owned_candidate_inspected(|right| {
-                        let right = match right {
-                            MoveCandidateRef::Borrowed(mov) => mov,
-                            MoveCandidateRef::Sequential(_) => {
-                                panic!("nested cartesian right candidates are not supported")
+                    active
+                        .right_cursor
+                        .next_owned_candidate_inspected(solution, |right| {
+                            let right = match right {
+                                MoveCandidateRef::Borrowed(mov) => mov,
+                                MoveCandidateRef::Sequential(_) => {
+                                    panic!("nested cartesian right candidates are not supported")
+                                }
+                            };
+                            if !right.is_doable(&self.preview) {
+                                return None;
                             }
-                        };
-                        if !right.is_doable(&self.preview) {
-                            return None;
-                        }
-                        Some((
-                            combined_entity_indices(left.entity_indices(), right.entity_indices()),
-                            compose_sequential_tabu_signature(
-                                "cartesian_product",
-                                left_signature,
-                                &right.tabu_signature(&self.preview),
-                            ),
-                        ))
-                    })
+                            Some((
+                                combined_entity_indices(
+                                    left.entity_indices(),
+                                    right.entity_indices(),
+                                ),
+                                compose_sequential_tabu_signature(
+                                    "cartesian_product",
+                                    left_signature,
+                                    &right.tabu_signature(&self.preview),
+                                ),
+                            ))
+                        })
                 };
                 if let Some((right, (entity_indices, tabu_signature))) = inspected {
                     let row_index = self
@@ -319,7 +324,7 @@ where
                 self.release_row_if_unused(row_index);
             }
 
-            let left_id = self.left_cursor.next_candidate()?;
+            let left_id = self.left_cursor.next_candidate(solution)?;
             let left = self
                 .left_cursor
                 .candidate(left_id)
@@ -527,10 +532,10 @@ where
         self.right.validate_cursor(score_director);
     }
 
-    fn iter_moves<'a, D: Director<S>>(
+    fn iter_moves<'a, 'd, D: Director<S>>(
         &'a self,
-        _score_director: &D,
-    ) -> MoveSelectorIter<S, M, Self::Cursor<'a>> {
+        _score_director: &'d D,
+    ) -> MoveSelectorIter<'d, S, M, Self::Cursor<'a>> {
         panic!(
             "cartesian selectors do not support owned iter_moves(); use open_cursor() and candidate() to evaluate or commit the selected borrowed sequential candidate",
         );

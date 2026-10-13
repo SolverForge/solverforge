@@ -8,7 +8,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{DynamicScalarChangeMove, MoveArena};
 
-use super::move_selector::{MoveSelector, MoveStreamContext};
+use super::move_selector::{MoveCursor, MoveSelector, MoveStreamContext};
 use super::scalar_neighborhood::{
     dynamic_slot, emit_dynamic_scalar_change_move, RuntimeScalarFacadeCursor,
     ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec,
@@ -81,7 +81,13 @@ where
     }
 
     fn size<D: Director<S>>(&self, director: &D) -> usize {
-        self.open_cursor(director).count()
+        let solution = director.working_solution();
+        let mut cursor = self.open_cursor(director);
+        let mut count = 0;
+        while cursor.next_candidate(solution).is_some() {
+            count += 1;
+        }
+        count
     }
 
     fn append_moves<D: Director<S>>(
@@ -89,6 +95,10 @@ where
         director: &D,
         arena: &mut MoveArena<DynamicScalarChangeMove<S>>,
     ) {
-        arena.extend(self.open_cursor(director));
+        let solution = director.working_solution();
+        let mut cursor = self.open_cursor(director);
+        while let Some(id) = cursor.next_candidate(solution) {
+            arena.push(cursor.take_candidate(id));
+        }
     }
 }

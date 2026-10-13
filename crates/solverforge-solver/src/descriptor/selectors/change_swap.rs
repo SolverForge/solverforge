@@ -40,7 +40,7 @@ impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorChangeMoveCursor<S>
 where
     S: PlanningSolution + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         while let Some(entity_values) = self.entity_values.get(self.entity_offset) {
             if let Some(value) = entity_values.values.get(self.value_offset).copied() {
                 self.value_offset += 1;
@@ -88,16 +88,6 @@ where
     }
 }
 
-impl<S> Iterator for DescriptorChangeMoveCursor<S>
-where
-    S: PlanningSolution + 'static,
-{
-    type Item = DescriptorMoveUnion<S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
-    }
-}
 
 enum DescriptorSwapOrder {
     All {
@@ -184,7 +174,7 @@ impl<S> MoveCursor<S, DescriptorMoveUnion<S>> for DescriptorSwapMoveCursor<S>
 where
     S: PlanningSolution + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         while let Some((left_entity_index, right_entity_index)) = self.next_pair() {
             let Some((left_value, right_value)) = self
                 .legality_index
@@ -219,16 +209,6 @@ where
     }
 }
 
-impl<S> Iterator for DescriptorSwapMoveCursor<S>
-where
-    S: PlanningSolution + 'static,
-{
-    type Item = DescriptorMoveUnion<S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
-    }
-}
 
 #[derive(Clone)]
 pub struct DescriptorChangeMoveSelector<S> {
@@ -489,7 +469,13 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        self.open_cursor(score_director).count()
+        let solution = score_director.working_solution();
+        let mut cursor = self.open_cursor(score_director);
+        let mut count = 0;
+        while cursor.next_candidate(solution).is_some() {
+            count += 1;
+        }
+        count
     }
 }
 
@@ -580,6 +566,12 @@ where
     }
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        self.open_cursor(score_director).count()
+        let solution = score_director.working_solution();
+        let mut cursor = self.open_cursor(score_director);
+        let mut count = 0;
+        while cursor.next_candidate(solution).is_some() {
+            count += 1;
+        }
+        count
     }
 }

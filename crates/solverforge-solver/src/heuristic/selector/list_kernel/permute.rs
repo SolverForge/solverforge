@@ -192,7 +192,7 @@ where
     S: PlanningSolution,
     E: PermuteEmitter<S>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         self.next_move().map(|mov| self.store.push(mov))
     }
 
@@ -204,12 +204,13 @@ where
         self.store.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self) -> Option<E::Move> {
+    fn next_owned_candidate(&mut self, _solution: &S) -> Option<E::Move> {
         self.next_move()
     }
 
     fn next_owned_candidate_matching(
         &mut self,
+        _solution: &S,
         predicate: for<'a> fn(MoveCandidateRef<'a, S, E::Move>) -> bool,
     ) -> Option<E::Move> {
         loop {
@@ -222,18 +223,6 @@ where
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.store.release_candidate(id)
-    }
-}
-
-impl<S, E> Iterator for PermuteCursor<S, E>
-where
-    S: PlanningSolution,
-    E: PermuteEmitter<S>,
-{
-    type Item = E::Move;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }
 

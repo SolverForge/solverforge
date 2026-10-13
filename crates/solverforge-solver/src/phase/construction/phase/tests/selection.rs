@@ -218,7 +218,7 @@ impl<'a> ConstructionForager<ConstructionPauseSolution, ConstructionPauseMove>
         &self,
         placement: &mut Placement<ConstructionPauseSolution, ConstructionPauseMove, C>,
         _construction_obligation: ConstructionObligation,
-        _step_scope: &mut StepScope<
+        step_scope: &mut StepScope<
             '_,
             '_,
             '_,
@@ -233,7 +233,10 @@ impl<'a> ConstructionForager<ConstructionPauseSolution, ConstructionPauseMove>
         C: MoveCursor<ConstructionPauseSolution, ConstructionPauseMove>,
     {
         let mut candidates = Vec::new();
-        while let Some(candidate_id) = placement.candidates_mut().next_candidate() {
+        while let Some(candidate_id) = placement
+            .candidates_mut()
+            .next_candidate(step_scope.score_director().working_solution())
+        {
             candidates.push(candidate_id);
         }
         let selected = candidates

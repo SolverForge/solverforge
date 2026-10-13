@@ -46,8 +46,8 @@ where
         }
     }
 
-    fn next_move(&mut self) -> Option<M> {
-        self.inner.next_owned_candidate().map(self.emit)
+    fn next_move(&mut self, solution: &S) -> Option<M> {
+        self.inner.next_owned_candidate(solution).map(self.emit)
     }
 }
 
@@ -57,8 +57,8 @@ where
     S::Score: Score,
     M: Move<S>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        self.next_move().map(|mov| self.store.push(mov))
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.next_move(solution).map(|mov| self.store.push(mov))
     }
 
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
@@ -69,25 +69,12 @@ where
         self.store.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self) -> Option<M> {
-        self.next_move()
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<M> {
+        self.next_move(solution)
     }
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.store.release_candidate(id)
-    }
-}
-
-impl<S, M> Iterator for RuntimeScalarFacadeCursor<S, M>
-where
-    S: PlanningSolution,
-    S::Score: Score,
-    M: Move<S>,
-{
-    type Item = M;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }
 

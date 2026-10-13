@@ -19,7 +19,7 @@ struct PullCountingCandidateCursor {
 impl MoveCursor<ConstructionPauseSolution, ConstructionPauseMove>
     for PullCountingCandidateCursor
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &ConstructionPauseSolution) -> Option<CandidateId> {
         let value = self.values.next()?;
         self.pulls.fetch_add(1, Ordering::SeqCst);
         Some(

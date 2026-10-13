@@ -40,15 +40,16 @@ where
     // forwards at most once per window and latches the verdict.
     let mut stop_polls = 0usize;
     let mut stop_latched = false;
-    let candidate_id = placement
-        .candidates_mut()
-        .next_candidate_with_control(&mut || {
+    let candidate_id = placement.candidates_mut().next_candidate_with_control(
+        step_scope.score_director().working_solution(),
+        &mut || {
             stop_polls += 1;
             if !stop_latched && stop_polls.is_multiple_of(CONTROL_POLL_INTERVAL) {
                 stop_latched = should_interrupt_before_candidate(step_scope);
             }
             stop_latched
-        })?;
+        },
+    )?;
     let construction_target = CandidateTraceConstructionTarget {
         descriptor_index: placement.entity_ref.descriptor_index,
         entity_index: placement.entity_ref.entity_index,

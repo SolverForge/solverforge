@@ -261,7 +261,11 @@ where
     M: SequentialMoveCarrier<S> + 'static,
     Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
 {
-    fn next_candidate_with_resources(&mut self, resources: &mut Resources) -> Option<CandidateId> {
+    fn next_candidate_with_resources(
+        &mut self,
+        solution: &S,
+        resources: &mut Resources,
+    ) -> Option<CandidateId> {
         loop {
             if self.active_row.is_some() {
                 let inspected = {
@@ -276,22 +280,26 @@ where
                     let left_signature = &active.left_signature;
                     active
                         .right_cursor
-                        .next_owned_candidate_inspected_with_resources(resources, |right| {
-                            if !right.is_doable(&self.preview) {
-                                return None;
-                            }
-                            Some((
-                                combined_entity_indices(
-                                    left.entity_indices(),
-                                    right.entity_indices(),
-                                ),
-                                compose_sequential_tabu_signature(
-                                    "cartesian_product",
-                                    left_signature,
-                                    &right.tabu_signature(&self.preview),
-                                ),
-                            ))
-                        })
+                        .next_owned_candidate_inspected_with_resources(
+                            solution,
+                            resources,
+                            |right| {
+                                if !right.is_doable(&self.preview) {
+                                    return None;
+                                }
+                                Some((
+                                    combined_entity_indices(
+                                        left.entity_indices(),
+                                        right.entity_indices(),
+                                    ),
+                                    compose_sequential_tabu_signature(
+                                        "cartesian_product",
+                                        left_signature,
+                                        &right.tabu_signature(&self.preview),
+                                    ),
+                                ))
+                            },
+                        )
                 };
                 if let Some((right, (entity_indices, tabu_signature))) = inspected {
                     let row_index = self
@@ -320,7 +328,9 @@ where
                 self.finish_active_row();
             }
 
-            let left_id = self.left_cursor.next_candidate_with_resources(resources)?;
+            let left_id = self
+                .left_cursor
+                .next_candidate_with_resources(solution, resources)?;
             let (left_is_doable, left_signature) = {
                 let left = self
                     .left_cursor

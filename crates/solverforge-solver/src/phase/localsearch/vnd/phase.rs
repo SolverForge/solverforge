@@ -207,7 +207,10 @@ where
             return MoveSearchResult::Interrupted;
         }
         let generation_started = Instant::now();
-        let Some(candidate_index) = cursor.next_candidate_with_resources(resources) else {
+        let Some(candidate_index) = cursor.next_candidate_with_resources(
+            step_scope.score_director().working_solution(),
+            resources,
+        ) else {
             break;
         };
         let generation_elapsed = generation_started.elapsed();

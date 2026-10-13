@@ -129,12 +129,13 @@ impl<S> MoveCursor<S, CompoundScalarMove<S>> for ScalarGroupCandidateCursor<S>
 where
     S: PlanningSolution + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        self.next_candidate_with_control(&mut || false)
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.next_candidate_with_control(solution, &mut || false)
     }
 
     fn next_candidate_with_control<ShouldStop>(
         &mut self,
+        _solution: &S,
         should_stop: &mut ShouldStop,
     ) -> Option<CandidateId>
     where

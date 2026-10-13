@@ -57,7 +57,7 @@ fn every_compiled_list_leaf_lowers_once_with_its_frozen_slots_config_and_seed() 
             crate::heuristic::selector::move_selector::MoveStreamContext::default(),
         );
         let runtime_move = cursor
-            .next_owned_candidate()
+            .next_owned_candidate(score_director.working_solution())
             .unwrap_or_else(|| panic!("{kind:?} leaf emits a runtime move"));
         assert_eq!(runtime_move.descriptor_index(), 0);
     }

@@ -89,7 +89,10 @@ where
         }
 
         let generation_started = std::time::Instant::now();
-        let Some(candidate_id) = cursor.next_candidate_with_resources(resources) else {
+        let Some(candidate_id) = cursor.next_candidate_with_resources(
+            step_scope.score_director().working_solution(),
+            resources,
+        ) else {
             break;
         };
         let selector_index = cursor.selector_index(candidate_id);

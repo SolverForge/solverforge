@@ -109,7 +109,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         let mov = self.next_move()?;
         Some(self.store.push(mov))
     }
@@ -126,12 +126,13 @@ where
     }
 
     #[inline(always)]
-    fn next_owned_candidate(&mut self) -> Option<ChangeMove<S, V>> {
+    fn next_owned_candidate(&mut self, _solution: &S) -> Option<ChangeMove<S, V>> {
         self.next_move()
     }
 
     #[inline(always)]
-    fn next_owned_candidate_inspected<T, F>(&mut self, mut inspect: F) -> Option<(ChangeMove<S, V>, T)>
+    fn next_owned_candidate_inspected<T, F>(&mut self,
+        _solution: &S, mut inspect: F) -> Option<(ChangeMove<S, V>, T)>
     where
         F: for<'a> FnMut(MoveCandidateRef<'a, S, ChangeMove<S, V>>) -> Option<T>,
     {
@@ -148,17 +149,6 @@ where
     }
 }
 
-impl<S, V> Iterator for ChangeMoveCursor<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-{
-    type Item = ChangeMove<S, V>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_move()
-    }
-}
 
 impl<S, V: Debug, ES: Debug, VS: Debug> Debug for ChangeMoveSelector<S, V, ES, VS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

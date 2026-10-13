@@ -412,7 +412,7 @@ fn list_precedence_selector_applies_stream_context_order() {
         MoveStreamContext::new(11, 23, Some(8)).with_selection_order(SelectionOrder::Shuffled),
     );
     let mut contextual = Vec::new();
-    while let Some(id) = cursor.next_candidate() {
+    while let Some(id) = cursor.next_candidate(director.working_solution()) {
         contextual.push(format!("{:?}", cursor.take_candidate(id)));
     }
 
@@ -454,7 +454,9 @@ fn list_precedence_stream_context_preserves_adjacent_priority_tier_for_short_blo
         selector.open_cursor_with_context(&director, MoveStreamContext::new(11, 23, Some(8)));
     let mut first_tier = Vec::new();
     for _ in 0..3 {
-        let id = cursor.next_candidate().expect("adjacent critical move");
+        let id = cursor
+            .next_candidate(director.working_solution())
+            .expect("adjacent critical move");
         first_tier.push(cursor.take_candidate(id));
     }
 

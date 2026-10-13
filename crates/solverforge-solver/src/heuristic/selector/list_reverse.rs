@@ -50,8 +50,8 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        self.inner.next_candidate()
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.inner.next_candidate(solution)
     }
 
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, ListReverseMove<S, V>>> {
@@ -62,31 +62,21 @@ where
         self.inner.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self) -> Option<ListReverseMove<S, V>> {
-        self.inner.next_owned_candidate()
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<ListReverseMove<S, V>> {
+        self.inner.next_owned_candidate(solution)
     }
 
     fn next_owned_candidate_matching(
         &mut self,
+        solution: &S,
         predicate: for<'a> fn(MoveCandidateRef<'a, S, ListReverseMove<S, V>>) -> bool,
     ) -> Option<ListReverseMove<S, V>> {
-        self.inner.next_owned_candidate_matching(predicate)
+        self.inner
+            .next_owned_candidate_matching(solution, predicate)
     }
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.inner.release_candidate(id)
-    }
-}
-
-impl<S, V> Iterator for ListReverseMoveCursor<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
-{
-    type Item = ListReverseMove<S, V>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }
 

@@ -61,7 +61,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         while self.left_offset < self.left_entities.len() {
             while self.right_offset < self.right_entities.len() {
                 let left_entity_ref = self.left_entities[self.left_offset];
@@ -106,18 +106,6 @@ where
     }
 }
 
-impl<S, V> Iterator for SwapMoveCursor<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-{
-    type Item = SwapMove<S, V>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let id = self.next_candidate()?;
-        Some(self.take_candidate(id))
-    }
-}
 
 impl<S, V, LES: Debug, RES: Debug> Debug for SwapMoveSelector<S, V, LES, RES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

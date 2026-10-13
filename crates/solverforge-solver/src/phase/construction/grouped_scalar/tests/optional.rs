@@ -183,7 +183,7 @@ fn completed_optional_prefix_is_not_regenerated() {
         .expect("unfinished final row must be reached");
     let id = placement
         .candidates_mut()
-        .next_candidate()
+        .next_candidate(director.working_solution())
         .expect("final row must have a candidate");
     let candidate = placement
         .candidates()

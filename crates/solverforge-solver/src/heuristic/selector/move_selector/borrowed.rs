@@ -222,7 +222,13 @@ where
 /// selected candidate is consumed exactly once through `take_candidate()` or
 /// `apply_owned_candidate()`; unselected live candidates remain cursor-owned.
 pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
-    fn next_candidate(&mut self) -> Option<CandidateId>;
+    /// Pulls the next candidate against the caller's live working solution.
+    ///
+    /// The solution is lent for the duration of the pull only. Cursors own no
+    /// solution state: everything derived at open is plain data (indexes,
+    /// coordinates, seeds), so a commit between pulls invalidates nothing the
+    /// cursor retains and the next pull always sees current state.
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId>;
 
     /// Pulls the next candidate while allowing expensive cursor implementations
     /// to observe solve control between units of generation work. A `None`
@@ -230,6 +236,7 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
     /// must recheck the same control signal before resolving an exhausted scan.
     fn next_candidate_with_control<ShouldStop>(
         &mut self,
+        solution: &S,
         should_stop: &mut ShouldStop,
     ) -> Option<CandidateId>
     where
@@ -238,7 +245,7 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
         if should_stop() {
             None
         } else {
-            self.next_candidate()
+            self.next_candidate(solution)
         }
     }
 
@@ -246,17 +253,18 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
 
     fn take_candidate(&mut self, id: CandidateId) -> M;
 
-    fn next_owned_candidate(&mut self) -> Option<M> {
-        let id = self.next_candidate()?;
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<M> {
+        let id = self.next_candidate(solution)?;
         Some(self.take_candidate(id))
     }
 
     fn next_owned_candidate_matching(
         &mut self,
+        solution: &S,
         predicate: for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool,
     ) -> Option<M> {
         loop {
-            let id = self.next_candidate()?;
+            let id = self.next_candidate(solution)?;
             let candidate = self
                 .candidate(id)
                 .expect("newly generated cursor candidate must remain live");
@@ -268,12 +276,12 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
         }
     }
 
-    fn next_owned_candidate_inspected<T, F>(&mut self, mut inspect: F) -> Option<(M, T)>
+    fn next_owned_candidate_inspected<T, F>(&mut self, solution: &S, mut inspect: F) -> Option<(M, T)>
     where
         F: for<'a> FnMut(MoveCandidateRef<'a, S, M>) -> Option<T>,
     {
         loop {
-            let id = self.next_candidate()?;
+            let id = self.next_candidate(solution)?;
             let candidate = self
                 .candidate(id)
                 .expect("newly generated cursor candidate must remain live");
@@ -302,18 +310,23 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
     }
 }
 
-/// A cursor whose next pull needs one explicitly owned execution resource.
+/// A cursor whose next pull lends the live working solution plus one
+/// explicitly owned execution resource.
 ///
 /// Ordinary selectors use [`MoveCursor`] directly. Runtime provider cursors
 /// need a solve-owned reason arena only at the instant a reachable child is
 /// pulled, however; retaining that arena in a leaf or hiding it behind
 /// interior mutability would break lazy callback delivery and resource
 /// ownership. Recursive composition therefore uses this private companion
-/// contract and lends its resource only to the child selected by the
-/// canonical union scheduler.
+/// contract and lends the live solution and its resource only to the child
+/// selected by the canonical union scheduler.
 #[doc(hidden)]
 pub trait ResourceMoveCursor<S: PlanningSolution, M: Move<S>, Resources> {
-    fn next_candidate_with_resources(&mut self, resources: &mut Resources) -> Option<CandidateId>;
+    fn next_candidate_with_resources(
+        &mut self,
+        solution: &S,
+        resources: &mut Resources,
+    ) -> Option<CandidateId>;
 
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>>;
 
@@ -321,6 +334,7 @@ pub trait ResourceMoveCursor<S: PlanningSolution, M: Move<S>, Resources> {
 
     fn next_owned_candidate_inspected_with_resources<T, F>(
         &mut self,
+        solution: &S,
         resources: &mut Resources,
         mut inspect: F,
     ) -> Option<(M, T)>
@@ -328,7 +342,7 @@ pub trait ResourceMoveCursor<S: PlanningSolution, M: Move<S>, Resources> {
         F: for<'a> FnMut(MoveCandidateRef<'a, S, M>) -> Option<T>,
     {
         loop {
-            let id = self.next_candidate_with_resources(resources)?;
+            let id = self.next_candidate_with_resources(solution, resources)?;
             let candidate = self
                 .candidate(id)
                 .expect("newly generated resource cursor candidate must remain live");
@@ -368,8 +382,8 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    fn next_candidate_with_resources(&mut self, _resources: &mut ()) -> Option<CandidateId> {
-        self.inner.next_candidate()
+    fn next_candidate_with_resources(&mut self, solution: &S, _resources: &mut ()) -> Option<CandidateId> {
+        self.inner.next_candidate(solution)
     }
 
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
@@ -582,7 +596,7 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         while self.next_index < self.store.len() {
             let id = CandidateId::new(self.next_index);
             self.next_index += 1;
@@ -606,27 +620,18 @@ where
     }
 }
 
-impl<S, M> Iterator for ArenaMoveCursor<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
-    type Item = M;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let id = self.next_candidate()?;
-        Some(self.take_candidate(id))
-    }
-}
-
-pub(crate) fn collect_cursor_indices<S, M, C>(cursor: &mut C) -> Vec<CandidateId>
+pub(crate) fn collect_cursor_indices<S, M, C>(
+    cursor: &mut C,
+    solution: &S,
+) -> Vec<CandidateId>
 where
     S: PlanningSolution,
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
     let mut indices = Vec::new();
-    while let Some(id) = cursor.next_candidate() {
+    while let Some(id) = cursor.next_candidate(solution) {
         indices.push(id);
     }
     indices

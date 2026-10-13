@@ -499,7 +499,7 @@ preview state; it is not the grouped atomic scalar-search primitive.
 | `open_cursor` | `fn<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a>` |
 | `open_cursor_with_context` | `fn<'a, D: Director<S>>(&'a self, score_director: &D, context: MoveStreamContext) -> Self::Cursor<'a>` |
 | `validate_cursor` | `fn<D: Director<S>>(&self, score_director: &D)` (default no-op) |
-| `iter_moves` | `fn<'a, D: Director<S>>(&'a self, score_director: &D) -> MoveSelectorIter<S, M, Self::Cursor<'a>>` |
+| `iter_moves` | `fn<'a, 'd, D: Director<S>>(&'a self, score_director: &'d D) -> MoveSelectorIter<'d, S, M, Self::Cursor<'a>>` |
 | `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
 | `append_moves` | `fn<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>)` |
 | `is_never_ending` | `fn(&self) -> bool` |
@@ -525,6 +525,16 @@ contract also provides `release_candidate()`, `apply_owned_candidate()`,
 `next_owned_candidate_inspected()` so phases can end candidate residency
 promptly, leaf cursors can fuse owned filtering with generation, and Cartesian
 composition can transfer one inspected child without first storing it twice.
+
+Cursors own no solution state: candidate generation is per-pull solution lending.
+`next_candidate(solution)`, `next_candidate_with_control(solution, should_stop)`,
+`next_owned_candidate(solution)`, `next_owned_candidate_inspected(solution, inspect)`,
+and the resource variant all lend the caller's live working solution for that pull,
+so a committed move between pulls is visible to the next pull and cursors never hold
+a stale snapshot. Cursor-open state is plain data (indexes, coordinates, seeds)
+derived from the solution at open; family cursors that still need search-scoped
+derived state (metric orders, ruin batches) derive it from the open-time solution
+they are given explicitly.
 
 `MoveCandidateRef<'a, S, M>` is either a borrowed move or a borrowable
 two-child sequential composite; `MoveCandidateUndo<U>` mirrors those two
@@ -764,7 +774,7 @@ union variants and keep speculative rollback statically typed.
 
 **`MoveArena<M>`** — Reusable-capacity arena. `new()`, `with_capacity()`, `push()`, `get()`, `iter()`, `iter_mut()`, `take(index)`, `reset()`, `extend()`, `shuffle()`, `len()`, `is_empty()`, and `capacity()`. `take()` transfers exactly one selected slot per reset cycle; `reset()` drops the remaining live slots while retaining allocated capacity and panics are used to reject double-take.
 
-**`MoveCursor<S, M>`** — cursor contract with `next_candidate()`, `next_candidate_with_control(should_stop)`, `candidate(id)`, `take_candidate(id)`, `release_candidate(id)`, `apply_owned_candidate(id)`, `next_owned_candidate()`, `next_owned_candidate_matching()`, `next_owned_candidate_inspected()`, and optional `selector_index(id)`. Consumers may stop after any candidate; dropping a cursor releases retained candidates and unconsumed source state without exhausting the tail. Implementations must not require full enumeration for cleanup or callbacks.
+**`MoveCursor<S, M>`** — cursor contract pulling against the caller's live solution: `next_candidate(solution)`, `next_candidate_with_control(solution, should_stop)`, `candidate(id)`, `take_candidate(id)`, `release_candidate(id)`, `apply_owned_candidate(id)`, `next_owned_candidate(solution)`, `next_owned_candidate_matching(solution, predicate)`, `next_owned_candidate_inspected(solution, inspect)`, and optional `selector_index(id)`. Consumers may stop after any candidate; dropping a cursor releases retained candidates and unconsumed source state without exhausting the tail. Implementations must not require full enumeration for cleanup or callbacks.
 
 **`MoveCandidateRef<'a, S, M>`** — borrowable move view: either `Borrowed(&M)` or `Sequential(SequentialCompositeMoveRef<'a, S, M>)`.
 

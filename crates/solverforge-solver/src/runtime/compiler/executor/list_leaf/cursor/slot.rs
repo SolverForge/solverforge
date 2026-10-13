@@ -63,20 +63,20 @@ where
     DM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    pub(super) fn next_move(&mut self) -> Option<RuntimeListMove<S, V, DM, IDM>> {
+    pub(super) fn next_move(&mut self, solution: &S) -> Option<RuntimeListMove<S, V, DM, IDM>> {
         match self {
-            Self::Change(cursor) => cursor.next_owned_candidate(),
-            Self::NearbyChange(cursor) => cursor.next_owned_candidate(),
-            Self::Swap(cursor) => cursor.next_owned_candidate(),
-            Self::Permute(cursor) => cursor.next_owned_candidate(),
-            Self::Precedence(cursor) => cursor.next_owned_candidate(),
-            Self::NearbySwap(cursor) => cursor.next_owned_candidate(),
-            Self::SublistChange(cursor) => cursor.next_owned_candidate(),
-            Self::SublistSwap(cursor) => cursor.next_owned_candidate(),
-            Self::Reverse(cursor) => cursor.next_owned_candidate(),
-            Self::KOpt(cursor) => cursor.next_owned_candidate(),
-            Self::NearbyKOpt(cursor) => cursor.next_owned_candidate(),
-            Self::Ruin(cursor) => cursor.next_owned_candidate(),
+            Self::Change(cursor) => cursor.next_owned_candidate(solution),
+            Self::NearbyChange(cursor) => cursor.next_owned_candidate(solution),
+            Self::Swap(cursor) => cursor.next_owned_candidate(solution),
+            Self::Permute(cursor) => cursor.next_owned_candidate(solution),
+            Self::Precedence(cursor) => cursor.next_owned_candidate(solution),
+            Self::NearbySwap(cursor) => cursor.next_owned_candidate(solution),
+            Self::SublistChange(cursor) => cursor.next_owned_candidate(solution),
+            Self::SublistSwap(cursor) => cursor.next_owned_candidate(solution),
+            Self::Reverse(cursor) => cursor.next_owned_candidate(solution),
+            Self::KOpt(cursor) => cursor.next_owned_candidate(solution),
+            Self::NearbyKOpt(cursor) => cursor.next_owned_candidate(solution),
+            Self::Ruin(cursor) => cursor.next_owned_candidate(solution),
             Self::Empty => None,
         }
     }
@@ -91,20 +91,20 @@ where
     DM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + std::fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
         match self {
-            Self::Change(cursor) => cursor.next_candidate(),
-            Self::NearbyChange(cursor) => cursor.next_candidate(),
-            Self::Swap(cursor) => cursor.next_candidate(),
-            Self::Permute(cursor) => cursor.next_candidate(),
-            Self::Precedence(cursor) => cursor.next_candidate(),
-            Self::NearbySwap(cursor) => cursor.next_candidate(),
-            Self::SublistChange(cursor) => cursor.next_candidate(),
-            Self::SublistSwap(cursor) => cursor.next_candidate(),
-            Self::Reverse(cursor) => cursor.next_candidate(),
-            Self::KOpt(cursor) => cursor.next_candidate(),
-            Self::NearbyKOpt(cursor) => cursor.next_candidate(),
-            Self::Ruin(cursor) => cursor.next_candidate(),
+            Self::Change(cursor) => cursor.next_candidate(solution),
+            Self::NearbyChange(cursor) => cursor.next_candidate(solution),
+            Self::Swap(cursor) => cursor.next_candidate(solution),
+            Self::Permute(cursor) => cursor.next_candidate(solution),
+            Self::Precedence(cursor) => cursor.next_candidate(solution),
+            Self::NearbySwap(cursor) => cursor.next_candidate(solution),
+            Self::SublistChange(cursor) => cursor.next_candidate(solution),
+            Self::SublistSwap(cursor) => cursor.next_candidate(solution),
+            Self::Reverse(cursor) => cursor.next_candidate(solution),
+            Self::KOpt(cursor) => cursor.next_candidate(solution),
+            Self::NearbyKOpt(cursor) => cursor.next_candidate(solution),
+            Self::Ruin(cursor) => cursor.next_candidate(solution),
             Self::Empty => None,
         }
     }
@@ -148,8 +148,8 @@ where
         }
     }
 
-    fn next_owned_candidate(&mut self) -> Option<RuntimeListMove<S, V, DM, IDM>> {
-        self.next_move()
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<RuntimeListMove<S, V, DM, IDM>> {
+        self.next_move(solution)
     }
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {

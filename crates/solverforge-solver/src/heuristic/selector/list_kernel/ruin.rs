@@ -124,7 +124,7 @@ where
     S: PlanningSolution,
     E: RuinEmitter<S>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         if self.remaining_moves == 0 || self.source_pool.is_empty() {
             return None;
         }
@@ -144,17 +144,18 @@ where
         self.store.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self) -> Option<E::Move> {
-        let id = self.next_candidate()?;
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<E::Move> {
+        let id = self.next_candidate(solution)?;
         Some(self.take_candidate(id))
     }
 
     fn next_owned_candidate_matching(
         &mut self,
+        solution: &S,
         predicate: for<'a> fn(MoveCandidateRef<'a, S, E::Move>) -> bool,
     ) -> Option<E::Move> {
         loop {
-            let id = self.next_candidate()?;
+            let id = self.next_candidate(solution)?;
             let matches = self.candidate(id).is_some_and(predicate);
             let move_value = self.take_candidate(id);
             if matches {
@@ -165,17 +166,5 @@ where
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.store.release_candidate(id)
-    }
-}
-
-impl<S, E> Iterator for RuinCursor<S, E>
-where
-    S: PlanningSolution,
-    E: RuinEmitter<S>,
-{
-    type Item = E::Move;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }

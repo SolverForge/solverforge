@@ -41,7 +41,7 @@ fn signatures(
     let mut cursor =
         selector.open_cursor_with_stream_state(&mut stream_state, &score_director, context);
     let mut signatures = Vec::new();
-    while let Some(move_) = cursor.next_owned_candidate() {
+    while let Some(move_) = cursor.next_owned_candidate(score_director.working_solution()) {
         let signature = match move_.into_recipe() {
             RuntimeListRecipe::Change { coordinates, .. } => RecipeSignature::Change(
                 coordinates.source_entity,
@@ -128,7 +128,7 @@ fn change_signature(
 fn native_change_signatures(context: MoveStreamContext) -> Vec<RecipeSignature> {
     let score_director = director(initial_plan());
     let slot = native_slot();
-    ListChangeMoveSelector::new(
+    let mut cursor = ListChangeMoveSelector::new(
         FromSolutionEntitySelector::new(0),
         list_len,
         list_get,
@@ -137,31 +137,35 @@ fn native_change_signatures(context: MoveStreamContext) -> Vec<RecipeSignature> 
         "visits",
         0,
     )
-    .open_cursor_with_context(&score_director, context)
-    .map(|move_| {
-        change_signature(
+    .open_cursor_with_context(&score_director, context);
+    let solution = score_director.working_solution();
+    let mut signatures_out = Vec::new();
+    while let Some(move_) = cursor.next_owned_candidate(solution) {
+        signatures_out.push(change_signature(
             move_.source_entity_index(),
             move_.source_position(),
             move_.dest_entity_index(),
             move_.dest_position(),
-        )
-    })
-    .collect()
+        ));
+    }
+    signatures_out
 }
 
 fn direct_dynamic_change_signatures(context: MoveStreamContext) -> Vec<RecipeSignature> {
     let score_director = director(initial_plan());
-    DynamicListChangeMoveSelector::new(dynamic_variable_slot())
-        .open_cursor_with_context(&score_director, context)
-        .map(|move_| {
-            change_signature(
-                move_.source_entity_index(),
-                move_.source_position(),
-                move_.dest_entity_index(),
-                move_.dest_position(),
-            )
-        })
-        .collect()
+    let mut cursor = DynamicListChangeMoveSelector::new(dynamic_variable_slot())
+        .open_cursor_with_context(&score_director, context);
+    let solution = score_director.working_solution();
+    let mut signatures_out = Vec::new();
+    while let Some(move_) = cursor.next_owned_candidate(solution) {
+        signatures_out.push(change_signature(
+            move_.source_entity_index(),
+            move_.source_position(),
+            move_.dest_entity_index(),
+            move_.dest_position(),
+        ));
+    }
+    signatures_out
 }
 
 #[test]
@@ -210,7 +214,7 @@ fn change_carrier_profiles_keep_candidate_trace_identity() {
     let context = MoveStreamContext::new(5, 89, Some(64));
     let static_director = director(initial_plan());
     let native_slot = native_slot();
-    let static_native = ListChangeMoveSelector::new(
+    let mut static_cursor = ListChangeMoveSelector::new(
         FromSolutionEntitySelector::new(0),
         list_len,
         list_get,
@@ -219,13 +223,15 @@ fn change_carrier_profiles_keep_candidate_trace_identity() {
         "visits",
         0,
     )
-    .open_cursor_with_context(&static_director, context)
-    .next_owned_candidate()
-    .expect("native static change emits a candidate");
+    .open_cursor_with_context(&static_director, context);
+    let static_native = static_cursor
+        .next_owned_candidate(static_director.working_solution())
+        .expect("native static change emits a candidate");
     let static_runtime_selector = selector(ListLeafKind::Change, static_slot(), Some(97));
-    let static_runtime = static_runtime_selector
-        .open_cursor_with_context(&static_director, context)
-        .next_owned_candidate()
+    let mut static_runtime_cursor =
+        static_runtime_selector.open_cursor_with_context(&static_director, context);
+    let static_runtime = static_runtime_cursor
+        .next_owned_candidate(static_director.working_solution())
         .expect("runtime static change emits a candidate");
     assert_eq!(
         static_runtime.candidate_trace_identity(),
@@ -233,14 +239,16 @@ fn change_carrier_profiles_keep_candidate_trace_identity() {
     );
 
     let dynamic_director = director(initial_plan());
-    let dynamic_native = DynamicListChangeMoveSelector::new(dynamic_variable_slot())
-        .open_cursor_with_context(&dynamic_director, context)
-        .next_owned_candidate()
+    let mut dynamic_native_cursor = DynamicListChangeMoveSelector::new(dynamic_variable_slot())
+        .open_cursor_with_context(&dynamic_director, context);
+    let dynamic_native = dynamic_native_cursor
+        .next_owned_candidate(dynamic_director.working_solution())
         .expect("direct dynamic change emits a candidate");
     let dynamic_runtime_selector = selector(ListLeafKind::Change, dynamic_slot(), Some(97));
-    let dynamic_runtime = dynamic_runtime_selector
-        .open_cursor_with_context(&dynamic_director, context)
-        .next_owned_candidate()
+    let mut dynamic_runtime_cursor =
+        dynamic_runtime_selector.open_cursor_with_context(&dynamic_director, context);
+    let dynamic_runtime = dynamic_runtime_cursor
+        .next_owned_candidate(dynamic_director.working_solution())
         .expect("runtime dynamic change emits a candidate");
     assert_eq!(
         dynamic_runtime.candidate_trace_identity(),
@@ -280,7 +288,7 @@ fn permute_keeps_native_entity_order_for_noncanonical_context() {
     let context = MoveStreamContext::new(23, 71, Some(64));
     let score_director = director(initial_plan());
     let slot = native_slot();
-    let native = ListPermuteMoveSelector::new(
+    let mut cursor = ListPermuteMoveSelector::new(
         FromSolutionEntitySelector::new(0),
         2,
         3,
@@ -291,16 +299,17 @@ fn permute_keeps_native_entity_order_for_noncanonical_context() {
         "visits",
         0,
     )
-    .open_cursor_with_context(&score_director, context)
-    .map(|move_| {
-        RecipeSignature::Permute(
+    .open_cursor_with_context(&score_director, context);
+    let solution = score_director.working_solution();
+    let mut native = Vec::new();
+    while let Some(move_) = cursor.next_owned_candidate(solution) {
+        native.push(RecipeSignature::Permute(
             move_.entity_index(),
             move_.start(),
             move_.end(),
             move_.permutation().to_vec(),
-        )
-    })
-    .collect::<Vec<_>>();
+        ));
+    }
     let runtime = signatures(
         ListLeafKind::Permute,
         selector(ListLeafKind::Permute, static_slot(), Some(97)),

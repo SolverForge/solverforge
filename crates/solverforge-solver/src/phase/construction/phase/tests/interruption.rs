@@ -241,7 +241,7 @@ impl InterruptAfterRetainedCandidateCursor {
 impl MoveCursor<ConstructionPauseSolution, ConstructionPauseMove>
     for InterruptAfterRetainedCandidateCursor
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &ConstructionPauseSolution) -> Option<CandidateId> {
         if self.pulled {
             None
         } else {
@@ -252,13 +252,14 @@ impl MoveCursor<ConstructionPauseSolution, ConstructionPauseMove>
 
     fn next_candidate_with_control<ShouldStop>(
         &mut self,
+        _solution: &ConstructionPauseSolution,
         should_stop: &mut ShouldStop,
     ) -> Option<CandidateId>
     where
         ShouldStop: FnMut() -> bool,
     {
         if !self.pulled {
-            return self.next_candidate();
+            return self.next_candidate(_solution);
         }
         self.gate.on_evaluation();
         let _ = should_stop();

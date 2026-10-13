@@ -145,8 +145,8 @@ struct FlaggingCursor {
 }
 
 impl MoveCursor<InterruptPlan, InterruptMove> for FlaggingCursor {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        let next = self.inner.next_candidate();
+    fn next_candidate(&mut self, solution: &InterruptPlan) -> Option<CandidateId> {
+        let next = self.inner.next_candidate(solution);
         if let Some(index) = next {
             if index.index() == self.trigger_index {
                 self.terminate.store(true, Ordering::SeqCst);

@@ -48,9 +48,9 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
         loop {
-            let child_id = self.inner.next_candidate()?;
+            let child_id = self.inner.next_candidate(solution)?;
             let candidate = self
                 .inner
                 .candidate(child_id)
@@ -76,8 +76,9 @@ where
     // iterator consumer. This boundary avoids instruction-layout duplication
     // while still returning each accepted move by value without storage.
     #[inline(never)]
-    fn next_owned_candidate(&mut self) -> Option<M> {
-        self.inner.next_owned_candidate_matching(self.predicate)
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<M> {
+        self.inner
+            .next_owned_candidate_matching(solution, self.predicate)
     }
 
     fn apply_owned_candidate<D: Director<S>>(&mut self, id: CandidateId, score_director: &mut D) {

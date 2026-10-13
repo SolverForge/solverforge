@@ -216,7 +216,15 @@ where
                 .filter(|slot| slot.entity_count(score_director.working_solution()) > 0)
                 .count()
                 .saturating_mul(moves_per_step),
-            _ => self.open_cursor(score_director).count(),
+            _ => {
+                let solution = score_director.working_solution();
+                let mut cursor = self.open_cursor(score_director);
+                let mut count = 0;
+                while cursor.next_candidate(solution).is_some() {
+                    count += 1;
+                }
+                count
+            }
         }
     }
 }
@@ -246,8 +254,8 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        self.inner.next_candidate()
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.inner.next_candidate(solution)
     }
 
     fn candidate(
@@ -261,33 +269,20 @@ where
         self.inner.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self) -> Option<RuntimeListMove<S, V, DM, IDM>> {
-        self.inner.next_owned_candidate()
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<RuntimeListMove<S, V, DM, IDM>> {
+        self.inner.next_owned_candidate(solution)
     }
 
     fn next_owned_candidate_matching(
         &mut self,
+        solution: &S,
         predicate: for<'b> fn(MoveCandidateRef<'b, S, RuntimeListMove<S, V, DM, IDM>>) -> bool,
     ) -> Option<RuntimeListMove<S, V, DM, IDM>> {
-        self.inner.next_owned_candidate_matching(predicate)
+        self.inner
+            .next_owned_candidate_matching(solution, predicate)
     }
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.inner.release_candidate(id)
-    }
-}
-
-impl<S, V, DM, IDM> Iterator for RuntimeListNeighborhoodCursor<'_, S, V, DM, IDM>
-where
-    S: PlanningSolution + Clone + Send + Sync + 'static,
-    S::Score: Score,
-    V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
-    DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
-    IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
-{
-    type Item = RuntimeListMove<S, V, DM, IDM>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }

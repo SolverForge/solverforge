@@ -195,7 +195,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         let mov = self.next_move()?;
         Some(self.store.push(mov))
     }
@@ -208,13 +208,14 @@ where
         self.store.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self) -> Option<RuinMove<S, V>> {
+    fn next_owned_candidate(&mut self, _solution: &S) -> Option<RuinMove<S, V>> {
         self.next_move()
     }
 
     #[inline(always)]
     fn next_owned_candidate_matching(
         &mut self,
+        _solution: &S,
         predicate: for<'a> fn(MoveCandidateRef<'a, S, RuinMove<S, V>>) -> bool,
     ) -> Option<RuinMove<S, V>> {
         loop {
@@ -227,18 +228,6 @@ where
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.store.release_candidate(id)
-    }
-}
-
-impl<S, V> Iterator for RuinMoveCursor<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
-{
-    type Item = RuinMove<S, V>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }
 

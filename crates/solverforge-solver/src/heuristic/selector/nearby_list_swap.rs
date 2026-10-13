@@ -62,8 +62,8 @@ where
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
     D: CrossEntityDistanceMeter<S>,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        self.inner.next_candidate()
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.inner.next_candidate(solution)
     }
 
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, ListSwapMove<S, V>>> {
@@ -74,32 +74,21 @@ where
         self.inner.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self) -> Option<ListSwapMove<S, V>> {
-        self.inner.next_owned_candidate()
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<ListSwapMove<S, V>> {
+        self.inner.next_owned_candidate(solution)
     }
 
     fn next_owned_candidate_matching(
         &mut self,
+        solution: &S,
         predicate: for<'b> fn(MoveCandidateRef<'b, S, ListSwapMove<S, V>>) -> bool,
     ) -> Option<ListSwapMove<S, V>> {
-        self.inner.next_owned_candidate_matching(predicate)
+        self.inner
+            .next_owned_candidate_matching(solution, predicate)
     }
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.inner.release_candidate(id)
-    }
-}
-
-impl<S, V, D> Iterator for NearbyListSwapMoveCursor<'_, S, V, D>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-    D: CrossEntityDistanceMeter<S>,
-{
-    type Item = ListSwapMove<S, V>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }
 

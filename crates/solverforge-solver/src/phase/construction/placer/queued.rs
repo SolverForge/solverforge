@@ -182,7 +182,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         let value = self.values.next()?;
         Some(self.store.push(ChangeMove::new(
             self.entity_index,
@@ -204,7 +204,7 @@ where
     }
 
     #[inline(always)]
-    fn next_owned_candidate(&mut self) -> Option<ChangeMove<S, V>> {
+    fn next_owned_candidate(&mut self, _solution: &S) -> Option<ChangeMove<S, V>> {
         let value = self.values.next()?;
         Some(ChangeMove::new(
             self.entity_index,

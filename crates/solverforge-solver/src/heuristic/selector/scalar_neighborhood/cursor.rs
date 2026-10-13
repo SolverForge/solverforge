@@ -226,7 +226,15 @@ where
                 usize::from(self.slot.entity_count(director.working_solution()) > 0)
                     .saturating_mul(moves_per_step)
             }
-            _ => self.open_cursor(director).count(),
+            _ => {
+                let solution = director.working_solution();
+                let mut cursor = self.open_cursor(director);
+                let mut count = 0;
+                while cursor.next_candidate(solution).is_some() {
+                    count += 1;
+                }
+                count
+            }
         }
     }
 }
@@ -335,7 +343,7 @@ where
     S: PlanningSolution,
     S::Score: Score,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
         self.next_move().map(|mov| self.store.push(mov))
     }
 
@@ -347,24 +355,12 @@ where
         self.store.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self) -> Option<RuntimeScalarMove<S>> {
+    fn next_owned_candidate(&mut self, _solution: &S) -> Option<RuntimeScalarMove<S>> {
         self.next_move()
     }
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.store.release_candidate(id)
-    }
-}
-
-impl<S> Iterator for RuntimeScalarNeighborhoodCursor<S>
-where
-    S: PlanningSolution,
-    S::Score: Score,
-{
-    type Item = RuntimeScalarMove<S>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.next_owned_candidate()
     }
 }
 

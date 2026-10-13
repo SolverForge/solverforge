@@ -51,8 +51,8 @@ where
     ChildCursor: MoveCursor<S, ChildMove>,
     Map: Fn(ChildMove) -> ParentMove,
 {
-    fn next_candidate(&mut self) -> Option<CandidateId> {
-        let child_id = self.child.next_candidate()?;
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        let child_id = self.child.next_candidate(solution)?;
         let selector_index = self.child.selector_index(child_id);
         let child_move = self.child.take_candidate(child_id);
         let id = self.store.push((self.map)(child_move));

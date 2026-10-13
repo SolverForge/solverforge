@@ -7,14 +7,16 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
 use crate::builder::selector::types::{
-    SelectorComposition, SelectorCompositionCartesian, SelectorCompositionState,
+    CompositionNodeId, SelectorComposition, SelectorCompositionNode, SelectorCompositionState,
 };
 use crate::builder::RuntimeCandidateMetricBinding;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::scalar_neighborhood::{
     ScalarNeighborhoodKind, ScalarNeighborhoodLeaf,
 };
-use crate::runtime::compiler::graph::{CompiledSelectorNode, ScalarLeafKind};
+use crate::runtime::compiler::graph::{
+    CompiledSelectorGraph, CompiledSelectorNode, CompiledSelectorNodeId, ScalarLeafKind,
+};
 
 use super::super::CompiledListNeighborhoodLeafAdapter;
 use super::leaf::{
@@ -65,12 +67,27 @@ impl fmt::Display for RuntimeLocalSearchLoweringError {
 
 impl std::error::Error for RuntimeLocalSearchLoweringError {}
 
-/// Lowers one already-compiled recursive graph to retained per-solve stream
-/// state. Every branch consumes frozen node data only; it never scans a model,
-/// rebuilds a public selector, or invokes a provider callback.
+/* Consumes one child node out of the graph arena in postorder; structural
+postorder guarantees every arena slot lowers exactly once. */
+fn pop_child<S, V, DM, IDM>(
+    nodes: &mut [Option<CompiledSelectorNode<S, V, DM, IDM>>],
+    id: CompiledSelectorNodeId,
+) -> CompiledSelectorNode<S, V, DM, IDM>
+where
+    S: PlanningSolution,
+{
+    nodes[id.index()]
+        .take()
+        .expect("each compiled selector node lowers exactly once")
+}
+
+/// Lowers one already-compiled graph to retained per-solve stream state,
+/// consuming the graph. Every branch receives frozen node data by ownership;
+/// it never scans a model, rebuilds a public selector, invokes a provider
+/// callback, or clones a slot vector or provider plan.
 pub(crate) fn lower_selector<S, V, DM, IDM>(
     solver_config: &SolverConfig,
-    node: &CompiledSelectorNode<S, V, DM, IDM>,
+    graph: CompiledSelectorGraph<S, V, DM, IDM>,
 ) -> Result<RuntimeNeighborhoodState<S, V, DM, IDM>, RuntimeLocalSearchLoweringError>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
@@ -79,7 +96,11 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    lower_node(solver_config, node).map(SelectorCompositionState::new)
+    let (mut nodes, root) = graph.into_parts();
+    let root_node = pop_child(&mut nodes, root);
+    let mut composition = SelectorComposition::new();
+    lower_node(solver_config, &mut nodes, root_node, &mut composition)?;
+    Ok(SelectorCompositionState::new(composition))
 }
 
 /// Lowers the exact frozen default declaration vector as one root union.
@@ -88,7 +109,7 @@ where
 pub(crate) fn lower_default_selector_union<S, V, DM, IDM>(
     solver_config: &SolverConfig,
     selection_order: UnionSelectionOrder,
-    nodes: &[CompiledSelectorNode<S, V, DM, IDM>],
+    graphs: Vec<CompiledSelectorGraph<S, V, DM, IDM>>,
 ) -> Result<RuntimeNeighborhoodState<S, V, DM, IDM>, RuntimeLocalSearchLoweringError>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
@@ -97,27 +118,35 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    if nodes.is_empty() {
+    if graphs.is_empty() {
         return Err(RuntimeLocalSearchLoweringError::new(
             "default local-search policy retained no frozen selector nodes",
         ));
     }
-    let composition = SelectorComposition::Union {
+    let mut composition = SelectorComposition::new();
+    let children = graphs
+        .into_iter()
+        .map(|graph| {
+            let (mut nodes, root) = graph.into_parts();
+            let root_node = pop_child(&mut nodes, root);
+            lower_node(solver_config, &mut nodes, root_node, &mut composition)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    composition.push(SelectorCompositionNode::Union {
         selection_order,
         weighting: solverforge_config::UnionWeighting::Equal,
         weights: Vec::new(),
-        children: nodes
-            .iter()
-            .map(|node| lower_node(solver_config, node))
-            .collect::<Result<Vec<_>, _>>()?,
-    };
+        children,
+    });
     Ok(SelectorCompositionState::new(composition))
 }
 
 fn lower_node<S, V, DM, IDM>(
     solver_config: &SolverConfig,
-    node: &CompiledSelectorNode<S, V, DM, IDM>,
-) -> Result<RuntimeNeighborhoodComposition<S, V, DM, IDM>, RuntimeLocalSearchLoweringError>
+    nodes: &mut [Option<CompiledSelectorNode<S, V, DM, IDM>>],
+    node: CompiledSelectorNode<S, V, DM, IDM>,
+    arena: &mut RuntimeNeighborhoodComposition<S, V, DM, IDM>,
+) -> Result<CompositionNodeId, RuntimeLocalSearchLoweringError>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -125,7 +154,7 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    match node {
+    let declaration = match node {
         CompiledSelectorNode::Scalar {
             kind,
             config,
@@ -134,12 +163,11 @@ where
             slots,
         } => {
             let leaves = slots
-                .iter()
-                .cloned()
+                .into_iter()
                 .map(|slot| {
                     ScalarNeighborhoodLeaf::new(
-                        scalar_neighborhood_kind(*kind),
-                        config,
+                        scalar_neighborhood_kind(kind),
+                        &config,
                         slot,
                         solver_config.random_seed,
                     )
@@ -151,25 +179,27 @@ where
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            flat(leaves, *candidate_order, candidate_metric.clone())
+            Ok(flat(leaves, candidate_order, candidate_metric)?)
         }
         CompiledSelectorNode::List {
+            kind,
+            config,
             candidate_order,
             candidate_metric,
-            ..
+            slots,
         } => {
             let leaf = CompiledListNeighborhoodLeafAdapter::from_solver_config(solver_config)
-                .lower_compiled_node(node)
+                .lower_compiled_list(kind, config, slots)
                 .map_err(|error| {
                     RuntimeLocalSearchLoweringError::new(format!(
                         "compiled list neighborhood leaf could not instantiate: {error}"
                     ))
                 })?;
-            flat(
+            Ok(flat(
                 vec![RuntimeNeighborhoodLeaf::List(leaf)],
-                *candidate_order,
-                candidate_metric.clone(),
-            )
+                candidate_order,
+                candidate_metric,
+            )?)
         }
         CompiledSelectorNode::GroupedScalar {
             config,
@@ -183,41 +213,45 @@ where
                     "compiled grouped scalar node retained an incompatible selector configuration",
                 ));
             };
-            flat(
+            Ok(flat(
                 vec![RuntimeNeighborhoodLeaf::Grouped(
                     crate::builder::selector::GroupedScalarSelector::new(
-                        group.clone(),
+                        group,
                         grouped.value_candidate_limit,
                         grouped.max_moves_per_step,
                         grouped.require_hard_improvement,
                     ),
                 )],
-                *candidate_order,
-                candidate_metric.clone(),
-            )
+                candidate_order,
+                candidate_metric,
+            )?)
         }
         CompiledSelectorNode::Provider {
             config,
             candidate_order,
             candidate_metric,
             plan,
-        } => flat(
+        } => Ok(flat(
             vec![RuntimeNeighborhoodLeaf::Provider(
                 RuntimeProviderNeighborhoodLeaf::new(
-                    plan.clone(),
-                    provider_requires_hard_improvement(config)?,
+                    plan,
+                    provider_requires_hard_improvement(&config)?,
                 ),
             )],
-            *candidate_order,
-            candidate_metric.clone(),
-        ),
+            candidate_order,
+            candidate_metric,
+        )?),
         CompiledSelectorNode::Limited {
             selected_count_limit,
             selector,
-        } => Ok(SelectorComposition::Limited {
-            selector: Box::new(lower_node(solver_config, selector)?),
-            selected_count_limit: *selected_count_limit,
-        }),
+        } => {
+            let child_node = pop_child(nodes, selector);
+            let child = lower_node(solver_config, nodes, child_node, arena)?;
+            Ok(SelectorCompositionNode::Limited {
+                selector: child,
+                selected_count_limit,
+            })
+        }
         CompiledSelectorNode::Union {
             selection_order,
             weighting,
@@ -229,13 +263,16 @@ where
                     "compiled union retained no frozen selector children",
                 ));
             }
-            Ok(SelectorComposition::Union {
-                selection_order: *selection_order,
-                weighting: *weighting,
-                weights: weights.clone(),
+            Ok(SelectorCompositionNode::Union {
+                selection_order,
+                weighting,
+                weights,
                 children: children
-                    .iter()
-                    .map(|child| lower_node(solver_config, child))
+                    .into_iter()
+                    .map(|child| {
+                        let child_node = pop_child(nodes, child);
+                        lower_node(solver_config, nodes, child_node, arena)
+                    })
                     .collect::<Result<Vec<_>, _>>()?,
             })
         }
@@ -243,14 +280,19 @@ where
             require_hard_improvement,
             left,
             right,
-        } => Ok(SelectorComposition::Cartesian(
-            SelectorCompositionCartesian::new(
-                lower_node(solver_config, left)?,
-                lower_node(solver_config, right)?,
-            )
-            .with_require_hard_improvement(*require_hard_improvement),
-        )),
-    }
+        } => {
+            let left_node = pop_child(nodes, left);
+            let right_node = pop_child(nodes, right);
+            let left = lower_node(solver_config, nodes, left_node, arena)?;
+            let right = lower_node(solver_config, nodes, right_node, arena)?;
+            Ok(SelectorCompositionNode::Cartesian {
+                require_hard_improvement,
+                left,
+                right,
+            })
+        }
+    }?;
+    Ok(arena.push(declaration))
 }
 
 fn scalar_neighborhood_kind(kind: ScalarLeafKind) -> ScalarNeighborhoodKind {
@@ -269,7 +311,10 @@ fn flat<S, V, DM, IDM>(
     leaves: Vec<RuntimeNeighborhoodLeaf<S, V, DM, IDM>>,
     candidate_order: SelectionOrder,
     candidate_metric: Option<RuntimeCandidateMetricBinding<S>>,
-) -> Result<RuntimeNeighborhoodComposition<S, V, DM, IDM>, RuntimeLocalSearchLoweringError>
+) -> Result<
+    SelectorCompositionNode<RuntimeNeighborhoodFlat<S, V, DM, IDM>>,
+    RuntimeLocalSearchLoweringError,
+>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
     S::Score: Score,
@@ -288,7 +333,7 @@ where
             UnionSelectionOrder::Sequential
         }
     };
-    Ok(SelectorComposition::Flat(RuntimeNeighborhoodFlat::new(
+    Ok(SelectorCompositionNode::Flat(RuntimeNeighborhoodFlat::new(
         leaves,
         selection_order,
         candidate_order,

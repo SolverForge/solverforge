@@ -472,7 +472,7 @@ fn omitted_selector_provenance_keeps_the_explicit_local_search_policy() {
         .selectors
         .len();
     let executor = super::executor::CompiledRuntimeExecutor::new(graph);
-    let runner = super::executor::CompiledRuntimePhaseRunner::try_new(&executor)
+    let runner = super::executor::CompiledRuntimePhaseRunner::try_new(executor)
         .expect("the explicit phase lowers against the default selector tree");
     let phase = runner.phase_plan_for_test(0);
     let declaration = &phase.children[0];

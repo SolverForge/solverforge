@@ -14,7 +14,7 @@ use crate::descriptor::ResolvedVariableBinding;
 use crate::phase::construction::{ScalarConstructionSchedule, ScalarOrMixedSlotOrder};
 
 use super::super::super::defaults::DefaultRuntimeBindings;
-use super::super::super::graph::{CompiledConstruction, CompiledLocalSearch, ListConstructionKind};
+use super::super::super::graph::{CompiledConstruction, ListConstructionKind};
 use super::super::super::types::{CompiledListSlot, CompiledScalarSlot, RuntimeSlotId};
 use super::RuntimeInstantiationError;
 use crate::builder::context::{
@@ -105,10 +105,17 @@ pub(crate) struct PreparedDefaultRuntime<S, V, DM, IDM> {
 )]
 pub(crate) enum PreparedRuntimePhase<S, V, DM, IDM, Extension> {
     Construction(PreparedConstruction<S, V, DM, IDM>),
-    LocalSearch(CompiledLocalSearch<S, V, DM, IDM>),
+    /// Local search borrows its frozen declaration from the owned compiled
+    /// graph at lowering time; preparation retains no duplicate graph data.
+    LocalSearch(PreparedLocalSearchMarker),
     Extension(Extension),
     DefaultRuntime(PreparedDefaultRuntime<S, V, DM, IDM>),
 }
+
+/// Structural marker that one compiled local-search phase instantiated without
+/// copying its immutable declaration graphs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct PreparedLocalSearchMarker;
 
 /// One per-solve graph instantiation. It intentionally has no `PhaseSequence`:
 /// the future unified runner consumes these prepared nodes directly.

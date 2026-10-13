@@ -213,13 +213,26 @@ pub(super) const PYTHON_PROVIDER_CANDIDATE_CONTRACT: ProviderCandidateContract =
         tabu_identity: ProviderTabuIdentity::ProviderKindAndOrderedEdits,
     };
 
-/// Recursive immutable selector graph.  `Limited`, `Union`, and `Cartesian`
-/// are true recursive nodes so nested Cartesian graphs work identically for
-/// acceptor-forager local search and VND neighborhoods.
+/// Stable coordinate into one immutable compiled selector declaration arena.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct CompiledSelectorNodeId(usize);
+
+impl CompiledSelectorNodeId {
+    pub(super) fn new(index: usize) -> Self {
+        Self(index)
+    }
+
+    pub(super) fn index(self) -> usize {
+        self.0
+    }
+}
+
+/// One immutable selector declaration node. Structural edges use stable arena
+/// coordinates, so nested selectors never require recursive heap ownership.
 #[derive(Clone, Debug)]
-#[expect(
+#[allow(
     clippy::large_enum_variant,
-    reason = "compiled selector nodes are an immutable value-owned graph"
+    reason = "leaf declarations carry their frozen slot vectors"
 )]
 pub(crate) enum CompiledSelectorNode<S, V, DM, IDM> {
     Scalar {
@@ -240,7 +253,6 @@ pub(crate) enum CompiledSelectorNode<S, V, DM, IDM> {
         config: MoveSelectorConfig,
         candidate_order: SelectionOrder,
         candidate_metric: Option<RuntimeCandidateMetricBinding<S>>,
-        group_index: usize,
         group: ScalarGroupBinding<S>,
     },
     /// Every non-assignment group/repair source uses this one provider-node
@@ -254,50 +266,120 @@ pub(crate) enum CompiledSelectorNode<S, V, DM, IDM> {
     },
     Limited {
         selected_count_limit: usize,
-        selector: Box<Self>,
+        selector: CompiledSelectorNodeId,
     },
     Union {
         selection_order: UnionSelectionOrder,
         weighting: UnionWeighting,
         weights: Vec<u64>,
-        children: Vec<Self>,
+        children: Vec<CompiledSelectorNodeId>,
     },
     Cartesian {
         require_hard_improvement: bool,
-        left: Box<Self>,
-        right: Box<Self>,
+        left: CompiledSelectorNodeId,
+        right: CompiledSelectorNodeId,
     },
 }
 
-impl<S, V, DM, IDM> CompiledSelectorNode<S, V, DM, IDM> {
-    pub(super) fn requires_score_during_move(&self) -> bool {
-        match self {
-            Self::Scalar { kind, .. } => matches!(kind, ScalarLeafKind::RuinRecreate),
-            Self::List { kind, .. } => matches!(kind, ListLeafKind::Ruin),
-            Self::GroupedScalar { .. } | Self::Provider { .. } => false,
-            Self::Limited { selector, .. } => selector.requires_score_during_move(),
-            Self::Union { children, .. } => children.iter().any(Self::requires_score_during_move),
-            Self::Cartesian { left, right, .. } => {
-                left.requires_score_during_move() || right.requires_score_during_move()
-            }
-        }
+/// One postorder selector graph with a stable root coordinate.
+#[derive(Clone, Debug)]
+pub(crate) struct CompiledSelectorGraph<S, V, DM, IDM> {
+    nodes: Vec<CompiledSelectorNode<S, V, DM, IDM>>,
+    root: CompiledSelectorNodeId,
+}
+
+impl<S, V, DM, IDM> CompiledSelectorGraph<S, V, DM, IDM> {
+    pub(super) fn from_nodes_and_root(
+        nodes: Vec<CompiledSelectorNode<S, V, DM, IDM>>,
+        root: CompiledSelectorNodeId,
+    ) -> Self {
+        assert!(
+            root.index() == nodes.len() - 1,
+            "compiled selector graph root must be the last pushed node"
+        );
+        Self { nodes, root }
     }
 
-    pub(super) fn contains_provider(&self) -> bool {
-        match self {
-            Self::Provider { .. } => true,
-            Self::Limited { selector, .. } => selector.contains_provider(),
-            Self::Union { children, .. } => children.iter().any(Self::contains_provider),
-            Self::Cartesian { left, right, .. } => {
-                left.contains_provider() || right.contains_provider()
+    /* Consumes the arena; each node lowers exactly once per solve. */
+    pub(super) fn into_parts(
+        self,
+    ) -> (
+        Vec<Option<CompiledSelectorNode<S, V, DM, IDM>>>,
+        CompiledSelectorNodeId,
+    ) {
+        (self.nodes.into_iter().map(Some).collect(), self.root)
+    }
+
+    pub(super) fn node(&self, id: CompiledSelectorNodeId) -> &CompiledSelectorNode<S, V, DM, IDM> {
+        &self.nodes[id.index()]
+    }
+
+    pub(super) fn requires_score_during_move_root(&self) -> bool {
+        matches!(
+            self.node(self.root),
+            CompiledSelectorNode::Scalar {
+                kind: ScalarLeafKind::RuinRecreate,
+                ..
+            } | CompiledSelectorNode::List {
+                kind: ListLeafKind::Ruin,
+                ..
             }
-            Self::Scalar { .. } | Self::List { .. } | Self::GroupedScalar { .. } => false,
-        }
+        )
+    }
+
+    pub(super) fn contains_provider_root(&self) -> bool {
+        matches!(self.node(self.root), CompiledSelectorNode::Provider { .. })
     }
 }
 
+pub(super) struct SelectorGraphBuilder<S, V, DM, IDM> {
+    nodes: Vec<CompiledSelectorNode<S, V, DM, IDM>>,
+}
+
+impl<S, V, DM, IDM> Default for SelectorGraphBuilder<S, V, DM, IDM> {
+    fn default() -> Self {
+        Self { nodes: Vec::new() }
+    }
+}
+
+impl<S, V, DM, IDM> SelectorGraphBuilder<S, V, DM, IDM> {
+    pub(super) fn push(
+        &mut self,
+        node: CompiledSelectorNode<S, V, DM, IDM>,
+    ) -> CompiledSelectorNodeId {
+        let id = CompiledSelectorNodeId::new(self.nodes.len());
+        self.nodes.push(node);
+        id
+    }
+
+    pub(super) fn assemble_graph(
+        self,
+        root: CompiledSelectorNodeId,
+    ) -> CompiledSelectorGraph<S, V, DM, IDM> {
+        assert!(
+            root.index() == self.nodes.len() - 1,
+            "compiled selector graph root must be the last pushed node"
+        );
+        CompiledSelectorGraph::from_nodes_and_root(self.nodes, root)
+    }
+}
+
+/* Merges one compiled sub-graph's nodes into `builder` in order and returns
+the rebased root id. Node contents stay untouched; children already point at
+their own arena coordinates, shifted by the merged offset. */
+pub(super) fn rebase_graph<S, V, DM, IDM>(
+    builder: &mut SelectorGraphBuilder<S, V, DM, IDM>,
+    graph: CompiledSelectorGraph<S, V, DM, IDM>,
+) -> CompiledSelectorNodeId {
+    let offset = builder.nodes.len();
+    for node in graph.nodes {
+        builder.nodes.push(node);
+    }
+    CompiledSelectorNodeId::new(graph.root.index() + offset)
+}
+
 #[derive(Clone, Debug)]
-#[expect(
+#[allow(
     clippy::large_enum_variant,
     reason = "compiled construction stays value-owned through preparation"
 )]
@@ -333,13 +415,9 @@ pub(crate) enum CompiledConstruction<S, V, DM, IDM> {
 }
 
 #[derive(Clone, Debug)]
-#[expect(
-    clippy::large_enum_variant,
-    reason = "compiled selector declarations stay value-owned"
-)]
 pub(crate) enum CompiledAcceptorForagerSelector<S, V, DM, IDM> {
     /// A user-declared selector compiled directly into the immutable graph.
-    Explicit(CompiledSelectorNode<S, V, DM, IDM>),
+    Explicit(CompiledSelectorGraph<S, V, DM, IDM>),
     /// This phase intentionally consumes `DefaultRuntimeBindings`' one
     /// capability-resolved declaration. It is not an absent selector or a
     /// late-selected alternative.
@@ -347,10 +425,6 @@ pub(crate) enum CompiledAcceptorForagerSelector<S, V, DM, IDM> {
 }
 
 #[derive(Clone, Debug)]
-#[expect(
-    clippy::large_enum_variant,
-    reason = "compiled local search is an immutable value-owned declaration"
-)]
 pub(crate) enum CompiledLocalSearch<S, V, DM, IDM> {
     AcceptorForager {
         config: LocalSearchConfig,
@@ -358,12 +432,12 @@ pub(crate) enum CompiledLocalSearch<S, V, DM, IDM> {
     },
     VariableNeighborhoodDescent {
         config: LocalSearchConfig,
-        neighborhoods: Vec<CompiledSelectorNode<S, V, DM, IDM>>,
+        neighborhoods: Vec<CompiledSelectorGraph<S, V, DM, IDM>>,
     },
 }
 
 #[derive(Clone, Debug)]
-#[expect(
+#[allow(
     clippy::large_enum_variant,
     reason = "compiled phases remain one value-owned execution graph"
 )]

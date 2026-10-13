@@ -14,7 +14,7 @@ mod trace;
 pub(super) use policy::{
     compile_default_local_search_components, compile_default_local_search_plan,
 };
-pub(super) use trace::{selection_order_label, selector_config_signature, slot_signature};
+pub(crate) use trace::slot_signature;
 
 /// The exact default acceptor selected from frozen model capabilities.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

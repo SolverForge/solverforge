@@ -42,8 +42,8 @@ pub(crate) use defaults::{
 pub(crate) use executor::CompiledRuntimeExecutor;
 pub(crate) use graph::{
     CompiledAcceptorForagerSelector, CompiledLocalSearch, CompiledProviderPlan,
-    CompiledRuntimeExtension, CompiledRuntimePhase, CompiledSelectorNode, ListLeafKind,
-    ProviderBindingPlan, ProviderBindingPolicy, ProviderMoveKind, ProviderSchedule, ScalarLeafKind,
+    CompiledRuntimeExtension, CompiledRuntimePhase, ListLeafKind, ProviderBindingPlan,
+    ProviderBindingPolicy, ProviderMoveKind, ProviderSchedule,
 };
 pub(crate) use input::RuntimeGraphInput;
 

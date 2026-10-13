@@ -505,7 +505,7 @@ fn compiled_runtime_fails_incomplete_list_work_without_publishing_a_best_solutio
     };
     let executor = executor(&config);
     let runner =
-        CompiledRuntimePhaseRunner::try_new(&executor).expect("list runtime runner must prepare");
+        CompiledRuntimePhaseRunner::try_new(executor).expect("list runtime runner must prepare");
     let best_solution_events = Arc::new(AtomicUsize::new(0));
     let observed_events = Arc::clone(&best_solution_events);
     let director = ScoreDirector::simple(
@@ -544,7 +544,7 @@ fn compiled_runtime_publishes_only_after_list_work_is_complete() {
     };
     let executor = executor(&config);
     let runner =
-        CompiledRuntimePhaseRunner::try_new(&executor).expect("list runtime runner must prepare");
+        CompiledRuntimePhaseRunner::try_new(executor).expect("list runtime runner must prepare");
     let best_solution_events = Arc::new(AtomicUsize::new(0));
     let observed_events = Arc::clone(&best_solution_events);
     let director = ScoreDirector::simple(
@@ -657,7 +657,7 @@ fn already_complete_list_work_can_terminate_by_config_and_publish() {
     };
     let executor = executor(&config);
     let runner =
-        CompiledRuntimePhaseRunner::try_new(&executor).expect("list runtime runner must prepare");
+        CompiledRuntimePhaseRunner::try_new(executor).expect("list runtime runner must prepare");
     let best_solution_events = Arc::new(AtomicUsize::new(0));
     let observed_events = Arc::clone(&best_solution_events);
     let director = ScoreDirector::simple(

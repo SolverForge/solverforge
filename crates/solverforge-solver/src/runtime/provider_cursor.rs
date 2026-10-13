@@ -34,11 +34,11 @@ use super::compiler::{
 /// at normalization/pull boundaries. This lets one execution interleave
 /// nested provider leaves without shared ownership, interior mutability, or
 /// duplicate per-leaf arenas while preserving one stable ID space.
-pub(crate) struct RuntimeProviderCursor<S>
+pub(crate) struct RuntimeProviderCursor<'p, S>
 where
     S: PlanningSolution + 'static,
 {
-    plan: CompiledProviderPlan,
+    plan: &'p CompiledProviderPlan,
     solution: S,
     context: MoveStreamContext,
     require_hard_improvement: bool,
@@ -47,12 +47,12 @@ where
     prepared: bool,
 }
 
-impl<S> RuntimeProviderCursor<S>
+impl<'p, S> RuntimeProviderCursor<'p, S>
 where
     S: PlanningSolution + 'static,
 {
     pub(crate) fn new(
-        plan: CompiledProviderPlan,
+        plan: &'p CompiledProviderPlan,
         solution: S,
         context: MoveStreamContext,
         require_hard_improvement: bool,
@@ -77,14 +77,14 @@ where
             return;
         }
         self.prepared = true;
-        match self.plan.schedule.clone() {
+        match &self.plan.schedule {
             ProviderSchedule::Group {
                 value_candidate_limit,
                 requested_max_moves_per_step,
             } => self.prepare_group(
                 registry,
-                value_candidate_limit,
-                requested_max_moves_per_step,
+                *value_candidate_limit,
+                *requested_max_moves_per_step,
                 reason_arena,
             ),
             ProviderSchedule::Repair {
@@ -96,10 +96,10 @@ where
             } => self.prepare_repair(
                 registry,
                 constraints,
-                max_matches_per_step,
-                max_repairs_per_match,
-                max_moves_per_step,
-                include_soft_matches,
+                *max_matches_per_step,
+                *max_repairs_per_match,
+                *max_moves_per_step,
+                *include_soft_matches,
                 reason_arena,
             ),
         }
@@ -194,7 +194,7 @@ where
     fn prepare_repair(
         &mut self,
         registry: &RuntimeProviderRegistry<S>,
-        constraints: Vec<String>,
+        constraints: &[String],
         max_matches_per_step: usize,
         max_repairs_per_match: usize,
         max_moves_per_step: usize,
@@ -211,7 +211,7 @@ where
         let mut provider_invocations = 0usize;
         self.prepare_callback_repairs(
             registry,
-            &constraints,
+            constraints,
             max_matches_per_step,
             max_repairs_per_match,
             max_moves_per_step,
@@ -222,7 +222,7 @@ where
         if self.store.len() < max_moves_per_step && provider_invocations < max_matches_per_step {
             self.prepare_static_repairs(
                 registry,
-                &constraints,
+                constraints,
                 max_matches_per_step,
                 max_repairs_per_match,
                 max_moves_per_step,
@@ -439,7 +439,7 @@ where
     }
 }
 
-impl<S> RuntimeProviderCursor<S>
+impl<S> RuntimeProviderCursor<'_, S>
 where
     S: PlanningSolution + 'static,
 {

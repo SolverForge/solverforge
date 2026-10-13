@@ -71,7 +71,7 @@ pub(crate) struct DefaultRuntimeBindings<S, V, DM, IDM> {
     /// Frozen recursive selector nodes in the exact declaration order of
     /// `local_search_plan`. Omitted local search lowers these directly; it
     /// never recompiles schema/configuration at a solve boundary.
-    pub local_search_nodes: Vec<super::graph::CompiledSelectorNode<S, V, DM, IDM>>,
+    pub local_search_nodes: Vec<super::graph::CompiledSelectorGraph<S, V, DM, IDM>>,
     /// Omitted local search is a policy declaration, not an eagerly built
     /// phase. The compiled runner resolves eligibility against the
     /// effective solver termination immediately before it would enter the

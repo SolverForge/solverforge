@@ -4,7 +4,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use crate::builder::{RuntimeModel, ScalarAccessCapability};
 
 use super::super::defaults::DefaultScalarBinding;
-use super::super::graph::CompiledSelectorNode;
+use super::super::graph::CompiledSelectorGraph;
 use super::super::selector_tree::compile_selector;
 use super::super::types::{CompiledListSlot, RuntimeCompileError, RuntimeCompileErrorKind};
 use super::{
@@ -90,7 +90,7 @@ pub(crate) fn compile_default_local_search_plan<S, V, DM, IDM>(
 ) -> Result<
     Option<(
         DefaultLocalSearchPlan,
-        Vec<CompiledSelectorNode<S, V, DM, IDM>>,
+        Vec<CompiledSelectorGraph<S, V, DM, IDM>>,
     )>,
     RuntimeCompileError,
 >

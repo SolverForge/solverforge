@@ -19,7 +19,7 @@ use crate::runtime_build_error::{RuntimeBuildError, RuntimeBuildResult};
 use crate::stats::CandidateTracePhasePlan;
 
 use super::super::local_search::{lower_default_selector_union, lower_selector};
-use super::super::trace::{extension_plan, local_search_plan, prepared_construction_plan};
+use super::super::trace::{extension_plan, local_search_config_plan, prepared_construction_plan};
 use super::super::PreparedRuntimePhase;
 use super::local_search::RuntimeLocalSearch;
 use super::{RunnerPhase, RunnerPhaseOutcome};
@@ -27,9 +27,9 @@ use super::{RunnerPhase, RunnerPhaseOutcome};
 pub(super) fn lower_runner_phase<S, V, DM, IDM, Extension>(
     phase_index: usize,
     prepared: &PreparedRuntimePhase<S, V, DM, IDM, Extension>,
-    declared: &CompiledRuntimePhase<S, V, DM, IDM>,
+    declared: CompiledRuntimePhase<S, V, DM, IDM>,
     solver_config: &SolverConfig,
-    defaults: &DefaultRuntimeBindings<S, V, DM, IDM>,
+    mandatory_bindings: &mut DefaultRuntimeBindings<S, V, DM, IDM>,
 ) -> RuntimeBuildResult<RunnerPhase<S, V, DM, IDM>>
 where
     S: PlanningSolution + Clone + Send + Sync + 'static,
@@ -47,9 +47,9 @@ where
             declaration: prepared_construction_plan(construction),
             outcome: RunnerPhaseOutcome::Pending,
         }),
-        (PreparedRuntimePhase::LocalSearch(local_search), CompiledRuntimePhase::LocalSearch(_)) => {
+        (PreparedRuntimePhase::LocalSearch(_), CompiledRuntimePhase::LocalSearch(declared)) => {
             let (local_search, declaration) =
-                lower_local_search(local_search, solver_config, defaults, phase_index)?;
+                lower_local_search(declared, solver_config, mandatory_bindings, phase_index)?;
             Ok(RunnerPhase::LocalSearch {
                 phase_index,
                 declaration,
@@ -60,20 +60,22 @@ where
         (PreparedRuntimePhase::Extension(_), CompiledRuntimePhase::Extension(extension)) => {
             Ok(RunnerPhase::Extension {
                 phase_index,
-                declaration: extension_plan(extension_trace_kind(extension)),
+                declaration: extension_plan(extension_trace_kind(&extension)),
                 outcome: RunnerPhaseOutcome::Pending,
             })
         }
         (PreparedRuntimePhase::DefaultRuntime(_), CompiledRuntimePhase::DefaultRuntime) => {
             let (local_search, local_search_declaration) = match (
-                defaults.local_search_plan.as_ref(),
-                defaults.local_search_policy.eligibility::<S>(solver_config),
+                mandatory_bindings.local_search_plan.as_ref(),
+                mandatory_bindings
+                    .local_search_policy
+                    .eligibility::<S>(solver_config),
             ) {
                 (Some(plan), DefaultLocalSearchEligibility::Eligible) => {
                     let selector = lower_default_selector_union(
                         solver_config,
                         plan.selection_order,
-                        &defaults.local_search_nodes,
+                        std::mem::take(&mut mandatory_bindings.local_search_nodes),
                     )
                     .map_err(|error| lowering_error(phase_index, error))?;
                     (
@@ -110,9 +112,9 @@ where
 }
 
 fn lower_local_search<S, V, DM, IDM>(
-    local_search: &CompiledLocalSearch<S, V, DM, IDM>,
+    local_search: CompiledLocalSearch<S, V, DM, IDM>,
     solver_config: &SolverConfig,
-    defaults: &DefaultRuntimeBindings<S, V, DM, IDM>,
+    mandatory: &mut DefaultRuntimeBindings<S, V, DM, IDM>,
     phase_index: usize,
 ) -> RuntimeBuildResult<(RuntimeLocalSearch<S, V, DM, IDM>, CandidateTracePhasePlan)>
 where
@@ -131,7 +133,7 @@ where
                     None,
                 ),
                 CompiledAcceptorForagerSelector::OmittedDefault => {
-                    let plan = defaults.local_search_plan.as_ref().ok_or_else(|| {
+                    let plan = mandatory.local_search_plan.as_ref().ok_or_else(|| {
                         RuntimeBuildError::Preparation {
                             phase_index,
                             message:
@@ -143,7 +145,7 @@ where
                         lower_default_selector_union(
                             solver_config,
                             plan.selection_order,
-                            &defaults.local_search_nodes,
+                            std::mem::take(&mut mandatory.local_search_nodes),
                         )
                         .map_err(|error| lowering_error(phase_index, error))?,
                         Some(plan),
@@ -152,18 +154,18 @@ where
             };
             let omitted_selector_children =
                 omitted_plan.map_or_else(Vec::new, |plan| plan.candidate_trace_selector_children());
-            let declaration = local_search_plan(
-                local_search,
-                defaults.local_search_components,
+            let declaration = local_search_config_plan(
+                &config,
+                mandatory.local_search_components,
                 omitted_selector_children,
             );
             Ok((
                 RuntimeLocalSearch::AcceptorForager {
-                    phase_termination: config.termination.clone(),
+                    phase_termination: config.termination,
                     selector,
-                    components: defaults.local_search_components,
-                    acceptor: config.acceptor.clone(),
-                    forager: config.forager.clone(),
+                    components: mandatory.local_search_components,
+                    acceptor: config.acceptor,
+                    forager: config.forager,
                     score_tie_break: config.score_tie_break,
                     random_seed: solver_config.random_seed,
                 },
@@ -175,17 +177,17 @@ where
             neighborhoods,
         } => {
             let neighborhoods = neighborhoods
-                .iter()
+                .into_iter()
                 .map(|neighborhood| {
                     lower_selector(solver_config, neighborhood)
                         .map_err(|error| lowering_error(phase_index, error))
                 })
                 .collect::<RuntimeBuildResult<Vec<_>>>()?;
             let declaration =
-                local_search_plan(local_search, defaults.local_search_components, Vec::new());
+                local_search_config_plan(&config, mandatory.local_search_components, Vec::new());
             Ok((
                 RuntimeLocalSearch::VariableNeighborhoodDescent {
-                    phase_termination: config.termination.clone(),
+                    phase_termination: config.termination,
                     neighborhoods,
                 },
                 declaration,

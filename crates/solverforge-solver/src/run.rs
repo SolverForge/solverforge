@@ -523,7 +523,7 @@ where
                     }
                 })?;
             let executor = CompiledRuntimeExecutor::new(graph);
-            CompiledRuntimePhaseRunner::try_new(&executor)
+            CompiledRuntimePhaseRunner::try_new(executor)
         },
     )
 }

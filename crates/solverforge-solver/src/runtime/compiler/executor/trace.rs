@@ -7,12 +7,9 @@
 use solverforge_config::{ConstructionHeuristicConfig, LocalSearchConfig};
 use solverforge_core::domain::PlanningSolution;
 
-use crate::runtime::compiler::default_local_search::{
-    selection_order_label, selector_config_signature, slot_signature,
-};
+use crate::runtime::compiler::default_local_search::slot_signature;
 use crate::runtime::compiler::{
-    CompiledLocalSearch, CompiledSelectorNode, DefaultConstructionStage,
-    DefaultConstructionStepKind, DefaultLocalSearchComponents,
+    DefaultConstructionStage, DefaultConstructionStepKind, DefaultLocalSearchComponents,
 };
 use crate::stats::CandidateTracePhasePlan;
 
@@ -20,234 +17,6 @@ use super::{
     DefaultConstructionStageExecutionRecord, DefaultRuntimeConstructionExecution,
     PreparedConstruction, ResolvedConstructionExecutionStep,
 };
-
-pub(super) fn compiled_selector_plan<S, V, DM, IDM>(
-    selector: &CompiledSelectorNode<S, V, DM, IDM>,
-) -> CandidateTracePhasePlan
-where
-    S: PlanningSolution,
-{
-    match selector {
-        CompiledSelectorNode::Scalar {
-            kind,
-            config,
-            candidate_order,
-            candidate_metric,
-            slots,
-        } => CandidateTracePhasePlan::known(
-            "solverforge.runtime.selector.scalar",
-            [
-                ("config", selector_config_signature(config)),
-                (
-                    "candidate_order",
-                    format!("{candidate_order:?}").to_ascii_lowercase(),
-                ),
-                (
-                    "selection_metric",
-                    candidate_metric
-                        .as_ref()
-                        .map(|metric| metric.name().to_string())
-                        .unwrap_or_default(),
-                ),
-                ("kind", scalar_leaf_kind_label(*kind).to_string()),
-                ("slot_count", slots.len().to_string()),
-                (
-                    "slots",
-                    slots
-                        .iter()
-                        .map(|slot| slot_signature(&slot.id()))
-                        .collect::<Vec<_>>()
-                        .join(","),
-                ),
-            ],
-            Vec::new(),
-        ),
-        CompiledSelectorNode::List {
-            kind,
-            config,
-            candidate_order,
-            candidate_metric,
-            slots,
-        } => CandidateTracePhasePlan::known(
-            "solverforge.runtime.selector.list",
-            [
-                ("config", selector_config_signature(config)),
-                (
-                    "candidate_order",
-                    format!("{candidate_order:?}").to_ascii_lowercase(),
-                ),
-                (
-                    "selection_metric",
-                    candidate_metric
-                        .as_ref()
-                        .map(|metric| metric.name().to_string())
-                        .unwrap_or_default(),
-                ),
-                ("kind", list_leaf_kind_label(*kind).to_string()),
-                ("slot_count", slots.len().to_string()),
-                (
-                    "slots",
-                    slots
-                        .iter()
-                        .map(|slot| slot_signature(&slot.identity()))
-                        .collect::<Vec<_>>()
-                        .join(","),
-                ),
-            ],
-            Vec::new(),
-        ),
-        CompiledSelectorNode::GroupedScalar {
-            config,
-            candidate_order,
-            candidate_metric,
-            group_index,
-            group,
-        } => CandidateTracePhasePlan::known(
-            "solverforge.runtime.selector.grouped_scalar",
-            [
-                ("config", selector_config_signature(config)),
-                (
-                    "candidate_order",
-                    format!("{candidate_order:?}").to_ascii_lowercase(),
-                ),
-                (
-                    "selection_metric",
-                    candidate_metric
-                        .as_ref()
-                        .map(|metric| metric.name().to_string())
-                        .unwrap_or_default(),
-                ),
-                ("group_index", group_index.to_string()),
-                ("group_name", group.group_name.to_string()),
-            ],
-            Vec::new(),
-        ),
-        CompiledSelectorNode::Provider {
-            config,
-            candidate_order,
-            candidate_metric,
-            plan,
-        } => CandidateTracePhasePlan::known(
-            "solverforge.runtime.selector.provider",
-            [
-                ("config", selector_config_signature(config)),
-                (
-                    "candidate_order",
-                    format!("{candidate_order:?}").to_ascii_lowercase(),
-                ),
-                (
-                    "selection_metric",
-                    candidate_metric
-                        .as_ref()
-                        .map(|metric| metric.name().to_string())
-                        .unwrap_or_default(),
-                ),
-                ("move_kind", format!("{:?}", plan.move_kind)),
-                ("schedule", format!("{:?}", plan.schedule)),
-                (
-                    "bindings",
-                    plan.bindings
-                        .iter()
-                        .map(|binding| {
-                            format!(
-                                "{:?}:{}:{:?}:{:?}",
-                                binding.handle,
-                                binding.declared_schema_index,
-                                binding.policy,
-                                binding.allowed_slots
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join("|"),
-                ),
-            ],
-            Vec::new(),
-        ),
-        CompiledSelectorNode::Limited {
-            selected_count_limit,
-            selector,
-        } => CandidateTracePhasePlan::known(
-            "solverforge.runtime.selector.limited",
-            [("selected_count_limit", selected_count_limit.to_string())],
-            vec![compiled_selector_plan(selector)],
-        ),
-        CompiledSelectorNode::Union {
-            selection_order,
-            weighting,
-            weights,
-            children,
-        } => CandidateTracePhasePlan::known(
-            "solverforge.runtime.selector.union",
-            [
-                (
-                    "selection_order",
-                    selection_order_label(*selection_order).to_string(),
-                ),
-                ("weighting", format!("{weighting:?}").to_ascii_lowercase()),
-                (
-                    "weights",
-                    weights
-                        .iter()
-                        .map(u64::to_string)
-                        .collect::<Vec<_>>()
-                        .join("|"),
-                ),
-                ("selector_count", children.len().to_string()),
-            ],
-            children.iter().map(compiled_selector_plan).collect(),
-        ),
-        CompiledSelectorNode::Cartesian {
-            require_hard_improvement,
-            left,
-            right,
-        } => CandidateTracePhasePlan::known(
-            "solverforge.runtime.selector.cartesian",
-            [(
-                "require_hard_improvement",
-                require_hard_improvement.to_string(),
-            )],
-            vec![compiled_selector_plan(left), compiled_selector_plan(right)],
-        ),
-    }
-}
-
-pub(super) fn local_search_plan<S, V, DM, IDM>(
-    local_search: &CompiledLocalSearch<S, V, DM, IDM>,
-    components: DefaultLocalSearchComponents,
-    omitted_selector_children: Vec<CandidateTracePhasePlan>,
-) -> CandidateTracePhasePlan
-where
-    S: PlanningSolution,
-{
-    match local_search {
-        CompiledLocalSearch::AcceptorForager { config, selector } => {
-            let children = match selector {
-                crate::runtime::compiler::CompiledAcceptorForagerSelector::Explicit(selector) => {
-                    vec![compiled_selector_plan(selector)]
-                }
-                crate::runtime::compiler::CompiledAcceptorForagerSelector::OmittedDefault => {
-                    omitted_selector_children
-                }
-            };
-            CandidateTracePhasePlan::known(
-                "solverforge.runtime.local_search.acceptor_forager",
-                local_search_attributes(config, components, children.len()),
-                children,
-            )
-        }
-        CompiledLocalSearch::VariableNeighborhoodDescent {
-            config,
-            neighborhoods,
-        } => CandidateTracePhasePlan::known(
-            "solverforge.runtime.local_search.variable_neighborhood_descent",
-            [
-                ("config", format!("{config:?}")),
-                ("neighborhood_count", neighborhoods.len().to_string()),
-            ],
-            neighborhoods.iter().map(compiled_selector_plan).collect(),
-        ),
-    }
-}
 
 pub(super) fn prepared_construction_plan<S, V, DM, IDM>(
     construction: &PreparedConstruction<S, V, DM, IDM>,
@@ -329,6 +98,20 @@ pub(super) fn phase_with_outcome(
             ("phase_index", phase_index.to_string()),
         ],
         vec![child],
+    )
+}
+
+/* Declaration-only planning used after the owned local search was consumed
+into its runtime phase; it plans from the same retained config fields. */
+pub(super) fn local_search_config_plan(
+    config: &LocalSearchConfig,
+    components: DefaultLocalSearchComponents,
+    children: Vec<CandidateTracePhasePlan>,
+) -> CandidateTracePhasePlan {
+    CandidateTracePhasePlan::known(
+        "solverforge.runtime.local_search.acceptor_forager",
+        local_search_attributes(config, components, children.len()),
+        children,
     )
 }
 
@@ -450,36 +233,6 @@ fn local_search_attributes(
 
 fn construction_config_signature(config: &ConstructionHeuristicConfig) -> String {
     format!("{config:?}")
-}
-
-fn scalar_leaf_kind_label(kind: crate::runtime::compiler::ScalarLeafKind) -> &'static str {
-    use crate::runtime::compiler::ScalarLeafKind;
-    match kind {
-        ScalarLeafKind::Change => "change",
-        ScalarLeafKind::Swap => "swap",
-        ScalarLeafKind::NearbyChange => "nearby_change",
-        ScalarLeafKind::NearbySwap => "nearby_swap",
-        ScalarLeafKind::PillarChange => "pillar_change",
-        ScalarLeafKind::PillarSwap => "pillar_swap",
-        ScalarLeafKind::RuinRecreate => "ruin_recreate",
-    }
-}
-
-fn list_leaf_kind_label(kind: crate::runtime::compiler::ListLeafKind) -> &'static str {
-    use crate::runtime::compiler::ListLeafKind;
-    match kind {
-        ListLeafKind::Change => "change",
-        ListLeafKind::NearbyChange => "nearby_change",
-        ListLeafKind::Swap => "swap",
-        ListLeafKind::Permute => "permute",
-        ListLeafKind::Precedence => "precedence",
-        ListLeafKind::NearbySwap => "nearby_swap",
-        ListLeafKind::SublistChange => "sublist_change",
-        ListLeafKind::SublistSwap => "sublist_swap",
-        ListLeafKind::Reverse => "reverse",
-        ListLeafKind::KOpt => "k_opt",
-        ListLeafKind::Ruin => "ruin",
-    }
 }
 
 fn default_stage_label(stage: DefaultConstructionStage) -> &'static str {

@@ -21,7 +21,7 @@ use crate::builder::context::ListConstructionKernelError;
 
 mod types;
 
-use types::prepare_construction;
+use types::{prepare_construction, PreparedLocalSearchMarker};
 pub(crate) use types::{
     PreparedConstruction, PreparedDefaultRuntime, PreparedListSlot, PreparedListSourceCatalog,
     PreparedRuntimeExecution, PreparedRuntimePhase,
@@ -46,6 +46,13 @@ where
 
     pub(crate) fn graph(&self) -> &CompiledRuntimeGraph<S, V, DM, IDM, E> {
         &self.graph
+    }
+
+    /// Consumes the executor and yields its immutable graph by ownership.
+    /// The graph is built once per solve; consuming it lets the runner lower
+    /// declarations without cloning slot vectors or provider plans.
+    pub(crate) fn into_graph(self) -> CompiledRuntimeGraph<S, V, DM, IDM, E> {
+        self.graph
     }
 }
 
@@ -103,8 +110,8 @@ where
                     self.instantiate_construction(phase_index, construction, sources)?,
                 ))
             }
-            CompiledRuntimePhase::LocalSearch(local_search) => {
-                Ok(PreparedRuntimePhase::LocalSearch(local_search.clone()))
+            CompiledRuntimePhase::LocalSearch(_) => {
+                Ok(PreparedRuntimePhase::LocalSearch(PreparedLocalSearchMarker))
             }
             CompiledRuntimePhase::Extension(extension) => Ok(PreparedRuntimePhase::Extension(
                 self.instantiate_extension(phase_index, extension)?,

@@ -131,26 +131,32 @@ where
     /// frozen local-search node once, and creates the one solve-owned provider
     /// resource set. It does not bind a list source or invoke a provider.
     pub(crate) fn try_new<Registry>(
-        executor: &CompiledRuntimeExecutor<S, V, DM, IDM, Registry>,
+        executor: CompiledRuntimeExecutor<S, V, DM, IDM, Registry>,
     ) -> RuntimeBuildResult<Self>
     where
         Registry: RuntimeExtensionRegistry<S, V, DM, IDM, Phase = Extension>,
     {
-        let graph = executor.graph();
-        let solver_config = graph.config().clone();
-        let mandatory_bindings = graph.default_bindings().clone();
-        let provider_resources =
-            ProviderExecutionResources::new(graph.context().model().runtime_provider_registry());
+        let solver_config = executor.graph().config().clone();
+        let mut mandatory_bindings = executor.graph().default_bindings().clone();
+        let provider_resources = ProviderExecutionResources::new(
+            executor
+                .graph()
+                .context()
+                .model()
+                .runtime_provider_registry(),
+        );
         let mut execution = executor.instantiate().map_err(map_preparation_error)?;
+        let mut graph = executor.into_graph();
         assert_eq!(
             execution.phases.len(),
             graph.phases().len(),
             "prepared runtime phases must retain the frozen graph order"
         );
         let prepared_phases = std::mem::take(&mut execution.phases);
+        let declared_phases = std::mem::take(&mut graph.phases);
         let phases = prepared_phases
             .iter()
-            .zip(graph.phases())
+            .zip(declared_phases)
             .enumerate()
             .map(|(phase_index, (prepared, declared))| {
                 lower_runner_phase(
@@ -158,7 +164,7 @@ where
                     prepared,
                     declared,
                     &solver_config,
-                    graph.default_bindings(),
+                    &mut mandatory_bindings,
                 )
             })
             .collect::<RuntimeBuildResult<Vec<_>>>()?;

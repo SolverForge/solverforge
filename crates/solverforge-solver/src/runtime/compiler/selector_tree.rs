@@ -4,8 +4,9 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use crate::builder::{RuntimeCandidateMetricBinding, RuntimeModel, RuntimeProviderHandle};
 
 use super::graph::{
-    CompiledProviderPlan, CompiledSelectorNode, ListLeafKind, ProviderBindingPlan,
-    ProviderBindingPolicy, ProviderMoveKind, ProviderPullTiming, ProviderSchedule, ScalarLeafKind,
+    rebase_graph, CompiledProviderPlan, CompiledSelectorGraph, CompiledSelectorNode,
+    CompiledSelectorNodeId, ListLeafKind, ProviderBindingPlan, ProviderBindingPolicy,
+    ProviderMoveKind, ProviderPullTiming, ProviderSchedule, ScalarLeafKind, SelectorGraphBuilder,
     GROUP_PROVIDER_ROTATION_SALT, PYTHON_PROVIDER_CANDIDATE_CONTRACT,
     STATIC_GROUP_PROVIDER_ROTATION_SALT,
 };
@@ -21,7 +22,7 @@ pub(super) fn compile_selector<S, V, DM, IDM>(
     path: &str,
     descriptor: &SolutionDescriptor,
     model: &RuntimeModel<S, V, DM, IDM>,
-) -> Result<CompiledSelectorNode<S, V, DM, IDM>, RuntimeCompileError>
+) -> Result<CompiledSelectorGraph<S, V, DM, IDM>, RuntimeCompileError>
 where
     S: PlanningSolution + 'static,
     V: Clone,
@@ -30,8 +31,9 @@ where
 {
     let candidate_order = config.selection_order().unwrap_or(default_candidate_order);
     let candidate_metric = compile_candidate_metric(config, candidate_order, path, model)?;
-    match config {
-        MoveSelectorConfig::ChangeMoveSelector(selector) => compile_scalar_leaf(
+    let mut builder = SelectorGraphBuilder::default();
+    let root = match config {
+        MoveSelectorConfig::ChangeMoveSelector(selector) => builder.push(compile_scalar_leaf(
             ScalarLeafKind::Change,
             config,
             candidate_order,
@@ -39,8 +41,8 @@ where
             &selector.target,
             path,
             model,
-        ),
-        MoveSelectorConfig::SwapMoveSelector(selector) => compile_scalar_leaf(
+        )?),
+        MoveSelectorConfig::SwapMoveSelector(selector) => builder.push(compile_scalar_leaf(
             ScalarLeafKind::Swap,
             config,
             candidate_order,
@@ -48,17 +50,19 @@ where
             &selector.target,
             path,
             model,
-        ),
-        MoveSelectorConfig::NearbyChangeMoveSelector(selector) => compile_scalar_leaf(
-            ScalarLeafKind::NearbyChange,
-            config,
-            candidate_order,
-            candidate_metric.clone(),
-            &selector.target,
-            path,
-            model,
-        ),
-        MoveSelectorConfig::NearbySwapMoveSelector(selector) => compile_scalar_leaf(
+        )?),
+        MoveSelectorConfig::NearbyChangeMoveSelector(selector) => {
+            builder.push(compile_scalar_leaf(
+                ScalarLeafKind::NearbyChange,
+                config,
+                candidate_order,
+                candidate_metric.clone(),
+                &selector.target,
+                path,
+                model,
+            )?)
+        }
+        MoveSelectorConfig::NearbySwapMoveSelector(selector) => builder.push(compile_scalar_leaf(
             ScalarLeafKind::NearbySwap,
             config,
             candidate_order,
@@ -66,17 +70,19 @@ where
             &selector.target,
             path,
             model,
-        ),
-        MoveSelectorConfig::PillarChangeMoveSelector(selector) => compile_scalar_leaf(
-            ScalarLeafKind::PillarChange,
-            config,
-            candidate_order,
-            candidate_metric.clone(),
-            &selector.target,
-            path,
-            model,
-        ),
-        MoveSelectorConfig::PillarSwapMoveSelector(selector) => compile_scalar_leaf(
+        )?),
+        MoveSelectorConfig::PillarChangeMoveSelector(selector) => {
+            builder.push(compile_scalar_leaf(
+                ScalarLeafKind::PillarChange,
+                config,
+                candidate_order,
+                candidate_metric.clone(),
+                &selector.target,
+                path,
+                model,
+            )?)
+        }
+        MoveSelectorConfig::PillarSwapMoveSelector(selector) => builder.push(compile_scalar_leaf(
             ScalarLeafKind::PillarSwap,
             config,
             candidate_order,
@@ -84,17 +90,19 @@ where
             &selector.target,
             path,
             model,
-        ),
-        MoveSelectorConfig::RuinRecreateMoveSelector(selector) => compile_scalar_leaf(
-            ScalarLeafKind::RuinRecreate,
-            config,
-            candidate_order,
-            candidate_metric.clone(),
-            &selector.target,
-            path,
-            model,
-        ),
-        MoveSelectorConfig::ListChangeMoveSelector(selector) => compile_list_leaf(
+        )?),
+        MoveSelectorConfig::RuinRecreateMoveSelector(selector) => {
+            builder.push(compile_scalar_leaf(
+                ScalarLeafKind::RuinRecreate,
+                config,
+                candidate_order,
+                candidate_metric.clone(),
+                &selector.target,
+                path,
+                model,
+            )?)
+        }
+        MoveSelectorConfig::ListChangeMoveSelector(selector) => builder.push(compile_list_leaf(
             ListLeafKind::Change,
             config,
             candidate_order,
@@ -103,18 +111,20 @@ where
             path,
             descriptor,
             model,
-        ),
-        MoveSelectorConfig::NearbyListChangeMoveSelector(selector) => compile_list_leaf(
-            ListLeafKind::NearbyChange,
-            config,
-            candidate_order,
-            candidate_metric.clone(),
-            &selector.target,
-            path,
-            descriptor,
-            model,
-        ),
-        MoveSelectorConfig::ListSwapMoveSelector(selector) => compile_list_leaf(
+        )?),
+        MoveSelectorConfig::NearbyListChangeMoveSelector(selector) => {
+            builder.push(compile_list_leaf(
+                ListLeafKind::NearbyChange,
+                config,
+                candidate_order,
+                candidate_metric.clone(),
+                &selector.target,
+                path,
+                descriptor,
+                model,
+            )?)
+        }
+        MoveSelectorConfig::ListSwapMoveSelector(selector) => builder.push(compile_list_leaf(
             ListLeafKind::Swap,
             config,
             candidate_order,
@@ -123,8 +133,8 @@ where
             path,
             descriptor,
             model,
-        ),
-        MoveSelectorConfig::ListPermuteMoveSelector(selector) => compile_list_leaf(
+        )?),
+        MoveSelectorConfig::ListPermuteMoveSelector(selector) => builder.push(compile_list_leaf(
             ListLeafKind::Permute,
             config,
             candidate_order,
@@ -133,28 +143,32 @@ where
             path,
             descriptor,
             model,
-        ),
-        MoveSelectorConfig::ListPrecedenceMoveSelector(selector) => compile_list_leaf(
-            ListLeafKind::Precedence,
-            config,
-            candidate_order,
-            candidate_metric.clone(),
-            &selector.target,
-            path,
-            descriptor,
-            model,
-        ),
-        MoveSelectorConfig::NearbyListSwapMoveSelector(selector) => compile_list_leaf(
-            ListLeafKind::NearbySwap,
-            config,
-            candidate_order,
-            candidate_metric.clone(),
-            &selector.target,
-            path,
-            descriptor,
-            model,
-        ),
-        MoveSelectorConfig::SublistChangeMoveSelector(selector) => compile_list_leaf(
+        )?),
+        MoveSelectorConfig::ListPrecedenceMoveSelector(selector) => {
+            builder.push(compile_list_leaf(
+                ListLeafKind::Precedence,
+                config,
+                candidate_order,
+                candidate_metric.clone(),
+                &selector.target,
+                path,
+                descriptor,
+                model,
+            )?)
+        }
+        MoveSelectorConfig::NearbyListSwapMoveSelector(selector) => {
+            builder.push(compile_list_leaf(
+                ListLeafKind::NearbySwap,
+                config,
+                candidate_order,
+                candidate_metric.clone(),
+                &selector.target,
+                path,
+                descriptor,
+                model,
+            )?)
+        }
+        MoveSelectorConfig::SublistChangeMoveSelector(selector) => builder.push(compile_list_leaf(
             ListLeafKind::SublistChange,
             config,
             candidate_order,
@@ -163,8 +177,8 @@ where
             path,
             descriptor,
             model,
-        ),
-        MoveSelectorConfig::SublistSwapMoveSelector(selector) => compile_list_leaf(
+        )?),
+        MoveSelectorConfig::SublistSwapMoveSelector(selector) => builder.push(compile_list_leaf(
             ListLeafKind::SublistSwap,
             config,
             candidate_order,
@@ -173,8 +187,8 @@ where
             path,
             descriptor,
             model,
-        ),
-        MoveSelectorConfig::ListReverseMoveSelector(selector) => compile_list_leaf(
+        )?),
+        MoveSelectorConfig::ListReverseMoveSelector(selector) => builder.push(compile_list_leaf(
             ListLeafKind::Reverse,
             config,
             candidate_order,
@@ -183,8 +197,8 @@ where
             path,
             descriptor,
             model,
-        ),
-        MoveSelectorConfig::KOptMoveSelector(selector) => compile_list_leaf(
+        )?),
+        MoveSelectorConfig::KOptMoveSelector(selector) => builder.push(compile_list_leaf(
             ListLeafKind::KOpt,
             config,
             candidate_order,
@@ -193,8 +207,8 @@ where
             path,
             descriptor,
             model,
-        ),
-        MoveSelectorConfig::ListRuinMoveSelector(selector) => compile_list_leaf(
+        )?),
+        MoveSelectorConfig::ListRuinMoveSelector(selector) => builder.push(compile_list_leaf(
             ListLeafKind::Ruin,
             config,
             candidate_order,
@@ -203,128 +217,28 @@ where
             path,
             descriptor,
             model,
-        ),
+        )?),
         MoveSelectorConfig::GroupedScalarMoveSelector(grouped) => {
-            let registry = model.runtime_provider_registry();
-            let callback_indices = registry.group_indices(&grouped.group_name);
-            let static_indices = registry
-                .static_groups()
-                .iter()
-                .enumerate()
-                .filter_map(|(index, binding)| {
-                    (binding.group_name == grouped.group_name).then_some(index)
-                })
-                .collect::<Vec<_>>();
-            let assignment = model
-                .scalar_groups()
-                .iter()
-                .enumerate()
-                .find(|(_, group)| group.group_name == grouped.group_name && group.is_assignment())
-                .map(|(index, group)| (index, group.clone()));
-            if assignment.is_some() && !callback_indices.is_empty() {
-                return Err(RuntimeCompileError {
-                    path: path.to_string(),
-                    kind: RuntimeCompileErrorKind::DuplicateProviderGroupName {
-                        group_name: grouped.group_name.clone(),
-                    },
-                });
-            }
-            if !callback_indices.is_empty() && !static_indices.is_empty() {
-                return Err(RuntimeCompileError {
-                    path: path.to_string(),
-                    kind: RuntimeCompileErrorKind::DuplicateProviderGroupName {
-                        group_name: grouped.group_name.clone(),
-                    },
-                });
-            }
-            if let Some((group_index, group)) = assignment {
-                // Assignment is the one intentional distinct algorithm. It
-                // never enters a generic provider node or callback universe.
-                return Ok(CompiledSelectorNode::GroupedScalar {
-                    config: config.clone(),
-                    candidate_order,
-                    candidate_metric,
-                    group_index,
-                    group,
-                });
-            }
-            if let Some(&static_index) = static_indices.first() {
-                let binding = &registry.static_groups()[static_index];
-                let group = model
-                    .scalar_groups()
-                    .get(binding.declared_index)
-                    .expect("frozen static group binding must refer to its runtime model group");
-                return Ok(CompiledSelectorNode::Provider {
-                    config: config.clone(),
-                    candidate_order,
-                    candidate_metric,
-                    plan: CompiledProviderPlan {
-                        move_kind: ProviderMoveKind::Grouped,
-                        schedule: ProviderSchedule::Group {
-                            value_candidate_limit: grouped.value_candidate_limit,
-                            requested_max_moves_per_step: grouped.max_moves_per_step,
-                        },
-                        bindings: vec![ProviderBindingPlan {
-                            handle: RuntimeProviderHandle::StaticGroup(static_index),
-                            declared_schema_index: binding.declared_index,
-                            allowed_slots: scalar_group_provider_slots(model, group, path)?,
-                            policy: ProviderBindingPolicy::StaticGroup {
-                                rotation_seed_salt: STATIC_GROUP_PROVIDER_ROTATION_SALT
-                                    ^ grouped.group_name.len() as u64,
-                                declared_max_moves_per_step: group.limits.max_moves_per_step,
-                                pull_timing: ProviderPullTiming::OpenCursor,
-                            },
-                            candidate_contract: PYTHON_PROVIDER_CANDIDATE_CONTRACT,
-                        }],
-                    },
-                });
-            }
-            if !callback_indices.is_empty() {
-                let allowed_slots = unscoped_dynamic_provider_slots(model, path)?;
-                let bindings = callback_indices
-                    .into_iter()
-                    .map(|index| {
-                        let binding = &registry.groups()[index];
-                        ProviderBindingPlan {
-                            handle: RuntimeProviderHandle::CallbackGroup(index),
-                            declared_schema_index: binding.declared_index,
-                            allowed_slots: allowed_slots.clone(),
-                            policy: ProviderBindingPolicy::CallbackGroup {
-                                rotation_seed_salt: GROUP_PROVIDER_ROTATION_SALT
-                                    ^ grouped.group_name.len() as u64,
-                                pull_timing: ProviderPullTiming::FirstReachableNext,
-                            },
-                            candidate_contract: PYTHON_PROVIDER_CANDIDATE_CONTRACT,
-                        }
-                    })
-                    .collect();
-                return Ok(CompiledSelectorNode::Provider {
-                    config: config.clone(),
-                    candidate_order,
-                    candidate_metric,
-                    plan: CompiledProviderPlan {
-                        move_kind: ProviderMoveKind::Grouped,
-                        schedule: ProviderSchedule::Group {
-                            value_candidate_limit: grouped.value_candidate_limit,
-                            requested_max_moves_per_step: grouped.max_moves_per_step,
-                        },
-                        bindings,
-                    },
-                });
-            }
-            Err(RuntimeCompileError {
-                path: path.to_string(),
-                kind: RuntimeCompileErrorKind::MissingScalarGroup {
-                    group_name: grouped.group_name.clone(),
-                },
-            })
+            compile_grouped_or_provider_selector(
+                config,
+                grouped,
+                candidate_order,
+                candidate_metric,
+                path,
+                model,
+                &mut builder,
+            )?
         }
-        MoveSelectorConfig::ConflictRepairMoveSelector(_) => {
-            compile_conflict_repair(config, candidate_order, candidate_metric, path, model)
-        }
-        MoveSelectorConfig::CompoundConflictRepairMoveSelector(_) => {
-            compile_conflict_repair(config, candidate_order, candidate_metric, path, model)
-        }
+        MoveSelectorConfig::ConflictRepairMoveSelector(_) => builder.push(compile_conflict_repair(
+            config,
+            candidate_order,
+            candidate_metric,
+            path,
+            model,
+        )?),
+        MoveSelectorConfig::CompoundConflictRepairMoveSelector(_) => builder.push(
+            compile_conflict_repair(config, candidate_order, candidate_metric, path, model)?,
+        ),
         MoveSelectorConfig::LimitedNeighborhood(limit) => {
             let selector = compile_selector(
                 limit.selector.as_ref(),
@@ -333,9 +247,10 @@ where
                 descriptor,
                 model,
             )?;
-            Ok(CompiledSelectorNode::Limited {
+            let selector_root = rebase_graph(&mut builder, selector);
+            builder.push(CompiledSelectorNode::Limited {
                 selected_count_limit: limit.selected_count_limit,
-                selector: Box::new(selector),
+                selector: selector_root,
             })
         }
         MoveSelectorConfig::UnionMoveSelector(union) => {
@@ -375,7 +290,7 @@ where
                     Some("candidate_count union weighting does not accept explicit weights")
                 }
                 solverforge_config::UnionWeighting::CandidateCount
-                    if children.iter().any(CompiledSelectorNode::contains_provider) =>
+                    if children.iter().any(|child| child.contains_provider_root()) =>
                 {
                     Some("candidate_count union weighting requires statically countable children")
                 }
@@ -399,7 +314,11 @@ where
                     },
                 });
             }
-            Ok(CompiledSelectorNode::Union {
+            let children = children
+                .into_iter()
+                .map(|child| rebase_graph(&mut builder, child))
+                .collect();
+            builder.push(CompiledSelectorNode::Union {
                 selection_order: union.selection_order,
                 weighting: union.weighting,
                 weights: union.weights.clone(),
@@ -422,7 +341,7 @@ where
                 descriptor,
                 model,
             )?;
-            if left.requires_score_during_move() {
+            if left.requires_score_during_move_root() {
                 return Err(RuntimeCompileError {
                     path: format!("{path}.selectors[0]"),
                     kind: RuntimeCompileErrorKind::PreviewUnsafeCartesianLeft,
@@ -438,13 +357,147 @@ where
                 descriptor,
                 model,
             )?;
-            Ok(CompiledSelectorNode::Cartesian {
+            let left_root = rebase_graph(&mut builder, left);
+            let right_root = rebase_graph(&mut builder, right);
+            builder.push(CompiledSelectorNode::Cartesian {
                 require_hard_improvement: cartesian.require_hard_improvement,
-                left: Box::new(left),
-                right: Box::new(right),
+                left: left_root,
+                right: right_root,
             })
         }
+    };
+    Ok(builder.assemble_graph(root))
+}
+
+/* Compiles the grouped-scalar family into either its distinct assignment
+node or one generic provider node. Separate function keeps the match arms
+uniform. */
+#[allow(clippy::too_many_arguments)]
+fn compile_grouped_or_provider_selector<S, V, DM, IDM>(
+    config: &MoveSelectorConfig,
+    grouped: &solverforge_config::GroupedScalarMoveSelectorConfig,
+    candidate_order: SelectionOrder,
+    candidate_metric: Option<RuntimeCandidateMetricBinding<S>>,
+    path: &str,
+    model: &RuntimeModel<S, V, DM, IDM>,
+    builder: &mut SelectorGraphBuilder<S, V, DM, IDM>,
+) -> Result<CompiledSelectorNodeId, RuntimeCompileError>
+where
+    S: PlanningSolution + 'static,
+    V: Clone,
+    DM: Clone,
+    IDM: Clone,
+{
+    let registry = model.runtime_provider_registry();
+    let callback_indices = registry.group_indices(&grouped.group_name);
+    let static_indices = registry
+        .static_groups()
+        .iter()
+        .enumerate()
+        .filter_map(|(index, binding)| (binding.group_name == grouped.group_name).then_some(index))
+        .collect::<Vec<_>>();
+    let assignment = model
+        .scalar_groups()
+        .iter()
+        .enumerate()
+        .find(|(_, group)| group.group_name == grouped.group_name && group.is_assignment())
+        .map(|(index, group)| (index, group.clone()));
+    if assignment.is_some() && !callback_indices.is_empty() {
+        return Err(RuntimeCompileError {
+            path: path.to_string(),
+            kind: RuntimeCompileErrorKind::DuplicateProviderGroupName {
+                group_name: grouped.group_name.clone(),
+            },
+        });
     }
+    if !callback_indices.is_empty() && !static_indices.is_empty() {
+        return Err(RuntimeCompileError {
+            path: path.to_string(),
+            kind: RuntimeCompileErrorKind::DuplicateProviderGroupName {
+                group_name: grouped.group_name.clone(),
+            },
+        });
+    }
+    if let Some((_, group)) = assignment {
+        // Assignment is the one intentional distinct algorithm. It never
+        // enters a generic provider node or callback universe.
+        return Ok(builder.push(CompiledSelectorNode::GroupedScalar {
+            config: config.clone(),
+            candidate_order,
+            candidate_metric,
+            group,
+        }));
+    }
+    if let Some(&static_index) = static_indices.first() {
+        let binding = &registry.static_groups()[static_index];
+        let group = model
+            .scalar_groups()
+            .get(binding.declared_index)
+            .expect("frozen static group binding must refer to its runtime model group");
+        return Ok(builder.push(CompiledSelectorNode::Provider {
+            config: config.clone(),
+            candidate_order,
+            candidate_metric,
+            plan: CompiledProviderPlan {
+                move_kind: ProviderMoveKind::Grouped,
+                schedule: ProviderSchedule::Group {
+                    value_candidate_limit: grouped.value_candidate_limit,
+                    requested_max_moves_per_step: grouped.max_moves_per_step,
+                },
+                bindings: vec![ProviderBindingPlan {
+                    handle: RuntimeProviderHandle::StaticGroup(static_index),
+                    declared_schema_index: binding.declared_index,
+                    allowed_slots: scalar_group_provider_slots(model, group, path)?,
+                    policy: ProviderBindingPolicy::StaticGroup {
+                        rotation_seed_salt: STATIC_GROUP_PROVIDER_ROTATION_SALT
+                            ^ grouped.group_name.len() as u64,
+                        declared_max_moves_per_step: group.limits.max_moves_per_step,
+                        pull_timing: ProviderPullTiming::OpenCursor,
+                    },
+                    candidate_contract: PYTHON_PROVIDER_CANDIDATE_CONTRACT,
+                }],
+            },
+        }));
+    }
+    if !callback_indices.is_empty() {
+        let allowed_slots = unscoped_dynamic_provider_slots(model, path)?;
+        let bindings = callback_indices
+            .into_iter()
+            .map(|index| {
+                let binding = &registry.groups()[index];
+                ProviderBindingPlan {
+                    handle: RuntimeProviderHandle::CallbackGroup(index),
+                    declared_schema_index: binding.declared_index,
+                    allowed_slots: allowed_slots.clone(),
+                    policy: ProviderBindingPolicy::CallbackGroup {
+                        rotation_seed_salt: GROUP_PROVIDER_ROTATION_SALT
+                            ^ grouped.group_name.len() as u64,
+                        pull_timing: ProviderPullTiming::FirstReachableNext,
+                    },
+                    candidate_contract: PYTHON_PROVIDER_CANDIDATE_CONTRACT,
+                }
+            })
+            .collect();
+        return Ok(builder.push(CompiledSelectorNode::Provider {
+            config: config.clone(),
+            candidate_order,
+            candidate_metric,
+            plan: CompiledProviderPlan {
+                move_kind: ProviderMoveKind::Grouped,
+                schedule: ProviderSchedule::Group {
+                    value_candidate_limit: grouped.value_candidate_limit,
+                    requested_max_moves_per_step: grouped.max_moves_per_step,
+                },
+                bindings,
+            },
+        }));
+    }
+    Err(RuntimeCompileError {
+        path: path.to_string(),
+        kind: RuntimeCompileErrorKind::MissingScalarGroup {
+            group_name: grouped.group_name.clone(),
+        },
+    })
 }
 
 fn compile_candidate_metric<S, V, DM, IDM>(

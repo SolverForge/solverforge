@@ -353,7 +353,8 @@ fn cartesian() {
         let mut hash = 0xCBF2_9CE4_8422_2325;
         for _ in 0..iterations() {
             let mut cursor = selector.open_cursor(&director);
-            while let Some(candidate_id) = cursor.next_candidate() {
+            let solution = director.working_solution();
+            while let Some(candidate_id) = cursor.next_candidate(solution) {
                 let mov = cursor
                     .candidate(candidate_id)
                     .expect("cartesian benchmark candidate must remain live");

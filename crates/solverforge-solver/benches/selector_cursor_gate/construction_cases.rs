@@ -42,7 +42,8 @@ fn construction_full() {
             while let Some(mut placement) =
                 placements.next_placement(&director, |_| false, || false)
             {
-                while let Some(candidate_id) = placement.candidates_mut().next_candidate() {
+                let solution = director.working_solution();
+                while let Some(candidate_id) = placement.candidates_mut().next_candidate(solution) {
                     let mov = placement
                         .candidates()
                         .candidate(candidate_id)

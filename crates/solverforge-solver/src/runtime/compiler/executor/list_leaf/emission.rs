@@ -1,4 +1,5 @@
 use std::fmt;
+use std::marker::PhantomData;
 
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
@@ -25,13 +26,15 @@ use super::{RuntimeListMove, RuntimeListRecipe};
 
 /// Recipe-only physical emitter for every shared list cursor.
 ///
-/// It owns the selected slot but never performs enumeration, pruning, or
-/// mutation. The cursor therefore remains the sole source of candidate order.
+/// It owns the meter-free move access but never performs enumeration,
+/// pruning, or mutation. The cursor therefore remains the sole source of
+/// candidate order.
 #[derive(Clone)]
 pub(super) struct RuntimeListEmitter<S, V, DM, IDM> {
-    slot: RuntimeListSlot<S, V, DM, IDM>,
     move_access: RuntimeListMoveAccess<S, V>,
+    variable_name: &'static str,
     skip_empty_destinations: bool,
+    _phantom: PhantomData<fn() -> (S, DM, IDM)>,
 }
 
 impl<S, V, DM, IDM> RuntimeListEmitter<S, V, DM, IDM>
@@ -41,12 +44,16 @@ where
     DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
 {
-    pub(super) fn new(slot: RuntimeListSlot<S, V, DM, IDM>, skip_empty_destinations: bool) -> Self {
-        let move_access = RuntimeListMoveAccess::from_slot(&slot);
+    pub(super) fn new(
+        slot: &RuntimeListSlot<S, V, DM, IDM>,
+        skip_empty_destinations: bool,
+    ) -> Self {
+        let move_access = RuntimeListMoveAccess::from_slot(slot);
         Self {
-            slot,
             move_access,
+            variable_name: slot.variable_name(),
             skip_empty_destinations,
+            _phantom: PhantomData,
         }
     }
 
@@ -62,7 +69,8 @@ where
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("RuntimeListEmitter")
-            .field("slot", &self.slot)
+            .field("move_access", &self.move_access)
+            .field("variable_name", &self.variable_name)
             .field("skip_empty_destinations", &self.skip_empty_destinations)
             .finish()
     }
@@ -254,7 +262,7 @@ where
             entity,
             cuts: cuts.iter().copied().collect(),
             reconnection: *reconnection,
-            variable_id: hash_str(self.slot.variable_name()),
+            variable_id: hash_str(self.variable_name),
         })
     }
 }

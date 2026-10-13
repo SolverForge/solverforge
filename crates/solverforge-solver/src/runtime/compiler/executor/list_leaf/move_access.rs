@@ -33,6 +33,7 @@ pub(crate) enum RuntimeListMoveAccess<S, V> {
         slot: DynamicListVariableSlot<S>,
         ownership_policy: OwnershipPolicy,
         precedence_policy: PrecedencePolicy,
+        variable_name: &'static str,
     },
 }
 
@@ -94,6 +95,7 @@ impl<S, V> RuntimeListMoveAccess<S, V> {
                 slot: (**dynamic).clone(),
                 ownership_policy: slot.ownership_policy(),
                 precedence_policy: slot.precedence_policy(),
+                variable_name: ListAccess::variable_name(slot),
             },
         }
     }
@@ -200,7 +202,7 @@ where
     fn variable_name(&self) -> &'static str {
         match self {
             Self::Static(access) => access.variable_name,
-            Self::Dynamic { slot, .. } => ListAccess::variable_name(slot),
+            Self::Dynamic { variable_name, .. } => variable_name,
         }
     }
 

@@ -383,7 +383,7 @@ where
         Some(CandidateTraceIdentity::composite(self.reason, children))
     }
 
-    fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {
+    fn for_each_affected_entity<V: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut V) {
         for edit in &self.edits {
             visitor(MoveAffectedEntity {
                 descriptor_index: edit.descriptor_index,

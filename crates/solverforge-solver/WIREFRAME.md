@@ -418,7 +418,7 @@ Requires: `Send + Sync + Debug`.
 | `requires_score_improvement` | `fn(&self) -> bool` (default `false`) |
 | `tabu_signature` | `fn<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature` |
 | `candidate_trace_identity` | `fn(&self) -> Option<CandidateTraceIdentity>` (default `None`) |
-| `for_each_affected_entity` | `fn(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>))` |
+| `for_each_affected_entity` | `fn<V: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut V)` — concrete visitor, monomorphized; implementations must report every mutated entity, including both pillar halves for pillar swaps |
 
 Speculative candidates are **not cloned** by the solver hot path. A move stays
 owned by its cursor while it is evaluated by reference; rejected and replaced

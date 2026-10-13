@@ -19,7 +19,7 @@ use super::metadata::{
     append_canonical_usize_slice_pair, encode_option_debug, encode_usize, scoped_move_identity,
     MoveTabuScope, ScopedEntityTabuToken, TABU_OP_PILLAR_SWAP,
 };
-use super::{Move, MoveTabuSignature};
+use super::{Move, MoveAffectedEntity, MoveTabuSignature};
 
 /// A move that swaps values between two pillars.
 ///
@@ -228,6 +228,19 @@ where
 
     fn variable_name(&self) -> &str {
         self.variable_name
+    }
+
+    /// A pillar swap mutates BOTH halves. `entity_indices()` exposes the left
+    /// pillar as its primary slice, so the trait default would hide every
+    /// right-pillar entity from pin checks, tabu bookkeeping, and telemetry.
+    fn for_each_affected_entity<W: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut W) {
+        for &entity_index in self.left_indices.iter().chain(&self.right_indices) {
+            visitor(MoveAffectedEntity {
+                descriptor_index: self.descriptor_index,
+                entity_index,
+                variable_name: self.variable_name,
+            });
+        }
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {

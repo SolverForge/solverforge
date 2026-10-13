@@ -81,7 +81,11 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
         None
     }
 
-    fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {
+    /// Visits every entity this move changes, passing a concrete visitor by
+    /// value. `V` stays monomorphized end to end: no `dyn` dispatch, no
+    /// intermediate collection, every affected entity reported exactly once
+    /// in the move's own canonical order.
+    fn for_each_affected_entity<V: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut V) {
         let descriptor_index = self.descriptor_index();
         let variable_name = self.variable_name();
         for &entity_index in self.entity_indices() {

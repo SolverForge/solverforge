@@ -197,3 +197,85 @@ fn pillar_swap_tabu_identity_is_direction_stable() {
     assert_eq!(forward_signature.move_id, reverse_signature.move_id);
     assert_eq!(forward_signature.move_id, flipped_signature.move_id);
 }
+
+#[test]
+fn pillar_swap_reports_both_pillar_halves_as_affected() {
+    let director = create_director(vec![
+        Employee {
+            id: 0,
+            shift: Some(1),
+        },
+        Employee {
+            id: 1,
+            shift: Some(1),
+        },
+        Employee {
+            id: 2,
+            shift: Some(2),
+        },
+        Employee {
+            id: 3,
+            shift: Some(2),
+        },
+        Employee {
+            id: 4,
+            shift: Some(2),
+        },
+    ]);
+    let m = PillarSwapMove::<Solution, i32>::new(
+        vec![0, 1],
+        vec![2, 3, 4],
+        get_shift,
+        set_shift,
+        0,
+        "shift",
+        0,
+    );
+    assert!(m.is_doable(&director));
+
+    let mut affected = Vec::new();
+    m.for_each_affected_entity(&mut |entity| {
+        affected.push((entity.descriptor_index, entity.entity_index));
+    });
+
+    // Every entity of BOTH halves, exactly once, left then right.
+    assert_eq!(affected, vec![(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)]);
+}
+
+#[test]
+fn composite_reports_children_in_declaration_order_once() {
+    use crate::heuristic::r#move::{ChangeMove, SequentialCompositeMove};
+
+    let director = create_director(vec![
+        Employee {
+            id: 0,
+            shift: Some(1),
+        },
+        Employee {
+            id: 1,
+            shift: Some(2),
+        },
+    ]);
+    let first = ChangeMove::<Solution, i32>::new(1, Some(3), get_shift, set_shift, 0, "shift", 0);
+    let second = ChangeMove::<Solution, i32>::new(0, Some(2), get_shift, set_shift, 0, "shift", 0);
+    let composite = SequentialCompositeMove::new(
+        first,
+        second,
+        0,
+        smallvec::smallvec![0, 1],
+        "shift",
+        crate::heuristic::r#move::MoveTabuSignature::new(
+            crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "shift"),
+            smallvec::smallvec![1],
+            smallvec::smallvec![1],
+        ),
+    );
+
+    let mut affected = Vec::new();
+    composite.for_each_affected_entity(&mut |entity| {
+        affected.push(entity.entity_index);
+    });
+    // Child order (second's entity 1 first, then first's entity 0), each once.
+    assert_eq!(affected, vec![1, 0]);
+    assert!(composite.is_doable(&director));
+}

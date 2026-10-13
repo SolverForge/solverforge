@@ -111,7 +111,7 @@ where
         self.compound.candidate_trace_identity()
     }
 
-    fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {
+    fn for_each_affected_entity<V: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut V) {
         self.compound.for_each_affected_entity(visitor);
     }
 }

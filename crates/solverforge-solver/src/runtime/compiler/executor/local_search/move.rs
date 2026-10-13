@@ -220,7 +220,7 @@ where
         }
     }
 
-    fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {
+    fn for_each_affected_entity<W: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut W) {
         match self {
             Self::Scalar(mov) => mov.for_each_affected_entity(visitor),
             Self::List(mov) => mov.for_each_affected_entity(visitor),

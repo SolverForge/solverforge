@@ -429,7 +429,7 @@ where
         ))
     }
 
-    fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {
+    fn for_each_affected_entity<V: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut V) {
         self.first.for_each_affected_entity(visitor);
         self.second.for_each_affected_entity(visitor);
     }
@@ -504,7 +504,7 @@ where
         &self.entity_indices
     }
 
-    fn for_each_affected_entity(&self, visitor: &mut dyn FnMut(MoveAffectedEntity<'_>)) {
+    fn for_each_affected_entity<V: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut V) {
         self.first_move().for_each_affected_entity(visitor);
         self.second_move().for_each_affected_entity(visitor);
     }

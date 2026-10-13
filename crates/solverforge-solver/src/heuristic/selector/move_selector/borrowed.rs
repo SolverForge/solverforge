@@ -54,9 +54,9 @@ where
         (**self).candidate_trace_identity()
     }
 
-    fn for_each_affected_entity(
+    fn for_each_affected_entity<V: FnMut(crate::heuristic::r#move::MoveAffectedEntity<'_>)>(
         &self,
-        visitor: &mut dyn FnMut(crate::heuristic::r#move::MoveAffectedEntity<'_>),
+        visitor: &mut V,
     ) {
         (**self).for_each_affected_entity(visitor);
     }
@@ -199,9 +199,9 @@ where
         }
     }
 
-    fn for_each_affected_entity(
+    fn for_each_affected_entity<V: FnMut(crate::heuristic::r#move::MoveAffectedEntity<'_>)>(
         &self,
-        visitor: &mut dyn FnMut(crate::heuristic::r#move::MoveAffectedEntity<'_>),
+        visitor: &mut V,
     ) {
         match self {
             Self::Borrowed(mov) => mov.for_each_affected_entity(visitor),

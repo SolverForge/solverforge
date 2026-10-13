@@ -371,10 +371,10 @@ where
     solution: Option<S>,
     context: MoveStreamContext,
     require_hard_improvement: bool,
-    cursor: Option<RuntimeProviderCursor<S>>,
+    cursor: Option<RuntimeProviderCursor<'a, S>>,
 }
 
-impl<S> RuntimeProviderNeighborhoodCursor<'_, S>
+impl<'a, S> RuntimeProviderNeighborhoodCursor<'a, S>
 where
     S: PlanningSolution + Clone + 'static,
 {
@@ -384,7 +384,7 @@ where
     ) -> Option<crate::heuristic::selector::move_selector::CandidateId> {
         let cursor = self.cursor.get_or_insert_with(|| {
             RuntimeProviderCursor::new(
-                self.plan.clone(),
+                self.plan,
                 self.solution
                     .take()
                     .expect("provider solution snapshot must be retained until activation"),
@@ -395,7 +395,7 @@ where
         cursor.next_candidate(&resources.registry, &mut resources.reason_arena)
     }
 
-    pub(super) fn cursor_mut(&mut self) -> &mut RuntimeProviderCursor<S> {
+    pub(super) fn cursor_mut(&mut self) -> &mut RuntimeProviderCursor<'a, S> {
         self.cursor
             .as_mut()
             .expect("provider candidate access requires an activated provider cursor")

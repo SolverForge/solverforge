@@ -2,13 +2,14 @@
 
 use std::fmt;
 
-use solverforge_config::SolverConfig;
+use solverforge_config::{MoveSelectorConfig, SolverConfig};
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
+use crate::builder::context::RuntimeListSlot;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-use crate::runtime::compiler::graph::CompiledSelectorNode;
+use crate::runtime::compiler::ListLeafKind;
 
 use super::{
     RuntimeListNeighborhoodCursor, RuntimeListNeighborhoodPlan, RuntimeListNeighborhoodPlanError,
@@ -97,11 +98,13 @@ impl CompiledListNeighborhoodLeafAdapter {
         }
     }
 
-    /// Lowers exactly one already-compiled list leaf. Recursive composition
-    /// remains above this boundary and no alternate native selector is built.
-    pub(crate) fn lower_compiled_node<S, V, DM, IDM>(
+    /// Lowers one compiled list leaf from its owned declaration parts. The
+    /// slots vector moves into the runtime plan; the graph never clones it.
+    pub(crate) fn lower_compiled_list<S, V, DM, IDM>(
         self,
-        node: &CompiledSelectorNode<S, V, DM, IDM>,
+        kind: ListLeafKind,
+        config: MoveSelectorConfig,
+        slots: Vec<RuntimeListSlot<S, V, DM, IDM>>,
     ) -> Result<RuntimeListNeighborhoodLeaf<S, V, DM, IDM>, RuntimeListNeighborhoodLeafError>
     where
         S: PlanningSolution + Clone + Send + Sync + 'static,
@@ -110,16 +113,7 @@ impl CompiledListNeighborhoodLeafAdapter {
         DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
         IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
     {
-        let CompiledSelectorNode::List {
-            kind,
-            config,
-            slots,
-            ..
-        } = node
-        else {
-            return Err(RuntimeListNeighborhoodLeafError::NotListNode);
-        };
-        RuntimeListNeighborhoodPlan::from_compiled(*kind, config, slots.clone(), self.random_seed)
+        RuntimeListNeighborhoodPlan::from_compiled(kind, &config, slots, self.random_seed)
             .map(RuntimeListNeighborhoodLeaf::new)
             .map_err(RuntimeListNeighborhoodLeafError::Plan)
     }
@@ -128,16 +122,12 @@ impl CompiledListNeighborhoodLeafAdapter {
 /// Invalid compiled-leaf handoff. These errors never trigger a fallback.
 #[derive(Debug)]
 pub(crate) enum RuntimeListNeighborhoodLeafError {
-    NotListNode,
     Plan(RuntimeListNeighborhoodPlanError),
 }
 
 impl fmt::Display for RuntimeListNeighborhoodLeafError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NotListNode => {
-                formatter.write_str("compiled local-search node is not a list leaf")
-            }
             Self::Plan(error) => error.fmt(formatter),
         }
     }

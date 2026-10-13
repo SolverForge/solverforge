@@ -1,6 +1,26 @@
 # AGENTS.md
 
-Guidance for Codex and other coding agents working in this repository.
+Engineering guidance for all contributors, including autonomous coding agents.
+
+## Contribution Policy
+
+[CONTRIBUTING.md](CONTRIBUTING.md) is the canonical contribution policy.
+SolverForge is explicitly pro-AI and pro-agent, uses AI in its own development,
+and welcomes AI-assisted and fully agent-generated work.
+
+- Evaluate contributions on correctness, quality, maintainability, architecture
+  and style fit, tests, and project benefit. Do not use authorship or tool origin
+  as an acceptance or rejection criterion.
+- Agents may submit pull requests and review contributions. Maintainers retain
+  responsibility for merge decisions.
+- Understand the final diff, verify behavior, and address review findings.
+  Report actual verification commands and results, including relevant checks
+  that were not run. Do not present an agent's assurance as verification.
+- AI disclosure is optional. Do not require tool declarations, human-only
+  submission or review, or special restrictions on LLM use in code, docs,
+  comments, or issues beyond ordinary quality, conduct, and legal standards.
+- Enforce quality through review, automation, and selective merging rather
+  than tool bans. AI-assisted review, summarization, and triage are welcome.
 
 ## Overview
 
@@ -50,6 +70,9 @@ Treat the repository documentation as a coordinated surface, not as isolated fil
   it with `solverforge-cli`, and where to go next. Do not turn the README into
   a long release-history dump; use `CHANGELOG.md` for release history and
   `RELEASE.md` for maintainer release operations.
+- `CONTRIBUTING.md` owns the contribution policy. Keep README contribution
+  guidance, agent instructions, and pull request templates consistent with it;
+  do not introduce separate AI acceptance rules on those surfaces.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps. Update them for any public surface change.
 - `docs/*.md` files capture focused extension guidance for APIs that are meant
   to be extended, plus narrowly scoped agent notes that do not belong in this

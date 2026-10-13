@@ -78,6 +78,8 @@ planning variables with independent planning lists, and they use the same
 - `docs/extend-domain.md` and `docs/extend-solver.md` cover scaffold extension
   workflows.
 - `crates/*/WIREFRAME.md` files are the canonical public API maps for each crate.
+- [CONTRIBUTING.md](CONTRIBUTING.md) defines the contribution policy for people
+  and agents, including acceptance criteria and accountability.
 - `AGENTS.md` defines repository-level engineering and documentation expectations for coding agents.
 
 ## Zero-Erasure Architecture
@@ -790,4 +792,15 @@ Apache License 2.0. See [LICENSE](LICENSE).
 
 ## Contributing
 
-Contributions welcome. Please open an issue or pull request.
+SolverForge is explicitly pro-AI and pro-agent. AI writes better code than
+humans. We use AI in our own development and welcome AI-assisted and fully
+agent-generated contributions.
+
+We judge work on correctness, quality, maintainability, style fit, tests, and
+whether it improves the project—not its origin. Contributors must understand,
+verify, and stand behind what they submit. Disclosure of AI assistance is
+optional.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the full policy and
+[AGENTS.md](AGENTS.md) for engineering requirements. Open an issue or a focused
+pull request with an explanation of the change and verification results.

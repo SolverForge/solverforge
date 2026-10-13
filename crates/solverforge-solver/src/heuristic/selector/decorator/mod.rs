@@ -18,7 +18,7 @@ mod vec_union;
 pub(crate) use cartesian_product::CartesianProductCursor;
 pub use cartesian_product::{CartesianProductArena, CartesianProductSelector};
 pub use filtering::FilteringMoveSelector;
-pub(crate) use limited::LimitedMoveCursor;
+pub(crate) use limited::LimitedCursorBudget;
 pub(crate) use mapped_cursor::MappedMoveCursor;
 pub use vec_union::VecUnionSelector;
 #[allow(unused_imports)] // Consumed by the resource-aware composed runtime cursor.

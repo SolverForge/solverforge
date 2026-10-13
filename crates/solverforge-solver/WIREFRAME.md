@@ -71,10 +71,10 @@ src/
 │   ├── context/scalar/group/*.rs        — Assignment and member binding chunks
 │   ├── search.rs                        — Typed custom-search surface: SearchContext, Search, CustomSearchPhase, local_search(), and typed custom phase registration
 │   ├── search/*.rs                      — Recursive typed custom-extension registry
-│   ├── selector.rs                      — Internal grouped-scalar leaf and recursive compiled-selector composition root
+│   ├── selector.rs                      — Internal grouped-scalar leaf and indexed compiled-selector composition root
 │   ├── selector/grouped_scalar.rs       — GroupedScalarSelector used as one compiled runtime leaf
-│   ├── selector/types/composite.rs      — Limited/union/cartesian compiled-selector composition root
-│   └── selector/types/composite/        — Cursor execution and retained stream state over compiled leaves
+│   ├── selector/types/composite.rs      — Indexed Limited/union/cartesian declaration arena with stable node IDs
+│   └── selector/types/composite/        — Indexed cursor execution and retained leaf-state arena over concrete generic leaves
 ├── planning/                            — Public scalar targets/candidates/groups/assignment rules and conflict-repair declarations
 ├── stats.rs                             — Statistics, telemetry, and candidate-trace re-export root
 ├── stats/                               — Solver/phase stats, telemetry payloads, candidate traces, and qualified provenance
@@ -180,10 +180,11 @@ src/
 │       │   ├── cartesian_product/tests.rs — Tests
 │       │   ├── filtering.rs            — FilteringMoveSelector<S, M, Inner>
 │       │   ├── filtering/tests.rs      — Tests
-│       │   ├── limited.rs              — Candidate-limit cursor decorator
+│       │   ├── limited.rs              — Shared candidate-limit budget with test-only ordinary cursor adapter
 │       │   ├── limited/tests.rs        — Tests
 │       │   ├── mapped_cursor.rs        — Shared mapped cursor adapter
 │       │   ├── vec_union.rs            — VecUnionSelector<S, M, Leaf> (Vec-backed union for config-driven composition)
+│       │   ├── vec_union/scheduler.rs   — Canonical union scheduler shared by ordinary and indexed composition cursors
 │       │   ├── vec_union/tests.rs      — Tests
 │       │   ├── test_utils.rs           — Test helpers
 │       │   ├── test_utils_tests.rs     — Test helper tests
@@ -544,6 +545,16 @@ stable-ID store, while `ArenaMoveCursor<'a, M>` adapts a `MoveArena<M>`.
 resource-aware cursor from solve-owned state. Ordinary public selectors use
 the hidden `SelectorCursorSource<MS>` adapter; the compiled runtime implements
 the same contract with persistent selector/provider state.
+
+Compiled Limited/Union/Cartesian composition owns one immutable indexed declaration
+arena per execution and transfers its retained leaf-state arena into a cursor and
+back on drop. Structural edges use stable node IDs, not recursively owned trees;
+union nodes use the canonical scheduler, and Cartesian right nodes open only after
+left preview application. Flat extensions remain concrete generic types, including
+non-Clone declaration/state types. This internal representation does not change the
+public `MoveSelector` extension contract or configured selector syntax. Compiler
+input graph ownership and Cartesian solution-preview ownership remain separate
+from these composition arenas.
 
 ### `ValueSelector<S: PlanningSolution, V>` — `value_selector.rs`
 

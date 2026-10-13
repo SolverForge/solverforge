@@ -1,4 +1,4 @@
-//! Retained recursive composition state and resource-lending cursor sources.
+//! Retained indexed composition state and resource-lending cursor sources.
 
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
@@ -18,7 +18,7 @@ use super::{
     SelectorComposition, SelectorCompositionCursor, SequentialMoveCarrier, StatefulComposedFlat,
 };
 
-/// Retained state for one frozen recursive composition tree.
+/// Retained state for one frozen indexed composition graph.
 ///
 /// The resource type is part of the composition's static contract but is not
 /// stored here. A runner can therefore lend one solve-owned resource to every
@@ -48,11 +48,11 @@ where
         }
     }
 
-    /// Lends this retained tree one mutable solve resource for a phase call.
+    /// Lends this retained arena one mutable solve resource for a phase call.
     ///
     /// The returned source opens ordinary phase cursors through the same
-    /// recursive composition kernel as the owned execution below. Its cursor
-    /// returns only the state tree on drop; the runner keeps the resource for
+    /// indexed composition kernel. Its cursor
+    /// returns only the state arena on drop; the runner keeps the resource for
     /// the next reached phase and for pause/resume.
     pub(crate) fn borrowed_source<'a>(
         &'a mut self,
@@ -157,7 +157,7 @@ where
     }
 }
 
-/// A live cursor that returns its exact tree state. It owns no mutable
+/// A live cursor that returns its exact arena state. It owns no mutable
 /// resource; the shared phase loop lends a resource only to a reachable
 /// `next_candidate_with_resources` pull.
 pub(crate) struct SelectorCompositionBorrowedCursor<'state, S, M, Flat, FlatState, Resources>

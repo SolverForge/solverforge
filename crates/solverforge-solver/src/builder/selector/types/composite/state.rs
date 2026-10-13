@@ -1,38 +1,25 @@
-//! Recursive stream-state ownership for the compiled selector graph.
+//! Indexed mutable cursor arena over one immutable declaration arena.
 
-use solverforge_core::domain::PlanningSolution;
-use solverforge_scoring::Director;
-
-use crate::heuristic::r#move::Move;
+use super::cartesian::SelectorCompositionCartesianCursor;
+use super::{
+    CompositionNodeId, SelectorComposition, SelectorCompositionNode, SequentialMoveCarrier,
+    StatefulComposedFlat,
+};
 use crate::heuristic::selector::decorator::{
-    resolve_union_weights, union_child_context, LimitedMoveCursor,
+    resolve_union_weights, union_child_context, LimitedCursorBudget,
 };
 use crate::heuristic::selector::move_selector::{
     CandidateId, MoveCandidateRef, MoveStreamContext, ResourceMoveCursor,
 };
-
-use super::{
-    SelectorComposition, SelectorCompositionCartesianCursor, SequentialMoveCarrier,
-    StatefulComposedFlat,
-};
-
+use solverforge_core::domain::PlanningSolution;
+use solverforge_scoring::Director;
 mod union;
-
 use union::SelectorCompositionUnionCursor;
 
-/// The recursive state tree mirrors one frozen composition tree exactly.
-///
-/// One `Flat` or `Limited` node owns one state per frozen leaf. The tree moves
-/// into a live cursor and returns to its execution owner when that cursor
-/// drops, preserving stateful leaf streams across cursor-open boundaries.
-pub(super) enum SelectorCompositionStreamState<FlatState> {
-    Flat(FlatState),
-    Limited(Box<SelectorCompositionStreamState<FlatState>>),
-    Cartesian {
-        left: Box<SelectorCompositionStreamState<FlatState>>,
-        right: Box<SelectorCompositionStreamState<FlatState>>,
-    },
-    Union(Vec<SelectorCompositionStreamState<FlatState>>),
+/// Retained leaf states use declaration coordinates. Structural nodes own no
+/// duplicate state graph; their edges remain in the immutable declaration.
+pub(super) struct SelectorCompositionStreamState<FlatState> {
+    pub(super) leaves: Vec<Option<FlatState>>,
 }
 
 pub(super) fn new_stream_state<S, M, Flat, FlatState, Resources>(
@@ -43,28 +30,53 @@ where
     M: SequentialMoveCarrier<S> + 'static,
     Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
 {
-    match selector {
-        SelectorComposition::Flat(selector) => {
-            SelectorCompositionStreamState::Flat(selector.new_stream_state())
-        }
-        SelectorComposition::Limited { selector, .. } => {
-            SelectorCompositionStreamState::Limited(Box::new(new_stream_state(selector)))
-        }
-        SelectorComposition::Union { children, .. } => {
-            SelectorCompositionStreamState::Union(children.iter().map(new_stream_state).collect())
-        }
-        SelectorComposition::Cartesian(selector) => SelectorCompositionStreamState::Cartesian {
-            left: Box::new(new_stream_state(&selector.left)),
-            right: Box::new(new_stream_state(&selector.right)),
-        },
+    selector.validate_tree();
+    SelectorCompositionStreamState {
+        leaves: selector
+            .nodes
+            .iter()
+            .map(|node| match node {
+                SelectorCompositionNode::Flat(flat) => Some(flat.new_stream_state()),
+                _ => None,
+            })
+            .collect(),
     }
+}
+
+#[allow(clippy::large_enum_variant)]
+enum CursorNode<'a, S, M, Flat, FlatState, Resources>
+where
+    S: PlanningSolution,
+    M: SequentialMoveCarrier<S> + 'static,
+    Flat: StatefulComposedFlat<S, M, FlatState, Resources> + 'a,
+{
+    Flat(Flat::Cursor<'a>),
+    Limited {
+        child: CompositionNodeId,
+        budget: LimitedCursorBudget,
+    },
+    Union(SelectorCompositionUnionCursor),
+    Cartesian(SelectorCompositionCartesianCursor<S, M>),
+}
+
+/// Only IDs connect nodes. Taking a node for a recursive pull gives exclusive
+/// access to descendants without aliasing or storing self-references.
+pub(crate) struct SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>
+where
+    S: PlanningSolution,
+    M: SequentialMoveCarrier<S> + 'static,
+    Flat: StatefulComposedFlat<S, M, FlatState, Resources> + 'a,
+{
+    selector: &'a SelectorComposition<S, M, Flat, FlatState>,
+    stream_state: SelectorCompositionStreamState<FlatState>,
+    nodes: Vec<Option<CursorNode<'a, S, M, Flat, FlatState, Resources>>>,
 }
 
 pub(super) fn open_cursor_with_owned_stream_state<'a, S, M, Flat, FlatState, Resources, D>(
     selector: &'a SelectorComposition<S, M, Flat, FlatState>,
     stream_state: SelectorCompositionStreamState<FlatState>,
     resources: &mut Resources,
-    score_director: &D,
+    director: &D,
     context: MoveStreamContext,
 ) -> SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>
 where
@@ -73,200 +85,282 @@ where
     Flat: StatefulComposedFlat<S, M, FlatState, Resources> + 'a,
     D: Director<S>,
 {
-    match (selector, stream_state) {
-        (SelectorComposition::Flat(selector), SelectorCompositionStreamState::Flat(mut state)) => {
-            let cursor = selector.open_cursor_with_stream_state(
-                &mut state,
-                resources,
-                score_director,
-                context,
-            );
-            SelectorCompositionCursor::Flat {
-                cursor,
-                stream_state: state,
-            }
-        }
-        (
-            SelectorComposition::Limited {
+    let mut cursor = SelectorCompositionCursor {
+        selector,
+        stream_state,
+        nodes: (0..selector.nodes.len()).map(|_| None).collect(),
+    };
+    cursor.open_node(selector.root(), resources, director, context);
+    cursor
+}
+
+impl<'a, S, M, Flat, FlatState, Resources>
+    SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>
+where
+    S: PlanningSolution,
+    M: SequentialMoveCarrier<S> + 'static,
+    Flat: StatefulComposedFlat<S, M, FlatState, Resources> + 'a,
+{
+    pub(super) fn into_stream_state(self) -> SelectorCompositionStreamState<FlatState> {
+        // Drop live cursors before transferring retained states back to their owner.
+        drop(self.nodes);
+        self.stream_state
+    }
+
+    pub(super) fn open_node<D: Director<S>>(
+        &mut self,
+        id: CompositionNodeId,
+        resources: &mut Resources,
+        director: &D,
+        context: MoveStreamContext,
+    ) {
+        assert!(
+            self.nodes[id.index()].is_none(),
+            "composition node already open"
+        );
+        let node = match &self.selector.nodes[id.index()] {
+            SelectorCompositionNode::Flat(flat) => CursorNode::Flat(
+                flat.open_cursor_with_stream_state(
+                    self.stream_state.leaves[id.index()]
+                        .as_mut()
+                        .expect("flat state must exist"),
+                    resources,
+                    director,
+                    context,
+                ),
+            ),
+            SelectorCompositionNode::Limited {
                 selector,
                 selected_count_limit,
-            },
-            SelectorCompositionStreamState::Limited(state),
-        ) => {
-            let cursor = open_cursor_with_owned_stream_state(
-                selector,
-                *state,
-                resources,
-                score_director,
-                context,
-            );
-            SelectorCompositionCursor::Limited {
-                cursor: Box::new(LimitedMoveCursor::new(cursor, *selected_count_limit)),
+            } => {
+                let child = *selector;
+                let limit = *selected_count_limit;
+                self.open_node(child, resources, director, context);
+                CursorNode::Limited {
+                    child,
+                    budget: LimitedCursorBudget::new(limit),
+                }
             }
-        }
-        (
-            SelectorComposition::Union {
+            SelectorCompositionNode::Union {
                 selection_order,
                 weighting,
                 weights,
                 children,
-            },
-            SelectorCompositionStreamState::Union(stream_states),
-        ) => {
-            assert_eq!(
-                children.len(),
-                stream_states.len(),
-                "recursive union stream state must match its frozen children"
-            );
-            let child_context = union_child_context(*selection_order, context);
-            let child_sizes = match weighting {
-                solverforge_config::UnionWeighting::CandidateCount => children
-                    .iter()
-                    .map(|child| selector_size(child, score_director))
-                    .collect(),
-                solverforge_config::UnionWeighting::Equal
-                | solverforge_config::UnionWeighting::Fixed => vec![0; children.len()],
-            };
-            let resolved_weights = resolve_union_weights(*weighting, weights, &child_sizes);
-            let cursors = children
-                .iter()
-                .zip(stream_states)
-                .map(|(child, child_state)| {
-                    open_cursor_with_owned_stream_state(
-                        child,
-                        child_state,
-                        resources,
-                        score_director,
-                        child_context,
-                    )
-                })
-                .collect();
-            SelectorCompositionCursor::Union(SelectorCompositionUnionCursor::new(
-                cursors,
-                *selection_order,
-                context,
-                resolved_weights,
-            ))
-        }
-        (
-            SelectorComposition::Cartesian(selector),
-            SelectorCompositionStreamState::Cartesian { left, right },
-        ) => {
-            // Validate at Cartesian open as before, but defer actual right
-            // cursor opening until a legal left preview has been applied.
-            validate_cursor(&selector.right, score_director);
-            let left_cursor = open_cursor_with_owned_stream_state(
-                &selector.left,
-                *left,
-                resources,
-                score_director,
-                context,
-            );
-            SelectorCompositionCursor::Cartesian(SelectorCompositionCartesianCursor::new(
-                selector.require_hard_improvement,
-                left_cursor,
-                &selector.right,
-                *right,
-                score_director,
-                context,
-            ))
-        }
-        _ => panic!("selector composition stream state must match its frozen tree"),
+            } => {
+                let child_context = union_child_context(*selection_order, context);
+                let sizes = match weighting {
+                    solverforge_config::UnionWeighting::CandidateCount => children
+                        .iter()
+                        .map(|&child| self.selector_size(child, director))
+                        .collect(),
+                    _ => vec![0; children.len()],
+                };
+                let union = SelectorCompositionUnionCursor::new(
+                    children,
+                    *selection_order,
+                    context,
+                    resolve_union_weights(*weighting, weights, &sizes),
+                );
+                for &child in children {
+                    self.open_node(child, resources, director, child_context);
+                }
+                CursorNode::Union(union)
+            }
+            SelectorCompositionNode::Cartesian {
+                left,
+                right,
+                require_hard_improvement,
+            } => {
+                let (left, right, require) = (*left, *right, *require_hard_improvement);
+                self.validate_cursor(right, director);
+                self.open_node(left, resources, director, context);
+                CursorNode::Cartesian(SelectorCompositionCartesianCursor::new(
+                    require, left, right, director, context,
+                ))
+            }
+        };
+        self.nodes[id.index()] = Some(node);
     }
-}
 
-fn selector_size<S, M, Flat, FlatState, Resources, D>(
-    selector: &SelectorComposition<S, M, Flat, FlatState>,
-    score_director: &D,
-) -> usize
-where
-    S: PlanningSolution,
-    M: SequentialMoveCarrier<S> + 'static,
-    Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
-    D: Director<S>,
-{
-    match selector {
-        SelectorComposition::Flat(selector) => selector.size(score_director),
-        SelectorComposition::Limited {
-            selector,
-            selected_count_limit,
-        } => selector_size(selector, score_director).min(*selected_count_limit),
-        SelectorComposition::Union { children, .. } => children
-            .iter()
-            .map(|child| selector_size(child, score_director))
-            .sum(),
-        SelectorComposition::Cartesian(selector) => selector_size(&selector.left, score_director)
-            .saturating_mul(selector_size(&selector.right, score_director)),
-    }
-}
-
-fn validate_cursor<S, M, Flat, FlatState, Resources, D>(
-    selector: &SelectorComposition<S, M, Flat, FlatState>,
-    score_director: &D,
-) where
-    S: PlanningSolution,
-    M: SequentialMoveCarrier<S> + 'static,
-    Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
-    D: Director<S>,
-{
-    match selector {
-        SelectorComposition::Flat(selector) => selector.validate_cursor(score_director),
-        SelectorComposition::Limited { selector, .. } => validate_cursor(selector, score_director),
-        SelectorComposition::Union { children, .. } => {
-            for child in children {
-                validate_cursor(child, score_director);
+    pub(super) fn close_node(&mut self, id: CompositionNodeId) {
+        let Some(node) = self.nodes[id.index()].take() else {
+            return;
+        };
+        match node {
+            CursorNode::Flat(_) => {}
+            CursorNode::Limited { child, .. } => self.close_node(child),
+            CursorNode::Union(_) => {
+                let SelectorCompositionNode::Union { children, .. } =
+                    &self.selector.nodes[id.index()]
+                else {
+                    unreachable!()
+                };
+                for &child in children {
+                    self.close_node(child);
+                }
+            }
+            CursorNode::Cartesian(cursor) => {
+                self.close_node(cursor.left());
+                self.close_node(cursor.right());
             }
         }
-        SelectorComposition::Cartesian(selector) => {
-            validate_cursor(&selector.left, score_director);
-            validate_cursor(&selector.right, score_director);
+    }
+
+    fn selector_size<D: Director<S>>(&self, id: CompositionNodeId, director: &D) -> usize {
+        match &self.selector.nodes[id.index()] {
+            SelectorCompositionNode::Flat(flat) => flat.size(director),
+            SelectorCompositionNode::Limited {
+                selector,
+                selected_count_limit,
+            } => self
+                .selector_size(*selector, director)
+                .min(*selected_count_limit),
+            SelectorCompositionNode::Union { children, .. } => children
+                .iter()
+                .map(|&child| self.selector_size(child, director))
+                .sum(),
+            SelectorCompositionNode::Cartesian { left, right, .. } => self
+                .selector_size(*left, director)
+                .saturating_mul(self.selector_size(*right, director)),
         }
     }
-}
 
-/// Cursor returned by the one resource-aware recursive composition path.
-///
-/// It owns state while open. Leaf cursor state borrows end at leaf open; a
-/// Cartesian node moves a right state subtree into its deferred cursor and
-/// moves it back when that row closes. The resource is deliberately not held
-/// here: the solve-owned execution lends it only to the next reachable pull.
-#[allow(clippy::large_enum_variant)]
-pub(crate) enum SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>
-where
-    S: PlanningSolution,
-    M: Move<S> + 'static,
-    Flat: StatefulComposedFlat<S, M, FlatState, Resources> + 'a,
-{
-    Flat {
-        cursor: Flat::Cursor<'a>,
-        stream_state: FlatState,
-    },
-    Limited {
-        cursor:
-            Box<LimitedMoveCursor<SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>>>,
-    },
-    Union(SelectorCompositionUnionCursor<'a, S, M, Flat, FlatState, Resources>),
-    Cartesian(SelectorCompositionCartesianCursor<'a, S, M, Flat, FlatState, Resources>),
-}
+    fn validate_cursor<D: Director<S>>(&self, id: CompositionNodeId, director: &D) {
+        match &self.selector.nodes[id.index()] {
+            SelectorCompositionNode::Flat(flat) => flat.validate_cursor(director),
+            SelectorCompositionNode::Limited { selector, .. } => {
+                self.validate_cursor(*selector, director)
+            }
+            SelectorCompositionNode::Union { children, .. } => {
+                for &child in children {
+                    self.validate_cursor(child, director);
+                }
+            }
+            SelectorCompositionNode::Cartesian { left, right, .. } => {
+                self.validate_cursor(*left, director);
+                self.validate_cursor(*right, director);
+            }
+        }
+    }
 
-impl<S, M, Flat, FlatState, Resources>
-    SelectorCompositionCursor<'_, S, M, Flat, FlatState, Resources>
-where
-    S: PlanningSolution,
-    M: Move<S> + 'static,
-    Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
-{
-    pub(super) fn into_stream_state(self) -> SelectorCompositionStreamState<FlatState>
-    where
-        M: SequentialMoveCarrier<S>,
-    {
-        match self {
-            Self::Flat { stream_state, .. } => SelectorCompositionStreamState::Flat(stream_state),
-            Self::Limited { cursor } => SelectorCompositionStreamState::Limited(Box::new(
-                cursor.into_inner().into_stream_state(),
-            )),
-            Self::Union(cursor) => cursor.into_stream_state(),
-            Self::Cartesian(cursor) => cursor.into_stream_state(),
+    pub(super) fn next_at(
+        &mut self,
+        node_id: CompositionNodeId,
+        solution: &S,
+        resources: &mut Resources,
+    ) -> Option<CandidateId> {
+        let mut node = self.nodes[node_id.index()]
+            .take()
+            .expect("composition cursor must be open");
+        let result = match &mut node {
+            CursorNode::Flat(cursor) => cursor.next_candidate_with_resources(solution, resources),
+            CursorNode::Limited { child, budget } => {
+                if !budget.can_pull() {
+                    None
+                } else {
+                    let result = self.next_at(*child, solution, resources);
+                    if result.is_some() {
+                        budget.record_pull();
+                    }
+                    result
+                }
+            }
+            CursorNode::Union(cursor) => {
+                let SelectorCompositionNode::Union { children, .. } =
+                    &self.selector.nodes[node_id.index()]
+                else {
+                    unreachable!()
+                };
+                cursor.next(children, |child| self.next_at(child, solution, resources))
+            }
+            CursorNode::Cartesian(cursor) => cursor.next(self, solution, resources),
+        };
+        self.nodes[node_id.index()] = Some(node);
+        result
+    }
+
+    pub(super) fn candidate_at(
+        &self,
+        node: CompositionNodeId,
+        id: CandidateId,
+    ) -> Option<MoveCandidateRef<'_, S, M>> {
+        match self.nodes[node.index()].as_ref()? {
+            CursorNode::Flat(cursor) => cursor.candidate(id),
+            CursorNode::Limited { child, .. } => self.candidate_at(*child, id),
+            CursorNode::Union(cursor) => {
+                let (child, id) = cursor.coordinate(id)?;
+                self.candidate_at(child, id)
+            }
+            CursorNode::Cartesian(cursor) => cursor.candidate(id),
+        }
+    }
+
+    pub(super) fn take_at(&mut self, node_id: CompositionNodeId, id: CandidateId) -> M {
+        let mut node = self.nodes[node_id.index()]
+            .take()
+            .expect("composition cursor must be open");
+        let result = match &mut node {
+            CursorNode::Flat(cursor) => cursor.take_candidate(id),
+            CursorNode::Limited { child, .. } => self.take_at(*child, id),
+            CursorNode::Union(cursor) => {
+                let (child, id) = cursor
+                    .coordinate(id)
+                    .expect("selected union candidate must exist");
+                self.take_at(child, id)
+            }
+            CursorNode::Cartesian(cursor) => cursor.take(self, id),
+        };
+        self.nodes[node_id.index()] = Some(node);
+        result
+    }
+
+    pub(super) fn release_at(&mut self, node_id: CompositionNodeId, id: CandidateId) -> bool {
+        let mut node = self.nodes[node_id.index()]
+            .take()
+            .expect("composition cursor must be open");
+        let result = match &mut node {
+            CursorNode::Flat(cursor) => cursor.release_candidate(id),
+            CursorNode::Limited { child, .. } => self.release_at(*child, id),
+            CursorNode::Union(cursor) => cursor
+                .coordinate(id)
+                .is_some_and(|(child, id)| self.release_at(child, id)),
+            CursorNode::Cartesian(cursor) => cursor.release(id),
+        };
+        self.nodes[node_id.index()] = Some(node);
+        result
+    }
+
+    fn apply_at<D: Director<S>>(
+        &mut self,
+        node_id: CompositionNodeId,
+        id: CandidateId,
+        director: &mut D,
+    ) {
+        let mut node = self.nodes[node_id.index()]
+            .take()
+            .expect("composition cursor must be open");
+        match &mut node {
+            CursorNode::Flat(cursor) => cursor.apply_owned_candidate(id, director),
+            CursorNode::Limited { child, .. } => self.apply_at(*child, id, director),
+            CursorNode::Union(cursor) => {
+                let (child, id) = cursor
+                    .coordinate(id)
+                    .expect("selected union candidate must exist");
+                self.apply_at(child, id, director);
+            }
+            CursorNode::Cartesian(cursor) => {
+                cursor.take(self, id).do_move(director);
+            }
+        }
+        self.nodes[node_id.index()] = Some(node);
+    }
+
+    fn selector_index_at(&self, node: CompositionNodeId, id: CandidateId) -> Option<usize> {
+        match self.nodes[node.index()].as_ref()? {
+            CursorNode::Flat(cursor) => cursor.selector_index(id),
+            CursorNode::Limited { child, .. } => self.selector_index_at(*child, id),
+            CursorNode::Union(cursor) => cursor.selector_index(id),
+            CursorNode::Cartesian(_) => None,
         }
     }
 }
@@ -283,62 +377,21 @@ where
         solution: &S,
         resources: &mut Resources,
     ) -> Option<CandidateId> {
-        match self {
-            Self::Flat { cursor, .. } => cursor.next_candidate_with_resources(solution, resources),
-            Self::Limited { cursor, .. } => {
-                cursor.next_candidate_with_resources(solution, resources)
-            }
-            Self::Union(cursor) => cursor.next_candidate_with_resources(solution, resources),
-            Self::Cartesian(cursor) => cursor.next_candidate_with_resources(solution, resources),
-        }
+        self.next_at(self.selector.root(), solution, resources)
     }
-
-    fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
-        match self {
-            Self::Flat { cursor, .. } => cursor.candidate(index),
-            Self::Limited { cursor, .. } => cursor.candidate(index),
-            Self::Union(cursor) => cursor.candidate(index),
-            Self::Cartesian(cursor) => cursor.candidate(index),
-        }
+    fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+        self.candidate_at(self.selector.root(), id)
     }
-
-    fn take_candidate(&mut self, index: CandidateId) -> M {
-        match self {
-            Self::Flat { cursor, .. } => cursor.take_candidate(index),
-            Self::Limited { cursor, .. } => cursor.take_candidate(index),
-            Self::Union(cursor) => cursor.take_candidate(index),
-            Self::Cartesian(cursor) => cursor.take_candidate(index),
-        }
+    fn take_candidate(&mut self, id: CandidateId) -> M {
+        self.take_at(self.selector.root(), id)
     }
-
-    fn apply_owned_candidate<D: Director<S>>(
-        &mut self,
-        index: CandidateId,
-        score_director: &mut D,
-    ) {
-        match self {
-            Self::Flat { cursor, .. } => cursor.apply_owned_candidate(index, score_director),
-            Self::Limited { cursor, .. } => cursor.apply_owned_candidate(index, score_director),
-            Self::Union(cursor) => cursor.apply_owned_candidate(index, score_director),
-            Self::Cartesian(cursor) => cursor.apply_owned_candidate(index, score_director),
-        }
+    fn apply_owned_candidate<D: Director<S>>(&mut self, id: CandidateId, director: &mut D) {
+        self.apply_at(self.selector.root(), id, director);
     }
-
-    fn release_candidate(&mut self, index: CandidateId) -> bool {
-        match self {
-            Self::Flat { cursor, .. } => cursor.release_candidate(index),
-            Self::Limited { cursor, .. } => cursor.release_candidate(index),
-            Self::Union(cursor) => cursor.release_candidate(index),
-            Self::Cartesian(cursor) => cursor.release_candidate(index),
-        }
+    fn release_candidate(&mut self, id: CandidateId) -> bool {
+        self.release_at(self.selector.root(), id)
     }
-
-    fn selector_index(&self, index: CandidateId) -> Option<usize> {
-        match self {
-            Self::Flat { cursor, .. } => cursor.selector_index(index),
-            Self::Limited { cursor, .. } => cursor.selector_index(index),
-            Self::Union(cursor) => cursor.selector_index(index),
-            Self::Cartesian(cursor) => cursor.selector_index(index),
-        }
+    fn selector_index(&self, id: CandidateId) -> Option<usize> {
+        self.selector_index_at(self.selector.root(), id)
     }
 }

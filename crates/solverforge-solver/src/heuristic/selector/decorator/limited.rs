@@ -1,7 +1,11 @@
+#[cfg(test)]
 use solverforge_core::domain::PlanningSolution;
+#[cfg(test)]
 use solverforge_scoring::Director;
 
+#[cfg(test)]
 use crate::heuristic::r#move::Move;
+#[cfg(test)]
 use crate::heuristic::selector::move_selector::{
     CandidateId, MoveCandidateRef, MoveCursor, ResourceMoveCursor,
 };
@@ -11,21 +15,21 @@ use crate::heuristic::selector::move_selector::{
 /// Resource-aware composition differs only in how a reachable child produces
 /// its next candidate. The selected-count contract itself remains identical.
 #[derive(Debug)]
-struct LimitedCursorBudget {
+pub(crate) struct LimitedCursorBudget {
     limit: usize,
     yielded: usize,
 }
 
 impl LimitedCursorBudget {
-    fn new(limit: usize) -> Self {
+    pub(crate) fn new(limit: usize) -> Self {
         Self { limit, yielded: 0 }
     }
 
-    fn can_pull(&self) -> bool {
+    pub(crate) fn can_pull(&self) -> bool {
         self.yielded < self.limit
     }
 
-    fn record_pull(&mut self) {
+    pub(crate) fn record_pull(&mut self) {
         self.yielded += 1;
     }
 }
@@ -36,11 +40,13 @@ impl LimitedCursorBudget {
 /// resource at each reachable pull boundary. Ordinary users exercise the same
 /// budget through its `MoveCursor` implementation.
 #[derive(Debug)]
+#[cfg(test)]
 pub(crate) struct LimitedMoveCursor<C> {
     inner: C,
     budget: LimitedCursorBudget,
 }
 
+#[cfg(test)]
 impl<C> LimitedMoveCursor<C> {
     pub(crate) fn new(inner: C, limit: usize) -> Self {
         Self {
@@ -48,15 +54,9 @@ impl<C> LimitedMoveCursor<C> {
             budget: LimitedCursorBudget::new(limit),
         }
     }
-
-    /// Returns the one wrapped cursor when a retained composition cursor is
-    /// closed.  The recursive composition owns the inner stream state and
-    /// must recover it exactly rather than reconstructing a child selector.
-    pub(crate) fn into_inner(self) -> C {
-        self.inner
-    }
 }
 
+#[cfg(test)]
 impl<S, M, C> MoveCursor<S, M> for LimitedMoveCursor<C>
 where
     S: PlanningSolution,
@@ -93,6 +93,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S, M, C, Resources> ResourceMoveCursor<S, M, Resources> for LimitedMoveCursor<C>
 where
     S: PlanningSolution,

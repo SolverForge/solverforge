@@ -1,7 +1,7 @@
-//! One recursive selector-composition surface.
+//! One indexed selector-composition declaration arena.
 //!
-//! The compiled runner supplies frozen leaves. This module owns recursive
-//! Limited/Union/Cartesian state around them.
+//! The compiled runner supplies frozen leaves. Structural edges are stable
+//! coordinates; declaration and stream arenas are owned independently.
 
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
@@ -17,7 +17,9 @@ mod cartesian;
 mod execution;
 mod state;
 
-pub(crate) use cartesian::SelectorCompositionCartesianCursor;
+#[cfg(test)]
+mod tests;
+
 pub(crate) use execution::SelectorCompositionState;
 pub(crate) use state::SelectorCompositionCursor;
 
@@ -64,114 +66,110 @@ where
     fn validate_cursor<D: Director<S>>(&self, score_director: &D);
 }
 
-/// One recursive node over a frozen flat leaf set.
-///
-/// `Flat`, `Limited`, `Union`, and `Cartesian` preserve one recursive
-/// ownership and cursor path. A union therefore remains valid inside either
-/// Cartesian child instead of being flattened into an unrelated outer path.
-pub enum SelectorComposition<S, M, Flat, FlatState>
-where
-    S: PlanningSolution,
-    M: Move<S> + 'static,
-{
+/// Stable declaration and stream-state coordinate, never a candidate ID.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct CompositionNodeId(usize);
+
+impl CompositionNodeId {
+    pub(super) fn index(self) -> usize {
+        self.0
+    }
+}
+
+/// Structural variants are closed; arbitrary flat extensions remain concrete.
+#[derive(Debug)]
+pub(crate) enum SelectorCompositionNode<Flat> {
     Flat(Flat),
     Limited {
-        selector: Box<SelectorCompositionChild<S, M, Flat, FlatState>>,
+        selector: CompositionNodeId,
         selected_count_limit: usize,
     },
     Union {
         selection_order: UnionSelectionOrder,
         weighting: UnionWeighting,
         weights: Vec<u64>,
-        children: Vec<SelectorCompositionChild<S, M, Flat, FlatState>>,
+        children: Vec<CompositionNodeId>,
     },
-    Cartesian(SelectorCompositionCartesian<S, M, Flat, FlatState>),
+    Cartesian {
+        left: CompositionNodeId,
+        right: CompositionNodeId,
+        require_hard_improvement: bool,
+    },
 }
 
-/// A Cartesian child is the same recursive composition node.
-pub type SelectorCompositionChild<S, M, Flat, FlatState> =
-    SelectorComposition<S, M, Flat, FlatState>;
-
-/// A recursive Cartesian node with deferred right-child opening.
-pub struct SelectorCompositionCartesian<S, M, Flat, FlatState>
-where
-    S: PlanningSolution,
-    M: Move<S> + 'static,
-{
-    left: Box<SelectorCompositionChild<S, M, Flat, FlatState>>,
-    right: Box<SelectorCompositionChild<S, M, Flat, FlatState>>,
-    require_hard_improvement: bool,
+/// Built once in postorder, then owned immutably by one solve execution.
+/// Children precede parents, and each child has exactly one parent. Thus
+/// cursor state can use the same coordinates without sharing mutable leaves.
+pub(crate) struct SelectorComposition<S, M, Flat, FlatState> {
+    nodes: Vec<SelectorCompositionNode<Flat>>,
     _marker: PhantomData<fn() -> (S, M, FlatState)>,
 }
 
-impl<S, M, Flat, FlatState> SelectorCompositionCartesian<S, M, Flat, FlatState>
-where
-    S: PlanningSolution,
-    M: Move<S> + 'static,
-{
-    pub fn new(
-        left: SelectorCompositionChild<S, M, Flat, FlatState>,
-        right: SelectorCompositionChild<S, M, Flat, FlatState>,
-    ) -> Self {
+impl<S, M, Flat, FlatState> SelectorComposition<S, M, Flat, FlatState> {
+    pub(crate) fn new() -> Self {
         Self {
-            left: Box::new(left),
-            right: Box::new(right),
-            require_hard_improvement: false,
+            nodes: Vec::new(),
             _marker: PhantomData,
         }
     }
 
-    pub fn with_require_hard_improvement(mut self, require_hard_improvement: bool) -> Self {
-        self.require_hard_improvement = require_hard_improvement;
-        self
+    pub(crate) fn push(&mut self, node: SelectorCompositionNode<Flat>) -> CompositionNodeId {
+        let id = CompositionNodeId(self.nodes.len());
+        self.nodes.push(node);
+        id
     }
-}
 
-impl<S, M, Flat, FlatState> Debug for SelectorCompositionCartesian<S, M, Flat, FlatState>
-where
-    S: PlanningSolution,
-    M: Move<S> + 'static,
-    Flat: Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CartesianProductSelector")
-            .field("left", &self.left)
-            .field("right", &self.right)
-            .field("require_hard_improvement", &self.require_hard_improvement)
-            .finish()
+    fn root(&self) -> CompositionNodeId {
+        CompositionNodeId(
+            self.nodes
+                .len()
+                .checked_sub(1)
+                .expect("composition must have a root"),
+        )
     }
-}
 
-impl<S, M, Flat, FlatState> Debug for SelectorComposition<S, M, Flat, FlatState>
-where
-    S: PlanningSolution,
-    M: Move<S> + 'static,
-    Flat: Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Flat(selector) => write!(f, "Neighborhood::Flat({selector:?})"),
-            Self::Limited {
-                selector,
-                selected_count_limit,
-            } => f
-                .debug_struct("Neighborhood::Limited")
-                .field("selector", selector)
-                .field("selected_count_limit", selected_count_limit)
-                .finish(),
-            Self::Union {
-                selection_order,
-                weighting,
-                weights,
-                children,
-            } => f
-                .debug_struct("Neighborhood::Union")
-                .field("selection_order", selection_order)
-                .field("weighting", weighting)
-                .field("weights", weights)
-                .field("children", children)
-                .finish(),
-            Self::Cartesian(selector) => write!(f, "Neighborhood::Cartesian({selector:?})"),
+    fn validate_tree(&self) {
+        let mut parents = vec![0; self.nodes.len()];
+        for (index, node) in self.nodes.iter().enumerate() {
+            let mut child = |id: CompositionNodeId| {
+                assert!(
+                    id.index() < index,
+                    "composition children must precede parents"
+                );
+                parents[id.index()] += 1;
+                assert_eq!(
+                    parents[id.index()],
+                    1,
+                    "composition leaves cannot share mutable state"
+                );
+            };
+            match node {
+                SelectorCompositionNode::Flat(_) => {}
+                SelectorCompositionNode::Limited { selector, .. } => child(*selector),
+                SelectorCompositionNode::Union { children, .. } => {
+                    for &id in children {
+                        child(id);
+                    }
+                }
+                SelectorCompositionNode::Cartesian { left, right, .. } => {
+                    child(*left);
+                    child(*right);
+                }
+            }
         }
+        assert!(
+            parents[..self.root().index()]
+                .iter()
+                .all(|&count| count == 1),
+            "composition must have one connected root"
+        );
+    }
+}
+
+impl<S, M, Flat: Debug, FlatState> Debug for SelectorComposition<S, M, Flat, FlatState> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SelectorComposition")
+            .field("nodes", &self.nodes)
+            .finish()
     }
 }

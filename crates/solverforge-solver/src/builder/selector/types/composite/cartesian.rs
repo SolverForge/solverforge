@@ -1,4 +1,4 @@
-//! Recursive owned-pair Cartesian cursor.
+//! Indexed owned-pair Cartesian cursor.
 
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
@@ -10,13 +10,11 @@ use crate::heuristic::r#move::{
     SequentialPreviewDirector,
 };
 use crate::heuristic::selector::move_selector::{
-    CandidateId, CandidateStore, MoveCandidateRef, MoveStreamContext, ResourceMoveCursor,
+    CandidateId, CandidateStore, MoveCandidateRef, MoveStreamContext,
 };
 
-use super::state::{
-    open_cursor_with_owned_stream_state, SelectorCompositionCursor, SelectorCompositionStreamState,
-};
-use super::{SelectorCompositionChild, SequentialMoveCarrier, StatefulComposedFlat};
+use super::state::SelectorCompositionCursor;
+use super::{CompositionNodeId, SequentialMoveCarrier, StatefulComposedFlat};
 
 struct CartesianRow<S, M>
 where
@@ -28,14 +26,12 @@ where
     live_pairs: usize,
 }
 
-struct ActiveCartesianRow<'a, S, M, Flat, FlatState, Resources>
+struct ActiveCartesianRow<S, M>
 where
     S: PlanningSolution,
-    M: Move<S> + 'static,
-    Flat: StatefulComposedFlat<S, M, FlatState, Resources> + 'a,
+    M: Move<S>,
 {
     row_index: usize,
-    right_cursor: Box<SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>>,
     left_undo: M::Undo,
     left_signature: MoveTabuSignature,
 }
@@ -47,59 +43,51 @@ struct CartesianPair {
     tabu_signature: MoveTabuSignature,
 }
 
-/// The one recursive Cartesian cursor.
-///
-/// It materializes a selected nested pair through `SequentialMoveCarrier`, so
-/// a nested Cartesian candidate becomes an ordinary owned `M` for its parent.
-/// The parent then previews that selected left and opens its right only then.
-/// The solve-owned resource is lent only to the currently reached left/right
-/// pull, preserving lazy provider delivery through nested products.
-pub(crate) struct SelectorCompositionCartesianCursor<'a, S, M, Flat, FlatState, Resources>
+/// Cartesian payloads own selected child carriers; graph edges are stable IDs.
+/// Right cursors open only after left preview application, using the same arena.
+pub(super) struct SelectorCompositionCartesianCursor<S, M>
 where
     S: PlanningSolution,
     M: Move<S> + 'static,
-    Flat: StatefulComposedFlat<S, M, FlatState, Resources> + 'a,
 {
     require_hard_improvement: bool,
-    left_cursor: Box<SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>>,
-    right_selector: &'a SelectorCompositionChild<S, M, Flat, FlatState>,
-    right_stream_state: Option<SelectorCompositionStreamState<FlatState>>,
+    left: CompositionNodeId,
+    right: CompositionNodeId,
     rows: Vec<Option<CartesianRow<S, M>>>,
-    active_row: Option<ActiveCartesianRow<'a, S, M, Flat, FlatState, Resources>>,
+    active_row: Option<ActiveCartesianRow<S, M>>,
     pairs: Vec<Option<CartesianPair>>,
     preview: SequentialPreviewDirector<S>,
     context: MoveStreamContext,
 }
 
-impl<'a, S, M, Flat, FlatState, Resources>
-    SelectorCompositionCartesianCursor<'a, S, M, Flat, FlatState, Resources>
+impl<S, M> SelectorCompositionCartesianCursor<S, M>
 where
     S: PlanningSolution,
-    M: Move<S> + 'static,
-    Flat: StatefulComposedFlat<S, M, FlatState, Resources> + 'a,
+    M: SequentialMoveCarrier<S> + 'static,
 {
     pub(super) fn new<D: Director<S>>(
         require_hard_improvement: bool,
-        left_cursor: SelectorCompositionCursor<'a, S, M, Flat, FlatState, Resources>,
-        right_selector: &'a SelectorCompositionChild<S, M, Flat, FlatState>,
-        right_stream_state: SelectorCompositionStreamState<FlatState>,
-        score_director: &D,
+        left: CompositionNodeId,
+        right: CompositionNodeId,
+        director: &D,
         context: MoveStreamContext,
-    ) -> Self
-    where
-        M: SequentialMoveCarrier<S>,
-    {
+    ) -> Self {
         Self {
             require_hard_improvement,
-            left_cursor: Box::new(left_cursor),
-            right_selector,
-            right_stream_state: Some(right_stream_state),
+            left,
+            right,
             rows: Vec::new(),
             active_row: None,
             pairs: Vec::new(),
-            preview: SequentialPreviewDirector::from_director(score_director),
+            preview: SequentialPreviewDirector::from_director(director),
             context,
         }
+    }
+    pub(super) fn left(&self) -> CompositionNodeId {
+        self.left
+    }
+    pub(super) fn right(&self) -> CompositionNodeId {
+        self.right
     }
 
     fn build_candidate(&self, pair_id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
@@ -147,22 +135,18 @@ where
         }
     }
 
-    fn finish_active_row(&mut self)
-    where
-        M: SequentialMoveCarrier<S>,
+    fn finish_active_row<Flat, FlatState, Resources>(
+        &mut self,
+        arena: &mut SelectorCompositionCursor<'_, S, M, Flat, FlatState, Resources>,
+    ) where
+        Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
     {
         let active = self
             .active_row
             .take()
             .expect("active cartesian row must remain live");
         let row_index = active.row_index;
-        let right_stream_state = (*active.right_cursor).into_stream_state();
-        assert!(
-            self.right_stream_state
-                .replace(right_stream_state)
-                .is_none(),
-            "a Cartesian right stream state must be owned by exactly one live cursor"
-        );
+        arena.close_node(self.right);
         self.rows[row_index]
             .as_ref()
             .expect("active cartesian row must remain live")
@@ -171,9 +155,13 @@ where
         self.release_row_if_unused(row_index);
     }
 
-    fn take_selected_pair(&mut self, index: CandidateId) -> M
+    pub(super) fn take<Flat, FlatState, Resources>(
+        &mut self,
+        arena: &mut SelectorCompositionCursor<'_, S, M, Flat, FlatState, Resources>,
+        index: CandidateId,
+    ) -> M
     where
-        M: SequentialMoveCarrier<S>,
+        Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
     {
         let pair = self
             .pairs
@@ -194,13 +182,7 @@ where
             .expect("selected cartesian row must remain live");
 
         if let Some(active) = active {
-            let right_stream_state = (*active.right_cursor).into_stream_state();
-            assert!(
-                self.right_stream_state
-                    .replace(right_stream_state)
-                    .is_none(),
-                "a Cartesian right stream state must be owned by exactly one live cursor"
-            );
+            arena.close_node(self.right);
             row.left.undo_move(&mut self.preview, active.left_undo);
         }
 
@@ -236,36 +218,15 @@ where
         M::from_sequential(selected)
     }
 
-    pub(super) fn into_stream_state(mut self) -> SelectorCompositionStreamState<FlatState>
-    where
-        M: SequentialMoveCarrier<S>,
-    {
-        let right_stream_state = match self.active_row.take() {
-            Some(active) => (*active.right_cursor).into_stream_state(),
-            None => self
-                .right_stream_state
-                .take()
-                .expect("Cartesian right stream state must remain owned"),
-        };
-        SelectorCompositionStreamState::Cartesian {
-            left: Box::new((*self.left_cursor).into_stream_state()),
-            right: Box::new(right_stream_state),
-        }
-    }
-}
-
-impl<S, M, Flat, FlatState, Resources> ResourceMoveCursor<S, M, Resources>
-    for SelectorCompositionCartesianCursor<'_, S, M, Flat, FlatState, Resources>
-where
-    S: PlanningSolution,
-    M: SequentialMoveCarrier<S> + 'static,
-    Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
-{
-    fn next_candidate_with_resources(
+    pub(super) fn next<Flat, FlatState, Resources>(
         &mut self,
+        arena: &mut SelectorCompositionCursor<'_, S, M, Flat, FlatState, Resources>,
         solution: &S,
         resources: &mut Resources,
-    ) -> Option<CandidateId> {
+    ) -> Option<CandidateId>
+    where
+        Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
+    {
         loop {
             if self.active_row.is_some() {
                 let inspected = {
@@ -278,15 +239,17 @@ where
                         .expect("active cartesian row must remain live");
                     let left = &row.left;
                     let left_signature = &active.left_signature;
-                    active
-                        .right_cursor
-                        .next_owned_candidate_inspected_with_resources(
-                            solution,
-                            resources,
-                            |right| {
-                                if !right.is_doable(&self.preview) {
-                                    return None;
-                                }
+                    loop {
+                        let Some(id) = arena.next_at(self.right, solution, resources) else {
+                            break None;
+                        };
+                        let inspected = {
+                            let right = arena
+                                .candidate_at(self.right, id)
+                                .expect("right candidate must remain valid");
+                            if !right.is_doable(&self.preview) {
+                                None
+                            } else {
                                 Some((
                                     combined_entity_indices(
                                         left.entity_indices(),
@@ -298,8 +261,13 @@ where
                                         &right.tabu_signature(&self.preview),
                                     ),
                                 ))
-                            },
-                        )
+                            }
+                        };
+                        if let Some(metadata) = inspected {
+                            break Some((arena.take_at(self.right, id), metadata));
+                        }
+                        assert!(arena.release_at(self.right, id));
+                    }
                 };
                 if let Some((right, (entity_indices, tabu_signature))) = inspected {
                     let row_index = self
@@ -325,16 +293,13 @@ where
                         .live_pairs += 1;
                     return Some(pair_id);
                 }
-                self.finish_active_row();
+                self.finish_active_row(arena);
             }
 
-            let left_id = self
-                .left_cursor
-                .next_candidate_with_resources(solution, resources)?;
+            let left_id = arena.next_at(self.left, solution, resources)?;
             let (left_is_doable, left_signature) = {
-                let left = self
-                    .left_cursor
-                    .candidate(left_id)
+                let left = arena
+                    .candidate_at(self.left, left_id)
                     .expect("left cartesian candidate must remain valid");
                 (
                     left.is_doable(&self.preview),
@@ -342,22 +307,12 @@ where
                 )
             };
             if !left_is_doable {
-                assert!(self.left_cursor.release_candidate(left_id));
+                assert!(arena.release_at(self.left, left_id));
                 continue;
             }
-            let left = self.left_cursor.take_candidate(left_id);
+            let left = arena.take_at(self.left, left_id);
             let left_undo = left.do_move(&mut self.preview);
-            let right_stream_state = self
-                .right_stream_state
-                .take()
-                .expect("Cartesian right stream state must be available before opening a row");
-            let right_cursor = open_cursor_with_owned_stream_state(
-                self.right_selector,
-                right_stream_state,
-                resources,
-                &self.preview,
-                self.context,
-            );
+            arena.open_node(self.right, resources, &self.preview, self.context);
             let row_index = self.rows.len();
             self.rows.push(Some(CartesianRow {
                 left,
@@ -366,30 +321,17 @@ where
             }));
             self.active_row = Some(ActiveCartesianRow {
                 row_index,
-                right_cursor: Box::new(right_cursor),
                 left_undo,
                 left_signature,
             });
         }
     }
 
-    fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+    pub(super) fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
         self.build_candidate(index)
     }
 
-    fn take_candidate(&mut self, index: CandidateId) -> M {
-        self.take_selected_pair(index)
-    }
-
-    fn apply_owned_candidate<D: Director<S>>(
-        &mut self,
-        index: CandidateId,
-        score_director: &mut D,
-    ) {
-        self.take_selected_pair(index).do_move(score_director);
-    }
-
-    fn release_candidate(&mut self, index: CandidateId) -> bool {
+    pub(super) fn release(&mut self, index: CandidateId) -> bool {
         let Some(pair) = self.pairs.get_mut(index.index()).and_then(Option::take) else {
             return false;
         };
@@ -403,10 +345,6 @@ where
             .expect("cartesian row live-pair count must remain positive");
         self.release_row_if_unused(pair.row_index);
         true
-    }
-
-    fn selector_index(&self, _index: CandidateId) -> Option<usize> {
-        None
     }
 }
 

@@ -1,6 +1,6 @@
 mod composite;
 
 pub(crate) use composite::{
-    SelectorComposition, SelectorCompositionCartesian, SelectorCompositionState,
+    CompositionNodeId, SelectorComposition, SelectorCompositionNode, SelectorCompositionState,
     SequentialMoveCarrier, StatefulComposedFlat,
 };

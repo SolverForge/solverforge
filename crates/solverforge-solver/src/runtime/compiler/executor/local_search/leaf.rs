@@ -340,9 +340,6 @@ where
             ),
             self.candidate_order,
             self.candidate_metric.clone(),
-            self.candidate_order
-                .requires_complete_stream()
-                .then(|| score_director.clone_working_solution()),
             candidate_context,
         )
     }

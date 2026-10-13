@@ -178,7 +178,6 @@ where
     >,
     candidate_order: SelectionOrder,
     candidate_metric: Option<RuntimeCandidateMetricBinding<S>>,
-    metric_solution: Option<S>,
     context: MoveStreamContext,
     ordered_candidates: Option<Vec<CandidateId>>,
     ordered_offset: usize,
@@ -200,21 +199,19 @@ where
         >,
         candidate_order: SelectionOrder,
         candidate_metric: Option<RuntimeCandidateMetricBinding<S>>,
-        metric_solution: Option<S>,
         context: MoveStreamContext,
     ) -> Self {
         Self {
             inner,
             candidate_order,
             candidate_metric,
-            metric_solution,
             context,
             ordered_candidates: None,
             ordered_offset: 0,
         }
     }
 
-    fn prepare_order(&mut self, resources: &mut ProviderExecutionResources<S>) {
+    fn prepare_order(&mut self, solution: &S, resources: &mut ProviderExecutionResources<S>) {
         if self.ordered_candidates.is_some() {
             return;
         }
@@ -222,10 +219,6 @@ where
             .candidate_metric
             .as_ref()
             .expect("sorted and probabilistic selectors must retain their compiled metric");
-        let solution = self
-            .metric_solution
-            .as_ref()
-            .expect("metric-backed selector must retain its cursor-open solution snapshot");
         let mut candidates = Vec::new();
         while let Some(candidate_id) = self
             .inner
@@ -296,11 +289,11 @@ where
 {
     fn next_candidate_with_resources(
         &mut self,
-        _solution: &S,
+        solution: &S,
         resources: &mut ProviderExecutionResources<S>,
     ) -> Option<CandidateId> {
         if self.candidate_order.requires_complete_stream() {
-            self.prepare_order(resources);
+            self.prepare_order(solution, resources);
             let candidate = self
                 .ordered_candidates
                 .as_ref()
@@ -310,7 +303,7 @@ where
             candidate
         } else {
             self.inner
-                .next_candidate_with_resources(_solution, resources)
+                .next_candidate_with_resources(solution, resources)
         }
     }
 

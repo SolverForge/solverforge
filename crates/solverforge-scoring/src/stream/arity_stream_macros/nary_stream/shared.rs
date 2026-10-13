@@ -167,6 +167,44 @@ macro_rules! impl_nary_arity_stream_common {
                 }
             }
 
+            /// Groups each matching tuple, preserving upstream filters.
+            pub fn group_by<GK, GF, Co, V, R, Acc>(self, key: GF, collector: Co)
+                -> super::JoinedGroupedStream<S,
+                    crate::stream::relational::operator::FilterNode<
+                        crate::stream::relational::operator::SelfJoinNode<S, A,
+                            crate::stream::relational::operator::CollectionNode<S, E>, K, KE, $arity>,
+                        impl Fn(&S, &[crate::stream::relational::Leaf<'_, A>; $arity]) -> bool + Send + Sync>,
+                    impl Fn(&[crate::stream::relational::Leaf<'_, A>; $arity]) -> GK + Send + Sync,
+                    crate::stream::relational::TupleCollector<Co, V, R, Acc>, GK, V, R, Acc, Sc>
+            where
+                E: 'static,
+                KE: 'static,
+                F: 'static,
+                K: 'static,
+                GK: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
+                GF: Fn($(repeat_tokens!($entity => &A)),+) -> GK + Send + Sync + 'static,
+                Co: for<'i> super::collector::Collector<
+                    ($(repeat_tokens!($entity => &'i A)),+), Value = V, Result = R, Accumulator = Acc> + 'static,
+                V: Send + Sync + 'static,
+                R: Send + Sync + 'static,
+                Acc: super::collector::Accumulator<V, R> + 'static,
+                for<'i> crate::stream::relational::TupleCollector<Co, V, R, Acc>:
+                    super::collector::Collector<[crate::stream::relational::Leaf<'i, A>; $arity], Value = V, Result = R, Accumulator = Acc>,
+            {
+                let filter = self.filter;
+                let input = crate::stream::relational::operator::SelfJoinNode::new(
+                    crate::stream::relational::operator::CollectionNode::new(self.extractor, 0), self.key_extractor);
+                let filtered = crate::stream::relational::operator::FilterNode::new(input,
+                    move |s: &S, row: &[crate::stream::relational::Leaf<'_, A>; $arity]| {
+                        filter.test(s, $(row[repeat_nary_arity_position!($entity)].entity,)+
+                            $(row[repeat_nary_arity_position!($filter_idx)].index),+)
+                    });
+                super::JoinedGroupedStream::new(filtered,
+                    move |row: &[crate::stream::relational::Leaf<'_, A>; $arity]| {
+                        key($(row[repeat_nary_arity_position!($entity)].entity),+)
+                    }, crate::stream::relational::TupleCollector::new(collector))
+            }
+
             pub fn penalize<W>(
                 self,
                 weight: W,

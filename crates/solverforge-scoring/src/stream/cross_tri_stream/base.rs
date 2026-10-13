@@ -129,8 +129,8 @@ where
     P1: CompileCondition<Plan: IndexedPlan>,
     P2: CompileCondition<Plan: IndexedPlan>,
 {
-    pub(super) tree: BuiltTri<S, EA, EB, EC, P1, P2>,
-    pub(super) filter: F,
+    pub(crate) tree: BuiltTri<S, EA, EB, EC, P1, P2>,
+    pub(crate) filter: F,
     pub(super) _phantom: PhantomData<(fn() -> S, fn() -> A, fn() -> B, fn() -> C, fn() -> Sc)>,
 }
 

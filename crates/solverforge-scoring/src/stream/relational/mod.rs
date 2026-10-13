@@ -16,6 +16,9 @@ pub(crate) mod leaf_collector;
 pub mod operator;
 mod row;
 mod storage;
+mod tuple_collector;
+#[doc(hidden)]
+pub use tuple_collector::TupleCollector;
 pub mod view_plan;
 
 pub(crate) use handle_map::HandleMap;

@@ -17,6 +17,8 @@ pub(super) struct ValueRunGapSwapCursor {
     release_pos: usize,
     fill_sequences: Vec<usize>,
     release_sequences: Vec<usize>,
+    walk_budget: usize,
+    walked: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -58,6 +60,8 @@ impl ValueRunGapSwapCursor {
             release_pos: 0,
             fill_sequences: Vec::new(),
             release_sequences: Vec::new(),
+            walk_budget: options.max_walked_positions,
+            walked: 0,
         }
     }
 
@@ -74,6 +78,10 @@ impl ValueRunGapSwapCursor {
             self.ensure_pair_loaded();
             while self.fill_pos < self.fill_sequences.len() {
                 while self.release_pos < self.release_sequences.len() {
+                    if self.walked >= self.walk_budget {
+                        return None;
+                    }
+                    self.walked += 1;
                     let (target_value, source_value) = self.pairs[self.pair_pos];
                     let fill_sequence = self.fill_sequences[self.fill_pos];
                     let release_sequence = self.release_sequences[self.release_pos];

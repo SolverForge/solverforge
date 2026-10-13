@@ -29,6 +29,10 @@ pub(crate) struct ScalarAssignmentMoveOptions {
     pub(crate) max_rematch_size: usize,
     pub(crate) entity_offset: usize,
     pub(crate) required_scarcity_ordering: bool,
+    /* Enumeration budget: max (pair, window) positions walked per family per step.
+    Engine policy, not configuration — bounds the walk so one family's tail cannot
+    consume the step. Yielded candidates are what actually flow to scoring. */
+    pub(crate) max_walked_positions: usize,
 }
 
 impl ScalarAssignmentMoveOptions {
@@ -40,6 +44,7 @@ impl ScalarAssignmentMoveOptions {
             max_rematch_size: limits.max_rematch_size.unwrap_or(4).max(2),
             entity_offset: 0,
             required_scarcity_ordering: true,
+            max_walked_positions: usize::MAX,
         }
     }
 
@@ -56,6 +61,7 @@ impl ScalarAssignmentMoveOptions {
             max_rematch_size: limits.max_rematch_size.unwrap_or(4).max(2),
             entity_offset,
             required_scarcity_ordering: true,
+            max_walked_positions: WALK_BUDGET,
         }
     }
 
@@ -64,6 +70,12 @@ impl ScalarAssignmentMoveOptions {
         self
     }
 }
+
+/* Steered-walk budget: a family walks at most this many (pair, window) positions per
+step before its cursor reports exhaustion, so every family's slice of the step budget
+stays bounded and ordered prefixes (entity_offset rotation per step) decide what is
+seen. Construction is exempt (usize::MAX): its guided engine owns its own budgets. */
+const WALK_BUDGET: usize = 4_096;
 
 #[derive(Clone, Copy)]
 pub(super) struct AssignmentMoveIntent {

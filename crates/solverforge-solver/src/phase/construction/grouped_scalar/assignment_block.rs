@@ -16,6 +16,8 @@ pub(super) struct ValueWindowCursor {
     start_pos: usize,
     len: usize,
     max_len: usize,
+    walk_budget: usize,
+    walked: usize,
 }
 
 pub(super) struct ValueLongWindowCursor {
@@ -26,6 +28,8 @@ pub(super) struct ValueLongWindowCursor {
     length_pos: usize,
     start_pos: usize,
     lengths: Vec<usize>,
+    walk_budget: usize,
+    walked: usize,
 }
 
 pub(super) struct ValueBlockReassignmentCursor {
@@ -36,6 +40,8 @@ pub(super) struct ValueBlockReassignmentCursor {
     start_pos: usize,
     len: usize,
     max_len: usize,
+    walk_budget: usize,
+    walked: usize,
 }
 
 impl ValueLongWindowCursor {
@@ -64,6 +70,8 @@ impl ValueLongWindowCursor {
             length_pos: 0,
             start_pos: 0,
             lengths,
+            walk_budget: options.max_walked_positions,
+            walked: 0,
         }
     }
 
@@ -80,6 +88,10 @@ impl ValueLongWindowCursor {
             while self.length_pos < self.lengths.len() {
                 let len = self.lengths[self.length_pos];
                 while self.start_pos + len <= self.sequence_keys.len() {
+                    if self.walked >= self.walk_budget {
+                        return None;
+                    }
+                    self.walked += 1;
                     let (left_value, right_value) = self.pairs[self.pair_pos];
                     let sequence_window = &self.sequence_keys[self.start_pos..self.start_pos + len];
                     self.start_pos += 1;
@@ -145,6 +157,8 @@ impl ValueWindowCursor {
             start_pos: 0,
             len: 2,
             max_len,
+            walk_budget: options.max_walked_positions,
+            walked: 0,
         }
     }
 
@@ -163,6 +177,10 @@ impl ValueWindowCursor {
                     if self.start_pos + self.len > self.sequence_keys.len() {
                         break;
                     }
+                    if self.walked >= self.walk_budget {
+                        return None;
+                    }
+                    self.walked += 1;
                     let (left_value, right_value) = self.pairs[self.pair_pos];
                     let sequence_window =
                         &self.sequence_keys[self.start_pos..self.start_pos + self.len];
@@ -231,6 +249,8 @@ impl ValueBlockReassignmentCursor {
             start_pos: 0,
             len: 2,
             max_len,
+            walk_budget: options.max_walked_positions,
+            walked: 0,
         }
     }
 
@@ -249,6 +269,10 @@ impl ValueBlockReassignmentCursor {
                     if self.start_pos + self.len > self.sequence_keys.len() {
                         break;
                     }
+                    if self.walked >= self.walk_budget {
+                        return None;
+                    }
+                    self.walked += 1;
                     let (source_value, target_value) = self.pairs[self.pair_pos];
                     let sequence_window =
                         &self.sequence_keys[self.start_pos..self.start_pos + self.len];

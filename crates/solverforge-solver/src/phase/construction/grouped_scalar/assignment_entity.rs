@@ -148,9 +148,12 @@ impl EntityValueCursor {
                     continue;
                 }
                 let scalar_edits = [group.edit(entity_index, Some(value))];
-                if let Some(mov) =
-                    move_from_edits(group, solution, &scalar_edits, "scalar_assignment_reassignment")
-                {
+                if let Some(mov) = move_from_edits(
+                    group,
+                    solution,
+                    &scalar_edits,
+                    "scalar_assignment_reassignment",
+                ) {
                     return Some(mov);
                 }
             }

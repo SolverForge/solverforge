@@ -20,6 +20,8 @@ pub(super) struct CycleWindowCursor {
     variant: usize,
     max_len: usize,
     options: ScalarAssignmentMoveOptions,
+    walk_budget: usize,
+    walked: usize,
 }
 
 impl CycleWindowCursor {
@@ -40,6 +42,8 @@ impl CycleWindowCursor {
             variant: 0,
             max_len,
             options,
+            walk_budget: options.max_walked_positions,
+            walked: 0,
         }
     }
 
@@ -60,6 +64,8 @@ impl CycleWindowCursor {
             variant: 0,
             max_len,
             options,
+            walk_budget: options.max_walked_positions,
+            walked: 0,
         }
     }
 
@@ -95,6 +101,10 @@ impl CycleWindowCursor {
                     break;
                 }
                 while self.variant < 2 {
+                    if self.walked >= self.walk_budget {
+                        return None;
+                    }
+                    self.walked += 1;
                     let direction = if self.variant == 0 { 1 } else { self.len - 1 };
                     self.variant += 1;
                     let window = &self.entities[self.start..self.start + self.len];
@@ -157,6 +167,10 @@ impl CycleWindowCursor {
                     continue;
                 }
                 while self.variant < attempt_count {
+                    if self.walked >= self.walk_budget {
+                        return None;
+                    }
+                    self.walked += 1;
                     let attempt = self.variant;
                     self.variant += 1;
                     let Some(edits) =

@@ -16,6 +16,8 @@ pub(super) struct ValueWindowCycleCursor {
     start_pos: usize,
     len: usize,
     max_len: usize,
+    walk_budget: usize,
+    walked: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -57,6 +59,8 @@ impl ValueWindowCycleCursor {
             start_pos: 0,
             len: 2,
             max_len,
+            walk_budget: options.max_walked_positions,
+            walked: 0,
         }
     }
 
@@ -75,6 +79,10 @@ impl ValueWindowCycleCursor {
                     if self.start_pos + self.len > self.sequence_keys.len() {
                         break;
                     }
+                    if self.walked >= self.walk_budget {
+                        return None;
+                    }
+                    self.walked += 1;
                     let (first, second, third) = self.triples[self.triple_pos];
                     let sequence_window =
                         &self.sequence_keys[self.start_pos..self.start_pos + self.len];

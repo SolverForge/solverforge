@@ -36,6 +36,9 @@ pub struct LateAcceptanceAcceptor<S: PlanningSolution> {
     score_history: Vec<Option<S::Score>>,
     // Current index in the buffer.
     current_index: usize,
+    // Best score seen so far in this phase; the buffer resets to it whenever a
+    // new best is committed, re-anchoring the acceptance window.
+    best_score: Option<S::Score>,
 }
 
 impl<S: PlanningSolution> Debug for LateAcceptanceAcceptor<S> {
@@ -53,6 +56,7 @@ impl<S: PlanningSolution> Clone for LateAcceptanceAcceptor<S> {
             late_acceptance_size: self.late_acceptance_size,
             score_history: self.score_history.clone(),
             current_index: self.current_index,
+            best_score: self.best_score,
         }
     }
 }
@@ -75,6 +79,7 @@ impl<S: PlanningSolution> LateAcceptanceAcceptor<S> {
             late_acceptance_size,
             score_history: vec![None; late_acceptance_size],
             current_index: 0,
+            best_score: None,
         }
     }
 }
@@ -110,6 +115,7 @@ impl<S: PlanningSolution> Acceptor<S> for LateAcceptanceAcceptor<S> {
         // Initialize history with the initial score
         self.score_history.fill(Some(*initial_score));
         self.current_index = 0;
+        self.best_score = Some(*initial_score);
     }
 
     fn step_ended(
@@ -120,5 +126,13 @@ impl<S: PlanningSolution> Acceptor<S> for LateAcceptanceAcceptor<S> {
         // Record the step score in the history
         self.score_history[self.current_index] = Some(*step_score);
         self.current_index = (self.current_index + 1) % self.late_acceptance_size;
+
+        // Re-anchor the whole window on a new best so the acceptance bar does
+        // not still quote pre-improvement scores.
+        let new_best = self.best_score.is_none_or(|best| step_score > &best);
+        if new_best {
+            self.best_score = Some(*step_score);
+            self.score_history.fill(Some(*step_score));
+        }
     }
 }

@@ -233,9 +233,8 @@ impl AcceptorBuilder {
 
             AcceptorConfig::DiversifiedLateAcceptance(dla_config) => {
                 let size = dla_config.late_acceptance_size.unwrap_or(400);
-                let tolerance = dla_config.tolerance.unwrap_or(0.01);
                 AnyAcceptor::DiversifiedLateAcceptance(DiversifiedLateAcceptanceAcceptor::<S>::new(
-                    size, tolerance,
+                    size,
                 ))
             }
 

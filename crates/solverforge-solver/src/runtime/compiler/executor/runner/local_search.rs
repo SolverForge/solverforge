@@ -155,9 +155,9 @@ where
             AnyAcceptor::LateAcceptance(LateAcceptanceAcceptor::new(history_size))
         }
         DefaultLocalSearchAcceptorPolicy::DiversifiedLateAcceptance { history_size } => {
-            AnyAcceptor::DiversifiedLateAcceptance(
-                DiversifiedLateAcceptanceAcceptor::with_default_tolerance(history_size),
-            )
+            AnyAcceptor::DiversifiedLateAcceptance(DiversifiedLateAcceptanceAcceptor::new(
+                history_size,
+            ))
         }
         DefaultLocalSearchAcceptorPolicy::SimulatedAnnealing {
             decay_rate_bits,

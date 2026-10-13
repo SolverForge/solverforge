@@ -105,9 +105,6 @@ pub struct LateAcceptanceConfig {
 pub struct DiversifiedLateAcceptanceConfig {
     // Size of late acceptance list.
     pub late_acceptance_size: Option<usize>,
-
-    // Fractional tolerance against the phase-best score.
-    pub tolerance: Option<f64>,
 }
 
 // Great deluge configuration.

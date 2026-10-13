@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.20.4](https://github.com/SolverForge/solverforge/compare/v0.20.3...v0.20.4) (2026-10-13)
+
+### Features
+
+* **solver:** steered enumeration budgets for grouped-scalar families d2b3c2d
+
+### Bug Fixes
+
+* **solver:** acceptors match their published algorithms c084b5c
+* **solver:** exact DLAS bookkeeping and delta-local assignment validation 3992802
+
 ## [0.20.3](https://github.com/SolverForge/solverforge/compare/v0.20.2...v0.20.3) (2026-10-12)
 
 ### Features

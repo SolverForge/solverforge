@@ -3,7 +3,7 @@
 Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 
 **Location:** `crates/solverforge-scoring/`
-**Workspace Release:** `0.20.3`
+**Workspace Release:** `0.20.4`
 
 ## Typed relational operator surface
 

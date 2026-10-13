@@ -26,7 +26,6 @@ where
 {
     store: CandidateStore<S, E::Move>,
     emitter: E,
-    solution: S,
     probe: P,
     entities: Vec<usize>,
     route_lens: Vec<usize>,
@@ -53,7 +52,6 @@ where
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         emitter: E,
-        solution: S,
         probe: P,
         entities: Vec<usize>,
         route_lens: Vec<usize>,
@@ -67,7 +65,6 @@ where
         Self {
             store: CandidateStore::new(),
             emitter,
-            solution,
             probe,
             entities,
             route_lens,
@@ -94,12 +91,17 @@ where
         self
     }
 
-    fn restriction_at(&self, entity: usize, position: usize) -> Option<OwnerRestriction> {
+    fn restriction_at(
+        &self,
+        solution: &S,
+        entity: usize,
+        position: usize,
+    ) -> Option<OwnerRestriction> {
         self.probe
-            .owner_restriction(&self.solution, self.entity_count, entity, position)
+            .owner_restriction(solution, self.entity_count, entity, position)
     }
 
-    fn load_next_source(&mut self) -> bool {
+    fn load_next_source(&mut self, solution: &S) -> bool {
         let mut candidates: Vec<NearbyCandidate> = Vec::new();
 
         while self.source_idx < self.entities.len() {
@@ -123,7 +125,7 @@ where
                 let source_restriction = self
                     .probe
                     .has_owner_binding()
-                    .then(|| self.restriction_at(source_entity, source_position))
+                    .then(|| self.restriction_at(solution, source_entity, source_position))
                     .flatten();
                 if self.probe.has_owner_binding() && source_restriction.is_none() {
                     continue;
@@ -151,7 +153,7 @@ where
                         continue;
                     }
                     let distance = self.probe.distance(
-                        &self.solution,
+                        solution,
                         source_entity,
                         source_position,
                         source_entity,
@@ -177,7 +179,7 @@ where
                             let reference_position =
                                 destination_position.min(destination_len.saturating_sub(1));
                             let distance = self.probe.distance(
-                                &self.solution,
+                                solution,
                                 source_entity,
                                 source_position,
                                 destination_entity,
@@ -216,8 +218,8 @@ where
     }
 
     #[inline(always)]
-    fn next_move(&mut self) -> Option<E::Move> {
-        if self.destination_offset >= self.destinations.len() && !self.load_next_source() {
+    fn next_move(&mut self, solution: &S) -> Option<E::Move> {
+        if self.destination_offset >= self.destinations.len() && !self.load_next_source(solution) {
             return None;
         }
         let (source_entity, source_position) = self.current_source;
@@ -238,8 +240,8 @@ where
     E: ChangeEmitter<S>,
     P: NearbyChangeProbe<S>,
 {
-    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
-        self.next_move().map(|mov| self.store.push(mov))
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.next_move(solution).map(|mov| self.store.push(mov))
     }
 
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, E::Move>> {
@@ -251,18 +253,18 @@ where
     }
 
     #[inline(always)]
-    fn next_owned_candidate(&mut self, _solution: &S) -> Option<E::Move> {
-        self.next_move()
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<E::Move> {
+        self.next_move(solution)
     }
 
     #[inline(always)]
     fn next_owned_candidate_matching(
         &mut self,
-        _solution: &S,
+        solution: &S,
         predicate: for<'a> fn(MoveCandidateRef<'a, S, E::Move>) -> bool,
     ) -> Option<E::Move> {
         loop {
-            let mov = self.next_move()?;
+            let mov = self.next_move(solution)?;
             if predicate(MoveCandidateRef::Borrowed(&mov)) {
                 return Some(mov);
             }

@@ -231,7 +231,6 @@ where
                 self.variable_name,
                 self.descriptor_index,
             ),
-            solution.clone(),
             NativeNearbyProbe::new(&self.distance_meter, self.list_get, self.element_owner_fn),
             selected.entities,
             selected.route_lens,

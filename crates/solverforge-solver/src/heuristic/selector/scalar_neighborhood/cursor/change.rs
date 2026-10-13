@@ -38,7 +38,7 @@ where
 {
     pub(super) fn new(
         slot: RuntimeScalarSlot<S>,
-        solution: S,
+        solution: &S,
         context: MoveStreamContext,
         value_candidate_limit: Option<usize>,
     ) -> Self {
@@ -54,7 +54,7 @@ where
         } else {
             STATIC_CHANGE_ENTITY_SALT
         };
-        let entity_count = slot.entity_count(&solution);
+        let entity_count = slot.entity_count(solution);
         let entity_guided =
             slot.has_capability(crate::builder::ScalarAccessCapability::SearchEntityOrder);
         let value_guided =
@@ -71,7 +71,7 @@ where
                 // the seeded-random order. Models without the key enumerate
                 // exactly the seeded-random permutation as before.
                 let order = if entity_guided {
-                    slot.search_entity_order_key(&solution, entity_index)
+                    slot.search_entity_order_key(solution, entity_index)
                 } else {
                     None
                 };
@@ -86,7 +86,7 @@ where
             .map(|(_, _, entity_index)| {
                 let mut canonical_values = Vec::new();
                 slot.visit_candidate_values(
-                    &solution,
+                    solution,
                     entity_index,
                     value_candidate_limit,
                     &mut |value| canonical_values.push(value),
@@ -100,7 +100,7 @@ where
                             value_salt ^ entity_index as u64 ^ identity,
                         )];
                         let key = if value_guided {
-                            slot.search_value_order_key(&solution, entity_index, value)
+                            slot.search_value_order_key(solution, entity_index, value)
                         } else {
                             None
                         };
@@ -114,7 +114,7 @@ where
                 ChangeRow {
                     entity_index,
                     values,
-                    current_assigned: slot.current_value(&solution, entity_index).is_some(),
+                    current_assigned: slot.current_value(solution, entity_index).is_some(),
                 }
             })
             .collect::<Vec<_>>();
@@ -159,7 +159,7 @@ struct NearbyChangeRow {
     unassigned_pending: bool,
 }
 
-enum NearbyChangeMode<S> {
+enum NearbyChangeMode {
     /// Native nearby source callbacks historically run at cursor open.
     Eager {
         rows: Vec<NearbyChangeRow>,
@@ -168,7 +168,6 @@ enum NearbyChangeMode<S> {
     },
     /// Dynamic sources remain lazy: only the reached row invokes the bridge.
     Lazy {
-        solution: S,
         context: MoveStreamContext,
         entity_count: usize,
         entity_offset: usize,
@@ -185,7 +184,7 @@ pub(super) struct NearbyChangeCursor<S> {
     slot: RuntimeScalarSlot<S>,
     max_nearby: usize,
     source_limit: usize,
-    mode: NearbyChangeMode<S>,
+    mode: NearbyChangeMode,
 }
 
 impl<S> NearbyChangeCursor<S>
@@ -194,15 +193,14 @@ where
 {
     pub(super) fn new(
         slot: RuntimeScalarSlot<S>,
-        solution: S,
+        solution: &S,
         context: MoveStreamContext,
         max_nearby: usize,
         source_limit: usize,
     ) -> Self {
         let mode = if slot.is_dynamic() {
             NearbyChangeMode::Lazy {
-                entity_count: slot.entity_count(&solution),
-                solution,
+                entity_count: slot.entity_count(solution),
                 context,
                 entity_offset: 0,
                 values: Vec::new(),
@@ -211,7 +209,7 @@ where
                 unassigned_pending: false,
             }
         } else {
-            let rows = eager_nearby_rows(&slot, &solution, context, max_nearby, source_limit);
+            let rows = eager_nearby_rows(&slot, solution, context, max_nearby, source_limit);
             NearbyChangeMode::Eager {
                 rows,
                 row_offset: 0,
@@ -226,7 +224,7 @@ where
         }
     }
 
-    pub(super) fn next_recipe(&mut self) -> Option<RuntimeScalarRecipe<S>> {
+    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
         match &mut self.mode {
             NearbyChangeMode::Eager {
                 rows,
@@ -263,7 +261,6 @@ where
                 *value_offset = 0;
             },
             NearbyChangeMode::Lazy {
-                solution,
                 context,
                 entity_count,
                 entity_offset,

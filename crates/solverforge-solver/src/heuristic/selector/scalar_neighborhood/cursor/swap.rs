@@ -21,7 +21,6 @@ const ENTITY_STRIDE_MIX: u64 = 0xD1B5_4A32_D192_ED03;
 /// direct legality calls while traversing the same candidate ordering.
 pub(super) struct SwapCursor<S> {
     slot: RuntimeScalarSlot<S>,
-    solution: S,
     snapshot: SwapSnapshot,
     context: MoveStreamContext,
     entity_order: Vec<usize>,
@@ -42,15 +41,19 @@ impl<S> SwapCursor<S>
 where
     S: PlanningSolution,
 {
-    pub(super) fn new(slot: RuntimeScalarSlot<S>, solution: S, context: MoveStreamContext) -> Self {
+    pub(super) fn new(
+        slot: RuntimeScalarSlot<S>,
+        solution: &S,
+        context: MoveStreamContext,
+    ) -> Self {
         let snapshot = match &slot {
             RuntimeScalarSlot::Static(static_slot) => {
-                let entity_count = slot.entity_count(&solution);
+                let entity_count = slot.entity_count(solution);
                 let current_values = (0..entity_count)
-                    .map(|entity_index| slot.current_value(&solution, entity_index))
+                    .map(|entity_index| slot.current_value(solution, entity_index))
                     .collect();
                 let legal_values = (0..entity_count)
-                    .map(|entity_index| static_slot.values_for_entity(&solution, entity_index))
+                    .map(|entity_index| static_slot.values_for_entity(solution, entity_index))
                     .collect();
                 SwapSnapshot::Static {
                     current_values,
@@ -60,10 +63,9 @@ where
             }
             RuntimeScalarSlot::Dynamic(_) => SwapSnapshot::Dynamic,
         };
-        let entity_order = Self::guided_entity_order(&slot, &solution, &context);
+        let entity_order = Self::guided_entity_order(&slot, solution, &context);
         Self {
             slot,
-            solution,
             snapshot,
             context,
             entity_order,
@@ -110,10 +112,10 @@ where
             .collect()
     }
 
-    fn entity_count(&self) -> usize {
+    fn entity_count(&self, solution: &S) -> usize {
         match &self.snapshot {
             SwapSnapshot::Static { current_values, .. } => current_values.len(),
-            SwapSnapshot::Dynamic => self.slot.entity_count(&self.solution),
+            SwapSnapshot::Dynamic => self.slot.entity_count(solution),
         }
     }
 
@@ -129,14 +131,19 @@ where
             .selection_index(offset, count, salt ^ ENTITY_STRIDE_MIX)
     }
 
-    fn current_value(&self, entity_index: usize) -> Option<usize> {
+    fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize> {
         match &self.snapshot {
             SwapSnapshot::Static { current_values, .. } => current_values[entity_index],
-            SwapSnapshot::Dynamic => self.slot.current_value(&self.solution, entity_index),
+            SwapSnapshot::Dynamic => self.slot.current_value(solution, entity_index),
         }
     }
 
-    fn destination_is_legal(&self, entity_index: usize, value: Option<usize>) -> bool {
+    fn destination_is_legal(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value: Option<usize>,
+    ) -> bool {
         match &self.snapshot {
             SwapSnapshot::Static {
                 legal_values,
@@ -154,13 +161,13 @@ where
             }
             SwapSnapshot::Dynamic => {
                 self.slot
-                    .swap_destination_is_legal(&self.solution, entity_index, value)
+                    .swap_destination_is_legal(solution, entity_index, value)
             }
         }
     }
 
-    pub(super) fn next_recipe(&mut self) -> Option<RuntimeScalarRecipe<S>> {
-        let entity_count = self.entity_count();
+    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
+        let entity_count = self.entity_count(solution);
         while self.left_offset < entity_count {
             let left_entity_index = self.ordered_left_entity(self.left_offset);
             while self.right_offset < entity_count {
@@ -173,11 +180,11 @@ where
                 if left_entity_index >= right_entity_index {
                     continue;
                 }
-                let left_value = self.current_value(left_entity_index);
-                let right_value = self.current_value(right_entity_index);
+                let left_value = self.current_value(solution, left_entity_index);
+                let right_value = self.current_value(solution, right_entity_index);
                 if left_value == right_value
-                    || !self.destination_is_legal(left_entity_index, right_value)
-                    || !self.destination_is_legal(right_entity_index, left_value)
+                    || !self.destination_is_legal(solution, left_entity_index, right_value)
+                    || !self.destination_is_legal(solution, right_entity_index, left_value)
                 {
                     continue;
                 }
@@ -199,7 +206,7 @@ struct NearbySwapRow {
     right_entities: Vec<usize>,
 }
 
-enum NearbySwapMode<S> {
+enum NearbySwapMode {
     /// Native nearby callbacks historically ran for every row at cursor open.
     Eager {
         rows: Vec<NearbySwapRow>,
@@ -208,7 +215,6 @@ enum NearbySwapMode<S> {
     },
     /// Dynamic nearby callbacks remain lazy by public contract.
     Lazy {
-        solution: S,
         context: MoveStreamContext,
         entity_count: usize,
         left_offset: usize,
@@ -225,7 +231,7 @@ enum NearbySwapMode<S> {
 pub(super) struct NearbySwapCursor<S> {
     slot: RuntimeScalarSlot<S>,
     max_nearby: usize,
-    mode: NearbySwapMode<S>,
+    mode: NearbySwapMode,
 }
 
 impl<S> NearbySwapCursor<S>
@@ -234,14 +240,13 @@ where
 {
     pub(super) fn new(
         slot: RuntimeScalarSlot<S>,
-        solution: S,
+        solution: &S,
         context: MoveStreamContext,
         max_nearby: usize,
     ) -> Self {
         let mode = if slot.is_dynamic() {
             NearbySwapMode::Lazy {
-                entity_count: slot.entity_count(&solution),
-                solution,
+                entity_count: slot.entity_count(solution),
                 context,
                 left_offset: 0,
                 right_entities: Vec::new(),
@@ -249,7 +254,7 @@ where
                 source_loaded: false,
             }
         } else {
-            let rows = eager_nearby_rows(&slot, &solution, context, max_nearby);
+            let rows = eager_nearby_rows(&slot, solution, context, max_nearby);
             NearbySwapMode::Eager {
                 rows,
                 row_offset: 0,
@@ -263,7 +268,7 @@ where
         }
     }
 
-    pub(super) fn next_recipe(&mut self) -> Option<RuntimeScalarRecipe<S>> {
+    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
         match &mut self.mode {
             NearbySwapMode::Eager {
                 rows,
@@ -283,7 +288,6 @@ where
                 *right_offset = 0;
             },
             NearbySwapMode::Lazy {
-                solution,
                 context,
                 entity_count,
                 left_offset,

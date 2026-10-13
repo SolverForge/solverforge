@@ -235,7 +235,6 @@ where
             RuntimeListSlotCursor::NearbyChange(
                 NearbyChangeCursor::new(
                     RuntimeListEmitter::new(slot.clone(), false),
-                    (*solution).clone(),
                     RuntimeNearbyProbe::new(slot),
                     entities,
                     route_lens,
@@ -321,7 +320,6 @@ where
             RuntimeListSlotCursor::NearbySwap(
                 NearbySwapCursor::new(
                     RuntimeListEmitter::new(slot.clone(), false),
-                    (*solution).clone(),
                     RuntimeNearbyProbe::new(slot),
                     entities,
                     route_lens,

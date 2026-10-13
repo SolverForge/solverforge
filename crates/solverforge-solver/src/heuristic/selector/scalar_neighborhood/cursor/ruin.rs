@@ -69,12 +69,12 @@ where
 {
     pub(super) fn new(
         slot: RuntimeScalarSlot<S>,
-        solution: S,
+        solution: &S,
         batches: Vec<Vec<usize>>,
         value_candidate_limit: Option<usize>,
         recreate_heuristic_type: RecreateHeuristicType,
     ) -> Self {
-        let snapshot = snapshot_slot(&slot, &solution, value_candidate_limit);
+        let snapshot = snapshot_slot(&slot, solution, value_candidate_limit);
         Self {
             slot,
             batches: batches.into_iter(),

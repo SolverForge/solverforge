@@ -86,7 +86,7 @@ where
         D: Director<S>,
         S::Score: Score,
     {
-        let solution = director.clone_working_solution();
+        let solution = director.working_solution();
         let state = match self.spec {
             ScalarNeighborhoodSpec::Change {
                 value_candidate_limit,
@@ -152,7 +152,7 @@ where
                     panic!("ruin/recreate scalar leaf requires its matching mutable stream state");
                 };
                 let mut batches = generate_ruin_batches(
-                    &solution,
+                    solution,
                     &self.slot,
                     min_ruin_count,
                     max_ruin_count,
@@ -315,12 +315,12 @@ impl<S> RuntimeScalarCursorState<S>
 where
     S: PlanningSolution,
 {
-    fn next_recipe(&mut self) -> Option<RuntimeScalarRecipe<S>> {
+    fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
         match self {
             Self::Change(cursor) => cursor.next_recipe(),
-            Self::Swap(cursor) => cursor.next_recipe(),
-            Self::NearbyChange(cursor) => cursor.next_recipe(),
-            Self::NearbySwap(cursor) => cursor.next_recipe(),
+            Self::Swap(cursor) => cursor.next_recipe(solution),
+            Self::NearbyChange(cursor) => cursor.next_recipe(solution),
+            Self::NearbySwap(cursor) => cursor.next_recipe(solution),
             Self::PillarChange(cursor) => cursor.next_recipe(),
             Self::PillarSwap(cursor) => cursor.next_recipe(),
             Self::RuinRecreate(cursor) => cursor.next_recipe(),
@@ -333,8 +333,10 @@ where
     S: PlanningSolution,
     S::Score: Score,
 {
-    fn next_move(&mut self) -> Option<RuntimeScalarMove<S>> {
-        self.state.next_recipe().map(RuntimeScalarMove::from_recipe)
+    fn next_move(&mut self, solution: &S) -> Option<RuntimeScalarMove<S>> {
+        self.state
+            .next_recipe(solution)
+            .map(RuntimeScalarMove::from_recipe)
     }
 }
 
@@ -343,8 +345,8 @@ where
     S: PlanningSolution,
     S::Score: Score,
 {
-    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
-        self.next_move().map(|mov| self.store.push(mov))
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.next_move(solution).map(|mov| self.store.push(mov))
     }
 
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, RuntimeScalarMove<S>>> {
@@ -355,8 +357,8 @@ where
         self.store.take_candidate(id)
     }
 
-    fn next_owned_candidate(&mut self, _solution: &S) -> Option<RuntimeScalarMove<S>> {
-        self.next_move()
+    fn next_owned_candidate(&mut self, solution: &S) -> Option<RuntimeScalarMove<S>> {
+        self.next_move(solution)
     }
 
     fn release_candidate(&mut self, id: CandidateId) -> bool {

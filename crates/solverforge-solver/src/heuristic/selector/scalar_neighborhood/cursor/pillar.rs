@@ -86,7 +86,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         slot: RuntimeScalarSlot<S>,
-        solution: S,
+        solution: &S,
         context: MoveStreamContext,
         minimum_sub_pillar_size: usize,
         maximum_sub_pillar_size: usize,
@@ -94,14 +94,14 @@ where
     ) -> Self {
         let mut inputs: Vec<PillarChangeInput> = collect_groups(
             &slot,
-            &solution,
+            solution,
             minimum_sub_pillar_size,
             maximum_sub_pillar_size,
         )
         .into_iter()
         .map(|group| {
             let values = intersect_legal_values_for_pillar(&group.pillar, |entity_index| {
-                candidate_values(&slot, &solution, entity_index, value_candidate_limit)
+                candidate_values(&slot, solution, entity_index, value_candidate_limit)
             })
             .into_iter()
             .filter(|value| *value != group.shared_value)
@@ -173,14 +173,14 @@ where
 {
     pub(super) fn new(
         slot: RuntimeScalarSlot<S>,
-        solution: S,
+        solution: &S,
         context: MoveStreamContext,
         minimum_sub_pillar_size: usize,
         maximum_sub_pillar_size: usize,
     ) -> Self {
         let groups = collect_groups(
             &slot,
-            &solution,
+            solution,
             minimum_sub_pillar_size,
             maximum_sub_pillar_size,
         );
@@ -188,7 +188,7 @@ where
         for left_offset in 0..groups.len() {
             let left = &groups[left_offset];
             for right in groups.iter().skip(left_offset + 1) {
-                if !groups_are_swap_compatible(&slot, &solution, left, right) {
+                if !groups_are_swap_compatible(&slot, solution, left, right) {
                     continue;
                 }
                 inputs.push(PillarSwapInput {

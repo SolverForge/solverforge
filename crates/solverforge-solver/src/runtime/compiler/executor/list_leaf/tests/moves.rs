@@ -168,7 +168,7 @@ fn borrowed_candidates_release_once_and_selected_moves_outlive_every_cursor() {
 }
 
 #[test]
-fn cursor_setup_clones_solutions_only_for_lazy_nearby_probes() {
+fn cursor_setup_and_enumeration_never_clone_solutions() {
     for kind in ALL_KINDS {
         let selector = selector(kind, static_slot_for(kind), Some(71));
         let score_director = director(initial_plan());
@@ -181,11 +181,7 @@ fn cursor_setup_clones_solutions_only_for_lazy_nearby_probes() {
             crate::heuristic::selector::move_selector::MoveStreamContext::default(),
         );
         let setup_clones = solution_clones();
-        let expected = usize::from(matches!(
-            kind,
-            ListLeafKind::NearbyChange | ListLeafKind::NearbySwap
-        ));
-        assert_eq!(setup_clones, expected, "{kind:?} setup clone count");
+        assert_eq!(setup_clones, 0, "{kind:?} setup clone count");
 
         while let Some(id) = cursor.next_candidate(score_director.working_solution()) {
             assert!(cursor.release_candidate(id));

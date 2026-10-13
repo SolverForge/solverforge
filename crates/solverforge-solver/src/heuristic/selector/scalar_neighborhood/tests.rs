@@ -18,11 +18,26 @@ static VALUE_SOURCE_LIMIT: AtomicUsize = AtomicUsize::new(usize::MAX);
 static ENTITY_SOURCE_LIMIT: AtomicUsize = AtomicUsize::new(usize::MAX);
 static ENTITY_SOURCE_CALLS: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Clone, Debug)]
+thread_local! {
+    static SOLUTION_CLONES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[derive(Debug)]
 struct Plan {
     values: Vec<Option<usize>>,
     candidates: Vec<usize>,
     score: Option<SoftScore>,
+}
+
+impl Clone for Plan {
+    fn clone(&self) -> Self {
+        SOLUTION_CLONES.with(|count| count.set(count.get() + 1));
+        Self {
+            values: self.values.clone(),
+            candidates: self.candidates.clone(),
+            score: self.score,
+        }
+    }
 }
 
 impl PlanningSolution for Plan {
@@ -160,6 +175,66 @@ fn slot() -> DynamicScalarVariableSlot<Plan> {
 
 fn director(plan: Plan) -> ScoreDirector<Plan, ()> {
     ScoreDirector::simple(plan, descriptor(), |plan, _| plan.values.len())
+}
+
+#[test]
+fn scalar_cursor_open_and_enumeration_never_clone_the_solution() {
+    use super::{ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec};
+    use crate::builder::RuntimeScalarSlot;
+    use crate::heuristic::selector::move_selector::{MoveCursor, MoveStreamContext};
+    use solverforge_config::RecreateHeuristicType;
+
+    let director = director(Plan {
+        values: vec![Some(0), Some(0), Some(1), Some(1)],
+        candidates: vec![0, 1, 2],
+        score: None,
+    });
+    let specs = [
+        ScalarNeighborhoodSpec::Change {
+            value_candidate_limit: None,
+        },
+        ScalarNeighborhoodSpec::Swap,
+        ScalarNeighborhoodSpec::NearbyChange {
+            max_nearby: 0,
+            value_candidate_limit: None,
+        },
+        ScalarNeighborhoodSpec::NearbySwap { max_nearby: 0 },
+        ScalarNeighborhoodSpec::NearbyChange {
+            max_nearby: 3,
+            value_candidate_limit: None,
+        },
+        ScalarNeighborhoodSpec::NearbySwap { max_nearby: 3 },
+        ScalarNeighborhoodSpec::PillarChange {
+            minimum_sub_pillar_size: 0,
+            maximum_sub_pillar_size: 0,
+            value_candidate_limit: None,
+        },
+        ScalarNeighborhoodSpec::PillarSwap {
+            minimum_sub_pillar_size: 0,
+            maximum_sub_pillar_size: 0,
+        },
+        ScalarNeighborhoodSpec::RuinRecreate {
+            min_ruin_count: 1,
+            max_ruin_count: 2,
+            moves_per_step: 3,
+            value_candidate_limit: None,
+            recreate_heuristic_type: RecreateHeuristicType::FirstFit,
+        },
+    ];
+    for spec in specs {
+        let leaf =
+            ScalarNeighborhoodLeaf::from_spec(spec, RuntimeScalarSlot::Dynamic(slot()), Some(17))
+                .expect("test slot supplies the family capability");
+        let mut state = leaf.new_stream_state();
+        SOLUTION_CLONES.with(|count| count.set(0));
+        let mut cursor =
+            leaf.open_cursor_with_stream_state(&mut state, &director, MoveStreamContext::default());
+        while cursor
+            .next_owned_candidate(director.working_solution())
+            .is_some()
+        {}
+        assert_eq!(SOLUTION_CLONES.with(|count| count.get()), 0, "{spec:?}");
+    }
 }
 
 #[test]

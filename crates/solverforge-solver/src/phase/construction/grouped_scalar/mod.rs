@@ -1,15 +1,15 @@
 mod assignment_block;
 mod assignment_candidate;
 mod assignment_cycle;
-mod assignment_edge;
 mod assignment_entity;
 mod assignment_family;
-mod assignment_index;
 mod assignment_pair;
 mod assignment_path;
+mod assignment_path_overlay;
 mod assignment_required_batch;
 mod assignment_state;
 mod assignment_stream;
+mod assignment_value_coordinates;
 mod assignment_value_cycle;
 mod assignment_value_index;
 mod assignment_value_release;

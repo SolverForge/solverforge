@@ -1,12 +1,5 @@
-// Diversified late acceptance acceptor (DLAS).
-
-// Implements Diversified Late Acceptance Search (Namazi, Sanderson, Newton, Polash,
-// Sattar) with the acceptance and replacement strategies used by timefold's
-// DiversifiedLateAcceptanceAcceptor: accept a candidate only on equality with the
-// current step score or strict improvement over the worst late score; replace a ring
-// slot only on genuine worsening (diversification) or genuine improvement over both
-// the slot and the step score (intensification); the ring position advances every
-// evaluated candidate.
+// Diversified Late Acceptance Search with exact worst-score occurrence tracking.
+// Acceptance and ring updates advance for each evaluated candidate.
 
 use std::fmt::Debug;
 
@@ -124,12 +117,14 @@ impl<S: PlanningSolution> DiversifiedLateAcceptanceAcceptor<S> {
                 self.late_worse_score = new_score;
                 self.late_worse_occurrences = 1;
             }
-            std::cmp::Ordering::Equal => {}
+            std::cmp::Ordering::Equal => {
+                if !slot_equal_to_worse {
+                    self.late_worse_occurrences += 1;
+                }
+            }
             std::cmp::Ordering::Greater => {
                 if slot_equal_to_worse {
                     self.late_worse_occurrences -= 1;
-                } else {
-                    self.late_worse_occurrences += 1;
                 }
             }
         }

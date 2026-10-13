@@ -3,22 +3,20 @@ use solverforge_core::domain::PlanningSolution;
 use super::assignment_candidate::ScalarAssignmentMoveOptions;
 use super::assignment_path::move_from_edits;
 use super::assignment_state::ScalarAssignmentState;
+use super::assignment_value_coordinates::{ValuePairCoordinates, ValuePairKind};
 use super::assignment_value_index::AssignedValueSequenceIndex;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 use solverforge_core::fast_hash::FastMap;
 
 pub(super) struct ValueRunGapSwapCursor {
-    pairs: Vec<(usize, usize)>,
+    pairs: ValuePairCoordinates,
     sequence_keys: Vec<usize>,
     by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
-    pair_pos: usize,
     fill_pos: usize,
     release_pos: usize,
     fill_sequences: Vec<usize>,
     release_sequences: Vec<usize>,
-    walk_budget: usize,
-    walked: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -41,27 +39,16 @@ impl ValueRunGapSwapCursor {
         options: ScalarAssignmentMoveOptions,
         index: AssignedValueSequenceIndex,
     ) -> Self {
-        let mut pairs = Vec::new();
-        for target in &index.values {
-            for source in &index.values {
-                if target != source {
-                    pairs.push((*target, *source));
-                }
-            }
-        }
-        super::assignment_candidate::order_candidates(&mut pairs, options);
+        let pairs = ValuePairCoordinates::new(index.values, ValuePairKind::Directed, options);
 
         Self {
             pairs,
             sequence_keys: index.sequence_keys,
             by_value_sequence: index.by_value_sequence,
-            pair_pos: 0,
             fill_pos: 0,
             release_pos: 0,
             fill_sequences: Vec::new(),
             release_sequences: Vec::new(),
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -74,15 +61,10 @@ impl ValueRunGapSwapCursor {
     where
         S: PlanningSolution,
     {
-        while self.pair_pos < self.pairs.len() {
+        while let Some((target_value, source_value)) = self.pairs.current() {
             self.ensure_pair_loaded();
             while self.fill_pos < self.fill_sequences.len() {
                 while self.release_pos < self.release_sequences.len() {
-                    if self.walked >= self.walk_budget {
-                        return None;
-                    }
-                    self.walked += 1;
-                    let (target_value, source_value) = self.pairs[self.pair_pos];
                     let fill_sequence = self.fill_sequences[self.fill_pos];
                     let release_sequence = self.release_sequences[self.release_pos];
                     self.release_pos += 1;
@@ -97,7 +79,9 @@ impl ValueRunGapSwapCursor {
                             release_sequence,
                         },
                     );
-                    if edits.len() < 2 {
+                    if edits.len() < 2
+                        || !state.assignment_feasible_after_edits(group, solution, &edits)
+                    {
                         continue;
                     }
                     let scalar_edits = edits
@@ -125,7 +109,9 @@ impl ValueRunGapSwapCursor {
         if !self.fill_sequences.is_empty() || !self.release_sequences.is_empty() {
             return;
         }
-        let (target_value, source_value) = self.pairs[self.pair_pos];
+        let Some((target_value, source_value)) = self.pairs.current() else {
+            return;
+        };
         self.fill_sequences = self
             .sequence_keys
             .iter()
@@ -153,7 +139,7 @@ impl ValueRunGapSwapCursor {
     }
 
     fn advance_pair(&mut self) {
-        self.pair_pos += 1;
+        self.pairs.advance();
         self.fill_pos = 0;
         self.release_pos = 0;
         self.fill_sequences.clear();

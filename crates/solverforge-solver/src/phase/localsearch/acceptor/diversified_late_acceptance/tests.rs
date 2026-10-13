@@ -1,9 +1,4 @@
-// Tests for the DLAS acceptor, oracle = timefold's DiversifiedLateAcceptanceAcceptor.
-//
-// The acceptor folds the accept decision and its bookkeeping into one call per
-// evaluated candidate: the ring index advances on every is_accepted call (accepted
-// or not), and slots update only on genuine worsening or genuine improvement over
-// both the slot and the step score.
+// Acceptance, slot replacement, and exact ring minimum/count invariants.
 
 use super::*;
 use solverforge_core::score::SoftScore;
@@ -25,6 +20,59 @@ fn dlas(size: usize) -> DiversifiedLateAcceptanceAcceptor<TestSolution> {
     let mut acceptor = DiversifiedLateAcceptanceAcceptor::new(size);
     acceptor.phase_started(&SoftScore::of(-100));
     acceptor
+}
+
+#[test]
+fn repeated_minimum_scores_count_every_occurrence() {
+    let mut acceptor = dlas(2);
+    for _ in 0..2 {
+        assert!(acceptor.is_accepted(&SoftScore::of(-110), &SoftScore::of(-110), None));
+    }
+    assert_eq!(acceptor.late_worse_occurrences, 2);
+    assert_eq!(acceptor.late_worse_score, SoftScore::of(-110));
+}
+
+#[test]
+fn replacing_non_minimum_with_non_minimum_keeps_occurrence_count() {
+    let mut acceptor = dlas(3);
+    acceptor.previous_scores = vec![
+        SoftScore::of(-120),
+        SoftScore::of(-100),
+        SoftScore::of(-100),
+    ];
+    acceptor.late_worse_score = SoftScore::of(-120);
+    acceptor.late_worse_occurrences = 1;
+    acceptor.late_score_index = 1;
+    assert!(acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-90), None));
+    assert_eq!(acceptor.late_worse_occurrences, 1);
+}
+
+#[test]
+fn cached_minimum_and_count_match_ring_after_each_candidate() {
+    for size in 1..=8 {
+        let mut acceptor = dlas(size);
+        let mut draw = 0x5a17_u64;
+        for _ in 0..2_000 {
+            draw = draw.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let current = SoftScore::of(-100 - ((draw >> 32) % 80) as i64);
+            draw = draw.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let candidate = SoftScore::of(-100 - ((draw >> 32) % 80) as i64);
+            let minimum = *acceptor.previous_scores.iter().min().unwrap();
+            let expected_acceptance = candidate == current || candidate > minimum;
+            assert_eq!(
+                acceptor.is_accepted(&current, &candidate, None),
+                expected_acceptance
+            );
+            let minimum = *acceptor.previous_scores.iter().min().unwrap();
+            let count = acceptor
+                .previous_scores
+                .iter()
+                .filter(|score| **score == minimum)
+                .count();
+            assert_eq!(acceptor.late_worse_score, minimum);
+            assert_eq!(acceptor.late_worse_occurrences, count);
+        }
+    }
 }
 
 #[test]
@@ -106,44 +154,15 @@ fn ring_advances_per_candidate_even_on_reject() {
 
 #[test]
 fn late_worse_recount_when_occurrences_exhaust() {
-    // size 2, fill both slots with -110 via accepted equal-current moves, then push
-    // a worse -120 into the last held slot and watch the recount fire when the
-    // occurrences of -110 drop to zero.
     let mut acceptor = dlas(2);
-    // Call 1 (idx0, slot -100): current -110 == move → accepted; -110 < -100 →
-    // update slot0=-110. worse=-110 occ=1. idx→1.
-    assert!(acceptor.is_accepted(&SoftScore::of(-110), &SoftScore::of(-110), None));
-    // Call 2 (idx1, slot -100): current -110 == move → accepted; -110 < -100 →
-    // update slot1=-110. newScore(-110) == worse(-110) → occ unchanged (1).
-    // idx→0.
-    assert!(acceptor.is_accepted(&SoftScore::of(-110), &SoftScore::of(-110), None));
-    // Call 3 (idx0, slot -110): accepted equal -110. Current -110 == slot -110 →
-    // no update. idx→1.
-    assert!(acceptor.is_accepted(&SoftScore::of(-110), &SoftScore::of(-110), None));
-    // Call 4 (idx1, slot -110): accepted equal -110 → no update. idx→0.
-    assert!(acceptor.is_accepted(&SoftScore::of(-110), &SoftScore::of(-110), None));
-    // Call 5 (idx0, slot -110): accepted worsening -120. current -120 < slot -110 →
-    // update slot0=-120. newScore < worse(-110) → occ=1, worse=-120. idx→1.
-    assert!(acceptor.is_accepted(&SoftScore::of(-120), &SoftScore::of(-120), None));
-    // Call 6 (idx1, slot -110): accepted worsening -120 via == current at -120.
-    // current -120 < slot -110 → update slot1=-120. newScore == worse → occ still 1.
-    // idx→0.
-    assert!(acceptor.is_accepted(&SoftScore::of(-120), &SoftScore::of(-120), None));
-    // Call 7 (idx0, slot -120): accepted improvement -110. current -110 > slot
-    // -120 and > step -120 → update slot0=-110. newScore -110 > worse -120 AND slot
-    // -120 != worse → occ = 1+1 = 2 (worse now occurs at idx1 only — wait, slot1 is
-    // -120: occ should count occurrences of -120: slot1=-120 → 1. TF logic:
-    // !lateScoreEqual(-110 != -120=true) && newScoreWorseCmp == 0? newScore -110 vs
-    // worse -120 = Greater ≠ 0 → else-if chain: newScoreWorseCmp <0? no; slotEqual?
-    // no → occurrences++ (their code increments when new score REPLACES a slot that
-    // was not the worse score). TF counts occurrences of worse among slots; after
-    // this replacement slot0=-110, slot1=-120 → 1 occurrence. TF increments occ by 1
-    // only to decrement when the REPLACED slot held the worse score... their occ
-    // bookkeeping is heuristic; the recount on 0 is the safety net. Mirror their code
-    // exactly — done. So occ=2 is a transient overcount that the ==0 recount never
-    // triggers; identical to timefold's behavior.
-    assert!(acceptor.is_accepted(&SoftScore::of(-120), &SoftScore::of(-110), None));
-    // Next accept requires > lateWorse(-120) or == current(-120): -120 == current
-    // -120 accepted.
-    assert!(acceptor.is_accepted(&SoftScore::of(-120), &SoftScore::of(-120), None));
+    for _ in 0..2 {
+        assert!(acceptor.is_accepted(&SoftScore::of(-110), &SoftScore::of(-110), None));
+    }
+    assert!(acceptor.is_accepted(&SoftScore::of(-110), &SoftScore::of(-100), None));
+    assert_eq!(acceptor.late_worse_score, SoftScore::of(-110));
+    assert_eq!(acceptor.late_worse_occurrences, 1);
+    assert!(acceptor.is_accepted(&SoftScore::of(-110), &SoftScore::of(-100), None));
+    assert_eq!(acceptor.late_worse_score, SoftScore::of(-100));
+    assert_eq!(acceptor.late_worse_occurrences, 2);
+    assert!(!acceptor.is_accepted(&SoftScore::of(-100), &SoftScore::of(-105), None));
 }

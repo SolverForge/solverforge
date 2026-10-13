@@ -241,15 +241,17 @@ src/
 │   │   ├── grouped_scalar/assignment_candidate.rs — Assignment move options, required assignment moves, capacity-conflict moves, reassignment moves, and remaining-required telemetry
 │   │   ├── grouped_scalar/assignment_block.rs — Required-assignment block planning helpers
 │   │   ├── grouped_scalar/assignment_cycle.rs — Bounded augmenting cycle and ejection/reinsert move construction
-│   │   ├── grouped_scalar/assignment_edge.rs — Small value objects for assignment-rule sequence-edge checks
 │   │   ├── grouped_scalar/assignment_entity.rs — Entity-local required, optional, capacity, and reassignment move construction
 │   │   ├── grouped_scalar/assignment_family.rs — Shared assignment candidate-family deduplication
-│   │   ├── grouped_scalar/assignment_index.rs — Indexed assignment-state map helpers
 │   │   ├── grouped_scalar/assignment_pair.rs — Deterministic bounded pair, rematch, and sequence-window move generation
 │   │   ├── grouped_scalar/assignment_path.rs — Bounded augmenting-path move construction for required and optional scalar assignments
+│   │   ├── grouped_scalar/assignment_path_overlay.rs — Sparse reversible augmenting-path and required-batch discovery state
 │   │   ├── grouped_scalar/assignment_required_batch.rs — Dense hard-first required assignment allocation
-│   │   ├── grouped_scalar/assignment_state.rs — Assignment occupancy, capacity, rollback, and conflict bookkeeping
+│   │   ├── grouped_scalar/assignment_state.rs — Committed assignment occupancy, capacity, and conflict bookkeeping
+│   │   ├── grouped_scalar/assignment_overlay.rs — Sparse final-edit capacity and sequence-rule validation without mutating assignment indexes
+│   │   ├── grouped_scalar/assignment_pressure.rs — Current-value and sequence-pressure candidate ordering
 │   │   ├── grouped_scalar/assignment_stream.rs — Cursor-backed assignment move streaming for construction and selectors
+│   │   ├── grouped_scalar/assignment_value_coordinates.rs — Lazy rotated pair and oriented-triple traversal without eager Cartesian products
 │   │   ├── grouped_scalar/assignment_value_cycle.rs — Value-cycle rematch generation
 │   │   ├── grouped_scalar/assignment_value_index.rs — Value-index helpers for assignment state
 │   │   ├── grouped_scalar/assignment_value_release.rs — Optional occupant release planning

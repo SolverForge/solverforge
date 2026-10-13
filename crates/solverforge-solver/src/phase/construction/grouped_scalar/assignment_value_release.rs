@@ -16,8 +16,6 @@ pub(super) struct ValueRunReleaseCursor {
     start_pos: usize,
     len: usize,
     max_len: usize,
-    walk_budget: usize,
-    walked: usize,
 }
 
 impl ValueRunReleaseCursor {
@@ -37,8 +35,6 @@ impl ValueRunReleaseCursor {
             start_pos: 0,
             len: 2,
             max_len,
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -57,16 +53,14 @@ impl ValueRunReleaseCursor {
                     if self.start_pos + self.len > self.sequence_keys.len() {
                         break;
                     }
-                    if self.walked >= self.walk_budget {
-                        return None;
-                    }
-                    self.walked += 1;
                     let value = self.values[self.value_pos];
                     let sequence_window =
                         &self.sequence_keys[self.start_pos..self.start_pos + self.len];
                     self.len += 1;
                     let edits = self.window_release_edits(state, value, sequence_window);
-                    if edits.len() < 2 {
+                    if edits.len() < 2
+                        || !state.assignment_feasible_after_edits(group, solution, &edits)
+                    {
                         continue;
                     }
                     let scalar_edits = edits

@@ -34,12 +34,7 @@ impl EntityValueCursor {
         S: PlanningSolution,
         ShouldStop: FnMut() -> bool,
     {
-        let intent = match self.kind {
-            AssignmentMoveKind::Reassignment => {
-                return self.next_guided_move(group, solution, state, should_stop);
-            }
-            _ => self.kind.intent(),
-        };
+        let intent = self.kind.intent();
         while self.entity_pos < self.entities.len() {
             if should_stop() {
                 return None;
@@ -95,65 +90,6 @@ impl EntityValueCursor {
                 }
                 self.value_pos += 1;
                 if let Some(mov) = candidate {
-                    return Some(mov);
-                }
-            }
-            self.entity_pos += 1;
-            self.values.clear();
-            self.value_pos = 0;
-        }
-        None
-    }
-
-    // Guided structural generator for local-search reassignment: yields the plain
-    // entity-value change for every (entity, candidate value) combination — pricing
-    // (single assignment, capacity, rules) is the score's authority. No feasibility
-    // search during enumeration; one candidate per combination, O(1) each.
-    fn next_guided_move<S, ShouldStop>(
-        &mut self,
-        group: &ScalarAssignmentBinding<S>,
-        solution: &S,
-        state: &mut ScalarAssignmentState,
-        should_stop: &mut ShouldStop,
-    ) -> Option<CompoundScalarMove<S>>
-    where
-        S: PlanningSolution,
-        ShouldStop: FnMut() -> bool,
-    {
-        while self.entity_pos < self.entities.len() {
-            if should_stop() {
-                return None;
-            }
-            let entity_index = self.entities[self.entity_pos];
-            if self.values.is_empty() {
-                self.values = group.candidate_values(
-                    solution,
-                    entity_index,
-                    self.options.value_candidate_limit,
-                );
-                state.sort_values_by_target_pressure(
-                    group,
-                    solution,
-                    entity_index,
-                    &mut self.values,
-                );
-                self.value_pos = 0;
-            }
-            while self.value_pos < self.values.len() {
-                let value = self.values[self.value_pos];
-                self.value_pos += 1;
-                if state.current_value(entity_index) == Some(value)
-                    || !group.value_is_legal(solution, entity_index, Some(value))
-                {
-                    continue;
-                }
-                let scalar_edits = [group.edit(entity_index, Some(value))];
-                if let Some(mov) = move_from_edits(
-                    group,
-                    solution,
-                    &scalar_edits,
-                    "scalar_assignment_reassignment",
-                ) {
                     return Some(mov);
                 }
             }
@@ -249,8 +185,10 @@ impl CapacityCursor {
             }
 
             if !state.is_required(entity_index) {
-                // Guided structural yield: the release prices itself in the score
-                // (single-assignment penalty disappears; coverage rules reprice).
+                let edits = [(entity_index, None)];
+                if !state.assignment_feasible_after_edits(group, solution, &edits) {
+                    continue;
+                }
                 let scalar_edits = [group.edit(entity_index, None)];
                 if let Some(mov) = move_from_edits(
                     group,
@@ -354,7 +292,7 @@ impl OptionalAdjustmentCursor {
         &mut self,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
-        _state: &mut ScalarAssignmentState,
+        state: &mut ScalarAssignmentState,
     ) -> Option<CompoundScalarMove<S>>
     where
         S: PlanningSolution,
@@ -362,6 +300,10 @@ impl OptionalAdjustmentCursor {
         while self.target_pos < self.targets.len() {
             let entity_index = self.targets[self.target_pos];
             self.target_pos += 1;
+            let edits = [(entity_index, None)];
+            if !state.assignment_feasible_after_edits(group, solution, &edits) {
+                continue;
+            }
             let scalar_edits = [group.edit(entity_index, None)];
             if let Some(mov) = move_from_edits(
                 group,
@@ -392,6 +334,10 @@ impl OptionalAdjustmentCursor {
                 let Some(value) = state.current_value(source) else {
                     continue;
                 };
+                let edits = [(source, None), (target, Some(value))];
+                if !state.assignment_feasible_after_edits(group, solution, &edits) {
+                    continue;
+                }
                 let scalar_edits = [group.edit(source, None), group.edit(target, Some(value))];
                 if let Some(mov) = move_from_edits(
                     group,

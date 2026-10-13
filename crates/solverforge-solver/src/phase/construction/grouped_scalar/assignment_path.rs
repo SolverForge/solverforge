@@ -1,6 +1,7 @@
 use solverforge_core::domain::PlanningSolution;
 
 use super::assignment_candidate::{AssignmentMoveIntent, ScalarAssignmentMoveOptions};
+use super::assignment_path_overlay::AssignmentPathOverlay;
 use super::assignment_state::ScalarAssignmentState;
 use super::move_build::compound_move_for_assignment_edits;
 use crate::builder::ScalarAssignmentBinding;
@@ -29,29 +30,21 @@ where
     if state.current_value(entity_index) == Some(value) {
         return None;
     }
-    let mut changes = Vec::new();
+    let mut overlay = state.take_path_overlay();
+    overlay.clear();
     let mut edits = Vec::new();
     let mut visiting = FastSet::default();
-    let search = AugmentingPathSearch {
-        group,
-        solution,
-        allow_optional_displacement: intent.allow_optional_displacement,
-        value_candidate_limit: options.value_candidate_limit,
-    };
-    let produced = search.assign(
-        state,
-        assignment,
-        &mut visiting,
-        &mut changes,
-        &mut edits,
-        should_stop,
-    );
+    let mut blockers = Vec::new();
+    let search = AugmentingPathSearch::new(group, solution, options, intent);
+    let mut work = AssignmentPathWork::new(&mut overlay, &mut visiting, &mut edits, &mut blockers);
+    let produced = search.discover(state, assignment, &mut work, should_stop);
     let mov = if produced && state.scalar_edits_feasible(group, solution, &edits) {
         move_from_edits(group, solution, &edits, intent.reason)
     } else {
         None
     };
-    state.rollback(group, solution, &mut changes, 0);
+    overlay.clear();
+    state.restore_path_overlay(overlay);
     mov
 }
 
@@ -72,21 +65,74 @@ impl AssignmentRequest {
     }
 }
 
-struct AugmentingPathSearch<'a, S> {
+pub(super) struct AugmentingPathSearch<'a, S> {
     group: &'a ScalarAssignmentBinding<S>,
     solution: &'a S,
     allow_optional_displacement: bool,
     value_candidate_limit: Option<usize>,
 }
 
+pub(super) struct AssignmentPathWork<'a, S> {
+    overlay: &'a mut AssignmentPathOverlay,
+    visiting: &'a mut FastSet<usize>,
+    edits: &'a mut Vec<ScalarEdit<S>>,
+    blockers: &'a mut Vec<usize>,
+}
+
+impl<'a, S> AssignmentPathWork<'a, S> {
+    pub(super) fn new(
+        overlay: &'a mut AssignmentPathOverlay,
+        visiting: &'a mut FastSet<usize>,
+        edits: &'a mut Vec<ScalarEdit<S>>,
+        blockers: &'a mut Vec<usize>,
+    ) -> Self {
+        Self {
+            overlay,
+            visiting,
+            edits,
+            blockers,
+        }
+    }
+}
+
 impl<S> AugmentingPathSearch<'_, S> {
+    pub(super) fn new<'a>(
+        group: &'a ScalarAssignmentBinding<S>,
+        solution: &'a S,
+        options: ScalarAssignmentMoveOptions,
+        intent: AssignmentMoveIntent,
+    ) -> AugmentingPathSearch<'a, S> {
+        AugmentingPathSearch {
+            group,
+            solution,
+            allow_optional_displacement: intent.allow_optional_displacement,
+            value_candidate_limit: options.value_candidate_limit,
+        }
+    }
+
+    pub(super) fn discover<ShouldStop>(
+        &self,
+        state: &ScalarAssignmentState,
+        assignment: AssignmentRequest,
+        work: &mut AssignmentPathWork<'_, S>,
+        should_stop: &mut ShouldStop,
+    ) -> bool
+    where
+        ShouldStop: FnMut() -> bool,
+    {
+        if should_stop()
+            || work.overlay.current_value(state, assignment.entity_index) == Some(assignment.value)
+        {
+            return false;
+        }
+        self.assign(state, assignment, work, should_stop)
+    }
+
     fn assign<ShouldStop>(
         &self,
-        state: &mut ScalarAssignmentState,
+        state: &ScalarAssignmentState,
         assignment: AssignmentRequest,
-        visiting: &mut FastSet<usize>,
-        changes: &mut Vec<(usize, Option<usize>)>,
-        edits: &mut Vec<ScalarEdit<S>>,
+        work: &mut AssignmentPathWork<'_, S>,
         should_stop: &mut ShouldStop,
     ) -> bool
     where
@@ -103,67 +149,70 @@ impl<S> AugmentingPathSearch<'_, S> {
         {
             return false;
         }
-        if state.current_value(entity_index) == Some(value) {
+        if work.overlay.current_value(state, entity_index) == Some(value) {
             return true;
         }
 
-        let mut blockers = Vec::new();
-        let mut rule_verdict = state.blockers(
+        let mut rule_verdict = work.overlay.blockers(
+            state,
             self.group,
             self.solution,
             entity_index,
             value,
-            &mut blockers,
+            work.blockers,
         );
         if self.allow_optional_displacement {
-            for blocker in blockers.iter().copied() {
+            for blocker in work.blockers.iter().copied() {
                 if state.is_required(blocker) {
                     continue;
                 }
-                state.set_value_recording(self.group, self.solution, blocker, None, changes);
-                edits.push(self.group.edit(blocker, None));
+                work.overlay.set_value(state, blocker, None);
+                work.edits.push(self.group.edit(blocker, None));
             }
             // State changed after the displacements; re-derive both blockers
             // and any rule verdict on the new state.
-            rule_verdict = state.blockers(
+            rule_verdict = work.overlay.blockers(
+                state,
                 self.group,
                 self.solution,
                 entity_index,
                 value,
-                &mut blockers,
+                work.blockers,
             );
         }
 
-        if blockers.is_empty()
+        if work.blockers.is_empty()
             && !match rule_verdict {
                 Some(allowed) => allowed,
-                None => state.assignment_allowed(self.group, self.solution, entity_index, value),
+                None => work.overlay.assignment_allowed(
+                    state,
+                    self.group,
+                    self.solution,
+                    entity_index,
+                    value,
+                ),
             }
         {
             return false;
         }
 
-        if blockers.is_empty() {
-            state.set_value_recording(
-                self.group,
-                self.solution,
-                entity_index,
-                Some(value),
-                changes,
-            );
-            edits.push(self.group.edit(entity_index, Some(value)));
+        if work.blockers.is_empty() {
+            work.overlay.set_value(state, entity_index, Some(value));
+            work.edits.push(self.group.edit(entity_index, Some(value)));
             return true;
         }
 
-        if assignment.depth == 0 || !visiting.insert(entity_index) {
+        if assignment.depth == 0 || !work.visiting.insert(entity_index) {
             return false;
         }
 
-        let Some(blocker) = blockers
-            .into_iter()
+        let Some(blocker) = work
+            .blockers
+            .iter()
+            .copied()
             .find(|blocker| state.is_required(*blocker))
         else {
-            visiting.remove(&entity_index);
+            work.visiting.remove(&entity_index);
             return false;
         };
 
@@ -172,14 +221,14 @@ impl<S> AugmentingPathSearch<'_, S> {
                 .candidate_values(self.solution, blocker, self.value_candidate_limit);
         for alternative in alternatives {
             if should_stop() {
-                visiting.remove(&entity_index);
+                work.visiting.remove(&entity_index);
                 return false;
             }
-            if state.current_value(blocker) == Some(alternative) {
+            if work.overlay.current_value(state, blocker) == Some(alternative) {
                 continue;
             }
-            let change_checkpoint = changes.len();
-            let edit_checkpoint = edits.len();
+            let overlay_checkpoint = work.overlay.checkpoint();
+            let edit_checkpoint = work.edits.len();
             if self.assign(
                 state,
                 AssignmentRequest {
@@ -187,47 +236,43 @@ impl<S> AugmentingPathSearch<'_, S> {
                     value: alternative,
                     depth: assignment.depth - 1,
                 },
-                visiting,
-                changes,
-                edits,
+                work,
                 should_stop,
             ) {
-                let mut blockers_after_reassignment = Vec::new();
-                let reassign_verdict = state.blockers(
+                let reassign_verdict = work.overlay.blockers(
+                    state,
                     self.group,
                     self.solution,
                     entity_index,
                     value,
-                    &mut blockers_after_reassignment,
+                    work.blockers,
                 );
-                if !blockers_after_reassignment.is_empty()
+                if !work.blockers.is_empty()
                     || !match reassign_verdict {
                         Some(allowed) => allowed,
-                        None => {
-                            state.assignment_allowed(self.group, self.solution, entity_index, value)
-                        }
+                        None => work.overlay.assignment_allowed(
+                            state,
+                            self.group,
+                            self.solution,
+                            entity_index,
+                            value,
+                        ),
                     }
                 {
-                    state.rollback(self.group, self.solution, changes, change_checkpoint);
-                    edits.truncate(edit_checkpoint);
+                    work.overlay.rollback(overlay_checkpoint);
+                    work.edits.truncate(edit_checkpoint);
                     continue;
                 }
-                state.set_value_recording(
-                    self.group,
-                    self.solution,
-                    entity_index,
-                    Some(value),
-                    changes,
-                );
-                edits.push(self.group.edit(entity_index, Some(value)));
-                visiting.remove(&entity_index);
+                work.overlay.set_value(state, entity_index, Some(value));
+                work.edits.push(self.group.edit(entity_index, Some(value)));
+                work.visiting.remove(&entity_index);
                 return true;
             }
-            state.rollback(self.group, self.solution, changes, change_checkpoint);
-            edits.truncate(edit_checkpoint);
+            work.overlay.rollback(overlay_checkpoint);
+            work.edits.truncate(edit_checkpoint);
         }
 
-        visiting.remove(&entity_index);
+        work.visiting.remove(&entity_index);
         false
     }
 }

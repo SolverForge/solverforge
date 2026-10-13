@@ -3,21 +3,19 @@ use solverforge_core::domain::PlanningSolution;
 use super::assignment_candidate::ScalarAssignmentMoveOptions;
 use super::assignment_path::move_from_edits;
 use super::assignment_state::ScalarAssignmentState;
+use super::assignment_value_coordinates::ValueCycleCoordinates;
 use super::assignment_value_index::AssignedValueSequenceIndex;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 use solverforge_core::fast_hash::{FastMap, FastSet};
 
 pub(super) struct ValueWindowCycleCursor {
-    triples: Vec<(usize, usize, usize)>,
+    triples: ValueCycleCoordinates,
     sequence_keys: Vec<usize>,
     by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
-    triple_pos: usize,
     start_pos: usize,
     len: usize,
     max_len: usize,
-    walk_budget: usize,
-    walked: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -32,19 +30,7 @@ impl ValueWindowCycleCursor {
         options: ScalarAssignmentMoveOptions,
         index: AssignedValueSequenceIndex,
     ) -> Self {
-        let mut triples = Vec::new();
-        for first_pos in 0..index.values.len() {
-            for second_pos in first_pos + 1..index.values.len() {
-                for third_pos in second_pos + 1..index.values.len() {
-                    let first = index.values[first_pos];
-                    let second = index.values[second_pos];
-                    let third = index.values[third_pos];
-                    triples.push((first, second, third));
-                    triples.push((first, third, second));
-                }
-            }
-        }
-        super::assignment_candidate::order_candidates(&mut triples, options);
+        let triples = ValueCycleCoordinates::new(index.values, options);
 
         let max_len = options
             .max_depth
@@ -55,12 +41,9 @@ impl ValueWindowCycleCursor {
             triples,
             sequence_keys: index.sequence_keys,
             by_value_sequence: index.by_value_sequence,
-            triple_pos: 0,
             start_pos: 0,
             len: 2,
             max_len,
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -73,17 +56,12 @@ impl ValueWindowCycleCursor {
     where
         S: PlanningSolution,
     {
-        while self.triple_pos < self.triples.len() {
+        while let Some((first, second, third)) = self.triples.current() {
             while self.start_pos < self.sequence_keys.len() {
                 while self.len <= self.max_len {
                     if self.start_pos + self.len > self.sequence_keys.len() {
                         break;
                     }
-                    if self.walked >= self.walk_budget {
-                        return None;
-                    }
-                    self.walked += 1;
-                    let (first, second, third) = self.triples[self.triple_pos];
                     let sequence_window =
                         &self.sequence_keys[self.start_pos..self.start_pos + self.len];
                     self.len += 1;
@@ -94,7 +72,9 @@ impl ValueWindowCycleCursor {
                         (first, second, third),
                         sequence_window,
                     );
-                    if edits.len() < 3 {
+                    if edits.len() < 3
+                        || !state.assignment_feasible_after_edits(group, solution, &edits)
+                    {
                         continue;
                     }
                     let scalar_edits = edits
@@ -113,7 +93,7 @@ impl ValueWindowCycleCursor {
                 self.start_pos += 1;
                 self.len = 2;
             }
-            self.triple_pos += 1;
+            self.triples.advance();
             self.start_pos = 0;
             self.len = 2;
         }

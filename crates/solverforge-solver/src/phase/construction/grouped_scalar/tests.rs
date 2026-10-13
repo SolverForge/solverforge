@@ -1,7 +1,15 @@
 use std::any::{Any, TypeId};
 
+#[path = "tests/augmenting_overlay.rs"]
+mod augmenting_overlay;
+#[path = "tests/ejection_differential.rs"]
+mod ejection_differential;
+#[path = "tests/neighborhood_contracts.rs"]
+mod neighborhood_contracts;
 #[path = "tests/optional.rs"]
 mod optional;
+#[path = "tests/overlay_differential.rs"]
+mod overlay_differential;
 
 use solverforge_config::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation, SelectionOrder,

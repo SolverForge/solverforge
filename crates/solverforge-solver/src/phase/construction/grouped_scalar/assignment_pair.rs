@@ -28,8 +28,6 @@ pub(super) struct PairWindowCursor {
     left_value_pos: usize,
     right_value_pos: usize,
     options: ScalarAssignmentMoveOptions,
-    walk_budget: usize,
-    walked: usize,
 }
 
 impl PairWindowCursor {
@@ -137,8 +135,6 @@ impl PairWindowCursor {
             left_value_pos: 0,
             right_value_pos: 0,
             options,
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -160,8 +156,6 @@ impl PairWindowCursor {
             left_value_pos: 0,
             right_value_pos: 0,
             options,
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -183,8 +177,6 @@ impl PairWindowCursor {
             left_value_pos: 0,
             right_value_pos: 0,
             options,
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -209,7 +201,7 @@ impl PairWindowCursor {
         &mut self,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
-        _state: &mut ScalarAssignmentState,
+        state: &mut ScalarAssignmentState,
     ) -> Option<CompoundScalarMove<S>>
     where
         S: PlanningSolution,
@@ -218,10 +210,6 @@ impl PairWindowCursor {
             let right_limit =
                 (self.left_pos + self.options.max_rematch_size).min(self.assigned.len());
             while self.right_pos < right_limit {
-                if self.walked >= self.walk_budget {
-                    return None;
-                }
-                self.walked += 1;
                 let (_, _, left_entity, left_value) = self.assigned[self.left_pos];
                 let (_, _, right_entity, right_value) = self.assigned[self.right_pos];
                 self.right_pos += 1;
@@ -229,6 +217,13 @@ impl PairWindowCursor {
                     || !group.value_is_legal(solution, left_entity, Some(right_value))
                     || !group.value_is_legal(solution, right_entity, Some(left_value))
                 {
+                    continue;
+                }
+                let edits = [
+                    (left_entity, Some(right_value)),
+                    (right_entity, Some(left_value)),
+                ];
+                if !state.assignment_feasible_after_edits(group, solution, &edits) {
                     continue;
                 }
                 let scalar_edits = [
@@ -261,10 +256,6 @@ impl PairWindowCursor {
     {
         while self.left_pos < self.entities.len() {
             while self.right_pos < self.entities.len() {
-                if self.walked >= self.walk_budget {
-                    return None;
-                }
-                self.walked += 1;
                 let left = self.entities[self.left_pos];
                 let right = self.entities[self.right_pos];
                 self.right_pos += 1;
@@ -275,6 +266,10 @@ impl PairWindowCursor {
                     continue;
                 };
                 if left_value == right_value {
+                    continue;
+                }
+                let edits = [(left, Some(right_value)), (right, Some(left_value))];
+                if !state.assignment_feasible_after_edits(group, solution, &edits) {
                     continue;
                 }
                 let scalar_edits = [
@@ -308,10 +303,6 @@ impl PairWindowCursor {
                 let right_limit =
                     (self.left_pos + self.options.max_rematch_size).min(entities.len());
                 while self.right_pos < right_limit {
-                    if self.walked >= self.walk_budget {
-                        return None;
-                    }
-                    self.walked += 1;
                     let left = entities[self.left_pos];
                     let right = entities[self.right_pos];
                     self.right_pos += 1;
@@ -325,6 +316,10 @@ impl PairWindowCursor {
                         || !group.value_is_legal(solution, left, Some(right_value))
                         || !group.value_is_legal(solution, right, Some(left_value))
                     {
+                        continue;
+                    }
+                    let edits = [(left, Some(right_value)), (right, Some(left_value))];
+                    if !state.assignment_feasible_after_edits(group, solution, &edits) {
                         continue;
                     }
                     let scalar_edits = [
@@ -399,10 +394,10 @@ impl PairWindowCursor {
                         {
                             continue;
                         }
-                        if self.walked >= self.walk_budget {
-                            return None;
+                        let edits = [(left, Some(left_value)), (right, Some(right_value))];
+                        if !state.assignment_feasible_after_edits(group, solution, &edits) {
+                            continue;
                         }
-                        self.walked += 1;
                         let scalar_edits = [
                             group.edit(left, Some(left_value)),
                             group.edit(right, Some(right_value)),

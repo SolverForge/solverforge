@@ -8,7 +8,7 @@ use super::assignment_entity::{
     required_entities_by_scarcity, required_value_degrees, sort_values_by_required_scarcity,
 };
 use super::assignment_path::{
-    assignment_move_for_entity_value, move_from_edits, AssignmentRequest,
+    move_from_edits, AssignmentPathWork, AssignmentRequest, AugmentingPathSearch,
 };
 use super::assignment_state::ScalarAssignmentState;
 use crate::builder::ScalarAssignmentBinding;
@@ -45,13 +45,19 @@ where
     )?;
     let mut scalar_edits = Vec::new();
     let mut edited_entities = FastSet::default();
-    let mut batch_changes = Vec::new();
+    let mut visiting = FastSet::default();
+    let mut blockers = Vec::new();
+    let mut overlay = state.take_path_overlay();
+    overlay.clear();
+    let search =
+        AugmentingPathSearch::new(group, solution, options, AssignmentMoveIntent::required());
     for entity_index in entities {
         if should_stop() {
-            state.rollback(group, solution, &mut batch_changes, 0);
+            overlay.clear();
+            state.restore_path_overlay(overlay);
             return None;
         }
-        if state.current_value(entity_index).is_some() {
+        if overlay.current_value(state, entity_index).is_some() {
             continue;
         }
         let mut values =
@@ -65,56 +71,74 @@ where
         );
         for value in values {
             if should_stop() {
-                state.rollback(group, solution, &mut batch_changes, 0);
+                overlay.clear();
+                state.restore_path_overlay(overlay);
                 return None;
             }
-            let Some(mov) = assignment_move_for_entity_value(
-                group,
-                solution,
+            let overlay_checkpoint = overlay.checkpoint();
+            let edit_checkpoint = scalar_edits.len();
+            visiting.clear();
+            let mut work = AssignmentPathWork::new(
+                &mut overlay,
+                &mut visiting,
+                &mut scalar_edits,
+                &mut blockers,
+            );
+            if !search.discover(
                 state,
                 // The batch below can retain only independent single-entity edits.
                 // Defer augmenting rematches to the following required cursor,
                 // where their multi-entity edits can actually be applied.
                 AssignmentRequest::root(entity_index, value, 0),
-                options,
-                AssignmentMoveIntent::required(),
+                &mut work,
                 should_stop,
-            ) else {
+            ) {
+                overlay.rollback(overlay_checkpoint);
+                scalar_edits.truncate(edit_checkpoint);
                 if should_stop() {
-                    state.rollback(group, solution, &mut batch_changes, 0);
+                    overlay.clear();
+                    state.restore_path_overlay(overlay);
                     return None;
                 }
                 continue;
-            };
-            if mov
-                .edits()
+            }
+            let candidate_edits = &scalar_edits[edit_checkpoint..];
+            if candidate_edits
                 .iter()
-                .any(|edit| edited_entities.contains(&edit.entity_index))
+                .any(|edit| edited_entities.contains(&edit.entity_index()))
             {
+                overlay.rollback(overlay_checkpoint);
+                scalar_edits.truncate(edit_checkpoint);
                 continue;
             }
-            if mov.edits().len() != 1 {
+            if candidate_edits.len() != 1 {
+                overlay.rollback(overlay_checkpoint);
+                scalar_edits.truncate(edit_checkpoint);
                 continue;
             }
-            for edit in mov.edits() {
-                state.set_value_recording(
-                    group,
-                    solution,
-                    edit.entity_index,
-                    edit.to_value,
-                    &mut batch_changes,
-                );
-                edited_entities.insert(edit.entity_index);
-                scalar_edits.push(group.edit(edit.entity_index, edit.to_value));
+            let candidate = &candidate_edits[0];
+            if !group.value_is_legal(solution, candidate.entity_index(), candidate.to_value()) {
+                overlay.rollback(overlay_checkpoint);
+                scalar_edits.truncate(edit_checkpoint);
+                continue;
+            }
+            for edit in candidate_edits {
+                edited_entities.insert(edit.entity_index());
             }
             break;
         }
     }
     if should_stop() {
-        state.rollback(group, solution, &mut batch_changes, 0);
+        overlay.clear();
+        state.restore_path_overlay(overlay);
         return None;
     }
+    overlay.clear();
+    state.restore_path_overlay(overlay);
     if scalar_edits.is_empty() {
+        return None;
+    }
+    if !state.scalar_edits_feasible(group, solution, &scalar_edits) {
         return None;
     }
     move_from_edits(group, solution, &scalar_edits, "scalar_assignment_required")

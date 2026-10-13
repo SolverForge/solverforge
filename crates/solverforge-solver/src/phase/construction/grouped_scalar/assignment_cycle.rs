@@ -20,8 +20,6 @@ pub(super) struct CycleWindowCursor {
     variant: usize,
     max_len: usize,
     options: ScalarAssignmentMoveOptions,
-    walk_budget: usize,
-    walked: usize,
 }
 
 impl CycleWindowCursor {
@@ -42,8 +40,6 @@ impl CycleWindowCursor {
             variant: 0,
             max_len,
             options,
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -64,8 +60,6 @@ impl CycleWindowCursor {
             variant: 0,
             max_len,
             options,
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -101,10 +95,6 @@ impl CycleWindowCursor {
                     break;
                 }
                 while self.variant < 2 {
-                    if self.walked >= self.walk_budget {
-                        return None;
-                    }
-                    self.walked += 1;
                     let direction = if self.variant == 0 { 1 } else { self.len - 1 };
                     self.variant += 1;
                     let window = &self.entities[self.start..self.start + self.len];
@@ -118,6 +108,11 @@ impl CycleWindowCursor {
                         if state.current_value(entity_index) != Some(value) {
                             edits.push((entity_index, Some(value)));
                         }
+                    }
+                    if edits.len() < 2
+                        || !state.assignment_feasible_after_edits(group, solution, &edits)
+                    {
+                        continue;
                     }
                     let scalar_edits = edits
                         .iter()
@@ -167,17 +162,23 @@ impl CycleWindowCursor {
                     continue;
                 }
                 while self.variant < attempt_count {
-                    if self.walked >= self.walk_budget {
-                        return None;
-                    }
-                    self.walked += 1;
                     let attempt = self.variant;
                     self.variant += 1;
-                    let Some(edits) =
-                        ejection_reinsert_edits(group, solution, window, attempt, self.options)
-                    else {
+                    let Some(edits) = ejection_reinsert_edits(
+                        group,
+                        solution,
+                        state,
+                        window,
+                        attempt,
+                        self.options,
+                    ) else {
                         continue;
                     };
+                    if edits.len() < 2
+                        || !state.assignment_feasible_after_edits(group, solution, &edits)
+                    {
+                        continue;
+                    }
                     let scalar_edits = edits
                         .iter()
                         .map(|(entity_index, value)| group.edit(*entity_index, *value))
@@ -205,6 +206,7 @@ impl CycleWindowCursor {
 fn ejection_reinsert_edits<S>(
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
+    state: &mut ScalarAssignmentState,
     window: &[usize],
     attempt: usize,
     options: ScalarAssignmentMoveOptions,
@@ -212,35 +214,30 @@ fn ejection_reinsert_edits<S>(
 where
     S: PlanningSolution,
 {
-    // Structural ejection-reinsert (guided): eject every window entity, then
-    // reinsert in window order rotated by the attempt, taking the first
-    // domain-legal candidate value per entity. Pricing (capacity, single
-    // assignment, rule edges) is the score's authority — no feasibility
-    // simulation during enumeration.
-    let mut order = window.to_vec();
-    if !order.is_empty() {
-        let len = order.len();
-        order.rotate_left(attempt % len);
-    }
-    let mut edits = Vec::with_capacity(window.len() * 2);
-    for entity_index in window {
-        if group.is_required(solution, *entity_index) {
-            edits.push((*entity_index, None));
+    let mut edits = window
+        .iter()
+        .map(|entity| (*entity, None))
+        .collect::<Vec<_>>();
+    for offset in 0..window.len() {
+        let position = (attempt % window.len() + offset) % window.len();
+        let entity = window[position];
+        let values = group.candidate_values(solution, entity, options.value_candidate_limit);
+        let mut found = false;
+        for value_offset in 0..values.len() {
+            let value = values[(attempt % values.len() + value_offset) % values.len()];
+            edits[position].1 = Some(value);
+            if state.reinsert_value_allowed(group, solution, &edits, entity, value) {
+                found = true;
+                break;
+            }
         }
-    }
-    for entity_index in order {
-        let values = group.candidate_values(solution, entity_index, options.value_candidate_limit);
-        let Some(value) = values
-            .iter()
-            .copied()
-            .find(|value| group.value_is_legal(solution, entity_index, Some(*value)))
-        else {
-            if group.is_required(solution, entity_index) {
+        if !found {
+            edits[position].1 = None;
+            if state.is_required(entity) {
                 return None;
             }
-            continue;
-        };
-        edits.push((entity_index, Some(value)));
+        }
     }
+    edits.retain(|(entity, next)| state.current_value(*entity) != *next);
     Some(edits)
 }

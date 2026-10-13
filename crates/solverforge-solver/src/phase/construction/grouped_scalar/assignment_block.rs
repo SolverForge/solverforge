@@ -3,45 +3,37 @@ use solverforge_core::domain::PlanningSolution;
 use super::assignment_candidate::ScalarAssignmentMoveOptions;
 use super::assignment_path::move_from_edits;
 use super::assignment_state::ScalarAssignmentState;
+use super::assignment_value_coordinates::{ValuePairCoordinates, ValuePairKind};
 use super::assignment_value_index::AssignedValueSequenceIndex;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
 use solverforge_core::fast_hash::{FastMap, FastSet};
 
 pub(super) struct ValueWindowCursor {
-    pairs: Vec<(usize, usize)>,
+    pairs: ValuePairCoordinates,
     sequence_keys: Vec<usize>,
     by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
-    pair_pos: usize,
     start_pos: usize,
     len: usize,
     max_len: usize,
-    walk_budget: usize,
-    walked: usize,
 }
 
 pub(super) struct ValueLongWindowCursor {
-    pairs: Vec<(usize, usize)>,
+    pairs: ValuePairCoordinates,
     sequence_keys: Vec<usize>,
     by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
-    pair_pos: usize,
     length_pos: usize,
     start_pos: usize,
     lengths: Vec<usize>,
-    walk_budget: usize,
-    walked: usize,
 }
 
 pub(super) struct ValueBlockReassignmentCursor {
-    pairs: Vec<(usize, usize)>,
+    pairs: ValuePairCoordinates,
     sequence_keys: Vec<usize>,
     by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
-    pair_pos: usize,
     start_pos: usize,
     len: usize,
     max_len: usize,
-    walk_budget: usize,
-    walked: usize,
 }
 
 impl ValueLongWindowCursor {
@@ -49,13 +41,7 @@ impl ValueLongWindowCursor {
         options: ScalarAssignmentMoveOptions,
         index: AssignedValueSequenceIndex,
     ) -> Self {
-        let mut pairs = Vec::new();
-        for left_pos in 0..index.values.len() {
-            for right_pos in left_pos + 1..index.values.len() {
-                pairs.push((index.values[left_pos], index.values[right_pos]));
-            }
-        }
-        super::assignment_candidate::order_candidates(&mut pairs, options);
+        let pairs = ValuePairCoordinates::new(index.values, ValuePairKind::Unordered, options);
 
         let base_len = options
             .max_rematch_size
@@ -66,12 +52,9 @@ impl ValueLongWindowCursor {
             pairs,
             sequence_keys: index.sequence_keys,
             by_value_sequence: index.by_value_sequence,
-            pair_pos: 0,
             length_pos: 0,
             start_pos: 0,
             lengths,
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -84,15 +67,11 @@ impl ValueLongWindowCursor {
     where
         S: PlanningSolution,
     {
-        while self.pair_pos < self.pairs.len() {
+        while let Some(pair) = self.pairs.current() {
             while self.length_pos < self.lengths.len() {
                 let len = self.lengths[self.length_pos];
                 while self.start_pos + len <= self.sequence_keys.len() {
-                    if self.walked >= self.walk_budget {
-                        return None;
-                    }
-                    self.walked += 1;
-                    let (left_value, right_value) = self.pairs[self.pair_pos];
+                    let (left_value, right_value) = pair;
                     let sequence_window = &self.sequence_keys[self.start_pos..self.start_pos + len];
                     self.start_pos += 1;
                     let edits = value_window_edits(
@@ -104,7 +83,9 @@ impl ValueLongWindowCursor {
                         right_value,
                         sequence_window,
                     );
-                    if edits.len() < 2 {
+                    if edits.len() < 2
+                        || !state.assignment_feasible_after_edits(group, solution, &edits)
+                    {
                         continue;
                     }
                     let scalar_edits = edits
@@ -123,7 +104,7 @@ impl ValueLongWindowCursor {
                 self.length_pos += 1;
                 self.start_pos = 0;
             }
-            self.pair_pos += 1;
+            self.pairs.advance();
             self.length_pos = 0;
             self.start_pos = 0;
         }
@@ -136,13 +117,7 @@ impl ValueWindowCursor {
         options: ScalarAssignmentMoveOptions,
         index: AssignedValueSequenceIndex,
     ) -> Self {
-        let mut pairs = Vec::new();
-        for left_pos in 0..index.values.len() {
-            for right_pos in left_pos + 1..index.values.len() {
-                pairs.push((index.values[left_pos], index.values[right_pos]));
-            }
-        }
-        super::assignment_candidate::order_candidates(&mut pairs, options);
+        let pairs = ValuePairCoordinates::new(index.values, ValuePairKind::Unordered, options);
 
         let max_len = options
             .max_depth
@@ -153,12 +128,9 @@ impl ValueWindowCursor {
             pairs,
             sequence_keys: index.sequence_keys,
             by_value_sequence: index.by_value_sequence,
-            pair_pos: 0,
             start_pos: 0,
             len: 2,
             max_len,
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -171,17 +143,13 @@ impl ValueWindowCursor {
     where
         S: PlanningSolution,
     {
-        while self.pair_pos < self.pairs.len() {
+        while let Some(pair) = self.pairs.current() {
             while self.start_pos < self.sequence_keys.len() {
                 while self.len <= self.max_len {
                     if self.start_pos + self.len > self.sequence_keys.len() {
                         break;
                     }
-                    if self.walked >= self.walk_budget {
-                        return None;
-                    }
-                    self.walked += 1;
-                    let (left_value, right_value) = self.pairs[self.pair_pos];
+                    let (left_value, right_value) = pair;
                     let sequence_window =
                         &self.sequence_keys[self.start_pos..self.start_pos + self.len];
                     self.len += 1;
@@ -194,7 +162,9 @@ impl ValueWindowCursor {
                         right_value,
                         sequence_window,
                     );
-                    if edits.len() < 2 {
+                    if edits.len() < 2
+                        || !state.assignment_feasible_after_edits(group, solution, &edits)
+                    {
                         continue;
                     }
                     let scalar_edits = edits
@@ -213,7 +183,7 @@ impl ValueWindowCursor {
                 self.start_pos += 1;
                 self.len = 2;
             }
-            self.pair_pos += 1;
+            self.pairs.advance();
             self.start_pos = 0;
             self.len = 2;
         }
@@ -226,15 +196,7 @@ impl ValueBlockReassignmentCursor {
         options: ScalarAssignmentMoveOptions,
         index: AssignedValueSequenceIndex,
     ) -> Self {
-        let mut pairs = Vec::new();
-        for source in &index.values {
-            for target in &index.values {
-                if source != target {
-                    pairs.push((*source, *target));
-                }
-            }
-        }
-        super::assignment_candidate::order_candidates(&mut pairs, options);
+        let pairs = ValuePairCoordinates::new(index.values, ValuePairKind::Directed, options);
 
         let max_len = options
             .max_depth
@@ -245,12 +207,9 @@ impl ValueBlockReassignmentCursor {
             pairs,
             sequence_keys: index.sequence_keys,
             by_value_sequence: index.by_value_sequence,
-            pair_pos: 0,
             start_pos: 0,
             len: 2,
             max_len,
-            walk_budget: options.max_walked_positions,
-            walked: 0,
         }
     }
 
@@ -263,17 +222,13 @@ impl ValueBlockReassignmentCursor {
     where
         S: PlanningSolution,
     {
-        while self.pair_pos < self.pairs.len() {
+        while let Some(pair) = self.pairs.current() {
             while self.start_pos < self.sequence_keys.len() {
                 while self.len <= self.max_len {
                     if self.start_pos + self.len > self.sequence_keys.len() {
                         break;
                     }
-                    if self.walked >= self.walk_budget {
-                        return None;
-                    }
-                    self.walked += 1;
-                    let (source_value, target_value) = self.pairs[self.pair_pos];
+                    let (source_value, target_value) = pair;
                     let sequence_window =
                         &self.sequence_keys[self.start_pos..self.start_pos + self.len];
                     self.len += 1;
@@ -285,7 +240,9 @@ impl ValueBlockReassignmentCursor {
                         target_value,
                         sequence_window,
                     );
-                    if edits.len() < 2 {
+                    if edits.len() < 2
+                        || !state.assignment_feasible_after_edits(group, solution, &edits)
+                    {
                         continue;
                     }
                     let scalar_edits = edits
@@ -304,7 +261,7 @@ impl ValueBlockReassignmentCursor {
                 self.start_pos += 1;
                 self.len = 2;
             }
-            self.pair_pos += 1;
+            self.pairs.advance();
             self.start_pos = 0;
             self.len = 2;
         }

@@ -89,9 +89,7 @@ impl ValueRunGapSwapCursor {
                             release_sequence,
                         },
                     );
-                    if edits.len() < 2
-                        || !state.assignment_feasible_after_edits(group, solution, &edits)
-                    {
+                    if edits.len() < 2 {
                         continue;
                     }
                     let scalar_edits = edits

@@ -201,7 +201,7 @@ impl PairWindowCursor {
         &mut self,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
-        state: &mut ScalarAssignmentState,
+        _state: &mut ScalarAssignmentState,
     ) -> Option<CompoundScalarMove<S>>
     where
         S: PlanningSolution,
@@ -217,13 +217,6 @@ impl PairWindowCursor {
                     || !group.value_is_legal(solution, left_entity, Some(right_value))
                     || !group.value_is_legal(solution, right_entity, Some(left_value))
                 {
-                    continue;
-                }
-                let edits = [
-                    (left_entity, Some(right_value)),
-                    (right_entity, Some(left_value)),
-                ];
-                if !state.assignment_feasible_after_edits(group, solution, &edits) {
                     continue;
                 }
                 let scalar_edits = [
@@ -266,10 +259,6 @@ impl PairWindowCursor {
                     continue;
                 };
                 if left_value == right_value {
-                    continue;
-                }
-                let edits = [(left, Some(right_value)), (right, Some(left_value))];
-                if !state.assignment_feasible_after_edits(group, solution, &edits) {
                     continue;
                 }
                 let scalar_edits = [
@@ -316,10 +305,6 @@ impl PairWindowCursor {
                         || !group.value_is_legal(solution, left, Some(right_value))
                         || !group.value_is_legal(solution, right, Some(left_value))
                     {
-                        continue;
-                    }
-                    let edits = [(left, Some(right_value)), (right, Some(left_value))];
-                    if !state.assignment_feasible_after_edits(group, solution, &edits) {
                         continue;
                     }
                     let scalar_edits = [
@@ -392,10 +377,6 @@ impl PairWindowCursor {
                         if right_value == right_current
                             || !group.value_is_legal(solution, right, Some(right_value))
                         {
-                            continue;
-                        }
-                        let edits = [(left, Some(left_value)), (right, Some(right_value))];
-                        if !state.assignment_feasible_after_edits(group, solution, &edits) {
                             continue;
                         }
                         let scalar_edits = [

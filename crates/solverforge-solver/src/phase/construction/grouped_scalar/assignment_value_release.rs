@@ -58,9 +58,7 @@ impl ValueRunReleaseCursor {
                         &self.sequence_keys[self.start_pos..self.start_pos + self.len];
                     self.len += 1;
                     let edits = self.window_release_edits(state, value, sequence_window);
-                    if edits.len() < 2
-                        || !state.assignment_feasible_after_edits(group, solution, &edits)
-                    {
+                    if edits.len() < 2 {
                         continue;
                     }
                     let scalar_edits = edits

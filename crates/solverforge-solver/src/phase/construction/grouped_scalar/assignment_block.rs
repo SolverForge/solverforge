@@ -92,9 +92,7 @@ impl ValueLongWindowCursor {
                         right_value,
                         sequence_window,
                     );
-                    if edits.len() < 2
-                        || !state.assignment_feasible_after_edits(group, solution, &edits)
-                    {
+                    if edits.len() < 2 {
                         continue;
                     }
                     let scalar_edits = edits
@@ -178,9 +176,7 @@ impl ValueWindowCursor {
                         right_value,
                         sequence_window,
                     );
-                    if edits.len() < 2
-                        || !state.assignment_feasible_after_edits(group, solution, &edits)
-                    {
+                    if edits.len() < 2 {
                         continue;
                     }
                     let scalar_edits = edits
@@ -265,9 +261,7 @@ impl ValueBlockReassignmentCursor {
                         target_value,
                         sequence_window,
                     );
-                    if edits.len() < 2
-                        || !state.assignment_feasible_after_edits(group, solution, &edits)
-                    {
+                    if edits.len() < 2 {
                         continue;
                     }
                     let scalar_edits = edits

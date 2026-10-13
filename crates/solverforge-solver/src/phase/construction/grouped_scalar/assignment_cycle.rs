@@ -109,11 +109,6 @@ impl CycleWindowCursor {
                             edits.push((entity_index, Some(value)));
                         }
                     }
-                    if edits.len() < 2
-                        || !state.assignment_feasible_after_edits(group, solution, &edits)
-                    {
-                        continue;
-                    }
                     let scalar_edits = edits
                         .iter()
                         .map(|(entity_index, value)| group.edit(*entity_index, *value))
@@ -169,11 +164,6 @@ impl CycleWindowCursor {
                     else {
                         continue;
                     };
-                    if edits.len() < 2
-                        || !state.assignment_feasible_after_edits(group, solution, &edits)
-                    {
-                        continue;
-                    }
                     let scalar_edits = edits
                         .iter()
                         .map(|(entity_index, value)| group.edit(*entity_index, *value))
@@ -208,66 +198,35 @@ fn ejection_reinsert_edits<S>(
 where
     S: PlanningSolution,
 {
-    let mut state = ScalarAssignmentState::new(group, solution);
-    let mut changes = Vec::with_capacity(window.len() * 2);
-    for entity_index in window {
-        state.set_value_recording(group, solution, *entity_index, None, &mut changes);
-    }
-
+    // Structural ejection-reinsert (guided): eject every window entity, then
+    // reinsert in window order rotated by the attempt, taking the first
+    // domain-legal candidate value per entity. Pricing (capacity, single
+    // assignment, rule edges) is the score's authority — no feasibility
+    // simulation during enumeration.
     let mut order = window.to_vec();
     if !order.is_empty() {
         let len = order.len();
         order.rotate_left(attempt % len);
     }
+    let mut edits = Vec::with_capacity(window.len() * 2);
+    for entity_index in window {
+        if group.is_required(solution, *entity_index) {
+            edits.push((*entity_index, None));
+        }
+    }
     for entity_index in order {
         let values = group.candidate_values(solution, entity_index, options.value_candidate_limit);
-        let Some(value) =
-            first_reinsert_value(group, solution, &mut state, entity_index, &values, attempt)
+        let Some(value) = values
+            .iter()
+            .copied()
+            .find(|value| group.value_is_legal(solution, entity_index, Some(*value)))
         else {
-            if state.is_required(entity_index) {
+            if group.is_required(solution, entity_index) {
                 return None;
             }
             continue;
         };
-        state.set_value_recording(group, solution, entity_index, Some(value), &mut changes);
+        edits.push((entity_index, Some(value)));
     }
-
-    let edits = window
-        .iter()
-        .filter_map(|entity_index| {
-            let next = state.current_value(*entity_index);
-            (next != group.current_value(solution, *entity_index)).then_some((*entity_index, next))
-        })
-        .collect::<Vec<_>>();
     Some(edits)
-}
-
-fn first_reinsert_value<S>(
-    group: &ScalarAssignmentBinding<S>,
-    solution: &S,
-    state: &mut ScalarAssignmentState,
-    entity_index: usize,
-    values: &[usize],
-    attempt: usize,
-) -> Option<usize>
-where
-    S: PlanningSolution,
-{
-    if values.is_empty() {
-        return None;
-    }
-    for offset in 0..values.len() {
-        let value = values[(attempt + offset) % values.len()];
-        let mut blockers = Vec::new();
-        let rule_verdict = state.blockers(group, solution, entity_index, value, &mut blockers);
-        if blockers.is_empty()
-            && match rule_verdict {
-                Some(allowed) => allowed,
-                None => state.assignment_allowed(group, solution, entity_index, value),
-            }
-        {
-            return Some(value);
-        }
-    }
-    None
 }

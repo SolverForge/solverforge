@@ -86,9 +86,7 @@ impl ValueWindowCycleCursor {
                         (first, second, third),
                         sequence_window,
                     );
-                    if edits.len() < 3
-                        || !state.assignment_feasible_after_edits(group, solution, &edits)
-                    {
+                    if edits.len() < 3 {
                         continue;
                     }
                     let scalar_edits = edits

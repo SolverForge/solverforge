@@ -5,6 +5,26 @@ Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 **Location:** `crates/solverforge-scoring/`
 **Workspace Release:** `0.20.4`
 
+## Joined grouping fluent surface
+
+- `stream::cross::{Tri, Quad, Penta}` and
+  `stream::{TriConstraintStream, QuadConstraintStream, PentaConstraintStream}`
+  expose `group_by(key, collector)`. Key closures take three/four/five entity
+  references; collector mappers receive the corresponding borrowed tuple.
+- `stream::JoinedGroupedStream<S, O, F, C, K, V, R, Acc, Sc>` exposes
+  `penalize(weight)` and `reward(weight)` over `(&K, &R)`.
+  `stream::JoinedGroupedBuilder<..., W, Sc>::named(name)` produces an
+  incremental `OperatorTerminal`. Collector results are borrowed, not cloned;
+  `collect_vec` retains move-only payloads and exposes `CollectedVec<T>`.
+- All these methods preserve upstream filtering and semantic source indexes.
+  Joined tuple grouping uses the existing `GroupNode` and `FilterNode`, not
+  arity-specific retention engines.
+- File map: `stream/group_by_{tri,quad,penta}.rs`,
+  `stream/joined_grouped_stream.rs`, and
+  `stream/relational/tuple_collector.rs`; same-source methods are generated in
+  `stream/arity_stream_macros/nary_stream/shared.rs`. The doc-hidden
+  `stream::relational::TupleCollector<C,V,R,Acc>` is the borrowed-row adapter.
+
 ## Typed relational operator surface
 
 These are module-level low-level exports, not facade-root exports or a completed

@@ -30,6 +30,36 @@ application that depends on `solverforge`.
   completion remains resumable without exposing a partial solution snapshot.
 - Prefer small, app-specific extensions over forking the scaffold templates.
 
+## Committed writers and model callbacks
+
+Every committed change to the working solution — accepted construction and
+local-search moves, configuration-list commits, partition merges, and direct
+apply closures — flows through one committed-mutation path that clears the
+cached current score and advances the working-solution revision exactly once.
+Speculative evaluation never advances the revision: it applies the move, scores,
+undoes with the typed undo value, and restores the snapshotted committed score
+state, leaving no residue.
+
+Model callbacks (`value_candidates`, `construction_order_key`,
+`search_order_key` hooks, `value_is_legal`, ownership policies) may read the
+whole solution. That dependency is unrestricted by default: never rely on a
+callback's signature to infer row-locality, because a committed change anywhere
+can change any callback's output. Construction enumeration and placement
+therefore re-read committed global state per pull instead of trusting a cached
+snapshot. A narrow-impact declaration is not inferred from signatures; until a
+callback explicitly declares a narrow impact, assume it depends on all of `S`.
+
+Working-solution replacement is the wholesale writer:
+`replace_working_solution_and_reinitialize(solution)` resets the score director,
+forces recalculation, returns the revision to its initial value, and invalidates
+descriptor-driven construction completion markers.
+
+Sequential composite moves check doability on the caller's live director with
+`is_doable_with_working_preview`: the left leg is applied on a snapshotted score
+state, the right leg is checked against that previewed state, and the left leg
+is undone and the score state restored before the check returns. It never
+clones the solution for a preview.
+
 ## Construction routing
 
 Construction heuristics now route by validated model capability rather than

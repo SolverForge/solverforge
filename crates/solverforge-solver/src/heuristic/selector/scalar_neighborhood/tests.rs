@@ -420,3 +420,53 @@ fn ordinary_change_stream_visits_row_values_lazily_one_row_at_a_time() {
         "the stream must produce the ordinary change recipes"
     );
 }
+
+#[test]
+fn scalar_change_coverage_across_all_selection_orders_matches_drained_size() {
+    use super::{ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec};
+    use crate::builder::RuntimeScalarSlot;
+    use crate::heuristic::selector::move_selector::{MoveCursor, MoveSelector, MoveStreamContext};
+    use solverforge_config::SelectionOrder;
+
+    let order_modes = [
+        SelectionOrder::Original,
+        SelectionOrder::Random,
+        SelectionOrder::Shuffled,
+        SelectionOrder::Sorted,
+        SelectionOrder::Probabilistic,
+    ];
+    for (mode_index, mode) in order_modes.iter().enumerate() {
+        let director = director(Plan {
+            values: vec![Some(0), None, Some(1), Some(1)],
+            candidates: vec![0, 1, 2],
+            score: None,
+        });
+        let leaf = ScalarNeighborhoodLeaf::from_spec(
+            ScalarNeighborhoodSpec::Change {
+                value_candidate_limit: None,
+            },
+            RuntimeScalarSlot::Dynamic(slot()),
+            Some(0x50 + mode_index as u64),
+        )
+        .expect("test slot supplies the change capability");
+        let expected_size = MoveSelector::size(&leaf, &director);
+        let mut state = leaf.new_stream_state();
+        let mut cursor = leaf.open_cursor_with_stream_state(
+            &mut state,
+            &director,
+            MoveStreamContext::default().with_selection_order(*mode),
+        );
+        let mut drained = 0usize;
+        while cursor
+            .next_owned_candidate(director.working_solution())
+            .is_some()
+        {
+            drained += 1;
+        }
+        assert_eq!(
+            drained, expected_size,
+            "order {mode:?}: the drained stream must match the finite size() count without a \
+             second eager collector",
+        );
+    }
+}

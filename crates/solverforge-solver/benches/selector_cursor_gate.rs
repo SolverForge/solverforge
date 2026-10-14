@@ -344,7 +344,7 @@ fn filtering() {
 }
 
 fn cartesian() {
-    let director = director(12, 4);
+    let mut director = director(12, 4);
     let left = ChangeMoveSelector::simple(scalar_get, scalar_set, 0, 0, "first", vec![10, 11]);
     let right = ChangeMoveSelector::simple(scalar_get, scalar_set, 0, 0, "first", vec![20, 21]);
     let selector = CartesianProductSelector::new(left, right);
@@ -353,8 +353,7 @@ fn cartesian() {
         let mut hash = 0xCBF2_9CE4_8422_2325;
         for _ in 0..iterations() {
             let mut cursor = selector.open_cursor(&director);
-            let solution = director.working_solution();
-            while let Some(candidate_id) = cursor.next_candidate(solution) {
+            while let Some(candidate_id) = cursor.next_candidate_with_director(&mut director) {
                 let mov = cursor
                     .candidate(candidate_id)
                     .expect("cartesian benchmark candidate must remain live");

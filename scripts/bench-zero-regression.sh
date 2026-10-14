@@ -11,6 +11,11 @@ TRIALS=${TRIALS:-51}
 # needs explicit approval). The gate rejects median wall/counter regressions
 # beyond this budget; allocation counters must match exactly.
 BENCH_TOLERANCE_PERCENT=${BENCH_TOLERANCE_PERCENT:-5.0}
+# BENCH_OWN_SOURCES=1 compiles each side against its OWN tree's gate sources.
+# Required when the two sides span a public-API generation change (the shared-
+# source mode needs every API call to exist in both trees). Cross-tree hash
+# comparison is then disabled: only exact counts and allocation metrics compare.
+BENCH_OWN_SOURCES=${BENCH_OWN_SOURCES:-0}
 MEASURE_ITERATIONS=${MEASURE_ITERATIONS:-32}
 CARTESIAN_MEASURE_ITERATIONS=${CARTESIAN_MEASURE_ITERATIONS:-256}
 TOOLCHAIN=${TOOLCHAIN:-1.95.0}
@@ -27,6 +32,10 @@ if [[ $BASELINE_CURSOR_API != 0 && $BASELINE_CURSOR_API != 1 ]]; then
     exit 2
 fi
 BENCH_SOURCE="$ROOT/crates/solverforge-solver/benches/selector_cursor_gate.rs"
+if [[ $BENCH_OWN_SOURCES != 0 && $BENCH_OWN_SOURCES != 1 ]]; then
+    echo "BENCH_OWN_SOURCES must be 0 or 1" >&2
+    exit 2
+fi
 
 measure_iterations_for_case() {
     local case_name=$1
@@ -90,6 +99,10 @@ make_harness() {
     local tree=$2
     local directory="$RESULTS/harnesses/$side"
     mkdir -p "$directory"
+    local bench_source="$BENCH_SOURCE"
+    if [[ $BENCH_OWN_SOURCES == 1 ]]; then
+        bench_source="$tree/crates/solverforge-solver/benches/selector_cursor_gate.rs"
+    fi
     cat >"$directory/Cargo.toml" <<EOF
 [package]
 name = "solverforge-selector-gate"
@@ -102,7 +115,7 @@ candidate = []
 
 [[bin]]
 name = "selector_cursor_gate"
-path = "$BENCH_SOURCE"
+path = "$bench_source"
 
 [dependencies]
 solverforge-core = { path = "$tree/crates/solverforge-core" }
@@ -227,7 +240,7 @@ for case_name in "${CASES[@]}"; do
     done
 done
 
-python3 - "$RESULTS" "$PERF_AVAILABLE" "$BENCH_TOLERANCE_PERCENT" "${CASES[@]}" <<'PY'
+python3 - "$RESULTS" "$PERF_AVAILABLE" "$BENCH_TOLERANCE_PERCENT" "$BENCH_OWN_SOURCES" "${CASES[@]}" <<'PY' 
 import hashlib
 import json
 import math
@@ -240,7 +253,8 @@ import sys
 root = pathlib.Path(sys.argv[1])
 perf_available = sys.argv[2] == "1"
 tolerance_percent = sys.argv[3]
-cases = sys.argv[4:]
+own_sources = sys.argv[4] == "1"
+cases = sys.argv[5:]
 metrics = ["wall_ns", "allocations", "allocated_bytes", "peak_live_bytes", "max_rss_kb"]
 perf_metrics = [
     "instructions",
@@ -307,9 +321,18 @@ for case_index, case in enumerate(cases):
     candidate = load_json("candidate", case)
     if len(baseline) != len(candidate):
         raise SystemExit(f"unaligned samples for {case}")
-    baseline_identity = {sample["identity_hash"] for sample in baseline}
-    candidate_identity = {sample["identity_hash"] for sample in candidate}
-    if case == "construction_first_fit":
+    baseline_identity = {sample.get("identity_hash", 0) for sample in baseline}
+    candidate_identity = {sample.get("identity_hash", 0) for sample in candidate}
+    if own_sources:
+        # Own-source runs span API generations: hashes are not comparable
+        # across trees. The semantic contract is exact-count parity.
+        baseline_count = {sample["candidate_count"] for sample in baseline}
+        candidate_count = {sample["candidate_count"] for sample in candidate}
+        semantic_match = (
+            len(baseline_count) == 1
+            and baseline_count == candidate_count
+        )
+    elif case == "construction_first_fit":
         baseline_order = {sample["order_hash"] for sample in baseline}
         candidate_order = {sample["order_hash"] for sample in candidate}
         baseline_work = {sample["candidate_count"] for sample in baseline}

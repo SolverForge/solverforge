@@ -923,7 +923,10 @@ The corresponding concrete selectors are `DescriptorChangeMoveSelector`,
 and swap cursor shapes after bounded nearby filtering.
 
 `DescriptorMoveUnionUndo<S>` mirrors the five variants of
-`DescriptorMoveUnion<S>` and is the typed speculative-rollback payload. These
+`DescriptorMoveUnion<S>` and is the typed speculative-rollback payload.
+The union and its five concrete move types do not implement `Clone`: cursors
+retain candidates by stable ID, lend them for evaluation, and transfer the
+selected winner by ownership. These
 descriptor selectors cover scalar change/swap, nearby, pillar, ruin/recreate,
 union, and cartesian configuration only; list, grouped-scalar, conflict-repair,
 and limited-neighborhood compilation remains in the canonical runtime graph.

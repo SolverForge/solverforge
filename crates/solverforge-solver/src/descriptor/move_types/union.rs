@@ -18,22 +18,6 @@ where
     RuinRecreate(<DescriptorRuinRecreateMove<S> as Move<S>>::Undo),
 }
 
-impl<S> Clone for DescriptorMoveUnion<S>
-where
-    S: PlanningSolution + 'static,
-    S::Score: Score,
-{
-    fn clone(&self) -> Self {
-        match self {
-            Self::Change(m) => Self::Change(m.clone()),
-            Self::Swap(m) => Self::Swap(m.clone()),
-            Self::PillarChange(m) => Self::PillarChange(m.clone()),
-            Self::PillarSwap(m) => Self::PillarSwap(m.clone()),
-            Self::RuinRecreate(m) => Self::RuinRecreate(m.clone()),
-        }
-    }
-}
-
 impl<S> Debug for DescriptorMoveUnion<S>
 where
     S: PlanningSolution + 'static,

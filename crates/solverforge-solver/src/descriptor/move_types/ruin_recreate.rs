@@ -1,4 +1,3 @@
-#[derive(Clone)]
 pub struct DescriptorRuinRecreateMove<S> {
     binding: VariableBinding,
     entity_indices: SmallVec<[usize; 8]>,

@@ -1,4 +1,3 @@
-#[derive(Clone)]
 pub struct DescriptorSwapMove<S> {
     binding: VariableBinding,
     left_entity_index: usize,

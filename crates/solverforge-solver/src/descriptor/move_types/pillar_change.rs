@@ -1,4 +1,3 @@
-#[derive(Clone)]
 pub struct DescriptorPillarChangeMove<S> {
     binding: VariableBinding,
     entity_indices: Vec<usize>,

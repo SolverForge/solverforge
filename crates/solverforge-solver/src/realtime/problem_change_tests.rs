@@ -111,3 +111,19 @@ fn problem_change_apply_through_solver_scope_invalidates_frontier_revision() {
     assert_eq!(scope.working_solution().tasks.len(), 2);
     assert_eq!(scope.working_solution().tasks[1].id, 1);
 }
+
+#[test]
+fn problem_change_is_visible_to_construction_opened_after_it() {
+    let director = create_director(vec![Task { id: 0 }]);
+    let mut scope = SolverScope::new(director);
+    scope.start_solving();
+
+    let change = AddTask { id: 1 };
+    scope.mutate(|score_director| change.apply(score_director));
+
+    // A construction phase opened after the change enumerates the committed
+    // entity: stale problem-fact enumeration would only visit row 0.
+    assert_eq!(get_tasks(scope.working_solution()).len(), 2);
+    assert_eq!(get_tasks(scope.working_solution())[1].id, 1);
+    assert_eq!(scope.solution_revision(), 2);
+}

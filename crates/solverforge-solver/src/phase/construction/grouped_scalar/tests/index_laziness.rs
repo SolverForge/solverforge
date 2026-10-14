@@ -163,3 +163,93 @@ fn required_only_pulls_do_not_build_the_value_sequence_index() {
         "required-only pulls must not build an unused value-sequence index"
     );
 }
+
+fn union_edit_rows(
+    mov: &crate::heuristic::r#move::ScalarMoveUnion<Plan, usize>,
+) -> Vec<(usize, Option<usize>)> {
+    match mov {
+        crate::heuristic::r#move::ScalarMoveUnion::CompoundScalar(compound) => compound
+            .edits()
+            .iter()
+            .map(|edit| (edit.entity_index, edit.to_value))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+#[test]
+fn grouped_ls_cursor_reactivates_from_committed_state_between_steps() {
+    let slot = ScalarVariableSlot::new(
+        0,
+        0,
+        "Row",
+        |plan: &Plan| plan.values.len(),
+        "value",
+        |plan, entity, _| plan.values[entity],
+        |plan, entity, _, value| plan.values[entity] = value,
+        ValueSource::EntitySlice {
+            values_for_entity: |_, _, _| &[1],
+        },
+        true,
+    );
+    let mut group = bind_scalar_groups(
+        vec![ScalarGroup::assignment(
+            "assignment",
+            ScalarTarget::from_descriptor_index(0, "value"),
+        )
+        .with_required_entity(|_: &Plan, entity| entity % 2 == 0)],
+        &[slot],
+    )
+    .remove(0);
+    group
+        .assignment_mut()
+        .expect("assignment binding")
+        .target_mut()
+        .set_construction_binding_index(0);
+    let selector =
+        crate::builder::selector::GroupedScalarSelector::new(group, None, Some(8), false);
+    // Two rows: even (required, unassigned), odd (optional, already assigned).
+    let mut director = ScoreDirector::simple(
+        Plan {
+            values: vec![None, Some(1)],
+            score: None,
+        },
+        SolutionDescriptor::new("Plan", TypeId::of::<Plan>()),
+        |_, _| 1,
+    );
+
+    let mut first = Vec::new();
+    let mut first_cursor = selector.open_cursor(&director);
+    while let Some(id) = first_cursor.next_candidate(director.working_solution()) {
+        first.push(union_edit_rows(&first_cursor.take_candidate(id)));
+    }
+    assert!(
+        first
+            .iter()
+            .flatten()
+            .any(|(entity, to_value)| *entity == 0 && *to_value == Some(1)),
+        "required row 0 must be offered while it is unassigned"
+    );
+
+    // Commit a step: the required row's assignment lands through the funnel.
+    // The step loop drops the step cursor first; the reopened step-2 cursor
+    // must therefore re-derive its view from the committed working solution.
+    director.working_solution_mut().values[0] = Some(1);
+
+    let mut second = Vec::new();
+    let mut second_cursor = selector.open_cursor(&director);
+    while let Some(id) = second_cursor.next_candidate(director.working_solution()) {
+        second.push(union_edit_rows(&second_cursor.take_candidate(id)));
+    }
+
+    // A stale activation (built before the commit) would still offer the
+    // required re-fill of row 0 from None. Only the committed baseline can
+    // remove that chain.
+    assert!(
+        second
+            .iter()
+            .flatten()
+            .all(|(entity, to_value)| !(*entity == 0 && *to_value == Some(1))),
+        "the reactivated cursor must not refill the already-committed row: {second:?}"
+    );
+}

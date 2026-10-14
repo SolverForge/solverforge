@@ -619,3 +619,49 @@ fn partitioned_search_does_not_merge_config_terminated_children() {
         SolverTerminalReason::TerminatedByConfig
     );
 }
+
+#[test]
+fn partitioned_merge_reinitializes_construction_frontier_and_revision() {
+    let solution = PartitionedLifecycleSolution {
+        value: 1,
+        shadow: 10,
+        score: None,
+    };
+    let director = PartitionedLifecycleDirector::new(solution);
+    let mut solver_scope = SolverScope::new(director);
+    solver_scope.initialize_working_solution_as_best();
+
+    // Mark construction work completed so the merge must invalidate it.
+    let slot_id = crate::phase::construction::ConstructionSlotId::new(0, 0);
+    let element_id = crate::phase::construction::ConstructionListElementId::new(0, 0);
+    solver_scope.mark_scalar_slot_completed(slot_id);
+    solver_scope.mark_list_element_completed(element_id);
+    assert!(solver_scope.is_scalar_slot_completed(slot_id));
+
+    let partitioner = FunctionalPartitioner::new(
+        |solution: &PartitionedLifecycleSolution| vec![solution.clone()],
+        |_original, _partitions| PartitionedLifecycleSolution {
+            value: 7,
+            shadow: 0,
+            score: None,
+        },
+    );
+    let mut phase =
+        PartitionedSearchPhase::new(partitioner, PartitionedLifecycleDirector::new, || {
+            (SetValuePhase { value: 7 },)
+        });
+
+    phase.solve(&mut solver_scope);
+
+    // replace_working_solution_and_reinitialize is the wholesale-replacement
+    // writer: revision returns to 1 and every frontier entry is invalidated.
+    assert_eq!(solver_scope.solution_revision(), 1);
+    assert!(
+        !solver_scope.is_scalar_slot_completed(slot_id),
+        "partition merge must invalidate completed construction slots"
+    );
+    assert!(
+        !solver_scope.is_list_element_completed(element_id),
+        "partition merge must invalidate completed list elements"
+    );
+}

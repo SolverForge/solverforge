@@ -44,7 +44,7 @@ impl TimeTermination {
 impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Termination<S, D, BestCb>
     for TimeTermination
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         solver_scope.elapsed().is_some_and(|e| e >= self.limit)
     }
 }

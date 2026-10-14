@@ -250,7 +250,7 @@ pub trait MaybeTermination<
 >: Send
 {
     // Checks if the solver should terminate.
-    fn should_terminate(&self, solver_scope: &SolverScope<'_, S, D, ProgressCb>) -> bool;
+    fn should_terminate(&mut self, solver_scope: &SolverScope<'_, S, D, ProgressCb>) -> bool;
 
     /* Installs in-phase termination limits on the solver scope.
 
@@ -270,7 +270,7 @@ where
     ProgressCb: ProgressCallback<S>,
     T: Termination<S, D, ProgressCb>,
 {
-    fn should_terminate(&self, solver_scope: &SolverScope<'_, S, D, ProgressCb>) -> bool {
+    fn should_terminate(&mut self, solver_scope: &SolverScope<'_, S, D, ProgressCb>) -> bool {
         match self {
             Some(t) => t.is_terminated(solver_scope),
             None => false,
@@ -290,7 +290,7 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    fn should_terminate(&self, _solver_scope: &SolverScope<'_, S, D, ProgressCb>) -> bool {
+    fn should_terminate(&mut self, _solver_scope: &SolverScope<'_, S, D, ProgressCb>) -> bool {
         false
     }
 
@@ -303,7 +303,7 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    fn is_terminated(&self, _solver_scope: &SolverScope<'_, S, D, ProgressCb>) -> bool {
+    fn is_terminated(&mut self, _solver_scope: &SolverScope<'_, S, D, ProgressCb>) -> bool {
         false
     }
 }
@@ -325,7 +325,7 @@ macro_rules! impl_solver {
             pub fn solve(self, score_director: D) -> SolveResult<S> {
                 let Solver {
                     mut phases,
-                    termination,
+                    mut termination,
                     terminate,
                     runtime,
                     config,
@@ -404,7 +404,7 @@ macro_rules! impl_solver {
                 // Execute phases with termination checking
                 $(
                     solver_scope.pause_if_requested();
-                    if !check_termination(&termination, &mut solver_scope) {
+                    if !check_termination(&mut termination, &mut solver_scope) {
                         tracing::debug!(
                             "Starting phase {} ({})",
                             $idx,
@@ -429,7 +429,7 @@ macro_rules! impl_solver {
                 $(
                     phases.$idx.on_solver_terminal(&mut solver_scope);
                     solver_scope.pause_if_requested();
-                    let _ = check_termination(&termination, &mut solver_scope);
+                    let _ = check_termination(&mut termination, &mut solver_scope);
                 )+
 
                 // Extract solution and stats before consuming scope
@@ -448,7 +448,7 @@ macro_rules! impl_solver {
 }
 
 fn check_termination<S, D, ProgressCb, T>(
-    termination: &T,
+    termination: &mut T,
     solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
 ) -> bool
 where

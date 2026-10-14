@@ -31,7 +31,7 @@ impl StepCountTermination {
 impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Termination<S, D, BestCb>
     for StepCountTermination
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         solver_scope.total_step_count() >= self.limit
     }
 

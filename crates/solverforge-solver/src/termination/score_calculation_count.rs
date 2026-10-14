@@ -61,7 +61,7 @@ impl<S: PlanningSolution> ScoreCalculationCountTermination<S> {
 impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Termination<S, D, BestCb>
     for ScoreCalculationCountTermination<S>
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {
+    fn is_terminated(&mut self, solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {
         solver_scope.stats().score_calculations >= self.limit
     }
 

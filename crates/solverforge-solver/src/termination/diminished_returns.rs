@@ -3,7 +3,6 @@
 Terminates when the rate of score improvement drops below a threshold.
 */
 
-use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -51,7 +50,7 @@ pub struct DiminishedReturnsTermination<S: PlanningSolution> {
     // Minimum improvement rate (score units per second) below which to terminate.
     min_rate: f64,
     // Internal state tracking improvements.
-    state: RefCell<DiminishedState<S::Score>>,
+    state: DiminishedState<S::Score>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -93,7 +92,7 @@ impl<S: PlanningSolution> DiminishedReturnsTermination<S> {
         Self {
             window,
             min_rate,
-            state: RefCell::new(DiminishedState::default()),
+            state: DiminishedState::default(),
             _phantom: PhantomData,
         }
     }
@@ -104,19 +103,15 @@ impl<S: PlanningSolution> DiminishedReturnsTermination<S> {
     }
 }
 
-// Safety: The RefCell is only accessed from within is_terminated,
-// which is called from a single thread during solving.
-unsafe impl<S: PlanningSolution> Send for DiminishedReturnsTermination<S> {}
-
 impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Termination<S, D, BestCb>
     for DiminishedReturnsTermination<S>
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         let Some(current_score) = solver_scope.best_score() else {
             return false; // No score yet
         };
 
-        let mut state = self.state.borrow_mut();
+        let state = &mut self.state;
         let now = solver_scope.elapsed().unwrap_or_default();
 
         // Initialize start time on first call

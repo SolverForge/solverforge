@@ -345,7 +345,6 @@ where
     }
 }
 
-#[derive(Clone)]
 pub struct DescriptorRuinRecreateMoveSelector<S> {
     binding: VariableBinding,
     solution_descriptor: SolutionDescriptor,
@@ -354,8 +353,29 @@ pub struct DescriptorRuinRecreateMoveSelector<S> {
     moves_per_step: usize,
     value_candidate_limit: Option<usize>,
     recreate_heuristic_type: solverforge_config::RecreateHeuristicType,
-    rng: RefCell<SmallRng>,
+    rng_carry: std::sync::atomic::AtomicU64,
     _phantom: PhantomData<fn() -> S>,
+}
+
+/* Manual clone: the carry is shared by reference-count, not duplicated — a
+cloned selector continues the SAME random stream, matching the RefCell
+behavior this replaced. */
+impl<S> Clone for DescriptorRuinRecreateMoveSelector<S> {
+    fn clone(&self) -> Self {
+        Self {
+            binding: self.binding.clone(),
+            solution_descriptor: self.solution_descriptor.clone(),
+            min_ruin_count: self.min_ruin_count,
+            max_ruin_count: self.max_ruin_count,
+            moves_per_step: self.moves_per_step,
+            value_candidate_limit: self.value_candidate_limit,
+            recreate_heuristic_type: self.recreate_heuristic_type,
+            rng_carry: std::sync::atomic::AtomicU64::new(
+                self.rng_carry.load(std::sync::atomic::Ordering::Relaxed),
+            ),
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<S> Debug for DescriptorRuinRecreateMoveSelector<S> {
@@ -412,7 +432,9 @@ where
         let moves_per_step = self.moves_per_step;
         let recreate_heuristic_type = self.recreate_heuristic_type;
         let value_candidate_limit = self.value_candidate_limit;
-        let mut rng = self.rng.borrow_mut();
+        let mut rng = SmallRng::seed_from_u64(
+            crate::heuristic::selector::rng_advance::advance_carry(&self.rng_carry),
+        );
         let subsets: Vec<SmallVec<[usize; 8]>> = (0..moves_per_step)
             .map(|_| {
                 if total == 0 || min == 0 {

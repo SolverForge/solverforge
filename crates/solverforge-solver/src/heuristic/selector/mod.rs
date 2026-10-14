@@ -29,6 +29,7 @@ pub(crate) mod nearby_support;
 pub mod pillar;
 pub(crate) mod pillar_support;
 pub(crate) mod precedence_route;
+pub(crate) mod rng_advance;
 pub mod ruin;
 pub(crate) mod scalar_neighborhood;
 pub(crate) mod seed;

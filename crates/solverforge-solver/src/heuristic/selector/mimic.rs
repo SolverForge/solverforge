@@ -11,9 +11,8 @@ This is essential for:
 - [`MimicReplayingEntitySelector`]: Replays the entity recorded by a recording selector
 */
 
-use std::cell::Cell;
 use std::fmt::Debug;
-use std::ptr::NonNull;
+use std::sync::{Arc, Mutex};
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
@@ -22,8 +21,10 @@ use super::entity::{EntityReference, EntitySelector};
 
 /* Shared state between recording and replaying selectors.
 
-Uses `Cell` for interior mutability — no locking overhead since all access
-is sequential single-threaded (record first, replay after).
+A plain owned value behind one `Arc<Mutex<..>>`: the recording selector
+writes, the replaying selector reads, and the state is freed when the last
+handle drops. No leaked allocations, no manual refcounts, no unsafe impls.
+The lock is uncontended in the sequential record-then-replay flow.
 */
 #[derive(Debug, Default, Clone, Copy)]
 struct MimicState {
@@ -37,69 +38,44 @@ struct MimicState {
     recorded_entity: Option<EntityReference>,
 }
 
-/* Heap-allocated shared mimic state with manual reference counting.
-
-Replaces `Arc<RwLock<MimicState>>` with zero-overhead shared access:
-- No atomic operations (non-atomic refcount)
-- No locking (Cell instead of RwLock)
-- All access is sequential single-threaded
-*/
-struct SharedMimicState {
-    state: Cell<MimicState>,
-    refcount: Cell<usize>,
-}
-
 /// Handle for sharing mimic state between recording and replaying selectors.
-///
-/// Uses a manually reference-counted heap allocation with `Cell` for interior
-/// mutability. No `Arc`, no `RwLock` — all access is sequential single-threaded.
+#[derive(Clone)]
 pub struct MimicRecorder {
-    ptr: NonNull<SharedMimicState>,
+    shared: Arc<Mutex<MimicState>>,
     // Identifier for debugging.
     id: String,
 }
 
 impl MimicRecorder {
     pub fn new(id: impl Into<String>) -> Self {
-        let shared = Box::new(SharedMimicState {
-            state: Cell::new(MimicState::default()),
-            refcount: Cell::new(1),
-        });
         Self {
-            ptr: NonNull::from(Box::leak(shared)),
+            shared: Arc::new(Mutex::new(MimicState::default())),
             id: id.into(),
         }
     }
 
-    #[inline]
-    fn shared(&self) -> &SharedMimicState {
-        // SAFETY: ptr is always valid while any MimicRecorder referencing it exists
-        // (maintained by Clone incrementing refcount and Drop decrementing/deallocating).
-        unsafe { self.ptr.as_ref() }
-    }
-
     // Records a has_next result.
     fn record_has_next(&self, has_next: bool) {
-        self.shared().state.set(MimicState {
+        *self.shared.lock().unwrap() = MimicState {
             has_next_recorded: true,
             has_next,
             next_recorded: false,
             recorded_entity: None,
-        });
+        };
     }
 
     // Records a next result.
     fn record_next(&self, entity: EntityReference) {
-        self.shared().state.set(MimicState {
+        *self.shared.lock().unwrap() = MimicState {
             has_next_recorded: true,
             has_next: true,
             next_recorded: true,
             recorded_entity: Some(entity),
-        });
+        };
     }
 
     pub fn get_has_next(&self) -> Option<bool> {
-        let state = self.shared().state.get();
+        let state = self.shared.lock().unwrap();
         if state.has_next_recorded {
             Some(state.has_next)
         } else {
@@ -108,7 +84,7 @@ impl MimicRecorder {
     }
 
     pub fn get_recorded_entity(&self) -> Option<EntityReference> {
-        let state = self.shared().state.get();
+        let state = self.shared.lock().unwrap();
         if state.next_recorded {
             state.recorded_entity
         } else {
@@ -122,34 +98,7 @@ impl MimicRecorder {
 
     /// Resets the state for a new iteration.
     pub fn reset(&self) {
-        self.shared().state.set(MimicState::default());
-    }
-}
-
-impl Clone for MimicRecorder {
-    fn clone(&self) -> Self {
-        let shared = self.shared();
-        shared.refcount.set(shared.refcount.get() + 1);
-        Self {
-            ptr: self.ptr,
-            id: self.id.clone(),
-        }
-    }
-}
-
-impl Drop for MimicRecorder {
-    fn drop(&mut self) {
-        let shared = self.shared();
-        let rc = shared.refcount.get() - 1;
-        if rc == 0 {
-            // SAFETY: last reference — deallocate. The pointer was created via
-            // Box::leak in `new()`, so reconstructing the Box is valid.
-            unsafe {
-                drop(Box::from_raw(self.ptr.as_ptr()));
-            }
-        } else {
-            shared.refcount.set(rc);
-        }
+        *self.shared.lock().unwrap() = MimicState::default();
     }
 }
 
@@ -157,17 +106,10 @@ impl Debug for MimicRecorder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MimicRecorder")
             .field("id", &self.id)
-            .field("state", &self.shared().state.get())
+            .field("state", &*self.shared.lock().unwrap())
             .finish()
     }
 }
-
-/* SAFETY: MimicRecorder is used single-threaded within a solver step.
-The shared state is accessed sequentially: record first, replay after.
-Send is needed because EntitySelector requires Send.
-*/
-unsafe impl Send for MimicRecorder {}
-unsafe impl Sync for MimicRecorder {}
 
 /// An entity selector that records each selected entity for replay by other selectors.
 ///

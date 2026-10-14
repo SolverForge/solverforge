@@ -1,8 +1,8 @@
 //! Public static adapter for the canonical streamed list-ruin cursor.
 
-use std::cell::RefCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::sync::atomic::AtomicU64;
 
 use rand::rngs::SmallRng;
 use rand::{RngExt, SeedableRng};
@@ -22,7 +22,7 @@ use super::move_selector::{
 pub struct ListRuinMoveSelector<S, V> {
     min_ruin_count: usize,
     max_ruin_count: usize,
-    rng: RefCell<SmallRng>,
+    rng_carry: AtomicU64,
     entity_count: fn(&S) -> usize,
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
@@ -36,10 +36,6 @@ pub struct ListRuinMoveSelector<S, V> {
     skip_empty_destinations: bool,
     _phantom: PhantomData<fn() -> V>,
 }
-
-// The RefCell is touched only while opening a cursor to derive its private
-// seed; the cursor owns its RNG after that boundary.
-unsafe impl<S, V> Send for ListRuinMoveSelector<S, V> {}
 
 impl<S, V: Debug> Debug for ListRuinMoveSelector<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -124,7 +120,7 @@ impl<S, V> ListRuinMoveSelector<S, V> {
         Self {
             min_ruin_count,
             max_ruin_count,
-            rng: RefCell::new(SmallRng::from_rng(&mut rand::rng())),
+            rng_carry: AtomicU64::new(super::rng_advance::carry_from_seed(rand::rng().random())),
             entity_count,
             list_len,
             list_get,
@@ -153,7 +149,7 @@ impl<S, V> ListRuinMoveSelector<S, V> {
         self
     }
     pub fn with_seed(mut self, seed: u64) -> Self {
-        self.rng = RefCell::new(SmallRng::seed_from_u64(seed));
+        self.rng_carry = AtomicU64::new(super::rng_advance::carry_from_seed(seed));
         self
     }
     pub fn with_element_owner_fn(
@@ -224,7 +220,7 @@ where
         } else {
             RuinSourcePool::Unrestricted(non_empty)
         };
-        let seed = self.rng.borrow_mut().random::<u64>()
+        let seed = super::rng_advance::advance_carry(&self.rng_carry)
             ^ context.offset_seed(0x7157_8011_C0DE_0001) as u64;
         ListRuinMoveCursor::new(RuinCursor::new(
             NativeRuinEmitter::new(

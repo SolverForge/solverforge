@@ -110,7 +110,7 @@ impl<S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 where
     S::Score: Score,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, ProgressCb>) -> bool {
+    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, ProgressCb>) -> bool {
         match self {
             Self::None(t) => t.is_terminated(solver_scope),
             Self::Default(t) => t.is_terminated(solver_scope),

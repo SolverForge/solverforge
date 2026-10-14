@@ -112,7 +112,7 @@ macro_rules! impl_composite_termination {
             BestCb: ProgressCallback<S>,
             $($T: Termination<S, D, BestCb>,)+
         {
-            fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+            fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
                 $(
                     if self.0.$idx.is_terminated(solver_scope) {
                         return true;
@@ -137,7 +137,7 @@ macro_rules! impl_composite_termination {
             BestCb: ProgressCallback<S>,
             $($T: Termination<S, D, BestCb>,)+
         {
-            fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+            fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
                 $(
                     if !self.0.$idx.is_terminated(solver_scope) {
                         return false;

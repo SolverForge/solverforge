@@ -1,6 +1,5 @@
 // Termination conditions based on lack of improvement.
 
-use std::cell::RefCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -38,16 +37,18 @@ use crate::scope::SolverScope;
 /// ```
 pub struct UnimprovedStepCountTermination<S: PlanningSolution> {
     limit: u64,
-    state: RefCell<UnimprovedState<S::Score>>,
+    state: UnimprovedState<S::Score>,
     _phantom: PhantomData<fn() -> S>,
 }
 
 impl<S: PlanningSolution> Debug for UnimprovedStepCountTermination<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let state = self.state.borrow();
         f.debug_struct("UnimprovedStepCountTermination")
             .field("limit", &self.limit)
-            .field("steps_since_improvement", &state.steps_since_improvement)
+            .field(
+                "steps_since_improvement",
+                &self.state.steps_since_improvement,
+            )
             .finish()
     }
 }
@@ -73,7 +74,7 @@ impl<S: PlanningSolution> UnimprovedStepCountTermination<S> {
     pub fn new(limit: u64) -> Self {
         Self {
             limit,
-            state: RefCell::new(UnimprovedState::default()),
+            state: UnimprovedState::default(),
             _phantom: PhantomData,
         }
     }
@@ -81,13 +82,11 @@ impl<S: PlanningSolution> UnimprovedStepCountTermination<S> {
 
 // Safety: The RefCell is only accessed from within is_terminated,
 // which is called from a single thread during solving.
-unsafe impl<S: PlanningSolution> Send for UnimprovedStepCountTermination<S> {}
-
 impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Termination<S, D, BestCb>
     for UnimprovedStepCountTermination<S>
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
-        let mut state = self.state.borrow_mut();
+    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+        let state = &mut self.state;
         let current_step = solver_scope.total_step_count();
 
         // Avoid rechecking on the same step
@@ -153,7 +152,7 @@ impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Terminati
 /// ```
 pub struct UnimprovedTimeTermination<S: PlanningSolution> {
     limit: Duration,
-    state: RefCell<UnimprovedTimeState<S::Score>>,
+    state: UnimprovedTimeState<S::Score>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -183,7 +182,7 @@ impl<S: PlanningSolution> UnimprovedTimeTermination<S> {
     pub fn new(limit: Duration) -> Self {
         Self {
             limit,
-            state: RefCell::new(UnimprovedTimeState::default()),
+            state: UnimprovedTimeState::default(),
             _phantom: PhantomData,
         }
     }
@@ -199,13 +198,11 @@ impl<S: PlanningSolution> UnimprovedTimeTermination<S> {
 
 // Safety: The RefCell is only accessed from within is_terminated,
 // which is called from a single thread during solving.
-unsafe impl<S: PlanningSolution> Send for UnimprovedTimeTermination<S> {}
-
 impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Termination<S, D, BestCb>
     for UnimprovedTimeTermination<S>
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
-        let mut state = self.state.borrow_mut();
+    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+        let state = &mut self.state;
         let current_best = solver_scope.best_score();
         let now = solver_scope.elapsed().unwrap_or_default();
 

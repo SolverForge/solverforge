@@ -5,7 +5,7 @@ use std::thread::sleep;
 
 #[test]
 fn test_not_terminated_during_grace_period() {
-    let termination =
+    let mut termination =
         DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(100), 0.0);
 
     let scope = create_scope_with_score(SoftScore::of(-100));
@@ -14,7 +14,7 @@ fn test_not_terminated_during_grace_period() {
 
 #[test]
 fn test_terminates_with_zero_improvement() {
-    let termination =
+    let mut termination =
         DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(500), 0.1);
 
     let scope = create_scope_with_score(SoftScore::of(-100));
@@ -29,7 +29,7 @@ fn test_terminates_with_zero_improvement() {
 
 #[test]
 fn test_not_terminated_with_sufficient_improvement() {
-    let termination =
+    let mut termination =
         DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(50), 10.0);
 
     let mut scope = create_scope_with_score(SoftScore::of(-100));
@@ -49,7 +49,7 @@ fn test_not_terminated_with_sufficient_improvement() {
 
 #[test]
 fn test_no_score_does_not_terminate() {
-    let termination =
+    let mut termination =
         DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(10), 0.0);
 
     let scope = create_scope();

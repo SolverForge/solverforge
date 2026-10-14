@@ -70,9 +70,9 @@ assert!(!moves.is_empty());
 ```
 */
 
-use std::cell::RefCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::sync::atomic::AtomicU64;
 
 use rand::rngs::SmallRng;
 use rand::{RngExt, SeedableRng};
@@ -152,7 +152,7 @@ pub struct RuinMoveSelector<S, V> {
     // Maximum entities to include in each ruin move.
     max_ruin_count: usize,
     // RNG state for reproducible subset selection.
-    rng: RefCell<SmallRng>,
+    rng_carry: AtomicU64,
     access: RuinVariableAccess<S, V>,
     // Number of ruin moves to generate per iteration.
     moves_per_step: usize,
@@ -231,10 +231,6 @@ where
     }
 }
 
-// SAFETY: RefCell<SmallRng> is only accessed while pre-generating a move batch
-// inside `iter_moves`, and selectors are consumed from a single thread at a time.
-unsafe impl<S, V> Send for RuinMoveSelector<S, V> {}
-
 impl<S, V: Debug> Debug for RuinMoveSelector<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuinMoveSelector")
@@ -271,7 +267,7 @@ impl<S, V> RuinMoveSelector<S, V> {
         Self {
             min_ruin_count,
             max_ruin_count,
-            rng: RefCell::new(SmallRng::from_rng(&mut rand::rng())),
+            rng_carry: AtomicU64::new(super::rng_advance::carry_from_seed(rand::rng().random())),
             access,
             moves_per_step: 10, // Default: generate 10 ruin moves per step
         }
@@ -286,7 +282,7 @@ impl<S, V> RuinMoveSelector<S, V> {
     }
 
     pub fn with_seed(mut self, seed: u64) -> Self {
-        self.rng = RefCell::new(SmallRng::seed_from_u64(seed));
+        self.rng_carry = AtomicU64::new(super::rng_advance::carry_from_seed(seed));
         self
     }
 }
@@ -309,8 +305,9 @@ where
         let max = self.max_ruin_count.min(total_entities);
         let moves_count = self.moves_per_step;
 
-        // Pre-generate subsets using RNG
-        let mut rng = self.rng.borrow_mut();
+        // Pre-generate subsets: continuity lives in the atomic carry; each
+        // open derives one per-open generator from the next carry draw.
+        let mut rng = SmallRng::seed_from_u64(super::rng_advance::advance_carry(&self.rng_carry));
         let mut permutation: Vec<usize> = (0..total_entities).collect();
         let subsets: Vec<SmallVec<[usize; 8]>> = (0..moves_count)
             .map(|_| {

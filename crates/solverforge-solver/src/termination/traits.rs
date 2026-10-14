@@ -18,7 +18,7 @@ pub trait Termination<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallb
     Send + Debug
 {
     // Returns true if solving should terminate.
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool;
+    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool;
 
     /* Installs this termination's limit as an in-phase limit on the solver scope.
 

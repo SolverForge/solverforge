@@ -212,14 +212,16 @@ where
                             binding.variable_name,
                         );
                     }
-                    let rng = match scoped_seed(
+                    let carry = match scoped_seed(
                         random_seed,
                         binding.descriptor_index,
                         binding.variable_name,
                         "descriptor_ruin_recreate_move_selector",
                     ) {
-                        Some(seed) => SmallRng::seed_from_u64(seed),
-                        None => SmallRng::from_rng(&mut rand::rng()),
+                        Some(seed) => {
+                            crate::heuristic::selector::rng_advance::carry_from_seed(seed)
+                        }
+                        None => rand::rng().random(),
                     };
                     leaves.push(DescriptorLeafSelector::RuinRecreate(
                         DescriptorRuinRecreateMoveSelector {
@@ -230,7 +232,7 @@ where
                             moves_per_step: ruin_recreate.moves_per_step.unwrap_or(10).max(1),
                             value_candidate_limit: ruin_recreate.value_candidate_limit,
                             recreate_heuristic_type: ruin_recreate.recreate_heuristic_type,
-                            rng: RefCell::new(rng),
+                            rng_carry: std::sync::atomic::AtomicU64::new(carry),
                             _phantom: PhantomData,
                         },
                     ));

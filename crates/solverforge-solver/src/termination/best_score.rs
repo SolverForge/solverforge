@@ -43,7 +43,7 @@ where
     BestCb: ProgressCallback<S>,
     Sc: Score,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         solver_scope
             .best_score()
             .map(|score| *score >= self.target_score)
@@ -113,7 +113,7 @@ where
     BestCb: ProgressCallback<S>,
     F: Fn(&S::Score) -> bool + Send + Sync,
 {
-    fn is_terminated(&self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
+    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
         solver_scope
             .best_score()
             .map(|score| (self.feasibility_check)(score))

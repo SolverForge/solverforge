@@ -11,7 +11,7 @@ use std::any::TypeId;
 #[test]
 fn test_step_count_termination() {
     let mut scope = create_scope();
-    let term = StepCountTermination::new(3);
+    let mut term = StepCountTermination::new(3);
 
     assert!(!term.is_terminated(&scope));
     scope.increment_step_count();
@@ -24,7 +24,7 @@ fn test_step_count_termination() {
 #[test]
 fn test_best_score_termination_not_reached() {
     let scope = create_scope_with_score(SoftScore::of(-5));
-    let term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
+    let mut term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
 
     assert!(!term.is_terminated(&scope));
 }
@@ -32,7 +32,7 @@ fn test_best_score_termination_not_reached() {
 #[test]
 fn test_best_score_termination_reached() {
     let scope = create_scope_with_score(SoftScore::of(0));
-    let term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
+    let mut term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
 
     assert!(term.is_terminated(&scope));
 }
@@ -40,7 +40,7 @@ fn test_best_score_termination_reached() {
 #[test]
 fn test_best_score_termination_exceeded() {
     let scope = create_scope_with_score(SoftScore::of(5));
-    let term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
+    let mut term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
 
     assert!(term.is_terminated(&scope));
 }
@@ -48,7 +48,7 @@ fn test_best_score_termination_exceeded() {
 #[test]
 fn test_best_score_termination_no_score() {
     let scope = create_scope();
-    let term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
+    let mut term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
 
     assert!(!term.is_terminated(&scope));
 }
@@ -56,7 +56,7 @@ fn test_best_score_termination_no_score() {
 #[test]
 fn test_best_score_feasible_termination() {
     let scope = create_scope_with_score(SoftScore::of(0));
-    let term = BestScoreFeasibleTermination::<TestSolution, _>::score_at_least_zero();
+    let mut term = BestScoreFeasibleTermination::<TestSolution, _>::score_at_least_zero();
 
     assert!(term.is_terminated(&scope));
 }
@@ -64,7 +64,7 @@ fn test_best_score_feasible_termination() {
 #[test]
 fn test_best_score_feasible_termination_not_feasible() {
     let scope = create_scope_with_score(SoftScore::of(-5));
-    let term = BestScoreFeasibleTermination::<TestSolution, _>::score_at_least_zero();
+    let mut term = BestScoreFeasibleTermination::<TestSolution, _>::score_at_least_zero();
 
     assert!(!term.is_terminated(&scope));
 }
@@ -73,7 +73,7 @@ fn test_best_score_feasible_termination_not_feasible() {
 fn test_best_score_feasible_termination_custom() {
     let scope = create_scope_with_score(SoftScore::of(-3));
     // Custom feasibility: score >= -5 is considered feasible
-    let term = BestScoreFeasibleTermination::<TestSolution, _>::new(|score: &SoftScore| {
+    let mut term = BestScoreFeasibleTermination::<TestSolution, _>::new(|score: &SoftScore| {
         *score >= SoftScore::of(-5)
     });
 
@@ -83,7 +83,7 @@ fn test_best_score_feasible_termination_custom() {
 #[test]
 fn test_unimproved_step_count_termination() {
     let mut scope = create_scope_with_score(SoftScore::of(-10));
-    let term = UnimprovedStepCountTermination::<TestSolution>::new(3);
+    let mut term = UnimprovedStepCountTermination::<TestSolution>::new(3);
 
     // Initial check - not terminated
     assert!(!term.is_terminated(&scope));
@@ -119,7 +119,7 @@ fn test_unimproved_step_count_termination_with_improvement() {
         SoftScore::of(-10),
     );
 
-    let term = UnimprovedStepCountTermination::<TestSolution>::new(3);
+    let mut term = UnimprovedStepCountTermination::<TestSolution>::new(3);
 
     // Initial check
     assert!(!term.is_terminated(&scope));
@@ -154,7 +154,7 @@ fn test_and_termination() {
     let mut scope = create_scope_with_score(SoftScore::of(-10));
 
     // Both must be true: best score >= 0 AND step count >= 3
-    let term = AndTermination::new((
+    let mut term = AndTermination::new((
         BestScoreTermination::new(SoftScore::of(0)),
         StepCountTermination::new(3),
     ));
@@ -183,7 +183,7 @@ fn test_or_termination() {
     let mut scope = create_scope_with_score(SoftScore::of(-10));
 
     // Either: best score >= 0 OR step count >= 3
-    let term = OrTermination::new((
+    let mut term = OrTermination::new((
         BestScoreTermination::new(SoftScore::of(0)),
         StepCountTermination::new(3),
     ));
@@ -201,7 +201,7 @@ fn test_or_termination() {
 #[test]
 fn test_unimproved_time_termination_no_score() {
     let scope = create_scope();
-    let term = UnimprovedTimeTermination::<TestSolution>::millis(10);
+    let mut term = UnimprovedTimeTermination::<TestSolution>::millis(10);
 
     // No score yet, should not terminate
     assert!(!term.is_terminated(&scope));
@@ -210,7 +210,7 @@ fn test_unimproved_time_termination_no_score() {
 #[test]
 fn test_unimproved_time_termination_initial_score() {
     let scope = create_scope_with_score(SoftScore::of(-10));
-    let term = UnimprovedTimeTermination::<TestSolution>::millis(100);
+    let mut term = UnimprovedTimeTermination::<TestSolution>::millis(100);
 
     // First check records the score, should not terminate
     assert!(!term.is_terminated(&scope));
@@ -223,7 +223,7 @@ use std::time::Duration;
 
 #[test]
 fn test_diminished_not_terminated_during_grace_period() {
-    let termination =
+    let mut termination =
         DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(100), 0.0);
 
     let scope = create_scope_with_score(SoftScore::of(-100));
@@ -234,7 +234,7 @@ fn test_diminished_not_terminated_during_grace_period() {
 
 #[test]
 fn test_diminished_terminates_with_zero_improvement() {
-    let termination =
+    let mut termination =
         DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(500), 0.1);
 
     let scope = create_scope_with_score(SoftScore::of(-100));
@@ -253,7 +253,7 @@ fn test_diminished_terminates_with_zero_improvement() {
 
 #[test]
 fn test_diminished_not_terminated_with_sufficient_improvement() {
-    let termination =
+    let mut termination =
         DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(50), 10.0);
 
     let mut scope = create_scope_with_score(SoftScore::of(-100));
@@ -276,7 +276,7 @@ fn test_diminished_not_terminated_with_sufficient_improvement() {
 
 #[test]
 fn test_diminished_no_score_does_not_terminate() {
-    let termination =
+    let mut termination =
         DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(10), 0.0);
 
     let scope = create_scope(); // No best score set

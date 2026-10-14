@@ -98,7 +98,7 @@ impl OverlayScratch {
             }
             let previous = state.current_value(entity);
             self.edited.push((entity, previous, next));
-            if let Some(key) = previous.and_then(|v| group.capacity_key(solution, entity, v)) {
+            if let Some(key) = state.capacity_keys[entity] {
                 *self.capacity_deltas.entry(key).or_default() -= 1;
             }
             if let Some(key) = next.and_then(|v| group.capacity_key(solution, entity, v)) {
@@ -203,8 +203,16 @@ impl OverlayScratch {
         let mut checked = std::mem::take(&mut self.checked);
         let mut feasible = true;
         'edits: for (entity, previous, next) in &self.edited {
-            for value in [*previous, *next].into_iter().flatten() {
-                let Some(sequence) = group.sequence_key(solution, *entity, value) else {
+            for (membership, value) in [*previous, *next].into_iter().enumerate() {
+                let Some(value) = value else {
+                    continue;
+                };
+                let sequence = if membership == 0 {
+                    state.recorded_sequence_key(*entity)
+                } else {
+                    group.sequence_key(solution, *entity, value)
+                };
+                let Some(sequence) = sequence else {
                     continue;
                 };
                 let edges = [

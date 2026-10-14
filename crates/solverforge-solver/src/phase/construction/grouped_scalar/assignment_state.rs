@@ -9,8 +9,14 @@ use overlay::OverlayScratch;
 
 use solverforge_core::fast_hash::FastMap;
 
+#[cfg(test)]
+#[path = "tests/membership_keys.rs"]
+mod membership_keys;
+
 pub(super) struct ScalarAssignmentState {
     values: Vec<Option<usize>>,
+    capacity_keys: Vec<Option<usize>>,
+    sequence_keys: Vec<Option<usize>>,
     required: Vec<bool>,
     occupancy: FastMap<usize, Vec<usize>>,
     assigned_by_value: FastMap<usize, Vec<usize>>,
@@ -65,12 +71,20 @@ impl ScalarAssignmentState {
     pub(super) fn new<S>(group: &ScalarAssignmentBinding<S>, solution: &S) -> Self {
         let entity_count = group.entity_count(solution);
         let mut values = Vec::with_capacity(entity_count);
+        let mut capacity_keys = Vec::with_capacity(entity_count);
+        let mut sequence_keys = Vec::with_capacity(entity_count);
         let mut required = Vec::with_capacity(entity_count);
         let mut occupancy: FastMap<usize, Vec<usize>> = FastMap::default();
         let mut assigned_by_value: FastMap<usize, Vec<usize>> = FastMap::default();
         let mut assigned_by_sequence: FastMap<(usize, usize), Vec<usize>> = FastMap::default();
         for entity_index in 0..entity_count {
             let value = group.current_value(solution, entity_index);
+            let capacity_key =
+                value.and_then(|value| group.capacity_key(solution, entity_index, value));
+            let sequence_key =
+                value.and_then(|value| group.sequence_key(solution, entity_index, value));
+            capacity_keys.push(capacity_key);
+            sequence_keys.push(sequence_key);
             values.push(value);
             required.push(group.is_required(solution, entity_index));
             if let Some(value) = value {
@@ -78,19 +92,21 @@ impl ScalarAssignmentState {
                     .entry(value)
                     .or_default()
                     .push(entity_index);
-                if let Some(sequence_key) = group.sequence_key(solution, entity_index, value) {
+                if let Some(sequence_key) = sequence_key {
                     assigned_by_sequence
                         .entry((value, sequence_key))
                         .or_default()
                         .push(entity_index);
                 }
-                if let Some(key) = group.capacity_key(solution, entity_index, value) {
+                if let Some(key) = capacity_key {
                     occupancy.entry(key).or_default().push(entity_index);
                 }
             }
         }
         Self {
             values,
+            capacity_keys,
+            sequence_keys,
             required,
             occupancy,
             assigned_by_value,
@@ -106,6 +122,10 @@ impl ScalarAssignmentState {
 
     pub(super) fn current_value(&self, entity_index: usize) -> Option<usize> {
         self.values.get(entity_index).copied().flatten()
+    }
+
+    pub(super) fn recorded_sequence_key(&self, entity: usize) -> Option<usize> {
+        self.sequence_keys.get(entity).copied().flatten()
     }
 
     pub(super) fn assigned_count(&self, value: usize) -> usize {
@@ -147,6 +167,10 @@ impl ScalarAssignmentState {
         self.assigned_by_value.clear();
         self.assigned_by_sequence.clear();
         for (entity, value) in self.values.iter().copied().enumerate() {
+            self.capacity_keys[entity] =
+                value.and_then(|value| group.capacity_key(solution, entity, value));
+            self.sequence_keys[entity] =
+                value.and_then(|value| group.sequence_key(solution, entity, value));
             let Some(value) = value else {
                 continue;
             };
@@ -154,13 +178,13 @@ impl ScalarAssignmentState {
                 .entry(value)
                 .or_default()
                 .push(entity);
-            if let Some(sequence) = group.sequence_key(solution, entity, value) {
+            if let Some(sequence) = self.sequence_keys[entity] {
                 self.assigned_by_sequence
                     .entry((value, sequence))
                     .or_default()
                     .push(entity);
             }
-            if let Some(key) = group.capacity_key(solution, entity, value) {
+            if let Some(key) = self.capacity_keys[entity] {
                 self.occupancy.entry(key).or_default().push(entity);
             }
         }

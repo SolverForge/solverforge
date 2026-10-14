@@ -29,7 +29,7 @@ where
         let Some(value) = state.current_value(entity_index) else {
             continue;
         };
-        let Some(sequence_key) = group.sequence_key(solution, entity_index, value) else {
+        let Some(sequence_key) = state.recorded_sequence_key(entity_index) else {
             continue;
         };
         assigned_values.insert(value);

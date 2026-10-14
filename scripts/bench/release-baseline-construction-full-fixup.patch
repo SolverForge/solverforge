@@ -1,0 +1,44 @@
+--- a/crates/solverforge-solver/benches/selector_cursor_gate/construction_cases.rs	2026-10-14 15:59:28.909527819 +0200
++++ b/crates/solverforge-solver/benches/selector_cursor_gate/construction_cases.rs	2026-10-14 15:59:28.906527790 +0200
+@@ -1,3 +1,5 @@
++use solverforge_solver::EntityPlacerCursor;
++
+ fn construction_placer(
+ ) -> QueuedEntityPlacer<Plan, usize, FromSolutionEntitySelector, StaticValueSelector<Plan, usize>> {
+     QueuedEntityPlacer::new(
+@@ -18,10 +20,20 @@
+         let mut hash = 0xCBF2_9CE4_8422_2325;
+         for _ in 0..iterations() {
+             let director = unassigned_director(128);
+-            for placement in construction_placer().get_placements(&director) {
+-                for mov in placement.moves {
++            let placer = construction_placer();
++            let mut placements = placer.open_cursor(&director);
++            while let Some(mut placement) =
++                placements.next_placement(&director, |_| false, || false)
++            {
++                while let Some(candidate_id) = placement.candidates_mut().next_candidate() {
++                    let mov = placement
++                        .candidates()
++                        .candidate(candidate_id)
++                        .expect("construction candidate must remain live");
+                     mix_move_identity(&mut hash, &mov.tabu_signature(&director).move_id);
+                     black_box(&mov);
++                    drop(mov);
++                    assert!(placement.candidates_mut().release_candidate(candidate_id));
+                     count += 1;
+                 }
+             }
+@@ -60,11 +72,7 @@
+ }
+ 
+ fn construction_first_fit() {
+-    let expected_generated = if cfg!(feature = "candidate") {
+-        128
+-    } else {
+-        8_192
+-    };
++    let expected_generated = 128;
+     emit("construction_first_fit", expected_generated, || {
+         let mut count = 0;
+         let mut hash = 0xCBF2_9CE4_8422_2325;

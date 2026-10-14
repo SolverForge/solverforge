@@ -85,6 +85,17 @@ trap cleanup EXIT
 BASELINE_COMMIT=$(git -C "$ROOT" rev-parse "${BASELINE}^{commit}")
 git -C "$ROOT" worktree add --detach "$BASELINE_TREE" "$BASELINE_COMMIT" >/dev/null
 BASELINE_REGISTERED=1
+# A committed tree may carry a gate bench that predates an API cleanup (benches
+# are not compiled by the regular build, so a broken bench can ship unnoticed).
+# Any checked-in fixup under scripts/bench/ for this baseline applies on top of
+# the tree before harness compilation.
+for fixup in scripts/bench/*-fixup.patch; do
+    [[ -e $fixup ]] || continue
+    patch -p1 -d "$BASELINE_TREE" --silent <"$fixup" || {
+        echo "bench fixup $fixup did not apply cleanly" >&2
+        exit 2
+    }
+done
 # Candidate side: the current working tree (tracked + untracked, not ignored),
 # so a dirty tree can still be measured, against the same-length path.
 mkdir -p "$CANDIDATE_TREE"
@@ -363,7 +374,11 @@ for case_index, case in enumerate(cases):
             and len(baseline_count) == 1
         )
     case_report = {"semantic_match": semantic_match, "metrics": {}}
-    if case == "construction_first_fit":
+    if own_sources:
+        case_report["candidate_identity"] = {
+            "candidate_count": sorted(candidate_count)[0],
+        }
+    elif case == "construction_first_fit":
         case_report["generated_work"] = {
             "baseline": next(iter(baseline_work)),
             "candidate": next(iter(candidate_work)),

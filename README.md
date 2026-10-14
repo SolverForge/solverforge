@@ -782,8 +782,8 @@ steps live in [RELEASE.md](RELEASE.md).
 
 The workspace release checklist, publish order, and crate stability matrix live
 in [RELEASE.md](RELEASE.md). Version bumps are explicit release decisions, and
-`CHANGELOG.md` remains managed by the `commit-and-tag-version` workflow rather
-than hand-maintained in feature branches.
+`CHANGELOG.md` remains managed by the `csemver` release tool (configured in
+`csemver.toml`) rather than hand-maintained in feature branches.
 
 ## Minimum Rust Version
 

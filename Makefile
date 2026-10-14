@@ -167,26 +167,26 @@ version:
 
 bump-patch: banner
 	@printf "$(ARROW) Bumping patch version...\n"
-	@npx commit-and-tag-version --release-as patch --no-verify
+	@csemver --release-as patch
 	@printf "$(GREEN)$(CHECK) Version bumped$(RESET)\n"
 
 bump-minor: banner
 	@printf "$(ARROW) Bumping minor version...\n"
-	@npx commit-and-tag-version --release-as minor --no-verify
+	@csemver --release-as minor
 	@printf "$(GREEN)$(CHECK) Version bumped$(RESET)\n"
 
 bump-major: banner
 	@printf "$(ARROW) Bumping major version...\n"
-	@npx commit-and-tag-version --release-as major --no-verify
+	@csemver --release-as major
 	@printf "$(GREEN)$(CHECK) Version bumped$(RESET)\n"
 
 bump-dry:
-	@npx commit-and-tag-version --dry-run
+	@csemver --dry-run
 
 # ============== Pre-Release Validation ==============
 
 pre-release: banner
-	@node scripts/version/check-updaters.js
+	@csemver --dry-run >/dev/null && printf "$(GREEN)$(CHECK) Release updaters resolved every configured surface$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╔══════════════════════════════════════════════════════════╗$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)║            Pre-Release Validation v$(VERSION)                  ║$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"

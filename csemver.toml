@@ -1,0 +1,64 @@
+# csemver — native release configuration.
+# Replaces the retired .versionrc.json and scripts/version/* JavaScript updaters:
+# every surface below uses a native updater (toml line reader or a POSIX ERE
+# regex with an explicit version capture group). csemver applies bump entries in
+# order, re-reading each file from disk, so multiple entries may target the same
+# file to move every documented version surface.
+
+# The generated-changelog header. The previous tool's default embedded a
+# reference to the retired tool; this header replaces it on the next release.
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file."""
+
+tagPrefix = "v"
+commitAll = true
+releaseCommitMessageFormat = "chore(release): {{currentTag}}"
+commitUrlFormat = "https://github.com/SolverForge/solverforge/commit/{{hash}}"
+compareUrlFormat = "https://github.com/SolverForge/solverforge/compare/{{previousTag}}...{{currentTag}}"
+
+packageFiles = [
+  # Reads the workspace version (the single source of truth; every crate
+  # manifest inherits it through version.workspace = true).
+  { filename = "Cargo.toml", type = "toml" },
+]
+
+bumpFiles = [
+  # Workspace version.
+  { filename = "Cargo.toml", type = "toml" },
+  # Publish-time internal dependency requirements in each publishable crate
+  # manifest; only internal path dependencies match (path = "../solverforge-").
+  { filename = "crates/solverforge/Cargo.toml", type = "regex", pattern = "(version = \")[^\"]*(\", path = \"\\.\\./solverforge-)", versionGroup = 1 },
+  { filename = "crates/solverforge-scoring/Cargo.toml", type = "regex", pattern = "(version = \")[^\"]*(\", path = \"\\.\\./solverforge-)", versionGroup = 1 },
+  { filename = "crates/solverforge-config/Cargo.toml", type = "regex", pattern = "(version = \")[^\"]*(\", path = \"\\.\\./solverforge-)", versionGroup = 1 },
+  { filename = "crates/solverforge-solver/Cargo.toml", type = "regex", pattern = "(version = \")[^\"]*(\", path = \"\\.\\./solverforge-)", versionGroup = 1 },
+  { filename = "crates/solverforge-bridge/Cargo.toml", type = "regex", pattern = "(version = \")[^\"]*(\", path = \"\\.\\./solverforge-)", versionGroup = 1 },
+  { filename = "crates/solverforge-cvrp/Cargo.toml", type = "regex", pattern = "(version = \")[^\"]*(\", path = \"\\.\\./solverforge-)", versionGroup = 1 },
+  # solverforge-core, -macros, and -console are leaf crates with no internal
+  # path dependencies, so they carry no dependency-version entry.
+  # Centrally documented version surfaces in AGENTS.md and README.md; README
+  # carries three surfaces (status line, install snippet, console banner) so it
+  # has three anchored entries.
+  { filename = "AGENTS.md", type = "regex", pattern = "(Current workspace release version: `)[^`]*(`)", versionGroup = 1 },
+  { filename = "README.md", type = "regex", pattern = "(Current workspace version:\\*\\* )([0-9]+\\.[0-9]+\\.[0-9]+)", versionGroup = 2 },
+  { filename = "README.md", type = "regex", pattern = "(solverforge = \\{ version = \")([0-9]+\\.[0-9]+\\.[0-9]+)(\", features = \\[\"console\"\\])", versionGroup = 2 },
+  { filename = "README.md", type = "regex", pattern = "(\\bv)([0-9]+\\.[0-9]+\\.[0-9]+)( - Zero-Erasure Constraint Solver)", versionGroup = 2 },
+  # Per-crate wireframe release line.
+  { filename = "crates/solverforge/WIREFRAME.md", type = "regex", pattern = "(\\*\\*Workspace Release:\\*\\* `)[^`]*(`)", versionGroup = 1 },
+  { filename = "crates/solverforge-core/WIREFRAME.md", type = "regex", pattern = "(\\*\\*Workspace Release:\\*\\* `)[^`]*(`)", versionGroup = 1 },
+  { filename = "crates/solverforge-macros/WIREFRAME.md", type = "regex", pattern = "(\\*\\*Workspace Release:\\*\\* `)[^`]*(`)", versionGroup = 1 },
+  { filename = "crates/solverforge-scoring/WIREFRAME.md", type = "regex", pattern = "(\\*\\*Workspace Release:\\*\\* `)[^`]*(`)", versionGroup = 1 },
+  { filename = "crates/solverforge-config/WIREFRAME.md", type = "regex", pattern = "(\\*\\*Workspace Release:\\*\\* `)[^`]*(`)", versionGroup = 1 },
+  { filename = "crates/solverforge-solver/WIREFRAME.md", type = "regex", pattern = "(\\*\\*Workspace Release:\\*\\* `)[^`]*(`)", versionGroup = 1 },
+  { filename = "crates/solverforge-bridge/WIREFRAME.md", type = "regex", pattern = "(\\*\\*Workspace Release:\\*\\* `)[^`]*(`)", versionGroup = 1 },
+  { filename = "crates/solverforge-cvrp/WIREFRAME.md", type = "regex", pattern = "(\\*\\*Workspace Release:\\*\\* `)[^`]*(`)", versionGroup = 1 },
+  { filename = "crates/solverforge-console/WIREFRAME.md", type = "regex", pattern = "(\\*\\*Workspace Release:\\*\\* `)[^`]*(`)", versionGroup = 1 },
+]
+
+[scripts]
+# Cargo.lock cannot be handled by a first-match regex updater (every workspace
+# crate block carries the version), so the lock is regenerated from the bumped
+# workspace manifest; the architecture page is regenerated from the new
+# workspace version and staged alongside the tool's own bump staging.
+postbump = "cargo update --workspace --offline && node scripts/solverforge-architecture.js && git add Cargo.lock docs/architecture.html"

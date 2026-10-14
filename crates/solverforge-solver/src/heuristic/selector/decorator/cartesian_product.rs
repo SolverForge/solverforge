@@ -280,12 +280,23 @@ where
                             panic!("nested cartesian right candidates are not supported")
                         };
                         let signature = right.tabu_signature(director);
-                        let entity_indices = right.entity_indices().to_vec();
-                        if right.is_doable_with_working_preview(director) {
+                        let doable = right.is_doable_with_working_preview(director);
+                        // The combined entity indices are built only for candidates
+                        // that pass the preview gate; rejected candidates allocate
+                        // nothing on this path.
+                        let combined = if doable {
+                            Some(combined_entity_indices(
+                                left.entity_indices(),
+                                right.entity_indices(),
+                            ))
+                        } else {
+                            None
+                        };
+                        if let Some(entity_indices) = combined {
                             let moved = (
                                 active.right_cursor.take_candidate(right_id),
                                 (
-                                    combined_entity_indices(left.entity_indices(), &entity_indices),
+                                    entity_indices,
                                     compose_sequential_tabu_signature(
                                         "cartesian_product",
                                         left_signature,

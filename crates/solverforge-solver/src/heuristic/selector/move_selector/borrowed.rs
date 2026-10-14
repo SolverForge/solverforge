@@ -11,6 +11,10 @@ where
         (**self).is_doable(score_director)
     }
 
+    fn is_doable_with_working_preview<D: Director<S>>(&self, score_director: &mut D) -> bool {
+        (**self).is_doable_with_working_preview(score_director)
+    }
+
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         (**self).do_move(score_director)
     }
@@ -113,6 +117,13 @@ where
         match self {
             Self::Borrowed(mov) => mov.is_doable(score_director),
             Self::Sequential(mov) => mov.is_doable(score_director),
+        }
+    }
+
+    fn is_doable_with_working_preview<D: Director<S>>(&self, score_director: &mut D) -> bool {
+        match self {
+            Self::Borrowed(mov) => mov.is_doable_with_working_preview(score_director),
+            Self::Sequential(mov) => mov.is_doable_with_working_preview(score_director),
         }
     }
 

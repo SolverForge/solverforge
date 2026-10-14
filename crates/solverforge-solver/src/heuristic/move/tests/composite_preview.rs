@@ -154,4 +154,61 @@ fn working_preview_doability_needs_no_solution_clone_and_restores_exactly() {
         vec![Some(1), Some(0)],
         "left undone and score state restored before the preview returns"
     );
+
+    use crate::heuristic::selector::move_selector::MoveCandidateRef;
+    let candidate = MoveCandidateRef::Borrowed(&mov);
+    assert!(candidate.is_doable_with_working_preview(&mut director));
+    assert_eq!(
+        PREVIEW_SOLUTION_CLONES.load(Ordering::SeqCst),
+        0,
+        "candidate wrappers must preserve the live preview override"
+    );
+    let borrowed = &mov;
+    assert!(Move::is_doable_with_working_preview(
+        &borrowed,
+        &mut director
+    ));
+    assert_eq!(
+        PREVIEW_SOLUTION_CLONES.load(Ordering::SeqCst),
+        0,
+        "reference moves must preserve the live preview override"
+    );
+    assert_eq!(director.working_solution().rows, vec![Some(1), Some(0)]);
+    let left = CompoundScalarMove::new("free_one", vec![compound_edit(0, Some(0), None)]);
+    let right = CompoundScalarMove::new(
+        "claim_two",
+        vec![compound_edit(1, Some(2), Some(two_needs_vacated_one))],
+    );
+    let signature = mov.tabu_signature(&director);
+    let candidate =
+        MoveCandidateRef::Sequential(crate::heuristic::r#move::SequentialCompositeMoveRef::new(
+            &left,
+            &right,
+            0,
+            &[0, 1],
+            "rows",
+            &signature,
+            false,
+        ));
+    assert!(candidate.is_doable_with_working_preview(&mut director));
+    assert_eq!(PREVIEW_SOLUTION_CLONES.load(Ordering::SeqCst), 0);
+    assert_eq!(director.working_solution().rows, vec![Some(1), Some(0)]);
+    let left = CompoundScalarMove::new("change_other_row", vec![compound_edit(1, Some(1), None)]);
+    let right = CompoundScalarMove::new(
+        "blocked_two",
+        vec![compound_edit(0, Some(2), Some(two_needs_vacated_one))],
+    );
+    let rejected =
+        MoveCandidateRef::Sequential(crate::heuristic::r#move::SequentialCompositeMoveRef::new(
+            &left,
+            &right,
+            0,
+            &[0, 1],
+            "rows",
+            &signature,
+            false,
+        ));
+    assert!(!rejected.is_doable_with_working_preview(&mut director));
+    assert_eq!(PREVIEW_SOLUTION_CLONES.load(Ordering::SeqCst), 0);
+    assert_eq!(director.working_solution().rows, vec![Some(1), Some(0)]);
 }

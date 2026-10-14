@@ -1,6 +1,30 @@
 # Changelog
 
-All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
+All notable changes to this project will be documented in this file.
+## [0.21.0](https://github.com/SolverForge/solverforge/compare/v0.20.4...v0.21.0) (2026-10-14)
+
+
+### Features
+
+* **bench:** add BENCH_OWN_SOURCES gate mode for cross-API-generation baselines ([6673eeb](https://github.com/SolverForge/solverforge/commit/6673eeb9f73ac7df29ffd715c3c535e6aeb246e3))
+* **scoring:** expose group_by on tri quad and penta joins (#74) ([cd7ab13](https://github.com/SolverForge/solverforge/commit/cd7ab133501d66c1682c30cbd159839de42fba58)), closes #73
+
+
+### Bug Fixes
+
+* **bench:** make the identity chain data-independent in the measured loop ([9f79919](https://github.com/SolverForge/solverforge/commit/9f79919f4fd265f090304a0a6a2f2ab132008b04))
+* **bench:** make the selector gate semantic check encoding-insensitive ([7b92f32](https://github.com/SolverForge/solverforge/commit/7b92f32655cf181ed2aa3dfdcaa94746c3fbdb94))
+* **bench:** repair the release-era construction gate benches and own-sources comparator reporting ([4e031c3](https://github.com/SolverForge/solverforge/commit/4e031c31c01449a554a08e0037ed72e89fd22b92))
+* **release:** correct csemver regex groups and rewrite dependency versions in postbump ([655f192](https://github.com/SolverForge/solverforge/commit/655f1923da24683f83e3ba75428fb46fcc643677))
+* **solver:** forward live preview through borrowed candidates ([f727776](https://github.com/SolverForge/solverforge/commit/f72777680e8ee4477f1e34b6a9674678b2ef1d20))
+* **solver:** lend Cartesian row previews to lazy right pulls ([629a868](https://github.com/SolverForge/solverforge/commit/629a868dd06122681624f5b3eaf58e5586d4d869))
+* **solver:** make pooled cartesian rows a true slab indexed per open ([d931e11](https://github.com/SolverForge/solverforge/commit/d931e11b08c57c5eef2d52d8b4e44e2d2a590295))
+* **solver:** pull the cartesian gate case through the director ([35014a8](https://github.com/SolverForge/solverforge/commit/35014a820fe5bbe054fa92e5d269fdc7c9da61fe))
+* **solver:** record the real identity for self-undoing tabu moves; drop per-call key clones in count state ([59b25f0](https://github.com/SolverForge/solverforge/commit/59b25f0a2ef3d391df4d72f626ec97d839cb08cf))
+* **solver:** retain full descriptor pillar swap affected scopes ([02cad36](https://github.com/SolverForge/solverforge/commit/02cad36b0bafc28717c590206c52db218f222806))
+* **solver:** retain lazy assignment membership index construction ([49d066f](https://github.com/SolverForge/solverforge/commit/49d066f4b663ea06f9b2c9760a1000a0b02697b8))
+* **solver:** reuse detached runtime slots and drop stale interior-mutability comments ([b339a84](https://github.com/SolverForge/solverforge/commit/b339a84e466f02299a04efdaff1ec36aa1fd4ec3))
+
 
 ## [0.20.4](https://github.com/SolverForge/solverforge/compare/v0.20.3...v0.20.4) (2026-10-13)
 

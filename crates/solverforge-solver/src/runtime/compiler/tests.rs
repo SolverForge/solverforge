@@ -13,8 +13,9 @@ use solverforge_core::domain::{
 use solverforge_core::score::SoftScore;
 
 use super::{
-    compile_runtime_graph, CompiledConstruction, CompiledRuntimePhase, ListConstructionKind,
-    RuntimeCapability, RuntimeCompileErrorKind, RuntimeGraphInput,
+    compile_runtime_graph, CompiledAcceptorForagerSelector, CompiledConstruction,
+    CompiledLocalSearch, CompiledRuntimePhase, ListConstructionKind, RuntimeCapability,
+    RuntimeCompileErrorKind, RuntimeGraphInput,
 };
 use crate::builder::{
     ListVariableSlot, NoDynamicExtensions, RuntimeModel, SearchContext, VariableSlot,
@@ -328,4 +329,76 @@ fn clarke_wright_requires_savings_capability_before_execution() {
             ..
         }
     ));
+}
+
+#[test]
+fn rebased_union_children_keep_their_interior_composite_edges() {
+    /* A declared union whose children are composite subgraphs (here:
+    nearby-list change and a limited sublist change) merges each child
+    sub-graph into the parent arena at a nonzero offset. Every interior edge
+    — the limited wrapper's selector id, not only the merged root — must
+    shift by that offset; a stale coordinate targets an already-consumed
+    parent slot and lowering panics with "each compiled selector node lowers
+    exactly once". */
+    use solverforge_config::{
+        LimitedNeighborhoodConfig, NearbyListChangeMoveConfig, SublistChangeMoveConfig,
+        UnionMoveSelectorConfig, UnionSelectionOrder,
+    };
+
+    let union = MoveSelectorConfig::UnionMoveSelector(UnionMoveSelectorConfig {
+        selection_order: UnionSelectionOrder::Sequential,
+        selectors: vec![
+            MoveSelectorConfig::NearbyListChangeMoveSelector(
+                NearbyListChangeMoveConfig::default(),
+            ),
+            MoveSelectorConfig::LimitedNeighborhood(LimitedNeighborhoodConfig {
+                selected_count_limit: 500,
+                selector: Box::new(MoveSelectorConfig::SublistChangeMoveSelector(
+                    SublistChangeMoveConfig::default(),
+                )),
+            }),
+        ],
+        ..UnionMoveSelectorConfig::default()
+    });
+    let compiled = compile(PrecedenceShape::Absent, union)
+        .expect("declared union with composite children compiles");
+
+    let mut referenced: Vec<usize> = Vec::new();
+    let mut arena_len = None;
+    for phase in compiled.phases() {
+        let CompiledRuntimePhase::LocalSearch(CompiledLocalSearch::AcceptorForager {
+            selector: CompiledAcceptorForagerSelector::Explicit(graph),
+            ..
+        }) = phase
+        else {
+            continue;
+        };
+        let (arena, root) = graph.clone().into_parts();
+        arena_len = Some(arena.len());
+        referenced.push(root.index());
+        for (index, node) in arena.iter().enumerate() {
+            use crate::runtime::compiler::graph::CompiledSelectorNode;
+            match node {
+                Some(CompiledSelectorNode::Limited { selector, .. }) => {
+                    referenced.push(selector.index());
+                    assert_ne!(selector.index(), index + 1);
+                }
+                Some(CompiledSelectorNode::Union { children, .. }) => {
+                    for child in children {
+                        referenced.push(child.index());
+                    }
+                }
+                Some(CompiledSelectorNode::Cartesian { left, right, .. }) => {
+                    referenced.push(left.index());
+                    referenced.push(right.index());
+                }
+                _ => {}
+            }
+        }
+    }
+    let arena_len = arena_len.expect("union compiled to an explicit acceptor-forager selector");
+    assert!(
+        referenced.iter().all(|id| *id < arena_len),
+        "every structural edge must name a live arena slot: {referenced:?} vs len {arena_len}"
+    );
 }

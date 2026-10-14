@@ -1,0 +1,76 @@
+environment_mode = "reproducible"
+random_seed = 42
+
+[termination]
+seconds_spent_limit = 5
+
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "list_clarke_wright"
+entity_class = "Route"
+variable_name = "visits"
+
+[[phases]]
+type = "construction_heuristic"
+construction_heuristic_type = "list_k_opt"
+entity_class = "Route"
+variable_name = "visits"
+
+[[phases]]
+type = "local_search"
+
+[phases.acceptor]
+type = "late_acceptance"
+late_acceptance_size = 200
+
+[phases.forager]
+type = "accepted_count"
+limit = 4
+
+[phases.move_selector]
+type = "union_move_selector"
+selection_order = "rotating_round_robin"
+
+[[phases.move_selector.selectors]]
+type = "nearby_list_change_move_selector"
+max_nearby = 20
+entity_class = "Route"
+variable_name = "visits"
+
+[[phases.move_selector.selectors]]
+type = "nearby_list_swap_move_selector"
+max_nearby = 20
+entity_class = "Route"
+variable_name = "visits"
+
+[[phases.move_selector.selectors]]
+type = "list_reverse_move_selector"
+entity_class = "Route"
+variable_name = "visits"
+
+[[phases.move_selector.selectors]]
+type = "k_opt_move_selector"
+k = 3
+min_segment_len = 1
+max_nearby = 10
+entity_class = "Route"
+variable_name = "visits"
+
+[[phases.move_selector.selectors]]
+type = "list_ruin_move_selector"
+min_ruin_count = 2
+max_ruin_count = 5
+moves_per_step = 10
+entity_class = "Route"
+variable_name = "visits"
+
+[[phases.move_selector.selectors]]
+type = "limited_neighborhood"
+selected_count_limit = 500
+
+[phases.move_selector.selectors.selector]
+type = "sublist_change_move_selector"
+min_sublist_size = 1
+max_sublist_size = 3
+entity_class = "Route"
+variable_name = "visits"

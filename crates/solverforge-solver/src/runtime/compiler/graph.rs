@@ -365,15 +365,50 @@ impl<S, V, DM, IDM> SelectorGraphBuilder<S, V, DM, IDM> {
 }
 
 /* Merges one compiled sub-graph's nodes into `builder` in order and returns
-the rebased root id. Node contents stay untouched; children already point at
-their own arena coordinates, shifted by the merged offset. */
+the rebased root id. Node contents stay untouched; every structural edge —
+child IDs stored inside node contents as well as the root — is shifted by the
+merged offset, because each sub-graph carries its own zero-based arena
+coordinates. */
 pub(super) fn rebase_graph<S, V, DM, IDM>(
     builder: &mut SelectorGraphBuilder<S, V, DM, IDM>,
     graph: CompiledSelectorGraph<S, V, DM, IDM>,
 ) -> CompiledSelectorNodeId {
     let offset = builder.nodes.len();
     for node in graph.nodes {
-        builder.nodes.push(node);
+        let rebased = match node {
+            CompiledSelectorNode::Limited {
+                selected_count_limit,
+                selector,
+            } => CompiledSelectorNode::Limited {
+                selected_count_limit,
+                selector: CompiledSelectorNodeId::new(selector.index() + offset),
+            },
+            CompiledSelectorNode::Union {
+                selection_order,
+                weighting,
+                weights,
+                children,
+            } => CompiledSelectorNode::Union {
+                selection_order,
+                weighting,
+                weights,
+                children: children
+                    .into_iter()
+                    .map(|child| CompiledSelectorNodeId::new(child.index() + offset))
+                    .collect(),
+            },
+            CompiledSelectorNode::Cartesian {
+                require_hard_improvement,
+                left,
+                right,
+            } => CompiledSelectorNode::Cartesian {
+                require_hard_improvement,
+                left: CompiledSelectorNodeId::new(left.index() + offset),
+                right: CompiledSelectorNodeId::new(right.index() + offset),
+            },
+            leaf => leaf,
+        };
+        builder.nodes.push(rebased);
     }
     CompiledSelectorNodeId::new(graph.root.index() + offset)
 }
@@ -525,3 +560,5 @@ where
         &self.default_bindings
     }
 }
+
+

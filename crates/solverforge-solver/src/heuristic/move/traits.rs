@@ -48,6 +48,19 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo);
 
+    /* Doability check that may run an explicit working preview on the LIVE
+    director.
+
+    Default: identical to `is_doable` with the director reborrowed shared.
+    Sequential/compound families override this where their later legs read
+    the earlier legs' effects; the phase trial path calls THIS variant so the
+    preview mutation is owned by the phase-level orchestration instead of a
+    clone-out substitute director.
+    */
+    fn is_doable_with_working_preview<D: Director<S>>(&self, score_director: &mut D) -> bool {
+        self.is_doable(score_director)
+    }
+
     fn descriptor_index(&self) -> usize;
 
     fn entity_indices(&self) -> &[usize];

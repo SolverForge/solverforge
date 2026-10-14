@@ -382,6 +382,21 @@ where
         self.second.is_doable(&preview)
     }
 
+    /// Live-director working preview: left applied and undone on the caller's
+    /// director, right checked against the previewed state, score state
+    /// restored before returning. No solution clone.
+    fn is_doable_with_working_preview<D: Director<S>>(&self, score_director: &mut D) -> bool {
+        if !self.first.is_doable(score_director) {
+            return false;
+        }
+        let score_state = score_director.snapshot_score_state();
+        let undo = self.first.do_move(score_director);
+        let doable = self.second.is_doable(score_director);
+        self.first.undo_move(score_director, undo);
+        score_director.restore_score_state(score_state);
+        doable
+    }
+
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         let first = self.first.do_move(score_director);
         let second = self.second.do_move(score_director);
@@ -483,6 +498,21 @@ where
         let mut preview = SequentialPreviewDirector::from_director(score_director);
         let _ = first.do_move(&mut preview);
         self.second_move().is_doable(&preview)
+    }
+
+    /// Live-director working preview; see `SequentialCompositeMoveRef`'s
+    /// override for the transaction shape.
+    fn is_doable_with_working_preview<D: Director<S>>(&self, score_director: &mut D) -> bool {
+        let first = self.first_move();
+        if !first.is_doable(score_director) {
+            return false;
+        }
+        let score_state = score_director.snapshot_score_state();
+        let undo = first.do_move(score_director);
+        let doable = self.second_move().is_doable(score_director);
+        first.undo_move(score_director, undo);
+        score_director.restore_score_state(score_state);
+        doable
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {

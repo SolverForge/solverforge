@@ -117,6 +117,7 @@ where
 
 mod arena;
 mod change;
+mod composite_preview;
 mod compound_scalar;
 mod conflict_repair;
 mod k_opt;

@@ -32,7 +32,7 @@ where
     M: Move<S>,
 {
     if move_changes_pinned(mov, step_scope.score_director())
-        || !mov.is_doable(step_scope.score_director())
+        || !mov.is_doable_with_working_preview(step_scope.score_director_mut())
     {
         let move_label = mov.telemetry_label();
         record_evaluated_move(step_scope, selector_index, evaluation_started);

@@ -127,7 +127,10 @@ where
 }
 
 #[allow(clippy::large_enum_variant)] // Inline storage keeps selector assembly zero-erasure.
-pub enum DescriptorSelectorNode<S> {
+pub enum DescriptorSelectorNode<S>
+where
+    S: PlanningSolution,
+{
     Leaf(DescriptorLeafSelector<S>),
     Cartesian(DescriptorCartesianSelector<S>),
 }

@@ -149,6 +149,7 @@ where
         }
         let before = state.score;
         let mut change = state.take_route_change_scratch();
+        state.flush_pending_retractions(&mut change, entity_index);
         state.replace_owner_route_scratch_with(&mut change, solution, entity_index, access);
         let after = state.refresh_score_after_route_change(&change);
         state.restore_route_change_scratch(change);
@@ -170,15 +171,13 @@ where
         if entity_index >= state.owner_edges.len() {
             return HardSoftScore::ZERO;
         }
-        let mut change = state.take_route_change_scratch();
-        state.replace_owner_route_scratch_with_removal(&mut change, entity_index);
-        state.defer_removed_edges(&change);
-        state.restore_route_change_scratch(change);
-        // The re-timing is deferred to the matching insert so a move's
-        // remove+add pair walks the downstream cone once. The retract event
-        // itself therefore contributes no score delta; the insert event
-        // re-times the union of all pending removals and its own additions
-        // and reports the full after-before delta.
+        if !state.pending_retracted[entity_index] {
+            state.pending_retracted[entity_index] = true;
+            state.pending_retractions.push(entity_index);
+        }
+        // Preserve the matching owner baseline for a net-edge diff. Other
+        // pending owners are removed before the next insert is scored, so
+        // interleaved notifications retain their retract/insert semantics.
         HardSoftScore::ZERO
     }
 
@@ -241,6 +240,8 @@ struct ListPrecedenceState {
     deferred_seeds: Vec<NodeId>,
     deferred_seed_seen: Vec<usize>,
     deferred_seed_stamp: usize,
+    pending_retracted: Vec<bool>,
+    pending_retractions: Vec<OwnerId>,
 }
 
 #[derive(Default)]
@@ -330,6 +331,8 @@ impl ListPrecedenceState {
             deferred_seeds: Vec::new(),
             deferred_seed_seen: Vec::new(),
             deferred_seed_stamp: 0,
+            pending_retracted: vec![false; owner_count],
+            pending_retractions: Vec::with_capacity(owner_count),
         }
     }
 
@@ -444,6 +447,18 @@ impl ListPrecedenceState {
     ) {
         self.owner_route_snapshot(solution, owner, access);
         self.replace_owner_route_scratch(change, owner);
+    }
+
+    fn flush_pending_retractions(&mut self, change: &mut RouteChange, inserted_owner: OwnerId) {
+        for index in 0..self.pending_retractions.len() {
+            let owner = self.pending_retractions[index];
+            self.pending_retracted[owner] = false;
+            if owner != inserted_owner {
+                self.replace_owner_route_scratch_with_removal(change, owner);
+                self.defer_removed_edges(change);
+            }
+        }
+        self.pending_retractions.clear();
     }
 
     fn defer_removed_edges(&mut self, change: &RouteChange) {
@@ -670,10 +685,6 @@ impl ListPrecedenceState {
             }
         }
         self.deferred_seeds.clear();
-        self.deferred_seed_seen
-            .iter_mut()
-            .for_each(|stamp| *stamp = 0);
-        self.deferred_seed_stamp = 0;
 
         let mut head = 0usize;
         let mut visited = 0;
@@ -825,10 +836,6 @@ impl ListPrecedenceState {
     /// deferred-retract seeds carry no information once one of them runs.
     fn clear_deferred_seeds(&mut self) {
         self.deferred_seeds.clear();
-        self.deferred_seed_seen
-            .iter_mut()
-            .for_each(|stamp| *stamp = 0);
-        self.deferred_seed_stamp = 0;
     }
 
     fn recount_max_finish(&mut self) {
@@ -1231,6 +1238,85 @@ mod tests {
         assert_eq!(state.cycle_penalty, 0);
         assert_eq!(state.earliest, vec![0, 0, 10]);
         assert_eq!(state.makespan, 11);
+    }
+
+    #[test]
+    fn paired_notifications_preserve_unchanged_edges() {
+        let mut constraint = constraint();
+        let mut solution = four_task_plan(vec![vec![0, 1, 2]]);
+        constraint.initialize(&solution);
+        constraint.on_retract(&solution, 0, 0);
+        solution.routes[0].tasks = vec![0, 1, 3];
+        constraint.on_insert(&solution, 0, 0);
+        let state = constraint.state.as_ref().unwrap();
+        assert_eq!(state.scratch_route_change.removed_edges, vec![(1, 2)]);
+        assert_eq!(state.scratch_route_change.added_edges, vec![(1, 3)]);
+        assert_eq!(state.score, constraint.evaluate(&solution));
+    }
+
+    #[test]
+    fn interleaved_retractions_score_only_inserted_owners() {
+        let mut constraint = constraint();
+        let mut solution = four_task_plan(vec![vec![0, 1], vec![2, 3]]);
+        let initial = constraint.initialize(&solution);
+        constraint.on_retract(&solution, 0, 0);
+        constraint.on_retract(&solution, 1, 0);
+        solution.routes[0].tasks = vec![0, 2];
+        let first = initial + constraint.on_insert(&solution, 0, 0);
+        solution.routes[1].tasks.clear();
+        assert_eq!(first, constraint.evaluate(&solution));
+        solution.routes[1].tasks = vec![1, 3];
+        let second = first + constraint.on_insert(&solution, 1, 0);
+        assert_eq!(second, constraint.evaluate(&solution));
+    }
+
+    #[test]
+    fn paired_trials_and_undo_match_fresh_scores() {
+        let original = vec![0, 1, 2, 3];
+        let mut director = ScoreDirector::new(
+            four_task_plan(vec![original.clone(), Vec::new()]),
+            (constraint(),),
+        );
+        let baseline = director.calculate_score();
+        for route in [vec![0, 1, 3], vec![3, 2, 1, 0], vec![0, 0, 1], Vec::new()] {
+            director.before_variable_changed(0, 0);
+            director.working_solution_mut().routes[0].tasks = route;
+            director.after_variable_changed(0, 0);
+            assert_eq!(
+                Director::fresh_score(&director),
+                Some(director.calculate_score())
+            );
+            director.before_variable_changed(0, 0);
+            director.working_solution_mut().routes[0].tasks = original.clone();
+            director.after_variable_changed(0, 0);
+            assert_eq!(director.calculate_score(), baseline);
+            assert_eq!(Director::fresh_score(&director), Some(baseline));
+        }
+    }
+
+    #[test]
+    fn deferred_seed_generations_survive_refresh_and_clear_only_on_wrap() {
+        let mut state = graph_state(4, vec![1; 4], &[(0, 1), (1, 2)]);
+        let change = RouteChange {
+            removed_edges: vec![(0, 1), (0, 1)],
+            ..RouteChange::default()
+        };
+        state.defer_removed_edges(&change);
+        assert_eq!(state.deferred_seeds, vec![1]);
+        let generation = state.deferred_seed_stamp;
+        state.clear_deferred_seeds();
+        assert_eq!(state.deferred_seed_seen[1], generation);
+        assert_eq!(state.deferred_seed_stamp, generation);
+        state.defer_removed_edges(&change);
+        assert_eq!(state.deferred_seeds, vec![1]);
+        assert_eq!(state.deferred_seed_stamp, generation + 1);
+        state.clear_deferred_seeds();
+        state.deferred_seed_stamp = usize::MAX;
+        state.deferred_seed_seen.fill(1);
+        state.defer_removed_edges(&change);
+        assert_eq!(state.deferred_seed_stamp, 1);
+        assert_eq!(state.deferred_seeds, vec![1]);
+        assert_eq!(state.deferred_seed_seen, vec![0, 1, 0, 0]);
     }
 
     #[test]

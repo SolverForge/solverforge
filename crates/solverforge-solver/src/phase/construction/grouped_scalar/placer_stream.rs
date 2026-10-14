@@ -210,10 +210,12 @@ where
         let seed = seeds.next()?;
         let placement = Placement::new(
             seed.entity_ref,
-            ScalarGroupCandidateCursor::candidates(group.clone(), seed.candidates.clone()),
+            // The seeds iterator moves each seed out; its prevalidated
+            // candidate list transfers by ownership, no handout copy.
+            ScalarGroupCandidateCursor::candidates(group.clone(), seed.candidates),
         )
         .with_group_slot(seed.group_slot)
-        .with_scalar_slots(seed.scalar_slots.clone())
+        .with_scalar_slots(seed.scalar_slots)
         .with_keep_current_legal(seed.keep_current_legal);
         if !is_completed(&placement) {
             return Some(placement);

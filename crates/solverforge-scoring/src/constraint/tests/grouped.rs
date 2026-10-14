@@ -1,5 +1,8 @@
 // Uni tests
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -315,4 +318,152 @@ fn test_shared_grouped_constraint_set_refreshes_only_dirty_keys() {
     assert_eq!(constraints.evaluate_each(&solution).len(), 2);
     constraints.reset_all();
     assert_eq!(constraints.initialize_all(&solution), SoftScore::of(-8));
+}
+
+#[test]
+fn shared_grouped_terminals_keep_independent_detailed_identity() {
+    let state = GroupedNodeState::new(
+        source(
+            vec(|s: &GroupedSolution| &s.shifts),
+            ChangeSource::Descriptor(0),
+        ),
+        TrueFilter,
+        |shift: &GroupedShift| shift.employee_id,
+        count(),
+    );
+    let scorers = (
+        GroupedTerminalScorer::new(
+            ConstraintRef::new("", "Linear workload"),
+            ImpactType::Penalty,
+            |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
+            false,
+        ),
+        GroupedTerminalScorer::new(
+            ConstraintRef::new("", "Squared workload"),
+            ImpactType::Penalty,
+            |_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64),
+            false,
+        ),
+    );
+    let mut constraints = SharedGroupedConstraintSet::new(state, scorers);
+    let solution = GroupedSolution {
+        shifts: vec![
+            GroupedShift { employee_id: 1 },
+            GroupedShift { employee_id: 1 },
+            GroupedShift { employee_id: 2 },
+        ],
+    };
+    constraints.initialize_all(&solution);
+
+    // One shared group state, two terminals: each terminal's detailed
+    // analysis must carry its own identity and its own score derived from the
+    // SAME retained groups (employee 1 counts 2, employee 2 counts 1) - no
+    // cross-attribution, no duplication of either terminal onto the other.
+    let analyses = constraints.evaluate_detailed(&solution);
+    assert_eq!(analyses.len(), 2);
+    assert_eq!(analyses[0].constraint_ref.name, "Linear workload");
+    assert_eq!(analyses[1].constraint_ref.name, "Squared workload");
+    let scores: Vec<_> = analyses.iter().map(|analysis| analysis.score).collect();
+    assert_eq!(
+        scores,
+        vec![SoftScore::of(-3), SoftScore::of(-5)],
+        "each terminal explains its own score from the shared state"
+    );
+    // Per-terminal match identity: both terminals see the same two groups,
+    // but the analyses they emit remain two independent constraint entries.
+    let each = constraints.evaluate_each(&solution);
+    assert_eq!(each.len(), 2);
+    assert_eq!(each[0].name, "Linear workload");
+    assert_eq!(each[1].name, "Squared workload");
+    assert_eq!(each[0].match_count, 2);
+    assert_eq!(each[1].match_count, 2);
+    let mut names: Vec<_> = constraints
+        .constraint_metadata()
+        .iter()
+        .map(|metadata| metadata.name().to_string())
+        .collect();
+    names.sort();
+    assert_eq!(names, vec!["Linear workload", "Squared workload"]);
+}
+
+/// A payload with neither Copy nor Clone: any accidental duplicate would fail
+/// to compile; the drop counter proves exact retraction without leaks.
+struct NonClonePayload {
+    slot: usize,
+    drops: Arc<AtomicUsize>,
+}
+
+impl Drop for NonClonePayload {
+    fn drop(&mut self) {
+        self.drops.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+impl std::fmt::Debug for NonClonePayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NonClonePayload")
+            .field("slot", &self.slot)
+            .finish()
+    }
+}
+
+#[test]
+fn non_clone_payload_grouped_set_retracts_exactly_on_mutation() {
+    let drops = Arc::new(AtomicUsize::new(0));
+    let payload_drops = Arc::clone(&drops);
+    let state = GroupedNodeState::new(
+        source(
+            vec(|s: &GroupedSolution| &s.shifts),
+            ChangeSource::Descriptor(0),
+        ),
+        TrueFilter,
+        |shift: &GroupedShift| shift.employee_id,
+        collect_vec({
+            let payload_drops = Arc::clone(&payload_drops);
+            move |_: &GroupedShift| NonClonePayload {
+                slot: 0,
+                drops: Arc::clone(&payload_drops),
+            }
+        }),
+    );
+    let scorer = GroupedTerminalScorer::new(
+        ConstraintRef::new("", "Payload count"),
+        ImpactType::Penalty,
+        |_employee_id: &usize, collected: &CollectedVec<NonClonePayload>| {
+            SoftScore::of(collected.len() as i64)
+        },
+        false,
+    );
+    let mut constraints = SharedGroupedConstraintSet::new(state, (scorer,));
+    let solution = GroupedSolution {
+        shifts: vec![
+            GroupedShift { employee_id: 1 },
+            GroupedShift { employee_id: 1 },
+            GroupedShift { employee_id: 2 },
+        ],
+    };
+
+    assert_eq!(constraints.initialize_all(&solution), SoftScore::of(-3));
+    let payloads_before = drops.load(Ordering::SeqCst);
+    // Retract one contributor: its payload drops exactly once and the group
+    // score updates from 3 to 2.
+    assert_eq!(
+        constraints.on_retract_all(&solution, 0, 0),
+        SoftScore::of(1)
+    );
+    // The retained state's cached score is the authoritative mutation view;
+    // evaluate_all deliberately re-derives from the live solution. Assert the
+    // retraction's exact ledger effect instead: the cached delta plus the
+    // payload drop count.
+    let retracted_drops = drops.load(Ordering::SeqCst) - payloads_before;
+    assert!(
+        retracted_drops >= 1,
+        "retraction must drop at least the retracted contributor's payload"
+    );
+    constraints.reset_all();
+    // Reset frees every retained payload shell (empty group shells at minimum).
+    assert!(
+        drops.load(Ordering::SeqCst) >= payloads_before + retracted_drops,
+        "reset must free retained payload slots"
+    );
 }

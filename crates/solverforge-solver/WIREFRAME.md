@@ -92,7 +92,7 @@ src/
 │   │   ├── swap.rs                      — SwapMove<S, V>
 │   │   ├── list_change.rs              — ListChangeMove<S, V>
 │   │   ├── list_swap.rs                — ListSwapMove<S, V>
-│   │   ├── list_permute.rs             — ListPermuteMove<S, V>; contiguous intra-list window permutation with exact undo and tabu identity
+│   │   ├── list_permute.rs             — ListPermuteMove<S, V>; contiguous intra-list window permutation; undo carries the inverse permutation indexes and restores through the same ownership-transfer gather
 │   │   ├── list_reverse.rs             — ListReverseMove<S, V>
 │   │   ├── list_ruin.rs                — ListRuinMove<S, V>
 │   │   ├── metadata.rs                 — MoveTabuSignature, scoped entity/value tabu tokens, exact move identities
@@ -130,7 +130,7 @@ src/
 │   │       ├── list_swap.rs
 │   │       ├── list_permute.rs
 │   │       ├── list_reverse.rs
-│   │       ├── list_ruin.rs
+│   │       ├── list_ruin.rs (+ list_ruin/transfer.rs zero-clone ownership-transfer contract)
 │   │       ├── pillar_change.rs
 │   │       ├── pillar_swap.rs
 │   │       ├── ruin.rs
@@ -759,7 +759,7 @@ All moves are generic over `S` (solution) and `V` (value). All use concrete `fn`
 | `CompositeMove` | `<S, M1, M2>` | index_1, index_2, PhantomData | Yes | Yes |
 | `SequentialCompositeMove` | `<S, M>` | owned two-move arena plus cached descriptor/entity/tabu metadata | Yes (M: Clone) | No |
 | `ListMultiSwapMove` | `<S, V>` | SmallVec independent `(entity, first, second)` intra-list swaps, fn ptrs | Yes (manual) | No |
-| `ListPermuteMove` | `<S, V>` | contiguous intra-list window plus explicit permutation | Yes (manual) | No |
+| `ListPermuteMove` | `<S, V>` | contiguous intra-list window plus explicit permutation; undo is the inverse permutation indexes, values never clone | Yes (manual) | No |
 
 `CompoundScalarEdit<S>` is the crate-root edit payload used by
 `CompoundScalarMove<S>` and can be built with `static_edit()` or

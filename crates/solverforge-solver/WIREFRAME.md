@@ -1116,7 +1116,10 @@ and grouped local search.
 
 `GroupedScalarSelector` remains an implementation type required by the public
 neighborhood graph, but direct construction is crate-private. Configuration is
-the only supported selector entrypoint. Assignment stream cursors, move
+the only supported selector entrypoint. Its `Cursor<'a>` borrows the selector's
+immutable group binding; activation and candidate pulls use the solution lent
+to `MoveCursor`, without retaining a solution borrow across evaluation.
+Assignment stream cursors, move
 options, and retained streaming commits are internal implementation details;
 there is no dynamic phase, TLS lookup, direct cursor, or selector escape hatch.
 

@@ -35,7 +35,7 @@ where
 {
     Scalar(RuntimeScalarNeighborhoodCursor<S>),
     List(RuntimeListNeighborhoodCursor<'a, S, V, DM, IDM>),
-    Grouped(GroupedScalarCursor<S>),
+    Grouped(GroupedScalarCursor<'a, S>),
     Provider(RuntimeProviderNeighborhoodCursor<'a, S>),
 }
 
@@ -76,7 +76,7 @@ where
         }
     }
 
-    pub(super) fn grouped(cursor: GroupedScalarCursor<S>) -> Self {
+    pub(super) fn grouped(cursor: GroupedScalarCursor<'a, S>) -> Self {
         Self {
             inner: RuntimeNeighborhoodLeafCursorInner::Grouped(cursor),
             store: CandidateStore::new(),

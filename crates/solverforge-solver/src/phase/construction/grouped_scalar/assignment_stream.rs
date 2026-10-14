@@ -19,8 +19,7 @@ pub(crate) struct ScalarAssignmentMoveCursor<S>
 where
     S: PlanningSolution,
 {
-    group: ScalarAssignmentBinding<S>,
-    solution: S,
+    marker: std::marker::PhantomData<fn() -> S>,
     options: ScalarAssignmentMoveOptions,
     state: ScalarAssignmentState,
     // Built lazily on the first value-driven family open of a step; every
@@ -52,8 +51,8 @@ where
     S: PlanningSolution,
 {
     pub(crate) fn new(
-        group: ScalarAssignmentBinding<S>,
-        solution: S,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
         Self::from_family_range(
@@ -68,8 +67,8 @@ where
     }
 
     pub(crate) fn required_construction(
-        group: ScalarAssignmentBinding<S>,
-        solution: S,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
         Self::from_family_range(
@@ -82,11 +81,10 @@ where
             true,
         )
     }
-    pub(crate) fn construction_snapshot(&self) -> &S {
-        &self.solution
-    }
     pub(super) fn exclude_completed_optional_entities(
         &mut self,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
         completed: &FastSet<ConstructionSlotId>,
     ) {
         if self.family_slots.len() != 1
@@ -96,18 +94,18 @@ where
         }
         // Keep occupancy intact: completed rows can still block an assignment.
         // Exclude roots before generation so they cannot consume the move budget.
-        let binding_index = self.group.target().construction_binding_index();
+        let binding_index = group.target().construction_binding_index();
         self.family_slots[0].cursor = AssignmentFamilyCursor::optional_entity_values(
-            &self.group,
-            &self.solution,
+            group,
+            solution,
             &self.state,
             self.options,
             |entity| completed.contains(&ConstructionSlotId::new(binding_index, entity)),
         );
     }
     pub(crate) fn required(
-        group: ScalarAssignmentBinding<S>,
-        solution: S,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
         Self::from_family_range(
@@ -122,8 +120,8 @@ where
     }
 
     pub(crate) fn optional_construction(
-        group: ScalarAssignmentBinding<S>,
-        solution: S,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
         Self::from_family_range(
@@ -138,8 +136,8 @@ where
     }
 
     fn from_family_range(
-        group: ScalarAssignmentBinding<S>,
-        solution: S,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
         options: ScalarAssignmentMoveOptions,
         family: AssignmentMoveFamily,
         stop_after: AssignmentMoveFamily,
@@ -152,9 +150,8 @@ where
             vec![family]
         };
         Self {
-            state: ScalarAssignmentState::new(&group, &solution),
-            group,
-            solution,
+            state: ScalarAssignmentState::new(group, solution),
+            marker: std::marker::PhantomData,
             options,
             batch_required,
             family_slots: families
@@ -174,6 +171,8 @@ where
 
     pub(crate) fn next_move_with_control<ShouldStop>(
         &mut self,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
         should_stop: &mut ShouldStop,
     ) -> Option<CompoundScalarMove<S>>
     where
@@ -187,13 +186,8 @@ where
         }
 
         if self.batch_required {
-            let candidate = required_batch_move(
-                &self.group,
-                &self.solution,
-                &mut self.state,
-                self.options,
-                should_stop,
-            );
+            let candidate =
+                required_batch_move(group, solution, &mut self.state, self.options, should_stop);
             if let Some(candidate) = candidate {
                 self.batch_required = false;
                 self.seen.insert(normalized_move_key(&candidate));
@@ -217,7 +211,8 @@ where
                 exhausted_turns += 1;
                 continue;
             }
-            let Some(candidate) = self.next_slot_move(slot_index, should_stop) else {
+            let Some(candidate) = self.next_slot_move(group, solution, slot_index, should_stop)
+            else {
                 if should_stop() {
                     return None;
                 }
@@ -236,6 +231,8 @@ where
 
     fn next_slot_move<ShouldStop>(
         &mut self,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
         slot_index: usize,
         should_stop: &mut ShouldStop,
     ) -> Option<CompoundScalarMove<S>>
@@ -247,7 +244,8 @@ where
             AssignmentFamilyCursor::Empty
         ) {
             let family = self.family_slots[slot_index].family;
-            let cursor = self.open_family_cursor(family, self.options, should_stop)?;
+            let cursor =
+                self.open_family_cursor(group, solution, family, self.options, should_stop)?;
             self.family_slots[slot_index].cursor = cursor;
             if matches!(
                 self.family_slots[slot_index].cursor,
@@ -261,14 +259,7 @@ where
         let candidate = {
             let cursor = &mut self.family_slots[slot_index].cursor;
             let index = self.index_cache.as_ref();
-            next_family_move(
-                cursor,
-                index,
-                &self.group,
-                &self.solution,
-                &mut self.state,
-                should_stop,
-            )
+            next_family_move(cursor, index, group, solution, &mut self.state, should_stop)
         };
         if candidate.is_none() && !should_stop() {
             self.family_slots[slot_index].exhausted = true;
@@ -281,11 +272,11 @@ where
     // are pure reads of the committed solution/state (every candidate
     // build rolls back), so the content is identical across opens within
     // a step.
-    fn build_index_if_needed(&mut self) {
+    fn build_index_if_needed(&mut self, group: &ScalarAssignmentBinding<S>, solution: &S) {
         if self.index_cache.is_none() {
             self.index_cache = Some(assigned_value_sequence_index(
-                &self.group,
-                &self.solution,
+                group,
+                solution,
                 &self.state,
                 self.options,
             ));
@@ -294,6 +285,8 @@ where
 
     fn open_family_cursor<ShouldStop>(
         &mut self,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
         family: AssignmentMoveFamily,
         options: ScalarAssignmentMoveOptions,
         should_stop: &mut ShouldStop,
@@ -303,8 +296,8 @@ where
     {
         if matches!(family, AssignmentMoveFamily::Required) {
             return AssignmentFamilyCursor::required_entity_values(
-                &self.group,
-                &self.solution,
+                group,
+                solution,
                 &self.state,
                 options,
                 should_stop,
@@ -313,29 +306,29 @@ where
         let cursor = match family {
             AssignmentMoveFamily::Required => unreachable!("required cursor opened above"),
             AssignmentMoveFamily::OptionalAssign => AssignmentFamilyCursor::optional_entity_values(
-                &self.group,
-                &self.solution,
+                group,
+                solution,
                 &self.state,
                 options,
                 |_| false,
             ),
             AssignmentMoveFamily::SequenceWindow => AssignmentFamilyCursor::PairWindow(
-                PairWindowCursor::sequence_window(&self.group, &self.solution, options),
+                PairWindowCursor::sequence_window(group, solution, options),
             ),
             AssignmentMoveFamily::Rematch => AssignmentFamilyCursor::PairWindow(
-                PairWindowCursor::rematch(&self.group, &self.solution, &self.state, options),
+                PairWindowCursor::rematch(group, solution, &self.state, options),
             ),
             AssignmentMoveFamily::AugmentingRematch => AssignmentFamilyCursor::CycleWindow(
-                CycleWindowCursor::augmenting(&self.group, &self.solution, &self.state, options),
+                CycleWindowCursor::augmenting(group, solution, &self.state, options),
             ),
             AssignmentMoveFamily::Swap => AssignmentFamilyCursor::PairWindow(
-                PairWindowCursor::swap(&self.group, &self.solution, &self.state, options),
+                PairWindowCursor::swap(group, solution, &self.state, options),
             ),
             AssignmentMoveFamily::PairedReassignment => AssignmentFamilyCursor::PairWindow(
-                PairWindowCursor::paired(&self.group, &self.solution, &self.state, options),
+                PairWindowCursor::paired(group, solution, &self.state, options),
             ),
             AssignmentMoveFamily::ValueWindowSwap => {
-                self.build_index_if_needed();
+                self.build_index_if_needed(group, solution);
                 AssignmentFamilyCursor::ValueWindow(
                     super::assignment_block::ValueWindowCursor::new(
                         options,
@@ -344,7 +337,7 @@ where
                 )
             }
             AssignmentMoveFamily::ValueLongWindowSwap => {
-                self.build_index_if_needed();
+                self.build_index_if_needed(group, solution);
                 AssignmentFamilyCursor::ValueLongWindow(
                     super::assignment_block::ValueLongWindowCursor::new(
                         options,
@@ -353,7 +346,7 @@ where
                 )
             }
             AssignmentMoveFamily::ValueRunGapSwap => {
-                self.build_index_if_needed();
+                self.build_index_if_needed(group, solution);
                 AssignmentFamilyCursor::ValueRunGapSwap(
                     super::assignment_value_run::ValueRunGapSwapCursor::new(
                         options,
@@ -362,7 +355,7 @@ where
                 )
             }
             AssignmentMoveFamily::ValueRunRelease => {
-                self.build_index_if_needed();
+                self.build_index_if_needed(group, solution);
                 AssignmentFamilyCursor::ValueRunRelease(
                     super::assignment_value_release::ValueRunReleaseCursor::new(
                         options,
@@ -371,7 +364,7 @@ where
                 )
             }
             AssignmentMoveFamily::ValueWindowCycle => {
-                self.build_index_if_needed();
+                self.build_index_if_needed(group, solution);
                 AssignmentFamilyCursor::ValueWindowCycle(
                     super::assignment_value_cycle::ValueWindowCycleCursor::new(
                         options,
@@ -380,7 +373,7 @@ where
                 )
             }
             AssignmentMoveFamily::ValueBlockReassignment => {
-                self.build_index_if_needed();
+                self.build_index_if_needed(group, solution);
                 AssignmentFamilyCursor::ValueBlockReassignment(
                     super::assignment_block::ValueBlockReassignmentCursor::new(
                         options,
@@ -390,13 +383,12 @@ where
             }
             AssignmentMoveFamily::Reassignment => AssignmentFamilyCursor::entity_values(
                 {
-                    let mut entities =
-                        ordered_entities(&self.group, &self.solution, |entity_index| {
-                            self.state.current_value(entity_index).is_some()
-                        });
+                    let mut entities = ordered_entities(group, solution, |entity_index| {
+                        self.state.current_value(entity_index).is_some()
+                    });
                     self.state.sort_entities_by_current_value_pressure(
-                        &self.group,
-                        &self.solution,
+                        group,
+                        solution,
                         &mut entities,
                     );
                     entities
@@ -404,27 +396,17 @@ where
                 options,
                 AssignmentMoveKind::Reassignment,
             ),
-            AssignmentMoveFamily::OptionalTransfer => {
-                AssignmentFamilyCursor::OptionalAdjustment(OptionalAdjustmentCursor::transfer(
-                    &self.group,
-                    &self.solution,
-                    &self.state,
-                    options,
-                ))
-            }
-            AssignmentMoveFamily::OptionalRelease => {
-                AssignmentFamilyCursor::OptionalAdjustment(OptionalAdjustmentCursor::release(
-                    &self.group,
-                    &self.solution,
-                    &self.state,
-                    options,
-                ))
-            }
+            AssignmentMoveFamily::OptionalTransfer => AssignmentFamilyCursor::OptionalAdjustment(
+                OptionalAdjustmentCursor::transfer(group, solution, &self.state, options),
+            ),
+            AssignmentMoveFamily::OptionalRelease => AssignmentFamilyCursor::OptionalAdjustment(
+                OptionalAdjustmentCursor::release(group, solution, &self.state, options),
+            ),
             AssignmentMoveFamily::EjectionReinsert => AssignmentFamilyCursor::CycleWindow(
-                CycleWindowCursor::ejection(&self.group, &self.solution, &self.state, options),
+                CycleWindowCursor::ejection(group, solution, &self.state, options),
             ),
             AssignmentMoveFamily::Capacity => AssignmentFamilyCursor::Capacity(
-                CapacityCursor::new(&self.group, &self.solution, &self.state, options),
+                CapacityCursor::new(group, solution, &self.state, options),
             ),
             AssignmentMoveFamily::Done => AssignmentFamilyCursor::Empty,
         };

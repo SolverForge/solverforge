@@ -139,6 +139,7 @@ where
             ScalarGroupBindingKind::Assignment(assignment) => next_assignment_placement(
                 self.placer
                     .assignment_placement_generator(score_director, assignment)?,
+                score_director.working_solution(),
                 &mut is_completed,
                 &mut should_stop,
             ),
@@ -307,19 +308,11 @@ where
         );
         let options = options.with_max_moves(max_moves);
         let cursor = if self.required_only {
-            ScalarAssignmentMoveCursor::required_construction(
-                assignment.clone(),
-                solution.clone(),
-                options,
-            )
+            ScalarAssignmentMoveCursor::required_construction(assignment, solution, options)
         } else if target_required {
-            ScalarAssignmentMoveCursor::required(assignment.clone(), solution.clone(), options)
+            ScalarAssignmentMoveCursor::required(assignment, solution, options)
         } else {
-            ScalarAssignmentMoveCursor::optional_construction(
-                assignment.clone(),
-                solution.clone(),
-                options,
-            )
+            ScalarAssignmentMoveCursor::optional_construction(assignment, solution, options)
         };
 
         Some(AssignmentPlacementGenerator {

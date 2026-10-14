@@ -135,7 +135,7 @@ where
 
     fn next_candidate_with_control<ShouldStop>(
         &mut self,
-        _solution: &S,
+        solution: &S,
         should_stop: &mut ShouldStop,
     ) -> Option<CandidateId>
     where
@@ -162,8 +162,12 @@ where
                 let (mov, target) = if let Some(first) = first.take() {
                     first
                 } else {
-                    let (entity_index, mov, target) =
-                        next_assignment_candidate(generator, completed_slots, should_stop)?;
+                    let (entity_index, mov, target) = next_assignment_candidate(
+                        generator,
+                        solution,
+                        completed_slots,
+                        should_stop,
+                    )?;
                     if entity_index != *active_entity {
                         generator.pending = Some(mov);
                         return None;
@@ -224,6 +228,7 @@ where
 
 pub(super) fn next_assignment_placement<S, IsCompleted, ShouldStop>(
     mut generator: AssignmentPlacementGenerator<S>,
+    solution: &S,
     mut is_completed: IsCompleted,
     mut should_stop: ShouldStop,
 ) -> Option<Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>>
@@ -232,13 +237,19 @@ where
     IsCompleted: FnMut(&Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>) -> bool,
     ShouldStop: FnMut() -> bool,
 {
-    let completed_slots = completed_assignment_slots(&generator, &mut is_completed);
+    let completed_slots = completed_assignment_slots(&generator, solution, &mut is_completed);
     if generator.accepted < generator.options.max_moves && !should_stop() {
-        generator
-            .cursor
-            .exclude_completed_optional_entities(&completed_slots);
-        let (entity_index, mov, target) =
-            next_assignment_candidate(&mut generator, &completed_slots, &mut should_stop)?;
+        generator.cursor.exclude_completed_optional_entities(
+            &generator.assignment,
+            solution,
+            &completed_slots,
+        );
+        let (entity_index, mov, target) = next_assignment_candidate(
+            &mut generator,
+            solution,
+            &completed_slots,
+            &mut should_stop,
+        )?;
         let group_slot = assignment_group_slot(generator.group_index, entity_index);
         let scalar_slots = target.scalar_slots().to_vec();
         let allows_unassigned = generator.assignment.target.allows_unassigned;
@@ -264,6 +275,7 @@ where
 
 fn next_assignment_candidate<S, ShouldStop>(
     generator: &mut AssignmentPlacementGenerator<S>,
+    solution: &S,
     completed_slots: &FastSet<ConstructionSlotId>,
     should_stop: &mut ShouldStop,
 ) -> Option<(usize, CompoundScalarMove<S>, ConstructionTarget)>
@@ -281,7 +293,9 @@ where
         let mov = if let Some(pending) = generator.pending.take() {
             pending
         } else {
-            generator.cursor.next_move_with_control(should_stop)?
+            generator
+                .cursor
+                .next_move_with_control(&generator.assignment, solution, should_stop)?
         };
         if mov.edits().iter().any(|edit| {
             completed_slots.contains(&ConstructionSlotId::new(
@@ -291,7 +305,7 @@ where
         }) {
             continue;
         }
-        let snapshot = generator.cursor.construction_snapshot();
+        let snapshot = solution;
         if mov.edits().is_empty()
             || !mov
                 .edits()
@@ -323,15 +337,14 @@ where
 
 fn completed_assignment_slots<S, IsCompleted>(
     generator: &AssignmentPlacementGenerator<S>,
+    solution: &S,
     is_completed: &mut IsCompleted,
 ) -> FastSet<ConstructionSlotId>
 where
     S: PlanningSolution + 'static,
     IsCompleted: FnMut(&Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>) -> bool,
 {
-    (0..generator
-        .assignment
-        .entity_count(generator.cursor.construction_snapshot()))
+    (0..generator.assignment.entity_count(solution))
         .filter_map(|entity_index| {
             let slot_id = ConstructionSlotId::new(
                 generator.assignment.target().construction_binding_index(),
@@ -347,7 +360,7 @@ where
             // available as blockers in a later required augmenting rematch.
             if generator
                 .assignment
-                .current_value(generator.cursor.construction_snapshot(), entity_index)
+                .current_value(solution, entity_index)
                 .is_none()
             {
                 placement = placement

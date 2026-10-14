@@ -61,34 +61,38 @@ impl<S> std::fmt::Debug for GroupedScalarSelector<S> {
     }
 }
 
-pub struct GroupedScalarCursor<S>
+pub struct GroupedScalarCursor<'a, S>
 where
     S: PlanningSolution + 'static,
 {
     store: CandidateStore<S, ScalarMoveUnion<S, usize>>,
     next_index: usize,
-    activation: Option<GroupedScalarActivation<S>>,
+    group: &'a crate::builder::context::ScalarGroupBinding<S>,
+    activation: Option<GroupedScalarActivation<'a, S>>,
     assignment_cursor:
         Option<crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor<S>>,
     require_hard_improvement: bool,
 }
 
-struct GroupedScalarActivation<S> {
-    group: crate::builder::context::ScalarGroupBinding<S>,
-    solution: S,
+struct GroupedScalarActivation<'a, S> {
+    group: &'a crate::builder::context::ScalarGroupBinding<S>,
     limits: crate::builder::context::ScalarGroupLimits,
     max_moves_per_step: usize,
     context: MoveStreamContext,
     require_hard_improvement: bool,
 }
 
-impl<S> GroupedScalarCursor<S>
+impl<'a, S> GroupedScalarCursor<'a, S>
 where
     S: PlanningSolution + 'static,
 {
-    fn new(store: CandidateStore<S, ScalarMoveUnion<S, usize>>) -> Self {
+    fn new(
+        group: &'a crate::builder::context::ScalarGroupBinding<S>,
+        store: CandidateStore<S, ScalarMoveUnion<S, usize>>,
+    ) -> Self {
         Self {
             store,
+            group,
             next_index: 0,
             activation: None,
             assignment_cursor: None,
@@ -96,9 +100,10 @@ where
         }
     }
 
-    fn deferred(activation: GroupedScalarActivation<S>) -> Self {
+    fn deferred(activation: GroupedScalarActivation<'a, S>) -> Self {
         Self {
             store: CandidateStore::with_capacity(activation.max_moves_per_step),
+            group: activation.group,
             next_index: 0,
             activation: Some(activation),
             assignment_cursor: None,
@@ -106,13 +111,12 @@ where
         }
     }
 
-    fn activate(&mut self) {
+    fn activate(&mut self, solution: &S) {
         let Some(activation) = self.activation.take() else {
             return;
         };
         let GroupedScalarActivation {
             group,
-            solution,
             limits,
             max_moves_per_step,
             context,
@@ -138,7 +142,7 @@ where
                 );
                 self.assignment_cursor = Some(
                     crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::new(
-                        assignment.clone(),
+                        assignment,
                         solution,
                         options,
                     ),
@@ -146,7 +150,7 @@ where
                 self.require_hard_improvement = require_hard_improvement;
             }
             crate::builder::ScalarGroupBindingKind::Candidates { candidate_provider } => {
-                let mut candidates = candidate_provider(&solution, limits);
+                let mut candidates = candidate_provider(solution, limits);
                 context.apply_selection_order(
                     &mut candidates,
                     0xC0A1_E5CE_AAA0_0001 ^ group.group_name.len() as u64,
@@ -176,14 +180,14 @@ where
                     }
 
                     let Some(mov) = crate::phase::construction::grouped_scalar::compound_move_for_group_candidate(
-                        &group,
-                        &solution,
+                        group,
+                        solution,
                         &candidate,
                     ) else {
                         continue;
                     };
                     let mov = mov.with_require_hard_improvement(require_hard_improvement);
-                    if mov.is_doable_on(&solution) {
+                    if mov.is_doable_on(solution) {
                         self.store.push(ScalarMoveUnion::CompoundScalar(mov));
                         seen_candidates.push(candidate);
                     }
@@ -193,17 +197,17 @@ where
     }
 }
 
-impl<S> MoveCursor<S, ScalarMoveUnion<S, usize>> for GroupedScalarCursor<S>
+impl<S> MoveCursor<S, ScalarMoveUnion<S, usize>> for GroupedScalarCursor<'_, S>
 where
     S: PlanningSolution + 'static,
 {
-    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
-        self.next_candidate_with_control(_solution, &mut || false)
+    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+        self.next_candidate_with_control(solution, &mut || false)
     }
 
     fn next_candidate_with_control<ShouldStop>(
         &mut self,
-        _solution: &S,
+        solution: &S,
         should_stop: &mut ShouldStop,
     ) -> Option<CandidateId>
     where
@@ -212,15 +216,18 @@ where
         if should_stop() {
             return None;
         }
-        self.activate();
+        self.activate(solution);
         if self.next_index < self.store.len() {
             let id = CandidateId::new(self.next_index);
             self.next_index += 1;
             return Some(id);
         }
+        let crate::builder::ScalarGroupBindingKind::Assignment(assignment) = &self.group.kind else {
+            return None;
+        };
         let assignment_cursor = self.assignment_cursor.as_mut()?;
         let mov = assignment_cursor
-            .next_move_with_control(should_stop)?
+            .next_move_with_control(assignment, solution, should_stop)?
             .with_require_hard_improvement(self.require_hard_improvement);
         let id = self.store.push(ScalarMoveUnion::CompoundScalar(mov));
         self.next_index = id.index() + 1;
@@ -248,7 +255,7 @@ where
     S: PlanningSolution + 'static,
 {
     type Cursor<'a>
-        = GroupedScalarCursor<S>
+        = GroupedScalarCursor<'a, S>
     where
         Self: 'a;
 
@@ -267,11 +274,10 @@ where
         let solution = score_director.working_solution();
         let max_moves_per_step = self.effective_max_moves_per_step(solution);
         if max_moves_per_step == 0 {
-            return GroupedScalarCursor::new(CandidateStore::new());
+            return GroupedScalarCursor::new(&self.group, CandidateStore::new());
         }
         GroupedScalarCursor::deferred(GroupedScalarActivation {
-            group: self.group.clone(),
-            solution: solution.clone(),
+            group: &self.group,
             limits: self.limits(max_moves_per_step),
             max_moves_per_step,
             context,

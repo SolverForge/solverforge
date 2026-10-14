@@ -215,13 +215,13 @@ fn required_batch_defers_augmenting_rematches() {
         candidates: vec![vec![0, 2], vec![1, 2], vec![0, 1]],
     };
     let mut cursor = ScalarAssignmentMoveCursor::required_construction(
-        assignment,
-        solution,
+        &assignment,
+        &solution,
         ScalarAssignmentMoveOptions::for_construction(limits),
     );
 
     let direct_batch = cursor
-        .next_move_with_control(&mut || false)
+        .next_move_with_control(&assignment, &solution, &mut || false)
         .expect("direct required assignments must form a batch");
 
     assert_eq!(direct_batch.edits().len(), 2);
@@ -414,14 +414,11 @@ fn interrupted_required_batch_can_resume_without_partial_state() {
         candidates: (0..entity_total).map(|value| vec![value]).collect(),
     };
     let options = ScalarAssignmentMoveOptions::for_construction(limits);
-    let mut reference = ScalarAssignmentMoveCursor::required_construction(
-        assignment.clone(),
-        solution.clone(),
-        options,
-    );
+    let mut reference =
+        ScalarAssignmentMoveCursor::required_construction(&assignment, &solution, options);
     let mut reference_polls = 0;
     let complete = reference
-        .next_move_with_control(&mut || {
+        .next_move_with_control(&assignment, &solution, &mut || {
             reference_polls += 1;
             false
         })
@@ -429,17 +426,17 @@ fn interrupted_required_batch_can_resume_without_partial_state() {
     assert_eq!(complete.edits().len(), entity_total);
 
     let mut cursor =
-        ScalarAssignmentMoveCursor::required_construction(assignment, solution, options);
+        ScalarAssignmentMoveCursor::required_construction(&assignment, &solution, options);
     let mut polls = 0;
 
-    let interrupted = cursor.next_move_with_control(&mut || {
+    let interrupted = cursor.next_move_with_control(&assignment, &solution, &mut || {
         polls += 1;
         polls >= reference_polls
     });
     assert!(interrupted.is_none());
 
     let resumed = cursor
-        .next_move_with_control(&mut || false)
+        .next_move_with_control(&assignment, &solution, &mut || false)
         .expect("required batch must restart after interrupted generation");
     assert_eq!(resumed.edits().len(), entity_total);
 }
@@ -473,8 +470,8 @@ fn required_batch_polls_control_between_scarcity_and_degree_preprocessing() {
     };
     let options = ScalarAssignmentMoveOptions::for_construction(limits);
     let mut cursor =
-        ScalarAssignmentMoveCursor::required_construction(assignment, solution, options);
-    let interrupted = cursor.next_move_with_control(&mut || {
+        ScalarAssignmentMoveCursor::required_construction(&assignment, &solution, options);
+    let interrupted = cursor.next_move_with_control(&assignment, &solution, &mut || {
         PREPROCESSING_CANDIDATE_READS.load(std::sync::atomic::Ordering::SeqCst) >= 1
     });
 

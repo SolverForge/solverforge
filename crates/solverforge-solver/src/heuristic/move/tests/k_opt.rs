@@ -220,4 +220,68 @@ mod k_opt_tests {
 
         assert!(!m.is_doable(&director));
     }
+
+    /// The scratch trial pair must (a) restore arbitrary-length routes
+    /// exactly and (b) reuse the retired journal so inlined capacity
+    /// survives across trials.
+    #[test]
+    fn scratch_trial_pair_restores_and_recycles_the_journal() {
+        let tours = vec![Tour {
+            cities: (1..=30).collect::<Vec<i32>>(),
+        }];
+        let mut director = create_director(tours);
+        let baseline = vec![
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29, 30,
+        ];
+
+        let cuts = [
+            CutPoint::new(0, 4),
+            CutPoint::new(0, 12),
+            CutPoint::new(0, 22),
+        ];
+        let reconnection = &THREE_OPT_RECONNECTIONS[3];
+        let m = KOptMove::<TspSolution, i32>::new(
+            &cuts,
+            reconnection,
+            list_len,
+            list_get,
+            sublist_remove,
+            sublist_insert,
+            "cities",
+            0,
+        );
+
+        let mut journal_pool = Vec::new();
+        for _ in 0..3 {
+            assert!(m.is_doable(&director));
+            {
+                let score_state = director.snapshot_score_state();
+                let undo = m.do_move_with_scratch(&mut director, &mut journal_pool);
+                let moved = &director.working_solution().tours[0].cities;
+                assert_ne!(moved, &baseline, "the k-opt move must reorder segments");
+                moved
+                    .iter()
+                    .try_for_each(|city| {
+                        if baseline.contains(city) {
+                            Ok(())
+                        } else {
+                            Err(())
+                        }
+                    })
+                    .expect("the moved route keeps the same city set");
+                m.undo_move_with_scratch(&mut director, undo, &mut journal_pool);
+                director.restore_score_state(score_state);
+            }
+            assert_eq!(
+                &director.working_solution().tours[0].cities,
+                &baseline,
+                "each trial must restore the route exactly"
+            );
+            assert!(
+                !journal_pool.is_empty(),
+                "the trial pair must retire a journal for the next trial"
+            );
+        }
+    }
 }

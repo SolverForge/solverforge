@@ -66,9 +66,11 @@ use solverforge_scoring::Director;
 
 use super::k_opt_reconnection::KOptReconnection;
 use super::list_kernel::{
-    k_opt_do_move, k_opt_is_doable, k_opt_tabu_signature, k_opt_undo_move, StaticListWindowAccess,
+    k_opt_do_move, k_opt_do_move_into, k_opt_is_doable, k_opt_tabu_signature, k_opt_undo_move,
+    StaticListWindowAccess,
 };
 use super::metadata::hash_str;
+use super::ListUndoJournal;
 use super::{Move, MoveTabuSignature};
 
 /* A cut point in a route, defining where an edge is removed.
@@ -169,7 +171,7 @@ impl<S, V: Debug> Debug for KOptMove<S, V> {
     }
 }
 
-impl<S, V> KOptMove<S, V> {
+impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> KOptMove<S, V> {
     /* Creates a new k-opt move.
 
     # Arguments
@@ -275,6 +277,23 @@ impl<S, V> KOptMove<S, V> {
             descriptor_index: self.descriptor_index,
         }
     }
+
+    /// Scratch-carrying do: the pre-kopt route is returned through the
+    /// caller-owned journal so its inlined capacity is reused across trials.
+    pub(crate) fn do_move_into_journal<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        journal: &mut ListUndoJournal<V>,
+    ) {
+        k_opt_do_move_into(
+            &self.access(),
+            self.cuts(),
+            &self.reconnection,
+            self.entity_index,
+            score_director,
+            journal,
+        );
+    }
 }
 
 impl<S, V> Move<S> for KOptMove<S, V>
@@ -282,7 +301,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    type Undo = Vec<V>;
+    type Undo = ListUndoJournal<V>;
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         k_opt_is_doable(
@@ -306,6 +325,33 @@ where
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
         k_opt_undo_move(&self.access(), self.entity_index, undo, score_director);
+    }
+
+    fn do_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) -> Self::Undo {
+        let mut journal = journal_pool.pop().unwrap_or_default();
+        k_opt_do_move_into(
+            &self.access(),
+            self.cuts(),
+            &self.reconnection,
+            self.entity_index,
+            score_director,
+            &mut journal,
+        );
+        journal
+    }
+
+    fn undo_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        undo: Self::Undo,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) {
+        k_opt_undo_move(&self.access(), self.entity_index, undo, score_director);
+        journal_pool.push(ListUndoJournal::new());
     }
 
     fn descriptor_index(&self) -> usize {

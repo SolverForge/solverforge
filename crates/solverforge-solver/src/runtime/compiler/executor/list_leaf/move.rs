@@ -8,18 +8,18 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::list_kernel::{
     change_candidate_trace_identity, change_do_move, change_is_doable, change_tabu_signature,
-    change_undo_move, k_opt_do_move, k_opt_is_doable, k_opt_tabu_signature, k_opt_undo_move,
-    multi_swap_do_move, multi_swap_is_doable, multi_swap_tabu_signature, multi_swap_undo_move,
-    permute_candidate_trace_identity, permute_do_move, permute_is_doable, permute_tabu_signature,
-    permute_undo_move, reverse_candidate_trace_identity, reverse_do_move, reverse_is_doable,
-    reverse_tabu_signature, ruin_do_move, ruin_is_doable, ruin_tabu_signature, ruin_undo_move,
-    sublist_change_candidate_trace_identity, sublist_change_do_move, sublist_change_is_doable,
-    sublist_change_tabu_signature, sublist_change_undo_move, sublist_swap_candidate_trace_identity,
-    sublist_swap_do_move, sublist_swap_is_doable, sublist_swap_tabu_signature,
-    sublist_swap_undo_move, swap_candidate_trace_identity, swap_do_move, swap_is_doable,
-    swap_tabu_signature, ListMoveAccess,
+    change_undo_move, k_opt_do_move, k_opt_do_move_into, k_opt_is_doable, k_opt_tabu_signature,
+    k_opt_undo_move, multi_swap_do_move, multi_swap_is_doable, multi_swap_tabu_signature,
+    multi_swap_undo_move, permute_candidate_trace_identity, permute_do_move, permute_is_doable,
+    permute_tabu_signature, permute_undo_move, reverse_candidate_trace_identity, reverse_do_move,
+    reverse_is_doable, reverse_tabu_signature, ruin_do_move, ruin_is_doable, ruin_tabu_signature,
+    ruin_undo_move, sublist_change_candidate_trace_identity, sublist_change_do_move,
+    sublist_change_is_doable, sublist_change_tabu_signature, sublist_change_undo_move,
+    sublist_swap_candidate_trace_identity, sublist_swap_do_move, sublist_swap_is_doable,
+    sublist_swap_tabu_signature, sublist_swap_undo_move, swap_candidate_trace_identity,
+    swap_do_move, swap_is_doable, swap_tabu_signature, ListMoveAccess,
 };
-use crate::heuristic::r#move::{Move, MoveTabuSignature};
+use crate::heuristic::r#move::{ListUndoJournal, Move, MoveTabuSignature};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::stats::CandidateTraceIdentity;
 
@@ -119,6 +119,67 @@ where
                 ..
             } => multi_swap_is_doable(access, coordinates, score_director),
         }
+    }
+
+    fn do_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) -> Self::Undo {
+        match &self.recipe {
+            RuntimeListRecipe::KOpt {
+                access,
+                entity,
+                cuts,
+                reconnection,
+                ..
+            } => {
+                // Reuse a retired K-opt journal from the pool; its inlined
+                // capacity survives the do/undo cycle.
+                let popped = journal_pool
+                    .iter()
+                    .rposition(|undo| matches!(undo, RuntimeListMoveUndo::KOpt(_)))
+                    .map(|index| match journal_pool.swap_remove(index) {
+                        RuntimeListMoveUndo::KOpt(journal) => journal,
+                        _ => unreachable!("rposition matched the KOpt shape"),
+                    });
+                let mut journal = popped.unwrap_or_default();
+                k_opt_do_move_into(
+                    access,
+                    cuts,
+                    reconnection,
+                    *entity,
+                    score_director,
+                    &mut journal,
+                );
+                RuntimeListMoveUndo::KOpt(journal)
+            }
+            // Non-journal recipes keep the plain single-allocation path.
+            _ => Move::do_move(self, score_director),
+        }
+    }
+
+    fn undo_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        undo: Self::Undo,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) {
+        if matches!(undo, RuntimeListMoveUndo::KOpt(_)) {
+            let RuntimeListRecipe::KOpt { access, entity, .. } = &self.recipe else {
+                panic!("runtime list move undo shape must match recipe");
+            };
+            let RuntimeListMoveUndo::KOpt(values) = undo else {
+                unreachable!("shape tested above");
+            };
+            // The restored route journal is consumed by the undo; a fresh
+            // journal shell goes back to the pool so the next K-opt trial
+            // reuses inline capacity.
+            k_opt_undo_move(access, *entity, values, score_director);
+            journal_pool.push(RuntimeListMoveUndo::KOpt(ListUndoJournal::new()));
+            return;
+        }
+        self.undo_move(score_director, undo);
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {

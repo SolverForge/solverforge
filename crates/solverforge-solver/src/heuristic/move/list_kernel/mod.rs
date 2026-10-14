@@ -25,7 +25,9 @@ pub(crate) use change::{
     change_candidate_trace_identity, change_do_move, change_is_doable, change_tabu_signature,
     change_undo_move, ChangeCoordinates,
 };
-pub(crate) use k_opt::{k_opt_do_move, k_opt_is_doable, k_opt_tabu_signature, k_opt_undo_move};
+pub(crate) use k_opt::{
+    k_opt_do_move, k_opt_do_move_into, k_opt_is_doable, k_opt_tabu_signature, k_opt_undo_move,
+};
 pub(crate) use multi_swap::{
     multi_swap_do_move, multi_swap_entity_indices, multi_swap_is_doable, multi_swap_tabu_signature,
     multi_swap_undo_move, MultiSwapCoordinates,

@@ -5,7 +5,7 @@ use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::MoveCandidateRef;
+use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCandidateUndo};
 use crate::phase::hard_delta::{hard_score_delta, HardScoreDelta};
 use crate::pinning::move_changes_pinned;
 use crate::scope::{ProgressCallback, StepScope};
@@ -24,6 +24,7 @@ pub(crate) fn evaluate_candidate<S, D, ProgressCb, M>(
     reference_score: S::Score,
     selector_index: Option<usize>,
     evaluation_started: Instant,
+    journal_pool: &mut Vec<MoveCandidateUndo<M::Undo>>,
 ) -> CandidateEvaluation<S::Score>
 where
     S: PlanningSolution,
@@ -53,9 +54,9 @@ where
     }
 
     let score_state = step_scope.score_director().snapshot_score_state();
-    let undo = mov.do_move(step_scope.score_director_mut());
+    let undo = mov.do_move_with_scratch(step_scope.score_director_mut(), journal_pool);
     let move_score = step_scope.score_director_mut().calculate_score();
-    mov.undo_move(step_scope.score_director_mut(), undo);
+    mov.undo_move_with_scratch(step_scope.score_director_mut(), undo, journal_pool);
     step_scope
         .score_director_mut()
         .restore_score_state(score_state);

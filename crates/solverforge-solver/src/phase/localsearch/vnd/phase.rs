@@ -8,7 +8,7 @@ use tracing::info;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{
-    CandidateId, MoveStreamContext, ResourceMoveCursor,
+    CandidateId, MoveCandidateUndo, MoveStreamContext, ResourceMoveCursor,
 };
 use crate::phase::control::{
     settle_search_interrupt, should_interrupt_after_step, should_interrupt_before_candidate,
@@ -193,6 +193,9 @@ where
     C: ResourceMoveCursor<S, M, Resources>,
 {
     let mut best: Option<(CandidateId, S::Score, Option<CandidateTracePullToken>)> = None;
+    // Retired undo journals are recycled across this step's trials so
+    // arbitrary-long journals do not grow the heap per trial.
+    let mut journal_pool: Vec<MoveCandidateUndo<M::Undo>> = Vec::new();
 
     loop {
         if should_interrupt_before_candidate(step_scope) {
@@ -266,6 +269,7 @@ where
             *current_score,
             selector_index,
             evaluation_started,
+            &mut journal_pool,
         ) {
             CandidateEvaluation::Scored(score) => {
                 if let Some(token) = trace_token {

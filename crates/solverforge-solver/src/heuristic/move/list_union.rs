@@ -131,6 +131,48 @@ where
         }
     }
 
+    fn do_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) -> Self::Undo {
+        match self {
+            Self::KOpt(m) => {
+                // The outer pool stores union undos; a K-opt-shaped entry
+                // carries an inner journal whose inlined capacity this arm
+                // reuses.
+                let mut journal = journal_pool
+                    .iter()
+                    .rposition(|undo| matches!(undo, ListMoveUnionUndo::KOpt(_)))
+                    .map(|index| match journal_pool.swap_remove(index) {
+                        ListMoveUnionUndo::KOpt(journal) => journal,
+                        _ => unreachable!("rposition matched the KOpt shape"),
+                    })
+                    .unwrap_or_default();
+                m.do_move_into_journal(score_director, &mut journal);
+                ListMoveUnionUndo::KOpt(journal)
+            }
+            other => other.do_move(score_director),
+        }
+    }
+
+    fn undo_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        undo: Self::Undo,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) {
+        match (self, undo) {
+            (Self::KOpt(m), ListMoveUnionUndo::KOpt(undo)) => {
+                m.undo_move(score_director, undo);
+                journal_pool.push(ListMoveUnionUndo::KOpt(
+                    <KOptMove<S, V> as Move<S>>::Undo::new(),
+                ));
+            }
+            (other, undo) => other.undo_move(score_director, undo),
+        }
+    }
+
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
         match (self, undo) {
             (Self::ListChange(m), ListMoveUnionUndo::ListChange(undo)) => {

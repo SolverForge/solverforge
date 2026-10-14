@@ -48,6 +48,29 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo);
 
+    /* Trial path with a retained solve scratch pool of retired undo
+    journals. The default ignores the pool and delegates to the plain pair;
+    long-journal families override both to recycle undo storage across
+    trials, so arbitrary-long edit sets do not grow the heap per trial. */
+    fn do_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) -> Self::Undo {
+        let _ = journal_pool;
+        self.do_move(score_director)
+    }
+
+    fn undo_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        undo: Self::Undo,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) {
+        let _ = journal_pool;
+        self.undo_move(score_director, undo)
+    }
+
     /* Doability check that may run an explicit working preview on the LIVE
     director.
 

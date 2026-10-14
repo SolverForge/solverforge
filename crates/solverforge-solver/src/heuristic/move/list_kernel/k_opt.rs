@@ -6,6 +6,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::k_opt_reconnection::KOptReconnection;
 use crate::heuristic::r#move::metadata::{encode_usize, MoveTabuScope, ScopedValueTabuToken};
+use crate::heuristic::r#move::ListUndoJournal;
 use crate::heuristic::r#move::{CutPoint, MoveTabuSignature};
 
 use super::{ListRangeAccess, ListWindowAccess};
@@ -44,8 +45,35 @@ pub(crate) fn k_opt_do_move<S, A, D>(
     reconnection: &KOptReconnection,
     entity: usize,
     score_director: &mut D,
-) -> Vec<A::Element>
+) -> ListUndoJournal<A::Element>
 where
+    S: PlanningSolution,
+    A: ListWindowAccess<S>,
+    D: Director<S>,
+{
+    let mut journal = ListUndoJournal::new();
+    k_opt_do_move_into(
+        access,
+        cuts,
+        reconnection,
+        entity,
+        score_director,
+        &mut journal,
+    );
+    journal
+}
+
+/// Scratch-carrying variant: the pre-kopt route is returned through the
+/// caller-owned journal so its capacity is reused across trials; the
+/// extraction Vec (the access boundary) stays the only per-trial allocation.
+pub(crate) fn k_opt_do_move_into<S, A, D>(
+    access: &A,
+    cuts: &[CutPoint],
+    reconnection: &KOptReconnection,
+    entity: usize,
+    score_director: &mut D,
+    journal: &mut ListUndoJournal<A::Element>,
+) where
     S: PlanningSolution,
     A: ListWindowAccess<S>,
     D: Director<S>,
@@ -57,18 +85,25 @@ where
     let all_elements = access
         .sublist_remove(score_director.working_solution_mut(), entity, 0, len)
         .expect("validated list window access should remove the full K-opt route");
+    let route_len = all_elements.len();
 
-    let mut boundaries = Vec::with_capacity(cuts.len() + 2);
+    let mut boundaries: SmallVec<[usize; 6]> = SmallVec::with_capacity(cuts.len() + 2);
     boundaries.push(0);
     boundaries.extend(cuts.iter().map(CutPoint::position));
     boundaries.push(len);
 
-    let mut segments: Vec<Vec<A::Element>> = Vec::with_capacity(cuts.len() + 1);
+    let mut segments: SmallVec<[ListUndoJournal<A::Element>; 6]> =
+        SmallVec::with_capacity(cuts.len() + 1);
     for boundary in boundaries.windows(2) {
-        segments.push(all_elements[boundary[0]..boundary[1]].to_vec());
+        segments.push(
+            all_elements[boundary[0]..boundary[1]]
+                .iter()
+                .cloned()
+                .collect(),
+        );
     }
 
-    let mut new_elements = Vec::with_capacity(len);
+    let mut new_elements: ListUndoJournal<A::Element> = ListUndoJournal::with_capacity(route_len);
     for position in 0..reconnection.segment_count() {
         let segment_index = reconnection.segment_at(position);
         let mut segment = std::mem::take(&mut segments[segment_index]);
@@ -83,18 +118,19 @@ where
             score_director.working_solution_mut(),
             entity,
             0,
-            new_elements,
+            new_elements.into_vec(),
         )
         .expect("validated list window access should insert the reconnected K-opt route");
     score_director.after_variable_changed(descriptor_index, entity);
 
-    all_elements
+    journal.clear();
+    journal.extend(all_elements);
 }
 
 pub(crate) fn k_opt_undo_move<S, A, D>(
     access: &A,
     entity: usize,
-    undo: Vec<A::Element>,
+    undo: ListUndoJournal<A::Element>,
     score_director: &mut D,
 ) where
     S: PlanningSolution,
@@ -108,7 +144,12 @@ pub(crate) fn k_opt_undo_move<S, A, D>(
         .sublist_remove(score_director.working_solution_mut(), entity, 0, len)
         .expect("validated list window access should remove the reconnected K-opt route");
     access
-        .sublist_insert(score_director.working_solution_mut(), entity, 0, undo)
+        .sublist_insert(
+            score_director.working_solution_mut(),
+            entity,
+            0,
+            undo.into_vec(),
+        )
         .expect("validated list window access should restore the original K-opt route");
     score_director.after_variable_changed(descriptor_index, entity);
 }

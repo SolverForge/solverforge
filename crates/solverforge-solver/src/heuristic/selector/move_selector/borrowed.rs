@@ -23,6 +23,23 @@ where
         (**self).undo_move(score_director, undo);
     }
 
+    fn do_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) -> Self::Undo {
+        (**self).do_move_with_scratch(score_director, journal_pool)
+    }
+
+    fn undo_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        undo: Self::Undo,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) {
+        (**self).undo_move_with_scratch(score_director, undo, journal_pool)
+    }
+
     fn descriptor_index(&self) -> usize {
         (**self).descriptor_index()
     }
@@ -135,6 +152,64 @@ where
                 let second = mov.second().do_move(score_director);
                 MoveCandidateUndo::Sequential { first, second }
             }
+        }
+    }
+
+    fn do_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) -> Self::Undo {
+        match self {
+            Self::Borrowed(mov) => {
+                // Only Borrowed-shaped entries carry an inner undo journal
+                // this arm may reuse.
+                let popped = journal_pool
+                    .iter()
+                    .rposition(|entry| matches!(entry, MoveCandidateUndo::Borrowed(_)))
+                    .map(|index| match journal_pool.swap_remove(index) {
+                        MoveCandidateUndo::Borrowed(inner) => inner,
+                        _ => unreachable!("rposition matched the Borrowed shape"),
+                    });
+                let mut pool = popped.map(|inner| vec![inner]).unwrap_or_default();
+                let undo = mov.do_move_with_scratch(score_director, &mut pool);
+                for inner in pool {
+                    journal_pool.push(MoveCandidateUndo::Borrowed(inner));
+                }
+                MoveCandidateUndo::Borrowed(undo)
+            }
+            Self::Sequential(mov) => {
+                // Sequential legs own their do/undo pairs directly; pooled
+                // journals across differently shaped legs need per-leg
+                // keying the composite does not provide.
+                let first = mov.first().do_move(score_director);
+                let second = mov.second().do_move(score_director);
+                MoveCandidateUndo::Sequential { first, second }
+            }
+        }
+    }
+
+    fn undo_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        undo: Self::Undo,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) {
+        match (self, undo) {
+            (Self::Borrowed(mov), MoveCandidateUndo::Borrowed(undo)) => {
+                // The restore already owns the inner undo; run the scratch
+                // undo on a one-slot pool of exactly that shape.
+                let mut pool = vec![undo];
+                mov.undo_move_with_scratch(score_director, pool.swap_remove(0), &mut pool);
+                for inner in pool {
+                    journal_pool.push(MoveCandidateUndo::Borrowed(inner));
+                }
+            }
+            (Self::Sequential(mov), MoveCandidateUndo::Sequential { first, second }) => {
+                mov.second().undo_move(score_director, second);
+                mov.first().undo_move(score_director, first);
+            }
+            _ => panic!("move candidate undo shape must match candidate shape"),
         }
     }
 

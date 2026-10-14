@@ -6,7 +6,9 @@ use solverforge_scoring::Director;
 use tracing::trace;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::{CandidateId, ResourceMoveCursor};
+use crate::heuristic::selector::move_selector::{
+    CandidateId, MoveCandidateUndo, ResourceMoveCursor,
+};
 use crate::phase::control::{
     should_interrupt_before_candidate, should_interrupt_before_evaluation, CONTROL_POLL_INTERVAL,
 };
@@ -69,6 +71,9 @@ where
     // batching). The step loop therefore polls once per batch window; a
     // stop stays latched, and per-evaluation interruption still runs on
     // its every-64-evaluations schedule below.
+    // Retired undo journals are recycled across the step's trials so
+    // arbitrary-long journals do not grow the heap per trial.
+    let mut journal_pool: Vec<MoveCandidateUndo<M::Undo>> = Vec::new();
     let mut control_polls = 0usize;
     let mut control_latched = false;
     while !forager.is_quit_early() {
@@ -157,6 +162,7 @@ where
             last_step_score,
             selector_index,
             evaluation_started,
+            &mut journal_pool,
         ) {
             CandidateEvaluation::Scored(score) => {
                 if let Some(token) = trace_token {

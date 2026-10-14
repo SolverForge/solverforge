@@ -80,8 +80,6 @@ impl<S: PlanningSolution> UnimprovedStepCountTermination<S> {
     }
 }
 
-// Safety: The RefCell is only accessed from within is_terminated,
-// which is called from a single thread during solving.
 impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Termination<S, D, BestCb>
     for UnimprovedStepCountTermination<S>
 {
@@ -196,8 +194,6 @@ impl<S: PlanningSolution> UnimprovedTimeTermination<S> {
     }
 }
 
-// Safety: The RefCell is only accessed from within is_terminated,
-// which is called from a single thread during solving.
 impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Termination<S, D, BestCb>
     for UnimprovedTimeTermination<S>
 {

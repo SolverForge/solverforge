@@ -94,7 +94,27 @@ impl<S: PlanningSolution> SolverRuntime<S> {
     /// an event receiver. Retained solves should continue to use
     /// `SolverManager`, which owns reusable slots and event delivery.
     pub fn detached() -> Self {
-        let slot = Box::leak(Box::new(JobSlot::new()));
+        /* One shared slot per solution type per thread, cached as a leaked
+        `Box<dyn Any>`: the `&'static dyn Any` downcast yields a `&'static
+        JobSlot<S>`, so repeated detached solves reuse one allocation instead
+        of leaking a fresh slot per call. The slot is reset to its pristine
+        free state before every detached solve. */
+        thread_local! {
+            static DETACHED_SLOT: std::cell::RefCell<Option<&'static dyn std::any::Any>> =
+                const { std::cell::RefCell::new(None) };
+        }
+        let slot: &'static JobSlot<S> = DETACHED_SLOT.with(|cell| {
+            let mut storage = cell.borrow_mut();
+            let stored = storage.get_or_insert_with(|| {
+                let erased: Box<dyn std::any::Any> = Box::new(JobSlot::<S>::new());
+                Box::leak(erased)
+            });
+            match stored.downcast_ref::<JobSlot<S>>() {
+                Some(slot) => slot,
+                None => unreachable!("the detached slot registry stores exactly one type"),
+            }
+        });
+        slot.reset_for_detached_reuse();
         slot.state.store(SLOT_SOLVING, Ordering::Release);
         slot.worker_running.store(true, Ordering::Release);
         Self {

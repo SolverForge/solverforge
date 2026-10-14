@@ -218,6 +218,16 @@ impl<S: PlanningSolution> JobSlot<S> {
         true
     }
 
+    /// Reuses this slot for a fresh detached synchronous solve.
+    ///
+    /// `SolverRuntime::detached` keeps one leaked slot per thread instead of
+    /// leaking a new allocation per solve; this resets it to the pristine
+    /// free state.
+    pub(super) fn reset_for_detached_reuse(&self) {
+        let _publication = self.publication.lock().unwrap();
+        self.reset_locked();
+    }
+
     fn reset_locked(&self) {
         self.terminate.store(false, Ordering::Release);
         self.pause_requested.store(false, Ordering::Release);

@@ -3,6 +3,7 @@ pub struct DescriptorPillarSwapMove<S> {
     binding: VariableBinding,
     left_indices: Vec<usize>,
     right_indices: Vec<usize>,
+    affected_indices: SmallVec<[usize; 8]>,
     solution_descriptor: SolutionDescriptor,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -25,7 +26,14 @@ impl<S: 'static> DescriptorPillarSwapMove<S> {
         right_indices: Vec<usize>,
         solution_descriptor: SolutionDescriptor,
     ) -> Self {
+        let mut affected_indices = SmallVec::new();
+        for &entity in left_indices.iter().chain(&right_indices) {
+            if !affected_indices.contains(&entity) {
+                affected_indices.push(entity);
+            }
+        }
         Self {
+            affected_indices,
             binding,
             left_indices,
             right_indices,
@@ -175,6 +183,19 @@ where
 
     fn entity_indices(&self) -> &[usize] {
         &self.left_indices
+    }
+
+    fn for_each_affected_entity<W: FnMut(crate::heuristic::r#move::MoveAffectedEntity<'_>)>(
+        &self,
+        visitor: &mut W,
+    ) {
+        for &entity_index in &self.affected_indices {
+            visitor(crate::heuristic::r#move::MoveAffectedEntity {
+                descriptor_index: self.binding.descriptor_index,
+                entity_index,
+                variable_name: self.binding.variable_name,
+            });
+        }
     }
 
     fn variable_name(&self) -> &str {

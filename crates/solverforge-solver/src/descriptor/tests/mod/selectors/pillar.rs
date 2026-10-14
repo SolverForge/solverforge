@@ -181,6 +181,78 @@ fn descriptor_pillar_swap_tabu_identity_is_direction_stable() {
 }
 
 #[test]
+fn descriptor_pillar_swap_reports_both_pillars_through_union() {
+    let mut descriptor = restricted_descriptor();
+    descriptor.entity_descriptors[0] =
+        descriptor.entity_descriptors[0]
+            .clone()
+            .with_pin_predicate(|entity| {
+                entity.downcast_ref::<RestrictedTask>().unwrap().worker_idx == Some(1)
+            });
+    let plan = RestrictedPlan {
+        workers: vec![Worker, Worker],
+        tasks: [0, 0, 1, 1]
+            .into_iter()
+            .map(|value| RestrictedTask {
+                worker_idx: Some(value),
+                allowed_workers: vec![0, 1],
+            })
+            .collect(),
+        score: None,
+    };
+    let mut director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let binding = super::bindings::collect_bindings(&descriptor).remove(0);
+    let mov = super::DescriptorPillarSwapMove::new(binding, vec![0, 1], vec![2, 3], descriptor);
+    let mut direct = Vec::new();
+    mov.for_each_affected_entity(&mut |entity| {
+        direct.push((
+            entity.descriptor_index,
+            entity.entity_index,
+            entity.variable_name.to_owned(),
+        ))
+    });
+    assert_eq!(
+        direct.iter().map(|(_, row, _)| *row).collect::<Vec<_>>(),
+        vec![0, 1, 2, 3]
+    );
+    let mov = super::DescriptorMoveUnion::PillarSwap(mov);
+    let mut wrapped = Vec::new();
+    mov.for_each_affected_entity(&mut |entity| {
+        wrapped.push((
+            entity.descriptor_index,
+            entity.entity_index,
+            entity.variable_name.to_owned(),
+        ))
+    });
+    assert_eq!(wrapped, direct);
+    assert!(
+        crate::pinning::move_changes_pinned(&mov, &director),
+        "a pinned right-pillar row must reject the move before evaluation"
+    );
+    assert!(mov.is_doable(&director));
+    let undo = mov.do_move(&mut director);
+    assert_eq!(
+        director
+            .working_solution()
+            .tasks
+            .iter()
+            .map(|task| task.worker_idx)
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(1), Some(0), Some(0)]
+    );
+    mov.undo_move(&mut director, undo);
+    assert_eq!(
+        director
+            .working_solution()
+            .tasks
+            .iter()
+            .map(|task| task.worker_idx)
+            .collect::<Vec<_>>(),
+        vec![Some(0), Some(0), Some(1), Some(1)]
+    );
+}
+
+#[test]
 fn descriptor_manual_illegal_pillar_moves_are_not_doable() {
     let descriptor = restricted_descriptor();
     let plan = RestrictedPlan {

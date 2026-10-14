@@ -423,6 +423,11 @@ Requires: `Send + Sync + Debug`.
 | `candidate_trace_identity` | `fn(&self) -> Option<CandidateTraceIdentity>` (default `None`) |
 | `for_each_affected_entity` | `fn<V: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut V)` — concrete visitor, monomorphized; implementations must report every mutated entity, including both pillar halves for pillar swaps |
 
+Descriptor pillar swaps cache the deduplicated affected rows at construction,
+preserving left-then-right declaration order. Both typed and descriptor swap
+visitors report both pillars even though `entity_indices()` retains the primary
+left slice; descriptor move unions forward the complete visitor to pin checks.
+
 Speculative candidates are **not cloned** by the solver hot path. A move stays
 owned by its cursor while it is evaluated by reference; rejected and replaced
 candidates are released immediately, and the selected move transfers by value.

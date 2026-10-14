@@ -134,6 +134,19 @@ where
         }
     }
 
+    fn for_each_affected_entity<W: FnMut(crate::heuristic::r#move::MoveAffectedEntity<'_>)>(
+        &self,
+        visitor: &mut W,
+    ) {
+        match self {
+            Self::Change(m) => m.for_each_affected_entity(visitor),
+            Self::Swap(m) => m.for_each_affected_entity(visitor),
+            Self::PillarChange(m) => m.for_each_affected_entity(visitor),
+            Self::PillarSwap(m) => m.for_each_affected_entity(visitor),
+            Self::RuinRecreate(m) => m.for_each_affected_entity(visitor),
+        }
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         match self {
             Self::Change(m) => m.tabu_signature(score_director),

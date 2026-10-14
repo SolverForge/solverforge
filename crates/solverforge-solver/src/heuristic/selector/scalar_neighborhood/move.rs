@@ -5,6 +5,8 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
+use smallvec::SmallVec;
+
 use crate::builder::RuntimeScalarSlot;
 use crate::heuristic::r#move::{Move, MoveAffectedEntity, MoveTabuSignature};
 use crate::stats::{CandidateTraceCoordinate, CandidateTraceIdentity};
@@ -53,12 +55,13 @@ impl<S> RuntimeScalarMove<S> {
     }
 }
 
-/// Undo state remains entirely owned by the selected candidate.
+/// Undo state remains entirely owned by the selected candidate. Short edit
+/// sets stay inline; only genuinely long undo journals spill to the heap.
 #[derive(Clone, Debug)]
 pub(crate) enum RuntimeScalarMoveUndo {
     Change(Option<usize>),
     Swap(Option<usize>, Option<usize>),
-    Many(Vec<(usize, Option<usize>)>),
+    Many(SmallVec<[(usize, Option<usize>); 8]>),
 }
 
 impl<S> Move<S> for RuntimeScalarMove<S>

@@ -280,14 +280,14 @@ impl<S> Move<S> for CompoundScalarMove<S>
 where
     S: PlanningSolution,
 {
-    type Undo = Vec<Option<usize>>;
+    type Undo = SmallVec<[Option<usize>; 8]>;
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         self.is_doable_on(score_director.working_solution())
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
-        let mut undo = Vec::with_capacity(self.edits.len());
+        let mut undo = SmallVec::<[Option<usize>; 8]>::with_capacity(self.edits.len());
         let affected = unique_affected_entities(&self.edits);
         for edit in &self.edits {
             let old_value = edit.current_value(score_director.working_solution());

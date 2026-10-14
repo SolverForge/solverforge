@@ -110,7 +110,7 @@ where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
 {
-    type Undo = Vec<(usize, Option<V>)>;
+    type Undo = SmallVec<[(usize, Option<V>); 4]>;
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         if self.entity_indices.is_empty() {
@@ -143,7 +143,7 @@ where
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         // Capture old values using concrete getter - zero erasure
-        let old_values: Vec<(usize, Option<V>)> = self
+        let old_values: SmallVec<[(usize, Option<V>); 4]> = self
             .entity_indices
             .iter()
             .map(|&idx| {

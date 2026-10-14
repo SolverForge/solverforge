@@ -1,3 +1,4 @@
+use smallvec::SmallVec;
 use solverforge_config::RecreateHeuristicType;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
@@ -160,7 +161,7 @@ where
             recreate_heuristic_type,
         } => {
             if !is_doable(recipe, director.working_solution()) {
-                return RuntimeScalarMoveUndo::Many(Vec::new());
+                return RuntimeScalarMoveUndo::Many(SmallVec::new());
             }
             RuntimeScalarMoveUndo::Many(run_ruin_recreate(
                 slot,
@@ -306,13 +307,15 @@ fn apply_many<S, D, I>(
     slot: &RuntimeScalarSlot<S>,
     director: &mut D,
     edits: I,
-) -> Vec<(usize, Option<usize>)>
+) -> SmallVec<[(usize, Option<usize>); 8]>
 where
     S: PlanningSolution,
     D: Director<S>,
     I: IntoIterator<Item = (usize, Option<usize>)>,
 {
-    let edits = edits.into_iter().collect::<Vec<_>>();
+    let edits = edits
+        .into_iter()
+        .collect::<SmallVec<[(usize, Option<usize>); 8]>>();
     let old = edits
         .iter()
         .map(|(entity, _)| {
@@ -321,7 +324,7 @@ where
                 slot.current_value(director.working_solution(), *entity),
             )
         })
-        .collect::<Vec<_>>();
+        .collect::<SmallVec<[(usize, Option<usize>); 8]>>();
     for (entity, _) in &edits {
         director.before_variable_changed(slot.descriptor_index(), *entity);
     }
@@ -340,13 +343,13 @@ fn run_ruin_recreate<S, D>(
     entity_indices: &[usize],
     value_candidate_limit: Option<usize>,
     recreate_heuristic_type: RecreateHeuristicType,
-) -> Vec<(usize, Option<usize>)>
+) -> SmallVec<[(usize, Option<usize>); 8]>
 where
     S: PlanningSolution,
     S::Score: Score,
     D: Director<S>,
 {
-    let mut undo = Vec::with_capacity(entity_indices.len());
+    let mut undo = SmallVec::<[(usize, Option<usize>); 8]>::with_capacity(entity_indices.len());
     for &entity in entity_indices {
         undo.push((entity, apply_one(slot, director, entity, None)));
     }
@@ -384,7 +387,7 @@ where
     D: Director<S>,
 {
     let baseline = slot.allows_unassigned().then(|| director.calculate_score());
-    let mut candidates = Vec::new();
+    let mut candidates = SmallVec::<[usize; 8]>::new();
     slot.visit_candidate_values(
         director.working_solution(),
         entity_index,
@@ -419,7 +422,7 @@ where
     D: Director<S>,
 {
     let baseline = slot.allows_unassigned().then(|| director.calculate_score());
-    let mut candidates = Vec::new();
+    let mut candidates = SmallVec::<[usize; 8]>::new();
     slot.visit_candidate_values(
         director.working_solution(),
         entity_index,

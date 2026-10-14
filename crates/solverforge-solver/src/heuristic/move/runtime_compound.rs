@@ -157,14 +157,14 @@ impl<S> Move<S> for RuntimeCompoundMove<S>
 where
     S: PlanningSolution,
 {
-    type Undo = Vec<Option<usize>>;
+    type Undo = SmallVec<[Option<usize>; 8]>;
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         self.is_doable_on(score_director.working_solution())
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
-        let mut undo = Vec::with_capacity(self.edits.len());
+        let mut undo = SmallVec::<[Option<usize>; 8]>::with_capacity(self.edits.len());
         let affected = unique_affected_entities(&self.edits);
         for edit in &self.edits {
             undo.push(
@@ -293,7 +293,7 @@ where
 }
 
 fn has_duplicate_targets<S>(edits: &[RuntimeScalarEdit<S>]) -> bool {
-    let mut targets = Vec::with_capacity(edits.len());
+    let mut targets = SmallVec::<[(usize, usize, usize); 8]>::with_capacity(edits.len());
     edits.iter().any(|edit| {
         let target = (
             edit.descriptor_index(),
@@ -309,8 +309,8 @@ fn has_duplicate_targets<S>(edits: &[RuntimeScalarEdit<S>]) -> bool {
     })
 }
 
-fn unique_affected_entities<S>(edits: &[RuntimeScalarEdit<S>]) -> Vec<(usize, usize)> {
-    let mut affected = Vec::new();
+fn unique_affected_entities<S>(edits: &[RuntimeScalarEdit<S>]) -> SmallVec<[(usize, usize); 8]> {
+    let mut affected = SmallVec::new();
     for edit in edits {
         let entity = (edit.descriptor_index(), edit.entity_index);
         if !affected.contains(&entity) {

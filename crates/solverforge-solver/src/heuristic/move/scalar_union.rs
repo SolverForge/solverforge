@@ -211,6 +211,19 @@ where
         }
     }
 
+    fn borrowed_tabu_signature(&self) -> Option<&MoveTabuSignature> {
+        match self {
+            Self::Change(m) => m.borrowed_tabu_signature(),
+            Self::Swap(m) => m.borrowed_tabu_signature(),
+            Self::PillarChange(m) => m.borrowed_tabu_signature(),
+            Self::PillarSwap(m) => m.borrowed_tabu_signature(),
+            Self::RuinRecreate(m) => m.borrowed_tabu_signature(),
+            Self::CompoundScalar(m) => m.borrowed_tabu_signature(),
+            Self::ConflictRepair(m) => m.borrowed_tabu_signature(),
+            Self::RuntimeCompound(m) => m.borrowed_tabu_signature(),
+        }
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         match self {
             Self::Change(m) => m.tabu_signature(score_director),

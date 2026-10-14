@@ -149,7 +149,7 @@ where
             .flat_map(|(entity_id, position)| [entity_id, position]),
     );
 
-    MoveTabuSignature::new(scope, move_id.clone(), move_id)
+    MoveTabuSignature::new_self_undoing(scope, move_id)
         .with_entity_tokens(entity_tokens)
         .with_destination_value_tokens([scope.value_token(second_id), scope.value_token(first_id)])
 }

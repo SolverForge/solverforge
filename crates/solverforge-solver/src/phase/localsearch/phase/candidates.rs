@@ -207,7 +207,10 @@ where
             }
         };
         let move_signature = if requires_move_signatures {
-            Some(mov.tabu_signature(step_scope.score_director()))
+            match mov.borrowed_tabu_signature() {
+                Some(borrowed) => Some(borrowed.clone()),
+                None => Some(mov.tabu_signature(step_scope.score_director())),
+            }
         } else {
             None
         };

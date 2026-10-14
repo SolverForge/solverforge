@@ -165,7 +165,7 @@ where
             entity_pair.into_iter().map(|(entity_id, _)| entity_id),
         );
 
-        MoveTabuSignature::new(scope, move_id.clone(), move_id)
+        MoveTabuSignature::new_self_undoing(scope, move_id)
             .with_entity_tokens([
                 scope.entity_token(left_entity_id),
                 scope.entity_token(right_entity_id),

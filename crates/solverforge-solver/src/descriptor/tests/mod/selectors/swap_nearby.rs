@@ -350,6 +350,6 @@ fn descriptor_swap_tabu_identity_is_direction_stable() {
         .expect("reverse descriptor swap should be generated");
     let reverse_signature = reverse.tabu_signature(&director);
 
-    assert_eq!(forward_signature.move_id, forward_signature.undo_move_id);
+    assert_eq!(forward_signature.move_id, *forward_signature.undo_id());
     assert_eq!(forward_signature.move_id, reverse_signature.move_id);
 }

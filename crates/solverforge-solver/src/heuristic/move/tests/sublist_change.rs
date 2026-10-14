@@ -308,8 +308,8 @@ fn intra_list_rightward_tabu_inverse_matches_reverse_move() {
         assert!(reverse.is_doable(&director));
 
         let reverse_signature = reverse.tabu_signature(&director);
-        assert_ne!(signature.move_id, signature.undo_move_id);
-        assert_eq!(signature.undo_move_id, reverse_signature.move_id);
+        assert_ne!(signature.move_id, *signature.undo_id());
+        assert_eq!(signature.undo_id(), &reverse_signature.move_id);
 
         recording.undo_changes();
     }
@@ -367,8 +367,8 @@ fn inter_list_tabu_inverse_matches_reverse_move() {
         assert!(reverse.is_doable(&director));
 
         let reverse_signature = reverse.tabu_signature(&director);
-        assert_ne!(signature.move_id, signature.undo_move_id);
-        assert_eq!(signature.undo_move_id, reverse_signature.move_id);
+        assert_ne!(signature.move_id, *signature.undo_id());
+        assert_eq!(signature.undo_id(), &reverse_signature.move_id);
 
         recording.undo_changes();
     }

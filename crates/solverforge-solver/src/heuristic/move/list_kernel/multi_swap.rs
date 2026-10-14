@@ -176,7 +176,7 @@ where
         components.push(encode_usize(second));
     }
     let move_id = scoped_move_identity(scope, TABU_OP_LIST_MULTI_SWAP, components);
-    MoveTabuSignature::new(scope, move_id.clone(), move_id)
+    MoveTabuSignature::new_self_undoing(scope, move_id)
         .with_entity_tokens(entity_tokens)
         .with_destination_value_tokens(destination_value_tokens)
 }

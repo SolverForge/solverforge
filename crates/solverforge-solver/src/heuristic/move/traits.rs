@@ -104,6 +104,15 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature;
 
+    /* Borrows this move's prebuilt signature instead of building a fresh one.
+
+    Moves that own their completed signature (static compositions) return
+    `Some`. Dynamic builders return `None`, and callers fall back to
+    `tabu_signature`. */
+    fn borrowed_tabu_signature(&self) -> Option<&MoveTabuSignature> {
+        None
+    }
+
     /// Returns the canonical identity used by opt-in candidate-pull tracing.
     ///
     /// Returns an explicit logical-coordinate identity for candidate tracing.

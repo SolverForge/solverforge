@@ -69,23 +69,54 @@ pub struct ScopedValueTabuToken {
     pub value_id: u64,
 }
 
+/// The undo identity of a move: either the move identity itself (the move
+/// undoes to the same id it carries) or an explicit distinct reverse id.
+///
+/// Self-undoing moves store one identity instead of two equal ones; the
+/// reverse view resolves to the stored move id.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MoveUndoIdentity {
+    SameAsMoveId,
+    Explicit(MoveIdentity),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoveTabuSignature {
     pub scope: MoveTabuScope,
     pub entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]>,
     pub destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]>,
     pub move_id: MoveIdentity,
-    pub undo_move_id: MoveIdentity,
+    pub undo_move_id: MoveUndoIdentity,
 }
 
 impl MoveTabuSignature {
+    /// A move whose undo identity equals its move identity.
+    pub fn new_self_undoing(scope: MoveTabuScope, move_id: MoveIdentity) -> Self {
+        Self {
+            scope,
+            entity_tokens: SmallVec::new(),
+            destination_value_tokens: SmallVec::new(),
+            move_id,
+            undo_move_id: MoveUndoIdentity::SameAsMoveId,
+        }
+    }
+
+    /// A move whose reverse identity is spelled out (distinct undo id).
     pub fn new(scope: MoveTabuScope, move_id: MoveIdentity, undo_move_id: MoveIdentity) -> Self {
         Self {
             scope,
             entity_tokens: SmallVec::new(),
             destination_value_tokens: SmallVec::new(),
             move_id,
-            undo_move_id,
+            undo_move_id: MoveUndoIdentity::Explicit(undo_move_id),
+        }
+    }
+
+    /// The reverse identity this move records when it is accepted.
+    pub fn undo_id(&self) -> &MoveIdentity {
+        match &self.undo_move_id {
+            MoveUndoIdentity::SameAsMoveId => &self.move_id,
+            MoveUndoIdentity::Explicit(id) => id,
         }
     }
 
@@ -234,8 +265,8 @@ pub(crate) fn compose_sequential_tabu_signature(
     move_id.extend(right.move_id.iter().copied());
 
     let mut undo_move_id = smallvec![hash_str(prefix)];
-    undo_move_id.extend(right.undo_move_id.iter().copied());
-    undo_move_id.extend(left.undo_move_id.iter().copied());
+    undo_move_id.extend(right.undo_id().iter().copied());
+    undo_move_id.extend(left.undo_id().iter().copied());
 
     let scope = if left.scope == right.scope {
         left.scope

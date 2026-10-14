@@ -228,7 +228,7 @@ where
         let mut move_id = scoped_move_identity(scope, TABU_OP_PILLAR_SWAP, std::iter::empty());
         append_canonical_usize_slice_pair(&mut move_id, &self.left_indices, &self.right_indices);
 
-        MoveTabuSignature::new(scope, move_id.clone(), move_id)
+        MoveTabuSignature::new_self_undoing(scope, move_id)
             .with_entity_tokens(entity_tokens)
             .with_destination_value_tokens([
                 scope.value_token(right_id),

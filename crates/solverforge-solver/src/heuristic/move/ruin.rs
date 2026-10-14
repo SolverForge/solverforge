@@ -238,6 +238,6 @@ where
         move_id.extend(entity_ids.iter().copied());
         move_id.extend(value_ids.iter().copied());
 
-        MoveTabuSignature::new(scope, move_id.clone(), move_id).with_entity_tokens(entity_tokens)
+        MoveTabuSignature::new_self_undoing(scope, move_id).with_entity_tokens(entity_tokens)
     }
 }

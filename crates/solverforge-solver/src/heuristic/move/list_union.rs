@@ -288,6 +288,20 @@ where
         }
     }
 
+    fn borrowed_tabu_signature(&self) -> Option<&MoveTabuSignature> {
+        match self {
+            Self::ListChange(m) => m.borrowed_tabu_signature(),
+            Self::ListSwap(m) => m.borrowed_tabu_signature(),
+            Self::ListMultiSwap(m) => m.borrowed_tabu_signature(),
+            Self::ListPermute(m) => m.borrowed_tabu_signature(),
+            Self::SublistChange(m) => m.borrowed_tabu_signature(),
+            Self::SublistSwap(m) => m.borrowed_tabu_signature(),
+            Self::ListReverse(m) => m.borrowed_tabu_signature(),
+            Self::KOpt(m) => m.borrowed_tabu_signature(),
+            Self::ListRuin(m) => m.borrowed_tabu_signature(),
+        }
+    }
+
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
         match self {
             Self::ListChange(m) => m.tabu_signature(score_director),

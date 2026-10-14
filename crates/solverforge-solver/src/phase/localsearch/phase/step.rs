@@ -133,8 +133,10 @@ where
             .expect("selected candidate id must remain borrowable until commit");
         let selected_move_label = selected_move.telemetry_label();
         if requires_move_signatures {
-            accepted_move_signature =
-                Some(selected_move.tabu_signature(step_scope.score_director()));
+            accepted_move_signature = match selected_move.borrowed_tabu_signature() {
+                Some(borrowed) => Some(borrowed.clone()),
+                None => Some(selected_move.tabu_signature(step_scope.score_director())),
+            };
         }
         let previous_score = *last_step_score;
         step_scope.apply_committed_change(|score_director| {

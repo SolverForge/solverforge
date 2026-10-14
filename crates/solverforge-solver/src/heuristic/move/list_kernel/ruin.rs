@@ -368,7 +368,7 @@ where
         move_id.extend(indices.iter().map(|&index| encode_usize(index)));
     }
     move_id.extend(value_ids.iter().copied());
-    MoveTabuSignature::new(scope, move_id.clone(), move_id)
+    MoveTabuSignature::new_self_undoing(scope, move_id)
         .with_entity_tokens(
             entity_indices
                 .iter()

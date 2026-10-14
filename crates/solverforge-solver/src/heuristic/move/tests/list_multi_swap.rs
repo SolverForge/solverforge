@@ -168,6 +168,6 @@ fn multi_swap_tabu_identity_is_swap_order_stable() {
     let first_signature = first.tabu_signature(&director);
     let second_signature = second.tabu_signature(&director);
 
-    assert_eq!(first_signature.move_id, first_signature.undo_move_id);
+    assert_eq!(first_signature.move_id, *first_signature.undo_id());
     assert_eq!(first_signature.move_id, second_signature.move_id);
 }

@@ -122,7 +122,7 @@ where
         TABU_OP_SWAP,
         entities.into_iter().map(|(entity, _)| entity),
     );
-    MoveTabuSignature::new(scope, move_id.clone(), move_id)
+    MoveTabuSignature::new_self_undoing(scope, move_id)
         .with_entity_tokens([
             scope.entity_token(encode_usize(left)),
             scope.entity_token(encode_usize(right)),
@@ -208,7 +208,7 @@ where
         .collect::<Vec<_>>();
     entities.sort_unstable();
     entities.dedup();
-    MoveTabuSignature::new(scope, move_id.clone(), move_id)
+    MoveTabuSignature::new_self_undoing(scope, move_id)
         .with_entity_tokens(
             entities
                 .iter()
@@ -252,7 +252,7 @@ where
             slot.current_value(director.working_solution(), entity),
         ));
     }
-    MoveTabuSignature::new(scope, move_id.clone(), move_id).with_entity_tokens(
+    MoveTabuSignature::new_self_undoing(scope, move_id).with_entity_tokens(
         entities
             .iter()
             .copied()

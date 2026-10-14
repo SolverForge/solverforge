@@ -514,7 +514,7 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
         .expect("reverse cartesian candidate must remain valid")
         .tabu_signature(&director);
 
-    assert_eq!(forward_signature.undo_move_id, reverse_signature.move_id);
+    assert_eq!(forward_signature.undo_id(), &reverse_signature.move_id);
 
     let mut acceptor = TabuSearchAcceptor::<Sol>::new(
         TabuSearchPolicy {

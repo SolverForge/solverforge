@@ -283,25 +283,16 @@ where
         let entity = encode_usize(self.entity_index);
         let position = encode_usize(self.position);
         let variable = hash_str(self.slot.variable_name());
-        MoveTabuSignature::new(
-            scope,
-            smallvec![
-                encode_usize(self.slot.descriptor_index()),
-                variable,
-                source,
-                entity,
-                position
-            ],
-            smallvec![
-                encode_usize(self.slot.descriptor_index()),
-                variable,
-                source,
-                entity,
-                position
-            ],
-        )
-        .with_entity_tokens([scope.entity_token(entity)])
-        .with_destination_value_tokens([scope.value_token(source)])
+        let move_id = smallvec![
+            encode_usize(self.slot.descriptor_index()),
+            variable,
+            source,
+            entity,
+            position
+        ];
+        MoveTabuSignature::new_self_undoing(scope, move_id)
+            .with_entity_tokens([scope.entity_token(entity)])
+            .with_destination_value_tokens([scope.value_token(source)])
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {

@@ -193,7 +193,7 @@ fn pillar_swap_tabu_identity_is_direction_stable() {
     let reverse_signature = reverse_same_coordinates.tabu_signature(&director);
     let flipped_signature = reverse_flipped_coordinates.tabu_signature(&director);
 
-    assert_eq!(forward_signature.move_id, forward_signature.undo_move_id);
+    assert_eq!(forward_signature.move_id, *forward_signature.undo_id());
     assert_eq!(forward_signature.move_id, reverse_signature.move_id);
     assert_eq!(forward_signature.move_id, flipped_signature.move_id);
 }

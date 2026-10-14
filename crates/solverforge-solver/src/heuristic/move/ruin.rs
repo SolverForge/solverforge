@@ -73,19 +73,6 @@ pub struct RuinMove<S, V> {
     descriptor_index: usize,
 }
 
-impl<S, V> Clone for RuinMove<S, V> {
-    fn clone(&self) -> Self {
-        Self {
-            entity_indices: self.entity_indices.clone(),
-            getter: self.getter,
-            setter: self.setter,
-            variable_index: self.variable_index,
-            variable_name: self.variable_name,
-            descriptor_index: self.descriptor_index,
-        }
-    }
-}
-
 impl<S, V: Debug> Debug for RuinMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RuinMove")

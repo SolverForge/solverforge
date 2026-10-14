@@ -10,7 +10,6 @@ use super::{Move, MoveAffectedEntity, MoveTabuSignature};
 
 const CONFLICT_REPAIR_VARIABLE: &str = "conflict_repair";
 
-#[derive(Clone)]
 pub struct ConflictRepairScalarEdit<S> {
     pub descriptor_index: usize,
     pub entity_index: usize,
@@ -33,7 +32,6 @@ impl<S> Debug for ConflictRepairScalarEdit<S> {
     }
 }
 
-#[derive(Clone)]
 pub struct ConflictRepairMove<S> {
     compound: CompoundScalarMove<S>,
 }

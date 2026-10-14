@@ -24,23 +24,6 @@ enum CompoundScalarEditAccess<S> {
     Dynamic(DynamicScalarVariableSlot<S>),
 }
 
-impl<S> Clone for CompoundScalarEditAccess<S> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Static {
-                getter,
-                setter,
-                value_is_legal,
-            } => Self::Static {
-                getter: *getter,
-                setter: *setter,
-                value_is_legal: *value_is_legal,
-            },
-            Self::Dynamic(slot) => Self::Dynamic(slot.clone()),
-        }
-    }
-}
-
 /// One edit in a grouped scalar move.
 ///
 /// The static form keeps the existing direct function pointers.  The dynamic
@@ -53,19 +36,6 @@ pub struct CompoundScalarEdit<S> {
     pub variable_name: &'static str,
     pub to_value: Option<usize>,
     access: CompoundScalarEditAccess<S>,
-}
-
-impl<S> Clone for CompoundScalarEdit<S> {
-    fn clone(&self) -> Self {
-        Self {
-            descriptor_index: self.descriptor_index,
-            entity_index: self.entity_index,
-            variable_index: self.variable_index,
-            variable_name: self.variable_name,
-            to_value: self.to_value,
-            access: self.access.clone(),
-        }
-    }
 }
 
 impl<S> CompoundScalarEdit<S> {
@@ -184,7 +154,6 @@ impl<S> Debug for CompoundScalarEdit<S> {
     }
 }
 
-#[derive(Clone)]
 pub struct CompoundScalarMove<S> {
     reason: &'static str,
     variable_label: &'static str,

@@ -19,17 +19,6 @@ pub struct DynamicScalarSwapMove<S> {
     indices: [usize; 2],
 }
 
-impl<S> Clone for DynamicScalarSwapMove<S> {
-    fn clone(&self) -> Self {
-        Self {
-            slot: self.slot.clone(),
-            left_entity_index: self.left_entity_index,
-            right_entity_index: self.right_entity_index,
-            indices: self.indices,
-        }
-    }
-}
-
 impl<S> Debug for DynamicScalarSwapMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DynamicScalarSwapMove")

@@ -157,22 +157,6 @@ pub struct RuinRecreateMove<S> {
     allows_unassigned: bool,
 }
 
-impl<S> Clone for RuinRecreateMove<S> {
-    fn clone(&self) -> Self {
-        Self {
-            entity_indices: self.entity_indices.clone(),
-            getter: self.getter,
-            setter: self.setter,
-            descriptor_index: self.descriptor_index,
-            variable_index: self.variable_index,
-            variable_name: self.variable_name,
-            value_source: self.value_source,
-            recreate_heuristic_type: self.recreate_heuristic_type,
-            allows_unassigned: self.allows_unassigned,
-        }
-    }
-}
-
 impl<S> Debug for RuinRecreateMove<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RuinRecreateMove")

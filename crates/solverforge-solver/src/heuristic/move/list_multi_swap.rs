@@ -24,17 +24,6 @@ pub struct ListMultiSwapMove<S, V> {
     require_score_improvement: bool,
 }
 
-impl<S, V> Clone for ListMultiSwapMove<S, V> {
-    fn clone(&self) -> Self {
-        Self {
-            swaps: self.swaps.clone(),
-            access: self.access,
-            indices: self.indices.clone(),
-            require_score_improvement: self.require_score_improvement,
-        }
-    }
-}
-
 impl<S, V: Debug> Debug for ListMultiSwapMove<S, V> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter

@@ -47,25 +47,6 @@ where
     RuntimeCompound(<RuntimeCompoundMove<S> as Move<S>>::Undo),
 }
 
-impl<S, V> Clone for ScalarMoveUnion<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-{
-    fn clone(&self) -> Self {
-        match self {
-            Self::Change(m) => Self::Change(m.clone()),
-            Self::Swap(m) => Self::Swap(*m),
-            Self::PillarChange(m) => Self::PillarChange(m.clone()),
-            Self::PillarSwap(m) => Self::PillarSwap(m.clone()),
-            Self::RuinRecreate(m) => Self::RuinRecreate(m.clone()),
-            Self::CompoundScalar(m) => Self::CompoundScalar(m.clone()),
-            Self::ConflictRepair(m) => Self::ConflictRepair(m.clone()),
-            Self::RuntimeCompound(m) => Self::RuntimeCompound(m.clone()),
-        }
-    }
-}
-
 impl<S, V> Debug for ScalarMoveUnion<S, V>
 where
     S: PlanningSolution,

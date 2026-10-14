@@ -76,21 +76,6 @@ pub struct RuntimeCompoundMove<S> {
     require_hard_improvement: bool,
 }
 
-impl<S> Clone for RuntimeCompoundMove<S> {
-    fn clone(&self) -> Self {
-        #[cfg(test)]
-        CLONE_COUNT.with(|count| count.set(count.get().saturating_add(1)));
-        Self {
-            kind: self.kind,
-            reason: self.reason,
-            edits: self.edits.clone(),
-            entity_indices: self.entity_indices.clone(),
-            descriptor_index: self.descriptor_index,
-            require_hard_improvement: self.require_hard_improvement,
-        }
-    }
-}
-
 impl<S> RuntimeCompoundMove<S> {
     pub(crate) fn new(
         kind: RuntimeCompoundMoveKind,

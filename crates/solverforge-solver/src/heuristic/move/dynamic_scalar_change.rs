@@ -15,16 +15,6 @@ pub struct DynamicScalarChangeMove<S> {
     to_value: Option<usize>,
 }
 
-impl<S> Clone for DynamicScalarChangeMove<S> {
-    fn clone(&self) -> Self {
-        Self {
-            slot: self.slot.clone(),
-            entity_index: self.entity_index,
-            to_value: self.to_value,
-        }
-    }
-}
-
 impl<S> Debug for DynamicScalarChangeMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DynamicScalarChangeMove")

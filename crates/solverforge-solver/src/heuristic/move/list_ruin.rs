@@ -28,19 +28,6 @@ pub struct ListRuinMove<S, V> {
     skip_empty_destinations: bool,
 }
 
-impl<S, V> Clone for ListRuinMove<S, V> {
-    fn clone(&self) -> Self {
-        Self {
-            entity_index: self.entity_index,
-            element_indices: self.element_indices.clone(),
-            sources: self.sources.clone(),
-            entity_indices: self.entity_indices.clone(),
-            access: self.access,
-            skip_empty_destinations: self.skip_empty_destinations,
-        }
-    }
-}
-
 impl<S, V: Debug> Debug for ListRuinMove<S, V> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter

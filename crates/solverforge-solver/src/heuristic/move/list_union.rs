@@ -58,26 +58,6 @@ where
     ListRuin(<ListRuinMove<S, V> as Move<S>>::Undo),
 }
 
-impl<S, V> Clone for ListMoveUnion<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + PartialEq + Send + Sync + Debug + 'static,
-{
-    fn clone(&self) -> Self {
-        match self {
-            Self::ListChange(m) => Self::ListChange(*m),
-            Self::ListSwap(m) => Self::ListSwap(*m),
-            Self::ListMultiSwap(m) => Self::ListMultiSwap(m.clone()),
-            Self::ListPermute(m) => Self::ListPermute(m.clone()),
-            Self::SublistChange(m) => Self::SublistChange(*m),
-            Self::SublistSwap(m) => Self::SublistSwap(*m),
-            Self::ListReverse(m) => Self::ListReverse(*m),
-            Self::KOpt(m) => Self::KOpt(m.clone()),
-            Self::ListRuin(m) => Self::ListRuin(m.clone()),
-        }
-    }
-}
-
 impl<S, V> Debug for ListMoveUnion<S, V>
 where
     S: PlanningSolution,

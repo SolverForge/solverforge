@@ -14,7 +14,6 @@ use crate::stats::{CandidateTraceCoordinate, CandidateTraceIdentity};
 use super::spec::RuntimeScalarRecipe;
 
 /// Owned scalar move from the one typed/dynamic scalar leaf kernel.
-#[derive(Clone)]
 pub(crate) struct RuntimeScalarMove<S> {
     recipe: RuntimeScalarRecipe<S>,
     entity_indices: Vec<usize>,

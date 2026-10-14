@@ -346,25 +346,6 @@ where
     }
 }
 
-impl<S, M> Clone for SequentialCompositeMoveRef<'_, S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
-    fn clone(&self) -> Self {
-        Self {
-            first: self.first,
-            second: self.second,
-            descriptor_index: self.descriptor_index,
-            entity_indices: self.entity_indices,
-            variable_name: self.variable_name,
-            tabu_signature: self.tabu_signature,
-            require_hard_improvement: self.require_hard_improvement,
-            _phantom: PhantomData,
-        }
-    }
-}
-
 impl<S, M> Move<S> for SequentialCompositeMoveRef<'_, S, M>
 where
     S: PlanningSolution,
@@ -447,24 +428,6 @@ where
     fn for_each_affected_entity<V: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut V) {
         self.first.for_each_affected_entity(visitor);
         self.second.for_each_affected_entity(visitor);
-    }
-}
-
-impl<S, M> Clone for SequentialCompositeMove<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S> + Clone,
-{
-    fn clone(&self) -> Self {
-        Self::new(
-            self.first_move().clone(),
-            self.second_move().clone(),
-            self.descriptor_index,
-            self.entity_indices.clone(),
-            self.variable_name.clone(),
-            self.tabu_signature.clone(),
-        )
-        .with_require_hard_improvement(self.require_hard_improvement)
     }
 }
 

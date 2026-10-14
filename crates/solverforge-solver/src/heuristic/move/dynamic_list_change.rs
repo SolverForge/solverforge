@@ -18,19 +18,6 @@ pub struct DynamicListChangeMove<S> {
     indices: [usize; 2],
 }
 
-impl<S> Clone for DynamicListChangeMove<S> {
-    fn clone(&self) -> Self {
-        Self {
-            slot: self.slot.clone(),
-            source_entity_index: self.source_entity_index,
-            source_position: self.source_position,
-            dest_entity_index: self.dest_entity_index,
-            dest_position: self.dest_position,
-            indices: self.indices,
-        }
-    }
-}
-
 impl<S> Debug for DynamicListChangeMove<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DynamicListChangeMove")

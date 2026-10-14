@@ -41,20 +41,6 @@ pub struct PillarSwapMove<S, V> {
     variable_index: usize,
 }
 
-impl<S, V: Clone> Clone for PillarSwapMove<S, V> {
-    fn clone(&self) -> Self {
-        Self {
-            left_indices: self.left_indices.clone(),
-            right_indices: self.right_indices.clone(),
-            descriptor_index: self.descriptor_index,
-            variable_name: self.variable_name,
-            getter: self.getter,
-            setter: self.setter,
-            variable_index: self.variable_index,
-        }
-    }
-}
-
 impl<S, V: Debug> Debug for PillarSwapMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PillarSwapMove")

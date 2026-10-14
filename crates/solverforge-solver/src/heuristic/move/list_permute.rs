@@ -31,26 +31,6 @@ pub struct ListPermuteMove<S, V> {
     _phantom: PhantomData<fn() -> V>,
 }
 
-impl<S, V> Clone for ListPermuteMove<S, V> {
-    fn clone(&self) -> Self {
-        Self {
-            entity_index: self.entity_index,
-            start: self.start,
-            end: self.end,
-            permutation: self.permutation.clone(),
-            inverse_permutation: self.inverse_permutation.clone(),
-            list_len: self.list_len,
-            list_get: self.list_get,
-            sublist_remove: self.sublist_remove,
-            sublist_insert: self.sublist_insert,
-            variable_name: self.variable_name,
-            descriptor_index: self.descriptor_index,
-            entity_indices: self.entity_indices,
-            _phantom: PhantomData,
-        }
-    }
-}
-
 impl<S, V: Debug> Debug for ListPermuteMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListPermuteMove")

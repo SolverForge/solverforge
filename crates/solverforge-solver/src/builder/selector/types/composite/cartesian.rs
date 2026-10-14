@@ -240,7 +240,9 @@ where
                     let left = &row.left;
                     let left_signature = &active.left_signature;
                     loop {
-                        let Some(id) = arena.next_at(self.right, solution, resources) else {
+                        let Some(id) =
+                            arena.next_at(self.right, self.preview.working_solution(), resources)
+                        else {
                             break None;
                         };
                         let inspected = {

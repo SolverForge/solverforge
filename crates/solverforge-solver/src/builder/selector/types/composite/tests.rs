@@ -148,6 +148,112 @@ fn arena_cartesian_defers_right_and_restores_exact_state_after_early_drop() {
     assert_eq!(get_queen_row(director.working_solution(), 1, 0), Some(11));
 }
 
+#[test]
+fn arena_cartesian_lends_the_left_preview_to_lazy_right_pulls() {
+    use crate::heuristic::selector::move_selector::{
+        CandidateId, CandidateStore, MoveCandidateRef, MoveCursor,
+    };
+    #[derive(Debug)]
+    struct LazyFlat {
+        entity: usize,
+        values: Vec<i64>,
+    }
+    struct LazyCursor<'a> {
+        flat: &'a LazyFlat,
+        position: usize,
+        store: CandidateStore<NQueensSolution, TestMove>,
+    }
+    impl MoveCursor<NQueensSolution, TestMove> for LazyCursor<'_> {
+        fn next_candidate(&mut self, solution: &NQueensSolution) -> Option<CandidateId> {
+            let value = *self.flat.values.get(self.position)?;
+            self.position += 1;
+            let value = if value == -1 {
+                get_queen_row(solution, 0, 0).unwrap() + 10
+            } else {
+                value
+            };
+            Some(
+                self.store
+                    .push(TestMove::Grouped(ScalarMoveUnion::Change(ChangeMove::new(
+                        self.flat.entity,
+                        Some(value as usize),
+                        get_row,
+                        set_row,
+                        0,
+                        "row",
+                        0,
+                    )))),
+            )
+        }
+        fn candidate(
+            &self,
+            id: CandidateId,
+        ) -> Option<MoveCandidateRef<'_, NQueensSolution, TestMove>> {
+            self.store.candidate(id)
+        }
+        fn take_candidate(&mut self, id: CandidateId) -> TestMove {
+            self.store.take_candidate(id)
+        }
+        fn release_candidate(&mut self, id: CandidateId) -> bool {
+            self.store.release_candidate(id)
+        }
+    }
+    impl StatefulComposedFlat<NQueensSolution, TestMove, (), ()> for LazyFlat {
+        type Cursor<'a> = UnitResourceCursor<LazyCursor<'a>>;
+        fn new_stream_state(&self) {}
+        fn open_cursor_with_stream_state<'a, D: Director<NQueensSolution>>(
+            &'a self,
+            _: &mut (),
+            _: &mut (),
+            _: &D,
+            _: MoveStreamContext,
+        ) -> Self::Cursor<'a> {
+            UnitResourceCursor::new(LazyCursor {
+                flat: self,
+                position: 0,
+                store: CandidateStore::new(),
+            })
+        }
+        fn size<D: Director<NQueensSolution>>(&self, _: &D) -> usize {
+            self.values.len()
+        }
+        fn validate_cursor<D: Director<NQueensSolution>>(&self, _: &D) {}
+    }
+    let mut graph = SelectorComposition::<NQueensSolution, TestMove, LazyFlat, ()>::new();
+    let left = graph.push(SelectorCompositionNode::Flat(LazyFlat {
+        entity: 0,
+        values: vec![1, 2],
+    }));
+    let right = graph.push(SelectorCompositionNode::Flat(LazyFlat {
+        entity: 1,
+        values: vec![-1],
+    }));
+    graph.push(SelectorCompositionNode::Cartesian {
+        left,
+        right,
+        require_hard_improvement: false,
+    });
+    let mut state = SelectorCompositionState::new(graph);
+    let mut director = create_nqueens_director(&[0, 0]);
+    let mut source = state.borrowed_source();
+    let mut cursor = source.open_cursor(&mut (), &director, MoveStreamContext::default());
+    let mut observed = Vec::new();
+    while let Some(id) = cursor.next_candidate_with_resources(director.working_solution(), &mut ())
+    {
+        let candidate = cursor.candidate(id).unwrap();
+        let undo = candidate.do_move(&mut director);
+        observed.push((
+            get_queen_row(director.working_solution(), 0, 0),
+            get_queen_row(director.working_solution(), 1, 0),
+        ));
+        candidate.undo_move(&mut director, undo);
+        assert!(cursor.release_candidate(id));
+        assert_eq!(get_queen_row(director.working_solution(), 0, 0), Some(0));
+        assert_eq!(get_queen_row(director.working_solution(), 1, 0), Some(0));
+    }
+    assert_eq!(observed, vec![(Some(1), Some(11)), (Some(2), Some(12))]);
+}
+
 fn observe<C: ResourceMoveCursor<NQueensSolution, TestMove, ()>, D: Director<NQueensSolution>>(
     cursor: &mut C,
     director: &mut D,

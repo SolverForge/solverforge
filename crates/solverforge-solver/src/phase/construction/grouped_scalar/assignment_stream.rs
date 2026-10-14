@@ -251,10 +251,13 @@ where
             }
         }
 
+        self.build_index_if_needed();
         let candidate = {
             let cursor = &mut self.family_slots[slot_index].cursor;
+            let index = self.index_cache.as_ref().expect("built above");
             next_family_move(
                 cursor,
+                index,
                 &self.group,
                 &self.solution,
                 &mut self.state,
@@ -267,18 +270,20 @@ where
         candidate
     }
 
-    // Builds the assigned value/sequence index once per step; later
-    // value-driven family opens clone it. Builds are pure reads of the
-    // committed solution/state (every candidate build rolls back), so the
-    // content is identical across opens within a step.
-    fn shared_index(&mut self) -> AssignedValueSequenceIndex {
-        if let Some(index) = &self.index_cache {
-            return index.clone();
+    // Builds the assigned value/sequence index once per step. Family opens
+    // and pulls borrow it; no family cursor owns a copy any more. Builds
+    // are pure reads of the committed solution/state (every candidate
+    // build rolls back), so the content is identical across opens within
+    // a step.
+    fn build_index_if_needed(&mut self) {
+        if self.index_cache.is_none() {
+            self.index_cache = Some(assigned_value_sequence_index(
+                &self.group,
+                &self.solution,
+                &self.state,
+                self.options,
+            ));
         }
-        let index =
-            assigned_value_sequence_index(&self.group, &self.solution, &self.state, self.options);
-        self.index_cache = Some(index.clone());
-        index
     }
 
     fn open_family_cursor<ShouldStop>(
@@ -324,39 +329,57 @@ where
                 PairWindowCursor::paired(&self.group, &self.solution, &self.state, options),
             ),
             AssignmentMoveFamily::ValueWindowSwap => {
-                let index = self.shared_index();
+                self.build_index_if_needed();
                 AssignmentFamilyCursor::ValueWindow(
-                    super::assignment_block::ValueWindowCursor::new(options, index),
+                    super::assignment_block::ValueWindowCursor::new(
+                        options,
+                        self.index_cache.as_ref().expect("just built"),
+                    ),
                 )
             }
             AssignmentMoveFamily::ValueLongWindowSwap => {
-                let index = self.shared_index();
+                self.build_index_if_needed();
                 AssignmentFamilyCursor::ValueLongWindow(
-                    super::assignment_block::ValueLongWindowCursor::new(options, index),
+                    super::assignment_block::ValueLongWindowCursor::new(
+                        options,
+                        self.index_cache.as_ref().expect("just built"),
+                    ),
                 )
             }
             AssignmentMoveFamily::ValueRunGapSwap => {
-                let index = self.shared_index();
+                self.build_index_if_needed();
                 AssignmentFamilyCursor::ValueRunGapSwap(
-                    super::assignment_value_run::ValueRunGapSwapCursor::new(options, index),
+                    super::assignment_value_run::ValueRunGapSwapCursor::new(
+                        options,
+                        self.index_cache.as_ref().expect("just built"),
+                    ),
                 )
             }
             AssignmentMoveFamily::ValueRunRelease => {
-                let index = self.shared_index();
+                self.build_index_if_needed();
                 AssignmentFamilyCursor::ValueRunRelease(
-                    super::assignment_value_release::ValueRunReleaseCursor::new(options, index),
+                    super::assignment_value_release::ValueRunReleaseCursor::new(
+                        options,
+                        self.index_cache.as_ref().expect("just built"),
+                    ),
                 )
             }
             AssignmentMoveFamily::ValueWindowCycle => {
-                let index = self.shared_index();
+                self.build_index_if_needed();
                 AssignmentFamilyCursor::ValueWindowCycle(
-                    super::assignment_value_cycle::ValueWindowCycleCursor::new(options, index),
+                    super::assignment_value_cycle::ValueWindowCycleCursor::new(
+                        options,
+                        self.index_cache.as_ref().expect("just built"),
+                    ),
                 )
             }
             AssignmentMoveFamily::ValueBlockReassignment => {
-                let index = self.shared_index();
+                self.build_index_if_needed();
                 AssignmentFamilyCursor::ValueBlockReassignment(
-                    super::assignment_block::ValueBlockReassignmentCursor::new(options, index),
+                    super::assignment_block::ValueBlockReassignmentCursor::new(
+                        options,
+                        self.index_cache.as_ref().expect("just built"),
+                    ),
                 )
             }
             AssignmentMoveFamily::Reassignment => AssignmentFamilyCursor::entity_values(
@@ -409,6 +432,7 @@ where
 
 fn next_family_move<S, ShouldStop>(
     cursor: &mut AssignmentFamilyCursor,
+    index: &AssignedValueSequenceIndex,
     group: &ScalarAssignmentBinding<S>,
     solution: &S,
     state: &mut ScalarAssignmentState,
@@ -458,42 +482,42 @@ where
             candidate
         }
         AssignmentFamilyCursor::ValueWindow(value_window_cursor) => {
-            let candidate = value_window_cursor.next(group, solution, state);
+            let candidate = value_window_cursor.next(index, group, solution, state);
             if candidate.is_none() {
                 *cursor = AssignmentFamilyCursor::Empty;
             }
             candidate
         }
         AssignmentFamilyCursor::ValueLongWindow(long_window_cursor) => {
-            let candidate = long_window_cursor.next(group, solution, state);
+            let candidate = long_window_cursor.next(index, group, solution, state);
             if candidate.is_none() {
                 *cursor = AssignmentFamilyCursor::Empty;
             }
             candidate
         }
         AssignmentFamilyCursor::ValueRunGapSwap(run_gap_cursor) => {
-            let candidate = run_gap_cursor.next(group, solution, state);
+            let candidate = run_gap_cursor.next(index, group, solution, state);
             if candidate.is_none() {
                 *cursor = AssignmentFamilyCursor::Empty;
             }
             candidate
         }
         AssignmentFamilyCursor::ValueRunRelease(run_release_cursor) => {
-            let candidate = run_release_cursor.next(group, solution, state);
+            let candidate = run_release_cursor.next(index, group, solution, state);
             if candidate.is_none() {
                 *cursor = AssignmentFamilyCursor::Empty;
             }
             candidate
         }
         AssignmentFamilyCursor::ValueWindowCycle(value_window_cycle_cursor) => {
-            let candidate = value_window_cycle_cursor.next(group, solution, state);
+            let candidate = value_window_cycle_cursor.next(index, group, solution, state);
             if candidate.is_none() {
                 *cursor = AssignmentFamilyCursor::Empty;
             }
             candidate
         }
         AssignmentFamilyCursor::ValueBlockReassignment(block_cursor) => {
-            let candidate = block_cursor.next(group, solution, state);
+            let candidate = block_cursor.next(index, group, solution, state);
             if candidate.is_none() {
                 *cursor = AssignmentFamilyCursor::Empty;
             }

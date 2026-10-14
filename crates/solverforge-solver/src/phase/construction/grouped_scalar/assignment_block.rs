@@ -11,8 +11,6 @@ use solverforge_core::fast_hash::{FastMap, FastSet};
 
 pub(super) struct ValueWindowCursor {
     pairs: ValuePairCoordinates,
-    sequence_keys: Vec<usize>,
-    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     start_pos: usize,
     len: usize,
     max_len: usize,
@@ -20,8 +18,6 @@ pub(super) struct ValueWindowCursor {
 
 pub(super) struct ValueLongWindowCursor {
     pairs: ValuePairCoordinates,
-    sequence_keys: Vec<usize>,
-    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     length_pos: usize,
     start_pos: usize,
     lengths: Vec<usize>,
@@ -29,8 +25,6 @@ pub(super) struct ValueLongWindowCursor {
 
 pub(super) struct ValueBlockReassignmentCursor {
     pairs: ValuePairCoordinates,
-    sequence_keys: Vec<usize>,
-    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     start_pos: usize,
     len: usize,
     max_len: usize,
@@ -39,9 +33,9 @@ pub(super) struct ValueBlockReassignmentCursor {
 impl ValueLongWindowCursor {
     pub(super) fn new(
         options: ScalarAssignmentMoveOptions,
-        index: AssignedValueSequenceIndex,
+        index: &AssignedValueSequenceIndex,
     ) -> Self {
-        let pairs = ValuePairCoordinates::new(index.values, ValuePairKind::Unordered, options);
+        let pairs = ValuePairCoordinates::new(&index.values, ValuePairKind::Unordered, options);
 
         let base_len = options
             .max_rematch_size
@@ -50,8 +44,6 @@ impl ValueLongWindowCursor {
         let lengths = vec![base_len];
         Self {
             pairs,
-            sequence_keys: index.sequence_keys,
-            by_value_sequence: index.by_value_sequence,
             length_pos: 0,
             start_pos: 0,
             lengths,
@@ -60,6 +52,7 @@ impl ValueLongWindowCursor {
 
     pub(super) fn next<S>(
         &mut self,
+        index: &AssignedValueSequenceIndex,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &mut ScalarAssignmentState,
@@ -67,15 +60,16 @@ impl ValueLongWindowCursor {
     where
         S: PlanningSolution,
     {
-        while let Some(pair) = self.pairs.current() {
+        while let Some(pair) = self.pairs.current(&index.values) {
             while self.length_pos < self.lengths.len() {
                 let len = self.lengths[self.length_pos];
-                while self.start_pos + len <= self.sequence_keys.len() {
+                while self.start_pos + len <= index.sequence_keys.len() {
                     let (left_value, right_value) = pair;
-                    let sequence_window = &self.sequence_keys[self.start_pos..self.start_pos + len];
+                    let sequence_window =
+                        &index.sequence_keys[self.start_pos..self.start_pos + len];
                     self.start_pos += 1;
                     let edits = value_window_edits(
-                        &self.by_value_sequence,
+                        &index.by_value_sequence,
                         group,
                         solution,
                         state,
@@ -115,9 +109,9 @@ impl ValueLongWindowCursor {
 impl ValueWindowCursor {
     pub(super) fn new(
         options: ScalarAssignmentMoveOptions,
-        index: AssignedValueSequenceIndex,
+        index: &AssignedValueSequenceIndex,
     ) -> Self {
-        let pairs = ValuePairCoordinates::new(index.values, ValuePairKind::Unordered, options);
+        let pairs = ValuePairCoordinates::new(&index.values, ValuePairKind::Unordered, options);
 
         let max_len = options
             .max_depth
@@ -126,8 +120,6 @@ impl ValueWindowCursor {
             .max(2);
         Self {
             pairs,
-            sequence_keys: index.sequence_keys,
-            by_value_sequence: index.by_value_sequence,
             start_pos: 0,
             len: 2,
             max_len,
@@ -136,6 +128,7 @@ impl ValueWindowCursor {
 
     pub(super) fn next<S>(
         &mut self,
+        index: &AssignedValueSequenceIndex,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &mut ScalarAssignmentState,
@@ -143,18 +136,18 @@ impl ValueWindowCursor {
     where
         S: PlanningSolution,
     {
-        while let Some(pair) = self.pairs.current() {
-            while self.start_pos < self.sequence_keys.len() {
+        while let Some(pair) = self.pairs.current(&index.values) {
+            while self.start_pos < index.sequence_keys.len() {
                 while self.len <= self.max_len {
-                    if self.start_pos + self.len > self.sequence_keys.len() {
+                    if self.start_pos + self.len > index.sequence_keys.len() {
                         break;
                     }
                     let (left_value, right_value) = pair;
                     let sequence_window =
-                        &self.sequence_keys[self.start_pos..self.start_pos + self.len];
+                        &index.sequence_keys[self.start_pos..self.start_pos + self.len];
                     self.len += 1;
                     let edits = value_window_edits(
-                        &self.by_value_sequence,
+                        &index.by_value_sequence,
                         group,
                         solution,
                         state,
@@ -194,9 +187,9 @@ impl ValueWindowCursor {
 impl ValueBlockReassignmentCursor {
     pub(super) fn new(
         options: ScalarAssignmentMoveOptions,
-        index: AssignedValueSequenceIndex,
+        index: &AssignedValueSequenceIndex,
     ) -> Self {
-        let pairs = ValuePairCoordinates::new(index.values, ValuePairKind::Directed, options);
+        let pairs = ValuePairCoordinates::new(&index.values, ValuePairKind::Directed, options);
 
         let max_len = options
             .max_depth
@@ -205,8 +198,6 @@ impl ValueBlockReassignmentCursor {
             .max(2);
         Self {
             pairs,
-            sequence_keys: index.sequence_keys,
-            by_value_sequence: index.by_value_sequence,
             start_pos: 0,
             len: 2,
             max_len,
@@ -215,6 +206,7 @@ impl ValueBlockReassignmentCursor {
 
     pub(super) fn next<S>(
         &mut self,
+        index: &AssignedValueSequenceIndex,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &mut ScalarAssignmentState,
@@ -222,17 +214,18 @@ impl ValueBlockReassignmentCursor {
     where
         S: PlanningSolution,
     {
-        while let Some(pair) = self.pairs.current() {
-            while self.start_pos < self.sequence_keys.len() {
+        while let Some(pair) = self.pairs.current(&index.values) {
+            while self.start_pos < index.sequence_keys.len() {
                 while self.len <= self.max_len {
-                    if self.start_pos + self.len > self.sequence_keys.len() {
+                    if self.start_pos + self.len > index.sequence_keys.len() {
                         break;
                     }
                     let (source_value, target_value) = pair;
                     let sequence_window =
-                        &self.sequence_keys[self.start_pos..self.start_pos + self.len];
+                        &index.sequence_keys[self.start_pos..self.start_pos + self.len];
                     self.len += 1;
                     let edits = self.window_edits(
+                        index,
                         group,
                         solution,
                         state,
@@ -268,8 +261,10 @@ impl ValueBlockReassignmentCursor {
         None
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn window_edits<S>(
         &self,
+        index: &AssignedValueSequenceIndex,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &ScalarAssignmentState,
@@ -283,7 +278,7 @@ impl ValueBlockReassignmentCursor {
         let mut edits = Vec::new();
         for sequence_key in sequence_window {
             if let Some(source_entities) =
-                self.by_value_sequence.get(&(source_value, *sequence_key))
+                index.by_value_sequence.get(&(source_value, *sequence_key))
             {
                 for entity_index in source_entities {
                     if state.current_value(*entity_index) != Some(target_value)
@@ -298,6 +293,7 @@ impl ValueBlockReassignmentCursor {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn value_window_edits<S>(
     by_value_sequence: &FastMap<(usize, usize), Vec<usize>>,
     group: &ScalarAssignmentBinding<S>,

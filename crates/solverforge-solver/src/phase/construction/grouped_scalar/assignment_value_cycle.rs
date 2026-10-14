@@ -7,12 +7,10 @@ use super::assignment_value_coordinates::ValueCycleCoordinates;
 use super::assignment_value_index::AssignedValueSequenceIndex;
 use crate::builder::ScalarAssignmentBinding;
 use crate::heuristic::r#move::CompoundScalarMove;
-use solverforge_core::fast_hash::{FastMap, FastSet};
+use solverforge_core::fast_hash::FastSet;
 
 pub(super) struct ValueWindowCycleCursor {
     triples: ValueCycleCoordinates,
-    sequence_keys: Vec<usize>,
-    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     start_pos: usize,
     len: usize,
     max_len: usize,
@@ -28,9 +26,9 @@ struct CycleStep {
 impl ValueWindowCycleCursor {
     pub(super) fn new(
         options: ScalarAssignmentMoveOptions,
-        index: AssignedValueSequenceIndex,
+        index: &AssignedValueSequenceIndex,
     ) -> Self {
-        let triples = ValueCycleCoordinates::new(index.values, options);
+        let triples = ValueCycleCoordinates::new(&index.values, options);
 
         let max_len = options
             .max_depth
@@ -39,8 +37,6 @@ impl ValueWindowCycleCursor {
             .max(2);
         Self {
             triples,
-            sequence_keys: index.sequence_keys,
-            by_value_sequence: index.by_value_sequence,
             start_pos: 0,
             len: 2,
             max_len,
@@ -49,6 +45,7 @@ impl ValueWindowCycleCursor {
 
     pub(super) fn next<S>(
         &mut self,
+        index: &AssignedValueSequenceIndex,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &mut ScalarAssignmentState,
@@ -56,16 +53,17 @@ impl ValueWindowCycleCursor {
     where
         S: PlanningSolution,
     {
-        while let Some((first, second, third)) = self.triples.current() {
-            while self.start_pos < self.sequence_keys.len() {
+        while let Some((first, second, third)) = self.triples.current(&index.values) {
+            while self.start_pos < index.sequence_keys.len() {
                 while self.len <= self.max_len {
-                    if self.start_pos + self.len > self.sequence_keys.len() {
+                    if self.start_pos + self.len > index.sequence_keys.len() {
                         break;
                     }
                     let sequence_window =
-                        &self.sequence_keys[self.start_pos..self.start_pos + self.len];
+                        &index.sequence_keys[self.start_pos..self.start_pos + self.len];
                     self.len += 1;
                     let edits = self.window_edits(
+                        index,
                         group,
                         solution,
                         state,
@@ -102,6 +100,7 @@ impl ValueWindowCycleCursor {
 
     fn window_edits<S>(
         &self,
+        index: &AssignedValueSequenceIndex,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &ScalarAssignmentState,
@@ -116,6 +115,7 @@ impl ValueWindowCycleCursor {
         let (first, second, third) = cycle;
         for sequence_key in sequence_window {
             self.push_cycle_edits(
+                index,
                 &mut touched,
                 &mut edits,
                 group,
@@ -128,6 +128,7 @@ impl ValueWindowCycleCursor {
                 },
             );
             self.push_cycle_edits(
+                index,
                 &mut touched,
                 &mut edits,
                 group,
@@ -140,6 +141,7 @@ impl ValueWindowCycleCursor {
                 },
             );
             self.push_cycle_edits(
+                index,
                 &mut touched,
                 &mut edits,
                 group,
@@ -155,8 +157,10 @@ impl ValueWindowCycleCursor {
         edits
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn push_cycle_edits<S>(
         &self,
+        index: &AssignedValueSequenceIndex,
         touched: &mut FastSet<usize>,
         edits: &mut Vec<(usize, Option<usize>)>,
         group: &ScalarAssignmentBinding<S>,
@@ -166,7 +170,7 @@ impl ValueWindowCycleCursor {
     ) where
         S: PlanningSolution,
     {
-        let Some(entities) = self
+        let Some(entities) = index
             .by_value_sequence
             .get(&(step.from_value, step.sequence_key))
         else {

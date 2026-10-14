@@ -19,14 +19,14 @@ fn lazy_cycles_match_both_eager_orientations_through_rotation_wrap_and_exhaustio
                     }
                 }
                 order_candidates(&mut expected, options(offset));
-                let mut actual = ValueCycleCoordinates::new(values.to_vec(), options(offset));
+                let mut actual = ValueCycleCoordinates::new(&values, options(offset));
                 for triple in expected {
-                    assert_eq!(actual.current(), Some(triple));
-                    assert_eq!(actual.current(), Some(triple));
+                    assert_eq!(actual.current(&values), Some(triple));
+                    assert_eq!(actual.current(&values), Some(triple));
                     actual.advance();
                 }
                 for _ in 0..3 {
-                    assert_eq!(actual.current(), None);
+                    assert_eq!(actual.current(&values), None);
                     actual.advance();
                 }
             }
@@ -123,18 +123,13 @@ fn real_value_cursors_preserve_complete_candidate_order() {
         }
         order_candidates(&mut pairs, opts);
         order_candidates(&mut directed, opts);
-        let mut window = ValueWindowCursor::new(
-            opts,
-            assigned_value_sequence_index(&binding, &plan, &state, opts),
-        );
-        let mut long = ValueLongWindowCursor::new(
-            opts,
-            assigned_value_sequence_index(&binding, &plan, &state, opts),
-        );
+        let index = assigned_value_sequence_index(&binding, &plan, &state, opts);
+        let mut window = ValueWindowCursor::new(opts, &index);
+        let mut long = ValueLongWindowCursor::new(opts, &index);
         for (left, right) in pairs {
             for candidate in [
-                window.next(&binding, &plan, &mut state),
-                long.next(&binding, &plan, &mut state),
+                window.next(&index, &binding, &plan, &mut state),
+                long.next(&index, &binding, &plan, &mut state),
             ] {
                 let candidate = candidate.expect("each pair swaps both sequences");
                 assert_eq!(candidate.edits().len(), 4);
@@ -144,15 +139,12 @@ fn real_value_cursors_preserve_complete_candidate_order() {
                 }
             }
         }
-        assert!(window.next(&binding, &plan, &mut state).is_none());
-        assert!(long.next(&binding, &plan, &mut state).is_none());
-        let mut block = ValueBlockReassignmentCursor::new(
-            opts,
-            assigned_value_sequence_index(&binding, &plan, &state, opts),
-        );
+        assert!(window.next(&index, &binding, &plan, &mut state).is_none());
+        assert!(long.next(&index, &binding, &plan, &mut state).is_none());
+        let mut block = ValueBlockReassignmentCursor::new(opts, &index);
         for (source, target) in directed {
             let candidate = block
-                .next(&binding, &plan, &mut state)
+                .next(&index, &binding, &plan, &mut state)
                 .expect("each directed pair reassigns a two-row block");
             assert_eq!(candidate.edits().len(), 2);
             for edit in candidate.edits() {
@@ -160,19 +152,16 @@ fn real_value_cursors_preserve_complete_candidate_order() {
                 assert_eq!(edit.to_value, Some(target));
             }
         }
-        assert!(block.next(&binding, &plan, &mut state).is_none());
+        assert!(block.next(&index, &binding, &plan, &mut state).is_none());
         let mut triples = vec![
             (values[0], values[1], values[2]),
             (values[0], values[2], values[1]),
         ];
         order_candidates(&mut triples, opts);
-        let mut cycle = ValueWindowCycleCursor::new(
-            opts,
-            assigned_value_sequence_index(&binding, &plan, &state, opts),
-        );
+        let mut cycle = ValueWindowCycleCursor::new(opts, &index);
         for (a, b, c) in triples {
             let candidate = cycle
-                .next(&binding, &plan, &mut state)
+                .next(&index, &binding, &plan, &mut state)
                 .expect("both cycle orientations cover both sequences");
             assert_eq!(candidate.edits().len(), 6);
             for edit in candidate.edits() {
@@ -189,7 +178,7 @@ fn real_value_cursors_preserve_complete_candidate_order() {
                 );
             }
         }
-        assert!(cycle.next(&binding, &plan, &mut state).is_none());
+        assert!(cycle.next(&index, &binding, &plan, &mut state).is_none());
         assert_eq!(state.current_value(0), Some(0));
     }
 }
@@ -208,13 +197,11 @@ fn real_gap_swap_releases_an_island_after_filling_the_gap() {
         score: None,
     };
     let mut state = ScalarAssignmentState::new(&binding, &plan);
-    let mut cursor = ValueRunGapSwapCursor::new(
-        options(0),
-        assigned_value_sequence_index(&binding, &plan, &state, options(0)),
-    );
+    let index = assigned_value_sequence_index(&binding, &plan, &state, options(0));
+    let mut cursor = ValueRunGapSwapCursor::new(options(0), &index);
     for released_entity in [0, 2, 3] {
         let candidate = cursor
-            .next(&binding, &plan, &mut state)
+            .next(&index, &binding, &plan, &mut state)
             .expect("each isolated target row can be released after filling the gap");
         assert_eq!(
             candidate
@@ -225,8 +212,8 @@ fn real_gap_swap_releases_an_island_after_filling_the_gap() {
             vec![(1, Some(0)), (released_entity, Some(1))]
         );
     }
-    assert!(cursor.next(&binding, &plan, &mut state).is_none());
-    assert!(cursor.next(&binding, &plan, &mut state).is_none());
+    assert!(cursor.next(&index, &binding, &plan, &mut state).is_none());
+    assert!(cursor.next(&index, &binding, &plan, &mut state).is_none());
 }
 
 #[test]
@@ -273,9 +260,9 @@ fn release_mode_value_coordinates_traversal_is_not_slower_than_eager_order() {
             let after = median(
                 |offset| {
                     let values: Vec<_> = (0..black_box(n)).map(|i| i * 7 + 3).collect();
-                    let mut cursor = ValuePairCoordinates::new(values, kind, options(offset));
+                    let mut cursor = ValuePairCoordinates::new(&values, kind, options(offset));
                     let mut sum = 0usize;
-                    while let Some(tuple) = cursor.current() {
+                    while let Some(tuple) = cursor.current(&values) {
                         sum = sum.wrapping_add(black_box(tuple).0);
                         cursor.advance();
                     }
@@ -322,9 +309,9 @@ fn release_mode_value_coordinates_traversal_is_not_slower_than_eager_order() {
         let after = median(
             |offset| {
                 let values: Vec<_> = (0..black_box(n)).map(|i| i * 7 + 3).collect();
-                let mut cursor = ValueCycleCoordinates::new(values, options(offset));
+                let mut cursor = ValueCycleCoordinates::new(&values, options(offset));
                 let mut sum = 0usize;
-                while let Some(tuple) = cursor.current() {
+                while let Some(tuple) = cursor.current(&values) {
                     sum = sum.wrapping_add(black_box(tuple).0);
                     cursor.advance();
                 }
@@ -353,9 +340,12 @@ fn options(offset: usize) -> ScalarAssignmentMoveOptions {
 
 #[test]
 fn lazy_cycle_count_can_exceed_machine_word_without_truncating() {
-    let mut cursor = ValueCycleCoordinates::new((0..4_000_000).collect(), options(usize::MAX));
+    let big: Vec<usize> = (0..4_000_000).collect();
+    let mut cursor = ValueCycleCoordinates::new(&big, options(usize::MAX));
     for _ in 0..8 {
-        let (first, second, third) = cursor.current().expect("the full cycle space remains live");
+        let (first, second, third) = cursor
+            .current(&big)
+            .expect("the full cycle space remains live");
         assert!(first < second && first < third);
         assert_ne!(second, third);
         assert!(second < 4_000_000 && third < 4_000_000);
@@ -384,15 +374,14 @@ fn lazy_pairs_match_eager_order_through_rotation_wrap_and_exhaustion() {
                         }
                     }
                     order_candidates(&mut expected, options(offset));
-                    let mut actual =
-                        ValuePairCoordinates::new(values.to_vec(), kind, options(offset));
+                    let mut actual = ValuePairCoordinates::new(&values, kind, options(offset));
                     for pair in expected {
-                        assert_eq!(actual.current(), Some(pair));
-                        assert_eq!(actual.current(), Some(pair), "peek must not advance");
+                        assert_eq!(actual.current(&values), Some(pair));
+                        assert_eq!(actual.current(&values), Some(pair), "peek must not advance");
                         actual.advance();
                     }
                     for _ in 0..3 {
-                        assert_eq!(actual.current(), None);
+                        assert_eq!(actual.current(&values), None);
                         actual.advance();
                     }
                 }

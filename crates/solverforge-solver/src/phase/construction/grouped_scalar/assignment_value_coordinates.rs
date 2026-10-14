@@ -6,9 +6,11 @@ pub(super) enum ValuePairKind {
     Directed,
 }
 
+/// Position state of a value-pair walk. Positions index the assignment
+/// index's `values` slice, which is lent per pull instead of copied.
 pub(super) struct ValuePairCoordinates {
-    values: Vec<usize>,
     kind: ValuePairKind,
+    n: usize,
     left: usize,
     right: usize,
     remaining: u128,
@@ -16,7 +18,7 @@ pub(super) struct ValuePairCoordinates {
 
 impl ValuePairCoordinates {
     pub(super) fn new(
-        values: Vec<usize>,
+        values: &[usize],
         kind: ValuePairKind,
         options: ScalarAssignmentMoveOptions,
     ) -> Self {
@@ -45,19 +47,20 @@ impl ValuePairCoordinates {
             left + 1 + rank as usize
         };
         Self {
-            values,
             kind,
+            n,
             left,
             right,
             remaining: total,
         }
     }
 
-    pub(super) fn current(&self) -> Option<(usize, usize)> {
+    pub(super) fn current(&self, values: &[usize]) -> Option<(usize, usize)> {
+        debug_assert_eq!(values.len(), self.n);
         if self.remaining == 0 {
             return None;
         }
-        Some((self.values[self.left], self.values[self.right]))
+        Some((values[self.left], values[self.right]))
     }
 
     pub(super) fn advance(&mut self) {
@@ -66,7 +69,7 @@ impl ValuePairCoordinates {
         }
         self.remaining -= 1;
         self.right += 1;
-        let n = self.values.len();
+        let n = self.n;
         if self.kind == ValuePairKind::Directed {
             if self.right == self.left {
                 self.right += 1;
@@ -85,8 +88,9 @@ impl ValuePairCoordinates {
     }
 }
 
+/// Position state of a value-cycle walk; the values slice is lent per pull.
 pub(super) struct ValueCycleCoordinates {
-    values: Vec<usize>,
+    n: usize,
     first: usize,
     second: usize,
     third: usize,
@@ -95,7 +99,7 @@ pub(super) struct ValueCycleCoordinates {
 }
 
 impl ValueCycleCoordinates {
-    pub(super) fn new(values: Vec<usize>, options: ScalarAssignmentMoveOptions) -> Self {
+    pub(super) fn new(values: &[usize], options: ScalarAssignmentMoveOptions) -> Self {
         let n = values.len();
         let total = n as u128 * n.saturating_sub(1) as u128 * n.saturating_sub(2) as u128 / 3;
         let offset = if total == 0 {
@@ -115,7 +119,7 @@ impl ValueCycleCoordinates {
             second += 1;
         }
         Self {
-            values,
+            n,
             first,
             second,
             third: second + 1 + rank as usize,
@@ -124,7 +128,8 @@ impl ValueCycleCoordinates {
         }
     }
 
-    pub(super) fn current(&self) -> Option<(usize, usize, usize)> {
+    pub(super) fn current(&self, values: &[usize]) -> Option<(usize, usize, usize)> {
+        debug_assert_eq!(values.len(), self.n);
         if self.remaining == 0 {
             return None;
         }
@@ -133,11 +138,7 @@ impl ValueCycleCoordinates {
         } else {
             (self.second, self.third)
         };
-        Some((
-            self.values[self.first],
-            self.values[second],
-            self.values[third],
-        ))
+        Some((values[self.first], values[second], values[third]))
     }
 
     pub(super) fn advance(&mut self) {
@@ -150,7 +151,7 @@ impl ValueCycleCoordinates {
             return;
         }
         self.third += 1;
-        let n = self.values.len();
+        let n = self.n;
         if self.third == n {
             self.second += 1;
             if self.second + 1 == n {

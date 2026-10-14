@@ -11,8 +11,6 @@ use solverforge_core::fast_hash::FastMap;
 
 pub(super) struct ValueRunGapSwapCursor {
     pairs: ValuePairCoordinates,
-    sequence_keys: Vec<usize>,
-    by_value_sequence: FastMap<(usize, usize), Vec<usize>>,
     fill_pos: usize,
     release_pos: usize,
     fill_sequences: Vec<usize>,
@@ -37,14 +35,12 @@ struct ValueStep {
 impl ValueRunGapSwapCursor {
     pub(super) fn new(
         options: ScalarAssignmentMoveOptions,
-        index: AssignedValueSequenceIndex,
+        index: &AssignedValueSequenceIndex,
     ) -> Self {
-        let pairs = ValuePairCoordinates::new(index.values, ValuePairKind::Directed, options);
+        let pairs = ValuePairCoordinates::new(&index.values, ValuePairKind::Directed, options);
 
         Self {
             pairs,
-            sequence_keys: index.sequence_keys,
-            by_value_sequence: index.by_value_sequence,
             fill_pos: 0,
             release_pos: 0,
             fill_sequences: Vec::new(),
@@ -54,6 +50,7 @@ impl ValueRunGapSwapCursor {
 
     pub(super) fn next<S>(
         &mut self,
+        index: &AssignedValueSequenceIndex,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &mut ScalarAssignmentState,
@@ -61,14 +58,15 @@ impl ValueRunGapSwapCursor {
     where
         S: PlanningSolution,
     {
-        while let Some((target_value, source_value)) = self.pairs.current() {
-            self.ensure_pair_loaded();
+        while let Some((target_value, source_value)) = self.pairs.current(&index.values) {
+            self.ensure_pair_loaded(index);
             while self.fill_pos < self.fill_sequences.len() {
                 while self.release_pos < self.release_sequences.len() {
                     let fill_sequence = self.fill_sequences[self.fill_pos];
                     let release_sequence = self.release_sequences[self.release_pos];
                     self.release_pos += 1;
                     let edits = self.swap_edits(
+                        index,
                         group,
                         solution,
                         state,
@@ -105,34 +103,34 @@ impl ValueRunGapSwapCursor {
         None
     }
 
-    fn ensure_pair_loaded(&mut self) {
+    fn ensure_pair_loaded(&mut self, index: &AssignedValueSequenceIndex) {
         if !self.fill_sequences.is_empty() || !self.release_sequences.is_empty() {
             return;
         }
-        let Some((target_value, source_value)) = self.pairs.current() else {
+        let Some((target_value, source_value)) = self.pairs.current(&index.values) else {
             return;
         };
-        self.fill_sequences = self
+        self.fill_sequences = index
             .sequence_keys
             .iter()
             .copied()
             .filter(|sequence| {
-                self.has_value(source_value, *sequence)
-                    && self.is_single_gap(target_value, *sequence)
+                index.has_value(source_value, *sequence)
+                    && is_single_gap(index, target_value, *sequence)
             })
             .collect();
-        self.release_sequences = self
+        self.release_sequences = index
             .sequence_keys
             .iter()
             .copied()
             .filter(|sequence| {
-                self.has_value(target_value, *sequence) && !self.has_value(source_value, *sequence)
+                index.has_value(target_value, *sequence)
+                    && !index.has_value(source_value, *sequence)
             })
             .collect();
-        let by_value_sequence = &self.by_value_sequence;
         self.release_sequences.sort_by_key(|sequence| {
             (
-                !is_single_island(by_value_sequence, target_value, *sequence),
+                !is_single_island(&index.by_value_sequence, target_value, *sequence),
                 *sequence,
             )
         });
@@ -148,6 +146,7 @@ impl ValueRunGapSwapCursor {
 
     fn swap_edits<S>(
         &self,
+        index: &AssignedValueSequenceIndex,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,
         state: &ScalarAssignmentState,
@@ -157,7 +156,8 @@ impl ValueRunGapSwapCursor {
         S: PlanningSolution,
     {
         let mut edits = Vec::new();
-        self.push_reassign_edits(
+        push_reassign_edits(
+            &index.by_value_sequence,
             group,
             solution,
             state,
@@ -168,7 +168,8 @@ impl ValueRunGapSwapCursor {
             },
             &mut edits,
         );
-        self.push_reassign_edits(
+        push_reassign_edits(
+            &index.by_value_sequence,
             group,
             solution,
             state,
@@ -181,43 +182,42 @@ impl ValueRunGapSwapCursor {
         );
         edits
     }
+}
 
-    fn push_reassign_edits<S>(
-        &self,
-        group: &ScalarAssignmentBinding<S>,
-        solution: &S,
-        state: &ScalarAssignmentState,
-        step: ValueStep,
-        edits: &mut Vec<(usize, Option<usize>)>,
-    ) where
-        S: PlanningSolution,
-    {
-        let Some(entities) = self
-            .by_value_sequence
-            .get(&(step.from_value, step.sequence))
-        else {
-            return;
-        };
-        for entity_index in entities {
-            if state.current_value(*entity_index) != Some(step.to_value)
-                && group.value_is_legal(solution, *entity_index, Some(step.to_value))
-            {
-                edits.push((*entity_index, Some(step.to_value)));
-            }
+fn push_reassign_edits<S>(
+    by_value_sequence: &FastMap<(usize, usize), Vec<usize>>,
+    group: &ScalarAssignmentBinding<S>,
+    solution: &S,
+    state: &ScalarAssignmentState,
+    step: ValueStep,
+    edits: &mut Vec<(usize, Option<usize>)>,
+) where
+    S: PlanningSolution,
+{
+    let Some(entities) = by_value_sequence.get(&(step.from_value, step.sequence)) else {
+        return;
+    };
+    for entity_index in entities {
+        if state.current_value(*entity_index) != Some(step.to_value)
+            && group.value_is_legal(solution, *entity_index, Some(step.to_value))
+        {
+            edits.push((*entity_index, Some(step.to_value)));
         }
     }
+}
 
-    fn is_single_gap(&self, value: usize, sequence: usize) -> bool {
-        !self.has_value(value, sequence)
-            && sequence
-                .checked_sub(1)
-                .is_some_and(|previous| self.has_value(value, previous))
-            && sequence
-                .checked_add(1)
-                .is_some_and(|next| self.has_value(value, next))
-    }
+fn is_single_gap(index: &AssignedValueSequenceIndex, value: usize, sequence: usize) -> bool {
+    !index.has_value(value, sequence)
+        && sequence
+            .checked_sub(1)
+            .is_some_and(|previous| index.has_value(value, previous))
+        && sequence
+            .checked_add(1)
+            .is_some_and(|next| index.has_value(value, next))
+}
 
-    fn has_value(&self, value: usize, sequence: usize) -> bool {
+impl AssignedValueSequenceIndex {
+    pub(super) fn has_value(&self, value: usize, sequence: usize) -> bool {
         self.by_value_sequence
             .get(&(value, sequence))
             .is_some_and(|entities| !entities.is_empty())

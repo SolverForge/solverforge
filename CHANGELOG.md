@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.21.3](https://github.com/SolverForge/solverforge/compare/v0.21.2...v0.21.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* **scoring:** preserve net route deltas during precedence trials ([770b358](https://github.com/SolverForge/solverforge/commit/770b3583fff66dc9fb10ebf7fd61a42e3e8472e0))
+
+
 ## [0.21.2](https://github.com/SolverForge/solverforge/compare/v0.21.1...v0.21.2) (2026-10-14)
 
 

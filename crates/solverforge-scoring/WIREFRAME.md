@@ -3,7 +3,7 @@
 Zero-erasure incremental constraint scoring infrastructure for SolverForge.
 
 **Location:** `crates/solverforge-scoring/`
-**Workspace Release:** `0.21.2`
+**Workspace Release:** `0.21.3`
 
 ## Joined grouping fluent surface
 

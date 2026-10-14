@@ -348,9 +348,7 @@ fn rebased_union_children_keep_their_interior_composite_edges() {
     let union = MoveSelectorConfig::UnionMoveSelector(UnionMoveSelectorConfig {
         selection_order: UnionSelectionOrder::Sequential,
         selectors: vec![
-            MoveSelectorConfig::NearbyListChangeMoveSelector(
-                NearbyListChangeMoveConfig::default(),
-            ),
+            MoveSelectorConfig::NearbyListChangeMoveSelector(NearbyListChangeMoveConfig::default()),
             MoveSelectorConfig::LimitedNeighborhood(LimitedNeighborhoodConfig {
                 selected_count_limit: 500,
                 selector: Box::new(MoveSelectorConfig::SublistChangeMoveSelector(

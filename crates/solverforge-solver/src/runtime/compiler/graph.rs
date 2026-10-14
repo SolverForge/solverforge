@@ -560,5 +560,3 @@ where
         &self.default_bindings
     }
 }
-
-

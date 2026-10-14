@@ -41,6 +41,10 @@ fn compiled_cvrp_union_selector_lowers_every_node_once() {
         .delete(job_id)
         .expect("completed job should delete cleanly");
 
-    let assigned: usize = completed.routes.iter().map(|route| route.visits.len()).sum();
+    let assigned: usize = completed
+        .routes
+        .iter()
+        .map(|route| route.visits.len())
+        .sum();
     assert!(assigned > 0, "construction should assign customers");
 }

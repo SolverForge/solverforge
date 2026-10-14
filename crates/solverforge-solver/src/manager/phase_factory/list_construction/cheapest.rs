@@ -174,8 +174,13 @@ where
         (self.list_insert)(solution, entity_index, position, element);
     }
 
-    fn remove_element(&self, solution: &mut S, entity_index: usize, position: usize) {
-        let _ = (self.list_remove)(solution, entity_index, position);
+    fn remove_element(
+        &self,
+        solution: &mut S,
+        entity_index: usize,
+        position: usize,
+    ) -> Option<Self::Element> {
+        Some((self.list_remove)(solution, entity_index, position))
     }
 
     fn owner_restriction(

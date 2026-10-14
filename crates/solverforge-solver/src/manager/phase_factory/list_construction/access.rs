@@ -21,7 +21,14 @@ pub(crate) trait ScoredListConstructionAccess<S> {
         position: usize,
         element: Self::Element,
     );
-    fn remove_element(&self, solution: &mut S, entity_index: usize, position: usize);
+    /* Removes the element at the position and TRANSFERS it back by ownership so
+    trial evaluation can cycle the same element without re-cloning it. */
+    fn remove_element(
+        &self,
+        solution: &mut S,
+        entity_index: usize,
+        position: usize,
+    ) -> Option<Self::Element>;
     fn owner_restriction(
         &self,
         solution: &S,

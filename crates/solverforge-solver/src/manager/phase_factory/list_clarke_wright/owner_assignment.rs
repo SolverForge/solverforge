@@ -52,7 +52,7 @@ pub(crate) fn feasible_owners_for_scored_elements<S, A>(
     solution: &S,
     owner_slots: &[OwnerSlot],
     route_values: &[usize],
-    route_elements: &[A::Element],
+    route_elements: &[&A::Element],
     scored_metric_class: Option<usize>,
     entity_count: usize,
 ) -> Vec<usize>

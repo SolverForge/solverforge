@@ -422,7 +422,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
     let mut assignable_routes = Vec::with_capacity(constructed_route_count);
     let mut feasible_sets = Vec::with_capacity(constructed_route_count);
     let mut owner_ineligible_routes = 0usize;
-    for route in &non_empty {
+    for (route_index, route) in non_empty.iter().enumerate() {
         let values = route_values(access, source_index, &route.visits);
         let elements = route_elements::<S, A>(source_index, &route.visits);
         let feasible_owners = feasible_owners_for_scored_elements(
@@ -438,7 +438,7 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
             owner_ineligible_routes += 1;
             continue;
         }
-        assignable_routes.push(route.clone());
+        assignable_routes.push(route_index);
         feasible_sets.push(feasible_owners);
     }
     let route_to_owner = match_route_owners(&feasible_sets);
@@ -489,9 +489,9 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         let completed_routes = assignable_routes
             .into_iter()
             .zip(route_to_owner)
-            .filter_map(|(index_route, entity_idx)| {
+            .filter_map(|(route_index, entity_idx)| {
                 entity_idx.map(|entity_idx| {
-                    let route = route_values(access, source_index, &index_route.visits);
+                    let route = route_values(access, source_index, &non_empty[route_index].visits);
                     (entity_idx, route)
                 })
             })

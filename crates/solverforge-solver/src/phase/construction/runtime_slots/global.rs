@@ -1,5 +1,7 @@
 use std::time::Instant;
 
+use crate::list_placement;
+
 use solverforge_config::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation,
 };
@@ -483,51 +485,63 @@ where
                     }
                     let mut best = None;
                     let mut candidate_index = 0;
-                    for entity_index in owners(
-                        &list.slot,
-                        &source.element,
+                    let owner_restriction = list.slot.element_owner(
                         phase_scope.score_director().working_solution(),
-                    ) {
-                        let len = list.slot.list_len(
-                            phase_scope.score_director().working_solution(),
-                            entity_index,
-                        );
-                        for position in 0..=len {
-                            let move_ = RuntimeListInsertionMove::new(
-                                list.slot.clone(),
-                                source.element.clone(),
-                                source.source_index,
+                        &source.element,
+                    );
+                    let entity_count = list
+                        .slot
+                        .entity_count(phase_scope.score_director().working_solution());
+                    let owner_restriction = match owner_restriction {
+                        Ok(None) => Some(list_placement::OwnerRestriction::Unrestricted),
+                        Ok(Some(owner)) if owner < entity_count => {
+                            Some(list_placement::OwnerRestriction::Fixed(owner))
+                        }
+                        _ => Some(list_placement::OwnerRestriction::Invalid),
+                    };
+                    if let Some(owner_restriction) = owner_restriction {
+                        for entity_index in owner_restriction.candidates(entity_count) {
+                            let len = list.slot.list_len(
+                                phase_scope.score_director().working_solution(),
                                 entity_index,
-                                position,
                             );
-                            let Some((score, trace)) = evaluate(
-                                &move_,
-                                candidate_index,
-                                CandidateTraceConstructionTarget {
-                                    descriptor_index: move_.descriptor_index(),
+                            for position in 0..=len {
+                                let move_ = RuntimeListInsertionMove::new(
+                                    list.slot.clone(),
+                                    source.element.clone(),
+                                    source.source_index,
                                     entity_index,
-                                },
-                                phase_scope,
-                            ) else {
-                                candidate_index += 1;
-                                continue;
-                            };
-                            candidate_index += 1;
-                            replace_best(
-                                &mut best,
-                                Candidate::List {
-                                    move_,
-                                    score,
-                                    order: [
-                                        construction_slot_index,
-                                        source.source_index,
+                                    position,
+                                );
+                                let Some((score, trace)) = evaluate(
+                                    &move_,
+                                    candidate_index,
+                                    CandidateTraceConstructionTarget {
+                                        descriptor_index: move_.descriptor_index(),
                                         entity_index,
-                                        position,
-                                    ],
-                                    trace,
-                                },
-                                phase_scope,
-                            );
+                                    },
+                                    phase_scope,
+                                ) else {
+                                    candidate_index += 1;
+                                    continue;
+                                };
+                                candidate_index += 1;
+                                replace_best(
+                                    &mut best,
+                                    Candidate::List {
+                                        move_,
+                                        score,
+                                        order: [
+                                            construction_slot_index,
+                                            source.source_index,
+                                            entity_index,
+                                            position,
+                                        ],
+                                        trace,
+                                    },
+                                    phase_scope,
+                                );
+                            }
                         }
                     }
                     if let Some(candidate) = best {
@@ -562,32 +576,8 @@ fn candidate_values<S>(
     values
 }
 
-fn owners<S, V, DM, IDM>(
-    slot: &RuntimeListSlot<S, V, DM, IDM>,
-    element: &RuntimeListElement<V>,
-    solution: &S,
-) -> Vec<usize>
-where
-    S: PlanningSolution + Clone + Send + Sync + 'static,
-    V: Clone + PartialEq + Send + Sync + std::fmt::Debug + 'static,
-    DM: Clone
-        + Send
-        + Sync
-        + std::fmt::Debug
-        + crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>,
-    IDM: Clone
-        + Send
-        + Sync
-        + std::fmt::Debug
-        + crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>,
-{
-    match slot.element_owner(solution, element) {
-        Ok(None) => (0..slot.entity_count(solution)).collect(),
-        Ok(Some(owner)) if owner < slot.entity_count(solution) => vec![owner],
-        Ok(Some(_)) | Err(_) => Vec::new(),
-    }
-}
-
+/* The first admissible owner is read directly from the element-owner
+restriction; no full owner vector is materialized to take its head. */
 fn first_owner<S, V, DM, IDM>(
     slot: &RuntimeListSlot<S, V, DM, IDM>,
     element: &RuntimeListElement<V>,
@@ -607,7 +597,13 @@ where
         + std::fmt::Debug
         + crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>,
 {
-    owners(slot, element, solution).into_iter().next()
+    slot.element_owner(solution, element)
+        .ok()
+        .and_then(|owner| match owner {
+            Some(owner) if owner < slot.entity_count(solution) => Some(owner),
+            Some(_) => None,
+            None => Some(0),
+        })
 }
 
 fn current_list_sources<S, V, DM, IDM>(

@@ -211,11 +211,15 @@ impl CheapestInsertionObserver<Plan, Slot> for NoCandidateObserver {
     fn evaluate_insertion(
         &mut self,
         _slot: &Slot,
-        _element: RuntimeListElement<usize>,
+        element: RuntimeListElement<usize>,
         _trial: CheapestInsertionTrial,
-    ) -> (Option<SoftScore>, Option<Self::Trial>) {
+    ) -> (
+        Option<SoftScore>,
+        Option<Self::Trial>,
+        RuntimeListElement<usize>,
+    ) {
         self.candidate_callbacks += 1;
-        (None, None)
+        (None, None, element)
     }
 
     fn discard_trial(&mut self, _trial: Self::Trial) {

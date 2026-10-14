@@ -292,6 +292,7 @@ fn apply_owner_ordered_best_insertion<S, A, D, BestCb>(
         let entry = &entries[entry_position];
         let len = access.list_len(phase_scope.score_director().working_solution(), owner);
         let mut best = None;
+        let mut element = entry.element.clone();
         for position in 0..=len {
             if control_policy.should_terminate_construction(phase_scope.solver_scope_mut()) {
                 if let Some((_, _, Some(token))) = best.take() {
@@ -311,7 +312,8 @@ fn apply_owner_ordered_best_insertion<S, A, D, BestCb>(
                 owner,
                 position,
             );
-            let score = eval_insertion(access, entry, owner, position, phase_scope);
+            let (score, returned) = eval_insertion(access, element, owner, position, phase_scope);
+            element = returned;
             if let Some(token) = trace_token {
                 phase_scope.record_candidate_trace_disposition(
                     token,

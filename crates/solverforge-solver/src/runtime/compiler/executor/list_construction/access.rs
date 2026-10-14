@@ -47,9 +47,16 @@ where
         ListAccess::list_insert(self, solution, entity_index, position, element);
     }
 
-    fn remove_element(&self, solution: &mut S, entity_index: usize, position: usize) {
-        ListAccess::list_remove(self, solution, entity_index, position)
-            .expect("compiled scored list insertion must remove the just-inserted element");
+    fn remove_element(
+        &self,
+        solution: &mut S,
+        entity_index: usize,
+        position: usize,
+    ) -> Option<Self::Element> {
+        Some(
+            ListAccess::list_remove(self, solution, entity_index, position)
+                .expect("compiled scored list insertion must remove the just-inserted element"),
+        )
     }
 
     fn owner_restriction(

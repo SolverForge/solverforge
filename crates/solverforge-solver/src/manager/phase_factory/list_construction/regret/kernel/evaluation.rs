@@ -16,11 +16,11 @@ use crate::stats::{
 
 pub(super) fn eval_insertion<S, A, D, BestCb>(
     access: &A,
-    entry: &SourceElement<A::Element>,
+    element: A::Element,
     entity_index: usize,
     position: usize,
     phase_scope: &mut PhaseScope<'_, '_, S, D, BestCb>,
-) -> S::Score
+) -> (S::Score, A::Element)
 where
     S: PlanningSolution,
     A: RegretAccess<S>,
@@ -37,7 +37,7 @@ where
         phase_scope.score_director_mut().working_solution_mut(),
         entity_index,
         position,
-        entry.element.clone(),
+        element,
     );
     phase_scope
         .score_director_mut()
@@ -46,11 +46,13 @@ where
     phase_scope
         .score_director_mut()
         .before_variable_changed(descriptor_index, entity_index);
-    access.remove_element(
-        phase_scope.score_director_mut().working_solution_mut(),
-        entity_index,
-        position,
-    );
+    let removed = access
+        .remove_element(
+            phase_scope.score_director_mut().working_solution_mut(),
+            entity_index,
+            position,
+        )
+        .expect("regret trial removal must return the inserted element");
     phase_scope
         .score_director_mut()
         .after_variable_changed(descriptor_index, entity_index);
@@ -63,7 +65,7 @@ where
         std::time::Duration::ZERO,
         evaluation_started.elapsed(),
     );
-    score
+    (score, removed)
 }
 
 pub(super) fn apply_insertion<S, A, D>(
@@ -148,6 +150,9 @@ where
         entity_count,
         &entry.element,
     );
+    // One transfer per element per evaluation pass: the trial evaluation
+    // cycles this owned element instead of cloning it per trial.
+    let mut element = entry.element.clone();
     for entity_index in candidate_entities(restriction, entity_count) {
         if crate::pinning::entity_is_pinned(
             phase_scope.score_director(),
@@ -179,7 +184,9 @@ where
                 entity_index,
                 position,
             );
-            let score = eval_insertion(access, entry, entity_index, position, phase_scope);
+            let (score, returned) =
+                eval_insertion(access, element, entity_index, position, phase_scope);
+            element = returned;
             if let Some(token) = trace_token {
                 phase_scope.record_candidate_trace_disposition(
                     token,
@@ -259,6 +266,7 @@ where
     let len = access.list_len(phase_scope.score_director().working_solution(), owner_index);
     let mut best: Option<(usize, S::Score, Option<CandidateTracePullToken>)> = None;
     let mut second_best: Option<S::Score> = None;
+    let mut element = entry.element.clone();
     for position in 0..=len {
         if control_policy.should_terminate_construction(phase_scope.solver_scope_mut()) {
             if let Some((_, _, Some(token))) = best.take() {
@@ -278,7 +286,8 @@ where
             owner_index,
             position,
         );
-        let score = eval_insertion(access, entry, owner_index, position, phase_scope);
+        let (score, returned) = eval_insertion(access, element, owner_index, position, phase_scope);
+        element = returned;
         if let Some(token) = trace_token {
             phase_scope
                 .record_candidate_trace_disposition(token, CandidateTraceDisposition::Evaluated);

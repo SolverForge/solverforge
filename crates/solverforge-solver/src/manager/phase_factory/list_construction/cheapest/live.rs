@@ -74,7 +74,7 @@ where
         access: &A,
         element: A::Element,
         trial: CheapestInsertionTrial,
-    ) -> (Option<S::Score>, Option<Self::Trial>) {
+    ) -> (Option<S::Score>, Option<Self::Trial>, A::Element) {
         let descriptor_index = access.descriptor_index();
         let generation_started = Instant::now();
         let trace = self.phase_scope.record_candidate_operation(
@@ -112,11 +112,13 @@ where
         self.phase_scope
             .score_director_mut()
             .before_variable_changed(descriptor_index, trial.entity_index);
-        access.remove_element(
-            self.phase_scope.score_director_mut().working_solution_mut(),
-            trial.entity_index,
-            trial.insertion_index,
-        );
+        let removed = access
+            .remove_element(
+                self.phase_scope.score_director_mut().working_solution_mut(),
+                trial.entity_index,
+                trial.insertion_index,
+            )
+            .expect("cheapest trial removal must return the inserted element");
         self.phase_scope
             .score_director_mut()
             .after_variable_changed(descriptor_index, trial.entity_index);
@@ -133,7 +135,7 @@ where
             generation_duration,
             evaluation_started.elapsed(),
         );
-        (Some(score), trace)
+        (Some(score), trace, removed)
     }
 
     fn discard_trial(&mut self, trial: Self::Trial) {

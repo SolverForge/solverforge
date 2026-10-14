@@ -20,11 +20,16 @@ impl OwnerRestriction {
         }
     }
 
-    fn candidates(self, entity_count: usize) -> CandidateEntityIter {
+    pub(crate) fn candidates(self, entity_count: usize) -> CandidateEntityIter {
         match self {
             Self::Unrestricted => CandidateEntityIter::All(0..entity_count),
-            Self::Fixed(owner_idx) => CandidateEntityIter::One(owner_idx),
-            Self::Invalid => CandidateEntityIter::Empty,
+            // Fixed owners are validated at construction (an owner past the
+            // entity count is Invalid); the recheck keeps the primitive safe
+            // for any future constructor.
+            Self::Fixed(owner_idx) if owner_idx < entity_count => {
+                CandidateEntityIter::One(owner_idx)
+            }
+            _ => CandidateEntityIter::Empty,
         }
     }
 }

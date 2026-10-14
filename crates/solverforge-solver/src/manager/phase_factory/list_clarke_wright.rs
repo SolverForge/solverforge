@@ -134,7 +134,7 @@ pub(super) fn route_owner_allows<S, A>(
     solution: &S,
     entity_count: usize,
     entity_index: usize,
-    route: &[A::Element],
+    route: &[&A::Element],
 ) -> bool
 where
     A: ClarkeWrightAccess<S>,

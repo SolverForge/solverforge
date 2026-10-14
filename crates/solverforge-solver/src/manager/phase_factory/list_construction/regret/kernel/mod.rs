@@ -106,9 +106,7 @@ pub(super) fn candidate_entities(
     restriction: OwnerRestriction,
     entity_count: usize,
 ) -> impl Iterator<Item = usize> {
-    match restriction {
-        OwnerRestriction::Unrestricted => 0..entity_count,
-        OwnerRestriction::Fixed(owner) if owner < entity_count => owner..owner + 1,
-        OwnerRestriction::Fixed(_) | OwnerRestriction::Invalid => 0..0,
-    }
+    // Same enumeration order as OwnerRestriction::candidates; the shared
+    // primitive carries the semantics.
+    restriction.candidates(entity_count)
 }

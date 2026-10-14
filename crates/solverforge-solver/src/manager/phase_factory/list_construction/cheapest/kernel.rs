@@ -6,7 +6,7 @@ use solverforge_core::domain::PlanningSolution;
 
 use super::super::ScoredListConstructionAccess;
 use crate::builder::context::{RuntimeListSourceIndex, SourceElement};
-use crate::list_placement::OwnerRestriction;
+use crate::list_placement::CandidateEntityIter;
 use crate::stats::CandidateTraceSource;
 
 /// One source-ordered scored insertion trial from the canonical kernel.
@@ -33,12 +33,15 @@ where
     fn solution(&self) -> &S;
     fn owner_is_pinned(&self, descriptor_index: usize, entity_index: usize) -> bool;
     fn should_interrupt_construction(&mut self) -> bool;
+    /* Evaluates one insertion trial by transferring the element in and
+    receiving the removed element back: the caller keeps cycling the same
+    owned element across trials without re-cloning it. */
     fn evaluate_insertion(
         &mut self,
         access: &A,
         element: A::Element,
         trial: CheapestInsertionTrial,
-    ) -> (Option<S::Score>, Option<Self::Trial>);
+    ) -> (Option<S::Score>, Option<Self::Trial>, A::Element);
     fn discard_trial(&mut self, trial: Self::Trial);
     fn select_trial(&mut self, trial: Self::Trial);
     fn commit_insertion(
@@ -86,6 +89,7 @@ pub(crate) fn run_cheapest<S, A, O>(
             break;
         }
         let mut best = None;
+        let mut element_cycle = Some(entry.element.clone());
         for entity_index in
             legal_entities(access, observer.solution(), &entry.element, entity_count)
         {
@@ -107,8 +111,12 @@ pub(crate) fn run_cheapest<S, A, O>(
                     entity_index,
                     insertion_index,
                 };
-                let (score, trace_trial) =
-                    observer.evaluate_insertion(access, entry.element.clone(), trial);
+                let element = element_cycle
+                    .take()
+                    .expect("cheapest element cycle must persist while trials continue");
+                let (score, trace_trial, returned_element) =
+                    observer.evaluate_insertion(access, element, trial);
+                element_cycle = Some(returned_element);
                 let Some(score) = score else {
                     if let Some(trace_trial) = trace_trial {
                         observer.discard_trial(trace_trial);
@@ -134,7 +142,9 @@ pub(crate) fn run_cheapest<S, A, O>(
             }
             observer.commit_insertion(
                 access,
-                entry.element,
+                element_cycle
+                    .take()
+                    .expect("cheapest element cycle must persist for the committed element"),
                 entity_index,
                 insertion_index,
                 score,
@@ -237,14 +247,12 @@ fn legal_entities<S, A>(
     solution: &S,
     element: &A::Element,
     entity_count: usize,
-) -> Vec<usize>
+) -> CandidateEntityIter
 where
     S: PlanningSolution,
     A: ScoredListConstructionAccess<S>,
 {
-    match access.owner_restriction(solution, entity_count, element) {
-        OwnerRestriction::Unrestricted => (0..entity_count).collect(),
-        OwnerRestriction::Fixed(owner) if owner < entity_count => vec![owner],
-        OwnerRestriction::Fixed(_) | OwnerRestriction::Invalid => Vec::new(),
-    }
+    access
+        .owner_restriction(solution, entity_count, element)
+        .candidates(entity_count)
 }

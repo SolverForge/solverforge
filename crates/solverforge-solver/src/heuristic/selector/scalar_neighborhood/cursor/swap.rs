@@ -201,37 +201,23 @@ where
     }
 }
 
-struct NearbySwapRow {
-    left_entity_index: usize,
-    right_entities: Vec<usize>,
-}
-
-enum NearbySwapMode {
-    /// Native nearby callbacks historically ran for every row at cursor open.
-    Eager {
-        rows: Vec<NearbySwapRow>,
-        row_offset: usize,
-        right_offset: usize,
-    },
-    /// Dynamic nearby callbacks remain lazy by public contract.
-    Lazy {
-        context: MoveStreamContext,
-        entity_count: usize,
-        left_offset: usize,
-        right_entities: Vec<usize>,
-        right_offset: usize,
-        source_loaded: bool,
-    },
-}
-
-/// Nearby scalar exchange with explicit native-eager/dynamic-lazy source
-/// timing. Structural source availability is validated before this cursor is
-/// constructed; an empty row is simply an empty row, never an all-entity
-/// substitute.
+/// LAZY NEARBY SWAP — one left row in memory at a time.
+///
+/// Both native and dynamic carriers stream: each reached left row invokes
+/// the nearby entity callbacks (or the finite-row fallback) at entry into a
+/// reusable ranked scratch. Structural source availability is validated
+/// before this cursor is constructed; an empty row is simply an empty row,
+/// never an all-entity substitute.
 pub(super) struct NearbySwapCursor<S> {
     slot: RuntimeScalarSlot<S>,
     max_nearby: usize,
-    mode: NearbySwapMode,
+    orientation: NearbyOrientation,
+    entity_count: usize,
+    context: MoveStreamContext,
+    left_offset: usize,
+    right_entities: Vec<usize>,
+    right_offset: usize,
+    source_loaded: bool,
 }
 
 impl<S> NearbySwapCursor<S>
@@ -244,132 +230,63 @@ where
         context: MoveStreamContext,
         max_nearby: usize,
     ) -> Self {
-        let mode = if slot.is_dynamic() {
-            NearbySwapMode::Lazy {
-                entity_count: slot.entity_count(solution),
-                context,
-                left_offset: 0,
-                right_entities: Vec::new(),
-                right_offset: 0,
-                source_loaded: false,
-            }
+        let orientation = if slot.is_dynamic() {
+            NearbyOrientation::DynamicDirectional
         } else {
-            let rows = eager_nearby_rows(&slot, solution, context, max_nearby);
-            NearbySwapMode::Eager {
-                rows,
-                row_offset: 0,
-                right_offset: 0,
-            }
+            NearbyOrientation::StaticCanonical
         };
+        let entity_count = slot.entity_count(solution);
         Self {
             slot,
             max_nearby,
-            mode,
+            orientation,
+            entity_count,
+            context,
+            left_offset: 0,
+            right_entities: Vec::new(),
+            right_offset: 0,
+            source_loaded: false,
         }
     }
 
     pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
-        match &mut self.mode {
-            NearbySwapMode::Eager {
-                rows,
-                row_offset,
-                right_offset,
-            } => loop {
-                let row = rows.get(*row_offset)?;
-                if let Some(&right_entity_index) = row.right_entities.get(*right_offset) {
-                    *right_offset += 1;
-                    return Some(RuntimeScalarRecipe::Swap {
-                        slot: self.slot.clone(),
-                        left_entity_index: row.left_entity_index,
-                        right_entity_index,
-                    });
-                }
-                *row_offset += 1;
-                *right_offset = 0;
-            },
-            NearbySwapMode::Lazy {
-                context,
-                entity_count,
-                left_offset,
-                right_entities,
-                right_offset,
-                source_loaded,
-            } => {
-                while *left_offset < *entity_count {
-                    let left_entity_index = ordered_entity(
-                        *entity_count,
-                        *left_offset,
-                        *context,
-                        NEARBY_SWAP_ENTITY_START_SALT,
-                        NEARBY_SWAP_ENTITY_STRIDE_SALT,
-                        slot_identity(&self.slot),
-                    );
-                    if !*source_loaded {
-                        *right_entities = rank_nearby_entities(
-                            &self.slot,
-                            solution,
-                            left_entity_index,
-                            *entity_count,
-                            self.max_nearby,
-                            NearbyOrientation::DynamicDirectional,
-                            *context,
-                        );
-                        *right_offset = 0;
-                        *source_loaded = true;
-                    }
-                    if let Some(&right_entity_index) = right_entities.get(*right_offset) {
-                        *right_offset += 1;
-                        return Some(RuntimeScalarRecipe::Swap {
-                            slot: self.slot.clone(),
-                            left_entity_index,
-                            right_entity_index,
-                        });
-                    }
-                    *left_offset += 1;
-                    right_entities.clear();
-                    *right_offset = 0;
-                    *source_loaded = false;
-                }
-                None
-            }
-        }
-    }
-}
-
-fn eager_nearby_rows<S>(
-    slot: &RuntimeScalarSlot<S>,
-    solution: &S,
-    context: MoveStreamContext,
-    max_nearby: usize,
-) -> Vec<NearbySwapRow>
-where
-    S: PlanningSolution,
-{
-    let entity_count = slot.entity_count(solution);
-    (0..entity_count)
-        .map(|left_offset| {
+        while self.left_offset < self.entity_count {
             let left_entity_index = ordered_entity(
-                entity_count,
-                left_offset,
-                context,
+                self.entity_count,
+                self.left_offset,
+                self.context,
                 NEARBY_SWAP_ENTITY_START_SALT,
                 NEARBY_SWAP_ENTITY_STRIDE_SALT,
-                slot_identity(slot),
+                slot_identity(&self.slot),
             );
-            NearbySwapRow {
-                left_entity_index,
-                right_entities: rank_nearby_entities(
-                    slot,
+            if !self.source_loaded {
+                self.right_entities = rank_nearby_entities(
+                    &self.slot,
                     solution,
                     left_entity_index,
-                    entity_count,
-                    max_nearby,
-                    NearbyOrientation::StaticCanonical,
-                    context,
-                ),
+                    self.entity_count,
+                    self.max_nearby,
+                    self.orientation,
+                    self.context,
+                );
+                self.right_offset = 0;
+                self.source_loaded = true;
             }
-        })
-        .collect()
+            if let Some(&right_entity_index) = self.right_entities.get(self.right_offset) {
+                self.right_offset += 1;
+                return Some(RuntimeScalarRecipe::Swap {
+                    slot: self.slot.clone(),
+                    left_entity_index,
+                    right_entity_index,
+                });
+            }
+            self.left_offset += 1;
+            self.right_entities.clear();
+            self.right_offset = 0;
+            self.source_loaded = false;
+        }
+        None
+    }
 }
 
 #[derive(Clone, Copy)]

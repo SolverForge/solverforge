@@ -175,38 +175,23 @@ where
     }
 }
 
-struct NearbyChangeRow {
-    entity_index: usize,
-    values: Vec<usize>,
-    unassigned_pending: bool,
-}
-
-enum NearbyChangeMode {
-    /// Native nearby source callbacks historically run at cursor open.
-    Eager {
-        rows: Vec<NearbyChangeRow>,
-        row_offset: usize,
-        value_offset: usize,
-    },
-    /// Dynamic sources remain lazy: only the reached row invokes the bridge.
-    Lazy {
-        context: MoveStreamContext,
-        entity_count: usize,
-        entity_offset: usize,
-        values: Vec<usize>,
-        value_offset: usize,
-        source_loaded: bool,
-        unassigned_pending: bool,
-    },
-}
-
-/// Nearby change preserves source timing by carrier while sharing ranking,
-/// ordering, recipe ownership, and no-substitution behavior.
+/// LAZY NEARBY CHANGE — one row in memory at a time.
+///
+/// Both native and dynamic carriers stream: only the reached row invokes its
+/// source callbacks (nearby values or the ordinary row fallback) at entry,
+/// into a reusable ranked scratch. Ranking, ordering, recipe ownership, and
+/// the no-substitution behavior are shared by both carriers.
 pub(super) struct NearbyChangeCursor<S> {
     slot: RuntimeScalarSlot<S>,
     max_nearby: usize,
     source_limit: usize,
-    mode: NearbyChangeMode,
+    context: MoveStreamContext,
+    entity_count: usize,
+    entity_offset: usize,
+    values: Vec<usize>,
+    value_offset: usize,
+    source_loaded: bool,
+    unassigned_pending: bool,
 }
 
 impl<S> NearbyChangeCursor<S>
@@ -220,163 +205,68 @@ where
         max_nearby: usize,
         source_limit: usize,
     ) -> Self {
-        let mode = if slot.is_dynamic() {
-            NearbyChangeMode::Lazy {
-                entity_count: slot.entity_count(solution),
-                context,
-                entity_offset: 0,
-                values: Vec::new(),
-                value_offset: 0,
-                source_loaded: false,
-                unassigned_pending: false,
-            }
-        } else {
-            let rows = eager_nearby_rows(&slot, solution, context, max_nearby, source_limit);
-            NearbyChangeMode::Eager {
-                rows,
-                row_offset: 0,
-                value_offset: 0,
-            }
-        };
+        let entity_count = slot.entity_count(solution);
         Self {
             slot,
             max_nearby,
             source_limit,
-            mode,
+            context,
+            entity_count,
+            entity_offset: 0,
+            values: Vec::new(),
+            value_offset: 0,
+            source_loaded: false,
+            unassigned_pending: false,
         }
     }
 
     pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
-        match &mut self.mode {
-            NearbyChangeMode::Eager {
-                rows,
-                row_offset,
-                value_offset,
-            } => loop {
-                let (entity_index, value, unassigned_pending) = {
-                    let row = rows.get(*row_offset)?;
-                    (
-                        row.entity_index,
-                        row.values.get(*value_offset).copied(),
-                        row.unassigned_pending,
-                    )
-                };
-                if let Some(value) = value {
-                    *value_offset += 1;
-                    return Some(RuntimeScalarRecipe::Change {
-                        slot: self.slot.clone(),
-                        entity_index,
-                        to_value: Some(value),
-                    });
-                }
-                if unassigned_pending {
-                    // Consume this one terminal candidate by replacing the row
-                    // marker; no source is reread.
-                    rows[*row_offset].unassigned_pending = false;
-                    return Some(RuntimeScalarRecipe::Change {
-                        slot: self.slot.clone(),
-                        entity_index,
-                        to_value: None,
-                    });
-                }
-                *row_offset += 1;
-                *value_offset = 0;
-            },
-            NearbyChangeMode::Lazy {
-                context,
-                entity_count,
-                entity_offset,
-                values,
-                value_offset,
-                source_loaded,
-                unassigned_pending,
-            } => {
-                while *entity_offset < *entity_count {
-                    let entity_index = ordered_entity(
-                        *entity_count,
-                        *entity_offset,
-                        *context,
-                        NEARBY_CHANGE_ENTITY_START_SALT,
-                        NEARBY_CHANGE_ENTITY_STRIDE_SALT,
-                        slot_identity(&self.slot),
-                    );
-                    if !*source_loaded {
-                        *values = rank_nearby_values(
-                            &self.slot,
-                            solution,
-                            entity_index,
-                            self.max_nearby,
-                            self.source_limit,
-                            *context,
-                        );
-                        *value_offset = 0;
-                        *unassigned_pending = self.slot.allows_unassigned()
-                            && self.slot.current_value(solution, entity_index).is_some();
-                        *source_loaded = true;
-                    }
-                    if let Some(&value) = values.get(*value_offset) {
-                        *value_offset += 1;
-                        return Some(RuntimeScalarRecipe::Change {
-                            slot: self.slot.clone(),
-                            entity_index,
-                            to_value: Some(value),
-                        });
-                    }
-                    if *unassigned_pending {
-                        *unassigned_pending = false;
-                        return Some(RuntimeScalarRecipe::Change {
-                            slot: self.slot.clone(),
-                            entity_index,
-                            to_value: None,
-                        });
-                    }
-                    *entity_offset += 1;
-                    values.clear();
-                    *value_offset = 0;
-                    *source_loaded = false;
-                }
-                None
-            }
-        }
-    }
-}
-
-fn eager_nearby_rows<S>(
-    slot: &RuntimeScalarSlot<S>,
-    solution: &S,
-    context: MoveStreamContext,
-    max_nearby: usize,
-    source_limit: usize,
-) -> Vec<NearbyChangeRow>
-where
-    S: PlanningSolution,
-{
-    let entity_count = slot.entity_count(solution);
-    (0..entity_count)
-        .map(|offset| {
+        while self.entity_offset < self.entity_count {
             let entity_index = ordered_entity(
-                entity_count,
-                offset,
-                context,
+                self.entity_count,
+                self.entity_offset,
+                self.context,
                 NEARBY_CHANGE_ENTITY_START_SALT,
                 NEARBY_CHANGE_ENTITY_STRIDE_SALT,
-                slot_identity(slot),
+                slot_identity(&self.slot),
             );
-            NearbyChangeRow {
-                entity_index,
-                values: rank_nearby_values(
-                    slot,
+            if !self.source_loaded {
+                self.values = rank_nearby_values(
+                    &self.slot,
                     solution,
                     entity_index,
-                    max_nearby,
-                    source_limit,
-                    context,
-                ),
-                unassigned_pending: slot.allows_unassigned()
-                    && slot.current_value(solution, entity_index).is_some(),
+                    self.max_nearby,
+                    self.source_limit,
+                    self.context,
+                );
+                self.value_offset = 0;
+                self.unassigned_pending = self.slot.allows_unassigned()
+                    && self.slot.current_value(solution, entity_index).is_some();
+                self.source_loaded = true;
             }
-        })
-        .collect()
+            if let Some(&value) = self.values.get(self.value_offset) {
+                self.value_offset += 1;
+                return Some(RuntimeScalarRecipe::Change {
+                    slot: self.slot.clone(),
+                    entity_index,
+                    to_value: Some(value),
+                });
+            }
+            if self.unassigned_pending {
+                self.unassigned_pending = false;
+                return Some(RuntimeScalarRecipe::Change {
+                    slot: self.slot.clone(),
+                    entity_index,
+                    to_value: None,
+                });
+            }
+            self.entity_offset += 1;
+            self.values.clear();
+            self.value_offset = 0;
+            self.source_loaded = false;
+        }
+        None
+    }
 }
 
 fn rank_nearby_values<S>(

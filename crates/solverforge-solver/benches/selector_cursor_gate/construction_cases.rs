@@ -16,17 +16,20 @@ fn construction_full() {
     emit("construction_full", 8_192, || {
         let mut count = 0;
         let mut hash = 0xCBF2_9CE4_8422_2325;
+        let mut identity = 0xCBF2_9CE4_8422_2325;
         for _ in 0..iterations() {
             let director = unassigned_director(128);
             for placement in construction_placer().get_placements(&director) {
                 for mov in placement.moves {
-                    mix_move_identity(&mut hash, &mov.tabu_signature(&director).move_id);
+                    mix(&mut hash, mov.entity_index());
+                    mix(&mut hash, mov.to_value().unwrap_or(usize::MAX));
+                    mix_move_identity(&mut identity, &mov.tabu_signature(&director).move_id);
                     black_box(&mov);
                     count += 1;
                 }
             }
         }
-        (count, hash)
+        (count, hash, identity)
     });
 }
 
@@ -35,6 +38,7 @@ fn construction_full() {
     emit("construction_full", 8_192, || {
         let mut count = 0;
         let mut hash = 0xCBF2_9CE4_8422_2325;
+        let mut identity = 0xCBF2_9CE4_8422_2325;
         for _ in 0..iterations() {
             let director = unassigned_director(128);
             let placer = construction_placer();
@@ -48,7 +52,12 @@ fn construction_full() {
                         .candidates()
                         .candidate(candidate_id)
                         .expect("construction candidate must remain live");
-                    mix_move_identity(&mut hash, &mov.tabu_signature(&director).move_id);
+                    let MoveCandidateRef::Borrowed(leg) = &mov else {
+                        panic!("construction candidates are borrowed change moves");
+                    };
+                    mix(&mut hash, leg.entity_index());
+                    mix(&mut hash, leg.to_value().map_or(usize::MAX, |value| *value));
+                    mix_move_identity(&mut identity, &leg.tabu_signature(&director).move_id);
                     black_box(&mov);
                     drop(mov);
                     assert!(placement.candidates_mut().release_candidate(candidate_id));
@@ -56,7 +65,7 @@ fn construction_full() {
                 }
             }
         }
-        (count, hash)
+        (count, hash, identity)
     });
 }
 
@@ -81,6 +90,6 @@ fn construction_first_fit() {
                 mix(&mut hash, vehicle.visits[0]);
             }
         }
-        (count, hash)
+        (count, hash, hash)
     });
 }

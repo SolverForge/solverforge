@@ -307,8 +307,8 @@ for case_index, case in enumerate(cases):
     candidate = load_json("candidate", case)
     if len(baseline) != len(candidate):
         raise SystemExit(f"unaligned samples for {case}")
-    baseline_identity = {(sample["candidate_count"], sample["order_hash"]) for sample in baseline}
-    candidate_identity = {(sample["candidate_count"], sample["order_hash"]) for sample in candidate}
+    baseline_identity = {sample["identity_hash"] for sample in baseline}
+    candidate_identity = {sample["identity_hash"] for sample in candidate}
     if case == "construction_first_fit":
         baseline_order = {sample["order_hash"] for sample in baseline}
         candidate_order = {sample["order_hash"] for sample in candidate}
@@ -322,7 +322,23 @@ for case_index, case in enumerate(cases):
             and next(iter(candidate_work)) <= next(iter(baseline_work))
         )
     else:
-        semantic_match = len(baseline_identity) == 1 and baseline_identity == candidate_identity
+        # Cross-tree: candidate counts and the encoding-insensitive order hash
+        # (raw coordinates/values). Per-tree: the identity hash must be a
+        # singleton on both sides (trial-to-trial determinism); it is not
+        # compared across trees, because a tabu-identity encoding migration
+        # moves it by design.
+        baseline_order = {sample["order_hash"] for sample in baseline}
+        candidate_order = {sample["order_hash"] for sample in candidate}
+        baseline_count = {sample["candidate_count"] for sample in baseline}
+        candidate_count = {sample["candidate_count"] for sample in candidate}
+        semantic_match = (
+            len(baseline_identity) == 1
+            and len(candidate_identity) == 1
+            and baseline_order == candidate_order
+            and len(baseline_order) == 1
+            and baseline_count == candidate_count
+            and len(baseline_count) == 1
+        )
     case_report = {"semantic_match": semantic_match, "metrics": {}}
     if case == "construction_first_fit":
         case_report["generated_work"] = {
@@ -331,10 +347,10 @@ for case_index, case in enumerate(cases):
         }
         case_report["selected_trace_hash"] = sorted(candidate_order)[0]
     else:
-        candidate_count, order_hash = sorted(candidate_identity)[0]
         case_report["candidate_identity"] = {
-            "candidate_count": candidate_count,
-            "order_hash": order_hash,
+            "candidate_count": sorted(candidate_count)[0],
+            "order_hash": sorted(candidate_order)[0],
+            "identity_hash": sorted(candidate_identity)[0],
         }
     failed |= not semantic_match
 

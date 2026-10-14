@@ -249,10 +249,14 @@ fn iterations() -> usize {
     *ITERATIONS.get().expect("benchmark iterations must be set")
 }
 
-fn emit(case: &str, expected_count: usize, run: impl FnOnce() -> (usize, u64)) {
+fn emit(case: &str, expected_count: usize, run: impl FnOnce() -> (usize, u64, u64)) {
     reset_allocator_metrics();
     let started = Instant::now();
-    let (count, order_hash) = run();
+    // (count, cross-tree semantic order hash, per-tree identity hash). The
+    // identity hash records the tabu-encoding-sensitive stream for determinism
+    // only; it is deliberately not compared across trees because an identity
+    // encoding migration moves it by design.
+    let (count, order_hash, identity_hash) = run();
     let elapsed = started.elapsed();
     assert_eq!(
         count,
@@ -260,7 +264,7 @@ fn emit(case: &str, expected_count: usize, run: impl FnOnce() -> (usize, u64)) {
         "{case} candidate count changed"
     );
     println!(
-        "{{\"case\":\"{case}\",\"iterations\":{},\"candidate_count\":{expected_count},\"total_candidate_count\":{count},\"order_hash\":{order_hash},\"wall_ns\":{},\"allocations\":{},\"allocated_bytes\":{},\"peak_live_bytes\":{}}}",
+        "{{\"case\":\"{case}\",\"iterations\":{},\"candidate_count\":{expected_count},\"total_candidate_count\":{count},\"order_hash\":{order_hash},\"identity_hash\":{identity_hash},\"wall_ns\":{},\"allocations\":{},\"allocated_bytes\":{},\"peak_live_bytes\":{}}}",
         iterations(),
         elapsed.as_nanos(),
         ALLOCATIONS.load(Ordering::Relaxed),
@@ -339,7 +343,7 @@ fn filtering() {
                 count += 1;
             }
         }
-        (count, hash)
+        (count, hash, hash)
     });
 }
 
@@ -351,6 +355,7 @@ fn cartesian() {
     emit("cartesian", 576, || {
         let mut count = 0;
         let mut hash = 0xCBF2_9CE4_8422_2325;
+        let mut identity = 0xCBF2_9CE4_8422_2325;
         for _ in 0..iterations() {
             let mut cursor = selector.open_cursor(&director);
             while let Some(candidate_id) = cursor.next_candidate_with_director(&mut director) {
@@ -358,12 +363,24 @@ fn cartesian() {
                     .candidate(candidate_id)
                     .expect("cartesian benchmark candidate must remain live");
                 let signature = mov.tabu_signature(&director);
-                mix_move_identity(&mut hash, &signature.move_id);
+                // Order hash carries the raw leg semantics (entity + target
+                // value); the tabu identity's move hash stays per-tree.
+                for &entity in mov.entity_indices() {
+                    mix(&mut hash, entity);
+                }
+                let MoveCandidateRef::Sequential(pairs) = &mov else {
+                    panic!("cartesian pairs are sequential composites");
+                };
+                for leg in [pairs.first(), pairs.second()] {
+                    mix(&mut hash, leg.entity_index());
+                    mix(&mut hash, leg.to_value().map_or(usize::MAX, |value| *value));
+                }
+                mix_move_identity(&mut identity, &signature.move_id);
                 black_box(&mov);
                 count += 1;
             }
         }
-        (count, hash)
+        (count, hash, identity)
     });
 }
 
@@ -382,6 +399,7 @@ fn k_opt() {
     emit("k_opt", 4_760, || {
         let mut count = 0;
         let mut hash = 0xCBF2_9CE4_8422_2325;
+        let mut identity = 0xCBF2_9CE4_8422_2325;
         for _ in 0..iterations() {
             for mov in selector.iter_moves(&director) {
                 for cut in mov.cuts() {
@@ -389,12 +407,12 @@ fn k_opt() {
                     mix(&mut hash, cut.position());
                 }
                 let signature = mov.tabu_signature(&director);
-                mix_move_identity(&mut hash, &signature.move_id);
+                mix_move_identity(&mut identity, &signature.move_id);
                 black_box(&mov);
                 count += 1;
             }
         }
-        (count, hash)
+        (count, hash, identity)
     });
 }
 
@@ -423,7 +441,7 @@ fn ruin() {
                 count += 1;
             }
         }
-        (count, hash)
+        (count, hash, hash)
     });
 }
 

@@ -22,7 +22,7 @@ fn list_change() {
                 count += 1;
             }
         }
-        (count, hash)
+        (count, hash, hash)
     });
 }
 
@@ -49,7 +49,7 @@ fn list_swap() {
                 count += 1;
             }
         }
-        (count, hash)
+        (count, hash, hash)
     });
 }
 
@@ -79,7 +79,7 @@ fn nearby_change() {
                 count += 1;
             }
         }
-        (count, hash)
+        (count, hash, hash)
     });
 }
 
@@ -108,7 +108,7 @@ fn nearby_swap() {
                 count += 1;
             }
         }
-        (count, hash)
+        (count, hash, hash)
     });
 }
 
@@ -139,7 +139,7 @@ fn sublist_change() {
                 count += 1;
             }
         }
-        (count, hash)
+        (count, hash, hash)
     });
 }
 
@@ -171,6 +171,6 @@ fn sublist_swap() {
                 count += 1;
             }
         }
-        (count, hash)
+        (count, hash, hash)
     });
 }

@@ -10,8 +10,7 @@ use super::assignment_stream::ScalarAssignmentMoveCursor;
 use super::placement::{group_slot_id, scalar_slots_for_candidate};
 use super::placer_stream::{
     assignment_placement_move_limit, next_assignment_placement, next_candidate_placement,
-    AssignmentPlacementGenerator, CandidatePlacementGenerator, CandidatePlacementSeed,
-    ScalarGroupCandidateCursor,
+    AssignmentPlacementGenerator, CandidatePlacementSeed, ScalarGroupCandidateCursor,
 };
 use crate::builder::context::{
     ScalarAssignmentBinding, ScalarGroupBinding, ScalarGroupBindingKind, ScalarGroupLimits,
@@ -21,7 +20,7 @@ use crate::heuristic::r#move::CompoundScalarMove;
 use crate::heuristic::selector::EntityReference;
 use crate::phase::construction::{EntityPlacer, EntityPlacerCursor, Placement};
 
-pub(super) type ScalarGroupPlacement<S> =
+pub(crate) type ScalarGroupPlacement<S> =
     Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>;
 
 fn grouped_heuristic_requires_entity_order(heuristic: ConstructionHeuristicType) -> bool {
@@ -110,6 +109,11 @@ where
     S: PlanningSolution + 'static,
 {
     placer: &'a ScalarGroupPlacer<S>,
+    /// Candidate-group placements are prevalidated once in the step loop and
+    /// handed out by reference until the retained seeds are exhausted; the
+    /// per-placement provider rescan this replaces ran a full candidate
+    /// enumeration for every pull.
+    candidate_seeds: Option<std::vec::IntoIter<CandidatePlacementSeed<S>>>,
 }
 
 impl<S> EntityPlacerCursor<S, CompoundScalarMove<S>> for ScalarGroupPlacerCursor<'_, S>
@@ -131,10 +135,16 @@ where
     {
         match &self.placer.group.kind {
             ScalarGroupBindingKind::Candidates { candidate_provider } => {
-                let mut generator = self
-                    .placer
-                    .candidate_placement_generator(score_director, *candidate_provider);
-                next_candidate_placement(&mut generator, &mut is_completed, &mut should_stop)
+                let seeds = self.candidate_seeds.get_or_insert_with(|| {
+                    self.placer
+                        .candidate_placement_seeds(score_director, *candidate_provider)
+                });
+                next_candidate_placement(
+                    &self.placer.group,
+                    seeds,
+                    &mut is_completed,
+                    &mut should_stop,
+                )
             }
             ScalarGroupBindingKind::Assignment(assignment) => next_assignment_placement(
                 self.placer
@@ -158,7 +168,10 @@ where
 
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
         let _ = score_director;
-        ScalarGroupPlacerCursor { placer: self }
+        ScalarGroupPlacerCursor {
+            placer: self,
+            candidate_seeds: None,
+        }
     }
 }
 
@@ -166,11 +179,11 @@ impl<S> ScalarGroupPlacer<S>
 where
     S: PlanningSolution + 'static,
 {
-    fn candidate_placement_generator<D>(
+    fn candidate_placement_seeds<D>(
         &self,
         score_director: &D,
         candidate_provider: crate::builder::context::ScalarCandidateProvider<S>,
-    ) -> CandidatePlacementGenerator<S>
+    ) -> std::vec::IntoIter<CandidatePlacementSeed<S>>
     where
         D: Director<S>,
     {
@@ -178,10 +191,7 @@ where
         let raw_candidates = candidate_provider(solution, self.limits);
         let total_limit = self.limits.group_candidate_limit.unwrap_or(usize::MAX);
         if total_limit == 0 {
-            return CandidatePlacementGenerator {
-                placements: Vec::new().into_iter(),
-                group: self.group.clone(),
-            };
+            return Vec::new().into_iter();
         }
 
         let mut seen_candidates = Vec::new();
@@ -273,10 +283,7 @@ where
                     .then_with(|| left.sequence.cmp(&right.sequence))
             });
         }
-        CandidatePlacementGenerator {
-            placements: placements.into_iter(),
-            group: self.group.clone(),
-        }
+        placements.into_iter()
     }
 
     fn assignment_placement_generator<D>(

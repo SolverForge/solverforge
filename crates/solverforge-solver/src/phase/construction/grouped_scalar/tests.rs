@@ -10,6 +10,8 @@ mod neighborhood_contracts;
 mod optional;
 #[path = "tests/overlay_differential.rs"]
 mod overlay_differential;
+#[path = "tests/placement_streaming.rs"]
+mod placement_streaming;
 
 use solverforge_config::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation, SelectionOrder,

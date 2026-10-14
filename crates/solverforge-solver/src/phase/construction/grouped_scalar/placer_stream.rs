@@ -29,14 +29,6 @@ where
     pub(super) entity_order_key: Option<i64>,
 }
 
-pub(crate) struct CandidatePlacementGenerator<S>
-where
-    S: PlanningSolution + 'static,
-{
-    pub(super) placements: std::vec::IntoIter<CandidatePlacementSeed<S>>,
-    pub(super) group: ScalarGroupBinding<S>,
-}
-
 pub(crate) struct AssignmentPlacementGenerator<S>
 where
     S: PlanningSolution + 'static,
@@ -55,6 +47,9 @@ where
     S: PlanningSolution + 'static,
 {
     Empty,
+    /// Retained-seed handout: the seed's prevalidated candidate list is copied
+    /// once per placement out of the placement cursor's retained store; the
+    /// provider rescan this replaces reran for every pull.
     Candidates {
         group: ScalarGroupBinding<S>,
         candidates: std::vec::IntoIter<ScalarCandidate<S>>,
@@ -201,7 +196,8 @@ where
 }
 
 pub(super) fn next_candidate_placement<S, IsCompleted, ShouldStop>(
-    generator: &mut CandidatePlacementGenerator<S>,
+    group: &ScalarGroupBinding<S>,
+    seeds: &mut std::vec::IntoIter<CandidatePlacementSeed<S>>,
     is_completed: &mut IsCompleted,
     should_stop: &mut ShouldStop,
 ) -> Option<Placement<S, CompoundScalarMove<S>, ScalarGroupCandidateCursor<S>>>
@@ -211,13 +207,13 @@ where
     ShouldStop: FnMut() -> bool,
 {
     while !should_stop() {
-        let seed = generator.placements.next()?;
+        let seed = seeds.next()?;
         let placement = Placement::new(
             seed.entity_ref,
-            ScalarGroupCandidateCursor::candidates(generator.group.clone(), seed.candidates),
+            ScalarGroupCandidateCursor::candidates(group.clone(), seed.candidates.clone()),
         )
         .with_group_slot(seed.group_slot)
-        .with_scalar_slots(seed.scalar_slots)
+        .with_scalar_slots(seed.scalar_slots.clone())
         .with_keep_current_legal(seed.keep_current_legal);
         if !is_completed(&placement) {
             return Some(placement);

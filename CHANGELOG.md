@@ -1,6 +1,9 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.21.2](https://github.com/SolverForge/solverforge/compare/v0.21.1...v0.21.2) (2026-10-14)
+
+
 ## [0.21.1](https://github.com/SolverForge/solverforge/compare/v0.21.0...v0.21.1) (2026-10-14)
 
 

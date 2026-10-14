@@ -12,6 +12,8 @@ mod optional;
 mod overlay_differential;
 #[path = "tests/placement_streaming.rs"]
 mod placement_streaming;
+#[path = "tests/pool_differential.rs"]
+mod pool_differential;
 
 use solverforge_config::{
     ConstructionHeuristicConfig, ConstructionHeuristicType, ConstructionObligation, SelectionOrder,

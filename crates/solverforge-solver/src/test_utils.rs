@@ -40,10 +40,31 @@ impl Queen {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct NQueensSolution {
     pub queens: Vec<Queen>,
     pub score: Option<SoftScore>,
+}
+
+thread_local! {
+    static NQUEENS_CLONES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+pub fn reset_nqueens_clone_count() {
+    NQUEENS_CLONES.with(|count| count.set(0));
+}
+pub fn nqueens_clone_count() -> usize {
+    NQUEENS_CLONES.with(|count| count.get())
+}
+
+impl Clone for NQueensSolution {
+    fn clone(&self) -> Self {
+        NQUEENS_CLONES.with(|count| count.set(count.get() + 1));
+        Self {
+            queens: self.queens.clone(),
+            score: self.score,
+        }
+    }
 }
 
 impl NQueensSolution {

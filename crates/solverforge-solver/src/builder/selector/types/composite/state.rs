@@ -175,7 +175,7 @@ where
                 self.validate_cursor(right, director);
                 self.open_node(left, resources, director, context);
                 CursorNode::Cartesian(SelectorCompositionCartesianCursor::new(
-                    require, left, right, director, context,
+                    require, left, right, context,
                 ))
             }
         };
@@ -243,22 +243,22 @@ where
         }
     }
 
-    pub(super) fn next_at(
+    pub(super) fn next_at<D: Director<S>>(
         &mut self,
         node_id: CompositionNodeId,
-        solution: &S,
+        director: &mut D,
         resources: &mut Resources,
     ) -> Option<CandidateId> {
         let mut node = self.nodes[node_id.index()]
             .take()
             .expect("composition cursor must be open");
         let result = match &mut node {
-            CursorNode::Flat(cursor) => cursor.next_candidate_with_resources(solution, resources),
+            CursorNode::Flat(cursor) => cursor.next_candidate_with_resources(director, resources),
             CursorNode::Limited { child, budget } => {
                 if !budget.can_pull() {
                     None
                 } else {
-                    let result = self.next_at(*child, solution, resources);
+                    let result = self.next_at(*child, director, resources);
                     if result.is_some() {
                         budget.record_pull();
                     }
@@ -271,9 +271,9 @@ where
                 else {
                     unreachable!()
                 };
-                cursor.next(children, |child| self.next_at(child, solution, resources))
+                cursor.next(children, |child| self.next_at(child, director, resources))
             }
-            CursorNode::Cartesian(cursor) => cursor.next(self, solution, resources),
+            CursorNode::Cartesian(cursor) => cursor.next(self, director, resources),
         };
         self.nodes[node_id.index()] = Some(node);
         result
@@ -372,12 +372,12 @@ where
     M: SequentialMoveCarrier<S> + 'static,
     Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
 {
-    fn next_candidate_with_resources(
+    fn next_candidate_with_resources<D: Director<S>>(
         &mut self,
-        solution: &S,
+        director: &mut D,
         resources: &mut Resources,
     ) -> Option<CandidateId> {
-        self.next_at(self.selector.root(), solution, resources)
+        self.next_at(self.selector.root(), director, resources)
     }
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
         self.candidate_at(self.selector.root(), id)

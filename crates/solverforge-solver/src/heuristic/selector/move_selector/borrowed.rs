@@ -321,7 +321,7 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
     }
 }
 
-/// A cursor whose next pull lends the live working solution plus one
+/// A cursor whose next pull lends the live working director plus one
 /// explicitly owned execution resource.
 ///
 /// Ordinary selectors use [`MoveCursor`] directly. Runtime provider cursors
@@ -333,9 +333,9 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
 /// selected by the canonical union scheduler.
 #[doc(hidden)]
 pub trait ResourceMoveCursor<S: PlanningSolution, M: Move<S>, Resources> {
-    fn next_candidate_with_resources(
+    fn next_candidate_with_resources<D: Director<S>>(
         &mut self,
-        solution: &S,
+        director: &mut D,
         resources: &mut Resources,
     ) -> Option<CandidateId>;
 
@@ -343,9 +343,9 @@ pub trait ResourceMoveCursor<S: PlanningSolution, M: Move<S>, Resources> {
 
     fn take_candidate(&mut self, id: CandidateId) -> M;
 
-    fn next_owned_candidate_inspected_with_resources<T, F>(
+    fn next_owned_candidate_inspected_with_resources<T, F, D: Director<S>>(
         &mut self,
-        solution: &S,
+        director: &mut D,
         resources: &mut Resources,
         mut inspect: F,
     ) -> Option<(M, T)>
@@ -353,7 +353,7 @@ pub trait ResourceMoveCursor<S: PlanningSolution, M: Move<S>, Resources> {
         F: for<'a> FnMut(MoveCandidateRef<'a, S, M>) -> Option<T>,
     {
         loop {
-            let id = self.next_candidate_with_resources(solution, resources)?;
+            let id = self.next_candidate_with_resources(director, resources)?;
             let candidate = self
                 .candidate(id)
                 .expect("newly generated resource cursor candidate must remain live");
@@ -393,8 +393,8 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    fn next_candidate_with_resources(&mut self, solution: &S, _resources: &mut ()) -> Option<CandidateId> {
-        self.inner.next_candidate(solution)
+    fn next_candidate_with_resources<D: Director<S>>(&mut self, director: &mut D, _resources: &mut ()) -> Option<CandidateId> {
+        self.inner.next_candidate(director.working_solution())
     }
 
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {

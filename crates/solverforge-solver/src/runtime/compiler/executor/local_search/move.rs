@@ -105,6 +105,16 @@ where
         }
     }
 
+    fn is_doable_with_working_preview<D: Director<S>>(&self, score_director: &mut D) -> bool {
+        match self {
+            Self::Scalar(mov) => mov.is_doable_with_working_preview(score_director),
+            Self::List(mov) => mov.is_doable_with_working_preview(score_director),
+            Self::Grouped(mov) => mov.is_doable_with_working_preview(score_director),
+            Self::Provider(mov) => mov.is_doable_with_working_preview(score_director),
+            Self::Sequential(mov) => mov.is_doable_with_working_preview(score_director),
+        }
+    }
+
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
         match self {
             Self::Scalar(mov) => RuntimeNeighborhoodMoveUndo::Scalar(mov.do_move(score_director)),

@@ -7,7 +7,6 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::metadata::compose_sequential_tabu_signature;
 use crate::heuristic::r#move::{
     Move, MoveTabuSignature, SequentialCompositeMove, SequentialCompositeMoveRef,
-    SequentialPreviewDirector,
 };
 use crate::heuristic::selector::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveStreamContext,
@@ -26,14 +25,10 @@ where
     live_pairs: usize,
 }
 
-struct ActiveCartesianRow<S, M>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-{
+struct ActiveCartesianRow {
     row_index: usize,
-    left_undo: M::Undo,
     left_signature: MoveTabuSignature,
+    right_open: bool,
 }
 
 struct CartesianPair {
@@ -54,9 +49,8 @@ where
     left: CompositionNodeId,
     right: CompositionNodeId,
     rows: Vec<Option<CartesianRow<S, M>>>,
-    active_row: Option<ActiveCartesianRow<S, M>>,
+    active_row: Option<ActiveCartesianRow>,
     pairs: Vec<Option<CartesianPair>>,
-    preview: SequentialPreviewDirector<S>,
     context: MoveStreamContext,
 }
 
@@ -65,11 +59,10 @@ where
     S: PlanningSolution,
     M: SequentialMoveCarrier<S> + 'static,
 {
-    pub(super) fn new<D: Director<S>>(
+    pub(super) fn new(
         require_hard_improvement: bool,
         left: CompositionNodeId,
         right: CompositionNodeId,
-        director: &D,
         context: MoveStreamContext,
     ) -> Self {
         Self {
@@ -79,7 +72,6 @@ where
             rows: Vec::new(),
             active_row: None,
             pairs: Vec::new(),
-            preview: SequentialPreviewDirector::from_director(director),
             context,
         }
     }
@@ -147,11 +139,6 @@ where
             .expect("active cartesian row must remain live");
         let row_index = active.row_index;
         arena.close_node(self.right);
-        self.rows[row_index]
-            .as_ref()
-            .expect("active cartesian row must remain live")
-            .left
-            .undo_move(&mut self.preview, active.left_undo);
         self.release_row_if_unused(row_index);
     }
 
@@ -181,9 +168,8 @@ where
             .take()
             .expect("selected cartesian row must remain live");
 
-        if let Some(active) = active {
+        if active.is_some() {
             arena.close_node(self.right);
-            row.left.undo_move(&mut self.preview, active.left_undo);
         }
 
         for sibling in &mut self.pairs {
@@ -218,70 +204,61 @@ where
         M::from_sequential(selected)
     }
 
-    pub(super) fn next<Flat, FlatState, Resources>(
+    pub(super) fn next<Flat, FlatState, Resources, D>(
         &mut self,
         arena: &mut SelectorCompositionCursor<'_, S, M, Flat, FlatState, Resources>,
-        solution: &S,
+        director: &mut D,
         resources: &mut Resources,
     ) -> Option<CandidateId>
     where
         Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
+        D: Director<S>,
     {
         loop {
-            if self.active_row.is_some() {
-                let inspected = {
-                    let active = self
-                        .active_row
-                        .as_mut()
-                        .expect("active cartesian row must remain live");
-                    let row = self.rows[active.row_index]
-                        .as_mut()
-                        .expect("active cartesian row must remain live");
-                    let left = &row.left;
-                    let left_signature = &active.left_signature;
-                    loop {
-                        let Some(id) =
-                            arena.next_at(self.right, self.preview.working_solution(), resources)
-                        else {
-                            break None;
-                        };
-                        let inspected = {
-                            let right = arena
-                                .candidate_at(self.right, id)
-                                .expect("right candidate must remain valid");
-                            if !right.is_doable(&self.preview) {
-                                None
-                            } else {
-                                Some((
-                                    combined_entity_indices(
-                                        left.entity_indices(),
-                                        right.entity_indices(),
-                                    ),
-                                    compose_sequential_tabu_signature(
-                                        "cartesian_product",
-                                        left_signature,
-                                        &right.tabu_signature(&self.preview),
-                                    ),
-                                ))
-                            }
-                        };
-                        if let Some(metadata) = inspected {
-                            break Some((arena.take_at(self.right, id), metadata));
+            if let Some(active) = self.active_row.as_mut() {
+                let row_index = active.row_index;
+                let row = self.rows[row_index]
+                    .as_mut()
+                    .expect("active cartesian row must remain live");
+                let score_state = director.snapshot_score_state();
+                let undo = row.left.do_move(director);
+                if !active.right_open {
+                    arena.open_node(self.right, resources, director, self.context);
+                    active.right_open = true;
+                }
+                let inspected = loop {
+                    let Some(id) = arena.next_at(self.right, director, resources) else {
+                        break None;
+                    };
+                    let metadata = {
+                        let right = arena
+                            .candidate_at(self.right, id)
+                            .expect("right candidate must remain valid");
+                        if !right.is_doable_with_working_preview(director) {
+                            None
+                        } else {
+                            Some((
+                                combined_entity_indices(
+                                    row.left.entity_indices(),
+                                    right.entity_indices(),
+                                ),
+                                compose_sequential_tabu_signature(
+                                    "cartesian_product",
+                                    &active.left_signature,
+                                    &right.tabu_signature(director),
+                                ),
+                            ))
                         }
-                        assert!(arena.release_at(self.right, id));
+                    };
+                    if let Some(metadata) = metadata {
+                        break Some((arena.take_at(self.right, id), metadata));
                     }
+                    assert!(arena.release_at(self.right, id));
                 };
+                row.left.undo_move(director, undo);
+                director.restore_score_state(score_state);
                 if let Some((right, (entity_indices, tabu_signature))) = inspected {
-                    let row_index = self
-                        .active_row
-                        .as_ref()
-                        .expect("active cartesian row must remain live")
-                        .row_index;
-                    let right_id = self.rows[row_index]
-                        .as_mut()
-                        .expect("active cartesian row must remain live")
-                        .right_moves
-                        .push(right);
+                    let right_id = row.right_moves.push(right);
                     let pair_id = CandidateId::new(self.pairs.len());
                     self.pairs.push(Some(CartesianPair {
                         row_index,
@@ -289,23 +266,19 @@ where
                         entity_indices,
                         tabu_signature,
                     }));
-                    self.rows[row_index]
-                        .as_mut()
-                        .expect("active cartesian row must remain live")
-                        .live_pairs += 1;
+                    row.live_pairs += 1;
                     return Some(pair_id);
                 }
                 self.finish_active_row(arena);
             }
-
-            let left_id = arena.next_at(self.left, solution, resources)?;
+            let left_id = arena.next_at(self.left, director, resources)?;
             let (left_is_doable, left_signature) = {
                 let left = arena
                     .candidate_at(self.left, left_id)
                     .expect("left cartesian candidate must remain valid");
                 (
-                    left.is_doable(&self.preview),
-                    left.tabu_signature(&self.preview),
+                    left.is_doable_with_working_preview(director),
+                    left.tabu_signature(director),
                 )
             };
             if !left_is_doable {
@@ -313,8 +286,6 @@ where
                 continue;
             }
             let left = arena.take_at(self.left, left_id);
-            let left_undo = left.do_move(&mut self.preview);
-            arena.open_node(self.right, resources, &self.preview, self.context);
             let row_index = self.rows.len();
             self.rows.push(Some(CartesianRow {
                 left,
@@ -323,8 +294,8 @@ where
             }));
             self.active_row = Some(ActiveCartesianRow {
                 row_index,
-                left_undo,
                 left_signature,
+                right_open: false,
             });
         }
     }

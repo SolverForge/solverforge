@@ -372,14 +372,14 @@ where
     M: Move<S>,
     C: ResourceMoveCursor<S, M, Resources>,
 {
-    fn next_candidate_with_resources(
+    fn next_candidate_with_resources<D: Director<S>>(
         &mut self,
-        solution: &S,
+        director: &mut D,
         resources: &mut Resources,
     ) -> Option<CandidateId> {
         let cursor_count = self.cursors.len();
         let (cursor_index, child_index) = self.scheduler.next_child(cursor_count, |index| {
-            self.cursors[index].next_candidate_with_resources(solution, resources)
+            self.cursors[index].next_candidate_with_resources(director, resources)
         })?;
         let global_id = CandidateId::new(self.discovered.len());
         self.discovered.push((cursor_index, child_index));

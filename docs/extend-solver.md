@@ -58,7 +58,12 @@ Sequential composite moves check doability on the caller's live director with
 `is_doable_with_working_preview`: the left leg is applied on a snapshotted score
 state, the right leg is checked against that previewed state, and the left leg
 is undone and the score state restored before the check returns. It never
-clones the solution for a preview.
+clones the solution for a mutable preview. Compiled Cartesian discovery uses the
+same live-director transaction for right-child opening and every right pull.
+Resource-aware cursor implementations receive `&mut D` rather than a solution
+snapshot; they must restore all trial writes and score state before returning a
+candidate. Ordinary `MoveCursor` extensions continue to receive `&S`; the public
+non-compiled Cartesian selector still uses its owned preview director.
 
 ## Construction routing
 

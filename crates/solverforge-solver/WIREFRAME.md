@@ -113,6 +113,7 @@ src/
 │   │   ├── dynamic_list_change.rs      — DynamicListChangeMove<S> over descriptor-resolved DynamicListVariableSlot<S>
 │   │   ├── runtime_compound.rs         — RuntimeCompoundMove<S> and RuntimeCompoundMoveKind for frozen provider candidates
 │   │   ├── composite.rs                — CompositeMove<S, M1, M2>, SequentialCompositeMove<S, M>
+│   │   ├── composite/preview.rs         — Internal owned preview director for read-only sequential checks and ordinary Cartesian selectors
 │   │   ├── scalar_union.rs             — ScalarMoveUnion<S, V> enum
 │   │   ├── list_union.rs               — ListMoveUnion<S, V> enum
 │   │   ├── list_multi_swap.rs          — ListMultiSwapMove<S, V> for independent same-step intra-list swaps
@@ -528,15 +529,16 @@ contract also provides `release_candidate()`, `apply_owned_candidate()`,
 promptly, leaf cursors can fuse owned filtering with generation, and Cartesian
 composition can transfer one inspected child without first storing it twice.
 
-Cursors own no solution state: candidate generation is per-pull solution lending.
-`next_candidate(solution)`, `next_candidate_with_control(solution, should_stop)`,
-`next_owned_candidate(solution)`, `next_owned_candidate_inspected(solution, inspect)`,
-and the resource variant all lend the caller's live working solution for that pull,
-so a committed move between pulls is visible to the next pull and cursors never hold
-a stale snapshot. Cursor-open state is plain data (indexes, coordinates, seeds)
-derived from the solution at open; family cursors that still need search-scoped
-derived state (metric orders, ruin batches) derive it from the open-time solution
-they are given explicitly.
+Ordinary cursor pulls lend `&S` through `next_candidate(solution)`,
+`next_candidate_with_control(solution, should_stop)`, `next_owned_candidate(solution)`
+and `next_owned_candidate_inspected(solution, inspect)`. The hidden resource
+boundary instead uses `ResourceMoveCursor::next_candidate_with_resources<D: Director<S>>`
+with `(&mut self, director: &mut D, resources: &mut Resources) -> Option<CandidateId>`.
+Its inspected owned-pull helper also takes the mutable director. Compiled phases
+lend that director through unions and limits so Cartesian discovery can apply and
+undo preview moves without retaining a solution borrow between pulls. Open-time
+derived indexes and metric orders retain their own activation contracts. The
+ordinary public Cartesian selector still owns a separate preview solution.
 
 `MoveCandidateRef<'a, S, M>` is either a borrowed move or a borrowable
 two-child sequential composite; `MoveCandidateUndo<U>` mirrors those two
@@ -551,11 +553,13 @@ Compiled Limited/Union/Cartesian composition owns one immutable indexed declarat
 arena per execution and transfers its retained leaf-state arena into a cursor and
 back on drop. Structural edges use stable node IDs, not recursively owned trees;
 union nodes use the canonical scheduler, and Cartesian right nodes open only after
-left preview application. Flat extensions remain concrete generic types, including
-non-Clone declaration/state types. This internal representation does not change the
-public `MoveSelector` extension contract or configured selector syntax. Compiler
-input graph ownership and Cartesian solution-preview ownership remain separate
-from these composition arenas.
+left preview application on the live director. Each pull snapshots score state,
+applies its row's left move, generates/checks the right candidate, then undoes and
+restores before returning. Nested rows compose the same transaction; no compiled
+Cartesian cursor owns a cloned preview solution. Flat extensions remain concrete
+generic types, including non-Clone declaration/state types. This internal
+representation does not change the public `MoveSelector` extension contract or
+configured selector syntax.
 
 ### `ValueSelector<S: PlanningSolution, V>` — `value_selector.rs`
 

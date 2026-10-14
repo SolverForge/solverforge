@@ -402,13 +402,13 @@ impl ResourceTestCursor {
 }
 
 impl ResourceMoveCursor<TestSolution, TestMove, Vec<&'static str>> for ResourceTestCursor {
-    fn next_candidate_with_resources(
+    fn next_candidate_with_resources<D: Director<TestSolution>>(
         &mut self,
-        _solution: &TestSolution,
+        director: &mut D,
         reasons: &mut Vec<&'static str>,
     ) -> Option<CandidateId> {
         self.pulls.set(self.pulls.get() + 1);
-        let candidate = self.inner.next_candidate(_solution)?;
+        let candidate = self.inner.next_candidate(director.working_solution())?;
         if !reasons.contains(&self.reason) {
             reasons.push(self.reason);
         }
@@ -456,7 +456,7 @@ fn resource_union_lends_one_reason_store_only_to_reached_children() {
     let mut reasons = Vec::new();
 
     let first = cursor
-        .next_candidate_with_resources(&blank_solution(), &mut reasons)
+        .next_candidate_with_resources(&mut TestDirector::new(), &mut reasons)
         .expect("first candidate");
     assert_eq!(cursor.take_candidate(first), TestMove(1));
 
@@ -483,7 +483,9 @@ fn resource_union_preserves_round_robin_order_and_shared_reason_interning() {
     );
     let mut reasons = Vec::new();
     let mut values = Vec::new();
-    while let Some(id) = cursor.next_candidate_with_resources(&blank_solution(), &mut reasons) {
+    while let Some(id) =
+        cursor.next_candidate_with_resources(&mut TestDirector::new(), &mut reasons)
+    {
         values.push(cursor.take_candidate(id).0);
     }
 

@@ -125,12 +125,12 @@ where
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
 {
-    fn next_candidate_with_resources(
+    fn next_candidate_with_resources<D: Director<S>>(
         &mut self,
-        solution: &S,
+        director: &mut D,
         resources: &mut ProviderExecutionResources<S>,
     ) -> Option<CandidateId> {
-        self.next_move(solution, resources)
+        self.next_move(director.working_solution(), resources)
             .map(|mov| self.store.push(mov))
     }
 
@@ -211,7 +211,11 @@ where
         }
     }
 
-    fn prepare_order(&mut self, solution: &S, resources: &mut ProviderExecutionResources<S>) {
+    fn prepare_order<D: Director<S>>(
+        &mut self,
+        director: &mut D,
+        resources: &mut ProviderExecutionResources<S>,
+    ) {
         if self.ordered_candidates.is_some() {
             return;
         }
@@ -222,7 +226,7 @@ where
         let mut candidates = Vec::new();
         while let Some(candidate_id) = self
             .inner
-            .next_candidate_with_resources(solution, resources)
+            .next_candidate_with_resources(director, resources)
         {
             let candidate = self
                 .inner
@@ -231,7 +235,7 @@ where
             let identity = candidate
                 .candidate_trace_identity()
                 .expect("compiled runtime candidate must expose a logical identity");
-            let value = metric.measure(solution, &identity);
+            let value = metric.measure(director.working_solution(), &identity);
             assert!(
                 value.is_finite(),
                 "candidate metric `{}` returned a non-finite value",
@@ -287,13 +291,13 @@ where
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S>,
 {
-    fn next_candidate_with_resources(
+    fn next_candidate_with_resources<D: Director<S>>(
         &mut self,
-        solution: &S,
+        director: &mut D,
         resources: &mut ProviderExecutionResources<S>,
     ) -> Option<CandidateId> {
         if self.candidate_order.requires_complete_stream() {
-            self.prepare_order(solution, resources);
+            self.prepare_order(director, resources);
             let candidate = self
                 .ordered_candidates
                 .as_ref()
@@ -303,7 +307,7 @@ where
             candidate
         } else {
             self.inner
-                .next_candidate_with_resources(solution, resources)
+                .next_candidate_with_resources(director, resources)
         }
     }
 

@@ -100,9 +100,9 @@ where
     M: Move<S>,
     C: ResourceMoveCursor<S, M, Resources>,
 {
-    fn next_candidate_with_resources(
+    fn next_candidate_with_resources<D: Director<S>>(
         &mut self,
-        solution: &S,
+        director: &mut D,
         resources: &mut Resources,
     ) -> Option<CandidateId> {
         if !self.budget.can_pull() {
@@ -110,7 +110,7 @@ where
         }
         let id = self
             .inner
-            .next_candidate_with_resources(solution, resources)?;
+            .next_candidate_with_resources(director, resources)?;
         self.budget.record_pull();
         Some(id)
     }

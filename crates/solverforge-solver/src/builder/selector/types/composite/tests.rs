@@ -88,16 +88,16 @@ fn arena_declarations_keep_stable_ids_and_concrete_nonclone_leaves() {
     }
     assert_eq!(leaf.index(), 0);
     assert_eq!(root.index(), 100);
-    let director = create_nqueens_director(&[0]);
+    let mut director = create_nqueens_director(&[0]);
     let mut state = SelectorCompositionState::new(graph);
     let mut source = state.borrowed_source();
     let mut cursor = source.open_cursor(&mut (), &director, MoveStreamContext::default());
     let id = cursor
-        .next_candidate_with_resources(director.working_solution(), &mut ())
+        .next_candidate_with_resources(&mut director, &mut ())
         .unwrap();
     assert!(cursor.candidate(id).is_some());
     assert!(cursor
-        .next_candidate_with_resources(director.working_solution(), &mut ())
+        .next_candidate_with_resources(&mut director, &mut ())
         .is_none());
     assert!(cursor.release_candidate(id));
 }
@@ -124,7 +124,7 @@ fn arena_cartesian_defers_right_and_restores_exact_state_after_early_drop() {
         let mut source = state.borrowed_source();
         let mut cursor = source.open_cursor(&mut (), &director, MoveStreamContext::default());
         let id = cursor
-            .next_candidate_with_resources(director.working_solution(), &mut ())
+            .next_candidate_with_resources(&mut director, &mut ())
             .unwrap();
         let candidate = cursor.candidate(id).unwrap();
         let undo = candidate.do_move(&mut director);
@@ -135,10 +135,10 @@ fn arena_cartesian_defers_right_and_restores_exact_state_after_early_drop() {
     let mut source = state.borrowed_source();
     let mut cursor = source.open_cursor(&mut (), &director, MoveStreamContext::default());
     let first = cursor
-        .next_candidate_with_resources(director.working_solution(), &mut ())
+        .next_candidate_with_resources(&mut director, &mut ())
         .unwrap();
     let second = cursor
-        .next_candidate_with_resources(director.working_solution(), &mut ())
+        .next_candidate_with_resources(&mut director, &mut ())
         .unwrap();
     assert!(cursor.candidate(first).is_some());
     assert!(cursor.candidate(second).is_some());
@@ -235,11 +235,11 @@ fn arena_cartesian_lends_the_left_preview_to_lazy_right_pulls() {
     });
     let mut state = SelectorCompositionState::new(graph);
     let mut director = create_nqueens_director(&[0, 0]);
+    crate::test_utils::reset_nqueens_clone_count();
     let mut source = state.borrowed_source();
     let mut cursor = source.open_cursor(&mut (), &director, MoveStreamContext::default());
     let mut observed = Vec::new();
-    while let Some(id) = cursor.next_candidate_with_resources(director.working_solution(), &mut ())
-    {
+    while let Some(id) = cursor.next_candidate_with_resources(&mut director, &mut ()) {
         let candidate = cursor.candidate(id).unwrap();
         let undo = candidate.do_move(&mut director);
         observed.push((
@@ -252,6 +252,11 @@ fn arena_cartesian_lends_the_left_preview_to_lazy_right_pulls() {
         assert_eq!(get_queen_row(director.working_solution(), 1, 0), Some(0));
     }
     assert_eq!(observed, vec![(Some(1), Some(11)), (Some(2), Some(12))]);
+    assert_eq!(
+        crate::test_utils::nqueens_clone_count(),
+        0,
+        "Cartesian discovery must use the live director"
+    );
 }
 
 fn observe<C: ResourceMoveCursor<NQueensSolution, TestMove, ()>, D: Director<NQueensSolution>>(
@@ -259,8 +264,7 @@ fn observe<C: ResourceMoveCursor<NQueensSolution, TestMove, ()>, D: Director<NQu
     director: &mut D,
 ) -> Vec<(Option<usize>, usize, i64)> {
     let mut values = Vec::new();
-    while let Some(id) = cursor.next_candidate_with_resources(director.working_solution(), &mut ())
-    {
+    while let Some(id) = cursor.next_candidate_with_resources(director, &mut ()) {
         let candidate = cursor.candidate(id).unwrap();
         let entity = candidate.entity_indices()[0];
         let undo = candidate.do_move(director);
@@ -382,6 +386,7 @@ fn arena_nested_cartesian_returns_retained_leaf_states_without_rebuilding() {
         require_hard_improvement: true,
     });
     let mut director = create_nqueens_director(&[0, 0, 0]);
+    crate::test_utils::reset_nqueens_clone_count();
     let state = new_stream_state(&graph);
     let independent = new_stream_state(&graph);
     let leaves_ptr = state.leaves.as_ptr();
@@ -393,9 +398,20 @@ fn arena_nested_cartesian_returns_retained_leaf_states_without_rebuilding() {
         MoveStreamContext::default(),
     );
     let first = cursor
-        .next_candidate_with_resources(director.working_solution(), &mut ())
+        .next_candidate_with_resources(&mut director, &mut ())
         .unwrap();
+    assert_eq!(
+        crate::test_utils::nqueens_clone_count(),
+        0,
+        "nested Cartesian carriers must preserve live preview"
+    );
     let candidate = cursor.candidate(first).unwrap();
+    assert!(candidate.is_doable_with_working_preview(&mut director));
+    assert_eq!(
+        crate::test_utils::nqueens_clone_count(),
+        0,
+        "nested candidate evaluation must preserve live preview"
+    );
     assert!(candidate.requires_hard_improvement());
     assert_eq!(candidate.entity_indices(), &[0, 1, 2]);
     let undo = candidate.do_move(&mut director);
@@ -423,10 +439,10 @@ fn arena_nested_cartesian_returns_retained_leaf_states_without_rebuilding() {
         MoveStreamContext::default(),
     );
     let first = reopened
-        .next_candidate_with_resources(director.working_solution(), &mut ())
+        .next_candidate_with_resources(&mut director, &mut ())
         .unwrap();
     let second = reopened
-        .next_candidate_with_resources(director.working_solution(), &mut ())
+        .next_candidate_with_resources(&mut director, &mut ())
         .unwrap();
     assert!(reopened.candidate(first).is_some());
     assert!(reopened.candidate(second).is_some());

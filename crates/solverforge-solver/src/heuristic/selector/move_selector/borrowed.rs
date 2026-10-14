@@ -532,13 +532,6 @@ where
         }
     }
 
-    /// Drops every stored candidate while retaining both backing
-    /// capacities, so a reused store does not re-grow its vectors.
-    pub fn reset(&mut self) {
-        self.positions.clear();
-        self.live.clear();
-    }
-
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             positions: Vec::with_capacity(capacity),

@@ -1,24 +1,19 @@
 use crate::builder::ScalarAssignmentBinding;
 
-pub(super) type AssignmentMoveKey = Vec<(usize, usize, usize, Option<usize>)>;
+mod key;
+pub(super) use key::AssignmentMoveKey;
 
 pub(super) fn normalized_move_key<S>(
     candidate: &crate::heuristic::r#move::CompoundScalarMove<S>,
 ) -> AssignmentMoveKey {
-    let mut key = candidate
-        .edits()
-        .iter()
-        .map(|edit| {
-            (
-                edit.descriptor_index,
-                edit.entity_index,
-                edit.variable_index,
-                edit.to_value,
-            )
-        })
-        .collect::<Vec<_>>();
-    key.sort_unstable();
-    key
+    AssignmentMoveKey::new(candidate.edits().iter().map(|edit| {
+        (
+            edit.descriptor_index,
+            edit.entity_index,
+            edit.variable_index,
+            edit.to_value,
+        )
+    }))
 }
 
 #[derive(Clone, Copy, Debug)]

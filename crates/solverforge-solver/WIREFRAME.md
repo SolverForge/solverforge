@@ -241,6 +241,7 @@ src/
 │   │   ├── telemetry.rs                 — Shared construction lifecycle events, candidate counters, and bounded progress polling
 │   │   ├── grouped_scalar/mod.rs        — Atomic grouped scalar construction module root over declared ScalarGroup candidates and assignment groups bound to runtime scalar slots
 │   │   ├── grouped_scalar/assignment_candidate.rs — Assignment move options, required assignment moves, capacity-conflict moves, reassignment moves, and remaining-required telemetry
+│   │   ├── grouped_scalar/assignment_candidate/key.rs — Internal order-independent exact edit identity with inline short keys; no per-yield key sorting
 │   │   ├── grouped_scalar/assignment_block.rs — Required-assignment block planning helpers
 │   │   ├── grouped_scalar/assignment_cycle.rs — Bounded augmenting cycle and ejection/reinsert move construction
 │   │   ├── grouped_scalar/assignment_entity.rs — Entity-local required, optional, capacity, and reassignment move construction

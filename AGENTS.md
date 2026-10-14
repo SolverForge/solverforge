@@ -330,3 +330,19 @@ manifests, so every workspace example should be covered without a manually
 maintained package loop.
 
 Minimum supported Rust version: `1.95+`
+
+## Agent Session Discipline
+
+Autonomous agent sessions in this repo load the in-repo drift-guard KV at
+session open:
+
+```bash
+nisaba --quiet docs/agents/drift-guard.nisaba scan drift-guard/
+```
+
+Every record under the `drift-guard/` prefix binds for the session. It
+carries the plan-execution discipline: STATE.md verdicts are established
+and never re-run, every tool call maps to an item in the task-packet
+ledger, and the execution tripwire lists known recurring failure shapes.
+Update the KV with `nisaba inscribe ... --supersedes <id>` and commit it
+with the plan work that motivated the change.

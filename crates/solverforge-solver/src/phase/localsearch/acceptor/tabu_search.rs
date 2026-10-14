@@ -221,17 +221,17 @@ impl<S: PlanningSolution> Acceptor<S> for TabuSearchAcceptor<S> {
             let mut value_tokens = std::mem::take(&mut signature.destination_value_tokens);
             self.entity_memory.record_drained(&mut entity_tokens);
             self.value_memory.record_drained(&mut value_tokens);
-            self.move_memory
-                .record(std::mem::take(&mut signature.move_id));
+            let move_id = std::mem::take(&mut signature.move_id);
             match &mut signature.undo_move_id {
-                /* The undo id is consumed by ownership; a self-undoing move
-                records its (already moved) move identity into the reverse
-                memory with one copy at accept time instead of a permanent
-                second identity store on every constructed signature. */
+                /* A self-undoing move's reverse identity IS its move identity:
+                both memories hold the same id (one owned copy each, matching
+                the pre-undo-identity-enum semantics). */
                 crate::heuristic::r#move::metadata::MoveUndoIdentity::SameAsMoveId => {
-                    self.reverse_move_memory.record(signature.move_id.clone());
+                    self.reverse_move_memory.record(move_id.clone());
+                    self.move_memory.record(move_id);
                 }
                 crate::heuristic::r#move::metadata::MoveUndoIdentity::Explicit(id) => {
+                    self.move_memory.record(move_id);
                     self.reverse_move_memory.record(std::mem::take(id));
                 }
             }

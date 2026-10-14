@@ -69,13 +69,20 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
                 epoch,
                 ..
             } => {
-                let entry = counts.entry(key.clone()).or_default();
-                if entry.touched_epoch != *epoch {
+                // First-touch clone only: repeat touches within one epoch
+                // insert nothing and clone nothing.
+                let needs_touch = counts
+                    .get(key)
+                    .is_none_or(|slot| slot.touched_epoch != *epoch);
+                if needs_touch {
+                    let entry = counts.entry(key.clone()).or_default();
                     entry.touched_epoch = *epoch;
                     touched.push(key.clone());
                 }
-                entry.count += n;
-                entry.count
+                if let Some(entry) = counts.get_mut(key) {
+                    entry.count += n;
+                }
+                counts.get(key).map(|entry| entry.count).unwrap_or_default()
             }
         }
     }
@@ -121,7 +128,13 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
         match self {
             Self::Dense(state) => state.left_insert(dense_raw(key), handle),
             Self::Hashed { left_buckets, .. } => {
-                left_buckets.entry(key.clone()).or_default().push(handle)
+                // Clone the key only when the bucket is new; repeat inserts
+                // into a live bucket clone nothing.
+                if let Some(bucket) = left_buckets.get_mut(key) {
+                    bucket.push(handle);
+                } else {
+                    left_buckets.entry(key.clone()).or_default().push(handle);
+                }
             }
         }
     }

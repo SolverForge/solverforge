@@ -160,6 +160,28 @@ fn tabu_search_blocks_exact_move_and_undo_move() {
 }
 
 #[test]
+fn tabu_search_self_undoing_move_blocks_both_memories() {
+    let mut acceptor =
+        TabuSearchAcceptor::<DummySolution>::new(policy(None, None, None, Some(2), false));
+    let committed = MoveTabuSignature::new_self_undoing(
+        MoveTabuScope::new(0, "worker"),
+        smallvec::smallvec![10, 20],
+    );
+    let same_id_repeat = signature(0, "worker", &[], &[], &[10, 20], &[10, 20]);
+
+    acceptor.phase_started(&SoftScore::of(-10));
+    acceptor.step_ended(&SoftScore::of(-9), Some(committed.clone()));
+
+    // The reverse memory must hold the real move identity, not an emptied
+    // vector: a self-undoing move is tabu under an undo-only policy.
+    assert!(!acceptor.is_accepted(
+        &SoftScore::of(-9),
+        &SoftScore::of(-8),
+        Some(&same_id_repeat)
+    ));
+}
+
+#[test]
 fn tabu_search_undo_memory_matches_candidate_move_identity() {
     let mut acceptor =
         TabuSearchAcceptor::<DummySolution>::new(policy(None, None, None, Some(2), false));

@@ -317,7 +317,7 @@ where
 {
     fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
         match self {
-            Self::Change(cursor) => cursor.next_recipe(),
+            Self::Change(cursor) => cursor.next_recipe(solution),
             Self::Swap(cursor) => cursor.next_recipe(solution),
             Self::NearbyChange(cursor) => cursor.next_recipe(solution),
             Self::NearbySwap(cursor) => cursor.next_recipe(solution),

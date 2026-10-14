@@ -15,21 +15,31 @@ const NEARBY_CHANGE_ENTITY_START_SALT: u64 = 0xC4A4_6E00_AAAA_0001;
 const NEARBY_CHANGE_ENTITY_STRIDE_SALT: u64 = 0xC4A4_6E00_AAAA_0002;
 const NEARBY_CHANGE_VALUE_SALT: u64 = 0xC4A4_6E00_AAAA_0003;
 
+/// ORDINARY-CHANGE STREAM — one row in memory at a time.
+///
+/// Cursor open computes only the seeded entity permutation (and its guided
+/// stable sort); each row's candidate values are visited lazily when that
+/// row's turn arrives, into one reusable scratch vec. Enumerated recipes and
+/// their order are identical to the historical eager collection because the
+/// per-row callbacks run in the same entity order with the same salts.
+pub(super) struct ChangeCursor<S> {
+    slot: RuntimeScalarSlot<S>,
+    context: MoveStreamContext,
+    identity: u64,
+    entity_order: Vec<usize>,
+    current_row: Option<ChangeRow>,
+    value_guided: bool,
+    value_salt: u64,
+    value_candidate_limit: Option<usize>,
+    row_offset: usize,
+    value_offset: usize,
+    unassigned_pending: bool,
+}
+
 struct ChangeRow {
     entity_index: usize,
     values: Vec<usize>,
     current_assigned: bool,
-}
-
-/// Ordinary change keeps historic eager source collection for both native and
-/// dynamic direct selectors. Its recipe stream is still one RuntimeScalarSlot
-/// implementation; only the established seed salts differ by physical carrier.
-pub(super) struct ChangeCursor<S> {
-    slot: RuntimeScalarSlot<S>,
-    rows: Vec<ChangeRow>,
-    row_offset: usize,
-    value_offset: usize,
-    unassigned_pending: bool,
 }
 
 impl<S> ChangeCursor<S>
@@ -81,55 +91,66 @@ where
         if entity_guided {
             entity_order.sort_by_key(|(order, entity_offset, _)| (*order, *entity_offset));
         }
-        let rows = entity_order
-            .into_iter()
-            .map(|(_, _, entity_index)| {
-                let mut canonical_values = Vec::new();
-                slot.visit_candidate_values(
-                    solution,
-                    entity_index,
-                    value_candidate_limit,
-                    &mut |value| canonical_values.push(value),
-                );
-                let value_count = canonical_values.len();
-                let mut value_order = (0..value_count)
-                    .map(|value_offset| {
-                        let value = canonical_values[context.selection_index(
-                            value_offset,
-                            value_count,
-                            value_salt ^ entity_index as u64 ^ identity,
-                        )];
-                        let key = if value_guided {
-                            slot.search_value_order_key(solution, entity_index, value)
-                        } else {
-                            None
-                        };
-                        (key.unwrap_or(i64::MAX), value_offset, value)
-                    })
-                    .collect::<Vec<_>>();
-                if value_guided {
-                    value_order.sort_by_key(|(order, value_offset, _)| (*order, *value_offset));
-                }
-                let values = value_order.into_iter().map(|(_, _, value)| value).collect();
-                ChangeRow {
-                    entity_index,
-                    values,
-                    current_assigned: slot.current_value(solution, entity_index).is_some(),
-                }
-            })
-            .collect::<Vec<_>>();
         Self {
-            slot,
-            rows,
+            slot: slot.clone(),
+            context,
+            identity,
+            entity_order: entity_order
+                .into_iter()
+                .map(|(_, _, entity_index)| entity_index)
+                .collect(),
+            current_row: None,
+            value_guided,
+            value_salt,
+            value_candidate_limit,
             row_offset: 0,
             value_offset: 0,
             unassigned_pending: false,
         }
     }
 
-    pub(super) fn next_recipe(&mut self) -> Option<RuntimeScalarRecipe<S>> {
+    pub(super) fn next_recipe(&mut self, solution: &S) -> Option<RuntimeScalarRecipe<S>> {
         loop {
-            let row = self.rows.get(self.row_offset)?;
+            if self.current_row.is_none() {
+                let entity_index = *self.entity_order.get(self.row_offset)?;
+                let mut values = self
+                    .current_row
+                    .take()
+                    .map(|row| row.values)
+                    .unwrap_or_default();
+                values.clear();
+                self.slot.visit_candidate_values(
+                    solution,
+                    entity_index,
+                    self.value_candidate_limit,
+                    &mut |value| values.push(value),
+                );
+                if self.value_guided {
+                    let row_context = self.context;
+                    let value_count = values.len();
+                    let mut value_order = (0..value_count)
+                        .map(|value_offset| {
+                            let value = values[row_context.selection_index(
+                                value_offset,
+                                value_count,
+                                self.value_salt ^ entity_index as u64 ^ self.identity,
+                            )];
+                            let key =
+                                self.slot
+                                    .search_value_order_key(solution, entity_index, value);
+                            (key.unwrap_or(i64::MAX), value_offset, value)
+                        })
+                        .collect::<Vec<_>>();
+                    value_order.sort_by_key(|(order, value_offset, _)| (*order, *value_offset));
+                    values = value_order.into_iter().map(|(_, _, value)| value).collect();
+                }
+                self.current_row = Some(ChangeRow {
+                    entity_index,
+                    values,
+                    current_assigned: self.slot.current_value(solution, entity_index).is_some(),
+                });
+            }
+            let row = self.current_row.as_ref()?;
             if let Some(&value) = row.values.get(self.value_offset) {
                 self.value_offset += 1;
                 return Some(RuntimeScalarRecipe::Change {
@@ -149,6 +170,7 @@ where
             self.row_offset += 1;
             self.value_offset = 0;
             self.unassigned_pending = false;
+            self.current_row = None;
         }
     }
 }

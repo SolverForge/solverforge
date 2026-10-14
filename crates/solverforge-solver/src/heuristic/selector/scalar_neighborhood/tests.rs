@@ -277,3 +277,146 @@ fn dynamic_nearby_swap_uses_the_finite_all_entity_row_fallback() {
     assert_eq!(ENTITY_SOURCE_LIMIT.load(Ordering::SeqCst), 3);
     assert_eq!(pairs, vec![(0, 1), (1, 0), (2, 1)]);
 }
+
+#[derive(Debug)]
+struct CountingRowAccess {
+    fallback: RowFallbackAccess,
+    visits: Arc<AtomicUsize>,
+}
+
+impl DynamicScalarAccess<Plan> for CountingRowAccess {
+    fn entity_class(&self) -> EntityClassId {
+        self.fallback.entity_class()
+    }
+
+    fn variable(&self) -> VariableId {
+        self.fallback.variable()
+    }
+
+    fn entity_count(&self, solution: &Plan) -> usize {
+        self.fallback.entity_count(solution)
+    }
+
+    fn get(&self, solution: &Plan, row: usize) -> Option<usize> {
+        self.fallback.get(solution, row)
+    }
+
+    fn set(&self, solution: &mut Plan, row: usize, value: Option<usize>) {
+        self.fallback.set(solution, row, value)
+    }
+
+    fn candidate_values<'a>(&self, solution: &'a Plan, row: usize) -> &'a [usize] {
+        self.visits.fetch_add(1, Ordering::SeqCst);
+        self.fallback.candidate_values(solution, row)
+    }
+
+    fn value_is_legal(&self, solution: &Plan, row: usize, value: usize) -> bool {
+        self.fallback.value_is_legal(solution, row, value)
+    }
+
+    fn has_nearby_value_candidates(&self) -> bool {
+        self.fallback.has_nearby_value_candidates()
+    }
+
+    fn visit_nearby_value_candidates(
+        &self,
+        solution: &Plan,
+        row: usize,
+        limit: usize,
+        visit: &mut dyn FnMut(usize),
+    ) -> bool {
+        self.fallback
+            .visit_nearby_value_candidates(solution, row, limit, visit)
+    }
+
+    fn nearby_value_distance(&self, solution: &Plan, row: usize, value: usize) -> Option<f64> {
+        self.fallback.nearby_value_distance(solution, row, value)
+    }
+
+    fn has_nearby_entity_candidates(&self) -> bool {
+        self.fallback.has_nearby_entity_candidates()
+    }
+
+    fn visit_nearby_entity_candidates(
+        &self,
+        solution: &Plan,
+        left_row: usize,
+        limit: usize,
+        visit: &mut dyn FnMut(usize),
+    ) -> bool {
+        self.fallback
+            .visit_nearby_entity_candidates(solution, left_row, limit, visit)
+    }
+
+    fn nearby_entity_distance(&self, solution: &Plan, left: usize, right: usize) -> Option<f64> {
+        self.fallback.nearby_entity_distance(solution, left, right)
+    }
+}
+
+#[test]
+fn ordinary_change_stream_visits_row_values_lazily_one_row_at_a_time() {
+    use super::{ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec};
+    use crate::builder::RuntimeScalarSlot;
+    use crate::heuristic::selector::move_selector::{MoveCursor, MoveStreamContext};
+
+    let visits = Arc::new(AtomicUsize::new(0));
+    let director = director(Plan {
+        values: vec![Some(0), None, Some(1), Some(1)],
+        candidates: vec![0, 1, 2],
+        score: None,
+    });
+    let leaf = ScalarNeighborhoodLeaf::from_spec(
+        ScalarNeighborhoodSpec::Change {
+            value_candidate_limit: None,
+        },
+        RuntimeScalarSlot::Dynamic(
+            DynamicScalarVariableSlot::with_access(
+                EntityClassId(0),
+                VariableId(0),
+                "Row",
+                "value",
+                false,
+                Arc::new(CountingRowAccess {
+                    fallback: RowFallbackAccess,
+                    visits: Arc::clone(&visits),
+                }),
+            )
+            .resolved_against(&descriptor())
+            .expect("counting test slot resolves"),
+        ),
+        Some(17),
+    )
+    .expect("counting slot supplies the change capability");
+    let mut state = leaf.new_stream_state();
+    assert_eq!(
+        visits.load(Ordering::SeqCst),
+        0,
+        "cursor open must not visit any row's candidate values"
+    );
+    let mut cursor =
+        leaf.open_cursor_with_stream_state(&mut state, &director, MoveStreamContext::default());
+
+    assert_eq!(
+        visits.load(Ordering::SeqCst),
+        0,
+        "cursor open must not visit any row's candidate values"
+    );
+    let mut pulled = 0usize;
+    while cursor
+        .next_owned_candidate(director.working_solution())
+        .is_some()
+    {
+        pulled += 1;
+        // Visits must trail the stream: they never exceed the rows that
+        // could have been entered by the pulls so far.
+    }
+    assert_eq!(
+        visits.load(Ordering::SeqCst),
+        4,
+        "every row's values are visited exactly once across the full stream"
+    );
+    assert!(
+        pulled > 0,
+        "the stream must produce the ordinary change recipes"
+    );
+}

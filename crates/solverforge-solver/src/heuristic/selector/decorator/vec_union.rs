@@ -296,6 +296,17 @@ where
         Some(self.push_discovered(cursor_index, child_index))
     }
 
+    fn next_candidate_with_director<D: Director<S>>(
+        &mut self,
+        director: &mut D,
+    ) -> Option<CandidateId> {
+        let cursor_count = self.cursors.len();
+        let (cursor_index, child_index) = self.scheduler.next_child(cursor_count, |index| {
+            self.cursors[index].next_candidate_with_director(director)
+        })?;
+        Some(self.push_discovered(cursor_index, child_index))
+    }
+
     fn candidate(&self, index: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
         let (cursor_index, child_index) = *self.discovered.get(index.index())?;
         self.cursors[cursor_index].candidate(child_index)

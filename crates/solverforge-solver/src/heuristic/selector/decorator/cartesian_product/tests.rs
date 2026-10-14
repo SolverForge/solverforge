@@ -1,7 +1,7 @@
 use super::*;
 use crate::heuristic::r#move::{ChangeMove, Move, ScalarMoveUnion};
 use crate::heuristic::selector::move_selector::{
-    collect_cursor_indices, ArenaMoveCursor, CandidateId, MoveCandidateRef, MoveCursor,
+    ArenaMoveCursor, CandidateId, MoveCandidateRef, MoveCursor,
 };
 use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector};
 use crate::phase::localsearch::{Acceptor, TabuSearchAcceptor, TabuSearchPolicy};
@@ -117,11 +117,15 @@ impl MoveSelector<Sol, ScalarMoveUnion<Sol, i32>> for TestSelector {
     }
 }
 
-fn collect_indices<C>(cursor: &mut C, solution: &Sol) -> Vec<CandidateId>
-where
-    C: MoveCursor<Sol, ScalarMoveUnion<Sol, i32>>,
-{
-    collect_cursor_indices::<Sol, ScalarMoveUnion<Sol, i32>, _>(cursor, solution)
+fn collect_indices<D: Director<Sol>, C: MoveCursor<Sol, ScalarMoveUnion<Sol, i32>>>(
+    cursor: &mut C,
+    director: &mut D,
+) -> Vec<CandidateId> {
+    let mut indices = Vec::new();
+    while let Some(id) = cursor.next_candidate_with_director(director) {
+        indices.push(id);
+    }
+    indices
 }
 
 fn x_move(value: i32) -> ScalarMoveUnion<Sol, i32> {
@@ -226,7 +230,7 @@ fn cartesian_product_skips_rows_with_illegal_left_moves() {
     );
 
     let mut cursor = selector.open_cursor(&director);
-    let indices = collect_indices(&mut cursor, director.working_solution());
+    let indices = collect_indices(&mut cursor, &mut director);
 
     assert_eq!(selector.size(&director), 2);
     assert_eq!(indices.len(), 1);
@@ -259,7 +263,7 @@ fn cartesian_product_skips_pairs_with_illegal_right_moves() {
     );
 
     let mut cursor = selector.open_cursor(&director);
-    let indices = collect_indices(&mut cursor, director.working_solution());
+    let indices = collect_indices(&mut cursor, &mut director);
 
     assert_eq!(selector.size(&director), 2);
     assert_eq!(indices.len(), 1);
@@ -297,7 +301,7 @@ fn cartesian_product_preview_updates_shadows_before_building_right_row() {
     );
 
     let mut cursor = selector.open_cursor(&director);
-    let indices = collect_indices(&mut cursor, director.working_solution());
+    let indices = collect_indices(&mut cursor, &mut director);
 
     assert_eq!(selector.size(&director), 1);
     assert_eq!(indices.len(), 1);
@@ -337,14 +341,14 @@ fn cartesian_product_moves_remain_stable_after_selector_reuse() {
     );
 
     let mut first_cursor = selector.open_cursor(&director);
-    let first_indices = collect_indices(&mut first_cursor, director.working_solution());
+    let first_indices = collect_indices(&mut first_cursor, &mut director);
     assert_eq!(first_indices.len(), 1);
 
     set_x(director.working_solution_mut(), 0, 0, Some(5));
     director.working_solution_mut().update_entity_shadows(0, 0);
 
     let mut second_cursor = selector.open_cursor(&director);
-    let second_indices = collect_indices(&mut second_cursor, director.working_solution());
+    let second_indices = collect_indices(&mut second_cursor, &mut director);
     assert_eq!(second_indices.len(), 1);
 
     first_cursor
@@ -407,7 +411,7 @@ fn cartesian_product_size_does_not_open_child_cursors() {
 
 #[test]
 fn cartesian_product_opens_right_rows_only_as_iteration_reaches_them() {
-    let director = create_director(vec![Task {
+    let mut director = create_director(vec![Task {
         x: Some(0),
         y: Some(0),
         shadow_y_target: None,
@@ -420,19 +424,18 @@ fn cartesian_product_opens_right_rows_only_as_iteration_reaches_them() {
     );
 
     let mut cursor = selector.open_cursor(&director);
-    let solution = director.working_solution();
     assert_eq!(selector.right.open_count.get(), 0);
 
     let first = cursor
-        .next_candidate(solution)
+        .next_candidate_with_director(&mut director)
         .expect("first pair must exist");
     assert_eq!(selector.right.open_count.get(), 1);
     let second = cursor
-        .next_candidate(solution)
+        .next_candidate_with_director(&mut director)
         .expect("second pair must exist");
     assert_eq!(selector.right.open_count.get(), 1);
     let third = cursor
-        .next_candidate(solution)
+        .next_candidate_with_director(&mut director)
         .expect("third pair must exist");
     assert_eq!(selector.right.open_count.get(), 2);
 
@@ -458,7 +461,7 @@ fn cartesian_product_releases_all_losers_before_owned_commit() {
     );
 
     let mut cursor = selector.open_cursor(&director);
-    let indices = collect_indices(&mut cursor, director.working_solution());
+    let indices = collect_indices(&mut cursor, &mut director);
     assert_eq!(indices.len(), 4);
     for &loser in &indices[1..] {
         assert!(cursor.release_candidate(loser));
@@ -488,7 +491,7 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
     );
 
     let mut forward_cursor = forward_selector.open_cursor(&director);
-    let forward_index = collect_indices(&mut forward_cursor, director.working_solution())[0];
+    let forward_index = collect_indices(&mut forward_cursor, &mut director)[0];
     let forward_move = forward_cursor
         .candidate(forward_index)
         .expect("forward cartesian candidate must remain valid");
@@ -505,7 +508,7 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
     );
 
     let mut reverse_cursor = reverse_selector.open_cursor(&director);
-    let reverse_index = collect_indices(&mut reverse_cursor, director.working_solution())[0];
+    let reverse_index = collect_indices(&mut reverse_cursor, &mut director)[0];
     let reverse_signature = reverse_cursor
         .candidate(reverse_index)
         .expect("reverse cartesian candidate must remain valid")
@@ -531,4 +534,107 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
         &SoftScore::of(0),
         Some(&reverse_signature),
     ));
+}
+
+/// Director wrapper counting `clone_working_solution` calls. The old cartesian
+/// cursor cloned once at open (`SequentialPreviewDirector::from_director`);
+/// the live-director cursor must clone zero times and preview left on the
+/// caller's director itself.
+struct CloneCountingDirector<'a, D: Director<Sol>> {
+    inner: &'a mut D,
+    clones: &'a std::sync::atomic::AtomicUsize,
+}
+
+impl<D: Director<Sol>> Director<Sol> for CloneCountingDirector<'_, D> {
+    fn working_solution(&self) -> &Sol {
+        self.inner.working_solution()
+    }
+
+    fn working_solution_mut(&mut self) -> &mut Sol {
+        self.inner.working_solution_mut()
+    }
+
+    fn calculate_score(&mut self) -> SoftScore {
+        self.inner.calculate_score()
+    }
+
+    fn solution_descriptor(&self) -> &SolutionDescriptor {
+        self.inner.solution_descriptor()
+    }
+
+    fn clone_working_solution(&self) -> Sol {
+        self.clones
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.inner.clone_working_solution()
+    }
+
+    fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
+        self.inner
+            .before_variable_changed(descriptor_index, entity_index);
+    }
+
+    fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
+        self.inner
+            .after_variable_changed(descriptor_index, entity_index);
+    }
+
+    fn entity_count(&self, descriptor_index: usize) -> Option<usize> {
+        self.inner.entity_count(descriptor_index)
+    }
+
+    fn total_entity_count(&self) -> Option<usize> {
+        self.inner.total_entity_count()
+    }
+
+    fn constraint_metadata(&self) -> Vec<solverforge_scoring::ConstraintMetadata<'_>> {
+        self.inner.constraint_metadata()
+    }
+
+    fn snapshot_score_state(&self) -> solverforge_scoring::DirectorScoreState<SoftScore> {
+        self.inner.snapshot_score_state()
+    }
+
+    fn restore_score_state(&mut self, state: solverforge_scoring::DirectorScoreState<SoftScore>) {
+        self.inner.restore_score_state(state);
+    }
+}
+
+#[test]
+fn cartesian_product_cursor_previews_left_on_the_live_director() {
+    let clones = std::sync::atomic::AtomicUsize::new(0);
+    let mut director = create_director(vec![Task {
+        x: Some(0),
+        y: Some(0),
+        shadow_y_target: None,
+    }]);
+    let selector = CartesianProductSelector::new(
+        TestSelector {
+            build: left_x_to_one_then_two,
+        },
+        TestSelector {
+            build: right_shadow_backed_y,
+        },
+    );
+
+    {
+        let mut counter = CloneCountingDirector {
+            inner: &mut director,
+            clones: &clones,
+        };
+        let mut cursor = selector.open_cursor(&counter);
+        let indices = collect_indices(&mut cursor, &mut counter);
+        assert_eq!(
+            indices.len(),
+            2,
+            "both left rows must materialize shadow-backed right pairs"
+        );
+        assert_eq!(
+            clones.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "cartesian opening and pulls must use the live director, not a cloned preview"
+        );
+    }
+    // Exact restoration: the enumeration must leave committed rows untouched.
+    assert_eq!(director.working_solution().tasks[0].x, Some(0));
+    assert_eq!(director.working_solution().tasks[0].y, Some(0));
 }

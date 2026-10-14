@@ -2,7 +2,7 @@ use super::super::test_utils::{create_director, get_priority, set_priority, Task
 use super::*;
 use crate::heuristic::r#move::ScalarMoveUnion;
 use crate::heuristic::selector::decorator::CartesianProductSelector;
-use crate::heuristic::selector::move_selector::{collect_cursor_indices, MoveCandidateRef};
+use crate::heuristic::selector::move_selector::MoveCandidateRef;
 use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector, ScalarChangeMoveSelector};
 
 fn high_value_filter(
@@ -74,7 +74,7 @@ fn empty_when_no_moves_pass() {
 
 #[test]
 fn filters_cartesian_candidates_without_materializing_the_full_stream() {
-    let director = create_director(vec![Task { priority: Some(0) }]);
+    let mut director = create_director(vec![Task { priority: Some(0) }]);
     let left = ScalarChangeMoveSelector::simple(
         get_priority,
         set_priority,
@@ -95,10 +95,10 @@ fn filters_cartesian_candidates_without_materializing_the_full_stream() {
     let filtered = FilteringMoveSelector::new(cartesian, keep_first_value_10);
 
     let mut cursor = filtered.open_cursor(&director);
-    let indices = collect_cursor_indices::<TaskSolution, ScalarMoveUnion<TaskSolution, i32>, _>(
-        &mut cursor,
-        director.working_solution(),
-    );
+    let mut indices = Vec::new();
+    while let Some(id) = cursor.next_candidate_with_director(&mut director) {
+        indices.push(id);
+    }
 
     assert!(indices.len() >= 2);
     assert!(indices.iter().all(|&index| {

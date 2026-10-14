@@ -15,9 +15,7 @@ use solverforge_scoring::{Director, ScoreDirector};
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::decorator::FilteringMoveSelector;
-use crate::heuristic::selector::move_selector::{
-    collect_cursor_indices, MoveCandidateRef, MoveCursor, MoveSelector,
-};
+use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor, MoveSelector};
 
 use super::build_descriptor_move_selector;
 

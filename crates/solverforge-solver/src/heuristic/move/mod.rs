@@ -93,7 +93,6 @@ pub use change::ChangeMove;
 pub use composite::CompositeMove;
 pub use composite::SequentialCompositeMove;
 pub(crate) use composite::SequentialCompositeMoveRef;
-pub(crate) use composite::SequentialPreviewDirector;
 pub use compound_scalar::{CompoundScalarEdit, CompoundScalarMove, COMPOUND_SCALAR_VARIABLE};
 pub use conflict_repair::{ConflictRepairMove, ConflictRepairScalarEdit};
 pub use dynamic_list_change::DynamicListChangeMove;

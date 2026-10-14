@@ -152,6 +152,16 @@ where
         }
     }
 
+    fn next_candidate_with_director<D: Director<S>>(
+        &mut self,
+        director: &mut D,
+    ) -> Option<CandidateId> {
+        match self {
+            Self::Leaf(cursor) => cursor.next_candidate(director.working_solution()),
+            Self::Cartesian(cursor) => cursor.next_candidate_with_director(director),
+        }
+    }
+
     fn candidate(
         &self,
         index: CandidateId,

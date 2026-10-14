@@ -15,7 +15,6 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::metadata::compose_sequential_tabu_signature;
 use crate::heuristic::r#move::{
     Move, MoveArena, MoveTabuSignature, SequentialCompositeMove, SequentialCompositeMoveRef,
-    SequentialPreviewDirector,
 };
 use crate::heuristic::selector::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveSelectorIter,
@@ -162,7 +161,6 @@ where
     rows: Vec<Option<CartesianRow<S, M>>>,
     active_row: Option<ActiveCartesianRow<Right::Cursor<'a>, M::Undo>>,
     pairs: Vec<Option<CartesianPair>>,
-    preview: SequentialPreviewDirector<S>,
     context: MoveStreamContext,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -174,11 +172,10 @@ where
     LeftCursor: MoveCursor<S, M>,
     Right: MoveSelector<S, M>,
 {
-    fn new<D: Director<S>>(
+    fn new(
         require_hard_improvement: bool,
         left_cursor: LeftCursor,
         right_selector: &'a Right,
-        score_director: &D,
         context: MoveStreamContext,
     ) -> Self {
         Self {
@@ -188,7 +185,6 @@ where
             rows: Vec::new(),
             active_row: None,
             pairs: Vec::new(),
-            preview: SequentialPreviewDirector::from_director(score_director),
             context,
             _phantom: PhantomData,
         }
@@ -247,7 +243,16 @@ where
     LeftCursor: MoveCursor<S, M>,
     Right: MoveSelector<S, M>,
 {
-    fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
+    fn next_candidate(&mut self, _solution: &S) -> Option<CandidateId> {
+        panic!(
+            "cartesian product cursors must be pulled through next_candidate_with_director(); the left preview needs the live working director"
+        );
+    }
+
+    fn next_candidate_with_director<D: Director<S>>(
+        &mut self,
+        director: &mut D,
+    ) -> Option<CandidateId> {
         loop {
             if self.active_row.is_some() {
                 let inspected = {
@@ -255,36 +260,44 @@ where
                         .active_row
                         .as_mut()
                         .expect("active cartesian row must remain live");
-                    let row_index = active.row_index;
-                    let row = self.rows[row_index]
+                    let row = self.rows[active.row_index]
                         .as_mut()
                         .expect("active cartesian row must remain live");
                     let left = &row.left;
                     let left_signature = &active.left_signature;
-                    active
-                        .right_cursor
-                        .next_owned_candidate_inspected(solution, |right| {
-                            let right = match right {
-                                MoveCandidateRef::Borrowed(mov) => mov,
-                                MoveCandidateRef::Sequential(_) => {
-                                    panic!("nested cartesian right candidates are not supported")
-                                }
-                            };
-                            if !right.is_doable(&self.preview) {
-                                return None;
-                            }
-                            Some((
-                                combined_entity_indices(
-                                    left.entity_indices(),
-                                    right.entity_indices(),
+                    let inspected = loop {
+                        let Some(right_id) = active
+                            .right_cursor
+                            .next_candidate(director.working_solution())
+                        else {
+                            break None;
+                        };
+                        let MoveCandidateRef::Borrowed(right) = active
+                            .right_cursor
+                            .candidate(right_id)
+                            .expect("right cartesian candidate must remain borrowable")
+                        else {
+                            panic!("nested cartesian right candidates are not supported")
+                        };
+                        let signature = right.tabu_signature(director);
+                        let entity_indices = right.entity_indices().to_vec();
+                        if right.is_doable_with_working_preview(director) {
+                            let moved = (
+                                active.right_cursor.take_candidate(right_id),
+                                (
+                                    combined_entity_indices(left.entity_indices(), &entity_indices),
+                                    compose_sequential_tabu_signature(
+                                        "cartesian_product",
+                                        left_signature,
+                                        &signature,
+                                    ),
                                 ),
-                                compose_sequential_tabu_signature(
-                                    "cartesian_product",
-                                    left_signature,
-                                    &right.tabu_signature(&self.preview),
-                                ),
-                            ))
-                        })
+                            );
+                            break Some(moved);
+                        }
+                        assert!(active.right_cursor.release_candidate(right_id));
+                    };
+                    inspected
                 };
                 if let Some((right, (entity_indices, tabu_signature))) = inspected {
                     let row_index = self
@@ -320,11 +333,23 @@ where
                     .as_ref()
                     .expect("active cartesian row must remain live")
                     .left
-                    .undo_move(&mut self.preview, active.left_undo);
+                    .undo_move(director, active.left_undo);
+                self.rows[row_index]
+                    .as_ref()
+                    .expect("active cartesian row must remain live")
+                    .left
+                    .for_each_affected_entity(&mut |affected| {
+                        director.working_solution_mut().update_entity_shadows(
+                            affected.descriptor_index,
+                            affected.entity_index,
+                        );
+                    });
                 self.release_row_if_unused(row_index);
             }
 
-            let left_id = self.left_cursor.next_candidate(solution)?;
+            let left_id = self
+                .left_cursor
+                .next_candidate(director.working_solution())?;
             let left = self
                 .left_cursor
                 .candidate(left_id)
@@ -335,16 +360,24 @@ where
                     panic!("nested cartesian left candidates are not supported")
                 }
             };
-            if !left.is_doable(&self.preview) {
+            if !left.is_doable_with_working_preview(director) {
                 assert!(self.left_cursor.release_candidate(left_id));
                 continue;
             }
-            let left_signature = left.tabu_signature(&self.preview);
+            let left_signature = left.tabu_signature(director);
             let left = self.left_cursor.take_candidate(left_id);
-            let left_undo = left.do_move(&mut self.preview);
+            let left_undo = left.do_move(director);
+            // Preview contract (mirrors SequentialPreviewDirector): the
+            // previewed left leg refreshes shadows for the rows it touched so
+            // shadow-backed right children build against the previewed state.
+            left.for_each_affected_entity(&mut |affected| {
+                director
+                    .working_solution_mut()
+                    .update_entity_shadows(affected.descriptor_index, affected.entity_index);
+            });
             let right_cursor = self
                 .right_selector
-                .open_cursor_with_context(&self.preview, self.context);
+                .open_cursor_with_context(&*director, self.context);
             let row_index = self.rows.len();
             self.rows.push(Some(CartesianRow {
                 left,
@@ -522,7 +555,6 @@ where
             self.require_hard_improvement,
             self.left.open_cursor_with_context(score_director, context),
             &self.right,
-            score_director,
             context,
         )
     }

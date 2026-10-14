@@ -1,4 +1,15 @@
 
+fn director_cursor_indices<C>(cursor: &mut C, director: &mut ScoreDirector<Plan, ()>) -> Vec<crate::heuristic::selector::move_selector::CandidateId>
+where
+    C: MoveCursor<Plan, super::DescriptorMoveUnion<Plan>>,
+{
+    let mut indices = Vec::new();
+    while let Some(id) = cursor.next_candidate_with_director(director) {
+        indices.push(id);
+    }
+    indices
+}
+
 #[test]
 fn descriptor_cartesian_builds_composite_moves() {
     let descriptor = descriptor();
@@ -14,7 +25,7 @@ fn descriptor_cartesian_builds_composite_moves() {
         ],
         score: None,
     };
-    let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let mut director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
         require_hard_improvement: false,
         selectors: vec![
@@ -34,10 +45,7 @@ fn descriptor_cartesian_builds_composite_moves() {
 
     let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
     let mut cursor = selector.open_cursor(&director);
-    let indices = collect_cursor_indices::<Plan, super::DescriptorMoveUnion<Plan>, _>(
-        &mut cursor,
-        director.working_solution(),
-    );
+    let indices = director_cursor_indices(&mut cursor, &mut director);
 
     assert!(!indices.is_empty());
     assert!(indices.iter().all(|&index| matches!(
@@ -73,7 +81,7 @@ fn descriptor_cartesian_selector_survives_filtering_wrapper() {
         ],
         score: None,
     };
-    let director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
+    let mut director = ScoreDirector::simple(plan, descriptor.clone(), |s, _| s.tasks.len());
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
         require_hard_improvement: false,
         selectors: vec![
@@ -94,10 +102,7 @@ fn descriptor_cartesian_selector_survives_filtering_wrapper() {
     let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
     let filtered = FilteringMoveSelector::new(selector, keep_all_descriptor_cartesian_candidates);
     let mut cursor = filtered.open_cursor(&director);
-    let indices = collect_cursor_indices::<Plan, super::DescriptorMoveUnion<Plan>, _>(
-        &mut cursor,
-        director.working_solution(),
-    );
+    let indices = director_cursor_indices(&mut cursor, &mut director);
 
     assert!(!indices.is_empty());
     assert!(indices.iter().all(|&index| matches!(

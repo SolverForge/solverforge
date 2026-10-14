@@ -64,6 +64,25 @@ where
         }
     }
 
+    fn next_candidate_with_director<D: Director<S>>(
+        &mut self,
+        director: &mut D,
+    ) -> Option<CandidateId> {
+        loop {
+            let child_id = self.inner.next_candidate_with_director(director)?;
+            let candidate = self
+                .inner
+                .candidate(child_id)
+                .expect("filtering candidate must remain valid");
+            if (self.predicate)(candidate) {
+                let outer_id = CandidateId::new(self.discovered.len());
+                self.discovered.push(child_id);
+                return Some(outer_id);
+            }
+            assert!(self.inner.release_candidate(child_id));
+        }
+    }
+
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
         self.inner.candidate(*self.discovered.get(id.index())?)
     }

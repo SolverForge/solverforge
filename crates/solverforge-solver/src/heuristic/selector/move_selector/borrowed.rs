@@ -241,6 +241,17 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
     /// cursor retains and the next pull always sees current state.
     fn next_candidate(&mut self, solution: &S) -> Option<CandidateId>;
 
+    /// Pulls the next candidate while lending the live director.
+    ///
+    /// Composite cursors that must preview a child (apply, shadow, check,
+    /// undo) do so on the caller's director instead of a cloned preview
+    /// solution. The default simply forwards to [`MoveCursor::next_candidate`]
+    /// with `director.working_solution()`; cursors that never mutate keep
+    /// paying nothing.
+    fn next_candidate_with_director<D: Director<S>>(&mut self, director: &mut D) -> Option<CandidateId> {
+        self.next_candidate(director.working_solution())
+    }
+
     /// Pulls the next candidate while allowing expensive cursor implementations
     /// to observe solve control between units of generation work. A `None`
     /// result may mean either exhaustion or requested interruption, so callers

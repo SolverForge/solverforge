@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 #[derive(Clone)]
 struct Plan {
     values: Vec<Option<usize>>,
+    key_epoch: usize,
     sequence_reads: &'static AtomicUsize,
     capacity_reads: &'static AtomicUsize,
 }
@@ -43,13 +44,14 @@ fn binding() -> ScalarAssignmentBinding<Plan> {
             "membership",
             ScalarTarget::from_descriptor_index(0, "value"),
         )
+        .with_required_entity(|plan: &Plan, entity| plan.key_epoch % 2 == 1 && entity % 3 == 0)
         .with_capacity_key(|plan: &Plan, entity, value| {
             plan.capacity_reads.fetch_add(1, Ordering::Relaxed);
-            Some(entity * 3 + value)
+            Some(plan.key_epoch * 1000 + (entity % 3) * 3 + value)
         })
         .with_sequence_key(|plan: &Plan, entity, _| {
             plan.sequence_reads.fetch_add(1, Ordering::Relaxed);
-            Some(entity)
+            Some(entity % 5 + plan.key_epoch)
         })],
         &[slot],
     );
@@ -60,12 +62,58 @@ fn binding() -> ScalarAssignmentBinding<Plan> {
 }
 
 #[test]
+fn sparse_membership_refresh_matches_rebuild_through_batches_and_global_key_changes() {
+    static SEQUENCE_READS: AtomicUsize = AtomicUsize::new(0);
+    static CAPACITY_READS: AtomicUsize = AtomicUsize::new(0);
+    let group = binding();
+    let mut plan = Plan {
+        values: vec![None; 31],
+        key_epoch: 0,
+        sequence_reads: &SEQUENCE_READS,
+        capacity_reads: &CAPACITY_READS,
+    };
+    let mut state = ScalarAssignmentState::new(&group, &plan);
+    let mut seed = 7_u64;
+    for step in 0..400 {
+        if step % 29 == 0 {
+            plan.key_epoch += 1;
+        }
+        let mut rows = Vec::new();
+        for entity in 0..plan.values.len() {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            if seed.is_multiple_of(7) || step % 29 == 0 {
+                let value = (seed >> 32) % 4;
+                plan.values[entity] = (value < 3).then_some(value as usize);
+                rows.push((entity, plan.values[entity]));
+            }
+        }
+        let assigned_updates = rows.iter().filter(|(_, value)| value.is_some()).count();
+        SEQUENCE_READS.store(0, Ordering::Relaxed);
+        CAPACITY_READS.store(0, Ordering::Relaxed);
+        state.refresh_rows(&group, &plan, rows);
+        assert_eq!(SEQUENCE_READS.load(Ordering::Relaxed), assigned_updates);
+        assert_eq!(CAPACITY_READS.load(Ordering::Relaxed), assigned_updates);
+        let rebuilt = ScalarAssignmentState::new(&group, &plan);
+        assert_eq!(
+            state.index_snapshot(),
+            rebuilt.index_snapshot(),
+            "step {step}"
+        );
+        assert_eq!(state.values, rebuilt.values);
+        assert_eq!(state.required, rebuilt.required);
+        assert_eq!(state.capacity_keys, rebuilt.capacity_keys);
+        assert_eq!(state.sequence_keys, rebuilt.sequence_keys);
+    }
+}
+
+#[test]
 fn value_index_uses_recorded_membership_keys_without_reinvoking_callbacks() {
     static SEQUENCE_READS: AtomicUsize = AtomicUsize::new(0);
     static CAPACITY_READS: AtomicUsize = AtomicUsize::new(0);
     let group = binding();
     let plan = Plan {
         values: vec![Some(2), None, Some(0)],
+        key_epoch: 0,
         sequence_reads: &SEQUENCE_READS,
         capacity_reads: &CAPACITY_READS,
     };
@@ -97,6 +145,7 @@ fn overlay_retracts_recorded_capacity_membership_and_leaves_base_unchanged() {
     let group = binding();
     let plan = Plan {
         values: vec![Some(2), None, Some(0)],
+        key_epoch: 0,
         sequence_reads: &SEQUENCE_READS,
         capacity_reads: &CAPACITY_READS,
     };

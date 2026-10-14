@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 
 use super::Acceptor;
@@ -67,7 +68,7 @@ struct TabuMemory<T> {
     entries: Vec<T>,
 }
 
-impl<T: Clone + PartialEq> TabuMemory<T> {
+impl<T: PartialEq> TabuMemory<T> {
     fn new(tenure: Option<usize>) -> Self {
         Self {
             tenure,
@@ -89,12 +90,9 @@ impl<T: Clone + PartialEq> TabuMemory<T> {
         self.entries.push(entry);
     }
 
-    fn record_many<'a>(&mut self, entries: impl IntoIterator<Item = &'a T>)
-    where
-        T: 'a,
-    {
-        for entry in entries {
-            self.record(entry.clone());
+    fn record_drained(&mut self, entries: &mut SmallVec<[T; 2]>) {
+        for entry in entries.drain(..) {
+            self.record(entry);
         }
     }
 
@@ -214,16 +212,19 @@ impl<S: PlanningSolution> Acceptor<S> for TabuSearchAcceptor<S> {
     fn step_ended(
         &mut self,
         step_score: &S::Score,
-        accepted_move_signature: Option<&MoveTabuSignature>,
+        accepted_move_signature: Option<MoveTabuSignature>,
     ) {
-        if let Some(signature) = accepted_move_signature {
-            self.entity_memory
-                .record_many(signature.entity_tokens.iter());
-            self.value_memory
-                .record_many(signature.destination_value_tokens.iter());
-            self.move_memory.record(signature.move_id.clone());
+        if let Some(mut signature) = accepted_move_signature {
+            // Ownership transfer: retained tokens move out of the delivered
+            // signature; eviction in the ring drops them by value.
+            let mut entity_tokens = std::mem::take(&mut signature.entity_tokens);
+            let mut value_tokens = std::mem::take(&mut signature.destination_value_tokens);
+            self.entity_memory.record_drained(&mut entity_tokens);
+            self.value_memory.record_drained(&mut value_tokens);
+            self.move_memory
+                .record(std::mem::take(&mut signature.move_id));
             self.reverse_move_memory
-                .record(signature.undo_move_id.clone());
+                .record(std::mem::take(&mut signature.undo_move_id));
         }
 
         if let Some(best) = &self.best_score {

@@ -102,7 +102,7 @@ impl<S: PlanningSolution> Acceptor<S> for DiversifiedLateAcceptanceAcceptor<S> {
     fn step_ended(
         &mut self,
         _step_score: &S::Score,
-        _accepted_move_signature: Option<&MoveTabuSignature>,
+        _accepted_move_signature: Option<MoveTabuSignature>,
     ) {
     }
 }

@@ -527,7 +527,7 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
         .validated(),
     );
     acceptor.phase_started(&SoftScore::of(0));
-    acceptor.step_ended(&SoftScore::of(0), Some(&forward_signature));
+    acceptor.step_ended(&SoftScore::of(0), Some(forward_signature.clone()));
 
     assert!(!acceptor.is_accepted(
         &SoftScore::of(0),

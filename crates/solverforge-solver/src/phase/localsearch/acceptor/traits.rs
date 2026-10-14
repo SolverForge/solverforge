@@ -37,7 +37,7 @@ pub trait Acceptor<S: PlanningSolution>: Send + Debug {
     fn step_ended(
         &mut self,
         _step_score: &S::Score,
-        _accepted_move_signature: Option<&MoveTabuSignature>,
+        _accepted_move_signature: Option<MoveTabuSignature>,
     ) {
     }
 }

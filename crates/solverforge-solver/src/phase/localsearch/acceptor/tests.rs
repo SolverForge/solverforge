@@ -124,7 +124,7 @@ fn tabu_search_blocks_recent_entities_and_allows_aspiration() {
     let second = signature(0, "worker", &[7], &[], &[12], &[13]);
 
     acceptor.phase_started(&SoftScore::of(-10));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&first));
+    acceptor.step_ended(&SoftScore::of(-9), Some(first.clone()));
 
     assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-9), Some(&second),));
 
@@ -139,7 +139,7 @@ fn tabu_search_blocks_recent_values() {
     let second = signature(0, "worker", &[], &[42], &[12], &[13]);
 
     acceptor.phase_started(&SoftScore::of(-10));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&first));
+    acceptor.step_ended(&SoftScore::of(-9), Some(first.clone()));
 
     assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&second),));
 }
@@ -153,7 +153,7 @@ fn tabu_search_blocks_exact_move_and_undo_move() {
     let undo_repeat = signature(0, "worker", &[], &[], &[30, 40], &[10, 20]);
 
     acceptor.phase_started(&SoftScore::of(-10));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&committed));
+    acceptor.step_ended(&SoftScore::of(-9), Some(committed.clone()));
 
     assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&exact_repeat),));
     assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&undo_repeat),));
@@ -168,7 +168,7 @@ fn tabu_search_undo_memory_matches_candidate_move_identity() {
     let unrelated_with_same_undo_id = signature(0, "worker", &[], &[], &[30], &[20]);
 
     acceptor.phase_started(&SoftScore::of(-10));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&committed));
+    acceptor.step_ended(&SoftScore::of(-9), Some(committed.clone()));
 
     assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&reverse)));
     assert!(acceptor.is_accepted(
@@ -199,7 +199,7 @@ fn tabu_search_clears_memories_on_phase_end() {
     let sig = signature(0, "worker", &[1], &[2], &[3], &[4]);
 
     acceptor.phase_started(&SoftScore::of(-10));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&sig));
+    acceptor.step_ended(&SoftScore::of(-9), Some(sig.clone()));
     assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&sig)));
 
     acceptor.phase_ended();
@@ -215,7 +215,7 @@ fn tabu_search_move_only_policy_blocks_recent_exact_move() {
     let repeated = signature(0, "worker", &[], &[], &[10, 20], &[99]);
 
     acceptor.phase_started(&SoftScore::of(-10));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&committed));
+    acceptor.step_ended(&SoftScore::of(-9), Some(committed.clone()));
 
     assert!(!acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-9), Some(&repeated)));
 }
@@ -250,7 +250,7 @@ fn tabu_search_scoped_tokens_do_not_collide_across_variables() {
     let second = signature(0, "worker_b", &[7], &[42], &[12], &[13]);
 
     acceptor.phase_started(&SoftScore::of(-10));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&first));
+    acceptor.step_ended(&SoftScore::of(-9), Some(first.clone()));
 
     assert!(acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&second)));
 }
@@ -264,8 +264,8 @@ fn tabu_search_reverse_memory_survives_tenure_eviction_transfer() {
     let unrelated = signature(0, "worker", &[], &[], &[30], &[40]);
 
     acceptor.phase_started(&SoftScore::of(-10));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&unrelated));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&first));
+    acceptor.step_ended(&SoftScore::of(-9), Some(unrelated.clone()));
+    acceptor.step_ended(&SoftScore::of(-9), Some(first.clone()));
 
     // Tenure 1: the unrelated identity was evicted; the reverse of `first`
     // must still be blocked by the surviving owned token.
@@ -299,7 +299,7 @@ fn tabu_search_signature_tokens_keep_duplicate_entity_ids_distinct() {
         .with_entity_tokens([other_scope_duplicate]);
 
     acceptor.phase_started(&SoftScore::of(-10));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&duplicate));
+    acceptor.step_ended(&SoftScore::of(-9), Some(duplicate));
 
     assert!(
         acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&single)),

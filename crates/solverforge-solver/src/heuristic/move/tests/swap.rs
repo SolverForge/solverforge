@@ -171,7 +171,7 @@ fn swap_tabu_identity_is_direction_stable() {
 
     let mut acceptor = TabuSearchAcceptor::<TaskSolution>::new(TabuSearchPolicy::move_only(10));
     acceptor.phase_started(&SoftScore::of(-10));
-    acceptor.step_ended(&SoftScore::of(-9), Some(&forward_signature));
+    acceptor.step_ended(&SoftScore::of(-9), Some(forward_signature.clone()));
 
     assert!(!acceptor.is_accepted(
         &SoftScore::of(-9),

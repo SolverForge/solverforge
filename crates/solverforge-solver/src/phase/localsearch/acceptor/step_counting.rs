@@ -106,7 +106,7 @@ impl<S: PlanningSolution> Acceptor<S> for StepCountingHillClimbingAcceptor<S> {
     fn step_ended(
         &mut self,
         step_score: &S::Score,
-        _accepted_move_signature: Option<&MoveTabuSignature>,
+        _accepted_move_signature: Option<MoveTabuSignature>,
     ) {
         // Check if this step improved on the best score
         let improved = match &self.best_score {

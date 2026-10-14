@@ -218,7 +218,7 @@ where
     the history must advance every step — even steps where no move
     was accepted — otherwise the acceptor state stalls.
     */
-    acceptor.step_ended(last_step_score, accepted_move_signature.as_ref());
+    acceptor.step_ended(last_step_score, accepted_move_signature);
 
     step_scope.complete();
     StepOutcome::Continue

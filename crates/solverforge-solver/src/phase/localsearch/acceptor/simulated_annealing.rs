@@ -416,7 +416,7 @@ where
     fn step_ended(
         &mut self,
         _step_score: &S::Score,
-        _accepted_move_signature: Option<&MoveTabuSignature>,
+        _accepted_move_signature: Option<MoveTabuSignature>,
     ) {
         if self.calibration_state.is_some() {
             return;

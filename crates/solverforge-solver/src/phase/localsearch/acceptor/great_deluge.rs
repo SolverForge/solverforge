@@ -113,7 +113,7 @@ impl<S: PlanningSolution> Acceptor<S> for GreatDelugeAcceptor<S> {
     fn step_ended(
         &mut self,
         _step_score: &S::Score,
-        _accepted_move_signature: Option<&MoveTabuSignature>,
+        _accepted_move_signature: Option<MoveTabuSignature>,
     ) {
         // Raise water level by rain_speed * |initial_score|
         if let (Some(water), Some(abs_score)) = (&self.water_level, &self.initial_abs_score) {

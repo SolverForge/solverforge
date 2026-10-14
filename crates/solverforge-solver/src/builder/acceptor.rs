@@ -161,7 +161,7 @@ where
     fn step_ended(
         &mut self,
         step_score: &S::Score,
-        accepted_move_signature: Option<&MoveTabuSignature>,
+        accepted_move_signature: Option<MoveTabuSignature>,
     ) {
         match self {
             Self::HillClimbing(a) => {

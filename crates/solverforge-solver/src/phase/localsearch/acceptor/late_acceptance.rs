@@ -121,7 +121,7 @@ impl<S: PlanningSolution> Acceptor<S> for LateAcceptanceAcceptor<S> {
     fn step_ended(
         &mut self,
         step_score: &S::Score,
-        _accepted_move_signature: Option<&MoveTabuSignature>,
+        _accepted_move_signature: Option<MoveTabuSignature>,
     ) {
         // Record the step score in the history
         self.score_history[self.current_index] = Some(*step_score);

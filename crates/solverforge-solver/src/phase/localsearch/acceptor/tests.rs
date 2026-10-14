@@ -254,3 +254,55 @@ fn tabu_search_scoped_tokens_do_not_collide_across_variables() {
 
     assert!(acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&second)));
 }
+
+#[test]
+fn tabu_search_reverse_memory_survives_tenure_eviction_transfer() {
+    let mut acceptor =
+        TabuSearchAcceptor::<DummySolution>::new(policy(None, None, Some(1), Some(1), false));
+    let first = signature(0, "worker", &[], &[], &[10], &[20]);
+    let reverse_of_first = signature(0, "worker", &[], &[], &[20], &[10]);
+    let unrelated = signature(0, "worker", &[], &[], &[30], &[40]);
+
+    acceptor.phase_started(&SoftScore::of(-10));
+    acceptor.step_ended(&SoftScore::of(-9), Some(&unrelated));
+    acceptor.step_ended(&SoftScore::of(-9), Some(&first));
+
+    // Tenure 1: the unrelated identity was evicted; the reverse of `first`
+    // must still be blocked by the surviving owned token.
+    assert!(!acceptor.is_accepted(
+        &SoftScore::of(-9),
+        &SoftScore::of(-8),
+        Some(&reverse_of_first)
+    ));
+    let reverse_of_evicted = signature(0, "worker", &[], &[], &[40], &[30]);
+    assert!(acceptor.is_accepted(
+        &SoftScore::of(-9),
+        &SoftScore::of(-8),
+        Some(&reverse_of_evicted)
+    ));
+}
+
+#[test]
+fn tabu_search_signature_tokens_keep_duplicate_entity_ids_distinct() {
+    use crate::heuristic::r#move::metadata::ScopedEntityTabuToken;
+
+    let mut acceptor =
+        TabuSearchAcceptor::<DummySolution>::new(policy(Some(2), None, None, None, true));
+    let scope = MoveTabuScope::new(0, "worker");
+    let duplicate = MoveTabuSignature::new(scope, smallvec::smallvec![10], smallvec::smallvec![11])
+        .with_entity_tokens([scope.entity_token(7), scope.entity_token(7)]);
+    let other_scope_duplicate = ScopedEntityTabuToken {
+        scope: MoveTabuScope::new(0, "other"),
+        entity_id: 7,
+    };
+    let single = MoveTabuSignature::new(scope, smallvec::smallvec![12], smallvec::smallvec![13])
+        .with_entity_tokens([other_scope_duplicate]);
+
+    acceptor.phase_started(&SoftScore::of(-10));
+    acceptor.step_ended(&SoftScore::of(-9), Some(&duplicate));
+
+    assert!(
+        acceptor.is_accepted(&SoftScore::of(-9), &SoftScore::of(-8), Some(&single)),
+        "same entity id in another scope must not collide with a repeated token"
+    );
+}

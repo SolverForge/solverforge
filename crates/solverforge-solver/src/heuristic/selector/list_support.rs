@@ -15,14 +15,8 @@ impl SelectedEntities {
         if len <= 1 {
             return;
         }
-        let entities = self.entities.clone();
-        let route_lens = self.route_lens.clone();
-        self.entities = (0..len)
-            .map(|offset| entities[context.selection_index(offset, len, salt)])
-            .collect();
-        self.route_lens = (0..len)
-            .map(|offset| route_lens[context.selection_index(offset, len, salt)])
-            .collect();
+        context.apply_selection_order_usize(&mut self.entities, salt);
+        context.apply_selection_order_usize(&mut self.route_lens, salt);
     }
 
     pub(crate) fn total_elements(&self) -> usize {

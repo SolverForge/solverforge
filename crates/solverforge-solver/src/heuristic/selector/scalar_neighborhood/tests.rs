@@ -470,3 +470,31 @@ fn scalar_change_coverage_across_all_selection_orders_matches_drained_size() {
         );
     }
 }
+
+#[test]
+fn in_place_usize_order_gather_matches_canonical_rotation() {
+    use crate::heuristic::selector::move_selector::MoveStreamContext;
+    use solverforge_config::SelectionOrder;
+
+    let contexts = [
+        MoveStreamContext::default().with_selection_order(SelectionOrder::Random),
+        MoveStreamContext::default().with_selection_order(SelectionOrder::Shuffled),
+    ];
+    let mut reference = 0u64;
+    for (index, context) in contexts.iter().enumerate() {
+        for len in [2usize, 3, 8, 17, 64] {
+            let canonical: Vec<usize> = (0..len)
+                .map(|offset| 100 + offset * 7 % (len + 3))
+                .collect();
+            let mut expected = canonical.clone();
+            context.apply_selection_order(&mut expected, 0xAB ^ len as u64);
+            let mut actual = canonical.clone();
+            context.apply_selection_order_usize(&mut actual, 0xAB ^ len as u64);
+            assert_eq!(
+                actual, expected,
+                "in-place gather must equal the canonical rotation (order {index}, len {len})"
+            );
+            let _ = &mut reference;
+        }
+    }
+}

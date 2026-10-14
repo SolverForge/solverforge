@@ -172,6 +172,56 @@ impl MoveStreamContext {
         }
     }
 
+    /// In-place gather for position/value slices without the canonical copy:
+    /// the seeded permutation is walked as one rotation per cycle over the
+    /// slice. The resulting order is exactly the `apply_selection_order`
+    /// rotation.
+    pub(crate) fn apply_selection_order_usize(self, values: &mut [usize], salt: u64) {
+        if self.is_canonical() {
+            return;
+        }
+        let len = values.len();
+        if len <= 1 {
+            return;
+        }
+        if !matches!(
+            self.selection_order,
+            SelectionOrder::Shuffled
+        ) {
+            // Random selects coordinates WITH REPLACEMENT, so the gather is
+            // not a permutation and must read a fixed source snapshot.
+            let canonical = values.to_vec();
+            for (offset, value) in values.iter_mut().enumerate() {
+                *value = canonical[self.selection_index(offset, len, salt)];
+            }
+            return;
+        }
+        // Shuffled is a source permutation: the gather new[i] = old[sel(i)]
+        // applies by cycling along the inverse chain new[inv[j]] = old[j].
+        let mut inverse = vec![0usize; len];
+        for offset in 0..len {
+            inverse[self.selection_index(offset, len, salt)] = offset;
+        }
+        let mut visited = vec![false; len];
+        for start in 0..len {
+            if visited[start] {
+                continue;
+            }
+            let mut i = start;
+            let mut carry = values[start];
+            loop {
+                visited[i] = true;
+                let destination = inverse[i];
+                let taken = std::mem::replace(&mut values[destination], carry);
+                carry = taken;
+                i = destination;
+                if visited[i] {
+                    break;
+                }
+            }
+        }
+    }
+
     pub(crate) fn apply_selection_order_without_replacement<T: Clone>(
         self,
         values: &mut [T],

@@ -35,7 +35,9 @@ where
 {
     Scalar(RuntimeScalarNeighborhoodCursor<S>),
     List(RuntimeListNeighborhoodCursor<'a, S, V, DM, IDM>),
-    Grouped(GroupedScalarCursor<'a, S>),
+    /// `None` on the step-close return path after the grouped cursor was
+    /// extracted with its pooled assignment base.
+    Grouped(Option<GroupedScalarCursor<'a, S>>),
     Provider(RuntimeProviderNeighborhoodCursor<'a, S>),
 }
 
@@ -78,7 +80,7 @@ where
 
     pub(super) fn grouped(cursor: GroupedScalarCursor<'a, S>) -> Self {
         Self {
-            inner: RuntimeNeighborhoodLeafCursorInner::Grouped(cursor),
+            inner: RuntimeNeighborhoodLeafCursorInner::Grouped(Some(cursor)),
             store: CandidateStore::new(),
         }
     }
@@ -103,6 +105,8 @@ where
                 .next_owned_candidate(solution)
                 .map(RuntimeNeighborhoodMove::List),
             RuntimeNeighborhoodLeafCursorInner::Grouped(cursor) => cursor
+                .as_mut()
+                .expect("grouped leaf cursor must remain live during the step")
                 .next_owned_candidate(solution)
                 .map(RuntimeNeighborhoodMove::Grouped),
             RuntimeNeighborhoodLeafCursorInner::Provider(cursor) => {
@@ -208,6 +212,30 @@ where
             context,
             ordered_candidates: None,
             ordered_offset: 0,
+        }
+    }
+
+    /// Pooled grouped assignment bases move back into their leaf slots on the
+    /// step-close path; leaves keep the state between steps.
+    pub(super) fn reclaim_grouped_pooled(
+        &mut self,
+        stream_state: &mut [super::leaf::RuntimeNeighborhoodLeafStreamState],
+    ) {
+        for (leaf_cursor, slot) in self
+            .inner
+            .child_cursors_mut()
+            .iter_mut()
+            .zip(stream_state.iter_mut())
+        {
+            if let (
+                RuntimeNeighborhoodLeafCursorInner::Grouped(grouped),
+                super::leaf::RuntimeNeighborhoodLeafStreamState::Grouped(pooled),
+            ) = (&mut leaf_cursor.inner, slot)
+            {
+                if let Some(grouped) = grouped.take() {
+                    *pooled = grouped.into_pooled_assignment().map(Box::new);
+                }
+            }
         }
     }
 

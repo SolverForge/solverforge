@@ -17,6 +17,7 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::scalar_neighborhood::{
     ScalarNeighborhoodLeaf, ScalarNeighborhoodStreamState,
 };
+use crate::phase::construction::grouped_scalar::ScalarAssignmentState;
 use crate::runtime::compiler::graph::CompiledProviderPlan;
 use crate::runtime::provider_cursor::RuntimeProviderCursor;
 
@@ -121,7 +122,10 @@ where
 pub(crate) enum RuntimeNeighborhoodLeafStreamState {
     Scalar(ScalarNeighborhoodStreamState),
     List(RuntimeListNeighborhoodStreamState),
-    Grouped,
+    /// Solve-owned retained assignment base for one grouped-assignment leaf;
+    /// `None` until the leaf's first bound open builds it. Boxed: the state is
+    /// a cold inter-step container, not part of any single-variant layout.
+    Grouped(Option<Box<ScalarAssignmentState>>),
     Provider,
 }
 
@@ -139,7 +143,7 @@ where
                 RuntimeNeighborhoodLeafStreamState::Scalar(leaf.new_stream_state())
             }
             Self::List(leaf) => RuntimeNeighborhoodLeafStreamState::List(leaf.new_stream_state()),
-            Self::Grouped(_) => RuntimeNeighborhoodLeafStreamState::Grouped,
+            Self::Grouped(_) => RuntimeNeighborhoodLeafStreamState::Grouped(None),
             Self::Provider(_) => RuntimeNeighborhoodLeafStreamState::Provider,
         }
     }
@@ -165,10 +169,12 @@ where
                     context,
                 ))
             }
-            (Self::Grouped(selector), RuntimeNeighborhoodLeafStreamState::Grouped) => {
-                RuntimeNeighborhoodLeafCursor::grouped(
-                    selector.open_cursor_with_context(score_director, context),
-                )
+            (Self::Grouped(selector), RuntimeNeighborhoodLeafStreamState::Grouped(state)) => {
+                RuntimeNeighborhoodLeafCursor::grouped(selector.open_cursor_with_retained_state(
+                    state,
+                    score_director,
+                    context,
+                ))
             }
             (Self::Provider(leaf), RuntimeNeighborhoodLeafStreamState::Provider) => {
                 RuntimeNeighborhoodLeafCursor::provider(leaf.open_cursor(score_director, context))
@@ -353,6 +359,13 @@ where
     fn validate_cursor<D: Director<S>>(&self, _score_director: &D) {
         // Compiler validation has already frozen exact capabilities. Opening
         // a compiled cursor performs no separate selector validation pass.
+    }
+
+    fn reclaim_cursor_state(
+        cursor: &mut Self::Cursor<'_>,
+        stream_state: &mut Vec<RuntimeNeighborhoodLeafStreamState>,
+    ) {
+        cursor.reclaim_grouped_pooled(stream_state);
     }
 }
 

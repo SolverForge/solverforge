@@ -1,3 +1,5 @@
+use crate::phase::construction::grouped_scalar::ScalarAssignmentState;
+
 pub struct GroupedScalarSelector<S> {
     group: crate::builder::context::ScalarGroupBinding<S>,
     value_candidate_limit: Option<usize>,
@@ -71,6 +73,7 @@ where
     activation: Option<GroupedScalarActivation<'a, S>>,
     assignment_cursor:
         Option<crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor<S>>,
+    pooled_assignment: Option<crate::phase::construction::grouped_scalar::ScalarAssignmentState>,
     require_hard_improvement: bool,
 }
 
@@ -96,6 +99,7 @@ where
             next_index: 0,
             activation: None,
             assignment_cursor: None,
+            pooled_assignment: None,
             require_hard_improvement: false,
         }
     }
@@ -107,6 +111,7 @@ where
             next_index: 0,
             activation: Some(activation),
             assignment_cursor: None,
+            pooled_assignment: None,
             require_hard_improvement: false,
         }
     }
@@ -140,12 +145,40 @@ where
                     max_moves_per_step,
                     entity_offset,
                 );
+                // Solve-owned pool: the retained base is handed into the step
+                // cursor (owned there during enumeration) and re-returned to
+                // the slot when the step closes. Rows whose committed value
+                // moved since the last pull are re-derived in place by the
+                // maintenance kernel (departures before arrivals, keys read
+                // from the committed base). A missing pool builds once here.
                 self.assignment_cursor = Some(
-                    crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::new(
-                        assignment,
-                        solution,
-                        options,
-                    ),
+                    match self.pooled_assignment.take() {
+                        Some(mut pooled)
+                            if pooled.row_count() == assignment.entity_count(solution) =>
+                        {
+                            let changed = (0..pooled.row_count())
+                                .filter(|&entity| {
+                                    pooled.current_value(entity)
+                                        != assignment.current_value(solution, entity)
+                                })
+                                .collect::<Vec<_>>();
+                            if !changed.is_empty() {
+                                let rows = changed.into_iter().map(|entity| {
+                                    (entity, assignment.current_value(solution, entity))
+                                });
+                                pooled.refresh_rows(assignment, solution, rows);
+                            }
+                            crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::with_pooled_state(
+                                assignment, solution, options, pooled,
+                            )
+                        }
+                        // Structural change (entity count moved): the sparse
+                        // row keys may shift globally, so rebuild from the
+                        // committed solution.
+                        _ => crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::new(
+                            assignment, solution, options,
+                        ),
+                    },
                 );
                 self.require_hard_improvement = require_hard_improvement;
             }
@@ -194,6 +227,21 @@ where
                 }
             }
         }
+    }
+}
+
+impl<S: PlanningSolution + 'static> GroupedScalarCursor<'_, S> {
+    /// Hands the assignment base back to the solve-owned slot when the step
+    /// closes. Steps that never activated keep the returned pool as retained
+    /// state; steps after activation move the maintained base back.
+    pub(crate) fn into_pooled_assignment(mut self) -> Option<ScalarAssignmentState> {
+        let returned = self
+            .assignment_cursor
+            .take()
+            .map(crate::phase::construction::grouped_scalar::ScalarAssignmentMoveCursor::into_state);
+        let pooled = returned.or_else(|| self.pooled_assignment.take());
+        drop(self);
+        pooled
     }
 }
 
@@ -287,5 +335,22 @@ where
 
     fn size<D: solverforge_scoring::Director<S>>(&self, score_director: &D) -> usize {
         self.effective_max_moves_per_step(score_director.working_solution())
+    }
+}
+
+impl<S: PlanningSolution + 'static> GroupedScalarSelector<S> {
+    /// Compiled-open entry that owns the retained solve-state slot.
+    ///
+    /// The pooled assignment base moves into the cursor for the step and is
+    /// handed back when the step cursor is dropped.
+    pub(crate) fn open_cursor_with_retained_state<'a, D: solverforge_scoring::Director<S>>(
+        &'a self,
+        state: &mut Option<Box<ScalarAssignmentState>>,
+        score_director: &D,
+        context: MoveStreamContext,
+    ) -> GroupedScalarCursor<'a, S> {
+        let mut cursor = self.open_cursor_with_context(score_director, context);
+        cursor.pooled_assignment = state.take().map(|boxed| *boxed);
+        cursor
     }
 }

@@ -66,6 +66,33 @@ where
         )
     }
 
+    /// Step cursor seeded from the solve-owned retained base. The state moves
+    /// into the cursor for the step and is handed back through `into_state`.
+    pub(crate) fn with_pooled_state(
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
+        options: ScalarAssignmentMoveOptions,
+        state: ScalarAssignmentState,
+    ) -> Self {
+        let mut cursor = Self::from_family_range(
+            group,
+            solution,
+            options,
+            AssignmentMoveFamily::Required,
+            AssignmentMoveFamily::EjectionReinsert,
+            true,
+            false,
+        );
+        cursor.state = state;
+        cursor
+    }
+
+    /// Moves the maintained assignment base out of the step cursor so the
+    /// solve-owned slot can retain it for the next step.
+    pub(crate) fn into_state(self) -> ScalarAssignmentState {
+        self.state
+    }
+
     pub(crate) fn required_construction(
         group: &ScalarAssignmentBinding<S>,
         solution: &S,

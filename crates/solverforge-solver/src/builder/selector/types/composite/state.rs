@@ -102,9 +102,20 @@ where
     Flat: StatefulComposedFlat<S, M, FlatState, Resources> + 'a,
 {
     pub(super) fn into_stream_state(self) -> SelectorCompositionStreamState<FlatState> {
-        // Drop live cursors before transferring retained states back to their owner.
-        drop(self.nodes);
-        self.stream_state
+        // Return pooled leaf state from live cursors before they drop, then
+        // transfer the retained states back to their owner.
+        let mut this = self;
+        for (id, node) in this.nodes.iter_mut().enumerate() {
+            if let (SelectorCompositionNode::Flat(_flat), Some(CursorNode::Flat(cursor))) =
+                (&this.selector.nodes[id], node.as_mut())
+            {
+                if let Some(leaf_state) = this.stream_state.leaves[id].as_mut() {
+                    Flat::reclaim_cursor_state(cursor, leaf_state);
+                }
+            }
+        }
+        drop(this.nodes);
+        this.stream_state
     }
 
     pub(super) fn open_node<D: Director<S>>(

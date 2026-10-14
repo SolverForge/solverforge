@@ -64,6 +64,11 @@ where
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
     fn validate_cursor<D: Director<S>>(&self, score_director: &D);
+
+    /// Returns retained pooled leaf state from a closing cursor before it
+    /// drops. The default keeps every flat stateless; flats with pooled state
+    /// move it back exactly once per open/close cycle.
+    fn reclaim_cursor_state(_cursor: &mut Self::Cursor<'_>, _stream_state: &mut FlatState) {}
 }
 
 /// Stable declaration and stream-state coordinate, never a candidate ID.

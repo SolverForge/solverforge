@@ -377,6 +377,16 @@ where
     }
 }
 
+impl<S, M, C> ResourceVecUnionMoveCursor<S, M, C>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    pub(crate) fn child_cursors_mut(&mut self) -> &mut [C] {
+        &mut self.cursors
+    }
+}
+
 impl<S, M, C, Resources> ResourceMoveCursor<S, M, Resources> for ResourceVecUnionMoveCursor<S, M, C>
 where
     S: PlanningSolution,

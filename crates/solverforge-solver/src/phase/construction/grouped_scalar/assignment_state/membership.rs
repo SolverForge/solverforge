@@ -10,7 +10,7 @@ struct MembershipUpdate {
 }
 
 impl ScalarAssignmentState {
-    pub(in super::super) fn refresh_rows<S>(
+    pub(crate) fn refresh_rows<S>(
         &mut self,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,

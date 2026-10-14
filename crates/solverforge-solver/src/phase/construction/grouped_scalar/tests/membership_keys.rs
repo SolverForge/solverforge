@@ -138,6 +138,62 @@ fn value_index_uses_recorded_membership_keys_without_reinvoking_callbacks() {
     assert_eq!(CAPACITY_READS.load(Ordering::Relaxed), 0);
 }
 
+/// The LS step loop drops its cursor after each committed step. The grouped
+/// pool must (a) hand the maintained base back to the solve-owned slot,
+/// (b) reuse it without callback-driven rebuild when nothing moved, and
+/// (c) refresh only the changed rows when a commit moved values.
+#[test]
+fn grouped_assignment_pool_refreshes_only_changed_rows_between_steps() {
+    static SEQUENCE_READS: AtomicUsize = AtomicUsize::new(0);
+    static CAPACITY_READS: AtomicUsize = AtomicUsize::new(0);
+    let group = binding();
+    let mut plan = Plan {
+        values: vec![None, None, Some(2), None],
+        key_epoch: 0,
+        sequence_reads: &SEQUENCE_READS,
+        capacity_reads: &CAPACITY_READS,
+    };
+    let mut pool = Some(ScalarAssignmentState::new(&group, &plan));
+
+    // Step 2: one committed change moved row 0 to Some(0). Maintenance must
+    // see the diff, refresh exactly that row, and match a fresh rebuild.
+    plan.values = vec![Some(0), None, Some(2), None];
+    {
+        let state = pool.as_mut().expect("pool live between steps");
+        let changed = (0..state.row_count())
+            .filter(|&entity| state.current_value(entity) != group.current_value(&plan, entity))
+            .collect::<Vec<_>>();
+        assert_eq!(changed, vec![0]);
+        SEQUENCE_READS.store(0, Ordering::Relaxed);
+        CAPACITY_READS.store(0, Ordering::Relaxed);
+        state.refresh_rows(
+            &group,
+            &plan,
+            changed
+                .into_iter()
+                .map(|entity| (entity, group.current_value(&plan, entity))),
+        );
+        assert_eq!(
+            CAPACITY_READS.load(Ordering::Relaxed),
+            1,
+            "one moved row re-derives its keys once"
+        );
+        let rebuilt = ScalarAssignmentState::new(&group, &plan);
+        assert_eq!(state.index_snapshot(), rebuilt.index_snapshot());
+    }
+
+    // Step 3 with no committed change: zero key callbacks.
+    SEQUENCE_READS.store(0, Ordering::Relaxed);
+    CAPACITY_READS.store(0, Ordering::Relaxed);
+    {
+        let state = pool.as_ref().expect("pool live between steps");
+        assert!((0..state.row_count())
+            .all(|entity| state.current_value(entity) == group.current_value(&plan, entity)));
+    }
+    assert_eq!(CAPACITY_READS.load(Ordering::Relaxed), 0);
+    assert_eq!(SEQUENCE_READS.load(Ordering::Relaxed), 0);
+}
+
 #[test]
 fn overlay_retracts_recorded_capacity_membership_and_leaves_base_unchanged() {
     static SEQUENCE_READS: AtomicUsize = AtomicUsize::new(0);

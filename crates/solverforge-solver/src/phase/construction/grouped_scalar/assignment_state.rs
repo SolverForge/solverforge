@@ -16,7 +16,7 @@ mod membership;
 #[path = "tests/membership_keys.rs"]
 mod membership_keys;
 
-pub(super) struct ScalarAssignmentState {
+pub(crate) struct ScalarAssignmentState {
     values: Vec<Option<usize>>,
     capacity_keys: Vec<Option<usize>>,
     sequence_keys: Vec<Option<usize>>,
@@ -94,11 +94,15 @@ impl ScalarAssignmentState {
         state
     }
 
+    pub(crate) fn row_count(&self) -> usize {
+        self.values.len()
+    }
+
     pub(super) fn is_required(&self, entity_index: usize) -> bool {
         self.required.get(entity_index).copied().unwrap_or(false)
     }
 
-    pub(super) fn current_value(&self, entity_index: usize) -> Option<usize> {
+    pub(crate) fn current_value(&self, entity_index: usize) -> Option<usize> {
         self.values.get(entity_index).copied().flatten()
     }
 
@@ -121,7 +125,7 @@ impl ScalarAssignmentState {
         self.path_overlay = overlay;
     }
 
-    pub(in super::super) fn refresh_trial_edits<S>(
+    pub(super) fn refresh_trial_edits<S>(
         &mut self,
         group: &ScalarAssignmentBinding<S>,
         solution: &S,

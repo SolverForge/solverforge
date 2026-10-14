@@ -24,6 +24,7 @@ mod placer_stream;
 mod tests;
 
 pub(crate) use assignment_candidate::ScalarAssignmentMoveOptions;
+pub(crate) use assignment_state::ScalarAssignmentState;
 pub(crate) use assignment_stream::ScalarAssignmentMoveCursor;
 pub(crate) use move_build::compound_move_for_group_candidate;
 pub(crate) use phase::{

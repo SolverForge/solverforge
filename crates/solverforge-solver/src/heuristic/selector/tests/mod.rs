@@ -15,4 +15,5 @@ mod move_selector;
 mod nearby;
 mod nearby_list;
 mod pillar;
+mod selection_order_modes;
 mod sublist_neighborhood;

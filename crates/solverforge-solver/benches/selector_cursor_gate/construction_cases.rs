@@ -1,3 +1,6 @@
+#[cfg(not(feature = "candidate"))]
+use solverforge_solver::EntityPlacerCursor;
+
 fn construction_placer(
 ) -> QueuedEntityPlacer<Plan, usize, FromSolutionEntitySelector, StaticValueSelector<Plan, usize>> {
     QueuedEntityPlacer::new(
@@ -19,12 +22,26 @@ fn construction_full() {
         let mut identity = 0xCBF2_9CE4_8422_2325;
         for _ in 0..iterations() {
             let director = unassigned_director(128);
-            for placement in construction_placer().get_placements(&director) {
-                for mov in placement.moves {
-                    mix(&mut hash, mov.entity_index());
-                    mix(&mut hash, mov.to_value().unwrap_or(usize::MAX));
-                    mix_move_identity(&mut identity, &mov.tabu_signature(&director).move_id);
+            let placer = construction_placer();
+            let mut placements = placer.open_cursor(&director);
+            while let Some(mut placement) =
+                placements.next_placement(&director, |_| false, || false)
+            {
+                let solution = director.working_solution();
+                while let Some(candidate_id) = placement.candidates_mut().next_candidate(solution) {
+                    let mov = placement
+                        .candidates()
+                        .candidate(candidate_id)
+                        .expect("construction candidate must remain live");
+                    let MoveCandidateRef::Borrowed(leg) = &mov else {
+                        panic!("construction candidates are borrowed change moves");
+                    };
+                    mix(&mut hash, leg.entity_index());
+                    mix(&mut hash, leg.to_value().map_or(usize::MAX, |value| *value));
+                    mix_move_identity(&mut identity, &leg.tabu_signature(&director).move_id);
                     black_box(&mov);
+                    drop(mov);
+                    assert!(placement.candidates_mut().release_candidate(candidate_id));
                     count += 1;
                 }
             }
@@ -70,11 +87,7 @@ fn construction_full() {
 }
 
 fn construction_first_fit() {
-    let expected_generated = if cfg!(feature = "candidate") {
-        128
-    } else {
-        8_192
-    };
+    let expected_generated = 128;
     emit("construction_first_fit", expected_generated, || {
         let mut count = 0;
         let mut hash = 0xCBF2_9CE4_8422_2325;

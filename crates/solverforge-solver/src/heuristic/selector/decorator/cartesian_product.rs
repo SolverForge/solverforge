@@ -209,6 +209,10 @@ where
     left_cursor: LeftCursor,
     right_selector: &'a Right,
     rows: Vec<Option<CartesianRow<S, M>>>,
+    /* Number of rows created by THIS open. The rows vec is a slab that
+    outlives the open through the scratch pool, so indexing must use this
+    counter, not rows.len(). */
+    live_rows: usize,
     active_row: Option<ActiveCartesianRow<Right::Cursor<'a>, M::Undo>>,
     pairs: Vec<Option<CartesianPair>>,
     context: MoveStreamContext,
@@ -257,6 +261,7 @@ where
             left_cursor,
             right_selector,
             rows,
+            live_rows: 0,
             active_row: None,
             pairs,
             context,
@@ -464,16 +469,16 @@ where
             let right_cursor = self
                 .right_selector
                 .open_cursor_with_context(&*director, self.context);
-            let pooled_len = self.rows.len();
-            let row_index = pooled_len;
-            let row = if row_index < pooled_len {
+            let row_index = self.live_rows;
+            self.live_rows += 1;
+            let row = if let Some(slot) = self.rows.get_mut(row_index) {
                 // Pooled slot from a previous open: reuse its candidate-store
                 // capacity and drop the stale left move. Released rows come
                 // back as None slots and rebuild fresh.
-                match self.rows[row_index].take() {
-                    Some(mut slot) => {
-                        let _stale_left = slot.replace_left(left);
-                        slot
+                match slot.take() {
+                    Some(mut reused) => {
+                        let _stale_left = reused.replace_left(left);
+                        reused
                     }
                     None => CartesianRow {
                         left,
@@ -488,7 +493,11 @@ where
                     live_pairs: 0,
                 }
             };
-            self.rows.push(Some(row));
+            if row_index < self.rows.len() {
+                self.rows[row_index] = Some(row);
+            } else {
+                self.rows.push(Some(row));
+            }
             self.active_row = Some(ActiveCartesianRow {
                 row_index,
                 right_cursor,

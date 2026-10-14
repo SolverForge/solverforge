@@ -123,9 +123,16 @@ pub(crate) const fn encode_runtime_dynamic_list_source(source_key: usize) -> u64
 }
 
 pub(crate) fn hash_str(value: &str) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    value.hash(&mut hasher);
-    hasher.finish()
+    // FNV-1a over the UTF-8 bytes: allocation-free and SipHash-free, so the
+    // immutable static variable-name prefix of a tabu identity composes
+    // without a `DefaultHasher` per pull. Opaque token values only ever
+    // compare against tokens produced by this same function.
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    for byte in value.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
 }
 
 struct DebugHashBuffer(SmallVec<[u8; 32]>);

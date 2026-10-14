@@ -523,3 +523,45 @@ fn typed_and_dynamic_assignment_groups_hide_scalar_leaves_and_keep_group_policy(
         assert!(plan.candidate_trace_plan().is_complete());
     }
 }
+
+#[test]
+fn assignment_and_candidate_groups_reject_sharing_one_name() {
+    let slot = scalar_slot();
+    let groups = bind_scalar_groups(
+        vec![
+            ScalarGroup::candidates(
+                "worker_assignment",
+                vec![ScalarTarget::from_descriptor_index(0, "worker")],
+                |_, limits| {
+                    vec![crate::planning::ScalarCandidate::new(
+                        "duplicate_probe",
+                        vec![ScalarTarget::from_descriptor_index(0, "worker").set(0, Some(1))],
+                    )]
+                    .into_iter()
+                    .take(limits.value_candidate_limit.unwrap_or(usize::MAX))
+                    .collect()
+                },
+            ),
+            ScalarGroup::assignment(
+                "worker_assignment",
+                ScalarTarget::from_descriptor_index(0, "worker"),
+            ),
+        ],
+        &[scalar_slot()],
+    );
+    let model: Model =
+        RuntimeModel::new(vec![VariableSlot::Scalar(slot)]).with_scalar_groups(groups);
+
+    let error = match SearchContext::try_new(descriptor(), model, None) {
+        Err(error) => error,
+        Ok(_) => panic!("assignment and callback provider must not share one group name"),
+    };
+    let message = match error {
+        crate::RuntimeBuildError::Declaration { message } => message,
+        other => panic!("expected a declaration error, got: {other}"),
+    };
+    assert!(
+        message.contains("scalar group `worker_assignment` is registered more than once"),
+        "duplicate group names must be rejected at model resolution: {message}"
+    );
+}

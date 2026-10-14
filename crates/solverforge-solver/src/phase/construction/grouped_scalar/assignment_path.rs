@@ -38,14 +38,12 @@ where
     let search = AugmentingPathSearch::new(group, solution, options, intent);
     let mut work = AssignmentPathWork::new(&mut overlay, &mut visiting, &mut edits, &mut blockers);
     let produced = search.discover(state, assignment, &mut work, should_stop);
-    let mov = if produced && state.scalar_edits_feasible(group, solution, &edits) {
-        move_from_edits(group, solution, &edits, intent.reason)
-    } else {
-        None
-    };
+    let feasible = produced && state.refresh_trial_edits(group, solution, &edits);
     overlay.clear();
     state.restore_path_overlay(overlay);
-    mov
+    feasible
+        .then_some(move_from_edits(group, solution, &edits, intent.reason))
+        .flatten()
 }
 
 #[derive(Clone, Copy)]

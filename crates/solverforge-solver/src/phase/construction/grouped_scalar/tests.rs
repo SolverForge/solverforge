@@ -363,6 +363,54 @@ fn required_construction_does_not_displace_a_pinned_assignment() {
 }
 
 #[test]
+fn augmenting_assignment_restores_index_after_final_feasibility() {
+    let descriptor = descriptor();
+    let limits = ScalarGroupLimits {
+        max_augmenting_depth: Some(4),
+        max_rematch_size: Some(8),
+        ..ScalarGroupLimits::new()
+    };
+    let assignment = assignment_binding(&descriptor, limits);
+    let solution = AssignmentPlan {
+        score: None,
+        assignments: vec![Some(0), Some(1), None],
+        candidates: vec![vec![0, 2], vec![1, 2], vec![0, 1]],
+    };
+    let mut state = ScalarAssignmentState::new(&assignment, &solution);
+    let before = state.index_snapshot();
+    let candidate = assignment_move_for_entity_value(
+        &assignment,
+        &solution,
+        &mut state,
+        AssignmentRequest::root(2, 0, limits.max_augmenting_depth.unwrap_or(3)),
+        ScalarAssignmentMoveOptions::for_construction(limits),
+        AssignmentMoveIntent::required(),
+        &mut || false,
+    )
+    .expect("displacement candidate");
+
+    // The trial edits were retracted after final feasibility: the base index
+    // must equal the rebuilt reference and the next discovery must not inherit
+    // speculative rows.
+    assert_eq!(state.index_snapshot(), before);
+    let rebuilt = ScalarAssignmentState::new(&assignment, &solution);
+    assert_eq!(state.index_snapshot(), rebuilt.index_snapshot());
+    let displaced = assignment_move_for_entity_value(
+        &assignment,
+        &solution,
+        &mut state,
+        AssignmentRequest::root(2, 0, limits.max_augmenting_depth.unwrap_or(3)),
+        ScalarAssignmentMoveOptions::for_construction(limits),
+        AssignmentMoveIntent::required(),
+        &mut || false,
+    );
+    assert_eq!(
+        displaced.map(|mov| mov.edits().len()),
+        Some(candidate.edits().len())
+    );
+}
+
+#[test]
 fn augmenting_assignment_observes_control_during_recursive_search() {
     let descriptor = descriptor();
     let limits = ScalarGroupLimits {

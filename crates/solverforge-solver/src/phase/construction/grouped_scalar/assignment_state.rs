@@ -1,4 +1,5 @@
 use crate::builder::ScalarAssignmentBinding;
+use crate::planning::ScalarEdit;
 #[path = "assignment_overlay.rs"]
 mod overlay;
 #[path = "assignment_pressure.rs"]
@@ -118,6 +119,19 @@ impl ScalarAssignmentState {
 
     pub(super) fn restore_path_overlay(&mut self, overlay: AssignmentPathOverlay) {
         self.path_overlay = overlay;
+    }
+
+    pub(in super::super) fn refresh_trial_edits<S>(
+        &mut self,
+        group: &ScalarAssignmentBinding<S>,
+        solution: &S,
+        edits: &[ScalarEdit<S>],
+    ) -> bool {
+        // Final feasibility stays overlay-based on the committed baseline; the
+        // caller restores the path overlay. Nothing here may mutate base rows:
+        // augmentation reference math depends on feasibility and recorded keys
+        // seeing the same baseline as candidate discovery.
+        self.scalar_edits_feasible(group, solution, edits)
     }
 
     pub(super) fn capacity_occupants(&self, key: usize) -> &[usize] {

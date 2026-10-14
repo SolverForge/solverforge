@@ -336,6 +336,35 @@ fn test_solver_scope_mutate_advances_revision_once() {
 }
 
 #[test]
+fn test_every_committed_logical_change_advances_revision_exactly_once() {
+    let descriptor = SolutionDescriptor::new("TieSolution", TypeId::of::<TieSolution>());
+    let director = ScoreDirector::simple(
+        TieSolution {
+            marker: 0,
+            score: None,
+        },
+        descriptor,
+        |_solution, _descriptor_index| 0,
+    );
+    let mut scope = SolverScope::new(director);
+    scope.start_solving();
+    let initial_revision = scope.solution_revision();
+    scope.set_current_score(SoftScore::of(0));
+
+    // Two separate committed logical changes: exactly one revision each.
+    scope.apply_committed_change(|score_director| {
+        score_director.working_solution_mut().marker = 3;
+    });
+    scope.apply_committed_change(|score_director| {
+        score_director.working_solution_mut().marker = 5;
+    });
+
+    assert_eq!(scope.solution_revision(), initial_revision + 2);
+    assert!(scope.current_score().is_none());
+    assert_eq!(scope.working_solution().marker, 5);
+}
+
+#[test]
 fn test_replace_working_solution_reinitializes_revision_and_frontier() {
     let descriptor = SolutionDescriptor::new("TieSolution", TypeId::of::<TieSolution>());
     let director = ScoreDirector::simple(

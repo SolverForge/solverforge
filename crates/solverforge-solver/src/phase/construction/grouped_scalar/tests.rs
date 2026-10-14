@@ -274,6 +274,58 @@ fn required_construction_can_rematch_rows_assigned_by_its_batch_move() {
 }
 
 #[test]
+fn required_construction_sees_global_dependent_domains_after_commits() {
+    let descriptor = descriptor();
+    let limits = ScalarGroupLimits {
+        max_augmenting_depth: Some(4),
+        max_rematch_size: Some(8),
+        ..ScalarGroupLimits::new()
+    };
+
+    // Domain of row 2 reads the LIVE whole solution: it is empty until row 0
+    // holds a committed assignment. No stale enumeration may close row 2.
+    let global_dependent_value = |plan: &AssignmentPlan, entity: usize, _: usize| -> &[usize] {
+        match entity {
+            0 => &const { [0usize] },
+            1 => &const { [1usize] },
+            2 => {
+                if plan.assignments[0].is_some() {
+                    &const { [2usize] }
+                } else {
+                    &const { [] }
+                }
+            }
+            _ => &const { [] },
+        }
+    };
+    let group = assignment_group_with_candidate_values(&descriptor, limits, global_dependent_value);
+    let bindings = collect_bindings(&descriptor)
+        .into_iter()
+        .map(ResolvedVariableBinding::new)
+        .collect();
+    let input = AssignmentPlan {
+        score: None,
+        assignments: vec![None, None, None],
+        candidates: vec![vec![0], vec![1], vec![2]],
+    };
+    let director = ScoreDirector::simple(input, descriptor, |plan, _| plan.assignments.len());
+    let mut scope = SolverScope::new(director);
+    let config = ConstructionHeuristicConfig {
+        construction_heuristic_type: ConstructionHeuristicType::FirstFit,
+        construction_obligation: ConstructionObligation::AssignWhenCandidateExists,
+        ..ConstructionHeuristicConfig::default()
+    };
+    let mut phase = build_scalar_group_construction(Some(&config), 0, group, bindings, true);
+    phase.solve(&mut scope);
+
+    assert_eq!(
+        scope.working_solution().assignments,
+        vec![Some(0), Some(1), Some(2)],
+        "row 2 fills only after row 0 commits; stale enumeration would leave it unassigned"
+    );
+}
+
+#[test]
 fn required_construction_does_not_displace_a_pinned_assignment() {
     let mut descriptor = descriptor();
     descriptor.entity_descriptors[0] = descriptor.entity_descriptors[0]

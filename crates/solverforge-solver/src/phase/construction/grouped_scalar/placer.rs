@@ -194,17 +194,18 @@ where
             return Vec::new().into_iter();
         }
 
-        let mut seen_candidates = Vec::new();
-        let mut placements = Vec::new();
+        let mut placements: Vec<CandidatePlacementSeed<S>> = Vec::new();
         let mut accepted = 0usize;
         for (sequence, candidate) in raw_candidates.into_iter().enumerate() {
             if accepted >= total_limit {
                 break;
             }
             if candidate.edits().is_empty()
-                || seen_candidates
-                    .iter()
-                    .any(|seen_candidate| seen_candidate == &candidate)
+                || placements.iter().any(|seed| {
+                    seed.candidates
+                        .iter()
+                        .any(|seen_candidate| seen_candidate == &candidate)
+                })
             {
                 continue;
             }
@@ -255,24 +256,24 @@ where
                         existing.group_slot == group_slot && existing.scalar_slots == scalar_slots
                     })
             {
-                existing.candidates.push(candidate.clone());
+                existing.candidates.push(candidate);
             } else {
                 let entity_ref = candidate
                     .edits()
                     .first()
                     .map(|edit| EntityReference::new(edit.descriptor_index(), edit.entity_index()))
                     .unwrap_or_else(|| EntityReference::new(0, sequence));
+                let entity_order_key = candidate.construction_entity_order_key();
                 placements.push(CandidatePlacementSeed {
                     sequence,
                     entity_ref,
-                    candidates: vec![candidate.clone()],
+                    candidates: vec![candidate],
                     group_slot,
                     scalar_slots,
                     keep_current_legal,
-                    entity_order_key: candidate.construction_entity_order_key(),
+                    entity_order_key,
                 });
             }
-            seen_candidates.push(candidate);
             accepted += 1;
         }
         if grouped_heuristic_requires_entity_order(self.heuristic) {

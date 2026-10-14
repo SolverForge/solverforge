@@ -23,7 +23,7 @@ pub(crate) use access::{
 };
 pub(crate) use change::{
     change_candidate_trace_identity, change_do_move, change_is_doable, change_tabu_signature,
-    change_undo_move, ChangeCoordinates, ChangeValueTransfer,
+    change_undo_move, ChangeCoordinates,
 };
 pub(crate) use k_opt::{k_opt_do_move, k_opt_is_doable, k_opt_tabu_signature, k_opt_undo_move};
 pub(crate) use multi_swap::{
@@ -45,7 +45,6 @@ pub(crate) use ruin::final_positions_after_insertions;
 pub(crate) use ruin::{
     merged_ruin_sources, ruin_count, ruin_do_move, ruin_entity_indices, ruin_is_doable,
     ruin_tabu_signature, ruin_undo_move, single_ruin_source, RuinSources, RuinUndo,
-    RuinValueTransfer,
 };
 pub(crate) use ruin_access::{ListRuinAccess, StaticListRuinAccess};
 pub(crate) use sublist_change::{

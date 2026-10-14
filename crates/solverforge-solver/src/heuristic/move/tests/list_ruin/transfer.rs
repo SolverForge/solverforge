@@ -1,4 +1,7 @@
-//! Clone-versus-transfer regression coverage for the shared ruin primitive.
+//! Clone-versus-transfer contract for the shared ruin primitive.
+//!
+//! Both the public static move and the runtime carrier transfer removed
+//! values by ownership: no `CloneProbe::clone` may run during ruin do/undo.
 
 use std::any::TypeId;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -9,7 +12,7 @@ use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
 use crate::heuristic::r#move::list_kernel::{
-    ruin_do_move, single_ruin_source, RuinValueTransfer, StaticListRuinAccess,
+    ruin_do_move, single_ruin_source, StaticListRuinAccess,
 };
 use crate::heuristic::r#move::{ListRuinMove, Move};
 
@@ -85,14 +88,23 @@ fn clone_list_insert(solution: &mut ClonePlan, entity: usize, position: usize, v
     solution.routes[entity].stops.insert(position, value);
 }
 
-fn director(counter: Arc<AtomicUsize>) -> ScoreDirector<ClonePlan, ()> {
+fn director(counter: Arc<AtomicUsize>, stops: Vec<Vec<usize>>) -> ScoreDirector<ClonePlan, ()> {
     let solution = ClonePlan {
-        routes: vec![CloneRoute {
-            stops: vec![CloneProbe {
-                id: 1,
-                clone_count: counter,
-            }],
-        }],
+        routes: stops
+            .into_iter()
+            .map(|ids| {
+                let counter = Arc::clone(&counter);
+                CloneRoute {
+                    stops: ids
+                        .into_iter()
+                        .map(|id| CloneProbe {
+                            id,
+                            clone_count: Arc::clone(&counter),
+                        })
+                        .collect(),
+                }
+            })
+            .collect(),
         score: None,
     };
     ScoreDirector::simple(
@@ -102,28 +114,8 @@ fn director(counter: Arc<AtomicUsize>) -> ScoreDirector<ClonePlan, ()> {
     )
 }
 
-fn static_clone_count(counter: Arc<AtomicUsize>) -> usize {
-    let mut score_director = director(Arc::clone(&counter));
-    counter.store(0, Ordering::SeqCst);
-    let move_ = ListRuinMove::new(
-        0,
-        &[0],
-        clone_entity_count,
-        clone_list_len,
-        clone_list_get,
-        clone_list_remove,
-        clone_list_insert,
-        "stops",
-        0,
-    );
-    let _ = move_.do_move(&mut score_director);
-    counter.load(Ordering::SeqCst)
-}
-
-fn transfer_clone_count(counter: Arc<AtomicUsize>) -> usize {
-    let mut score_director = director(Arc::clone(&counter));
-    counter.store(0, Ordering::SeqCst);
-    let access = StaticListRuinAccess {
+fn static_access() -> StaticListRuinAccess<ClonePlan, CloneProbe> {
+    StaticListRuinAccess {
         entity_count: clone_entity_count,
         list_len: clone_list_len,
         list_get: clone_list_get,
@@ -135,25 +127,58 @@ fn transfer_clone_count(counter: Arc<AtomicUsize>) -> usize {
         precedence_successors_fn: None,
         variable_name: "stops",
         descriptor_index: 0,
-    };
-    let _ = ruin_do_move(
-        &access,
-        &single_ruin_source(0, &[0]),
-        false,
-        RuinValueTransfer::MoveIntoInsert,
-        &mut score_director,
-    );
-    counter.load(Ordering::SeqCst)
+    }
 }
 
 #[test]
-fn static_ruin_retains_historic_final_insertion_clone_while_owned_carriers_may_transfer() {
-    let static_count = static_clone_count(Arc::new(AtomicUsize::new(0)));
-    let transfer_count = transfer_clone_count(Arc::new(AtomicUsize::new(0)));
-
+fn ruin_do_move_transfers_removed_values_without_cloning_them() {
+    let counter = Arc::new(AtomicUsize::new(0));
+    let read_counter = Arc::clone(&counter);
+    let mut score_director = director(counter, vec![vec![0, 1, 2], vec![3, 4], vec![5, 6, 7]]);
+    read_counter.store(0, Ordering::SeqCst);
+    let access = static_access();
+    let undo = ruin_do_move(
+        &access,
+        &single_ruin_source(0, &[0, 1, 2]),
+        false,
+        &mut score_director,
+    );
+    assert_eq!(undo.len(), 3);
     assert_eq!(
-        static_count,
-        transfer_count + 1,
-        "static ListRuinMove must retain its final-insertion clone; only an owned runtime carrier may transfer that element"
+        read_counter.load(Ordering::SeqCst),
+        0,
+        "no route element may be cloned while the ruin recirculates owned values"
+    );
+}
+
+#[test]
+fn static_list_ruin_do_and_undo_transfer_values_exactly() {
+    let counter = Arc::new(AtomicUsize::new(0));
+    let read_counter = Arc::clone(&counter);
+    let mut score_director = director(counter, vec![vec![0, 1, 2], vec![3, 4], vec![5, 6, 7]]);
+    read_counter.store(0, Ordering::SeqCst);
+    let move_ = ListRuinMove::new(
+        0,
+        &[0, 1, 2],
+        clone_entity_count,
+        clone_list_len,
+        clone_list_get,
+        clone_list_remove,
+        clone_list_insert,
+        "stops",
+        0,
+    );
+    assert!(move_.is_doable(&score_director));
+    let undo = move_.do_move(&mut score_director);
+    assert_eq!(
+        read_counter.load(Ordering::SeqCst),
+        0,
+        "the static ruin carrier transfers by ownership too"
+    );
+    move_.undo_move(&mut score_director, undo);
+    assert_eq!(
+        read_counter.load(Ordering::SeqCst),
+        0,
+        "undo reinserts removed values without cloning them"
     );
 }

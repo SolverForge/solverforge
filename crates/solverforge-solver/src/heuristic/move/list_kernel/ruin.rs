@@ -15,15 +15,6 @@ use super::{ListMoveAccess, ListRuinAccess};
 pub(crate) type RuinSources = SmallVec<[(usize, SmallVec<[usize; 8]>); 4]>;
 pub(crate) type RuinUndo = SmallVec<[(usize, usize, usize); 8]>;
 
-/// Static list moves clone their final inserted element; the runtime carrier
-/// transfers its owned tagged element instead. The policy stays local to the
-/// mutation boundary.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RuinValueTransfer {
-    CloneBeforeInsert,
-    MoveIntoInsert,
-}
-
 pub(crate) fn single_ruin_source(entity: usize, indices: &[usize]) -> RuinSources {
     let mut sorted = SmallVec::<[usize; 8]>::from_slice(indices);
     sorted.sort_unstable();
@@ -147,7 +138,6 @@ pub(crate) fn ruin_do_move<S, A, D>(
     access: &A,
     sources: &RuinSources,
     skip_empty_destinations: bool,
-    transfer: RuinValueTransfer,
     score_director: &mut D,
 ) -> RuinUndo
 where
@@ -176,24 +166,31 @@ where
     }
 
     let mut placements = RuinUndo::new();
+    // `removed` owns every displaced element. The placement loop takes one
+    // element out into an Option slot at a time, circulates that owned value
+    // through every trial insert/remove, and transfers the winning insert by
+    // ownership. No element is ever cloned; the original-order entry keeps
+    // its identity for the undo bookkeeping.
     let mut remaining = removed
-        .iter()
-        .cloned()
+        .into_iter()
         .enumerate()
         .map(|(index, (source, original_position, value))| {
-            (index, source, original_position, value)
+            (index, source, original_position, Some(value))
         })
-        .collect::<SmallVec<[(usize, usize, usize, A::Element); 8]>>();
+        .collect::<SmallVec<[(usize, usize, usize, Option<A::Element>); 8]>>();
     let entity_count = access.entity_count(score_director.working_solution());
 
-    while !remaining.is_empty() {
+    while remaining.iter().any(|entry| entry.3.is_some()) {
         let mut precedence_graph =
             access.recreate_precedence_graph(score_director.working_solution());
         let mut best_choice: Option<(usize, usize, usize, S::Score)> = None;
 
-        for (remaining_index, (_, _, _, element)) in remaining.iter().enumerate() {
+        for remaining_index in 0..remaining.len() {
+            let Some(mut element) = remaining[remaining_index].3.take() else {
+                continue;
+            };
             let restriction =
-                access.owner_restriction(score_director.working_solution(), entity_count, element);
+                access.owner_restriction(score_director.working_solution(), entity_count, &element);
             for destination_entity in 0..entity_count {
                 if !restriction.allows(destination_entity)
                     || crate::pinning::entity_is_pinned(
@@ -211,7 +208,7 @@ where
                 }
                 for destination_position in 0..=destination_len {
                     if precedence_graph.as_mut().is_some_and(|(elements, graph)| {
-                        let Some(element_node) = node_index(elements, element) else {
+                        let Some(element_node) = node_index(elements, &element) else {
                             return false;
                         };
                         let previous = (destination_position > 0)
@@ -248,7 +245,7 @@ where
                         score_director.working_solution_mut(),
                         destination_entity,
                         destination_position,
-                        element.clone(),
+                        element,
                     );
                     score_director.after_variable_changed(descriptor_index, destination_entity);
 
@@ -264,36 +261,34 @@ where
                     }
 
                     score_director.before_variable_changed(descriptor_index, destination_entity);
-                    let _ = access.list_remove(
+                    let recovered = access.list_remove(
                         score_director.working_solution_mut(),
                         destination_entity,
                         destination_position,
                     );
                     score_director.after_variable_changed(descriptor_index, destination_entity);
+                    element = recovered;
                 }
             }
+            remaining[remaining_index].3 = Some(element);
         }
 
-        let Some((remaining_index, entity, position, _)) = best_choice else {
-            restore_removed_elements(access, &placements, &removed, score_director);
+        let Some((best_index, entity, position, _)) = best_choice else {
+            restore_remaining_elements(access, &placements, &mut remaining, score_director);
             return RuinUndo::new();
         };
-        let (removed_index, _, _, element) = remaining.remove(remaining_index);
+        let (removed_index, _, _, element) = &mut remaining[best_index];
+        let Some(transferred) = element.take() else {
+            unreachable!("the winning element must remain in its Option slot");
+        };
+        let removed_index = *removed_index;
         score_director.before_variable_changed(descriptor_index, entity);
-        match transfer {
-            RuinValueTransfer::CloneBeforeInsert => access.list_insert(
-                score_director.working_solution_mut(),
-                entity,
-                position,
-                element.clone(),
-            ),
-            RuinValueTransfer::MoveIntoInsert => access.list_insert(
-                score_director.working_solution_mut(),
-                entity,
-                position,
-                element,
-            ),
-        }
+        access.list_insert(
+            score_director.working_solution_mut(),
+            entity,
+            position,
+            transferred,
+        );
         score_director.after_variable_changed(descriptor_index, entity);
         placements.push((entity, position, removed_index));
     }
@@ -384,10 +379,10 @@ where
         .with_destination_value_tokens(destination_value_tokens)
 }
 
-fn restore_removed_elements<S, A, D>(
+fn restore_remaining_elements<S, A, D>(
     access: &A,
     placements: &RuinUndo,
-    removed: &SmallVec<[(usize, usize, A::Element); 8]>,
+    remaining: &mut SmallVec<[(usize, usize, usize, Option<A::Element>); 8]>,
     score_director: &mut D,
 ) where
     S: PlanningSolution,
@@ -413,7 +408,15 @@ fn restore_removed_elements<S, A, D>(
             }
         }
     }
-    restore_values(access, removed.clone(), score_director);
+    let values = remaining
+        .iter_mut()
+        .filter_map(|(_, source, original_position, element)| {
+            element
+                .take()
+                .map(|value| (*source, *original_position, value))
+        })
+        .collect::<SmallVec<[(usize, usize, A::Element); 8]>>();
+    restore_values(access, values, score_director);
 }
 
 fn restore_values<S, A, D>(

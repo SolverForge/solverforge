@@ -34,15 +34,6 @@ impl ChangeCoordinates {
     }
 }
 
-/// The typed move cloned before insertion; the dynamic move transferred
-/// ownership. The explicit policy keeps those public move contracts intact
-/// while sharing all coordinates, checks, notifications, and metadata.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ChangeValueTransfer {
-    CloneBeforeInsert,
-    MoveIntoInsert,
-}
-
 pub(crate) fn change_is_doable<S, A, D>(
     access: &A,
     coordinates: ChangeCoordinates,
@@ -77,7 +68,6 @@ where
 pub(crate) fn change_do_move<S, A, D>(
     access: &A,
     coordinates: ChangeCoordinates,
-    transfer: ChangeValueTransfer,
     score_director: &mut D,
 ) where
     S: PlanningSolution,
@@ -98,20 +88,12 @@ pub(crate) fn change_do_move<S, A, D>(
         )
         .expect("source position should be valid");
     let destination = coordinates.adjusted_destination();
-    match transfer {
-        ChangeValueTransfer::CloneBeforeInsert => access.list_insert(
-            score_director.working_solution_mut(),
-            coordinates.destination_entity,
-            destination,
-            value.clone(),
-        ),
-        ChangeValueTransfer::MoveIntoInsert => access.list_insert(
-            score_director.working_solution_mut(),
-            coordinates.destination_entity,
-            destination,
-            value,
-        ),
-    }
+    access.list_insert(
+        score_director.working_solution_mut(),
+        coordinates.destination_entity,
+        destination,
+        value,
+    );
 
     score_director.after_variable_changed(descriptor_index, coordinates.source_entity);
     if !coordinates.is_intra_list() {

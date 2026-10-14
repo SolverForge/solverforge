@@ -5,7 +5,7 @@ use solverforge_scoring::Director;
 
 use super::list_kernel::{
     change_candidate_trace_identity, change_do_move, change_is_doable, change_tabu_signature,
-    change_undo_move, ChangeCoordinates, ChangeValueTransfer,
+    change_undo_move, ChangeCoordinates,
 };
 use super::{Move, MoveTabuSignature};
 
@@ -102,12 +102,7 @@ where
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {
-        change_do_move(
-            &self.slot,
-            self.coordinates(),
-            ChangeValueTransfer::MoveIntoInsert,
-            score_director,
-        );
+        change_do_move(&self.slot, self.coordinates(), score_director);
     }
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, (): Self::Undo) {

@@ -9,7 +9,7 @@ use solverforge_scoring::Director;
 use super::list_kernel::{
     merged_ruin_sources, ruin_count, ruin_do_move, ruin_entity_indices, ruin_is_doable,
     ruin_tabu_signature, ruin_undo_move, single_ruin_source, RuinSources, RuinUndo,
-    RuinValueTransfer, StaticListRuinAccess,
+    StaticListRuinAccess,
 };
 use super::{Move, MoveTabuSignature};
 
@@ -191,7 +191,6 @@ where
             &self.access,
             &self.sources,
             self.skip_empty_destinations,
-            RuinValueTransfer::CloneBeforeInsert,
             score_director,
         )
     }

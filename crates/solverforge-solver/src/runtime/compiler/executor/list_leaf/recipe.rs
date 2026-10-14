@@ -4,6 +4,7 @@ use crate::builder::context::RuntimeListElement;
 use crate::heuristic::r#move::list_kernel::{
     multi_swap_entity_indices, ruin_entity_indices, RuinUndo,
 };
+use crate::heuristic::r#move::MAX_LIST_PERMUTE_WINDOW_SIZE;
 
 use super::move_access::RuntimeListMoveAccess;
 use super::spec::RuntimeListRecipe;
@@ -11,7 +12,7 @@ use super::spec::RuntimeListRecipe;
 #[derive(Clone, Debug)]
 pub(crate) enum RuntimeListMoveUndo<V> {
     None,
-    Permute(Vec<RuntimeListElement<V>>),
+    Permute(SmallVec<[usize; MAX_LIST_PERMUTE_WINDOW_SIZE]>),
     KOpt(Vec<RuntimeListElement<V>>),
     Ruin(RuinUndo),
 }

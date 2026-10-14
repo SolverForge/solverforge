@@ -17,7 +17,7 @@ use crate::heuristic::r#move::list_kernel::{
     sublist_change_tabu_signature, sublist_change_undo_move, sublist_swap_candidate_trace_identity,
     sublist_swap_do_move, sublist_swap_is_doable, sublist_swap_tabu_signature,
     sublist_swap_undo_move, swap_candidate_trace_identity, swap_do_move, swap_is_doable,
-    swap_tabu_signature, ChangeValueTransfer, ListMoveAccess, RuinValueTransfer,
+    swap_tabu_signature, ListMoveAccess,
 };
 use crate::heuristic::r#move::{Move, MoveTabuSignature};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
@@ -127,12 +127,7 @@ where
                 access,
                 coordinates,
             } => {
-                change_do_move(
-                    access,
-                    *coordinates,
-                    ChangeValueTransfer::MoveIntoInsert,
-                    score_director,
-                );
+                change_do_move(access, *coordinates, score_director);
                 RuntimeListMoveUndo::None
             }
             RuntimeListRecipe::Swap {
@@ -146,13 +141,11 @@ where
                 access,
                 coordinates,
                 permutation,
-                ..
-            } => RuntimeListMoveUndo::Permute(permute_do_move(
-                access,
-                *coordinates,
-                permutation,
-                score_director,
-            )),
+                inverse_permutation,
+            } => {
+                permute_do_move(access, *coordinates, permutation, score_director);
+                RuntimeListMoveUndo::Permute(inverse_permutation.clone())
+            }
             RuntimeListRecipe::Reverse {
                 access,
                 coordinates,
@@ -195,7 +188,6 @@ where
                 access,
                 sources,
                 *skip_empty_destinations,
-                RuinValueTransfer::MoveIntoInsert,
                 score_director,
             )),
             RuntimeListRecipe::MultiSwap {
@@ -231,8 +223,13 @@ where
                     coordinates,
                     ..
                 },
-                RuntimeListMoveUndo::Permute(values),
-            ) => permute_undo_move(access, *coordinates, values, score_director),
+                RuntimeListMoveUndo::Permute(inverse_permutation),
+            ) => permute_undo_move(
+                access,
+                *coordinates,
+                inverse_permutation.as_slice(),
+                score_director,
+            ),
             (
                 RuntimeListRecipe::Reverse {
                     access,

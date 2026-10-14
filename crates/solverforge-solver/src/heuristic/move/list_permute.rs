@@ -150,7 +150,7 @@ where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
 {
-    type Undo = Vec<V>;
+    type Undo = SmallVec<[usize; MAX_LIST_PERMUTE_WINDOW_SIZE]>;
 
     fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool {
         permute_is_doable(
@@ -167,11 +167,12 @@ where
             self.coordinates(),
             &self.permutation,
             score_director,
-        )
+        );
+        self.inverse_permutation.clone()
     }
 
     fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo) {
-        permute_undo_move(&self.access(), self.coordinates(), undo, score_director);
+        permute_undo_move(&self.access(), self.coordinates(), &undo, score_director);
     }
 
     fn descriptor_index(&self) -> usize {

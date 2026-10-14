@@ -35,13 +35,15 @@ where
         && valid_non_identity_permutation(permutation)
 }
 
+/// Owned-window permutation. The removed segment reorders by value
+/// transfer (each element moves exactly once along its permutation cycle),
+/// and the undo carries only the inverse permutation indexes.
 pub(crate) fn permute_do_move<S, A, D>(
     access: &A,
     coordinates: PermuteCoordinates,
     permutation: &[usize],
     score_director: &mut D,
-) -> Vec<A::Element>
-where
+) where
     S: PlanningSolution,
     A: ListWindowAccess<S>,
     D: Director<S>,
@@ -56,10 +58,7 @@ where
             coordinates.end,
         )
         .expect("validated list window access should remove the requested segment");
-    let reordered = permutation
-        .iter()
-        .map(|&index| segment[index].clone())
-        .collect();
+    let reordered = reorder_by_permutation(segment, permutation);
     access
         .sublist_insert(
             score_director.working_solution_mut(),
@@ -69,13 +68,29 @@ where
         )
         .expect("validated list window access should insert the reordered segment");
     score_director.after_variable_changed(descriptor_index, coordinates.entity);
-    segment
+}
+
+/// Gathers an owned segment by `permutation` (`new[i] = old[index]`) without
+/// cloning elements: every value moves exactly once into its destination
+/// slot, driven through `Option` slots that are then unwrapped.
+pub(crate) fn reorder_by_permutation<V: Clone>(segment: Vec<V>, permutation: &[usize]) -> Vec<V> {
+    let mut slots: Vec<Option<V>> = segment.into_iter().map(Some).collect::<Vec<Option<V>>>();
+    let mut reordered: Vec<Option<V>> = std::iter::repeat_with(|| None)
+        .take(permutation.len())
+        .collect();
+    for (index, source) in permutation.iter().copied().enumerate() {
+        reordered[index] = slots[source].take();
+    }
+    reordered
+        .into_iter()
+        .map(|value| value.expect("a valid permutation fills every slot exactly once"))
+        .collect()
 }
 
 pub(crate) fn permute_undo_move<S, A, D>(
     access: &A,
     coordinates: PermuteCoordinates,
-    undo: Vec<A::Element>,
+    inverse_permutation: &[usize],
     score_director: &mut D,
 ) where
     S: PlanningSolution,
@@ -84,7 +99,7 @@ pub(crate) fn permute_undo_move<S, A, D>(
 {
     let descriptor_index = access.descriptor_index();
     score_director.before_variable_changed(descriptor_index, coordinates.entity);
-    let _ = access
+    let segment = access
         .sublist_remove(
             score_director.working_solution_mut(),
             coordinates.entity,
@@ -92,12 +107,13 @@ pub(crate) fn permute_undo_move<S, A, D>(
             coordinates.end,
         )
         .expect("validated list window access should remove the permuted segment");
+    let restored = reorder_by_permutation(segment, inverse_permutation);
     access
         .sublist_insert(
             score_director.working_solution_mut(),
             coordinates.entity,
             coordinates.start,
-            undo,
+            restored,
         )
         .expect("validated list window access should restore the original segment");
     score_director.after_variable_changed(descriptor_index, coordinates.entity);

@@ -87,13 +87,14 @@ pub(crate) fn multi_swap_do_move<S, A, D>(
         score_director.before_variable_changed(descriptor_index, entity);
     }
 
-    for (&(entity, first, second), (first_value, second_value)) in coordinates.iter().zip(&values) {
+    for (coordinate, (first_value, second_value)) in coordinates.iter().zip(values) {
+        let (entity, first, second) = *coordinate;
         access
             .list_set(
                 score_director.working_solution_mut(),
                 entity,
                 first,
-                second_value.clone(),
+                second_value,
             )
             .expect("multi-swap requires a validated direct list-set capability");
         access
@@ -101,7 +102,7 @@ pub(crate) fn multi_swap_do_move<S, A, D>(
                 score_director.working_solution_mut(),
                 entity,
                 second,
-                first_value.clone(),
+                first_value,
             )
             .expect("multi-swap requires a validated direct list-set capability");
     }

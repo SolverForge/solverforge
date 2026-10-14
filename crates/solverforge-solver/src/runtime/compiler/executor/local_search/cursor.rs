@@ -106,7 +106,7 @@ where
                 .next_owned_candidate(solution)
                 .map(RuntimeNeighborhoodMove::Grouped),
             RuntimeNeighborhoodLeafCursorInner::Provider(cursor) => {
-                let candidate = cursor.next_candidate(resources)?;
+                let candidate = cursor.next_candidate(solution, resources)?;
                 Some(RuntimeNeighborhoodMove::Provider(
                     cursor.cursor_mut().take_candidate(candidate),
                 ))

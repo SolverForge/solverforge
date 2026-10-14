@@ -78,12 +78,11 @@ impl RuntimeProviderNeighborhoodLeaf {
 
     fn open_cursor<S: PlanningSolution + Clone + 'static, D: Director<S>>(
         &self,
-        score_director: &D,
+        _score_director: &D,
         context: MoveStreamContext,
     ) -> RuntimeProviderNeighborhoodCursor<'_, S> {
         RuntimeProviderNeighborhoodCursor {
             plan: &self.plan,
-            solution: Some(score_director.clone_working_solution()),
             context,
             require_hard_improvement: self.require_hard_improvement,
             cursor: None,
@@ -358,14 +357,13 @@ where
 }
 
 /// Lazy provider child cursor. It captures only an immutable plan reference
-/// and one solution snapshot at tree-open time, then creates the provider
-/// cursor only when the scheduler reaches this child.
+/// and creates the provider cursor only when the scheduler reaches this child.
+/// The activation solution is lent at that pull boundary.
 pub(super) struct RuntimeProviderNeighborhoodCursor<'a, S>
 where
     S: PlanningSolution + Clone + 'static,
 {
     plan: &'a CompiledProviderPlan,
-    solution: Option<S>,
     context: MoveStreamContext,
     require_hard_improvement: bool,
     cursor: Option<RuntimeProviderCursor<'a, S>>,
@@ -377,19 +375,13 @@ where
 {
     pub(super) fn next_candidate(
         &mut self,
+        solution: &S,
         resources: &mut ProviderExecutionResources<S>,
     ) -> Option<crate::heuristic::selector::move_selector::CandidateId> {
         let cursor = self.cursor.get_or_insert_with(|| {
-            RuntimeProviderCursor::new(
-                self.plan,
-                self.solution
-                    .take()
-                    .expect("provider solution snapshot must be retained until activation"),
-                self.context,
-                self.require_hard_improvement,
-            )
+            RuntimeProviderCursor::new(self.plan, self.context, self.require_hard_improvement)
         });
-        cursor.next_candidate(&resources.registry, &mut resources.reason_arena)
+        cursor.next_candidate(solution, &resources.registry, &mut resources.reason_arena)
     }
 
     pub(super) fn cursor_mut(&mut self) -> &mut RuntimeProviderCursor<'a, S> {

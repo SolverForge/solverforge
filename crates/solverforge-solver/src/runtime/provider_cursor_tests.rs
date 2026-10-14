@@ -25,10 +25,60 @@ use crate::{
     ScalarTarget,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct CursorSolution {
     score: Option<SoftScore>,
     values: Vec<Option<usize>>,
+}
+
+thread_local! {
+    static SOLUTION_CLONES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+impl Clone for CursorSolution {
+    fn clone(&self) -> Self {
+        SOLUTION_CLONES.with(|count| count.set(count.get() + 1));
+        Self {
+            score: self.score,
+            values: self.values.clone(),
+        }
+    }
+}
+
+#[test]
+fn provider_cursor_lends_the_activation_solution_without_snapshotting() {
+    let scalar = slot();
+    let allowed_slot = scalar.id();
+    let pulls = Arc::new(AtomicUsize::new(0));
+    let mut registry = RuntimeProviderRegistry::new(
+        vec![RuntimeScalarGroupProviderBinding {
+            declared_index: 0,
+            group_name: Arc::from("callbacks"),
+            callback: Arc::new(CountingGroupProvider {
+                pulls: Arc::clone(&pulls),
+            }),
+        }],
+        Vec::new(),
+        Arc::new(PanicBoundary),
+    )
+    .unwrap();
+    registry.freeze(&[scalar], &[], &[]).unwrap();
+    let plan = callback_group_plan(allowed_slot);
+    let solution = CursorSolution {
+        score: None,
+        values: vec![Some(0)],
+    };
+    SOLUTION_CLONES.with(|count| count.set(0));
+    let mut cursor = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
+    let mut reasons = ProviderReasonArena::default();
+    let id = cursor
+        .next_candidate(&solution, &registry, &mut reasons)
+        .expect("candidate");
+    let mov = cursor.take_candidate(id);
+    assert_eq!(pulls.load(Ordering::SeqCst), 1);
+    assert_eq!(reasons.label(mov.reason_id()), "candidate");
+    assert_eq!(solution.values, vec![Some(0)]);
+    assert_eq!(SOLUTION_CLONES.with(|count| count.get()), 0);
 }
 
 impl PlanningSolution for CursorSolution {
@@ -243,17 +293,18 @@ fn callback_group_is_lazy_and_explicit_zero_clamps_to_one_candidate() {
 
     let mut reasons = ProviderReasonArena::default();
     reset_runtime_compound_move_clone_count();
-    let mut cursor =
-        RuntimeProviderCursor::new(&plan, solution.clone(), MoveStreamContext::default(), false);
+    let mut cursor = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
     assert_eq!(pulls.load(Ordering::SeqCst), 0);
 
     let id = cursor
-        .next_candidate(&registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons)
         .expect("first callback candidate");
     assert_eq!(pulls.load(Ordering::SeqCst), 1);
     let selected = cursor.take_candidate(id);
     let reason_id = selected.reason_id();
-    assert!(cursor.next_candidate(&registry, &mut reasons).is_none());
+    assert!(cursor
+        .next_candidate(&solution, &registry, &mut reasons)
+        .is_none());
     assert_eq!(pulls.load(Ordering::SeqCst), 1);
     drop(cursor);
     assert_eq!(reasons.label(reason_id), "candidate");
@@ -284,20 +335,21 @@ fn static_group_stays_lazy_and_normalizes_typed_candidates_directly() {
         values: vec![Some(0)],
     };
     let mut reasons = ProviderReasonArena::default();
-    let mut cursor =
-        RuntimeProviderCursor::new(&plan, solution, MoveStreamContext::default(), false);
+    let mut cursor = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
     assert_eq!(STATIC_GROUP_PULLS.load(Ordering::SeqCst), 0);
 
     let first_id = cursor
-        .next_candidate(&registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons)
         .expect("first static candidate");
     let first_reason = cursor.take_candidate(first_id).reason_id();
     let second_id = cursor
-        .next_candidate(&registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons)
         .expect("second static candidate");
     let second_reason = cursor.take_candidate(second_id).reason_id();
 
-    assert!(cursor.next_candidate(&registry, &mut reasons).is_none());
+    assert!(cursor
+        .next_candidate(&solution, &registry, &mut reasons)
+        .is_none());
     assert_eq!(STATIC_GROUP_PULLS.load(Ordering::SeqCst), 1);
     assert_eq!(first_reason, second_reason);
     assert_eq!(reasons.label(first_reason), "static_candidate");
@@ -325,20 +377,21 @@ fn static_repair_stays_on_the_typed_candidate_path() {
         values: vec![Some(0)],
     };
     let mut reasons = ProviderReasonArena::default();
-    let mut cursor =
-        RuntimeProviderCursor::new(&plan, solution, MoveStreamContext::default(), false);
+    let mut cursor = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
     assert_eq!(STATIC_REPAIR_PULLS.load(Ordering::SeqCst), 0);
 
     let first_id = cursor
-        .next_candidate(&registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons)
         .expect("first static repair");
     let first_reason = cursor.take_candidate(first_id).reason_id();
     let second_id = cursor
-        .next_candidate(&registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons)
         .expect("second static repair");
     let second_reason = cursor.take_candidate(second_id).reason_id();
 
-    assert!(cursor.next_candidate(&registry, &mut reasons).is_none());
+    assert!(cursor
+        .next_candidate(&solution, &registry, &mut reasons)
+        .is_none());
     assert_eq!(STATIC_REPAIR_PULLS.load(Ordering::SeqCst), 1);
     assert_eq!(first_reason, second_reason);
     assert_eq!(reasons.label(first_reason), "static_repair");
@@ -369,15 +422,14 @@ fn provider_reason_arena_reuses_one_id_for_repeated_callback_labels() {
         values: vec![Some(0)],
     };
     let mut reasons = ProviderReasonArena::default();
-    let mut cursor =
-        RuntimeProviderCursor::new(&plan, solution.clone(), MoveStreamContext::default(), false);
+    let mut cursor = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
 
     let first_id = cursor
-        .next_candidate(&registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons)
         .expect("first candidate");
     let first = cursor.take_candidate(first_id);
     let second_id = cursor
-        .next_candidate(&registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons)
         .expect("second candidate");
     let second = cursor.take_candidate(second_id);
     let first_reason = first.reason_id();
@@ -417,18 +469,16 @@ fn concurrent_lazy_cursors_share_the_execution_arena_without_retaining_its_borro
 
     // Both leaves can remain live. The top-level execution owns the only
     // mutable arena and lends it to whichever lazy leaf reaches a pull.
-    let mut first =
-        RuntimeProviderCursor::new(&plan, solution.clone(), MoveStreamContext::default(), false);
-    let mut second =
-        RuntimeProviderCursor::new(&plan, solution.clone(), MoveStreamContext::default(), false);
+    let mut first = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
+    let mut second = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
     assert_eq!(pulls.load(Ordering::SeqCst), 0);
 
     let first_id = first
-        .next_candidate(&registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons)
         .expect("first lazy candidate");
     let first = first.take_candidate(first_id).reason_id();
     let second_id = second
-        .next_candidate(&registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons)
         .expect("second lazy candidate");
     let second = second.take_candidate(second_id).reason_id();
 

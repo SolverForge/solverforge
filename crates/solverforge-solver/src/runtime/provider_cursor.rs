@@ -23,23 +23,15 @@ use super::compiler::{
 
 /// Cursor-owned, lazily initialized compound-provider stream.
 ///
-/// A provider source is never pulled by `new`; its first pull happens only
-/// when `next_candidate` is reached. For a static `OpenCursor` declaration,
-/// that first reachable pull is the provider leaf's activation boundary. It
-/// therefore retains eager-at-activation semantics without making an
-/// unreached, limited-zero, or impossible Cartesian branch observable.
-///
-/// The cursor deliberately does not retain the solve-owned reason arena. The
-/// recursive compiled-selector execution owns that arena and passes it only
-/// at normalization/pull boundaries. This lets one execution interleave
-/// nested provider leaves without shared ownership, interior mutability, or
-/// duplicate per-leaf arenas while preserving one stable ID space.
+/// Sources activate only on a scheduler-reached pull, including static
+/// `OpenCursor` declarations. Unreached or limited-zero branches remain inert.
+/// The caller lends the preview-relative solution, registry and solve-owned
+/// reason arena at each pull; the cursor retains none of their borrows.
 pub(crate) struct RuntimeProviderCursor<'p, S>
 where
     S: PlanningSolution + 'static,
 {
     plan: &'p CompiledProviderPlan,
-    solution: S,
     context: MoveStreamContext,
     require_hard_improvement: bool,
     store: CandidateStore<S, RuntimeCompoundMove<S>>,
@@ -53,13 +45,11 @@ where
 {
     pub(crate) fn new(
         plan: &'p CompiledProviderPlan,
-        solution: S,
         context: MoveStreamContext,
         require_hard_improvement: bool,
     ) -> Self {
         Self {
             plan,
-            solution,
             context,
             require_hard_improvement,
             store: CandidateStore::new(),
@@ -70,6 +60,7 @@ where
 
     fn prepare(
         &mut self,
+        solution: &S,
         registry: &RuntimeProviderRegistry<S>,
         reason_arena: &mut ProviderReasonArena,
     ) {
@@ -82,6 +73,7 @@ where
                 value_candidate_limit,
                 requested_max_moves_per_step,
             } => self.prepare_group(
+                solution,
                 registry,
                 *value_candidate_limit,
                 *requested_max_moves_per_step,
@@ -94,6 +86,7 @@ where
                 max_moves_per_step,
                 include_soft_matches,
             } => self.prepare_repair(
+                solution,
                 registry,
                 constraints,
                 *max_matches_per_step,
@@ -107,6 +100,7 @@ where
 
     fn prepare_group(
         &mut self,
+        solution: &S,
         registry: &RuntimeProviderRegistry<S>,
         value_candidate_limit: Option<usize>,
         requested_max_moves_per_step: Option<usize>,
@@ -141,9 +135,15 @@ where
                         value_candidate_limit,
                         max_moves_per_step: Some(max_moves),
                     };
-                    let raw = registry.pull_callback_raw(binding.handle, &self.solution, limits);
-                    let mut candidates =
-                        self.normalize(registry, binding, raw, &mut normalization, reason_arena);
+                    let raw = registry.pull_callback_raw(binding.handle, solution, limits);
+                    let mut candidates = self.normalize(
+                        solution,
+                        registry,
+                        binding,
+                        raw,
+                        &mut normalization,
+                        reason_arena,
+                    );
                     // Callback order is normalized/deduped first, capped in
                     // callback order, then step-rotated.
                     candidates.truncate(max_moves);
@@ -161,7 +161,7 @@ where
                     };
                     let mut native = registry.pull_static_group(
                         provider_index,
-                        &self.solution,
+                        solution,
                         value_candidate_limit,
                         Some(max_moves),
                     );
@@ -171,7 +171,7 @@ where
                     self.context
                         .apply_selection_order(&mut native, rotation_seed_salt);
                     registry.normalize_static_group(
-                        &self.solution,
+                        solution,
                         native,
                         &binding.allowed_slots,
                         &mut normalization,
@@ -185,7 +185,7 @@ where
                 if self.store.len() >= max_moves {
                     break;
                 }
-                self.push_candidate(candidate);
+                self.push_candidate(solution, candidate);
             }
         }
     }
@@ -193,6 +193,7 @@ where
     #[allow(clippy::too_many_arguments)]
     fn prepare_repair(
         &mut self,
+        solution: &S,
         registry: &RuntimeProviderRegistry<S>,
         constraints: &[String],
         max_matches_per_step: usize,
@@ -210,6 +211,7 @@ where
         }
         let mut provider_invocations = 0usize;
         self.prepare_callback_repairs(
+            solution,
             registry,
             constraints,
             max_matches_per_step,
@@ -221,6 +223,7 @@ where
         );
         if self.store.len() < max_moves_per_step && provider_invocations < max_matches_per_step {
             self.prepare_static_repairs(
+                solution,
                 registry,
                 constraints,
                 max_matches_per_step,
@@ -235,6 +238,7 @@ where
     #[allow(clippy::too_many_arguments)]
     fn prepare_callback_repairs(
         &mut self,
+        solution: &S,
         registry: &RuntimeProviderRegistry<S>,
         constraints: &[String],
         max_matches_per_step: usize,
@@ -286,7 +290,7 @@ where
             *provider_invocations += 1;
             let raw = registry.pull_callback_raw(
                 binding.handle,
-                &self.solution,
+                solution,
                 repair_limits(
                     &limits,
                     max_matches_per_step,
@@ -296,14 +300,20 @@ where
                 ),
             );
             let mut normalization = ProviderNormalizationState::default();
-            let mut candidates =
-                self.normalize(registry, binding, raw, &mut normalization, reason_arena);
+            let mut candidates = self.normalize(
+                solution,
+                registry,
+                binding,
+                raw,
+                &mut normalization,
+                reason_arena,
+            );
             candidates.truncate(max_repairs_per_match);
             for candidate in candidates {
                 if self.store.len() >= max_moves_per_step {
                     break;
                 }
-                self.push_candidate(candidate);
+                self.push_candidate(solution, candidate);
             }
         }
     }
@@ -311,6 +321,7 @@ where
     #[allow(clippy::too_many_arguments)]
     fn prepare_static_repairs(
         &mut self,
+        solution: &S,
         registry: &RuntimeProviderRegistry<S>,
         constraints: &[String],
         max_matches_per_step: usize,
@@ -376,7 +387,7 @@ where
                 };
                 let mut native = registry.pull_static_repair(
                     provider_index,
-                    &self.solution,
+                    solution,
                     RepairLimits {
                         max_matches_per_step,
                         max_repairs_per_match,
@@ -389,7 +400,7 @@ where
                 );
                 native.truncate(max_repairs_per_match);
                 for candidate in registry.normalize_static_repair(
-                    &self.solution,
+                    solution,
                     native,
                     &binding.allowed_slots,
                     &mut normalization,
@@ -398,7 +409,7 @@ where
                     if self.store.len() >= max_moves_per_step {
                         return;
                     }
-                    self.push_candidate(candidate);
+                    self.push_candidate(solution, candidate);
                 }
             }
         }
@@ -406,22 +417,17 @@ where
 
     fn normalize(
         &self,
+        solution: &S,
         registry: &RuntimeProviderRegistry<S>,
         binding: &ProviderBindingPlan,
         raw: Vec<RawProviderCandidate>,
         state: &mut ProviderNormalizationState,
         reason_arena: &mut ProviderReasonArena,
     ) -> Vec<ResolvedProviderCandidate<S>> {
-        registry.normalize_or_raise(
-            &self.solution,
-            raw,
-            &binding.allowed_slots,
-            state,
-            reason_arena,
-        )
+        registry.normalize_or_raise(solution, raw, &binding.allowed_slots, state, reason_arena)
     }
 
-    fn push_candidate(&mut self, candidate: ResolvedProviderCandidate<S>) {
+    fn push_candidate(&mut self, solution: &S, candidate: ResolvedProviderCandidate<S>) {
         let edits = candidate
             .edits
             .into_iter()
@@ -433,7 +439,7 @@ where
             edits,
             self.require_hard_improvement,
         );
-        if mov.is_doable_on(&self.solution) {
+        if mov.is_doable_on(solution) {
             self.store.push(mov);
         }
     }
@@ -448,10 +454,11 @@ where
     /// cursor never retains it between pulls.
     pub(crate) fn next_candidate(
         &mut self,
+        solution: &S,
         registry: &RuntimeProviderRegistry<S>,
         reason_arena: &mut ProviderReasonArena,
     ) -> Option<CandidateId> {
-        self.prepare(registry, reason_arena);
+        self.prepare(solution, registry, reason_arena);
         while self.next_index < self.store.len() {
             let id = CandidateId::new(self.next_index);
             self.next_index += 1;

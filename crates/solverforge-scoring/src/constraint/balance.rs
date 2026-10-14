@@ -277,7 +277,12 @@ where
             if let Some(key) = (self.key_fn)(entity) {
                 let old_count = *self.counts.get(&key).unwrap_or(&0);
                 let new_count = old_count + 1;
-                self.counts.insert(key.clone(), new_count);
+                match self.counts.get_mut(&key) {
+                    Some(slot) => *slot = new_count,
+                    None => {
+                        self.counts.insert(key.clone(), new_count);
+                    }
+                }
                 self.entity_keys.insert(idx, key);
 
                 if old_count == 0 {
@@ -316,7 +321,12 @@ where
 
         let old_count = *self.counts.get(&key).unwrap_or(&0);
         let new_count = old_count + 1;
-        self.counts.insert(key.clone(), new_count);
+        match self.counts.get_mut(&key) {
+            Some(slot) => *slot = new_count,
+            None => {
+                self.counts.insert(key.clone(), new_count);
+            }
+        }
         self.entity_keys.insert(entity_index, key);
 
         if old_count == 0 {

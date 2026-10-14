@@ -127,7 +127,12 @@ impl<K: Clone + Eq + Hash> LoadBalanceAccumulator<K> {
         let new_value = old_value + diff;
 
         if old_value != new_value {
-            self.loads.insert(key.clone(), new_value);
+            match self.loads.get_mut(key) {
+                Some(slot) => *slot = new_value,
+                None => {
+                    self.loads.insert(key.clone(), new_value);
+                }
+            }
             self.update_squared_deviation(old_value, new_value);
             self.sum += diff;
         }
@@ -197,8 +202,12 @@ impl<K: Clone + Eq + Hash + Send + Sync> Accumulator<(K, i64), LoadBalance<K>>
         if metric == 0 {
             return (key, metric); // Skip zero-metric entries (e.g., unassigned shifts)
         }
-        let count = self.item_counts.entry(key.clone()).or_insert(0);
-        *count += 1;
+        match self.item_counts.get_mut(&key) {
+            Some(count) => *count += 1,
+            None => {
+                self.item_counts.insert(key.clone(), 1);
+            }
+        }
         self.add_to_metric(&key, metric);
         (key, metric)
     }

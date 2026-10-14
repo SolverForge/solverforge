@@ -139,14 +139,19 @@ where
         let mut ordinal = 0;
         self.input.visit_evaluation(solution, &input, &mut |row| {
             let key = (self.key)(&row);
-            let index = *by_key.entry(key.clone()).or_insert_with(|| {
-                groups.push(EvaluatedGroup {
-                    key,
-                    accumulator: self.collector.create_accumulator(),
-                    ordinals: Vec::new(),
-                });
-                groups.len() - 1
-            });
+            let index = match by_key.get(&key) {
+                Some(&index) => index,
+                None => {
+                    let index = groups.len();
+                    groups.push(EvaluatedGroup {
+                        key,
+                        accumulator: self.collector.create_accumulator(),
+                        ordinals: Vec::new(),
+                    });
+                    by_key.insert(groups[index].key.clone(), index);
+                    index
+                }
+            };
             groups[index]
                 .accumulator
                 .accumulate(self.collector.extract(row));

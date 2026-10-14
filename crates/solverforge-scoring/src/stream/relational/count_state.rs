@@ -12,17 +12,27 @@ once at construction; the event path calls one enum method per key and
 nothing else branches.
 */
 
-use super::{FastMap, FastSet, RowHandle};
+use super::{FastMap, RowHandle};
+
+/// One key's count plus the epoch of its last touch, stamped against the
+/// owning state's event counter. The epoch replaces a second keyed structure
+/// (a marked set): first-touch detection is one map probe on the entry that
+/// must be written anyway, and the touched list carries the only extra key.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct CountSlot {
+    count: usize,
+    touched_epoch: u64,
+}
 
 pub enum KeyState<K> {
     Dense(DenseKeys),
     Hashed {
-        counts: FastMap<K, usize>,
+        counts: FastMap<K, CountSlot>,
         left_buckets: FastMap<K, Vec<RowHandle>>,
         /// Keys whose count changed in the current event, first-touch order.
         touched: Vec<K>,
-        /// Membership marker for `touched`, so duplicates never enter the list.
-        marked: FastSet<K>,
+        /// Monotonic event counter stamping `touched` epochs.
+        epoch: u64,
     },
 }
 
@@ -41,7 +51,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
                 counts: FastMap::default(),
                 left_buckets: FastMap::default(),
                 touched: Vec::new(),
-                marked: FastSet::default(),
+                epoch: 0,
             }
         }
     }
@@ -56,16 +66,16 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
             Self::Hashed {
                 counts,
                 touched,
-                marked,
+                epoch,
                 ..
             } => {
-                if !marked.contains(key) {
-                    marked.insert(key.clone());
+                let entry = counts.entry(key.clone()).or_default();
+                if entry.touched_epoch != *epoch {
+                    entry.touched_epoch = *epoch;
                     touched.push(key.clone());
                 }
-                let entry = counts.entry(key.clone()).or_insert(0);
-                *entry += n;
-                *entry
+                entry.count += n;
+                entry.count
             }
         }
     }
@@ -77,16 +87,20 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
             Self::Hashed {
                 counts,
                 touched,
-                marked,
+                epoch,
                 ..
             } => {
-                if !marked.contains(key) {
-                    marked.insert(key.clone());
+                let needs_touch = counts
+                    .get(key)
+                    .is_none_or(|slot| slot.touched_epoch != *epoch);
+                if needs_touch {
+                    let entry = counts.entry(key.clone()).or_default();
+                    entry.touched_epoch = *epoch;
                     touched.push(key.clone());
                 }
                 if let Some(entry) = counts.get_mut(key) {
-                    *entry -= n;
-                    if *entry == 0 {
+                    entry.count = entry.count.saturating_sub(n);
+                    if entry.count == 0 {
                         counts.remove(key);
                     }
                 }
@@ -141,7 +155,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
     pub fn begin_event(&mut self) {
         match self {
             Self::Dense(state) => state.begin_event(),
-            Self::Hashed { .. } => {}
+            Self::Hashed { epoch, .. } => *epoch += 1,
         }
     }
 
@@ -155,10 +169,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
                     out.push(key_from_raw::<K>(raw));
                 }
             }
-            Self::Hashed {
-                touched, marked, ..
-            } => {
-                marked.clear();
+            Self::Hashed { touched, .. } => {
                 out.append(touched);
             }
         }

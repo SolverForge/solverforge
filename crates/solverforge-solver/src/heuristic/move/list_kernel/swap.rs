@@ -90,7 +90,7 @@ pub(crate) fn swap_do_move<S, A, D>(
             score_director.working_solution_mut(),
             coordinates.first_entity,
             coordinates.first_position,
-            second_value.clone(),
+            second_value,
         )
         .expect("validated list swap access should set the first value");
     access
@@ -98,7 +98,7 @@ pub(crate) fn swap_do_move<S, A, D>(
             score_director.working_solution_mut(),
             coordinates.second_entity,
             coordinates.second_position,
-            first_value.clone(),
+            first_value,
         )
         .expect("validated list swap access should set the second value");
     score_director.after_variable_changed(descriptor_index, coordinates.first_entity);

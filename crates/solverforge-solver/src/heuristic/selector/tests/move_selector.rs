@@ -371,7 +371,9 @@ fn change_selector_materializes_values_on_open_and_moves_on_demand() {
         .expect("first move should be available");
     assert_eq!(first.entity_index(), 0);
     assert_eq!(first.to_value().map(|value| value.id), Some(0));
-    assert_eq!(cloned.load(Ordering::SeqCst), 11);
+    // Values materialize once at open; the per-pull handoff moves them out of
+    // the cursor's drained slot, so no additional copy is counted here.
+    assert_eq!(cloned.load(Ordering::SeqCst), 10);
 
     let next_two: Vec<_> = (0..2)
         .filter_map(|_| cursor.next_owned_candidate(director.working_solution()))
@@ -384,7 +386,7 @@ fn change_selector_materializes_values_on_open_and_moves_on_demand() {
             .collect::<Vec<_>>(),
         vec![Some(1), Some(2)]
     );
-    assert_eq!(cloned.load(Ordering::SeqCst), 13);
+    assert_eq!(cloned.load(Ordering::SeqCst), 10);
 }
 
 #[test]

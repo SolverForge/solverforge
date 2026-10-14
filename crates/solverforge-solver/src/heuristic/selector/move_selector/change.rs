@@ -14,6 +14,9 @@ pub struct ChangeMoveSelector<S, V, ES, VS> {
 struct ChangeEntityValues<V> {
     entity_ref: super::entity::EntityReference,
     values: Vec<V>,
+    /// Value count before any drain: the `None` (unassigned) offer lands after
+    /// every value slot, so the count must survive draining.
+    total_values: usize,
     current_assigned: bool,
 }
 
@@ -65,9 +68,13 @@ where
     #[inline(always)]
     fn next_move(&mut self) -> Option<ChangeMove<S, V>> {
         while self.entity_offset < self.entity_values.len() {
-            let entity_values = &self.entity_values[self.entity_offset];
-            if self.value_offset < entity_values.values.len() {
-                let value = entity_values.values[self.value_offset].clone();
+            if self.value_offset < self.entity_values[self.entity_offset].total_values {
+                let entity_values = &mut self.entity_values[self.entity_offset];
+                let value = entity_values
+                    .values
+                    .drain(..1)
+                    .next()
+                    .expect("value slot below total_values must exist before its drain");
                 self.value_offset += 1;
                 return Some(ChangeMove::new(
                     entity_values.entity_ref.entity_index,
@@ -80,14 +87,15 @@ where
                 ));
             }
 
-            let to_none_offset = entity_values.values.len();
+            let current = &self.entity_values[self.entity_offset];
+            let to_none_offset = current.total_values;
             if self.allows_unassigned
-                && entity_values.current_assigned
+                && current.current_assigned
                 && self.value_offset == to_none_offset
             {
                 self.value_offset += 1;
                 return Some(ChangeMove::new(
-                    entity_values.entity_ref.entity_index,
+                    current.entity_ref.entity_index,
                     None,
                     self.getter,
                     self.setter,
@@ -280,6 +288,7 @@ where
                 };
                 ChangeEntityValues {
                     entity_ref,
+                    total_values: value_count,
                     values,
                     current_assigned,
                 }

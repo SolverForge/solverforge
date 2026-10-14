@@ -7,6 +7,7 @@ chooses a stable candidate index.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::sync::Mutex;
 
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
@@ -134,6 +135,20 @@ where
     live_pairs: usize,
 }
 
+impl<S, M> CartesianRow<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    /* Replaces the row's left move and clears its candidate store; the store
+    keeps its backing capacity so repeated opens do not re-grow it. */
+    fn replace_left(&mut self, left: M) -> M {
+        self.right_moves.reset();
+        self.live_pairs = 0;
+        std::mem::replace(&mut self.left, left)
+    }
+}
+
 struct ActiveCartesianRow<C, U> {
     row_index: usize,
     right_cursor: C,
@@ -146,6 +161,41 @@ struct CartesianPair {
     right_id: CandidateId,
     entity_indices: SmallVec<[usize; 8]>,
     tabu_signature: MoveTabuSignature,
+}
+
+/* Per-selector scratch pool. Rows and pair slots retain their backing
+capacities across cursor opens; each open drains the pool and the cursor
+returns the buffers on drop. Rows are reset in place (left move replaced,
+right store cleared with capacity kept, live_pairs zeroed) so no stale move
+state survives into the next open. */
+struct CartesianScratch<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    rows: Vec<Option<CartesianRow<S, M>>>,
+    pairs: Vec<Option<CartesianPair>>,
+}
+
+impl<S, M> CartesianScratch<S, M>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
+    fn new() -> Self {
+        Self {
+            rows: Vec::new(),
+            pairs: Vec::new(),
+        }
+    }
+
+    fn reset(&mut self) {
+        for row in self.rows.iter_mut().flatten() {
+            row.right_moves.reset();
+            row.live_pairs = 0;
+        }
+        self.pairs.clear();
+    }
 }
 
 pub struct CartesianProductCursor<'a, S, M, LeftCursor, Right>
@@ -162,7 +212,28 @@ where
     active_row: Option<ActiveCartesianRow<Right::Cursor<'a>, M::Undo>>,
     pairs: Vec<Option<CartesianPair>>,
     context: MoveStreamContext,
+    scratch: Option<&'a Mutex<CartesianScratch<S, M>>>,
     _phantom: PhantomData<fn() -> S>,
+}
+
+impl<'a, S, M, LeftCursor, Right> Drop for CartesianProductCursor<'a, S, M, LeftCursor, Right>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+    LeftCursor: MoveCursor<S, M>,
+    Right: MoveSelector<S, M>,
+{
+    /* Returns the rows and pair slots to the selector's scratch pool with
+    their backing capacities intact, so the next open_cursor() does not
+    re-grow the vectors. */
+    fn drop(&mut self) {
+        if let Some(pool) = self.scratch {
+            if let Ok(mut pool) = pool.lock() {
+                std::mem::swap(&mut pool.rows, &mut self.rows);
+                std::mem::swap(&mut pool.pairs, &mut self.pairs);
+            }
+        }
+    }
 }
 
 impl<'a, S, M, LeftCursor, Right> CartesianProductCursor<'a, S, M, LeftCursor, Right>
@@ -177,15 +248,19 @@ where
         left_cursor: LeftCursor,
         right_selector: &'a Right,
         context: MoveStreamContext,
+        rows: Vec<Option<CartesianRow<S, M>>>,
+        pairs: Vec<Option<CartesianPair>>,
+        scratch: &'a Mutex<CartesianScratch<S, M>>,
     ) -> Self {
         Self {
             require_hard_improvement,
             left_cursor,
             right_selector,
-            rows: Vec::new(),
+            rows,
             active_row: None,
-            pairs: Vec::new(),
+            pairs,
             context,
+            scratch: Some(scratch),
             _phantom: PhantomData,
         }
     }
@@ -389,12 +464,31 @@ where
             let right_cursor = self
                 .right_selector
                 .open_cursor_with_context(&*director, self.context);
-            let row_index = self.rows.len();
-            self.rows.push(Some(CartesianRow {
-                left,
-                right_moves: CandidateStore::new(),
-                live_pairs: 0,
-            }));
+            let pooled_len = self.rows.len();
+            let row_index = pooled_len;
+            let row = if row_index < pooled_len {
+                // Pooled slot from a previous open: reuse its candidate-store
+                // capacity and drop the stale left move. Released rows come
+                // back as None slots and rebuild fresh.
+                match self.rows[row_index].take() {
+                    Some(mut slot) => {
+                        let _stale_left = slot.replace_left(left);
+                        slot
+                    }
+                    None => CartesianRow {
+                        left,
+                        right_moves: CandidateStore::new(),
+                        live_pairs: 0,
+                    },
+                }
+            } else {
+                CartesianRow {
+                    left,
+                    right_moves: CandidateStore::new(),
+                    live_pairs: 0,
+                }
+            };
+            self.rows.push(Some(row));
             self.active_row = Some(ActiveCartesianRow {
                 row_index,
                 right_cursor,
@@ -495,10 +589,15 @@ fn combined_entity_indices(left: &[usize], right: &[usize]) -> SmallVec<[usize; 
 
 /// Cartesian product selector that evaluates the right child after the left
 /// child on a preview solution and yields borrowable sequential candidates.
-pub struct CartesianProductSelector<S, M, Left, Right> {
+pub struct CartesianProductSelector<S, M, Left, Right>
+where
+    S: PlanningSolution,
+    M: Move<S>,
+{
     left: Left,
     right: Right,
     require_hard_improvement: bool,
+    scratch: Mutex<CartesianScratch<S, M>>,
     _phantom: PhantomData<fn() -> (S, M)>,
 }
 
@@ -514,6 +613,7 @@ where
             left,
             right,
             require_hard_improvement: false,
+            scratch: Mutex::new(CartesianScratch::new()),
             _phantom: PhantomData,
         }
     }
@@ -562,11 +662,22 @@ where
         context: MoveStreamContext,
     ) -> Self::Cursor<'a> {
         self.right.validate_cursor(score_director);
+        let mut scratch = self
+            .scratch
+            .lock()
+            .expect("cartesian scratch pool must not be poisoned");
+        scratch.reset();
+        let rows = std::mem::take(&mut scratch.rows);
+        let pairs = std::mem::take(&mut scratch.pairs);
+        drop(scratch);
         CartesianProductCursor::new(
             self.require_hard_improvement,
             self.left.open_cursor_with_context(score_director, context),
             &self.right,
             context,
+            rows,
+            pairs,
+            &self.scratch,
         )
     }
 

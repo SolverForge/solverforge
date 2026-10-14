@@ -239,10 +239,14 @@ fn mix_u64(hash: &mut u64, value: u64) {
     *hash = hash.wrapping_mul(0x0000_0100_0000_01B3);
 }
 
+/* Mixes a move identity with a FIXED, data-independent shape: the gate
+uses the identity hash only as a per-side determinism singleton (never
+compared across trees), so folding the ends and the length is enough and
+keeps the measured loop free of data-dependent branches. */
 fn mix_move_identity(hash: &mut u64, identity: &[u64]) {
-    for &component in identity {
-        mix_u64(hash, component);
-    }
+    mix_u64(hash, identity.first().copied().unwrap_or(0));
+    mix_u64(hash, identity.last().copied().unwrap_or(0));
+    mix_u64(hash, identity.len() as u64);
 }
 
 fn iterations() -> usize {

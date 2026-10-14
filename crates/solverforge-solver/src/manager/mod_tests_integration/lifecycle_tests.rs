@@ -8,8 +8,9 @@ use super::super::{
 };
 use super::common::recv_event;
 use super::lifecycle_solutions::{
-    DeleteReservationSolution, LifecycleSolution, PauseOrderingSolution,
-    PauseRequestedProgressSolution, TerminalHookLifecycleSolution, ZeroVariableLifecycleSolution,
+    DeleteReservationSolution, LifecycleSolution, PanickingLifecycleSolution,
+    PauseOrderingSolution, PauseRequestedProgressSolution, TerminalHookLifecycleSolution,
+    ZeroVariableLifecycleSolution,
 };
 
 #[test]
@@ -513,4 +514,97 @@ fn zero_variable_job_cancelled_while_paused_reports_cancelled() {
     }
 
     MANAGER.delete(job_id).expect("delete cancelled job");
+}
+
+#[test]
+fn retained_job_panic_propagates_as_failure_and_releases_the_slot() {
+    static MANAGER: SolverManager<PanickingLifecycleSolution> = SolverManager::new();
+
+    let (job_id, mut receiver) = MANAGER
+        .solve(PanickingLifecycleSolution::new(3))
+        .expect("panicking job should start");
+
+    match recv_event(&mut receiver, "failed event") {
+        SolverEvent::Failed { metadata, error } => {
+            assert_eq!(metadata.job_id, job_id);
+            assert_eq!(metadata.lifecycle_state, SolverLifecycleState::Failed);
+            assert!(
+                error.contains("panicking job explosion marker"),
+                "the panic message must reach the failure event verbatim: {error}"
+            );
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+
+    // The panicked worker must not poison the manager: the slot is released
+    // and a follow-up healthy job completes normally on the same manager.
+    let status = MANAGER.get_status(job_id).expect("status after failure");
+    assert_eq!(status.lifecycle_state, SolverLifecycleState::Failed);
+
+    // Terminal jobs stay retained until delete; the panicked slot becomes
+    // free exactly when the job is deleted and the worker has exited. Deleting
+    // must succeed (bounded retry for the async worker exit), and the manager
+    // must then accept a fresh job on the released slot.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        match MANAGER.delete(job_id) {
+            Ok(()) => break,
+            Err(SolverManagerError::JobNotFound { .. }) => break,
+            Err(other) => {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "failed job could not be deleted: {other:?}"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        }
+    }
+
+    let (second_id, mut second_receiver) = MANAGER
+        .solve(PanickingLifecycleSolution::new(3))
+        .expect("manager must accept a new job after deleting the panicked one");
+    assert_eq!(second_id, job_id, "the released slot must be reused");
+    match recv_event(&mut second_receiver, "follow-up failed event") {
+        SolverEvent::Failed { .. } => {}
+        other => panic!("unexpected event: {other:?}"),
+    }
+}
+
+#[test]
+fn retained_jobs_solve_independently_without_cross_publication() {
+    static MANAGER: SolverManager<LifecycleSolution> = SolverManager::new();
+
+    let mut gates = Vec::new();
+    let mut receivers = Vec::new();
+    for (job_value, initial_score) in [(7, 7), (11, 11)] {
+        let solution =
+            LifecycleSolution::new_with_score(job_value, Some(SoftScore::of(initial_score)));
+        gates.push(solution.gate.clone());
+        let (_id, receiver) = MANAGER.solve(solution).expect("job should start");
+        receivers.push(receiver);
+    }
+
+    // Unblock both gated steps; each job then drives to completion.
+    for gate in &gates {
+        gate.allow_next_step();
+    }
+
+    for (expected_value, mut receiver) in [(7, receivers.remove(0)), (11, receivers.remove(0))] {
+        let mut best_value: Option<i64> = None;
+        loop {
+            match recv_event(&mut receiver, "job completion flow") {
+                SolverEvent::BestSolution { ref solution, .. } => {
+                    assert_eq!(solution.value, expected_value, "no cross-publication");
+                    best_value = Some(solution.value);
+                }
+                SolverEvent::Progress { .. } => {}
+                SolverEvent::Completed { ref solution, .. } => {
+                    assert_eq!(solution.value, expected_value);
+                    assert_eq!(best_value, Some(expected_value));
+                    break;
+                }
+                other => panic!("unexpected event: {other:?}"),
+            }
+        }
+    }
 }

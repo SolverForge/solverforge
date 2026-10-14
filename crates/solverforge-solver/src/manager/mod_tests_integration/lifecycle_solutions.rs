@@ -17,7 +17,7 @@ use crate::{try_run_solver_with_config_and_search, DefaultCrossEntityDistanceMet
 #[derive(Clone, Debug)]
 pub(super) struct LifecycleSolution {
     pub(super) gate: LifecycleStepGate,
-    value: i64,
+    pub(super) value: i64,
     score: Option<SoftScore>,
 }
 
@@ -27,6 +27,14 @@ impl LifecycleSolution {
             gate: LifecycleStepGate::new_closed(),
             value,
             score: None,
+        }
+    }
+
+    pub(super) fn new_with_score(value: i64, score: Option<SoftScore>) -> Self {
+        Self {
+            gate: LifecycleStepGate::new_closed(),
+            value,
+            score,
         }
     }
 }
@@ -175,6 +183,118 @@ impl Solvable for LifecycleSolution {
                 SolverTerminalReason::Completed,
             );
         }
+    }
+}
+
+/// A job whose solve panics mid-flight: used to pin panic-to-Failure
+/// propagation and slot release without poisoning the manager.
+#[derive(Clone, Debug)]
+pub(super) struct PanickingLifecycleSolution {
+    value: i64,
+    score: Option<SoftScore>,
+}
+
+impl PanickingLifecycleSolution {
+    pub(super) fn new(value: i64) -> Self {
+        Self { value, score: None }
+    }
+}
+
+impl PlanningSolution for PanickingLifecycleSolution {
+    type Score = SoftScore;
+
+    fn score(&self) -> Option<Self::Score> {
+        self.score
+    }
+
+    fn set_score(&mut self, score: Option<Self::Score>) {
+        self.score = score;
+    }
+}
+
+impl Analyzable for PanickingLifecycleSolution {
+    fn analyze(&self) -> ScoreAnalysis<Self::Score> {
+        let score = SoftScore::of(self.value);
+        ScoreAnalysis {
+            score,
+            constraints: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct PanickingLifecycleDirector {
+    working_solution: PanickingLifecycleSolution,
+    descriptor: SolutionDescriptor,
+}
+
+impl PanickingLifecycleDirector {
+    fn new(solution: PanickingLifecycleSolution) -> Self {
+        Self {
+            working_solution: solution,
+            descriptor: SolutionDescriptor::new(
+                "PanickingLifecycleSolution",
+                TypeId::of::<PanickingLifecycleSolution>(),
+            ),
+        }
+    }
+}
+
+impl solverforge_scoring::Director<PanickingLifecycleSolution> for PanickingLifecycleDirector {
+    fn working_solution(&self) -> &PanickingLifecycleSolution {
+        &self.working_solution
+    }
+
+    fn working_solution_mut(&mut self) -> &mut PanickingLifecycleSolution {
+        &mut self.working_solution
+    }
+
+    fn calculate_score(&mut self) -> SoftScore {
+        let score = SoftScore::of(self.working_solution.value);
+        self.working_solution.set_score(Some(score));
+        score
+    }
+
+    fn solution_descriptor(&self) -> &SolutionDescriptor {
+        &self.descriptor
+    }
+
+    fn clone_working_solution(&self) -> PanickingLifecycleSolution {
+        self.working_solution.clone()
+    }
+
+    fn before_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn after_variable_changed(&mut self, _descriptor_index: usize, _entity_index: usize) {}
+
+    fn entity_count(&self, _descriptor_index: usize) -> Option<usize> {
+        Some(0)
+    }
+
+    fn total_entity_count(&self) -> Option<usize> {
+        Some(0)
+    }
+
+    fn constraint_metadata(&self) -> Vec<solverforge_scoring::ConstraintMetadata<'_>> {
+        Vec::new()
+    }
+}
+
+impl Solvable for PanickingLifecycleSolution {
+    fn solve(
+        self,
+        runtime: SolverRuntime<Self>,
+        _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
+    ) {
+        let mut solver_scope = SolverScope::new_with_callback(
+            PanickingLifecycleDirector::new(self),
+            (),
+            None,
+            Some(runtime),
+        );
+
+        solver_scope.start_solving();
+        panic!("panicking job explosion marker");
     }
 }
 

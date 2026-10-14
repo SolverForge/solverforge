@@ -467,7 +467,7 @@ Requires: `Send + Debug`.
 
 | Method | Signature | Default |
 |--------|-----------|---------|
-| `is_terminated` | `fn(&self, solver_scope: &SolverScope<S, D, ProgressCb>) -> bool` | — |
+| `is_terminated` | `fn(&mut self, solver_scope: &SolverScope<S, D, ProgressCb>) -> bool` | — |
 | `install_inphase_limits` | `fn(&self, solver_scope: &mut SolverScope<S, D, ProgressCb>)` | no-op |
 
 All concrete termination types implement `Termination<S, D, ProgressCb>` for all `ProgressCb: ProgressCallback<S>`.
@@ -722,7 +722,8 @@ Retained-job runtime context passed into `Solvable::solve()`. This is the public
 
 `SolverRuntime::detached()` is for synchronous configured solves that are not
 retained by a `SolverManager`; it owns an internal lifecycle slot and no event
-receiver. `SolverPanicPayload` is the cold foreign-runtime panic boundary. Its
+receiver. The slot is cached and reused per solution type per thread; each
+detached solve starts from a pristine slot state. `SolverPanicPayload` is the cold foreign-runtime panic boundary. Its
 `new(message, payload)`, `message()`, and `into_parts()` methods preserve both a
 displayable message and the original `Box<dyn Any + Send>` payload.
 
@@ -1582,7 +1583,8 @@ termination is configured.
 **`MaybeTermination<S, D, ProgressCb = ()>`** is the public marker trait for
 termination carriers used by `Solver`. It is implemented for `NoTermination`
 and `Option<T>` where `T: Termination<S, D, ProgressCb>`. Methods:
-`should_terminate(&SolverScope<...>)` and `install_inphase_limits(&mut SolverScope<...>)`.
+`should_terminate(&mut self, SolverScope<...>)` and
+`install_inphase_limits(&mut self, SolverScope<...>)`.
 
 ### `SolveResult<S>`
 

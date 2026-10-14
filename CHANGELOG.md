@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.21.1](https://github.com/SolverForge/solverforge/compare/v0.21.0...v0.21.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **solver:** rebase interior composite edges when merging selector subgraphs ([e958244](https://github.com/SolverForge/solverforge/commit/e9582449e936a0f0372c36603803a946dc66737b))
+
+
 ## [0.21.0](https://github.com/SolverForge/solverforge/compare/v0.20.4...v0.21.0) (2026-10-14)
 
 

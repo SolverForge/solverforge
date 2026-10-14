@@ -321,8 +321,8 @@ where
             Self::Swap(cursor) => cursor.next_recipe(solution),
             Self::NearbyChange(cursor) => cursor.next_recipe(solution),
             Self::NearbySwap(cursor) => cursor.next_recipe(solution),
-            Self::PillarChange(cursor) => cursor.next_recipe(),
-            Self::PillarSwap(cursor) => cursor.next_recipe(),
+            Self::PillarChange(cursor) => cursor.next_recipe(solution),
+            Self::PillarSwap(cursor) => cursor.next_recipe(solution),
             Self::RuinRecreate(cursor) => cursor.next_recipe(),
         }
     }

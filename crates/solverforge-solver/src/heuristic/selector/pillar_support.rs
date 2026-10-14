@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::hash::Hash;
 
 use super::entity::EntityReference;
@@ -96,9 +96,12 @@ where
     }
 
     for entity in pillar.iter().skip(1) {
-        let legal_values: HashSet<usize> =
+        // Sorted-scratch intersection: no per-entity hash-set allocation.
+        let mut legal_values: Vec<usize> =
             values_for_entity(entity.entity_index).into_iter().collect();
-        intersection.retain(|value| legal_values.contains(value));
+        legal_values.sort_unstable();
+        legal_values.dedup();
+        intersection.retain(|value| legal_values.binary_search(value).is_ok());
         if intersection.is_empty() {
             break;
         }

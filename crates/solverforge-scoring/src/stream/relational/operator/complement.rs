@@ -5,7 +5,15 @@ use crate::stream::relational::keyed_plan::{KeyOf, RightKeyOf};
 use crate::stream::relational::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
 use std::marker::PhantomData;
 
-enum Output<T> {
+mod outputs;
+
+struct Output<T> {
+    value: OutputValue<T>,
+    left_position: usize,
+    right_position: usize,
+}
+
+enum OutputValue<T> {
     Real(JoinedIdentity),
     Default(RowHandle, T),
 }
@@ -80,58 +88,6 @@ where
             child_r_inserted: Vec::new(),
             marker: PhantomData,
         }
-    }
-    fn remove_output(&mut self, h: RowHandle) {
-        if let Some(row) = self.rows.retract(h) {
-            match row {
-                Output::Real(id) => {
-                    self.real_outputs.remove(&id);
-                    unlink(&mut self.left_outputs, id.left(), h);
-                    unlink(&mut self.right_outputs, id.right(), h);
-                }
-                Output::Default(input, _) => {
-                    self.default_outputs.remove(input);
-                    unlink(&mut self.left_outputs, input, h);
-                }
-            }
-        }
-    }
-    fn emit_real(
-        rows: &mut DenseRowStore<Output<T>>,
-        outputs: &mut FastMap<JoinedIdentity, RowHandle>,
-        left_outputs: &mut HandleMap<Vec<RowHandle>>,
-        right_outputs: &mut HandleMap<Vec<RowHandle>>,
-        left: RowHandle,
-        right: RowHandle,
-        inserted: &mut Vec<RowHandle>,
-    ) -> Option<RowHandle> {
-        let id = JoinedIdentity::new(left, right, 0);
-        if outputs.contains_key(&id) {
-            return None;
-        }
-        let h = rows.insert(Output::Real(id));
-        outputs.insert(id, h);
-        left_outputs.get_or_insert_with(left, Vec::new).push(h);
-        right_outputs.get_or_insert_with(right, Vec::new).push(h);
-        inserted.push(h);
-        Some(h)
-    }
-    fn emit_default(&mut self, solution: &S, input: RowHandle, inserted: &mut Vec<RowHandle>) {
-        assert!(
-            self.default_outputs.get(input).is_none(),
-            "duplicate default output"
-        );
-        let row = self
-            .targets
-            .resolve(solution, input)
-            .expect("live complement target");
-        let value = (self.default)(solution, &row);
-        let h = self.rows.insert(Output::Default(input, value));
-        self.default_outputs.insert(input, h);
-        self.left_outputs
-            .get_or_insert_with(input, Vec::new)
-            .push(h);
-        inserted.push(h);
     }
     fn update(
         &mut self,
@@ -293,11 +249,11 @@ where
                 .copied()
                 .collect();
             for left in owned {
-                let has_real = self.left_outputs.get(left).is_some_and(|outs| {
-                    outs.iter().any(|h| self.default_outputs.get(*h).is_none())
-                });
-                let has_default = self.default_outputs.get(left).is_some();
-                if !has_real && !has_default && self.targets.resolve(solution, left).is_some() {
+                let has_output = self
+                    .left_outputs
+                    .get(left)
+                    .is_some_and(|outs| !outs.is_empty());
+                if !has_output && self.targets.resolve(solution, left).is_some() {
                     self.emit_default(solution, left, inserted);
                 }
             }
@@ -377,8 +333,8 @@ where
                         value: &evaluation.defaults[ordinal],
                         emission: 0,
                     }));
-                    ordinal += 1;
                 }
+                ordinal += 1;
             });
     }
     fn clear(&mut self) {
@@ -433,12 +389,12 @@ where
         self.rows.iter().map(|(h, _)| h).collect()
     }
     fn resolve<'a>(&'a self, solution: &'a S, h: RowHandle) -> Option<Self::View<'a>> {
-        match self.rows.get(h)? {
-            Output::Real(id) => Some(ComplementView::Real(Pair {
+        match &self.rows.get(h)?.value {
+            OutputValue::Real(id) => Some(ComplementView::Real(Pair {
                 left: self.targets.resolve(solution, id.left())?,
                 right: self.results.resolve(solution, id.right())?,
             })),
-            Output::Default(input, value) => Some(ComplementView::Default(ProjectView {
+            OutputValue::Default(input, value) => Some(ComplementView::Default(ProjectView {
                 input: self.targets.resolve(solution, *input)?,
                 value,
                 emission: 0,
@@ -446,12 +402,12 @@ where
         }
     }
     fn visit_provenance(&self, h: RowHandle, visitor: &mut impl FnMut(u32, usize, usize)) {
-        match self.rows.get(h) {
-            Some(Output::Real(id)) => {
+        match self.rows.get(h).map(|row| &row.value) {
+            Some(OutputValue::Real(id)) => {
                 self.targets.visit_provenance(id.left(), visitor);
                 self.results.visit_provenance(id.right(), visitor);
             }
-            Some(Output::Default(input, _)) => self.targets.visit_provenance(*input, visitor),
+            Some(OutputValue::Default(input, _)) => self.targets.visit_provenance(*input, visitor),
             None => {}
         }
     }
@@ -478,13 +434,5 @@ where
         removed.clear();
         inserted.clear();
         self.update(solution, descriptor, index, false, removed, inserted)
-    }
-}
-fn unlink(links: &mut HandleMap<Vec<RowHandle>>, input: RowHandle, output: RowHandle) {
-    if let Some(bucket) = links.get_mut(input) {
-        bucket.retain(|h| *h != output);
-        if bucket.is_empty() {
-            links.remove(input);
-        }
     }
 }

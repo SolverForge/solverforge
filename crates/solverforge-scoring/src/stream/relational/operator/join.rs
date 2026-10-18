@@ -1,15 +1,21 @@
 use super::super::{DenseRowStore, HandleMap, JoinedIdentity, RowHandle};
-use super::{Operator, Pair, PairDelta};
+use super::{links::remove_link, Operator, Pair, PairDelta};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use crate::stream::relational::hash::FastMap;
 use std::marker::PhantomData;
+
+struct JoinedRow {
+    identity: JoinedIdentity,
+    left_position: usize,
+    right_position: usize,
+}
 
 pub struct JoinNode<S, L, R, P: IndexedPlan> {
     left: L,
     right: R,
     plan: P,
     indexes: P::Indexes,
-    rows: DenseRowStore<JoinedIdentity>,
+    rows: DenseRowStore<JoinedRow>,
     outputs: FastMap<JoinedIdentity, RowHandle>,
     left_outputs: HandleMap<Vec<RowHandle>>,
     right_outputs: HandleMap<Vec<RowHandle>>,
@@ -108,10 +114,30 @@ where
         }
     }
     fn remove_output(&mut self, handle: RowHandle) {
-        if let Some(identity) = self.rows.retract(handle) {
-            self.outputs.remove(&identity);
-            unlink(&mut self.left_outputs, identity.left(), handle);
-            unlink(&mut self.right_outputs, identity.right(), handle);
+        if let Some(row) = self.rows.retract(handle) {
+            self.outputs.remove(&row.identity);
+            if let Some(moved) = remove_link(
+                &mut self.left_outputs,
+                row.identity.left(),
+                handle,
+                row.left_position,
+            ) {
+                self.rows
+                    .get_mut(moved)
+                    .expect("moved left output")
+                    .left_position = row.left_position;
+            }
+            if let Some(moved) = remove_link(
+                &mut self.right_outputs,
+                row.identity.right(),
+                handle,
+                row.right_position,
+            ) {
+                self.rows
+                    .get_mut(moved)
+                    .expect("moved right output")
+                    .right_position = row.right_position;
+            }
         }
     }
 }
@@ -121,7 +147,7 @@ where
     for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,
 {
     fn emit_output(
-        rows: &mut DenseRowStore<JoinedIdentity>,
+        rows: &mut DenseRowStore<JoinedRow>,
         outputs: &mut FastMap<JoinedIdentity, RowHandle>,
         left_outputs: &mut HandleMap<Vec<RowHandle>>,
         right_outputs: &mut HandleMap<Vec<RowHandle>>,
@@ -132,12 +158,16 @@ where
         if outputs.contains_key(&identity) {
             return None;
         }
-        let handle = rows.insert(identity);
+        let left_bucket = left_outputs.get_or_insert_with(left, Vec::new);
+        let right_bucket = right_outputs.get_or_insert_with(right, Vec::new);
+        let handle = rows.insert(JoinedRow {
+            identity,
+            left_position: left_bucket.len(),
+            right_position: right_bucket.len(),
+        });
         outputs.insert(identity, handle);
-        left_outputs.get_or_insert_with(left, Vec::new).push(handle);
-        right_outputs
-            .get_or_insert_with(right, Vec::new)
-            .push(handle);
+        left_bucket.push(handle);
+        right_bucket.push(handle);
         Some(handle)
     }
     fn probe_left(&mut self, solution: &S, left: RowHandle, deltas: &mut impl FnMut(RowHandle)) {
@@ -280,14 +310,15 @@ where
         self.rows.iter().map(|(h, _)| h).collect()
     }
     fn resolve<'a>(&'a self, solution: &'a S, handle: RowHandle) -> Option<Self::View<'a>> {
-        let identity = self.rows.get(handle)?;
+        let identity = self.rows.get(handle)?.identity;
         Some(Pair {
             left: self.left.resolve(solution, identity.left())?,
             right: self.right.resolve(solution, identity.right())?,
         })
     }
     fn visit_provenance(&self, handle: RowHandle, visitor: &mut impl FnMut(u32, usize, usize)) {
-        if let Some(identity) = self.rows.get(handle) {
+        if let Some(row) = self.rows.get(handle) {
+            let identity = row.identity;
             self.left.visit_provenance(identity.left(), visitor);
             self.right.visit_provenance(identity.right(), visitor);
         }
@@ -367,14 +398,5 @@ where
         self.child_l_inserted = li;
         self.child_r_removed = rm;
         self.child_r_inserted = ri;
-    }
-}
-
-fn unlink(links: &mut HandleMap<Vec<RowHandle>>, input: RowHandle, output: RowHandle) {
-    if let Some(bucket) = links.get_mut(input) {
-        bucket.retain(|h| *h != output);
-        if bucket.is_empty() {
-            links.remove(input);
-        }
     }
 }

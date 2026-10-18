@@ -56,7 +56,7 @@ use super::super::{identity::RowHandle, FastMap, HandleMap};
 #[derive(Clone, Debug)]
 pub struct HashIndex<K> {
     by_key: FastMap<K, Vec<RowHandle>>,
-    key_of: HandleMap<K>,
+    key_of: HandleMap<(K, usize)>,
     retired: Vec<Vec<RowHandle>>,
 }
 
@@ -74,11 +74,13 @@ where
 
     // Keep occupied buckets in place. Only empty buckets relinquish their
     // allocation to the pool; entry access hashes the owned key once.
-    fn remove_from_bucket(&mut self, handle: RowHandle, key: K) {
+    fn remove_from_bucket(&mut self, handle: RowHandle, key: K, position: usize) {
         if let std::collections::hash_map::Entry::Occupied(mut entry) = self.by_key.entry(key) {
             let bucket = entry.get_mut();
-            if let Some(pos) = bucket.iter().position(|h| *h == handle) {
-                bucket.swap_remove(pos);
+            debug_assert_eq!(bucket[position], handle);
+            bucket.swap_remove(position);
+            if let Some(&moved) = bucket.get(position) {
+                self.key_of.get_mut(moved).expect("moved index member").1 = position;
             }
             if bucket.is_empty() {
                 self.retired.push(entry.remove());
@@ -89,17 +91,17 @@ where
     pub fn insert(&mut self, handle: RowHandle, key: K) {
         // Refresh path reinserts live handles: drop the stale reverse link
         // first so a changed key leaves no ghost bucket entry.
-        if let Some(old) = self.key_of.insert(handle, key.clone()) {
-            if old != key {
-                self.remove_from_bucket(handle, old);
-            } else if self.by_key.get(&key).is_some_and(|b| b.contains(&handle)) {
-                return;
-            }
+        if self.key_of.get(handle).is_some_and(|(old, _)| *old == key) {
+            return;
         }
-        self.by_key
-            .entry(key)
-            .or_insert_with(|| self.retired.pop().unwrap_or_default())
-            .push(handle);
+        self.remove(handle);
+        let bucket = self
+            .by_key
+            .entry(key.clone())
+            .or_insert_with(|| self.retired.pop().unwrap_or_default());
+        let position = bucket.len();
+        bucket.push(handle);
+        self.key_of.insert(handle, (key, position));
     }
 
     /// Insert a fresh transient row without reverse retention.
@@ -112,10 +114,10 @@ where
     }
 
     pub fn remove(&mut self, handle: RowHandle) {
-        let Some(key) = self.key_of.remove(handle) else {
+        let Some((key, position)) = self.key_of.remove(handle) else {
             return;
         };
-        self.remove_from_bucket(handle, key);
+        self.remove_from_bucket(handle, key, position);
     }
 
     pub fn clear(&mut self) {
@@ -133,6 +135,6 @@ where
     /// (not just candidates) after the row is gone from other state.
     #[inline]
     pub fn key_of(&self, handle: RowHandle) -> Option<&K> {
-        self.key_of.get(handle)
+        self.key_of.get(handle).map(|(key, _)| key)
     }
 }

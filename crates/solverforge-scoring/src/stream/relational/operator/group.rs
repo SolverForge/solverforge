@@ -1,6 +1,6 @@
 use super::{group_view::Contributors, GroupView, Operator};
 use crate::stream::collector::{Accumulator, Collector};
-use crate::stream::relational::{DenseRowStore, FastMap, FastSet, HandleMap, RowHandle};
+use crate::stream::relational::{DenseRowStore, FastMap, HandleMap, RowHandle};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -8,6 +8,7 @@ struct Group<K, A> {
     key: K,
     accumulator: A,
     inputs: Vec<RowHandle>,
+    dirty: bool,
 }
 struct EvaluatedGroup<K, A> {
     key: K,
@@ -27,9 +28,10 @@ pub struct GroupNode<O, F, C, K, A: Accumulator<V, R>, V, R> {
     collector: C,
     groups: DenseRowStore<Group<K, A>>,
     by_key: FastMap<K, RowHandle>,
-    tokens: HandleMap<(RowHandle, A::Retraction)>,
+    tokens: HandleMap<(RowHandle, A::Retraction, usize)>,
     rows: DenseRowStore<RowHandle>,
     output_of: HandleMap<RowHandle>,
+    changed: Vec<RowHandle>,
     /// Child notification scratch, reused across events.
     child_removed: Vec<RowHandle>,
     child_inserted: Vec<RowHandle>,
@@ -46,6 +48,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
             tokens: HandleMap::new(),
             rows: DenseRowStore::new(),
             output_of: HandleMap::new(),
+            changed: Vec::new(),
             child_removed: Vec::new(),
             child_inserted: Vec::new(),
             marker: PhantomData,
@@ -64,16 +67,27 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
         for<'a> C: Collector<O::View<'a>, Value = V, Result = R, Accumulator = A>,
         K: Eq + Hash + Clone,
     {
-        let mut changed = FastSet::default();
+        let mut changed = std::mem::take(&mut self.changed);
+        changed.clear();
         for h in input_removed.iter().copied() {
-            if let Some((group, token)) = self.tokens.remove(h) {
+            if let Some((group, token, position)) = self.tokens.remove(h) {
                 let g = self
                     .groups
                     .get_mut(group)
                     .expect("retained contributor group");
                 g.accumulator.retract(token);
-                g.inputs.retain(|input| *input != h);
-                changed.insert(group);
+                debug_assert_eq!(g.inputs[position], h);
+                g.inputs.swap_remove(position);
+                if let Some(&moved) = g.inputs.get(position) {
+                    self.tokens
+                        .get_mut(moved)
+                        .expect("moved contributor token")
+                        .2 = position;
+                }
+                if !g.dirty {
+                    g.dirty = true;
+                    changed.push(group);
+                }
             }
         }
         for h in input_inserted.iter().copied() {
@@ -93,23 +107,29 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
                     key: key.clone(),
                     accumulator: self.collector.create_accumulator(),
                     inputs: Vec::new(),
+                    dirty: false,
                 });
                 self.by_key.insert(key, group);
                 group
             };
             let g = self.groups.get_mut(group).expect("live insertion group");
             let token = g.accumulator.accumulate(self.collector.extract(row));
+            let position = g.inputs.len();
             g.inputs.push(h);
-            self.tokens.insert(h, (group, token));
-            changed.insert(group);
+            self.tokens.insert(h, (group, token, position));
+            if !g.dirty {
+                g.dirty = true;
+                changed.push(group);
+            }
         }
         // Publish exactly one final replacement per group after all contributors update.
-        for group in changed {
+        for group in changed.iter().copied() {
             if let Some(output) = self.output_of.remove(group) {
                 self.rows.retract(output);
                 removed.push(output);
             }
-            let g = self.groups.get(group).expect("changed group");
+            let g = self.groups.get_mut(group).expect("changed group");
+            g.dirty = false;
             if g.inputs.is_empty() {
                 self.by_key.remove(&g.key);
                 self.groups.retract(group);
@@ -119,6 +139,8 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
                 inserted.push(output);
             }
         }
+        changed.clear();
+        self.changed = changed;
     }
 }
 impl<S: 'static, O, F, C, K, A, V: 'static, R: 'static> Operator<S>
@@ -184,6 +206,7 @@ where
         self.tokens.clear();
         self.rows.clear();
         self.output_of.clear();
+        self.changed.clear();
         self.child_removed.clear();
         self.child_inserted.clear();
     }

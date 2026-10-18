@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.22.0](https://github.com/SolverForge/solverforge/compare/v0.21.3...v0.22.0) (2026-10-18)
+
+
+### Bug Fixes
+
+* **bench:** skip fixups that do not apply to the baseline ([9a8e2a4](https://github.com/SolverForge/solverforge/commit/9a8e2a4d88df6a59b07c308e4163d6614c2f60dd))
+* **scoring:** drop stale key Clone bounds in complement weights ([cbf6e81](https://github.com/SolverForge/solverforge/commit/cbf6e81da37860e8ed0ad4a99364a2f9e0a65f44))
+
+
 ## [0.21.3](https://github.com/SolverForge/solverforge/compare/v0.21.2...v0.21.3) (2026-10-14)
 
 

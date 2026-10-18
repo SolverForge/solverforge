@@ -130,9 +130,12 @@ are internal in `stream/relational/handle_map.rs`; `stream/relational/hash.rs`
 holds the deterministic fast hasher the internal index maps build on.
 
 This surface supports collection/filtered/merged/joined, owned projection,
-group/complement, existence, and flattened producers. Uniform fluent migration
-and compiler-owned derived-consumer sharing are not provided by this low-level
-surface. Existing specialized families still exist.
+group/complement, existence, and flattened producers, and it is the single
+grouping execution path: every fluent `group_by`, grouped complement, and
+chained grouped terminal lowers onto these operators. Compiler-owned terminal
+sharing lives in `constraint/relational/shared_terminal.rs`, which keeps one
+operator owner for chained `penalize`/`reward` terminals and scores, orders,
+and explains each terminal independently.
 See [Extending typed relational scoring](../../docs/extend-scoring.md) for
 execution, ownership, and verification boundaries.
 
@@ -169,13 +172,12 @@ src/
 │   ├── list_precedence.rs                          — ListPrecedenceMakespanConstraint<S>; stock incremental list-plus-fixed-precedence makespan scoring with optional fixed owner checks
 │   ├── incremental_markers.rs                      — Hidden IncrementalConstraintSealed impls for built-in constraint types
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
-│   ├── grouped.rs                                  — grouped::Uni module root, shared node state, terminal scorers, scorer sets, shared set
-│   ├── grouped/*.rs                                — scorer.rs, complemented_scorer.rs, scorer_set.rs, shared_set.rs, state.rs, terminal.rs for GroupedNodeState, terminal scorer sets, SharedGroupedConstraintSet, and the one-terminal wrapper
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
-│   ├── cross_grouped.rs                            — constraint::cross_grouped::Grouped module root and re-exports
-│   ├── cross_grouped/*.rs                          — indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, updates.rs, view.rs for retained direct cross grouped state
-│   ├── cross_complemented_grouped.rs               — constraint::cross_complemented_grouped::ComplementedGrouped module root and internal shared engine re-exports
-│   ├── cross_complemented_grouped/*.rs             — builder.rs, indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, updates.rs, view.rs for retained direct cross grouped complements
+│   ├── relational/
+│   │   ├── mod.rs                                  — Module declarations and selected re-exports
+│   │   ├── operator_terminal.rs                    — OperatorTerminal<S,O,W,Sc> over one generic operator
+│   │   ├── shared_terminal.rs                      — SharedOperatorTerminal/Builder, OperatorScorerSet, weight adapters, and chained terminal sharing
+│   │   └── grouped_weights.rs                      — Group/direct-complement/optional-complement weight adapters
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
 │   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors
 │   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
@@ -186,10 +188,8 @@ src/
 │   ├── projected/bi.rs                             — projected::Bi retained symmetric projected self-join constraint
 │   ├── projected/directed_bi.rs                    — projected::DirectedBi retained directed projected self-join state
 │   ├── projected/directed_bi_incremental.rs        — IncrementalConstraint callbacks for directed projected self-joins
-│   ├── projected/grouped.rs                        — projected::Grouped module root and shared grouped re-exports
-│   ├── projected/complemented_grouped.rs           — projected::ComplementedGrouped module root and shared complemented-grouped re-exports
-│   ├── projected/grouped/*.rs                      — scorer.rs, shared_set.rs, state.rs, terminal.rs for projected grouped retained state
-│   ├── projected/complemented_grouped/*.rs         — indexes.rs, scorer.rs, shared_set.rs, state.rs, terminal.rs, view.rs for projected grouped complements
+│   ├── projected/grouped.rs                        — projected::Grouped fluent builder over the shared terminal
+│   ├── projected/complemented_grouped.rs           — projected::ComplementedGrouped fluent builder over ComplementNode
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
 │       ├── cross_bi_incr.rs                        — Fluent cross-bi join tests on the generic operator terminal
@@ -199,11 +199,9 @@ src/
 │       ├── relational/derived_right_input.rs       — Filtered and complemented producers as right-hand join inputs
 │       ├── relational/join_depth.rs                — Six-binding typed join chain (depth beyond Penta)
 │       ├── relational/fluent_deep_chain.rs         — Six- and seven-source fluent chains via Penta::join → Chain
-│       ├── grouped.rs                              — constraint::grouped::Uni and shared grouped node tests
-│       ├── cross_grouped.rs                        — Shared direct cross grouped node tests
+│       ├── grouped.rs                              — Grouped stream and shared terminal tests
 │       ├── balance.rs                              — BalanceConstraint tests
 │       ├── complemented.rs                         — Fluent complemented grouped tests
-│       ├── cross_complemented_grouped.rs           — Direct cross-join grouped complement tests
 │       ├── flattened_bi.rs                         — FlattenedBiConstraint tests
 │       ├── exists.rs                               — IncrementalExistsConstraint update tests
 │       ├── exists_storage.rs                       — Existence storage selection and parity tests
@@ -323,10 +321,8 @@ src/
 pub use constraint::{IncrementalUniConstraint, ListPrecedenceMakespanConstraint};
 
 // Short family names are intentionally module-scoped:
-// constraint::grouped::Uni
-// constraint::cross_grouped::Grouped
-// constraint::cross_complemented_grouped::ComplementedGrouped
-// constraint::projected::{Uni, Bi, DirectedBi, Grouped, ComplementedGrouped}
+// constraint::projected::{Uni, Bi, DirectedBi}
+// Grouped terminals are constraint::relational::{OperatorTerminal, SharedOperatorTerminal}
 
 // Constraint Set
 pub use api::constraint_set::{
@@ -536,24 +532,23 @@ list descriptor, node/owner accessors, durations, and fixed successors;
 
 **`stream::cross::{Bi, Tri}` finalization** — Cross-collection joins finalize onto the generic `constraint::relational::OperatorTerminal`. Each join is a concrete `JoinNode` over a compiled condition plan: the fluent `.join((target, joiner))` carries its own key/condition type, and a row-aware joiner receives the whole borrowed left row. Stateless `evaluate()`, `match_count()`, and `get_matches()` traverse the operator tree directly, so retained analysis works before `initialize()`. Authored bi/tri filters run inside the scored operator, so filters receive the A/B/C source indexes on every path (direct, grouped, and projected) and are applied exactly once across evaluate and retained mutations.
 
-**`constraint::grouped::Uni<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&A>` — Group-by with collector and weight on `(&K, &R)`.
+**Grouped terminals** — group-by with collector and weight on `(&K, &R)`, finalized as `SharedOperatorTerminal` over `GroupNode`.
 
-The grouped engine is split into `GroupedNodeState` plus
-`GroupedTerminalScorer` collections. `SharedGroupedConstraintSet` updates the
-node once and refreshes all terminal scorers from changed group keys.
-`constraint::grouped::Uni` is the one-terminal wrapper around that shared engine.
+`SharedOperatorTerminal` owns the operator once and refreshes each terminal from
+changed group rows.
 Additional grouped terminals append through the same fluent
 `.penalize(...).named(...)` / `.reward(...).named(...)` finalization chain,
 so macro-generated sharing does not use a separate stream construction path.
 
-**`constraint::cross_grouped::Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint. It keeps keyed join indexes and collector retraction tokens without projecting joined pairs first.
+**Direct grouped cross-join constraints** finalize into `SharedOperatorTerminal` over `JoinNode` +
+`GroupNode`. The common operators own join indexes, match rows, group accumulators, exact
+retraction tokens, and changed-group reporting; no cross-grouped execution engine exists.
+Chained terminals share that one operator and stay independently scored and explained.
 
-Direct cross grouped constraints use `constraint::cross_grouped::GroupedNodeState` for join indexes,
-match rows, group accumulators, retraction tokens, and changed-key reporting.
-`constraint::cross_grouped::SharedGroupedSet` lets multiple terminal scorers consume that
-state while preserving independent terminal metadata.
-
-**`constraint::cross_complemented_grouped::ComplementedGrouped<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>`** where `C: Collector<(&A, &B)>` — Direct grouped cross-join constraint complemented against a second collection. `constraint::cross_complemented_grouped::ComplementedGroupedNodeState` keeps join indexes, joined-pair collector retraction tokens, complement target indexes, group accumulators, and changed-key reporting; `constraint::cross_complemented_grouped::SharedComplementedGroupedSet` lets multiple terminal scorers consume each complement row using either the retained grouped result or the provided default result.
+**Direct grouped cross-join complements** finalize into `SharedOperatorTerminal` over
+`ComplementNode(CollectionNode, GroupNode)`. Complement targets keep their default rows until a
+real match appears, duplicate target rows keep bag multiplicity, and each terminal weights key
+plus collector result independently.
 
 **`BalanceConstraint<S, A, K, E, F, KF, Sc>`** — Load balancing using sum-of-squared-deviations.
 
@@ -567,12 +562,12 @@ state while preserving independent terminal metadata.
 
 **`constraint::projected::Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&Out>` — Grouped retained projected rows.
 
-Projected grouped constraints use `constraint::projected::GroupedNodeState` for projected
-source state, row outputs, owner indexes, retraction tokens, group accumulators,
-and changed-key reporting. `constraint::projected::SharedGroupedSet` shares that
-projected grouped state across multiple terminal scorers.
+Projected grouped constraints finalize into `SharedOperatorTerminal` over
+`GroupNode` + `SourceNode`. The common operators own projected rows, owner
+indexes, retraction tokens, and group accumulators; chained terminals share one
+group owner and stay independently scored.
 
-**`constraint::projected::ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&Out>` — Projected grouped rows complemented against a second collection, including `join(...).project(...).group_by(...).complement(...)` chains. `constraint::projected::ComplementedGroupedNodeState` retains projected source state, row ownership indexes, complement target rows, group accumulators, and changed-key reporting for shared terminal scorers.
+**`constraint::projected::ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&Out>` — Projected grouped rows complemented against a second collection, including `join(...).project(...).group_by(...).complement(...)` chains. It finalizes into `SharedOperatorTerminal` over `ComplementNode(CollectionNode, GroupNode)`; complement targets keep default rows until matched and each terminal scores independently.
 
 **`FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>`** — Cross-collection with nested collection flattening. Filters receive the A source index and the owning B source index for each flattened C row.
 
@@ -750,9 +745,9 @@ further joins); low-level constructors are `new_self_join()` and
 
 **`stream::cross::Builder`** — `named()` → `constraint::relational::OperatorTerminal` over a `JoinNode` compiled from the stream's unary key pair
 
-**`stream::cross::Grouped/Builder`** — Direct grouped cross-join stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::cross_grouped::Grouped`. `complement(source, key, default)` → `stream::cross::ComplementedGrouped`. Collectors receive the joined pair shape as `(&A, &B)`.
+**`stream::cross::Grouped/Builder`** — Direct grouped cross-join stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `SharedOperatorTerminal` over `JoinNode` + `GroupNode`. `complement(source, key, default)` → `stream::cross::ComplementedGrouped`. Collectors receive the joined pair shape as `(&A, &B)`.
 
-**`stream::cross::ComplementedGrouped/Builder`** — Direct grouped cross-join complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::cross_complemented_grouped::ComplementedGrouped`. Complement defaults are produced from the complement entity and weighted by key plus collector result. Complement sources use the same `CollectionExtract::contains(...)` membership contract as joined sources.
+**`stream::cross::ComplementedGrouped/Builder`** — Direct grouped cross-join complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `SharedOperatorTerminal` over `ComplementNode`. Complement defaults are produced from the complement entity and weighted by key plus collector result. Complement sources use the same `CollectionExtract::contains(...)` membership contract as joined sources.
 
 **`GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>`** — Grouped stream.
 - Operations: `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `join((collection, key))` → `GroupedJoinedStream`, `complement()`, `complement_with_key()` → `ComplementedConstraintStream`
@@ -761,7 +756,7 @@ further joins); low-level constructors are `new_self_join()` and
 
 **`GroupedJoinedStream/Builder`** — Group-as-join-input. `penalize`/`reward` take `Fn(&K, &R, &B) -> Sc`; `named()` → `OperatorTerminal` over a `JoinNode` + `GroupNode` + `FilterNode` tree.
 
-**`GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** — `named()` → `constraint::grouped::Uni` (weighting terminal; group-as-join-input uses `GroupedJoinedStream`)
+**`GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>`** — `named()` → `SharedOperatorTerminal` over `GroupNode` (group-as-join-input uses `GroupedJoinedStream`)
 
 **`BalanceConstraintStream/Builder`** — Balance stream. `penalize(weight)`, `reward(weight)`, `named()` → `BalanceConstraint`
 

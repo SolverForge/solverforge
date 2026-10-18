@@ -1,11 +1,20 @@
 use super::{group_view::Contributors, GroupView, Operator};
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::relational::{DenseRowStore, FastMap, HandleMap, RowHandle};
-use std::hash::Hash;
+use solverforge_core::fast_hash::FastHasher;
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
+
+fn key_hash(key: &impl Hash) -> u64 {
+    let mut hasher = FastHasher::default();
+    key.hash(&mut hasher);
+    hasher.finish()
+}
 
 struct Group<K, A> {
     key: K,
+    hash: u64,
+    hash_position: usize,
     accumulator: A,
     inputs: Vec<RowHandle>,
     dirty: bool,
@@ -27,7 +36,7 @@ pub struct GroupNode<O, F, C, K, A: Accumulator<V, R>, V, R> {
     key: F,
     collector: C,
     groups: DenseRowStore<Group<K, A>>,
-    by_key: FastMap<K, RowHandle>,
+    by_hash: FastMap<u64, Vec<RowHandle>>,
     tokens: HandleMap<(RowHandle, A::Retraction, usize)>,
     rows: DenseRowStore<RowHandle>,
     output_of: HandleMap<RowHandle>,
@@ -44,7 +53,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
             key,
             collector,
             groups: DenseRowStore::new(),
-            by_key: FastMap::default(),
+            by_hash: FastMap::default(),
             tokens: HandleMap::new(),
             rows: DenseRowStore::new(),
             output_of: HandleMap::new(),
@@ -65,7 +74,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
         O: Operator<S>,
         F: for<'a> Fn(&O::View<'a>) -> K,
         for<'a> C: Collector<O::View<'a>, Value = V, Result = R, Accumulator = A>,
-        K: Eq + Hash + Clone,
+        K: Eq + Hash,
     {
         let mut changed = std::mem::take(&mut self.changed);
         changed.clear();
@@ -100,16 +109,26 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
                 .resolve(solution, h)
                 .expect("inserted group input");
             let key = (self.key)(&row);
-            let group = if let Some(&group) = self.by_key.get(&key) {
+            let hash = key_hash(&key);
+            let existing = self.by_hash.get(&hash).and_then(|bucket| {
+                bucket
+                    .iter()
+                    .copied()
+                    .find(|h| self.groups.get(*h).expect("indexed group").key == key)
+            });
+            let group = if let Some(group) = existing {
                 group
             } else {
+                let bucket = self.by_hash.entry(hash).or_default();
                 let group = self.groups.insert(Group {
-                    key: key.clone(),
+                    key,
+                    hash,
+                    hash_position: bucket.len(),
                     accumulator: self.collector.create_accumulator(),
                     inputs: Vec::new(),
                     dirty: false,
                 });
-                self.by_key.insert(key, group);
+                bucket.push(group);
                 group
             };
             let g = self.groups.get_mut(group).expect("live insertion group");
@@ -131,7 +150,20 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
             let g = self.groups.get_mut(group).expect("changed group");
             g.dirty = false;
             if g.inputs.is_empty() {
-                self.by_key.remove(&g.key);
+                let hash = g.hash;
+                let position = g.hash_position;
+                let bucket = self.by_hash.get_mut(&hash).expect("retained group bucket");
+                debug_assert_eq!(bucket[position], group);
+                bucket.swap_remove(position);
+                if let Some(&moved) = bucket.get(position) {
+                    self.groups
+                        .get_mut(moved)
+                        .expect("moved group")
+                        .hash_position = position;
+                }
+                if bucket.is_empty() {
+                    self.by_hash.remove(&hash);
+                }
                 self.groups.retract(group);
             } else {
                 let output = self.rows.insert(group);
@@ -149,7 +181,7 @@ where
     O: Operator<S>,
     F: for<'a> Fn(&O::View<'a>) -> K + 'static,
     for<'a> C: Collector<O::View<'a>, Value = V, Result = R, Accumulator = A> + 'static,
-    K: Eq + Hash + Clone + 'static,
+    K: Eq + Hash + 'static,
     A: Accumulator<V, R> + 'static,
 {
     type View<'a> = GroupView<'a, S, O, K, A, V, R>;
@@ -157,12 +189,14 @@ where
     fn prepare_evaluation(&self, solution: &S) -> Self::Evaluation {
         let input = self.input.prepare_evaluation(solution);
         let mut groups: Vec<EvaluatedGroup<K, A>> = Vec::new();
-        let mut by_key = FastMap::default();
+        let mut by_hash: FastMap<u64, Vec<usize>> = FastMap::default();
         let mut ordinal = 0;
         self.input.visit_evaluation(solution, &input, &mut |row| {
             let key = (self.key)(&row);
-            let index = match by_key.get(&key) {
-                Some(&index) => index,
+            let hash = key_hash(&key);
+            let bucket = by_hash.entry(hash).or_default();
+            let index = match bucket.iter().copied().find(|i| groups[*i].key == key) {
+                Some(index) => index,
                 None => {
                     let index = groups.len();
                     groups.push(EvaluatedGroup {
@@ -170,7 +204,7 @@ where
                         accumulator: self.collector.create_accumulator(),
                         ordinals: Vec::new(),
                     });
-                    by_key.insert(groups[index].key.clone(), index);
+                    bucket.push(index);
                     index
                 }
             };
@@ -202,7 +236,7 @@ where
     fn clear(&mut self) {
         self.input.clear();
         self.groups.clear();
-        self.by_key.clear();
+        self.by_hash.clear();
         self.tokens.clear();
         self.rows.clear();
         self.output_of.clear();

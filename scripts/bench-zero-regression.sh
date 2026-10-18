@@ -87,14 +87,19 @@ git -C "$ROOT" worktree add --detach "$BASELINE_TREE" "$BASELINE_COMMIT" >/dev/n
 BASELINE_REGISTERED=1
 # A committed tree may carry a gate bench that predates an API cleanup (benches
 # are not compiled by the regular build, so a broken bench can ship unnoticed).
-# Any checked-in fixup under scripts/bench/ for this baseline applies on top of
-# the tree before harness compilation.
+# A fixup only applies to the API generation it was written for; when the
+# baseline already contains the repaired bench the patch reverses and is
+# skipped, so newer baselines stay measurable instead of aborting the gate.
 for fixup in scripts/bench/*-fixup.patch; do
     [[ -e $fixup ]] || continue
-    patch -p1 -d "$BASELINE_TREE" --silent <"$fixup" || {
-        echo "bench fixup $fixup did not apply cleanly" >&2
-        exit 2
-    }
+    if patch -p1 -d "$BASELINE_TREE" --dry-run --silent <"$fixup" >/dev/null 2>&1; then
+        patch -p1 -d "$BASELINE_TREE" --silent <"$fixup" || {
+            echo "bench fixup $fixup did not apply cleanly" >&2
+            exit 2
+        }
+    else
+        echo "bench fixup $fixup not applicable to ${BASELINE}; skipped" >&2
+    fi
 done
 # Candidate side: the current working tree (tracked + untracked, not ignored),
 # so a dirty tree can still be measured, against the same-length path.

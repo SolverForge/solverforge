@@ -176,19 +176,6 @@ fn complemented_source_supports_grouped_sharing(expression: &Expr) -> bool {
             return false;
         };
         if method.method == "group_by" {
-            return chain_contains_project_or_join(method.receiver.as_ref());
-        }
-        current = method.receiver.as_ref();
-    }
-}
-
-fn chain_contains_project_or_join(expression: &Expr) -> bool {
-    let mut current = expression;
-    loop {
-        let Expr::MethodCall(method) = current else {
-            return false;
-        };
-        if method.method == "project" || method.method == "join" {
             return true;
         }
         current = method.receiver.as_ref();

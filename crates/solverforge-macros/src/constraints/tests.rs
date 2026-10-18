@@ -130,7 +130,7 @@ fn planner_shares_tuple_with_unsupported_member_in_place() {
 }
 
 #[test]
-fn planner_leaves_direct_complemented_grouped_stream_unchanged() {
+fn planner_shares_direct_complemented_grouped_stream() {
     let function: syn::ItemFn = syn::parse_quote! {
         fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
             let by_employee = g
@@ -147,7 +147,7 @@ fn planner_leaves_direct_complemented_grouped_stream_unchanged() {
 
     let parsed = parse::parse_constraint_function(function).expect("parse");
     let planned = plan::plan(parsed);
-    assert!(matches!(planned, ConstraintProgram::Passthrough(_)));
+    assert!(matches!(planned, ConstraintProgram::SharedGrouped(_)));
 }
 
 #[test]

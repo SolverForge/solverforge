@@ -13,11 +13,8 @@ fn key_hash(key: &impl Hash) -> u64 {
 
 struct Group<K, A> {
     key: K,
-    hash: u64,
-    hash_position: usize,
     accumulator: A,
     inputs: Vec<RowHandle>,
-    dirty: bool,
 }
 struct EvaluatedGroup<K, A> {
     key: K,
@@ -37,6 +34,7 @@ pub struct GroupNode<O, F, C, K, A: Accumulator<V, R>, V, R> {
     collector: C,
     groups: DenseRowStore<Group<K, A>>,
     by_hash: FastMap<u64, Vec<RowHandle>>,
+    group_slots: HandleMap<(u64, usize)>,
     tokens: HandleMap<(RowHandle, A::Retraction, usize)>,
     rows: DenseRowStore<RowHandle>,
     output_of: HandleMap<RowHandle>,
@@ -54,6 +52,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
             collector,
             groups: DenseRowStore::new(),
             by_hash: FastMap::default(),
+            group_slots: HandleMap::new(),
             tokens: HandleMap::new(),
             rows: DenseRowStore::new(),
             output_of: HandleMap::new(),
@@ -93,8 +92,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
                         .expect("moved contributor token")
                         .2 = position;
                 }
-                if !g.dirty {
-                    g.dirty = true;
+                if !changed.contains(&group) {
                     changed.push(group);
                 }
             }
@@ -122,13 +120,11 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
                 let bucket = self.by_hash.entry(hash).or_default();
                 let group = self.groups.insert(Group {
                     key,
-                    hash,
-                    hash_position: bucket.len(),
                     accumulator: self.collector.create_accumulator(),
                     inputs: Vec::new(),
-                    dirty: false,
                 });
                 bucket.push(group);
+                self.group_slots.insert(group, (hash, bucket.len() - 1));
                 group
             };
             let g = self.groups.get_mut(group).expect("live insertion group");
@@ -136,8 +132,7 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
             let position = g.inputs.len();
             g.inputs.push(h);
             self.tokens.insert(h, (group, token, position));
-            if !g.dirty {
-                g.dirty = true;
+            if !changed.contains(&group) {
                 changed.push(group);
             }
         }
@@ -147,19 +142,14 @@ impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
                 self.rows.retract(output);
                 removed.push(output);
             }
-            let g = self.groups.get_mut(group).expect("changed group");
-            g.dirty = false;
+            let g = self.groups.get(group).expect("changed group");
             if g.inputs.is_empty() {
-                let hash = g.hash;
-                let position = g.hash_position;
+                let (hash, position) = self.group_slots.remove(group).expect("retained group slot");
                 let bucket = self.by_hash.get_mut(&hash).expect("retained group bucket");
                 debug_assert_eq!(bucket[position], group);
                 bucket.swap_remove(position);
                 if let Some(&moved) = bucket.get(position) {
-                    self.groups
-                        .get_mut(moved)
-                        .expect("moved group")
-                        .hash_position = position;
+                    self.group_slots.insert(moved, (hash, position));
                 }
                 if bucket.is_empty() {
                     self.by_hash.remove(&hash);
@@ -237,6 +227,7 @@ where
         self.input.clear();
         self.groups.clear();
         self.by_hash.clear();
+        self.group_slots.clear();
         self.tokens.clear();
         self.rows.clear();
         self.output_of.clear();

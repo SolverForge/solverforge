@@ -2,14 +2,22 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
-use solverforge_core::{ConstraintRef, ImpactType};
+use solverforge_core::ImpactType;
 
+use crate::constraint::relational::{
+    OperatorScorer, OptionalComplementAdapter, OptionalComplementWeight, SharedOperatorBuilder,
+    SharedOperatorTerminal,
+};
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
+use crate::stream::relational::leaf_collector::OptionalEntityKey;
+use crate::stream::relational::operator::{CollectionNode, ComplementNode, FilterNode, GroupNode};
+use crate::stream::relational::view_plan::{GroupKey, ViewEqualPlan};
+use crate::stream::relational::Leaf;
 use crate::stream::weighting_support::ConstraintWeight;
 
-use super::source::Source;
+use super::source::{ProjectedCollector, ProjectedRow, Source, SourceNode};
 
 pub struct ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Sc>
 where
@@ -40,12 +48,12 @@ where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     B: Send + Sync + 'static,
-    K: Eq + Hash + Send + Sync + 'static,
+    K: Clone + Eq + Hash + Send + Sync + 'static,
     Src: Source<S, Out>,
-    EB: CollectionExtract<S, Item = B>,
+    EB: CollectionExtract<S, Item = B> + 'static,
     F: UniFilter<S, Out>,
     KA: Fn(&Out) -> Option<K> + Send + Sync,
-    KB: Fn(&B) -> K + Send + Sync,
+    KB: Fn(&B) -> K + Send + Sync + Clone,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
     V: Send + Sync + 'static,
     R: Send + Sync + 'static,
@@ -174,53 +182,75 @@ where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
     B: Send + Sync + 'static,
-    K: Eq + Hash + Send + Sync + 'static,
-    Src: Source<S, Out>,
-    EB: CollectionExtract<S, Item = B>,
-    F: UniFilter<S, Out>,
-    KA: Fn(&Out) -> Option<K> + Send + Sync,
-    KB: Fn(&B) -> K + Send + Sync,
+    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Src: Source<S, Out> + 'static,
+    EB: CollectionExtract<S, Item = B> + 'static,
+    F: UniFilter<S, Out> + 'static,
+    KA: Fn(&Out) -> Option<K> + Send + Sync + 'static,
+    KB: Fn(&B) -> K + Send + Sync + Clone + 'static,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
     V: Send + Sync + 'static,
     R: Send + Sync + 'static,
     Acc: Accumulator<V, R> + Send + Sync + 'static,
-    D: Fn(&B) -> R + Send + Sync,
+    D: Fn(&B) -> R + Send + Sync + 'static,
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     pub fn named(
         self,
         name: &str,
-    ) -> crate::constraint::projected::ComplementedGrouped<
+    ) -> SharedOperatorTerminal<
         S,
-        Out,
-        B,
-        K,
-        Src,
-        EB,
-        F,
-        KA,
-        KB,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        W,
+        ComplementNode<
+            S,
+            CollectionNode<S, EB>,
+            GroupNode<
+                FilterNode<
+                    SourceNode<S, Out, Src>,
+                    impl Fn(&S, &ProjectedRow<'_, Out>) -> bool + Send + Sync,
+                >,
+                impl Fn(&ProjectedRow<'_, Out>) -> Option<K> + Send + Sync,
+                ProjectedCollector<C, V, R, Acc>,
+                Option<K>,
+                Acc,
+                V,
+                R,
+            >,
+            ViewEqualPlan<Option<K>, OptionalEntityKey<KB>, GroupKey>,
+            impl Fn(&S, &Leaf<'_, B>) -> R + Send + Sync,
+            R,
+        >,
+        OptionalComplementAdapter<KB, K, R>,
+        OperatorScorer<OptionalComplementWeight<W, KB>, Sc>,
         Sc,
     > {
-        crate::constraint::projected::ComplementedGrouped::new(
-            ConstraintRef::new("", name),
+        let target_binding =
+            u32::try_from(self.source.source_count()).expect("source binding count");
+        let filter = self.filter;
+        let key_a = self.key_a;
+        let group = GroupNode::new(
+            FilterNode::new(
+                SourceNode::new(self.source),
+                move |solution: &S, row: &ProjectedRow<'_, Out>| filter.test(solution, row.value),
+            ),
+            move |row: &ProjectedRow<'_, Out>| key_a(row.value),
+            ProjectedCollector::new(self.collector),
+        );
+        let key_b = self.key_b;
+        let default_fn = self.default_fn;
+        let tree = ComplementNode::new(
+            CollectionNode::new(self.extractor_b, target_binding),
+            group,
+            ViewEqualPlan::new(OptionalEntityKey::new(key_b.clone()), GroupKey),
+            move |_solution: &S, row: &Leaf<'_, B>| default_fn(row.entity),
+        );
+        SharedOperatorBuilder::first_with_hard(
+            tree,
+            OptionalComplementAdapter::new(key_b),
             self.impact_type,
-            self.source,
-            self.extractor_b,
-            self.filter,
-            self.key_a,
-            self.key_b,
-            self.collector,
-            self.default_fn,
             self.weight_fn,
             self.is_hard,
         )
+        .first_named(name)
     }
 }

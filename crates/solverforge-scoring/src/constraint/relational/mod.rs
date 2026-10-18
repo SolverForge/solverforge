@@ -7,6 +7,16 @@ WHAT each row scores and publishes signed deltas through
 terminal serves every depth.
 */
 
+mod grouped_weights;
 mod operator_terminal;
+mod shared_terminal;
 
+pub use grouped_weights::{
+    DirectComplementAdapter, DirectComplementWeight, GroupAdapter, GroupWeight, GroupedJoinAdapter,
+    GroupedJoinWeight, OptionalComplementAdapter, OptionalComplementWeight,
+};
 pub use operator_terminal::OperatorTerminal;
+pub use shared_terminal::{
+    AdaptWeight, OperatorScorer, RowWeight, ScorerChain, SharedOperatorBuilder,
+    SharedOperatorTerminal,
+};

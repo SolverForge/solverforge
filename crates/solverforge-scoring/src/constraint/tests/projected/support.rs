@@ -1,14 +1,7 @@
 pub(super) use std::marker::PhantomData;
 pub(super) use std::sync::atomic::{AtomicUsize, Ordering};
 
-pub(super) use solverforge_core::score::SoftScore;
-pub(super) use solverforge_core::{ConstraintRef, ImpactType};
-
 pub(super) use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
-pub(super) use crate::constraint::projected::{
-    ComplementedGroupedNodeState, ComplementedGroupedTerminalScorer, GroupedNodeState,
-    GroupedTerminalScorer, SharedComplementedGroupedSet, SharedGroupedSet,
-};
 pub(super) use crate::director::score_director::ScoreDirector;
 pub(super) use crate::director::Director;
 pub(super) use crate::stream::collection_extract::{source, ChangeSource};
@@ -18,6 +11,7 @@ pub(super) use crate::stream::joiner::equal;
 pub(super) use crate::stream::projected::Bi;
 pub(super) use crate::stream::{ConstraintFactory, Projection, ProjectionSink};
 use solverforge_core::domain::PlanningSolution;
+pub(super) use solverforge_core::score::SoftScore;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Work {

@@ -164,7 +164,7 @@ where
         B: Clone + Send + Sync + 'static,
         EB: CollectionExtract<S, Item = B>,
         KB: Fn(&B) -> K + Send + Sync,
-        D: Fn(&B) -> R + Send + Sync,
+        D: Fn(&B) -> R + Send + Sync + 'static,
     {
         let key_fn = self.key_fn;
         let wrapped_key_fn = move |a: &A| Some((key_fn)(a));
@@ -217,7 +217,7 @@ where
         EB: CollectionExtract<S, Item = B>,
         KA2: Fn(&A) -> Option<K> + Send + Sync,
         KB: Fn(&B) -> K + Send + Sync,
-        D: Fn(&B) -> R + Send + Sync,
+        D: Fn(&B) -> R + Send + Sync + 'static,
     {
         ComplementedConstraintStream::new(
             self.extractor,

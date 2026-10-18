@@ -1,17 +1,10 @@
 use solverforge_core::score::Score;
 
 use crate::api::constraint_set::IncrementalConstraintSealed;
-use crate::stream::collector::Accumulator;
 use crate::stream::projected::Source;
 
 use super::{
-    cross_complemented_grouped::ComplementedGrouped as CrossComplementedGrouped,
-    cross_grouped::Grouped as CrossGrouped,
-    grouped::Uni as GroupedUni,
-    projected::{
-        Bi as ProjectedBi, ComplementedGrouped as ProjectedComplementedGrouped,
-        DirectedBi as ProjectedDirectedBi, Grouped as ProjectedGrouped, Uni as ProjectedUni,
-    },
+    projected::{Bi as ProjectedBi, DirectedBi as ProjectedDirectedBi, Uni as ProjectedUni},
     BalanceConstraint, IncrementalUniConstraint,
 };
 
@@ -19,55 +12,6 @@ impl<S, O, W, Sc> IncrementalConstraintSealed for super::relational::OperatorTer
 
 impl<S, A, E, F, W, Sc> IncrementalConstraintSealed for IncrementalUniConstraint<S, A, E, F, W, Sc> where
     Sc: Score
-{
-}
-
-impl<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> IncrementalConstraintSealed
-    for GroupedUni<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
-where
-    Acc: Accumulator<V, R>,
-    Sc: Score,
-{
-}
-
-impl<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc> IncrementalConstraintSealed
-    for CrossGrouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
-where
-    Acc: Accumulator<V, R>,
-    JK: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
-    Sc: Score,
-{
-}
-
-impl<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc>
-    IncrementalConstraintSealed
-    for CrossComplementedGrouped<
-        S,
-        A,
-        B,
-        T,
-        JK,
-        GK,
-        EA,
-        EB,
-        ET,
-        KA,
-        KB,
-        F,
-        GF,
-        KT,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        W,
-        Sc,
-    >
-where
-    Acc: Accumulator<V, R>,
-    JK: Eq + std::hash::Hash + Clone + Send + Sync + 'static,
-    Sc: Score,
 {
 }
 
@@ -94,24 +38,6 @@ where
 impl<S, Out, K, Src, F, KL, KR, PF, W, Sc> IncrementalConstraintSealed
     for ProjectedDirectedBi<S, Out, K, Src, F, KL, KR, PF, W, Sc>
 where
-    Src: Source<S, Out>,
-    Sc: Score,
-{
-}
-
-impl<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc> IncrementalConstraintSealed
-    for ProjectedGrouped<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
-where
-    Acc: Accumulator<V, R>,
-    Src: Source<S, Out>,
-    Sc: Score,
-{
-}
-
-impl<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc> IncrementalConstraintSealed
-    for ProjectedComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
-where
-    Acc: Accumulator<V, R>,
     Src: Source<S, Out>,
     Sc: Score,
 {

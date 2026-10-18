@@ -32,6 +32,10 @@ macro_rules! impl_tuple_collector {
         }
     };
 }
+impl_tuple_collector!([A, B], Pair<Leaf<'a, A>, Leaf<'a, B>>, |row| (
+    row.left.entity,
+    row.right.entity
+));
 impl_tuple_collector!(
     [A, B, D],
     Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, D>>,

@@ -1,14 +1,16 @@
 use crate::api::constraint_set::ConstraintSet;
-use crate::constraint::cross_grouped::{GroupedNodeState, GroupedTerminalScorer, SharedGroupedSet};
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::sum;
+use crate::stream::joiner::equal_bi;
+use crate::stream::ConstraintFactory;
 use solverforge_core::score::SoftScore;
-use solverforge_core::{ConstraintRef, ImpactType};
 
+#[derive(Clone)]
 struct Employee {
     id: usize,
 }
 
+#[derive(Clone)]
 struct Shift {
     employee_id: Option<usize>,
 }
@@ -34,40 +36,30 @@ fn schedule() -> Schedule {
 
 #[test]
 fn shared_cross_grouped_set_updates_one_join_node_for_multiple_terminals() {
-    let state = GroupedNodeState::new(
-        source(
+    let mut constraints = ConstraintFactory::<Schedule, SoftScore>::new()
+        .for_each(source(
             (|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift],
             ChangeSource::Descriptor(0),
-        ),
-        source(
-            (|schedule: &Schedule| schedule.employees.as_slice()) as fn(&Schedule) -> &[Employee],
-            ChangeSource::Descriptor(1),
-        ),
-        |shift: &Shift| shift.employee_id,
-        |employee: &Employee| Some(employee.id),
-        |_schedule: &Schedule,
-         _shift: &Shift,
-         _employee: &Employee,
-         _shift_idx: usize,
-         _employee_idx: usize| true,
-        |_shift: &Shift, employee: &Employee| employee.id,
-        sum(|(_shift, _employee): (&Shift, &Employee)| 1i64),
-    );
-    let scorers = (
-        GroupedTerminalScorer::new(
-            ConstraintRef::new("", "linear assigned shift count"),
-            ImpactType::Penalty,
-            |_employee_id: &usize, count: &i64| SoftScore::of(*count),
-            false,
-        ),
-        GroupedTerminalScorer::new(
-            ConstraintRef::new("", "squared assigned shift count"),
-            ImpactType::Penalty,
-            |_employee_id: &usize, count: &i64| SoftScore::of(count * count),
-            false,
-        ),
-    );
-    let mut constraints = SharedGroupedSet::new(state, scorers);
+        ))
+        .join((
+            source(
+                (|schedule: &Schedule| schedule.employees.as_slice())
+                    as fn(&Schedule) -> &[Employee],
+                ChangeSource::Descriptor(1),
+            ),
+            equal_bi(
+                |shift: &Shift| shift.employee_id,
+                |employee: &Employee| Some(employee.id),
+            ),
+        ))
+        .group_by(
+            |_shift: &Shift, employee: &Employee| employee.id,
+            sum(|(_shift, _employee): (&Shift, &Employee)| 1i64),
+        )
+        .penalize(|_employee_id: &usize, count: &i64| SoftScore::of(*count))
+        .named("linear assigned shift count")
+        .penalize(|_employee_id: &usize, count: &i64| SoftScore::of(count * count))
+        .named("squared assigned shift count");
     let plan = schedule();
 
     assert_eq!(constraints.evaluate_all(&plan), SoftScore::of(-6));
@@ -77,9 +69,9 @@ fn shared_cross_grouped_set_updates_one_join_node_for_multiple_terminals() {
     assert_eq!(metadata[1].name(), "squared assigned shift count");
 
     assert_eq!(constraints.on_retract_all(&plan, 0, 0), SoftScore::of(4));
-    assert_eq!(constraints.state().update_count(), 1);
-    assert_eq!(constraints.state().changed_key_count(), 1);
+    assert_eq!(constraints.update_count(), 1);
+    assert_eq!(constraints.changed_key_count(), 1);
     assert_eq!(constraints.on_insert_all(&plan, 0, 0), SoftScore::of(-4));
-    assert_eq!(constraints.state().update_count(), 2);
-    assert_eq!(constraints.state().changed_key_count(), 2);
+    assert_eq!(constraints.update_count(), 2);
+    assert_eq!(constraints.changed_key_count(), 2);
 }

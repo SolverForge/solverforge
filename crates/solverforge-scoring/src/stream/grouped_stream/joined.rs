@@ -2,7 +2,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
-use solverforge_core::{ConstraintRef, ImpactType};
+use solverforge_core::ImpactType;
 
 use super::super::collection_extract::CollectionExtract;
 use super::super::collector::{Accumulator, Collector};
@@ -10,12 +10,15 @@ use super::super::filter::UniFilter;
 use super::super::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan};
 use super::super::relational::leaf_collector::{leaf_key, LeafCollector, LeafFilter};
 use super::super::relational::operator::{
-    CollectionNode, FilterNode, GroupNode, GroupView, JoinNode, Pair,
+    CollectionNode, FilterNode, GroupNode, GroupView, JoinNode,
 };
 use super::super::relational::view_plan::{EntityKey, GroupKey, ViewEqualPlan};
 use super::super::relational::Leaf;
 use super::super::weighting_support::ConstraintWeight;
-use crate::constraint::relational::OperatorTerminal;
+use crate::constraint::relational::{
+    GroupedJoinAdapter, GroupedJoinWeight, OperatorScorer, SharedOperatorBuilder,
+    SharedOperatorTerminal,
+};
 
 /* The grouped source input: the leaf collection with its authored source
 filter applied, then grouped. Naming this keeps the `GroupView`'s upstream
@@ -237,7 +240,7 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> OperatorTerminal<
+    ) -> SharedOperatorTerminal<
         S,
         JoinNode<
             S,
@@ -253,16 +256,11 @@ where
             CollectionNode<S, EB>,
             ViewEqualPlan<K, GroupKey, EntityKey<KB>>,
         >,
-        impl for<'x> Fn(
-                &S,
-                &Pair<GroupView<'x, S, SourceInput<S, A, E, Fi>, K, Acc, V, R>, Leaf<'x, B>>,
-            ) -> Sc
-            + Send
-            + Sync,
+        GroupedJoinAdapter<K, R, B>,
+        OperatorScorer<GroupedJoinWeight<W>, Sc>,
         Sc,
     > {
         let right_key = self.right_key;
-        let weight = self.weight;
         let tree = JoinNode::new(
             GroupNode::new(
                 FilterNode::new(
@@ -275,20 +273,13 @@ where
             CollectionNode::new(self.extractor_b, 1),
             ViewEqualPlan::new(GroupKey, EntityKey::new(right_key)),
         );
-        let weight_fn = move |_s: &S,
-                              row: &Pair<
-            GroupView<'_, S, SourceInput<S, A, E, Fi>, K, Acc, V, R>,
-            Leaf<'_, B>,
-        >| {
-            row.left
-                .with_result(|r| weight(row.left.key, r, row.right.entity))
-        };
-        OperatorTerminal::new(
-            ConstraintRef::new("", name),
-            self.impact_type,
+        SharedOperatorBuilder::first_with_hard(
             tree,
-            weight_fn,
+            GroupedJoinAdapter::new(),
+            self.impact_type,
+            self.weight,
             self.is_hard,
         )
+        .first_named(name)
     }
 }

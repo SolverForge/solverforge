@@ -1,11 +1,14 @@
 mod filtered;
 mod joined;
 mod merged;
+mod operator;
 mod single;
 
 pub use filtered::FilteredSource;
 pub use joined::JoinedSource;
 pub use merged::MergedSource;
+#[doc(hidden)]
+pub use operator::{ProjectedCollector, ProjectedRow, SourceNode};
 pub use single::SingleSource;
 
 use crate::stream::collection_extract::ChangeSource;

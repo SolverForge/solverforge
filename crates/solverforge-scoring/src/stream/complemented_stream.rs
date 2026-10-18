@@ -8,18 +8,19 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
-use solverforge_core::{ConstraintRef, ImpactType};
+use solverforge_core::ImpactType;
 
 use super::collection_extract::CollectionExtract;
 use super::collector::{Accumulator, Collector};
 use super::relational::leaf_collector::{leaf_key, LeafCollector, OptionalEntityKey};
-use super::relational::operator::{
-    CollectionNode, ComplementNode, ComplementView, GroupNode, GroupView,
-};
+use super::relational::operator::{CollectionNode, ComplementNode, GroupNode};
 use super::relational::view_plan::{GroupKey, ViewEqualPlan};
 use super::relational::Leaf;
 use super::weighting_support::ConstraintWeight;
-use crate::constraint::relational::OperatorTerminal;
+use crate::constraint::relational::{
+    OperatorScorer, OptionalComplementAdapter, OptionalComplementWeight, SharedOperatorBuilder,
+    SharedOperatorTerminal,
+};
 
 /* Zero-erasure constraint stream with complemented groups.
 
@@ -126,7 +127,7 @@ where
     V: Send + Sync + 'static,
     R: Send + Sync + 'static,
     Acc: Accumulator<V, R> + Send + Sync + 'static,
-    D: Fn(&B) -> R + Send + Sync,
+    D: Fn(&B) -> R + Send + Sync + 'static,
     Sc: Score + 'static,
 {
     fn into_weighted_builder<W>(
@@ -284,14 +285,14 @@ where
     V: Send + Sync + 'static,
     R: Send + Sync + 'static,
     Acc: Accumulator<V, R> + Send + Sync + 'static,
-    D: Fn(&B) -> R + Send + Sync,
+    D: Fn(&B) -> R + Send + Sync + 'static,
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     pub fn named(
         self,
         name: &str,
-    ) -> OperatorTerminal<
+    ) -> SharedOperatorTerminal<
         S,
         ComplementNode<
             S,
@@ -309,24 +310,13 @@ where
             impl for<'l> Fn(&S, &Leaf<'l, B>) -> R + Send + Sync,
             R,
         >,
-        impl for<'l> Fn(
-                &S,
-                &ComplementView<
-                    'l,
-                    Leaf<'l, B>,
-                    GroupView<'l, S, CollectionNode<S, EA>, Option<K>, Acc, V, R>,
-                    R,
-                >,
-            ) -> Sc
-            + Send
-            + Sync,
+        OptionalComplementAdapter<KB, K, R>,
+        OperatorScorer<OptionalComplementWeight<W, KB>, Sc>,
         Sc,
     > {
         let key_a = self.key_a;
         let key_b = self.key_b;
-        let key_b_weight = key_b.clone();
         let default_fn = self.default_fn;
-        let weight_fn = self.weight_fn;
         let group = GroupNode::new(
             CollectionNode::new(self.extractor_a, 0),
             leaf_key(key_a),
@@ -339,29 +329,14 @@ where
             ViewEqualPlan::new(OptionalEntityKey::new(key_b.clone()), GroupKey),
             move |_s: &S, row: &Leaf<'_, B>| default_fn(row.entity),
         );
-        let weight = move |_s: &S,
-                           row: &ComplementView<
-            '_,
-            Leaf<'_, B>,
-            GroupView<'_, S, CollectionNode<S, EA>, Option<K>, Acc, V, R>,
-            R,
-        >| match row {
-            ComplementView::Real(pair) => {
-                let key = key_b_weight(pair.left.entity);
-                pair.right.with_result(|r| weight_fn(&key, r))
-            }
-            ComplementView::Default(projected) => {
-                let key = key_b_weight(projected.input.entity);
-                weight_fn(&key, projected.value)
-            }
-        };
-        OperatorTerminal::new(
-            ConstraintRef::new("", name),
-            self.impact_type,
+        SharedOperatorBuilder::first_with_hard(
             tree,
-            weight,
+            OptionalComplementAdapter::new(key_b),
+            self.impact_type,
+            self.weight_fn,
             self.is_hard,
         )
+        .first_named(name)
     }
 
     // Finalizes the builder into a `Grouped`.

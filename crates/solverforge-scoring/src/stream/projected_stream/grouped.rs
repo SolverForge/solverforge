@@ -3,13 +3,17 @@ use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
 
+use crate::constraint::relational::{
+    GroupAdapter, GroupWeight, OperatorScorer, SharedOperatorBuilder, SharedOperatorTerminal,
+};
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::UniFilter;
+use crate::stream::relational::operator::{FilterNode, GroupNode};
 use crate::stream::weighting_support::ConstraintWeight;
 
 use super::complemented_grouped::ComplementedGrouped;
-use super::source::Source;
+use super::source::{ProjectedCollector, ProjectedRow, Source, SourceNode};
 
 pub struct Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
 where
@@ -34,7 +38,7 @@ impl<S, Out, K, Src, F, KF, C, V, R, Acc, Sc> Grouped<S, Out, K, Src, F, KF, C, 
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    K: Eq + Hash + Send + Sync + 'static,
+    K: Clone + Eq + Hash + Send + Sync + 'static,
     Src: Source<S, Out>,
     F: UniFilter<S, Out>,
     KF: Fn(&Out) -> K + Send + Sync,
@@ -191,10 +195,10 @@ impl<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
     S: Send + Sync + 'static,
     Out: Send + Sync + 'static,
-    K: Eq + Hash + Send + Sync + 'static,
-    Src: Source<S, Out>,
-    F: UniFilter<S, Out>,
-    KF: Fn(&Out) -> K + Send + Sync,
+    K: Clone + Eq + Hash + Send + Sync + 'static,
+    Src: Source<S, Out> + 'static,
+    F: UniFilter<S, Out> + 'static,
+    KF: Fn(&Out) -> K + Send + Sync + 'static,
     C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static,
     V: Send + Sync + 'static,
     R: Send + Sync + 'static,
@@ -205,16 +209,41 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> crate::constraint::projected::Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc> {
-        crate::constraint::projected::Grouped::new(
-            solverforge_core::ConstraintRef::new("", name),
+    ) -> SharedOperatorTerminal<
+        S,
+        GroupNode<
+            FilterNode<
+                SourceNode<S, Out, Src>,
+                impl Fn(&S, &ProjectedRow<'_, Out>) -> bool + Send + Sync,
+            >,
+            impl Fn(&ProjectedRow<'_, Out>) -> K + Send + Sync,
+            ProjectedCollector<C, V, R, Acc>,
+            K,
+            Acc,
+            V,
+            R,
+        >,
+        GroupAdapter<K, R>,
+        OperatorScorer<GroupWeight<W>, Sc>,
+        Sc,
+    > {
+        let filter = self.filter;
+        let key = self.key_fn;
+        let tree = GroupNode::new(
+            FilterNode::new(
+                SourceNode::new(self.source),
+                move |solution: &S, row: &ProjectedRow<'_, Out>| filter.test(solution, row.value),
+            ),
+            move |row: &ProjectedRow<'_, Out>| key(row.value),
+            ProjectedCollector::new(self.collector),
+        );
+        SharedOperatorBuilder::first_with_hard(
+            tree,
+            GroupAdapter::new(),
             self.impact_type,
-            self.source,
-            self.filter,
-            self.key_fn,
-            self.collector,
             self.weight_fn,
             self.is_hard,
         )
+        .first_named(name)
     }
 }

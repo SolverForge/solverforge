@@ -4,15 +4,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use solverforge_core::score::SoftScore;
-use solverforge_core::{ConstraintRef, ImpactType};
 
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
-use crate::constraint::grouped::{
-    GroupedNodeState, GroupedTerminalScorer, SharedGroupedConstraintSet, Uni,
-};
 use crate::stream::collection_extract::{source, vec, ChangeSource};
 use crate::stream::collector::{collect_vec, count, CollectedVec};
-use crate::stream::filter::TrueFilter;
 use crate::stream::ConstraintFactory;
 
 #[derive(Clone)]
@@ -27,19 +22,14 @@ struct GroupedSolution {
 
 #[test]
 fn test_grouped_constraint_evaluate() {
-    let constraint = Uni::new(
-        ConstraintRef::new("", "Workload"),
-        ImpactType::Penalty,
-        source(
+    let constraint = ConstraintFactory::<GroupedSolution, SoftScore>::new()
+        .for_each(source(
             vec(|s: &GroupedSolution| &s.shifts),
             ChangeSource::Descriptor(0),
-        ),
-        TrueFilter,
-        |shift: &GroupedShift| shift.employee_id,
-        count(),
-        |_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64),
-        false,
-    );
+        ))
+        .group_by(|shift: &GroupedShift| shift.employee_id, count())
+        .penalize(|_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64))
+        .named("Workload");
 
     let solution = GroupedSolution {
         shifts: vec![
@@ -59,19 +49,14 @@ fn test_grouped_constraint_evaluate() {
 
 #[test]
 fn test_grouped_constraint_incremental() {
-    let mut constraint = Uni::new(
-        ConstraintRef::new("", "Workload"),
-        ImpactType::Penalty,
-        source(
+    let mut constraint = ConstraintFactory::<GroupedSolution, SoftScore>::new()
+        .for_each(source(
             vec(|s: &GroupedSolution| &s.shifts),
             ChangeSource::Descriptor(0),
-        ),
-        TrueFilter,
-        |shift: &GroupedShift| shift.employee_id,
-        count(),
-        |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
-        false,
-    );
+        ))
+        .group_by(|shift: &GroupedShift| shift.employee_id, count())
+        .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+        .named("Workload");
 
     let solution = GroupedSolution {
         shifts: vec![
@@ -102,16 +87,11 @@ fn test_grouped_constraint_incremental() {
 
 #[test]
 fn test_grouped_constraint_reward() {
-    let constraint = Uni::new(
-        ConstraintRef::new("", "Collaboration"),
-        ImpactType::Reward,
-        vec(|s: &GroupedSolution| &s.shifts),
-        TrueFilter,
-        |shift: &GroupedShift| shift.employee_id,
-        count(),
-        |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
-        false,
-    );
+    let constraint = ConstraintFactory::<GroupedSolution, SoftScore>::new()
+        .for_each(vec(|s: &GroupedSolution| &s.shifts))
+        .group_by(|shift: &GroupedShift| shift.employee_id, count())
+        .reward(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+        .named("Collaboration");
 
     let solution = GroupedSolution {
         shifts: vec![
@@ -126,16 +106,13 @@ fn test_grouped_constraint_reward() {
 
 #[test]
 fn test_grouped_constraint_weight_can_use_key() {
-    let constraint = Uni::new(
-        ConstraintRef::new("", "Key weighted workload"),
-        ImpactType::Penalty,
-        vec(|s: &GroupedSolution| &s.shifts),
-        TrueFilter,
-        |shift: &GroupedShift| shift.employee_id,
-        count(),
-        |employee_id: &usize, count: &usize| SoftScore::of((*employee_id as i64) * (*count as i64)),
-        false,
-    );
+    let constraint = ConstraintFactory::<GroupedSolution, SoftScore>::new()
+        .for_each(vec(|s: &GroupedSolution| &s.shifts))
+        .group_by(|shift: &GroupedShift| shift.employee_id, count())
+        .penalize(|employee_id: &usize, count: &usize| {
+            SoftScore::of((*employee_id as i64) * (*count as i64))
+        })
+        .named("Key weighted workload");
 
     let solution = GroupedSolution {
         shifts: vec![
@@ -150,16 +127,16 @@ fn test_grouped_constraint_weight_can_use_key() {
 
 #[test]
 fn test_grouped_constraint_collect_vec_accepts_owned_labels() {
-    let constraint = Uni::new(
-        ConstraintRef::new("", "Grouped labels"),
-        ImpactType::Penalty,
-        vec(|s: &GroupedSolution| &s.shifts),
-        TrueFilter,
-        |shift: &GroupedShift| shift.employee_id,
-        collect_vec(|shift: &GroupedShift| format!("employee-{}", shift.employee_id)),
-        |_employee_id: &usize, labels: &CollectedVec<String>| SoftScore::of(labels.len() as i64),
-        false,
-    );
+    let constraint = ConstraintFactory::<GroupedSolution, SoftScore>::new()
+        .for_each(vec(|s: &GroupedSolution| &s.shifts))
+        .group_by(
+            |shift: &GroupedShift| shift.employee_id,
+            collect_vec(|shift: &GroupedShift| format!("employee-{}", shift.employee_id)),
+        )
+        .penalize(|_employee_id: &usize, labels: &CollectedVec<String>| {
+            SoftScore::of(labels.len() as i64)
+        })
+        .named("Grouped labels");
 
     let solution = GroupedSolution {
         shifts: vec![
@@ -174,30 +151,16 @@ fn test_grouped_constraint_collect_vec_accepts_owned_labels() {
 
 #[test]
 fn test_shared_grouped_constraint_set_updates_one_node_for_multiple_terminals() {
-    let state = GroupedNodeState::new(
-        source(
+    let mut constraints = ConstraintFactory::<GroupedSolution, SoftScore>::new()
+        .for_each(source(
             vec(|s: &GroupedSolution| &s.shifts),
             ChangeSource::Descriptor(0),
-        ),
-        TrueFilter,
-        |shift: &GroupedShift| shift.employee_id,
-        count(),
-    );
-    let scorers = (
-        GroupedTerminalScorer::new(
-            ConstraintRef::new("", "Linear workload"),
-            ImpactType::Penalty,
-            |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
-            false,
-        ),
-        GroupedTerminalScorer::new(
-            ConstraintRef::new("", "Squared workload"),
-            ImpactType::Penalty,
-            |_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64),
-            false,
-        ),
-    );
-    let mut constraints = SharedGroupedConstraintSet::new(state, scorers);
+        ))
+        .group_by(|shift: &GroupedShift| shift.employee_id, count())
+        .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+        .named("Linear workload")
+        .penalize(|_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64))
+        .named("Squared workload");
     let solution = GroupedSolution {
         shifts: vec![
             GroupedShift { employee_id: 1 },
@@ -213,19 +176,19 @@ fn test_shared_grouped_constraint_set_updates_one_node_for_multiple_terminals() 
     assert_eq!(metadata[1].name(), "Squared workload");
 
     assert_eq!(constraints.initialize_all(&solution), SoftScore::of(-8));
-    assert_eq!(constraints.state().update_count(), 0);
+    assert_eq!(constraints.update_count(), 0);
     assert_eq!(
         constraints.on_retract_all(&solution, 0, 0),
         SoftScore::of(4)
     );
-    assert_eq!(constraints.state().update_count(), 1);
-    assert_eq!(constraints.state().changed_key_count(), 1);
+    assert_eq!(constraints.update_count(), 1);
+    assert_eq!(constraints.changed_key_count(), 1);
     assert_eq!(
         constraints.on_insert_all(&solution, 0, 0),
         SoftScore::of(-4)
     );
-    assert_eq!(constraints.state().update_count(), 2);
-    assert_eq!(constraints.state().changed_key_count(), 2);
+    assert_eq!(constraints.update_count(), 2);
+    assert_eq!(constraints.changed_key_count(), 2);
 }
 
 #[test]
@@ -263,40 +226,26 @@ fn test_grouped_fluent_chain_appends_terminals_to_one_node() {
         constraints.on_retract_all(&solution, 0, 0),
         SoftScore::of(3)
     );
-    assert_eq!(constraints.state().update_count(), 1);
+    assert_eq!(constraints.update_count(), 1);
     assert_eq!(
         constraints.on_insert_all(&solution, 0, 0),
         SoftScore::of(-3)
     );
-    assert_eq!(constraints.state().update_count(), 2);
+    assert_eq!(constraints.update_count(), 2);
 }
 
 #[test]
 fn test_shared_grouped_constraint_set_refreshes_only_dirty_keys() {
-    let state = GroupedNodeState::new(
-        source(
+    let mut constraints = ConstraintFactory::<GroupedSolution, SoftScore>::new()
+        .for_each(source(
             vec(|s: &GroupedSolution| &s.shifts),
             ChangeSource::Descriptor(0),
-        ),
-        TrueFilter,
-        |shift: &GroupedShift| shift.employee_id,
-        count(),
-    );
-    let scorers = (
-        GroupedTerminalScorer::new(
-            ConstraintRef::new("", "Linear workload"),
-            ImpactType::Penalty,
-            |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
-            false,
-        ),
-        GroupedTerminalScorer::new(
-            ConstraintRef::new("", "Squared workload"),
-            ImpactType::Penalty,
-            |_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64),
-            false,
-        ),
-    );
-    let mut constraints = SharedGroupedConstraintSet::new(state, scorers);
+        ))
+        .group_by(|shift: &GroupedShift| shift.employee_id, count())
+        .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+        .named("Linear workload")
+        .penalize(|_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64))
+        .named("Squared workload");
     let solution = GroupedSolution {
         shifts: vec![
             GroupedShift { employee_id: 1 },
@@ -310,7 +259,7 @@ fn test_shared_grouped_constraint_set_refreshes_only_dirty_keys() {
         constraints.on_retract_all(&solution, 0, 1),
         SoftScore::of(0)
     );
-    assert_eq!(constraints.state().update_count(), 0);
+    assert_eq!(constraints.update_count(), 0);
     assert_eq!(
         constraints.on_retract_all(&solution, 0, 0),
         SoftScore::of(4)
@@ -322,30 +271,16 @@ fn test_shared_grouped_constraint_set_refreshes_only_dirty_keys() {
 
 #[test]
 fn shared_grouped_terminals_keep_independent_detailed_identity() {
-    let state = GroupedNodeState::new(
-        source(
+    let mut constraints = ConstraintFactory::<GroupedSolution, SoftScore>::new()
+        .for_each(source(
             vec(|s: &GroupedSolution| &s.shifts),
             ChangeSource::Descriptor(0),
-        ),
-        TrueFilter,
-        |shift: &GroupedShift| shift.employee_id,
-        count(),
-    );
-    let scorers = (
-        GroupedTerminalScorer::new(
-            ConstraintRef::new("", "Linear workload"),
-            ImpactType::Penalty,
-            |_employee_id: &usize, count: &usize| SoftScore::of(*count as i64),
-            false,
-        ),
-        GroupedTerminalScorer::new(
-            ConstraintRef::new("", "Squared workload"),
-            ImpactType::Penalty,
-            |_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64),
-            false,
-        ),
-    );
-    let mut constraints = SharedGroupedConstraintSet::new(state, scorers);
+        ))
+        .group_by(|shift: &GroupedShift| shift.employee_id, count())
+        .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+        .named("Linear workload")
+        .penalize(|_employee_id: &usize, count: &usize| SoftScore::of((*count * *count) as i64))
+        .named("Squared workload");
     let solution = GroupedSolution {
         shifts: vec![
             GroupedShift { employee_id: 1 },
@@ -411,30 +346,27 @@ impl std::fmt::Debug for NonClonePayload {
 fn non_clone_payload_grouped_set_retracts_exactly_on_mutation() {
     let drops = Arc::new(AtomicUsize::new(0));
     let payload_drops = Arc::clone(&drops);
-    let state = GroupedNodeState::new(
-        source(
+    let mut constraints = ConstraintFactory::<GroupedSolution, SoftScore>::new()
+        .for_each(source(
             vec(|s: &GroupedSolution| &s.shifts),
             ChangeSource::Descriptor(0),
-        ),
-        TrueFilter,
-        |shift: &GroupedShift| shift.employee_id,
-        collect_vec({
-            let payload_drops = Arc::clone(&payload_drops);
-            move |_: &GroupedShift| NonClonePayload {
-                slot: 0,
-                drops: Arc::clone(&payload_drops),
-            }
-        }),
-    );
-    let scorer = GroupedTerminalScorer::new(
-        ConstraintRef::new("", "Payload count"),
-        ImpactType::Penalty,
-        |_employee_id: &usize, collected: &CollectedVec<NonClonePayload>| {
-            SoftScore::of(collected.len() as i64)
-        },
-        false,
-    );
-    let mut constraints = SharedGroupedConstraintSet::new(state, (scorer,));
+        ))
+        .group_by(
+            |shift: &GroupedShift| shift.employee_id,
+            collect_vec({
+                let payload_drops = Arc::clone(&payload_drops);
+                move |_: &GroupedShift| NonClonePayload {
+                    slot: 0,
+                    drops: Arc::clone(&payload_drops),
+                }
+            }),
+        )
+        .penalize(
+            |_employee_id: &usize, collected: &CollectedVec<NonClonePayload>| {
+                SoftScore::of(collected.len() as i64)
+            },
+        )
+        .named("Payload count");
     let solution = GroupedSolution {
         shifts: vec![
             GroupedShift { employee_id: 1 },
@@ -443,14 +375,11 @@ fn non_clone_payload_grouped_set_retracts_exactly_on_mutation() {
         ],
     };
 
-    assert_eq!(constraints.initialize_all(&solution), SoftScore::of(-3));
+    assert_eq!(constraints.initialize(&solution), SoftScore::of(-3));
     let payloads_before = drops.load(Ordering::SeqCst);
     // Retract one contributor: its payload drops exactly once and the group
     // score updates from 3 to 2.
-    assert_eq!(
-        constraints.on_retract_all(&solution, 0, 0),
-        SoftScore::of(1)
-    );
+    assert_eq!(constraints.on_retract(&solution, 0, 0), SoftScore::of(1));
     // The retained state's cached score is the authoritative mutation view;
     // evaluate_all deliberately re-derives from the live solution. Assert the
     // retraction's exact ledger effect instead: the cached delta plus the
@@ -460,7 +389,7 @@ fn non_clone_payload_grouped_set_retracts_exactly_on_mutation() {
         retracted_drops >= 1,
         "retraction must drop at least the retracted contributor's payload"
     );
-    constraints.reset_all();
+    constraints.reset();
     // Reset frees every retained payload shell (empty group shells at minimum).
     assert!(
         drops.load(Ordering::SeqCst) >= payloads_before + retracted_drops,

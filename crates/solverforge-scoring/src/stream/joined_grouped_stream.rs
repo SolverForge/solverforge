@@ -2,10 +2,10 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use super::collector::{Accumulator, Collector};
-use super::relational::operator::{ExplainRow, GroupNode, GroupView, Operator};
+use super::relational::operator::{ExplainRow, GroupNode, Operator};
 use super::weighting_support::ConstraintWeight;
-use crate::constraint::relational::OperatorTerminal;
-use solverforge_core::{score::Score, ConstraintRef, ImpactType};
+use crate::constraint::relational::{GroupAdapter, SharedOperatorBuilder, SharedOperatorTerminal};
+use solverforge_core::{score::Score, ImpactType};
 
 /// Grouped joined rows, backed by the common grouping operator.
 pub struct JoinedGroupedStream<S, O, F, C, K, V, R, Acc: Accumulator<V, R>, Sc> {
@@ -100,21 +100,34 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> OperatorTerminal<
+    ) -> SharedOperatorTerminal<
         S,
         GroupNode<O, F, C, K, Acc, V, R>,
-        impl Fn(&S, &GroupView<'_, S, O, K, Acc, V, R>) -> Sc + Send + Sync,
+        GroupAdapter<K, R>,
+        crate::constraint::relational::OperatorScorer<
+            <GroupAdapter<K, R> as crate::constraint::relational::AdaptWeight<
+                S,
+                GroupNode<O, F, C, K, Acc, V, R>,
+                W,
+                Sc,
+            >>::RowWeight,
+            Sc,
+        >,
         Sc,
     > {
-        let weight = self.weight;
-        OperatorTerminal::new(
-            ConstraintRef::new("", name),
-            self.impact,
+        SharedOperatorBuilder::first_with_hard(
             self.node,
-            move |_: &S, row: &GroupView<'_, S, O, K, Acc, V, R>| {
-                row.with_result(|r| weight(row.key, r))
-            },
+            GroupAdapter::new(),
+            self.impact,
+            self.weight,
             self.hard,
         )
+        .with_explainer(|operator, solution, handle, entities| {
+            let row = operator
+                .resolve(solution, handle)
+                .expect("live grouped row");
+            row.explain(entities);
+        })
+        .first_named(name)
     }
 }

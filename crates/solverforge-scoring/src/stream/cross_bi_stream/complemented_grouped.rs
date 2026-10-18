@@ -2,12 +2,26 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
-use solverforge_core::{ConstraintRef, ImpactType};
+use solverforge_core::ImpactType;
 
+use crate::constraint::relational::{
+    DirectComplementAdapter, DirectComplementWeight, OperatorScorer, SharedOperatorBuilder,
+    SharedOperatorTerminal,
+};
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::BiFilter;
+use crate::stream::relational::operator::{
+    CollectionNode, ComplementNode, GroupNode, JoinNode, Pair,
+};
+use crate::stream::relational::view_plan::{EntityKey, GroupKey, ViewEqualPlan};
+use crate::stream::relational::{Leaf, TupleCollector};
 use crate::stream::weighting_support::ConstraintWeight;
+
+use super::scored::{BiScored, BiUnaryPlan};
+
+type BiInput<S, A, B, EA, EB, JK, KA, KB, F> =
+    BiScored<S, A, B, EA, EB, BiUnaryPlan<JK, KA, KB>, F>;
 
 pub struct ComplementedGrouped<
     S,
@@ -71,9 +85,9 @@ where
     ET: CollectionExtract<S, Item = T>,
     KA: Fn(&A) -> JK + Send + Sync + 'static,
     KB: Fn(&B) -> JK + Send + Sync + 'static,
-    F: BiFilter<S, A, B>,
-    GF: Fn(&A, &B) -> GK + Send + Sync,
-    KT: Fn(&T) -> GK + Send + Sync,
+    F: BiFilter<S, A, B> + 'static,
+    GF: Fn(&A, &B) -> GK + Send + Sync + 'static,
+    KT: Fn(&T) -> GK + Send + Sync + Clone,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc>
         + Send
         + Sync
@@ -81,7 +95,7 @@ where
     V: Send + Sync + 'static,
     R: Send + Sync + 'static,
     Acc: Accumulator<V, R> + Send + Sync + 'static,
-    D: Fn(&T) -> R + Send + Sync,
+    D: Fn(&T) -> R + Send + Sync + 'static,
     Sc: Score + 'static,
 {
     fn into_weighted_builder<W>(
@@ -296,9 +310,9 @@ where
     ET: CollectionExtract<S, Item = T> + Send + Sync + 'static,
     KA: Fn(&A) -> JK + Send + Sync + 'static,
     KB: Fn(&B) -> JK + Send + Sync + 'static,
-    F: BiFilter<S, A, B>,
-    GF: Fn(&A, &B) -> GK + Send + Sync,
-    KT: Fn(&T) -> GK + Send + Sync,
+    F: BiFilter<S, A, B> + 'static,
+    GF: Fn(&A, &B) -> GK + Send + Sync + 'static,
+    KT: Fn(&T) -> GK + Send + Sync + Clone + 'static,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc>
         + Send
         + Sync
@@ -306,55 +320,66 @@ where
     V: Send + Sync + 'static,
     R: Send + Sync + 'static,
     Acc: Accumulator<V, R> + Send + Sync + 'static,
-    D: Fn(&T) -> R + Send + Sync,
+    D: Fn(&T) -> R + Send + Sync + 'static,
     W: Fn(&GK, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
     pub fn named(
         self,
         name: &str,
-    ) -> crate::constraint::cross_complemented_grouped::ComplementedGrouped<
+    ) -> SharedOperatorTerminal<
         S,
-        A,
-        B,
-        T,
-        JK,
-        GK,
-        EA,
-        EB,
-        ET,
-        KA,
-        KB,
-        impl Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
-        GF,
-        KT,
-        C,
-        V,
-        R,
-        Acc,
-        D,
-        W,
+        ComplementNode<
+            S,
+            CollectionNode<S, ET>,
+            GroupNode<
+                BiInput<S, A, B, EA, EB, JK, KA, KB, F>,
+                impl Fn(&Pair<Leaf<'_, A>, Leaf<'_, B>>) -> GK + Send + Sync,
+                TupleCollector<C, V, R, Acc>,
+                GK,
+                Acc,
+                V,
+                R,
+            >,
+            ViewEqualPlan<GK, EntityKey<KT>, GroupKey>,
+            impl Fn(&S, &Leaf<'_, T>) -> R + Send + Sync,
+            R,
+        >,
+        DirectComplementAdapter<KT, GK, R>,
+        OperatorScorer<DirectComplementWeight<W, KT>, Sc>,
         Sc,
     > {
-        let filter = self.filter;
-        let combined_filter = move |s: &S, a: &A, b: &B, a_idx: usize, b_idx: usize| {
-            filter.test(s, a, b, a_idx, b_idx)
-        };
-        crate::constraint::cross_complemented_grouped::ComplementedGrouped::new(
-            ConstraintRef::new("", name),
+        let input = BiScored::new(
+            JoinNode::new(
+                CollectionNode::new(self.extractor_a, 0),
+                CollectionNode::new(self.extractor_b, 1),
+                BiUnaryPlan::new(self.key_a, self.key_b),
+            ),
+            self.filter,
+        );
+        let group_key = self.group_key_fn;
+        let group = GroupNode::new(
+            input,
+            move |row: &Pair<Leaf<'_, A>, Leaf<'_, B>>| {
+                group_key(row.left.entity, row.right.entity)
+            },
+            TupleCollector::new(self.collector),
+        );
+        let key_t = self.key_t;
+        let default_fn = self.default_fn;
+        let tree = ComplementNode::new(
+            CollectionNode::new(self.extractor_t, 2),
+            group,
+            ViewEqualPlan::new(EntityKey::new(key_t.clone()), GroupKey),
+            move |_solution: &S, row: &Leaf<'_, T>| default_fn(row.entity),
+        );
+        SharedOperatorBuilder::first_with_hard(
+            tree,
+            DirectComplementAdapter::new(key_t),
             self.impact_type,
-            self.extractor_a,
-            self.extractor_b,
-            self.extractor_t,
-            self.key_a,
-            self.key_b,
-            combined_filter,
-            self.group_key_fn,
-            self.key_t,
-            self.collector,
-            self.default_fn,
             self.weight_fn,
             self.is_hard,
         )
+        .first_named(name)
     }
 }

@@ -132,33 +132,20 @@ fn projected_merged_descriptor_sources_update_only_owning_slot() {
 
 #[test]
 fn shared_projected_grouped_set_updates_one_projected_node_for_multiple_terminals() {
-    let projected = ConstraintFactory::<Plan, SoftScore>::new()
+    let mut constraints = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(source(
             work as fn(&Plan) -> &[Work],
             ChangeSource::Descriptor(0),
         ))
-        .project(WorkEntryProjection);
-    let state = GroupedNodeState::new(
-        projected.source,
-        projected.filter,
-        |entry: &Entry| entry.bucket,
-        sum(|entry: &Entry| entry.delta),
-    );
-    let scorers = (
-        GroupedTerminalScorer::new(
-            ConstraintRef::new("", "positive demand"),
-            ImpactType::Penalty,
-            |_bucket: &usize, demand: &i64| SoftScore::of((*demand).max(0)),
-            false,
-        ),
-        GroupedTerminalScorer::new(
-            ConstraintRef::new("", "weighted demand"),
-            ImpactType::Penalty,
-            |bucket: &usize, demand: &i64| SoftScore::of((*bucket as i64 + 1) * *demand),
-            false,
-        ),
-    );
-    let mut constraints = SharedGroupedSet::new(state, scorers);
+        .project(WorkEntryProjection)
+        .group_by(
+            |entry: &Entry| entry.bucket,
+            sum(|entry: &Entry| entry.delta),
+        )
+        .penalize(|_bucket: &usize, demand: &i64| SoftScore::of((*demand).max(0)))
+        .named("positive demand")
+        .penalize(|bucket: &usize, demand: &i64| SoftScore::of((*bucket as i64 + 1) * *demand))
+        .named("weighted demand");
     let mut plan = Plan {
         work: vec![
             Work {
@@ -187,8 +174,8 @@ fn shared_projected_grouped_set_updates_one_projected_node_for_multiple_terminal
     plan.work[1].demand = 2;
     total = total + constraints.on_insert_all(&plan, 1, 0);
 
-    assert_eq!(constraints.state().update_count(), 2);
-    assert_eq!(constraints.state().changed_key_count(), 2);
+    assert_eq!(constraints.update_count(), 2);
+    assert_eq!(constraints.changed_key_count(), 2);
     assert_eq!(total, SoftScore::of(-14));
     assert_eq!(total, constraints.evaluate_all(&plan));
 }
@@ -323,7 +310,7 @@ fn projected_group_by_complement_duplicate_complement_keys_match_incremental() {
 
 #[test]
 fn shared_projected_group_by_complement_updates_one_node_for_multiple_terminals() {
-    let complemented = ConstraintFactory::<Plan, SoftScore>::new()
+    let mut constraints = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(source(
             work as fn(&Plan) -> &[Work],
             ChangeSource::Descriptor(0),
@@ -340,31 +327,11 @@ fn shared_projected_group_by_complement_updates_one_node_for_multiple_terminals(
             ),
             |capacity: &Capacity| capacity.bucket,
             |_capacity: &Capacity| 3i64,
-        );
-    let state = ComplementedGroupedNodeState::new(
-        complemented.source,
-        complemented.extractor_b,
-        complemented.filter,
-        complemented.key_a,
-        complemented.key_b,
-        complemented.collector,
-        complemented.default_fn,
-    );
-    let scorers = (
-        ComplementedGroupedTerminalScorer::new(
-            ConstraintRef::new("", "projected demand"),
-            ImpactType::Penalty,
-            |bucket: &usize, demand: &i64| SoftScore::of((*bucket as i64 * 10) + *demand),
-            false,
-        ),
-        ComplementedGroupedTerminalScorer::new(
-            ConstraintRef::new("", "double projected demand"),
-            ImpactType::Penalty,
-            |_bucket: &usize, demand: &i64| SoftScore::of(*demand * 2),
-            false,
-        ),
-    );
-    let mut constraints = SharedComplementedGroupedSet::new(state, scorers);
+        )
+        .penalize(|bucket: &usize, demand: &i64| SoftScore::of((*bucket as i64 * 10) + *demand))
+        .named("projected demand")
+        .penalize(|_bucket: &usize, demand: &i64| SoftScore::of(*demand * 2))
+        .named("double projected demand");
     let mut plan = projected_demand_complement_plan();
 
     let mut total = constraints.initialize_all(&plan);
@@ -374,7 +341,7 @@ fn shared_projected_group_by_complement_updates_one_node_for_multiple_terminals(
     plan.work[0].demand = 7;
     total = total + constraints.on_insert_all(&plan, 0, 0);
 
-    assert_eq!(constraints.state().update_count(), 2);
+    assert_eq!(constraints.update_count(), 2);
     assert_eq!(total, SoftScore::of(-40));
     assert_eq!(total, constraints.evaluate_all(&plan));
     assert_eq!(constraints.evaluate_each(&plan).len(), 2);

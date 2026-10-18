@@ -562,19 +562,16 @@ fn projected_group_by_accepts_move_only_collector_values() {
 }
 
 #[test]
-fn projected_group_by_accepts_move_only_keys() {
+fn projected_group_by_accepts_move_only_payloads() {
     let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
         .for_each(source(
             work as fn(&Plan) -> &[Work],
             ChangeSource::Descriptor(0),
         ))
         .project(MoveOnlyWorkEntryProjection)
-        .group_by(
-            |entry: &MoveOnlyEntry| MoveOnlyBucket(entry.bucket),
-            MoveOnlyDeltaCollector,
-        )
-        .penalize(|_bucket: &MoveOnlyBucket, delta: &i64| SoftScore::of((*delta).max(0)))
-        .named("projected move-only key");
+        .group_by(|entry: &MoveOnlyEntry| entry.bucket, MoveOnlyDeltaCollector)
+        .penalize(|_bucket: &usize, delta: &i64| SoftScore::of((*delta).max(0)))
+        .named("projected move-only payload");
 
     let mut plan = Plan {
         work: vec![

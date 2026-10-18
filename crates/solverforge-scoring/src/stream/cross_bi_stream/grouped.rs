@@ -2,14 +2,23 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 
 use solverforge_core::score::Score;
-use solverforge_core::{ConstraintRef, ImpactType};
+use solverforge_core::ImpactType;
 
+use crate::constraint::relational::{
+    GroupAdapter, GroupWeight, OperatorScorer, SharedOperatorBuilder, SharedOperatorTerminal,
+};
 use crate::stream::collection_extract::CollectionExtract;
 use crate::stream::collector::{Accumulator, Collector};
 use crate::stream::filter::BiFilter;
+use crate::stream::relational::operator::{CollectionNode, GroupNode, JoinNode, Pair};
+use crate::stream::relational::{Leaf, TupleCollector};
 use crate::stream::weighting_support::ConstraintWeight;
 
 use super::complemented_grouped::ComplementedGrouped;
+use super::scored::{BiScored, BiUnaryPlan};
+
+type BiInput<S, A, B, EA, EB, JK, KA, KB, F> =
+    BiScored<S, A, B, EA, EB, BiUnaryPlan<JK, KA, KB>, F>;
 
 pub struct Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
 where
@@ -47,8 +56,8 @@ where
     EB: CollectionExtract<S, Item = B>,
     KA: Fn(&A) -> JK + Send + Sync,
     KB: Fn(&B) -> JK + Send + Sync,
-    F: BiFilter<S, A, B>,
-    GF: Fn(&A, &B) -> GK + Send + Sync,
+    F: BiFilter<S, A, B> + 'static,
+    GF: Fn(&A, &B) -> GK + Send + Sync + 'static,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc>
         + Send
         + Sync
@@ -215,8 +224,8 @@ where
     EB: CollectionExtract<S, Item = B> + Send + Sync + 'static,
     KA: Fn(&A) -> JK + Send + Sync + 'static,
     KB: Fn(&B) -> JK + Send + Sync + 'static,
-    F: BiFilter<S, A, B>,
-    GF: Fn(&A, &B) -> GK + Send + Sync,
+    F: BiFilter<S, A, B> + 'static,
+    GF: Fn(&A, &B) -> GK + Send + Sync + 'static,
     C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc>
         + Send
         + Sync
@@ -230,41 +239,44 @@ where
     pub fn named(
         self,
         name: &str,
-    ) -> crate::constraint::cross_grouped::Grouped<
+    ) -> SharedOperatorTerminal<
         S,
-        A,
-        B,
-        JK,
-        GK,
-        EA,
-        EB,
-        KA,
-        KB,
-        impl Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync,
-        GF,
-        C,
-        V,
-        R,
-        Acc,
-        W,
+        GroupNode<
+            BiInput<S, A, B, EA, EB, JK, KA, KB, F>,
+            impl Fn(&Pair<Leaf<'_, A>, Leaf<'_, B>>) -> GK + Send + Sync,
+            TupleCollector<C, V, R, Acc>,
+            GK,
+            Acc,
+            V,
+            R,
+        >,
+        GroupAdapter<GK, R>,
+        OperatorScorer<GroupWeight<W>, Sc>,
         Sc,
     > {
-        let filter = self.filter;
-        let combined_filter = move |s: &S, a: &A, b: &B, a_idx: usize, b_idx: usize| {
-            filter.test(s, a, b, a_idx, b_idx)
-        };
-        crate::constraint::cross_grouped::Grouped::new(
-            ConstraintRef::new("", name),
+        let input = BiScored::new(
+            JoinNode::new(
+                CollectionNode::new(self.extractor_a, 0),
+                CollectionNode::new(self.extractor_b, 1),
+                BiUnaryPlan::new(self.key_a, self.key_b),
+            ),
+            self.filter,
+        );
+        let group_key = self.group_key_fn;
+        let tree = GroupNode::new(
+            input,
+            move |row: &Pair<Leaf<'_, A>, Leaf<'_, B>>| {
+                group_key(row.left.entity, row.right.entity)
+            },
+            TupleCollector::new(self.collector),
+        );
+        SharedOperatorBuilder::first_with_hard(
+            tree,
+            GroupAdapter::new(),
             self.impact_type,
-            self.extractor_a,
-            self.extractor_b,
-            self.key_a,
-            self.key_b,
-            combined_filter,
-            self.group_key_fn,
-            self.collector,
             self.weight_fn,
             self.is_hard,
         )
+        .first_named(name)
     }
 }

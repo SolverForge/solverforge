@@ -20,7 +20,6 @@ use crate::stats::CandidateTracePullToken;
 
 use super::decision::{
     consume_candidate, discard_window_from, interrupt_window_at, record_generated_candidate,
-    WindowSlot,
 };
 use super::StepMoveLabelCounts;
 
@@ -83,8 +82,7 @@ where
     let mut journal_pool: Vec<MoveCandidateUndo<M::Undo>> = Vec::new();
     let mut control_polls = 0usize;
     let mut control_latched = false;
-    let mut window: Vec<WindowSlot> = Vec::new();
-    let mut results = Vec::new();
+    let (mut window, mut results) = evaluators.take_window_buffers();
     while !forager.is_quit_early() {
         if state.interrupted {
             break;
@@ -208,5 +206,6 @@ where
         }
     }
 
+    evaluators.restore_window_buffers(window, results);
     state
 }

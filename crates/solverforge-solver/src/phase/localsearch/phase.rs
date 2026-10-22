@@ -22,6 +22,8 @@ mod candidates;
 mod decision;
 mod step;
 
+pub(in crate::phase::localsearch) use decision::WindowSlot;
+
 use step::{execute_step, StepOutcome};
 
 const STEP_ACCEPTED_LABEL_LIMIT: usize = 32;

@@ -23,7 +23,7 @@ use super::{candidate_selector_label, take_trace_token};
 const PROGRESS_POLL_INTERVAL: u64 = 256;
 
 /// A generated candidate waiting for its trial result.
-pub(super) struct WindowSlot {
+pub(in crate::phase::localsearch) struct WindowSlot {
     pub(super) id: CandidateId,
     pub(super) selector_index: Option<usize>,
     pub(super) move_label: &'static str,

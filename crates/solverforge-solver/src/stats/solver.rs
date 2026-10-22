@@ -21,6 +21,9 @@ pub struct SolverStats {
     pub moves_generated: u64,
     // Total moves evaluated across all phases.
     pub moves_evaluated: u64,
+    /// Candidates evaluated ahead of the sequential decision point by parallel
+    /// evaluation and then discarded. Zero for sequential evaluation.
+    pub moves_speculative: u64,
     // Total moves accepted across all phases.
     pub moves_accepted: u64,
     // Total moves applied across all phases.
@@ -208,6 +211,12 @@ impl SolverStats {
         self.score_calculations += 1;
     }
 
+    /// Records a candidate that parallel evaluation evaluated ahead of the
+    /// sequential decision point and then discarded.
+    pub fn record_move_speculative(&mut self) {
+        self.moves_speculative += 1;
+    }
+
     pub fn record_construction_slot_assigned(&mut self) {
         self.construction_slots_assigned += 1;
     }
@@ -281,6 +290,7 @@ impl SolverStats {
             step_count: self.step_count,
             moves_generated: self.moves_generated,
             moves_evaluated: self.moves_evaluated,
+            moves_speculative: self.moves_speculative,
             moves_accepted: self.moves_accepted,
             moves_applied: self.moves_applied,
             moves_score_improving: self.moves_score_improving(),

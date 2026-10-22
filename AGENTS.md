@@ -179,9 +179,10 @@ Clone is acceptable only for:
 1. Solution snapshots sent through channels.
 2. Parallel search creating worker-private solution copies: partitioned
    search's partition copies, and parallel local-search evaluation's
-   evaluator replicas — one per evaluator beyond the main director, made at
-   phase start and again after the working solution is written outside the
-   parallel loop's own commits.
+   evaluator replicas — one working-solution copy per evaluator beyond the
+   main director, made at phase start and again after the working solution is
+   written outside the parallel loop's own commits. Replicas borrow the solve's
+   descriptor; they never copy it.
 3. Explicit user-owned result snapshots outside retained scoring state, such as
    `CollectedVec::to_vec()` when the caller deliberately asks for an owned
    `Vec<T>`.

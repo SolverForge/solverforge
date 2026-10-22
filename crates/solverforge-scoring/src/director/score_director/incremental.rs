@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 
+use super::descriptor::DirectorDescriptor;
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 
 /* A zero-erasure score director for incremental scoring.
@@ -15,6 +16,9 @@ are known at compile time, enabling complete monomorphization.
 
 - `S`: The solution type (must implement `PlanningSolution`)
 - `C`: The constraint set type (tuple of monomorphized constraints)
+- `Desc`: How the solution descriptor is held; an owned `SolutionDescriptor`
+by default, or a `ReplicaDescriptor` for directors that fork evaluator
+replicas
 
 # Example
 
@@ -61,16 +65,17 @@ let score2 = director.calculate_score();
 assert_eq!(score, score2);
 ```
 */
-pub struct ScoreDirector<S, C>
+pub struct ScoreDirector<S, C, Desc = SolutionDescriptor>
 where
     S: PlanningSolution,
     C: ConstraintSet<S, S::Score>,
+    Desc: DirectorDescriptor<S, C>,
 {
     pub(super) working_solution: S,
     constraints: C,
     cached_score: S::Score,
     initialized: bool,
-    pub(super) solution_descriptor: SolutionDescriptor,
+    pub(super) solution_descriptor: Desc,
     /* Entity counter function.
 
     Returns the number of entities for the given descriptor index.
@@ -78,11 +83,6 @@ where
     throughout the solver pipeline.
     */
     pub(super) entity_counter: fn(&S, usize) -> usize,
-    /* Constraint-set constructor used to build evaluator replicas.
-
-    `None` means this director cannot fork replicas.
-    */
-    pub(super) replica_constraints: Option<fn(&S) -> C>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -108,7 +108,15 @@ where
             |_, _| 0,
         )
     }
+}
 
+impl<S, C, Desc> ScoreDirector<S, C, Desc>
+where
+    S: PlanningSolution,
+    S::Score: Score,
+    C: ConstraintSet<S, S::Score>,
+    Desc: DirectorDescriptor<S, C>,
+{
     /* Creates a new zero-erasure score director with a solution descriptor.
 
     This constructor enables the `Director` trait implementation for
@@ -118,13 +126,14 @@ where
 
     * `solution` - The initial solution
     * `constraints` - Tuple of monomorphized constraints (e.g., `(C1, C2, C3)`)
-    * `solution_descriptor` - Metadata for solver infrastructure
+    * `solution_descriptor` - Metadata for solver infrastructure: an owned
+      `SolutionDescriptor`, or a `ReplicaDescriptor` to fork evaluator replicas
     * `entity_counter` - Function returning entity count for descriptor index
     */
     pub fn with_descriptor(
         solution: S,
         constraints: C,
-        solution_descriptor: SolutionDescriptor,
+        solution_descriptor: Desc,
         entity_counter: fn(&S, usize) -> usize,
     ) -> Self {
         Self {
@@ -134,36 +143,27 @@ where
             initialized: false,
             solution_descriptor,
             entity_counter,
-            replica_constraints: None,
             _phantom: PhantomData,
         }
     }
 
-    /* Records the constructor that builds each evaluator replica's constraint
-    set. The constructor receives the replica's own working solution.
-    */
-    pub fn with_replica_constraints(mut self, constraints: fn(&S) -> C) -> Self {
-        self.replica_constraints = Some(constraints);
-        self
-    }
-
-    /* Builds an initialized evaluator replica from a clone of the working
-    solution and a constraint set built for that clone.
+    /* Builds an initialized evaluator replica: a clone of the working
+    solution, a constraint set built for that clone, and the same borrowed
+    descriptor.
 
     The working-solution clone is the evaluator replica clone boundary: it
     happens when replicas are created, never per candidate or per step.
     */
     pub(crate) fn fork_replica_impl(&self) -> Option<Self> {
-        let constraints = self.replica_constraints?;
+        let (descriptor, constraints) = self.solution_descriptor.replica()?;
         let solution = self.working_solution.clone();
         let replica_constraints = constraints(&solution);
         let mut replica = Self::with_descriptor(
             solution,
             replica_constraints,
-            self.solution_descriptor.clone(),
+            descriptor,
             self.entity_counter,
         );
-        replica.replica_constraints = Some(constraints);
         replica.calculate_score_impl();
         Some(replica)
     }

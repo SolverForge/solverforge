@@ -5,7 +5,7 @@ use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 use solverforge_scoring::stream::collection_extract::{source, ChangeSource};
-use solverforge_scoring::{ConstraintSet, IncrementalUniConstraint, ScoreDirector};
+use solverforge_scoring::{Director, IncrementalUniConstraint, ReplicaDescriptor, ScoreDirector};
 
 use super::EvaluatorPool;
 use crate::heuristic::r#move::ChangeMove;
@@ -49,17 +49,20 @@ fn starting_solution() -> NQueensSolution {
     NQueensSolution::with_rows(&[3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8])
 }
 
-fn forkable_director(
-    solution: NQueensSolution,
-) -> ScoreDirector<NQueensSolution, impl ConstraintSet<NQueensSolution, SoftScore>> {
-    let constraints = queen_constraints(&solution);
-    ScoreDirector::with_descriptor(
-        solution,
-        constraints,
-        create_nqueens_descriptor(),
-        |s, _| s.queens.len(),
-    )
-    .with_replica_constraints(queen_constraints)
+/* Builds a director that can fork replicas. A macro, because the director's
+type names the opaque constraint set and the borrowed descriptor.
+*/
+macro_rules! forkable_director {
+    ($solution:expr, $descriptor:expr) => {{
+        let solution: NQueensSolution = $solution;
+        let constraints = queen_constraints(&solution);
+        ScoreDirector::with_descriptor(
+            solution,
+            constraints,
+            ReplicaDescriptor::new($descriptor, queen_constraints),
+            |s: &NQueensSolution, _| s.queens.len(),
+        )
+    }};
 }
 
 type QueenSelector = ChangeMoveSelector<
@@ -98,7 +101,9 @@ fn run<Fo>(
 where
     Fo: LocalSearchForager<NQueensSolution, QueenMove>,
 {
-    let mut solver_scope = SolverScope::new(forkable_director(starting_solution())).with_seed(7);
+    let descriptor = create_nqueens_descriptor();
+    let mut solver_scope =
+        SolverScope::new(forkable_director!(starting_solution(), &descriptor)).with_seed(7);
     solver_scope.start_solving();
     solver_scope.inphase_move_count_limit = move_limit;
     let mut source = selector();
@@ -160,7 +165,8 @@ fn pool_requires_a_forkable_director() {
 
 #[test]
 fn pool_forks_one_replica_per_extra_evaluator_and_resyncs_after_writes() {
-    let mut solver_scope = SolverScope::new(forkable_director(starting_solution()));
+    let descriptor = create_nqueens_descriptor();
+    let mut solver_scope = SolverScope::new(forkable_director!(starting_solution(), &descriptor));
     solver_scope.start_solving();
     solver_scope.calculate_score();
     let mut pool = EvaluatorPool::<NQueensSolution, _, QueenMove>::new(4);
@@ -191,6 +197,10 @@ fn pool_forks_one_replica_per_extra_evaluator_and_resyncs_after_writes() {
     for replica in pool.replicas() {
         assert_eq!(replica.working_solution().queens[0].row, Some(7));
         assert_eq!(replica.working_solution().score(), Some(main_score));
+        assert!(
+            std::ptr::eq(Director::solution_descriptor(replica), &descriptor),
+            "replicas must share the solve's descriptor, not copy it"
+        );
     }
 }
 
@@ -234,9 +244,10 @@ fn in_phase_move_limit_reserves_the_window() {
 
 #[test]
 fn replicas_follow_solution_replacement() {
+    let descriptor = create_nqueens_descriptor();
     let run_with_replacement = |evaluator_count: usize| {
         let mut solver_scope =
-            SolverScope::new(forkable_director(starting_solution())).with_seed(11);
+            SolverScope::new(forkable_director!(starting_solution(), &descriptor)).with_seed(11);
         solver_scope.start_solving();
         let mut source = selector();
         let mut acceptor = HillClimbingAcceptor::new();

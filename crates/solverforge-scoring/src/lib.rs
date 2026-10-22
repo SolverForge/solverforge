@@ -44,7 +44,7 @@ Score Directors
 ============================================================================
 */
 
-pub use director::score_director::ScoreDirector;
+pub use director::score_director::{DirectorDescriptor, ReplicaDescriptor, ScoreDirector};
 pub use director::{Director, DirectorScoreState, SolvableSolution};
 
 /* ============================================================================

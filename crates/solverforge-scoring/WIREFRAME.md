@@ -212,7 +212,8 @@ src/
 │   ├── mod.rs                                      — Re-exports all director types and traits
 │   ├── traits.rs                                   — Director<S> trait
 │   ├── score_director.rs                           — Re-exports ScoreDirector pieces
-│   │   ├── score_director/incremental.rs           — ScoreDirector<S,C> (zero-erasure incremental)
+│   │   ├── score_director/incremental.rs           — ScoreDirector<S,C,Desc> (zero-erasure incremental)
+│   │   ├── score_director/descriptor.rs            — DirectorDescriptor, ReplicaDescriptor
 │   │   └── score_director/adapters.rs              — Debug and Director trait impls for ScoreDirector
 │   ├── shadow_aware.rs                             — SolvableSolution trait and shadow lifecycle notes
 │   └── tests/
@@ -333,7 +334,7 @@ pub use api::node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOpera
 pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 // Score Directors
-pub use director::score_director::ScoreDirector;
+pub use director::score_director::{DirectorDescriptor, ReplicaDescriptor, ScoreDirector};
 pub use director::{Director, DirectorScoreState, SolvableSolution};
 
 // Analysis
@@ -376,7 +377,7 @@ pub use stream::{
 | `snapshot_score_state` | `fn snapshot_score_state(&self) -> DirectorScoreState<S::Score>` | Snapshot committed score state for speculative evaluation |
 | `restore_score_state` | `fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>)` | Restore a previously snapshotted committed score state |
 | `reset` | `fn reset(&mut self)` | Default: no-op |
-| `fork_replica` | `fn fork_replica(&self) -> Option<Self> where Self: Sized` | Independent evaluator replica with initialized incremental state; default: `None` |
+| `fork_replica` | `fn fork_replica(&self) -> Option<Self> where Self: Sized` | Independent evaluator replica with initialized incremental state, sharing the director's borrowed descriptor; default: `None` |
 
 ### `DirectorScoreState<Sc>`
 
@@ -503,9 +504,9 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
 
 ### Score Directors
 
-**`ScoreDirector<S, C>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`
+**`ScoreDirector<S, C, Desc = SolutionDescriptor>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`, `Desc: DirectorDescriptor<S, C>`
 - Primary incremental scoring director. Zero-erasure.
-- Public methods: `new()`, `with_descriptor()`, `with_replica_constraints()`, `simple()` (convenience for
+- Public methods: `new()`, `with_descriptor()`, `simple()` (convenience for
   `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor),
   `working_solution()`, `working_solution_mut()`, `into_working_solution()`,
   `calculate_score()`, `before_variable_changed()`,
@@ -516,8 +517,16 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
 - Returns borrowed constraint metadata views from the monomorphized `ConstraintSet` on demand.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
-- `with_replica_constraints(constraints: fn(&S) -> C)` — records the constraint-set constructor used by `Director::fork_replica`; a replica clones the working solution, builds its constraint set from that clone, and initializes it. Directors without a constructor do not fork.
+- `with_descriptor(solution, constraints, descriptor: Desc, entity_counter)` — `Desc` is an owned `SolutionDescriptor` or a `ReplicaDescriptor`; `new()`, `simple()` and `simple_zero()` build owned-descriptor directors.
+- `Director::fork_replica` forks only directors holding a `ReplicaDescriptor`: the replica clones the working solution, builds its constraint set from that clone with the recorded constructor, initializes it, and shares the same borrowed descriptor. Owned-descriptor directors return `None`.
 - Implements `Director<S>`
+
+**`DirectorDescriptor<S, C>`** (trait) — how a `ScoreDirector` holds its descriptor.
+- `solution_descriptor(&self) -> &SolutionDescriptor`
+- `replica(&self) -> Option<(Self, fn(&S) -> C)>` — the handle and constraint-set constructor for an evaluator replica; `None` for an owned `SolutionDescriptor`.
+
+**`ReplicaDescriptor<'d, S, C>`** — `Copy`; a borrowed `&'d SolutionDescriptor` plus the constraint-set constructor `fn(&S) -> C`.
+- `new(descriptor: &'d SolutionDescriptor, constraints: fn(&S) -> C)`
 
 ### Constraint Types
 

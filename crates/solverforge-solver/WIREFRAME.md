@@ -266,8 +266,11 @@ src/
 │   │   └── grouped_scalar/placer_stream.rs — Concrete candidate and assignment placement stream helpers
 │   ├── localsearch/
 │   │   ├── mod.rs                       — Acceptor, local-search acceptor/forager, and LocalSearchPhase re-exports
-│   │   ├── evaluation.rs                — Shared local-search candidate evaluation and hard-delta classification
+│   │   ├── evaluation.rs                — Trial kernel (run_trial), candidate accounting (account_trial), and hard-delta classification
 │   │   ├── phase.rs                     — LocalSearchPhase<S, M, MS, A, Fo>
+│   │   ├── phase/candidates.rs          — Candidate loop for one step
+│   │   ├── phase/decision.rs            — Generated-candidate records and in-order candidate consumption
+│   │   ├── phase/step.rs                — One step: candidate selection and commit
 │   │   ├── phase/tests.rs               — Tests
 │   │   ├── forager.rs                   — LocalSearchForager trait, AcceptedCountForager, FirstAcceptedForager, BestScoreForager, re-exports
 │   │   ├── forager/any_tests.rs         — AnyForager dispatch tests

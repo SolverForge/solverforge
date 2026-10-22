@@ -18,6 +18,7 @@ use crate::scope::{PhaseScope, ProgressCallback, SolverScope};
 use crate::stats::{format_duration, whole_units_per_second, CandidateTracePullToken};
 
 mod candidates;
+mod decision;
 mod step;
 
 use step::{execute_step, StepOutcome};

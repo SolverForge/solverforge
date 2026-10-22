@@ -7,6 +7,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # planning_model! UI fixtures resolve roots through the generated crate's
+  # workspace ancestors; the runner's shared /opt target is outside that tree.
+  CARGO_TARGET_DIR: ${{ github.workspace }}/target
 
 jobs:
   check:

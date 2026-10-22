@@ -307,3 +307,65 @@ fn test_add_then_remove_value() {
     director.do_change(0, 0, |s| s.values[0] = None);
     assert_eq!(director.get_score(), SoftScore::of(-2));
 }
+
+fn unassigned_constraints(
+    _solution: &TestSolution,
+) -> (impl IncrementalConstraint<TestSolution, SoftScore>,) {
+    (make_unassigned_constraint(),)
+}
+
+#[test]
+fn fork_replica_requires_replica_constraints() {
+    let solution = TestSolution {
+        values: vec![Some(1), None],
+        score: None,
+    };
+    let mut director = ScoreDirector::new(solution, (make_unassigned_constraint(),));
+    director.calculate_score();
+
+    assert!(director.fork_replica().is_none());
+}
+
+#[test]
+fn fork_replica_matches_score_and_stays_independent() {
+    let solution = TestSolution {
+        values: vec![Some(1), None, None],
+        score: None,
+    };
+    let mut director = ScoreDirector::new(solution.clone(), unassigned_constraints(&solution))
+        .with_replica_constraints(unassigned_constraints);
+    let main_score = director.calculate_score();
+
+    let mut replica = director
+        .fork_replica()
+        .expect("director with a constraint constructor must fork");
+    assert!(replica.is_initialized());
+    assert_eq!(replica.get_score(), main_score);
+
+    replica.before_variable_changed(0, 1);
+    replica.working_solution_mut().values[1] = Some(7);
+    replica.after_variable_changed(0, 1);
+
+    assert_eq!(replica.get_score(), SoftScore::of(-1));
+    assert_eq!(director.get_score(), SoftScore::of(-2));
+    assert_eq!(director.working_solution().values[1], None);
+}
+
+#[test]
+fn fork_of_uninitialized_director_initializes_the_replica() {
+    let solution = TestSolution {
+        values: vec![None, Some(3), None, None],
+        score: None,
+    };
+    let director = ScoreDirector::new(solution.clone(), unassigned_constraints(&solution))
+        .with_replica_constraints(unassigned_constraints);
+    assert!(!director.is_initialized());
+
+    let replica = director
+        .fork_replica()
+        .expect("director with a constraint constructor must fork");
+
+    assert!(replica.is_initialized());
+    assert_eq!(replica.get_score(), SoftScore::of(-3));
+    assert!(!director.is_initialized());
+}

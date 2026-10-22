@@ -136,7 +136,11 @@ replacement for every public fluent stream family.
 - **Model Macros**: `planning_model!`, `#[solverforge_constraints]`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
 - **Dynamic Bridge**: `solverforge-bridge` contracts for host-language integrations, with logical entity/fact/variable IDs, dynamic score support, descriptor-resolved scalar/list slots, lazy nearby-source adapters, and explicit dynamic-list access and metadata capabilities
 - **Scalar Variables**: `#[planning_variable]` fields store candidate indexes
-  as `Option<usize>`; keep external IDs on facts or entities.
+  as `Option<usize>`; keep external IDs on facts or entities. Point
+  `value_range_provider` at a solution collection for a shared domain or at an
+  entity `Vec<usize>` field for a per-entity domain; `candidate_values` only
+  orders and bounds the values construction and change-style moves try, and
+  does not restrict swaps (see [Extend the domain](docs/extend-domain.md)).
 - **List Variables**: `#[planning_list_variable]` fields store ordered element
   indexes in their owning entities, with list-aware construction and local
   search plus inverse, index, previous, and next shadow support.

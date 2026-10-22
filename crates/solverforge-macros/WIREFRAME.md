@@ -136,8 +136,16 @@ Internal module responsibilities:
 **Consumed attributes on fields:**
 - `#[planning_id]` — marks the unique ID field
 - `#[planning_variable(allows_unassigned = bool, value_range_provider = "name")]` — genuine planning variable on an `Option<usize>` field. Scalar values are candidate indexes into the declared value range.
+  `value_range_provider` defines the legal domain: a solution collection name
+  gives every entity the full collection index range, while the name of a
+  `Vec<usize>` field on the same entity gives that entity its own legal
+  domain, enforced by construction and every scalar move family including
+  swap, nearby swap, and pillar swap.
   canonical scalar candidate and nearby hooks are declared here as well:
-  `candidate_values = "fn_name"`, `nearby_value_candidates = "fn_name"`,
+  `candidate_values = "fn_name"` (an ordered, bounded value neighborhood for
+  construction, change, pillar change, and ruin-recreate; a search hint that
+  never narrows the legal domain, so swap families ignore it),
+  `nearby_value_candidates = "fn_name"`,
   `nearby_entity_candidates = "fn_name"`,
   `nearby_value_distance_meter = "fn_name"` and `nearby_entity_distance_meter = "fn_name"`
   scalar construction ordering hooks are declared here too:

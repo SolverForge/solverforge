@@ -1007,7 +1007,7 @@ re-exports; the registry is attached with `RuntimeModel::with_candidate_metrics`
 slot plus public `entity_index` and `to_value` fields and exposes `id()`.
 
 **`ScalarVariableSlot<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the monomorphized runtime. The compact scalar `variable_index` is the generated getter/setter dispatch index; hook attachment, descriptor ordering, and user-facing target matching use descriptor index plus variable name, with the canonical entity type name kept for target matching and diagnostics. Getter, setter, and entity-local value sources receive the scalar variable index so selector hot paths do not need descriptor-erased access. In addition to value-source hooks it carries optional nearby hooks and scalar construction order-key hooks via builder-style methods:
-- `with_candidate_values(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for bounded scalar value candidates
+- `with_candidate_values(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for bounded scalar value candidates; a search hint consumed by construction, change, pillar change, and ruin-recreate. Legality (`values_for_entity`, `value_is_legal`, and swap-family checks) reads only the `ValueSource`, so per-entity restrictions belong in `ValueSource::EntitySlice`
 - `with_nearby_value_candidates(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for nearby scalar change
 - `with_nearby_entity_candidates(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for nearby scalar swap
 - `with_nearby_value_distance_meter(fn(&S, usize, usize, usize) -> Option<f64>)` to rank/filter nearby value candidates

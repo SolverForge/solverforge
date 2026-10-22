@@ -33,9 +33,34 @@ Use the scaffold as a thin starter, then model the real problem in your app.
   nearby candidate hook directly on that variable so the solver policy stays
   explicit and model-owned. Use `nearby_value_candidates` for nearby scalar
   change and `nearby_entity_candidates` for nearby scalar swap.
+- `value_range_provider` defines the legal values of a scalar variable. Name a
+  solution collection for one shared domain, or name a `Vec<usize>` field on
+  the entity itself for a per-entity domain:
+
+  ```rust
+  #[planning_entity]
+  pub struct Shift {
+      #[planning_id]
+      pub id: usize,
+      /// Indexes into the solution's slot collection this shift may take.
+      pub allowed_slots: Vec<usize>,
+      #[planning_variable(value_range_provider = "allowed_slots", allows_unassigned = true)]
+      pub slot: Option<usize>,
+  }
+  ```
+
+  Every construction heuristic and every scalar move, including swap, nearby
+  swap, and pillar swap, only assigns values from that per-entity domain. Use
+  `#[planning_pin]`, not a one-value domain, for entities that must keep their
+  input value.
 - Use `candidate_values` when construction, scalar change, pillar change, or
   scalar ruin-recreate should consume an ordered bounded value neighborhood
-  instead of the full legal domain.
+  instead of the full legal domain. It is a search hint, not a restriction:
+  swap, nearby swap, and pillar swap exchange current values and check them
+  only against the legal domain, so an entity can receive a value that is
+  outside its `candidate_values` but inside its `value_range_provider`. When
+  some values are forbidden for an entity, express that in the legal domain
+  above.
 - When a scalar construction heuristic needs sorted entity or value order,
   declare that on the same `#[planning_variable]` with
   `construction_entity_order_key = "fn_name"` and/or

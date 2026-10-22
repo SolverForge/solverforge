@@ -78,6 +78,11 @@ where
     throughout the solver pipeline.
     */
     pub(super) entity_counter: fn(&S, usize) -> usize,
+    /* Constraint-set constructor used to build evaluator replicas.
+
+    `None` means this director cannot fork replicas.
+    */
+    pub(super) replica_constraints: Option<fn(&S) -> C>,
     _phantom: PhantomData<fn() -> S>,
 }
 
@@ -129,8 +134,38 @@ where
             initialized: false,
             solution_descriptor,
             entity_counter,
+            replica_constraints: None,
             _phantom: PhantomData,
         }
+    }
+
+    /* Records the constructor that builds each evaluator replica's constraint
+    set. The constructor receives the replica's own working solution.
+    */
+    pub fn with_replica_constraints(mut self, constraints: fn(&S) -> C) -> Self {
+        self.replica_constraints = Some(constraints);
+        self
+    }
+
+    /* Builds an initialized evaluator replica from a clone of the working
+    solution and a constraint set built for that clone.
+
+    The working-solution clone is the evaluator replica clone boundary: it
+    happens when replicas are created, never per candidate or per step.
+    */
+    pub(crate) fn fork_replica_impl(&self) -> Option<Self> {
+        let constraints = self.replica_constraints?;
+        let solution = self.working_solution.clone();
+        let replica_constraints = constraints(&solution);
+        let mut replica = Self::with_descriptor(
+            solution,
+            replica_constraints,
+            self.solution_descriptor.clone(),
+            self.entity_counter,
+        );
+        replica.replica_constraints = Some(constraints);
+        replica.calculate_score_impl();
+        Some(replica)
     }
 
     /* =========================================================================

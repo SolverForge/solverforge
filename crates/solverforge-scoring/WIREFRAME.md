@@ -376,6 +376,7 @@ pub use stream::{
 | `snapshot_score_state` | `fn snapshot_score_state(&self) -> DirectorScoreState<S::Score>` | Snapshot committed score state for speculative evaluation |
 | `restore_score_state` | `fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>)` | Restore a previously snapshotted committed score state |
 | `reset` | `fn reset(&mut self)` | Default: no-op |
+| `fork_replica` | `fn fork_replica(&self) -> Option<Self> where Self: Sized` | Independent evaluator replica with initialized incremental state; default: `None` |
 
 ### `DirectorScoreState<Sc>`
 
@@ -504,7 +505,7 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
 
 **`ScoreDirector<S, C>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`
 - Primary incremental scoring director. Zero-erasure.
-- Public methods: `new()`, `with_descriptor()`, `simple()` (convenience for
+- Public methods: `new()`, `with_descriptor()`, `with_replica_constraints()`, `simple()` (convenience for
   `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor),
   `working_solution()`, `working_solution_mut()`, `into_working_solution()`,
   `calculate_score()`, `before_variable_changed()`,
@@ -515,6 +516,7 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
 - Returns borrowed constraint metadata views from the monomorphized `ConstraintSet` on demand.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
+- `with_replica_constraints(constraints: fn(&S) -> C)` — records the constraint-set constructor used by `Director::fork_replica`; a replica clones the working solution, builds its constraint set from that clone, and initializes it. Directors without a constructor do not fork.
 - Implements `Director<S>`
 
 ### Constraint Types

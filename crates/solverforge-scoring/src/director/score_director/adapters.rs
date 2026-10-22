@@ -16,6 +16,7 @@ where
             .field("initialized", &self.is_initialized())
             .field("cached_score", &self.get_score())
             .field("constraint_count", &self.constraint_count())
+            .field("forks_replicas", &self.replica_constraints.is_some())
             .finish()
     }
 }
@@ -90,5 +91,9 @@ where
 
     fn reset(&mut self) {
         self.reset_impl();
+    }
+
+    fn fork_replica(&self) -> Option<Self> {
+        self.fork_replica_impl()
     }
 }

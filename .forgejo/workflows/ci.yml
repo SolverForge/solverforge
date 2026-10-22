@@ -7,9 +7,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # planning_model! UI fixtures resolve roots through the generated crate's
-  # workspace ancestors; the runner's shared /opt target is outside that tree.
-  CARGO_TARGET_DIR: ${{ github.workspace }}/target
 
 jobs:
   check:
@@ -32,20 +29,23 @@ jobs:
           echo "PYO3_PYTHON=${PYTHON_BIN}" >> "$GITHUB_ENV"
           echo "PYTHON_SYS_EXECUTABLE=${PYTHON_BIN}" >> "$GITHUB_ENV"
 
+      # Runner environment overrides workflow-level CARGO_TARGET_DIR. Set it on
+      # each Cargo process so trybuild's generated crate stays under this workspace
+      # and planning_model! can find its workspace-relative UI fixture roots.
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        run: CARGO_TARGET_DIR="$PWD/target" cargo fmt --all -- --check
 
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: CARGO_TARGET_DIR="$PWD/target" cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Build workspace
-        run: cargo build --workspace --all-features
+        run: CARGO_TARGET_DIR="$PWD/target" cargo build --workspace --all-features
 
       - name: Run tests
-        run: cargo test --workspace --all-features
+        run: CARGO_TARGET_DIR="$PWD/target" cargo test --workspace --all-features
 
       - name: Run integration tests
-        run: cargo test --workspace --all-features --test '*'
+        run: CARGO_TARGET_DIR="$PWD/target" cargo test --workspace --all-features --test '*'
 
       - name: Run doc tests
-        run: cargo test --workspace --doc
+        run: CARGO_TARGET_DIR="$PWD/target" cargo test --workspace --doc

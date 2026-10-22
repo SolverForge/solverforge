@@ -217,7 +217,7 @@ where
 
         let accepted = acceptor.is_accepted(&last_step_score, &move_score, move_signature.as_ref());
 
-        record_evaluated_move(step_scope, selector_index, evaluation_started);
+        record_evaluated_move(step_scope, selector_index, evaluation_started.elapsed());
         if accepted {
             step_scope
                 .phase_scope_mut()

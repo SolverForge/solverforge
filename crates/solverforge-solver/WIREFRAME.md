@@ -1731,11 +1731,13 @@ partitioned phase starts currently omit a score field.
 
 `try_run_solver_with_config_and_search(...) -> RuntimeBuildResult<S>` is the one
 public configured solve entrypoint used by macro-generated solving. It accepts
-the solution/constraints/descriptor, entity counting and logging callbacks, a
+the solution, a constraint-set constructor `fn(&S) -> C`, the descriptor,
+entity counting and logging callbacks, a
 `SolverRuntime<S>`, `SolverConfig`, fallback time limit, optional qualified
 candidate-trace provenance, and a fallible builder for one typed `Search`
-declaration. Graph compilation and solve-owned source preparation remain
-private; there is no public graph or alternate phase-builder fallback.
+declaration. The constructor builds the working solution's constraint set and
+every evaluator replica's. Graph compilation and solve-owned source preparation
+remain private; there is no public graph or alternate phase-builder fallback.
 
 `RuntimeBuildError` is `Declaration { message }`,
 `Compilation { path, message }`, `Preparation { phase_index, message }`, or

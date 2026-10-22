@@ -178,6 +178,11 @@ presentation and host-boundary conversion. `scoped_dynamic_score_family(family,
 callback)` sets the thread-local family used by `DynamicScore::zero()` and
 `DynamicScore::from_level_numbers(...)` during the callback.
 
+The family is per thread. The solve thread enters it for the whole solve, but
+parallel local-search evaluation scores evaluator replicas on Rayon worker
+threads, so a binding's constraint set that builds `DynamicScore` values must
+also enter its declared family inside its own `ConstraintSet` methods.
+
 ## Public Functions
 
 ### Compiled dynamic runner entrypoints
@@ -185,7 +190,7 @@ callback)` sets the thread-local family used by `DynamicScore::zero()` and
 ```rust
 pub fn try_run_dynamic_solver_with_config_parts<S, C, V, DM, IDM>(
     solution: S,
-    constraints: C,
+    constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,
@@ -207,6 +212,10 @@ where
 This is the binding-oriented entrypoint. It consumes frozen dynamic model parts
 into the same compiled graph and phase runner used by native models. It accepts
 no phase builder, selector registration, or alternate construction path.
+`constraints` builds a constraint set for a given solution; the runtime calls it
+for the working solution and for every evaluator replica, so
+`move_thread_count` evaluates dynamic models in parallel. Bindings rebuild
+their host constraint set from the solution they receive.
 The optional qualified provenance changes only the candidate-trace header; it
 does not select another runner.
 

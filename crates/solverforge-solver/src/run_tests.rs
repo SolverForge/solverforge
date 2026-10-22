@@ -161,13 +161,17 @@ fn test_entity_count(_solution: &TestSolution, _descriptor_index: usize) -> usiz
 
 fn noop_log_scale(_solution: &TestSolution) {}
 
+fn test_constraints(_solution: &TestSolution) -> ScoreFromSolutionConstraints {
+    ScoreFromSolutionConstraints
+}
+
 #[test]
 fn zero_variable_run_builds_the_normal_graph_and_search_declaration() {
     let declarations = Arc::new(AtomicUsize::new(0));
     let observed = Arc::clone(&declarations);
     let result = try_run_solver_with_config_and_search(
         TestSolution { score: None },
-        ScoreFromSolutionConstraints,
+        test_constraints,
         test_descriptor(),
         test_entity_count,
         SolverRuntime::detached(),

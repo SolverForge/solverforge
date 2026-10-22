@@ -39,7 +39,7 @@ pub(super) fn generate_runtime_solve_internal(
         #config_expr
         ::solverforge::__internal::try_run_solver_with_config_and_search(
             self,
-            #constraints_fn(),
+            (|_: &Self| #constraints_fn()) as fn(&Self) -> _,
             Self::descriptor(),
             Self::entity_count,
             runtime,

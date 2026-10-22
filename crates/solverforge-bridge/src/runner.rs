@@ -63,10 +63,14 @@ where
 ///
 /// The one model value is consumed by the canonical compiled runner. There is
 /// no host-language construction branch or deferred alternate execution path.
+///
+/// `constraints` builds a constraint set for a given solution. The runtime
+/// calls it for the working solution and for every evaluator replica, so
+/// `move_thread_count` evaluates dynamic models in parallel.
 #[allow(clippy::too_many_arguments)]
 pub fn try_run_dynamic_solver_with_config_parts<S, C, V, DM, IDM>(
     solution: S,
-    constraints: C,
+    constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,

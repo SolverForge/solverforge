@@ -355,3 +355,18 @@ fn candidate_trace_plan_finalization_is_one_way() {
     trace.finalize_resolved_phase_plan(plan.clone());
     trace.finalize_resolved_phase_plan(plan);
 }
+
+#[test]
+fn speculative_moves_reach_the_telemetry_snapshot() {
+    let mut stats = SolverStats::default();
+    stats.start();
+    stats.record_evaluated_move(Duration::from_millis(1));
+    stats.record_move_speculative();
+    stats.record_move_speculative();
+
+    let snapshot = stats.snapshot();
+
+    assert_eq!(snapshot.moves_evaluated, 1);
+    assert_eq!(snapshot.moves_speculative, 2);
+    assert_eq!(SolverTelemetry::new_const().moves_speculative, 0);
+}

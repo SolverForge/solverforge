@@ -1,30 +1,37 @@
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 
+use super::descriptor::DirectorDescriptor;
 use super::incremental::ScoreDirector;
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 use crate::director::Director;
 
-impl<S, C> std::fmt::Debug for ScoreDirector<S, C>
+impl<S, C, Desc> std::fmt::Debug for ScoreDirector<S, C, Desc>
 where
     S: PlanningSolution + std::fmt::Debug,
     S::Score: std::fmt::Debug,
     C: ConstraintSet<S, S::Score>,
+    Desc: DirectorDescriptor<S, C>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ScoreDirector")
             .field("initialized", &self.is_initialized())
             .field("cached_score", &self.get_score())
             .field("constraint_count", &self.constraint_count())
+            .field(
+                "forks_replicas",
+                &self.solution_descriptor.replica().is_some(),
+            )
             .finish()
     }
 }
 
-impl<S, C> Director<S> for ScoreDirector<S, C>
+impl<S, C, Desc> Director<S> for ScoreDirector<S, C, Desc>
 where
     S: PlanningSolution,
     S::Score: Score,
     C: ConstraintSet<S, S::Score> + Send,
+    Desc: DirectorDescriptor<S, C> + Send,
 {
     fn working_solution(&self) -> &S {
         self.working_solution()
@@ -43,7 +50,7 @@ where
     }
 
     fn solution_descriptor(&self) -> &SolutionDescriptor {
-        &self.solution_descriptor
+        self.solution_descriptor.solution_descriptor()
     }
 
     fn clone_working_solution(&self) -> S {
@@ -66,7 +73,11 @@ where
     }
 
     fn total_entity_count(&self) -> Option<usize> {
-        let count: usize = (0..self.solution_descriptor.entity_descriptors.len())
+        let count: usize = (0..self
+            .solution_descriptor
+            .solution_descriptor()
+            .entity_descriptors
+            .len())
             .map(|i| (self.entity_counter)(&self.working_solution, i))
             .sum();
         Some(count)
@@ -90,5 +101,9 @@ where
 
     fn reset(&mut self) {
         self.reset_impl();
+    }
+
+    fn fork_replica(&self) -> Option<Self> {
+        self.fork_replica_impl()
     }
 }

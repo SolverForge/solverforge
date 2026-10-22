@@ -10,6 +10,7 @@ use tracing::info;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{CandidateId, MoveCandidateRef};
+use crate::phase::localsearch::parallel::EvaluatorPool;
 use crate::phase::localsearch::{
     Acceptor, LocalSearchForager, MoveCursorSource, SelectorCursorSource,
 };
@@ -18,7 +19,10 @@ use crate::scope::{PhaseScope, ProgressCallback, SolverScope};
 use crate::stats::{format_duration, whole_units_per_second, CandidateTracePullToken};
 
 mod candidates;
+mod decision;
 mod step;
+
+pub(in crate::phase::localsearch) use decision::WindowSlot;
 
 use step::{execute_step, StepOutcome};
 
@@ -240,6 +244,7 @@ pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
     acceptor: &mut A,
     forager: &mut Fo,
     step_limit: Option<u64>,
+    evaluator_count: usize,
     solver_scope: &mut SolverScope<S, D, BestCb>,
 ) where
     S: PlanningSolution,
@@ -262,6 +267,7 @@ pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
     );
     acceptor.phase_started(&last_step_score);
 
+    let mut evaluators = EvaluatorPool::<S, D, M>::new(evaluator_count);
     let start_time = Instant::now();
     loop {
         if phase_scope.solver_scope_mut().should_terminate() {
@@ -278,6 +284,7 @@ pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
             forager,
             &mut phase_scope,
             &mut last_step_score,
+            &mut evaluators,
         ) {
             StepOutcome::Continue | StepOutcome::Restart => continue,
             StepOutcome::Terminate => break,
@@ -344,6 +351,7 @@ where
             acceptor,
             forager,
             *step_limit,
+            1,
             solver_scope,
         );
     }

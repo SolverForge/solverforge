@@ -8,6 +8,7 @@ mod acceptor;
 mod cursor_source;
 mod evaluation;
 mod forager;
+mod parallel;
 mod phase;
 pub(crate) mod vnd;
 
@@ -24,5 +25,6 @@ pub use forager::{
     AcceptedCountForager, BestScoreForager, FirstAcceptedForager, FirstBestScoreImprovingForager,
     FirstLastStepScoreImprovingForager, ForagerDecision, LocalSearchForager,
 };
+pub(crate) use parallel::resolve_evaluator_count;
 pub(crate) use phase::solve_local_search_with_resources;
 pub use phase::LocalSearchPhase;

@@ -5,6 +5,8 @@ constraint sets instead of trait-object-based scoring.
 */
 
 mod adapters;
+mod descriptor;
 mod incremental;
 
+pub use descriptor::{DirectorDescriptor, ReplicaDescriptor};
 pub use incremental::ScoreDirector;

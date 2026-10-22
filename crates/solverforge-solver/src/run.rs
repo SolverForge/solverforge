@@ -12,7 +12,7 @@ use std::path::Path;
 use solverforge_config::{SolverConfig, TerminationConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
-use solverforge_scoring::{ConstraintSet, Director, ScoreDirector};
+use solverforge_scoring::{ConstraintSet, Director, ReplicaDescriptor, ScoreDirector};
 use tracing::info;
 
 use crate::builder::{RuntimeExtensionRegistry, Search};
@@ -207,6 +207,18 @@ where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
+{
+    build_director_termination(config, default_secs)
+}
+
+fn build_director_termination<S, D>(
+    config: &SolverConfig,
+    default_secs: u64,
+) -> (AnyTermination<S, D>, Option<Duration>)
+where
+    S: PlanningSolution,
+    S::Score: Score + ParseableScore,
+    D: Director<S>,
 {
     let ConfiguredTermination {
         time_limit: configured_time_limit,
@@ -419,10 +431,14 @@ fn load_solver_config_from(path: impl AsRef<Path>) -> SolverConfig {
 /// the compiled graph. Every model, including a zero-work model, follows this
 /// one lifecycle; the public API never exposes a graph, prepared source
 /// catalog, or phase-builder fallback.
+///
+/// `constraints` builds a constraint set for a given solution. It builds the
+/// working solution's constraint set and every evaluator replica's, so parallel
+/// local-search evaluation can fork replicas for any model.
 #[allow(clippy::too_many_arguments)]
 pub fn try_run_solver_with_config_and_search<S, C, V, DM, IDM, Declaration, BuildSearch>(
     solution: S,
-    constraints: C,
+    constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,
@@ -470,7 +486,7 @@ where
 #[allow(clippy::too_many_arguments)]
 fn try_run_solver_with_config_and_search_request<S, C, V, DM, IDM, Declaration, BuildSearch>(
     solution: S,
-    constraints: C,
+    constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,
@@ -531,7 +547,7 @@ where
 #[allow(clippy::too_many_arguments)]
 fn try_run_solver_with_candidate_trace_request<S, C, Runner, BuildRunner>(
     solution: S,
-    constraints: C,
+    constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,
@@ -545,18 +561,24 @@ where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
-    Runner: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>> + Send + std::fmt::Debug,
+    Runner: for<'d> Phase<
+            S,
+            ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>>,
+            ChannelProgressCallback<S>,
+        > + Send
+        + std::fmt::Debug,
     BuildRunner: FnOnce(&SolverConfig, &SolutionDescriptor) -> RuntimeBuildResult<Runner>,
 {
     log_scale(&solution);
+    let main_constraints = constraints(&solution);
     let director = ScoreDirector::with_descriptor(
         solution,
-        constraints,
-        descriptor.clone(),
+        main_constraints,
+        ReplicaDescriptor::new(&descriptor, constraints),
         entity_count_by_descriptor,
     );
 
-    let (termination, time_limit) = build_termination::<S, C>(&config, default_time_limit_secs);
+    let (termination, time_limit) = build_director_termination(&config, default_time_limit_secs);
     let execution_policy =
         configured_execution_policy::<S>(&config, default_time_limit_secs, time_limit);
 

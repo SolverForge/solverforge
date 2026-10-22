@@ -266,13 +266,22 @@ src/
 │   │   └── grouped_scalar/placer_stream.rs — Concrete candidate and assignment placement stream helpers
 │   ├── localsearch/
 │   │   ├── mod.rs                       — Acceptor, local-search acceptor/forager, and LocalSearchPhase re-exports
-│   │   ├── evaluation.rs                — Shared local-search candidate evaluation and hard-delta classification
+│   │   ├── evaluation.rs                — Trial kernel (run_trial), candidate accounting (account_trial), and hard-delta classification
 │   │   ├── phase.rs                     — LocalSearchPhase<S, M, MS, A, Fo>
+│   │   ├── phase/candidates.rs          — Candidate loop for one step
+│   │   ├── phase/decision.rs            — Generated-candidate records and in-order candidate consumption
+│   │   ├── phase/step.rs                — One step: candidate selection and commit
 │   │   ├── phase/tests.rs               — Tests
 │   │   ├── forager.rs                   — LocalSearchForager trait, AcceptedCountForager, FirstAcceptedForager, BestScoreForager, re-exports
 │   │   ├── forager/any_tests.rs         — AnyForager dispatch tests
 │   │   ├── forager/improving.rs        — FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager
 │   │   ├── forager/tests.rs             — Tests
+│   │   ├── parallel/mod.rs              — Parallel evaluation module declarations
+│   │   ├── parallel/budget.rs           — Remaining in-phase evaluation budget for window sizing
+│   │   ├── parallel/config.rs           — move_thread_count resolution to an evaluator count
+│   │   ├── parallel/pool.rs             — EvaluatorPool: evaluator replicas, sync, and post-commit advance
+│   │   ├── parallel/window.rs           — Window evaluation across the main director and replicas
+│   │   ├── parallel/tests.rs            — Tests
 │   │   └── acceptor/
 │   │       ├── mod.rs                   — Acceptor module declarations and re-exports
 │   │       ├── traits.rs                — Acceptor<S> trait
@@ -1245,6 +1254,39 @@ boundaries report it automatically, and bounded inner candidate scans poll it
 for prompt progress and interruption; publication is not gated on accumulating
 a fixed-size candidate batch.
 
+**Parallel evaluation.** Acceptor-forager local search in the compiled runtime
+can evaluate candidates on several cores within one solve. Each step produces a
+window of candidates serially on the main director, in canonical order;
+evaluates the window on the main director plus `n - 1` persistent evaluator
+replicas (one `rayon::scope` per window, slots handed out through one atomic
+counter); and consumes the results in candidate order through the unchanged
+acceptor and forager. The selected move is applied to every replica by borrow
+before the owned commit, and each replica must reach the committed step score.
+Replicas are forked from the working solution through
+`Director::fork_replica`, again whenever the working solution was written
+outside the loop's own commits. The solve entry points build the main
+`ScoreDirector` with a `ReplicaDescriptor` that borrows the solve's
+descriptor, so replicas share it; only the working solution is copied.
+Contract:
+
+- One evaluator runs the sequential loop: same candidates, checks, order, and
+  telemetry.
+- Windows adapt to the step: a step's first window matches the number of
+  candidates the previous step consumed (at least one per evaluator), and each
+  further window in the step doubles, up to 32. Candidates are always
+  consumed in canonical order, so selectors that keep no stream state across
+  steps reach the sequential trajectory for every evaluator count. Ruin
+  selectors (cross-step RNG streams) and lazily activated providers see the
+  speculative pulls, so their trajectory depends on the evaluator count; it is
+  reproducible for a given count.
+- `moves_evaluated`, `score_calculations`, and the move-count and
+  score-calculation limits count only consumed candidates; the window never
+  exceeds the remaining in-phase move or score-calculation budget.
+- Candidates evaluated ahead of the decision point and then discarded are
+  counted in `moves_speculative` and traced as `DiscardedSpeculative`.
+- `LocalSearchPhase`, VND, construction, exhaustive search, and partitioned
+  child solves evaluate sequentially.
+
 When runtime phase configuration is omitted, SolverForge always builds
 state-aware construction. It appends the model-aware streaming local-search
 default only when the top-level solver termination parses to an effective
@@ -1598,7 +1640,10 @@ time, evaluation time, acceptance rate, selector-level telemetry, and exact
 `Throughput { count, elapsed }` views for generated/evaluated work.
 Human-facing `moves/s` is derived only at log/console formatting edges.
 `moves_generated` counts candidates actually yielded by a runtime cursor; it
-does not count an unrequested logical tail. Selector `size()` and explicit full
+does not count an unrequested logical tail. `moves_speculative` counts
+candidates that parallel local-search evaluation evaluated ahead of the
+sequential decision point and then discarded; it is zero for sequential
+evaluation and never feeds `moves_evaluated` or `score_calculations`. Selector `size()` and explicit full
 cursor exhaustion cover logical neighborhood size and canonical order.
 
 `SolverTelemetry` snapshots expose the same counters plus an optional
@@ -1647,7 +1692,8 @@ ordered `CandidateTraceDisposition` transitions. Sources cover construction,
 local search, VND, generic K-opt, and the specialized list construction/search
 trial paths. Dispositions distinguish interruption, evaluation, not-doable,
 hard/score-improvement rejection, acceptor rejection, forager loss, selection,
-and application.
+application, and `DiscardedSpeculative` (pulled into a parallel evaluation
+window, then discarded when the step ended before it was consumed).
 
 Logical identities are `CandidateTraceIdentity::Operation` or ordered
 `Composite`. `CandidateTraceOperationIdentity` carries descriptor, optional
@@ -1731,11 +1777,13 @@ partitioned phase starts currently omit a score field.
 
 `try_run_solver_with_config_and_search(...) -> RuntimeBuildResult<S>` is the one
 public configured solve entrypoint used by macro-generated solving. It accepts
-the solution/constraints/descriptor, entity counting and logging callbacks, a
+the solution, a constraint-set constructor `fn(&S) -> C`, the descriptor,
+entity counting and logging callbacks, a
 `SolverRuntime<S>`, `SolverConfig`, fallback time limit, optional qualified
 candidate-trace provenance, and a fallible builder for one typed `Search`
-declaration. Graph compilation and solve-owned source preparation remain
-private; there is no public graph or alternate phase-builder fallback.
+declaration. The constructor builds the working solution's constraint set and
+every evaluator replica's. Graph compilation and solve-owned source preparation
+remain private; there is no public graph or alternate phase-builder fallback.
 
 `RuntimeBuildError` is `Declaration { message }`,
 `Compilation { path, message }`, `Preparation { phase_index, message }`, or

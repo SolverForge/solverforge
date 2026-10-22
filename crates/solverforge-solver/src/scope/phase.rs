@@ -488,6 +488,12 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
         self.solver_scope.record_score_calculation();
     }
 
+    /// Records a candidate evaluated ahead of the sequential decision point by
+    /// parallel evaluation and then discarded.
+    pub fn record_move_speculative(&mut self) {
+        self.solver_scope.record_move_speculative();
+    }
+
     pub fn record_construction_slot_assigned(&mut self) {
         self.stats.record_construction_slot_assigned();
         self.solver_scope

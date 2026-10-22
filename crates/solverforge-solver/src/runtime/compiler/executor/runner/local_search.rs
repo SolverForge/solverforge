@@ -46,6 +46,7 @@ where
         forager: Option<ForagerConfig>,
         score_tie_break: ScoreTieBreak,
         random_seed: Option<u64>,
+        evaluator_count: usize,
     },
     VariableNeighborhoodDescent {
         phase_termination: Option<solverforge_config::TerminationConfig>,
@@ -78,6 +79,7 @@ where
                 forager,
                 score_tie_break,
                 random_seed,
+                evaluator_count,
             } => {
                 let (mut acceptor, mut forager) = build_acceptor_and_forager::<S>(
                     *components,
@@ -94,6 +96,7 @@ where
                         &mut acceptor,
                         &mut forager,
                         None,
+                        *evaluator_count,
                         solver_scope,
                     );
                 });

@@ -92,4 +92,16 @@ pub trait Director<S: PlanningSolution>: Send {
 
     // Resets the score director state.
     fn reset(&mut self) {}
+
+    /* Builds an independent evaluator replica: an owned copy of the working
+    solution with freshly initialized incremental constraint state.
+
+    Returns `None` when this director cannot construct one.
+    */
+    fn fork_replica(&self) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        None
+    }
 }

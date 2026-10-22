@@ -98,6 +98,11 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     last_best_elapsed: Option<Duration>,
     best_solution_revision: Option<u64>,
     solution_revision: u64,
+    /* Monotonic count of working-solution writes: every committed mutation
+    and every wholesale replacement. Unlike `solution_revision`, it never
+    resets, so evaluator replicas can detect any write since they synced.
+    */
+    working_solution_generation: u64,
     construction_frontier: ConstructionFrontier,
     phase_budget: Option<&'t PhaseBudget>,
     pub inphase_step_count_limit: Option<u64>,
@@ -377,6 +382,7 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             last_best_elapsed: None,
             best_solution_revision: None,
             solution_revision: 1,
+            working_solution_generation: 0,
             construction_frontier,
             phase_budget: None,
             inphase_step_count_limit: None,
@@ -422,6 +428,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             last_best_elapsed: None,
             best_solution_revision: None,
             solution_revision: 1,
+            working_solution_generation: 0,
             construction_frontier,
             phase_budget: None,
             inphase_step_count_limit: None,
@@ -586,6 +593,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             last_best_elapsed: self.last_best_elapsed,
             best_solution_revision: self.best_solution_revision,
             solution_revision: self.solution_revision,
+            working_solution_generation: self.working_solution_generation,
             construction_frontier: self.construction_frontier,
             phase_budget: self.phase_budget,
             inphase_step_count_limit: self.inphase_step_count_limit,
@@ -675,6 +683,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub fn replace_working_solution_and_reinitialize(&mut self, solution: S) -> S::Score {
+        self.working_solution_generation += 1;
         *self.score_director.working_solution_mut() = solution;
         self.score_director.reset();
         self.current_score = None;
@@ -729,6 +738,10 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     #[cfg(test)]
     pub(crate) fn solution_revision(&self) -> u64 {
         self.solution_revision
+    }
+
+    pub(crate) fn working_solution_generation(&self) -> u64 {
+        self.working_solution_generation
     }
 
     pub(crate) fn apply_committed_move<M>(&mut self, mov: &M)

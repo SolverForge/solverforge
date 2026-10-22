@@ -176,6 +176,7 @@
 <text x="816" y="1042.6" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">PartitionedSearch — rayon work split</text>
 <text x="816" y="1058.1999999999998" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">ExhaustiveSearch · CustomSearchPhase</text>
 <text x="816" y="1073.7999999999997" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">phases ordered by SolverConfig</text>
+<text x="816" y="1089.3999999999996" fill="#8fb5a8" font-family="'Source Sans 3', 'Space Grotesk', system-ui, sans-serif" font-size="9.4">LocalSearch — rayon window evaluation on replicas</text>
 </g>
 <g>
 <rect x="1160" y="980" width="360" height="178" rx="5" fill="#083029"/>

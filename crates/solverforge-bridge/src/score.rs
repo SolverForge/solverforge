@@ -27,6 +27,11 @@ thread_local! {
 /// This keeps the internal static three-level score contract available to the
 /// solver while allowing binding-driven solves to present zero and derived
 /// scores with the host model's declared score family.
+///
+/// The family is per thread. The solve thread enters it for the whole solve,
+/// but parallel evaluation scores evaluator replicas on Rayon worker threads,
+/// so a constraint set that builds `DynamicScore` values must also enter its
+/// declared family inside its own `ConstraintSet` methods.
 pub fn scoped_dynamic_score_family<T>(
     family: DynamicScoreFamily,
     callback: impl FnOnce() -> T,

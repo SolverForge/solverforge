@@ -2,7 +2,7 @@
 
 use crate::api::constraint_set::IncrementalConstraint;
 use crate::constraint::incremental::IncrementalUniConstraint;
-use crate::director::score_director::ScoreDirector;
+use crate::director::score_director::{ReplicaDescriptor, ScoreDirector};
 use crate::stream::collection_extract::{source, ChangeSource};
 use crate::Director;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
@@ -306,4 +306,87 @@ fn test_add_then_remove_value() {
     // Unassign first value: back to 2 Nones = -2
     director.do_change(0, 0, |s| s.values[0] = None);
     assert_eq!(director.get_score(), SoftScore::of(-2));
+}
+
+fn test_descriptor() -> SolutionDescriptor {
+    SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>())
+}
+
+fn unassigned_constraints(
+    _solution: &TestSolution,
+) -> (impl IncrementalConstraint<TestSolution, SoftScore>,) {
+    (make_unassigned_constraint(),)
+}
+
+#[test]
+fn fork_replica_requires_a_replica_descriptor() {
+    let solution = TestSolution {
+        values: vec![Some(1), None],
+        score: None,
+    };
+    let mut director = ScoreDirector::new(solution, (make_unassigned_constraint(),));
+    director.calculate_score();
+
+    assert!(director.fork_replica().is_none());
+}
+
+#[test]
+fn fork_replica_matches_score_and_stays_independent() {
+    let solution = TestSolution {
+        values: vec![Some(1), None, None],
+        score: None,
+    };
+    let descriptor = test_descriptor();
+    let mut director = ScoreDirector::with_descriptor(
+        solution.clone(),
+        unassigned_constraints(&solution),
+        ReplicaDescriptor::new(&descriptor, unassigned_constraints),
+        |_, _| 0,
+    );
+    let main_score = director.calculate_score();
+
+    let mut replica = director
+        .fork_replica()
+        .expect("director with a constraint constructor must fork");
+    assert!(replica.is_initialized());
+    assert_eq!(replica.get_score(), main_score);
+    assert!(
+        std::ptr::eq(
+            Director::solution_descriptor(&replica),
+            Director::solution_descriptor(&director)
+        ),
+        "a replica must share the descriptor, not copy it"
+    );
+
+    replica.before_variable_changed(0, 1);
+    replica.working_solution_mut().values[1] = Some(7);
+    replica.after_variable_changed(0, 1);
+
+    assert_eq!(replica.get_score(), SoftScore::of(-1));
+    assert_eq!(director.get_score(), SoftScore::of(-2));
+    assert_eq!(director.working_solution().values[1], None);
+}
+
+#[test]
+fn fork_of_uninitialized_director_initializes_the_replica() {
+    let solution = TestSolution {
+        values: vec![None, Some(3), None, None],
+        score: None,
+    };
+    let descriptor = test_descriptor();
+    let director = ScoreDirector::with_descriptor(
+        solution.clone(),
+        unassigned_constraints(&solution),
+        ReplicaDescriptor::new(&descriptor, unassigned_constraints),
+        |_, _| 0,
+    );
+    assert!(!director.is_initialized());
+
+    let replica = director
+        .fork_replica()
+        .expect("director with a constraint constructor must fork");
+
+    assert!(replica.is_initialized());
+    assert_eq!(replica.get_score(), SoftScore::of(-3));
+    assert!(!director.is_initialized());
 }

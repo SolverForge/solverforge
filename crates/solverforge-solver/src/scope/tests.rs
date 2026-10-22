@@ -429,3 +429,36 @@ fn solver_scope_forwards_candidate_trace_plan_finalization() {
     assert_eq!(trace.header.resolved_phase_plan, terminal_plan);
     assert!(trace.header.resolved_phase_plan_complete);
 }
+
+#[test]
+fn working_solution_generation_is_monotonic_across_commits_and_replacement() {
+    let descriptor = SolutionDescriptor::new("TieSolution", TypeId::of::<TieSolution>());
+    let director = ScoreDirector::simple(
+        TieSolution {
+            marker: 0,
+            score: None,
+        },
+        descriptor,
+        |_solution, _descriptor_index| 0,
+    );
+    let mut scope = SolverScope::new(director);
+    scope.start_solving();
+    let initial = scope.working_solution_generation();
+
+    scope.mutate(|score_director| {
+        score_director.working_solution_mut().marker = 3;
+    });
+    scope.apply_committed_change(|score_director| {
+        score_director.working_solution_mut().marker = 4;
+    });
+    let after_commits = scope.working_solution_generation();
+    assert_eq!(after_commits, initial + 2);
+
+    scope.replace_working_solution_and_reinitialize(TieSolution {
+        marker: 9,
+        score: None,
+    });
+
+    assert_eq!(scope.solution_revision(), 1);
+    assert_eq!(scope.working_solution_generation(), after_commits + 1);
+}

@@ -13,6 +13,7 @@ use crate::phase::control::{
     settle_search_interrupt, should_interrupt_after_step, should_interrupt_before_candidate,
     StepInterrupt,
 };
+use crate::phase::localsearch::parallel::EvaluatorPool;
 use crate::phase::localsearch::{Acceptor, LocalSearchForager, MoveCursorSource};
 use crate::scope::{PendingControl, PhaseScope, ProgressCallback, StepScope};
 use crate::stats::{AppliedMoveTelemetry, CandidateTraceDisposition};
@@ -34,6 +35,7 @@ pub(super) fn execute_step<S, M, Source, A, Fo, D, BestCb>(
     forager: &mut Fo,
     phase_scope: &mut PhaseScope<'_, '_, S, D, BestCb>,
     last_step_score: &mut S::Score,
+    evaluators: &mut EvaluatorPool<S, D, M>,
 ) -> StepOutcome
 where
     S: PlanningSolution,
@@ -45,6 +47,7 @@ where
     BestCb: ProgressCallback<S>,
 {
     let mut step_scope = StepScope::new(phase_scope);
+    evaluators.sync(step_scope.phase_scope().solver_scope());
 
     /* Reset forager and acceptor for this step.
     Pass best and last-step scores so foragers that implement
@@ -91,6 +94,7 @@ where
         acceptor,
         forager,
         requires_move_signatures,
+        evaluators,
         CandidateLoopState::new(interrupted),
     );
 
@@ -139,9 +143,16 @@ where
             };
         }
         let previous_score = *last_step_score;
+        evaluators.advance(&selected_move, selected_score);
         step_scope.apply_committed_change(|score_director| {
             cursor.apply_owned_candidate(selected_index, score_director);
         });
+        evaluators.mark_synced(
+            step_scope
+                .phase_scope()
+                .solver_scope()
+                .working_solution_generation(),
+        );
         if let Some(token) = selected_trace_token {
             step_scope
                 .phase_scope_mut()

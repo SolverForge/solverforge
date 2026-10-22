@@ -94,6 +94,7 @@ where
                         &mut acceptor,
                         &mut forager,
                         None,
+                        1,
                         solver_scope,
                     );
                 });

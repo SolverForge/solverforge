@@ -177,7 +177,11 @@ composition.
 Clone is acceptable only for:
 
 1. Solution snapshots sent through channels.
-2. Partitioned search creating partition copies.
+2. Parallel search creating worker-private solution copies: partitioned
+   search's partition copies, and parallel local-search evaluation's
+   evaluator replicas — one per evaluator beyond the main director, made at
+   phase start and again after the working solution is written outside the
+   parallel loop's own commits.
 3. Explicit user-owned result snapshots outside retained scoring state, such as
    `CollectedVec::to_vec()` when the caller deliberately asks for an owned
    `Vec<T>`.
@@ -276,6 +280,9 @@ Use `rayon` for CPU-bound work and `tokio` for async coordination.
 - Do not add `std::thread::spawn`.
 - Do not add `std::thread::sleep`.
 - Prefer ownership transfer over callback APIs that only expose `&Self`.
+- Parallel local-search evaluation runs one `rayon::scope` per evaluation
+  window on the solve thread's current pool; do not add dedicated pools or
+  blocking waits inside evaluation workers.
 
 ### Configured Completion
 

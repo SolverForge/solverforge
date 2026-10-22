@@ -11,11 +11,17 @@ use crate::phase::control::{
     should_interrupt_before_candidate, should_interrupt_before_evaluation, CONTROL_POLL_INTERVAL,
 };
 use crate::phase::localsearch::evaluation::run_trial;
+use crate::phase::localsearch::parallel::{
+    evaluate_window, remaining_evaluation_budget, EvaluatorPool,
+};
 use crate::phase::localsearch::{Acceptor, LocalSearchForager};
 use crate::scope::{ProgressCallback, StepScope};
-use crate::stats::{CandidateTraceDisposition, CandidateTracePullToken};
+use crate::stats::CandidateTracePullToken;
 
-use super::decision::{consume_candidate, record_generated_candidate};
+use super::decision::{
+    consume_candidate, discard_window_from, interrupt_window_at, record_generated_candidate,
+    WindowSlot,
+};
 use super::StepMoveLabelCounts;
 
 pub(super) struct CandidateLoopState {
@@ -49,6 +55,7 @@ pub(super) fn evaluate_candidates<S, D, BestCb, M, C, Resources, A, Fo>(
     acceptor: &mut A,
     forager: &mut Fo,
     requires_move_signatures: bool,
+    evaluators: &mut EvaluatorPool<S, D, M>,
     mut state: CandidateLoopState,
 ) -> CandidateLoopState
 where
@@ -63,81 +70,142 @@ where
     // The control poll reads the wall clock; forwarding every candidate
     // iteration makes it measurable at scale (measured ~9% of wall before
     // batching). The step loop therefore polls once per batch window; a
-    // stop stays latched, and per-evaluation interruption still runs on
-    // its every-64-evaluations schedule below.
+    // stop stays latched, and per-evaluation interruption still runs before
+    // every consumed candidate.
     // Retired undo journals are recycled across the step's trials so
     // arbitrary-long journals do not grow the heap per trial.
+    //
+    // Each pass produces a window of candidates serially on the main
+    // director, evaluates it (inline for one evaluator, across the evaluator
+    // pool otherwise), and consumes the results in candidate order. With a
+    // window of one, the checks, pulls and decisions are exactly the
+    // sequential loop's.
     let mut journal_pool: Vec<MoveCandidateUndo<M::Undo>> = Vec::new();
     let mut control_polls = 0usize;
     let mut control_latched = false;
+    let mut window: Vec<WindowSlot> = Vec::new();
+    let mut results = Vec::new();
     while !forager.is_quit_early() {
         if state.interrupted {
             break;
         }
-        control_polls += 1;
-        if !control_latched && control_polls.is_multiple_of(CONTROL_POLL_INTERVAL) {
-            control_latched = should_interrupt_before_candidate(step_scope)
-                || step_scope
-                    .phase_scope_mut()
-                    .solver_scope_mut()
-                    .should_terminate();
+
+        // Production: serial, canonical order, main director.
+        let capacity = evaluators.window_capacity(remaining_evaluation_budget(
+            step_scope.phase_scope().solver_scope(),
+        ));
+        window.clear();
+        let mut exhausted = false;
+        while window.len() < capacity {
+            control_polls += 1;
+            if !control_latched && control_polls.is_multiple_of(CONTROL_POLL_INTERVAL) {
+                control_latched = should_interrupt_before_candidate(step_scope)
+                    || step_scope
+                        .phase_scope_mut()
+                        .solver_scope_mut()
+                        .should_terminate();
+            }
+            if control_latched {
+                state.interrupted = true;
+                break;
+            }
+
+            let generation_started = std::time::Instant::now();
+            let Some(candidate_id) =
+                cursor.next_candidate_with_resources(step_scope.score_director_mut(), resources)
+            else {
+                exhausted = true;
+                break;
+            };
+            window.push(record_generated_candidate(
+                &*cursor,
+                candidate_id,
+                generation_started,
+                step_scope,
+                &mut state,
+            ));
         }
-        if control_latched {
-            state.interrupted = true;
+        if window.is_empty() {
             break;
         }
 
-        let generation_started = std::time::Instant::now();
-        let Some(candidate_id) =
-            cursor.next_candidate_with_resources(step_scope.score_director_mut(), resources)
-        else {
-            break;
-        };
-        let slot = record_generated_candidate(
-            &*cursor,
-            candidate_id,
-            generation_started,
-            step_scope,
-            &mut state,
-        );
-
-        if should_interrupt_before_evaluation(step_scope)
+        // Dispatch: the sequential before-evaluation check for the first slot.
+        if state.interrupted
+            || should_interrupt_before_evaluation(step_scope)
             || step_scope
                 .phase_scope_mut()
                 .solver_scope_mut()
                 .should_terminate()
         {
-            if let Some(token) = slot.trace_token {
-                step_scope
-                    .phase_scope_mut()
-                    .record_candidate_trace_disposition(
-                        token,
-                        CandidateTraceDisposition::InterruptedBeforeEvaluation,
-                    );
-            }
+            interrupt_window_at(cursor, step_scope, &window, 0, false);
             state.interrupted = true;
             break;
         }
 
-        let evaluation_started = std::time::Instant::now();
-        let outcome = {
+        // Evaluation.
+        if evaluators.is_parallel() {
+            let candidates: Vec<_> = window
+                .iter()
+                .map(|slot| {
+                    cursor
+                        .candidate(slot.id)
+                        .expect("window candidate must remain borrowable")
+                })
+                .collect();
+            evaluate_window(
+                &candidates,
+                step_scope.score_director_mut(),
+                &mut journal_pool,
+                evaluators,
+                &mut results,
+            );
+        } else {
             let mov = cursor
-                .candidate(slot.id)
+                .candidate(window[0].id)
                 .expect("discovered candidate id must remain borrowable");
-            run_trial(&mov, step_scope.score_director_mut(), &mut journal_pool)
-        };
-        consume_candidate(
-            cursor,
-            step_scope,
-            &slot,
-            outcome,
-            evaluation_started.elapsed(),
-            last_step_score,
-            acceptor,
-            forager,
-            requires_move_signatures,
-            &mut state,
-        );
+            let started = std::time::Instant::now();
+            let outcome = run_trial(&mov, step_scope.score_director_mut(), &mut journal_pool);
+            results.clear();
+            results.push(Some((outcome, started.elapsed())));
+        }
+
+        // Consumption in candidate order.
+        for index in 0..window.len() {
+            if index > 0 {
+                if forager.is_quit_early() {
+                    discard_window_from(cursor, step_scope, &window, index, true);
+                    break;
+                }
+                if should_interrupt_before_evaluation(step_scope)
+                    || step_scope
+                        .phase_scope_mut()
+                        .solver_scope_mut()
+                        .should_terminate()
+                {
+                    interrupt_window_at(cursor, step_scope, &window, index, true);
+                    state.interrupted = true;
+                    break;
+                }
+            }
+            let (outcome, elapsed) = results[index]
+                .take()
+                .expect("every window slot has a trial result");
+            consume_candidate(
+                cursor,
+                step_scope,
+                &window[index],
+                outcome,
+                elapsed,
+                last_step_score,
+                acceptor,
+                forager,
+                requires_move_signatures,
+                &mut state,
+            );
+        }
+        if state.interrupted || exhausted {
+            break;
+        }
     }
 
     state

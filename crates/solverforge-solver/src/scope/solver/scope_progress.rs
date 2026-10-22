@@ -610,6 +610,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.current_score = None;
         let output = mutate(&mut self.score_director);
         self.advance_solution_revision();
+        self.working_solution_generation += 1;
         output
     }
 }

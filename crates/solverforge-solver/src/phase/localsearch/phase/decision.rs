@@ -265,6 +265,70 @@ pub(super) fn consume_candidate<S, D, BestCb, M, C, Resources, A, Fo>(
     }
 }
 
+/// Ends the window at `index` because of an interruption: slot `index` gets
+/// the sequential loop's `InterruptedBeforeEvaluation` record and stays live,
+/// exactly as the sequential loop leaves it; later slots are discarded.
+/// `evaluated` tells whether the window's trials already ran.
+pub(super) fn interrupt_window_at<S, D, BestCb, M, C, Resources>(
+    cursor: &mut C,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
+    window: &[WindowSlot],
+    index: usize,
+    evaluated: bool,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S>,
+    C: ResourceMoveCursor<S, M, Resources>,
+{
+    let slot = &window[index];
+    if let Some(token) = slot.trace_token {
+        step_scope
+            .phase_scope_mut()
+            .record_candidate_trace_disposition(
+                token,
+                CandidateTraceDisposition::InterruptedBeforeEvaluation,
+            );
+    }
+    if evaluated {
+        step_scope.phase_scope_mut().record_move_speculative();
+    }
+    discard_window_from(cursor, step_scope, window, index + 1, evaluated);
+}
+
+/// Discards slots `from..` of a window that the step will not consume:
+/// records `DiscardedSpeculative`, releases them, and counts them as
+/// speculative work when their trials already ran.
+pub(super) fn discard_window_from<S, D, BestCb, M, C, Resources>(
+    cursor: &mut C,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
+    window: &[WindowSlot],
+    from: usize,
+    evaluated: bool,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S>,
+    C: ResourceMoveCursor<S, M, Resources>,
+{
+    for slot in window.iter().skip(from) {
+        if let Some(token) = slot.trace_token {
+            step_scope
+                .phase_scope_mut()
+                .record_candidate_trace_disposition(
+                    token,
+                    CandidateTraceDisposition::DiscardedSpeculative,
+                );
+        }
+        if evaluated {
+            step_scope.phase_scope_mut().record_move_speculative();
+        }
+        assert!(cursor.release_candidate(slot.id));
+    }
+}
+
 fn record_rejected_trace<S, D, BestCb>(
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
     trace_token: Option<CandidateTracePullToken>,

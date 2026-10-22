@@ -11,10 +11,13 @@ use crate::phase::localsearch::evaluation::TrialOutcome;
 use crate::phase::localsearch::phase::WindowSlot;
 use crate::scope::{ProgressCallback, SolverScope};
 
-/* Candidates per parallel window. Fixed so the trajectory does not depend on
-the number of evaluators.
+/* Largest parallel window. Windows adapt to how many candidates a step
+consumes: a step's first window matches the previous step's consumption
+(at least one candidate per evaluator), and each further window in the same
+step doubles, up to this cap. Candidates past the decision point are
+speculative work, so a window much longer than the step wastes evaluations.
 */
-pub(crate) const PARALLEL_EVALUATION_WINDOW: usize = 32;
+pub(crate) const MAX_PARALLEL_EVALUATION_WINDOW: usize = 32;
 
 pub(super) type TrialOutputs<Sc> = Vec<(usize, TrialOutcome<Sc>, Duration)>;
 
@@ -35,6 +38,10 @@ where
     // Window buffers lent to each step, so steps reuse their capacity.
     window_slots: Vec<WindowSlot>,
     window_results: WindowResults<S::Score>,
+    // Size of the next window in the current step.
+    window: usize,
+    // Candidates the previous step consumed.
+    last_step_consumed: usize,
     synced_generation: Option<u64>,
     _phantom: PhantomData<fn() -> (S, M)>,
 }
@@ -63,6 +70,8 @@ where
             main_outputs: Vec::new(),
             window_slots: Vec::new(),
             window_results: Vec::new(),
+            window: 1,
+            last_step_consumed: 0,
             synced_generation: None,
             _phantom: PhantomData,
         }
@@ -92,6 +101,17 @@ where
         !self.replicas.is_empty()
     }
 
+    /// Starts a step: its first window matches the previous step's
+    /// consumption, at least one candidate per evaluator.
+    pub(crate) fn begin_step(&mut self) {
+        self.window = self.last_step_consumed.clamp(
+            self.requested.min(MAX_PARALLEL_EVALUATION_WINDOW),
+            MAX_PARALLEL_EVALUATION_WINDOW,
+        );
+    }
+
+    /// Size of the next window, capped by the remaining evaluation budget.
+    /// Sequential evaluation always uses a window of one.
     pub(crate) fn window_capacity(&self, remaining: Option<u64>) -> usize {
         if !self.is_parallel() {
             return 1;
@@ -99,7 +119,16 @@ where
         let remaining = remaining.map_or(usize::MAX, |remaining| {
             usize::try_from(remaining).unwrap_or(usize::MAX)
         });
-        PARALLEL_EVALUATION_WINDOW.min(remaining).max(1)
+        self.window.min(remaining).max(1)
+    }
+
+    /// The step outlasted its window: the next one doubles, up to the cap.
+    pub(crate) fn grow_window(&mut self) {
+        self.window = (self.window * 2).min(MAX_PARALLEL_EVALUATION_WINDOW);
+    }
+
+    pub(crate) fn finish_step(&mut self, consumed: u64) {
+        self.last_step_consumed = usize::try_from(consumed).unwrap_or(usize::MAX);
     }
 
     /* Rebuilds the replicas when the working solution was written since they

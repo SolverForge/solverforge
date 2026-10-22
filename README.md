@@ -741,6 +741,13 @@ SolverForge leverages Rust's zero-cost abstractions:
 - **Cache-friendly**: Contiguous memory layouts for hot paths
 - **Concrete native execution**: Score directors, deciders, bounders, move carriers, and selector carriers remain monomorphized; documented scorer-agnostic `&dyn Director` callbacks are narrow intentional seams
 
+Local search can evaluate candidates on several cores within one solve:
+`move_thread_count = { count = 4 }` in `solver.toml` (Python configs through
+solverforge-py use `{"move_thread_count": {"count": 4}}`) runs each step's
+trials on up to four evaluators while one coordinator keeps the same
+acceptance order. Results are reproducible at fixed work, and the default
+(`auto`) currently stays sequential.
+
 Absolute throughput depends on the model, constraints, neighborhood, hardware,
 and termination policy. Use emitted generated/evaluated throughput for one run
 and the controlled paired benchmark gate below for regression decisions.

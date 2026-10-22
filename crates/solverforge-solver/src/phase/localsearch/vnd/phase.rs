@@ -338,7 +338,7 @@ where
             }
         };
 
-        record_evaluated_move(step_scope, selector_index, evaluation_started);
+        record_evaluated_move(step_scope, selector_index, evaluation_started.elapsed());
         progress.record_evaluated();
         progress.maybe_report(step_scope);
 

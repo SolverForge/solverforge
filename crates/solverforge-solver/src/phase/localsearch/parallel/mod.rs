@@ -6,6 +6,7 @@ order through the unchanged acceptor and forager.
 */
 
 mod budget;
+mod config;
 mod pool;
 mod window;
 
@@ -13,5 +14,6 @@ mod window;
 mod tests;
 
 pub(crate) use budget::remaining_evaluation_budget;
+pub(crate) use config::resolve_evaluator_count;
 pub(crate) use pool::EvaluatorPool;
 pub(crate) use window::evaluate_window;

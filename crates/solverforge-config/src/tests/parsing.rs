@@ -248,3 +248,20 @@ fn grouped_scalar_move_selector_parses_and_roundtrips() {
     assert_eq!(selector.max_moves_per_step, Some(64));
     assert!(selector.require_hard_improvement);
 }
+
+#[test]
+fn move_thread_count_parses_every_documented_form() {
+    let parse = |value: &str| {
+        SolverConfig::from_toml_str(&format!("move_thread_count = {value}"))
+            .unwrap()
+            .move_thread_count
+    };
+
+    assert_eq!(parse("\"auto\""), MoveThreadCount::Auto);
+    assert_eq!(parse("\"none\""), MoveThreadCount::None);
+    assert_eq!(parse("{ count = 4 }"), MoveThreadCount::Count(4));
+    assert_eq!(
+        SolverConfig::from_toml_str("").unwrap().move_thread_count,
+        MoveThreadCount::Auto
+    );
+}

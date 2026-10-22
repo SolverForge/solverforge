@@ -175,8 +175,6 @@ fn pool_forks_one_replica_per_extra_evaluator_and_resyncs_after_writes() {
     pool.sync(&solver_scope);
     assert_eq!(nqueens_clone_count(), 3);
     assert_eq!(pool.replicas().count(), 3);
-    assert_eq!(pool.window_capacity(None), 32);
-    assert_eq!(pool.window_capacity(Some(5)), 5);
 
     pool.sync(&solver_scope);
     assert_eq!(
@@ -298,4 +296,35 @@ fn evaluator_count_resolution() {
         resolve_evaluator_count(&MoveThreadCount::Count(2)),
         2.min(rayon::current_num_threads())
     );
+}
+
+#[test]
+fn windows_track_the_steps_consumption() {
+    let descriptor = create_nqueens_descriptor();
+    let mut solver_scope = SolverScope::new(forkable_director!(starting_solution(), &descriptor));
+    solver_scope.start_solving();
+    let mut pool = EvaluatorPool::<NQueensSolution, _, QueenMove>::new(4);
+    pool.sync(&solver_scope);
+
+    // First step: one candidate per evaluator, doubling while the step lasts.
+    pool.begin_step();
+    assert_eq!(pool.window_capacity(None), 4);
+    pool.grow_window();
+    assert_eq!(pool.window_capacity(None), 8);
+    pool.grow_window();
+    pool.grow_window();
+    pool.grow_window();
+    assert_eq!(pool.window_capacity(None), 32);
+    assert_eq!(pool.window_capacity(Some(5)), 5);
+    pool.finish_step(23);
+
+    // The next step starts at the previous step's consumption.
+    pool.begin_step();
+    assert_eq!(pool.window_capacity(None), 23);
+    pool.finish_step(2);
+    pool.begin_step();
+    assert_eq!(pool.window_capacity(None), 4);
+    pool.finish_step(500);
+    pool.begin_step();
+    assert_eq!(pool.window_capacity(None), 32);
 }

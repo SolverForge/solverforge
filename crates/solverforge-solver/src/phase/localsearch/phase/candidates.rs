@@ -83,6 +83,8 @@ where
     let mut control_polls = 0usize;
     let mut control_latched = false;
     let (mut window, mut results) = evaluators.take_window_buffers();
+    let consumed_before = state.evaluated_moves;
+    evaluators.begin_step();
     while !forager.is_quit_early() {
         if state.interrupted {
             break;
@@ -204,8 +206,10 @@ where
         if state.interrupted || exhausted {
             break;
         }
+        evaluators.grow_window();
     }
 
+    evaluators.finish_step(state.evaluated_moves - consumed_before);
     evaluators.restore_window_buffers(window, results);
     state
 }

@@ -1271,11 +1271,14 @@ Contract:
 
 - One evaluator runs the sequential loop: same candidates, checks, order, and
   telemetry.
-- The window holds 32 candidates whenever two or more evaluators run, so the
-  trajectory at fixed work is identical for every evaluator count of two or
-  more. Selectors that keep no stream state across steps also match the
-  sequential trajectory; ruin selectors (cross-step RNG streams) and lazily
-  activated providers follow a different, equally reproducible trajectory.
+- Windows adapt to the step: a step's first window matches the number of
+  candidates the previous step consumed (at least one per evaluator), and each
+  further window in the step doubles, up to 32. Candidates are always
+  consumed in canonical order, so selectors that keep no stream state across
+  steps reach the sequential trajectory for every evaluator count. Ruin
+  selectors (cross-step RNG streams) and lazily activated providers see the
+  speculative pulls, so their trajectory depends on the evaluator count; it is
+  reproducible for a given count.
 - `moves_evaluated`, `score_calculations`, and the move-count and
   score-calculation limits count only consumed candidates; the window never
   exceeds the remaining in-phase move or score-calculation budget.

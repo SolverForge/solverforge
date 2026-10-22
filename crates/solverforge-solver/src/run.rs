@@ -12,7 +12,7 @@ use std::path::Path;
 use solverforge_config::{SolverConfig, TerminationConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
-use solverforge_scoring::{ConstraintSet, Director, ScoreDirector};
+use solverforge_scoring::{ConstraintSet, Director, ReplicaDescriptor, ScoreDirector};
 use tracing::info;
 
 use crate::builder::{RuntimeExtensionRegistry, Search};
@@ -207,6 +207,18 @@ where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
+{
+    build_director_termination(config, default_secs)
+}
+
+fn build_director_termination<S, D>(
+    config: &SolverConfig,
+    default_secs: u64,
+) -> (AnyTermination<S, D>, Option<Duration>)
+where
+    S: PlanningSolution,
+    S::Score: Score + ParseableScore,
+    D: Director<S>,
 {
     let ConfiguredTermination {
         time_limit: configured_time_limit,
@@ -549,7 +561,12 @@ where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
-    Runner: Phase<S, ScoreDirector<S, C>, ChannelProgressCallback<S>> + Send + std::fmt::Debug,
+    Runner: for<'d> Phase<
+            S,
+            ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>>,
+            ChannelProgressCallback<S>,
+        > + Send
+        + std::fmt::Debug,
     BuildRunner: FnOnce(&SolverConfig, &SolutionDescriptor) -> RuntimeBuildResult<Runner>,
 {
     log_scale(&solution);
@@ -557,12 +574,11 @@ where
     let director = ScoreDirector::with_descriptor(
         solution,
         main_constraints,
-        descriptor.clone(),
+        ReplicaDescriptor::new(&descriptor, constraints),
         entity_count_by_descriptor,
-    )
-    .with_replica_constraints(constraints);
+    );
 
-    let (termination, time_limit) = build_termination::<S, C>(&config, default_time_limit_secs);
+    let (termination, time_limit) = build_director_termination(&config, default_time_limit_secs);
     let execution_policy =
         configured_execution_policy::<S>(&config, default_time_limit_secs, time_limit);
 

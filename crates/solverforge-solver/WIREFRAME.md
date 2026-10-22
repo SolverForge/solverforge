@@ -1264,7 +1264,10 @@ acceptor and forager. The selected move is applied to every replica by borrow
 before the owned commit, and each replica must reach the committed step score.
 Replicas are forked from the working solution through
 `Director::fork_replica`, again whenever the working solution was written
-outside the loop's own commits. Contract:
+outside the loop's own commits. The solve entry points build the main
+`ScoreDirector` with a `ReplicaDescriptor` that borrows the solve's
+descriptor, so replicas share it; only the working solution is copied.
+Contract:
 
 - One evaluator runs the sequential loop: same candidates, checks, order, and
   telemetry.

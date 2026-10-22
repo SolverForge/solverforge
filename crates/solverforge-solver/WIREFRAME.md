@@ -276,6 +276,11 @@ src/
 │   │   ├── forager/any_tests.rs         — AnyForager dispatch tests
 │   │   ├── forager/improving.rs        — FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager
 │   │   ├── forager/tests.rs             — Tests
+│   │   ├── parallel/mod.rs              — Parallel evaluation module declarations
+│   │   ├── parallel/budget.rs           — Remaining in-phase evaluation budget for window sizing
+│   │   ├── parallel/pool.rs             — EvaluatorPool: evaluator replicas, sync, and post-commit advance
+│   │   ├── parallel/window.rs           — Window evaluation across the main director and replicas
+│   │   ├── parallel/tests.rs            — Tests
 │   │   └── acceptor/
 │   │       ├── mod.rs                   — Acceptor module declarations and re-exports
 │   │       ├── traits.rs                — Acceptor<S> trait
@@ -1247,6 +1252,33 @@ Local search uses the same shared one-second phase pulse. Completed step
 boundaries report it automatically, and bounded inner candidate scans poll it
 for prompt progress and interruption; publication is not gated on accumulating
 a fixed-size candidate batch.
+
+**Parallel evaluation.** Acceptor-forager local search in the compiled runtime
+can evaluate candidates on several cores within one solve. Each step produces a
+window of candidates serially on the main director, in canonical order;
+evaluates the window on the main director plus `n - 1` persistent evaluator
+replicas (one `rayon::scope` per window, slots handed out through one atomic
+counter); and consumes the results in candidate order through the unchanged
+acceptor and forager. The selected move is applied to every replica by borrow
+before the owned commit, and each replica must reach the committed step score.
+Replicas are forked from the working solution through
+`Director::fork_replica`, again whenever the working solution was written
+outside the loop's own commits. Contract:
+
+- One evaluator runs the sequential loop: same candidates, checks, order, and
+  telemetry.
+- The window holds 32 candidates whenever two or more evaluators run, so the
+  trajectory at fixed work is identical for every evaluator count of two or
+  more. Selectors that keep no stream state across steps also match the
+  sequential trajectory; ruin selectors (cross-step RNG streams) and lazily
+  activated providers follow a different, equally reproducible trajectory.
+- `moves_evaluated`, `score_calculations`, and the move-count and
+  score-calculation limits count only consumed candidates; the window never
+  exceeds the remaining in-phase move or score-calculation budget.
+- Candidates evaluated ahead of the decision point and then discarded are
+  counted in `moves_speculative` and traced as `DiscardedSpeculative`.
+- `LocalSearchPhase`, VND, construction, exhaustive search, and partitioned
+  child solves evaluate sequentially.
 
 When runtime phase configuration is omitted, SolverForge always builds
 state-aware construction. It appends the model-aware streaming local-search

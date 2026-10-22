@@ -8,6 +8,7 @@ mod acceptor;
 mod cursor_source;
 mod evaluation;
 mod forager;
+mod parallel;
 mod phase;
 pub(crate) mod vnd;
 

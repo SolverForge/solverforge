@@ -419,10 +419,14 @@ fn load_solver_config_from(path: impl AsRef<Path>) -> SolverConfig {
 /// the compiled graph. Every model, including a zero-work model, follows this
 /// one lifecycle; the public API never exposes a graph, prepared source
 /// catalog, or phase-builder fallback.
+///
+/// `constraints` builds a constraint set for a given solution. It builds the
+/// working solution's constraint set and every evaluator replica's, so parallel
+/// local-search evaluation can fork replicas for any model.
 #[allow(clippy::too_many_arguments)]
 pub fn try_run_solver_with_config_and_search<S, C, V, DM, IDM, Declaration, BuildSearch>(
     solution: S,
-    constraints: C,
+    constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,
@@ -470,7 +474,7 @@ where
 #[allow(clippy::too_many_arguments)]
 fn try_run_solver_with_config_and_search_request<S, C, V, DM, IDM, Declaration, BuildSearch>(
     solution: S,
-    constraints: C,
+    constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,
@@ -531,7 +535,7 @@ where
 #[allow(clippy::too_many_arguments)]
 fn try_run_solver_with_candidate_trace_request<S, C, Runner, BuildRunner>(
     solution: S,
-    constraints: C,
+    constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
     entity_count_by_descriptor: fn(&S, usize) -> usize,
     runtime: SolverRuntime<S>,
@@ -549,12 +553,14 @@ where
     BuildRunner: FnOnce(&SolverConfig, &SolutionDescriptor) -> RuntimeBuildResult<Runner>,
 {
     log_scale(&solution);
+    let main_constraints = constraints(&solution);
     let director = ScoreDirector::with_descriptor(
         solution,
-        constraints,
+        main_constraints,
         descriptor.clone(),
         entity_count_by_descriptor,
-    );
+    )
+    .with_replica_constraints(constraints);
 
     let (termination, time_limit) = build_termination::<S, C>(&config, default_time_limit_secs);
     let execution_policy =

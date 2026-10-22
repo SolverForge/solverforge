@@ -65,6 +65,9 @@ fn golden_solution_expansion_loads_solver_config_before_config_callback() {
         expanded.contains("let config = crate :: config :: for_solution (& self , base_config)")
     );
     assert!(expanded.contains("try_run_solver_with_config_and_search"));
+    assert!(expanded.contains(
+        "(| _ : & Self | crate :: constraints :: create_constraints ()) as fn (& Self) -> _"
+    ));
 }
 
 #[test]

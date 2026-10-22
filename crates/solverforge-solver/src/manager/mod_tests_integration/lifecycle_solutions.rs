@@ -556,6 +556,8 @@ fn zero_variable_log_scale(solution: &ZeroVariableLifecycleSolution) {
     solution.gate.wait_for_permit();
 }
 
+fn zero_variable_constraints(_solution: &ZeroVariableLifecycleSolution) {}
+
 impl Solvable for ZeroVariableLifecycleSolution {
     fn solve(
         self,
@@ -564,7 +566,7 @@ impl Solvable for ZeroVariableLifecycleSolution {
     ) {
         let result = try_run_solver_with_config_and_search(
             self,
-            (),
+            zero_variable_constraints,
             zero_variable_solution_descriptor(),
             zero_variable_entity_count,
             runtime,

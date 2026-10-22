@@ -8,6 +8,7 @@ use solverforge_scoring::Director;
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCandidateUndo};
 use crate::phase::localsearch::evaluation::TrialOutcome;
+use crate::phase::localsearch::phase::WindowSlot;
 use crate::scope::{ProgressCallback, SolverScope};
 
 /* Candidates per parallel window. Fixed so the trajectory does not depend on
@@ -16,6 +17,9 @@ the number of evaluators.
 pub(crate) const PARALLEL_EVALUATION_WINDOW: usize = 32;
 
 pub(super) type TrialOutputs<Sc> = Vec<(usize, TrialOutcome<Sc>, Duration)>;
+
+/// Trial results of one window, indexed by window slot.
+pub(crate) type WindowResults<Sc> = Vec<Option<(TrialOutcome<Sc>, Duration)>>;
 
 /* Evaluators for one local-search phase: the main director plus
 `requested - 1` persistent replicas, kept at the committed working solution.
@@ -28,6 +32,9 @@ where
     requested: usize,
     replicas: Vec<EvaluatorReplica<S, D, M>>,
     main_outputs: TrialOutputs<S::Score>,
+    // Window buffers lent to each step, so steps reuse their capacity.
+    window_slots: Vec<WindowSlot>,
+    window_results: WindowResults<S::Score>,
     synced_generation: Option<u64>,
     _phantom: PhantomData<fn() -> (S, M)>,
 }
@@ -54,9 +61,31 @@ where
             requested: requested.max(1),
             replicas: Vec::new(),
             main_outputs: Vec::new(),
+            window_slots: Vec::new(),
+            window_results: Vec::new(),
             synced_generation: None,
             _phantom: PhantomData,
         }
+    }
+
+    /// Lends the window buffers to one step; return them with
+    /// `restore_window_buffers`.
+    pub(crate) fn take_window_buffers(&mut self) -> (Vec<WindowSlot>, WindowResults<S::Score>) {
+        (
+            std::mem::take(&mut self.window_slots),
+            std::mem::take(&mut self.window_results),
+        )
+    }
+
+    pub(crate) fn restore_window_buffers(
+        &mut self,
+        mut slots: Vec<WindowSlot>,
+        mut results: WindowResults<S::Score>,
+    ) {
+        slots.clear();
+        results.clear();
+        self.window_slots = slots;
+        self.window_results = results;
     }
 
     pub(crate) fn is_parallel(&self) -> bool {

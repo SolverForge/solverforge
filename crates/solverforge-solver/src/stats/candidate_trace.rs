@@ -525,6 +525,9 @@ pub enum CandidateTraceDisposition {
     Selected,
     /// The selected candidate was applied to the working solution.
     Applied,
+    /// Parallel evaluation pulled this candidate ahead of the sequential
+    /// decision point; the step ended before the candidate was consumed.
+    DiscardedSpeculative,
 }
 
 impl CandidateTraceDisposition {
@@ -539,6 +542,7 @@ impl CandidateTraceDisposition {
             Self::ForagerIgnored => 7,
             Self::Selected => 8,
             Self::Applied => 9,
+            Self::DiscardedSpeculative => 10,
         }
     }
 
@@ -552,6 +556,7 @@ impl CandidateTraceDisposition {
                 | Self::AcceptorRejected
                 | Self::ForagerIgnored
                 | Self::Applied
+                | Self::DiscardedSpeculative
         )
     }
 }

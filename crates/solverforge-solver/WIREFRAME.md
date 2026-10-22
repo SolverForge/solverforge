@@ -1601,7 +1601,10 @@ time, evaluation time, acceptance rate, selector-level telemetry, and exact
 `Throughput { count, elapsed }` views for generated/evaluated work.
 Human-facing `moves/s` is derived only at log/console formatting edges.
 `moves_generated` counts candidates actually yielded by a runtime cursor; it
-does not count an unrequested logical tail. Selector `size()` and explicit full
+does not count an unrequested logical tail. `moves_speculative` counts
+candidates that parallel local-search evaluation evaluated ahead of the
+sequential decision point and then discarded; it is zero for sequential
+evaluation and never feeds `moves_evaluated` or `score_calculations`. Selector `size()` and explicit full
 cursor exhaustion cover logical neighborhood size and canonical order.
 
 `SolverTelemetry` snapshots expose the same counters plus an optional
@@ -1650,7 +1653,8 @@ ordered `CandidateTraceDisposition` transitions. Sources cover construction,
 local search, VND, generic K-opt, and the specialized list construction/search
 trial paths. Dispositions distinguish interruption, evaluation, not-doable,
 hard/score-improvement rejection, acceptor rejection, forager loss, selection,
-and application.
+application, and `DiscardedSpeculative` (pulled into a parallel evaluation
+window, then discarded when the step ended before it was consumed).
 
 Logical identities are `CandidateTraceIdentity::Operation` or ordered
 `Composite`. `CandidateTraceOperationIdentity` carries descriptor, optional

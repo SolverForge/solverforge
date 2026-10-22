@@ -520,6 +520,10 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         }
     }
 
+    pub(crate) fn record_move_speculative(&mut self) {
+        self.stats.record_move_speculative();
+    }
+
     pub(crate) fn record_score_calculation(&mut self) {
         self.stats.record_score_calculation();
         if let Some(phase_budget) = self.phase_budget {

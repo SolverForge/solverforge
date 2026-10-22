@@ -120,6 +120,9 @@ pub struct SolverTelemetry {
     /// Exhaust a cursor or query selector sizing separately for logical size.
     pub moves_generated: u64,
     pub moves_evaluated: u64,
+    /// Candidates evaluated ahead of the sequential decision point by parallel
+    /// evaluation and then discarded. Zero for sequential evaluation.
+    pub moves_speculative: u64,
     pub moves_accepted: u64,
     pub moves_applied: u64,
     pub moves_score_improving: u64,
@@ -159,6 +162,7 @@ impl SolverTelemetry {
             step_count: 0,
             moves_generated: 0,
             moves_evaluated: 0,
+            moves_speculative: 0,
             moves_accepted: 0,
             moves_applied: 0,
             moves_score_improving: 0,

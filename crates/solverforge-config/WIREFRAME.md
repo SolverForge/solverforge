@@ -720,6 +720,19 @@ Derives: `Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize`.
 | `None` | Single-threaded |
 | `Count(usize)` | Explicit count |
 
+TOML: `move_thread_count = "auto"`, `"none"`, or `{ count = 4 }`.
+
+`SolverConfig::move_thread_count` drives parallel evaluation in the compiled
+runtime's acceptor-forager local search; `PartitionedSearchConfig::thread_count`
+sizes partitioned search separately.
+
+| `move_thread_count` | Acceptor-forager local search |
+|---|---|
+| `None` | sequential |
+| `Auto` | sequential |
+| `Count(0)`, `Count(1)` | sequential |
+| `Count(n >= 2)` | `min(n, rayon::current_num_threads())` evaluators: the main director plus that many minus one replicas |
+
 ### `PhaseConfig`
 
 Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", rename_all = "snake_case")]`.

@@ -278,6 +278,7 @@ src/
 │   │   ├── forager/tests.rs             — Tests
 │   │   ├── parallel/mod.rs              — Parallel evaluation module declarations
 │   │   ├── parallel/budget.rs           — Remaining in-phase evaluation budget for window sizing
+│   │   ├── parallel/config.rs           — move_thread_count resolution to an evaluator count
 │   │   ├── parallel/pool.rs             — EvaluatorPool: evaluator replicas, sync, and post-commit advance
 │   │   ├── parallel/window.rs           — Window evaluation across the main director and replicas
 │   │   ├── parallel/tests.rs            — Tests

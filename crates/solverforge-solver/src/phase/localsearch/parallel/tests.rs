@@ -272,3 +272,19 @@ fn replicas_follow_solution_replacement() {
 
     assert_eq!(run_with_replacement(2), run_with_replacement(1));
 }
+
+#[test]
+fn evaluator_count_resolution() {
+    use solverforge_config::MoveThreadCount;
+
+    use super::resolve_evaluator_count;
+
+    assert_eq!(resolve_evaluator_count(&MoveThreadCount::None), 1);
+    assert_eq!(resolve_evaluator_count(&MoveThreadCount::Auto), 1);
+    assert_eq!(resolve_evaluator_count(&MoveThreadCount::Count(0)), 1);
+    assert_eq!(resolve_evaluator_count(&MoveThreadCount::Count(1)), 1);
+    assert_eq!(
+        resolve_evaluator_count(&MoveThreadCount::Count(2)),
+        2.min(rayon::current_num_threads())
+    );
+}

@@ -299,32 +299,35 @@ fn evaluator_count_resolution() {
 }
 
 #[test]
-fn windows_track_the_steps_consumption() {
+fn windows_aim_at_the_previous_steps_consumption() {
     let descriptor = create_nqueens_descriptor();
     let mut solver_scope = SolverScope::new(forkable_director!(starting_solution(), &descriptor));
     solver_scope.start_solving();
     let mut pool = EvaluatorPool::<NQueensSolution, _, QueenMove>::new(4);
     pool.sync(&solver_scope);
 
-    // First step: one candidate per evaluator, doubling while the step lasts.
+    // No history: one candidate per evaluator.
     pool.begin_step();
     assert_eq!(pool.window_capacity(None), 4);
-    pool.grow_window();
-    assert_eq!(pool.window_capacity(None), 8);
-    pool.grow_window();
-    pool.grow_window();
-    pool.grow_window();
-    assert_eq!(pool.window_capacity(None), 32);
-    assert_eq!(pool.window_capacity(Some(5)), 5);
+    pool.record_window(4);
+    assert_eq!(pool.window_capacity(None), 4);
     pool.finish_step(23);
 
-    // The next step starts at the previous step's consumption.
+    // Cover the previous consumption, then continue one per evaluator.
     pool.begin_step();
     assert_eq!(pool.window_capacity(None), 23);
-    pool.finish_step(2);
-    pool.begin_step();
+    assert_eq!(pool.window_capacity(Some(5)), 5);
+    pool.record_window(23);
     assert_eq!(pool.window_capacity(None), 4);
-    pool.finish_step(500);
+    pool.finish_step(70);
+
+    // Long steps run in capped windows until the target, then per evaluator.
     pool.begin_step();
     assert_eq!(pool.window_capacity(None), 32);
+    pool.record_window(32);
+    assert_eq!(pool.window_capacity(None), 32);
+    pool.record_window(32);
+    assert_eq!(pool.window_capacity(None), 6);
+    pool.record_window(6);
+    assert_eq!(pool.window_capacity(None), 4);
 }

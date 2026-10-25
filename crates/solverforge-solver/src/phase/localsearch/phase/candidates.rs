@@ -206,7 +206,7 @@ where
         if state.interrupted || exhausted {
             break;
         }
-        evaluators.grow_window();
+        evaluators.record_window(window.len());
     }
 
     evaluators.finish_step(state.evaluated_moves - consumed_before);

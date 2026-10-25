@@ -1271,9 +1271,10 @@ Contract:
 
 - One evaluator runs the sequential loop: same candidates, checks, order, and
   telemetry.
-- Windows adapt to the step: a step's first window matches the number of
-  candidates the previous step consumed (at least one per evaluator), and each
-  further window in the step doubles, up to 32. Candidates are always
+- Windows aim at the number of candidates the previous step consumed: they
+  cover that target in windows of at most 32, then continue one candidate per
+  evaluator, so speculative work past the decision point stays near one
+  window of evaluators when step lengths are stable. Candidates are always
   consumed in canonical order, so selectors that keep no stream state across
   steps reach the sequential trajectory for every evaluator count. Ruin
   selectors (cross-step RNG streams) and lazily activated providers see the

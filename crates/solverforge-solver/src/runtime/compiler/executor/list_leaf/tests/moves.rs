@@ -226,3 +226,32 @@ fn candidate_enumeration_never_clones_full_slot_meters() {
         );
     }
 }
+
+#[test]
+fn compiled_runtime_carrier_recycles_k_opt_journals() {
+    use crate::runtime::compiler::executor::local_search::RuntimeNeighborhoodMove;
+
+    let selector = selector(
+        ListLeafKind::KOpt,
+        static_slot_for(ListLeafKind::KOpt),
+        Some(71),
+    );
+    let mut score_director = director(initial_plan());
+    let carrier = RuntimeNeighborhoodMove::List(first_doable(&selector, &mut score_director));
+    let mut journal_pool = Vec::new();
+
+    let undo = carrier.do_move_with_scratch(&mut score_director, &mut journal_pool);
+    carrier.undo_move_with_scratch(&mut score_director, undo, &mut journal_pool);
+    assert_eq!(
+        journal_pool.len(),
+        1,
+        "the carrier must return the retired K-opt journal to the pool"
+    );
+
+    let undo = carrier.do_move_with_scratch(&mut score_director, &mut journal_pool);
+    assert!(
+        journal_pool.is_empty(),
+        "the next K-opt trial must reuse the retired journal"
+    );
+    carrier.undo_move_with_scratch(&mut score_director, undo, &mut journal_pool);
+}

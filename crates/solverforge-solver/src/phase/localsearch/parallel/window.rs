@@ -1,24 +1,27 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
+use rayon::prelude::*;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCandidateUndo};
+use crate::heuristic::selector::move_selector::MoveCandidateRef;
 use crate::phase::localsearch::evaluation::{run_trial, TrialOutcome};
 
 use super::pool::{EvaluatorPool, TrialOutputs};
 
-/* Runs the trial for every candidate in the window. The main director takes
-its share inline on the coordinator thread; each replica takes its share in a
-spawned task. Slots are handed out through one atomic counter, and results land
-at their slot index, so which evaluator ran a slot never affects the outcome.
+/* Runs the trial for every candidate in the window. One fork-join splits the
+work: the main director drains slots on the coordinator thread while the
+replicas drain theirs through a parallel iterator. Fork-join jobs live on the
+stack, so dispatch allocates nothing. Slots are handed out through one atomic
+counter, and results land at their slot index, so which evaluator ran a slot
+never affects the outcome.
 */
 pub(crate) fn evaluate_window<S, D, M>(
     candidates: &[MoveCandidateRef<'_, S, M>],
     main_director: &mut D,
-    main_journal_pool: &mut Vec<MoveCandidateUndo<M::Undo>>,
+    main_journal_pool: &mut Vec<M::Undo>,
     evaluators: &mut EvaluatorPool<S, D, M>,
     results: &mut Vec<Option<(TrialOutcome<S::Score>, Duration)>>,
 ) where
@@ -29,28 +32,29 @@ pub(crate) fn evaluate_window<S, D, M>(
     let next = AtomicUsize::new(0);
     let (main_outputs, replicas) = evaluators.parts_mut();
     main_outputs.clear();
-    rayon::scope(|scope| {
-        for replica in replicas.iter_mut() {
-            let next = &next;
-            replica.outputs.clear();
-            scope.spawn(move |_| {
+    rayon::join(
+        || {
+            drain_window(
+                candidates,
+                &next,
+                main_director,
+                main_journal_pool,
+                main_outputs,
+            )
+        },
+        || {
+            replicas.par_iter_mut().for_each(|replica| {
+                replica.outputs.clear();
                 drain_window(
                     candidates,
-                    next,
+                    &next,
                     &mut replica.director,
                     &mut replica.journal_pool,
                     &mut replica.outputs,
                 );
-            });
-        }
-        drain_window(
-            candidates,
-            &next,
-            main_director,
-            main_journal_pool,
-            main_outputs,
-        );
-    });
+            })
+        },
+    );
     results.clear();
     results.resize_with(candidates.len(), || None);
     for (index, outcome, elapsed) in main_outputs.drain(..) {
@@ -67,7 +71,7 @@ fn drain_window<S, D, M>(
     candidates: &[MoveCandidateRef<'_, S, M>],
     next: &AtomicUsize,
     director: &mut D,
-    journal_pool: &mut Vec<MoveCandidateUndo<M::Undo>>,
+    journal_pool: &mut Vec<M::Undo>,
     outputs: &mut TrialOutputs<S::Score>,
 ) where
     S: PlanningSolution,

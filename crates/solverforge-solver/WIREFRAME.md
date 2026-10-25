@@ -1260,8 +1260,8 @@ a fixed-size candidate batch.
 can evaluate candidates on several cores within one solve. Each step produces a
 window of candidates serially on the main director, in canonical order;
 evaluates the window on the main director plus `n - 1` persistent evaluator
-replicas (one `rayon::scope` per window, slots handed out through one atomic
-counter); and consumes the results in candidate order through the unchanged
+replicas (one allocation-free fork-join per window, slots handed out through
+one atomic counter); and consumes the results in candidate order through the unchanged
 acceptor and forager. The selected move is applied to every replica by borrow
 before the owned commit, and each replica must reach the committed step score.
 Replicas are forked from the working solution through

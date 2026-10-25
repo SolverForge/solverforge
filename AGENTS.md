@@ -281,9 +281,11 @@ Use `rayon` for CPU-bound work and `tokio` for async coordination.
 - Do not add `std::thread::spawn`.
 - Do not add `std::thread::sleep`.
 - Prefer ownership transfer over callback APIs that only expose `&Self`.
-- Parallel local-search evaluation runs one `rayon::scope` per evaluation
-  window on the solve thread's current pool; do not add dedicated pools or
-  blocking waits inside evaluation workers.
+- Parallel local-search evaluation runs one fork-join (`rayon::join` plus a
+  parallel iterator over the replicas) per evaluation window on the solve
+  thread's current pool. Fork-join jobs live on the stack, so window dispatch
+  allocates nothing; do not reintroduce per-window spawned tasks, dedicated
+  pools, or blocking waits inside evaluation workers.
 
 ### Configured Completion
 

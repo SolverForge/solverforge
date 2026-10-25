@@ -6,7 +6,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::{MoveCandidateRef, MoveCandidateUndo};
+use crate::heuristic::selector::move_selector::MoveCandidateRef;
 use crate::phase::localsearch::evaluation::TrialOutcome;
 use crate::phase::localsearch::phase::WindowSlot;
 use crate::scope::{ProgressCallback, SolverScope};
@@ -54,7 +54,7 @@ where
     M: Move<S>,
 {
     pub(super) director: D,
-    pub(super) journal_pool: Vec<MoveCandidateUndo<M::Undo>>,
+    pub(super) journal_pool: Vec<M::Undo>,
     pub(super) outputs: TrialOutputs<S::Score>,
 }
 

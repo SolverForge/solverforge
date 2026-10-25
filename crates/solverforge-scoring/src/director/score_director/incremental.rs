@@ -4,6 +4,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 
 use super::descriptor::DirectorDescriptor;
+use super::list_shadows::ListShadowRows;
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 
 /* A zero-erasure score director for incremental scoring.
@@ -75,6 +76,7 @@ where
     constraints: C,
     cached_score: S::Score,
     initialized: bool,
+    list_shadow_rows: ListShadowRows,
     pub(super) solution_descriptor: Desc,
     /* Entity counter function.
 
@@ -141,6 +143,7 @@ where
             constraints,
             cached_score: S::Score::zero(),
             initialized: false,
+            list_shadow_rows: ListShadowRows::default(),
             solution_descriptor,
             entity_counter,
             _phantom: PhantomData,
@@ -200,7 +203,13 @@ where
         let delta =
             self.constraints
                 .on_retract_all(&self.working_solution, entity_index, descriptor_index);
-        self.cached_score = self.cached_score + delta;
+        let element_delta = self.list_shadow_rows.retract_held(
+            &self.working_solution,
+            &mut self.constraints,
+            descriptor_index,
+            entity_index,
+        );
+        self.cached_score = self.cached_score + delta + element_delta;
     }
 
     pub(crate) fn after_variable_changed_impl(
@@ -211,16 +220,18 @@ where
         if !self.initialized {
             return;
         }
-        self.working_solution
-            .update_entity_shadows(descriptor_index, entity_index);
-        let delta =
-            self.constraints
-                .on_insert_all(&self.working_solution, entity_index, descriptor_index);
+        let delta = self.list_shadow_rows.refresh_owner(
+            &mut self.working_solution,
+            &mut self.constraints,
+            descriptor_index,
+            entity_index,
+        );
         self.cached_score = self.cached_score + delta;
     }
 
     pub(crate) fn reset_impl(&mut self) {
         self.constraints.reset_all();
+        self.list_shadow_rows.clear();
         self.initialized = false;
         self.cached_score = S::Score::zero();
     }
@@ -247,6 +258,7 @@ where
             self.initialized = true;
         } else {
             self.constraints.reset_all();
+            self.list_shadow_rows.clear();
             self.cached_score = S::Score::zero();
             self.initialized = false;
         }

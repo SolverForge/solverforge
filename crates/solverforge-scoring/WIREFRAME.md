@@ -214,6 +214,7 @@ src/
 │   ├── score_director.rs                           — Re-exports ScoreDirector pieces
 │   │   ├── score_director/incremental.rs           — ScoreDirector<S,C,Desc> (zero-erasure incremental)
 │   │   ├── score_director/descriptor.rs            — DirectorDescriptor, ReplicaDescriptor
+│   │   ├── score_director/list_shadows.rs          — Retract/insert of list-shadowed element rows around owner shadow updates
 │   │   └── score_director/adapters.rs              — Debug and Director trait impls for ScoreDirector
 │   ├── shadow_aware.rs                             — SolvableSolution trait and shadow lifecycle notes
 │   └── tests/
@@ -223,6 +224,7 @@ src/
 │       ├── fixtures.rs                             — ScoreDirector fixtures
 │       ├── fixtures_tests.rs                       — ScoreDirector fixture tests
 │       ├── score_director.rs                       — ScoreDirector tests
+│       ├── list_shadows.rs                         — Element streams reading list shadows, against fresh evaluation
 │       └── shadow.rs                               — Shadow-aware director tests
 
 ├── stream/
@@ -422,6 +424,14 @@ Implemented for each `IncrementalConstraint<S, Sc>` as a singleton set and for t
 `PlanningSolution` itself owns the canonical shadow hooks:
 - `update_entity_shadows(&mut self, descriptor_index: usize, entity_index: usize)` — default no-op
 - `update_all_shadows(&mut self)` — default no-op
+
+`ScoreDirector` treats an owner's list shadow update as a mutation of the
+elements it writes (`list_shadow_elements`). `before_variable_changed`
+retracts the rows of the elements the owner holds; `after_variable_changed`
+retracts rows of elements that arrived from no list, rewrites the shadows,
+inserts the owner and every element it now holds, and clears and re-inserts
+elements that left the owner without joining another list. Element rows
+therefore always hold the shadows they were inserted with.
 
 ### `SolvableSolution` — `: PlanningSolution`
 

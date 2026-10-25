@@ -7,6 +7,7 @@ constraint sets instead of trait-object-based scoring.
 mod adapters;
 mod descriptor;
 mod incremental;
+mod list_shadows;
 
 pub use descriptor::{DirectorDescriptor, ReplicaDescriptor};
 pub use incremental::ScoreDirector;

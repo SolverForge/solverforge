@@ -37,4 +37,18 @@ pub trait PlanningModelSupport: PlanningSolution + Sized + 'static {
     ) -> bool;
 
     fn update_all_shadows(solution: &mut Self) -> bool;
+
+    fn list_shadow_elements(
+        _solution: &Self,
+        _descriptor_index: usize,
+        _entity_index: usize,
+    ) -> Option<(usize, &[usize])> {
+        None
+    }
+
+    fn clear_list_shadows(_solution: &mut Self, _element: usize) {}
+
+    fn list_shadow_source(_collection: &str) -> Option<usize> {
+        None
+    }
 }

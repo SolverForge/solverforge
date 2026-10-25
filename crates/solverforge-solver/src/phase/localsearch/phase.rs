@@ -20,10 +20,13 @@ use crate::stats::{format_duration, whole_units_per_second, CandidateTracePullTo
 
 mod candidates;
 mod decision;
+mod evaluator;
+mod sequential;
 mod step;
 
 pub(in crate::phase::localsearch) use decision::WindowSlot;
 
+use evaluator::{SequentialEvaluator, StepEvaluator};
 use step::{execute_step, StepOutcome};
 
 const STEP_ACCEPTED_LABEL_LIMIT: usize = 32;
@@ -234,9 +237,11 @@ where
     }
 }
 
-/// Executes the one local-search loop while borrowing its resource only for
+/// Executes the local-search phase while borrowing its resource only for
 /// cursor opening and individual candidate pulls. Both stock phases and the
-/// compiled runtime call this function; neither owns a second loop.
+/// compiled runtime call this function. The evaluator count selects the step
+/// loop once, before the first step: one evaluator runs the sequential loop,
+/// more run parallel windows across evaluator replicas.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
     move_source: &mut Source,
@@ -255,6 +260,48 @@ pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
     A: Acceptor<S>,
     Fo: LocalSearchForager<S, M>,
 {
+    if evaluator_count > 1 {
+        run_local_search(
+            move_source,
+            resources,
+            acceptor,
+            forager,
+            step_limit,
+            &mut EvaluatorPool::<S, D, M>::new(evaluator_count),
+            solver_scope,
+        );
+    } else {
+        run_local_search(
+            move_source,
+            resources,
+            acceptor,
+            forager,
+            step_limit,
+            &mut SequentialEvaluator,
+            solver_scope,
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_local_search<S, D, BestCb, M, Source, A, Fo, E>(
+    move_source: &mut Source,
+    resources: &mut Source::Resources,
+    acceptor: &mut A,
+    forager: &mut Fo,
+    step_limit: Option<u64>,
+    evaluator: &mut E,
+    solver_scope: &mut SolverScope<S, D, BestCb>,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S>,
+    Source: MoveCursorSource<S, M> + Debug + Send,
+    A: Acceptor<S>,
+    Fo: LocalSearchForager<S, M>,
+    E: StepEvaluator<S, D, M>,
+{
     let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, "Local Search");
     let phase_index = phase_scope.phase_index();
     let mut last_step_score = phase_scope.calculate_score();
@@ -267,7 +314,6 @@ pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
     );
     acceptor.phase_started(&last_step_score);
 
-    let mut evaluators = EvaluatorPool::<S, D, M>::new(evaluator_count);
     let start_time = Instant::now();
     loop {
         if phase_scope.solver_scope_mut().should_terminate() {
@@ -284,7 +330,7 @@ pub(crate) fn solve_local_search_with_resources<S, D, BestCb, M, Source, A, Fo>(
             forager,
             &mut phase_scope,
             &mut last_step_score,
-            &mut evaluators,
+            evaluator,
         ) {
             StepOutcome::Continue | StepOutcome::Restart => continue,
             StepOutcome::Terminate => break,

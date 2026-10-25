@@ -1,4 +1,4 @@
-//! Candidate streaming for one local-search step.
+//! Candidate state for one local-search step and the parallel window loop.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
@@ -10,7 +10,6 @@ use crate::heuristic::selector::move_selector::{
 use crate::phase::control::{
     should_interrupt_before_candidate, should_interrupt_before_evaluation, CONTROL_POLL_INTERVAL,
 };
-use crate::phase::localsearch::evaluation::run_trial;
 use crate::phase::localsearch::parallel::{
     evaluate_window, remaining_evaluation_budget, EvaluatorPool,
 };
@@ -45,8 +44,11 @@ impl CandidateLoopState {
     }
 }
 
+/// The parallel loop: produce a window serially on the main director,
+/// evaluate it across the evaluator pool, and consume the results in
+/// candidate order through the same checks and decisions.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn evaluate_candidates<S, D, BestCb, M, C, Resources, A, Fo>(
+pub(super) fn evaluate_candidate_windows<S, D, BestCb, M, C, Resources, A, Fo>(
     cursor: &mut C,
     resources: &mut Resources,
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
@@ -75,10 +77,8 @@ where
     // arbitrary-long journals do not grow the heap per trial.
     //
     // Each pass produces a window of candidates serially on the main
-    // director, evaluates it (inline for one evaluator, across the evaluator
-    // pool otherwise), and consumes the results in candidate order. With a
-    // window of one, the checks, pulls and decisions are exactly the
-    // sequential loop's.
+    // director, evaluates it across the evaluator pool, and consumes the
+    // results in candidate order through the sequential loop's checks.
     let mut journal_pool: Vec<MoveCandidateUndo<M::Undo>> = Vec::new();
     let mut control_polls = 0usize;
     let mut control_latched = false;
@@ -143,31 +143,21 @@ where
         }
 
         // Evaluation.
-        if evaluators.is_parallel() {
-            let candidates: Vec<_> = window
-                .iter()
-                .map(|slot| {
-                    cursor
-                        .candidate(slot.id)
-                        .expect("window candidate must remain borrowable")
-                })
-                .collect();
-            evaluate_window(
-                &candidates,
-                step_scope.score_director_mut(),
-                &mut journal_pool,
-                evaluators,
-                &mut results,
-            );
-        } else {
-            let mov = cursor
-                .candidate(window[0].id)
-                .expect("discovered candidate id must remain borrowable");
-            let started = std::time::Instant::now();
-            let outcome = run_trial(&mov, step_scope.score_director_mut(), &mut journal_pool);
-            results.clear();
-            results.push(Some((outcome, started.elapsed())));
-        }
+        let candidates: Vec<_> = window
+            .iter()
+            .map(|slot| {
+                cursor
+                    .candidate(slot.id)
+                    .expect("window candidate must remain borrowable")
+            })
+            .collect();
+        evaluate_window(
+            &candidates,
+            step_scope.score_director_mut(),
+            &mut journal_pool,
+            evaluators,
+            &mut results,
+        );
 
         // Consumption in candidate order.
         for index in 0..window.len() {

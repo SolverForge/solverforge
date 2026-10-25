@@ -268,8 +268,10 @@ src/
 │   │   ├── mod.rs                       — Acceptor, local-search acceptor/forager, and LocalSearchPhase re-exports
 │   │   ├── evaluation.rs                — Trial kernel (run_trial), candidate accounting (account_trial), and hard-delta classification
 │   │   ├── phase.rs                     — LocalSearchPhase<S, M, MS, A, Fo>
-│   │   ├── phase/candidates.rs          — Candidate loop for one step
-│   │   ├── phase/decision.rs            — Generated-candidate records and in-order candidate consumption
+│   │   ├── phase/candidates.rs          — Step candidate state and the parallel window loop
+│   │   ├── phase/decision.rs            — Generated-candidate records and in-order candidate consumption for windows
+│   │   ├── phase/evaluator.rs           — Step evaluation strategy, selected once per phase: sequential loop or evaluator pool
+│   │   ├── phase/sequential.rs          — One-evaluator candidate loop
 │   │   ├── phase/step.rs                — One step: candidate selection and commit
 │   │   ├── phase/tests.rs               — Tests
 │   │   ├── forager.rs                   — LocalSearchForager trait, AcceptedCountForager, FirstAcceptedForager, BestScoreForager, re-exports
@@ -1269,8 +1271,10 @@ outside the loop's own commits. The solve entry points build the main
 descriptor, so replicas share it; only the working solution is copied.
 Contract:
 
-- One evaluator runs the sequential loop: same candidates, checks, order, and
-  telemetry.
+- The evaluator count selects the step loop once per phase. One evaluator
+  runs the sequential loop, a separate monomorphized loop with no pool,
+  window, or replica state; two or more run the parallel window loop. Both
+  take the same candidates, checks, order, and decisions.
 - Windows aim at the number of candidates the previous step consumed: they
   cover that target in windows of at most 32, then continue one candidate per
   evaluator, so speculative work past the decision point stays near one

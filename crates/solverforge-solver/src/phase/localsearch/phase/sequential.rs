@@ -1,0 +1,289 @@
+//! The one-evaluator candidate loop: pull, check, trial and decide one
+//! candidate at a time on the main director.
+
+use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::Score;
+use solverforge_scoring::Director;
+use tracing::trace;
+
+use crate::heuristic::r#move::Move;
+use crate::heuristic::selector::move_selector::{MoveCandidateUndo, ResourceMoveCursor};
+use crate::phase::control::{
+    should_interrupt_before_candidate, should_interrupt_before_evaluation, CONTROL_POLL_INTERVAL,
+};
+use crate::phase::localsearch::evaluation::{
+    evaluate_candidate, record_evaluated_move, CandidateEvaluation,
+};
+use crate::phase::localsearch::{Acceptor, ForagerDecision, LocalSearchForager};
+use crate::scope::{ProgressCallback, StepScope};
+use crate::stats::{CandidateTraceDisposition, CandidateTraceSource};
+
+use super::candidates::CandidateLoopState;
+use super::decision::{record_rejected_trace, PROGRESS_POLL_INTERVAL};
+use super::{candidate_selector_label, take_trace_token};
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn evaluate_candidates<S, D, BestCb, M, C, Resources, A, Fo>(
+    cursor: &mut C,
+    resources: &mut Resources,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
+    last_step_score: S::Score,
+    acceptor: &mut A,
+    forager: &mut Fo,
+    requires_move_signatures: bool,
+    mut state: CandidateLoopState,
+) -> CandidateLoopState
+where
+    S: PlanningSolution,
+    D: Director<S>,
+    BestCb: ProgressCallback<S>,
+    M: Move<S>,
+    C: ResourceMoveCursor<S, M, Resources>,
+    A: Acceptor<S>,
+    Fo: LocalSearchForager<S, M>,
+{
+    // The control poll reads the wall clock; forwarding every candidate
+    // iteration makes it measurable at scale (measured ~9% of wall before
+    // batching). The step loop therefore polls once per batch window; a
+    // stop stays latched, and per-evaluation interruption still runs on
+    // its every-64-evaluations schedule below.
+    // Retired undo journals are recycled across the step's trials so
+    // arbitrary-long journals do not grow the heap per trial.
+    let mut journal_pool: Vec<MoveCandidateUndo<M::Undo>> = Vec::new();
+    let mut control_polls = 0usize;
+    let mut control_latched = false;
+    while !forager.is_quit_early() {
+        if state.interrupted {
+            break;
+        }
+        control_polls += 1;
+        if !control_latched && control_polls.is_multiple_of(CONTROL_POLL_INTERVAL) {
+            control_latched = should_interrupt_before_candidate(step_scope)
+                || step_scope
+                    .phase_scope_mut()
+                    .solver_scope_mut()
+                    .should_terminate();
+        }
+        if control_latched {
+            state.interrupted = true;
+            break;
+        }
+
+        let generation_started = std::time::Instant::now();
+        let Some(candidate_id) =
+            cursor.next_candidate_with_resources(step_scope.score_director_mut(), resources)
+        else {
+            break;
+        };
+        let selector_index = cursor.selector_index(candidate_id);
+        let mov = cursor
+            .candidate(candidate_id)
+            .expect("discovered candidate id must remain borrowable");
+        let move_label = mov.telemetry_label();
+        let selector_label = selector_index.map(|_| candidate_selector_label(&mov));
+        let trace_token = step_scope.phase_scope_mut().record_candidate_pull(
+            CandidateTraceSource::LocalSearch,
+            selector_index,
+            candidate_id.index(),
+            None,
+            &mov,
+        );
+        let generation_elapsed = generation_started.elapsed();
+        state.generated_moves += 1;
+        step_scope
+            .phase_scope_mut()
+            .record_move_kind_generated(move_label);
+        if let Some(selector_index) = selector_index {
+            step_scope
+                .phase_scope_mut()
+                .record_selector_generated_move_with_label(
+                    selector_index,
+                    selector_label.as_deref().unwrap_or("selector"),
+                    generation_elapsed,
+                );
+        } else {
+            step_scope
+                .phase_scope_mut()
+                .record_generated_move(generation_elapsed);
+        }
+        if step_scope.progress_polling_required()
+            && state.generated_moves.is_multiple_of(PROGRESS_POLL_INTERVAL)
+        {
+            step_scope.phase_scope_mut().report_progress_if_due();
+        }
+
+        if should_interrupt_before_evaluation(step_scope)
+            || step_scope
+                .phase_scope_mut()
+                .solver_scope_mut()
+                .should_terminate()
+        {
+            if let Some(token) = trace_token {
+                step_scope
+                    .phase_scope_mut()
+                    .record_candidate_trace_disposition(
+                        token,
+                        CandidateTraceDisposition::InterruptedBeforeEvaluation,
+                    );
+            }
+            state.interrupted = true;
+            break;
+        }
+        state.evaluated_moves += 1;
+
+        let evaluation_started = std::time::Instant::now();
+        let move_score = match evaluate_candidate(
+            &mov,
+            step_scope,
+            last_step_score,
+            selector_index,
+            evaluation_started,
+            &mut journal_pool,
+        ) {
+            CandidateEvaluation::Scored(score) => {
+                if let Some(token) = trace_token {
+                    step_scope
+                        .phase_scope_mut()
+                        .record_candidate_trace_disposition(
+                            token,
+                            CandidateTraceDisposition::Evaluated,
+                        );
+                }
+                step_scope
+                    .phase_scope_mut()
+                    .record_move_kind_evaluated(move_label, score.compare(&last_step_score));
+                score
+            }
+            CandidateEvaluation::NotDoable => {
+                record_rejected_trace(
+                    step_scope,
+                    trace_token,
+                    CandidateTraceDisposition::NotDoable,
+                );
+                assert!(cursor.release_candidate(candidate_id));
+                continue;
+            }
+            CandidateEvaluation::RejectedByHardImprovement(_) => {
+                record_rejected_trace(
+                    step_scope,
+                    trace_token,
+                    CandidateTraceDisposition::RejectedByHardImprovement,
+                );
+                assert!(cursor.release_candidate(candidate_id));
+                continue;
+            }
+            CandidateEvaluation::RejectedByScoreImprovement(_) => {
+                record_rejected_trace(
+                    step_scope,
+                    trace_token,
+                    CandidateTraceDisposition::RejectedByScoreImprovement,
+                );
+                assert!(cursor.release_candidate(candidate_id));
+                continue;
+            }
+        };
+        // Moves that own a prebuilt signature lend it; only dynamic builders
+        // produce one, and it lives for this decision alone.
+        let built_signature;
+        let move_signature = if requires_move_signatures {
+            match mov.borrowed_tabu_signature() {
+                Some(borrowed) => Some(borrowed),
+                None => {
+                    built_signature = mov.tabu_signature(step_scope.score_director());
+                    Some(&built_signature)
+                }
+            }
+        } else {
+            None
+        };
+
+        let accepted = acceptor.is_accepted(&last_step_score, &move_score, move_signature);
+
+        record_evaluated_move(step_scope, selector_index, evaluation_started);
+        if accepted {
+            step_scope
+                .phase_scope_mut()
+                .record_move_kind_accepted(move_label);
+            state.accepted_labels.record(move_label);
+            if let Some(selector_index) = selector_index {
+                step_scope
+                    .phase_scope_mut()
+                    .record_selector_move_accepted(selector_index);
+            } else {
+                step_scope.phase_scope_mut().record_move_accepted();
+            }
+            state.accepted_moves += 1;
+        } else {
+            if let Some(token) = trace_token {
+                step_scope
+                    .phase_scope_mut()
+                    .record_candidate_trace_disposition(
+                        token,
+                        CandidateTraceDisposition::AcceptorRejected,
+                    );
+            }
+            if let Some(selector_index) = selector_index {
+                step_scope
+                    .phase_scope_mut()
+                    .record_selector_move_acceptor_rejected(selector_index);
+            } else {
+                step_scope.phase_scope_mut().record_move_acceptor_rejected();
+            }
+            step_scope
+                .phase_scope_mut()
+                .record_move_kind_acceptor_rejected(
+                    move_label,
+                    move_score.compare(&last_step_score),
+                );
+        }
+
+        trace!(
+            event = "step",
+            step = step_scope.step_index(),
+            move_index = candidate_id.index(),
+            score = %move_score,
+            accepted = accepted,
+        );
+
+        if accepted {
+            match forager.add_move_index(candidate_id, move_score) {
+                ForagerDecision::Keep => {
+                    if let Some(token) = trace_token {
+                        state.accepted_trace_tokens.push((candidate_id, token));
+                    }
+                }
+                ForagerDecision::Release => {
+                    if let Some(token) = trace_token {
+                        step_scope
+                            .phase_scope_mut()
+                            .record_candidate_trace_disposition(
+                                token,
+                                CandidateTraceDisposition::ForagerIgnored,
+                            );
+                    }
+                    assert!(cursor.release_candidate(candidate_id));
+                }
+                ForagerDecision::Replace(replaced_id) => {
+                    if let Some(token) =
+                        take_trace_token(&mut state.accepted_trace_tokens, replaced_id)
+                    {
+                        step_scope
+                            .phase_scope_mut()
+                            .record_candidate_trace_disposition(
+                                token,
+                                CandidateTraceDisposition::ForagerIgnored,
+                            );
+                    }
+                    if let Some(token) = trace_token {
+                        state.accepted_trace_tokens.push((candidate_id, token));
+                    }
+                    assert!(cursor.release_candidate(replaced_id));
+                }
+            }
+        } else {
+            assert!(cursor.release_candidate(candidate_id));
+        }
+    }
+
+    state
+}

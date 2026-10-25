@@ -4,6 +4,7 @@ This allows local search to combine scalar change, swap, pillar, and
 ruin-recreate moves without trait-object dispatch.
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
@@ -211,20 +212,7 @@ where
         }
     }
 
-    fn borrowed_tabu_signature(&self) -> Option<&MoveTabuSignature> {
-        match self {
-            Self::Change(m) => m.borrowed_tabu_signature(),
-            Self::Swap(m) => m.borrowed_tabu_signature(),
-            Self::PillarChange(m) => m.borrowed_tabu_signature(),
-            Self::PillarSwap(m) => m.borrowed_tabu_signature(),
-            Self::RuinRecreate(m) => m.borrowed_tabu_signature(),
-            Self::CompoundScalar(m) => m.borrowed_tabu_signature(),
-            Self::ConflictRepair(m) => m.borrowed_tabu_signature(),
-            Self::RuntimeCompound(m) => m.borrowed_tabu_signature(),
-        }
-    }
-
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         match self {
             Self::Change(m) => m.tabu_signature(score_director),
             Self::Swap(m) => m.tabu_signature(score_director),

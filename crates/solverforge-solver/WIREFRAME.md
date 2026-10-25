@@ -431,7 +431,7 @@ Requires: `Send + Sync + Debug`.
 | `telemetry_label` | `fn(&self) -> &'static str` (default `"move"`) |
 | `requires_hard_improvement` | `fn(&self) -> bool` |
 | `requires_score_improvement` | `fn(&self) -> bool` (default `false`) |
-| `tabu_signature` | `fn<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature` |
+| `tabu_signature` | `fn<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature>` — moves that own a prebuilt signature lend it (`Cow::Borrowed`); wrappers forward it unchanged |
 | `candidate_trace_identity` | `fn(&self) -> Option<CandidateTraceIdentity>` (default `None`) |
 | `for_each_affected_entity` | `fn<V: FnMut(MoveAffectedEntity<'_>)>(&self, visitor: &mut V)` — concrete visitor, monomorphized; implementations must report every mutated entity, including both pillar halves for pillar swaps |
 

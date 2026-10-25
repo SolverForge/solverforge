@@ -9,6 +9,7 @@ PillarSwapMove uses concrete function pointers instead of `dyn Any` for complete
 compile-time type safety. No runtime type checks or downcasting.
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use smallvec::SmallVec;
@@ -229,7 +230,7 @@ where
         }
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let left_value = self.left_indices.first().and_then(|&idx| {
             (self.getter)(score_director.working_solution(), idx, self.variable_index)
         });
@@ -256,11 +257,13 @@ where
         let mut move_id = scoped_move_identity(scope, TABU_OP_PILLAR_SWAP, std::iter::empty());
         append_canonical_usize_slice_pair(&mut move_id, &self.left_indices, &self.right_indices);
 
-        MoveTabuSignature::new_self_undoing(scope, move_id)
-            .with_entity_tokens(entity_tokens)
-            .with_destination_value_tokens([
-                scope.value_token(right_id),
-                scope.value_token(left_id),
-            ])
+        Cow::Owned(
+            MoveTabuSignature::new_self_undoing(scope, move_id)
+                .with_entity_tokens(entity_tokens)
+                .with_destination_value_tokens([
+                    scope.value_token(right_id),
+                    scope.value_token(left_id),
+                ]),
+        )
     }
 }

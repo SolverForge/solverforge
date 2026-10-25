@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::{self, Debug};
 
 use smallvec::{smallvec, SmallVec};
@@ -319,7 +320,7 @@ where
         self.require_hard_improvement
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let scope = MoveTabuScope::new(self.descriptor_index(), self.variable_label);
         let mut move_id = smallvec![hash_str(self.reason)];
         let mut undo_move_id = smallvec![hash_str(self.reason)];
@@ -341,9 +342,11 @@ where
             destination_tokens.push(edit_scope.value_token(to));
         }
 
-        MoveTabuSignature::new(scope, move_id, undo_move_id)
-            .with_entity_tokens(entity_tokens)
-            .with_destination_value_tokens(destination_tokens)
+        Cow::Owned(
+            MoveTabuSignature::new(scope, move_id, undo_move_id)
+                .with_entity_tokens(entity_tokens)
+                .with_destination_value_tokens(destination_tokens),
+        )
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use solverforge_core::domain::{DynamicListVariableSlot, PlanningSolution};
@@ -116,8 +117,12 @@ where
         "dynamic_list_change"
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        change_tabu_signature(&self.slot, self.coordinates(), score_director)
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(change_tabu_signature(
+            &self.slot,
+            self.coordinates(),
+            score_director,
+        ))
     }
 
     fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {

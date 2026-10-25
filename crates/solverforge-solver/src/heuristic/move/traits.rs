@@ -1,5 +1,6 @@
 // Move trait definition.
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
@@ -102,16 +103,11 @@ pub trait Move<S: PlanningSolution>: Send + Sync + Debug {
         false
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature;
-
-    /* Borrows this move's prebuilt signature instead of building a fresh one.
-
-    Moves that own their completed signature (static compositions) return
-    `Some`. Dynamic builders return `None`, and callers fall back to
-    `tabu_signature`. */
-    fn borrowed_tabu_signature(&self) -> Option<&MoveTabuSignature> {
-        None
-    }
+    /* This move's tabu signature. Moves that own a prebuilt signature
+    (static compositions) lend it as `Cow::Borrowed`; moves that derive one
+    from the working solution return `Cow::Owned`. Wrappers forward this
+    method, so a borrowed signature survives every layer of wrapping. */
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature>;
 
     /// Returns the canonical identity used by opt-in candidate-pull tracing.
     ///

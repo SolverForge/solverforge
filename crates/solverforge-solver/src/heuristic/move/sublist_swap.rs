@@ -8,6 +8,7 @@ where segments need to be swapped between vehicles.
 Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -272,8 +273,12 @@ where
         "sublist_swap"
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        sublist_swap_tabu_signature(&self.access(), self.coordinates(), score_director)
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(sublist_swap_tabu_signature(
+            &self.access(),
+            self.coordinates(),
+            score_director,
+        ))
     }
 
     fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {

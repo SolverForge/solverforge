@@ -6,6 +6,7 @@ use solverforge_core::domain::{
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
+use std::borrow::Cow;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
@@ -123,13 +124,13 @@ impl Move<TaskSolution> for StoredMove {
     fn tabu_signature<D: solverforge_scoring::Director<TaskSolution>>(
         &self,
         _score_director: &D,
-    ) -> crate::heuristic::r#move::MoveTabuSignature {
+    ) -> Cow<'_, crate::heuristic::r#move::MoveTabuSignature> {
         let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "stored");
-        crate::heuristic::r#move::MoveTabuSignature::new(
+        Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
             smallvec::smallvec![1],
             smallvec::smallvec![1],
-        )
+        ))
     }
 }
 

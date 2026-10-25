@@ -55,7 +55,8 @@ fn descriptor_cartesian_builds_composite_moves() {
     let signature = cursor
         .candidate(indices[0])
         .expect("descriptor cartesian candidate must remain valid")
-        .tabu_signature(&director);
+        .tabu_signature(&director)
+        .into_owned();
     assert!(!signature.move_id.is_empty());
     assert!(!signature.entity_tokens.is_empty());
 }

@@ -134,4 +134,5 @@ mod ruin;
 mod sublist_change;
 mod sublist_swap;
 mod swap;
+mod tabu_signature_lending;
 mod transfer_payloads;

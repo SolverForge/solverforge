@@ -9,6 +9,7 @@ PillarChangeMove uses concrete function pointers instead of `dyn Any` for comple
 compile-time type safety. No runtime type checks or downcasting.
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use smallvec::{smallvec, SmallVec};
@@ -192,7 +193,7 @@ where
         self.variable_name
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let from_value = self.entity_indices.first().and_then(|&idx| {
             (self.getter)(score_director.working_solution(), idx, self.variable_index)
         });
@@ -228,8 +229,10 @@ where
         ];
         undo_move_id.extend(entity_ids.iter().copied());
 
-        MoveTabuSignature::new(scope, move_id, undo_move_id)
-            .with_entity_tokens(entity_tokens)
-            .with_destination_value_tokens([scope.value_token(to_id)])
+        Cow::Owned(
+            MoveTabuSignature::new(scope, move_id, undo_move_id)
+                .with_entity_tokens(entity_tokens)
+                .with_destination_value_tokens([scope.value_token(to_id)]),
+        )
     }
 }

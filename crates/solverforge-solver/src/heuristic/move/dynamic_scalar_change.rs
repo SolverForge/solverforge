@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use smallvec::smallvec;
@@ -112,7 +113,7 @@ where
         "dynamic_scalar_change"
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let current = self
             .slot
             .current_value(score_director.working_solution(), self.entity_index);
@@ -122,25 +123,27 @@ where
         let variable_id = hash_str(self.slot.variable_name);
         let scope = MoveTabuScope::new(self.slot.descriptor_index(), self.slot.variable_name);
 
-        MoveTabuSignature::new(
-            scope,
-            smallvec![
-                encode_usize(self.slot.descriptor_index()),
-                variable_id,
-                entity_id,
-                from_id,
-                to_id
-            ],
-            smallvec![
-                encode_usize(self.slot.descriptor_index()),
-                variable_id,
-                entity_id,
-                to_id,
-                from_id
-            ],
+        Cow::Owned(
+            MoveTabuSignature::new(
+                scope,
+                smallvec![
+                    encode_usize(self.slot.descriptor_index()),
+                    variable_id,
+                    entity_id,
+                    from_id,
+                    to_id
+                ],
+                smallvec![
+                    encode_usize(self.slot.descriptor_index()),
+                    variable_id,
+                    entity_id,
+                    to_id,
+                    from_id
+                ],
+            )
+            .with_entity_tokens([scope.entity_token(entity_id)])
+            .with_destination_value_tokens([scope.value_token(to_id)]),
         )
-        .with_entity_tokens([scope.entity_token(entity_id)])
-        .with_destination_value_tokens([scope.value_token(to_id)])
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {

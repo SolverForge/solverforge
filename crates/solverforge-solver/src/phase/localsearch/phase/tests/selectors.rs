@@ -24,17 +24,16 @@ impl Move<TestSolution> for NoopMove {
         "noop"
     }
 
-    fn tabu_signature<D: Director<TestSolution>>(
-        &self,
+    fn tabu_signature<D: Director<TestSolution>>(&self,
         _score_director: &D,
-    ) -> crate::heuristic::r#move::MoveTabuSignature {
+    ) -> Cow<'_, crate::heuristic::r#move::MoveTabuSignature> {
         let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "noop");
         let identity = crate::heuristic::r#move::metadata::hash_str("phase_tests_noop_move");
-        crate::heuristic::r#move::MoveTabuSignature::new(
+        Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
             smallvec::smallvec![identity],
             smallvec::smallvec![identity],
-        )
+        ))
     }
 }
 
@@ -149,16 +148,15 @@ impl Move<TestSolution> for ScoreFieldMove {
         "score"
     }
 
-    fn tabu_signature<D: Director<TestSolution>>(
-        &self,
+    fn tabu_signature<D: Director<TestSolution>>(&self,
         _score_director: &D,
-    ) -> crate::heuristic::r#move::MoveTabuSignature {
+    ) -> Cow<'_, crate::heuristic::r#move::MoveTabuSignature> {
         let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "score");
-        crate::heuristic::r#move::MoveTabuSignature::new(
+        Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
             smallvec::smallvec![self.0 as u64],
             smallvec::smallvec![self.0 as u64],
-        )
+        ))
     }
 }
 
@@ -196,11 +194,10 @@ impl Move<TestSolution> for ScoreImprovementRequiredMove {
         true
     }
 
-    fn tabu_signature<D: Director<TestSolution>>(
-        &self,
+    fn tabu_signature<D: Director<TestSolution>>(&self,
         score_director: &D,
-    ) -> crate::heuristic::r#move::MoveTabuSignature {
-        ScoreFieldMove(self.0).tabu_signature(score_director)
+    ) -> Cow<'_, crate::heuristic::r#move::MoveTabuSignature> {
+        Cow::Owned(ScoreFieldMove(self.0).tabu_signature(score_director).into_owned())
     }
 }
 
@@ -365,16 +362,15 @@ impl Move<TestSolution> for CancelOnDoableMove {
         "score"
     }
 
-    fn tabu_signature<D: Director<TestSolution>>(
-        &self,
+    fn tabu_signature<D: Director<TestSolution>>(&self,
         _score_director: &D,
-    ) -> crate::heuristic::r#move::MoveTabuSignature {
+    ) -> Cow<'_, crate::heuristic::r#move::MoveTabuSignature> {
         let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "score");
-        crate::heuristic::r#move::MoveTabuSignature::new(
+        Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
             smallvec::smallvec![self.score as u64],
             smallvec::smallvec![self.score as u64],
-        )
+        ))
     }
 }
 

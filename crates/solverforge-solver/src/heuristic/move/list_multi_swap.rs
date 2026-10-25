@@ -1,5 +1,6 @@
 //! Public static facade for canonical multi-list-swap mechanics.
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use smallvec::SmallVec;
@@ -107,7 +108,12 @@ where
         self.require_score_improvement
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        multi_swap_tabu_signature(&self.access, &self.swaps, &self.indices, score_director)
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(multi_swap_tabu_signature(
+            &self.access,
+            &self.swaps,
+            &self.indices,
+            score_director,
+        ))
     }
 }

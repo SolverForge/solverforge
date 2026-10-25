@@ -3,6 +3,7 @@ use solverforge_core::domain::SolutionDescriptor;
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::Director;
 use std::any::TypeId;
+use std::borrow::Cow;
 use std::cell::Cell;
 
 use super::*;
@@ -112,7 +113,10 @@ impl Move<TestSolution> for TestMove {
         "test"
     }
 
-    fn tabu_signature<D: Director<TestSolution>>(&self, _score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<TestSolution>>(
+        &self,
+        _score_director: &D,
+    ) -> Cow<'_, MoveTabuSignature> {
         panic!("vec union tests do not evaluate tabu signatures")
     }
 }

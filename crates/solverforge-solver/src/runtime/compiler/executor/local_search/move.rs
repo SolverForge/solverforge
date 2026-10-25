@@ -1,5 +1,6 @@
 //! One owned move carrier for compiled local-search leaves.
 
+use std::borrow::Cow;
 use std::fmt::{self, Debug};
 
 use solverforge_core::domain::PlanningSolution;
@@ -210,7 +211,7 @@ where
         }
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         match self {
             Self::Scalar(mov) => mov.tabu_signature(score_director),
             Self::List(mov) => mov.tabu_signature(score_director),

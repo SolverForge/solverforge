@@ -8,6 +8,7 @@ Useful for TSP-style improvements and route optimization.
 Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
@@ -224,8 +225,12 @@ where
         "list_swap"
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        swap_tabu_signature(&self.access(), self.coordinates(), score_director)
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(swap_tabu_signature(
+            &self.access(),
+            self.coordinates(),
+            score_director,
+        ))
     }
 
     fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {

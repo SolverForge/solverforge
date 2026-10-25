@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::{self, Debug};
 
 use smallvec::{smallvec, SmallVec};
@@ -426,7 +427,7 @@ where
         self.variable_name
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let variable_id = hash_str(self.variable_name);
         let heuristic_id = match self.recreate_heuristic_type {
             RecreateHeuristicType::FirstFit => hash_str("first_fit"),
@@ -463,6 +464,8 @@ where
             undo_move_id.push(encode_option_usize(current));
         }
 
-        MoveTabuSignature::new(scope, move_id, undo_move_id).with_entity_tokens(entity_tokens)
+        Cow::Owned(
+            MoveTabuSignature::new(scope, move_id, undo_move_id).with_entity_tokens(entity_tokens),
+        )
     }
 }

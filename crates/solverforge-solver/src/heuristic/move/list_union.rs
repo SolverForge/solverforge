@@ -4,6 +4,7 @@ This allows local search to combine all list move types in a single arena
 without trait-object dispatch.
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
@@ -288,21 +289,7 @@ where
         }
     }
 
-    fn borrowed_tabu_signature(&self) -> Option<&MoveTabuSignature> {
-        match self {
-            Self::ListChange(m) => m.borrowed_tabu_signature(),
-            Self::ListSwap(m) => m.borrowed_tabu_signature(),
-            Self::ListMultiSwap(m) => m.borrowed_tabu_signature(),
-            Self::ListPermute(m) => m.borrowed_tabu_signature(),
-            Self::SublistChange(m) => m.borrowed_tabu_signature(),
-            Self::SublistSwap(m) => m.borrowed_tabu_signature(),
-            Self::ListReverse(m) => m.borrowed_tabu_signature(),
-            Self::KOpt(m) => m.borrowed_tabu_signature(),
-            Self::ListRuin(m) => m.borrowed_tabu_signature(),
-        }
-    }
-
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         match self {
             Self::ListChange(m) => m.tabu_signature(score_director),
             Self::ListSwap(m) => m.tabu_signature(score_director),

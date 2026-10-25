@@ -3,6 +3,10 @@
 Provides common test fixtures used across the crate's test modules.
 */
 
+mod alloc_counter;
+
+pub use alloc_counter::thread_allocations;
+
 use crate::scope::SolverScope;
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,

@@ -142,6 +142,9 @@ Additionally, `pub mod constraint`, `pub mod domain`, `pub mod error`, `pub mod 
 | `set_score` | `fn set_score(&mut self, score: Option<Self::Score>)` | Set the score |
 | `update_entity_shadows` | `fn update_entity_shadows(&mut self, descriptor_index: usize, entity_index: usize)` | Default: no-op shadow update hook |
 | `update_all_shadows` | `fn update_all_shadows(&mut self)` | Default: no-op full shadow refresh hook |
+| `list_shadow_elements` | `fn list_shadow_elements(&self, descriptor_index: usize, entity_index: usize) -> Option<(usize, &[usize])>` | Default: `None`; the elements an owner's shadow update writes, with the change source their stream rows use |
+| `clear_list_shadows` | `fn clear_list_shadows(&mut self, element: usize)` | Default: no-op; clears the list shadows of an element no list holds |
+| `list_shadow_source` | `fn list_shadow_source(collection: &str) -> Option<usize>` | Default: `None`; change source of a collection whose rows carry list shadows |
 | `is_initialized` | `fn is_initialized(&self) -> bool` | Default: `true` |
 
 **Associated type:** `type Score: Score`

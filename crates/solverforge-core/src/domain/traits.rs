@@ -69,6 +69,35 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
     */
     fn update_all_shadows(&mut self) {}
 
+    /* Returns the elements whose list shadows
+    `update_entity_shadows(descriptor_index, entity_index)` writes, with the
+    change source their stream rows are reported under.
+
+    A score director retracts these rows before the shadow write and inserts
+    them after it, so streams that read element shadows stay incremental.
+    Default implementation reports no list shadows.
+    */
+    fn list_shadow_elements(
+        &self,
+        _descriptor_index: usize,
+        _entity_index: usize,
+    ) -> Option<(usize, &[usize])> {
+        None
+    }
+
+    /* Clears the list shadows of an element that no list holds any more.
+
+    Default implementation is a no-op.
+    */
+    fn clear_list_shadows(&mut self, _element: usize) {}
+
+    /* Returns the change source under which rows of `collection` are reported
+    when they carry list shadows, or `None` when the collection holds none.
+    */
+    fn list_shadow_source(_collection: &str) -> Option<usize> {
+        None
+    }
+
     /* Returns true if this solution is fully initialized.
 
     A solution is initialized when all planning variables have been assigned.

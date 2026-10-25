@@ -1,4 +1,6 @@
-use solverforge::{SolverEvent, SolverManager, SolverTelemetry, SolverTerminalReason};
+use solverforge::{
+    CandidateTraceDisposition, SolverEvent, SolverManager, SolverTelemetry, SolverTerminalReason,
+};
 
 #[path = "parallel_local_search/domain/mod.rs"]
 mod domain;
@@ -27,7 +29,13 @@ fn seeded_plan(move_threads: usize) -> Plan {
     }
 }
 
-fn solve(manager: &'static SolverManager<Plan>, move_threads: usize) -> (Plan, SolverTelemetry) {
+struct Run {
+    plan: Plan,
+    telemetry: SolverTelemetry,
+    consumed_pulls: Vec<String>,
+}
+
+fn solve(manager: &'static SolverManager<Plan>, move_threads: usize) -> Run {
     let (job_id, mut receiver) = manager
         .solve(seeded_plan(move_threads))
         .expect("job should start");
@@ -42,8 +50,40 @@ fn solve(manager: &'static SolverManager<Plan>, move_threads: usize) -> (Plan, S
             break;
         }
     }
+    let (plan, telemetry) = completed.expect("expected a completed solution");
+    let trace = manager
+        .get_telemetry_detail(job_id)
+        .expect("completed job keeps its telemetry detail")
+        .candidate_trace
+        .expect("the fixture enables the candidate trace");
+    assert!(
+        !trace.truncated,
+        "the trace cap must cover the whole solve: {} pulls",
+        trace.total_pulls
+    );
+    // Speculative pulls are the only legitimate difference between thread
+    // counts; every consumed candidate and its decisions must match in order.
+    let consumed_pulls = trace
+        .pulls
+        .iter()
+        .filter(|pull| {
+            !pull
+                .dispositions
+                .contains(&CandidateTraceDisposition::DiscardedSpeculative)
+        })
+        .map(|pull| {
+            format!(
+                "{}:{}:{:?}:{:?}",
+                pull.phase_index, pull.step_index, pull.identity, pull.dispositions
+            )
+        })
+        .collect();
     manager.delete(job_id).expect("delete completed job");
-    completed.expect("expected a completed solution")
+    Run {
+        plan,
+        telemetry,
+        consumed_pulls,
+    }
 }
 
 #[test]
@@ -54,15 +94,26 @@ fn fixed_work_trajectory_is_identical_across_thread_counts() {
         .into_iter()
         .map(|move_threads| solve(&MANAGER, move_threads))
         .collect();
-    let (baseline, baseline_telemetry) = &runs[0];
+    let Run {
+        plan: baseline,
+        telemetry: baseline_telemetry,
+        consumed_pulls: baseline_pulls,
+    } = &runs[0];
     let baseline_assignment: Vec<_> = baseline
         .tasks
         .iter()
         .map(|task| task.resource_idx)
         .collect();
     assert!(baseline_telemetry.moves_applied > 0);
+    assert!(!baseline_pulls.is_empty());
 
-    for (solution, telemetry) in &runs[1..] {
+    for Run {
+        plan: solution,
+        telemetry,
+        consumed_pulls,
+    } in &runs[1..]
+    {
+        assert_eq!(consumed_pulls, baseline_pulls);
         let assignment: Vec<_> = solution
             .tasks
             .iter()
@@ -84,7 +135,7 @@ fn sequential_resolution_reports_no_speculation() {
     static MANAGER: SolverManager<Plan> = SolverManager::new();
 
     for move_threads in [0, 1] {
-        let (_, telemetry) = solve(&MANAGER, move_threads);
-        assert_eq!(telemetry.moves_speculative, 0);
+        let run = solve(&MANAGER, move_threads);
+        assert_eq!(run.telemetry.moves_speculative, 0);
     }
 }

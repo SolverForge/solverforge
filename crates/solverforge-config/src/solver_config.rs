@@ -192,14 +192,15 @@ pub enum EnvironmentMode {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MoveThreadCount {
-    // Automatically determine thread count.
+    // Sequential until benchmarks set an automatic policy.
     #[default]
     Auto,
 
     // No parallel move evaluation.
     None,
 
-    // Specific number of threads.
+    // Evaluator count, main director included; bounded by the solve's
+    // Rayon threads and by one 32-candidate evaluation window.
     Count(usize),
 }
 

@@ -225,7 +225,9 @@ no phase builder, selector registration, or alternate construction path.
 `constraints` builds a constraint set for a given solution; the runtime calls it
 for the working solution and for every evaluator replica, so
 `move_thread_count` evaluates dynamic models in parallel. Bindings rebuild
-their host constraint set from the solution they receive.
+their host constraint set from the solution they receive. Replicas score on
+Rayon worker threads, so a binding whose host runtime has a global lock must
+release it on the calling thread for the duration of the solve.
 The optional qualified provenance changes only the candidate-trace header; it
 does not select another runner.
 

@@ -7,7 +7,7 @@ use solverforge_scoring::Director;
 use tracing::trace;
 
 use crate::heuristic::r#move::Move;
-use crate::heuristic::selector::move_selector::{MoveCandidateUndo, ResourceMoveCursor};
+use crate::heuristic::selector::move_selector::ResourceMoveCursor;
 use crate::phase::control::{
     should_interrupt_before_candidate, should_interrupt_before_evaluation, CONTROL_POLL_INTERVAL,
 };
@@ -49,7 +49,7 @@ where
     // its every-64-evaluations schedule below.
     // Retired undo journals are recycled across the step's trials so
     // arbitrary-long journals do not grow the heap per trial.
-    let mut journal_pool: Vec<MoveCandidateUndo<M::Undo>> = Vec::new();
+    let mut journal_pool: Vec<M::Undo> = Vec::new();
     let mut control_polls = 0usize;
     let mut control_latched = false;
     while !forager.is_quit_early() {

@@ -193,12 +193,12 @@ where
     fn solve(&mut self, solver_scope: &mut SolverScope<S, D>) {
         use crate::heuristic::r#move::{ListUndoJournal, Move};
         use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-        use crate::heuristic::selector::move_selector::{MoveCandidateUndo, MoveSelector};
+        use crate::heuristic::selector::move_selector::MoveSelector;
 
         let mut phase_scope = PhaseScope::with_phase_type(solver_scope, 0, "K-Opt");
         // Retired K-opt journals recycle across the phase's trials; arbitrary
         // route lengths do not grow the heap per trial.
-        let mut journal_pool: Vec<MoveCandidateUndo<ListUndoJournal<V>>> = Vec::new();
+        let mut journal_pool: Vec<ListUndoJournal<V>> = Vec::new();
 
         // Calculate initial score
         let mut last_step_score = phase_scope.calculate_score();
@@ -285,9 +285,9 @@ where
                         .expect("k-opt candidate id must remain live during evaluation");
                     let score_state = step_scope.score_director().snapshot_score_state();
                     let undo =
-                        mv.do_move_with_scratch(step_scope.score_director_mut(), &mut journal_pool);
+                        mv.do_move_recycling(step_scope.score_director_mut(), &mut journal_pool);
                     let move_score = step_scope.calculate_score();
-                    mv.undo_move_with_scratch(
+                    mv.undo_move_recycling(
                         step_scope.score_director_mut(),
                         undo,
                         &mut journal_pool,

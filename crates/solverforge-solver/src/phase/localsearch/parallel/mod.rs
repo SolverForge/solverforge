@@ -15,5 +15,5 @@ mod tests;
 
 pub(crate) use budget::remaining_evaluation_budget;
 pub(crate) use config::resolve_evaluator_count;
-pub(crate) use pool::EvaluatorPool;
+pub(crate) use pool::{EvaluatorPool, MAX_PARALLEL_EVALUATION_WINDOW};
 pub(crate) use window::evaluate_window;

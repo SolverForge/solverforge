@@ -16,7 +16,7 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::heuristic::selector::scalar_neighborhood::RuntimeScalarMove;
 use crate::stats::CandidateTraceIdentity;
 
-use super::super::RuntimeListMove;
+use super::super::{RuntimeListMove, RuntimeListMoveUndo};
 
 /// Fully concrete carrier for scalar, list, assignment-group, provider, and
 /// selected Cartesian moves. It is the only carrier produced by compiled
@@ -127,6 +127,50 @@ where
             Self::Sequential(mov) => {
                 RuntimeNeighborhoodMoveUndo::Sequential(Box::new(mov.do_move(score_director)))
             }
+        }
+    }
+
+    fn do_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) -> Self::Undo {
+        let Self::List(mov) = self else {
+            return self.do_move(score_director);
+        };
+        if !mov.reuses_journal() {
+            return self.do_move(score_director);
+        }
+        let retired = journal_pool
+            .iter()
+            .rposition(|undo| {
+                matches!(
+                    undo,
+                    RuntimeNeighborhoodMoveUndo::List(RuntimeListMoveUndo::KOpt(_))
+                )
+            })
+            .map(|index| match journal_pool.swap_remove(index) {
+                RuntimeNeighborhoodMoveUndo::List(RuntimeListMoveUndo::KOpt(journal)) => journal,
+                _ => unreachable!("rposition matched the list K-opt shape"),
+            });
+        RuntimeNeighborhoodMoveUndo::List(mov.do_move_reusing(score_director, retired))
+    }
+
+    fn undo_move_with_scratch<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        undo: Self::Undo,
+        journal_pool: &mut Vec<Self::Undo>,
+    ) {
+        match (self, undo) {
+            (Self::List(mov), RuntimeNeighborhoodMoveUndo::List(undo)) => {
+                if let Some(shell) = mov.undo_move_retiring(score_director, undo) {
+                    journal_pool.push(RuntimeNeighborhoodMoveUndo::List(
+                        RuntimeListMoveUndo::KOpt(shell),
+                    ));
+                }
+            }
+            (other, undo) => other.undo_move(score_director, undo),
         }
     }
 

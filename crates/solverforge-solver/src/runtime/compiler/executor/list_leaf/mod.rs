@@ -24,6 +24,7 @@ pub(crate) use cursor::{
     RuntimeListNeighborhoodStreamState,
 };
 pub(crate) use r#move::RuntimeListMove;
+pub(crate) use recipe::RuntimeListMoveUndo;
 pub(crate) use spec::{
     RuntimeListNeighborhoodPlan, RuntimeListNeighborhoodPlanError, RuntimeListRecipe,
 };

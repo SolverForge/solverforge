@@ -7,6 +7,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
+use crate::builder::context::RuntimeListElement;
 use crate::heuristic::r#move::list_kernel::{
     change_candidate_trace_identity, change_do_move, change_is_doable, change_tabu_signature,
     change_undo_move, k_opt_do_move, k_opt_do_move_into, k_opt_is_doable, k_opt_tabu_signature,
@@ -52,6 +53,71 @@ impl<S, V, DM, IDM> RuntimeListMove<S, V, DM, IDM> {
 
     fn access(&self) -> &RuntimeListMoveAccess<S, V> {
         recipe_access(&self.recipe)
+    }
+}
+
+impl<S, V, DM, IDM> RuntimeListMove<S, V, DM, IDM>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    S::Score: Score,
+    V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
+    DM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
+    IDM: Clone + Send + Sync + fmt::Debug + CrossEntityDistanceMeter<S>,
+{
+    /// Whether this move records an arbitrary-length undo journal whose
+    /// capacity a later trial can reuse.
+    pub(crate) fn reuses_journal(&self) -> bool {
+        matches!(self.recipe, RuntimeListRecipe::KOpt { .. })
+    }
+
+    /// Applies the move, recording into `retired` when it is a journal shell.
+    /// Wrapping carriers take the shell from their own pool, so no layer
+    /// builds a scratch pool of this move's undo type.
+    pub(crate) fn do_move_reusing<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        retired: Option<ListUndoJournal<RuntimeListElement<V>>>,
+    ) -> RuntimeListMoveUndo<V> {
+        let RuntimeListRecipe::KOpt {
+            access,
+            entity,
+            cuts,
+            reconnection,
+            ..
+        } = &self.recipe
+        else {
+            return Move::do_move(self, score_director);
+        };
+        let mut journal = retired.unwrap_or_default();
+        k_opt_do_move_into(
+            access,
+            cuts,
+            reconnection,
+            *entity,
+            score_director,
+            &mut journal,
+        );
+        RuntimeListMoveUndo::KOpt(journal)
+    }
+
+    /// Reverts the move and returns an empty journal shell for the next
+    /// trial when the undo consumed a journal.
+    pub(crate) fn undo_move_retiring<D: Director<S>>(
+        &self,
+        score_director: &mut D,
+        undo: RuntimeListMoveUndo<V>,
+    ) -> Option<ListUndoJournal<RuntimeListElement<V>>> {
+        let RuntimeListMoveUndo::KOpt(values) = undo else {
+            Move::undo_move(self, score_director, undo);
+            return None;
+        };
+        let RuntimeListRecipe::KOpt { access, entity, .. } = &self.recipe else {
+            panic!("runtime list move undo shape must match recipe");
+        };
+        // The undo consumes the restored route journal; a fresh shell keeps
+        // the inline capacity for the next K-opt trial.
+        k_opt_undo_move(access, *entity, values, score_director);
+        Some(ListUndoJournal::new())
     }
 }
 
@@ -127,37 +193,17 @@ where
         score_director: &mut D,
         journal_pool: &mut Vec<Self::Undo>,
     ) -> Self::Undo {
-        match &self.recipe {
-            RuntimeListRecipe::KOpt {
-                access,
-                entity,
-                cuts,
-                reconnection,
-                ..
-            } => {
-                // Reuse a retired K-opt journal from the pool; its inlined
-                // capacity survives the do/undo cycle.
-                let popped = journal_pool
-                    .iter()
-                    .rposition(|undo| matches!(undo, RuntimeListMoveUndo::KOpt(_)))
-                    .map(|index| match journal_pool.swap_remove(index) {
-                        RuntimeListMoveUndo::KOpt(journal) => journal,
-                        _ => unreachable!("rposition matched the KOpt shape"),
-                    });
-                let mut journal = popped.unwrap_or_default();
-                k_opt_do_move_into(
-                    access,
-                    cuts,
-                    reconnection,
-                    *entity,
-                    score_director,
-                    &mut journal,
-                );
-                RuntimeListMoveUndo::KOpt(journal)
-            }
-            // Non-journal recipes keep the plain single-allocation path.
-            _ => Move::do_move(self, score_director),
+        if !self.reuses_journal() {
+            return Move::do_move(self, score_director);
         }
+        let retired = journal_pool
+            .iter()
+            .rposition(|undo| matches!(undo, RuntimeListMoveUndo::KOpt(_)))
+            .map(|index| match journal_pool.swap_remove(index) {
+                RuntimeListMoveUndo::KOpt(journal) => journal,
+                _ => unreachable!("rposition matched the KOpt shape"),
+            });
+        self.do_move_reusing(score_director, retired)
     }
 
     fn undo_move_with_scratch<D: Director<S>>(
@@ -166,21 +212,9 @@ where
         undo: Self::Undo,
         journal_pool: &mut Vec<Self::Undo>,
     ) {
-        if matches!(undo, RuntimeListMoveUndo::KOpt(_)) {
-            let RuntimeListRecipe::KOpt { access, entity, .. } = &self.recipe else {
-                panic!("runtime list move undo shape must match recipe");
-            };
-            let RuntimeListMoveUndo::KOpt(values) = undo else {
-                unreachable!("shape tested above");
-            };
-            // The restored route journal is consumed by the undo; a fresh
-            // journal shell goes back to the pool so the next K-opt trial
-            // reuses inline capacity.
-            k_opt_undo_move(access, *entity, values, score_director);
-            journal_pool.push(RuntimeListMoveUndo::KOpt(ListUndoJournal::new()));
-            return;
+        if let Some(shell) = self.undo_move_retiring(score_director, undo) {
+            journal_pool.push(RuntimeListMoveUndo::KOpt(shell));
         }
-        self.undo_move(score_director, undo);
     }
 
     fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo {

@@ -39,6 +39,9 @@ fn define_constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
 const PARALLEL_SOLVER_TOML: &str = r#"
 random_seed = 7
 
+[candidate_trace]
+max_entries = 1_000_000
+
 [[phases]]
 type = "construction_heuristic"
 construction_heuristic_type = "first_fit"

@@ -716,7 +716,7 @@ Derives: `Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize`.
 
 | Variant | Note |
 |---------|------|
-| `Auto` | **Default.** Auto-detect thread count |
+| `Auto` | **Default.** Sequential until benchmarks set an automatic policy |
 | `None` | Single-threaded |
 | `Count(usize)` | Explicit count |
 
@@ -731,7 +731,7 @@ sizes partitioned search separately.
 | `None` | sequential |
 | `Auto` | sequential |
 | `Count(0)`, `Count(1)` | sequential |
-| `Count(n >= 2)` | `min(n, rayon::current_num_threads())` evaluators: the main director plus that many minus one replicas |
+| `Count(n >= 2)` | `min(n, rayon::current_num_threads(), 32)` evaluators: the main director plus that many minus one replicas; 32 is one full evaluation window |
 
 ### `PhaseConfig`
 

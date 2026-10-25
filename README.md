@@ -745,8 +745,9 @@ Local search can evaluate candidates on several cores within one solve:
 `move_thread_count = { count = 4 }` in `solver.toml` (Python configs through
 solverforge-py use `{"move_thread_count": {"count": 4}}`) runs each step's
 trials on up to four evaluators while one coordinator keeps the same
-acceptance order. Results are reproducible at fixed work, and the default
-(`auto`) currently stays sequential.
+acceptance order. The count is bounded by the solve's Rayon threads and by 32,
+the size of one evaluation window. Results are reproducible at fixed work, and
+the default (`auto`) currently stays sequential.
 
 Absolute throughput depends on the model, constraints, neighborhood, hardware,
 and termination policy. Use emitted generated/evaluated throughput for one run

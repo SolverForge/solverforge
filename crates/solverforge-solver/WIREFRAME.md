@@ -79,6 +79,7 @@ src/
 ├── stats.rs                             — Statistics, telemetry, and candidate-trace re-export root
 ├── stats/                               — Solver/phase stats, telemetry payloads, candidate traces, and qualified provenance
 ├── test_utils.rs                        — TestSolution, TestDirector, NQueens helpers
+├── test_utils/alloc_counter.rs          — Per-thread counting allocator for allocation pins (tests only)
 ├── test_utils_tests.rs                  — Tests
 │
 ├── heuristic/
@@ -283,7 +284,7 @@ src/
 │   │   ├── parallel/config.rs           — move_thread_count resolution to an evaluator count
 │   │   ├── parallel/pool.rs             — EvaluatorPool: evaluator replicas, sync, and post-commit advance
 │   │   ├── parallel/window.rs           — Window evaluation across the main director and replicas
-│   │   ├── parallel/tests.rs            — Tests
+│   │   ├── parallel/tests/              — Pool ceiling, window sizing, trajectory parity, and allocation-free window tests
 │   │   └── acceptor/
 │   │       ├── mod.rs                   — Acceptor module declarations and re-exports
 │   │       ├── traits.rs                — Acceptor<S> trait

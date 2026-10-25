@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use solverforge_core::score::{ParseableScore, Score};
 
 use crate::{scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily};
@@ -54,4 +56,33 @@ fn dynamic_score_parses_standard_score_strings() {
         DynamicScore::hard_soft_decimal(-100_000, 150_500)
     );
     assert_eq!(DynamicScore::parse("3").unwrap(), DynamicScore::soft(3));
+}
+
+#[test]
+fn dynamic_score_equality_agrees_with_ordering() {
+    let declared = DynamicScore::hard_soft(0, 0);
+
+    assert_eq!(declared.cmp(&DynamicScore::ZERO), Ordering::Equal);
+    assert_eq!(declared, DynamicScore::ZERO);
+}
+
+#[test]
+fn dynamic_score_zero_does_not_depend_on_the_calling_thread() {
+    // Evaluator replicas score on worker threads that never entered the
+    // solve's family scope; their zero must equal the solve thread's.
+    let solve_thread_zero = scoped_dynamic_score_family(DynamicScoreFamily::HardSoft, || {
+        <DynamicScore as Score>::zero()
+    });
+
+    assert_eq!(solve_thread_zero, <DynamicScore as Score>::zero());
+}
+
+#[test]
+fn dynamic_score_parse_inverts_display_for_decimal_models() {
+    scoped_dynamic_score_family(DynamicScoreFamily::HardSoftDecimal, || {
+        let limit = DynamicScore::parse("0hard/-5soft").unwrap();
+
+        assert_eq!((limit.hard, limit.soft), (0, -500_000));
+        assert_eq!(limit.to_string(), "0hard/-5soft");
+    });
 }

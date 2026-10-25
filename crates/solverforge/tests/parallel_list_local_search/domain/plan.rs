@@ -25,33 +25,32 @@ pub struct RoutePlan {
     pub move_threads: usize,
 }
 
-// Streams over the visits do not observe their list shadows, so every term
-// reads the owning route. Position-dependent costs make order inside a route
-// matter as well as ownership, so list change, swap, sublist, reversal, and
-// k-opt moves all compete.
+// The visit terms read only list shadows, so a director whose element rows
+// lag their shadows scores every candidate wrong. Position-dependent costs
+// make order inside a route matter as well as ownership, so list change,
+// swap, sublist, reversal, and k-opt moves all compete.
 fn define_constraints() -> impl ConstraintSet<RoutePlan, HardSoftScore> {
     (
         ConstraintFactory::<RoutePlan, HardSoftScore>::new()
-            .for_each(RoutePlan::routes())
-            .penalize(|route: &Route| {
-                let cost = route
-                    .visits
-                    .iter()
-                    .enumerate()
-                    .map(|(position, &visit)| (visit as i64 * (position as i64 + 3)) % 11)
-                    .sum();
-                HardSoftScore::of_soft(cost)
+            .for_each(RoutePlan::visits())
+            .filter(|visit: &Visit| visit.route.is_none())
+            .penalize(HardSoftScore::ONE_HARD)
+            .named("unrouted visit"),
+        ConstraintFactory::<RoutePlan, HardSoftScore>::new()
+            .for_each(RoutePlan::visits())
+            .filter(|visit: &Visit| visit.index.is_some())
+            .penalize(|visit: &Visit| {
+                let index = visit.index.unwrap_or_default() as i64;
+                let route = visit.route.unwrap_or_default() as i64;
+                HardSoftScore::of_soft((visit.demand * (index + 2) + route * 5) % 13)
             })
             .named("position cost"),
         ConstraintFactory::<RoutePlan, HardSoftScore>::new()
-            .for_each(RoutePlan::routes())
-            .penalize(|route: &Route| {
-                let legs = route
-                    .visits
-                    .windows(2)
-                    .map(|leg| (leg[0] as i64 - leg[1] as i64).abs() % 7)
-                    .sum();
-                HardSoftScore::of_soft(legs)
+            .for_each(RoutePlan::visits())
+            .filter(|visit: &Visit| visit.previous.is_some())
+            .penalize(|visit: &Visit| {
+                let previous = visit.previous.unwrap_or_default() as i64;
+                HardSoftScore::of_soft((previous - visit.id as i64).abs() % 7)
             })
             .named("leg cost"),
         ConstraintFactory::<RoutePlan, HardSoftScore>::new()

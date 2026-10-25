@@ -151,3 +151,24 @@ fn list_trajectory_and_shadows_are_identical_across_thread_counts() {
         assert_shadows_follow_routes(&run.plan);
     }
 }
+
+#[test]
+fn incremental_score_tracks_list_shadows_read_by_element_streams() {
+    static MANAGER: SolverManager<RoutePlan> = SolverManager::new();
+
+    for move_threads in [1, 2] {
+        let run = solve(&MANAGER, move_threads);
+        assert_shadows_follow_routes(&run.plan);
+        // Every visit is routed, so the shadow-reading hard term is zero.
+        assert_eq!(
+            run.plan.score.map(|score| score.hard()),
+            Some(0),
+            "move_threads = {move_threads}"
+        );
+        assert_eq!(
+            run.plan.score,
+            Some(solverforge::analyze(&run.plan).score),
+            "move_threads = {move_threads}"
+        );
+    }
+}

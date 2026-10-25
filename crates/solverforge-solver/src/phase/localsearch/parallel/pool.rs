@@ -108,11 +108,8 @@ where
     /// Size of the next window: the rest of the previous step's consumption,
     /// at least one candidate per evaluator and at most
     /// `MAX_PARALLEL_EVALUATION_WINDOW`, capped by the remaining evaluation
-    /// budget. Sequential evaluation always uses a window of one.
+    /// budget. Only the parallel loop sizes windows.
     pub(crate) fn window_capacity(&self, remaining: Option<u64>) -> usize {
-        if !self.is_parallel() {
-            return 1;
-        }
         let per_evaluator = self.requested.min(MAX_PARALLEL_EVALUATION_WINDOW);
         let window = self
             .last_step_consumed

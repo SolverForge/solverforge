@@ -11,7 +11,7 @@ use tracing::trace;
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{CandidateId, ResourceMoveCursor};
 use crate::phase::localsearch::evaluation::{
-    account_trial, record_evaluated_move, CandidateEvaluation, TrialOutcome,
+    account_trial, record_evaluated_elapsed, CandidateEvaluation, TrialOutcome,
 };
 use crate::phase::localsearch::{Acceptor, ForagerDecision, LocalSearchForager};
 use crate::scope::{ProgressCallback, StepScope};
@@ -20,7 +20,7 @@ use crate::stats::{CandidateTraceDisposition, CandidateTracePullToken, Candidate
 use super::candidates::CandidateLoopState;
 use super::{candidate_selector_label, take_trace_token};
 
-const PROGRESS_POLL_INTERVAL: u64 = 256;
+pub(super) const PROGRESS_POLL_INTERVAL: u64 = 256;
 
 /// A generated candidate waiting for its trial result.
 pub(in crate::phase::localsearch) struct WindowSlot {
@@ -189,7 +189,7 @@ pub(super) fn consume_candidate<S, D, BestCb, M, C, Resources, A, Fo>(
 
     let accepted = acceptor.is_accepted(&last_step_score, &move_score, move_signature);
 
-    record_evaluated_move(step_scope, selector_index, elapsed);
+    record_evaluated_elapsed(step_scope, selector_index, elapsed);
     if accepted {
         step_scope
             .phase_scope_mut()
@@ -335,7 +335,7 @@ pub(super) fn discard_window_from<S, D, BestCb, M, C, Resources>(
     }
 }
 
-fn record_rejected_trace<S, D, BestCb>(
+pub(super) fn record_rejected_trace<S, D, BestCb>(
     step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
     trace_token: Option<CandidateTracePullToken>,
     disposition: CandidateTraceDisposition,

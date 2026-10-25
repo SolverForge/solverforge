@@ -146,7 +146,6 @@ fn pool_with_one_evaluator_never_forks() {
     pool.sync(&solver_scope);
 
     assert!(!pool.is_parallel());
-    assert_eq!(pool.window_capacity(None), 1);
 }
 
 #[test]

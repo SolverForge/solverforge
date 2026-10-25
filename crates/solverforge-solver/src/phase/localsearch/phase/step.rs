@@ -13,12 +13,12 @@ use crate::phase::control::{
     settle_search_interrupt, should_interrupt_after_step, should_interrupt_before_candidate,
     StepInterrupt,
 };
-use crate::phase::localsearch::parallel::EvaluatorPool;
 use crate::phase::localsearch::{Acceptor, LocalSearchForager, MoveCursorSource};
 use crate::scope::{PendingControl, PhaseScope, ProgressCallback, StepScope};
 use crate::stats::{AppliedMoveTelemetry, CandidateTraceDisposition};
 
-use super::candidates::{evaluate_candidates, CandidateLoopState};
+use super::candidates::CandidateLoopState;
+use super::evaluator::StepEvaluator;
 use super::take_trace_token;
 
 pub(super) enum StepOutcome {
@@ -28,14 +28,14 @@ pub(super) enum StepOutcome {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn execute_step<S, M, Source, A, Fo, D, BestCb>(
+pub(super) fn execute_step<S, M, Source, A, Fo, D, BestCb, E>(
     move_source: &mut Source,
     resources: &mut Source::Resources,
     acceptor: &mut A,
     forager: &mut Fo,
     phase_scope: &mut PhaseScope<'_, '_, S, D, BestCb>,
     last_step_score: &mut S::Score,
-    evaluators: &mut EvaluatorPool<S, D, M>,
+    evaluator: &mut E,
 ) -> StepOutcome
 where
     S: PlanningSolution,
@@ -45,9 +45,10 @@ where
     Fo: LocalSearchForager<S, M>,
     D: Director<S>,
     BestCb: ProgressCallback<S>,
+    E: StepEvaluator<S, D, M>,
 {
     let mut step_scope = StepScope::new(phase_scope);
-    evaluators.sync(step_scope.phase_scope().solver_scope());
+    evaluator.step_started(step_scope.phase_scope().solver_scope());
 
     /* Reset forager and acceptor for this step.
     Pass best and last-step scores so foragers that implement
@@ -86,7 +87,7 @@ where
         evaluated_moves,
         accepted_labels,
         mut accepted_trace_tokens,
-    } = evaluate_candidates(
+    } = evaluator.evaluate_candidates(
         &mut cursor,
         resources,
         &mut step_scope,
@@ -94,7 +95,6 @@ where
         acceptor,
         forager,
         requires_move_signatures,
-        evaluators,
         CandidateLoopState::new(interrupted),
     );
 
@@ -143,11 +143,11 @@ where
             };
         }
         let previous_score = *last_step_score;
-        evaluators.advance(&selected_move, selected_score);
+        evaluator.step_selected(&selected_move, selected_score);
         step_scope.apply_committed_change(|score_director| {
             cursor.apply_owned_candidate(selected_index, score_director);
         });
-        evaluators.mark_synced(
+        evaluator.step_committed(
             step_scope
                 .phase_scope()
                 .solver_scope()

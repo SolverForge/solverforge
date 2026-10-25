@@ -1,7 +1,6 @@
 //! Dynamic score support for binding models.
 
 use std::cell::Cell;
-use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, Neg, Sub};
 
@@ -24,14 +23,12 @@ thread_local! {
 
 /// Runs `callback` with a thread-local dynamic score family.
 ///
-/// This keeps the internal static three-level score contract available to the
-/// solver while allowing binding-driven solves to present zero and derived
-/// scores with the host model's declared score family.
-///
-/// The family is per thread. The solve thread enters it for the whole solve,
-/// but parallel evaluation scores evaluator replicas on Rayon worker threads,
-/// so a constraint set that builds `DynamicScore` values must also enter its
-/// declared family inside its own `ConstraintSet` methods.
+/// The family decides only how scores are presented and parsed: `Display`
+/// renders the family's levels and `ParseableScore::parse` reads the family's
+/// units. Score values and arithmetic do not depend on it, so scoring on any
+/// thread, including parallel evaluation's worker threads, needs no scope.
+/// Bindings enter the declared family around the solve so its output and
+/// configured score limits use the host model's family.
 pub fn scoped_dynamic_score_family<T>(
     family: DynamicScoreFamily,
     callback: impl FnOnce() -> T,
@@ -45,7 +42,8 @@ pub fn scoped_dynamic_score_family<T>(
     })
 }
 
-fn active_score_family() -> DynamicScoreFamily {
+/// The family the calling thread presents and parses scores with.
+pub fn active_dynamic_score_family() -> DynamicScoreFamily {
     ACTIVE_SCORE_FAMILY.with(Cell::get)
 }
 
@@ -62,73 +60,31 @@ impl Drop for ActiveScoreFamilyGuard<'_> {
 
 /// Dynamic score used by host-language bindings.
 ///
-/// The static `Score` trait requires a static level count. The bridge therefore
-/// stores one concrete three-level representation internally and carries the
-/// declared host-language family for presentation and host-boundary conversion.
-/// Binding crates must validate that a solve uses one declared family
-/// consistently.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+/// The static `Score` trait requires a static level count, so every family
+/// shares one three-level value: unused levels stay zero, and
+/// `HardSoftDecimal` levels hold values scaled by 100 000. Equality, ordering,
+/// and hashing compare the levels only. The declared family is a property of
+/// the solve, not of the value; see [`scoped_dynamic_score_family`].
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DynamicScore {
     pub hard: i64,
     pub medium: i64,
     pub soft: i64,
-    pub family: DynamicScoreFamily,
 }
 
 impl DynamicScore {
-    pub const ZERO: Self = Self {
-        hard: 0,
-        medium: 0,
-        soft: 0,
-        family: DynamicScoreFamily::HardMediumSoft,
-    };
+    pub const ZERO: Self = Self::of(0, 0, 0);
 
     pub const fn of(hard: i64, medium: i64, soft: i64) -> Self {
-        Self {
-            hard,
-            medium,
-            soft,
-            family: DynamicScoreFamily::HardMediumSoft,
-        }
-    }
-
-    pub const fn with_family(
-        hard: i64,
-        medium: i64,
-        soft: i64,
-        family: DynamicScoreFamily,
-    ) -> Self {
-        Self {
-            hard,
-            medium,
-            soft,
-            family,
-        }
+        Self { hard, medium, soft }
     }
 
     pub const fn soft(soft: i64) -> Self {
-        Self::with_family(0, 0, soft, DynamicScoreFamily::Soft)
+        Self::of(0, 0, soft)
     }
 
     pub const fn hard_soft(hard: i64, soft: i64) -> Self {
-        Self::with_family(hard, 0, soft, DynamicScoreFamily::HardSoft)
-    }
-
-    pub const fn hard_soft_decimal(hard_scaled: i64, soft_scaled: i64) -> Self {
-        Self::with_family(
-            hard_scaled,
-            0,
-            soft_scaled,
-            DynamicScoreFamily::HardSoftDecimal,
-        )
-    }
-
-    pub const fn hard_medium_soft(hard: i64, medium: i64, soft: i64) -> Self {
-        Self::with_family(hard, medium, soft, DynamicScoreFamily::HardMediumSoft)
-    }
-
-    pub const fn zero_for_family(family: DynamicScoreFamily) -> Self {
-        Self::with_family(0, 0, 0, family)
+        Self::of(hard, 0, soft)
     }
 
     pub fn family_levels(self, family: DynamicScoreFamily) -> Vec<i64> {
@@ -140,38 +96,21 @@ impl DynamicScore {
             DynamicScoreFamily::HardMediumSoft => vec![self.hard, self.medium, self.soft],
         }
     }
-
-    fn is_zero(self) -> bool {
-        self.hard == 0 && self.medium == 0 && self.soft == 0
-    }
-
-    fn combined_family(self, rhs: Self) -> DynamicScoreFamily {
-        if self.family == rhs.family {
-            return self.family;
-        }
-        if self.is_zero() {
-            return rhs.family;
-        }
-        if rhs.is_zero() {
-            return self.family;
-        }
-        DynamicScoreFamily::HardMediumSoft
-    }
 }
 
 impl fmt::Debug for DynamicScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "DynamicScore({}, {}, {}, {:?})",
-            self.hard, self.medium, self.soft, self.family
+            "DynamicScore({}, {}, {})",
+            self.hard, self.medium, self.soft
         )
     }
 }
 
 impl fmt::Display for DynamicScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.family {
+        match active_dynamic_score_family() {
             DynamicScoreFamily::Soft => write!(f, "{}", self.soft),
             DynamicScoreFamily::HardSoft => write!(f, "{}hard/{}soft", self.hard, self.soft),
             DynamicScoreFamily::HardSoftDecimal => write!(
@@ -189,27 +128,14 @@ impl fmt::Display for DynamicScore {
     }
 }
 
-impl Ord for DynamicScore {
-    fn cmp(&self, other: &Self) -> Ordering {
-        (self.hard, self.medium, self.soft).cmp(&(other.hard, other.medium, other.soft))
-    }
-}
-
-impl PartialOrd for DynamicScore {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 impl Add for DynamicScore {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self::with_family(
+        Self::of(
             self.hard + rhs.hard,
             self.medium + rhs.medium,
             self.soft + rhs.soft,
-            self.combined_family(rhs),
         )
     }
 }
@@ -218,11 +144,10 @@ impl Sub for DynamicScore {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::with_family(
+        Self::of(
             self.hard - rhs.hard,
             self.medium - rhs.medium,
             self.soft - rhs.soft,
-            self.combined_family(rhs),
         )
     }
 }
@@ -231,7 +156,7 @@ impl Neg for DynamicScore {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        Self::with_family(-self.hard, -self.medium, -self.soft, self.family)
+        Self::of(-self.hard, -self.medium, -self.soft)
     }
 }
 
@@ -241,7 +166,7 @@ impl Score for DynamicScore {
     }
 
     fn zero() -> Self {
-        Self::zero_for_family(active_score_family())
+        Self::ZERO
     }
 
     fn levels_count() -> usize {
@@ -258,32 +183,19 @@ impl Score for DynamicScore {
     }
 
     fn from_level_numbers(levels: &[i64]) -> Self {
-        match (active_score_family(), levels) {
-            (DynamicScoreFamily::Soft, [soft]) => Self::soft(*soft),
-            (DynamicScoreFamily::Soft, [_, _, soft]) => Self::soft(*soft),
-            (DynamicScoreFamily::HardSoft, [hard, soft]) => Self::hard_soft(*hard, *soft),
-            (DynamicScoreFamily::HardSoft, [hard, _, soft]) => Self::hard_soft(*hard, *soft),
-            (DynamicScoreFamily::HardSoftDecimal, [hard, soft]) => {
-                Self::hard_soft_decimal(*hard, *soft)
-            }
-            (DynamicScoreFamily::HardSoftDecimal, [hard, _, soft]) => {
-                Self::hard_soft_decimal(*hard, *soft)
-            }
-            (DynamicScoreFamily::HardMediumSoft, [soft]) => Self::soft(*soft),
-            (DynamicScoreFamily::HardMediumSoft, [hard, soft]) => Self::hard_soft(*hard, *soft),
-            (DynamicScoreFamily::HardMediumSoft, [hard, medium, soft]) => {
-                Self::hard_medium_soft(*hard, *medium, *soft)
-            }
+        match levels {
+            [soft] => Self::soft(*soft),
+            [hard, soft] => Self::hard_soft(*hard, *soft),
+            [hard, medium, soft] => Self::of(*hard, *medium, *soft),
             _ => panic!("DynamicScore requires 1, 2, or 3 levels"),
         }
     }
 
     fn multiply(&self, multiplicand: f64) -> Self {
-        Self::with_family(
+        Self::of(
             (self.hard as f64 * multiplicand).round() as i64,
             (self.medium as f64 * multiplicand).round() as i64,
             (self.soft as f64 * multiplicand).round() as i64,
-            self.family,
         )
     }
 
@@ -292,12 +204,7 @@ impl Score for DynamicScore {
     }
 
     fn abs(&self) -> Self {
-        Self::with_family(
-            self.hard.abs(),
-            self.medium.abs(),
-            self.soft.abs(),
-            self.family,
-        )
+        Self::of(self.hard.abs(), self.medium.abs(), self.soft.abs())
     }
 
     fn to_scalar(&self) -> f64 {
@@ -315,59 +222,45 @@ impl Score for DynamicScore {
 }
 
 impl ParseableScore for DynamicScore {
+    /// Parses a score in the active family's units. A decimal literal
+    /// (`1.5soft`) is always scaled; whole-number parts are scaled too when
+    /// the active family is `HardSoftDecimal`, so parsing inverts `Display`.
     fn parse(s: &str) -> Result<Self, ScoreParseError> {
-        let mut hard = 0;
-        let mut medium = 0;
-        let mut soft = 0;
-        let mut has_hard = false;
-        let mut has_medium = false;
-        let mut has_soft = false;
-        let mut hard_is_decimal = false;
-        let mut soft_is_decimal = false;
-        let mut is_decimal = false;
+        let decimal_family = active_dynamic_score_family() == DynamicScoreFamily::HardSoftDecimal;
+        let mut hard = (0, false);
+        let mut medium = None;
+        let mut soft = (0, false);
+        let mut has_decimal_literal = false;
         for part in s.split('/') {
             if let Some(raw) = part.strip_suffix("hard") {
-                has_hard = true;
-                let (value, decimal) = parse_score_part(raw, "hard")?;
-                hard = value;
-                hard_is_decimal = decimal;
-                is_decimal |= decimal;
+                hard = parse_score_part(raw, "hard")?;
+                has_decimal_literal |= hard.1;
             } else if let Some(raw) = part.strip_suffix("medium") {
-                has_medium = true;
                 let (value, decimal) = parse_score_part(raw, "medium")?;
-                medium = value;
-                is_decimal |= decimal;
+                medium = Some(value);
+                has_decimal_literal |= decimal;
             } else if let Some(raw) = part.strip_suffix("soft") {
-                has_soft = true;
-                let (value, decimal) = parse_score_part(raw, "soft")?;
-                soft = value;
-                soft_is_decimal = decimal;
-                is_decimal |= decimal;
+                soft = parse_score_part(raw, "soft")?;
+                has_decimal_literal |= soft.1;
             } else if let Ok(value) = part.parse::<i64>() {
-                soft = value;
+                soft = (value, false);
             } else {
                 return Err(ScoreParseError {
                     message: format!("invalid dynamic score `{s}`"),
                 });
             }
         }
-        if has_medium {
-            Ok(Self::hard_medium_soft(hard, medium, soft))
-        } else if has_hard || has_soft {
-            if is_decimal {
-                if has_hard && !hard_is_decimal {
-                    hard *= DECIMAL_SCALE;
-                }
-                if has_soft && !soft_is_decimal {
-                    soft *= DECIMAL_SCALE;
-                }
-                Ok(Self::hard_soft_decimal(hard, soft))
-            } else {
-                Ok(Self::hard_soft(hard, soft))
-            }
-        } else {
-            Ok(Self::soft(soft))
+        if let Some(medium) = medium {
+            return Ok(Self::of(hard.0, medium, soft.0));
         }
+        let scale = |(value, decimal): (i64, bool)| {
+            if (decimal_family || has_decimal_literal) && !decimal {
+                value * DECIMAL_SCALE
+            } else {
+                value
+            }
+        };
+        Ok(Self::hard_soft(scale(hard), scale(soft)))
     }
 
     fn to_string_repr(&self) -> String {

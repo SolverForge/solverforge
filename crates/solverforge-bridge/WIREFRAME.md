@@ -28,7 +28,7 @@ src/
 ├── ids.rs           - Re-exports logical descriptor ID types from `solverforge-core`
 ├── lib.rs           - Crate root; module declarations and public re-exports
 ├── runner.rs        - Binding-oriented dynamic runner helper
-├── score.rs         - `DynamicScore`, `DynamicScoreFamily`, and scoped family guard
+├── score.rs         - `DynamicScore`, `DynamicScoreFamily`, and the scoped presentation family
 ├── score_tests.rs   - Dynamic score parse/display/arithmetic tests
 └── slots.rs         - Re-exports dynamic scalar/list slot adapters from `solverforge-core`
 ```
@@ -43,7 +43,9 @@ pub use backend::{
 };
 pub use ids::{EntityClassId, ProblemFactClassId, VariableId};
 pub use runner::try_run_dynamic_solver_with_config_parts;
-pub use score::{scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily};
+pub use score::{
+    active_dynamic_score_family, scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily,
+};
 pub use slots::{DynamicListVariableSlot, DynamicScalarVariableSlot};
 ```
 
@@ -145,7 +147,6 @@ pub struct DynamicScore {
     pub hard: i64,
     pub medium: i64,
     pub soft: i64,
-    pub family: DynamicScoreFamily,
 }
 ```
 
@@ -153,12 +154,8 @@ Constructors:
 
 - `ZERO`
 - `of(hard, medium, soft)`
-- `with_family(hard, medium, soft, family)`
 - `soft(soft)`
 - `hard_soft(hard, soft)`
-- `hard_soft_decimal(hard_scaled, soft_scaled)`
-- `hard_medium_soft(hard, medium, soft)`
-- `zero_for_family(family)`
 
 Methods:
 
@@ -173,15 +170,28 @@ Implements:
 - `Add`, `Sub`, `Neg`
 - `Ord`, `PartialOrd`, `Eq`, `PartialEq`, `Hash`, `Clone`, `Copy`, `Default`
 
-The static `Score` trait still reports three levels. The `family` field controls
-presentation and host-boundary conversion. `scoped_dynamic_score_family(family,
-callback)` sets the thread-local family used by `DynamicScore::zero()` and
-`DynamicScore::from_level_numbers(...)` during the callback.
+Every family shares one three-level value: unused levels stay zero and
+`HardSoftDecimal` levels hold values scaled by 100 000. Equality, ordering, and
+hashing compare the levels only, and `zero()`, `from_level_numbers(...)`, and
+the arithmetic never read a family, so scores computed on any thread agree.
 
-The family is per thread. The solve thread enters it for the whole solve, but
-parallel local-search evaluation scores evaluator replicas on Rayon worker
-threads, so a binding's constraint set that builds `DynamicScore` values must
-also enter its declared family inside its own `ConstraintSet` methods.
+### Family scope
+
+```rust
+pub fn scoped_dynamic_score_family<T>(
+    family: DynamicScoreFamily,
+    callback: impl FnOnce() -> T,
+) -> T;
+
+pub fn active_dynamic_score_family() -> DynamicScoreFamily;
+```
+
+The declared family is a property of the solve, held per thread. It decides
+presentation and parsing only: `Display` renders the active family's levels,
+and `ParseableScore::parse` reads the active family's units, scaling
+whole-number parts under `HardSoftDecimal` so parsing inverts `Display`.
+Bindings enter the family around the solve; parallel evaluation's worker
+threads need no scope.
 
 ## Public Functions
 

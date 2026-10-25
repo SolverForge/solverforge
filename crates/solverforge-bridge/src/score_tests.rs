@@ -1,12 +1,22 @@
 use std::cmp::Ordering;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 use solverforge_core::score::{ParseableScore, Score};
 
-use crate::{scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily};
+use crate::{
+    active_dynamic_score_family, scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily,
+};
+
+fn hash_of(score: DynamicScore) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    score.hash(&mut hasher);
+    hasher.finish()
+}
 
 #[test]
 fn dynamic_score_keeps_static_three_level_score_contract() {
-    let score = DynamicScore::hard_medium_soft(-1, 2, 3);
+    let score = DynamicScore::of(-1, 2, 3);
 
     assert_eq!(DynamicScore::levels_count(), 3);
     assert!(!score.is_feasible());
@@ -19,33 +29,53 @@ fn dynamic_score_keeps_static_three_level_score_contract() {
 }
 
 #[test]
-fn dynamic_score_displays_declared_family() {
-    assert_eq!(DynamicScore::soft(3).to_string(), "3");
-    assert_eq!(DynamicScore::hard_soft(-1, 3).to_string(), "-1hard/3soft");
+fn dynamic_score_displays_the_active_family() {
+    let display =
+        |family, score: DynamicScore| scoped_dynamic_score_family(family, || score.to_string());
+
     assert_eq!(
-        DynamicScore::hard_soft_decimal(-100_000, 150_500).to_string(),
+        display(DynamicScoreFamily::Soft, DynamicScore::soft(3)),
+        "3"
+    );
+    assert_eq!(
+        display(DynamicScoreFamily::HardSoft, DynamicScore::hard_soft(-1, 3)),
+        "-1hard/3soft"
+    );
+    assert_eq!(
+        display(
+            DynamicScoreFamily::HardSoftDecimal,
+            DynamicScore::hard_soft(-100_000, 150_500)
+        ),
         "-1hard/1.505soft"
     );
     assert_eq!(
-        DynamicScore::hard_medium_soft(-1, 2, 3).to_string(),
+        display(
+            DynamicScoreFamily::HardMediumSoft,
+            DynamicScore::of(-1, 2, 3)
+        ),
         "-1hard/2medium/3soft"
     );
 }
 
 #[test]
-fn dynamic_score_zero_uses_scoped_declared_family() {
-    let score = scoped_dynamic_score_family(DynamicScoreFamily::HardSoftDecimal, || {
-        <DynamicScore as Score>::zero()
+fn dynamic_score_family_scope_restores_the_previous_family() {
+    scoped_dynamic_score_family(DynamicScoreFamily::Soft, || {
+        scoped_dynamic_score_family(DynamicScoreFamily::HardSoft, || {
+            assert_eq!(active_dynamic_score_family(), DynamicScoreFamily::HardSoft);
+        });
+        assert_eq!(active_dynamic_score_family(), DynamicScoreFamily::Soft);
     });
-
-    assert_eq!(score.to_string(), "0hard/0soft");
+    assert_eq!(
+        active_dynamic_score_family(),
+        DynamicScoreFamily::HardMediumSoft
+    );
 }
 
 #[test]
 fn dynamic_score_parses_standard_score_strings() {
     assert_eq!(
         DynamicScore::parse("-1hard/2medium/3soft").unwrap(),
-        DynamicScore::hard_medium_soft(-1, 2, 3)
+        DynamicScore::of(-1, 2, 3)
     );
     assert_eq!(
         DynamicScore::parse("-1hard/3soft").unwrap(),
@@ -53,7 +83,7 @@ fn dynamic_score_parses_standard_score_strings() {
     );
     assert_eq!(
         DynamicScore::parse("-1hard/1.505soft").unwrap(),
-        DynamicScore::hard_soft_decimal(-100_000, 150_500)
+        DynamicScore::hard_soft(-100_000, 150_500)
     );
     assert_eq!(DynamicScore::parse("3").unwrap(), DynamicScore::soft(3));
 }
@@ -64,6 +94,8 @@ fn dynamic_score_equality_agrees_with_ordering() {
 
     assert_eq!(declared.cmp(&DynamicScore::ZERO), Ordering::Equal);
     assert_eq!(declared, DynamicScore::ZERO);
+    assert_eq!(hash_of(declared), hash_of(DynamicScore::ZERO));
+    assert!(DynamicScore::of(0, 0, 0) > DynamicScore::of(-1, 100, 100));
 }
 
 #[test]

@@ -19,7 +19,9 @@ pub use backend::{
 };
 pub use ids::{EntityClassId, ProblemFactClassId, VariableId};
 pub use runner::try_run_dynamic_solver_with_config_parts;
-pub use score::{scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily};
+pub use score::{
+    active_dynamic_score_family, scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily,
+};
 pub use slots::{DynamicListVariableSlot, DynamicScalarVariableSlot};
 
 #[cfg(test)]

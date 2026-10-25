@@ -131,7 +131,7 @@ where
         }
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         match self {
             Self::Change(m) => m.tabu_signature(score_director),
             Self::Swap(m) => m.tabu_signature(score_director),

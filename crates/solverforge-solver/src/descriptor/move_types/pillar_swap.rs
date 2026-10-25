@@ -201,7 +201,7 @@ where
         self.binding.variable_name
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let left_value = self.left_indices.first().and_then(|&entity_index| {
             self.current_value(score_director.working_solution(), entity_index)
         });
@@ -228,11 +228,11 @@ where
         let mut move_id = scoped_move_identity(scope, TABU_OP_PILLAR_SWAP, std::iter::empty());
         append_canonical_usize_slice_pair(&mut move_id, &self.left_indices, &self.right_indices);
 
-        MoveTabuSignature::new_self_undoing(scope, move_id)
+        Cow::Owned(MoveTabuSignature::new_self_undoing(scope, move_id)
             .with_entity_tokens(entity_tokens)
             .with_destination_value_tokens([
                 scope.value_token(right_id),
                 scope.value_token(left_id),
-            ])
+            ]))
     }
 }

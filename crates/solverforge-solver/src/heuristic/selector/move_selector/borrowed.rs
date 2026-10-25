@@ -67,7 +67,7 @@ where
     fn tabu_signature<D: Director<S>>(
         &self,
         score_director: &D,
-    ) -> crate::heuristic::r#move::MoveTabuSignature {
+    ) -> Cow<'_, crate::heuristic::r#move::MoveTabuSignature> {
         (**self).tabu_signature(score_director)
     }
 
@@ -278,7 +278,7 @@ where
     fn tabu_signature<D: Director<S>>(
         &self,
         score_director: &D,
-    ) -> crate::heuristic::r#move::MoveTabuSignature {
+    ) -> Cow<'_, crate::heuristic::r#move::MoveTabuSignature> {
         match self {
             Self::Borrowed(mov) => mov.tabu_signature(score_director),
             Self::Sequential(mov) => mov.tabu_signature(score_director),

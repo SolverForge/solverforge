@@ -244,12 +244,11 @@ impl Move<ConstructionPauseSolution> for ConstructionPauseMove {
         "value"
     }
 
-    fn tabu_signature<D: Director<ConstructionPauseSolution>>(
-        &self,
+    fn tabu_signature<D: Director<ConstructionPauseSolution>>(&self,
         _score_director: &D,
-    ) -> crate::heuristic::r#move::MoveTabuSignature {
+    ) -> Cow<'_, crate::heuristic::r#move::MoveTabuSignature> {
         let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "value");
-        crate::heuristic::r#move::MoveTabuSignature::new(
+        Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
             smallvec::smallvec![
                 crate::heuristic::r#move::metadata::hash_str("construction_pause_move"),
@@ -261,7 +260,7 @@ impl Move<ConstructionPauseSolution> for ConstructionPauseMove {
                 self.entity_index as u64,
                 self.value as u64,
             ],
-        )
+        ))
     }
 }
 

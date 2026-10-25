@@ -172,22 +172,12 @@ pub(super) fn consume_candidate<S, D, BestCb, M, C, Resources, A, Fo>(
             return;
         }
     };
-    // Moves that own a prebuilt signature lend it; only dynamic builders
-    // produce one, and it lives for this decision alone.
-    let built_signature;
-    let move_signature = if requires_move_signatures {
-        match mov.borrowed_tabu_signature() {
-            Some(borrowed) => Some(borrowed),
-            None => {
-                built_signature = mov.tabu_signature(step_scope.score_director());
-                Some(&built_signature)
-            }
-        }
-    } else {
-        None
-    };
+    // Moves that own a prebuilt signature lend it; dynamic builders produce
+    // one that lives for this decision alone.
+    let move_signature =
+        requires_move_signatures.then(|| mov.tabu_signature(step_scope.score_director()));
 
-    let accepted = acceptor.is_accepted(&last_step_score, &move_score, move_signature);
+    let accepted = acceptor.is_accepted(&last_step_score, &move_score, move_signature.as_deref());
 
     record_evaluated_elapsed(step_scope, selector_index, elapsed);
     if accepted {

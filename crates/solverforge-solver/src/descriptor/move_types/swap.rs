@@ -148,7 +148,7 @@ where
         self.binding.variable_name
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let left_val =
             self.current_value(score_director.working_solution(), self.left_entity_index);
         let right_val =
@@ -165,7 +165,7 @@ where
             entity_pair.into_iter().map(|(entity_id, _)| entity_id),
         );
 
-        MoveTabuSignature::new_self_undoing(scope, move_id)
+        Cow::Owned(MoveTabuSignature::new_self_undoing(scope, move_id)
             .with_entity_tokens([
                 scope.entity_token(left_entity_id),
                 scope.entity_token(right_entity_id),
@@ -173,6 +173,6 @@ where
             .with_destination_value_tokens([
                 scope.value_token(right_id),
                 scope.value_token(left_id),
-            ])
+            ]))
     }
 }

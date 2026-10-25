@@ -373,16 +373,14 @@ where
                             None
                         };
                         if let Some(entity_indices) = combined {
+                            let tabu_signature = compose_sequential_tabu_signature(
+                                "cartesian_product",
+                                left_signature,
+                                &signature,
+                            );
                             let moved = (
                                 active.right_cursor.take_candidate(right_id),
-                                (
-                                    entity_indices,
-                                    compose_sequential_tabu_signature(
-                                        "cartesian_product",
-                                        left_signature,
-                                        &signature,
-                                    ),
-                                ),
+                                (entity_indices, tabu_signature),
                             );
                             break Some(moved);
                         }
@@ -455,7 +453,7 @@ where
                 assert!(self.left_cursor.release_candidate(left_id));
                 continue;
             }
-            let left_signature = left.tabu_signature(director);
+            let left_signature = left.tabu_signature(director).into_owned();
             let left = self.left_cursor.take_candidate(left_id);
             let left_undo = left.do_move(director);
             // Preview contract (mirrors SequentialPreviewDirector): the

@@ -4,6 +4,7 @@
 //! reason and carries the shared static/dynamic scalar access protocol. It
 //! never converts a host label into a leaked `&'static str`.
 
+use std::borrow::Cow;
 use std::fmt::{self, Debug};
 
 #[cfg(test)]
@@ -210,7 +211,7 @@ where
         self.require_hard_improvement
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let first = self
             .edits
             .first()
@@ -244,9 +245,11 @@ where
             }
         }
 
-        MoveTabuSignature::new(scope, move_id, undo_move_id)
-            .with_entity_tokens(entity_tokens)
-            .with_destination_value_tokens(destination_tokens)
+        Cow::Owned(
+            MoveTabuSignature::new(scope, move_id, undo_move_id)
+                .with_entity_tokens(entity_tokens)
+                .with_destination_value_tokens(destination_tokens),
+        )
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {

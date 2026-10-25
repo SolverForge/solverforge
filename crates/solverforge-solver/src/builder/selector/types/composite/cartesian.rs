@@ -278,7 +278,7 @@ where
                     .expect("left cartesian candidate must remain valid");
                 (
                     left.is_doable_with_working_preview(director),
-                    left.tabu_signature(director),
+                    left.tabu_signature(director).into_owned(),
                 )
             };
             if !left_is_doable {

@@ -100,7 +100,7 @@ where
         self.binding.variable_name
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let current = self.current_value(score_director.working_solution());
         let from_id = encode_option_usize(current);
         let to_id = encode_option_usize(self.to_value);
@@ -108,7 +108,7 @@ where
         let variable_id = hash_str(self.binding.variable_name);
         let scope = MoveTabuScope::new(self.binding.descriptor_index, self.binding.variable_name);
 
-        MoveTabuSignature::new(
+        Cow::Owned(MoveTabuSignature::new(
             scope,
             smallvec![
                 encode_usize(self.binding.descriptor_index),
@@ -126,6 +126,6 @@ where
             ],
         )
         .with_entity_tokens([scope.entity_token(entity_id)])
-        .with_destination_value_tokens([scope.value_token(to_id)])
+        .with_destination_value_tokens([scope.value_token(to_id)]))
     }
 }

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use solverforge_core::domain::{DynamicScalarVariableSlot, PlanningSolution};
@@ -138,7 +139,7 @@ where
         "dynamic_scalar_swap"
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let solution = score_director.working_solution();
         let left_value = self.slot.current_value(solution, self.left_entity_index);
         let right_value = self.slot.current_value(solution, self.right_entity_index);
@@ -154,15 +155,17 @@ where
             entity_pair.into_iter().map(|(entity_id, _)| entity_id),
         );
 
-        MoveTabuSignature::new_self_undoing(scope, move_id)
-            .with_entity_tokens([
-                scope.entity_token(left_entity_id),
-                scope.entity_token(right_entity_id),
-            ])
-            .with_destination_value_tokens([
-                scope.value_token(right_id),
-                scope.value_token(left_id),
-            ])
+        Cow::Owned(
+            MoveTabuSignature::new_self_undoing(scope, move_id)
+                .with_entity_tokens([
+                    scope.entity_token(left_entity_id),
+                    scope.entity_token(right_entity_id),
+                ])
+                .with_destination_value_tokens([
+                    scope.value_token(right_id),
+                    scope.value_token(left_id),
+                ]),
+        )
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {

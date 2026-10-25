@@ -512,7 +512,8 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
     let reverse_signature = reverse_cursor
         .candidate(reverse_index)
         .expect("reverse cartesian candidate must remain valid")
-        .tabu_signature(&director);
+        .tabu_signature(&director)
+        .into_owned();
 
     assert_eq!(forward_signature.undo_id(), &reverse_signature.move_id);
 
@@ -527,7 +528,10 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
         .validated(),
     );
     acceptor.phase_started(&SoftScore::of(0));
-    acceptor.step_ended(&SoftScore::of(0), Some(forward_signature.clone()));
+    acceptor.step_ended(
+        &SoftScore::of(0),
+        Some(forward_signature.clone().into_owned()),
+    );
 
     assert!(!acceptor.is_accepted(
         &SoftScore::of(0),

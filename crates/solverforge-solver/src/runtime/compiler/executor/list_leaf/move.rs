@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -369,8 +370,8 @@ where
         )
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        match &self.recipe {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(match &self.recipe {
             RuntimeListRecipe::Change {
                 access,
                 coordinates,
@@ -427,7 +428,7 @@ where
             } => {
                 multi_swap_tabu_signature(access, coordinates, &self.entity_indices, score_director)
             }
-        }
+        })
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {

@@ -137,10 +137,13 @@ where
             .expect("selected candidate id must remain borrowable until commit");
         let selected_move_label = selected_move.telemetry_label();
         if requires_move_signatures {
-            accepted_move_signature = match selected_move.borrowed_tabu_signature() {
-                Some(borrowed) => Some(borrowed.clone()),
-                None => Some(selected_move.tabu_signature(step_scope.score_director())),
-            };
+            // Tabu memory retains the signature past the commit, so it is
+            // taken by ownership; only a lent composite signature is copied.
+            accepted_move_signature = Some(
+                selected_move
+                    .tabu_signature(step_scope.score_director())
+                    .into_owned(),
+            );
         }
         let previous_score = *last_step_score;
         evaluator.step_selected(&selected_move, selected_score);

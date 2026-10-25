@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::{self, Debug};
 
 use solverforge_core::domain::PlanningSolution;
@@ -101,7 +102,7 @@ where
         self.compound.reason()
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         self.compound.tabu_signature(score_director)
     }
 

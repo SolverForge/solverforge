@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt;
 
 use smallvec::smallvec;
@@ -120,7 +121,7 @@ where
         }
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let current = self
             .slot
             .current_value(score_director.working_solution(), self.entity_index);
@@ -129,25 +130,27 @@ where
         let entity = encode_usize(self.entity_index);
         let scope = MoveTabuScope::new(self.slot.descriptor_index(), self.slot.variable_name());
         let variable = hash_str(self.slot.variable_name());
-        MoveTabuSignature::new(
-            scope,
-            smallvec![
-                encode_usize(self.slot.descriptor_index()),
-                variable,
-                entity,
-                from,
-                to
-            ],
-            smallvec![
-                encode_usize(self.slot.descriptor_index()),
-                variable,
-                entity,
-                to,
-                from
-            ],
+        Cow::Owned(
+            MoveTabuSignature::new(
+                scope,
+                smallvec![
+                    encode_usize(self.slot.descriptor_index()),
+                    variable,
+                    entity,
+                    from,
+                    to
+                ],
+                smallvec![
+                    encode_usize(self.slot.descriptor_index()),
+                    variable,
+                    entity,
+                    to,
+                    from
+                ],
+            )
+            .with_entity_tokens([scope.entity_token(entity)])
+            .with_destination_value_tokens([scope.value_token(to)]),
         )
-        .with_entity_tokens([scope.entity_token(entity)])
-        .with_destination_value_tokens([scope.value_token(to)])
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
@@ -277,7 +280,7 @@ where
         "runtime_list_insertion"
     }
 
-    fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let scope = MoveTabuScope::new(self.slot.descriptor_index(), self.slot.variable_name());
         let source = encode_usize(self.source_index);
         let entity = encode_usize(self.entity_index);
@@ -290,9 +293,11 @@ where
             entity,
             position
         ];
-        MoveTabuSignature::new_self_undoing(scope, move_id)
-            .with_entity_tokens([scope.entity_token(entity)])
-            .with_destination_value_tokens([scope.value_token(source)])
+        Cow::Owned(
+            MoveTabuSignature::new_self_undoing(scope, move_id)
+                .with_entity_tokens([scope.entity_token(entity)])
+                .with_destination_value_tokens([scope.value_token(source)]),
+        )
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
@@ -55,7 +56,10 @@ impl Move<TestSolution> for TestMove {
         "test"
     }
 
-    fn tabu_signature<D: Director<TestSolution>>(&self, _score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<TestSolution>>(
+        &self,
+        _score_director: &D,
+    ) -> Cow<'_, MoveTabuSignature> {
         panic!("limited cursor test does not evaluate tabu signatures")
     }
 }

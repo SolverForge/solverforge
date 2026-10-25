@@ -1,5 +1,6 @@
 //! Public static facade for canonical list ruin-and-recreate mechanics.
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use smallvec::SmallVec;
@@ -202,13 +203,13 @@ where
         "list_ruin"
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        ruin_tabu_signature(
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(ruin_tabu_signature(
             &self.access,
             &self.sources,
             &self.entity_indices,
             score_director,
-        )
+        ))
     }
 }
 

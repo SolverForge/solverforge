@@ -1,5 +1,6 @@
 /* ListPermuteMove - permutes a contiguous window within a list variable. */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -171,14 +172,14 @@ where
         "list_permute"
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        permute_tabu_signature(
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(permute_tabu_signature(
             &self.access(),
             self.coordinates(),
             &self.permutation,
             &self.inverse_permutation,
             score_director,
-        )
+        ))
     }
 
     fn candidate_trace_identity(&self) -> Option<crate::stats::CandidateTraceIdentity> {

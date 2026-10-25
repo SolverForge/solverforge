@@ -1,4 +1,5 @@
 use std::any::TypeId;
+use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -129,12 +130,15 @@ impl Move<InterruptPlan> for InterruptMove {
         "interrupt_move"
     }
 
-    fn tabu_signature<D: Director<InterruptPlan>>(&self, _score_director: &D) -> MoveTabuSignature {
-        MoveTabuSignature::new(
+    fn tabu_signature<D: Director<InterruptPlan>>(
+        &self,
+        _score_director: &D,
+    ) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(MoveTabuSignature::new(
             MoveTabuScope::new(0, "interrupt_move"),
             smallvec![hash_str("vnd_interrupt_move")],
             smallvec![hash_str("vnd_interrupt_move")],
-        )
+        ))
     }
 }
 
@@ -434,12 +438,12 @@ impl Move<HardRepairPlan> for HardRepairMove {
     fn tabu_signature<D: Director<HardRepairPlan>>(
         &self,
         _score_director: &D,
-    ) -> MoveTabuSignature {
-        MoveTabuSignature::new(
+    ) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(MoveTabuSignature::new(
             MoveTabuScope::new(0, "hard_repair_move"),
             smallvec![hash_str("vnd_hard_repair_move")],
             smallvec![hash_str("vnd_hard_repair_move")],
-        )
+        ))
     }
 }
 

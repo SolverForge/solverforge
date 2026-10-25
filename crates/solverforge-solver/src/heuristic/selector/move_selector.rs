@@ -5,6 +5,7 @@ The solver evaluates candidates by reference and only takes ownership of the
 selected move once the forager commits to an index.
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 

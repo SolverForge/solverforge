@@ -9,6 +9,7 @@ This move stores concrete function pointers that operate directly on
 the solution. No `Arc<dyn>`, no `Box<dyn Any>`, no `downcast_ref`.
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use smallvec::smallvec;
@@ -186,7 +187,7 @@ where
         self.variable_name
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let current = (self.getter)(
             score_director.working_solution(),
             self.entity_index,
@@ -198,24 +199,26 @@ where
         let variable_id = hash_str(self.variable_name);
         let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
 
-        MoveTabuSignature::new(
-            scope,
-            smallvec![
-                encode_usize(self.descriptor_index),
-                variable_id,
-                entity_id,
-                from_id,
-                to_id
-            ],
-            smallvec![
-                encode_usize(self.descriptor_index),
-                variable_id,
-                entity_id,
-                to_id,
-                from_id
-            ],
+        Cow::Owned(
+            MoveTabuSignature::new(
+                scope,
+                smallvec![
+                    encode_usize(self.descriptor_index),
+                    variable_id,
+                    entity_id,
+                    from_id,
+                    to_id
+                ],
+                smallvec![
+                    encode_usize(self.descriptor_index),
+                    variable_id,
+                    entity_id,
+                    to_id,
+                    from_id
+                ],
+            )
+            .with_entity_tokens([scope.entity_token(entity_id)])
+            .with_destination_value_tokens([scope.value_token(to_id)]),
         )
-        .with_entity_tokens([scope.entity_token(entity_id)])
-        .with_destination_value_tokens([scope.value_token(to_id)])
     }
 }

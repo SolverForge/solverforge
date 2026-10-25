@@ -9,6 +9,7 @@ Large Neighborhood Search (LNS) algorithms.
 Uses concrete function pointers for variable access. No `dyn Any`, no downcasting.
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use smallvec::SmallVec;
@@ -212,7 +213,7 @@ where
         self.variable_name
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
         let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
         let entity_ids: SmallVec<[u64; 2]> = self
             .entity_indices
@@ -238,6 +239,8 @@ where
         move_id.extend(entity_ids.iter().copied());
         move_id.extend(value_ids.iter().copied());
 
-        MoveTabuSignature::new_self_undoing(scope, move_id).with_entity_tokens(entity_tokens)
+        Cow::Owned(
+            MoveTabuSignature::new_self_undoing(scope, move_id).with_entity_tokens(entity_tokens),
+        )
     }
 }

@@ -4,6 +4,7 @@ mod metadata;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
+use std::borrow::Cow;
 
 use smallvec::SmallVec;
 
@@ -104,8 +105,8 @@ where
         }
     }
 
-    fn tabu_signature<D: Director<S>>(&self, director: &D) -> MoveTabuSignature {
-        metadata::tabu_signature(&self.recipe, director)
+    fn tabu_signature<D: Director<S>>(&self, director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(metadata::tabu_signature(&self.recipe, director))
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {

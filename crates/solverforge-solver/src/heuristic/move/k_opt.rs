@@ -58,6 +58,7 @@ sublist_insert,
 ```
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -370,14 +371,14 @@ where
         "k_opt"
     }
 
-    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> MoveTabuSignature {
-        k_opt_tabu_signature(
+    fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Owned(k_opt_tabu_signature(
             &self.access(),
             self.cuts(),
             &self.reconnection,
             self.variable_id,
             self.entity_index,
             score_director,
-        )
+        ))
     }
 }

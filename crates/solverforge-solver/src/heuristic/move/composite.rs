@@ -8,6 +8,7 @@ live in their respective arenas - CompositeMove just references them.
 No cloning, no boxing - just concrete arena indices.
 */
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -321,12 +322,8 @@ where
         self.first.requires_score_improvement() || self.second.requires_score_improvement()
     }
 
-    fn borrowed_tabu_signature(&self) -> Option<&MoveTabuSignature> {
-        Some(self.tabu_signature)
-    }
-
-    fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {
-        self.tabu_signature.clone()
+    fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Borrowed(self.tabu_signature)
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
@@ -433,12 +430,8 @@ where
             || self.second_move().requires_score_improvement()
     }
 
-    fn borrowed_tabu_signature(&self) -> Option<&MoveTabuSignature> {
-        Some(&self.tabu_signature)
-    }
-
-    fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> MoveTabuSignature {
-        self.tabu_signature.clone()
+    fn tabu_signature<D: Director<S>>(&self, _score_director: &D) -> Cow<'_, MoveTabuSignature> {
+        Cow::Borrowed(&self.tabu_signature)
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {

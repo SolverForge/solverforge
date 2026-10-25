@@ -25,14 +25,16 @@ pub(super) type TrialOutputs<Sc> = Vec<(usize, TrialOutcome<Sc>, Duration)>;
 pub(crate) type WindowResults<Sc> = Vec<Option<(TrialOutcome<Sc>, Duration)>>;
 
 /* Evaluators for one local-search phase: the main director plus
-`requested - 1` persistent replicas, kept at the committed working solution.
+`evaluators - 1` persistent replicas, kept at the committed working solution.
+The pool never holds more evaluators than one full window has slots, so every
+replica can receive a candidate.
 */
 pub(crate) struct EvaluatorPool<S, D, M>
 where
     S: PlanningSolution,
     M: Move<S>,
 {
-    requested: usize,
+    evaluators: usize,
     replicas: Vec<EvaluatorReplica<S, D, M>>,
     main_outputs: TrialOutputs<S::Score>,
     // Window buffers lent to each step, so steps reuse their capacity.
@@ -62,10 +64,11 @@ where
     D: Director<S>,
     M: Move<S>,
 {
-    // `requested` counts evaluators, the main director included.
+    // `requested` counts evaluators, the main director included; it is
+    // capped at the window ceiling.
     pub(crate) fn new(requested: usize) -> Self {
         Self {
-            requested: requested.max(1),
+            evaluators: requested.clamp(1, MAX_PARALLEL_EVALUATION_WINDOW),
             replicas: Vec::new(),
             main_outputs: Vec::new(),
             window_slots: Vec::new(),
@@ -110,11 +113,10 @@ where
     /// `MAX_PARALLEL_EVALUATION_WINDOW`, capped by the remaining evaluation
     /// budget. Only the parallel loop sizes windows.
     pub(crate) fn window_capacity(&self, remaining: Option<u64>) -> usize {
-        let per_evaluator = self.requested.min(MAX_PARALLEL_EVALUATION_WINDOW);
         let window = self
             .last_step_consumed
             .saturating_sub(self.step_dispatched)
-            .clamp(per_evaluator, MAX_PARALLEL_EVALUATION_WINDOW);
+            .clamp(self.evaluators, MAX_PARALLEL_EVALUATION_WINDOW);
         let remaining = remaining.map_or(usize::MAX, |remaining| {
             usize::try_from(remaining).unwrap_or(usize::MAX)
         });
@@ -138,11 +140,11 @@ where
         BestCb: ProgressCallback<S>,
     {
         let generation = solver_scope.working_solution_generation();
-        if self.requested <= 1 || self.synced_generation == Some(generation) {
+        if self.evaluators <= 1 || self.synced_generation == Some(generation) {
             return;
         }
         self.replicas.clear();
-        for _ in 1..self.requested {
+        for _ in 1..self.evaluators {
             let director = solver_scope.score_director().fork_replica().expect(
                 "parallel evaluation requires a director built with a constraint-set constructor",
             );

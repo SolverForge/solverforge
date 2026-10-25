@@ -56,11 +56,12 @@ pub(super) fn generate_collection_source_methods(
             None => continue,
         };
 
+        let change_source = unowned_change_source(&quote! { Self }, field_name);
         source_methods.push(quote! {
             pub fn #field_name() -> ::solverforge::__internal::SourceExtract<fn(&Self) -> &[#element_type]> {
                 ::solverforge::__internal::source(
                     (|s: &Self| s.#field_name.as_slice()) as fn(&Self) -> &[#element_type],
-                    ::solverforge::__internal::ChangeSource::Static,
+                    #change_source,
                 )
             }
         });
@@ -76,11 +77,12 @@ pub(super) fn generate_collection_source_methods(
             None => continue,
         };
 
+        let change_source = unowned_change_source(&quote! { Self }, field_name);
         source_methods.push(quote! {
             pub fn #field_name() -> ::solverforge::__internal::SourceExtract<fn(&Self) -> &[#element_type]> {
                 ::solverforge::__internal::source(
                     (|s: &Self| s.#field_name.as_slice()) as fn(&Self) -> &[#element_type],
-                    ::solverforge::__internal::ChangeSource::Static,
+                    #change_source,
                 )
             }
         });
@@ -146,7 +148,7 @@ pub(super) fn generate_constraint_stream_extensions(
             Some(t) => t,
             None => continue,
         };
-        let change_source = quote! { ::solverforge::__internal::ChangeSource::Static };
+        let change_source = unowned_change_source(&quote! { #solution_name }, field_name);
 
         push_stream_extension_method(
             &mut trait_methods,
@@ -205,4 +207,18 @@ fn push_stream_extension_method(
             )
         }
     });
+}
+
+/* Change source of a fact or list-element collection: static unless its
+rows carry list shadows, which the score director reports under the source
+the planning model assigns them.
+*/
+fn unowned_change_source(solution: &TokenStream, field_name: &Ident) -> TokenStream {
+    let collection = field_name.to_string();
+    quote! {
+        match <#solution as ::solverforge::__internal::PlanningSolution>::list_shadow_source(#collection) {
+            ::core::option::Option::Some(source) => ::solverforge::__internal::ChangeSource::Descriptor(source),
+            ::core::option::Option::None => ::solverforge::__internal::ChangeSource::Static,
+        }
+    }
 }

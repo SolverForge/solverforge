@@ -247,7 +247,7 @@ is rejected unless the override repeats the exact stock path. Custom routing
 semantics should omit `domain = "cvrp"` and declare explicit hook paths instead.
 
 **Generated code:**
-- `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, plus `update_entity_shadows()` / `update_all_shadows()` delegation to the manifest-owned support implementation when `#[shadow_variable_updates(...)]` configures list shadows.
+- `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, plus `update_entity_shadows()` / `update_all_shadows()` / `list_shadow_elements()` / `clear_list_shadows()` / `list_shadow_source()` delegation to the manifest-owned support implementation when `#[shadow_variable_updates(...)]` configures list shadows.
 - `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors, reusing entity-generated descriptors so field-level variable order and metadata are preserved
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
 - Private owner-specific list operations used by the canonical runtime: `__solverforge_list_len_<owner>()`, `__solverforge_list_remove_<owner>()`, `__solverforge_list_insert_<owner>()`, `__solverforge_list_get_<owner>()`, `__solverforge_list_set_<owner>()`, `__solverforge_list_reverse_<owner>()`, `__solverforge_sublist_remove_<owner>()`, `__solverforge_sublist_insert_<owner>()`, `__solverforge_ruin_remove_<owner>()`, `__solverforge_ruin_insert_<owner>()`, `__solverforge_list_remove_for_construction_<owner>()`, `__solverforge_index_to_element_<owner>()`, `__solverforge_element_source_key_<owner>()`, `__solverforge_element_count_<owner>()`, `__solverforge_assigned_elements_<owner>()`, `__solverforge_n_entities_<owner>()`, `__solverforge_assign_element_<owner>()`, plus aggregate helpers `__solverforge_total_list_entities()` and `__solverforge_total_list_elements()`
@@ -352,7 +352,19 @@ When configured through `#[shadow_variable_updates]`,
 `update_entity_shadows(descriptor_index, entity_idx)` collects the list owner's
 `element_indices`, then updates inverse, index, previous, next, cascading,
 aggregate, compute, and post-update fields in that order. `update_all_shadows()`
-visits the configured list owner once.
+clears the configured inverse, index, previous, and next fields of every
+element, then visits the configured list owner once.
+
+When inverse, index, previous, next, or cascading updates write element
+fields, the generated support also reports them to the score director:
+`list_shadow_elements()` returns the owner's elements with their change
+source, and `clear_list_shadows()` clears an element that left every list.
+The change source is the element collection's descriptor index when it is a
+`#[planning_entity_collection]`, otherwise the first index past the entity
+descriptors. Stream sources of `#[problem_fact_collection]` and
+`#[planning_list_element_collection]` fields ask `list_shadow_source()` and
+react to that source instead of staying static, so constraints that read
+element shadows score incrementally.
 
 ## Test Coverage
 

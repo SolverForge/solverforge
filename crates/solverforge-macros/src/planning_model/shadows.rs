@@ -2,6 +2,8 @@ struct GeneratedListShadowUpdate {
     update: TokenStream,
     reset: TokenStream,
     descriptor: Option<(usize, Ident)>,
+    // Element reporting, present when the update writes element fields.
+    elements: TokenStream,
 }
 
 fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
@@ -11,6 +13,7 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
     let generated = generate_list_shadow_update(model, &solution_path)?;
     let list_update = generated.update;
     let list_reset = generated.reset;
+    let list_elements = generated.elements;
 
     let Some((descriptor_index, collection_accessor)) = generated.descriptor else {
         return Ok(quote! {
@@ -50,6 +53,8 @@ fn generate_shadow_methods(model: &ModelMetadata) -> Result<TokenStream> {
             }
             true
         }
+
+        #list_elements
     })
 }
 
@@ -63,6 +68,7 @@ fn generate_list_shadow_update(
             update: TokenStream::new(),
             reset: TokenStream::new(),
             descriptor: None,
+            elements: TokenStream::new(),
         });
     }
 
@@ -152,14 +158,20 @@ fn generate_list_shadow_update(
             }
         }
     });
-    let index_reset = config.index_field.as_ref().map(|field| {
-        let field_ident = Ident::new(field, proc_macro2::Span::call_site());
+    let cleared_fields: Vec<Ident> = [
+        &config.inverse_field,
+        &config.index_field,
+        &config.previous_field,
+        &config.next_field,
+    ]
+    .into_iter()
+    .flatten()
+    .map(|field| Ident::new(field, proc_macro2::Span::call_site()))
+    .collect();
+    let element_reset = (!cleared_fields.is_empty()).then(|| {
         quote! {
-            {
-                let elements = #solution_path::#element_mut_accessor(solution);
-                for element in elements {
-                    element.#field_ident = None;
-                }
+            for element in #solution_path::#element_mut_accessor(solution).iter_mut() {
+                #(element.#cleared_fields = None;)*
             }
         }
     });
@@ -225,10 +237,60 @@ fn generate_list_shadow_update(
             updated = true;
         }
     };
+    /* Reports the elements an owner's shadow update writes. Their stream
+    rows use the element collection's own descriptor when it is an entity
+    collection; a fact collection is reported under the first index past the
+    entity descriptors, which no entity notification uses.
+    */
+    let writes_elements = config.inverse_field.is_some()
+        || config.index_field.is_some()
+        || config.previous_field.is_some()
+        || config.next_field.is_some()
+        || config.cascading_listener.is_some();
+    let element_source = element_collection.descriptor_index.unwrap_or_else(|| {
+        model
+            .solution
+            .collections
+            .iter()
+            .filter(|collection| collection.descriptor_index.is_some())
+            .count()
+    });
+    let element_field = &element_collection.field_name;
+    let elements = if writes_elements {
+        quote! {
+            fn list_shadow_elements(
+                solution: &Self,
+                descriptor_index: usize,
+                entity_index: usize,
+            ) -> ::core::option::Option<(usize, &[usize])> {
+                if descriptor_index != #descriptor_index {
+                    return ::core::option::Option::None;
+                }
+                #solution_path::#owner_accessor(solution)
+                    .get(entity_index)
+                    .map(|owner| (#element_source, owner.#list_variable_ident.as_slice()))
+            }
+
+            fn clear_list_shadows(solution: &mut Self, element: usize) {
+                if let ::core::option::Option::Some(element) =
+                    #solution_path::#element_mut_accessor(solution).get_mut(element)
+                {
+                    #(element.#cleared_fields = None;)*
+                }
+            }
+
+            fn list_shadow_source(collection: &str) -> ::core::option::Option<usize> {
+                (collection == #element_field).then_some(#element_source)
+            }
+        }
+    } else {
+        TokenStream::new()
+    };
     Ok(GeneratedListShadowUpdate {
         update,
-        reset: index_reset.unwrap_or_default(),
+        reset: element_reset.unwrap_or_default(),
         descriptor: Some((descriptor_index, owner_accessor)),
+        elements,
     })
 }
 

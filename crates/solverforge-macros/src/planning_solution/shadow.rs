@@ -47,5 +47,31 @@ pub(super) fn generate_shadow_support(
                 self,
             );
         }
+
+        #[inline]
+        fn list_shadow_elements(
+            &self,
+            descriptor_index: usize,
+            entity_idx: usize,
+        ) -> ::core::option::Option<(usize, &[usize])> {
+            <Self as ::solverforge::__internal::PlanningModelSupport>::list_shadow_elements(
+                self,
+                descriptor_index,
+                entity_idx,
+            )
+        }
+
+        #[inline]
+        fn clear_list_shadows(&mut self, element: usize) {
+            <Self as ::solverforge::__internal::PlanningModelSupport>::clear_list_shadows(
+                self,
+                element,
+            );
+        }
+
+        #[inline]
+        fn list_shadow_source(collection: &str) -> ::core::option::Option<usize> {
+            <Self as ::solverforge::__internal::PlanningModelSupport>::list_shadow_source(collection)
+        }
     })
 }

@@ -112,7 +112,9 @@ fn public_round_robin_streams_progress_from_the_first_candidate() {
             if progress.kind == SolverProgressKind::Progress {
                 let phase = progress
                     .telemetry
-                    .phase
+                    .phases
+                    .last()
+                    .cloned()
                     .expect("construction progress should include phase telemetry");
                 assert_eq!(phase.phase_type, "Round-Robin List Construction");
                 assert!(phase.moves_generated > 0);
@@ -129,6 +131,6 @@ fn public_round_robin_streams_progress_from_the_first_candidate() {
     phase.solve(&mut scope);
 
     assert!(progress_events.load(Ordering::SeqCst) > 0);
-    assert!(scope.stats().moves_accepted > 0);
-    assert!(scope.stats().moves_applied > 0);
+    assert!(scope.stats().moves_accepted() > 0);
+    assert!(scope.stats().moves_applied() > 0);
 }

@@ -168,6 +168,9 @@ fn test_phase_scope() {
     }
 
     assert_eq!(solver_scope.total_step_count(), 1);
+    let phases = solver_scope.stats().snapshot().phases;
+    assert_eq!(phases.len(), 1, "a dropped phase scope closes its record");
+    assert_eq!(phases[0].phase_type, "Unknown");
 }
 
 #[test]
@@ -200,7 +203,11 @@ fn phase_progress_elapsed_uses_the_pause_aware_solver_clock() {
         .unwrap()
         .pop()
         .expect("phase progress is published");
-    let phase = telemetry.phase.expect("phase telemetry is attached");
+    let phase = telemetry
+        .phases
+        .last()
+        .cloned()
+        .expect("phase telemetry is attached");
     assert_eq!(phase.phase_type, "PauseAwarePhase");
     assert_eq!(phase.elapsed, frozen_elapsed);
     assert!(phase.elapsed < raw_after);

@@ -19,16 +19,19 @@ use std::time::Duration;
 
 let mut stats = SolverStats::default();
 stats.start();
+stats.begin_phase("LocalSearch");
 stats.record_step();
 stats.record_generated_move(Duration::from_millis(1));
 stats.record_evaluated_move(Duration::from_millis(2));
 stats.record_move_accepted();
 stats.record_generated_move(Duration::from_millis(1));
 stats.record_evaluated_move(Duration::from_millis(2));
+stats.end_phase();
 
-assert_eq!(stats.step_count, 1);
-assert_eq!(stats.moves_evaluated, 2);
-assert_eq!(stats.moves_accepted, 1);
+assert_eq!(stats.step_count(), 1);
+assert_eq!(stats.moves_evaluated(), 2);
+assert_eq!(stats.moves_accepted(), 1);
+assert_eq!(stats.snapshot().phases[0].moves_evaluated, 2);
 ```
 */
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -79,6 +82,7 @@ pub struct MoveTelemetry {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PhaseTelemetry {
+    /// Zero-based position of this phase in the solve's execution order.
     pub phase_index: usize,
     pub phase_type: String,
     pub elapsed: Duration,
@@ -87,6 +91,9 @@ pub struct PhaseTelemetry {
     /// This is runtime work, not the size of an unconsumed neighborhood.
     pub moves_generated: u64,
     pub moves_evaluated: u64,
+    /// Candidates this phase's parallel evaluation evaluated ahead of the
+    /// sequential decision point and then discarded.
+    pub moves_speculative: u64,
     pub moves_accepted: u64,
     pub moves_applied: u64,
     pub moves_score_improving: u64,
@@ -146,7 +153,11 @@ pub struct SolverTelemetry {
     pub scalar_assignment_required_remaining: u64,
     pub generation_time: Duration,
     pub evaluation_time: Duration,
-    pub phase: Option<PhaseTelemetry>,
+    /// Every phase started so far, in execution order; the last entry of a
+    /// progress snapshot is the phase still running. Run totals above equal
+    /// the sum of these phases plus work done outside any phase, such as the
+    /// initial score calculation.
+    pub phases: Vec<PhaseTelemetry>,
     pub selector_telemetry: Vec<SelectorTelemetry>,
     pub move_telemetry: Vec<MoveTelemetry>,
     pub applied_move_trace: Vec<AppliedMoveTelemetry>,
@@ -186,7 +197,7 @@ impl SolverTelemetry {
             scalar_assignment_required_remaining: 0,
             generation_time: Duration::ZERO,
             evaluation_time: Duration::ZERO,
-            phase: None,
+            phases: Vec::new(),
             selector_telemetry: Vec::new(),
             move_telemetry: Vec::new(),
             applied_move_trace: Vec::new(),

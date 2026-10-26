@@ -128,10 +128,10 @@ where
             .map(|queen| queen.row)
             .collect(),
         score: solver_scope.best_score().copied(),
-        moves_generated: stats.moves_generated,
-        moves_evaluated: stats.moves_evaluated,
-        moves_applied: stats.moves_applied,
-        moves_speculative: stats.moves_speculative,
-        steps: stats.step_count,
+        moves_generated: stats.moves_generated(),
+        moves_evaluated: stats.moves_evaluated(),
+        moves_applied: stats.moves_applied(),
+        moves_speculative: stats.moves_speculative(),
+        steps: stats.step_count(),
     }
 }

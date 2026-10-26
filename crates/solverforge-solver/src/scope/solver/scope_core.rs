@@ -80,8 +80,6 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     current_score: Option<S::Score>,
     best_score: Option<S::Score>,
     rng: StdRng,
-    start_time: Option<Instant>,
-    paused_at: Option<Instant>,
     total_step_count: u64,
     terminate: Option<&'t AtomicBool>,
     runtime: Option<SolverRuntime<S>>,
@@ -141,11 +139,11 @@ impl PhaseBudget {
             ),
             move_count_limit: remaining_limit(
                 scope.inphase_move_count_limit,
-                scope.stats.moves_evaluated,
+                scope.stats.moves_evaluated(),
             ),
             score_calc_count_limit: remaining_limit(
                 scope.inphase_score_calc_count_limit,
-                scope.stats.score_calculations,
+                scope.stats.score_calculations(),
             ),
             step_count: AtomicU64::new(0),
             moves_evaluated: AtomicU64::new(0),
@@ -364,8 +362,6 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             current_score: None,
             best_score: None,
             rng: StdRng::from_rng(&mut rand::rng()),
-            start_time: None,
-            paused_at: None,
             total_step_count: 0,
             terminate: None,
             runtime: None,
@@ -410,8 +406,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             current_score: None,
             best_score: None,
             rng: StdRng::from_rng(&mut rand::rng()),
-            start_time: None,
-            paused_at: None,
             total_step_count: 0,
             terminate,
             runtime,
@@ -558,7 +552,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     fn child_time_deadline(&self) -> Option<Instant> {
         self.time_deadline.or_else(|| {
             self.time_limit.map(|limit| {
-                self.start_time
+                self.stats
+                    .started_at()
                     .map(|start| start + limit)
                     .unwrap_or_else(|| Instant::now() + limit)
             })
@@ -575,8 +570,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             current_score: self.current_score,
             best_score: self.best_score,
             rng: self.rng,
-            start_time: self.start_time,
-            paused_at: self.paused_at,
             total_step_count: self.total_step_count,
             terminate: self.terminate,
             runtime: self.runtime,
@@ -605,8 +598,6 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub fn start_solving(&mut self) {
-        self.start_time = Some(Instant::now());
-        self.paused_at = None;
         self.total_step_count = 0;
         self.terminal_reason = None;
         self.last_best_elapsed = None;
@@ -619,11 +610,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub fn elapsed(&self) -> Option<Duration> {
-        match (self.start_time, self.paused_at) {
-            (Some(start), Some(paused_at)) => Some(paused_at.duration_since(start)),
-            (Some(start), None) => Some(start.elapsed()),
-            _ => None,
-        }
+        self.stats.active_elapsed()
     }
 
     pub fn time_since_last_improvement(&self) -> Option<Duration> {
@@ -673,7 +660,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub fn initialize_working_solution_as_best(&mut self) -> S::Score {
-        if self.start_time.is_none() {
+        if self.stats.started_at().is_none() {
             self.start_solving();
         }
         let score = self.calculate_score();

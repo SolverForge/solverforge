@@ -19,7 +19,7 @@ fn test_construction_first_fit() {
     }
 
     assert!(solver_scope.best_solution().is_some());
-    assert!(solver_scope.stats().moves_evaluated > 0);
+    assert!(solver_scope.stats().moves_evaluated() > 0);
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn test_construction_best_fit() {
 
     assert!(solver_scope.best_solution().is_some());
     assert!(solver_scope.best_score().is_some());
-    assert_eq!(solver_scope.stats().moves_evaluated, 16);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 16);
 }
 
 #[test]
@@ -61,8 +61,8 @@ fn best_fit_keeps_current_when_every_assignment_is_worse() {
         solver_scope.current_score().copied(),
         Some(SoftScore::of(0))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 0);
-    assert_eq!(solver_scope.stats().step_count, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 0);
+    assert_eq!(solver_scope.stats().step_count(), 1);
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn best_fit_assigns_when_candidate_is_strictly_better_than_none() {
         solver_scope.current_score().copied(),
         Some(SoftScore::of(7))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
 }
 
 #[test]
@@ -100,8 +100,8 @@ fn first_fit_optional_construction_keeps_current_when_baseline_is_not_beaten() {
         solver_scope.current_score().copied(),
         Some(SoftScore::of(0))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 0);
-    assert_eq!(solver_scope.stats().step_count, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 0);
+    assert_eq!(solver_scope.stats().step_count(), 1);
 }
 
 #[test]
@@ -123,8 +123,8 @@ fn first_fit_forced_construction_assigns_first_doable_candidate_even_when_worse(
         solver_scope.current_score().copied(),
         Some(SoftScore::of(-5))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().step_count, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().step_count(), 1);
 }
 
 #[test]
@@ -146,8 +146,8 @@ fn best_fit_forced_construction_assigns_best_candidate_even_when_worse() {
         solver_scope.current_score().copied(),
         Some(SoftScore::of(-1))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().step_count, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().step_count(), 1);
 }
 
 #[test]
@@ -166,8 +166,8 @@ fn first_fit_optional_construction_skips_worse_candidate_and_takes_later_improve
         solver_scope.current_score().copied(),
         Some(SoftScore::of(7))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().step_count, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().step_count(), 1);
 }
 
 #[test]
@@ -186,8 +186,8 @@ fn first_fit_optional_construction_takes_first_improving_candidate() {
         solver_scope.current_score().copied(),
         Some(SoftScore::of(7))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().step_count, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().step_count(), 1);
 }
 
 #[test]
@@ -202,8 +202,8 @@ fn first_fit_required_construction_still_selects_first_doable_candidate() {
     phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().entities[0].value, Some(3));
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().step_count, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().step_count(), 1);
 }
 
 #[derive(Debug)]
@@ -292,7 +292,7 @@ fn best_fit_prefers_equal_score_candidate_over_keep_current() {
         solver_scope.current_score().copied(),
         Some(SoftScore::of(0))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
 }
 
 #[test]
@@ -325,7 +325,7 @@ fn best_fit_progresses_across_equal_score_plateau() {
         solver_scope.current_score().copied(),
         Some(SoftScore::of(5))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 2);
+    assert_eq!(solver_scope.stats().moves_accepted(), 2);
 }
 
 #[test]
@@ -340,7 +340,7 @@ fn first_feasible_keeps_current_when_baseline_is_already_feasible() {
     phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().entities[0].value, None);
-    assert_eq!(solver_scope.stats().moves_accepted, 0);
+    assert_eq!(solver_scope.stats().moves_accepted(), 0);
 }
 
 #[test]
@@ -364,7 +364,7 @@ fn first_feasible_selects_first_feasible_move_when_baseline_is_infeasible() {
         solver_scope.current_score().copied(),
         Some(SoftScore::of(1))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
 }
 
 #[test]
@@ -388,5 +388,5 @@ fn first_feasible_prefers_equal_score_candidate_over_infeasible_baseline() {
         solver_scope.current_score().copied(),
         Some(SoftScore::of(-1))
     );
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
 }

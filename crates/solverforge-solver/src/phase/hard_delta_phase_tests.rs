@@ -44,10 +44,10 @@ fn vnd_accepts_required_repair_that_improves_later_hard_level() {
         Some(BendableScore::of([0, -5], [-100]))
     );
     let stats = solver_scope.stats();
-    assert_eq!(stats.moves_accepted, 1);
-    assert_eq!(stats.moves_acceptor_rejected, 1);
-    assert_eq!(stats.moves_hard_improving, 1);
-    assert_eq!(stats.moves_hard_neutral, 1);
+    assert_eq!(stats.moves_accepted(), 1);
+    assert_eq!(stats.moves_acceptor_rejected(), 1);
+    assert_eq!(stats.moves_hard_improving(), 1);
+    assert_eq!(stats.moves_hard_neutral(), 1);
 }
 
 #[derive(Clone, Debug)]

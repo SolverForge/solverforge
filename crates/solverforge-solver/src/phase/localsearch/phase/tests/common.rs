@@ -179,7 +179,7 @@ fn test_local_search_hill_climbing() {
 
     let final_score = solver_scope.best_score().copied().unwrap_or(initial_score);
     assert!(final_score >= initial_score);
-    assert!(solver_scope.stats().moves_evaluated > 0);
+    assert!(solver_scope.stats().moves_evaluated() > 0);
 }
 
 #[test]
@@ -252,5 +252,5 @@ fn test_local_search_step_limit() {
 
     phase.solve(&mut solver_scope);
 
-    assert!(solver_scope.stats().step_count <= 3);
+    assert!(solver_scope.stats().step_count() <= 3);
 }

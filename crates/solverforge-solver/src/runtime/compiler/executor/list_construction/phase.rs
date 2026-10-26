@@ -201,6 +201,6 @@ mod tests {
 
         assert_eq!(first_routes, vec![vec![2, 1, 0]]);
         assert_eq!(scope.working_solution().routes, first_routes);
-        assert!(scope.stats().score_calculations >= 6);
+        assert!(scope.stats().score_calculations() >= 6);
     }
 }

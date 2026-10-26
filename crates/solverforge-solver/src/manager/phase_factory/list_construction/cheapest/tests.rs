@@ -238,7 +238,9 @@ fn public_cheapest_streams_progress_from_the_first_candidate() {
             if progress.kind == SolverProgressKind::Progress {
                 let phase = progress
                     .telemetry
-                    .phase
+                    .phases
+                    .last()
+                    .cloned()
                     .expect("construction progress should include phase telemetry");
                 captured
                     .lock()
@@ -265,8 +267,8 @@ fn public_cheapest_streams_progress_from_the_first_candidate() {
     assert!(first.moves_generated > 0);
     assert!(first.moves_evaluated > 0);
     assert_eq!(*current_score, Some(HardSoftScore::ZERO));
-    assert!(scope.stats().moves_accepted > 0);
-    assert!(scope.stats().moves_applied > 0);
+    assert!(scope.stats().moves_accepted() > 0);
+    assert!(scope.stats().moves_applied() > 0);
 }
 
 #[test]

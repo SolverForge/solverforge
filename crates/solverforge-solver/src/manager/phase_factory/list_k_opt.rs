@@ -478,8 +478,8 @@ mod tests {
             solver_scope.working_solution().routes[0].visits,
             original_route
         );
-        assert_eq!(solver_scope.stats().moves_accepted, 1);
-        assert_eq!(solver_scope.stats().moves_applied, 0);
+        assert_eq!(solver_scope.stats().moves_accepted(), 1);
+        assert_eq!(solver_scope.stats().moves_applied(), 0);
         assert_eq!(
             solver_scope.terminal_reason(),
             crate::manager::SolverTerminalReason::TerminatedByConfig

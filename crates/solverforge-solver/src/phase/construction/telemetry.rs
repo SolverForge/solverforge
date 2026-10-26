@@ -275,7 +275,9 @@ mod tests {
                         .push(
                             progress
                                 .telemetry
-                                .phase
+                                .phases
+                                .last()
+                                .cloned()
                                 .expect("construction progress should include phase telemetry")
                                 .moves_evaluated,
                         );
@@ -325,7 +327,7 @@ mod tests {
         pending_move_telemetry.record_committed(&mut phase_scope);
         assert_eq!(phase_scope.stats().moves_applied, 2);
         drop(phase_scope);
-        assert_eq!(solver_scope.stats().moves_accepted, 2);
-        assert_eq!(solver_scope.stats().moves_applied, 2);
+        assert_eq!(solver_scope.stats().moves_accepted(), 2);
+        assert_eq!(solver_scope.stats().moves_applied(), 2);
     }
 }

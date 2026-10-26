@@ -5,54 +5,74 @@ use std::time::{Duration, Instant};
 use super::{
     AppliedMoveTelemetry, CandidatePullTelemetry, CandidateTraceDisposition,
     CandidateTracePhasePlan, CandidateTracePullToken, CandidateTraceRecordDecision,
-    CandidateTraceTelemetry, MoveTelemetry, SelectorTelemetry, SolverTelemetry, Throughput,
+    CandidateTraceTelemetry, PhaseStats, PhaseTelemetry, SolverTelemetry, Throughput,
 };
 
-const APPLIED_MOVE_TRACE_LIMIT: usize = 8;
+/* Solve-wide statistics, kept per phase.
 
-#[derive(Debug, Default)]
+Every counter is recorded exactly once, into the phase that is running, or
+into the solve-wide accumulator when no phase is (the initial score
+calculation, for example). A finished phase folds into that accumulator and
+keeps a frozen snapshot, so run totals are always the accumulator plus the
+running phase, and the per-phase records always sum to them.
+*/
+#[derive(Debug)]
 pub struct SolverStats {
     start_time: Option<Instant>,
     pause_started_at: Option<Instant>,
-    // Total steps taken across all phases.
-    pub step_count: u64,
-    /// Total candidate moves actually yielded by cursors across all phases.
-    /// Unrequested logical neighborhood tails are not generated work.
-    pub moves_generated: u64,
-    // Total moves evaluated across all phases.
-    pub moves_evaluated: u64,
-    /// Candidates evaluated ahead of the sequential decision point by parallel
-    /// evaluation and then discarded. Zero for sequential evaluation.
-    pub moves_speculative: u64,
-    // Total moves accepted across all phases.
-    pub moves_accepted: u64,
-    // Total moves applied across all phases.
-    pub moves_applied: u64,
-    pub moves_not_doable: u64,
-    pub moves_acceptor_rejected: u64,
-    pub moves_forager_ignored: u64,
-    pub moves_hard_improving: u64,
-    pub moves_hard_neutral: u64,
-    pub moves_hard_worse: u64,
-    pub conflict_repair_provider_generated: u64,
-    pub conflict_repair_duplicate_filtered: u64,
-    pub conflict_repair_illegal_filtered: u64,
-    pub conflict_repair_not_doable_filtered: u64,
-    pub conflict_repair_hard_improving: u64,
-    pub conflict_repair_exposed: u64,
-    // Total score calculations performed.
-    pub score_calculations: u64,
-    pub construction_slots_assigned: u64,
-    pub construction_slots_kept: u64,
-    pub construction_slots_no_doable: u64,
-    pub scalar_assignment_required_remaining: u64,
+    // Work outside any phase plus every finished phase, folded together.
+    folded: PhaseStats,
+    finished_phases: Vec<PhaseTelemetry>,
+    current_phase: Option<RunningPhase>,
     scalar_assignment_required_remaining_by_group: BTreeMap<&'static str, u64>,
-    generation_time: Duration,
-    evaluation_time: Duration,
-    selector_stats: Vec<SelectorTelemetry>,
-    move_stats: BTreeMap<&'static str, MoveTelemetry>,
-    applied_move_trace: Vec<AppliedMoveTelemetry>,
     candidate_trace: Option<CandidateTraceTelemetry>,
+}
+
+#[derive(Debug)]
+struct RunningPhase {
+    stats: PhaseStats,
+    // Solver-active elapsed at phase entry, when the solve clock had started.
+    started_at: Option<Duration>,
+}
+
+impl Default for SolverStats {
+    fn default() -> Self {
+        Self {
+            start_time: None,
+            pause_started_at: None,
+            folded: PhaseStats::new(0, "Solve"),
+            finished_phases: Vec::new(),
+            current_phase: None,
+            scalar_assignment_required_remaining_by_group: BTreeMap::new(),
+            candidate_trace: None,
+        }
+    }
+}
+
+macro_rules! run_totals {
+    ($($(#[$doc:meta])* $name:ident),* $(,)?) => {
+        $(
+            $(#[$doc])*
+            pub fn $name(&self) -> u64 {
+                self.folded.$name
+                    + self
+                        .current_phase
+                        .as_ref()
+                        .map_or(0, |phase| phase.stats.$name)
+            }
+        )*
+    };
+}
+
+macro_rules! record_into_active {
+    ($($(#[$doc:meta])* $name:ident($($arg:ident: $ty:ty),*)),* $(,)?) => {
+        $(
+            $(#[$doc])*
+            pub fn $name(&mut self, $($arg: $ty),*) {
+                self.active().$name($($arg),*);
+            }
+        )*
+    };
 }
 
 impl SolverStats {
@@ -62,12 +82,27 @@ impl SolverStats {
         self.pause_started_at = None;
     }
 
+    /// Solver-active time since `start`, excluding pauses; zero before it.
     pub fn elapsed(&self) -> Duration {
+        self.active_elapsed().unwrap_or_default()
+    }
+
+    /// Solver-active time since `start`, or `None` before the solve started.
+    pub fn active_elapsed(&self) -> Option<Duration> {
         match (self.start_time, self.pause_started_at) {
-            (Some(start), Some(paused_at)) => paused_at.duration_since(start),
-            (Some(start), None) => start.elapsed(),
-            _ => Duration::default(),
+            (Some(start), Some(paused_at)) => Some(paused_at.duration_since(start)),
+            (Some(start), None) => Some(start.elapsed()),
+            _ => None,
         }
+    }
+
+    /// The start instant, shifted forward by every finished pause.
+    pub fn started_at(&self) -> Option<Instant> {
+        self.start_time
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.pause_started_at.is_some()
     }
 
     pub fn pause(&mut self) {
@@ -82,153 +117,167 @@ impl SolverStats {
         }
     }
 
-    /// Records one or more generated candidate moves and the time spent generating them.
-    pub fn record_generated_batch(&mut self, count: u64, duration: Duration) {
-        self.moves_generated += count;
-        self.generation_time += duration;
+    /// Opens the next phase; counters recorded from now on belong to it. A
+    /// phase still running is finished first.
+    pub fn begin_phase(&mut self, phase_type: &'static str) {
+        self.end_phase();
+        let phase_index = self.finished_phases.len();
+        self.current_phase = Some(RunningPhase {
+            stats: PhaseStats::new(phase_index, phase_type),
+            started_at: self.active_elapsed(),
+        });
     }
 
-    pub fn record_selector_generated(
+    /// Freezes the running phase's record and folds it into the run totals.
+    pub fn end_phase(&mut self) {
+        if let Some(phase) = self.current_phase.take() {
+            self.finished_phases.push(self.phase_snapshot(&phase));
+            self.folded.absorb(&phase.stats);
+        }
+    }
+
+    /// Solver-active time the running phase has spent, if a phase is running.
+    pub fn phase_elapsed(&self) -> Option<Duration> {
+        self.current_phase
+            .as_ref()
+            .map(|phase| self.running_elapsed(phase))
+    }
+
+    /// Statistics of the phase that is running, if any.
+    pub fn phase(&self) -> Option<&PhaseStats> {
+        self.current_phase.as_ref().map(|phase| &phase.stats)
+    }
+
+    pub fn phase_mut(&mut self) -> Option<&mut PhaseStats> {
+        self.current_phase.as_mut().map(|phase| &mut phase.stats)
+    }
+
+    fn active(&mut self) -> &mut PhaseStats {
+        match self.current_phase.as_mut() {
+            Some(phase) => &mut phase.stats,
+            None => &mut self.folded,
+        }
+    }
+
+    fn running_elapsed(&self, phase: &RunningPhase) -> Duration {
+        match (phase.started_at, self.active_elapsed()) {
+            (Some(started_at), Some(now)) => now.saturating_sub(started_at),
+            _ => phase.stats.elapsed(),
+        }
+    }
+
+    fn phase_snapshot(&self, phase: &RunningPhase) -> PhaseTelemetry {
+        phase
+            .stats
+            .snapshot_with_elapsed(self.running_elapsed(phase))
+    }
+
+    run_totals!(
+        /// Steps taken across all phases.
+        step_count,
+        /// Candidate moves actually yielded by cursors across all phases.
+        /// Unrequested logical neighborhood tails are not generated work.
+        moves_generated,
+        moves_evaluated,
+        /// Candidates evaluated ahead of the sequential decision point by
+        /// parallel evaluation and then discarded.
+        moves_speculative,
+        moves_accepted,
+        moves_applied,
+        moves_not_doable,
+        moves_acceptor_rejected,
+        moves_forager_ignored,
+        moves_hard_improving,
+        moves_hard_neutral,
+        moves_hard_worse,
+        conflict_repair_provider_generated,
+        conflict_repair_duplicate_filtered,
+        conflict_repair_illegal_filtered,
+        conflict_repair_not_doable_filtered,
+        conflict_repair_hard_improving,
+        conflict_repair_exposed,
+        score_calculations,
+        construction_slots_assigned,
+        construction_slots_kept,
+        construction_slots_no_doable,
+    );
+
+    /// Required scalar-assignment rows still unassigned, summed over groups.
+    pub fn scalar_assignment_required_remaining(&self) -> u64 {
+        self.scalar_assignment_required_remaining_by_group
+            .values()
+            .copied()
+            .sum()
+    }
+
+    record_into_active!(
+        /// Records one or more generated candidate moves and the time spent generating them.
+        record_generated_batch(count: u64, duration: Duration),
+        record_selector_generated(selector_index: usize, count: u64, duration: Duration),
+        /// Records generation time that did not itself yield a counted move.
+        record_generation_time(duration: Duration),
+        /// Records a single generated candidate move and the time spent generating it.
+        record_generated_move(duration: Duration),
+        /// Records a move evaluation and the time spent evaluating it.
+        record_evaluated_move(duration: Duration),
+        record_selector_evaluated(selector_index: usize, duration: Duration),
+        record_move_accepted(),
+        record_selector_accepted(selector_index: usize),
+        record_move_applied(),
+        record_selector_applied(selector_index: usize),
+        record_move_not_doable(),
+        record_selector_not_doable(selector_index: usize),
+        record_move_acceptor_rejected(),
+        record_selector_acceptor_rejected(selector_index: usize),
+        record_moves_forager_ignored(count: u64),
+        record_move_hard_improving(),
+        record_move_hard_neutral(),
+        record_move_hard_worse(),
+        record_conflict_repair_provider_generated(count: u64),
+        record_conflict_repair_duplicate_filtered(),
+        record_conflict_repair_illegal_filtered(),
+        record_conflict_repair_not_doable_filtered(),
+        record_conflict_repair_hard_improving(),
+        record_conflict_repair_exposed(),
+        /// Records a step completion.
+        record_step(),
+        /// Records a score calculation.
+        record_score_calculation(),
+        /// Records a candidate that parallel evaluation evaluated ahead of the
+        /// sequential decision point and then discarded.
+        record_move_speculative(),
+        record_construction_slot_assigned(),
+        record_construction_slot_kept(),
+        record_construction_slot_no_doable(),
+        record_move_kind_generated(move_label: &'static str),
+        record_move_kind_evaluated(move_label: &'static str, score_ordering: Ordering),
+        record_move_kind_evaluated_unscored(move_label: &'static str),
+        record_move_kind_accepted(move_label: &'static str),
+        record_move_kind_applied(move_label: &'static str, score_improvement: f64),
+        record_move_kind_not_doable(move_label: &'static str),
+        record_move_kind_acceptor_rejected(move_label: &'static str, score_ordering: Ordering),
+        record_move_kind_forager_ignored(move_label: &'static str, count: u64),
+        record_applied_move_trace(applied_move: AppliedMoveTelemetry),
+    );
+
+    pub fn record_selector_generated_with_label(
         &mut self,
         selector_index: usize,
+        selector_label: impl Into<String>,
         count: u64,
         duration: Duration,
     ) {
-        self.record_generated_batch(count, duration);
-        let selector = self.selector_stats_entry(selector_index);
-        selector.moves_generated += count;
-        selector.generation_time += duration;
+        self.active().record_selector_generated_with_label(
+            selector_index,
+            selector_label,
+            count,
+            duration,
+        );
     }
 
-    /// Records generation time that did not itself yield a counted move.
-    pub fn record_generation_time(&mut self, duration: Duration) {
-        self.generation_time += duration;
-    }
-
-    /// Records a single generated candidate move and the time spent generating it.
-    pub fn record_generated_move(&mut self, duration: Duration) {
-        self.record_generated_batch(1, duration);
-    }
-
-    /// Records a move evaluation and the time spent evaluating it.
-    pub fn record_evaluated_move(&mut self, duration: Duration) {
-        self.moves_evaluated += 1;
-        self.evaluation_time += duration;
-    }
-
-    pub fn record_selector_evaluated(&mut self, selector_index: usize, duration: Duration) {
-        self.record_evaluated_move(duration);
-        let selector = self.selector_stats_entry(selector_index);
-        selector.moves_evaluated += 1;
-        selector.evaluation_time += duration;
-    }
-
-    /// Records an accepted move.
-    pub fn record_move_accepted(&mut self) {
-        self.moves_accepted += 1;
-    }
-
-    pub fn record_selector_accepted(&mut self, selector_index: usize) {
-        self.record_move_accepted();
-        self.selector_stats_entry(selector_index).moves_accepted += 1;
-    }
-
-    pub fn record_move_applied(&mut self) {
-        self.moves_applied += 1;
-    }
-
-    pub fn record_selector_applied(&mut self, selector_index: usize) {
-        self.record_move_applied();
-        self.selector_stats_entry(selector_index).moves_applied += 1;
-    }
-
-    pub fn record_move_not_doable(&mut self) {
-        self.moves_not_doable += 1;
-    }
-
-    pub fn record_selector_not_doable(&mut self, selector_index: usize) {
-        self.record_move_not_doable();
-        self.selector_stats_entry(selector_index).moves_not_doable += 1;
-    }
-
-    pub fn record_move_acceptor_rejected(&mut self) {
-        self.moves_acceptor_rejected += 1;
-    }
-
-    pub fn record_selector_acceptor_rejected(&mut self, selector_index: usize) {
-        self.record_move_acceptor_rejected();
-        self.selector_stats_entry(selector_index)
-            .moves_acceptor_rejected += 1;
-    }
-
-    pub fn record_moves_forager_ignored(&mut self, count: u64) {
-        self.moves_forager_ignored += count;
-    }
-
-    pub fn record_move_hard_improving(&mut self) {
-        self.moves_hard_improving += 1;
-    }
-
-    pub fn record_move_hard_neutral(&mut self) {
-        self.moves_hard_neutral += 1;
-    }
-
-    pub fn record_move_hard_worse(&mut self) {
-        self.moves_hard_worse += 1;
-    }
-
-    pub fn record_conflict_repair_provider_generated(&mut self, count: u64) {
-        self.conflict_repair_provider_generated += count;
-    }
-
-    pub fn record_conflict_repair_duplicate_filtered(&mut self) {
-        self.conflict_repair_duplicate_filtered += 1;
-    }
-
-    pub fn record_conflict_repair_illegal_filtered(&mut self) {
-        self.conflict_repair_illegal_filtered += 1;
-    }
-
-    pub fn record_conflict_repair_not_doable_filtered(&mut self) {
-        self.conflict_repair_not_doable_filtered += 1;
-    }
-
-    pub fn record_conflict_repair_hard_improving(&mut self) {
-        self.conflict_repair_hard_improving += 1;
-    }
-
-    pub fn record_conflict_repair_exposed(&mut self) {
-        self.conflict_repair_exposed += 1;
-    }
-
-    /// Records a step completion.
-    pub fn record_step(&mut self) {
-        self.step_count += 1;
-    }
-
-    /// Records a score calculation.
-    pub fn record_score_calculation(&mut self) {
-        self.score_calculations += 1;
-    }
-
-    /// Records a candidate that parallel evaluation evaluated ahead of the
-    /// sequential decision point and then discarded.
-    pub fn record_move_speculative(&mut self) {
-        self.moves_speculative += 1;
-    }
-
-    pub fn record_construction_slot_assigned(&mut self) {
-        self.construction_slots_assigned += 1;
-    }
-
-    pub fn record_construction_slot_kept(&mut self) {
-        self.construction_slots_kept += 1;
-    }
-
-    pub fn record_construction_slot_no_doable(&mut self) {
-        self.construction_slots_no_doable += 1;
-    }
-
+    /// Records the required rows a scalar-assignment group still leaves
+    /// unassigned. The run value sums the latest count of every group; the
+    /// running phase keeps the latest count it saw.
     pub fn record_scalar_assignment_required_remaining(
         &mut self,
         group_name: &'static str,
@@ -236,41 +285,45 @@ impl SolverStats {
     ) {
         self.scalar_assignment_required_remaining_by_group
             .insert(group_name, count);
-        self.scalar_assignment_required_remaining = self
-            .scalar_assignment_required_remaining_by_group
-            .values()
-            .copied()
-            .sum();
+        self.active()
+            .record_scalar_assignment_required_remaining(count);
+    }
+
+    pub fn generation_time(&self) -> Duration {
+        self.folded.generation_time()
+            + self
+                .phase()
+                .map_or(Duration::ZERO, PhaseStats::generation_time)
+    }
+
+    pub fn evaluation_time(&self) -> Duration {
+        self.folded.evaluation_time()
+            + self
+                .phase()
+                .map_or(Duration::ZERO, PhaseStats::evaluation_time)
     }
 
     pub fn generated_throughput(&self) -> Throughput {
         Throughput {
-            count: self.moves_generated,
-            elapsed: self.generation_time,
+            count: self.moves_generated(),
+            elapsed: self.generation_time(),
         }
     }
 
     pub fn evaluated_throughput(&self) -> Throughput {
         Throughput {
-            count: self.moves_evaluated,
-            elapsed: self.evaluation_time,
+            count: self.moves_evaluated(),
+            elapsed: self.evaluation_time(),
         }
     }
 
     pub fn acceptance_rate(&self) -> f64 {
-        if self.moves_evaluated == 0 {
+        let evaluated = self.moves_evaluated();
+        if evaluated == 0 {
             0.0
         } else {
-            self.moves_accepted as f64 / self.moves_evaluated as f64
+            self.moves_accepted() as f64 / evaluated as f64
         }
-    }
-
-    pub fn generation_time(&self) -> Duration {
-        self.generation_time
-    }
-
-    pub fn evaluation_time(&self) -> Duration {
-        self.evaluation_time
     }
 
     pub fn snapshot(&self) -> SolverTelemetry {
@@ -285,40 +338,46 @@ impl SolverStats {
         &self,
         include_applied_move_trace: bool,
     ) -> SolverTelemetry {
+        let mut totals = self.folded.clone();
+        let mut phases = self.finished_phases.clone();
+        if let Some(phase) = &self.current_phase {
+            totals.absorb(&phase.stats);
+            phases.push(self.phase_snapshot(phase));
+        }
         SolverTelemetry {
             elapsed: self.elapsed(),
-            step_count: self.step_count,
-            moves_generated: self.moves_generated,
-            moves_evaluated: self.moves_evaluated,
-            moves_speculative: self.moves_speculative,
-            moves_accepted: self.moves_accepted,
-            moves_applied: self.moves_applied,
-            moves_score_improving: self.moves_score_improving(),
-            moves_applied_improving: self.moves_applied_improving(),
-            moves_not_doable: self.moves_not_doable,
-            moves_acceptor_rejected: self.moves_acceptor_rejected,
-            moves_forager_ignored: self.moves_forager_ignored,
-            moves_hard_improving: self.moves_hard_improving,
-            moves_hard_neutral: self.moves_hard_neutral,
-            moves_hard_worse: self.moves_hard_worse,
-            conflict_repair_provider_generated: self.conflict_repair_provider_generated,
-            conflict_repair_duplicate_filtered: self.conflict_repair_duplicate_filtered,
-            conflict_repair_illegal_filtered: self.conflict_repair_illegal_filtered,
-            conflict_repair_not_doable_filtered: self.conflict_repair_not_doable_filtered,
-            conflict_repair_hard_improving: self.conflict_repair_hard_improving,
-            conflict_repair_exposed: self.conflict_repair_exposed,
-            score_calculations: self.score_calculations,
-            construction_slots_assigned: self.construction_slots_assigned,
-            construction_slots_kept: self.construction_slots_kept,
-            construction_slots_no_doable: self.construction_slots_no_doable,
-            scalar_assignment_required_remaining: self.scalar_assignment_required_remaining,
-            generation_time: self.generation_time,
-            evaluation_time: self.evaluation_time,
-            phase: None,
-            selector_telemetry: self.selector_stats.clone(),
-            move_telemetry: self.move_stats.values().cloned().collect(),
+            step_count: totals.step_count,
+            moves_generated: totals.moves_generated,
+            moves_evaluated: totals.moves_evaluated,
+            moves_speculative: totals.moves_speculative,
+            moves_accepted: totals.moves_accepted,
+            moves_applied: totals.moves_applied,
+            moves_score_improving: totals.moves_score_improving(),
+            moves_applied_improving: totals.moves_applied_improving(),
+            moves_not_doable: totals.moves_not_doable,
+            moves_acceptor_rejected: totals.moves_acceptor_rejected,
+            moves_forager_ignored: totals.moves_forager_ignored,
+            moves_hard_improving: totals.moves_hard_improving,
+            moves_hard_neutral: totals.moves_hard_neutral,
+            moves_hard_worse: totals.moves_hard_worse,
+            conflict_repair_provider_generated: totals.conflict_repair_provider_generated,
+            conflict_repair_duplicate_filtered: totals.conflict_repair_duplicate_filtered,
+            conflict_repair_illegal_filtered: totals.conflict_repair_illegal_filtered,
+            conflict_repair_not_doable_filtered: totals.conflict_repair_not_doable_filtered,
+            conflict_repair_hard_improving: totals.conflict_repair_hard_improving,
+            conflict_repair_exposed: totals.conflict_repair_exposed,
+            score_calculations: totals.score_calculations,
+            construction_slots_assigned: totals.construction_slots_assigned,
+            construction_slots_kept: totals.construction_slots_kept,
+            construction_slots_no_doable: totals.construction_slots_no_doable,
+            scalar_assignment_required_remaining: self.scalar_assignment_required_remaining(),
+            generation_time: totals.generation_time(),
+            evaluation_time: totals.evaluation_time(),
+            phases,
+            selector_telemetry: totals.selector_telemetry().to_vec(),
+            move_telemetry: totals.move_telemetry(),
             applied_move_trace: if include_applied_move_trace {
-                self.applied_move_trace.to_vec()
+                totals.applied_move_trace().to_vec()
             } else {
                 Vec::new()
             },
@@ -332,82 +391,14 @@ impl SolverStats {
         }
     }
 
-    pub fn record_move_kind_generated(&mut self, move_label: &'static str) {
-        self.move_stats_entry(move_label).moves_generated += 1;
-    }
-
     pub fn moves_score_improving(&self) -> u64 {
-        self.move_stats
-            .values()
-            .map(|entry| entry.moves_score_improving)
-            .sum()
+        self.folded.moves_score_improving()
+            + self.phase().map_or(0, PhaseStats::moves_score_improving)
     }
 
     pub fn moves_applied_improving(&self) -> u64 {
-        self.move_stats
-            .values()
-            .map(|entry| entry.moves_applied_improving)
-            .sum()
-    }
-
-    pub fn record_move_kind_evaluated(
-        &mut self,
-        move_label: &'static str,
-        score_ordering: Ordering,
-    ) {
-        let entry = self.move_stats_entry(move_label);
-        entry.moves_evaluated += 1;
-        match score_ordering {
-            Ordering::Greater => entry.moves_score_improving += 1,
-            Ordering::Equal => entry.moves_score_equal += 1,
-            Ordering::Less => entry.moves_score_worse += 1,
-        }
-    }
-
-    pub fn record_move_kind_evaluated_unscored(&mut self, move_label: &'static str) {
-        self.move_stats_entry(move_label).moves_evaluated += 1;
-    }
-
-    pub fn record_move_kind_accepted(&mut self, move_label: &'static str) {
-        self.move_stats_entry(move_label).moves_accepted += 1;
-    }
-
-    pub fn record_move_kind_applied(&mut self, move_label: &'static str, score_improvement: f64) {
-        let entry = self.move_stats_entry(move_label);
-        entry.moves_applied += 1;
-        if score_improvement > 0.0 {
-            entry.moves_applied_improving += 1;
-            entry.applied_score_improvement += score_improvement;
-        }
-    }
-
-    pub fn record_move_kind_not_doable(&mut self, move_label: &'static str) {
-        self.move_stats_entry(move_label).moves_not_doable += 1;
-    }
-
-    pub fn record_move_kind_acceptor_rejected(
-        &mut self,
-        move_label: &'static str,
-        score_ordering: Ordering,
-    ) {
-        let entry = self.move_stats_entry(move_label);
-        entry.moves_acceptor_rejected += 1;
-        if score_ordering == Ordering::Greater {
-            entry.moves_rejected_improving += 1;
-        }
-    }
-
-    pub fn record_move_kind_forager_ignored(&mut self, move_label: &'static str, count: u64) {
-        if count == 0 {
-            return;
-        }
-        self.move_stats_entry(move_label).moves_forager_ignored += count;
-    }
-
-    pub fn record_applied_move_trace(&mut self, applied_move: AppliedMoveTelemetry) {
-        if self.applied_move_trace.len() < APPLIED_MOVE_TRACE_LIMIT {
-            self.applied_move_trace.push(applied_move);
-        }
+        self.folded.moves_applied_improving()
+            + self.phase().map_or(0, PhaseStats::moves_applied_improving)
     }
 
     pub(crate) fn enable_candidate_trace(&mut self, candidate_trace: CandidateTraceTelemetry) {
@@ -466,62 +457,6 @@ impl SolverStats {
             .as_mut()
             .expect("a candidate trace disposition requires an enabled trace");
         trace.record_disposition(token, disposition);
-    }
-
-    pub fn record_selector_generated_with_label(
-        &mut self,
-        selector_index: usize,
-        selector_label: impl Into<String>,
-        count: u64,
-        duration: Duration,
-    ) {
-        self.record_generated_batch(count, duration);
-        let selector = self.selector_stats_entry_with_label(selector_index, selector_label);
-        selector.moves_generated += count;
-        selector.generation_time += duration;
-    }
-
-    fn selector_stats_entry(&mut self, selector_index: usize) -> &mut SelectorTelemetry {
-        self.selector_stats_entry_with_label(selector_index, format!("selector-{selector_index}"))
-    }
-
-    fn selector_stats_entry_with_label(
-        &mut self,
-        selector_index: usize,
-        selector_label: impl Into<String>,
-    ) -> &mut SelectorTelemetry {
-        let selector_label = selector_label.into();
-        if let Some(position) = self
-            .selector_stats
-            .iter()
-            .position(|entry| entry.selector_index == selector_index)
-        {
-            if self.selector_stats[position]
-                .selector_label
-                .starts_with("selector-")
-                && !selector_label.starts_with("selector-")
-            {
-                self.selector_stats[position].selector_label = selector_label;
-            }
-            return &mut self.selector_stats[position];
-        }
-        self.selector_stats.push(SelectorTelemetry {
-            selector_index,
-            selector_label,
-            ..SelectorTelemetry::default()
-        });
-        self.selector_stats
-            .last_mut()
-            .expect("selector stats entry was just inserted")
-    }
-
-    fn move_stats_entry(&mut self, move_label: &'static str) -> &mut MoveTelemetry {
-        self.move_stats
-            .entry(move_label)
-            .or_insert_with(|| MoveTelemetry {
-                move_label: move_label.to_string(),
-                ..MoveTelemetry::default()
-            })
     }
 }
 

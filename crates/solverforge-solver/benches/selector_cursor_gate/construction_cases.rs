@@ -98,7 +98,7 @@ fn construction_first_fit() {
             let mut scope = SolverScope::new(unassigned_director(128));
             scope.start_solving();
             phase.solve(&mut scope);
-            count += scope.stats().moves_generated as usize;
+            count += scope.stats().moves_generated() as usize;
             for vehicle in &scope.working_solution().vehicles {
                 mix(&mut hash, vehicle.visits[0]);
             }

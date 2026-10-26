@@ -11,6 +11,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub fn report_progress(&self) {
+        if !ProgressCb::PUBLISHES_PROGRESS {
+            return;
+        }
         let best_score = self
             .best_solution_publication_enabled
             .then_some(self.best_score.as_ref())
@@ -75,7 +78,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub fn report_best_solution(&self) {
-        if !self.best_solution_publication_enabled {
+        if !ProgressCb::PUBLISHES_PROGRESS || !self.best_solution_publication_enabled {
             return;
         }
         self.progress_callback.invoke(SolverProgressRef {

@@ -22,7 +22,78 @@ fn solver_snapshot_preserves_exact_counts_and_durations() {
     assert_eq!(snapshot.score_calculations, 1);
     assert_eq!(snapshot.generation_time, Duration::from_millis(4));
     assert_eq!(snapshot.evaluation_time, Duration::from_millis(5));
-    assert!(snapshot.phase.is_none());
+    assert!(snapshot.phases.is_empty());
+}
+
+#[test]
+fn phase_records_sum_to_the_run_totals() {
+    let mut stats = SolverStats::default();
+    stats.start();
+    stats.record_score_calculation();
+
+    stats.begin_phase("Construction Heuristic");
+    stats.record_step();
+    stats.record_generated_batch(4, Duration::from_millis(2));
+    stats.record_evaluated_move(Duration::from_millis(3));
+    stats.record_score_calculation();
+    stats.record_construction_slot_assigned();
+    stats.end_phase();
+
+    stats.begin_phase("Local Search");
+    stats.record_step();
+    stats.record_step();
+    stats.record_selector_generated_with_label(0, "change", 5, Duration::from_millis(1));
+    stats.record_selector_evaluated(0, Duration::from_millis(7));
+    stats.record_selector_evaluated(0, Duration::from_millis(7));
+    stats.record_move_speculative();
+    stats.record_move_accepted();
+    stats.record_move_applied();
+    stats.record_move_kind_applied("change", 1.0);
+
+    let running = stats.snapshot();
+    assert_eq!(running.phases.len(), 2);
+    assert_eq!(running.phases[1].phase_type, "Local Search");
+    assert_eq!(running.phases[1].moves_speculative, 1);
+    stats.end_phase();
+    let done = stats.snapshot();
+
+    let types: Vec<_> = done
+        .phases
+        .iter()
+        .map(|phase| phase.phase_type.as_str())
+        .collect();
+    assert_eq!(types, ["Construction Heuristic", "Local Search"]);
+    assert_eq!(
+        done.phases
+            .iter()
+            .map(|phase| phase.phase_index)
+            .collect::<Vec<_>>(),
+        [0, 1]
+    );
+    let sum = |field: fn(&PhaseTelemetry) -> u64| done.phases.iter().map(field).sum::<u64>();
+    assert_eq!(sum(|phase| phase.step_count), done.step_count);
+    assert_eq!(sum(|phase| phase.moves_generated), done.moves_generated);
+    assert_eq!(sum(|phase| phase.moves_evaluated), done.moves_evaluated);
+    assert_eq!(sum(|phase| phase.moves_speculative), done.moves_speculative);
+    assert_eq!(sum(|phase| phase.moves_accepted), done.moves_accepted);
+    assert_eq!(sum(|phase| phase.moves_applied), done.moves_applied);
+    assert_eq!(
+        sum(|phase| phase.moves_applied_improving),
+        done.moves_applied_improving
+    );
+    // The initial score calculation belongs to no phase.
+    assert_eq!(
+        sum(|phase| phase.score_calculations) + 1,
+        done.score_calculations
+    );
+    let time =
+        |field: fn(&PhaseTelemetry) -> Duration| done.phases.iter().map(field).sum::<Duration>();
+    assert_eq!(time(|phase| phase.generation_time), done.generation_time);
+    assert_eq!(time(|phase| phase.evaluation_time), done.evaluation_time);
+    assert_eq!(done.construction_slots_assigned, 1);
+    assert_eq!(done.selector_telemetry[0].moves_evaluated, 2);
+    assert_eq!(stats.moves_evaluated(), 3);
+    assert!(stats.phase().is_none());
 }
 
 #[test]
@@ -178,11 +249,11 @@ fn solver_scalar_assignment_remaining_aggregates_by_group() {
 
     stats.record_scalar_assignment_required_remaining("group_a", 3);
     stats.record_scalar_assignment_required_remaining("group_b", 0);
-    assert_eq!(stats.scalar_assignment_required_remaining, 3);
+    assert_eq!(stats.scalar_assignment_required_remaining(), 3);
     assert_eq!(stats.snapshot().scalar_assignment_required_remaining, 3);
 
     stats.record_scalar_assignment_required_remaining("group_a", 0);
-    assert_eq!(stats.scalar_assignment_required_remaining, 0);
+    assert_eq!(stats.scalar_assignment_required_remaining(), 0);
     assert_eq!(stats.snapshot().scalar_assignment_required_remaining, 0);
 }
 

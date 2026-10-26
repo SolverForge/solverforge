@@ -25,3 +25,11 @@ use crate::stats::{
 include!("solver/progress.rs");
 include!("solver/scope_core.rs");
 include!("solver/scope_progress.rs");
+
+impl<S: PlanningSolution, D: Director<S>, ProgressCb> SolverScope<'_, S, D, ProgressCb> {
+    /// Closes the running phase's statistics record. Bound-free so a phase
+    /// scope can close its record when it drops.
+    pub(crate) fn end_phase_stats(&mut self) {
+        self.stats.end_phase();
+    }
+}

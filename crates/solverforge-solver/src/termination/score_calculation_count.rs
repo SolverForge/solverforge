@@ -62,7 +62,7 @@ impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Terminati
     for ScoreCalculationCountTermination<S>
 {
     fn is_terminated(&mut self, solver_scope: &SolverScope<'_, S, D, BestCb>) -> bool {
-        solver_scope.stats().score_calculations >= self.limit
+        solver_scope.stats().score_calculations() >= self.limit
     }
 
     fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {

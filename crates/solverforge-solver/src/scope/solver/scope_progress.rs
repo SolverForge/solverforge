@@ -55,13 +55,12 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         pulse.take_due(now, phase_index, phase_type, step_count, move_count)
     }
 
-    pub(crate) fn report_phase_progress(&self, phase: crate::stats::PhaseTelemetry) {
+    pub(crate) fn report_phase_progress(&self) {
         let best_score = self
             .best_solution_publication_enabled
             .then_some(self.best_score.as_ref())
             .flatten();
-        let mut telemetry = self.stats.snapshot_without_applied_move_trace();
-        telemetry.phase = Some(phase);
+        let telemetry = self.stats.snapshot_without_applied_move_trace();
         self.progress_callback.invoke(SolverProgressRef {
             kind: SolverProgressKind::Progress,
             status: self.progress_state(),
@@ -123,7 +122,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub fn set_best_solution(&mut self, solution: S, score: S::Score) {
-        if self.start_time.is_none() {
+        if self.stats.started_at().is_none() {
             self.start_solving();
         }
         self.current_score = Some(score);
@@ -272,20 +271,11 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub fn pause_timers(&mut self) {
-        if self.paused_at.is_none() {
-            self.paused_at = Some(Instant::now());
-            self.stats.pause();
-        }
+        self.stats.pause();
     }
 
     pub fn resume_timers(&mut self) {
-        if let Some(paused_at) = self.paused_at.take() {
-            let paused_for = paused_at.elapsed();
-            if let Some(start) = self.start_time {
-                self.start_time = Some(start + paused_for);
-            }
-            self.stats.resume();
-        }
+        self.stats.resume();
     }
 
     pub fn should_terminate_construction(&mut self) -> bool {
@@ -587,12 +577,12 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 
     fn inphase_move_count_limit_reached(&self) -> bool {
         self.inphase_move_count_limit
-            .is_some_and(|limit| self.stats.moves_evaluated >= limit)
+            .is_some_and(|limit| self.stats.moves_evaluated() >= limit)
     }
 
     fn inphase_score_calc_count_limit_reached(&self) -> bool {
         self.inphase_score_calc_count_limit
-            .is_some_and(|limit| self.stats.score_calculations >= limit)
+            .is_some_and(|limit| self.stats.score_calculations() >= limit)
     }
 
     fn advance_solution_revision(&mut self) {

@@ -36,7 +36,9 @@ fn construction_reports_progress_for_a_single_first_fit_candidate() {
             if progress.kind == crate::scope::SolverProgressKind::Progress {
                 let phase = progress
                     .telemetry
-                    .phase
+                    .phases
+                    .last()
+                    .cloned()
                     .expect("construction progress should include phase telemetry");
                 assert_eq!(phase.phase_type, "Construction Heuristic");
                 assert_eq!(phase.moves_generated, 1);
@@ -101,7 +103,7 @@ fn test_construction_empty_solution() {
 
     phase.solve(&mut solver_scope);
 
-    assert_eq!(solver_scope.stats().moves_evaluated, 0);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 0);
 }
 
 #[test]

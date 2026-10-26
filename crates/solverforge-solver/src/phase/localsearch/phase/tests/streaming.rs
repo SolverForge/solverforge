@@ -13,7 +13,7 @@ fn test_local_search_records_selector_open_time_as_generation_time() {
     phase.solve(&mut solver_scope);
 
     assert!(solver_scope.stats().generation_time() >= Duration::from_millis(20));
-    assert_eq!(solver_scope.stats().moves_generated, 1);
+    assert_eq!(solver_scope.stats().moves_generated(), 1);
 }
 
 #[test]
@@ -41,7 +41,7 @@ fn local_search_reports_progress_without_an_8192_move_batch() {
 
     phase.solve(&mut solver_scope);
 
-    assert_eq!(solver_scope.stats().moves_evaluated, 3);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 3);
     assert!(
         progress_events.load(Ordering::SeqCst) > 0,
         "local search ended without reporting its completed steps"

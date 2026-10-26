@@ -1474,7 +1474,7 @@ Public fields: `inphase_step_count_limit`, `inphase_move_count_limit`, `inphase_
 
 ### `PhaseScope<'t, 'a, S, D, BestCb = ()>`
 
-Borrows `&mut SolverScope`. Tracks per-phase state: phase_index, starting_score, step_count, PhaseStats. Public committed mutation delegates to `mutate(...)` on the parent solver scope; speculative candidate evaluation is handled by phase evaluation helpers using typed move undo.
+Borrows `&mut SolverScope`. Tracks per-phase state: phase_index, starting_score, step_count; its `PhaseStats` record lives in the solver's `SolverStats` for the scope's lifetime. Public committed mutation delegates to `mutate(...)` on the parent solver scope; speculative candidate evaluation is handled by phase evaluation helpers using typed move undo.
 
 ### `StepScope<'t, 'a, 'b, S, D, BestCb = ()>`
 
@@ -1644,6 +1644,19 @@ Aggregate and per-phase metrics: step count, moves generated, moves evaluated,
 moves accepted, moves applied, score calculations, elapsed time, generation
 time, evaluation time, acceptance rate, selector-level telemetry, and exact
 `Throughput { count, elapsed }` views for generated/evaluated work.
+
+`SolverStats` records every counter exactly once, into the running phase's
+`PhaseStats` (or, between phases, into solve-level work such as the initial
+score calculation). `begin_phase(phase_type)` opens a phase record and
+`end_phase()` freezes it; `PhaseScope` opens its record on creation and closes
+it on drop, and `PhaseScope::stats()` / `stats_mut()` borrow that record. Run
+counters are read through methods (`step_count()`, `moves_evaluated()`,
+`moves_speculative()`, `score_calculations()`, ...) that sum the finished
+phases, solve-level work, and the running phase. `phase()` / `phase_mut()` /
+`phase_elapsed()` expose the running phase. `SolverStats` also owns the
+pause-aware solve clock: `start()`, `pause()`, `resume()`, `elapsed()`,
+`active_elapsed()`, `started_at()`, and `is_paused()`; `SolverScope::elapsed()`
+and `PhaseScope::elapsed()` read it.
 Human-facing `moves/s` is derived only at log/console formatting edges.
 `moves_generated` counts candidates actually yielded by a runtime cursor; it
 does not count an unrequested logical tail. `moves_speculative` counts
@@ -1652,9 +1665,13 @@ sequential decision point and then discarded; it is zero for sequential
 evaluation and never feeds `moves_evaluated` or `score_calculations`. Selector `size()` and explicit full
 cursor exhaustion cover logical neighborhood size and canonical order.
 
-`SolverTelemetry` snapshots expose the same counters plus an optional
-`PhaseTelemetry` snapshot identifying the active phase and its local elapsed,
-step, move, score-calculation, generation-time, and evaluation-time counters;
+`SolverTelemetry` snapshots expose the same counters plus `phases`, one
+`PhaseTelemetry` per phase started so far in execution order (the last entry of
+a progress snapshot is the running phase), each with its `phase_index`,
+`phase_type`, solver-active elapsed, and step, move (including
+`moves_speculative`), score-calculation, generation-time, and evaluation-time
+counters. Phase counters sum to the run counters, apart from score
+calculations made outside any phase. Run snapshots also carry
 not-doable,
 acceptor-rejected, forager-ignored, hard-improving/neutral/worse, conflict
 repair provider/filter/exposure counters, `construction_slots_assigned`,

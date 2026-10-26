@@ -65,15 +65,15 @@ impl<S: PlanningSolution> SolveResult<S> {
     }
 
     pub fn step_count(&self) -> u64 {
-        self.stats.step_count
+        self.stats.step_count()
     }
 
     pub fn moves_evaluated(&self) -> u64 {
-        self.stats.moves_evaluated
+        self.stats.moves_evaluated()
     }
 
     pub fn moves_accepted(&self) -> u64 {
-        self.stats.moves_accepted
+        self.stats.moves_accepted()
     }
 }
 

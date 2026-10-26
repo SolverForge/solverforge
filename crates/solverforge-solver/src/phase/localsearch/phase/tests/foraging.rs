@@ -12,8 +12,8 @@ fn accepted_count_one_evaluates_one_accepted_move_per_step() {
 
     phase.solve(&mut solver_scope);
 
-    assert_eq!(solver_scope.stats().moves_evaluated, 1);
-    assert_eq!(solver_scope.stats().moves_applied, 1);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 1);
+    assert_eq!(solver_scope.stats().moves_applied(), 1);
     assert_eq!(
         solver_scope.working_solution().score,
         Some(SoftScore::of(1))
@@ -35,8 +35,8 @@ fn cancellation_before_next_candidate_does_not_commit_selected_move() {
 
     phase.solve(&mut solver_scope);
 
-    assert_eq!(solver_scope.stats().moves_evaluated, 1);
-    assert_eq!(solver_scope.stats().moves_applied, 0);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 1);
+    assert_eq!(solver_scope.stats().moves_applied(), 0);
     assert_eq!(
         solver_scope.working_solution().score,
         Some(SoftScore::of(0))
@@ -57,8 +57,8 @@ fn accepted_count_limit_picks_best_of_accepted_horizon() {
 
     phase.solve(&mut solver_scope);
 
-    assert_eq!(solver_scope.stats().moves_evaluated, 2);
-    assert_eq!(solver_scope.stats().moves_applied, 1);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 2);
+    assert_eq!(solver_scope.stats().moves_applied(), 1);
     assert_eq!(
         solver_scope.working_solution().score,
         Some(SoftScore::of(3))
@@ -80,8 +80,8 @@ fn config_move_count_interrupt_commits_best_already_accepted_move() {
 
     phase.solve(&mut solver_scope);
 
-    assert_eq!(solver_scope.stats().moves_evaluated, 1);
-    assert_eq!(solver_scope.stats().moves_applied, 1);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 1);
+    assert_eq!(solver_scope.stats().moves_applied(), 1);
     assert_eq!(
         solver_scope.working_solution().score,
         Some(SoftScore::of(1))
@@ -102,8 +102,8 @@ fn best_score_forager_still_scans_full_neighborhood() {
 
     phase.solve(&mut solver_scope);
 
-    assert_eq!(solver_scope.stats().moves_evaluated, 3);
-    assert_eq!(solver_scope.stats().moves_applied, 1);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 3);
+    assert_eq!(solver_scope.stats().moves_applied(), 1);
     assert_eq!(
         solver_scope.working_solution().score,
         Some(SoftScore::of(3))
@@ -124,8 +124,8 @@ fn score_improvement_required_move_rejects_worse_before_acceptor() {
 
     phase.solve(&mut solver_scope);
 
-    assert_eq!(solver_scope.stats().moves_evaluated, 2);
-    assert_eq!(solver_scope.stats().moves_applied, 1);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 2);
+    assert_eq!(solver_scope.stats().moves_applied(), 1);
     assert_eq!(
         solver_scope.working_solution().score,
         Some(SoftScore::of(3))

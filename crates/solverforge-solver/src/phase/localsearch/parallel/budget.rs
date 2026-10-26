@@ -19,10 +19,10 @@ where
     let stats = solver_scope.stats();
     let moves = solver_scope
         .inphase_move_count_limit
-        .map(|limit| limit.saturating_sub(stats.moves_evaluated));
+        .map(|limit| limit.saturating_sub(stats.moves_evaluated()));
     let score_calculations = solver_scope
         .inphase_score_calc_count_limit
-        .map(|limit| limit.saturating_sub(stats.score_calculations));
+        .map(|limit| limit.saturating_sub(stats.score_calculations()));
     match (moves, score_calculations) {
         (Some(moves), Some(score_calculations)) => Some(moves.min(score_calculations)),
         (moves, score_calculations) => moves.or(score_calculations),

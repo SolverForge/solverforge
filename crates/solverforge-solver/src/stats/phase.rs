@@ -6,7 +6,10 @@ use super::{AppliedMoveTelemetry, MoveTelemetry, PhaseTelemetry, SelectorTelemet
 
 const APPLIED_MOVE_TRACE_LIMIT: usize = 8;
 
-#[derive(Debug)]
+#[path = "phase_absorb.rs"]
+mod absorb;
+
+#[derive(Debug, Clone)]
 pub struct PhaseStats {
     // Index of this phase (0-based).
     pub phase_index: usize,
@@ -20,6 +23,9 @@ pub struct PhaseStats {
     pub moves_generated: u64,
     // Number of moves evaluated in this phase.
     pub moves_evaluated: u64,
+    /// Candidates parallel evaluation evaluated ahead of the sequential
+    /// decision point in this phase and then discarded.
+    pub moves_speculative: u64,
     // Number of moves accepted in this phase.
     pub moves_accepted: u64,
     // Number of moves applied in this phase.
@@ -59,6 +65,7 @@ impl PhaseStats {
             step_count: 0,
             moves_generated: 0,
             moves_evaluated: 0,
+            moves_speculative: 0,
             moves_accepted: 0,
             moves_applied: 0,
             moves_not_doable: 0,
@@ -102,6 +109,7 @@ impl PhaseStats {
             step_count: self.step_count,
             moves_generated: self.moves_generated,
             moves_evaluated: self.moves_evaluated,
+            moves_speculative: self.moves_speculative,
             moves_accepted: self.moves_accepted,
             moves_applied: self.moves_applied,
             moves_score_improving: self.moves_score_improving(),
@@ -241,6 +249,12 @@ impl PhaseStats {
         self.score_calculations += 1;
     }
 
+    /// Records a candidate that parallel evaluation evaluated ahead of the
+    /// sequential decision point and then discarded.
+    pub fn record_move_speculative(&mut self) {
+        self.moves_speculative += 1;
+    }
+
     pub fn record_construction_slot_assigned(&mut self) {
         self.construction_slots_assigned += 1;
     }
@@ -293,6 +307,10 @@ impl PhaseStats {
 
     pub fn applied_move_trace(&self) -> &[AppliedMoveTelemetry] {
         &self.applied_move_trace
+    }
+
+    pub fn move_telemetry(&self) -> Vec<MoveTelemetry> {
+        self.move_stats.values().cloned().collect()
     }
 
     pub fn moves_score_improving(&self) -> u64 {

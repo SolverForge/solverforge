@@ -90,8 +90,8 @@ fn interrupted_clarke_wright_savings_preserves_committed_complete_assignment() {
     let mut assigned = solver_scope.working_solution().routes[0].visits.clone();
     assigned.sort_unstable();
     assert_eq!(assigned, (1..=customer_count).collect::<Vec<_>>());
-    assert_eq!(solver_scope.stats().moves_accepted, customer_count as u64);
-    assert_eq!(solver_scope.stats().moves_applied, customer_count as u64);
+    assert_eq!(solver_scope.stats().moves_accepted(), customer_count as u64);
+    assert_eq!(solver_scope.stats().moves_applied(), customer_count as u64);
     assert_eq!(
         solver_scope.terminal_reason(),
         crate::manager::SolverTerminalReason::TerminatedByConfig
@@ -138,14 +138,14 @@ fn interrupted_clarke_wright_merge_publishes_buffered_merges() {
     let mut assigned = solver_scope.working_solution().routes[0].visits.clone();
     assigned.sort_unstable();
     assert_eq!(assigned, (1..=customer_count).collect::<Vec<_>>());
-    assert!(solver_scope.stats().moves_accepted > 0);
+    assert!(solver_scope.stats().moves_accepted() > 0);
     // The buffered merges are a strictly better complete assignment than the
     // balanced seed, so an interrupted phase publishes them rather than
     // dropping them and leaving the seed as the best solution.
-    assert!(solver_scope.stats().moves_applied > customer_count as u64);
+    assert!(solver_scope.stats().moves_applied() > customer_count as u64);
     assert_eq!(
-        solver_scope.stats().moves_applied,
-        solver_scope.stats().moves_accepted
+        solver_scope.stats().moves_applied(),
+        solver_scope.stats().moves_accepted()
     );
     assert_eq!(
         solver_scope.terminal_reason(),
@@ -309,8 +309,8 @@ fn termination_before_complete_assignment_keeps_the_working_list_empty() {
     phase.solve(&mut solver_scope);
 
     assert!(solver_scope.working_solution().routes[0].visits.is_empty());
-    assert_eq!(solver_scope.stats().moves_accepted, 0);
-    assert_eq!(solver_scope.stats().moves_applied, 0);
+    assert_eq!(solver_scope.stats().moves_accepted(), 0);
+    assert_eq!(solver_scope.stats().moves_applied(), 0);
     assert_eq!(
         solver_scope.terminal_reason(),
         crate::manager::SolverTerminalReason::TerminatedByConfig
@@ -363,8 +363,8 @@ fn interrupted_clarke_wright_completion_discards_local_assignments() {
 
     assert!(completed.is_none());
     assert!(solver_scope.working_solution().routes[0].visits.is_empty());
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().moves_applied, 0);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().moves_applied(), 0);
     assert_eq!(
         solver_scope.terminal_reason(),
         crate::manager::SolverTerminalReason::TerminatedByConfig

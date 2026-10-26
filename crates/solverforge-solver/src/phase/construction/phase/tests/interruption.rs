@@ -12,10 +12,10 @@ fn time_limit_after_first_fit_selection_commits_before_termination() {
     phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().entities[0].value, Some(0));
-    assert_eq!(solver_scope.stats().moves_generated, 1);
-    assert_eq!(solver_scope.stats().moves_evaluated, 1);
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().moves_applied, 1);
+    assert_eq!(solver_scope.stats().moves_generated(), 1);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().moves_applied(), 1);
     assert_eq!(
         solver_scope.terminal_reason(),
         SolverTerminalReason::TerminatedByConfig
@@ -41,10 +41,10 @@ fn time_limit_after_first_feasible_selection_commits_before_termination() {
     phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().entities[0].value, Some(0));
-    assert_eq!(solver_scope.stats().moves_generated, 1);
-    assert_eq!(solver_scope.stats().moves_evaluated, 1);
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().moves_applied, 1);
+    assert_eq!(solver_scope.stats().moves_generated(), 1);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().moves_applied(), 1);
     assert_eq!(
         solver_scope.terminal_reason(),
         SolverTerminalReason::TerminatedByConfig
@@ -70,10 +70,10 @@ fn assert_direct_limit_commits_and_terminates(
     phase.solve(&mut solver_scope);
 
     assert_eq!(solver_scope.working_solution().entities[0].value, Some(0));
-    assert_eq!(solver_scope.stats().moves_generated, 1);
-    assert_eq!(solver_scope.stats().moves_evaluated, 1);
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().moves_applied, 1);
+    assert_eq!(solver_scope.stats().moves_generated(), 1);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().moves_applied(), 1);
     assert_eq!(
         solver_scope.terminal_reason(),
         SolverTerminalReason::TerminatedByConfig
@@ -120,10 +120,10 @@ fn shared_move_budget_commits_selection_before_child_termination() {
     phase.solve(&mut child_scope);
 
     assert_eq!(child_scope.working_solution().entities[0].value, Some(0));
-    assert_eq!(child_scope.stats().moves_generated, 1);
-    assert_eq!(child_scope.stats().moves_evaluated, 1);
-    assert_eq!(child_scope.stats().moves_accepted, 1);
-    assert_eq!(child_scope.stats().moves_applied, 1);
+    assert_eq!(child_scope.stats().moves_generated(), 1);
+    assert_eq!(child_scope.stats().moves_evaluated(), 1);
+    assert_eq!(child_scope.stats().moves_accepted(), 1);
+    assert_eq!(child_scope.stats().moves_applied(), 1);
     assert_eq!(
         child_scope.terminal_reason(),
         SolverTerminalReason::TerminatedByConfig
@@ -146,8 +146,8 @@ fn cancellation_after_decisive_evaluation_keeps_the_committed_selection() {
             phase.solve(&mut solver_scope);
 
             assert_eq!(solver_scope.working_solution().entities[0].value, Some(0));
-            assert_eq!(solver_scope.stats().moves_generated, 1);
-            assert_eq!(solver_scope.stats().moves_applied, 1);
+            assert_eq!(solver_scope.stats().moves_generated(), 1);
+            assert_eq!(solver_scope.stats().moves_applied(), 1);
             assert_eq!(solver_scope.terminal_reason(), SolverTerminalReason::Cancelled);
         });
 

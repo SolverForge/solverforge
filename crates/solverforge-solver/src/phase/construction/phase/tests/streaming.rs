@@ -118,11 +118,11 @@ fn first_fit_stops_after_the_decisive_candidate() {
 
     assert_eq!(pulls.load(Ordering::SeqCst), 1);
     assert_eq!(solver_scope.working_solution().entities[0].value, Some(0));
-    assert_eq!(solver_scope.stats().moves_generated, 1);
-    assert_eq!(solver_scope.stats().moves_evaluated, 1);
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().moves_applied, 1);
-    assert_eq!(solver_scope.stats().score_calculations, 1);
+    assert_eq!(solver_scope.stats().moves_generated(), 1);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().moves_applied(), 1);
+    assert_eq!(solver_scope.stats().score_calculations(), 1);
 }
 
 #[test]
@@ -147,9 +147,9 @@ fn first_feasible_stops_after_the_decisive_candidate() {
 
     assert_eq!(pulls.load(Ordering::SeqCst), 1);
     assert_eq!(solver_scope.working_solution().entities[0].value, Some(0));
-    assert_eq!(solver_scope.stats().moves_generated, 1);
-    assert_eq!(solver_scope.stats().moves_evaluated, 1);
-    assert_eq!(solver_scope.stats().moves_accepted, 1);
-    assert_eq!(solver_scope.stats().moves_applied, 1);
-    assert_eq!(solver_scope.stats().score_calculations, 2);
+    assert_eq!(solver_scope.stats().moves_generated(), 1);
+    assert_eq!(solver_scope.stats().moves_evaluated(), 1);
+    assert_eq!(solver_scope.stats().moves_accepted(), 1);
+    assert_eq!(solver_scope.stats().moves_applied(), 1);
+    assert_eq!(solver_scope.stats().score_calculations(), 2);
 }

@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
+use smallvec::SmallVec;
+
 use super::{
     AppliedMoveTelemetry, CandidatePullTelemetry, CandidateTraceDisposition,
     CandidateTracePhasePlan, CandidateTracePullToken, CandidateTraceRecordDecision,
@@ -13,8 +15,10 @@ use super::{
 Every counter is recorded exactly once, into the phase that is running, or
 into the solve-wide accumulator when no phase is (the initial score
 calculation, for example). A finished phase folds into that accumulator and
-keeps a frozen snapshot, so run totals are always the accumulator plus the
-running phase, and the per-phase records always sum to them.
+moves into the finished list, so run totals are always the accumulator plus
+the running phase, and the per-phase records always sum to them. Finished
+phases stay `PhaseStats` until a snapshot asks for them, and the list keeps a
+typical solve's phases inline, so closing a phase never allocates.
 */
 #[derive(Debug)]
 pub struct SolverStats {
@@ -22,10 +26,20 @@ pub struct SolverStats {
     pause_started_at: Option<Instant>,
     // Work outside any phase plus every finished phase, folded together.
     folded: PhaseStats,
-    finished_phases: Vec<PhaseTelemetry>,
+    finished_phases: SmallVec<[FinishedPhase; INLINE_PHASES]>,
     current_phase: Option<RunningPhase>,
     scalar_assignment_required_remaining_by_group: BTreeMap<&'static str, u64>,
     candidate_trace: Option<CandidateTraceTelemetry>,
+}
+
+// Phases a solve keeps without allocating: construction, local search, and
+// room for a construction or improvement phase on each side.
+const INLINE_PHASES: usize = 4;
+
+#[derive(Debug)]
+struct FinishedPhase {
+    stats: PhaseStats,
+    elapsed: Duration,
 }
 
 #[derive(Debug)]
@@ -41,7 +55,7 @@ impl Default for SolverStats {
             start_time: None,
             pause_started_at: None,
             folded: PhaseStats::new(0, "Solve"),
-            finished_phases: Vec::new(),
+            finished_phases: SmallVec::new(),
             current_phase: None,
             scalar_assignment_required_remaining_by_group: BTreeMap::new(),
             candidate_trace: None,
@@ -131,8 +145,12 @@ impl SolverStats {
     /// Freezes the running phase's record and folds it into the run totals.
     pub fn end_phase(&mut self) {
         if let Some(phase) = self.current_phase.take() {
-            self.finished_phases.push(self.phase_snapshot(&phase));
+            let elapsed = self.running_elapsed(&phase);
             self.folded.absorb(&phase.stats);
+            self.finished_phases.push(FinishedPhase {
+                stats: phase.stats,
+                elapsed,
+            });
         }
     }
 
@@ -164,12 +182,6 @@ impl SolverStats {
             (Some(started_at), Some(now)) => now.saturating_sub(started_at),
             _ => phase.stats.elapsed(),
         }
-    }
-
-    fn phase_snapshot(&self, phase: &RunningPhase) -> PhaseTelemetry {
-        phase
-            .stats
-            .snapshot_with_elapsed(self.running_elapsed(phase))
     }
 
     run_totals!(
@@ -339,10 +351,18 @@ impl SolverStats {
         include_applied_move_trace: bool,
     ) -> SolverTelemetry {
         let mut totals = self.folded.clone();
-        let mut phases = self.finished_phases.clone();
+        let mut phases: Vec<PhaseTelemetry> = self
+            .finished_phases
+            .iter()
+            .map(|phase| phase.stats.snapshot_with_elapsed(phase.elapsed))
+            .collect();
         if let Some(phase) = &self.current_phase {
             totals.absorb(&phase.stats);
-            phases.push(self.phase_snapshot(phase));
+            phases.push(
+                phase
+                    .stats
+                    .snapshot_with_elapsed(self.running_elapsed(phase)),
+            );
         }
         SolverTelemetry {
             elapsed: self.elapsed(),

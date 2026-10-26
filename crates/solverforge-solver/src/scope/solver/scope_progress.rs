@@ -56,6 +56,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     }
 
     pub(crate) fn report_phase_progress(&self) {
+        if !ProgressCb::PUBLISHES_PROGRESS {
+            return;
+        }
         let best_score = self
             .best_solution_publication_enabled
             .then_some(self.best_score.as_ref())

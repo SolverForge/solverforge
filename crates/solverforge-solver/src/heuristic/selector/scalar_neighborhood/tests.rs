@@ -1,4 +1,5 @@
 use std::any::TypeId;
+use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -14,12 +15,13 @@ use crate::heuristic::selector::{
     DynamicScalarNearbyChangeMoveSelector, DynamicScalarNearbySwapMoveSelector, MoveSelector,
 };
 
-static VALUE_SOURCE_LIMIT: AtomicUsize = AtomicUsize::new(usize::MAX);
-static ENTITY_SOURCE_LIMIT: AtomicUsize = AtomicUsize::new(usize::MAX);
-static ENTITY_SOURCE_CALLS: AtomicUsize = AtomicUsize::new(0);
-
+// Per-thread probes: the test harness runs tests concurrently, and every test
+// here drives the same nearby-source callbacks on its own thread.
 thread_local! {
-    static SOLUTION_CLONES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static SOLUTION_CLONES: Cell<usize> = const { Cell::new(0) };
+    static VALUE_SOURCE_LIMIT: Cell<usize> = const { Cell::new(usize::MAX) };
+    static ENTITY_SOURCE_LIMIT: Cell<usize> = const { Cell::new(usize::MAX) };
+    static ENTITY_SOURCE_CALLS: Cell<usize> = const { Cell::new(0) };
 }
 
 #[derive(Debug)]
@@ -95,7 +97,7 @@ impl DynamicScalarAccess<Plan> for RowFallbackAccess {
         limit: usize,
         _visit: &mut dyn FnMut(usize),
     ) -> bool {
-        VALUE_SOURCE_LIMIT.store(limit, Ordering::SeqCst);
+        VALUE_SOURCE_LIMIT.with(|seen| seen.set(limit));
         false
     }
 
@@ -114,8 +116,8 @@ impl DynamicScalarAccess<Plan> for RowFallbackAccess {
         limit: usize,
         _visit: &mut dyn FnMut(usize),
     ) -> bool {
-        ENTITY_SOURCE_LIMIT.store(limit, Ordering::SeqCst);
-        ENTITY_SOURCE_CALLS.fetch_add(1, Ordering::SeqCst);
+        ENTITY_SOURCE_LIMIT.with(|seen| seen.set(limit));
+        ENTITY_SOURCE_CALLS.with(|calls| calls.set(calls.get() + 1));
         false
     }
 
@@ -239,7 +241,7 @@ fn scalar_cursor_open_and_enumeration_never_clone_the_solution() {
 
 #[test]
 fn dynamic_nearby_change_uses_the_ordinary_row_fallback_with_the_source_limit() {
-    VALUE_SOURCE_LIMIT.store(usize::MAX, Ordering::SeqCst);
+    VALUE_SOURCE_LIMIT.with(|seen| seen.set(usize::MAX));
     let director = director(Plan {
         values: vec![Some(0)],
         candidates: vec![0, 2, 1],
@@ -250,7 +252,7 @@ fn dynamic_nearby_change_uses_the_ordinary_row_fallback_with_the_source_limit() 
 
     let moves = selector.iter_moves(&director).collect::<Vec<_>>();
 
-    assert_eq!(VALUE_SOURCE_LIMIT.load(Ordering::SeqCst), 2);
+    assert_eq!(VALUE_SOURCE_LIMIT.with(Cell::get), 2);
     assert_eq!(moves.len(), 1);
     assert_eq!(moves[0].entity_index(), 0);
     assert_eq!(moves[0].to_value(), Some(2));
@@ -258,8 +260,8 @@ fn dynamic_nearby_change_uses_the_ordinary_row_fallback_with_the_source_limit() 
 
 #[test]
 fn dynamic_nearby_swap_uses_the_finite_all_entity_row_fallback() {
-    ENTITY_SOURCE_LIMIT.store(usize::MAX, Ordering::SeqCst);
-    ENTITY_SOURCE_CALLS.store(0, Ordering::SeqCst);
+    ENTITY_SOURCE_LIMIT.with(|seen| seen.set(usize::MAX));
+    ENTITY_SOURCE_CALLS.with(|calls| calls.set(0));
     let director = director(Plan {
         values: vec![Some(0), Some(1), Some(2)],
         candidates: vec![0, 1, 2],
@@ -273,8 +275,8 @@ fn dynamic_nearby_swap_uses_the_finite_all_entity_row_fallback() {
         .map(|mov| (mov.left_entity_index(), mov.right_entity_index()))
         .collect::<Vec<_>>();
 
-    assert_eq!(ENTITY_SOURCE_CALLS.load(Ordering::SeqCst), 3);
-    assert_eq!(ENTITY_SOURCE_LIMIT.load(Ordering::SeqCst), 3);
+    assert_eq!(ENTITY_SOURCE_CALLS.with(Cell::get), 3);
+    assert_eq!(ENTITY_SOURCE_LIMIT.with(Cell::get), 3);
     assert_eq!(pairs, vec![(0, 1), (1, 0), (2, 1)]);
 }
 

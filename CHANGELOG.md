@@ -1,6 +1,39 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.23.0](https://github.com/SolverForge/solverforge/compare/v0.22.0...v0.23.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **solver:** SolverTelemetry.phase is replaced by phases, one
+* **solver:** lend tabu signatures through one Cow-returning method
+* **bridge:** make DynamicScore a plain three-level value
+* **scoring:** score list-shadow writes as element mutations
+
+### Features
+
+* **core:** let solutions report the elements their list shadows write ([6070255](https://github.com/SolverForge/solverforge/commit/60702556995dae614455b48130cc7d3fcb26cc28))
+* **scoring:** fork evaluator replicas from ScoreDirector ([04f0c25](https://github.com/SolverForge/solverforge/commit/04f0c2545961270074f9046388ffaf456541f270))
+* **solver:** build constraint sets from a constructor at every solve entry ([f3e5286](https://github.com/SolverForge/solverforge/commit/f3e52863c71b0f6ebae5b90bc80e6fe9142b5a0d))
+* **solver:** drive acceptor-forager evaluation from move_thread_count ([8296c15](https://github.com/SolverForge/solverforge/commit/8296c15e0afc74a4234312ee3d516010f27cd7dd))
+* **solver:** parallel evaluation windows for acceptor-forager local search ([6deae36](https://github.com/SolverForge/solverforge/commit/6deae36d47ffd253c29cb4e7cbe97720ee37cc47))
+* **solver:** report speculative evaluation in telemetry and candidate traces ([c644bbe](https://github.com/SolverForge/solverforge/commit/c644bbed12a590992719908a16855828621effbe))
+* **solver:** size parallel evaluation windows from the step's consumption ([cca8334](https://github.com/SolverForge/solverforge/commit/cca8334979283c968f2f3e113c62da83c8f841cf))
+
+
+### Bug Fixes
+
+* **bridge:** make DynamicScore a plain three-level value ([b27c793](https://github.com/SolverForge/solverforge/commit/b27c79344aff4f662ebc7ceb8ea96abaf341ffa7))
+* **ci:** keep UI fixture builds inside the workspace ([f898f77](https://github.com/SolverForge/solverforge/commit/f898f7785b2e263b551daef2fb3aa8197ebfe7f6))
+* **ci:** override runner target directory per Cargo process ([6885b12](https://github.com/SolverForge/solverforge/commit/6885b12aa5c44b440c7a247fdd51f0c3ef991bf9))
+* **scoring:** score list-shadow writes as element mutations ([8e20b1f](https://github.com/SolverForge/solverforge/commit/8e20b1f9d9ab2d3b620b760daa8c140233fe3714))
+* **solver:** cap the evaluator pool at one full window ([e94bc3f](https://github.com/SolverForge/solverforge/commit/e94bc3f499c3500b4e05fe707eb2b01b5fd5142e))
+* **solver:** read the selector gate's generated-move count through its method ([a5c181a](https://github.com/SolverForge/solverforge/commit/a5c181a47dc42d5fbedba455e6643824436dc9d9))
+* **solver:** record solve statistics once, per phase ([8ae3bd9](https://github.com/SolverForge/solverforge/commit/8ae3bd9ca8677f2dc8634031809fb20eae22f8d8))
+* **solver:** recycle K-opt undo journals through the compiled runtime carrier ([0ddb843](https://github.com/SolverForge/solverforge/commit/0ddb843d428bd09f1d26f7fbe32f19e41a421097))
+
+
 ## [0.22.0](https://github.com/SolverForge/solverforge/compare/v0.21.3...v0.22.0) (2026-10-18)
 
 

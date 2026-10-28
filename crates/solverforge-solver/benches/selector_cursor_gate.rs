@@ -451,12 +451,11 @@ fn ruin() {
 
 include!("selector_cursor_gate/construction_cases.rs");
 
+include!("selector_cursor_gate/case_dispatch.rs");
+
 fn main() {
     let runtime_case = std::env::args().nth(1).unwrap_or_else(|| "all".to_string());
-    // The zero-regression gate supplies this at compile time so each selector is
-    // measured in an independently linked executable. That prevents unrelated
-    // selector code layout from perturbing branch-predictor and cache counters.
-    let case = option_env!("SOLVERFORGE_BENCH_CASE").unwrap_or(runtime_case.as_str());
+    let case = BUILD_CASE.unwrap_or(runtime_case.as_str());
     let iteration_count = std::env::args()
         .nth(2)
         .map(|value| {
@@ -469,40 +468,21 @@ fn main() {
     ITERATIONS
         .set(iteration_count)
         .expect("benchmark iterations must only be set once");
-    let run = |name: &str, function: fn()| {
-        if case == "all" || case == name {
-            function();
-        }
-    };
-    run("list_change", list_change);
-    run("list_swap", list_swap);
-    run("nearby_change", nearby_change);
-    run("nearby_swap", nearby_swap);
-    run("sublist_change", sublist_change);
-    run("sublist_swap", sublist_swap);
-    run("filtering", filtering);
-    run("cartesian", cartesian);
-    run("k_opt", k_opt);
-    run("ruin", ruin);
-    run("construction_full", construction_full);
-    run("construction_first_fit", construction_first_fit);
+    let mut matched = false;
+    run_case!(case, matched, "list_change", list_change);
+    run_case!(case, matched, "list_swap", list_swap);
+    run_case!(case, matched, "nearby_change", nearby_change);
+    run_case!(case, matched, "nearby_swap", nearby_swap);
+    run_case!(case, matched, "sublist_change", sublist_change);
+    run_case!(case, matched, "sublist_swap", sublist_swap);
+    run_case!(case, matched, "filtering", filtering);
+    run_case!(case, matched, "cartesian", cartesian);
+    run_case!(case, matched, "k_opt", k_opt);
+    run_case!(case, matched, "ruin", ruin);
+    run_case!(case, matched, "construction_full", construction_full);
+    run_case!(case, matched, "construction_first_fit", construction_first_fit);
     assert!(
-        case == "all"
-            || matches!(
-                case,
-                "list_change"
-                    | "list_swap"
-                    | "nearby_change"
-                    | "nearby_swap"
-                    | "sublist_change"
-                    | "sublist_swap"
-                    | "filtering"
-                    | "cartesian"
-                    | "k_opt"
-                    | "ruin"
-                    | "construction_full"
-                    | "construction_first_fit"
-            ),
+        matched || case == "all",
         "unknown selector benchmark case `{case}`"
     );
 }

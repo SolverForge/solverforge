@@ -163,6 +163,7 @@ impl<const H: usize, const S: usize> Score for BendableScore<H, S> {
         BendableScore { hard, soft }
     }
 
+    #[inline]
     fn scale(&self, factor: i64) -> Self {
         BendableScore {
             hard: self.hard.map(|level| super::scale_level(level, factor)),

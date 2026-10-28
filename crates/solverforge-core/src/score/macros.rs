@@ -66,8 +66,19 @@ macro_rules! impl_score_scale {
             $type::$ctor( $( (self.$field as f64 / divisor).round() as i64 ),+ )
         }
 
+        #[inline]
         fn scale(&self, factor: i64) -> Self {
-            $type::$ctor( $( $crate::score::scale_level(self.$field, factor) ),+ )
+            // Every level multiplies unconditionally and one branch checks them all.
+            let mut overflow = false;
+            let scaled = $type::$ctor( $( {
+                let (level, wrapped) = self.$field.overflowing_mul(factor);
+                overflow |= wrapped;
+                level
+            } ),+ );
+            if overflow {
+                $crate::score::scale_overflow(factor);
+            }
+            scaled
         }
 
         fn abs(&self) -> Self {

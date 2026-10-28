@@ -1,3 +1,5 @@
 [toolchain]
-channel = "stable"
+# Exact toolchain for CI, the release pipeline and local builds. Bump it
+# deliberately so a new stable release cannot fail a tag that passed CI.
+channel = "1.99.1"
 components = ["clippy", "rustfmt"]

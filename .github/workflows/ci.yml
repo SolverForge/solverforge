@@ -5,6 +5,9 @@ on:
     branches: [main, dev, release/*, feature/*]
   pull_request:
     branches: [main, dev, release/*]
+  # The Release workflow runs this same CI on the tagged commit before it
+  # publishes anything.
+  workflow_call:
 
 env:
   CARGO_TERM_COLOR: always
@@ -56,9 +59,11 @@ jobs:
         run: echo "RUSTFLAGS=-C link-arg=-undefined -C link-arg=dynamic_lookup" >> $GITHUB_ENV
 
       - name: Install Rust
+        shell: bash
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          toolchain=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$toolchain" --component clippy,rustfmt
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Cache cargo
         uses: actions/cache@v5
@@ -115,9 +120,11 @@ jobs:
           python3 -c 'import sysconfig; print("LIBDIR:", sysconfig.get_config_var("LIBDIR")); print("LDLIBRARY:", sysconfig.get_config_var("LDLIBRARY"))'
 
       - name: Install Rust
+        shell: bash
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          toolchain=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$toolchain" --component clippy,rustfmt
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Cache cargo
         uses: actions/cache@v5

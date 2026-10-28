@@ -450,6 +450,7 @@ fn ruin() {
 }
 
 include!("selector_cursor_gate/construction_cases.rs");
+include!("selector_cursor_gate/scoring_cases.rs");
 
 include!("selector_cursor_gate/case_dispatch.rs");
 
@@ -481,6 +482,9 @@ fn main() {
     run_case!(case, matched, "ruin", ruin);
     run_case!(case, matched, "construction_full", construction_full);
     run_case!(case, matched, "construction_first_fit", construction_first_fit);
+    run_case!(case, matched, "scoring", scoring);
+    run_case!(case, matched, "scoring_weights_one", scoring_weights_one);
+    run_case!(case, matched, "scoring_weights_mixed", scoring_weights_mixed);
     assert!(
         matched || case == "all",
         "unknown selector benchmark case `{case}`"

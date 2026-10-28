@@ -830,7 +830,11 @@ noisy wall-time and hardware-counter medians against the documented
 harness sides share one package name so identical sources produce identical
 symbol mangling and code layout, and the report records per-case `.text`
 SHA-256 fingerprints for both binaries. A host that cannot run the
-controlled gate has not completed release qualification.
+controlled gate has not completed release qualification. The default cases
+exercise selectors against an empty constraint set; the opt-in
+`BENCH_CASES="scoring scoring_weights_one scoring_weights_mixed"` cases measure
+incremental scoring churn through uni, join, shared grouped, and balance
+constraints, with and without runtime constraint weights.
 
 ## Status
 

@@ -20,6 +20,10 @@ MEASURE_ITERATIONS=${MEASURE_ITERATIONS:-32}
 CARTESIAN_MEASURE_ITERATIONS=${CARTESIAN_MEASURE_ITERATIONS:-256}
 TOOLCHAIN=${TOOLCHAIN:-1.95.0}
 RESULTS=${RESULTS:-"/tmp/solverforge-zero-regression-$(date +%Y%m%d-%H%M%S)"}
+# Opt-in scoring cases (not in the default selector set): BENCH_CASES="scoring
+# scoring_weights_one scoring_weights_mixed" measures incremental score-director
+# churn through uni, join, shared grouped, and balance constraints; see
+# crates/solverforge-solver/benches/selector_cursor_gate/scoring_cases.rs.
 DEFAULT_CASES=(list_change list_swap nearby_change nearby_swap sublist_change sublist_swap filtering cartesian k_opt ruin construction_full construction_first_fit)
 if [[ -n ${BENCH_CASES:-} ]]; then
     read -r -a CASES <<<"$BENCH_CASES"
@@ -128,6 +132,10 @@ publish = false
 
 [features]
 candidate = []
+# Enables the scoring cases' runtime constraint-weight variants; set only for
+# the candidate side of scoring_weights_* cases, so baselines without the weight
+# API still compile and no other case links the extra code.
+constraint_weights = []
 
 [[bin]]
 name = "selector_cursor_gate"
@@ -157,7 +165,11 @@ build_case_binary() {
     local manifest="$RESULTS/harnesses/$side/Cargo.toml"
     local target="$RESULTS/targets/$side"
     local feature_args=()
-    if [[ $side == candidate || ($side == baseline && $BASELINE_CURSOR_API == 1) ]]; then
+    if [[ $side == candidate && $case_name == scoring_weights_* ]]; then
+        # Only the weighted scoring cases compile the weight API, so every
+        # other case links the same harness code on both sides.
+        feature_args=(--features "candidate constraint_weights")
+    elif [[ $side == candidate || $BASELINE_CURSOR_API == 1 ]]; then
         feature_args=(--features candidate)
     fi
     SOLVERFORGE_BENCH_CASE="$case_name" CARGO_TARGET_DIR="$target" \

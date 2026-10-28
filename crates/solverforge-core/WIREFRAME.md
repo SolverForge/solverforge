@@ -8,13 +8,14 @@ Core types and traits for the SolverForge constraint solver framework.
 ## Dependencies
 
 - `thiserror` (workspace) — error derive macros
-- `serde` (workspace, optional, feature-gated) — serialization for score types
+- `serde` (workspace, optional, feature-gated) — serialization for score types and `ConstraintWeights`
+- `toml` (workspace, dev-dependency) — serde round-trip tests
 
 | Feature | Effect |
 |---------|--------|
 | `default` | Empty default feature set |
 | `decimal` | Currently empty forwarded feature; `HardSoftDecimalScore` is always available with fixed-scale `i64` storage |
-| `serde` | Enables `Serialize` / `Deserialize` for score types |
+| `serde` | Enables `Serialize` / `Deserialize` for score types and `ConstraintWeights` (a transparent name-to-multiplier map) |
 
 ## File Map
 

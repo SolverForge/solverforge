@@ -111,3 +111,16 @@ fn constraint_weights_validate_reports_empty_known_set() {
     let message = weights.validate(&[]).unwrap_err().to_string();
     assert!(message.ends_with("known constraints: none"), "{message}");
 }
+
+#[cfg(feature = "serde")]
+#[test]
+fn constraint_weights_serialize_as_a_transparent_sorted_map() {
+    let mut weights = ConstraintWeights::new();
+    weights.set("Travel", 10).set("Overtime", 0);
+
+    let text = toml::to_string(&weights).expect("weights serialize");
+    assert_eq!(text, "Overtime = 0\nTravel = 10\n");
+    let parsed: ConstraintWeights = toml::from_str(&text).expect("weights deserialize");
+    assert_eq!(parsed, weights);
+    assert!(toml::from_str::<ConstraintWeights>("Travel = -1\n").is_err());
+}

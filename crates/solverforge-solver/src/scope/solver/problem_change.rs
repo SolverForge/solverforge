@@ -93,7 +93,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 
     /// Applies one drained batch in submission order and fully rescores.
     /// A change that installs invalid constraint weights fails before the
-    /// rescore binds them.
+    /// rescore binds them. When the changed weights need the other weight
+    /// mode, the rescore is deferred to `switch_score_director` and this
+    /// returns `None`.
     ///
     /// The batch starts from the published best solution when there is one,
     /// otherwise from the working solution so in-progress construction is
@@ -103,7 +105,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     pub(crate) fn apply_problem_changes(
         &mut self,
         changes: Vec<Box<dyn ProblemChange<S>>>,
-    ) -> RuntimeBuildResult<S::Score> {
+    ) -> RuntimeBuildResult<Option<S::Score>> {
         let applied = changes.len() as u64;
         let best = if self.best_solution_publication_enabled {
             self.best_solution.take()
@@ -131,8 +133,12 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.defer_best_solution_publication();
         self.stats.record_problem_changes_applied(applied);
         validate_director_constraint_weights(&self.score_director)?;
+        if self.weight_mode_switch_required()? {
+            self.weight_mode_switch_pending = true;
+            return Ok(None);
+        }
         let score = self.calculate_score();
         self.report_progress();
-        Ok(score)
+        Ok(Some(score))
     }
 }

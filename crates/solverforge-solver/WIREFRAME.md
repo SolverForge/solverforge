@@ -25,7 +25,8 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 ```
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
-├── solver.rs                            — Solver struct, SolveResult, impl_solver! macro
+├── solver.rs                            — Solver struct, SolveResult
+├── solver/session.rs                    — impl_solver! macro: Solver::solve as start/run/finish of a crate-private SolveSession that can switch directors
 ├── runtime.rs                           — List-variable metadata plus the sole immutable compiled runtime-graph entrypoint
 ├── runtime/compiler/                    — Immutable runtime-graph compiler, prepared runner, default policy, and executor kernels; every reached source-backed construction boundary validates stable element keys against the frozen declared stream before deciding whether work remains
 ├── runtime/compiler/executor/completion.rs — Structural mandatory-work gate and deferred best-solution publication
@@ -49,7 +50,8 @@ src/
 │   ├── selectors/dispatch.rs            — Descriptor selector dispatch root
 │   ├── selectors/dispatch/*.rs          — Descriptor selector dispatch build/type chunks
 │   └── tests/mod.rs                     — Descriptor test root with support, selector, cartesian, pillar, nearby, and ruin-recreate chunks under `tests/mod/`
-├── run.rs                               — AnyTermination, ChannelProgressCallback, build_termination(), log_solve_start(), and try_run_solver_with_config_and_search()
+├── run.rs                               — AnyTermination, ChannelProgressCallback, build_termination(), log_solve_start(), try_run_solver_with_config_and_search(), and hidden try_run_weighted_solver_with_config_and_search()
+├── run/weight_modes.rs                  — Per-solve weight-mode choice and the director-switching solve loop
 ├── run_tests.rs                         — Tests
 ├── runtime_build_error.rs               — Public RuntimeBuildError and RuntimeBuildResult declaration/compiler/constraint-weight/preparation/execution boundary
 ├── constraint_weights.rs                — Crate-private validation of a solution's constraint weights at solve start and after problem changes
@@ -394,10 +396,12 @@ src/
 │   ├── solver/scope_core.rs             — Core SolverScope construction, shared phase progress pulse, runtime publication, lifecycle control, mutation, and child-scope helpers
 │   ├── solver/scope_progress.rs         — SolverScope score/best-solution/progress/stat reporting helpers
 │   ├── solver/problem_change.rs         — Pending problem-change control, queue drain/close, and batch application
+│   ├── solver/weight_mode.rs            — Crate-private weight-mode control: switch detection after a change and moving the scope onto a rebuilt director
 │   ├── phase.rs                         — PhaseScope<'t, 'a, S, D, BestCb = ()>
 │   ├── step.rs                          — StepScope<'t, 'a, 'b, S, D, BestCb = ()>
 │   ├── tests.rs                         — Tests
-│   └── tests/problem_change.rs          — Problem-change control priority, child yield, and application tests
+│   ├── tests/problem_change.rs          — Problem-change control priority, child yield, and application tests
+│   └── tests/weight_mode.rs             — Weight-mode switch requests, deferred rescore, and unweighted-only failure
 │
 ├── termination/
 │   ├── mod.rs                           — Termination<S, D, BestCb = ()> trait, re-exports
@@ -1870,8 +1874,16 @@ It scores on an `UnweightedMode` director and fails with
 weighting (`requires_weighted_mode`). The doc-hidden
 `try_run_weighted_solver_with_config_and_search(...)`, with the same
 signature, is the entrypoint `#[planning_solution]` emits for types with a
-`#[constraint_weights]` field; it scores on a `WeightedMode` director. Only
-models that name it monomorphize the weighted solver. Graph
+`#[constraint_weights]` field. It chooses the director's weight mode once per
+solve: `WeightedMode` when some multiplier differs from `1`, otherwise
+`UnweightedMode`, which runs exactly the unweighted scoring code. When an
+applied problem change needs the other mode, the solve stops before
+rescoring, rebuilds the director in that mode from the changed working
+solution, moves the whole solve state onto it (statistics and clock,
+configured limits and termination state, RNG, candidate trace, runtime and
+publication state, runner state), rescores, and resumes the pass; lifecycle
+events are emitted exactly as without a switch. Only models that name it
+monomorphize the weighted solver. Graph
 compilation and solve-owned source preparation remain private; there is no
 public graph or alternate phase-builder fallback.
 

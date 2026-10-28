@@ -385,7 +385,7 @@ and uses source indexes rather than payload equality or hashing.
 - `PhaseFactory`, `SolverFactory`
 - `ProgressCallback`, `SolverScope`
 - `SolverRuntime`, `SolverEvent`, `SolverTelemetry`
-- `log_solve_start`, `RuntimeBuildError`, `RuntimeBuildResult`, `try_run_solver_with_config_and_search`
+- `log_solve_start`, `RuntimeBuildError`, `RuntimeBuildResult`, `try_run_solver_with_config_and_search`, `try_run_weighted_solver_with_config_and_search`
 - `ListVariableEntity`, `ListVariableMetadata`
 - `PlanningModelSupport`
 

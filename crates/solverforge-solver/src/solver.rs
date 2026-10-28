@@ -13,6 +13,7 @@ use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::Phase;
 use crate::scope::ProgressCallback;
 use crate::scope::SolverScope;
+use crate::scope::WeightModeControl;
 use crate::stats::{
     CandidateTraceExecutionPolicy, CandidateTraceHeader, CandidateTracePhasePlan,
     QualifiedCandidateTraceRunProvenance, SolverStats,
@@ -105,6 +106,8 @@ pub struct Solver<'t, P, T, S: PlanningSolution, D, ProgressCb = ()> {
     time_limit: Option<Duration>,
     // Callback invoked when the solver should publish progress.
     progress_callback: ProgressCb,
+    // How problem changes may switch the director's constraint weight mode.
+    weight_mode_control: WeightModeControl,
     _phantom: PhantomData<fn(S, D)>,
 }
 
@@ -134,6 +137,7 @@ where
             candidate_trace_qualified_run_provenance: None,
             time_limit: None,
             progress_callback: (),
+            weight_mode_control: WeightModeControl::Fixed,
             _phantom: PhantomData,
         }
     }
@@ -149,6 +153,7 @@ where
             candidate_trace_qualified_run_provenance: self.candidate_trace_qualified_run_provenance,
             time_limit: self.time_limit,
             progress_callback: self.progress_callback,
+            weight_mode_control: self.weight_mode_control,
             _phantom: PhantomData,
         }
     }
@@ -172,6 +177,7 @@ where
             candidate_trace_qualified_run_provenance: self.candidate_trace_qualified_run_provenance,
             time_limit: self.time_limit,
             progress_callback: self.progress_callback,
+            weight_mode_control: self.weight_mode_control,
             _phantom: PhantomData,
         }
     }
@@ -224,6 +230,7 @@ where
             candidate_trace_qualified_run_provenance: self.candidate_trace_qualified_run_provenance,
             time_limit: self.time_limit,
             progress_callback: callback,
+            weight_mode_control: self.weight_mode_control,
             _phantom: PhantomData,
         }
     }
@@ -234,6 +241,11 @@ where
 
     pub(crate) fn with_runtime(mut self, runtime: SolverRuntime<S>) -> Self {
         self.runtime = Some(runtime);
+        self
+    }
+
+    pub(crate) fn with_weight_mode_control(mut self, control: WeightModeControl) -> Self {
+        self.weight_mode_control = control;
         self
     }
 }
@@ -308,167 +320,6 @@ where
     }
 }
 
-macro_rules! impl_solver {
-    ($($idx:tt: $P:ident),+) => {
-        impl<'t, S, D, T, ProgressCb, $($P),+> Solver<'t, ($($P,)+), T, S, D, ProgressCb>
-        where
-            S: PlanningSolution,
-            D: Director<S>,
-            T: MaybeTermination<S, D, ProgressCb>,
-            ProgressCb: ProgressCallback<S>,
-            $($P: Phase<S, D, ProgressCb>,)+
-        {
-            /// Solves using the provided score director.
-            ///
-            /// Returns a `SolveResult` containing the best solution found
-            /// and comprehensive solver statistics.
-            pub fn solve(self, score_director: D) -> SolveResult<S> {
-                let Solver {
-                    mut phases,
-                    mut termination,
-                    terminate,
-                    runtime,
-                    config,
-                    candidate_trace_execution_policy,
-                    candidate_trace_qualified_run_provenance,
-                    time_limit,
-                    progress_callback,
-                    ..
-                } = self;
-
-                let mut solver_scope = SolverScope::new_with_callback(
-                    score_director,
-                    progress_callback,
-                    terminate,
-                    runtime,
-                );
-                if let Some(trace_config) = config.as_ref().and_then(|config| config.candidate_trace) {
-                    let phase_children = vec![$(phases.$idx.candidate_trace_plan(),)+];
-                    let resolved_phase_plan = CandidateTracePhasePlan::known(
-                        "solverforge.solver",
-                        [("top_level_phase_count", phase_children.len().to_string())],
-                        phase_children,
-                    );
-                    let configured_input = config
-                        .as_ref()
-                        .expect("candidate trace configuration requires SolverConfig")
-                        .canonical_toml();
-                    let execution_policy = candidate_trace_execution_policy.unwrap_or_else(|| {
-                        CandidateTraceExecutionPolicy::opaque_with_attributes(
-                            "solverforge.execution_policy.direct_generic_termination",
-                            [(
-                                "solver_with_time_limit_ns",
-                                time_limit.map_or_else(
-                                    || "none".to_string(),
-                                    |limit| limit.as_nanos().to_string(),
-                                ),
-                            )],
-                        )
-                    });
-                    let header = match candidate_trace_qualified_run_provenance {
-                        Some(provenance) => CandidateTraceHeader::new_qualified(
-                            configured_input,
-                            execution_policy,
-                            resolved_phase_plan,
-                            provenance,
-                        ),
-                        None => CandidateTraceHeader::new(
-                            configured_input,
-                            execution_policy,
-                            resolved_phase_plan,
-                            None,
-                        ),
-                    };
-                    solver_scope.enable_candidate_trace(header, trace_config.max_entries.get());
-                }
-                if let Some(environment_mode) = config.as_ref().map(|cfg| cfg.environment_mode) {
-                    solver_scope = solver_scope.with_environment_mode(environment_mode);
-                }
-                if let Some(seed) = config.as_ref().and_then(|cfg| cfg.random_seed) {
-                    solver_scope = solver_scope.with_seed(seed);
-                }
-                if let Some(limit) = time_limit {
-                    solver_scope.set_time_limit(limit);
-                }
-                if false $(|| phases.$idx.defers_initial_best_solution_publication())+ {
-                    solver_scope.defer_best_solution_publication();
-                }
-                solver_scope.initialize_working_solution_as_best();
-                solver_scope.report_best_solution();
-                solver_scope.pause_if_requested();
-
-                // Install in-phase termination limits so phases can check them
-                // inside their step loops (T1: StepCountTermination, MoveCountTermination, etc.)
-                termination.install_inphase_limits(&mut solver_scope);
-
-                // Execute phases with termination checking
-                $(
-                    solver_scope.pause_if_requested();
-                    if !check_termination(&mut termination, &mut solver_scope) {
-                        tracing::debug!(
-                            "Starting phase {} ({})",
-                            $idx,
-                            phases.$idx.phase_type_name()
-                        );
-                        phases.$idx.solve(&mut solver_scope);
-                        solver_scope.pause_if_requested();
-                        tracing::debug!(
-                            "Finished phase {} ({}) with score {:?}",
-                            $idx,
-                            phases.$idx.phase_type_name(),
-                            solver_scope.best_score()
-                        );
-                    }
-                )+
-
-                // Every configured top-level phase receives one terminal
-                // lifecycle notification, even if cancellation or configured
-                // termination skipped its solve method. This is deliberately
-                // after the full phase loop so hooks cannot observe or create
-                // an intermediate completion boundary.
-                $(
-                    phases.$idx.on_solver_terminal(&mut solver_scope);
-                    solver_scope.pause_if_requested();
-                    let _ = check_termination(&mut termination, &mut solver_scope);
-                )+
-
-                // Extract solution and stats before consuming scope
-                let (solution, current_score, best_score, stats, terminal_reason) =
-                    solver_scope.take_solution_and_stats();
-                SolveResult {
-                    solution,
-                    current_score,
-                    best_score,
-                    terminal_reason,
-                    stats,
-                }
-            }
-        }
-    };
-}
-
-fn check_termination<S, D, ProgressCb, T>(
-    termination: &mut T,
-    solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
-) -> bool
-where
-    S: PlanningSolution,
-    D: Director<S>,
-    ProgressCb: ProgressCallback<S>,
-    T: MaybeTermination<S, D, ProgressCb>,
-{
-    if solver_scope.is_terminate_early() {
-        solver_scope.mark_cancelled();
-        return true;
-    }
-    if termination.should_terminate(solver_scope) {
-        solver_scope.mark_terminated_by_config();
-        true
-    } else {
-        false
-    }
-}
-
 macro_rules! impl_solver_with_director {
     ($($idx:tt: $P:ident),+) => {
         impl<'t, S, T, ProgressCb, $($P),+> Solver<'t, ($($P,)+), T, S, (), ProgressCb>
@@ -495,6 +346,7 @@ macro_rules! impl_solver_with_director {
                     candidate_trace_qualified_run_provenance: self.candidate_trace_qualified_run_provenance,
                     time_limit: self.time_limit,
                     progress_callback: self.progress_callback,
+                    weight_mode_control: self.weight_mode_control,
                     _phantom: PhantomData,
                 };
                 solver.solve(director)
@@ -512,14 +364,9 @@ impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5);
 impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6);
 impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6, 7: P7);
 
-impl_solver!(0: P0);
-impl_solver!(0: P0, 1: P1);
-impl_solver!(0: P0, 1: P1, 2: P2);
-impl_solver!(0: P0, 1: P1, 2: P2, 3: P3);
-impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4);
-impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5);
-impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6);
-impl_solver!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6, 7: P7);
+mod session;
+
+pub(crate) use session::SolveSession;
 
 #[cfg(test)]
 #[path = "solver_tests.rs"]

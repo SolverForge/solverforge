@@ -7,9 +7,10 @@ measure incremental scoring through every constraint family that constraint
 weights touch:
 - `scoring`: a solution type without constraint weights on either side, so
   the candidate director compiles to the unweighted scoring calls;
-- `scoring_weights_one`: the candidate's solution type carries weights and
-  binds every constraint at multiplier 1 explicitly on a weighted director;
-  the baseline (no weight API) runs unweighted;
+- `scoring_weights_one`: the candidate's solution type carries weights set
+  to multiplier 1 explicitly, so the director is chosen exactly as a solve
+  chooses it (`requires_weighted_mode`): the unweighted director, running the
+  same code as `scoring`; the baseline (no weight API) runs unweighted;
 - `scoring_weights_mixed`: the candidate binds multipliers 0 and 3 on a
   weighted director and takes the weighted per-constraint calls; reported for
   information only, since its scores intentionally differ.
@@ -199,9 +200,9 @@ macro_rules! churn_scoring {
 
 fn run_scoring(case: &str, entries: Option<&[(&str, u32)]>) {
     let plan = scoring_plan(entries);
-    // Weighted cases score on the weighted director, as weighted solves do.
+    // The weight mode is chosen per solve, exactly as the solver's entrypoint does.
     #[cfg(feature = "constraint_weights")]
-    if entries.is_some() {
+    if solverforge_scoring::requires_weighted_mode(&plan) {
         churn_scoring!(
             case,
             ScoreDirector::new_weighted(plan, scoring_constraints())

@@ -1,37 +1,15 @@
-use std::time::{Duration, Instant};
-
-use solverforge::prelude::{ConstraintWeights, HardSoftScore};
 use solverforge::{
-    Analyzable, ClosureProblemChange, Director, ProblemChange, SolverEvent, SolverLifecycleState,
+    ClosureProblemChange, Director, ProblemChange, SolverEvent, SolverLifecycleState,
     SolverManager, SolverManagerError,
 };
 
 #[path = "realtime_problem_change/domain/mod.rs"]
 mod domain;
+#[path = "realtime_problem_change/support.rs"]
+mod support;
 
-use domain::{Phases, Plan, Resource, Task};
-
-const EVENT_DEADLINE: Duration = Duration::from_secs(60);
-
-fn seeded_plan(phases: Phases) -> Plan {
-    Plan {
-        resources: (0..4)
-            .map(|idx| Resource {
-                id: format!("resource-{idx}"),
-            })
-            .collect(),
-        tasks: (0..12)
-            .map(|idx| Task {
-                id: format!("task-{idx}"),
-                weight: (idx * 5 + 2) % 9,
-                resource_idx: None,
-            })
-            .collect(),
-        weights: ConstraintWeights::new(),
-        score: None,
-        phases,
-    }
-}
+use domain::{Phases, Plan, Task};
+use support::{assert_fully_assigned_and_rescored, next_matching, seeded_plan};
 
 /// Moves a new task into the solution; construction must assign it.
 #[derive(Debug)]
@@ -53,38 +31,6 @@ fn new_task(id: &str) -> AddTask {
             resource_idx: None,
         },
     }
-}
-
-/// Reads events until `select` returns a value. Local search keeps
-/// publishing progress, so a silent stream past the deadline is a failure.
-fn next_matching<T>(
-    next_event: &mut impl FnMut() -> SolverEvent<Plan>,
-    mut select: impl FnMut(SolverEvent<Plan>) -> Option<T>,
-) -> T {
-    let deadline = Instant::now() + EVENT_DEADLINE;
-    loop {
-        assert!(Instant::now() < deadline, "expected event did not arrive");
-        let event = next_event();
-        if let SolverEvent::Failed { error, .. } = &event {
-            panic!("real-time solve failed: {error}");
-        }
-        if let Some(selected) = select(event) {
-            return selected;
-        }
-    }
-}
-
-fn assert_fully_assigned_and_rescored(solution: &Plan, published_best: Option<HardSoftScore>) {
-    assert!(
-        solution
-            .tasks
-            .iter()
-            .all(|task| task.resource_idx.is_some()),
-        "construction must assign every task, including added ones"
-    );
-    let fresh = solution.analyze().score;
-    assert_eq!(solution.score, Some(fresh));
-    assert_eq!(published_best, Some(fresh));
 }
 
 #[test]
@@ -322,97 +268,4 @@ fn default_runtime_job_reconstructs_after_a_change() {
         return;
     }
     panic!("no attempt queued a change before the default runtime completed");
-}
-
-/// Replaces the solution's constraint weights; the solver rescores under them.
-fn set_weights(entries: &[(&str, u32)]) -> impl ProblemChange<Plan> {
-    let mut weights = ConstraintWeights::new();
-    for &(name, multiplier) in entries {
-        weights.set(name, multiplier);
-    }
-    ClosureProblemChange::<Plan, _>::new("set constraint weights", move |director| {
-        director.working_solution_mut().weights = weights.clone();
-    })
-}
-
-#[test]
-fn mid_solve_weight_change_rescores_under_the_new_multipliers() {
-    static MANAGER: SolverManager<Plan> = SolverManager::new();
-
-    let (job_id, mut receiver) = MANAGER
-        .solve(seeded_plan(Phases::ConstructionAndSearch))
-        .expect("job starts");
-    let mut next_event = || receiver.blocking_recv().expect("event stream stays open");
-    next_matching(&mut next_event, |event| match event {
-        SolverEvent::BestSolution { .. } => Some(()),
-        _ => None,
-    });
-
-    MANAGER
-        .add_problem_change(
-            job_id,
-            set_weights(&[("shared resource", 0), ("placement cost", 3)]),
-        )
-        .expect("a solving job accepts a weight change");
-    let (solution, best_score) = next_matching(&mut next_event, |event| match event {
-        SolverEvent::BestSolution { metadata, solution }
-            if metadata.telemetry.problem_changes_applied == 1 =>
-        {
-            Some((solution, metadata.best_score))
-        }
-        _ => None,
-    });
-
-    assert_eq!(solution.weights.get("shared resource"), Some(0));
-    assert_eq!(solution.weights.get("placement cost"), Some(3));
-    assert_fully_assigned_and_rescored(&solution, best_score);
-    let analysis = solution.analyze();
-    let shared = analysis
-        .constraints
-        .iter()
-        .find(|constraint| constraint.name == "shared resource")
-        .expect("shared resource is analyzed");
-    assert_eq!(shared.weight_multiplier, 0);
-    assert_eq!(shared.score, HardSoftScore::ZERO);
-
-    MANAGER.cancel(job_id).expect("cancel the running job");
-    next_matching(&mut next_event, |event| match event {
-        SolverEvent::Cancelled { .. } => Some(()),
-        _ => None,
-    });
-    MANAGER.delete(job_id).expect("delete the cancelled job");
-}
-
-#[test]
-fn mid_solve_unknown_constraint_weight_fails_the_job() {
-    static MANAGER: SolverManager<Plan> = SolverManager::new();
-
-    let (job_id, mut receiver) = MANAGER
-        .solve(seeded_plan(Phases::ConstructionAndSearch))
-        .expect("job starts");
-    let mut next_event = || receiver.blocking_recv().expect("event stream stays open");
-    next_matching(&mut next_event, |event| match event {
-        SolverEvent::BestSolution { .. } => Some(()),
-        _ => None,
-    });
-
-    MANAGER
-        .add_problem_change(job_id, set_weights(&[("shared resorce", 2)]))
-        .expect("the change is queued; validation runs when it applies");
-    let deadline = Instant::now() + EVENT_DEADLINE;
-    let error = loop {
-        assert!(Instant::now() < deadline, "the job did not fail");
-        if let SolverEvent::Failed { error, .. } = next_event() {
-            break error;
-        }
-    };
-    assert!(
-        error.contains("unknown constraint \"shared resorce\""),
-        "{error}"
-    );
-    assert!(
-        error.contains("did you mean \"shared resource\""),
-        "{error}"
-    );
-    MANAGER.delete(job_id).expect("delete the failed job");
 }

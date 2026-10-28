@@ -108,6 +108,8 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     pub inphase_score_calc_count_limit: Option<u64>,
     inphase_best_score_limit: Option<S::Score>,
     phase_termination: Option<ScopedPhaseTermination<S>>,
+    weight_mode: WeightModeControl,
+    weight_mode_switch_pending: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -387,6 +389,8 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
             inphase_score_calc_count_limit: None,
             inphase_best_score_limit: None,
             phase_termination: None,
+            weight_mode: WeightModeControl::Fixed,
+            weight_mode_switch_pending: false,
         }
     }
 }
@@ -431,6 +435,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             inphase_score_calc_count_limit: None,
             inphase_best_score_limit: None,
             phase_termination: None,
+            weight_mode: WeightModeControl::Fixed,
+            weight_mode_switch_pending: false,
         }
     }
 
@@ -595,6 +601,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             inphase_score_calc_count_limit: self.inphase_score_calc_count_limit,
             inphase_best_score_limit: self.inphase_best_score_limit,
             phase_termination: self.phase_termination,
+            weight_mode: self.weight_mode,
+            weight_mode_switch_pending: self.weight_mode_switch_pending,
         }
     }
 

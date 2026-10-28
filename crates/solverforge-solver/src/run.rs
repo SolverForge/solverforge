@@ -492,58 +492,6 @@ where
     )
 }
 
-/// [`try_run_solver_with_config_and_search`] for a solution type with a
-/// `#[constraint_weights]` field: scores on a weighted director that scales
-/// each constraint by the solution's bound multipliers.
-#[doc(hidden)]
-#[allow(clippy::too_many_arguments)]
-pub fn try_run_weighted_solver_with_config_and_search<S, C, V, DM, IDM, Declaration, BuildSearch>(
-    solution: S,
-    constraints: fn(&S) -> C,
-    descriptor: SolutionDescriptor,
-    entity_count_by_descriptor: fn(&S, usize) -> usize,
-    runtime: SolverRuntime<S>,
-    config: SolverConfig,
-    default_time_limit_secs: u64,
-    log_scale: fn(&S),
-    qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
-    build_search: BuildSearch,
-) -> RuntimeBuildResult<S>
-where
-    S: PlanningSolution + Clone + Send + Sync + 'static,
-    S::Score: Score + Copy + Ord + ParseableScore,
-    C: ConstraintSet<S, S::Score>,
-    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + fmt::Debug + 'static,
-    DM: crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>
-        + Clone
-        + Send
-        + Sync
-        + fmt::Debug
-        + 'static,
-    IDM: crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>
-        + Clone
-        + Send
-        + Sync
-        + fmt::Debug
-        + 'static,
-    Declaration: Search<S, V, DM, IDM>,
-    Declaration::Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>,
-    BuildSearch: FnOnce(&SolverConfig, SolutionDescriptor) -> RuntimeBuildResult<Declaration>,
-{
-    try_run_solver_with_config_and_search_request::<S, C, WeightedMode, V, DM, IDM, _, _>(
-        solution,
-        constraints,
-        descriptor,
-        entity_count_by_descriptor,
-        runtime,
-        config,
-        default_time_limit_secs,
-        log_scale,
-        qualified_candidate_trace_provenance,
-        build_search,
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 fn try_run_solver_with_config_and_search_request<S, C, M, V, DM, IDM, Declaration, BuildSearch>(
     solution: S,
@@ -606,8 +554,14 @@ where
     )
 }
 
+/* Shared configured solve. `W` is the mode a solution whose weights require
+weighting scores in: `WeightedMode` for the weighted entrypoint, which then
+starts each solve in the mode its weights need and switches modes when a
+problem change needs the other; `UnweightedMode` for the plain entrypoint,
+which instantiates only the unweighted solver and fails weights it cannot
+apply. */
 #[allow(clippy::too_many_arguments)]
-fn try_run_solver_with_candidate_trace_request<S, C, M, Runner, BuildRunner>(
+fn try_run_solver_with_candidate_trace_request<S, C, W, Runner, BuildRunner>(
     solution: S,
     constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
@@ -623,10 +577,14 @@ where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
-    M: WeightMode,
+    W: WeightMode,
     Runner: for<'d> Phase<
             S,
-            ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>, M>,
+            ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>, UnweightedMode>,
+            ChannelProgressCallback<S>,
+        > + for<'d> Phase<
+            S,
+            ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>, W>,
             ChannelProgressCallback<S>,
         > + Send
         + std::fmt::Debug,
@@ -638,7 +596,7 @@ where
         runtime.emit_failed(error.to_string());
         return Err(error);
     }
-    if !M::WEIGHTED && requires_weighted_mode(&solution) {
+    if !W::WEIGHTED && requires_weighted_mode(&solution) {
         let error = RuntimeBuildError::ConstraintWeights {
             message: "this solution type carries constraint weights; solve it through \
                       `try_run_weighted_solver_with_config_and_search`"
@@ -647,18 +605,6 @@ where
         runtime.emit_failed(error.to_string());
         return Err(error);
     }
-    let director = ScoreDirector::<S, C, _, M>::with_descriptor_in_mode(
-        solution,
-        main_constraints,
-        ReplicaDescriptor::new(&descriptor, constraints),
-        entity_count_by_descriptor,
-    );
-
-    let (termination, time_limit) = build_director_termination(&config, default_time_limit_secs);
-    let execution_policy =
-        configured_execution_policy::<S>(&config, default_time_limit_secs, time_limit);
-
-    let callback = ChannelProgressCallback::new(runtime);
 
     let runner = match build_runner(&config, &descriptor) {
         Ok(runner) => runner,
@@ -667,21 +613,21 @@ where
             return Err(error);
         }
     };
-    let mut solver = Solver::new((runner,))
-        .with_config(config.clone())
-        .with_candidate_trace_execution_policy(execution_policy)
-        .with_termination(termination)
-        .with_runtime(runtime)
-        .with_progress_callback(callback);
-    if let Some(provenance) = qualified_candidate_trace_provenance {
-        solver = solver.with_qualified_candidate_trace_run_provenance(provenance);
-    }
-    if let Some(time_limit) = time_limit {
-        solver = solver.with_time_limit(time_limit);
-    }
 
     let result = match catch_unwind(AssertUnwindSafe(|| {
-        solver.with_terminate(runtime.cancel_flag()).solve(director)
+        weight_modes::solve_in_weight_modes::<S, C, W, Runner>(
+            weight_modes::ModeSolve {
+                solution,
+                constraints: main_constraints,
+                descriptor: ReplicaDescriptor::new(&descriptor, constraints),
+                entity_count_by_descriptor,
+                runtime,
+                config: &config,
+                default_time_limit_secs,
+                qualified_candidate_trace_provenance,
+            },
+            runner,
+        )
     })) {
         Ok(result) => result,
         Err(payload) => match take_runtime_execution_failure(payload) {
@@ -740,6 +686,10 @@ where
     );
     Ok(solution)
 }
+
+mod weight_modes;
+
+pub use weight_modes::try_run_weighted_solver_with_config_and_search;
 
 #[cfg(test)]
 #[path = "run_tests.rs"]

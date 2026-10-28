@@ -770,9 +770,16 @@ slider over `0..=20`). A solve whose weights name an unknown constraint, or
 exceed `MAX_CONSTRAINT_WEIGHT_MULTIPLIER`, fails at start through the normal
 `Failed` lifecycle event.
 
+Weights cost nothing until they change a score: a solve whose multipliers are
+all `1` runs on the unweighted score director, the exact code path of a model
+without a weights field, and only multipliers other than `1` select the
+weighted director.
+
 To change weights while a job is running, submit a problem change that
 replaces the field; the solver rescores under the new multipliers and restarts
-its phase sequence. Weights installed this way are validated the same way, and
+its phase sequence. A change that crosses between all-`1` and other
+multipliers switches the job to the matching score director without losing
+its statistics, limits, or event stream. Weights installed this way are validated the same way, and
 an invalid set fails the job:
 
 ```rust

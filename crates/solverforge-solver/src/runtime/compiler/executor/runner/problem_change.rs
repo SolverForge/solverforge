@@ -29,6 +29,11 @@ where
     /// runs the whole sequence again on the changed solution. The queue is
     /// drained or closed atomically after each pass, so a change is either
     /// applied by a later pass or rejected at submission.
+    ///
+    /// A change whose constraint weights need the other weight mode returns
+    /// right after the pass state is reset: the solve entrypoint rebuilds the
+    /// director and calls `solve` again, which resumes this loop exactly where
+    /// the next pass would start.
     pub(super) fn solve_passes<D, ProgressCb>(
         &mut self,
         solver_scope: &mut SolverScope<'_, S, D, ProgressCb>,
@@ -58,6 +63,9 @@ where
                 .apply_problem_changes(changes)
                 .unwrap_or_else(|error| panic_runtime_execution_error(error));
             self.reset_for_problem_change();
+            if solver_scope.weight_mode_switch_pending() {
+                return;
+            }
         }
     }
 

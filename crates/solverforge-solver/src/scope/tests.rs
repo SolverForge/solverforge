@@ -471,3 +471,4 @@ fn working_solution_generation_is_monotonic_across_commits_and_replacement() {
 }
 
 mod problem_change;
+mod weight_mode;

@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use solverforge::prelude::HardSoftScore;
+use solverforge::prelude::{ConstraintWeights, HardSoftScore};
 use solverforge::{
     Analyzable, ClosureProblemChange, Director, ProblemChange, SolverEvent, SolverLifecycleState,
     SolverManager, SolverManagerError,
@@ -27,6 +27,7 @@ fn seeded_plan(phases: Phases) -> Plan {
                 resource_idx: None,
             })
             .collect(),
+        weights: ConstraintWeights::new(),
         score: None,
         phases,
     }
@@ -321,4 +322,97 @@ fn default_runtime_job_reconstructs_after_a_change() {
         return;
     }
     panic!("no attempt queued a change before the default runtime completed");
+}
+
+/// Replaces the solution's constraint weights; the solver rescores under them.
+fn set_weights(entries: &[(&str, u32)]) -> impl ProblemChange<Plan> {
+    let mut weights = ConstraintWeights::new();
+    for &(name, multiplier) in entries {
+        weights.set(name, multiplier);
+    }
+    ClosureProblemChange::<Plan, _>::new("set constraint weights", move |director| {
+        director.working_solution_mut().weights = weights.clone();
+    })
+}
+
+#[test]
+fn mid_solve_weight_change_rescores_under_the_new_multipliers() {
+    static MANAGER: SolverManager<Plan> = SolverManager::new();
+
+    let (job_id, mut receiver) = MANAGER
+        .solve(seeded_plan(Phases::ConstructionAndSearch))
+        .expect("job starts");
+    let mut next_event = || receiver.blocking_recv().expect("event stream stays open");
+    next_matching(&mut next_event, |event| match event {
+        SolverEvent::BestSolution { .. } => Some(()),
+        _ => None,
+    });
+
+    MANAGER
+        .add_problem_change(
+            job_id,
+            set_weights(&[("shared resource", 0), ("placement cost", 3)]),
+        )
+        .expect("a solving job accepts a weight change");
+    let (solution, best_score) = next_matching(&mut next_event, |event| match event {
+        SolverEvent::BestSolution { metadata, solution }
+            if metadata.telemetry.problem_changes_applied == 1 =>
+        {
+            Some((solution, metadata.best_score))
+        }
+        _ => None,
+    });
+
+    assert_eq!(solution.weights.get("shared resource"), Some(0));
+    assert_eq!(solution.weights.get("placement cost"), Some(3));
+    assert_fully_assigned_and_rescored(&solution, best_score);
+    let analysis = solution.analyze();
+    let shared = analysis
+        .constraints
+        .iter()
+        .find(|constraint| constraint.name == "shared resource")
+        .expect("shared resource is analyzed");
+    assert_eq!(shared.weight_multiplier, 0);
+    assert_eq!(shared.score, HardSoftScore::ZERO);
+
+    MANAGER.cancel(job_id).expect("cancel the running job");
+    next_matching(&mut next_event, |event| match event {
+        SolverEvent::Cancelled { .. } => Some(()),
+        _ => None,
+    });
+    MANAGER.delete(job_id).expect("delete the cancelled job");
+}
+
+#[test]
+fn mid_solve_unknown_constraint_weight_fails_the_job() {
+    static MANAGER: SolverManager<Plan> = SolverManager::new();
+
+    let (job_id, mut receiver) = MANAGER
+        .solve(seeded_plan(Phases::ConstructionAndSearch))
+        .expect("job starts");
+    let mut next_event = || receiver.blocking_recv().expect("event stream stays open");
+    next_matching(&mut next_event, |event| match event {
+        SolverEvent::BestSolution { .. } => Some(()),
+        _ => None,
+    });
+
+    MANAGER
+        .add_problem_change(job_id, set_weights(&[("shared resorce", 2)]))
+        .expect("the change is queued; validation runs when it applies");
+    let deadline = Instant::now() + EVENT_DEADLINE;
+    let error = loop {
+        assert!(Instant::now() < deadline, "the job did not fail");
+        if let SolverEvent::Failed { error, .. } = next_event() {
+            break error;
+        }
+    };
+    assert!(
+        error.contains("unknown constraint \"shared resorce\""),
+        "{error}"
+    );
+    assert!(
+        error.contains("did you mean \"shared resource\""),
+        "{error}"
+    );
+    MANAGER.delete(job_id).expect("delete the failed job");
 }

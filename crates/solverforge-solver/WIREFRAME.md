@@ -52,7 +52,7 @@ src/
 ├── run.rs                               — AnyTermination, ChannelProgressCallback, build_termination(), log_solve_start(), and try_run_solver_with_config_and_search()
 ├── run_tests.rs                         — Tests
 ├── runtime_build_error.rs               — Public RuntimeBuildError and RuntimeBuildResult declaration/compiler/constraint-weight/preparation/execution boundary
-├── constraint_weights.rs                — Crate-private solve-start validation of a solution's constraint weights
+├── constraint_weights.rs                — Crate-private validation of a solution's constraint weights at solve start and after problem changes
 ├── builder/
 │   ├── mod.rs                           — Re-exports from all builder submodules
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
@@ -1861,7 +1861,9 @@ every evaluator replica's. Before building the director it validates the
 solution's `PlanningSolution::constraint_weights()` against the constraint
 set's metadata; an unknown constraint name or a multiplier above
 `MAX_CONSTRAINT_WEIGHT_MULTIPLIER` emits the `Failed` lifecycle event and
-returns `RuntimeBuildError::ConstraintWeights` before any phase runs. Graph
+returns `RuntimeBuildError::ConstraintWeights` before any phase runs. Weights
+installed by an applied problem change are validated the same way before the
+rescore, and an invalid set fails the job with the same error. Graph
 compilation and solve-owned source preparation remain private; there is no
 public graph or alternate phase-builder fallback.
 

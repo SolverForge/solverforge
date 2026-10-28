@@ -768,8 +768,21 @@ fine-grained sliders, author base weights at the finest granularity and ship
 baseline multipliers in the data (for example `{"Travel time": 10}` with a
 slider over `0..=20`). A solve whose weights name an unknown constraint, or
 exceed `MAX_CONSTRAINT_WEIGHT_MULTIPLIER`, fails at start through the normal
-`Failed` lifecycle event. Weights are bound when scoring (re)initializes, so a
-running score director picks up changed weights after `reset()`.
+`Failed` lifecycle event.
+
+To change weights while a job is running, submit a problem change that
+replaces the field; the solver rescores under the new multipliers and restarts
+its phase sequence. Weights installed this way are validated the same way, and
+an invalid set fails the job:
+
+```rust
+MANAGER.add_problem_change(
+    job_id,
+    ClosureProblemChange::<Schedule, _>::new("reweight", move |director| {
+        director.working_solution_mut().weights = weights.clone();
+    }),
+)?;
+```
 
 ## Examples
 

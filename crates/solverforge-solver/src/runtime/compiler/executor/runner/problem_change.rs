@@ -54,7 +54,9 @@ where
             let Some(changes) = solver_scope.take_problem_changes() else {
                 break;
             };
-            solver_scope.apply_problem_changes(changes);
+            solver_scope
+                .apply_problem_changes(changes)
+                .unwrap_or_else(|error| panic_runtime_execution_error(error));
             self.reset_for_problem_change();
         }
     }

@@ -91,7 +91,9 @@ fn queued_change_stops_work_without_a_terminal_reason() {
         .expect("an accepting solve drains its queue");
     assert_eq!(changes.len(), 1);
     assert!(!scope.problem_change_interrupt_pending());
-    scope.apply_problem_changes(changes);
+    scope
+        .apply_problem_changes(changes)
+        .expect("changes without constraint weights apply");
     assert!(
         !scope.yielded_to_parent(),
         "applying a batch spends the yield"
@@ -157,7 +159,9 @@ fn applying_changes_starts_from_best_in_fifo_order_and_drops_the_old_best() {
     let changes = scope
         .take_problem_changes()
         .expect("an accepting solve drains its queue");
-    let score = scope.apply_problem_changes(changes);
+    let score = scope
+        .apply_problem_changes(changes)
+        .expect("changes without constraint weights apply");
 
     let queens = &scope.working_solution().queens;
     assert_eq!(queens.len(), 5);

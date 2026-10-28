@@ -13,6 +13,9 @@ pub struct Plan {
     #[planning_entity_collection]
     pub tasks: Vec<Task>,
 
+    #[constraint_weights]
+    pub weights: ConstraintWeights,
+
     #[planning_score]
     pub score: Option<HardSoftScore>,
 

@@ -11,12 +11,14 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::ParseableScore;
 use solverforge_scoring::Director;
 
+use crate::constraint_weights::validate_director_constraint_weights;
 use crate::heuristic::r#move::Move;
 use crate::manager::{SolverLifecycleState, SolverRuntime, SolverTerminalReason};
 use crate::phase::construction::{
     ConstructionFrontier, ConstructionGroupSlotId, ConstructionListElementId, ConstructionSlotId,
 };
 use crate::realtime::ProblemChange;
+use crate::runtime_build_error::RuntimeBuildResult;
 use crate::stats::{
     CandidatePullTelemetry, CandidateTraceConstructionTarget, CandidateTraceDisposition,
     CandidateTraceHeader, CandidateTracePullToken, CandidateTraceRecordDecision,

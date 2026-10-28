@@ -9,6 +9,7 @@ mod flattened_bi;
 mod grouped;
 mod projected;
 mod relational;
+mod weights;
 
 mod repro_unknown;
 mod self_join_bi_fluent;

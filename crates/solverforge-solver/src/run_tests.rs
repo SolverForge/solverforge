@@ -15,6 +15,7 @@ use crate::DefaultCrossEntityDistanceMeter;
 use solverforge_config::{CandidateTraceConfig, SolverConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
+use solverforge_core::ConstraintRef;
 use solverforge_scoring::{
     ConstraintAnalysis, ConstraintMetadata, ConstraintResult, ConstraintSet, ScoreDirector,
 };
@@ -97,6 +98,56 @@ impl ConstraintSet<TestSolution, SoftScore> for ScoreFromSolutionConstraints {
     }
 
     fn reset_all(&mut self) {}
+
+    fn constraint_weight_refs<'a>(&'a self, _refs: &mut Vec<&'a ConstraintRef>) {}
+
+    fn evaluate_all_weighted(&self, solution: &TestSolution, _multipliers: &[u32]) -> SoftScore {
+        self.evaluate_all(solution)
+    }
+
+    fn evaluate_each_weighted<'a>(
+        &'a self,
+        solution: &TestSolution,
+        _multipliers: &[u32],
+    ) -> Vec<ConstraintResult<'a, SoftScore>> {
+        self.evaluate_each(solution)
+    }
+
+    fn evaluate_detailed_weighted<'a>(
+        &'a self,
+        solution: &TestSolution,
+        _multipliers: &[u32],
+    ) -> Vec<ConstraintAnalysis<'a, SoftScore>> {
+        self.evaluate_detailed(solution)
+    }
+
+    fn initialize_all_weighted(
+        &mut self,
+        solution: &TestSolution,
+        _multipliers: &[u32],
+    ) -> SoftScore {
+        self.initialize_all(solution)
+    }
+
+    fn on_insert_all_weighted(
+        &mut self,
+        solution: &TestSolution,
+        entity_index: usize,
+        descriptor_index: usize,
+        _multipliers: &[u32],
+    ) -> SoftScore {
+        self.on_insert_all(solution, entity_index, descriptor_index)
+    }
+
+    fn on_retract_all_weighted(
+        &mut self,
+        solution: &TestSolution,
+        entity_index: usize,
+        descriptor_index: usize,
+        _multipliers: &[u32],
+    ) -> SoftScore {
+        self.on_retract_all(solution, entity_index, descriptor_index)
+    }
 }
 
 #[derive(Debug)]

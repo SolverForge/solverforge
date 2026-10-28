@@ -166,6 +166,35 @@ where
     where
         Scorers: OperatorScorerSet<S, O, Sc>,
     {
+        self.advance_operator(solution, index, descriptor, insert);
+        self.scorers
+            .apply_changes(&self.operator, solution, &self.removed, &self.inserted)
+    }
+
+    fn update_weighted(
+        &mut self,
+        solution: &S,
+        index: usize,
+        descriptor: usize,
+        insert: bool,
+        multipliers: &[u32],
+    ) -> Sc
+    where
+        Scorers: OperatorScorerSet<S, O, Sc>,
+    {
+        self.advance_operator(solution, index, descriptor, insert);
+        self.scorers.apply_changes_weighted(
+            &self.operator,
+            solution,
+            &self.removed,
+            &self.inserted,
+            multipliers,
+        )
+    }
+
+    // Feeds one entity change through the shared operator, collecting changed rows.
+    #[inline(always)]
+    fn advance_operator(&mut self, solution: &S, index: usize, descriptor: usize, insert: bool) {
         self.removed.clear();
         self.inserted.clear();
         if insert {
@@ -189,8 +218,6 @@ where
             self.update_count += 1;
             self.changed_key_count += 1;
         }
-        self.scorers
-            .apply_changes(&self.operator, solution, &self.removed, &self.inserted)
     }
 }
 
@@ -269,6 +296,52 @@ where
         self.scorers.reset();
         self.removed.clear();
         self.inserted.clear();
+    }
+    fn constraint_weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>) {
+        self.scorers.weight_refs(refs);
+    }
+    fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc {
+        self.scorers
+            .evaluate_weighted(&self.operator, solution, multipliers)
+    }
+    fn evaluate_each_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multipliers: &[u32],
+    ) -> Vec<ConstraintResult<'a, Sc>> {
+        self.scorers
+            .evaluate_each_weighted(&self.operator, solution, multipliers)
+    }
+    fn evaluate_detailed_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multipliers: &[u32],
+    ) -> Vec<ConstraintAnalysis<'a, Sc>> {
+        self.scorers
+            .evaluate_detailed_weighted(&self.operator, solution, multipliers)
+    }
+    fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc {
+        self.operator.initialize(solution);
+        self.scorers
+            .initialize_weighted(&self.operator, solution, multipliers)
+    }
+    fn on_insert_all_weighted(
+        &mut self,
+        solution: &S,
+        index: usize,
+        descriptor: usize,
+        multipliers: &[u32],
+    ) -> Sc {
+        self.update_weighted(solution, index, descriptor, true, multipliers)
+    }
+    fn on_retract_all_weighted(
+        &mut self,
+        solution: &S,
+        index: usize,
+        descriptor: usize,
+        multipliers: &[u32],
+    ) -> Sc {
+        self.update_weighted(solution, index, descriptor, false, multipliers)
     }
 }
 

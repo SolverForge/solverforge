@@ -192,10 +192,6 @@ where
     fn is_hard(&self) -> bool {
         true
     }
-
-    fn weight(&self) -> HardSoftScore {
-        HardSoftScore::ZERO
-    }
 }
 
 struct ListPrecedenceState {

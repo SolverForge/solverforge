@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use solverforge_core::score::Score;
+use solverforge_core::ConstraintRef;
 
 use super::incremental::{ConstraintMetadata, ConstraintResult, ConstraintSet};
 use crate::api::analysis::ConstraintAnalysis;
@@ -34,6 +35,94 @@ impl<Left, Right> OrderedConstraintSetChain<Left, Right> {
     pub fn new(left: Left, right: Right, order: Vec<ConstraintSetSource>) -> Self {
         Self { left, right, order }
     }
+
+    // Restores authored order across per-constraint left and right outputs.
+    fn interleave<T>(&self, left: Vec<T>, right: Vec<T>, what: &str) -> Vec<T> {
+        let mut left = VecDeque::from(left);
+        let mut right = VecDeque::from(right);
+        let mut values = Vec::with_capacity(left.len() + right.len());
+        for source in &self.order {
+            match source {
+                ConstraintSetSource::Left => {
+                    let Some(value) = left.pop_front() else {
+                        panic!("ordered constraint set source order does not match {what}");
+                    };
+                    values.push(value);
+                }
+                ConstraintSetSource::Right {
+                    constraint_count, ..
+                } => {
+                    for _ in 0..*constraint_count {
+                        let Some(value) = right.pop_front() else {
+                            panic!("ordered constraint set source order does not match {what}");
+                        };
+                        values.push(value);
+                    }
+                }
+            }
+        }
+        assert!(
+            left.is_empty() && right.is_empty(),
+            "ordered constraint set source order does not consume every one of the {what}"
+        );
+        values
+    }
+}
+
+/* Weighted delta methods shared by both chains: the left child owns the first
+`left.constraint_count()` weight slots and the right child the rest. */
+macro_rules! chain_weighted_deltas {
+    () => {
+        fn constraint_weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>) {
+            self.left.constraint_weight_refs(refs);
+            self.right.constraint_weight_refs(refs);
+        }
+
+        fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc {
+            let (left, right) = multipliers.split_at(self.left.constraint_count());
+            self.left.evaluate_all_weighted(solution, left)
+                + self.right.evaluate_all_weighted(solution, right)
+        }
+
+        fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc {
+            let (left, right) = multipliers.split_at(self.left.constraint_count());
+            self.left.initialize_all_weighted(solution, left)
+                + self.right.initialize_all_weighted(solution, right)
+        }
+
+        fn on_insert_all_weighted(
+            &mut self,
+            solution: &S,
+            entity_index: usize,
+            descriptor_index: usize,
+            multipliers: &[u32],
+        ) -> Sc {
+            let (left, right) = multipliers.split_at(self.left.constraint_count());
+            self.left
+                .on_insert_all_weighted(solution, entity_index, descriptor_index, left)
+                + self
+                    .right
+                    .on_insert_all_weighted(solution, entity_index, descriptor_index, right)
+        }
+
+        fn on_retract_all_weighted(
+            &mut self,
+            solution: &S,
+            entity_index: usize,
+            descriptor_index: usize,
+            multipliers: &[u32],
+        ) -> Sc {
+            let (left, right) = multipliers.split_at(self.left.constraint_count());
+            self.left
+                .on_retract_all_weighted(solution, entity_index, descriptor_index, left)
+                + self.right.on_retract_all_weighted(
+                    solution,
+                    entity_index,
+                    descriptor_index,
+                    right,
+                )
+        }
+    };
 }
 
 impl<S, Sc, Left, Right> ConstraintSet<S, Sc> for ConstraintSetChain<Left, Right>
@@ -99,6 +188,30 @@ where
         self.left.reset_all();
         self.right.reset_all();
     }
+
+    chain_weighted_deltas!();
+
+    fn evaluate_each_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multipliers: &[u32],
+    ) -> Vec<ConstraintResult<'a, Sc>> {
+        let (left, right) = multipliers.split_at(self.left.constraint_count());
+        let mut results = self.left.evaluate_each_weighted(solution, left);
+        results.extend(self.right.evaluate_each_weighted(solution, right));
+        results
+    }
+
+    fn evaluate_detailed_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multipliers: &[u32],
+    ) -> Vec<ConstraintAnalysis<'a, Sc>> {
+        let (left, right) = multipliers.split_at(self.left.constraint_count());
+        let mut analyses = self.left.evaluate_detailed_weighted(solution, left);
+        analyses.extend(self.right.evaluate_detailed_weighted(solution, right));
+        analyses
+    }
 }
 
 impl<S, Sc, Left, Right> ConstraintSet<S, Sc> for OrderedConstraintSetChain<Left, Right>
@@ -151,71 +264,19 @@ where
     }
 
     fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>> {
-        let mut left = VecDeque::from(self.left.evaluate_each(solution));
-        let mut right = VecDeque::from(self.right.evaluate_each(solution));
-        let mut results = Vec::with_capacity(self.constraint_count());
-        for source in &self.order {
-            match source {
-                ConstraintSetSource::Left => {
-                    let Some(result) = left.pop_front() else {
-                        panic!(
-                            "ordered constraint set source order does not match constraint results"
-                        );
-                    };
-                    results.push(result);
-                }
-                ConstraintSetSource::Right {
-                    constraint_count, ..
-                } => {
-                    for _ in 0..*constraint_count {
-                        let Some(result) = right.pop_front() else {
-                            panic!(
-                                "ordered constraint set source order does not match constraint results"
-                            );
-                        };
-                        results.push(result);
-                    }
-                }
-            }
-        }
-        assert!(
-            left.is_empty() && right.is_empty(),
-            "ordered constraint set source order does not consume every result"
-        );
-        results
+        self.interleave(
+            self.left.evaluate_each(solution),
+            self.right.evaluate_each(solution),
+            "constraint results",
+        )
     }
 
     fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>> {
-        let mut left = VecDeque::from(self.left.evaluate_detailed(solution));
-        let mut right = VecDeque::from(self.right.evaluate_detailed(solution));
-        let mut analyses = Vec::with_capacity(self.constraint_count());
-        for source in &self.order {
-            match source {
-                ConstraintSetSource::Left => {
-                    let Some(analysis) = left.pop_front() else {
-                        panic!("ordered constraint set source order does not match constraint analyses");
-                    };
-                    analyses.push(analysis);
-                }
-                ConstraintSetSource::Right {
-                    constraint_count, ..
-                } => {
-                    for _ in 0..*constraint_count {
-                        let Some(analysis) = right.pop_front() else {
-                            panic!(
-                                "ordered constraint set source order does not match constraint analyses"
-                            );
-                        };
-                        analyses.push(analysis);
-                    }
-                }
-            }
-        }
-        assert!(
-            left.is_empty() && right.is_empty(),
-            "ordered constraint set source order does not consume every analysis"
-        );
-        analyses
+        self.interleave(
+            self.left.evaluate_detailed(solution),
+            self.right.evaluate_detailed(solution),
+            "constraint analyses",
+        )
     }
 
     #[inline]
@@ -245,5 +306,33 @@ where
     fn reset_all(&mut self) {
         self.left.reset_all();
         self.right.reset_all();
+    }
+
+    chain_weighted_deltas!();
+
+    fn evaluate_each_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multipliers: &[u32],
+    ) -> Vec<ConstraintResult<'a, Sc>> {
+        let (left, right) = multipliers.split_at(self.left.constraint_count());
+        self.interleave(
+            self.left.evaluate_each_weighted(solution, left),
+            self.right.evaluate_each_weighted(solution, right),
+            "constraint results",
+        )
+    }
+
+    fn evaluate_detailed_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multipliers: &[u32],
+    ) -> Vec<ConstraintAnalysis<'a, Sc>> {
+        let (left, right) = multipliers.split_at(self.left.constraint_count());
+        self.interleave(
+            self.left.evaluate_detailed_weighted(solution, left),
+            self.right.evaluate_detailed_weighted(solution, right),
+            "constraint analyses",
+        )
     }
 }

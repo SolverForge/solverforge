@@ -37,7 +37,6 @@ pub use api::constraint_set::{
     IncrementalConstraint, IncrementalConstraintSealed, OrderedConstraintSetChain,
 };
 pub use api::node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
-pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 /* ============================================================================
 Score Directors

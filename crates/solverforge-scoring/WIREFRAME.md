@@ -150,21 +150,21 @@ execution, ownership, and verification boundaries.
 src/
 ├── lib.rs                                          — Crate root; re-exports from all modules
 ├── api/
-│   ├── mod.rs                                      — Re-exports analysis, constraint_set, node_sharing, weight_overrides
+│   ├── mod.rs                                      — Re-exports analysis, constraint_set, node_sharing
 │   ├── analysis.rs                                 — ScoreExplanation, ConstraintAnalysis, Indictment, IndictmentMap, DetailedConstraintMatch, etc.
 │   ├── node_sharing.rs                             — SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation
 │   ├── constraint_set/
 │   │   ├── mod.rs                                  — Re-exports ConstraintSet, ConstraintSetChain, OrderedConstraintSetChain, ConstraintSetSource, IncrementalConstraint, IncrementalConstraintSealed, ConstraintMetadata, ConstraintResult
 │   │   ├── chain.rs                                — ConstraintSetChain, OrderedConstraintSetChain, and authored-order source spans
-│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, singleton and tuple impls (0..32)
+│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, singleton impl
+│   │   ├── tuple.rs                                — ConstraintSet for () and tuples (1..32)
+│   │   ├── weighting.rs                            — Crate-private per-constraint contribution scaling and weight-slot splitting
 │   │   └── tests/
 │   │       ├── mod.rs                              — Test module declarations
 │   │       └── constraint_set.rs                   — ConstraintSet tuple tests
-│   ├── weight_overrides.rs                         — ConstraintWeightOverrides, WeightProvider trait
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
-│       ├── analysis.rs                             — Analysis type tests
-│       └── weight_overrides.rs                     — Weight override tests
+│       └── analysis.rs                             — Analysis type tests
 ├── constraint/
 │   ├── mod.rs                                      — Module declarations and selected root re-exports
 │   ├── macros.rs                                   — impl_get_matches_nary! macro for detailed match generation
@@ -208,7 +208,8 @@ src/
 │       ├── exists_storage.rs                       — Existence storage selection and parity tests
 │       ├── projected.rs                            — Projected constraint test module root
 │       ├── projected/*.rs                          — Projected support fixtures, localization, update, grouping, merge, and self-join tests
-│       └── repro_unknown.rs                        — Regression fixture coverage for unknown-source behavior
+│       ├── repro_unknown.rs                        — Regression fixture coverage for unknown-source behavior
+│       └── weights/*.rs                            — Constraint weight multipliers {0,1,3} on every family: incremental vs full vs analysis oracle, shared terminals, ordered chains, duplicate names, reset rebinding
 ├── director/
 │   ├── mod.rs                                      — Re-exports all director types and traits
 │   ├── traits.rs                                   — Director<S> trait
@@ -216,6 +217,8 @@ src/
 │   │   ├── score_director/incremental.rs           — ScoreDirector<S,C,Desc> (zero-erasure incremental)
 │   │   ├── score_director/descriptor.rs            — DirectorDescriptor, ReplicaDescriptor
 │   │   ├── score_director/list_shadows.rs          — Retract/insert of list-shadowed element rows around owner shadow updates
+│   │   ├── score_director/weights.rs               — Compile-time weighted/unweighted dispatch, weight binding, weighted variable-change bodies
+│   │   ├── score_director/analysis.rs              — ScoreDirector constraint_results/constraint_analyses/constraint_match_totals
 │   │   └── score_director/adapters.rs              — Debug and Director trait impls for ScoreDirector
 │   ├── shadow_aware.rs                             — SolvableSolution trait and shadow lifecycle notes
 │   └── tests/
@@ -334,7 +337,6 @@ pub use api::constraint_set::{
     IncrementalConstraintSealed,
 };
 pub use api::node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
-pub use api::weight_overrides::{ConstraintWeightOverrides, WeightProvider};
 
 // Score Directors
 pub use director::score_director::{DirectorDescriptor, ReplicaDescriptor, ScoreDirector};
@@ -400,8 +402,12 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 | `name` | `fn name(&self) -> &str` | Constraint name; default derives from `constraint_ref()` |
 | `is_hard` | `fn is_hard(&self) -> bool` | Default: false |
 | `constraint_ref` | `fn constraint_ref(&self) -> &ConstraintRef` | Borrowed package-qualified identity owned by the constraint |
-| `get_matches` | `fn get_matches<'a>(&'a self, _solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>>` | Default: empty |
-| `weight` | `fn weight(&self) -> Sc` | Default: Sc::zero() |
+| `get_matches` | `fn get_matches<'a>(&'a self, _solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>>` | Default: empty; unweighted match scores |
+| `evaluate_weighted` | `fn evaluate_weighted(&self, solution: &S, multiplier: u32) -> Sc` | Default: `evaluate` scaled by `multiplier` |
+| `initialize_weighted` | `fn initialize_weighted(&mut self, solution: &S, multiplier: u32) -> Sc` | Default: `initialize` scaled by `multiplier` |
+| `on_insert_weighted` | `fn on_insert_weighted(&mut self, solution: &S, entity_index: usize, descriptor_index: usize, multiplier: u32) -> Sc` | Default: `on_insert` delta scaled by `multiplier` |
+| `on_retract_weighted` | `fn on_retract_weighted(&mut self, solution: &S, entity_index: usize, descriptor_index: usize, multiplier: u32) -> Sc` | Default: `on_retract` delta scaled by `multiplier` |
+| `get_matches_weighted` | `fn get_matches_weighted<'a>(&'a self, solution: &S, multiplier: u32) -> Vec<DetailedConstraintMatch<'a, Sc>>` | Default: `get_matches` with every match score scaled by `multiplier` |
 
 ### `ConstraintSet<S, Sc: Score>` — `Send + Sync`
 
@@ -417,6 +423,13 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 | `on_insert_all` | `fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental insert all |
 | `on_retract_all` | `fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental retract all |
 | `reset_all` | `fn reset_all(&mut self)` | Reset all |
+| `constraint_weight_refs` | `fn constraint_weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>)` | Required; pushes one ref per weight slot (`constraint_count()` slots, structural order) |
+| `evaluate_all_weighted` | `fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc` | Required; one multiplier per weight slot |
+| `evaluate_each_weighted` | `fn evaluate_each_weighted<'a>(&'a self, solution: &S, multipliers: &[u32]) -> Vec<ConstraintResult<'a, Sc>>` | Required; weighted scores and each slot's `weight_multiplier` |
+| `evaluate_detailed_weighted` | `fn evaluate_detailed_weighted<'a>(&'a self, solution: &S, multipliers: &[u32]) -> Vec<ConstraintAnalysis<'a, Sc>>` | Required; weighted totals and match scores |
+| `initialize_all_weighted` | `fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc` | Required |
+| `on_insert_all_weighted` | `fn on_insert_all_weighted(&mut self, solution: &S, entity_index: usize, descriptor_index: usize, multipliers: &[u32]) -> Sc` | Required |
+| `on_retract_all_weighted` | `fn on_retract_all_weighted(&mut self, solution: &S, entity_index: usize, descriptor_index: usize, multipliers: &[u32]) -> Sc` | Required |
 
 Implemented for each `IncrementalConstraint<S, Sc>` as a singleton set and for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: ConstraintSet<S, Sc>`. `ConstraintSetChain<Left, Right>` composes two existing `ConstraintSet` values without erasing either concrete type. `OrderedConstraintSetChain<Left, Right>` uses `ConstraintSetSource::Left` and `ConstraintSetSource::Right { constraint_count, metadata_entry_count }` spans to preserve user-authored result ordering when macro-generated node sharing combines one shared set with surrounding constraints. Raw metadata entries keep one entry per constraint for ordering; the public `constraint_metadata()` view deduplicates repeated full `ConstraintRef`s when hardness agrees and panics when the same full ref has conflicting hard/non-hard metadata. Package-qualified constraints that share a short name remain distinct.
 
@@ -441,12 +454,29 @@ therefore always hold the shadows they were inserted with.
 | `descriptor` | `fn descriptor() -> SolutionDescriptor` | Static descriptor |
 | `entity_count` | `fn entity_count(solution: &Self, descriptor_index: usize) -> usize` | Entity count |
 
-### `WeightProvider<Sc: Score>` — `Send + Sync`
+### Runtime Constraint Weights
 
-| Method | Signature | Note |
-|--------|-----------|------|
-| `weight` | `fn weight(&self, name: &str) -> Option<Sc>` | Lookup override weight |
-| `weight_or_default` | `fn weight_or_default(&self, name: &str, default: Sc) -> Sc` | Default: uses weight() |
+Weightedness is a property of the solution type:
+`PlanningSolution::HAS_CONSTRAINT_WEIGHTS`. For a type that leaves it `false`,
+`ScoreDirector` compiles to the unweighted `ConstraintSet` calls with no weight
+binding and no per-call check. For a weighted type, the director resolves
+`PlanningSolution::constraint_weights()` into one multiplier per weight slot
+(`constraint_weight_refs` order; absent names and a `None` accessor bind `1`)
+on construction and before every (re)initialization, and uses the
+`*_weighted` calls while any multiplier differs from `1`; with every
+multiplier at `1` it keeps the unweighted calls behind one branch.
+
+Multipliers scale each constraint's aggregated contribution (its total, its
+per-call delta, and its match scores), never the per-match signing inside a
+constraint; retained constraint state stays unweighted. Singleton constraints
+scale through the `IncrementalConstraint::*_weighted` defaults; shared grouped
+terminals scale each chained scorer by its own slot, so terminals sharing one
+node keep independent multipliers. `ScoreDirector::constraint_results()`,
+`constraint_analyses()`, `constraint_match_totals()`, and `fresh_score()` report
+weighted values and each constraint's `weight_multiplier`; the raw
+`ConstraintSet` analysis methods report unweighted values with multiplier `1`.
+Multiplier `0` zeroes a constraint without changing its `is_hard` metadata.
+Changing weights on a live director takes effect after `reset()`.
 
 ### Filter Traits
 
@@ -524,7 +554,10 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
   `after_variable_changed()`, `do_change()`, `get_score()`, `reset()`,
   `clone_working_solution()`, `constraints()`, `constraints_mut()`,
   `constraint_metadata()`, `constraint_count()`, `is_initialized()`,
-  `constraint_match_totals()`, and `take_solution()`
+  `constraint_results()` and `constraint_analyses()` (per-constraint results
+  and detailed analyses under the bound constraint weights),
+  `constraint_match_totals()` (`(name, weight_multiplier, weighted score,
+  match_count)` per constraint), and `take_solution()`
 - Returns borrowed constraint metadata views from the monomorphized `ConstraintSet` on demand.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
@@ -635,7 +668,7 @@ terminal_consumers, update_count, changed_key_count }`; construct with `new(...)
 
 Constraints own their `ConstraintRef` once. Metadata and analysis types borrow that identity so package-qualified constraint names remain intact without cloning `ConstraintRef` in scoring or reporting paths.
 
-**`ConstraintResult<'a, Sc>`** — `{ name: &'a str, score: Sc, match_count: usize, is_hard: bool }`
+**`ConstraintResult<'a, Sc>`** — `{ name: &'a str, score: Sc, match_count: usize, is_hard: bool, weight_multiplier: u32 }`
 
 **`ConstraintMetadata<'a>`** — `{ constraint_ref: &'a ConstraintRef, is_hard: bool }`; `name()` returns the short constraint name, and `full_name()` returns the package-qualified identity used for exact matching.
 
@@ -650,7 +683,7 @@ Construct with `new(entities)` or `with_description(entities, description)`.
 
 **`DetailedConstraintEvaluation<'a, Sc: Score>`** — `{ total_score: Sc, match_count: usize, matches: Vec<DetailedConstraintMatch<'a, Sc>> }`
 
-**`ConstraintAnalysis<'a, Sc: Score>`** — `{ constraint_ref: &'a ConstraintRef, weight: Sc, score: Sc, matches: Vec<DetailedConstraintMatch<'a, Sc>>, is_hard: bool }`
+**`ConstraintAnalysis<'a, Sc: Score>`** — `{ constraint_ref: &'a ConstraintRef, weight_multiplier: u32, score: Sc, matches: Vec<DetailedConstraintMatch<'a, Sc>>, is_hard: bool }`; `new(constraint_ref, weight_multiplier, score, matches, is_hard)`
 
 **`ScoreExplanation<'a, Sc: Score>`** — `{ score: Sc, constraint_analyses: Vec<ConstraintAnalysis<'a, Sc>> }`
 - Methods: `total_match_count()`, `non_zero_constraints()`, `all_matches()`
@@ -660,9 +693,6 @@ Construct with `new(entities)` or `with_description(entities, description)`.
 
 **`IndictmentMap<'a, Sc: Score>`** — `{ indictments: HashMap<EntityRef, Indictment<'a, Sc>> }`
 - Methods: `from_matches()`, `get()`, `entities()`, `worst_entities()`, `len()`, `is_empty()`
-
-**`ConstraintWeightOverrides<Sc: Score>`** — Runtime map of constraint-name weight overrides.
-- Methods: `new()`, `from_pairs()`, `put()`, `remove()`, `get_or_default()`, `get()`, `contains()`, `len()`, `is_empty()`, `clear()`, `into_arc()`
 
 **`FixedWeight<Sc>` / `fixed_weight(score)`** — Public zero-erasure wrapper for custom fixed score weights. Use `penalize(fixed_weight(custom_score))` or `reward(fixed_weight(custom_score))` when `Sc` is user-defined.
 

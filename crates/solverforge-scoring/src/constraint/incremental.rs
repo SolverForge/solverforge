@@ -184,12 +184,6 @@ where
             })
             .collect()
     }
-
-    fn weight(&self) -> Sc {
-        // For uni-constraints, we use a unit entity to compute the base weight.
-        // This works for constant weights; for dynamic weights, returns zero.
-        Sc::zero()
-    }
 }
 
 impl<S, A, E, F, W, Sc: Score> std::fmt::Debug for IncrementalUniConstraint<S, A, E, F, W, Sc> {

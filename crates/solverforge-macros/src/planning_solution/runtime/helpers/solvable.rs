@@ -54,10 +54,10 @@ pub(super) fn generate_solvable_solution(
 
                     let constraints = constraint_scores
                         .into_iter()
-                        .map(|(name, weight, contribution, match_count)| {
+                        .map(|(name, weight_multiplier, contribution, match_count)| {
                             ::solverforge::ConstraintAnalysis {
                                 name,
-                                weight,
+                                weight_multiplier,
                                 score: contribution,
                                 match_count,
                             }

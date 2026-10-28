@@ -9,9 +9,9 @@ use solverforge_core::score::Score;
 pub struct ConstraintAnalysis<Sc> {
     // Name of the constraint.
     pub name: String,
-    // Weight of the constraint.
-    pub weight: Sc,
-    // Score contribution from this constraint.
+    // Bound runtime weight multiplier; `0` means the constraint is disabled.
+    pub weight_multiplier: u32,
+    // Weighted score contribution from this constraint.
     pub score: Sc,
     // Number of matches (violations or rewards).
     pub match_count: usize,

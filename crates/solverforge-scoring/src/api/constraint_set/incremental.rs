@@ -8,6 +8,7 @@ use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
 use super::super::analysis::{ConstraintAnalysis, DetailedConstraintMatch};
+use super::weighting::scale_contribution;
 
 #[doc(hidden)]
 pub trait IncrementalConstraintSealed {}
@@ -97,12 +98,60 @@ pub trait IncrementalConstraint<S, Sc: Score>: IncrementalConstraintSealed + Sen
         Vec::new()
     }
 
-    /* Returns the constraint weight (score per match).
+    /* Weighted counterparts of the scoring methods.
 
-    Used for score explanation. Default returns zero.
+    Score directors of a solution type with `HAS_CONSTRAINT_WEIGHTS` call
+    these instead of the unweighted methods while any bound multiplier differs
+    from `1`. Each receives this constraint's bound multiplier and the
+    defaults scale the whole contribution by it, which is exact because
+    integer scaling is linear: the scaled sum of match scores equals the sum of
+    scaled match scores. Retained state therefore stays unweighted, and the
+    unweighted methods never see a multiplier.
     */
-    fn weight(&self) -> Sc {
-        Sc::zero()
+    fn evaluate_weighted(&self, solution: &S, multiplier: u32) -> Sc {
+        scale_contribution(self.evaluate(solution), multiplier)
+    }
+
+    fn initialize_weighted(&mut self, solution: &S, multiplier: u32) -> Sc {
+        scale_contribution(self.initialize(solution), multiplier)
+    }
+
+    fn on_insert_weighted(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+        multiplier: u32,
+    ) -> Sc {
+        scale_contribution(
+            self.on_insert(solution, entity_index, descriptor_index),
+            multiplier,
+        )
+    }
+
+    fn on_retract_weighted(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+        multiplier: u32,
+    ) -> Sc {
+        scale_contribution(
+            self.on_retract(solution, entity_index, descriptor_index),
+            multiplier,
+        )
+    }
+
+    fn get_matches_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multiplier: u32,
+    ) -> Vec<DetailedConstraintMatch<'a, Sc>> {
+        let mut matches = self.get_matches(solution);
+        for detailed in &mut matches {
+            detailed.score = scale_contribution(detailed.score, multiplier);
+        }
+        matches
     }
 }
 
@@ -117,6 +166,8 @@ pub struct ConstraintResult<'a, Sc> {
     pub match_count: usize,
     // Whether this is a hard constraint.
     pub is_hard: bool,
+    // Bound runtime weight multiplier; `0` means the constraint is disabled.
+    pub weight_multiplier: u32,
 }
 
 // Immutable public metadata for a scoring constraint.
@@ -209,6 +260,52 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
 
     // Resets all constraints for a new solving session.
     fn reset_all(&mut self);
+
+    /* Runtime constraint weights.
+
+    A set exposes `constraint_count()` weight slots: one per independently
+    scored named constraint, in structural order (tuple and chain children
+    left to right, shared-terminal scorers in authored order).
+    `constraint_weight_refs` pushes each slot's constraint reference; every
+    `*_weighted` method receives one multiplier per slot in that order and
+    scales each slot's contribution by its multiplier. Score directors call
+    these only for solution types with `HAS_CONSTRAINT_WEIGHTS` and only while
+    some multiplier differs from `1`; the unweighted methods stay the scoring
+    path for everything else.
+    */
+    fn constraint_weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>);
+
+    fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc;
+
+    fn evaluate_each_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multipliers: &[u32],
+    ) -> Vec<ConstraintResult<'a, Sc>>;
+
+    fn evaluate_detailed_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multipliers: &[u32],
+    ) -> Vec<ConstraintAnalysis<'a, Sc>>;
+
+    fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc;
+
+    fn on_insert_all_weighted(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+        multipliers: &[u32],
+    ) -> Sc;
+
+    fn on_retract_all_weighted(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+        multipliers: &[u32],
+    ) -> Sc;
 }
 
 impl<S, Sc, C> ConstraintSet<S, Sc> for C
@@ -240,13 +337,14 @@ where
             score: self.evaluate(solution),
             match_count: self.match_count(solution),
             is_hard: self.is_hard(),
+            weight_multiplier: 1,
         }]
     }
 
     fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>> {
         vec![ConstraintAnalysis::new(
             self.constraint_ref(),
-            self.weight(),
+            1,
             self.evaluate(solution),
             self.get_matches(solution),
             self.is_hard(),
@@ -272,139 +370,66 @@ where
     fn reset_all(&mut self) {
         self.reset();
     }
-}
 
-/* ============================================================================
-Tuple implementations
-============================================================================
-*/
-
-// Implement `ConstraintSet` for an empty tuple (no constraints).
-impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
-    #[inline]
-    fn evaluate_all(&self, _solution: &S) -> Sc {
-        Sc::zero()
+    fn constraint_weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>) {
+        refs.push(self.constraint_ref());
     }
 
-    #[inline]
-    fn constraint_count(&self) -> usize {
-        0
+    fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc {
+        self.evaluate_weighted(solution, multipliers[0])
     }
 
-    #[inline]
-    fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>> {
-        Vec::new()
+    fn evaluate_each_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multipliers: &[u32],
+    ) -> Vec<ConstraintResult<'a, Sc>> {
+        vec![ConstraintResult {
+            name: self.name(),
+            score: self.evaluate_weighted(solution, multipliers[0]),
+            match_count: self.match_count(solution),
+            is_hard: self.is_hard(),
+            weight_multiplier: multipliers[0],
+        }]
     }
 
-    #[inline]
-    fn evaluate_each<'a>(&'a self, _solution: &S) -> Vec<ConstraintResult<'a, Sc>> {
-        Vec::new()
+    fn evaluate_detailed_weighted<'a>(
+        &'a self,
+        solution: &S,
+        multipliers: &[u32],
+    ) -> Vec<ConstraintAnalysis<'a, Sc>> {
+        vec![ConstraintAnalysis::new(
+            self.constraint_ref(),
+            multipliers[0],
+            self.evaluate_weighted(solution, multipliers[0]),
+            self.get_matches_weighted(solution, multipliers[0]),
+            self.is_hard(),
+        )]
     }
 
-    #[inline]
-    fn evaluate_detailed<'a>(&'a self, _solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>> {
-        Vec::new()
+    fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc {
+        self.initialize_weighted(solution, multipliers[0])
     }
 
-    #[inline]
-    fn initialize_all(&mut self, _solution: &S) -> Sc {
-        Sc::zero()
-    }
-
-    #[inline]
-    fn on_insert_all(
+    fn on_insert_all_weighted(
         &mut self,
-        _solution: &S,
-        _entity_index: usize,
-        _descriptor_index: usize,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+        multipliers: &[u32],
     ) -> Sc {
-        Sc::zero()
+        self.on_insert_weighted(solution, entity_index, descriptor_index, multipliers[0])
     }
 
-    #[inline]
-    fn on_retract_all(
+    fn on_retract_all_weighted(
         &mut self,
-        _solution: &S,
-        _entity_index: usize,
-        _descriptor_index: usize,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+        multipliers: &[u32],
     ) -> Sc {
-        Sc::zero()
+        self.on_retract_weighted(solution, entity_index, descriptor_index, multipliers[0])
     }
-
-    #[inline]
-    fn reset_all(&mut self) {}
-}
-
-// Macro to implement `ConstraintSet` for tuples of various sizes.
-macro_rules! impl_constraint_set_for_tuple {
-    ($($idx:tt: $T:ident),+) => {
-        impl<S, Sc, $($T),+> ConstraintSet<S, Sc> for ($($T,)+)
-        where
-            S: Send + Sync,
-            Sc: Score,
-            $($T: ConstraintSet<S, Sc>,)+
-        {
-            #[inline]
-            fn evaluate_all(&self, solution: &S) -> Sc {
-                let mut total = Sc::zero();
-                $(total = total + self.$idx.evaluate_all(solution);)+
-                total
-            }
-
-            #[inline]
-            fn constraint_count(&self) -> usize {
-                let mut count = 0;
-                $(count += self.$idx.constraint_count();)+
-                count
-            }
-
-            fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>> {
-                let mut metadata = Vec::new();
-                $(
-                    metadata.extend(self.$idx.constraint_metadata_entries());
-                )+
-                metadata
-            }
-
-            fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>> {
-                let mut results = Vec::with_capacity(self.constraint_count());
-                $(results.extend(self.$idx.evaluate_each(solution));)+
-                results
-            }
-
-            fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>> {
-                let mut analyses = Vec::with_capacity(self.constraint_count());
-                $(analyses.extend(self.$idx.evaluate_detailed(solution));)+
-                analyses
-            }
-
-            #[inline]
-            fn initialize_all(&mut self, solution: &S) -> Sc {
-                let mut total = Sc::zero();
-                $(total = total + self.$idx.initialize_all(solution);)+
-                total
-            }
-
-            #[inline]
-            fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-                let mut total = Sc::zero();
-                $(total = total + self.$idx.on_insert_all(solution, entity_index, descriptor_index);)+
-                total
-            }
-
-            #[inline]
-            fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-                let mut total = Sc::zero();
-                $(total = total + self.$idx.on_retract_all(solution, entity_index, descriptor_index);)+
-                total
-            }
-
-            #[inline]
-            fn reset_all(&mut self) {
-                $(self.$idx.reset_all();)+
-            }
-        }
-    };
 }
 
 pub(super) fn push_constraint_metadata<'a>(
@@ -435,37 +460,3 @@ pub(super) fn deduplicate_constraint_metadata<'a>(
     }
     metadata
 }
-
-// Implement for tuples of size 1 through 32.
-impl_constraint_set_for_tuple!(0: C0);
-impl_constraint_set_for_tuple!(0: C0, 1: C1);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21, 22: C22);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21, 22: C22, 23: C23);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21, 22: C22, 23: C23, 24: C24);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21, 22: C22, 23: C23, 24: C24, 25: C25);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21, 22: C22, 23: C23, 24: C24, 25: C25, 26: C26);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21, 22: C22, 23: C23, 24: C24, 25: C25, 26: C26, 27: C27);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21, 22: C22, 23: C23, 24: C24, 25: C25, 26: C26, 27: C27, 28: C28);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21, 22: C22, 23: C23, 24: C24, 25: C25, 26: C26, 27: C27, 28: C28, 29: C29);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21, 22: C22, 23: C23, 24: C24, 25: C25, 26: C26, 27: C27, 28: C28, 29: C29, 30: C30);
-impl_constraint_set_for_tuple!(0: C0, 1: C1, 2: C2, 3: C3, 4: C4, 5: C5, 6: C6, 7: C7, 8: C8, 9: C9, 10: C10, 11: C11, 12: C12, 13: C13, 14: C14, 15: C15, 16: C16, 17: C17, 18: C18, 19: C19, 20: C20, 21: C21, 22: C22, 23: C23, 24: C24, 25: C25, 26: C26, 27: C27, 28: C28, 29: C29, 30: C30, 31: C31);

@@ -5,6 +5,7 @@ use solverforge_core::score::Score;
 
 use super::descriptor::DirectorDescriptor;
 use super::list_shadows::ListShadowRows;
+use super::weights::{ConstraintWeightBinding, UnweightedRows};
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 
 /* A zero-erasure score director for incremental scoring.
@@ -73,10 +74,13 @@ where
     Desc: DirectorDescriptor<S, C>,
 {
     pub(super) working_solution: S,
-    constraints: C,
-    cached_score: S::Score,
-    initialized: bool,
-    list_shadow_rows: ListShadowRows,
+    pub(super) constraints: C,
+    pub(super) cached_score: S::Score,
+    pub(super) initialized: bool,
+    pub(super) list_shadow_rows: ListShadowRows,
+    /* Bound per-slot weight multipliers. Only solution types with
+    `PlanningSolution::HAS_CONSTRAINT_WEIGHTS` ever bind or read it. */
+    pub(super) weights: ConstraintWeightBinding,
     pub(super) solution_descriptor: Desc,
     /* Entity counter function.
 
@@ -138,16 +142,21 @@ where
         solution_descriptor: Desc,
         entity_counter: fn(&S, usize) -> usize,
     ) -> Self {
-        Self {
+        let mut director = Self {
             working_solution: solution,
             constraints,
             cached_score: S::Score::zero(),
             initialized: false,
             list_shadow_rows: ListShadowRows::default(),
+            weights: ConstraintWeightBinding::default(),
             solution_descriptor,
             entity_counter,
             _phantom: PhantomData,
+        };
+        if S::HAS_CONSTRAINT_WEIGHTS {
+            director.bind_constraint_weights();
         }
+        director
     }
 
     /* Builds an initialized evaluator replica: a clone of the working
@@ -178,8 +187,16 @@ where
 
     pub(crate) fn calculate_score_impl(&mut self) -> S::Score {
         if !self.initialized {
+            if S::HAS_CONSTRAINT_WEIGHTS {
+                self.bind_constraint_weights();
+            }
             self.working_solution.update_all_shadows();
-            self.cached_score = self.constraints.initialize_all(&self.working_solution);
+            self.cached_score = if self.weighted() {
+                self.constraints
+                    .initialize_all_weighted(&self.working_solution, self.weights.multipliers())
+            } else {
+                self.constraints.initialize_all(&self.working_solution)
+            };
             self.initialized = true;
         }
         self.working_solution.set_score(Some(self.cached_score));
@@ -189,6 +206,11 @@ where
     pub(crate) fn fresh_score_impl(&self) -> S::Score {
         let mut solution = self.working_solution.clone();
         solution.update_all_shadows();
+        if self.weighted() {
+            return self
+                .constraints
+                .evaluate_all_weighted(&solution, self.weights.multipliers());
+        }
         self.constraints.evaluate_all(&solution)
     }
 
@@ -200,12 +222,16 @@ where
         if !self.initialized {
             return;
         }
+        if self.weighted() {
+            self.before_variable_changed_weighted(descriptor_index, entity_index);
+            return;
+        }
         let delta =
             self.constraints
                 .on_retract_all(&self.working_solution, entity_index, descriptor_index);
         let element_delta = self.list_shadow_rows.retract_held(
             &self.working_solution,
-            &mut self.constraints,
+            &mut UnweightedRows(&mut self.constraints),
             descriptor_index,
             entity_index,
         );
@@ -220,9 +246,13 @@ where
         if !self.initialized {
             return;
         }
+        if self.weighted() {
+            self.after_variable_changed_weighted(descriptor_index, entity_index);
+            return;
+        }
         let delta = self.list_shadow_rows.refresh_owner(
             &mut self.working_solution,
-            &mut self.constraints,
+            &mut UnweightedRows(&mut self.constraints),
             descriptor_index,
             entity_index,
         );
@@ -287,7 +317,9 @@ where
     /* Returns a mutable reference to the working solution.
 
     Note: After modifying the solution directly, you must call
-    `reset()` to recalculate the score from scratch.
+    `reset()` to recalculate the score from scratch. This includes the
+    solution's constraint weights: they are rebound on the next
+    initialization after `reset()`, never mid-session.
     */
     pub fn working_solution_mut(&mut self) -> &mut S {
         &mut self.working_solution
@@ -398,22 +430,6 @@ where
     // Returns whether the director is initialized.
     pub fn is_initialized(&self) -> bool {
         self.initialized
-    }
-
-    /* Returns constraint match totals for score analysis. */
-    pub fn constraint_match_totals(&self) -> Vec<(String, S::Score, S::Score, usize)> {
-        self.constraints
-            .evaluate_each(&self.working_solution)
-            .into_iter()
-            .map(|r| {
-                let weight = if r.match_count > 0 {
-                    r.score
-                } else {
-                    S::Score::zero()
-                };
-                (r.name.to_string(), weight, r.score, r.match_count)
-            })
-            .collect()
     }
 
     /* Consumes the director and returns the working solution.

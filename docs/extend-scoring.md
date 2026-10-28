@@ -97,6 +97,23 @@ Full evaluation and match counting are meaningful before initialization.
 Explanation payload conversion is confined to the existing cold `EntityRef`
 boundary.
 
+Runtime constraint weights never touch that signing step. A score director
+selects the weighted path at compile time from
+`PlanningSolution::HAS_CONSTRAINT_WEIGHTS`, so a model without weights runs the
+unweighted methods unchanged. A weighted director calls the `*_weighted`
+variants with one multiplier per weight slot, and every multiplier scales a
+constraint's whole contribution: its total, its incremental delta, and its
+match scores. Integer scaling is linear, so this equals scaling every match,
+and retained state stays unweighted. A new terminal that implements
+`IncrementalConstraint` for one named constraint inherits correct
+`*_weighted` defaults. A type that scores several named constraints behind one
+`ConstraintSet` (like a shared terminal's `ScorerChain`) must expose one weight
+slot per named constraint through `constraint_weight_refs` and scale each
+one's contribution by its own slot; never apply one multiplier to a delta that
+sums several named constraints. A hand-written `ConstraintSet` must implement
+the weighted methods by splitting `multipliers` across its children in
+`constraint_weight_refs` order.
+
 ## Evaluation ownership
 
 `prepare_evaluation` creates a concrete `Evaluation` owner independent of retained

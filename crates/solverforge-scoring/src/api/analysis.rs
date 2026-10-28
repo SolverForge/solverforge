@@ -184,9 +184,9 @@ impl<'a, Sc: Score> DetailedConstraintEvaluation<'a, Sc> {
 pub struct ConstraintAnalysis<'a, Sc: Score> {
     // Constraint reference.
     pub constraint_ref: &'a ConstraintRef,
-    // Constraint weight (score per match).
-    pub weight: Sc,
-    // Total score from this constraint.
+    // Bound runtime weight multiplier; `0` means the constraint is disabled.
+    pub weight_multiplier: u32,
+    // Total (weighted) score from this constraint.
     pub score: Sc,
     // All matches for this constraint.
     pub matches: Vec<DetailedConstraintMatch<'a, Sc>>,
@@ -198,14 +198,14 @@ impl<'a, Sc: Score> ConstraintAnalysis<'a, Sc> {
     // Creates a new constraint analysis.
     pub fn new(
         constraint_ref: &'a ConstraintRef,
-        weight: Sc,
+        weight_multiplier: u32,
         score: Sc,
         matches: Vec<DetailedConstraintMatch<'a, Sc>>,
         is_hard: bool,
     ) -> Self {
         Self {
             constraint_ref,
-            weight,
+            weight_multiplier,
             score,
             matches,
             is_hard,

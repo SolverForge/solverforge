@@ -21,7 +21,7 @@ element count grows.
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
-use crate::api::constraint_set::ConstraintSet;
+use super::weights::RowDeltas;
 
 #[derive(Clone, Copy)]
 struct PendingElement {
@@ -63,7 +63,7 @@ impl ListShadowRows {
     ) -> S::Score
     where
         S: PlanningSolution,
-        C: ConstraintSet<S, S::Score>,
+        C: RowDeltas<S, S::Score>,
     {
         let mut delta = S::Score::zero();
         let Some((source, elements)) = solution.list_shadow_elements(owner_descriptor, owner_index)
@@ -74,7 +74,7 @@ impl ListShadowRows {
             if self.pending(element) {
                 continue;
             }
-            delta = delta + constraints.on_retract_all(solution, element, source);
+            delta = delta + constraints.retract_row(solution, element, source);
             self.mark(element, true);
             self.pending.push(PendingElement {
                 element,
@@ -99,7 +99,7 @@ impl ListShadowRows {
     ) -> S::Score
     where
         S: PlanningSolution,
-        C: ConstraintSet<S, S::Score>,
+        C: RowDeltas<S, S::Score>,
     {
         let mut delta = S::Score::zero();
         if let Some((source, elements)) =
@@ -107,17 +107,17 @@ impl ListShadowRows {
         {
             for &element in elements {
                 if !self.pending(element) {
-                    delta = delta + constraints.on_retract_all(solution, element, source);
+                    delta = delta + constraints.retract_row(solution, element, source);
                 }
             }
         }
         solution.update_entity_shadows(owner_descriptor, owner_index);
-        delta = delta + constraints.on_insert_all(solution, owner_index, owner_descriptor);
+        delta = delta + constraints.insert_row(solution, owner_index, owner_descriptor);
         if let Some((source, elements)) =
             solution.list_shadow_elements(owner_descriptor, owner_index)
         {
             for &element in elements {
-                delta = delta + constraints.on_insert_all(solution, element, source);
+                delta = delta + constraints.insert_row(solution, element, source);
                 self.mark(element, false);
             }
         }
@@ -131,7 +131,7 @@ impl ListShadowRows {
             self.pending.swap_remove(position);
             if self.pending(entry.element) {
                 solution.clear_list_shadows(entry.element);
-                delta = delta + constraints.on_insert_all(solution, entry.element, entry.source);
+                delta = delta + constraints.insert_row(solution, entry.element, entry.source);
                 self.mark(entry.element, false);
             }
         }

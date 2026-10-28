@@ -228,7 +228,7 @@ impl Analyzable for FailureAfterSnapshotSolution {
             score,
             constraints: vec![ConstraintAnalysis {
                 name: "value".to_string(),
-                weight: SoftScore::of(1),
+                weight_multiplier: 1,
                 score,
                 match_count: 1,
             }],
@@ -280,7 +280,7 @@ impl Analyzable for ConfigTerminatedSolution {
             score,
             constraints: vec![ConstraintAnalysis {
                 name: "value".to_string(),
-                weight: SoftScore::of(1),
+                weight_multiplier: 1,
                 score,
                 match_count: 1,
             }],

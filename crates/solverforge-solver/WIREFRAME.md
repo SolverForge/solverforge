@@ -1595,7 +1595,7 @@ Free function. Requires `S: Analyzable, S::Score: Score`. Delegates to `solution
 
 ### `ScoreAnalysis<Sc>` / `ConstraintAnalysis<Sc>`
 
-Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis> }`. `ConstraintAnalysis { name, weight, score, match_count }`.
+Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis> }`. `ConstraintAnalysis { name, weight_multiplier, score, match_count }` (serde `weightMultiplier`); `score` is the weighted contribution and `weight_multiplier` is the bound runtime multiplier (`0` = disabled).
 
 ### Phase Factories
 

@@ -131,17 +131,12 @@ fn test_indictment_map() {
 fn test_score_explanation() {
     let constraint_ref = ConstraintRef::new("", "TestConstraint");
 
-    let analysis = ConstraintAnalysis::new(
-        &constraint_ref,
-        SoftScore::of(1),
-        SoftScore::of(-3),
-        vec![],
-        false,
-    );
+    let analysis = ConstraintAnalysis::new(&constraint_ref, 3, SoftScore::of(-3), vec![], false);
 
     let explanation = ScoreExplanation::new(SoftScore::of(-3), vec![analysis]);
 
     assert_eq!(explanation.score, SoftScore::of(-3));
     assert_eq!(explanation.constraint_analyses.len(), 1);
+    assert_eq!(explanation.constraint_analyses[0].weight_multiplier, 3);
     assert_eq!(explanation.non_zero_constraints().len(), 1);
 }

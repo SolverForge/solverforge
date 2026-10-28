@@ -51,7 +51,8 @@ src/
 │   └── tests/mod.rs                     — Descriptor test root with support, selector, cartesian, pillar, nearby, and ruin-recreate chunks under `tests/mod/`
 ├── run.rs                               — AnyTermination, ChannelProgressCallback, build_termination(), log_solve_start(), and try_run_solver_with_config_and_search()
 ├── run_tests.rs                         — Tests
-├── runtime_build_error.rs               — Public RuntimeBuildError and RuntimeBuildResult declaration/compiler/preparation/execution boundary
+├── runtime_build_error.rs               — Public RuntimeBuildError and RuntimeBuildResult declaration/compiler/constraint-weight/preparation/execution boundary
+├── constraint_weights.rs                — Crate-private solve-start validation of a solution's constraint weights
 ├── builder/
 │   ├── mod.rs                           — Re-exports from all builder submodules
 │   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
@@ -1856,11 +1857,17 @@ entity counting and logging callbacks, a
 `SolverRuntime<S>`, `SolverConfig`, fallback time limit, optional qualified
 candidate-trace provenance, and a fallible builder for one typed `Search`
 declaration. The constructor builds the working solution's constraint set and
-every evaluator replica's. Graph compilation and solve-owned source preparation
-remain private; there is no public graph or alternate phase-builder fallback.
+every evaluator replica's. Before building the director it validates the
+solution's `PlanningSolution::constraint_weights()` against the constraint
+set's metadata; an unknown constraint name or a multiplier above
+`MAX_CONSTRAINT_WEIGHT_MULTIPLIER` emits the `Failed` lifecycle event and
+returns `RuntimeBuildError::ConstraintWeights` before any phase runs. Graph
+compilation and solve-owned source preparation remain private; there is no
+public graph or alternate phase-builder fallback.
 
 `RuntimeBuildError` is `Declaration { message }`,
-`Compilation { path, message }`, `Preparation { phase_index, message }`, or
+`Compilation { path, message }`, `ConstraintWeights { message }`,
+`Preparation { phase_index, message }`, or
 `Execution { phase_index, message }`; `RuntimeBuildResult<T>` is its result
 alias. This is the public error surface propagated by generated and host
 bindings without exposing private compiler graph types.

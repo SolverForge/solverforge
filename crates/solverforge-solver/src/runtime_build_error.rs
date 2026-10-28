@@ -30,6 +30,12 @@ pub enum RuntimeBuildError {
         /// Actionable explanation of the preparation failure.
         message: String,
     },
+    /// The solution's runtime constraint weights name an unknown constraint
+    /// or exceed the multiplier cap.
+    ConstraintWeights {
+        /// Actionable explanation, including close-match suggestions.
+        message: String,
+    },
     /// A reached runtime phase could not bind or execute its declared work.
     Execution {
         /// Configured phase index that reached the failure boundary.
@@ -56,6 +62,9 @@ impl fmt::Display for RuntimeBuildError {
             }
             Self::Compilation { path, message } => {
                 write!(formatter, "runtime compilation failed at {path}: {message}")
+            }
+            Self::ConstraintWeights { message } => {
+                write!(formatter, "invalid constraint weights: {message}")
             }
             Self::Preparation {
                 phase_index,
@@ -117,6 +126,13 @@ mod tests {
             }
             .to_string(),
             "runtime execution failed at phase 3: source callback failed"
+        );
+        assert_eq!(
+            RuntimeBuildError::ConstraintWeights {
+                message: "unknown \"Travle\"".to_string(),
+            }
+            .to_string(),
+            "invalid constraint weights: unknown \"Travle\""
         );
     }
 }

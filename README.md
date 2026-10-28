@@ -734,6 +734,43 @@ for constraint in &analysis.constraints {
 }
 ```
 
+Each `ConstraintAnalysis` reports the weighted `score` and the constraint's
+`weight_multiplier`, so a disabled constraint (`0`) is distinguishable from a
+satisfied one.
+
+## Runtime Constraint Weights
+
+Mark one `ConstraintWeights` field with `#[constraint_weights]` to scale named
+constraints per solution without recompiling:
+
+```rust
+#[planning_solution(constraints = "define_constraints")]
+pub struct Schedule {
+    #[planning_entity_collection]
+    pub shifts: Vec<Shift>,
+
+    #[constraint_weights]
+    pub weights: ConstraintWeights,
+
+    #[planning_score]
+    pub score: Option<HardSoftScore>,
+}
+
+let mut weights = ConstraintWeights::new();
+weights.set("Travel time", 10).set("Overtime", 0);
+Schedule::validate_constraint_weights(&weights)?;
+```
+
+Multipliers are non-negative integers keyed by constraint name: unlisted
+constraints keep their coded weight (`1`), `0` disables a constraint, and `n`
+scales its contribution exactly `n` times, including hard levels. For
+fine-grained sliders, author base weights at the finest granularity and ship
+baseline multipliers in the data (for example `{"Travel time": 10}` with a
+slider over `0..=20`). A solve whose weights name an unknown constraint, or
+exceed `MAX_CONSTRAINT_WEIGHT_MULTIPLIER`, fails at start through the normal
+`Failed` lifecycle event. Weights are bound when scoring (re)initializes, so a
+running score director picks up changed weights after `reset()`.
+
 ## Examples
 
 Root workspace examples live under [`examples/`](examples/) as complete solver

@@ -19,6 +19,7 @@ triggers on these tuples but the pattern is architecturally required.
 pub mod test_utils;
 
 pub mod builder;
+mod constraint_weights;
 pub mod descriptor;
 pub mod heuristic;
 pub(crate) mod list_placement;

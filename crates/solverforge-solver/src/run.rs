@@ -16,6 +16,7 @@ use solverforge_scoring::{ConstraintSet, Director, ReplicaDescriptor, ScoreDirec
 use tracing::info;
 
 use crate::builder::{RuntimeExtensionRegistry, Search};
+use crate::constraint_weights::validate_constraint_weights;
 use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::Phase;
 use crate::runtime::compiler::executor::{
@@ -571,6 +572,10 @@ where
 {
     log_scale(&solution);
     let main_constraints = constraints(&solution);
+    if let Err(error) = validate_constraint_weights(&solution, &main_constraints) {
+        runtime.emit_failed(error.to_string());
+        return Err(error);
+    }
     let director = ScoreDirector::with_descriptor(
         solution,
         main_constraints,

@@ -3,10 +3,12 @@
 use solverforge_core::domain::PlanningSolution;
 
 use crate::heuristic::r#move::k_opt_reconnection::KOptReconnection;
+use crate::heuristic::r#move::CutPoint;
 use crate::heuristic::selector::k_opt::{count_cut_combinations, cut_combination_at};
 use crate::heuristic::selector::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveStreamContext,
 };
+use smallvec::SmallVec;
 
 use super::KOptEmitter;
 
@@ -27,6 +29,12 @@ where
     patterns: &'a [KOptReconnection],
     context: MoveStreamContext,
     descriptor_index: usize,
+    /* Move count of the entity at `entity_offset`, computed once per entity. */
+    entity_move_count: Option<usize>,
+    /* The last unranked cut combination and its rank. In canonical order
+    every reconnection pattern of one combination is emitted back to back,
+    so the combination is unranked once instead of once per pattern. */
+    cached_cuts: Option<(usize, SmallVec<[CutPoint; 8]>)>,
 }
 
 impl<'a, S, E> KOptCursor<'a, S, E>
@@ -60,6 +68,8 @@ where
             patterns,
             context,
             descriptor_index,
+            entity_move_count: None,
+            cached_cuts: None,
         }
     }
 
@@ -70,11 +80,20 @@ where
         }
         loop {
             let &(entity, route_len) = self.entity_lens.get(self.entity_offset)?;
-            let cut_count = count_cut_combinations(self.k, route_len, self.min_segment_len);
-            let move_count = cut_count.saturating_mul(self.patterns.len());
+            let move_count = match self.entity_move_count {
+                Some(move_count) => move_count,
+                None => {
+                    let cut_count = count_cut_combinations(self.k, route_len, self.min_segment_len);
+                    let move_count = cut_count.saturating_mul(self.patterns.len());
+                    self.entity_move_count = Some(move_count);
+                    move_count
+                }
+            };
             if self.move_offset >= move_count {
                 self.entity_offset += 1;
                 self.move_offset = 0;
+                self.entity_move_count = None;
+                self.cached_cuts = None;
                 continue;
             }
             let selected = self.context.selection_index(
@@ -85,12 +104,25 @@ where
             self.move_offset += 1;
             let cut_offset = selected / self.patterns.len();
             let pattern_offset = selected % self.patterns.len();
-            let cuts =
-                cut_combination_at(self.k, route_len, self.min_segment_len, entity, cut_offset)
-                    .expect("selected K-opt cut rank must map to a valid combination");
+            if self
+                .cached_cuts
+                .as_ref()
+                .is_none_or(|(cached_offset, _)| *cached_offset != cut_offset)
+            {
+                let cuts =
+                    cut_combination_at(self.k, route_len, self.min_segment_len, entity, cut_offset)
+                        .expect("selected K-opt cut rank must map to a valid combination");
+                // Kept inline in the cursor: the unranked Vec is freed at once,
+                // so caching adds no live heap memory.
+                self.cached_cuts = Some((cut_offset, SmallVec::from_vec(cuts)));
+            }
+            let (_, cuts) = self
+                .cached_cuts
+                .as_ref()
+                .expect("the selected cut combination was cached above");
             return Some(
                 self.emitter
-                    .emit_k_opt(&cuts, &self.patterns[pattern_offset]),
+                    .emit_k_opt(cuts, &self.patterns[pattern_offset]),
             );
         }
     }

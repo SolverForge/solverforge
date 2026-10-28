@@ -126,7 +126,10 @@ src/
 - `ScalarGroupLimits`
 - `ScalarTarget`
 - `ScalarCandidateProvider`
-- `SolverManager`
+- `SolverManager` (including `add_problem_change` for real-time changes)
+- `ProblemChange` (real-time change trait; `apply(self: Box<Self>, &mut dyn Director<S>)`)
+- `ClosureProblemChange` (one-shot closure change)
+- `ProblemChangeId` (queued-change acknowledgement; applied once `telemetry.problem_changes_applied >= id.get()`)
 - `SolverRuntime`
 - `SolverEvent`
 - `SolverEventMetadata`

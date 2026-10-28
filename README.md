@@ -132,7 +132,7 @@ replacement for every public fluent stream family.
   - Scalar: ChangeMove, SwapMove, PillarChangeMove, PillarSwapMove, RuinMove
   - List: ListChangeMove, ListSwapMove, ListPermuteMove, ListReverseMove, SublistChangeMove, SublistSwapMove, KOptMove, ListRuinMove
   - Scalar ruin-recreate, precedence repair, native and host-backed compound scalar moves, cartesian composition, and nearby selection for scalar and list neighborhoods
-- **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
+- **SolverManager API**: Retained job / snapshot / checkpoint lifecycle with exact pause/resume, real-time problem changes, lifecycle-complete events, snapshot retrieval, snapshot-bound analysis, and telemetry
 - **Model Macros**: `planning_model!`, `#[solverforge_constraints]`, `#[planning_solution]`, `#[planning_entity]`, `#[problem_fact]`
 - **Dynamic Bridge**: `solverforge-bridge` contracts for host-language integrations, with logical entity/fact/variable IDs, dynamic score support, descriptor-resolved scalar/list slots, lazy nearby-source adapters, and explicit dynamic-list access and metadata capabilities
 - **Scalar Variables**: `#[planning_variable]` fields store candidate indexes
@@ -689,6 +689,33 @@ let snapshot = MANAGER.get_snapshot(job_id, None).unwrap();
 let analysis = MANAGER.analyze_snapshot(job_id, Some(snapshot.snapshot_revision)).unwrap();
 MANAGER.delete(job_id).unwrap();
 ```
+
+### Real-time problem changes
+
+A running or paused job accepts problem changes. The runtime applies queued
+changes in submission order at its next safe point, starting from the best
+solution, rescores from scratch, and restarts its phases so construction
+assigns new work before local search resumes:
+
+```rust
+use solverforge::{ClosureProblemChange, SolverEvent};
+
+let id = MANAGER
+    .add_problem_change(
+        job_id,
+        ClosureProblemChange::<MySchedule, _>::new("add shift", move |director| {
+            director.working_solution_mut().shifts.push(new_shift);
+        }),
+    )
+    .unwrap();
+// Applied once telemetry.problem_changes_applied >= id.get(); the next
+// BestSolution carries the changed problem and may score lower than before.
+```
+
+Implement `ProblemChange<S>` for reusable changes. Changes are rejected once a
+job is cancelled, terminal, or past its final phase pass, and queued changes are
+discarded if cancellation or a configured limit stops the solve first. Run
+real-time jobs without a solver-level time limit and end them with `cancel()`.
 
 Lifecycle events carry `job_id`, monotonic `event_sequence`, `snapshot_revision`, telemetry, and authoritative lifecycle state. Progress metadata reflects the current runtime state, including `PauseRequested` while a pause is settling. After `pause()` is accepted, the stream delivers `PauseRequested` before any later worker-side event already published in `PauseRequested` state. Snapshot analysis is always bound to a retained `snapshot_revision`, whether the job is still solving, pause-requested, paused, or already terminal, and analysis availability must never be treated as proof that a job has completed. `delete` is reserved for cleanup of terminal jobs only: it removes the retained job from the public API immediately, and the underlying slot becomes reusable once the worker has fully exited.
 

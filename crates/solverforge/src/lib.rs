@@ -106,14 +106,15 @@ pub use solverforge_solver::stats::{
 };
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::{
-    analyze, local_search, Analyzable, AppliedMoveTelemetry, ConflictRepair, ConstraintAnalysis,
-    CustomSearchPhase, ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType,
-    FunctionalPartitioner, MoveTelemetry, PartitionedSearchPhase, PhaseTelemetry, RepairCandidate,
-    RepairLimits, RepairProvider, ScalarAssignmentRule, ScalarCandidate, ScalarCandidateProvider,
-    ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget, ScoreAnalysis, Search, SearchContext,
-    SelectorTelemetry, SimpleDecider, SolutionPartitioner, Solvable, SolverEvent,
-    SolverEventMetadata, SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime,
-    SolverSnapshot, SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTelemetryDetail,
+    analyze, local_search, Analyzable, AppliedMoveTelemetry, ClosureProblemChange, ConflictRepair,
+    ConstraintAnalysis, CustomSearchPhase, ExhaustiveSearchConfig, ExhaustiveSearchPhase,
+    ExplorationType, FunctionalPartitioner, MoveTelemetry, PartitionedSearchPhase, PhaseTelemetry,
+    ProblemChange, ProblemChangeId, RepairCandidate, RepairLimits, RepairProvider,
+    ScalarAssignmentRule, ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup,
+    ScalarGroupLimits, ScalarTarget, ScoreAnalysis, Search, SearchContext, SelectorTelemetry,
+    SimpleDecider, SolutionPartitioner, Solvable, SolverEvent, SolverEventMetadata,
+    SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime, SolverSnapshot,
+    SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTelemetryDetail,
     SolverTerminalReason, ThreadCount,
 };
 

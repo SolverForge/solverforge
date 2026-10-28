@@ -59,6 +59,12 @@ src/
 - `HardSoftDecimalScore`
 - `BendableScore`
 
+### Constraint Weights (from `solverforge-core`)
+
+- `ConstraintWeights` — runtime per-constraint `u32` multipliers for a `#[constraint_weights]` solution field
+- `ConstraintWeightError`
+- `MAX_CONSTRAINT_WEIGHT_MULTIPLIER`
+
 ### Logical Descriptor IDs (from `solverforge-core::domain`)
 
 - `EntityClassId`
@@ -231,7 +237,8 @@ pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     fixed_weight, hard_weight, planning_entity, planning_model, planning_solution, problem_fact,
     solverforge_constraints,
-    BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, CustomSearchPhase, Director,
+    BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, ConstraintWeights,
+    CustomSearchPhase, Director,
     ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType, FixedWeight,
     FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, HardWeight,
     ListPrecedenceMakespanConstraint, PartitionedSearchPhase, Projection, ProjectionSink,

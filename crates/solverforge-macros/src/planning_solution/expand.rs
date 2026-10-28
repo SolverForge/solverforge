@@ -59,6 +59,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 
     let score_field_name = score_field.ident.as_ref().unwrap();
     let score_type = extract_option_inner_type(&score_field.ty)?;
+    let constraint_weights_accessor = generate_constraint_weights_accessor(fields)?;
 
     let entity_descriptors: Vec<_> = fields
         .iter()
@@ -187,6 +188,7 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
             type Score = #score_type;
             fn score(&self) -> Option<Self::Score> { self.#score_field_name.clone() }
             fn set_score(&mut self, score: Option<Self::Score>) { self.#score_field_name = score; }
+            #constraint_weights_accessor
             #shadow_support_impl
         }
 
@@ -249,6 +251,9 @@ fn validate_solution_attributes(
         if let Some(attr) = get_attribute(&field.attrs, "planning_score") {
             validate_no_attribute_args(attr, "planning_score")?;
         }
+        if let Some(attr) = get_attribute(&field.attrs, "constraint_weights") {
+            validate_no_attribute_args(attr, "constraint_weights")?;
+        }
         if let Some(attr) = get_attribute(&field.attrs, "value_range_provider") {
             validate_no_attribute_args(attr, "value_range_provider")?;
         }
@@ -258,4 +263,45 @@ fn validate_solution_attributes(
     }
 
     Ok(())
+}
+
+fn generate_constraint_weights_accessor(
+    fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
+) -> Result<TokenStream, Error> {
+    let mut weight_fields = fields
+        .iter()
+        .filter(|field| has_attribute(&field.attrs, "constraint_weights"));
+    let Some(field) = weight_fields.next() else {
+        return Ok(TokenStream::new());
+    };
+    if let Some(extra) = weight_fields.next() {
+        return Err(Error::new_spanned(
+            extra,
+            "#[planning_solution] allows at most one #[constraint_weights] field",
+        ));
+    }
+    if !is_constraint_weights_type(&field.ty) {
+        return Err(Error::new_spanned(
+            &field.ty,
+            "#[constraint_weights] field must have type `ConstraintWeights`",
+        ));
+    }
+    let field_name = field.ident.as_ref().unwrap();
+    Ok(quote! {
+        const HAS_CONSTRAINT_WEIGHTS: bool = true;
+
+        fn constraint_weights(&self) -> ::core::option::Option<&::solverforge::ConstraintWeights> {
+            ::core::option::Option::Some(&self.#field_name)
+        }
+    })
+}
+
+fn is_constraint_weights_type(ty: &syn::Type) -> bool {
+    let syn::Type::Path(path) = ty else {
+        return false;
+    };
+    path.qself.is_none()
+        && path.path.segments.last().is_some_and(|segment| {
+            segment.ident == "ConstraintWeights" && segment.arguments.is_empty()
+        })
 }

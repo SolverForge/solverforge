@@ -1,0 +1,5 @@
+error: #[constraint_weights] field must have type `ConstraintWeights`
+  --> tests/ui/fail/constraint_weights_wrong_type.rs:15:14
+   |
+15 |     weights: std::collections::BTreeMap<String, u32>,
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

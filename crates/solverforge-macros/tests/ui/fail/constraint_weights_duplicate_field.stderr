@@ -1,0 +1,6 @@
+error: #[planning_solution] allows at most one #[constraint_weights] field
+  --> tests/ui/fail/constraint_weights_duplicate_field.rs:17:5
+   |
+17 | /     #[constraint_weights]
+18 | |     more_weights: ConstraintWeights,
+   | |___________________________________^

@@ -1,0 +1,5 @@
+error: constraint_weights does not accept arguments
+  --> tests/ui/fail/constraint_weights_arguments.rs:14:5
+   |
+14 |     #[constraint_weights(default = 1)]
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

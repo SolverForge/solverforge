@@ -59,6 +59,9 @@ pub use solverforge_core::domain::{EntityClassId, ProblemFactClassId, VariableId
 pub use solverforge_core::score::{
     BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SoftScore,
 };
+pub use solverforge_core::{
+    ConstraintWeightError, ConstraintWeights, MAX_CONSTRAINT_WEIGHT_MULTIPLIER,
+};
 
 pub mod cvrp;
 pub mod planning;

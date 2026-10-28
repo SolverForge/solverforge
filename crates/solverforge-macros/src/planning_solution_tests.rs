@@ -257,3 +257,47 @@ fn solution_descriptor_delegates_scalar_hook_attachment_to_model_manifest() {
     assert!(expanded.contains("attach_descriptor_hooks"));
     assert!(expanded.contains("validate_model"));
 }
+
+#[test]
+fn constraint_weights_field_generates_accessor_and_validator() {
+    let input = parse_quote! {
+        #[solverforge_constraints_path = "crate::constraints::create_constraints"]
+        struct Plan {
+            #[planning_entity_collection]
+            tasks: Vec<Task>,
+            #[constraint_weights]
+            weights: ConstraintWeights,
+            #[planning_score]
+            score: Option<HardSoftScore>,
+        }
+    };
+
+    let expanded = expand_derive(input)
+        .expect("solution expansion should succeed")
+        .to_string();
+
+    assert!(expanded.contains("const HAS_CONSTRAINT_WEIGHTS : bool = true ;"));
+    assert!(expanded.contains(
+        "fn constraint_weights (& self) -> :: core :: option :: Option < & :: solverforge :: ConstraintWeights > { :: core :: option :: Option :: Some (& self . weights) }"
+    ));
+    assert!(expanded.contains("pub fn validate_constraint_weights"));
+}
+
+#[test]
+fn solution_without_constraint_weights_keeps_default_accessor() {
+    let input = parse_quote! {
+        struct Plan {
+            #[planning_entity_collection]
+            tasks: Vec<Task>,
+            #[planning_score]
+            score: Option<HardSoftScore>,
+        }
+    };
+
+    let expanded = expand_derive(input)
+        .expect("solution expansion should succeed")
+        .to_string();
+
+    assert!(!expanded.contains("HAS_CONSTRAINT_WEIGHTS"));
+    assert!(!expanded.contains("fn constraint_weights"));
+}

@@ -230,6 +230,9 @@ fn validate_solution_fields(
         if let Some(attr) = get_attribute(&field.attrs, "planning_score") {
             validate_no_attribute_args(attr, "planning_score")?;
         }
+        if let Some(attr) = get_attribute(&field.attrs, "constraint_weights") {
+            validate_no_attribute_args(attr, "constraint_weights")?;
+        }
         if let Some(attr) = get_attribute(&field.attrs, "value_range_provider") {
             validate_no_attribute_args(attr, "value_range_provider")?;
         }

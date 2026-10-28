@@ -199,9 +199,10 @@ runtime scalar surface is candidate-index based.
 - `#[planning_list_element_collection(owner = "field")]` — `Vec<usize>` field containing all elements for the named list owner; optional when the solution has a matching `#[planning_entity_collection]` or `#[problem_fact_collection]` field whose name matches the entity list variable's `element_collection`
 - `#[problem_fact_collection]` — `Vec<Fact>` field containing problem facts
 - `#[planning_score]` — `Option<Score>` field (required)
+- `#[constraint_weights]` — optional single `ConstraintWeights` field carrying runtime per-constraint multipliers; a second such field or any other field type is a compile error
 - `#[value_range_provider]` — value range source
 
-Collection marker attributes and `#[planning_score]` do not accept arguments.
+Collection marker attributes, `#[planning_score]`, and `#[constraint_weights]` do not accept arguments; `planning_model!` rejects `#[constraint_weights(...)]` arguments in its manifest validation too.
 `#[planning_list_element_collection]` accepts only `owner = "field"` when
 arguments are present. Unknown or malformed user-authored solution field
 arguments are compile errors.
@@ -247,13 +248,14 @@ is rejected unless the override repeats the exact stock path. Custom routing
 semantics should omit `domain = "cvrp"` and declare explicit hook paths instead.
 
 **Generated code:**
-- `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, plus `update_entity_shadows()` / `update_all_shadows()` / `list_shadow_elements()` / `clear_list_shadows()` / `list_shadow_source()` delegation to the manifest-owned support implementation when `#[shadow_variable_updates(...)]` configures list shadows.
+- `impl PlanningSolution for T` — `type Score`, `score()`, `set_score()`, `HAS_CONSTRAINT_WEIGHTS = true` plus `constraint_weights()` returning `Some(&self.field)` when a `#[constraint_weights]` field exists (otherwise both keep their unweighted defaults), plus `update_entity_shadows()` / `update_all_shadows()` / `list_shadow_elements()` / `clear_list_shadows()` / `list_shadow_source()` delegation to the manifest-owned support implementation when `#[shadow_variable_updates(...)]` configures list shadows.
 - `impl T { pub fn descriptor() -> SolutionDescriptor }` — builds full descriptor with entity extractors and fact extractors, reusing entity-generated descriptors so field-level variable order and metadata are preserved
 - `impl T { pub fn entity_count(&Self, descriptor_index: usize) -> usize }` — entity count by descriptor index
 - Private owner-specific list operations used by the canonical runtime: `__solverforge_list_len_<owner>()`, `__solverforge_list_remove_<owner>()`, `__solverforge_list_insert_<owner>()`, `__solverforge_list_get_<owner>()`, `__solverforge_list_set_<owner>()`, `__solverforge_list_reverse_<owner>()`, `__solverforge_sublist_remove_<owner>()`, `__solverforge_sublist_insert_<owner>()`, `__solverforge_ruin_remove_<owner>()`, `__solverforge_ruin_insert_<owner>()`, `__solverforge_list_remove_for_construction_<owner>()`, `__solverforge_index_to_element_<owner>()`, `__solverforge_element_source_key_<owner>()`, `__solverforge_element_count_<owner>()`, `__solverforge_assigned_elements_<owner>()`, `__solverforge_n_entities_<owner>()`, `__solverforge_assign_element_<owner>()`, plus aggregate helpers `__solverforge_total_list_entities()` and `__solverforge_total_list_elements()`
 - `impl SolvableSolution for T` — delegates to `descriptor()` and `entity_count()`
 - `impl Solvable for T` (when constraints path specified) — `solve(self, runtime: SolverRuntime<Self>, qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>)` delegates to `solve_internal()`
-- `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` with canonical shadow support and returns `ScoreAnalysis`
+- `impl Analyzable for T` (when constraints path specified) — `analyze()` creates `ScoreDirector` with canonical shadow support and returns `ScoreAnalysis` with weighted scores and each constraint's `weight_multiplier`; it panics with the `ConstraintWeightError` message when the solution's weights name an unknown constraint or exceed the cap
+- `impl T { pub fn validate_constraint_weights(&ConstraintWeights) -> Result<(), ConstraintWeightError> }` (when constraints path specified) — builds the constraint set once and runs the same checks a solve runs at start, so callers can reject a typo before submitting
 - `fn solve_internal(self, runtime: SolverRuntime<Self>, qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>)` (when constraints path specified) — loads the configured base `SolverConfig` (or embedded `solver.toml`), applies the optional `config = "..."` callback, and calls hidden `try_run_solver_with_config_and_search`, passing the constraints function as the constraint-set constructor (`fn(&Self) -> _`) used for the working solution and every evaluator replica. The generated `__solverforge_search_declaration(config, descriptor)` builds one `RuntimeModel` containing scalar slots plus zero or more owner-specific list slots, delegates scalar hook and scalar-group attachment to the `planning_model!` support impl, sorts those variable slots to the descriptor-backed variable order emitted by the macros, constructs `SearchContext` with `try_new`, and returns the selected custom `Search` declaration or canonical defaults. The compiled runtime owns phase preparation, source binding, construction, local search, and terminal lifecycle; no macro-generated phase sequence exists.
 - Public solution source methods for all `#[planning_entity_collection]`, `#[problem_fact_collection]`, and streamable `#[planning_list_element_collection]` fields. Each method is inherent on the solution type, for example `Plan::tasks()`, returns the concrete hidden `SourceExtract<fn(&Plan) -> &[Task]>` wrapper, and carries hidden `ChangeSource::Descriptor(idx)` for planning entities or `ChangeSource::Static` for facts and list elements. User constraints can call the explicit form `ConstraintFactory::new().for_each(Plan::tasks())` or import the generated `PlanConstraintStreams` trait and call `ConstraintFactory::new().tasks()`. Both paths use the same source metadata and concrete stream types.
 
@@ -368,5 +370,5 @@ element shadows score incrementally.
 
 ## Test Coverage
 
-- `tests/trybuild.rs` — compile-pass and compile-fail coverage for the public macros, including rejection of removed field arguments and unsupported shadow annotations
+- `tests/trybuild.rs` — compile-pass and compile-fail coverage for the public macros, including rejection of removed field arguments, unsupported shadow annotations, and duplicate, mistyped, or argument-carrying `#[constraint_weights]` fields
 - `planning_entity_tests.rs` and `planning_solution_tests.rs` — token-level golden checks for generated code shape

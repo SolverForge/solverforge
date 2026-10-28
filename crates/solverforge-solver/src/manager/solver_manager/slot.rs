@@ -4,6 +4,7 @@ use std::sync::{Condvar, Mutex};
 use solverforge_core::domain::PlanningSolution;
 use tokio::sync::mpsc;
 
+use super::problem_change::ProblemChangeQueue;
 use super::types::{
     SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverSnapshot, SolverStatus,
     SolverTerminalReason,
@@ -37,6 +38,7 @@ pub(super) struct JobRecord<S: PlanningSolution> {
     pub(super) checkpoint_available: bool,
     pub(super) snapshots: Vec<SolverSnapshot<S>>,
     pub(super) failure_message: Option<String>,
+    pub(super) problem_changes: ProblemChangeQueue<S>,
 }
 
 impl<S: PlanningSolution> JobRecord<S> {
@@ -52,6 +54,7 @@ impl<S: PlanningSolution> JobRecord<S> {
             checkpoint_available: false,
             snapshots: Vec::new(),
             failure_message: None,
+            problem_changes: ProblemChangeQueue::new(),
         }
     }
 
@@ -66,6 +69,7 @@ impl<S: PlanningSolution> JobRecord<S> {
         self.checkpoint_available = false;
         self.snapshots.clear();
         self.failure_message = None;
+        self.problem_changes.reset();
     }
 
     pub(super) fn push_snapshot(&mut self, mut snapshot: SolverSnapshot<S>) -> u64 {
@@ -146,11 +150,21 @@ impl<S: PlanningSolution> JobRecord<S> {
     }
 }
 
+/// `JobSlot::control` bit requesting a pause at the next safe point.
+pub(super) const CONTROL_PAUSE: u8 = 1;
+/// `JobSlot::control` bit announcing queued real-time problem changes.
+pub(super) const CONTROL_PROBLEM_CHANGE: u8 = 1 << 1;
+
 pub(super) struct JobSlot<S: PlanningSolution> {
     pub(super) state: AtomicU8,
     pub(super) visibility: AtomicU8,
     pub(super) terminate: AtomicBool,
-    pub(super) pause_requested: AtomicBool,
+    /// Pending worker control requests as a `CONTROL_*` bitmask, so the
+    /// solver's safe points observe pause and queued problem changes with one
+    /// atomic load. `CONTROL_PAUSE` is set by `pause` and cleared under the
+    /// pause gate; `CONTROL_PROBLEM_CHANGE` is set and cleared under the
+    /// publication lock together with the problem-change queue.
+    pub(super) control: AtomicU8,
     pub(super) worker_running: AtomicBool,
     publication: Mutex<()>,
     sender: Mutex<Option<mpsc::UnboundedSender<SolverEvent<S>>>>,
@@ -165,7 +179,7 @@ impl<S: PlanningSolution> JobSlot<S> {
             state: AtomicU8::new(SLOT_FREE),
             visibility: AtomicU8::new(SLOT_VISIBLE),
             terminate: AtomicBool::new(false),
-            pause_requested: AtomicBool::new(false),
+            control: AtomicU8::new(0),
             worker_running: AtomicBool::new(false),
             publication: Mutex::new(()),
             sender: Mutex::new(None),
@@ -190,12 +204,12 @@ impl<S: PlanningSolution> JobSlot<S> {
     }
 
     /// Clears the pause request and wakes a paused worker while holding the
-    /// pause gate. `wait_for_resume` tests and waits on `pause_requested`
+    /// pause gate. `wait_for_resume` tests and waits on `CONTROL_PAUSE`
     /// under this same gate, so a resume or cancel that lands between the
     /// worker's predicate check and its wait cannot be lost.
     pub(super) fn clear_pause_and_wake(&self) {
         let _gate = self.pause_gate.lock().unwrap();
-        self.pause_requested.store(false, Ordering::SeqCst);
+        self.control.fetch_and(!CONTROL_PAUSE, Ordering::SeqCst);
         self.pause_condvar.notify_all();
     }
 
@@ -209,7 +223,7 @@ impl<S: PlanningSolution> JobSlot<S> {
             return false;
         }
         self.terminate.store(false, Ordering::Release);
-        self.pause_requested.store(false, Ordering::Release);
+        self.control.store(0, Ordering::Release);
         self.worker_running.store(true, Ordering::Release);
         self.visibility.store(SLOT_VISIBLE, Ordering::Release);
         *self.sender.lock().unwrap() = Some(sender);
@@ -230,7 +244,7 @@ impl<S: PlanningSolution> JobSlot<S> {
 
     fn reset_locked(&self) {
         self.terminate.store(false, Ordering::Release);
-        self.pause_requested.store(false, Ordering::Release);
+        self.control.store(0, Ordering::Release);
         self.worker_running.store(false, Ordering::Release);
         *self.sender.lock().unwrap() = None;
         self.record.lock().unwrap().reset();

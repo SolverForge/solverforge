@@ -184,8 +184,24 @@ Partition children are internal compute scopes, not retained-job publication
 owners. They inherit cancellation, environment mode, remaining time limit,
 in-phase limits, and deterministic seeds, but pause checkpoints are emitted only
 by the parent scope while it still owns a full public solution. If a child yields
-to pause, cancel, or configured termination, partitioned search abandons the
-partial child results instead of merging them.
+to pause, cancel, configured termination, or a queued real-time problem change,
+partitioned search abandons the partial child results instead of merging them.
+Children never apply problem changes; the configured runtime applies them to the
+unmerged solution and restarts its phase sequence.
+
+## Real-time problem changes
+
+`SolverManager::add_problem_change` queues a `ProblemChange<S>` (or a one-shot
+`ClosureProblemChange`) on a running or paused job. Built-in phases stop at
+their next control poll; custom phases must poll `solver_scope.should_terminate()`
+in their step loop the same way they already must for pause and cancel.
+The runtime then applies the batch to the best solution, rescores from scratch,
+and restarts the phase sequence, calling `CustomSearchPhase::on_problem_change`
+first so a custom phase can drop state sized or keyed by the previous solution.
+A change mutates `score_director.working_solution_mut()` directly and must keep
+fact indexes and planning-variable references valid. Run real-time jobs without
+a solver-level time limit and end them with `cancel()`: configured limits stay
+binding during re-construction.
 
 ## Practical path
 

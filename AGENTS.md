@@ -157,8 +157,13 @@ Intentional type-erasure boundaries that should not be "fixed":
   their concrete function-pointer and typed-`ScalarEdit` path.
 - `RuntimeHostProviderErrorBoundary` in `builder/context/provider`: cold
   conversion of core normalization failures into native host exceptions only.
-- `ProblemChange::apply(&mut dyn Director<S>)`: real-time problem-change
-  integration boundary only.
+- `ProblemChange::apply(self: Box<Self>, &mut dyn Director<S>)` and the
+  per-job `Box<dyn ProblemChange<S>>` queue: real-time problem-change
+  integration boundary only. A pending change is a bit in the job's existing
+  control word, next to the pause bit, so safe points observe pause and
+  changes with the single atomic load they already take; decode a non-zero
+  word out of line, and never add a separate poll or drain the queue from a
+  hot loop.
 - `SolverPanicPayload`: cold preservation of a foreign runtime panic object
   alongside its stable display message only.
 

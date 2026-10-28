@@ -105,6 +105,10 @@ pub enum SolverEvent<S: PlanningSolution> {
     Progress {
         metadata: SolverEventMetadata<S::Score>,
     },
+    /// A new best solution. Best scores only improve between problem-change
+    /// boundaries: after applied real-time changes, the first `BestSolution`
+    /// carries the changed problem and may score below earlier ones. Detect a
+    /// boundary by `telemetry.problem_changes_applied` increasing.
     BestSolution {
         metadata: SolverEventMetadata<S::Score>,
         solution: S,

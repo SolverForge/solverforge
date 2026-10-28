@@ -190,7 +190,8 @@ where
                 Ordering::SeqCst,
             ) {
                 Ok(_) => {
-                    slot.pause_requested.store(true, Ordering::SeqCst);
+                    slot.control
+                        .fetch_or(super::slot::CONTROL_PAUSE, Ordering::SeqCst);
                     record.clear_candidate_trace_detail();
                     let metadata =
                         record.next_metadata(job_id, SolverLifecycleState::PauseRequested, None);
@@ -344,7 +345,7 @@ where
             .is_some_and(|slot| slot.state.load(Ordering::Acquire) == SLOT_FREE)
     }
 
-    fn slot(&self, job_id: usize) -> Result<&JobSlot<S>, SolverManagerError> {
+    pub(super) fn slot(&self, job_id: usize) -> Result<&JobSlot<S>, SolverManagerError> {
         self.slots
             .get(job_id)
             .ok_or(SolverManagerError::JobNotFound { job_id })

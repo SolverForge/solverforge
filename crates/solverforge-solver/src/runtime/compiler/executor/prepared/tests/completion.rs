@@ -1,4 +1,7 @@
+use super::super::super::completion::require_mandatory_completion;
 use super::*;
+use crate::manager::SolverRuntime;
+use crate::realtime::ClosureProblemChange;
 
 #[test]
 fn cancellation_retains_complete_working_solution_over_better_incomplete_best() {
@@ -57,4 +60,52 @@ fn cancellation_retains_complete_working_solution_over_better_incomplete_best() 
         vec![vec![1, 2, 3]]
     );
     assert_eq!(best_solution_events.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn pending_problem_change_defers_the_completion_gate_instead_of_failing() {
+    let _guard = TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let config = SolverConfig {
+        phases: vec![construction(ConstructionHeuristicType::ListClarkeWright)],
+        ..SolverConfig::default()
+    };
+    let executor = executor(&config);
+    let bindings = executor.graph().default_bindings().clone();
+    let mut execution = executor
+        .instantiate()
+        .expect("Clarke-Wright runtime execution prepares");
+    let director = ScoreDirector::simple(plan(vec![1, 2, 3], vec![Vec::new()]), descriptor(), {
+        |plan, _| entity_count(plan)
+    });
+    let runtime = SolverRuntime::detached();
+    let mut scope = SolverScope::new(director).with_runtime(Some(runtime));
+    scope.start_solving();
+    runtime
+        .submit_problem_change_for_test(Box::new(ClosureProblemChange::<Plan, _>::new(
+            "pending",
+            |_| {},
+        )))
+        .expect("solving job accepts a change");
+    let mut completion_published = false;
+
+    assert!(!require_mandatory_completion(
+        &mut execution,
+        &bindings,
+        &mut completion_published,
+        0,
+        &mut scope,
+    )
+    .expect("an interrupted pass is not a completion failure"));
+
+    assert!(scope.take_problem_changes().is_some());
+    assert!(require_mandatory_completion(
+        &mut execution,
+        &bindings,
+        &mut completion_published,
+        0,
+        &mut scope,
+    )
+    .is_err());
 }

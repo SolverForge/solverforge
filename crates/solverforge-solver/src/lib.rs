@@ -113,8 +113,8 @@ pub use manager::{
     analyze, Analyzable, ConstraintAnalysis, ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder,
     ListCheapestInsertionPhase, ListClarkeWrightPhase, ListConstructionPhase,
     ListConstructionPhaseBuilder, ListKOptPhase, ListRegretInsertionPhase, LocalSearchPhaseFactory,
-    PhaseFactory, ScoreAnalysis, Solvable, SolverEvent, SolverEventMetadata, SolverFactory,
-    SolverFactoryBuilder, SolverLifecycleState, SolverManager, SolverManagerError,
+    PhaseFactory, ProblemChangeId, ScoreAnalysis, Solvable, SolverEvent, SolverEventMetadata,
+    SolverFactory, SolverFactoryBuilder, SolverLifecycleState, SolverManager, SolverManagerError,
     SolverPanicPayload, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
     SolverTelemetryDetail, SolverTerminalReason,
 };
@@ -149,6 +149,7 @@ pub use planning::{
     ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits,
     ScalarTarget,
 };
+pub use realtime::{ClosureProblemChange, ProblemChange};
 pub use run::{log_solve_start, try_run_solver_with_config_and_search};
 pub use runtime::{ListVariableEntity, ListVariableMetadata};
 pub use runtime_build_error::{RuntimeBuildError, RuntimeBuildResult};

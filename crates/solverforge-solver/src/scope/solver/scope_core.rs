@@ -351,6 +351,7 @@ pub(crate) enum PendingControl {
     PauseRequested,
     CancelRequested,
     ConfigTerminationRequested,
+    ProblemChangeRequested,
 }
 
 impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {

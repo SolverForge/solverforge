@@ -16,6 +16,7 @@ use crate::manager::{SolverLifecycleState, SolverRuntime, SolverTerminalReason};
 use crate::phase::construction::{
     ConstructionFrontier, ConstructionGroupSlotId, ConstructionListElementId, ConstructionSlotId,
 };
+use crate::realtime::ProblemChange;
 use crate::stats::{
     CandidatePullTelemetry, CandidateTraceConstructionTarget, CandidateTraceDisposition,
     CandidateTraceHeader, CandidateTracePullToken, CandidateTraceRecordDecision,
@@ -25,6 +26,7 @@ use crate::stats::{
 include!("solver/progress.rs");
 include!("solver/scope_core.rs");
 include!("solver/scope_progress.rs");
+include!("solver/problem_change.rs");
 
 impl<S: PlanningSolution, D: Director<S>, ProgressCb> SolverScope<'_, S, D, ProgressCb> {
     /// Closes the running phase's statistics record. Bound-free so a phase

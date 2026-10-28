@@ -23,6 +23,9 @@ enum PartitionOutcome<S> {
     Pause,
     Cancelled,
     Terminated,
+    /// A queued problem change stopped the child. The parent returns without
+    /// merging so the runner applies the change to the unmerged solution.
+    ProblemChange,
 }
 
 /// Partitioned search phase that solves partitions in parallel.
@@ -175,6 +178,7 @@ where
                         solver_scope.mark_terminated_by_config();
                         return;
                     }
+                    PartitionOutcome::ProblemChange => return,
                 }
             }
 
@@ -239,6 +243,7 @@ where
             PendingControl::PauseRequested => return PartitionOutcome::Pause,
             PendingControl::CancelRequested => return PartitionOutcome::Cancelled,
             PendingControl::ConfigTerminationRequested => return PartitionOutcome::Terminated,
+            PendingControl::ProblemChangeRequested => return PartitionOutcome::ProblemChange,
             PendingControl::Continue => {}
         }
         if solver_scope.yielded_to_parent() {
@@ -289,3 +294,7 @@ where
 #[cfg(test)]
 #[path = "phase_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/problem_change.rs"]
+mod problem_change_tests;

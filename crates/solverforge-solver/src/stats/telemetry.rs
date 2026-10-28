@@ -151,6 +151,9 @@ pub struct SolverTelemetry {
     pub construction_slots_kept: u64,
     pub construction_slots_no_doable: u64,
     pub scalar_assignment_required_remaining: u64,
+    /// Real-time problem changes applied so far. A change acknowledged as
+    /// `ProblemChangeId(n)` has been applied once this reaches `n`.
+    pub problem_changes_applied: u64,
     pub generation_time: Duration,
     pub evaluation_time: Duration,
     /// Every phase started so far, in execution order; the last entry of a
@@ -195,6 +198,7 @@ impl SolverTelemetry {
             construction_slots_kept: 0,
             construction_slots_no_doable: 0,
             scalar_assignment_required_remaining: 0,
+            problem_changes_applied: 0,
             generation_time: Duration::ZERO,
             evaluation_time: Duration::ZERO,
             phases: Vec::new(),

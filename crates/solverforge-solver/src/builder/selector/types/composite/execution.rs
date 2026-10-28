@@ -48,6 +48,12 @@ where
         }
     }
 
+    /// Discards retained stream state derived from an earlier working
+    /// solution, such as grouped assignment bases, after the problem changed.
+    pub(crate) fn reset_stream_state(&mut self) {
+        self.stream_state = Some(new_stream_state(&self.selector));
+    }
+
     /// Lends this retained arena one mutable solve resource for a phase call.
     ///
     /// The returned source opens ordinary phase cursors through the same

@@ -30,6 +30,7 @@ src/
 ├── runtime/compiler/                    — Immutable runtime-graph compiler, prepared runner, default policy, and executor kernels; every reached source-backed construction boundary validates stable element keys against the frozen declared stream before deciding whether work remains
 ├── runtime/compiler/executor/completion.rs — Structural mandatory-work gate and deferred best-solution publication
 ├── runtime/compiler/executor/runner/failure.rs — Cold propagation of configured-runtime execution failures to the public run boundary
+├── runtime/compiler/executor/runner/problem_change.rs — Problem-change pass loop and per-pass runner state reset
 ├── runtime/provider_cursor.rs           — One lazy compound-provider cursor; static Rust providers retain typed candidates/function pointers, while host callbacks alone use raw named edits and object-safe dispatch
 ├── model_support.rs                     — Hidden `PlanningModelSupport` bridge implemented by `planning_model!` for model-owned scalar hook attachment, scalar group attachment, model/solution validation, and shadow updates
 ├── pinning.rs                           — Internal descriptor-backed pin checks for solver-generated moves and entity mutations
@@ -323,7 +324,8 @@ src/
 │   │   ├── partitioner.rs              — SolutionPartitioner trait, FunctionalPartitioner, ThreadCount
 │   │   ├── partitioner_tests.rs        — Tests
 │   │   ├── phase.rs                    — PartitionedSearchPhase<P, Part>
-│   │   └── phase_tests.rs              — Tests
+│   │   ├── phase_tests.rs              — Tests
+│   │   └── tests/problem_change.rs     — Children yield to a queued problem change without merging
 │   ├── sequence.rs                      — PhaseSequence<P>
 │   └── localsearch/vnd/
 │       ├── mod.rs                       — Internal VND module declarations
@@ -339,6 +341,8 @@ src/
 │   ├── solver_manager/types.rs         — SolverLifecycleState, SolverTerminalReason, SolverStatus, SolverTelemetryDetail, SolverEventMetadata, SolverEvent, snapshots, and SolverManagerError
 │   ├── solver_manager/runtime.rs       — SolverRuntime retained lifecycle publisher and SolverPanicPayload
 │   ├── solver_manager/runtime/pause.rs — Pause settlement with or without a public snapshot according to structural completion
+│   ├── solver_manager/runtime/problem_change.rs — Runtime-side problem-change bit decode and FIFO drain/close
+│   ├── solver_manager/problem_change.rs — ProblemChangeId, SolverManager::add_problem_change, per-job change queue
 │   ├── solver_manager/slot.rs          — Internal retained-job slots and snapshot records
 │   ├── solver_manager/manager.rs       — MAX_JOBS, Solvable trait, SolverManager
 │   ├── solution_manager.rs             — analyze() free fn, Analyzable trait, ScoreAnalysis, ConstraintAnalysis
@@ -388,9 +392,11 @@ src/
 │   ├── solver/progress.rs               — SolverProgressRef, SolverProgressKind, SolverLifecycleState status, and ProgressCallback dispatch
 │   ├── solver/scope_core.rs             — Core SolverScope construction, shared phase progress pulse, runtime publication, lifecycle control, mutation, and child-scope helpers
 │   ├── solver/scope_progress.rs         — SolverScope score/best-solution/progress/stat reporting helpers
+│   ├── solver/problem_change.rs         — Pending problem-change control, queue drain/close, and batch application
 │   ├── phase.rs                         — PhaseScope<'t, 'a, S, D, BestCb = ()>
 │   ├── step.rs                          — StepScope<'t, 'a, 'b, S, D, BestCb = ()>
-│   └── tests.rs                         — Tests
+│   ├── tests.rs                         — Tests
+│   └── tests/problem_change.rs          — Problem-change control priority, child yield, and application tests
 │
 ├── termination/
 │   ├── mod.rs                           — Termination<S, D, BestCb = ()> trait, re-exports
@@ -1372,7 +1378,10 @@ typed `local_search(selector, acceptor, forager)` helper. Generated code lowers
 the result into concrete enums over known phase types; there is no
 `Box<dyn Phase>` registry. `CustomSearchPhase::on_solver_terminal(...)` is an
 optional matching terminal hook for custom runtime phases and defaults to a
-no-op.
+no-op. `CustomSearchPhase::on_problem_change(&mut self)` runs after the
+configured runtime applied real-time problem changes and before it restarts its
+phase sequence; it defaults to a no-op and should discard state sized or keyed
+by the previous solution.
 
 `RuntimeExtensionRegistry<S, V, DM, IDM>` is the recursive concrete registry
 contract transferred with `Search`; its `RuntimeExtensionPolicy` is `Typed` or
@@ -1469,7 +1478,7 @@ any `F: for<'a> Fn(SolverProgressRef<'a, S>) + Send + Sync`. Its public
 
 Top-level scope for a retained solve. Holds score director, current score, best solution, best score, RNG, active timing, stats, runtime bridge, terminal reason, termination state, and the internal configured-runtime publication gate. Configured execution defers best-solution publication until the compiled graph proves mandatory structural completion; partial construction scores remain internal.
 
-Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `score_director()`, `working_solution()`, `mutate(...)`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. The current implementation also owns the one-second phase progress pulse and tracks a working-solution revision for built-in descriptor-driven construction completion; committed mutation goes through `mutate(...)` (or the equivalent crate-private step boundary), which clears `current_score` and advances that revision exactly once. The committed-writer contract behind that sentence: every committed change (accepted construction/local-search/VND moves, configuration-list commits, partition merges, apply-closures) funnels through one committed-mutation path, speculation never advances the revision, and model callbacks (candidate values, order keys, value legality, ownership policies) may read the whole solution — placement and enumeration therefore re-read committed global state rather than trusting a cached snapshot. `replace_working_solution_and_reinitialize(solution)` is the wholesale writer: fresh director reset, revision back to 1, frontier completion markers invalidated. Speculative phase evaluation uses `Move::do_move`, the returned typed undo value, `Move::undo_move`, and `DirectorScoreState` snapshots to restore both solution values and committed score state after scoring a candidate, and sequential composite doability checks run `Move::is_doable_with_working_preview` on the caller's live director instead of an immutable preview clone. An internal phase-relative termination overlay records the best and last-improving committed scores only while an explicit runtime construction or local-search phase executes; it is neither a public `SolverScope` setting nor child-scope state. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination.
+Key methods: `new(score_director)`, `new_with_callback(score_director, callback, terminate, runtime)`, `with_progress_callback(F) -> SolverScope<.., F>`, `with_runtime(runtime)`, `start_solving()`, `initialize_working_solution_as_best()`, `replace_working_solution_and_reinitialize(solution)`, `score_director()`, `working_solution()`, `mutate(...)`, `current_score()`, `best_score()`, `calculate_score()`, `update_best_solution()`, `report_progress()`, `report_best_solution()`, `pause_if_requested()`, `pause_timers()`, `resume_timers()`, `mark_cancelled()`, `mark_terminated_by_config()`, `is_terminate_early()`, `set_time_limit()`. The current implementation also owns the one-second phase progress pulse and tracks a working-solution revision for built-in descriptor-driven construction completion; committed mutation goes through `mutate(...)` (or the equivalent crate-private step boundary), which clears `current_score` and advances that revision exactly once. The committed-writer contract behind that sentence: every committed change (accepted construction/local-search/VND moves, configuration-list commits, partition merges, apply-closures) funnels through one committed-mutation path, speculation never advances the revision, and model callbacks (candidate values, order keys, value legality, ownership policies) may read the whole solution — placement and enumeration therefore re-read committed global state rather than trusting a cached snapshot. `replace_working_solution_and_reinitialize(solution)` is the wholesale writer: fresh director reset, revision back to 1, frontier completion markers invalidated. Speculative phase evaluation uses `Move::do_move`, the returned typed undo value, `Move::undo_move`, and `DirectorScoreState` snapshots to restore both solution values and committed score state after scoring a candidate, and sequential composite doability checks run `Move::is_doable_with_working_preview` on the caller's live director instead of an immutable preview clone. An internal phase-relative termination overlay records the best and last-improving committed scores only while an explicit runtime construction or local-search phase executes; it is neither a public `SolverScope` setting nor child-scope state. Internal prompt-control plumbing also exposes immutable `pending_control()` so built-in phases can abandon partial steps and unwind to runtime-owned boundaries before settling pause/cancel/config termination or a queued real-time problem change.
 
 Public fields: `inphase_step_count_limit`, `inphase_move_count_limit`, `inphase_score_calc_count_limit`.
 
@@ -1524,12 +1533,26 @@ Static lifetime retained-job manager: `solve()` returns `(job_id, receiver)`;
 `solve_with_qualified_candidate_trace_provenance()` uses the same lifecycle
 while installing an externally validated trace attestation. Other methods are
 `get_status()`, `get_telemetry_detail()`, `pause()`, `resume()`, `cancel()`,
-`delete()`, `get_snapshot()`, `analyze_snapshot()`, and `active_job_count()`.
+`delete()`, `get_snapshot()`, `analyze_snapshot()`, `add_problem_change()`, and
+`active_job_count()`.
 The retained lifecycle contract is expressed in neutral `job`, `snapshot`, and
 `checkpoint` terminology. `pause()` settles at a runtime-owned safe boundary
 and `resume()` continues from the exact in-process checkpoint. `delete()` hides
 a terminal job immediately, but the slot itself is not reusable until the
 solve worker has definitely exited. `MAX_JOBS = 16`.
+
+`add_problem_change<P: ProblemChange<S> + 'static>(job_id, change) ->
+Result<ProblemChangeId, SolverManagerError>` queues a real-time change on a
+`Solving`, `PauseRequested`, or `Paused` job; see Real-Time Planning. It returns
+`JobNotFound` for a hidden or free slot and `InvalidStateTransition { action:
+"add_problem_change", .. }` once cancellation was requested, the job is
+terminal, or the runtime finished its final phase pass.
+
+### `ProblemChangeId`
+
+`Copy` acknowledgement of one queued change; `get() -> u64` is the 1-based
+submission ordinal within its job. The change has been applied once a later
+event or status reports `telemetry.problem_changes_applied >= id.get()`.
 
 ### `SolverLifecycleState` / `SolverTerminalReason`
 
@@ -1546,6 +1569,12 @@ Detached retained-job telemetry returned by `get_telemetry_detail()`. It contain
 ### `SolverEvent<S>`
 
 Lifecycle event stream for retained jobs. Variants: `Progress`, `BestSolution`, `PauseRequested`, `Paused`, `Resumed`, `Completed`, `Cancelled`, `Failed`. Each event carries metadata with job id, monotonic event sequence, lifecycle state, terminal reason, telemetry, scores, and optional snapshot revision. Event metadata is authoritative: for example, progress can report `PauseRequested` while a pause is still settling toward a `Paused` checkpoint, and once `pause()` is accepted the stream delivers `PauseRequested` before any later worker-side event already in `PauseRequested` state.
+
+Best-solution scores are monotonic only between problem-change boundaries:
+after applied problem changes the stream reports a `Progress` event whose
+`telemetry.problem_changes_applied` increased and whose `best_score` is `None`,
+then a `BestSolution` for the changed problem once structural completion holds.
+That `BestSolution` may score below earlier ones.
 
 `SolverEventMetadata<Sc>` is that shared payload with public fields `job_id`,
 `event_sequence`, `lifecycle_state`, `terminal_reason`, `telemetry`,
@@ -1604,6 +1633,35 @@ phase can reinsert earlier work or reread declaration callbacks.
 
 ## Real-Time Planning
 
+Changes are submitted with `SolverManager::add_problem_change`, which boxes
+them into the job's FIFO queue and raises a problem-change bit in the job's
+control word, which also carries the pause request. Every built-in phase family
+reads that word at its existing pause poll points, so a pending change costs no
+extra load, and stops at the next safe point without recording a terminal
+reason; pause, cancellation, and configured limits rank above it. Partitioned-search children
+yield to their parent, which returns without merging; only the configured
+runtime drains the queue. It then:
+
+1. starts from the published best solution (or the working solution while
+   publication is still deferred during construction),
+2. applies the whole batch in submission order as one committed mutation,
+3. resets the score director, which rebuilds the constraint set from the
+   changed solution, and rescores from scratch,
+4. drops the old best, defers publication, bumps
+   `telemetry.problem_changes_applied`, and reports `Progress`,
+5. restarts its phase sequence: construction assigns new or unassigned work and
+   the structural completion gate publishes the changed solution as
+   `BestSolution` before local search resumes.
+
+A paused job applies its queue after `resume()`; a paused job is never mutated.
+The queue is drained or closed under the publication lock after every phase
+pass, so a late submission is either applied by another pass or rejected.
+Changes still queued when cancellation or a configured limit stops the solve
+are discarded. Configured time and work limits stay binding across passes, so a
+long-running real-time job should use no solver-level time limit and end with
+`cancel()`; a limit reached during re-construction fails the job like any other
+incomplete mandatory construction.
+
 **`ClosureProblemChange<S, F>`** — `new(name, change_fn)`; wraps a one-shot
 `FnOnce(&mut dyn Director<S>) + Send` and implements `ProblemChange<S>`.
 
@@ -1646,7 +1704,9 @@ phases, solve-level work, and the running phase. `phase()` / `phase_mut()` /
 `phase_elapsed()` expose the running phase. `SolverStats` also owns the
 pause-aware solve clock: `start()`, `pause()`, `resume()`, `elapsed()`,
 `active_elapsed()`, `started_at()`, and `is_paused()`; `SolverScope::elapsed()`
-and `PhaseScope::elapsed()` read it.
+and `PhaseScope::elapsed()` read it. `problem_changes_applied()` and
+`record_problem_changes_applied(count)` keep the cumulative real-time change
+counter.
 Human-facing `moves/s` is derived only at log/console formatting edges.
 `moves_generated` counts candidates actually yielded by a runtime cursor; it
 does not count an unrequested logical tail. `moves_speculative` counts
@@ -1665,8 +1725,9 @@ calculations made outside any phase. Run snapshots also carry
 not-doable,
 acceptor-rejected, forager-ignored, hard-improving/neutral/worse, conflict
 repair provider/filter/exposure counters, `construction_slots_assigned`,
-`construction_slots_kept`, `construction_slots_no_doable`, and
-`scalar_assignment_required_remaining`, which
+`construction_slots_kept`, `construction_slots_no_doable`,
+`problem_changes_applied` (cumulative real-time changes applied to the solve),
+and `scalar_assignment_required_remaining`, which
 distinguish scalar construction slots that received a candidate, legally kept
 their current unassigned value, had no doable candidate, or remain uncovered
 after scalar assignment construction. Candidate-backed grouped scalar
@@ -1841,7 +1902,7 @@ monomorphized score-director lifecycle.
   `RuntimeHostCompoundProvider`, and the cold
   `RuntimeHostProviderErrorBoundary` are explicit host-language boundaries;
   static Rust providers never enter them.
-- **`ProblemChange::apply` uses `&mut dyn Director<S>`** — intentional type erasure at the real-time planning boundary.
+- **`ProblemChange::apply` uses `&mut dyn Director<S>`, and queued changes are `Box<dyn ProblemChange<S>>`** — intentional, cold, per-change type erasure at the real-time planning boundary.
 - **`SolverPanicPayload` owns `Box<dyn Any + Send>`** — cold foreign-runtime
   panic preservation, outside candidate generation and scoring.
 - **Cursor-owned candidate lifetime.** Hot phases evaluate cursor candidates by stable ID, release losers immediately, and move the winner out exactly once. `MoveArena` remains the reusable-capacity owner for APIs and concrete composite storage that require it.

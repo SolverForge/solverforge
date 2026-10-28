@@ -38,6 +38,11 @@ where
     {
     }
 
+    /// Runs after the configured runtime applied real-time problem changes
+    /// and before it restarts its phase sequence. Discard any state sized or
+    /// keyed by the previous solution.
+    fn on_problem_change(&mut self) {}
+
     fn phase_type_name(&self) -> &'static str {
         "CustomSearchPhase"
     }
@@ -342,6 +347,13 @@ where
 
     fn phase_type_name(&self) -> &'static str {
         "CustomPhase"
+    }
+
+    fn on_problem_change(&mut self) {
+        match self {
+            Self::Previous(phase) => phase.on_problem_change(),
+            Self::Current(phase) => phase.on_problem_change(),
+        }
     }
 
     fn on_solver_terminal<D, ProgressCb>(

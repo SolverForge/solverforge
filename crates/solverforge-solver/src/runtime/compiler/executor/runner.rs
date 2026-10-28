@@ -7,6 +7,7 @@
 mod failure;
 mod local_search;
 mod lowering;
+mod problem_change;
 
 use std::fmt::{self, Debug};
 
@@ -54,6 +55,7 @@ where
     mandatory_bindings: DefaultRuntimeBindings<S, V, DM, IDM>,
     mandatory_completion_published: bool,
     terminal_notified: bool,
+    problem_change_passes: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -176,6 +178,7 @@ where
             mandatory_bindings,
             mandatory_completion_published: false,
             terminal_notified: false,
+            problem_change_passes: 0,
         })
     }
 
@@ -320,9 +323,16 @@ where
     }
 
     fn final_phase_plan(&self) -> CandidateTracePhasePlan {
+        let problem_change_passes = (self.problem_change_passes > 0).then(|| {
+            (
+                "problem_change_passes",
+                self.problem_change_passes.to_string(),
+            )
+        });
         CandidateTracePhasePlan::known(
             "solverforge.runtime.compiled",
-            [("phase_count", self.phases.len().to_string())],
+            std::iter::once(("phase_count", self.phases.len().to_string()))
+                .chain(problem_change_passes),
             self.phases
                 .iter()
                 .map(RunnerPhase::candidate_trace_plan)
@@ -424,20 +434,7 @@ where
     ProgressCb: ProgressCallback<S>,
 {
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {
-        publish_if_mandatory_complete(
-            &mut self.execution,
-            &self.mandatory_bindings,
-            &mut self.mandatory_completion_published,
-            0,
-            solver_scope,
-        )
-        .unwrap_or_else(|error| panic_runtime_execution_error(error));
-        for index in 0..self.phases.len() {
-            if solver_scope.should_terminate() {
-                break;
-            }
-            self.solve_phase(index, solver_scope);
-        }
+        self.solve_passes(solver_scope);
     }
 
     fn phase_type_name(&self) -> &'static str {
@@ -459,6 +456,7 @@ where
             return;
         }
         self.terminal_notified = true;
+        solver_scope.close_problem_changes();
         for (prepared, runner_phase) in self.prepared_phases.iter_mut().zip(&mut self.phases) {
             if let (PreparedRuntimePhase::Extension(extension), RunnerPhase::Extension { .. }) =
                 (prepared, runner_phase)

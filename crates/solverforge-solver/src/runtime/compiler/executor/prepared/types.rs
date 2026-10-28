@@ -170,6 +170,13 @@ where
         Ok(unassigned)
     }
 
+    /// Forgets every bound list source so the next reached construction
+    /// rebinds against a solution whose elements may have been added or
+    /// removed by a problem change.
+    pub(crate) fn reset_list_source_bindings(&mut self) {
+        self.list_source_indices.fill_with(|| None);
+    }
+
     pub(crate) fn current_list_unassigned_count(
         &mut self,
         phase_index: usize,

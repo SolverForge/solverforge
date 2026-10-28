@@ -217,9 +217,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         }
         if self
             .runtime
-            .is_some_and(|runtime| runtime.is_pause_requested())
+            .is_some_and(|runtime| runtime.has_pending_control())
         {
-            return PendingControl::PauseRequested;
+            return self.pending_runtime_control();
         }
         if self.time_limit_reached() {
             return PendingControl::ConfigTerminationRequested;
@@ -541,15 +541,10 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
 
     fn settle_pause_if_requested(&mut self) {
         if let Some(runtime) = self.runtime {
-            if !runtime.is_pause_requested() || self.is_terminate_early() {
+            if !runtime.has_pending_control() || self.is_terminate_early() {
                 return;
             }
-            match self.publication {
-                Publication::Enabled => runtime.pause_if_requested(self),
-                Publication::Disabled => {
-                    self.yielded_to_parent = true;
-                }
-            }
+            self.settle_runtime_control(runtime);
         }
     }
 

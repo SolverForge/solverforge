@@ -16,7 +16,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         D: solverforge_scoring::Director<S>,
         ProgressCb: ProgressCallback<S>,
     {
-        if !self.slot.pause_requested.load(Ordering::Acquire) || self.is_cancel_requested() {
+        if !self.is_pause_requested() || self.is_cancel_requested() {
             return;
         }
 
@@ -40,13 +40,13 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         best_score: Option<S::Score>,
         telemetry: SolverTelemetry,
     ) -> bool {
-        if !self.slot.pause_requested.load(Ordering::Acquire) || self.is_cancel_requested() {
+        if !self.is_pause_requested() || self.is_cancel_requested() {
             return false;
         }
 
         let (telemetry, candidate_trace) = telemetry.split_candidate_trace();
         let published = self.slot.with_publication(|sender, record| {
-            if !self.slot.pause_requested.load(Ordering::Acquire)
+            if !self.is_pause_requested()
                 || self.is_cancel_requested()
                 || self.current_state().is_terminal()
             {
@@ -92,7 +92,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
     ) -> bool {
         let (telemetry, candidate_trace) = telemetry.split_candidate_trace();
         let published = self.slot.with_publication(|sender, record| {
-            if !self.slot.pause_requested.load(Ordering::Acquire)
+            if !self.is_pause_requested()
                 || self.is_cancel_requested()
                 || self.current_state().is_terminal()
             {
@@ -122,7 +122,7 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         telemetry: SolverTelemetry,
     ) -> bool {
         let mut guard = self.slot.pause_gate.lock().unwrap();
-        while self.slot.pause_requested.load(Ordering::Acquire) && !self.is_cancel_requested() {
+        while self.is_pause_requested() && !self.is_cancel_requested() {
             guard = self.slot.pause_condvar.wait(guard).unwrap();
         }
         drop(guard);
@@ -143,7 +143,7 @@ mod tests {
     use solverforge_core::score::SoftScore;
 
     use super::*;
-    use crate::manager::solver_manager::slot::{JobSlot, SLOT_SOLVING};
+    use crate::manager::solver_manager::slot::{JobSlot, CONTROL_PAUSE, SLOT_SOLVING};
 
     #[derive(Clone, Debug)]
     struct PauseTestSolution {
@@ -166,7 +166,7 @@ mod tests {
     fn incomplete_pause_exposes_no_checkpoint_or_solution_snapshot() {
         let slot = Box::leak(Box::new(JobSlot::<PauseTestSolution>::new()));
         slot.state.store(SLOT_SOLVING, Ordering::Release);
-        slot.pause_requested.store(true, Ordering::Release);
+        slot.control.store(CONTROL_PAUSE, Ordering::Release);
         let runtime = SolverRuntime::new(7, slot);
         let worker = thread::spawn(move || {
             runtime.pause_without_snapshot(Some(SoftScore::of(0)), SolverTelemetry::default())
@@ -190,7 +190,7 @@ mod tests {
         // This is the same gate discipline `clear_pause_and_wake` uses.
         {
             let _gate = slot.pause_gate.lock().unwrap();
-            slot.pause_requested.store(false, Ordering::Release);
+            slot.control.fetch_and(!CONTROL_PAUSE, Ordering::Release);
             slot.pause_condvar.notify_all();
         }
         assert!(worker.join().expect("pause worker must resume"));

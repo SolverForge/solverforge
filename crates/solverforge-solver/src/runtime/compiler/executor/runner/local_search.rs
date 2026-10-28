@@ -115,6 +115,18 @@ where
             }
         }
     }
+
+    /// Drops selector stream state retained from the previous problem.
+    pub(super) fn reset_stream_state(&mut self) {
+        match self {
+            Self::AcceptorForager { selector, .. } => selector.reset_stream_state(),
+            Self::VariableNeighborhoodDescent { neighborhoods, .. } => {
+                neighborhoods
+                    .iter_mut()
+                    .for_each(RuntimeNeighborhoodState::reset_stream_state);
+            }
+        }
+    }
 }
 
 pub(super) fn build_acceptor_and_forager<S>(

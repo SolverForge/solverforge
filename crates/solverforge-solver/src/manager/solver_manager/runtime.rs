@@ -4,11 +4,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use solverforge_core::domain::PlanningSolution;
 
-use super::slot::{JobSlot, SLOT_CANCELLED, SLOT_COMPLETED, SLOT_FAILED, SLOT_SOLVING};
+use super::slot::{
+    JobSlot, CONTROL_PAUSE, SLOT_CANCELLED, SLOT_COMPLETED, SLOT_FAILED, SLOT_SOLVING,
+};
 use super::types::{SolverEvent, SolverLifecycleState, SolverTerminalReason};
 use crate::stats::SolverTelemetry;
 
 mod pause;
+mod problem_change;
 
 /// Preserves a foreign-runtime error object while giving retained solving a
 /// stable, displayable failure message.
@@ -131,8 +134,16 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         self.slot.terminate.load(Ordering::Acquire)
     }
 
+    /// True when any control request (pause or queued problem changes) is
+    /// pending. This is the single load solver safe points take on their fast
+    /// path; callers decode the request out of line.
+    #[inline]
+    pub(crate) fn has_pending_control(&self) -> bool {
+        self.slot.control.load(Ordering::Acquire) != 0
+    }
+
     pub(crate) fn is_pause_requested(&self) -> bool {
-        self.slot.pause_requested.load(Ordering::Acquire)
+        self.slot.control.load(Ordering::Acquire) & CONTROL_PAUSE != 0
     }
 
     pub(crate) fn cancel_flag(&self) -> &'static AtomicBool {

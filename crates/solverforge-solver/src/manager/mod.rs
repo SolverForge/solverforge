@@ -37,7 +37,7 @@ pub use phase_factory_trait::PhaseFactory;
 pub use solution_manager::{analyze, Analyzable, ConstraintAnalysis, ScoreAnalysis};
 pub use solver_factory::{solver_factory_builder, SolverFactory};
 pub use solver_manager::{
-    Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager,
-    SolverManagerError, SolverPanicPayload, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis,
-    SolverStatus, SolverTelemetryDetail, SolverTerminalReason,
+    ProblemChangeId, Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState,
+    SolverManager, SolverManagerError, SolverPanicPayload, SolverRuntime, SolverSnapshot,
+    SolverSnapshotAnalysis, SolverStatus, SolverTelemetryDetail, SolverTerminalReason,
 };

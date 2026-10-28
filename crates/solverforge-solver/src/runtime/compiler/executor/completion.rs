@@ -42,6 +42,11 @@ where
     if solver_scope.terminal_reason() == SolverTerminalReason::Failed {
         return Ok(false);
     }
+    // A queued problem change interrupted this pass; the runner applies it
+    // and restarts construction, so incomplete work here is not a failure.
+    if solver_scope.problem_change_interrupt_pending() {
+        return Ok(false);
+    }
     let unresolved = unresolved_mandatory_work(
         execution,
         bindings,
@@ -134,6 +139,11 @@ where
         return Ok(false);
     }
     if solver_scope.terminal_reason() == SolverTerminalReason::Failed {
+        return Ok(false);
+    }
+    // A queued problem change interrupted this pass; the runner applies it
+    // and restarts construction, so incomplete work here is not a failure.
+    if solver_scope.problem_change_interrupt_pending() {
         return Ok(false);
     }
     let unresolved = unresolved_mandatory_work(

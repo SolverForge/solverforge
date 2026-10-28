@@ -63,6 +63,7 @@ where
     W: for<'a> Fn(&S, &O::View<'a>) -> Sc,
     Sc: Score,
 {
+    #[inline(always)]
     fn apply_changes(&mut self, solution: &S, removed: &[RowHandle], inserted: &[RowHandle]) -> Sc {
         let mut total = Sc::zero();
         for h in removed.iter().copied() {
@@ -107,6 +108,7 @@ where
         });
         count
     }
+    #[inline(always)]
     fn initialize(&mut self, solution: &S) -> Sc {
         self.scores.clear();
         self.operator.initialize(solution);
@@ -123,6 +125,7 @@ where
         }
         total
     }
+    #[inline(always)]
     fn on_retract(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc {
         let mut removed = std::mem::take(&mut self.removed);
         let mut inserted = std::mem::take(&mut self.inserted);
@@ -135,6 +138,7 @@ where
         self.inserted = inserted;
         score
     }
+    #[inline(always)]
     fn on_insert(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc {
         let mut removed = std::mem::take(&mut self.removed);
         let mut inserted = std::mem::take(&mut self.inserted);

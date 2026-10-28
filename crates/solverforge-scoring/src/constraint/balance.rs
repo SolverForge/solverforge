@@ -265,6 +265,7 @@ where
             .count()
     }
 
+    #[inline(always)]
     fn initialize(&mut self, solution: &S) -> Sc {
         self.reset();
 
@@ -296,6 +297,7 @@ where
         self.compute_score()
     }
 
+    #[inline(always)]
     fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         if !self
             .change_source
@@ -339,6 +341,7 @@ where
         new_score - old_score
     }
 
+    #[inline(always)]
     fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
         if !self
             .change_source

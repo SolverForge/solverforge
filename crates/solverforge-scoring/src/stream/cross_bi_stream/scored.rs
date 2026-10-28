@@ -284,6 +284,7 @@ where
         self.child_inserted.clear();
     }
 
+    #[inline(always)]
     fn initialize(&mut self, solution: &S) {
         self.inner.initialize(solution);
         self.accepted.clear();
@@ -316,6 +317,7 @@ where
         }
     }
 
+    #[inline(always)]
     fn retract(
         &mut self,
         solution: &S,
@@ -347,6 +349,7 @@ where
         self.child_inserted = inner_inserted;
     }
 
+    #[inline(always)]
     fn insert(
         &mut self,
         solution: &S,

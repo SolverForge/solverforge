@@ -159,6 +159,7 @@ where
         right_bucket.push(handle);
         Some(handle)
     }
+    #[inline(always)]
     fn probe_left(&mut self, solution: &S, left: RowHandle, deltas: &mut impl FnMut(RowHandle)) {
         let candidates = {
             let Some(row) = self.left.resolve(solution, left) else {
@@ -187,6 +188,7 @@ where
             }
         }
     }
+    #[inline(always)]
     fn probe_right(&mut self, solution: &S, right: RowHandle, deltas: &mut impl FnMut(RowHandle)) {
         let candidates = {
             let Some(row) = self.right.resolve(solution, right) else {
@@ -272,6 +274,7 @@ where
         self.child_r_removed.clear();
         self.child_r_inserted.clear();
     }
+    #[inline(always)]
     fn initialize(&mut self, solution: &S) {
         self.left.initialize(solution);
         self.right.initialize(solution);
@@ -312,6 +315,7 @@ where
             self.right.visit_provenance(identity.right(), visitor);
         }
     }
+    #[inline(always)]
     fn retract(
         &mut self,
         solution: &S,
@@ -350,6 +354,7 @@ where
         self.child_r_removed = rm;
         self.child_r_inserted = ri;
     }
+    #[inline(always)]
     fn insert(
         &mut self,
         solution: &S,

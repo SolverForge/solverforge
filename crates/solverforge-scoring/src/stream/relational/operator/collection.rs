@@ -48,6 +48,7 @@ where
         self.rows.clear();
         self.handles.clear();
     }
+    #[inline(always)]
     fn initialize(&mut self, solution: &S) {
         self.rows.clear();
         self.handles.clear();
@@ -78,6 +79,7 @@ where
             visitor(self.binding.0, descriptor, *index);
         }
     }
+    #[inline(always)]
     fn retract(
         &mut self,
         _: &S,
@@ -101,6 +103,7 @@ where
             }
         }
     }
+    #[inline(always)]
     fn insert(
         &mut self,
         solution: &S,

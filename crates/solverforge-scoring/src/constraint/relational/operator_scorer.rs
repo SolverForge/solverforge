@@ -200,6 +200,7 @@ where
         total
     }
 
+    #[inline(always)]
     fn initialize(&mut self, operator: &O, solution: &S) -> Sc {
         self.scores.clear();
         let mut total = Sc::zero();
@@ -214,6 +215,7 @@ where
         total
     }
 
+    #[inline(always)]
     fn apply_changes(
         &mut self,
         operator: &O,
@@ -352,9 +354,11 @@ where
     fn evaluate(&self, operator: &O, solution: &S) -> Sc {
         self.0 .0.evaluate(operator, solution) + self.0 .1.evaluate(operator, solution)
     }
+    #[inline(always)]
     fn initialize(&mut self, operator: &O, solution: &S) -> Sc {
         self.0 .0.initialize(operator, solution) + self.0 .1.initialize(operator, solution)
     }
+    #[inline(always)]
     fn apply_changes(
         &mut self,
         operator: &O,

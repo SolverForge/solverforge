@@ -16,8 +16,18 @@ pub struct Plan {
     #[planning_score]
     pub score: Option<HardSoftScore>,
 
-    /// Without local search the job completes right after construction.
-    pub local_search: bool,
+    pub phases: Phases,
+}
+
+/// Which configured phase sequence the job runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Phases {
+    /// Completes right after construction.
+    ConstructionOnly,
+    /// Explicit construction then unbounded local search.
+    ConstructionAndSearch,
+    /// No configured phases: the default runtime constructs and searches.
+    Default,
 }
 
 // Tasks sharing a resource conflict, and each placement has its own cost, so
@@ -68,11 +78,16 @@ type = "construction_heuristic"
 construction_heuristic_type = "first_fit"
 "#;
 
+const DEFAULT_TOML: &str = r#"
+environment_mode = "full_assert"
+random_seed = 7
+"#;
+
 fn realtime_config(solution: &Plan, _base: SolverConfig) -> SolverConfig {
-    let toml = if solution.local_search {
-        SEARCH_TOML
-    } else {
-        CONSTRUCTION_TOML
+    let toml = match solution.phases {
+        Phases::ConstructionOnly => CONSTRUCTION_TOML,
+        Phases::ConstructionAndSearch => SEARCH_TOML,
+        Phases::Default => DEFAULT_TOML,
     };
     SolverConfig::from_toml_str(toml).expect("real-time fixture config must parse")
 }

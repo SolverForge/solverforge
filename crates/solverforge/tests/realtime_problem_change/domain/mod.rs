@@ -5,7 +5,7 @@ solverforge::planning_model! {
     mod resource;
     mod task;
 
-    pub use plan::Plan;
+    pub use plan::{Phases, Plan};
     pub use resource::Resource;
     pub use task::Task;
 }

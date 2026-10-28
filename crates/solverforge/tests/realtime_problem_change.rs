@@ -9,11 +9,11 @@ use solverforge::{
 #[path = "realtime_problem_change/domain/mod.rs"]
 mod domain;
 
-use domain::{Plan, Resource, Task};
+use domain::{Phases, Plan, Resource, Task};
 
 const EVENT_DEADLINE: Duration = Duration::from_secs(60);
 
-fn seeded_plan(local_search: bool) -> Plan {
+fn seeded_plan(phases: Phases) -> Plan {
     Plan {
         resources: (0..4)
             .map(|idx| Resource {
@@ -28,7 +28,7 @@ fn seeded_plan(local_search: bool) -> Plan {
             })
             .collect(),
         score: None,
-        local_search,
+        phases,
     }
 }
 
@@ -90,7 +90,9 @@ fn assert_fully_assigned_and_rescored(solution: &Plan, published_best: Option<Ha
 fn mid_solve_change_is_applied_assigned_and_rescored() {
     static MANAGER: SolverManager<Plan> = SolverManager::new();
 
-    let (job_id, mut receiver) = MANAGER.solve(seeded_plan(true)).expect("job starts");
+    let (job_id, mut receiver) = MANAGER
+        .solve(seeded_plan(Phases::ConstructionAndSearch))
+        .expect("job starts");
     let mut next_event = || receiver.blocking_recv().expect("event stream stays open");
     next_matching(&mut next_event, |event| match event {
         SolverEvent::BestSolution { solution, .. } => Some(solution),
@@ -169,7 +171,9 @@ fn mid_solve_change_is_applied_assigned_and_rescored() {
 fn paused_job_applies_queued_changes_after_resume_in_submission_order() {
     static MANAGER: SolverManager<Plan> = SolverManager::new();
 
-    let (job_id, mut receiver) = MANAGER.solve(seeded_plan(true)).expect("job starts");
+    let (job_id, mut receiver) = MANAGER
+        .solve(seeded_plan(Phases::ConstructionAndSearch))
+        .expect("job starts");
     let mut next_event = || receiver.blocking_recv().expect("event stream stays open");
     next_matching(&mut next_event, |event| match event {
         SolverEvent::BestSolution { .. } => Some(()),
@@ -254,7 +258,9 @@ fn completed_and_unknown_jobs_reject_problem_changes() {
         SolverManagerError::JobNotFound { job_id: 99 }
     );
 
-    let (job_id, mut receiver) = MANAGER.solve(seeded_plan(false)).expect("job starts");
+    let (job_id, mut receiver) = MANAGER
+        .solve(seeded_plan(Phases::ConstructionOnly))
+        .expect("job starts");
     let mut next_event = || receiver.blocking_recv().expect("event stream stays open");
     let solution = next_matching(&mut next_event, |event| match event {
         SolverEvent::Completed { solution, .. } => Some(solution),
@@ -273,4 +279,46 @@ fn completed_and_unknown_jobs_reject_problem_changes() {
         }
     );
     MANAGER.delete(job_id).expect("delete the completed job");
+}
+
+/// The default runtime's local search stops on its own, so the change is
+/// queued while the job is paused before it can finish; an attempt whose job
+/// completed first is retried.
+#[test]
+fn default_runtime_job_reconstructs_after_a_change() {
+    static MANAGER: SolverManager<Plan> = SolverManager::new();
+
+    for _attempt in 0..20 {
+        let (job_id, mut receiver) = MANAGER
+            .solve(seeded_plan(Phases::Default))
+            .expect("job starts");
+        let mut next_event = || receiver.blocking_recv().expect("event stream stays open");
+        let paused = MANAGER.pause(job_id).is_ok()
+            && next_matching(&mut next_event, |event| match event {
+                SolverEvent::Paused { .. } => Some(true),
+                SolverEvent::Completed { .. } => Some(false),
+                _ => None,
+            });
+        let queued = paused
+            && MANAGER
+                .add_problem_change(job_id, new_task("task-new"))
+                .is_ok();
+        if paused {
+            MANAGER.resume(job_id).expect("resume the paused job");
+        }
+        let (solution, metadata) = next_matching(&mut next_event, |event| match event {
+            SolverEvent::Completed { metadata, solution } => Some((solution, metadata)),
+            _ => None,
+        });
+        MANAGER.delete(job_id).expect("delete the completed job");
+        if !queued {
+            continue;
+        }
+
+        assert_eq!(metadata.telemetry.problem_changes_applied, 1);
+        assert_eq!(solution.tasks.len(), 13);
+        assert_fully_assigned_and_rescored(&solution, metadata.best_score);
+        return;
+    }
+    panic!("no attempt queued a change before the default runtime completed");
 }

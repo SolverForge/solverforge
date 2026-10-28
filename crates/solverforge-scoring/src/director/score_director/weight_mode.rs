@@ -40,6 +40,21 @@ impl WeightMode for UnweightedMode {
     const WEIGHTED: bool = false;
 }
 
+impl WeightedMode {
+    /* The bound multipliers, cut to exactly the set's slot count. Every
+    composite set splits its slots at structural widths, so a slice whose
+    length is the set's constant `constraint_count()` lets each nested split
+    and per-slot load compile without a bounds check. */
+    #[inline(always)]
+    fn slots<S, Sc, C>(&self, constraints: &C) -> &[u32]
+    where
+        Sc: Score,
+        C: ConstraintSet<S, Sc>,
+    {
+        &self.multipliers[..constraints.constraint_count()]
+    }
+}
+
 impl WeightMode for WeightedMode {
     const WEIGHTED: bool = true;
 }
@@ -242,7 +257,7 @@ pub(crate) mod sealed {
             Sc: Score,
             C: ConstraintSet<S, Sc>,
         {
-            constraints.initialize_all_weighted(solution, &self.multipliers)
+            constraints.initialize_all_weighted(solution, self.slots(constraints))
         }
 
         fn evaluate_all<S, Sc, C>(&self, constraints: &C, solution: &S) -> Sc
@@ -250,7 +265,7 @@ pub(crate) mod sealed {
             Sc: Score,
             C: ConstraintSet<S, Sc>,
         {
-            constraints.evaluate_all_weighted(solution, &self.multipliers)
+            constraints.evaluate_all_weighted(solution, self.slots(constraints))
         }
 
         fn evaluate_each<'a, S, Sc, C>(
@@ -277,7 +292,7 @@ pub(crate) mod sealed {
             constraints.evaluate_detailed_weighted(solution, &self.multipliers)
         }
 
-        #[inline]
+        #[inline(always)]
         fn on_insert_all<S, Sc, C>(
             &self,
             constraints: &mut C,
@@ -293,11 +308,11 @@ pub(crate) mod sealed {
                 solution,
                 entity_index,
                 descriptor_index,
-                &self.multipliers,
+                self.slots(constraints),
             )
         }
 
-        #[inline]
+        #[inline(always)]
         fn on_retract_all<S, Sc, C>(
             &self,
             constraints: &mut C,
@@ -313,7 +328,7 @@ pub(crate) mod sealed {
                 solution,
                 entity_index,
                 descriptor_index,
-                &self.multipliers,
+                self.slots(constraints),
             )
         }
     }

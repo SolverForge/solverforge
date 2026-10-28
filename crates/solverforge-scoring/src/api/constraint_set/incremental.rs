@@ -107,14 +107,17 @@ pub trait IncrementalConstraint<S, Sc: Score>: IncrementalConstraintSealed + Sen
     scaled match scores. Retained state therefore stays unweighted, and the
     unweighted methods never see a multiplier.
     */
+    #[inline]
     fn evaluate_weighted(&self, solution: &S, multiplier: u32) -> Sc {
         scale_contribution(self.evaluate(solution), multiplier)
     }
 
+    #[inline]
     fn initialize_weighted(&mut self, solution: &S, multiplier: u32) -> Sc {
         scale_contribution(self.initialize(solution), multiplier)
     }
 
+    #[inline]
     fn on_insert_weighted(
         &mut self,
         solution: &S,
@@ -128,6 +131,7 @@ pub trait IncrementalConstraint<S, Sc: Score>: IncrementalConstraintSealed + Sen
         )
     }
 
+    #[inline]
     fn on_retract_weighted(
         &mut self,
         solution: &S,
@@ -374,6 +378,7 @@ where
         refs.push(self.constraint_ref());
     }
 
+    #[inline]
     fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc {
         self.evaluate_weighted(solution, multipliers[0])
     }
@@ -406,10 +411,12 @@ where
         )]
     }
 
+    #[inline]
     fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc {
         self.initialize_weighted(solution, multipliers[0])
     }
 
+    #[inline]
     fn on_insert_all_weighted(
         &mut self,
         solution: &S,
@@ -420,6 +427,7 @@ where
         self.on_insert_weighted(solution, entity_index, descriptor_index, multipliers[0])
     }
 
+    #[inline]
     fn on_retract_all_weighted(
         &mut self,
         solution: &S,

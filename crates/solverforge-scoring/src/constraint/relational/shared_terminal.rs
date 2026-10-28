@@ -320,11 +320,13 @@ where
         self.scorers
             .evaluate_detailed_weighted(&self.operator, solution, multipliers)
     }
+    #[inline(always)]
     fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc {
         self.operator.initialize(solution);
         self.scorers
             .initialize_weighted(&self.operator, solution, multipliers)
     }
+    #[inline(always)]
     fn on_insert_all_weighted(
         &mut self,
         solution: &S,
@@ -334,6 +336,7 @@ where
     ) -> Sc {
         self.update_weighted(solution, index, descriptor, true, multipliers)
     }
+    #[inline(always)]
     fn on_retract_all_weighted(
         &mut self,
         solution: &S,

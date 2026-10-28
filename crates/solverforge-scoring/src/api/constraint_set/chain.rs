@@ -78,18 +78,21 @@ macro_rules! chain_weighted_deltas {
             self.right.constraint_weight_refs(refs);
         }
 
+        #[inline]
         fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc {
             let (left, right) = multipliers.split_at(self.left.constraint_count());
             self.left.evaluate_all_weighted(solution, left)
                 + self.right.evaluate_all_weighted(solution, right)
         }
 
+        #[inline]
         fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc {
             let (left, right) = multipliers.split_at(self.left.constraint_count());
             self.left.initialize_all_weighted(solution, left)
                 + self.right.initialize_all_weighted(solution, right)
         }
 
+        #[inline]
         fn on_insert_all_weighted(
             &mut self,
             solution: &S,
@@ -105,6 +108,7 @@ macro_rules! chain_weighted_deltas {
                     .on_insert_all_weighted(solution, entity_index, descriptor_index, right)
         }
 
+        #[inline]
         fn on_retract_all_weighted(
             &mut self,
             solution: &S,

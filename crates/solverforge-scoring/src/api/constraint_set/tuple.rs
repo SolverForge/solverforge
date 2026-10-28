@@ -69,6 +69,7 @@ impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
 
     fn constraint_weight_refs<'a>(&'a self, _refs: &mut Vec<&'a ConstraintRef>) {}
 
+    #[inline]
     fn evaluate_all_weighted(&self, _solution: &S, _multipliers: &[u32]) -> Sc {
         Sc::zero()
     }
@@ -89,10 +90,12 @@ impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
         Vec::new()
     }
 
+    #[inline]
     fn initialize_all_weighted(&mut self, _solution: &S, _multipliers: &[u32]) -> Sc {
         Sc::zero()
     }
 
+    #[inline]
     fn on_insert_all_weighted(
         &mut self,
         _solution: &S,
@@ -103,6 +106,7 @@ impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
         Sc::zero()
     }
 
+    #[inline]
     fn on_retract_all_weighted(
         &mut self,
         _solution: &S,
@@ -187,6 +191,7 @@ macro_rules! impl_constraint_set_for_tuple {
                 $(self.$idx.constraint_weight_refs(refs);)+
             }
 
+            #[inline]
             fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc {
                 let mut slots = multipliers;
                 let mut total = Sc::zero();
@@ -225,6 +230,7 @@ macro_rules! impl_constraint_set_for_tuple {
                 analyses
             }
 
+            #[inline]
             fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc {
                 let mut slots = multipliers;
                 let mut total = Sc::zero();
@@ -235,6 +241,7 @@ macro_rules! impl_constraint_set_for_tuple {
                 total
             }
 
+            #[inline]
             fn on_insert_all_weighted(
                 &mut self,
                 solution: &S,
@@ -252,6 +259,7 @@ macro_rules! impl_constraint_set_for_tuple {
                 total
             }
 
+            #[inline]
             fn on_retract_all_weighted(
                 &mut self,
                 solution: &S,

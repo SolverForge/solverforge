@@ -154,9 +154,11 @@ where
     fn evaluate_weighted(&self, _operator: &O, _solution: &S, _multipliers: &[u32]) -> Sc {
         Sc::zero()
     }
+    #[inline(always)]
     fn initialize_weighted(&mut self, _operator: &O, _solution: &S, _multipliers: &[u32]) -> Sc {
         Sc::zero()
     }
+    #[inline(always)]
     fn apply_changes_weighted(
         &mut self,
         _operator: &O,
@@ -291,10 +293,12 @@ where
         scale_contribution(self.evaluate(operator, solution), multipliers[0])
     }
 
+    #[inline(always)]
     fn initialize_weighted(&mut self, operator: &O, solution: &S, multipliers: &[u32]) -> Sc {
         scale_contribution(self.initialize(operator, solution), multipliers[0])
     }
 
+    #[inline(always)]
     fn apply_changes_weighted(
         &mut self,
         operator: &O,
@@ -409,11 +413,13 @@ where
         self.0 .0.evaluate_weighted(operator, solution, left)
             + self.0 .1.evaluate_weighted(operator, solution, right)
     }
+    #[inline(always)]
     fn initialize_weighted(&mut self, operator: &O, solution: &S, multipliers: &[u32]) -> Sc {
         let (left, right) = multipliers.split_at(self.0 .0.constraint_count());
         self.0 .0.initialize_weighted(operator, solution, left)
             + self.0 .1.initialize_weighted(operator, solution, right)
     }
+    #[inline(always)]
     fn apply_changes_weighted(
         &mut self,
         operator: &O,

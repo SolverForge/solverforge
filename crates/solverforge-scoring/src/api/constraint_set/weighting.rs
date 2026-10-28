@@ -7,13 +7,9 @@ inside per-match signing, so the unweighted methods keep their exact code.
 use solverforge_core::score::Score;
 
 // Scales one constraint's contribution by its bound multiplier.
-#[inline]
+#[inline(always)]
 pub(crate) fn scale_contribution<Sc: Score>(score: Sc, multiplier: u32) -> Sc {
-    if multiplier == 1 {
-        score
-    } else {
-        score.scale(i64::from(multiplier))
-    }
+    score.scale(i64::from(multiplier))
 }
 
 /* Splits the next `width` weight slots off `slots`.

@@ -7,17 +7,18 @@ use solverforge_scoring::Director;
 
 /// A change to the problem that can be applied during solving.
 ///
-/// Problem changes allow modifying the solution while the solver is running.
-/// Changes are queued and processed at step boundaries to maintain consistency.
-/// The solver applies each change through its committed mutation boundary so
-/// optional-construction frontier revisions stay coherent.
+/// The solver takes ownership of a submitted change and applies it once at a
+/// safe point, so a change can move its payload (a new entity, a replacement
+/// fact) into the working solution without cloning it.
 ///
 /// # Implementation Notes
 ///
-/// When implementing `ProblemChange`:
-/// - Use `score_director.working_solution_mut()` to access and modify the solution
-/// - Changes should be idempotent when possible
-/// - Avoid holding references to entities across changes
+/// - Use `score_director.working_solution_mut()` to access and modify the
+///   solution. The solver fully reinitializes scoring after the change, so a
+///   change does not call `before_variable_changed`/`after_variable_changed`.
+/// - Keep every index-valued planning variable and fact reference valid: a
+///   change that removes a fact must also clear or remap the entities that
+///   point at it.
 ///
 /// # Example
 ///
@@ -42,20 +43,15 @@ use solverforge_scoring::Director;
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-// /// Adds a new employee to the schedule.
+/// /// Adds a new employee to the schedule.
 /// #[derive(Debug)]
 /// struct AddEmployee {
-///     employee_id: usize,
+///     employee: Employee,
 /// }
 ///
 /// impl ProblemChange<Schedule> for AddEmployee {
-///     fn apply(&self, score_director: &mut dyn Director<Schedule>) {
-///         // Add the new employee
-///         score_director.working_solution_mut().employees.push(Employee {
-///             id: self.employee_id,
-///             shift: None,
-///         });
-///
+///     fn apply(self: Box<Self>, score_director: &mut dyn Director<Schedule>) {
+///         score_director.working_solution_mut().employees.push(self.employee);
 ///     }
 /// }
 ///
@@ -66,27 +62,18 @@ use solverforge_scoring::Director;
 /// }
 ///
 /// impl ProblemChange<Schedule> for RemoveEmployee {
-///     fn apply(&self, score_director: &mut dyn Director<Schedule>) {
-///         // Remove the employee
+///     fn apply(self: Box<Self>, score_director: &mut dyn Director<Schedule>) {
 ///         let id = self.employee_id;
 ///         score_director.working_solution_mut().employees.retain(|e| e.id != id);
 ///     }
 /// }
 /// ```
 pub trait ProblemChange<S: PlanningSolution>: Send + Debug {
-    /* Applies this change to the working solution.
-
-    This method is called by the solver at a safe point (between steps).
-    Access the working solution via `score_director.working_solution_mut()`.
-
-    */
-    fn apply(&self, score_director: &mut dyn Director<S>);
+    /// Applies this change to the working solution, consuming it.
+    fn apply(self: Box<Self>, score_director: &mut dyn Director<S>);
 }
 
-/// A boxed problem change for type-erased storage.
-pub type BoxedProblemChange<S> = Box<dyn ProblemChange<S>>;
-
-/// A problem change implemented as a closure.
+/// A problem change implemented as a one-shot closure.
 ///
 /// This is a convenience wrapper for simple changes that don't need
 /// a dedicated struct.
@@ -114,16 +101,15 @@ pub type BoxedProblemChange<S> = Box<dyn ProblemChange<S>>;
 ///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 /// }
 ///
-/// // Mark task 0 as done
-/// let change = ClosureProblemChange::<Solution, _>::new("mark_task_done", |sd| {
-///     if let Some(task) = sd.working_solution_mut().tasks.get_mut(0) {
-///         task.done = true;
-///     }
+/// // Add a task, moving it into the solution.
+/// let task = Task { id: 7, done: false };
+/// let change = ClosureProblemChange::<Solution, _>::new("add_task", move |sd| {
+///     sd.working_solution_mut().tasks.push(task);
 /// });
 /// ```
 pub struct ClosureProblemChange<S: PlanningSolution, F>
 where
-    F: Fn(&mut dyn Director<S>) + Send,
+    F: FnOnce(&mut dyn Director<S>) + Send,
 {
     name: &'static str,
     change_fn: F,
@@ -133,7 +119,7 @@ where
 impl<S, F> ClosureProblemChange<S, F>
 where
     S: PlanningSolution,
-    F: Fn(&mut dyn Director<S>) + Send,
+    F: FnOnce(&mut dyn Director<S>) + Send,
 {
     /// Creates a new closure-based problem change.
     ///
@@ -152,7 +138,7 @@ where
 impl<S, F> Debug for ClosureProblemChange<S, F>
 where
     S: PlanningSolution,
-    F: Fn(&mut dyn Director<S>) + Send,
+    F: FnOnce(&mut dyn Director<S>) + Send,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ClosureProblemChange")
@@ -164,9 +150,9 @@ where
 impl<S, F> ProblemChange<S> for ClosureProblemChange<S, F>
 where
     S: PlanningSolution,
-    F: Fn(&mut dyn Director<S>) + Send,
+    F: FnOnce(&mut dyn Director<S>) + Send,
 {
-    fn apply(&self, score_director: &mut dyn Director<S>) {
+    fn apply(self: Box<Self>, score_director: &mut dyn Director<S>) {
         (self.change_fn)(score_director);
     }
 }

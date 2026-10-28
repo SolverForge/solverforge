@@ -1,15 +1,16 @@
 /* Real-time planning support.
 
-Allows submitting problem changes while the solver is running. Changes are
-processed at step boundaries to maintain solver consistency.
+Problem changes are submitted to a running job with
+`SolverManager::add_problem_change`. The configured runtime applies queued
+changes in submission order at its next safe point, rescores the changed
+solution from scratch, and restarts its phase sequence so construction
+assigns any new or unassigned planning work before local search resumes.
 
-# Overview
-
-Real-time planning enables dynamic updates to the problem during solving:
+Typical changes:
 - Add new entities (e.g., new orders, tasks, employees)
 - Remove entities (e.g., cancelled orders)
 - Update entity properties (e.g., deadline changes)
-- Modify problem facts (e.g., new constraints)
+- Modify problem facts
 
 # Example
 
@@ -36,19 +37,16 @@ fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
 
 // Create a problem change that adds a new task
 #[derive(Debug)]
-struct AddTask { id: usize }
+struct AddTask { task: Task }
 
 impl ProblemChange<Schedule> for AddTask {
-fn apply(&self, score_director: &mut dyn Director<Schedule>) {
-let task = Task { id: self.id, priority: None };
-score_director.working_solution_mut().tasks.push(task);
+fn apply(self: Box<Self>, score_director: &mut dyn Director<Schedule>) {
+score_director.working_solution_mut().tasks.push(self.task);
 }
 }
 ```
 */
 
 mod problem_change;
-mod solver_handle;
 
-pub use problem_change::{BoxedProblemChange, ClosureProblemChange, ProblemChange};
-pub use solver_handle::{ProblemChangeReceiver, ProblemChangeResult, SolverHandle};
+pub use problem_change::{ClosureProblemChange, ProblemChange};

@@ -407,10 +407,8 @@ src/
 │
 └── realtime/
     ├── mod.rs                           — Re-exports
-    ├── problem_change.rs               — ProblemChange trait, BoxedProblemChange, ClosureProblemChange
-    ├── problem_change_tests.rs         — Tests
-    ├── solver_handle.rs                — SolverHandle<S>, ProblemChangeReceiver<S>, ProblemChangeResult
-    └── solver_handle_tests.rs          — Tests
+    ├── problem_change.rs               — ProblemChange trait, ClosureProblemChange
+    └── problem_change_tests.rs         — Tests
 ```
 
 ## Core Traits
@@ -753,7 +751,10 @@ Requires: `Send + Debug`.
 
 | Method | Signature |
 |--------|-----------|
-| `apply` | `fn(&self, score_director: &mut dyn Director<S>)` |
+| `apply` | `fn(self: Box<Self>, score_director: &mut dyn Director<S>)` |
+
+A change is consumed when applied, so it can move its payload into the
+working solution without cloning.
 
 ## Move Types
 
@@ -1603,19 +1604,8 @@ phase can reinsert earlier work or reread declaration callbacks.
 
 ## Real-Time Planning
 
-**`SolverHandle<S>`** — Client-facing handle. `add_problem_change()`,
-`add_problem_change_boxed()`, `terminate_early()`, `is_solving()`, and
-`set_solving()`.
-
-**`ProblemChangeReceiver<S>`** — Server-side receiver. `try_recv()`,
-`drain_pending()`, `is_terminate_early_requested()`, `set_solving()`, and
-`clear_terminate_early()`.
-
-**`ProblemChangeResult`** — `Queued`, `SolverNotRunning`, `QueueFull`.
-
-**`ClosureProblemChange<S, F>`** — Wraps `Fn(&mut dyn Director<S>)`.
-
-**`BoxedProblemChange<S>`** — Type alias: `Box<dyn ProblemChange<S>>`.
+**`ClosureProblemChange<S, F>`** — `new(name, change_fn)`; wraps a one-shot
+`FnOnce(&mut dyn Director<S>) + Send` and implements `ProblemChange<S>`.
 
 ## Solver & Convenience Functions
 

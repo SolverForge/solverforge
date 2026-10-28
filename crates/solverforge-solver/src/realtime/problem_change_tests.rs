@@ -58,7 +58,7 @@ struct AddTask {
 }
 
 impl ProblemChange<TaskSchedule> for AddTask {
-    fn apply(&self, score_director: &mut dyn Director<TaskSchedule>) {
+    fn apply(self: Box<Self>, score_director: &mut dyn Director<TaskSchedule>) {
         score_director
             .working_solution_mut()
             .tasks
@@ -70,7 +70,7 @@ impl ProblemChange<TaskSchedule> for AddTask {
 fn struct_problem_change() {
     let mut director = create_director(vec![Task { id: 0 }]);
 
-    let change = AddTask { id: 1 };
+    let change = Box::new(AddTask { id: 1 });
     change.apply(&mut director);
 
     assert_eq!(director.working_solution().tasks.len(), 2);
@@ -81,9 +81,12 @@ fn struct_problem_change() {
 fn closure_problem_change() {
     let mut director = create_director(vec![Task { id: 0 }]);
 
-    let change = ClosureProblemChange::<TaskSchedule, _>::new("remove_all", |sd| {
-        sd.working_solution_mut().tasks.clear();
-    });
+    let change = Box::new(ClosureProblemChange::<TaskSchedule, _>::new(
+        "remove_all",
+        |sd| {
+            sd.working_solution_mut().tasks.clear();
+        },
+    ));
 
     change.apply(&mut director);
 
@@ -102,7 +105,7 @@ fn problem_change_apply_through_solver_scope_invalidates_frontier_revision() {
     scope.mark_list_element_completed(element_id);
     let initial_revision = scope.solution_revision();
 
-    let change = AddTask { id: 1 };
+    let change = Box::new(AddTask { id: 1 });
     scope.mutate(|score_director| change.apply(score_director));
 
     assert_eq!(scope.solution_revision(), initial_revision + 1);
@@ -118,7 +121,7 @@ fn problem_change_is_visible_to_construction_opened_after_it() {
     let mut scope = SolverScope::new(director);
     scope.start_solving();
 
-    let change = AddTask { id: 1 };
+    let change = Box::new(AddTask { id: 1 });
     scope.mutate(|score_director| change.apply(score_director));
 
     // A construction phase opened after the change enumerates the committed

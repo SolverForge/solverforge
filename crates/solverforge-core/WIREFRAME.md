@@ -23,12 +23,14 @@ src/
 ├── lib.rs                                 — Crate root; module declarations, public re-exports
 ├── error.rs                               — SolverForgeError enum and Result type alias
 ├── constraint.rs                          — ConstraintRef (package/name identifier) and ImpactType enum
-├── constraint_tests.rs                    — Tests for ConstraintRef and ImpactType
+├── constraint_weights.rs                  — ConstraintWeights multiplier map, ConstraintWeightError, MAX_CONSTRAINT_WEIGHT_MULTIPLIER
+├── constraint_tests.rs                    — Tests for ConstraintRef, ImpactType, and ConstraintWeights
 ├── score/
 │   ├── mod.rs                             — Module declarations and re-exports for score types
 │   ├── traits.rs                          — Score trait, ParseableScore trait, ScoreParseError
 │   ├── macros.rs                          — Declarative macros: impl_score_ops!, impl_score_scale!, impl_score_parse!
 │   ├── level.rs                           — ScoreLevel enum (Hard, Medium, Soft)
+│   ├── scale.rs                           — Strict exact integer level scaling shared by built-in scores
 │   ├── soft.rs                            — SoftScore: single i64 level
 │   ├── hard_soft.rs                       — HardSoftScore: two i64 levels (hard, soft)
 │   ├── hard_medium_soft.rs                — HardMediumSoftScore: three i64 levels
@@ -40,6 +42,7 @@ src/
 │       ├── hard_soft_score.rs             — HardSoftScore tests
 │       ├── hard_medium_soft_score.rs      — HardMediumSoftScore tests
 │       ├── hard_soft_decimal_score.rs     — HardSoftDecimalScore tests
+│       ├── scale.rs                       — Exact integer scaling tests for every score type
 │       ├── bendable_score.rs              — BendableScore tests
 │       └── custom_score.rs                — Custom Score contract tests
 ├── domain/
@@ -86,6 +89,9 @@ src/
 
 ```rust
 pub use constraint::{ConstraintRef, ImpactType};
+pub use constraint_weights::{
+    ConstraintWeightError, ConstraintWeights, MAX_CONSTRAINT_WEIGHT_MULTIPLIER,
+};
 pub use domain::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use error::SolverForgeError;
 pub use score::{
@@ -94,7 +100,7 @@ pub use score::{
 };
 ```
 
-Additionally, `pub mod constraint`, `pub mod domain`, `pub mod error`, `pub mod score` are all public modules.
+Additionally, `pub mod constraint`, `pub mod constraint_weights`, `pub mod domain`, `pub mod error`, `pub mod score` are all public modules.
 
 ## Public Traits
 
@@ -112,6 +118,7 @@ Additionally, `pub mod constraint`, `pub mod domain`, `pub mod error`, `pub mod 
 | `from_level_numbers` | `fn from_level_numbers(levels: &[i64]) -> Self` | Panics on wrong count |
 | `multiply` | `fn multiply(&self, multiplicand: f64) -> Self` | Scalar multiply |
 | `divide` | `fn divide(&self, divisor: f64) -> Self` | Scalar divide |
+| `scale` | `fn scale(&self, factor: i64) -> Self` | Required exact integer multiply of every level; panics on `i64` overflow in every profile |
 | `abs` | `fn abs(&self) -> Self` | Absolute value |
 | `to_scalar` | `fn to_scalar(&self) -> f64` | Weighted single f64 for SA temperature |
 | `level_label` | `fn level_label(index: usize) -> ScoreLevel` | Semantic label per level |
@@ -142,6 +149,8 @@ Additionally, `pub mod constraint`, `pub mod domain`, `pub mod error`, `pub mod 
 | `set_score` | `fn set_score(&mut self, score: Option<Self::Score>)` | Set the score |
 | `update_entity_shadows` | `fn update_entity_shadows(&mut self, descriptor_index: usize, entity_index: usize)` | Default: no-op shadow update hook |
 | `update_all_shadows` | `fn update_all_shadows(&mut self)` | Default: no-op full shadow refresh hook |
+| `HAS_CONSTRAINT_WEIGHTS` | `const HAS_CONSTRAINT_WEIGHTS: bool` | Default: `false`; `true` exactly when the type carries runtime constraint weights. Score directors select the weighted scoring path from it at compile time; a manual `constraint_weights` override must set it |
+| `constraint_weights` | `fn constraint_weights(&self) -> Option<&ConstraintWeights>` | Default: `None`; generated for a `#[constraint_weights]` field. Score directors of a `HAS_CONSTRAINT_WEIGHTS` type bind it on construction and before every (re)initialization |
 | `list_shadow_elements` | `fn list_shadow_elements(&self, descriptor_index: usize, entity_index: usize) -> Option<(usize, &[usize])>` | Default: `None`; the elements an owner's shadow update writes, with the change source their stream rows use |
 | `clear_list_shadows` | `fn clear_list_shadows(&mut self, element: usize)` | Default: no-op; clears the list shadows of an element no list holds |
 | `list_shadow_source` | `fn list_shadow_source(collection: &str) -> Option<usize>` | Default: `None`; change source of a collection whose rows carry list shadows |
@@ -315,6 +324,33 @@ enum ScoreLevel { Hard, Medium, Soft }
 ```
 
 Derives: `Debug, Clone, Copy, PartialEq, Eq, Hash`
+
+### Constraint Weights
+
+#### `ConstraintWeights`
+
+Per-constraint `u32` multipliers keyed by `ConstraintRef::full_name()`. Unlisted constraints keep multiplier `1`; `0` disables a constraint; `n` scales its coded contribution `n` times, for every terminal carrying that name.
+
+Derives: `Clone, Debug, Default, PartialEq, Eq`; with the `serde` feature, `Serialize`/`Deserialize` as a transparent name-to-multiplier map.
+
+| Method | Signature | Note |
+|--------|-----------|------|
+| `new` | `fn new() -> Self` | Empty map |
+| `set` | `fn set(&mut self, constraint: impl Into<String>, multiplier: u32) -> &mut Self` | Insert or replace |
+| `remove` | `fn remove(&mut self, constraint: &str) -> Option<u32>` | |
+| `get` | `fn get(&self, constraint: &str) -> Option<u32>` | Listed multiplier only |
+| `multiplier_for` | `fn multiplier_for(&self, constraint: &ConstraintRef) -> u32` | `1` when unlisted |
+| `is_empty` / `len` | `fn is_empty(&self) -> bool` / `fn len(&self) -> usize` | |
+| `iter` | `fn iter(&self) -> impl Iterator<Item = (&str, u32)>` | Sorted by name |
+| `validate` | `fn validate<'a>(&self, known: impl IntoIterator<Item = &'a ConstraintRef>) -> Result<(), ConstraintWeightError>` | Rejects unknown names (with close-match suggestions) and multipliers above the cap |
+
+#### `ConstraintWeightError`
+
+`UnknownConstraint { name, suggestions: Vec<String>, known: Vec<String> }` and `MultiplierTooLarge { name, multiplier, max }`. Implements `Debug`, `Clone`, `PartialEq`, `Eq`, `Display`, `std::error::Error`.
+
+#### `MAX_CONSTRAINT_WEIGHT_MULTIPLIER`
+
+`pub const MAX_CONSTRAINT_WEIGHT_MULTIPLIER: u32 = 1_000_000;` keeps a scaled per-match contribution up to about 9.2e12 per level exact in `i64`.
 
 #### `ScoreParseError`
 

@@ -11,6 +11,7 @@ mod hard_medium_soft;
 mod hard_soft;
 mod hard_soft_decimal;
 mod level;
+mod scale;
 mod soft;
 mod traits;
 
@@ -22,5 +23,6 @@ pub use hard_medium_soft::HardMediumSoftScore;
 pub use hard_soft::HardSoftScore;
 pub use hard_soft_decimal::HardSoftDecimalScore;
 pub use level::ScoreLevel;
+pub(crate) use scale::scale_level;
 pub use soft::SoftScore;
 pub use traits::{ParseableScore, Score, ScoreParseError};

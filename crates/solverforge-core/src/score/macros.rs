@@ -47,10 +47,10 @@ macro_rules! impl_score_ops {
     };
 }
 
-/* Generates `multiply`, `divide`, and `abs` methods for the `Score` trait impl.
+/* Generates `multiply`, `divide`, `scale`, and `abs` methods for the `Score` trait impl.
 
 Intended to be used *inside* an `impl Score for Type { ... }` block.
-Produces three method bodies that operate field-by-field.
+Produces four method bodies that operate field-by-field.
 
 # Usage
 
@@ -64,6 +64,10 @@ macro_rules! impl_score_scale {
 
         fn divide(&self, divisor: f64) -> Self {
             $type::$ctor( $( (self.$field as f64 / divisor).round() as i64 ),+ )
+        }
+
+        fn scale(&self, factor: i64) -> Self {
+            $type::$ctor( $( $crate::score::scale_level(self.$field, factor) ),+ )
         }
 
         fn abs(&self) -> Self {

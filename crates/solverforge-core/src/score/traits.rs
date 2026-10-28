@@ -98,6 +98,16 @@ pub trait Score:
     // Divides this score by a scalar.
     fn divide(&self, divisor: f64) -> Self;
 
+    /* Multiplies every level by an exact integer factor.
+
+    Unlike `multiply(f64)`, this never rounds and stays exact for every `i64`
+    level value. Constraint weight multipliers are applied through it.
+
+    # Panics
+    Panics when any level overflows `i64`, in every build profile.
+    */
+    fn scale(&self, factor: i64) -> Self;
+
     fn abs(&self) -> Self;
 
     /* Converts this score to a single f64 scalar value.

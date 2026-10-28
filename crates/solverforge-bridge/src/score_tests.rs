@@ -118,3 +118,19 @@ fn dynamic_score_parse_inverts_display_for_decimal_models() {
         assert_eq!(limit.to_string(), "0hard/-5soft");
     });
 }
+
+#[test]
+fn dynamic_score_scale_is_exact_on_every_level() {
+    let beyond_f64 = (1_i64 << 53) + 1;
+    let score = DynamicScore::of(-2, 5, beyond_f64);
+
+    assert_eq!(score.scale(3), DynamicScore::of(-6, 15, beyond_f64 * 3));
+    assert_eq!(score.scale(1), score);
+    assert_eq!(score.scale(0), DynamicScore::ZERO);
+}
+
+#[test]
+#[should_panic(expected = "overflows i64")]
+fn dynamic_score_scale_panics_on_overflow() {
+    let _ = DynamicScore::of(0, 0, i64::MAX).scale(2);
+}

@@ -3,6 +3,7 @@
 use std::any::Any;
 use std::hash::Hash;
 
+use crate::constraint_weights::ConstraintWeights;
 use crate::score::Score;
 
 /// Marker trait for planning solutions.
@@ -68,6 +69,31 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
     this to refresh all cached values before initialization.
     */
     fn update_all_shadows(&mut self) {}
+
+    /* Whether this solution type carries runtime constraint weights.
+
+    Weightedness is a property of the type, not of a value: score directors
+    branch on this constant, so a solution type that leaves it `false` compiles
+    to the unweighted scoring path with no weight binding and no per-call
+    check. `#[planning_solution]` sets it to `true` exactly when a field is
+    marked `#[constraint_weights]`. A manual implementation that overrides
+    `constraint_weights` must set it to `true` as well, or the weights are
+    never applied.
+    */
+    const HAS_CONSTRAINT_WEIGHTS: bool = false;
+
+    /* Returns the runtime constraint weight multipliers carried by this solution.
+
+    Default implementation returns `None`: every constraint keeps its coded
+    weight. `#[planning_solution]` generates this accessor for the field marked
+    `#[constraint_weights]`. When `HAS_CONSTRAINT_WEIGHTS` is `true`, score
+    directors bind these multipliers on construction and on every
+    (re)initialization, so a running solve must reset its director after
+    changing them.
+    */
+    fn constraint_weights(&self) -> Option<&ConstraintWeights> {
+        None
+    }
 
     /* Returns the elements whose list shadows
     `update_entity_shadows(descriptor_index, entity_index)` writes, with the

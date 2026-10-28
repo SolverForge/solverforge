@@ -198,6 +198,10 @@ impl Score for SplitHardScore {
         ])
     }
 
+    fn scale(&self, factor: i64) -> Self {
+        Self::new(self.levels.map(|level| level * factor))
+    }
+
     fn abs(&self) -> Self {
         Self::new([
             self.levels[0].abs(),

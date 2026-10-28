@@ -5,4 +5,5 @@ mod custom_score;
 mod hard_medium_soft_score;
 mod hard_soft_decimal_score;
 mod hard_soft_score;
+mod scale;
 mod soft_score;

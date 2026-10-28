@@ -14,6 +14,7 @@ triggers on these tuples but the pattern is architecturally required.
 #![allow(clippy::type_complexity)]
 
 pub mod constraint;
+pub mod constraint_weights;
 pub mod domain;
 pub mod error;
 pub mod fast_hash;
@@ -23,6 +24,9 @@ pub mod score;
 mod constraint_tests;
 
 pub use constraint::{ConstraintRef, ImpactType};
+pub use constraint_weights::{
+    ConstraintWeightError, ConstraintWeights, MAX_CONSTRAINT_WEIGHT_MULTIPLIER,
+};
 pub use domain::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use error::SolverForgeError;
 pub use score::{

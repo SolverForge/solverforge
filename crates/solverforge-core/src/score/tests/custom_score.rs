@@ -85,6 +85,10 @@ impl Score for CustomScore {
         )
     }
 
+    fn scale(&self, factor: i64) -> Self {
+        Self::of(self.hard * factor, self.soft * factor)
+    }
+
     fn abs(&self) -> Self {
         Self::of(self.hard.abs(), self.soft.abs())
     }

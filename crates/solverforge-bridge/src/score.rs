@@ -203,6 +203,14 @@ impl Score for DynamicScore {
         self.multiply(1.0 / divisor)
     }
 
+    fn scale(&self, factor: i64) -> Self {
+        let level = |value: i64| match value.checked_mul(factor) {
+            Some(scaled) => scaled,
+            None => panic!("score level {value} overflows i64 when scaled by {factor}"),
+        };
+        Self::of(level(self.hard), level(self.medium), level(self.soft))
+    }
+
     fn abs(&self) -> Self {
         Self::of(self.hard.abs(), self.medium.abs(), self.soft.abs())
     }

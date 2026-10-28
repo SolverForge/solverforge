@@ -308,25 +308,33 @@ where
         // Pre-generate subsets: continuity lives in the atomic carry; each
         // open derives one per-open generator from the next carry draw.
         let mut rng = SmallRng::seed_from_u64(super::rng_advance::advance_carry(&self.rng_carry));
+        /* Each subset is a partial Fisher-Yates draw from the identity
+        permutation. Undoing the draw's own swaps afterwards restores the
+        identity in O(ruin_count), so the permutation is built once per open
+        instead of being refilled for every move. */
         let mut permutation: Vec<usize> = (0..total_entities).collect();
+        let mut swaps: SmallVec<[usize; 8]> = SmallVec::new();
         let subsets: Vec<SmallVec<[usize; 8]>> = (0..moves_count)
             .map(|_| {
                 if total_entities == 0 {
                     return SmallVec::new();
-                }
-                for (index, entity) in permutation.iter_mut().enumerate() {
-                    *entity = index;
                 }
                 let ruin_count = if min == max {
                     min
                 } else {
                     rng.random_range(min..=max)
                 };
+                swaps.clear();
                 for i in 0..ruin_count {
                     let j = rng.random_range(i..total_entities);
                     permutation.swap(i, j);
+                    swaps.push(j);
                 }
-                permutation[..ruin_count].iter().copied().collect()
+                let subset = permutation[..ruin_count].iter().copied().collect();
+                for (i, &j) in swaps.iter().enumerate().rev() {
+                    permutation.swap(i, j);
+                }
+                subset
             })
             .collect();
 

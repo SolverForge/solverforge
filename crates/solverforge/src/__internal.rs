@@ -44,8 +44,9 @@ pub use solverforge_solver::model_support::PlanningModelSupport;
 pub use solverforge_solver::runtime::{ListVariableEntity, ListVariableMetadata};
 pub use solverforge_solver::scope::{ProgressCallback, SolverScope};
 pub use solverforge_solver::{
-    log_solve_start, try_run_solver_with_config_and_search, RuntimeBuildResult, SolverEvent,
-    SolverRuntime, SolverTelemetry,
+    log_solve_start, try_run_solver_with_config_and_search,
+    try_run_weighted_solver_with_config_and_search, RuntimeBuildResult, SolverEvent, SolverRuntime,
+    SolverTelemetry,
 };
 
 // Config

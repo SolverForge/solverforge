@@ -68,6 +68,9 @@ fn golden_solution_expansion_loads_solver_config_before_config_callback() {
     assert!(expanded.contains(
         "(| _ : & Self | crate :: constraints :: create_constraints ()) as fn (& Self) -> _"
     ));
+    // Without a `#[constraint_weights]` field nothing names the weighted solver.
+    assert!(!expanded.contains("try_run_weighted_solver_with_config_and_search"));
+    assert!(!expanded.contains("with_descriptor_weighted"));
 }
 
 #[test]
@@ -281,6 +284,8 @@ fn constraint_weights_field_generates_accessor_and_validator() {
         "fn constraint_weights (& self) -> :: core :: option :: Option < & :: solverforge :: ConstraintWeights > { :: core :: option :: Option :: Some (& self . weights) }"
     ));
     assert!(expanded.contains("pub fn validate_constraint_weights"));
+    assert!(expanded.contains("try_run_weighted_solver_with_config_and_search"));
+    assert!(expanded.contains("ScoreDirector :: with_descriptor_weighted"));
 }
 
 #[test]

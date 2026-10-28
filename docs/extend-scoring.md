@@ -97,10 +97,11 @@ Full evaluation and match counting are meaningful before initialization.
 Explanation payload conversion is confined to the existing cold `EntityRef`
 boundary.
 
-Runtime constraint weights never touch that signing step. A score director
-selects the weighted path at compile time from
-`PlanningSolution::HAS_CONSTRAINT_WEIGHTS`, so a model without weights runs the
-unweighted methods unchanged. A weighted director calls the `*_weighted`
+Runtime constraint weights never touch that signing step. A score director's
+weight mode is a type (`ScoreDirector<S, C, Desc, M>`, `M` = `UnweightedMode`
+or `WeightedMode`) fixed when it is built, so an unweighted director runs the
+unweighted methods unchanged and never names a weighted one. A weighted
+director calls the `*_weighted`
 variants with one multiplier per weight slot, and every multiplier scales a
 constraint's whole contribution: its total, its incremental delta, and its
 match scores. Integer scaling is linear, so this equals scaling every match,

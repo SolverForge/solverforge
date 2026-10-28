@@ -176,9 +176,15 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
         &search_path,
         name,
     );
-    let runtime_solve_internal =
-        generate_runtime_solve_internal(&constraints_path, &config_path, &solver_toml_path);
-    let solvable_solution_impl = generate_solvable_solution(name, &constraints_path);
+    let has_constraint_weights = !constraint_weights_accessor.is_empty();
+    let runtime_solve_internal = generate_runtime_solve_internal(
+        &constraints_path,
+        &config_path,
+        &solver_toml_path,
+        has_constraint_weights,
+    );
+    let solvable_solution_impl =
+        generate_solvable_solution(name, &constraints_path, has_constraint_weights);
 
     let collection_source_methods = generate_collection_source_methods(fields);
     let constraint_stream_extensions = generate_constraint_stream_extensions(fields, name);

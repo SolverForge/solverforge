@@ -2,6 +2,7 @@ pub(super) fn generate_runtime_solve_internal(
     constraints_path: &Option<String>,
     config_path: &Option<String>,
     solver_toml_path: &Option<String>,
+    has_constraint_weights: bool,
 ) -> TokenStream {
     let Some(path) = constraints_path.as_ref() else {
         return TokenStream::new();
@@ -35,9 +36,17 @@ pub(super) fn generate_runtime_solve_internal(
             let config = #base_config_expr;
         }
     };
+    /* Only a solution type with a `#[constraint_weights]` field names the
+    weighted entrypoint, so every other model monomorphizes exactly one
+    (unweighted) solver. */
+    let run_solver = if has_constraint_weights {
+        quote! { ::solverforge::__internal::try_run_weighted_solver_with_config_and_search }
+    } else {
+        quote! { ::solverforge::__internal::try_run_solver_with_config_and_search }
+    };
     let solve_expr = quote! {
         #config_expr
-        ::solverforge::__internal::try_run_solver_with_config_and_search(
+        #run_solver(
             self,
             (|_: &Self| #constraints_fn()) as fn(&Self) -> _,
             Self::descriptor(),

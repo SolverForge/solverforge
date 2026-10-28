@@ -8,12 +8,11 @@ weights touch:
 - `scoring`: a solution type without constraint weights on either side, so
   the candidate director compiles to the unweighted scoring calls;
 - `scoring_weights_one`: the candidate's solution type carries weights and
-  binds every constraint at multiplier 1 explicitly, which keeps the
-  unweighted calls behind one predictable branch per director call; the
-  baseline (no weight API) runs unweighted;
-- `scoring_weights_mixed`: the candidate binds multipliers 0 and 3 and takes
-  the weighted per-constraint calls; reported for information only, since its
-  scores intentionally differ.
+  binds every constraint at multiplier 1 explicitly on a weighted director;
+  the baseline (no weight API) runs unweighted;
+- `scoring_weights_mixed`: the candidate binds multipliers 0 and 3 on a
+  weighted director and takes the weighted per-constraint calls; reported for
+  information only, since its scores intentionally differ.
 
 Weighted code compiles only under the harness-only `constraint_weights`
 feature, which the gate enables for the candidate side alone, so baselines
@@ -164,33 +163,52 @@ fn scoring_plan(_entries: Option<&[(&str, u32)]>) -> ScoringPlan {
     }
 }
 
-fn run_scoring(case: &str, entries: Option<&[(&str, u32)]>) {
-    let mut director = ScoreDirector::new(scoring_plan(entries), scoring_constraints());
-    black_box(director.calculate_score());
-    emit(case, SCORING_CHANGES, || {
-        let mut count = 0;
-        let mut order = 0xCBF2_9CE4_8422_2325;
-        let mut scores = 0xCBF2_9CE4_8422_2325;
-        for _ in 0..iterations() {
-            for change in 0..SCORING_CHANGES {
-                let shift = change.wrapping_mul(193) % SCORING_SHIFTS;
-                director.before_variable_changed(0, shift);
-                let assigned = &mut director.working_solution_mut().shifts[shift].employee;
-                *assigned = match *assigned {
-                    None => Some(change % SCORING_EMPLOYEES),
-                    Some(employee) if employee + 1 == SCORING_EMPLOYEES => None,
-                    Some(employee) => Some(employee + 1),
-                };
-                director.after_variable_changed(0, shift);
-                let score = director.get_score();
-                mix(&mut order, shift);
-                mix_u64(&mut scores, score.hard() as u64);
-                mix_u64(&mut scores, score.soft() as u64);
-                count += 1;
+/* Incremental churn over one director. A macro rather than a generic fn so
+the harness names no weight-mode type and still builds against trees that
+predate the weight API. */
+macro_rules! churn_scoring {
+    ($case:expr, $director:expr) => {{
+        let mut director = $director;
+        black_box(director.calculate_score());
+        emit($case, SCORING_CHANGES, || {
+            let mut count = 0;
+            let mut order = 0xCBF2_9CE4_8422_2325;
+            let mut scores = 0xCBF2_9CE4_8422_2325;
+            for _ in 0..iterations() {
+                for change in 0..SCORING_CHANGES {
+                    let shift = change.wrapping_mul(193) % SCORING_SHIFTS;
+                    director.before_variable_changed(0, shift);
+                    let assigned = &mut director.working_solution_mut().shifts[shift].employee;
+                    *assigned = match *assigned {
+                        None => Some(change % SCORING_EMPLOYEES),
+                        Some(employee) if employee + 1 == SCORING_EMPLOYEES => None,
+                        Some(employee) => Some(employee + 1),
+                    };
+                    director.after_variable_changed(0, shift);
+                    let score = director.get_score();
+                    mix(&mut order, shift);
+                    mix_u64(&mut scores, score.hard() as u64);
+                    mix_u64(&mut scores, score.soft() as u64);
+                    count += 1;
+                }
             }
-        }
-        (count, order, scores)
-    });
+            (count, order, scores)
+        });
+    }};
+}
+
+fn run_scoring(case: &str, entries: Option<&[(&str, u32)]>) {
+    let plan = scoring_plan(entries);
+    // Weighted cases score on the weighted director, as weighted solves do.
+    #[cfg(feature = "constraint_weights")]
+    if entries.is_some() {
+        churn_scoring!(
+            case,
+            ScoreDirector::new_weighted(plan, scoring_constraints())
+        );
+        return;
+    }
+    churn_scoring!(case, ScoreDirector::new(plan, scoring_constraints()));
 }
 
 fn scoring() {

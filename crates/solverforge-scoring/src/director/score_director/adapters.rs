@@ -3,21 +3,24 @@ use solverforge_core::score::Score;
 
 use super::descriptor::DirectorDescriptor;
 use super::incremental::ScoreDirector;
+use super::weight_mode::WeightMode;
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 use crate::director::Director;
 
-impl<S, C, Desc> std::fmt::Debug for ScoreDirector<S, C, Desc>
+impl<S, C, Desc, M> std::fmt::Debug for ScoreDirector<S, C, Desc, M>
 where
     S: PlanningSolution + std::fmt::Debug,
     S::Score: std::fmt::Debug,
     C: ConstraintSet<S, S::Score>,
     Desc: DirectorDescriptor<S, C>,
+    M: WeightMode,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ScoreDirector")
             .field("initialized", &self.is_initialized())
             .field("cached_score", &self.get_score())
             .field("constraint_count", &self.constraint_count())
+            .field("weighted", &M::WEIGHTED)
             .field(
                 "forks_replicas",
                 &self.solution_descriptor.replica().is_some(),
@@ -26,12 +29,13 @@ where
     }
 }
 
-impl<S, C, Desc> Director<S> for ScoreDirector<S, C, Desc>
+impl<S, C, Desc, M> Director<S> for ScoreDirector<S, C, Desc, M>
 where
     S: PlanningSolution,
     S::Score: Score,
     C: ConstraintSet<S, S::Score> + Send,
     Desc: DirectorDescriptor<S, C> + Send,
+    M: WeightMode,
 {
     fn working_solution(&self) -> &S {
         self.working_solution()

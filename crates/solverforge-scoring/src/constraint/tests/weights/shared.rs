@@ -57,7 +57,7 @@ fn shared_grouped_accumulator_state_ignores_weights() {
     let mut base = ScoreDirector::new(plan(ConstraintWeights::new()), build());
     let mut weights = ConstraintWeights::new();
     weights.set("Workload", 0).set("Coverage", 5);
-    let mut weighted = ScoreDirector::new(plan(weights), build());
+    let mut weighted = ScoreDirector::new_weighted(plan(weights), build());
     base.calculate_score();
     weighted.calculate_score();
     for (descriptor, entity, mutate) in mutations() {
@@ -122,7 +122,7 @@ fn ordered_chains_bind_weights_by_structural_slot() {
 fn disabled_hard_constraint_is_feasible_and_still_hard() {
     let mut weights = ConstraintWeights::new();
     weights.set("Unassigned", 0);
-    let mut director = ScoreDirector::new(plan(weights), (unassigned(),));
+    let mut director = ScoreDirector::new_weighted(plan(weights), (unassigned(),));
 
     let score = director.calculate_score();
     assert_eq!(score, HardSoftScore::ZERO);
@@ -138,7 +138,7 @@ fn disabled_hard_constraint_is_feasible_and_still_hard() {
 
 #[test]
 fn reset_rebinds_changed_weights() {
-    let mut director = ScoreDirector::new(plan(ConstraintWeights::new()), (unassigned(),));
+    let mut director = ScoreDirector::new_weighted(plan(ConstraintWeights::new()), (unassigned(),));
     assert_eq!(director.calculate_score(), HardSoftScore::of_hard(-1));
 
     director.working_solution_mut().weights.set("Unassigned", 4);
@@ -179,6 +179,6 @@ fn solution_without_weights_keeps_coded_scores() {
         .filter(|shift: &Shift| shift.employee.is_none())
         .penalize(HardSoftScore::of_hard(1))
         .named("Unassigned");
-    let mut director = ScoreDirector::new(Plain(plan(weights)), (constraint,));
+    let mut director = ScoreDirector::new_weighted(Plain(plan(weights)), (constraint,));
     assert_eq!(director.calculate_score(), HardSoftScore::of_hard(-1));
 }

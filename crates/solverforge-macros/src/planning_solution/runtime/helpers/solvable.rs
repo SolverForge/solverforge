@@ -1,6 +1,7 @@
 pub(super) fn generate_solvable_solution(
     solution_name: &Ident,
     constraints_path: &Option<String>,
+    has_constraint_weights: bool,
 ) -> TokenStream {
     let solvable_solution_impl = quote! {
         impl ::solverforge::__internal::SolvableSolution for #solution_name {
@@ -17,6 +18,12 @@ pub(super) fn generate_solvable_solution(
     let solvable_impl = constraints_path.as_ref().map(|path| {
         let constraints_fn: syn::Path =
             syn::parse_str(path).expect("constraints path must be a valid Rust path");
+        // Analysis of a weighted solution type always reports bound weights.
+        let director_ctor = if has_constraint_weights {
+            quote! { ScoreDirector::with_descriptor_weighted }
+        } else {
+            quote! { ScoreDirector::with_descriptor }
+        };
 
         quote! {
             impl ::solverforge::Solvable for #solution_name {
@@ -60,7 +67,7 @@ pub(super) fn generate_solvable_solution(
                     };
 
                     let constraints = #constraints_fn();
-                    let mut director = ScoreDirector::with_descriptor(
+                    let mut director = #director_ctor(
                         self.clone(),
                         constraints,
                         Self::descriptor(),

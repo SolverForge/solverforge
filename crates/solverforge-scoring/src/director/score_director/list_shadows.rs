@@ -21,7 +21,7 @@ element count grows.
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
-use super::weights::RowDeltas;
+use super::weight_mode::RowDeltas;
 
 #[derive(Clone, Copy)]
 struct PendingElement {

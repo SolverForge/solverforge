@@ -72,11 +72,12 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
 
     /* Whether this solution type carries runtime constraint weights.
 
-    Weightedness is a property of the type, not of a value: score directors
-    branch on this constant, so a solution type that leaves it `false` compiles
-    to the unweighted scoring path with no weight binding and no per-call
-    check. `#[planning_solution]` sets it to `true` exactly when a field is
-    marked `#[constraint_weights]`. A manual implementation that overrides
+    Whether a value's weights apply is decided by the score director's weight
+    mode, a type chosen when the director is built; solves pick the weighted
+    mode only when this constant is `true` and some multiplier differs from
+    `1`. `#[planning_solution]` sets it to `true` exactly when a field is
+    marked `#[constraint_weights]`, and then also routes the solve through the
+    weighted entrypoint. A manual implementation that overrides
     `constraint_weights` must set it to `true` as well, or the weights are
     never applied.
     */
@@ -86,10 +87,9 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
 
     Default implementation returns `None`: every constraint keeps its coded
     weight. `#[planning_solution]` generates this accessor for the field marked
-    `#[constraint_weights]`. When `HAS_CONSTRAINT_WEIGHTS` is `true`, score
-    directors bind these multipliers on construction and on every
-    (re)initialization, so a running solve must reset its director after
-    changing them.
+    `#[constraint_weights]`. Weighted-mode score directors bind these
+    multipliers on construction and on every (re)initialization, so a running
+    solve must reset its director after changing them.
     */
     fn constraint_weights(&self) -> Option<&ConstraintWeights> {
         None

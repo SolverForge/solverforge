@@ -1,8 +1,8 @@
 /* Per-constraint score analysis on the director.
 
-Every result reflects the bound constraint weights: solution types with
-`PlanningSolution::HAS_CONSTRAINT_WEIGHTS` report weighted scores, match
-scores and multipliers whenever some multiplier differs from `1`.
+Every result reflects the director's weight mode: a `WeightedMode` director
+reports weighted scores, match scores and bound multipliers; an
+`UnweightedMode` director reports coded weights at multiplier `1`.
 */
 
 use solverforge_core::domain::PlanningSolution;
@@ -10,35 +10,29 @@ use solverforge_core::score::Score;
 
 use super::descriptor::DirectorDescriptor;
 use super::incremental::ScoreDirector;
+use super::weight_mode::WeightMode;
 use crate::api::analysis::ConstraintAnalysis;
 use crate::api::constraint_set::{ConstraintResult, ConstraintSet};
 
-impl<S, C, Desc> ScoreDirector<S, C, Desc>
+impl<S, C, Desc, M> ScoreDirector<S, C, Desc, M>
 where
     S: PlanningSolution,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
     Desc: DirectorDescriptor<S, C>,
+    M: WeightMode,
 {
-    // Evaluates every constraint of the working solution under the bound weights.
+    // Evaluates every constraint of the working solution under the director's weight mode.
     pub fn constraint_results(&self) -> Vec<ConstraintResult<'_, S::Score>> {
-        if self.weighted() {
-            return self
-                .constraints
-                .evaluate_each_weighted(&self.working_solution, self.weights.multipliers());
-        }
-        self.constraints.evaluate_each(&self.working_solution)
+        self.weight_mode
+            .evaluate_each(&self.constraints, &self.working_solution)
     }
 
     /* Analyzes every constraint of the working solution, with per-match
-    justifications, under the bound weights. */
+    justifications, under the director's weight mode. */
     pub fn constraint_analyses(&self) -> Vec<ConstraintAnalysis<'_, S::Score>> {
-        if self.weighted() {
-            return self
-                .constraints
-                .evaluate_detailed_weighted(&self.working_solution, self.weights.multipliers());
-        }
-        self.constraints.evaluate_detailed(&self.working_solution)
+        self.weight_mode
+            .evaluate_detailed(&self.constraints, &self.working_solution)
     }
 
     /* Returns `(name, weight_multiplier, weighted score, match_count)` per

@@ -12,7 +12,10 @@ use std::path::Path;
 use solverforge_config::{SolverConfig, TerminationConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
-use solverforge_scoring::{ConstraintSet, Director, ReplicaDescriptor, ScoreDirector};
+use solverforge_scoring::{
+    requires_weighted_mode, ConstraintSet, Director, ReplicaDescriptor, ScoreDirector,
+    UnweightedMode, WeightMode, WeightedMode,
+};
 use tracing::info;
 
 use crate::builder::{RuntimeExtensionRegistry, Search};
@@ -436,6 +439,11 @@ fn load_solver_config_from(path: impl AsRef<Path>) -> SolverConfig {
 /// `constraints` builds a constraint set for a given solution. It builds the
 /// working solution's constraint set and every evaluator replica's, so parallel
 /// local-search evaluation can fork replicas for any model.
+///
+/// Scores on the unweighted director: a solution type that carries runtime
+/// constraint weights solves through
+/// [`try_run_weighted_solver_with_config_and_search`], and fails here when
+/// some multiplier differs from `1`.
 #[allow(clippy::too_many_arguments)]
 pub fn try_run_solver_with_config_and_search<S, C, V, DM, IDM, Declaration, BuildSearch>(
     solution: S,
@@ -470,7 +478,7 @@ where
     Declaration::Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>,
     BuildSearch: FnOnce(&SolverConfig, SolutionDescriptor) -> RuntimeBuildResult<Declaration>,
 {
-    try_run_solver_with_config_and_search_request(
+    try_run_solver_with_config_and_search_request::<S, C, UnweightedMode, V, DM, IDM, _, _>(
         solution,
         constraints,
         descriptor,
@@ -484,8 +492,12 @@ where
     )
 }
 
+/// [`try_run_solver_with_config_and_search`] for a solution type with a
+/// `#[constraint_weights]` field: scores on a weighted director that scales
+/// each constraint by the solution's bound multipliers.
+#[doc(hidden)]
 #[allow(clippy::too_many_arguments)]
-fn try_run_solver_with_config_and_search_request<S, C, V, DM, IDM, Declaration, BuildSearch>(
+pub fn try_run_weighted_solver_with_config_and_search<S, C, V, DM, IDM, Declaration, BuildSearch>(
     solution: S,
     constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
@@ -518,7 +530,56 @@ where
     Declaration::Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>,
     BuildSearch: FnOnce(&SolverConfig, SolutionDescriptor) -> RuntimeBuildResult<Declaration>,
 {
-    try_run_solver_with_candidate_trace_request(
+    try_run_solver_with_config_and_search_request::<S, C, WeightedMode, V, DM, IDM, _, _>(
+        solution,
+        constraints,
+        descriptor,
+        entity_count_by_descriptor,
+        runtime,
+        config,
+        default_time_limit_secs,
+        log_scale,
+        qualified_candidate_trace_provenance,
+        build_search,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn try_run_solver_with_config_and_search_request<S, C, M, V, DM, IDM, Declaration, BuildSearch>(
+    solution: S,
+    constraints: fn(&S) -> C,
+    descriptor: SolutionDescriptor,
+    entity_count_by_descriptor: fn(&S, usize) -> usize,
+    runtime: SolverRuntime<S>,
+    config: SolverConfig,
+    default_time_limit_secs: u64,
+    log_scale: fn(&S),
+    qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
+    build_search: BuildSearch,
+) -> RuntimeBuildResult<S>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    S::Score: Score + Copy + Ord + ParseableScore,
+    C: ConstraintSet<S, S::Score>,
+    M: WeightMode,
+    V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + fmt::Debug + 'static,
+    DM: crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>
+        + Clone
+        + Send
+        + Sync
+        + fmt::Debug
+        + 'static,
+    IDM: crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>
+        + Clone
+        + Send
+        + Sync
+        + fmt::Debug
+        + 'static,
+    Declaration: Search<S, V, DM, IDM>,
+    Declaration::Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>,
+    BuildSearch: FnOnce(&SolverConfig, SolutionDescriptor) -> RuntimeBuildResult<Declaration>,
+{
+    try_run_solver_with_candidate_trace_request::<S, C, M, _, _>(
         solution,
         constraints,
         descriptor,
@@ -546,7 +607,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-fn try_run_solver_with_candidate_trace_request<S, C, Runner, BuildRunner>(
+fn try_run_solver_with_candidate_trace_request<S, C, M, Runner, BuildRunner>(
     solution: S,
     constraints: fn(&S) -> C,
     descriptor: SolutionDescriptor,
@@ -562,9 +623,10 @@ where
     S: PlanningSolution,
     S::Score: Score + ParseableScore,
     C: ConstraintSet<S, S::Score>,
+    M: WeightMode,
     Runner: for<'d> Phase<
             S,
-            ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>>,
+            ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>, M>,
             ChannelProgressCallback<S>,
         > + Send
         + std::fmt::Debug,
@@ -576,7 +638,16 @@ where
         runtime.emit_failed(error.to_string());
         return Err(error);
     }
-    let director = ScoreDirector::with_descriptor(
+    if !M::WEIGHTED && requires_weighted_mode(&solution) {
+        let error = RuntimeBuildError::ConstraintWeights {
+            message: "this solution type carries constraint weights; solve it through \
+                      `try_run_weighted_solver_with_config_and_search`"
+                .to_string(),
+        };
+        runtime.emit_failed(error.to_string());
+        return Err(error);
+    }
+    let director = ScoreDirector::<S, C, _, M>::with_descriptor_in_mode(
         solution,
         main_constraints,
         ReplicaDescriptor::new(&descriptor, constraints),

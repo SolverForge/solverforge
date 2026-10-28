@@ -214,10 +214,11 @@ src/
 │   ├── mod.rs                                      — Re-exports all director types and traits
 │   ├── traits.rs                                   — Director<S> trait
 │   ├── score_director.rs                           — Re-exports ScoreDirector pieces
-│   │   ├── score_director/incremental.rs           — ScoreDirector<S,C,Desc> (zero-erasure incremental)
+│   │   ├── score_director/incremental.rs           — ScoreDirector<S,C,Desc,M> (zero-erasure incremental)
+│   │   ├── score_director/constructors.rs          — ScoreDirector constructors, weighted constructors, into_weight_mode
 │   │   ├── score_director/descriptor.rs            — DirectorDescriptor, ReplicaDescriptor
 │   │   ├── score_director/list_shadows.rs          — Retract/insert of list-shadowed element rows around owner shadow updates
-│   │   ├── score_director/weights.rs               — Compile-time weighted/unweighted dispatch, weight binding, weighted variable-change bodies
+│   │   ├── score_director/weight_mode.rs           — WeightMode (sealed), UnweightedMode, WeightedMode, requires_weighted_mode, static per-mode scoring dispatch
 │   │   ├── score_director/analysis.rs              — ScoreDirector constraint_results/constraint_analyses/constraint_match_totals
 │   │   └── score_director/adapters.rs              — Debug and Director trait impls for ScoreDirector
 │   ├── shadow_aware.rs                             — SolvableSolution trait and shadow lifecycle notes
@@ -456,15 +457,19 @@ therefore always hold the shadows they were inserted with.
 
 ### Runtime Constraint Weights
 
-Weightedness is a property of the solution type:
-`PlanningSolution::HAS_CONSTRAINT_WEIGHTS`. For a type that leaves it `false`,
-`ScoreDirector` compiles to the unweighted `ConstraintSet` calls with no weight
-binding and no per-call check. For a weighted type, the director resolves
+Weighting is a property of the director's type: `ScoreDirector`'s weight mode
+`M` (default `UnweightedMode`) is fixed when the director is built and every
+mode-dependent call dispatches statically through it, with no runtime check.
+An `UnweightedMode` director compiles to exactly the unweighted
+`ConstraintSet` calls: it stores no weights, never binds them, and ignores any
+weights the solution carries. A `WeightedMode` director resolves
 `PlanningSolution::constraint_weights()` into one multiplier per weight slot
 (`constraint_weight_refs` order; absent names and a `None` accessor bind `1`)
-on construction and before every (re)initialization, and uses the
-`*_weighted` calls while any multiplier differs from `1`; with every
-multiplier at `1` it keeps the unweighted calls behind one branch.
+on construction and before every (re)initialization, and always takes the
+`*_weighted` calls. `requires_weighted_mode(&solution)` —
+`HAS_CONSTRAINT_WEIGHTS` and some multiplier other than `1` — is the check a
+solve uses to pick the mode; `into_weight_mode::<M2>()` rebuilds a director in
+the other mode over the same working solution.
 
 Multipliers scale each constraint's aggregated contribution (its total, its
 per-call delta, and its match scores), never the per-match signing inside a
@@ -476,7 +481,8 @@ node keep independent multipliers. `ScoreDirector::constraint_results()`,
 weighted values and each constraint's `weight_multiplier`; the raw
 `ConstraintSet` analysis methods report unweighted values with multiplier `1`.
 Multiplier `0` zeroes a constraint without changing its `is_hard` metadata.
-Changing weights on a live director takes effect after `reset()`.
+Changing weights on a live `WeightedMode` director takes effect after
+`reset()`.
 
 ### Filter Traits
 
@@ -545,9 +551,13 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
 
 ### Score Directors
 
-**`ScoreDirector<S, C, Desc = SolutionDescriptor>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`, `Desc: DirectorDescriptor<S, C>`
+**`ScoreDirector<S, C, Desc = SolutionDescriptor, M = UnweightedMode>`** where `S: PlanningSolution`, `C: ConstraintSet<S, S::Score>`, `Desc: DirectorDescriptor<S, C>`, `M: WeightMode`
 - Primary incremental scoring director. Zero-erasure.
-- Public methods: `new()`, `with_descriptor()`, `simple()` (convenience for
+- Public methods: `new()`, `with_descriptor()` (unweighted),
+  `new_weighted()`, `with_descriptor_weighted()` (`WeightedMode`),
+  `with_descriptor_in_mode()` (mode `M` from the type),
+  `into_weight_mode::<M2>()` (same working solution, constraint set and
+  descriptor in mode `M2`, incremental state reset), `simple()` (convenience for
   `ScoreDirector<S, ()>`), `simple_zero()` (test helper with empty descriptor),
   `working_solution()`, `working_solution_mut()`, `into_working_solution()`,
   `calculate_score()`, `before_variable_changed()`,
@@ -555,16 +565,20 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
   `clone_working_solution()`, `constraints()`, `constraints_mut()`,
   `constraint_metadata()`, `constraint_count()`, `is_initialized()`,
   `constraint_results()` and `constraint_analyses()` (per-constraint results
-  and detailed analyses under the bound constraint weights),
+  and detailed analyses under the director's weight mode),
   `constraint_match_totals()` (`(name, weight_multiplier, weighted score,
   match_count)` per constraint), and `take_solution()`
 - Returns borrowed constraint metadata views from the monomorphized `ConstraintSet` on demand.
 - `simple(solution, descriptor, entity_counter)` — creates `ScoreDirector<S, ()>` with empty constraint set
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
 - `with_descriptor(solution, constraints, descriptor: Desc, entity_counter)` — `Desc` is an owned `SolutionDescriptor` or a `ReplicaDescriptor`; `new()`, `simple()` and `simple_zero()` build owned-descriptor directors.
-- `Director::fork_replica` forks only directors holding a `ReplicaDescriptor`: the replica clones the working solution, builds its constraint set from that clone with the recorded constructor, initializes it, and shares the same borrowed descriptor. Owned-descriptor directors return `None`.
+- `Director::fork_replica` forks only directors holding a `ReplicaDescriptor`, in the same weight mode: the replica clones the working solution, builds its constraint set from that clone with the recorded constructor, initializes it, and shares the same borrowed descriptor. Owned-descriptor directors return `None`.
 - `reset()` discards incremental state after an external rewrite of the working solution. Directors holding a `ReplicaDescriptor` rebuild their constraint set from the current working solution with the recorded constructor, so solution-derived constraint plans follow fact and entity changes; owned-descriptor directors reset their existing set.
 - Implements `Director<S>`
+
+**`WeightMode`** (sealed trait) — `const WEIGHTED: bool`; implemented only by `UnweightedMode` (zero-sized, no weight storage) and `WeightedMode` (bound per-slot multipliers).
+
+**`requires_weighted_mode<S: PlanningSolution>(solution: &S) -> bool`** — `S::HAS_CONSTRAINT_WEIGHTS` and some multiplier of `solution.constraint_weights()` differs from `1`.
 
 **`DirectorDescriptor<S, C>`** (trait) — how a `ScoreDirector` holds its descriptor.
 - `solution_descriptor(&self) -> &SolutionDescriptor`

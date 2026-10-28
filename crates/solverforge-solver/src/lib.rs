@@ -151,7 +151,10 @@ pub use planning::{
     ScalarTarget,
 };
 pub use realtime::{ClosureProblemChange, ProblemChange};
-pub use run::{log_solve_start, try_run_solver_with_config_and_search};
+pub use run::{
+    log_solve_start, try_run_solver_with_config_and_search,
+    try_run_weighted_solver_with_config_and_search,
+};
 pub use runtime::{ListVariableEntity, ListVariableMetadata};
 pub use runtime_build_error::{RuntimeBuildError, RuntimeBuildResult};
 pub use scope::{PhaseScope, SolverScope, StepScope};

@@ -100,9 +100,8 @@ pub trait IncrementalConstraint<S, Sc: Score>: IncrementalConstraintSealed + Sen
 
     /* Weighted counterparts of the scoring methods.
 
-    Score directors of a solution type with `HAS_CONSTRAINT_WEIGHTS` call
-    these instead of the unweighted methods while any bound multiplier differs
-    from `1`. Each receives this constraint's bound multiplier and the
+    `WeightedMode` score directors call these instead of the unweighted
+    methods. Each receives this constraint's bound multiplier and the
     defaults scale the whole contribution by it, which is exact because
     integer scaling is linear: the scaled sum of match scores equals the sum of
     scaled match scores. Retained state therefore stays unweighted, and the
@@ -268,10 +267,10 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     left to right, shared-terminal scorers in authored order).
     `constraint_weight_refs` pushes each slot's constraint reference; every
     `*_weighted` method receives one multiplier per slot in that order and
-    scales each slot's contribution by its multiplier. Score directors call
-    these only for solution types with `HAS_CONSTRAINT_WEIGHTS` and only while
-    some multiplier differs from `1`; the unweighted methods stay the scoring
-    path for everything else.
+    scales each slot's contribution by its multiplier. Only `WeightedMode`
+    score directors call these; `UnweightedMode` directors never name them,
+    so the unweighted methods stay the whole scoring path of every other
+    director.
     */
     fn constraint_weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>);
 

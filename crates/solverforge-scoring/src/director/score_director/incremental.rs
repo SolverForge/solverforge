@@ -5,7 +5,7 @@ use solverforge_core::score::Score;
 
 use super::descriptor::DirectorDescriptor;
 use super::list_shadows::ListShadowRows;
-use super::weights::{ConstraintWeightBinding, UnweightedRows};
+use super::weight_mode::{ModeRows, UnweightedMode, WeightMode};
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 
 /* A zero-erasure score director for incremental scoring.
@@ -21,6 +21,9 @@ are known at compile time, enabling complete monomorphization.
 - `Desc`: How the solution descriptor is held; an owned `SolutionDescriptor`
 by default, or a `ReplicaDescriptor` for directors that fork evaluator
 replicas
+- `M`: The runtime constraint weight mode, fixed for the director's lifetime:
+`UnweightedMode` by default (coded weights, no weight storage), or
+`WeightedMode` (contributions scaled by the solution's bound multipliers)
 
 # Example
 
@@ -67,20 +70,20 @@ let score2 = director.calculate_score();
 assert_eq!(score, score2);
 ```
 */
-pub struct ScoreDirector<S, C, Desc = SolutionDescriptor>
+pub struct ScoreDirector<S, C, Desc = SolutionDescriptor, M = UnweightedMode>
 where
     S: PlanningSolution,
     C: ConstraintSet<S, S::Score>,
     Desc: DirectorDescriptor<S, C>,
+    M: WeightMode,
 {
     pub(super) working_solution: S,
     pub(super) constraints: C,
     pub(super) cached_score: S::Score,
     pub(super) initialized: bool,
     pub(super) list_shadow_rows: ListShadowRows,
-    /* Bound per-slot weight multipliers. Only solution types with
-    `PlanningSolution::HAS_CONSTRAINT_WEIGHTS` ever bind or read it. */
-    pub(super) weights: ConstraintWeightBinding,
+    // The weight mode and, for `WeightedMode`, its bound multipliers.
+    pub(super) weight_mode: M,
     pub(super) solution_descriptor: Desc,
     /* Entity counter function.
 
@@ -89,76 +92,17 @@ where
     throughout the solver pipeline.
     */
     pub(super) entity_counter: fn(&S, usize) -> usize,
-    _phantom: PhantomData<fn() -> S>,
+    pub(super) _phantom: PhantomData<fn() -> S>,
 }
 
-impl<S, C> ScoreDirector<S, C>
-where
-    S: PlanningSolution,
-    S::Score: Score,
-    C: ConstraintSet<S, S::Score>,
-{
-    /* Creates a new zero-erasure score director with an empty descriptor.
-
-    Use this for manual solver loops that don't need the `Director` trait.
-    For full solver infrastructure integration, use `with_descriptor()`.
-
-    The constraints should be a tuple of monomorphized constraints (e.g., `(C1, C2, C3)`).
-    */
-    pub fn new(solution: S, constraints: C) -> Self {
-        use std::any::TypeId;
-        Self::with_descriptor(
-            solution,
-            constraints,
-            SolutionDescriptor::new("", TypeId::of::<()>()),
-            |_, _| 0,
-        )
-    }
-}
-
-impl<S, C, Desc> ScoreDirector<S, C, Desc>
+impl<S, C, Desc, M> ScoreDirector<S, C, Desc, M>
 where
     S: PlanningSolution,
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
     Desc: DirectorDescriptor<S, C>,
+    M: WeightMode,
 {
-    /* Creates a new zero-erasure score director with a solution descriptor.
-
-    This constructor enables the `Director` trait implementation for
-    integration with the full solver infrastructure (phases, move selectors, etc.).
-
-    # Arguments
-
-    * `solution` - The initial solution
-    * `constraints` - Tuple of monomorphized constraints (e.g., `(C1, C2, C3)`)
-    * `solution_descriptor` - Metadata for solver infrastructure: an owned
-      `SolutionDescriptor`, or a `ReplicaDescriptor` to fork evaluator replicas
-    * `entity_counter` - Function returning entity count for descriptor index
-    */
-    pub fn with_descriptor(
-        solution: S,
-        constraints: C,
-        solution_descriptor: Desc,
-        entity_counter: fn(&S, usize) -> usize,
-    ) -> Self {
-        let mut director = Self {
-            working_solution: solution,
-            constraints,
-            cached_score: S::Score::zero(),
-            initialized: false,
-            list_shadow_rows: ListShadowRows::default(),
-            weights: ConstraintWeightBinding::default(),
-            solution_descriptor,
-            entity_counter,
-            _phantom: PhantomData,
-        };
-        if S::HAS_CONSTRAINT_WEIGHTS {
-            director.bind_constraint_weights();
-        }
-        director
-    }
-
     /* Builds an initialized evaluator replica: a clone of the working
     solution, a constraint set built for that clone, and the same borrowed
     descriptor.
@@ -170,7 +114,7 @@ where
         let (descriptor, constraints) = self.solution_descriptor.replica()?;
         let solution = self.working_solution.clone();
         let replica_constraints = constraints(&solution);
-        let mut replica = Self::with_descriptor(
+        let mut replica = Self::with_descriptor_in_mode(
             solution,
             replica_constraints,
             descriptor,
@@ -187,16 +131,12 @@ where
 
     pub(crate) fn calculate_score_impl(&mut self) -> S::Score {
         if !self.initialized {
-            if S::HAS_CONSTRAINT_WEIGHTS {
-                self.bind_constraint_weights();
-            }
+            self.weight_mode
+                .bind(&self.working_solution, &self.constraints);
             self.working_solution.update_all_shadows();
-            self.cached_score = if self.weighted() {
-                self.constraints
-                    .initialize_all_weighted(&self.working_solution, self.weights.multipliers())
-            } else {
-                self.constraints.initialize_all(&self.working_solution)
-            };
+            self.cached_score = self
+                .weight_mode
+                .initialize_all(&mut self.constraints, &self.working_solution);
             self.initialized = true;
         }
         self.working_solution.set_score(Some(self.cached_score));
@@ -206,12 +146,7 @@ where
     pub(crate) fn fresh_score_impl(&self) -> S::Score {
         let mut solution = self.working_solution.clone();
         solution.update_all_shadows();
-        if self.weighted() {
-            return self
-                .constraints
-                .evaluate_all_weighted(&solution, self.weights.multipliers());
-        }
-        self.constraints.evaluate_all(&solution)
+        self.weight_mode.evaluate_all(&self.constraints, &solution)
     }
 
     pub(crate) fn before_variable_changed_impl(
@@ -222,16 +157,18 @@ where
         if !self.initialized {
             return;
         }
-        if self.weighted() {
-            self.before_variable_changed_weighted(descriptor_index, entity_index);
-            return;
-        }
-        let delta =
-            self.constraints
-                .on_retract_all(&self.working_solution, entity_index, descriptor_index);
+        let delta = self.weight_mode.on_retract_all(
+            &mut self.constraints,
+            &self.working_solution,
+            entity_index,
+            descriptor_index,
+        );
         let element_delta = self.list_shadow_rows.retract_held(
             &self.working_solution,
-            &mut UnweightedRows(&mut self.constraints),
+            &mut ModeRows {
+                constraints: &mut self.constraints,
+                mode: &self.weight_mode,
+            },
             descriptor_index,
             entity_index,
         );
@@ -246,13 +183,12 @@ where
         if !self.initialized {
             return;
         }
-        if self.weighted() {
-            self.after_variable_changed_weighted(descriptor_index, entity_index);
-            return;
-        }
         let delta = self.list_shadow_rows.refresh_owner(
             &mut self.working_solution,
-            &mut UnweightedRows(&mut self.constraints),
+            &mut ModeRows {
+                constraints: &mut self.constraints,
+                mode: &self.weight_mode,
+            },
             descriptor_index,
             entity_index,
         );
@@ -318,8 +254,9 @@ where
 
     Note: After modifying the solution directly, you must call
     `reset()` to recalculate the score from scratch. This includes the
-    solution's constraint weights: they are rebound on the next
-    initialization after `reset()`, never mid-session.
+    solution's constraint weights: a `WeightedMode` director rebinds them on
+    the next initialization after `reset()`, never mid-session; an
+    `UnweightedMode` director never reads them.
     */
     pub fn working_solution_mut(&mut self) -> &mut S {
         &mut self.working_solution
@@ -463,35 +400,5 @@ where
     */
     pub fn take_solution(self) -> S {
         self.working_solution
-    }
-}
-
-impl<S> ScoreDirector<S, ()>
-where
-    S: PlanningSolution,
-    S::Score: Score,
-{
-    /* Creates a non-incremental director for use in tests and simple scenarios.
-
-    Uses an empty constraint set — `calculate_score()` always returns zero.
-    For tests that set score directly on the solution, this is sufficient.
-    */
-    pub fn simple(
-        solution: S,
-        descriptor: SolutionDescriptor,
-        entity_counter: fn(&S, usize) -> usize,
-    ) -> Self {
-        Self::with_descriptor(solution, (), descriptor, entity_counter)
-    }
-
-    /* Creates a non-incremental director with empty descriptor and zero entity counter. */
-    pub fn simple_zero(solution: S) -> Self {
-        use std::any::TypeId;
-        Self::with_descriptor(
-            solution,
-            (),
-            SolutionDescriptor::new("", TypeId::of::<()>()),
-            |_, _| 0,
-        )
     }
 }

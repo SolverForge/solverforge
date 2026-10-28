@@ -1863,7 +1863,15 @@ set's metadata; an unknown constraint name or a multiplier above
 `MAX_CONSTRAINT_WEIGHT_MULTIPLIER` emits the `Failed` lifecycle event and
 returns `RuntimeBuildError::ConstraintWeights` before any phase runs. Weights
 installed by an applied problem change are validated the same way before the
-rescore, and an invalid set fails the job with the same error. Graph
+rescore, and an invalid set fails the job with the same error.
+
+It scores on an `UnweightedMode` director and fails with
+`RuntimeBuildError::ConstraintWeights` when the solution's weights require
+weighting (`requires_weighted_mode`). The doc-hidden
+`try_run_weighted_solver_with_config_and_search(...)`, with the same
+signature, is the entrypoint `#[planning_solution]` emits for types with a
+`#[constraint_weights]` field; it scores on a `WeightedMode` director. Only
+models that name it monomorphize the weighted solver. Graph
 compilation and solve-owned source preparation remain private; there is no
 public graph or alternate phase-builder fallback.
 

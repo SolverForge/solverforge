@@ -1,11 +1,11 @@
 // Shared fixture and oracle for constraint weight multiplier tests.
 
 pub(super) use crate::api::constraint_set::ConstraintSet;
-pub(super) use crate::director::score_director::ScoreDirector;
+pub(super) use crate::director::score_director::{ScoreDirector, WeightedMode};
 pub(super) use crate::director::Director;
 pub(super) use crate::stream::collection_extract::{source, ChangeSource};
 pub(super) use crate::stream::ConstraintFactory;
-use solverforge_core::domain::PlanningSolution;
+use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 pub(super) use solverforge_core::score::{HardSoftScore, Score};
 pub(super) use solverforge_core::ConstraintWeights;
 
@@ -168,7 +168,7 @@ where
     C: ConstraintSet<Plan, HardSoftScore>,
 {
     let mut base = ScoreDirector::new(plan(ConstraintWeights::new()), build());
-    let mut weighted = ScoreDirector::new(plan(weights_of(entries)), build());
+    let mut weighted = ScoreDirector::new_weighted(plan(weights_of(entries)), build());
     base.calculate_score();
     weighted.calculate_score();
     let mut scored = assert_step(&base, &weighted, entries, "initialize");
@@ -183,7 +183,7 @@ where
 
 fn assert_step<C>(
     base: &ScoreDirector<Plan, C>,
-    weighted: &ScoreDirector<Plan, C>,
+    weighted: &ScoreDirector<Plan, C, SolutionDescriptor, WeightedMode>,
     entries: &[(&str, u32)],
     context: &str,
 ) -> bool

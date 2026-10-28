@@ -8,6 +8,7 @@ terminal serves every depth.
 */
 
 mod grouped_weights;
+mod operator_scorer;
 mod operator_terminal;
 mod shared_terminal;
 
@@ -15,8 +16,6 @@ pub use grouped_weights::{
     DirectComplementAdapter, DirectComplementWeight, GroupAdapter, GroupWeight, GroupedJoinAdapter,
     GroupedJoinWeight, OptionalComplementAdapter, OptionalComplementWeight,
 };
+pub use operator_scorer::{AdaptWeight, OperatorScorer, RowWeight, ScorerChain};
 pub use operator_terminal::OperatorTerminal;
-pub use shared_terminal::{
-    AdaptWeight, OperatorScorer, RowWeight, ScorerChain, SharedOperatorBuilder,
-    SharedOperatorTerminal,
-};
+pub use shared_terminal::{SharedOperatorBuilder, SharedOperatorTerminal};

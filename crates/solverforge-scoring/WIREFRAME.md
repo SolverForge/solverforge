@@ -176,7 +176,8 @@ src/
 │   ├── relational/
 │   │   ├── mod.rs                                  — Module declarations and selected re-exports
 │   │   ├── operator_terminal.rs                    — OperatorTerminal<S,O,W,Sc> over one generic operator
-│   │   ├── shared_terminal.rs                      — SharedOperatorTerminal/Builder, OperatorScorerSet, weight adapters, and chained terminal sharing
+│   │   ├── operator_scorer.rs                      — OperatorScorer, OperatorScorerSet, ScorerChain, and RowWeight/AdaptWeight adapters
+│   │   ├── shared_terminal.rs                      — SharedOperatorTerminal/Builder and chained terminal sharing
 │   │   └── grouped_weights.rs                      — Group/direct-complement/optional-complement weight adapters
 │   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
 │   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors

@@ -378,7 +378,7 @@ pub use stream::{
 | `is_incremental` | `fn is_incremental(&self) -> bool` | Default: false |
 | `snapshot_score_state` | `fn snapshot_score_state(&self) -> DirectorScoreState<S::Score>` | Snapshot committed score state for speculative evaluation |
 | `restore_score_state` | `fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>)` | Restore a previously snapshotted committed score state |
-| `reset` | `fn reset(&mut self)` | Default: no-op |
+| `reset` | `fn reset(&mut self)` | Discard incremental state after an external working-solution rewrite; default: no-op |
 | `fork_replica` | `fn fork_replica(&self) -> Option<Self> where Self: Sized` | Independent evaluator replica with initialized incremental state, sharing the director's borrowed descriptor; default: `None` |
 
 ### `DirectorScoreState<Sc>`
@@ -529,6 +529,7 @@ Stock collectors include `count()`, `sum()`, `load_balance()`,
 - `simple_zero(solution)` — creates `ScoreDirector<S, ()>` with empty descriptor and zero entity counter
 - `with_descriptor(solution, constraints, descriptor: Desc, entity_counter)` — `Desc` is an owned `SolutionDescriptor` or a `ReplicaDescriptor`; `new()`, `simple()` and `simple_zero()` build owned-descriptor directors.
 - `Director::fork_replica` forks only directors holding a `ReplicaDescriptor`: the replica clones the working solution, builds its constraint set from that clone with the recorded constructor, initializes it, and shares the same borrowed descriptor. Owned-descriptor directors return `None`.
+- `reset()` discards incremental state after an external rewrite of the working solution. Directors holding a `ReplicaDescriptor` rebuild their constraint set from the current working solution with the recorded constructor, so solution-derived constraint plans follow fact and entity changes; owned-descriptor directors reset their existing set.
 - Implements `Director<S>`
 
 **`DirectorDescriptor<S, C>`** (trait) — how a `ScoreDirector` holds its descriptor.

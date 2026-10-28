@@ -90,7 +90,10 @@ pub trait Director<S: PlanningSolution>: Send {
         self.working_solution_mut().set_score(state.solution_score);
     }
 
-    // Resets the score director state.
+    /* Discards incremental score state after the working solution was
+    rewritten outside the variable-change protocol. The next
+    `calculate_score` reinitializes from the rewritten solution.
+    */
     fn reset(&mut self) {}
 
     /* Builds an independent evaluator replica: an owned copy of the working

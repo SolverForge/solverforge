@@ -318,6 +318,48 @@ fn unassigned_constraints(
     (make_unassigned_constraint(),)
 }
 
+/* Penalizes each unassigned value by the value count observed when the set
+was built, so a stale set scores a resized solution with the old weight. */
+fn solution_weighted_constraints(
+    solution: &TestSolution,
+) -> (impl IncrementalConstraint<TestSolution, SoftScore>,) {
+    let weight = solution.values.len() as i64;
+    (IncrementalUniConstraint::new(
+        ConstraintRef::new("", "Weighted unassigned"),
+        ImpactType::Penalty,
+        source(
+            (|s: &TestSolution| s.values.as_slice()) as fn(&TestSolution) -> &[Option<i32>],
+            ChangeSource::Descriptor(0),
+        ),
+        |_s: &TestSolution, v: &Option<i32>| v.is_none(),
+        move |_v: &Option<i32>| SoftScore::of(weight),
+        false,
+    ),)
+}
+
+#[test]
+fn reset_rebuilds_replica_constraints_from_the_rewritten_solution() {
+    let solution = TestSolution {
+        values: vec![Some(1), None],
+        score: None,
+    };
+    let descriptor = test_descriptor();
+    let mut director = ScoreDirector::with_descriptor(
+        solution.clone(),
+        solution_weighted_constraints(&solution),
+        ReplicaDescriptor::new(&descriptor, solution_weighted_constraints),
+        |_, _| 0,
+    );
+    assert_eq!(director.calculate_score(), SoftScore::of(-2));
+
+    director.working_solution_mut().values.push(None);
+    director.reset();
+
+    assert!(!director.is_initialized());
+    assert_eq!(director.calculate_score(), SoftScore::of(-6));
+    assert_eq!(Director::fresh_score(&director), Some(SoftScore::of(-6)));
+}
+
 #[test]
 fn fork_replica_requires_a_replica_descriptor() {
     let solution = TestSolution {

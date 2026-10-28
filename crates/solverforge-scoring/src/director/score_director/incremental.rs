@@ -229,8 +229,17 @@ where
         self.cached_score = self.cached_score + delta;
     }
 
+    /* Drops all incremental state after the working solution was rewritten
+    outside the variable-change protocol. A director that records its
+    constraint-set constructor rebuilds the set from the current solution,
+    because constraint sets may compile solution-derived plans that a plain
+    reset would keep stale.
+    */
     pub(crate) fn reset_impl(&mut self) {
-        self.constraints.reset_all();
+        match self.solution_descriptor.replica() {
+            Some((_, constraints)) => self.constraints = constraints(&self.working_solution),
+            None => self.constraints.reset_all(),
+        }
         self.list_shadow_rows.clear();
         self.initialized = false;
         self.cached_score = S::Score::zero();
@@ -355,7 +364,8 @@ where
         self.cached_score
     }
 
-    /* Resets the director state. */
+    /* Discards incremental state after an external rewrite of the working
+    solution; see `reset_impl` for the constraint-set rebuild. */
     pub fn reset(&mut self) {
         self.reset_impl();
     }

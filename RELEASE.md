@@ -21,19 +21,29 @@ Status definitions:
 - `Stable`: public API expected to remain coherent across the release line; regressions block release.
 - `Beta`: supported and versioned, but still more likely to receive usability and coverage fixes between patch releases.
 
-## Publish Order
+## Release Pipeline
 
-When versions change across the workspace, publish crates in dependency order:
+Pushing a `v*` tag starts `.github/workflows/release.yml`, the only path to
+crates.io and GitHub Releases:
 
-1. `solverforge-core`
-2. `solverforge-macros`
-3. `solverforge-scoring`
-4. `solverforge-config`
-5. `solverforge-solver`
-6. `solverforge-bridge`
-7. `solverforge-cvrp`
-8. `solverforge-console`
-9. `solverforge`
+1. `CI` runs the full cross-platform CI (`ci.yml`, Linux, macOS, Windows, and
+   the integration and doc tests) on the tagged commit with the toolchain
+   pinned in `rust-toolchain.toml`.
+2. `Verify release` requires the tag to equal `v` plus the workspace version
+   and packages every publishable crate against a local registry overlay.
+3. `Publish to crates.io` uploads the publishable crates that are not yet on
+   crates.io at that version. Cargo orders them by their dependencies and waits
+   for each to reach the index; a re-run uploads only what is still missing.
+   The job then confirms that every crate is on crates.io.
+4. `Create GitHub Release` creates the release with generated notes.
+
+Each job needs the previous one, so a red CI leg, a tag that does not match
+the workspace version, or a crate that fails to package publishes nothing and
+creates no release. Running the workflow manually (`workflow_dispatch`)
+rehearses steps 1 and 2 on the selected ref without publishing.
+
+CI and the release use the exact toolchain in `rust-toolchain.toml`. Bump it
+deliberately, in its own commit, after the workspace passes on the new version.
 
 ## Release Checklist
 
@@ -85,13 +95,13 @@ When versions change across the workspace, publish crates in dependency order:
    intentionally not part of portable `make pre-release`; inability to run it
    is not a pass.
 8. Verify publishability.
-   Run real package dry-runs for crates that can be verified before publish:
-   `cargo publish --dry-run -p solverforge-core`
-   `cargo publish --dry-run -p solverforge-macros`
-   `cargo publish --dry-run -p solverforge-console`
-   For dependent crates (`solverforge-scoring`, `solverforge-config`, `solverforge-solver`, `solverforge-bridge`, `solverforge-cvrp`, `solverforge`), rerun `cargo publish --dry-run -p <crate>` immediately before uploading each crate, after its exact-version dependencies are visible on crates.io.
-9. Publish crates in dependency order.
-   Use `make publish-crates` or publish manually in the order listed above.
+   `make publish-crates-dry` packages every publishable crate the way the
+   release pipeline does.
+9. Push the release commit, then its tag.
+   Pushing the tag starts the release pipeline described above; it is the only
+   way crates reach crates.io. If it fails, fix the cause on `main` and cut a
+   new version. If only the upload or release step failed for an external
+   reason (crates.io or GitHub outage), re-run the failed jobs of the same run.
 10. Post-publish verification.
     Confirm crates.io versions, docs.rs builds, and install smoke tests:
     `cargo add solverforge@<version>`

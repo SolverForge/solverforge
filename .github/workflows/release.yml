@@ -1,87 +1,129 @@
 name: Release
 
+# One pipeline per release tag: the full cross-platform CI runs on the tagged
+# commit with the pinned toolchain, then the tag and packages are verified,
+# then crates.io receives every crate, and only then is the GitHub release
+# created. A red CI leg or a failed verification stops the run before anything
+# is uploaded. Running the workflow manually rehearses CI and verification on
+# the selected ref without publishing.
+
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g., 0.2.0)'
-        required: true
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  verify:
     if: ${{ github.server_url == 'https://github.com' }}
-    name: Run Tests
+    name: Verify release
+    needs: [ci]
     runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: true
-
-      - name: Install Rust
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Cache cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Run clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-      - name: Build workspace
-        run: cargo build --workspace --all-features --release
-
-      - name: Run all tests
-        run: cargo test --workspace --all-features
-
-      - name: Run integration tests
-        run: cargo test --workspace --all-features --test '*'
-
-  create-release:
-    if: ${{ github.server_url == 'https://github.com' }}
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    needs: [test]
     outputs:
       version: ${{ steps.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
-      - name: Get version
-        id: version
+      - name: Install Rust
+        shell: bash
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          toolchain=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$toolchain" --component clippy,rustfmt
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Check the tag against the workspace version
+        id: version
+        shell: bash
+        run: |
+          version=$(python3 scripts/release/crates.py version)
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the workspace version v$version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Package every publishable crate
+        shell: bash
+        run: |
+          packages=()
+          while IFS= read -r name; do packages+=(-p "$name"); done \
+            < <(python3 scripts/release/crates.py publishable)
+          cargo package --locked "${packages[@]}"
+
+  publish:
+    if: ${{ github.server_url == 'https://github.com' && github.event_name == 'push' }}
+    name: Publish to crates.io
+    needs: [verify]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        shell: bash
+        run: |
+          toolchain=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$toolchain" --component clippy,rustfmt
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      # Re-running a partially published release uploads only what is missing.
+      # cargo publishes the set in dependency order and waits for each crate to
+      # reach the index before uploading its dependents.
+      - name: Publish the crates missing from crates.io
+        shell: bash
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          missing=$(python3 scripts/release/crates.py unpublished "$VERSION")
+          if [ -z "$missing" ]; then
+            echo "Every crate at $VERSION is already on crates.io."
+            exit 0
+          fi
+          packages=()
+          while IFS= read -r name; do packages+=(-p "$name"); done <<< "$missing"
+          cargo publish --locked "${packages[@]}"
+
+      - name: Confirm every crate is on crates.io
+        shell: bash
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          missing=$(python3 scripts/release/crates.py unpublished "$VERSION")
+          if [ -n "$missing" ]; then
+            echo "::error::not on crates.io at $VERSION: $(tr '\n' ' ' <<< "$missing")"
+            exit 1
           fi
 
+  github-release:
+    if: ${{ github.server_url == 'https://github.com' && github.event_name == 'push' }}
+    name: Create GitHub Release
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
-          name: v${{ steps.version.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          name: v${{ needs.verify.outputs.version }}
           generate_release_notes: true
           draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          prerelease: ${{ contains(needs.verify.outputs.version, '-') }}

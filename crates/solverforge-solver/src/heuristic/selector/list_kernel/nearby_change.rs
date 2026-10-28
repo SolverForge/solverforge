@@ -132,35 +132,35 @@ where
                 }
 
                 candidates.clear();
-                for destination_position in 0..=source_len {
-                    if destination_position == source_position
-                        || destination_position == source_position + 1
-                    {
-                        continue;
-                    }
-                    if source_restriction
-                        .is_some_and(|restriction| !restriction.allows(source_entity))
-                    {
-                        continue;
-                    }
-                    if self.precedence_route_graph.as_mut().is_some_and(|graph| {
-                        graph.intra_list_change_introduces_cycle(
+                let source_allowed =
+                    source_restriction.is_none_or(|restriction| restriction.allows(source_entity));
+                if source_allowed {
+                    // Exclusive bound: `0..=len` compiles to an extra exhausted check per step.
+                    for destination_position in 0..source_len + 1 {
+                        if destination_position == source_position
+                            || destination_position == source_position + 1
+                        {
+                            continue;
+                        }
+                        if self.precedence_route_graph.as_mut().is_some_and(|graph| {
+                            graph.intra_list_change_introduces_cycle(
+                                source_entity,
+                                source_position,
+                                destination_position,
+                            )
+                        }) {
+                            continue;
+                        }
+                        let distance = self.probe.distance(
+                            solution,
                             source_entity,
                             source_position,
-                            destination_position,
-                        )
-                    }) {
-                        continue;
-                    }
-                    let distance = self.probe.distance(
-                        solution,
-                        source_entity,
-                        source_position,
-                        source_entity,
-                        destination_position.min(source_len.saturating_sub(1)),
-                    );
-                    if distance.is_finite() {
-                        candidates.push((source_entity, destination_position, distance));
+                            source_entity,
+                            destination_position.min(source_len.saturating_sub(1)),
+                        );
+                        if distance.is_finite() {
+                            candidates.push((source_entity, destination_position, distance));
+                        }
                     }
                 }
 
@@ -169,13 +169,14 @@ where
                         if destination_idx == self.source_idx {
                             continue;
                         }
+                        // The owner restriction depends only on the destination entity.
+                        if source_restriction
+                            .is_some_and(|restriction| !restriction.allows(destination_entity))
+                        {
+                            continue;
+                        }
                         let destination_len = self.route_lens[destination_idx];
-                        for destination_position in 0..=destination_len {
-                            if source_restriction
-                                .is_some_and(|restriction| !restriction.allows(destination_entity))
-                            {
-                                continue;
-                            }
+                        for destination_position in 0..destination_len + 1 {
                             let reference_position =
                                 destination_position.min(destination_len.saturating_sub(1));
                             let distance = self.probe.distance(

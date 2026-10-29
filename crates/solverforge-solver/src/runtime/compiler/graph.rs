@@ -4,8 +4,8 @@ use solverforge_config::{
 };
 
 use crate::builder::{
-    RuntimeCandidateMetricBinding, RuntimeProviderHandle, RuntimeScalarSlotId, ScalarGroupBinding,
-    SearchContext,
+    CompiledAcceptor, CompiledForager, RuntimeCandidateMetricBinding, RuntimeProviderHandle,
+    RuntimeScalarSlotId, ScalarGroupBinding, SearchContext,
 };
 use crate::descriptor::ResolvedVariableBinding;
 use crate::phase::construction::{ScalarConstructionSchedule, ScalarOrMixedSlotOrder};
@@ -463,6 +463,10 @@ pub(crate) enum CompiledAcceptorForagerSelector<S, V, DM, IDM> {
 pub(crate) enum CompiledLocalSearch<S, V, DM, IDM> {
     AcceptorForager {
         config: LocalSearchConfig,
+        /// The configured acceptor, validated for this score type.
+        acceptor: Option<CompiledAcceptor<S>>,
+        /// The configured forager, validated.
+        forager: Option<CompiledForager>,
         selector: CompiledAcceptorForagerSelector<S, V, DM, IDM>,
     },
     VariableNeighborhoodDescent {

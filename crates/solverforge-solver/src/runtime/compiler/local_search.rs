@@ -1,7 +1,7 @@
 use solverforge_config::{LocalSearchConfig, LocalSearchType, SelectionOrder};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 
-use crate::builder::RuntimeModel;
+use crate::builder::{CompiledAcceptor, CompiledForager, ConfigValueError, RuntimeModel};
 
 use super::default_local_search::DefaultLocalSearchPlan;
 use super::graph::{CompiledAcceptorForagerSelector, CompiledLocalSearch};
@@ -47,8 +47,22 @@ where
                     CompiledAcceptorForagerSelector::OmittedDefault
                 }
             };
+            let acceptor = config
+                .acceptor
+                .as_ref()
+                .map(CompiledAcceptor::compile)
+                .transpose()
+                .map_err(|error| invalid_value(path, "acceptor", error))?;
+            let forager = config
+                .forager
+                .as_ref()
+                .map(CompiledForager::compile)
+                .transpose()
+                .map_err(|error| invalid_value(path, "forager", error))?;
             Ok(CompiledLocalSearch::AcceptorForager {
                 config: config.clone(),
+                acceptor,
+                forager,
                 selector,
             })
         }
@@ -89,6 +103,15 @@ where
         }
     }
 }
+fn invalid_value(path: &str, table: &str, error: ConfigValueError) -> RuntimeCompileError {
+    RuntimeCompileError {
+        path: format!("{path}.{table}.{}", error.field()),
+        kind: RuntimeCompileErrorKind::InvalidValue {
+            message: error.message().to_string(),
+        },
+    }
+}
+
 pub(super) fn local_search_shape(path: &str, message: impl Into<String>) -> RuntimeCompileError {
     RuntimeCompileError {
         path: path.to_string(),

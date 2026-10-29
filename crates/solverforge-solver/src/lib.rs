@@ -38,10 +38,11 @@ pub mod stats;
 pub mod termination;
 
 pub use builder::{
-    local_search, AcceptorBuilder, AnyAcceptor, AnyForager, CustomSearchPhase, ForagerBuilder,
-    IntraDistanceAdapter, ListVariableSlot, RuntimeCandidateMetric, RuntimeCandidateMetricBinding,
-    RuntimeCandidateMetricRegistry, RuntimeModel, ScalarGroupBinding, ScalarGroupMemberBinding,
-    ScalarVariableSlot, Search, SearchContext, ValueSource, VariableSlot,
+    local_search, AcceptorBuilder, AnyAcceptor, AnyForager, ConfigValueError, CustomSearchPhase,
+    ForagerBuilder, IntraDistanceAdapter, ListVariableSlot, RuntimeCandidateMetric,
+    RuntimeCandidateMetricBinding, RuntimeCandidateMetricRegistry, RuntimeModel,
+    ScalarGroupBinding, ScalarGroupMemberBinding, ScalarVariableSlot, Search, SearchContext,
+    ValueSource, VariableSlot,
 };
 pub use descriptor::{
     build_descriptor_move_selector, descriptor_has_bindings, DescriptorFlatSelector,

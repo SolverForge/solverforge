@@ -3,8 +3,7 @@
 use std::fmt::Debug;
 
 use solverforge_config::{
-    AcceptorConfig, HardRegressionPolicyConfig, SimulatedAnnealingCalibrationConfig,
-    SimulatedAnnealingConfig, TabuSearchConfig,
+    AcceptorConfig, HardRegressionPolicyConfig, SimulatedAnnealingConfig, TabuSearchConfig,
 };
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
@@ -13,9 +12,10 @@ use crate::heuristic::r#move::MoveTabuSignature;
 use crate::phase::localsearch::{
     Acceptor, DiversifiedLateAcceptanceAcceptor, GreatDelugeAcceptor, HardRegressionPolicy,
     HillClimbingAcceptor, LateAcceptanceAcceptor, SimulatedAnnealingAcceptor,
-    SimulatedAnnealingCalibration, StepCountingHillClimbingAcceptor, TabuSearchAcceptor,
-    TabuSearchPolicy,
+    StepCountingHillClimbingAcceptor, TabuSearchAcceptor, TabuSearchPolicy,
 };
+
+use super::local_search_policy::{resolved_calibration, CompiledAcceptor, ConfigValueError};
 
 /* A concrete enum over all built-in acceptor types.
 
@@ -194,7 +194,12 @@ pub struct AcceptorBuilder;
 
 impl AcceptorBuilder {
     /// Builds a concrete [`AnyAcceptor`] from configuration.
-    pub fn build<S: PlanningSolution>(config: &AcceptorConfig) -> AnyAcceptor<S>
+    ///
+    /// Fails when a configured value is outside its domain, for example a
+    /// zero tabu size or a `decay_rate` outside (0, 1].
+    pub fn build<S: PlanningSolution>(
+        config: &AcceptorConfig,
+    ) -> Result<AnyAcceptor<S>, ConfigValueError>
     where
         S::Score: Score + ParseableScore,
     {
@@ -202,49 +207,16 @@ impl AcceptorBuilder {
     }
 
     /// Builds a concrete [`AnyAcceptor`] from configuration with an optional deterministic seed.
+    ///
+    /// Fails like [`Self::build`] on an invalid configured value.
     pub fn build_with_seed<S: PlanningSolution>(
         config: &AcceptorConfig,
         random_seed: Option<u64>,
-    ) -> AnyAcceptor<S>
+    ) -> Result<AnyAcceptor<S>, ConfigValueError>
     where
         S::Score: Score + ParseableScore,
     {
-        match config {
-            AcceptorConfig::HillClimbing {} => {
-                AnyAcceptor::HillClimbing(HillClimbingAcceptor::new())
-            }
-
-            AcceptorConfig::StepCountingHillClimbing(step_counting_config) => {
-                AnyAcceptor::StepCountingHillClimbing(StepCountingHillClimbingAcceptor::new(
-                    step_counting_config.step_count_limit.unwrap_or(100),
-                ))
-            }
-
-            AcceptorConfig::TabuSearch(tabu_config) => AnyAcceptor::TabuSearch(
-                TabuSearchAcceptor::<S>::new(normalize_tabu_search_policy(tabu_config)),
-            ),
-
-            AcceptorConfig::SimulatedAnnealing(sa_config) => AnyAcceptor::SimulatedAnnealing(
-                build_simulated_annealing::<S>(sa_config, random_seed),
-            ),
-
-            AcceptorConfig::LateAcceptance(la_config) => {
-                let size = la_config.late_acceptance_size.unwrap_or(400);
-                AnyAcceptor::LateAcceptance(LateAcceptanceAcceptor::<S>::new(size))
-            }
-
-            AcceptorConfig::DiversifiedLateAcceptance(dla_config) => {
-                let size = dla_config.late_acceptance_size.unwrap_or(400);
-                AnyAcceptor::DiversifiedLateAcceptance(DiversifiedLateAcceptanceAcceptor::<S>::new(
-                    size,
-                ))
-            }
-
-            AcceptorConfig::GreatDeluge(gd_config) => {
-                let rain_speed = gd_config.water_level_increase_ratio.unwrap_or(0.001);
-                AnyAcceptor::GreatDeluge(GreatDelugeAcceptor::<S>::new(rain_speed))
-            }
-        }
+        Ok(CompiledAcceptor::<S>::compile(config)?.build(random_seed))
     }
 
     pub fn hill_climbing<S: PlanningSolution>() -> HillClimbingAcceptor {
@@ -264,6 +236,51 @@ impl AcceptorBuilder {
     }
 }
 
+/// Builds an acceptor from a configuration that passed
+/// [`CompiledAcceptor::compile`] for `S`, so no constructor precondition can fail.
+pub(super) fn build_validated_acceptor<S: PlanningSolution>(
+    config: &AcceptorConfig,
+    random_seed: Option<u64>,
+) -> AnyAcceptor<S>
+where
+    S::Score: Score + ParseableScore,
+{
+    match config {
+        AcceptorConfig::HillClimbing {} => AnyAcceptor::HillClimbing(HillClimbingAcceptor::new()),
+
+        AcceptorConfig::StepCountingHillClimbing(step_counting_config) => {
+            AnyAcceptor::StepCountingHillClimbing(StepCountingHillClimbingAcceptor::new(
+                step_counting_config.step_count_limit.unwrap_or(100),
+            ))
+        }
+
+        AcceptorConfig::TabuSearch(tabu_config) => AnyAcceptor::TabuSearch(
+            TabuSearchAcceptor::<S>::new(normalize_tabu_search_policy(tabu_config)),
+        ),
+
+        AcceptorConfig::SimulatedAnnealing(sa_config) => {
+            AnyAcceptor::SimulatedAnnealing(build_simulated_annealing::<S>(sa_config, random_seed))
+        }
+
+        AcceptorConfig::LateAcceptance(la_config) => {
+            let size = la_config.late_acceptance_size.unwrap_or(400);
+            AnyAcceptor::LateAcceptance(LateAcceptanceAcceptor::<S>::new(size))
+        }
+
+        AcceptorConfig::DiversifiedLateAcceptance(dla_config) => {
+            let size = dla_config.late_acceptance_size.unwrap_or(400);
+            AnyAcceptor::DiversifiedLateAcceptance(DiversifiedLateAcceptanceAcceptor::<S>::new(
+                size,
+            ))
+        }
+
+        AcceptorConfig::GreatDeluge(gd_config) => {
+            let rain_speed = gd_config.water_level_increase_ratio.unwrap_or(0.001);
+            AnyAcceptor::GreatDeluge(GreatDelugeAcceptor::<S>::new(rain_speed))
+        }
+    }
+}
+
 fn build_simulated_annealing<S>(
     config: &SimulatedAnnealingConfig,
     random_seed: Option<u64>,
@@ -272,17 +289,8 @@ where
     S: PlanningSolution,
     S::Score: Score,
 {
-    let level_count = S::Score::levels_count();
     let decay_rate = config.decay_rate.unwrap_or(0.999985);
-    assert!(
-        decay_rate.is_finite() && decay_rate > 0.0 && decay_rate <= 1.0,
-        "simulated_annealing decay_rate must be finite and in (0, 1]"
-    );
     let hill_climbing_temperature = config.hill_climbing_temperature.unwrap_or(1.0e-9);
-    assert!(
-        hill_climbing_temperature.is_finite() && hill_climbing_temperature >= 0.0,
-        "simulated_annealing hill_climbing_temperature must be finite and non-negative"
-    );
     let hard_regression_policy = match config
         .hard_regression_policy
         .unwrap_or(HardRegressionPolicyConfig::TemperatureControlled)
@@ -296,7 +304,6 @@ where
     };
 
     if let Some(level_temperatures) = &config.level_temperatures {
-        validate_level_temperatures(level_temperatures, level_count);
         return match random_seed {
             Some(seed) => SimulatedAnnealingAcceptor::with_level_temperatures_and_seed(
                 level_temperatures.clone(),
@@ -314,8 +321,7 @@ where
         };
     }
 
-    let calibration = normalize_simulated_annealing_calibration(config.calibration.as_ref());
-    validate_simulated_annealing_calibration(calibration);
+    let calibration = resolved_calibration(config.calibration.as_ref());
     match random_seed {
         Some(seed) => SimulatedAnnealingAcceptor::with_calibration_and_seed(
             decay_rate,
@@ -331,54 +337,6 @@ where
             calibration,
         ),
     }
-}
-
-fn validate_level_temperatures(level_temperatures: &[f64], level_count: usize) {
-    assert_eq!(
-        level_temperatures.len(),
-        level_count,
-        "simulated_annealing level_temperatures length must match score level count"
-    );
-    for temperature in level_temperatures {
-        assert!(
-            temperature.is_finite() && *temperature >= 0.0,
-            "simulated_annealing level_temperatures must be finite and non-negative"
-        );
-    }
-}
-
-fn normalize_simulated_annealing_calibration(
-    config: Option<&SimulatedAnnealingCalibrationConfig>,
-) -> SimulatedAnnealingCalibration {
-    let defaults = SimulatedAnnealingCalibration::default();
-    SimulatedAnnealingCalibration {
-        sample_size: config
-            .and_then(|config| config.sample_size)
-            .unwrap_or(defaults.sample_size),
-        target_acceptance_probability: config
-            .and_then(|config| config.target_acceptance_probability)
-            .unwrap_or(defaults.target_acceptance_probability),
-        fallback_temperature: config
-            .and_then(|config| config.fallback_temperature)
-            .unwrap_or(defaults.fallback_temperature),
-    }
-}
-
-fn validate_simulated_annealing_calibration(calibration: SimulatedAnnealingCalibration) {
-    assert!(
-        calibration.sample_size > 0,
-        "simulated_annealing calibration sample_size must be greater than 0"
-    );
-    assert!(
-        calibration.target_acceptance_probability.is_finite()
-            && calibration.target_acceptance_probability > 0.0
-            && calibration.target_acceptance_probability < 1.0,
-        "simulated_annealing calibration target_acceptance_probability must be in (0, 1)"
-    );
-    assert!(
-        calibration.fallback_temperature.is_finite() && calibration.fallback_temperature >= 0.0,
-        "simulated_annealing calibration fallback_temperature must be finite and non-negative"
-    );
 }
 
 fn normalize_tabu_search_policy(config: &TabuSearchConfig) -> TabuSearchPolicy {

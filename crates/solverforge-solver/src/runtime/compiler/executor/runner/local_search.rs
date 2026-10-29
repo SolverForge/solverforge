@@ -6,12 +6,12 @@
 
 use std::fmt::Debug;
 
-use solverforge_config::{AcceptorConfig, ForagerConfig, ScoreTieBreak};
+use solverforge_config::ScoreTieBreak;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::Director;
 
-use crate::builder::{AcceptorBuilder, AnyAcceptor, AnyForager, ForagerBuilder};
+use crate::builder::{AnyAcceptor, AnyForager, CompiledAcceptor, CompiledForager};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::phase::localsearch::vnd::solve_vnd_with_resources;
 use crate::phase::localsearch::{
@@ -42,8 +42,8 @@ where
         phase_termination: Option<solverforge_config::TerminationConfig>,
         selector: RuntimeNeighborhoodState<S, V, DM, IDM>,
         components: DefaultLocalSearchComponents,
-        acceptor: Option<AcceptorConfig>,
-        forager: Option<ForagerConfig>,
+        acceptor: Option<CompiledAcceptor<S>>,
+        forager: Option<CompiledForager>,
         score_tie_break: ScoreTieBreak,
         random_seed: Option<u64>,
         evaluator_count: usize,
@@ -131,8 +131,8 @@ where
 
 pub(super) fn build_acceptor_and_forager<S>(
     components: DefaultLocalSearchComponents,
-    configured_acceptor: Option<&AcceptorConfig>,
-    configured_forager: Option<&ForagerConfig>,
+    configured_acceptor: Option<&CompiledAcceptor<S>>,
+    configured_forager: Option<&CompiledForager>,
     score_tie_break: ScoreTieBreak,
     random_seed: Option<u64>,
 ) -> (AnyAcceptor<S>, AnyForager<S>)
@@ -143,19 +143,17 @@ where
     let random_ties = matches!(score_tie_break, ScoreTieBreak::Random);
     let acceptor = configured_acceptor.map_or_else(
         || build_default_acceptor(components.acceptor),
-        |config| AcceptorBuilder::build_with_seed(config, random_seed),
+        |acceptor| acceptor.build(random_seed),
     );
     let forager = configured_forager.map_or_else(
         || {
-            if configured_acceptor
-                .is_some_and(|acceptor| matches!(acceptor, AcceptorConfig::TabuSearch(_)))
-            {
+            if configured_acceptor.is_some_and(CompiledAcceptor::is_tabu_search) {
                 AnyForager::BestScore(BestScoreForager::new(random_ties))
             } else {
                 build_default_forager(components.forager, random_ties)
             }
         },
-        |config| ForagerBuilder::build(Some(config), score_tie_break),
+        |forager| forager.build(score_tie_break),
     );
     (acceptor, forager)
 }

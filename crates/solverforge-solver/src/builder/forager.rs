@@ -12,6 +12,8 @@ use crate::phase::localsearch::{
     FirstLastStepScoreImprovingForager, ForagerDecision, LocalSearchForager,
 };
 
+use super::local_search_policy::{CompiledForager, ConfigValueError};
+
 /* A concrete enum over all built-in forager types.
 
 Returned by [`ForagerBuilder::build`] to keep forager dispatch statically typed.
@@ -119,35 +121,47 @@ pub struct ForagerBuilder;
 
 impl ForagerBuilder {
     /// Builds a concrete [`AnyForager`] from configuration.
+    ///
+    /// Fails when `accepted_count` has `limit = 0`.
     pub fn build<S: PlanningSolution>(
         config: Option<&ForagerConfig>,
         score_tie_break: ScoreTieBreak,
-    ) -> AnyForager<S>
+    ) -> Result<AnyForager<S>, ConfigValueError>
     where
         S::Score: Score,
     {
-        let random_ties = matches!(score_tie_break, ScoreTieBreak::Random);
-        let Some(cfg) = config else {
-            return AnyForager::AcceptedCount(AcceptedCountForager::new(1, random_ties));
+        let Some(config) = config else {
+            let random_ties = matches!(score_tie_break, ScoreTieBreak::Random);
+            return Ok(AnyForager::AcceptedCount(AcceptedCountForager::new(
+                1,
+                random_ties,
+            )));
         };
+        Ok(CompiledForager::compile(config)?.build(score_tie_break))
+    }
+}
 
-        match cfg {
-            ForagerConfig::AcceptedCount(accepted) => {
-                let limit = accepted.limit.unwrap_or(1).max(1);
-                AnyForager::AcceptedCount(AcceptedCountForager::new(limit, random_ties))
-            }
-            ForagerConfig::BestScore {} => {
-                AnyForager::BestScore(BestScoreForager::new(random_ties))
-            }
-            ForagerConfig::FirstAccepted {} => {
-                AnyForager::FirstAccepted(FirstAcceptedForager::new())
-            }
-            ForagerConfig::FirstBestScoreImproving {} => {
-                AnyForager::BestScoreImproving(FirstBestScoreImprovingForager::new(random_ties))
-            }
-            ForagerConfig::FirstLastStepScoreImproving {} => AnyForager::LastStepScoreImproving(
-                FirstLastStepScoreImprovingForager::new(random_ties),
-            ),
+/// Builds a forager from a configuration that passed [`CompiledForager::compile`].
+pub(super) fn build_validated_forager<S: PlanningSolution>(
+    config: &ForagerConfig,
+    score_tie_break: ScoreTieBreak,
+) -> AnyForager<S>
+where
+    S::Score: Score,
+{
+    let random_ties = matches!(score_tie_break, ScoreTieBreak::Random);
+    match config {
+        ForagerConfig::AcceptedCount(accepted) => {
+            let limit = accepted.limit.unwrap_or(1);
+            AnyForager::AcceptedCount(AcceptedCountForager::new(limit, random_ties))
+        }
+        ForagerConfig::BestScore {} => AnyForager::BestScore(BestScoreForager::new(random_ties)),
+        ForagerConfig::FirstAccepted {} => AnyForager::FirstAccepted(FirstAcceptedForager::new()),
+        ForagerConfig::FirstBestScoreImproving {} => {
+            AnyForager::BestScoreImproving(FirstBestScoreImprovingForager::new(random_ties))
+        }
+        ForagerConfig::FirstLastStepScoreImproving {} => {
+            AnyForager::LastStepScoreImproving(FirstLastStepScoreImprovingForager::new(random_ties))
         }
     }
 }

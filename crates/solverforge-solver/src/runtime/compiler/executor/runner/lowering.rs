@@ -129,7 +129,12 @@ where
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
 {
     match local_search {
-        CompiledLocalSearch::AcceptorForager { config, selector } => {
+        CompiledLocalSearch::AcceptorForager {
+            config,
+            acceptor,
+            forager,
+            selector,
+        } => {
             let (selector, omitted_plan) = match selector {
                 CompiledAcceptorForagerSelector::Explicit(selector) => (
                     lower_selector(solver_config, selector)
@@ -168,8 +173,8 @@ where
                     phase_termination: config.termination,
                     selector,
                     components: mandatory.local_search_components,
-                    acceptor: config.acceptor,
-                    forager: config.forager,
+                    acceptor,
+                    forager,
                     score_tie_break: config.score_tie_break,
                     random_seed: solver_config.random_seed,
                     evaluator_count: resolve_evaluator_count(&solver_config.move_thread_count),

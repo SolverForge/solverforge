@@ -1423,6 +1423,21 @@ Local search foragers:
 | `DiversifiedLateAcceptanceAcceptor<S>` | `S: PlanningSolution` | `late_acceptance_size`, `tolerance` |
 | `AnyAcceptor<S>` | `S: PlanningSolution` | Enum over all built-in acceptors; returned by `AcceptorBuilder::build()` |
 
+`AcceptorBuilder::build(&AcceptorConfig)` and
+`AcceptorBuilder::build_with_seed(&AcceptorConfig, Option<u64>)` return
+`Result<AnyAcceptor<S>, ConfigValueError>`, and
+`ForagerBuilder::build(Option<&ForagerConfig>, ScoreTieBreak)` returns
+`Result<AnyForager<S>, ConfigValueError>`. `ConfigValueError` (`field()`,
+`message()`, `Display` as `` `field` message ``) reports a value outside its
+domain: a zero tabu or late-acceptance size, a simulated-annealing
+`decay_rate` outside (0, 1], a negative or non-finite temperature, a
+`level_temperatures` length that differs from the score level count, an
+invalid calibration, or an `accepted_count` forager `limit = 0`. The
+configured runtime runs the same checks while compiling `solver.toml`, so an
+invalid value fails the solve with `RuntimeBuildError::Compilation` at the
+key's path (for example
+`phases[1].local_search.acceptor.entity_tabu_size`) before any phase runs.
+
 `HardRegressionPolicy` is `TemperatureControlled` or
 `NeverAcceptHardRegression`. `SimulatedAnnealingCalibration` exposes
 `sample_size`, `target_acceptance_probability`, and `fallback_temperature`;

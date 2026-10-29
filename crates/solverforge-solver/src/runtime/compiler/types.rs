@@ -112,6 +112,10 @@ pub(crate) enum RuntimeCompileErrorKind {
     LocalSearchShape {
         message: String,
     },
+    /// A configured value outside its domain; the path names the key.
+    InvalidValue {
+        message: String,
+    },
     ConstructionShape {
         message: String,
     },
@@ -175,7 +179,8 @@ impl fmt::Display for RuntimeCompileError {
                 "cartesian left child contains a score-during-move ruin selector and cannot be previewed",
             ),
             RuntimeCompileErrorKind::LocalSearchShape { message }
-            | RuntimeCompileErrorKind::ConstructionShape { message } => f.write_str(message),
+            | RuntimeCompileErrorKind::ConstructionShape { message }
+            | RuntimeCompileErrorKind::InvalidValue { message } => f.write_str(message),
             RuntimeCompileErrorKind::ContextSeedMismatch {
                 config_seed,
                 context_seed,

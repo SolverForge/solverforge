@@ -3,9 +3,10 @@
 use std::any::TypeId;
 
 use solverforge_config::{
-    ConstructionHeuristicConfig, ConstructionHeuristicType, ListChangeMoveConfig,
+    AcceptedCountForagerConfig, AcceptorConfig, ConstructionHeuristicConfig,
+    ConstructionHeuristicType, ForagerConfig, LateAcceptanceConfig, ListChangeMoveConfig,
     ListPrecedenceMoveConfig, ListRuinMoveSelectorConfig, LocalSearchConfig, MoveSelectorConfig,
-    PhaseConfig, SolverConfig,
+    PhaseConfig, SimulatedAnnealingConfig, SolverConfig, TabuSearchConfig,
 };
 use solverforge_core::domain::{
     EntityDescriptor, PlanningSolution, SolutionDescriptor, VariableDescriptor,
@@ -399,4 +400,102 @@ fn rebased_union_children_keep_their_interior_composite_edges() {
         referenced.iter().all(|id| *id < arena_len),
         "every structural edge must name a live arena slot: {referenced:?} vs len {arena_len}"
     );
+}
+
+fn compile_policy(
+    acceptor: Option<AcceptorConfig>,
+    forager: Option<ForagerConfig>,
+) -> Result<
+    super::CompiledRuntimeGraph<Plan, usize, Meter, Meter, NoDynamicExtensions>,
+    super::RuntimeCompileError,
+> {
+    let local_search = LocalSearchConfig {
+        acceptor,
+        forager,
+        move_selector: Some(MoveSelectorConfig::ListChangeMoveSelector(
+            ListChangeMoveConfig::default(),
+        )),
+        ..LocalSearchConfig::default()
+    };
+    let config = SolverConfig {
+        phases: vec![
+            PhaseConfig::ConstructionHeuristic(ConstructionHeuristicConfig::default()),
+            PhaseConfig::LocalSearch(local_search),
+        ],
+        ..SolverConfig::default()
+    };
+    let context = SearchContext::new(descriptor(), model(PrecedenceShape::Absent), None);
+    compile_runtime_graph(
+        &config,
+        RuntimeGraphInput::new(context, NoDynamicExtensions),
+    )
+}
+
+#[test]
+fn invalid_acceptor_and_forager_values_fail_compilation_with_the_key_path() {
+    let cases = [
+        (
+            Some(AcceptorConfig::TabuSearch(TabuSearchConfig {
+                entity_tabu_size: Some(0),
+                ..TabuSearchConfig::default()
+            })),
+            None,
+            "phases[1].local_search.acceptor.entity_tabu_size",
+        ),
+        (
+            Some(AcceptorConfig::SimulatedAnnealing(
+                SimulatedAnnealingConfig {
+                    decay_rate: Some(0.0),
+                    ..SimulatedAnnealingConfig::default()
+                },
+            )),
+            None,
+            "phases[1].local_search.acceptor.decay_rate",
+        ),
+        (
+            Some(AcceptorConfig::SimulatedAnnealing(
+                SimulatedAnnealingConfig {
+                    level_temperatures: Some(vec![1.0, 2.0]),
+                    ..SimulatedAnnealingConfig::default()
+                },
+            )),
+            None,
+            "phases[1].local_search.acceptor.level_temperatures",
+        ),
+        (
+            Some(AcceptorConfig::LateAcceptance(LateAcceptanceConfig {
+                late_acceptance_size: Some(0),
+            })),
+            None,
+            "phases[1].local_search.acceptor.late_acceptance_size",
+        ),
+        (
+            None,
+            Some(ForagerConfig::AcceptedCount(AcceptedCountForagerConfig {
+                limit: Some(0),
+            })),
+            "phases[1].local_search.forager.limit",
+        ),
+    ];
+    for (acceptor, forager, path) in cases {
+        let error = match compile_policy(acceptor, forager) {
+            Ok(_) => panic!("{path}: invalid value must fail compilation"),
+            Err(error) => error,
+        };
+        assert_eq!(error.path, path);
+        assert!(
+            matches!(error.kind, RuntimeCompileErrorKind::InvalidValue { .. }),
+            "{path}: {error}"
+        );
+    }
+    compile_policy(
+        Some(AcceptorConfig::TabuSearch(TabuSearchConfig {
+            entity_tabu_size: Some(3),
+            ..TabuSearchConfig::default()
+        })),
+        Some(ForagerConfig::AcceptedCount(AcceptedCountForagerConfig {
+            limit: Some(2),
+        })),
+    )
+    .expect("valid acceptor and forager values compile");
 }

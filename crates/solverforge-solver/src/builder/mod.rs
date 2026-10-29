@@ -7,6 +7,7 @@ All builders return concrete monomorphized enums — no `Box<dyn Trait>`.
 pub mod acceptor;
 pub mod context;
 pub mod forager;
+mod local_search_policy;
 pub mod search;
 pub(crate) mod selector;
 
@@ -23,6 +24,8 @@ pub use context::{
     ValueSource, VariableSlot,
 };
 pub use forager::{AnyForager, ForagerBuilder};
+pub use local_search_policy::ConfigValueError;
+pub(crate) use local_search_policy::{CompiledAcceptor, CompiledForager};
 pub use search::{
     local_search, CustomSearchPhase, NoDynamicExtensions, NoTypedExtensions,
     RuntimeExtensionPolicy, RuntimeExtensionRegistry, Search, SearchContext,

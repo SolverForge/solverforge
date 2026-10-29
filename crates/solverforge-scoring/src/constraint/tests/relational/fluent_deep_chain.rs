@@ -259,3 +259,139 @@ fn seven_source_fluent_chain_with_filter_matches_oracle() {
     // key=1 group size 1 -> 1; key=0 group size 1 -> rejected by the filter.
     assert_eq!(seven_source_chain().evaluate(&m0), SoftScore::of(1));
 }
+
+fn src() -> impl crate::stream::collection_extract::CollectionExtract<Model, Item = Value> {
+    source(
+        values as fn(&Model) -> &[Value],
+        ChangeSource::Descriptor(0),
+    )
+}
+
+// A six-source chain whose cross `Bi` keeps `bi_keep` rows and whose `Penta`
+// keeps `penta_keep` rows, both before the sixth join enters the `Chain`.
+fn filtered_six_source_chain(
+    bi_keep: fn(&Value, &Value) -> bool,
+    penta_keep: fn(&Value, &Value, &Value, &Value, &Value) -> bool,
+) -> impl IncrementalConstraint<Model, SoftScore> {
+    ConstraintFactory::<Model, SoftScore>::new()
+        .for_each(src())
+        .join((src(), equal_bi(entity_key, entity_key)))
+        .filter(move |a: &Value, b: &Value| bi_keep(a, b))
+        .join((src(), equal_on(pair_key, leaf_key)))
+        .join((src(), equal_on(tri_key, leaf_key)))
+        .join((src(), equal_on(quad_key, leaf_key)))
+        .filter(
+            move |a: &Value, b: &Value, c: &Value, d: &Value, e: &Value| penta_keep(a, b, c, d, e),
+        )
+        .join((src(), equal_on(penta_key, leaf_key)))
+        .penalize(six_weight)
+        .named("filtered six source chain")
+}
+
+fn filtered_oracle(
+    m: &Model,
+    bi_keep: fn(&Value, &Value) -> bool,
+    penta_keep: fn(&Value, &Value, &Value, &Value, &Value) -> bool,
+) -> SoftScore {
+    let v = &m.values;
+    let mut matches = 0i64;
+    for a in v {
+        for b in v.iter().filter(|b| b.key == a.key && bi_keep(a, b)) {
+            for c in v.iter().filter(|c| c.key == a.key) {
+                for d in v.iter().filter(|d| d.key == a.key) {
+                    for e in v.iter().filter(|e| e.key == a.key) {
+                        if !penta_keep(a, b, c, d, e) {
+                            continue;
+                        }
+                        matches += v.iter().filter(|f| f.key == a.key).count() as i64;
+                    }
+                }
+            }
+        }
+    }
+    SoftScore::of(-matches)
+}
+
+fn keep_all_bi(_: &Value, _: &Value) -> bool {
+    true
+}
+fn keep_all_penta(_: &Value, _: &Value, _: &Value, _: &Value, _: &Value) -> bool {
+    true
+}
+fn reject_all_bi(_: &Value, _: &Value) -> bool {
+    false
+}
+fn reject_all_penta(_: &Value, _: &Value, _: &Value, _: &Value, _: &Value) -> bool {
+    false
+}
+
+#[test]
+fn filters_before_the_sixth_join_reject_every_row() {
+    for (bi_keep, penta_keep) in [
+        (
+            keep_all_bi as fn(&Value, &Value) -> bool,
+            reject_all_penta as fn(&Value, &Value, &Value, &Value, &Value) -> bool,
+        ),
+        (reject_all_bi, keep_all_penta),
+    ] {
+        let mut m = Model {
+            values: vec![Value { key: 1 }, Value { key: 1 }],
+        };
+        let c = filtered_six_source_chain(bi_keep, penta_keep);
+        assert_eq!(c.evaluate(&m), SoftScore::ZERO);
+        assert_eq!(c.match_count(&m), 0);
+
+        let mut c = filtered_six_source_chain(bi_keep, penta_keep);
+        assert_eq!(c.initialize(&m), SoftScore::ZERO);
+        assert_eq!(c.on_retract(&m, 0, 0), SoftScore::ZERO);
+        m.values[0].key = 2;
+        assert_eq!(c.on_insert(&m, 0, 0), SoftScore::ZERO);
+        assert_eq!(c.on_retract(&m, 0, 0), SoftScore::ZERO);
+        m.values[0].key = 1;
+        assert_eq!(c.on_insert(&m, 0, 0), SoftScore::ZERO);
+        assert_eq!(c.evaluate(&m), SoftScore::ZERO);
+    }
+}
+
+// Rejects pairs on key 2.
+fn bi_not_two(a: &Value, _: &Value) -> bool {
+    a.key != 2
+}
+// Rejects rows whose fifth binding has key 0.
+fn penta_last_not_zero(_: &Value, _: &Value, _: &Value, _: &Value, e: &Value) -> bool {
+    e.key != 0
+}
+
+#[test]
+fn selective_bi_and_penta_filters_survive_the_sixth_join() {
+    let mut m = Model {
+        values: vec![Value { key: 0 }, Value { key: 1 }, Value { key: 2 }],
+    };
+    let expected = filtered_oracle(&m, bi_not_two, penta_last_not_zero);
+    let c = filtered_six_source_chain(bi_not_two, penta_last_not_zero);
+    assert_eq!(c.evaluate(&m), expected);
+    assert_eq!(c.match_count(&m) as i64, -expected.score());
+
+    let mut c = filtered_six_source_chain(bi_not_two, penta_last_not_zero);
+    let mut score = c.initialize(&m);
+    assert_eq!(score, expected);
+    let mut saw_both_filters_reject = false;
+    for step in 0..40 {
+        let i = step % 3;
+        score = score + c.on_retract(&m, i, 0);
+        m.values[i].key = ((step * 7 + 1) % 3) as u32;
+        score = score + c.on_insert(&m, i, 0);
+        let expected = filtered_oracle(&m, bi_not_two, penta_last_not_zero);
+        assert_eq!(score, expected, "step {step}");
+        assert_eq!(c.evaluate(&m), score, "step {step}");
+        let unfiltered = filtered_oracle(&m, keep_all_bi, keep_all_penta);
+        let without_bi = filtered_oracle(&m, keep_all_bi, penta_last_not_zero);
+        let without_penta = filtered_oracle(&m, bi_not_two, keep_all_penta);
+        saw_both_filters_reject |=
+            without_bi != expected && without_penta != expected && unfiltered != expected;
+    }
+    assert!(
+        saw_both_filters_reject,
+        "the walk must exercise both filters at once"
+    );
+}

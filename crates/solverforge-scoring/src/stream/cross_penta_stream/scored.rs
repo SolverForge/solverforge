@@ -22,13 +22,37 @@ pub struct PentaScored<
     BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>: Operator<S>,
     F: PentaFilter<S, A, B, C, D, E>,
 {
-    pub(super) inner: BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>,
-    pub(super) filter: F,
-    pub(super) accepted: HandleMap<()>,
+    inner: BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>,
+    filter: F,
+    accepted: HandleMap<()>,
     /// Child notification scratch, reused across events.
-    pub(super) child_removed: Vec<RowHandle>,
-    pub(super) child_inserted: Vec<RowHandle>,
-    pub(super) marker: PhantomData<fn() -> (S, A, B, C, D, E)>,
+    child_removed: Vec<RowHandle>,
+    child_inserted: Vec<RowHandle>,
+    marker: PhantomData<fn() -> (S, A, B, C, D, E)>,
+}
+
+impl<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F>
+    PentaScored<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F>
+where
+    P1: CompileCondition<Plan: IndexedPlan>,
+    P2: CompileCondition<Plan: IndexedPlan>,
+    P3: CompileCondition<Plan: IndexedPlan>,
+    P4: CompileCondition<Plan: IndexedPlan>,
+    BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>: Operator<S>,
+    F: PentaFilter<S, A, B, C, D, E>,
+{
+    /// The penta tree with its authored filter applied at this boundary,
+    /// whether the stream is scored here or continues into a `Chain`.
+    pub(super) fn new(inner: BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>, filter: F) -> Self {
+        Self {
+            inner,
+            filter,
+            accepted: HandleMap::new(),
+            child_removed: Vec::new(),
+            child_inserted: Vec::new(),
+            marker: PhantomData,
+        }
+    }
 }
 
 impl<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F> Operator<S>
@@ -69,6 +93,10 @@ where
         evaluation: &'a Self::Evaluation,
         visitor: &mut impl FnMut(Self::View<'a>),
     ) {
+        if F::ACCEPTS_ALL {
+            self.inner.visit_evaluation(solution, evaluation, visitor);
+            return;
+        }
         self.inner
             .visit_evaluation(solution, evaluation, &mut |row| {
                 let (a, b, c, d, e) = row.entities();
@@ -89,11 +117,15 @@ where
         self.child_inserted.clear();
     }
 
+    #[inline(always)]
     fn initialize(&mut self, solution: &S) {
         self.inner.initialize(solution);
         self.accepted.clear();
         self.child_removed.clear();
         self.child_inserted.clear();
+        if F::ACCEPTS_ALL {
+            return;
+        }
         for handle in self.inner.handles() {
             let row = self
                 .inner
@@ -106,6 +138,9 @@ where
     }
 
     fn handles(&self) -> Vec<RowHandle> {
+        if F::ACCEPTS_ALL {
+            return self.inner.handles();
+        }
         self.inner
             .handles()
             .into_iter()
@@ -113,17 +148,21 @@ where
             .collect()
     }
 
+    #[inline]
     fn resolve<'a>(&'a self, solution: &'a S, handle: RowHandle) -> Option<Self::View<'a>> {
-        self.accepted.get(handle)?;
+        if !F::ACCEPTS_ALL {
+            self.accepted.get(handle)?;
+        }
         self.inner.resolve(solution, handle)
     }
 
     fn visit_provenance(&self, handle: RowHandle, visitor: &mut impl FnMut(u32, usize, usize)) {
-        if self.accepted.get(handle).is_some() {
+        if F::ACCEPTS_ALL || self.accepted.get(handle).is_some() {
             self.inner.visit_provenance(handle, visitor);
         }
     }
 
+    #[inline(always)]
     fn retract(
         &mut self,
         solution: &S,
@@ -133,6 +172,16 @@ where
         _inserted: &mut Vec<RowHandle>,
     ) {
         removed.clear();
+        if F::ACCEPTS_ALL {
+            self.inner.retract(
+                solution,
+                descriptor,
+                index,
+                removed,
+                &mut self.child_inserted,
+            );
+            return;
+        }
         let inner_removed = std::mem::take(&mut self.child_removed);
         let inner_inserted = std::mem::take(&mut self.child_inserted);
         let mut inner_removed = inner_removed;
@@ -155,6 +204,7 @@ where
         self.child_inserted = inner_inserted;
     }
 
+    #[inline(always)]
     fn insert(
         &mut self,
         solution: &S,
@@ -163,6 +213,17 @@ where
         _removed: &mut Vec<RowHandle>,
         inserted: &mut Vec<RowHandle>,
     ) {
+        if F::ACCEPTS_ALL {
+            inserted.clear();
+            self.inner.insert(
+                solution,
+                descriptor,
+                index,
+                &mut self.child_removed,
+                inserted,
+            );
+            return;
+        }
         let mut inner_removed = std::mem::take(&mut self.child_removed);
         let mut inner_inserted = std::mem::take(&mut self.child_inserted);
         inner_removed.clear();

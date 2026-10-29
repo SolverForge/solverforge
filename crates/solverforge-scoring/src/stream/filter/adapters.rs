@@ -84,6 +84,8 @@ where
     F: BiFilter<S, A, B>,
     C: Send + Sync,
 {
+    const ACCEPTS_ALL: bool = F::ACCEPTS_ALL;
+
     #[inline]
     fn test(
         &self,
@@ -183,6 +185,8 @@ where
     F: TriFilter<S, A, B, C>,
     D: Send + Sync,
 {
+    const ACCEPTS_ALL: bool = F::ACCEPTS_ALL;
+
     #[inline]
     #[allow(clippy::too_many_arguments)]
     fn test(
@@ -225,6 +229,8 @@ where
     F: super::traits::QuadFilter<S, A, B, C, D>,
     E: Send + Sync,
 {
+    const ACCEPTS_ALL: bool = F::ACCEPTS_ALL;
+
     #[inline]
     #[allow(clippy::too_many_arguments)]
     fn test(

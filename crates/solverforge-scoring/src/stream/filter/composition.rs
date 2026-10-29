@@ -64,6 +64,8 @@ macro_rules! impl_indexed_and_filter {
             F1: $trait<S, $($type_param),+>,
             F2: $trait<S, $($type_param),+>,
         {
+            const ACCEPTS_ALL: bool = F1::ACCEPTS_ALL && F2::ACCEPTS_ALL;
+
             #[inline]
             #[allow(clippy::too_many_arguments)]
             fn test(

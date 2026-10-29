@@ -20,6 +20,8 @@ macro_rules! impl_true_filter {
 impl_true_filter!(UniFilter, A);
 
 impl<S, A, B> BiFilter<S, A, B> for TrueFilter {
+    const ACCEPTS_ALL: bool = true;
+
     #[inline]
     fn test(&self, _: &S, _: &A, _: &B, _a_idx: usize, _b_idx: usize) -> bool {
         true
@@ -27,6 +29,8 @@ impl<S, A, B> BiFilter<S, A, B> for TrueFilter {
 }
 
 impl<S, A, B, C> TriFilter<S, A, B, C> for TrueFilter {
+    const ACCEPTS_ALL: bool = true;
+
     #[inline]
     #[allow(clippy::too_many_arguments)]
     fn test(
@@ -44,6 +48,8 @@ impl<S, A, B, C> TriFilter<S, A, B, C> for TrueFilter {
 }
 
 impl<S, A, B, C, D> QuadFilter<S, A, B, C, D> for TrueFilter {
+    const ACCEPTS_ALL: bool = true;
+
     #[inline]
     #[allow(clippy::too_many_arguments)]
     fn test(
@@ -63,6 +69,8 @@ impl<S, A, B, C, D> QuadFilter<S, A, B, C, D> for TrueFilter {
 }
 
 impl<S, A, B, C, D, E> PentaFilter<S, A, B, C, D, E> for TrueFilter {
+    const ACCEPTS_ALL: bool = true;
+
     #[inline]
     #[allow(clippy::too_many_arguments)]
     fn test(

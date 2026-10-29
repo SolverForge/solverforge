@@ -76,8 +76,9 @@ left view is the whole borrowed prior row. Use named `fn` items with explicit
 lifetimes for keys over nested pair rows — a closure annotated over a nested
 row fixes the borrow lifetime and fails the higher-ranked `ExecutablePlan`
 bound. `Chain::filter` wraps the tree in an identity-preserving `FilterNode`.
-The current cross-Penta continuation discards its authored penta filter; apply
-the row filter on the returned `Chain`. Same-source `PentaConstraintStream` is
+Every filter authored on the cross `Bi`, `Tri`, `Quad` or `Penta` stream is
+applied once by `PentaScored` at the penta boundary, and `Penta::join` builds
+the `Chain` over that filtered producer. Same-source `PentaConstraintStream` is
 terminal. Fluent right-hand targets implement `CollectionExtract`, including
 filtered unary streams; arbitrary derived producers are inputs to low-level
 `JoinNode`, not interchangeable fluent targets.

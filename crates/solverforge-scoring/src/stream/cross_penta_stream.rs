@@ -299,10 +299,9 @@ where
 {
     /// Continues the chain past the named cross-stream arities.
     ///
-    /// Returns a `Chain` wrapping this penta's tree; subsequent `.join(...)`
-    /// calls nest further `JoinNode`s with no fixed ceiling. The continuation
-    /// drops the penta's authored filter slot, so apply `.filter(...)` on the
-    /// returned chain instead.
+    /// Returns a `Chain` over this penta's tree with every filter authored so
+    /// far applied once at the penta boundary; subsequent `.join(...)` calls
+    /// nest further `JoinNode`s with no fixed ceiling.
     ///
     /// # Key shapes
     ///
@@ -317,7 +316,7 @@ where
         S,
         JoinNode<
             S,
-            BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>,
+            PentaScored<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F>,
             CollectionNode<S, EG>,
             <P5 as CompileCondition>::Plan,
         >,
@@ -334,12 +333,12 @@ where
         >,
         for<'a> JoinNode<
             S,
-            BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4>,
+            PentaScored<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F>,
             CollectionNode<S, EG>,
             <P5 as CompileCondition>::Plan,
         >: Operator<S>,
     {
-        let chain = super::chain_stream::Chain::new(self.tree, 5);
+        let chain = super::chain_stream::Chain::new(PentaScored::new(self.tree, self.filter), 5);
         chain.join(target)
     }
 }
@@ -405,14 +404,7 @@ where
         let weight = self.weight;
         let is_hard = self.is_hard;
         let constraint_ref = ConstraintRef::new("", name);
-        let scored = PentaScored {
-            inner: self.tree,
-            filter: self.filter,
-            accepted: HandleMap::new(),
-            child_removed: Vec::new(),
-            child_inserted: Vec::new(),
-            marker: PhantomData,
-        };
+        let scored = PentaScored::new(self.tree, self.filter);
         let weight_fn = move |_: &S, row: &PentaRow<'_, S, EA, EB, EC, ED, EE, P1, P2, P3, P4>| {
             let (a, b, c, d, e) = PentaEntities::entities(row);
             weight(a, b, c, d, e)

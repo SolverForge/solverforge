@@ -275,9 +275,9 @@ filtered unary streams. At the low-level operator layer, either `JoinNode` input
 may be a compatible derived producer. There is no
 arity ceiling: `Uni`/`Bi`/`Tri`/`Quad`/`Penta` are ergonomic adapters, and
 `stream::cross::Penta::join` continues into the arity-free `Chain`, whose `.join(...)` nests
-further typed joins as deep as needed. The current cross-Penta continuation
-discards its authored penta filter; apply the row filter on the returned `Chain`.
-Same-source `PentaConstraintStream` is terminal. `docs/extend-scoring.md` covers the
+further typed joins as deep as needed. Filters written on the cross `Bi`, `Tri`,
+`Quad` or `Penta` stream apply once at the penta boundary and carry into the
+`Chain`. Same-source `PentaConstraintStream` is terminal. `docs/extend-scoring.md` covers the
 low-level typed row and condition-plan protocol for writing new operators,
 including how entity-authored conditions (`Fn(&A) -> T`) execute over the
 operator tree's leaf views.

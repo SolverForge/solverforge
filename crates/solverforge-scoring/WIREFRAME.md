@@ -93,8 +93,9 @@ migration of the fluent stream families:
   `FilterNode`; `Chain::penalize`/`reward` then `ChainBuilder::named` finalize
   into `OperatorTerminal`. The named `Bi`/`Tri`/`Quad`/`Penta` streams are
   ergonomic adapters over the same operator tree, not separate engines.
-  The current cross-Penta continuation discards its authored penta filter; apply
-  the row filter on the returned `Chain`. Same-source `PentaConstraintStream` is terminal.
+  `Penta::join` builds the `Chain` over the filtered penta producer, so every
+  filter authored on the cross `Bi`/`Tri`/`Quad`/`Penta` stream applies once
+  before the sixth join. Same-source `PentaConstraintStream` is terminal.
 - `constraint::relational::OperatorTerminal<S, O, W, Sc>::new(constraint_ref,
   impact, operator, weight, hard)` scores a generic operator; its weight takes
   `(&S, &O::View<'a>)`. It implements incremental scoring, reset, full counts,
@@ -199,7 +200,7 @@ src/
 │       ├── relational/condition_arity.rs           — Comparison/overlap/composed join conditions and None-key complement
 │       ├── relational/derived_right_input.rs       — Filtered and complemented producers as right-hand join inputs
 │       ├── relational/join_depth.rs                — Six-binding typed join chain (depth beyond Penta)
-│       ├── relational/fluent_deep_chain.rs         — Six- and seven-source fluent chains via Penta::join → Chain
+│       ├── relational/fluent_deep_chain.rs         — Six- and seven-source fluent chains via Penta::join → Chain, including cross filters carried past the fifth source
 │       ├── grouped.rs                              — Grouped stream and shared terminal tests
 │       ├── balance.rs                              — BalanceConstraint tests
 │       ├── complemented.rs                         — Fluent complemented grouped tests
@@ -503,6 +504,12 @@ All `Send + Sync`:
 - `TriFilter<S, A, B, C>` — `fn test(&self, solution: &S, a: &A, b: &B, c: &C, a_idx: usize, b_idx: usize, c_idx: usize) -> bool`
 - `QuadFilter<S, A, B, C, D>` — `fn test(&self, solution: &S, a: &A, b: &B, c: &C, d: &D, a_idx: usize, b_idx: usize, c_idx: usize, d_idx: usize) -> bool`
 - `PentaFilter<S, A, B, C, D, E>` — `fn test(&self, solution: &S, a: &A, b: &B, c: &C, d: &D, e: &E, a_idx: usize, b_idx: usize, c_idx: usize, d_idx: usize, e_idx: usize) -> bool`
+
+`BiFilter`, `TriFilter`, `QuadFilter` and `PentaFilter` also carry
+`const ACCEPTS_ALL: bool = false`. `TrueFilter` sets it, the `And*` filters
+set it when both sides do, and the arity-lifting adapters forward it. The
+penta boundary (`PentaScored`) passes rows straight through when it holds, so
+an unfiltered chain pays no accepted-row bookkeeping.
 
 Joined filter indexes are semantic source indexes, not builder-local
 placeholders. Same-source joins pass canonical entity indexes; cross-bi passes
@@ -890,7 +897,7 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 
 ### Filter Types
 
-**`TrueFilter`** — Always-true filter. Implements all filter traits.
+**`TrueFilter`** — Always-true filter. Implements all filter traits, with `ACCEPTS_ALL = true` on the joined ones.
 
 **`FnUniFilter<F>`**, **`FnBiFilter<F>`**, **`FnTriFilter<F>`**, **`FnQuadFilter<F>`**, **`FnPentaFilter<F>`** — Closure wrappers. Joined-arity wrappers are index-aware and receive the same index arguments as their filter traits.
 

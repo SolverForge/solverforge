@@ -38,12 +38,22 @@ constraint so low-level filters can use index-addressed side data without
 HashMap lookups.
 */
 pub trait BiFilter<S, A, B>: Send + Sync {
+    /// `true` only for a filter whose `test` returns `true` for every row.
+    /// A filtering operator over such a filter skips its accepted-row
+    /// bookkeeping; the default is `false`.
+    const ACCEPTS_ALL: bool = false;
+
     // Returns true if the pair passes the filter.
     fn test(&self, solution: &S, a: &A, b: &B, a_idx: usize, b_idx: usize) -> bool;
 }
 
 // A filter over triples of stream rows.
 pub trait TriFilter<S, A, B, C>: Send + Sync {
+    /// `true` only for a filter whose `test` returns `true` for every row.
+    /// A filtering operator over such a filter skips its accepted-row
+    /// bookkeeping; the default is `false`.
+    const ACCEPTS_ALL: bool = false;
+
     // Returns true if the triple passes the filter.
     #[allow(clippy::too_many_arguments)]
     fn test(
@@ -60,6 +70,11 @@ pub trait TriFilter<S, A, B, C>: Send + Sync {
 
 // A filter over quadruples of stream rows.
 pub trait QuadFilter<S, A, B, C, D>: Send + Sync {
+    /// `true` only for a filter whose `test` returns `true` for every row.
+    /// A filtering operator over such a filter skips its accepted-row
+    /// bookkeeping; the default is `false`.
+    const ACCEPTS_ALL: bool = false;
+
     // Returns true if the quadruple passes the filter.
     #[allow(clippy::too_many_arguments)]
     fn test(
@@ -78,6 +93,11 @@ pub trait QuadFilter<S, A, B, C, D>: Send + Sync {
 
 // A filter over quintuples of stream rows.
 pub trait PentaFilter<S, A, B, C, D, E>: Send + Sync {
+    /// `true` only for a filter whose `test` returns `true` for every row.
+    /// A filtering operator over such a filter skips its accepted-row
+    /// bookkeeping; the default is `false`.
+    const ACCEPTS_ALL: bool = false;
+
     // Returns true if the quintuple passes the filter.
     #[allow(clippy::too_many_arguments)]
     fn test(

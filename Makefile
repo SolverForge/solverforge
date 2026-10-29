@@ -24,7 +24,7 @@ EXAMPLE_PACKAGES := $(shell find examples -mindepth 2 -maxdepth 2 -name Cargo.to
 
 # ============== Phony Targets ==============
 .PHONY: banner help build build-release examples test test-quick test-doc test-unit test-one \
-        lint fmt fmt-check clippy ci-local bench-zero-regression pre-release version bump-patch bump-minor bump-major \
+        lint fmt fmt-check clippy doc-names ci-local bench-zero-regression pre-release version bump-patch bump-minor bump-major \
         bump-dry publish-crates-dry clean watch
 
 # ============== Default Target ==============
@@ -114,7 +114,7 @@ test-one:
 
 # ============== Lint & Format ==============
 
-lint: banner fmt-check clippy
+lint: banner fmt-check clippy doc-names
 	@printf "\n$(GREEN)$(BOLD)$(CHECK) All lint checks passed$(RESET)\n\n"
 
 fmt:
@@ -127,6 +127,12 @@ fmt-check:
 	@cargo fmt --all -- --check && \
 		printf "$(GREEN)$(CHECK) Formatting valid$(RESET)\n" || \
 		(printf "$(RED)$(CROSS) Formatting issues found$(RESET)\n" && exit 1)
+
+doc-names:
+	@printf "$(PROGRESS) Checking documented type names...\n"
+	@python3 scripts/check-doc-names.py && \
+		printf "$(GREEN)$(CHECK) Every documented type name exists$(RESET)\n" || \
+		(printf "$(RED)$(CROSS) Wireframes or guides name missing types$(RESET)\n" && exit 1)
 
 clippy:
 	@printf "$(PROGRESS) Running clippy...\n"
@@ -236,10 +242,11 @@ help: banner
 	@/bin/echo -e "  $(GREEN)make test-one TEST=name$(RESET) - Run specific test with output"
 	@/bin/echo -e ""
 	@/bin/echo -e "$(CYAN)$(BOLD)Lint & Format:$(RESET)"
-	@/bin/echo -e "  $(GREEN)make lint$(RESET)           - Run fmt-check + clippy"
+	@/bin/echo -e "  $(GREEN)make lint$(RESET)           - Run fmt-check + clippy + doc-names"
 	@/bin/echo -e "  $(GREEN)make fmt$(RESET)            - Format code"
 	@/bin/echo -e "  $(GREEN)make fmt-check$(RESET)      - Check formatting"
 	@/bin/echo -e "  $(GREEN)make clippy$(RESET)         - Run clippy lints"
+	@/bin/echo -e "  $(GREEN)make doc-names$(RESET)      - Check wireframes and guides name existing types"
 	@/bin/echo -e ""
 	@/bin/echo -e "$(CYAN)$(BOLD)CI & Quality:$(RESET)"
 	@/bin/echo -e "  $(GREEN)make ci-local$(RESET)       - $(YELLOW)$(BOLD)Simulate GitHub Actions CI locally$(RESET)"

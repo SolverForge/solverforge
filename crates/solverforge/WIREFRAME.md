@@ -86,7 +86,6 @@ src/
 - `IncrementalConstraint` (trait)
 - `IncrementalConstraintSealed` (marker trait required by direct custom `IncrementalConstraint` implementors)
 - `IncrementalUniConstraint`
-- `IncrementalBiConstraint`
 - `ListPrecedenceMakespanConstraint`
 - `Projection` (trait)
 - `ProjectionSink` (trait)

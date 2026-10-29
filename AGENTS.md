@@ -115,6 +115,10 @@ When public surface changes, update the matching wireframe in the same change:
 4. Keep file maps in sync with added or moved files.
 5. Document public surface and usage only, not implementation detail.
 
+`make doc-names` (also run by the CI Docs job) fails when a wireframe or a
+`docs/` guide lists a CamelCase type, trait or variant name that no longer
+exists in `crates/*/src`.
+
 When a public API change also affects how users discover or reason about the
 feature, update the corresponding top-level docs in the same change. Extension
 point changes should leave a clear trail in `README.md`, the relevant extension

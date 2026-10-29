@@ -88,6 +88,10 @@ jobs:
       - name: Build API docs with warnings denied
         run: cargo doc --workspace --no-deps --all-features --locked
 
+      # Wireframes and guides may only name types that exist.
+      - name: Check documented type names
+        run: python3 scripts/check-doc-names.py
+
   package:
     if: ${{ github.server_url == 'https://github.com' }}
     name: Package

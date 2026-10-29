@@ -49,5 +49,8 @@ jobs:
       - name: Build API docs with warnings denied
         run: RUSTDOCFLAGS="-D warnings" CARGO_TARGET_DIR="$PWD/target" cargo doc --workspace --no-deps --all-features --locked
 
+      - name: Check documented type names
+        run: python3 scripts/check-doc-names.py
+
       - name: Package every publishable crate
         run: CARGO_TARGET_DIR="$PWD/target" make publish-crates-dry

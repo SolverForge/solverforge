@@ -40,9 +40,13 @@ Speculative evaluation never advances the revision: it applies the move, scores,
 undoes with the typed undo value, and restores the snapshotted committed score
 state, leaving no residue.
 
-Model callbacks (`value_candidates`, `construction_order_key`,
-`search_order_key` hooks, `value_is_legal`, ownership policies) may read the
-whole solution. That dependency is unrestricted by default: never rely on a
+Model callbacks may read the whole solution: the `candidate_values`,
+`nearby_value_candidates` / `nearby_entity_candidates`,
+`nearby_value_distance_meter` / `nearby_entity_distance_meter`,
+`construction_entity_order_key` / `construction_value_order_key` /
+`construction_element_order_key` and `search_entity_order_key` /
+`search_value_order_key` hooks, the list `element_owner_fn` restriction, and a
+host binding's `DynamicScalarAccess::scalar_value_is_legal`. That dependency is unrestricted by default: never rely on a
 callback's signature to infer row-locality, because a committed change anywhere
 can change any callback's output. Construction enumeration and placement
 therefore re-read committed global state per pull instead of trusting a cached

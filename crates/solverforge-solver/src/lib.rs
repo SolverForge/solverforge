@@ -24,6 +24,7 @@ pub mod descriptor;
 pub mod heuristic;
 pub(crate) mod list_placement;
 pub mod manager;
+#[doc(hidden)]
 pub mod model_support;
 pub mod phase;
 pub(crate) mod pinning;
@@ -120,6 +121,7 @@ pub use manager::{
     SolverPanicPayload, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
     SolverTelemetryDetail, SolverTerminalReason,
 };
+#[doc(hidden)]
 pub use model_support::PlanningModelSupport;
 pub use phase::{
     construction::{

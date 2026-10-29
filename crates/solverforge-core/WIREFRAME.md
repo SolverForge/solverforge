@@ -50,11 +50,13 @@ src/
 ├── domain/
 │   ├── mod.rs                             — Module declarations and re-exports for domain types
 │   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId, ListVariableSolution
-│   ├── dynamic.rs                         — DynamicModelBackend, scalar/list access contracts, explicit list access/metadata capabilities, and descriptor-resolved slot adapters
+│   ├── dynamic.rs                         — DynamicModelBackend, scalar/list access contracts, explicit list access/metadata capabilities
 │   ├── dynamic/
 │   │   ├── assignment.rs                  — Dynamic scalar-assignment metadata contract and structural capabilities
 │   │   ├── backend.rs                     — DynamicModelBackend-backed scalar/list access adapters
-│   │   └── resolution.rs                  — Logical ID to descriptor-index resolution and validation
+│   │   ├── list_slot.rs                   — DynamicListVariableSlot descriptor-resolved list slot adapter
+│   │   ├── resolution.rs                  — Logical ID to descriptor-index resolution and validation
+│   │   └── scalar_slot.rs                 — DynamicScalarVariableSlot descriptor-resolved scalar slot adapter
 │   ├── entity_ref.rs                      — EntityRef, EntityExtractor trait, EntityCollectionExtractor
 │   ├── variable.rs                        — VariableType, ShadowVariableKind, ValueRangeType
 │   ├── value_range.rs                     — ValueRangeProvider trait, FieldValueRangeProvider, ComputedValueRangeProvider, StaticValueRange, IntegerRange

@@ -168,3 +168,35 @@ fn dynamic_score_rejects_unrepresentable_decimal_text() {
         }
     });
 }
+
+#[test]
+#[should_panic(expected = "score addition overflows i64")]
+fn dynamic_score_addition_overflow_panics() {
+    let _ = DynamicScore::soft(std::hint::black_box(i64::MAX)) + DynamicScore::soft(1);
+}
+
+#[test]
+#[should_panic(expected = "score negation overflows i64")]
+fn dynamic_score_negation_overflow_panics() {
+    let _ = -DynamicScore::of(std::hint::black_box(i64::MIN), 0, 0);
+}
+
+#[test]
+#[should_panic(expected = "a score cannot be divided by 0")]
+fn dynamic_score_divide_by_zero_panics() {
+    let _ = DynamicScore::soft(5).divide(std::hint::black_box(0.0));
+}
+
+#[test]
+#[should_panic(expected = "a score cannot be multiplied by NaN")]
+fn dynamic_score_multiply_by_nan_panics() {
+    let _ = DynamicScore::soft(5).multiply(std::hint::black_box(f64::NAN));
+}
+
+#[test]
+fn dynamic_score_in_range_arithmetic_is_unchanged() {
+    let a = DynamicScore::of(-1, 2, i64::MAX - 1);
+    let d = DynamicScore::soft(1);
+    assert_eq!(a + d - d, a);
+    assert_eq!(DynamicScore::soft(5).divide(2.0), DynamicScore::soft(3));
+}

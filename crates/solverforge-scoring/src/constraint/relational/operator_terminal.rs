@@ -2,6 +2,7 @@ use crate::api::{
     analysis::{ConstraintJustification, DetailedConstraintMatch},
     constraint_set::IncrementalConstraint,
 };
+use crate::constraint::score_sum::{checked, ScoreSum};
 use crate::stream::relational::{
     operator::{ExplainRow, Operator},
     HandleMap, RowHandle,
@@ -10,7 +11,8 @@ use solverforge_core::{score::Score, ConstraintRef, ImpactType};
 use std::marker::PhantomData;
 
 /// Scoring terminal over a concrete operator tree, independent of row arity.
-/// Weight closures borrow the complete row; retention stores signed scores,
+/// Weight closures borrow the complete row; retention stores unsigned row
+/// weights (the impact is applied when they are summed),
 /// never entities or solution references.
 pub struct OperatorTerminal<S, O, W, Sc> {
     constraint_ref: ConstraintRef,
@@ -49,7 +51,7 @@ impl<S, O, W, Sc> OperatorTerminal<S, O, W, Sc> {
     }
 }
 impl<S, O, W, Sc: Score> OperatorTerminal<S, O, W, Sc> {
-    fn signed(&self, score: Sc) -> Sc {
+    fn signed_checked(&self, score: Sc) -> Sc {
         match self.impact {
             ImpactType::Penalty => -score,
             ImpactType::Reward => score,
@@ -64,11 +66,16 @@ where
     Sc: Score,
 {
     #[inline(always)]
-    fn apply_changes(&mut self, solution: &S, removed: &[RowHandle], inserted: &[RowHandle]) -> Sc {
-        let mut total = Sc::zero();
+    fn apply_changes(
+        &mut self,
+        solution: &S,
+        removed: &[RowHandle],
+        inserted: &[RowHandle],
+    ) -> (Sc, bool) {
+        let mut total = ScoreSum::new();
         for h in removed.iter().copied() {
-            if let Some(score) = self.scores.remove(h) {
-                total = total + (-score);
+            if let Some(weight) = self.scores.remove(h) {
+                total.sub(weight);
             }
         }
         for h in inserted.iter().copied() {
@@ -76,14 +83,14 @@ where
                 .operator
                 .resolve(solution, h)
                 .expect("inserted terminal row");
-            let score = self.signed((self.weight)(solution, &row));
+            let weight = (self.weight)(solution, &row);
             assert!(
-                self.scores.insert(h, score).is_none(),
+                self.scores.insert(h, weight).is_none(),
                 "duplicate terminal delta"
             );
-            total = total + score;
+            total.add(weight);
         }
-        total
+        total.into_parts_with(self.impact)
     }
 }
 impl<S, O, W, Sc> IncrementalConstraint<S, Sc> for OperatorTerminal<S, O, W, Sc>
@@ -95,11 +102,11 @@ where
     for<'a> O::View<'a>: ExplainRow,
 {
     fn evaluate(&self, solution: &S) -> Sc {
-        let mut score = Sc::zero();
+        let mut score = ScoreSum::new();
         self.operator.visit_all(solution, &mut |row| {
-            score = score + self.signed((self.weight)(solution, &row));
+            score.add((self.weight)(solution, &row));
         });
-        score
+        score.finish_with(self.impact)
     }
     fn match_count(&self, solution: &S) -> usize {
         let mut count = 0;
@@ -113,20 +120,29 @@ where
         self.scores.clear();
         self.operator.initialize(solution);
         self.initialized = true;
-        let mut total = Sc::zero();
+        let mut total = ScoreSum::new();
         for handle in self.operator.handles() {
             let row = self
                 .operator
                 .resolve(solution, handle)
                 .expect("live terminal row");
-            let score = self.signed((self.weight)(solution, &row));
-            self.scores.insert(handle, score);
-            total = total + score;
+            let weight = (self.weight)(solution, &row);
+            self.scores.insert(handle, weight);
+            total.add(weight);
         }
-        total
+        total.finish_with(self.impact)
     }
     #[inline(always)]
     fn on_retract(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc {
+        checked(self.on_retract_overflowing(solution, index, descriptor))
+    }
+    #[inline(always)]
+    fn on_retract_overflowing(
+        &mut self,
+        solution: &S,
+        index: usize,
+        descriptor: usize,
+    ) -> (Sc, bool) {
         let mut removed = std::mem::take(&mut self.removed);
         let mut inserted = std::mem::take(&mut self.inserted);
         removed.clear();
@@ -140,6 +156,15 @@ where
     }
     #[inline(always)]
     fn on_insert(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc {
+        checked(self.on_insert_overflowing(solution, index, descriptor))
+    }
+    #[inline(always)]
+    fn on_insert_overflowing(
+        &mut self,
+        solution: &S,
+        index: usize,
+        descriptor: usize,
+    ) -> (Sc, bool) {
         let mut removed = std::mem::take(&mut self.removed);
         let mut inserted = std::mem::take(&mut self.inserted);
         removed.clear();
@@ -184,11 +209,14 @@ where
                     .operator
                     .resolve(solution, handle)
                     .expect("live explanation row");
-                record(row, *self.scores.get(handle).expect("live terminal score"));
+                record(
+                    row,
+                    self.signed_checked(*self.scores.get(handle).expect("live terminal score")),
+                );
             }
         } else {
             self.operator.visit_all(solution, &mut |row| {
-                record(row, self.signed((self.weight)(solution, &row)));
+                record(row, self.signed_checked((self.weight)(solution, &row)));
             });
         }
         matches

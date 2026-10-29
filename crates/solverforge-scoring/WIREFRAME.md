@@ -156,7 +156,8 @@ src/
 │   ├── constraint_set/
 │   │   ├── mod.rs                                  — Re-exports ConstraintSet, ConstraintSetChain, OrderedConstraintSetChain, ConstraintSetSource, IncrementalConstraint, IncrementalConstraintSealed, ConstraintMetadata, ConstraintResult
 │   │   ├── chain.rs                                — ConstraintSetChain, OrderedConstraintSetChain, and authored-order source spans
-│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, singleton impl
+│   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, result and metadata types
+│   │   ├── blanket.rs                              — ConstraintSet for every IncrementalConstraint (singleton set)
 │   │   ├── tuple.rs                                — ConstraintSet for () and tuples (1..32)
 │   │   ├── weighting.rs                            — Crate-private per-constraint contribution scaling and weight-slot splitting
 │   │   └── tests/
@@ -172,6 +173,7 @@ src/
 │   ├── list_precedence.rs                          — ListPrecedenceMakespanConstraint<S>; stock incremental list-plus-fixed-precedence makespan scoring with optional fixed owner checks
 │   ├── incremental_markers.rs                      — Hidden IncrementalConstraintSealed impls for built-in constraint types
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
+│   ├── score_sum.rs                                — Crate-private batch score accumulation with one overflow check
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
 │   ├── relational/
 │   │   ├── mod.rs                                  — Module declarations and selected re-exports
@@ -409,6 +411,7 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 | `on_insert_weighted` | `fn on_insert_weighted(&mut self, solution: &S, entity_index: usize, descriptor_index: usize, multiplier: u32) -> Sc` | Default: `on_insert` delta scaled by `multiplier` |
 | `on_retract_weighted` | `fn on_retract_weighted(&mut self, solution: &S, entity_index: usize, descriptor_index: usize, multiplier: u32) -> Sc` | Default: `on_retract` delta scaled by `multiplier` |
 | `get_matches_weighted` | `fn get_matches_weighted<'a>(&'a self, solution: &S, multiplier: u32) -> Vec<DetailedConstraintMatch<'a, Sc>>` | Default: `get_matches` with every match score scaled by `multiplier` |
+| `on_insert_overflowing`, `on_retract_overflowing`, `on_insert_weighted_overflowing`, `on_retract_weighted_overflowing` | `fn …(…) -> (Sc, bool)` | `#[doc(hidden)]`; the delta unchecked with an overflow flag. Defaults delegate to the checked methods (flag `false`); built-in constraints implement them and their checked methods panic on the flag |
 
 ### `ConstraintSet<S, Sc: Score>` — `Send + Sync`
 
@@ -431,6 +434,9 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 | `initialize_all_weighted` | `fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc` | Required |
 | `on_insert_all_weighted` | `fn on_insert_all_weighted(&mut self, solution: &S, entity_index: usize, descriptor_index: usize, multipliers: &[u32]) -> Sc` | Required |
 | `on_retract_all_weighted` | `fn on_retract_all_weighted(&mut self, solution: &S, entity_index: usize, descriptor_index: usize, multipliers: &[u32]) -> Sc` | Required |
+| `on_insert_all_overflowing`, `on_retract_all_overflowing`, `on_insert_all_weighted_overflowing`, `on_retract_all_weighted_overflowing` | `fn …(…) -> (Sc, bool)` | `#[doc(hidden)]`; unchecked delta with an overflow flag. Defaults delegate to the checked methods |
+
+**Overflow:** score deltas never wrap. Built-in constraints, tuple sets and chains sum their rows and members through the unchecked `*_overflowing` methods and the core `Score::overflowing_*` operations, and check the combined flag once at their public boundary, panicking with `a score delta overflows i64`. Retained operator-terminal state stores unsigned row weights; the impact is applied once per delta.
 
 Implemented for each `IncrementalConstraint<S, Sc>` as a singleton set and for tuples `()` through `(C0, C1, ..., C31)` where each `Ci: ConstraintSet<S, Sc>`. `ConstraintSetChain<Left, Right>` composes two existing `ConstraintSet` values without erasing either concrete type. `OrderedConstraintSetChain<Left, Right>` uses `ConstraintSetSource::Left` and `ConstraintSetSource::Right { constraint_count, metadata_entry_count }` spans to preserve user-authored result ordering when macro-generated node sharing combines one shared set with surrounding constraints. Raw metadata entries keep one entry per constraint for ordering; the public `constraint_metadata()` view deduplicates repeated full `ConstraintRef`s when hardness agrees and panics when the same full ref has conflicting hard/non-hard metadata. Package-qualified constraints that share a short name remain distinct.
 

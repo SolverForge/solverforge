@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use crate::constraint::score_sum::checked;
 use solverforge_core::{score::Score, ConstraintRef, ImpactType};
 
 use super::operator_scorer::{
@@ -147,13 +148,13 @@ where
     where
         Scorers: OperatorScorerSet<S, O, Sc>,
     {
-        self.update(solution, index, descriptor, false)
+        checked(self.update(solution, index, descriptor, false))
     }
     pub fn on_insert(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc
     where
         Scorers: OperatorScorerSet<S, O, Sc>,
     {
-        self.update(solution, index, descriptor, true)
+        checked(self.update(solution, index, descriptor, true))
     }
     pub fn update_count(&self) -> usize {
         self.update_count
@@ -162,7 +163,8 @@ where
         self.changed_key_count
     }
 
-    fn update(&mut self, solution: &S, index: usize, descriptor: usize, insert: bool) -> Sc
+    // Unchecked delta with its overflow flag; see `ScoreSum`.
+    fn update(&mut self, solution: &S, index: usize, descriptor: usize, insert: bool) -> (Sc, bool)
     where
         Scorers: OperatorScorerSet<S, O, Sc>,
     {
@@ -178,7 +180,7 @@ where
         descriptor: usize,
         insert: bool,
         multipliers: &[u32],
-    ) -> Sc
+    ) -> (Sc, bool)
     where
         Scorers: OperatorScorerSet<S, O, Sc>,
     {
@@ -291,6 +293,22 @@ where
     fn on_retract_all(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc {
         self.on_retract(solution, index, descriptor)
     }
+    fn on_insert_all_overflowing(
+        &mut self,
+        solution: &S,
+        index: usize,
+        descriptor: usize,
+    ) -> (Sc, bool) {
+        self.update(solution, index, descriptor, true)
+    }
+    fn on_retract_all_overflowing(
+        &mut self,
+        solution: &S,
+        index: usize,
+        descriptor: usize,
+    ) -> (Sc, bool) {
+        self.update(solution, index, descriptor, false)
+    }
     fn reset_all(&mut self) {
         self.operator.clear();
         self.scorers.reset();
@@ -334,6 +352,16 @@ where
         descriptor: usize,
         multipliers: &[u32],
     ) -> Sc {
+        checked(self.update_weighted(solution, index, descriptor, true, multipliers))
+    }
+    #[inline(always)]
+    fn on_insert_all_weighted_overflowing(
+        &mut self,
+        solution: &S,
+        index: usize,
+        descriptor: usize,
+        multipliers: &[u32],
+    ) -> (Sc, bool) {
         self.update_weighted(solution, index, descriptor, true, multipliers)
     }
     #[inline(always)]
@@ -344,6 +372,16 @@ where
         descriptor: usize,
         multipliers: &[u32],
     ) -> Sc {
+        checked(self.update_weighted(solution, index, descriptor, false, multipliers))
+    }
+    #[inline(always)]
+    fn on_retract_all_weighted_overflowing(
+        &mut self,
+        solution: &S,
+        index: usize,
+        descriptor: usize,
+        multipliers: &[u32],
+    ) -> (Sc, bool) {
         self.update_weighted(solution, index, descriptor, false, multipliers)
     }
 }

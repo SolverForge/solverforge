@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use crate::constraint::score_sum::ScoreSum;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::Score;
 
@@ -172,7 +173,11 @@ where
             descriptor_index,
             entity_index,
         );
-        self.cached_score = self.cached_score + delta + element_delta;
+        let mut score = ScoreSum::new();
+        score.add(self.cached_score);
+        score.add(delta);
+        score.add(element_delta);
+        self.cached_score = score.finish();
     }
 
     pub(crate) fn after_variable_changed_impl(

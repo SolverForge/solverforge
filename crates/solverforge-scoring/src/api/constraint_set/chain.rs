@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+use crate::constraint::score_sum::{checked, ScoreSum};
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
@@ -100,12 +101,12 @@ macro_rules! chain_weighted_deltas {
             descriptor_index: usize,
             multipliers: &[u32],
         ) -> Sc {
-            let (left, right) = multipliers.split_at(self.left.constraint_count());
-            self.left
-                .on_insert_all_weighted(solution, entity_index, descriptor_index, left)
-                + self
-                    .right
-                    .on_insert_all_weighted(solution, entity_index, descriptor_index, right)
+            checked(self.on_insert_all_weighted_overflowing(
+                solution,
+                entity_index,
+                descriptor_index,
+                multipliers,
+            ))
         }
 
         #[inline]
@@ -116,15 +117,62 @@ macro_rules! chain_weighted_deltas {
             descriptor_index: usize,
             multipliers: &[u32],
         ) -> Sc {
+            checked(self.on_retract_all_weighted_overflowing(
+                solution,
+                entity_index,
+                descriptor_index,
+                multipliers,
+            ))
+        }
+
+        #[inline]
+        fn on_insert_all_weighted_overflowing(
+            &mut self,
+            solution: &S,
+            entity_index: usize,
+            descriptor_index: usize,
+            multipliers: &[u32],
+        ) -> (Sc, bool) {
             let (left, right) = multipliers.split_at(self.left.constraint_count());
-            self.left
-                .on_retract_all_weighted(solution, entity_index, descriptor_index, left)
-                + self.right.on_retract_all_weighted(
-                    solution,
-                    entity_index,
-                    descriptor_index,
-                    right,
-                )
+            let mut delta = ScoreSum::new();
+            delta.add_parts(self.left.on_insert_all_weighted_overflowing(
+                solution,
+                entity_index,
+                descriptor_index,
+                left,
+            ));
+            delta.add_parts(self.right.on_insert_all_weighted_overflowing(
+                solution,
+                entity_index,
+                descriptor_index,
+                right,
+            ));
+            delta.into_parts()
+        }
+
+        #[inline]
+        fn on_retract_all_weighted_overflowing(
+            &mut self,
+            solution: &S,
+            entity_index: usize,
+            descriptor_index: usize,
+            multipliers: &[u32],
+        ) -> (Sc, bool) {
+            let (left, right) = multipliers.split_at(self.left.constraint_count());
+            let mut delta = ScoreSum::new();
+            delta.add_parts(self.left.on_retract_all_weighted_overflowing(
+                solution,
+                entity_index,
+                descriptor_index,
+                left,
+            ));
+            delta.add_parts(self.right.on_retract_all_weighted_overflowing(
+                solution,
+                entity_index,
+                descriptor_index,
+                right,
+            ));
+            delta.into_parts()
         }
     };
 }
@@ -171,20 +219,54 @@ where
 
     #[inline]
     fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        self.left
-            .on_insert_all(solution, entity_index, descriptor_index)
-            + self
-                .right
-                .on_insert_all(solution, entity_index, descriptor_index)
+        checked(self.on_insert_all_overflowing(solution, entity_index, descriptor_index))
+    }
+
+    #[inline]
+    fn on_insert_all_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+    ) -> (Sc, bool) {
+        let mut delta = ScoreSum::new();
+        delta.add_parts(self.left.on_insert_all_overflowing(
+            solution,
+            entity_index,
+            descriptor_index,
+        ));
+        delta.add_parts(self.right.on_insert_all_overflowing(
+            solution,
+            entity_index,
+            descriptor_index,
+        ));
+        delta.into_parts()
     }
 
     #[inline]
     fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        self.left
-            .on_retract_all(solution, entity_index, descriptor_index)
-            + self
-                .right
-                .on_retract_all(solution, entity_index, descriptor_index)
+        checked(self.on_retract_all_overflowing(solution, entity_index, descriptor_index))
+    }
+
+    #[inline]
+    fn on_retract_all_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+    ) -> (Sc, bool) {
+        let mut delta = ScoreSum::new();
+        delta.add_parts(self.left.on_retract_all_overflowing(
+            solution,
+            entity_index,
+            descriptor_index,
+        ));
+        delta.add_parts(self.right.on_retract_all_overflowing(
+            solution,
+            entity_index,
+            descriptor_index,
+        ));
+        delta.into_parts()
     }
 
     #[inline]
@@ -290,20 +372,54 @@ where
 
     #[inline]
     fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        self.left
-            .on_insert_all(solution, entity_index, descriptor_index)
-            + self
-                .right
-                .on_insert_all(solution, entity_index, descriptor_index)
+        checked(self.on_insert_all_overflowing(solution, entity_index, descriptor_index))
+    }
+
+    #[inline]
+    fn on_insert_all_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+    ) -> (Sc, bool) {
+        let mut delta = ScoreSum::new();
+        delta.add_parts(self.left.on_insert_all_overflowing(
+            solution,
+            entity_index,
+            descriptor_index,
+        ));
+        delta.add_parts(self.right.on_insert_all_overflowing(
+            solution,
+            entity_index,
+            descriptor_index,
+        ));
+        delta.into_parts()
     }
 
     #[inline]
     fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        self.left
-            .on_retract_all(solution, entity_index, descriptor_index)
-            + self
-                .right
-                .on_retract_all(solution, entity_index, descriptor_index)
+        checked(self.on_retract_all_overflowing(solution, entity_index, descriptor_index))
+    }
+
+    #[inline]
+    fn on_retract_all_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+    ) -> (Sc, bool) {
+        let mut delta = ScoreSum::new();
+        delta.add_parts(self.left.on_retract_all_overflowing(
+            solution,
+            entity_index,
+            descriptor_index,
+        ));
+        delta.add_parts(self.right.on_retract_all_overflowing(
+            solution,
+            entity_index,
+            descriptor_index,
+        ));
+        delta.into_parts()
     }
 
     #[inline]

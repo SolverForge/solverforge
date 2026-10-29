@@ -8,7 +8,8 @@ use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
 use super::super::analysis::{ConstraintAnalysis, DetailedConstraintMatch};
-use super::weighting::scale_contribution;
+use super::weighting::{scale_contribution, scale_contribution_parts};
+use crate::constraint::score_sum::checked;
 
 #[doc(hidden)]
 pub trait IncrementalConstraintSealed {}
@@ -69,6 +70,40 @@ pub trait IncrementalConstraint<S, Sc: Score>: IncrementalConstraintSealed + Sen
     */
     fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
+    /* `on_insert` returning the delta unchecked with a flag that is set when a
+    level overflowed, so an enclosing set or director can sum several deltas
+    and check once. The default delegates to `on_insert`, which checks itself. */
+    #[doc(hidden)]
+    #[inline]
+    fn on_insert_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+    ) -> (Sc, bool) {
+        (
+            self.on_insert(solution, entity_index, descriptor_index),
+            false,
+        )
+    }
+
+    /* `on_retract` returning the delta unchecked with a flag that is set when a
+    level overflowed, so an enclosing set or director can sum several deltas
+    and check once. The default delegates to `on_retract`, which checks itself. */
+    #[doc(hidden)]
+    #[inline]
+    fn on_retract_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+    ) -> (Sc, bool) {
+        (
+            self.on_retract(solution, entity_index, descriptor_index),
+            false,
+        )
+    }
+
     // Resets internal state for a new solving session.
     fn reset(&mut self);
 
@@ -125,8 +160,27 @@ pub trait IncrementalConstraint<S, Sc: Score>: IncrementalConstraintSealed + Sen
         descriptor_index: usize,
         multiplier: u32,
     ) -> Sc {
-        scale_contribution(
-            self.on_insert(solution, entity_index, descriptor_index),
+        checked(self.on_insert_weighted_overflowing(
+            solution,
+            entity_index,
+            descriptor_index,
+            multiplier,
+        ))
+    }
+
+    /* `on_insert_weighted` returning the contribution unchecked with an overflow flag;
+    see `on_insert_overflowing`. */
+    #[doc(hidden)]
+    #[inline]
+    fn on_insert_weighted_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+        multiplier: u32,
+    ) -> (Sc, bool) {
+        scale_contribution_parts(
+            self.on_insert_overflowing(solution, entity_index, descriptor_index),
             multiplier,
         )
     }
@@ -139,8 +193,27 @@ pub trait IncrementalConstraint<S, Sc: Score>: IncrementalConstraintSealed + Sen
         descriptor_index: usize,
         multiplier: u32,
     ) -> Sc {
-        scale_contribution(
-            self.on_retract(solution, entity_index, descriptor_index),
+        checked(self.on_retract_weighted_overflowing(
+            solution,
+            entity_index,
+            descriptor_index,
+            multiplier,
+        ))
+    }
+
+    /* `on_retract_weighted` returning the contribution unchecked with an overflow flag;
+    see `on_insert_overflowing`. */
+    #[doc(hidden)]
+    #[inline]
+    fn on_retract_weighted_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+        multiplier: u32,
+    ) -> (Sc, bool) {
+        scale_contribution_parts(
+            self.on_retract_overflowing(solution, entity_index, descriptor_index),
             multiplier,
         )
     }
@@ -261,6 +334,40 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
     */
     fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
+    /* `on_insert_all` returning the delta unchecked with a flag that is set when a
+    level overflowed, so an enclosing set or director can sum several deltas
+    and check once. The default delegates to `on_insert_all`, which checks itself. */
+    #[doc(hidden)]
+    #[inline]
+    fn on_insert_all_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+    ) -> (Sc, bool) {
+        (
+            self.on_insert_all(solution, entity_index, descriptor_index),
+            false,
+        )
+    }
+
+    /* `on_retract_all` returning the delta unchecked with a flag that is set when a
+    level overflowed, so an enclosing set or director can sum several deltas
+    and check once. The default delegates to `on_retract_all`, which checks itself. */
+    #[doc(hidden)]
+    #[inline]
+    fn on_retract_all_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+    ) -> (Sc, bool) {
+        (
+            self.on_retract_all(solution, entity_index, descriptor_index),
+            false,
+        )
+    }
+
     // Resets all constraints for a new solving session.
     fn reset_all(&mut self);
 
@@ -309,133 +416,36 @@ pub trait ConstraintSet<S, Sc: Score>: Send + Sync {
         descriptor_index: usize,
         multipliers: &[u32],
     ) -> Sc;
-}
-
-impl<S, Sc, C> ConstraintSet<S, Sc> for C
-where
-    S: Send + Sync,
-    Sc: Score,
-    C: IncrementalConstraint<S, Sc>,
-{
+    /* Weighted `on_insert_all_overflowing`. */
+    #[doc(hidden)]
     #[inline]
-    fn evaluate_all(&self, solution: &S) -> Sc {
-        self.evaluate(solution)
-    }
-
-    #[inline]
-    fn constraint_count(&self) -> usize {
-        1
-    }
-
-    fn constraint_metadata_entries(&self) -> Vec<ConstraintMetadata<'_>> {
-        vec![ConstraintMetadata::new(
-            self.constraint_ref(),
-            self.is_hard(),
-        )]
-    }
-
-    fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>> {
-        vec![ConstraintResult {
-            name: self.name(),
-            score: self.evaluate(solution),
-            match_count: self.match_count(solution),
-            is_hard: self.is_hard(),
-            weight_multiplier: 1,
-        }]
-    }
-
-    fn evaluate_detailed<'a>(&'a self, solution: &S) -> Vec<ConstraintAnalysis<'a, Sc>> {
-        vec![ConstraintAnalysis::new(
-            self.constraint_ref(),
-            1,
-            self.evaluate(solution),
-            self.get_matches(solution),
-            self.is_hard(),
-        )]
-    }
-
-    #[inline]
-    fn initialize_all(&mut self, solution: &S) -> Sc {
-        self.initialize(solution)
-    }
-
-    #[inline]
-    fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        self.on_insert(solution, entity_index, descriptor_index)
-    }
-
-    #[inline]
-    fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-        self.on_retract(solution, entity_index, descriptor_index)
-    }
-
-    #[inline]
-    fn reset_all(&mut self) {
-        self.reset();
-    }
-
-    fn constraint_weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>) {
-        refs.push(self.constraint_ref());
-    }
-
-    #[inline]
-    fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc {
-        self.evaluate_weighted(solution, multipliers[0])
-    }
-
-    fn evaluate_each_weighted<'a>(
-        &'a self,
-        solution: &S,
-        multipliers: &[u32],
-    ) -> Vec<ConstraintResult<'a, Sc>> {
-        vec![ConstraintResult {
-            name: self.name(),
-            score: self.evaluate_weighted(solution, multipliers[0]),
-            match_count: self.match_count(solution),
-            is_hard: self.is_hard(),
-            weight_multiplier: multipliers[0],
-        }]
-    }
-
-    fn evaluate_detailed_weighted<'a>(
-        &'a self,
-        solution: &S,
-        multipliers: &[u32],
-    ) -> Vec<ConstraintAnalysis<'a, Sc>> {
-        vec![ConstraintAnalysis::new(
-            self.constraint_ref(),
-            multipliers[0],
-            self.evaluate_weighted(solution, multipliers[0]),
-            self.get_matches_weighted(solution, multipliers[0]),
-            self.is_hard(),
-        )]
-    }
-
-    #[inline]
-    fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc {
-        self.initialize_weighted(solution, multipliers[0])
-    }
-
-    #[inline]
-    fn on_insert_all_weighted(
+    fn on_insert_all_weighted_overflowing(
         &mut self,
         solution: &S,
         entity_index: usize,
         descriptor_index: usize,
         multipliers: &[u32],
-    ) -> Sc {
-        self.on_insert_weighted(solution, entity_index, descriptor_index, multipliers[0])
+    ) -> (Sc, bool) {
+        (
+            self.on_insert_all_weighted(solution, entity_index, descriptor_index, multipliers),
+            false,
+        )
     }
 
+    /* Weighted `on_retract_all_overflowing`. */
+    #[doc(hidden)]
     #[inline]
-    fn on_retract_all_weighted(
+    fn on_retract_all_weighted_overflowing(
         &mut self,
         solution: &S,
         entity_index: usize,
         descriptor_index: usize,
         multipliers: &[u32],
-    ) -> Sc {
-        self.on_retract_weighted(solution, entity_index, descriptor_index, multipliers[0])
+    ) -> (Sc, bool) {
+        (
+            self.on_retract_all_weighted(solution, entity_index, descriptor_index, multipliers),
+            false,
+        )
     }
 }
 

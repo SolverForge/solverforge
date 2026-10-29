@@ -7,6 +7,7 @@ the balance constraint computes a GLOBAL statistic across all groups.
 All type information is preserved at compile time - no Arc, no dyn.
 */
 
+use crate::constraint::score_sum::checked;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -105,6 +106,9 @@ where
     total_count: i64,
     // Sum of squared counts (for variance calculation)
     sum_squared: i64,
+    // The score for the current statistics, so a change computes only the
+    // new score instead of recomputing the old one.
+    score: Sc,
     _phantom: PhantomData<(fn() -> S, fn() -> A)>,
 }
 
@@ -154,6 +158,7 @@ where
             group_count: 0,
             total_count: 0,
             sum_squared: 0,
+            score: Sc::zero(),
             _phantom: PhantomData,
         }
     }
@@ -172,14 +177,28 @@ where
         variance.sqrt()
     }
 
+    #[inline]
+    fn signed(&self, std_dev: f64) -> f64 {
+        match self.impact_type {
+            ImpactType::Penalty => -std_dev,
+            ImpactType::Reward => std_dev,
+        }
+    }
+
+    // The score from the standard deviation, unchecked with its overflow flag.
+    #[inline]
+    fn score_parts(&self) -> (Sc, bool) {
+        self.base_score
+            .overflowing_multiply(self.signed(self.compute_std_dev()))
+    }
+
     // Computes the score from standard deviation.
+    #[inline]
     fn compute_score(&self) -> Sc {
         let std_dev = self.compute_std_dev();
-        let base = self.base_score.multiply(std_dev);
-        match self.impact_type {
-            ImpactType::Penalty => -base,
-            ImpactType::Reward => base,
-        }
+        // Multiplying by the signed deviation applies the impact without a
+        // separate negation: rounding is symmetric about zero.
+        self.base_score.multiply(self.signed(std_dev))
     }
 
     // Computes std_dev from raw counts (for stateless evaluate).
@@ -230,11 +249,9 @@ where
         }
 
         let std_dev = Self::compute_std_dev_from_counts(&counts);
-        let base = self.base_score.multiply(std_dev);
-        match self.impact_type {
-            ImpactType::Penalty => -base,
-            ImpactType::Reward => base,
-        }
+        // Multiplying by the signed deviation applies the impact without a
+        // separate negation: rounding is symmetric about zero.
+        self.base_score.multiply(self.signed(std_dev))
     }
 
     fn match_count(&self, solution: &S) -> usize {
@@ -294,32 +311,43 @@ where
             }
         }
 
-        self.compute_score()
+        self.score = self.compute_score();
+        self.score
     }
 
     #[inline(always)]
-    fn on_insert(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
+    fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        checked(self.on_insert_overflowing(solution, entity_index, descriptor_index))
+    }
+
+    #[inline(always)]
+    fn on_insert_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        _descriptor_index: usize,
+    ) -> (Sc, bool) {
         if !self
             .change_source
             .assert_localizes(_descriptor_index, &self.constraint_ref.name)
         {
-            return Sc::zero();
+            return (Sc::zero(), false);
         }
         let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
-            return Sc::zero();
+            return (Sc::zero(), false);
         }
 
         let entity = &entities[entity_index];
         if !self.filter.test(solution, entity) {
-            return Sc::zero();
+            return (Sc::zero(), false);
         }
 
         let Some(key) = (self.key_fn)(entity) else {
-            return Sc::zero();
+            return (Sc::zero(), false);
         };
 
-        let old_score = self.compute_score();
+        let old_score = self.score;
 
         let old_count = *self.counts.get(&key).unwrap_or(&0);
         let new_count = old_count + 1;
@@ -337,33 +365,45 @@ where
         self.total_count += 1;
         self.sum_squared += new_count * new_count - old_count * old_count;
 
-        let new_score = self.compute_score();
-        new_score - old_score
+        let (new_score, overflowed) = self.score_parts();
+        self.score = new_score;
+        let (delta, wrapped) = new_score.overflowing_sub(old_score);
+        (delta, wrapped | overflowed)
     }
 
     #[inline(always)]
-    fn on_retract(&mut self, solution: &S, entity_index: usize, _descriptor_index: usize) -> Sc {
+    fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        checked(self.on_retract_overflowing(solution, entity_index, descriptor_index))
+    }
+
+    #[inline(always)]
+    fn on_retract_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        _descriptor_index: usize,
+    ) -> (Sc, bool) {
         if !self
             .change_source
             .assert_localizes(_descriptor_index, &self.constraint_ref.name)
         {
-            return Sc::zero();
+            return (Sc::zero(), false);
         }
         let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
-            return Sc::zero();
+            return (Sc::zero(), false);
         }
 
         // Check if this entity was tracked
         let Some(key) = self.entity_keys.remove(&entity_index) else {
-            return Sc::zero();
+            return (Sc::zero(), false);
         };
 
-        let old_score = self.compute_score();
+        let old_score = self.score;
 
         let old_count = *self.counts.get(&key).unwrap_or(&0);
         if old_count == 0 {
-            return Sc::zero();
+            return (Sc::zero(), false);
         }
 
         let new_count = old_count - 1;
@@ -376,8 +416,10 @@ where
         self.total_count -= 1;
         self.sum_squared += new_count * new_count - old_count * old_count;
 
-        let new_score = self.compute_score();
-        new_score - old_score
+        let (new_score, overflowed) = self.score_parts();
+        self.score = new_score;
+        let (delta, wrapped) = new_score.overflowing_sub(old_score);
+        (delta, wrapped | overflowed)
     }
 
     fn reset(&mut self) {
@@ -386,6 +428,7 @@ where
         self.group_count = 0;
         self.total_count = 0;
         self.sum_squared = 0;
+        self.score = Sc::zero();
     }
 
     fn name(&self) -> &str {

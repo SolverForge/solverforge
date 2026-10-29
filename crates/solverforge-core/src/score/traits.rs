@@ -25,6 +25,15 @@ use super::ScoreLevel;
 /// - Soft constraints: Optimization objectives to maximize/minimize
 ///
 /// When comparing scores, higher-priority levels are compared first.
+///
+/// # Overflow
+///
+/// Score arithmetic never wraps. `Add`, `Sub`, `Neg`, [`Score::abs`],
+/// [`Score::scale`], [`Score::multiply`] and [`Score::divide`] on the built-in
+/// score types panic, in every build profile, when a level does not fit
+/// `i64`; `multiply` and `divide` also panic for a factor that is not finite
+/// (or a zero divisor). A wrapped level would flip sign and turn a penalty
+/// into a reward.
 pub trait Score:
     Copy
     + Debug
@@ -92,10 +101,20 @@ pub trait Score:
     */
     fn from_level_numbers(levels: &[i64]) -> Self;
 
-    // Multiplies this score by a scalar.
+    /* Multiplies every level by a scalar, rounding to the nearest integer.
+
+    # Panics
+    Panics when `multiplicand` is not finite or a rounded level is outside
+    `i64`.
+    */
     fn multiply(&self, multiplicand: f64) -> Self;
 
-    // Divides this score by a scalar.
+    /* Divides every level by a scalar, rounding to the nearest integer.
+
+    # Panics
+    Panics when `divisor` is zero or not finite, or a rounded level is
+    outside `i64`.
+    */
     fn divide(&self, divisor: f64) -> Self;
 
     /* Multiplies every level by an exact integer factor.
@@ -108,7 +127,51 @@ pub trait Score:
     */
     fn scale(&self, factor: i64) -> Self;
 
+    /* Returns the absolute value of every level.
+
+    # Panics
+    Panics when a level is `i64::MIN`, whose absolute value is not an `i64`.
+    */
     fn abs(&self) -> Self;
+
+    /* Adds `other` without panicking, returning the sum and whether any level
+    overflowed `i64` (the levels are then wrapped and meaningless).
+
+    The scoring engine accumulates a batch of deltas this way and checks the
+    flag once, instead of branching on every addition. The default delegates
+    to `Add` and reports `false`, so a custom score keeps its own overflow
+    behavior.
+    */
+    #[inline]
+    fn overflowing_add(self, other: Self) -> (Self, bool) {
+        (self + other, false)
+    }
+
+    /* Subtracts `other` without panicking; see `overflowing_add`. */
+    #[inline]
+    fn overflowing_sub(self, other: Self) -> (Self, bool) {
+        (self - other, false)
+    }
+
+    /* Negates without panicking; see `overflowing_add`. */
+    #[inline]
+    fn overflowing_neg(self) -> (Self, bool) {
+        (-self, false)
+    }
+
+    /* `scale` without panicking: the flag is set when a level overflowed;
+    see `overflowing_add`. */
+    #[inline]
+    fn overflowing_scale(&self, factor: i64) -> (Self, bool) {
+        (self.scale(factor), false)
+    }
+
+    /* `multiply` without panicking: the flag is set for a non-finite
+    multiplicand or a rounded level outside `i64`; see `overflowing_add`. */
+    #[inline]
+    fn overflowing_multiply(&self, multiplicand: f64) -> (Self, bool) {
+        (self.multiply(multiplicand), false)
+    }
 
     /* Converts this score to a single f64 scalar value.
 

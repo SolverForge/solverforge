@@ -1,15 +1,18 @@
 /* Per-terminal scorers behind a shared operator tree.
 
 Each `OperatorScorer` owns one terminal's identity, weight, and retained
-signed row scores; `ScorerChain` composes several scorers over one operator
+unsigned row weights; `ScorerChain` composes several scorers over one operator
 so compiler-shared grouped nodes keep a single accumulator state.
 */
 
+use crate::constraint::score_sum::ScoreSum;
 use solverforge_core::{score::Score, ConstraintRef, ImpactType};
 
 use crate::api::{
     analysis::ConstraintAnalysis,
-    constraint_set::{scale_contribution, ConstraintMetadata, ConstraintResult},
+    constraint_set::{
+        scale_contribution, scale_contribution_parts, ConstraintMetadata, ConstraintResult,
+    },
 };
 use crate::stream::relational::operator::Operator;
 use crate::stream::relational::{HandleMap, RowHandle};
@@ -52,10 +55,11 @@ impl<W, Sc> OperatorScorer<W, Sc> {
 }
 
 impl<W, Sc: Score> OperatorScorer<W, Sc> {
-    fn signed(&self, score: Sc) -> Sc {
+    // Retained weights are unsigned; this applies the impact for readers.
+    fn signed(&self, weight: Sc) -> Sc {
         match self.impact {
-            ImpactType::Penalty => -score,
-            ImpactType::Reward => score,
+            ImpactType::Penalty => -weight,
+            ImpactType::Reward => weight,
         }
     }
 }
@@ -70,7 +74,7 @@ pub trait OperatorScorerSet<S: 'static, O: Operator<S>, Sc: Score>: Send + Sync 
         solution: &S,
         removed: &[RowHandle],
         inserted: &[RowHandle],
-    ) -> Sc;
+    ) -> (Sc, bool);
     fn constraint_count(&self) -> usize;
     fn metadata(&self) -> Vec<ConstraintMetadata<'_>>;
     fn evaluate_each<'a>(&'a self, operator: &O, solution: &S) -> Vec<ConstraintResult<'a, Sc>>;
@@ -97,7 +101,7 @@ pub trait OperatorScorerSet<S: 'static, O: Operator<S>, Sc: Score>: Send + Sync 
         removed: &[RowHandle],
         inserted: &[RowHandle],
         multipliers: &[u32],
-    ) -> Sc;
+    ) -> (Sc, bool);
     fn evaluate_each_weighted<'a>(
         &'a self,
         operator: &O,
@@ -130,8 +134,8 @@ where
         _solution: &S,
         _removed: &[RowHandle],
         _inserted: &[RowHandle],
-    ) -> Sc {
-        Sc::zero()
+    ) -> (Sc, bool) {
+        (Sc::zero(), false)
     }
     fn constraint_count(&self) -> usize {
         0
@@ -166,8 +170,8 @@ where
         _removed: &[RowHandle],
         _inserted: &[RowHandle],
         _multipliers: &[u32],
-    ) -> Sc {
-        Sc::zero()
+    ) -> (Sc, bool) {
+        (Sc::zero(), false)
     }
     fn evaluate_each_weighted<'a>(
         &'a self,
@@ -195,26 +199,26 @@ where
     Sc: Score,
 {
     fn evaluate(&self, operator: &O, solution: &S) -> Sc {
-        let mut total = Sc::zero();
+        let mut total = ScoreSum::new();
         operator.visit_all(solution, &mut |row| {
-            total = total + self.signed(self.weight.score(solution, &row));
+            total.add(self.weight.score(solution, &row));
         });
-        total
+        total.finish_with(self.impact)
     }
 
     #[inline(always)]
     fn initialize(&mut self, operator: &O, solution: &S) -> Sc {
         self.scores.clear();
-        let mut total = Sc::zero();
+        let mut total = ScoreSum::new();
         for handle in operator.handles() {
             let row = operator
                 .resolve(solution, handle)
                 .expect("live shared terminal row");
-            let score = self.signed(self.weight.score(solution, &row));
-            self.scores.insert(handle, score);
-            total = total + score;
+            let weight = self.weight.score(solution, &row);
+            self.scores.insert(handle, weight);
+            total.add(weight);
         }
-        total
+        total.finish_with(self.impact)
     }
 
     #[inline(always)]
@@ -224,25 +228,25 @@ where
         solution: &S,
         removed: &[RowHandle],
         inserted: &[RowHandle],
-    ) -> Sc {
-        let mut delta = Sc::zero();
+    ) -> (Sc, bool) {
+        let mut delta = ScoreSum::new();
         for handle in removed.iter().copied() {
-            if let Some(score) = self.scores.remove(handle) {
-                delta = delta - score;
+            if let Some(weight) = self.scores.remove(handle) {
+                delta.sub(weight);
             }
         }
         for handle in inserted.iter().copied() {
             let row = operator
                 .resolve(solution, handle)
                 .expect("inserted shared terminal row");
-            let score = self.signed(self.weight.score(solution, &row));
+            let weight = self.weight.score(solution, &row);
             assert!(
-                self.scores.insert(handle, score).is_none(),
+                self.scores.insert(handle, weight).is_none(),
                 "duplicate shared terminal delta"
             );
-            delta = delta + score;
+            delta.add(weight);
         }
-        delta
+        delta.into_parts_with(self.impact)
     }
 
     fn constraint_count(&self) -> usize {
@@ -250,7 +254,7 @@ where
     }
 
     fn score_for(&self, handle: RowHandle) -> Option<Sc> {
-        self.scores.get(handle).copied()
+        self.scores.get(handle).map(|weight| self.signed(*weight))
     }
 
     fn metadata(&self) -> Vec<ConstraintMetadata<'_>> {
@@ -306,8 +310,8 @@ where
         removed: &[RowHandle],
         inserted: &[RowHandle],
         multipliers: &[u32],
-    ) -> Sc {
-        scale_contribution(
+    ) -> (Sc, bool) {
+        scale_contribution_parts(
             self.apply_changes(operator, solution, removed, inserted),
             multipliers[0],
         )
@@ -369,14 +373,19 @@ where
         solution: &S,
         removed: &[RowHandle],
         inserted: &[RowHandle],
-    ) -> Sc {
-        self.0
-             .0
-            .apply_changes(operator, solution, removed, inserted)
-            + self
-                .0
+    ) -> (Sc, bool) {
+        let mut delta = ScoreSum::new();
+        delta.add_parts(
+            self.0
+                 .0
+                .apply_changes(operator, solution, removed, inserted),
+        );
+        delta.add_parts(
+            self.0
                  .1
-                .apply_changes(operator, solution, removed, inserted)
+                .apply_changes(operator, solution, removed, inserted),
+        );
+        delta.into_parts()
     }
     fn constraint_count(&self) -> usize {
         self.0 .0.constraint_count() + self.0 .1.constraint_count()
@@ -427,15 +436,20 @@ where
         removed: &[RowHandle],
         inserted: &[RowHandle],
         multipliers: &[u32],
-    ) -> Sc {
+    ) -> (Sc, bool) {
         let (left, right) = multipliers.split_at(self.0 .0.constraint_count());
-        self.0
-             .0
-            .apply_changes_weighted(operator, solution, removed, inserted, left)
-            + self
-                .0
+        let mut delta = ScoreSum::new();
+        delta.add_parts(
+            self.0
+                 .0
+                .apply_changes_weighted(operator, solution, removed, inserted, left),
+        );
+        delta.add_parts(
+            self.0
                  .1
-                .apply_changes_weighted(operator, solution, removed, inserted, right)
+                .apply_changes_weighted(operator, solution, removed, inserted, right),
+        );
+        delta.into_parts()
     }
     fn evaluate_each_weighted<'a>(
         &'a self,

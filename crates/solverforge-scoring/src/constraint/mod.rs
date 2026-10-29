@@ -19,6 +19,7 @@ mod incremental_markers;
 pub mod list_precedence;
 pub mod projected;
 pub mod relational;
+pub(crate) mod score_sum;
 pub mod shared;
 
 #[cfg(test)]

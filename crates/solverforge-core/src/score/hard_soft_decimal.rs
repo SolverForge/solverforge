@@ -80,8 +80,8 @@ impl HardSoftDecimalScore {
     #[inline]
     pub const fn of(hard: i64, soft: i64) -> Self {
         HardSoftDecimalScore {
-            hard: hard * SCALE,
-            soft: soft * SCALE,
+            hard: hard.strict_mul(SCALE),
+            soft: soft.strict_mul(SCALE),
         }
     }
 
@@ -104,10 +104,30 @@ impl HardSoftDecimalScore {
         HardSoftDecimalScore { hard, soft }
     }
 
+    /// Creates a hard-only score from an unscaled value.
+    ///
+    /// ```
+    /// use solverforge_core::HardSoftDecimalScore;
+    ///
+    /// const LIMIT: HardSoftDecimalScore = HardSoftDecimalScore::of_hard(-1_000_000_000);
+    /// assert_eq!(LIMIT.hard_scaled(), -100_000_000_000_000);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics when `hard * 100_000` overflows `i64`; in a `const` context the
+    /// overflow is a compile error:
+    ///
+    /// ```compile_fail
+    /// use solverforge_core::HardSoftDecimalScore;
+    ///
+    /// const LIMIT: HardSoftDecimalScore = HardSoftDecimalScore::of_hard(-100_000_000_000_000);
+    /// assert!(LIMIT.hard_scaled() < 0);
+    /// ```
     #[inline]
     pub const fn of_hard(hard: i64) -> Self {
         HardSoftDecimalScore {
-            hard: hard * SCALE,
+            hard: hard.strict_mul(SCALE),
             soft: 0,
         }
     }
@@ -116,21 +136,20 @@ impl HardSoftDecimalScore {
     pub const fn of_soft(soft: i64) -> Self {
         HardSoftDecimalScore {
             hard: 0,
-            soft: soft * SCALE,
+            soft: soft.strict_mul(SCALE),
         }
     }
 
-    /* Parses one level written in decimal units (`-12`, `3.25`, at most five
-    fractional digits) into its scaled value, with the same rules as
-    `ParseableScore::parse`.
-
-    ```
-    use solverforge_core::HardSoftDecimalScore;
-
-    assert_eq!(HardSoftDecimalScore::parse_level("-1.5"), Ok(-150_000));
-    assert!(HardSoftDecimalScore::parse_level("NaN").is_err());
-    ```
-    */
+    /// Parses one level written in decimal units (`-12`, `3.25`, at most five
+    /// fractional digits) into its scaled value, with the same rules as
+    /// `ParseableScore::parse`.
+    ///
+    /// ```
+    /// use solverforge_core::HardSoftDecimalScore;
+    ///
+    /// assert_eq!(HardSoftDecimalScore::parse_level("-1.5").unwrap(), -150_000);
+    /// assert!(HardSoftDecimalScore::parse_level("NaN").is_err());
+    /// ```
     pub fn parse_level(text: &str) -> Result<i64, ScoreParseError> {
         parse_fixed(text).map_err(|reason| ScoreParseError {
             message: format!("Invalid HardSoftDecimalScore level '{}': {}", text, reason),

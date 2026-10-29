@@ -131,35 +131,67 @@ impl fmt::Display for DynamicScore {
     }
 }
 
+impl DynamicScore {
+    /* Applies a checked level operation to every level; a level that does
+    not fit `i64` panics instead of wrapping, as with the core score types. */
+    #[inline]
+    #[track_caller]
+    fn levels(
+        self,
+        other: Self,
+        operation: &'static str,
+        level: impl Fn(i64, i64) -> Option<i64>,
+    ) -> Self {
+        match (
+            level(self.hard, other.hard),
+            level(self.medium, other.medium),
+            level(self.soft, other.soft),
+        ) {
+            (Some(hard), Some(medium), Some(soft)) => Self::of(hard, medium, soft),
+            _ => panic!("score {operation} overflows i64"),
+        }
+    }
+}
+
+/* Rounds `level * factor`, panicking for a non-finite factor or a result
+outside `i64` instead of letting an `as` cast saturate or map `NaN` to 0. */
+#[track_caller]
+fn float_level(level: i64, factor: f64) -> i64 {
+    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
+    if !factor.is_finite() {
+        panic!("a score cannot be multiplied by {factor}");
+    }
+    let rounded = (level as f64 * factor).round();
+    if !(-LIMIT..LIMIT).contains(&rounded) {
+        panic!("score multiplication overflows i64");
+    }
+    rounded as i64
+}
+
 impl Add for DynamicScore {
     type Output = Self;
 
+    #[track_caller]
     fn add(self, rhs: Self) -> Self::Output {
-        Self::of(
-            self.hard + rhs.hard,
-            self.medium + rhs.medium,
-            self.soft + rhs.soft,
-        )
+        self.levels(rhs, "addition", i64::checked_add)
     }
 }
 
 impl Sub for DynamicScore {
     type Output = Self;
 
+    #[track_caller]
     fn sub(self, rhs: Self) -> Self::Output {
-        Self::of(
-            self.hard - rhs.hard,
-            self.medium - rhs.medium,
-            self.soft - rhs.soft,
-        )
+        self.levels(rhs, "subtraction", i64::checked_sub)
     }
 }
 
 impl Neg for DynamicScore {
     type Output = Self;
 
+    #[track_caller]
     fn neg(self) -> Self::Output {
-        Self::of(-self.hard, -self.medium, -self.soft)
+        self.levels(self, "negation", |level, _| level.checked_neg())
     }
 }
 
@@ -194,15 +226,17 @@ impl Score for DynamicScore {
         }
     }
 
+    #[track_caller]
     fn multiply(&self, multiplicand: f64) -> Self {
-        Self::of(
-            (self.hard as f64 * multiplicand).round() as i64,
-            (self.medium as f64 * multiplicand).round() as i64,
-            (self.soft as f64 * multiplicand).round() as i64,
-        )
+        let level = |value: i64| float_level(value, multiplicand);
+        Self::of(level(self.hard), level(self.medium), level(self.soft))
     }
 
+    #[track_caller]
     fn divide(&self, divisor: f64) -> Self {
+        if divisor == 0.0 || !divisor.is_finite() {
+            panic!("a score cannot be divided by {divisor}");
+        }
         self.multiply(1.0 / divisor)
     }
 
@@ -214,8 +248,9 @@ impl Score for DynamicScore {
         Self::of(level(self.hard), level(self.medium), level(self.soft))
     }
 
+    #[track_caller]
     fn abs(&self) -> Self {
-        Self::of(self.hard.abs(), self.medium.abs(), self.soft.abs())
+        self.levels(*self, "absolute value", |level, _| level.checked_abs())
     }
 
     fn to_scalar(&self) -> f64 {

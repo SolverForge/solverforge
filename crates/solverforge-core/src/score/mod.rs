@@ -25,6 +25,9 @@ pub use hard_medium_soft::HardMediumSoftScore;
 pub use hard_soft::HardSoftScore;
 pub use hard_soft_decimal::HardSoftDecimalScore;
 pub use level::ScoreLevel;
-pub(crate) use scale::{scale_level, scale_overflow};
+pub(crate) use scale::{
+    add_level, arithmetic_overflow, float_level, float_overflow, neg_level, scale_level,
+    scale_overflow, sub_level, track_overflow,
+};
 pub use soft::SoftScore;
 pub use traits::{ParseableScore, Score, ScoreParseError};

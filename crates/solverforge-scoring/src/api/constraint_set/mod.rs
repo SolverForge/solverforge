@@ -1,5 +1,6 @@
 // Monomorphized constraint set for zero-erasure incremental scoring.
 
+mod blanket;
 mod chain;
 mod incremental;
 mod tuple;
@@ -13,4 +14,4 @@ pub use incremental::{
     ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
     IncrementalConstraintSealed,
 };
-pub(crate) use weighting::scale_contribution;
+pub(crate) use weighting::{scale_contribution, scale_contribution_parts};

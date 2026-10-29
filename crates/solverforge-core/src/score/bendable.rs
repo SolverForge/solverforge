@@ -139,28 +139,45 @@ impl<const H: usize, const S: usize> Score for BendableScore<H, S> {
         BendableScore { hard, soft }
     }
 
+    #[track_caller]
     fn multiply(&self, multiplicand: f64) -> Self {
-        let mut hard = [0; H];
-        let mut soft = [0; S];
-        for (i, item) in hard.iter_mut().enumerate().take(H) {
-            *item = (self.hard[i] as f64 * multiplicand).round() as i64;
+        let (product, overflow) = self.overflowing_multiply(multiplicand);
+        if overflow {
+            super::float_overflow(multiplicand);
         }
-        for (i, item) in soft.iter_mut().enumerate().take(S) {
-            *item = (self.soft[i] as f64 * multiplicand).round() as i64;
-        }
-        BendableScore { hard, soft }
+        product
     }
 
+    #[inline]
+    fn overflowing_multiply(&self, multiplicand: f64) -> (Self, bool) {
+        let mut overflow = !multiplicand.is_finite();
+        let product = BendableScore {
+            hard: self
+                .hard
+                .map(|level| super::float_level(level, multiplicand, &mut overflow)),
+            soft: self
+                .soft
+                .map(|level| super::float_level(level, multiplicand, &mut overflow)),
+        };
+        (product, overflow)
+    }
+
+    #[track_caller]
     fn divide(&self, divisor: f64) -> Self {
-        let mut hard = [0; H];
-        let mut soft = [0; S];
-        for (i, item) in hard.iter_mut().enumerate().take(H) {
-            *item = (self.hard[i] as f64 / divisor).round() as i64;
+        let factor = 1.0 / divisor;
+        let mut overflow = !divisor.is_finite() || divisor == 0.0;
+        let quotient = BendableScore {
+            hard: self
+                .hard
+                .map(|level| super::float_level(level, factor, &mut overflow)),
+            soft: self
+                .soft
+                .map(|level| super::float_level(level, factor, &mut overflow)),
+        };
+        if overflow {
+            super::float_overflow(divisor);
         }
-        for (i, item) in soft.iter_mut().enumerate().take(S) {
-            *item = (self.soft[i] as f64 / divisor).round() as i64;
-        }
-        BendableScore { hard, soft }
+        quotient
     }
 
     #[inline]
@@ -171,16 +188,39 @@ impl<const H: usize, const S: usize> Score for BendableScore<H, S> {
         }
     }
 
+    #[inline]
+    fn overflowing_scale(&self, factor: i64) -> (Self, bool) {
+        let mut overflow = false;
+        let mut scale =
+            |level: i64| super::track_overflow(level.overflowing_mul(factor), &mut overflow);
+        let hard = self.hard.map(&mut scale);
+        let soft = self.soft.map(&mut scale);
+        (BendableScore { hard, soft }, overflow)
+    }
+
+    #[track_caller]
     fn abs(&self) -> Self {
-        let mut hard = [0; H];
-        let mut soft = [0; S];
-        for (i, item) in hard.iter_mut().enumerate().take(H) {
-            *item = self.hard[i].abs();
-        }
-        for (i, item) in soft.iter_mut().enumerate().take(S) {
-            *item = self.soft[i].abs();
-        }
-        BendableScore { hard, soft }
+        Self::checked(
+            self.levels_overflowing(*self, |level, _, overflow| {
+                super::track_overflow(level.overflowing_abs(), overflow)
+            }),
+            "absolute value",
+        )
+    }
+
+    #[inline]
+    fn overflowing_add(self, other: Self) -> (Self, bool) {
+        self.levels_overflowing(other, super::add_level)
+    }
+
+    #[inline]
+    fn overflowing_sub(self, other: Self) -> (Self, bool) {
+        self.levels_overflowing(other, super::sub_level)
+    }
+
+    #[inline]
+    fn overflowing_neg(self) -> (Self, bool) {
+        self.levels_overflowing(self, |level, _, overflow| super::neg_level(level, overflow))
     }
 
     fn level_label(index: usize) -> ScoreLevel {
@@ -243,51 +283,65 @@ impl<const H: usize, const S: usize> PartialOrd for BendableScore<H, S> {
     }
 }
 
+impl<const H: usize, const S: usize> BendableScore<H, S> {
+    /* Applies `operation` level by level; it records an overflow in its last
+    argument (see `add_level`). */
+    #[inline]
+    fn levels_overflowing(
+        self,
+        other: Self,
+        operation: impl Fn(i64, i64, &mut bool) -> i64,
+    ) -> (Self, bool) {
+        let mut overflow = false;
+        let mut hard = [0; H];
+        for (slot, (left, right)) in hard.iter_mut().zip(self.hard.iter().zip(&other.hard)) {
+            *slot = operation(*left, *right, &mut overflow);
+        }
+        let mut soft = [0; S];
+        for (slot, (left, right)) in soft.iter_mut().zip(self.soft.iter().zip(&other.soft)) {
+            *slot = operation(*left, *right, &mut overflow);
+        }
+        (BendableScore { hard, soft }, overflow)
+    }
+
+    /* Panics once if the operation overflowed; see `arithmetic_overflow`. */
+    #[inline]
+    #[track_caller]
+    fn checked((score, overflow): (Self, bool), name: &'static str) -> Self {
+        if overflow {
+            super::arithmetic_overflow(name);
+        }
+        score
+    }
+}
+
 impl<const H: usize, const S: usize> Add for BendableScore<H, S> {
     type Output = Self;
 
+    #[inline]
+    #[track_caller]
     fn add(self, other: Self) -> Self {
-        let mut hard = [0; H];
-        let mut soft = [0; S];
-        for (i, item) in hard.iter_mut().enumerate().take(H) {
-            *item = self.hard[i] + other.hard[i];
-        }
-        for (i, item) in soft.iter_mut().enumerate().take(S) {
-            *item = self.soft[i] + other.soft[i];
-        }
-        BendableScore { hard, soft }
+        Self::checked(Score::overflowing_add(self, other), "addition")
     }
 }
 
 impl<const H: usize, const S: usize> Sub for BendableScore<H, S> {
     type Output = Self;
 
+    #[inline]
+    #[track_caller]
     fn sub(self, other: Self) -> Self {
-        let mut hard = [0; H];
-        let mut soft = [0; S];
-        for (i, item) in hard.iter_mut().enumerate().take(H) {
-            *item = self.hard[i] - other.hard[i];
-        }
-        for (i, item) in soft.iter_mut().enumerate().take(S) {
-            *item = self.soft[i] - other.soft[i];
-        }
-        BendableScore { hard, soft }
+        Self::checked(Score::overflowing_sub(self, other), "subtraction")
     }
 }
 
 impl<const H: usize, const S: usize> Neg for BendableScore<H, S> {
     type Output = Self;
 
+    #[inline]
+    #[track_caller]
     fn neg(self) -> Self {
-        let mut hard = [0; H];
-        let mut soft = [0; S];
-        for (i, item) in hard.iter_mut().enumerate().take(H) {
-            *item = -self.hard[i];
-        }
-        for (i, item) in soft.iter_mut().enumerate().take(S) {
-            *item = -self.soft[i];
-        }
-        BendableScore { hard, soft }
+        Self::checked(Score::overflowing_neg(self), "negation")
     }
 }
 

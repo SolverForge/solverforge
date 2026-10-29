@@ -129,9 +129,9 @@ macro_rules! impl_constraint_set_for_tuple {
         {
             #[inline]
             fn evaluate_all(&self, solution: &S) -> Sc {
-                let mut total = Sc::zero();
-                $(total = total + self.$idx.evaluate_all(solution);)+
-                total
+                let mut total = $crate::constraint::score_sum::ScoreSum::new();
+                $(total.add(self.$idx.evaluate_all(solution));)+
+                total.finish()
             }
 
             #[inline]
@@ -163,23 +163,51 @@ macro_rules! impl_constraint_set_for_tuple {
 
             #[inline]
             fn initialize_all(&mut self, solution: &S) -> Sc {
-                let mut total = Sc::zero();
-                $(total = total + self.$idx.initialize_all(solution);)+
-                total
+                let mut total = $crate::constraint::score_sum::ScoreSum::new();
+                $(total.add(self.$idx.initialize_all(solution));)+
+                total.finish()
             }
 
             #[inline]
             fn on_insert_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-                let mut total = Sc::zero();
-                $(total = total + self.$idx.on_insert_all(solution, entity_index, descriptor_index);)+
-                total
+                $crate::constraint::score_sum::checked(
+                    self.on_insert_all_overflowing(solution, entity_index, descriptor_index),
+                )
+            }
+
+            #[inline]
+            fn on_insert_all_overflowing(
+                &mut self,
+                solution: &S,
+                entity_index: usize,
+                descriptor_index: usize,
+            ) -> (Sc, bool) {
+                let mut total = $crate::constraint::score_sum::ScoreSum::new();
+                $(total.add_parts(
+                    self.$idx.on_insert_all_overflowing(solution, entity_index, descriptor_index),
+                );)+
+                total.into_parts()
             }
 
             #[inline]
             fn on_retract_all(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
-                let mut total = Sc::zero();
-                $(total = total + self.$idx.on_retract_all(solution, entity_index, descriptor_index);)+
-                total
+                $crate::constraint::score_sum::checked(
+                    self.on_retract_all_overflowing(solution, entity_index, descriptor_index),
+                )
+            }
+
+            #[inline]
+            fn on_retract_all_overflowing(
+                &mut self,
+                solution: &S,
+                entity_index: usize,
+                descriptor_index: usize,
+            ) -> (Sc, bool) {
+                let mut total = $crate::constraint::score_sum::ScoreSum::new();
+                $(total.add_parts(
+                    self.$idx.on_retract_all_overflowing(solution, entity_index, descriptor_index),
+                );)+
+                total.into_parts()
             }
 
             #[inline]
@@ -249,14 +277,34 @@ macro_rules! impl_constraint_set_for_tuple {
                 descriptor_index: usize,
                 multipliers: &[u32],
             ) -> Sc {
+                $crate::constraint::score_sum::checked(self.on_insert_all_weighted_overflowing(
+                    solution,
+                    entity_index,
+                    descriptor_index,
+                    multipliers,
+                ))
+            }
+
+            #[inline]
+            fn on_insert_all_weighted_overflowing(
+                &mut self,
+                solution: &S,
+                entity_index: usize,
+                descriptor_index: usize,
+                multipliers: &[u32],
+            ) -> (Sc, bool) {
                 let mut slots = multipliers;
-                let mut total = Sc::zero();
+                let mut total = $crate::constraint::score_sum::ScoreSum::new();
                 $(
                     let child = take_slots(&mut slots, self.$idx.constraint_count());
-                    total = total
-                        + self.$idx.on_insert_all_weighted(solution, entity_index, descriptor_index, child);
+                    total.add_parts(self.$idx.on_insert_all_weighted_overflowing(
+                        solution,
+                        entity_index,
+                        descriptor_index,
+                        child,
+                    ));
                 )+
-                total
+                total.into_parts()
             }
 
             #[inline]
@@ -267,14 +315,34 @@ macro_rules! impl_constraint_set_for_tuple {
                 descriptor_index: usize,
                 multipliers: &[u32],
             ) -> Sc {
+                $crate::constraint::score_sum::checked(self.on_retract_all_weighted_overflowing(
+                    solution,
+                    entity_index,
+                    descriptor_index,
+                    multipliers,
+                ))
+            }
+
+            #[inline]
+            fn on_retract_all_weighted_overflowing(
+                &mut self,
+                solution: &S,
+                entity_index: usize,
+                descriptor_index: usize,
+                multipliers: &[u32],
+            ) -> (Sc, bool) {
                 let mut slots = multipliers;
-                let mut total = Sc::zero();
+                let mut total = $crate::constraint::score_sum::ScoreSum::new();
                 $(
                     let child = take_slots(&mut slots, self.$idx.constraint_count());
-                    total = total
-                        + self.$idx.on_retract_all_weighted(solution, entity_index, descriptor_index, child);
+                    total.add_parts(self.$idx.on_retract_all_weighted_overflowing(
+                        solution,
+                        entity_index,
+                        descriptor_index,
+                        child,
+                    ));
                 )+
-                total
+                total.into_parts()
             }
         }
     };

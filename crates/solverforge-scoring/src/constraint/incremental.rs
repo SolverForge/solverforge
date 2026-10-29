@@ -3,6 +3,7 @@
 All closure types are concrete generics - no Arc, no dyn, fully monomorphized.
 */
 
+use crate::constraint::score_sum::checked;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -76,11 +77,20 @@ where
     }
 
     #[inline]
-    fn reverse_delta(&self, entity: &A) -> Sc {
+    fn compute_delta_overflowing(&self, entity: &A) -> (Sc, bool) {
         let base = (self.weight)(entity);
         match self.impact_type {
-            ImpactType::Penalty => base,
-            ImpactType::Reward => -base,
+            ImpactType::Penalty => base.overflowing_neg(),
+            ImpactType::Reward => (base, false),
+        }
+    }
+
+    #[inline]
+    fn reverse_delta_overflowing(&self, entity: &A) -> (Sc, bool) {
+        let base = (self.weight)(entity);
+        match self.impact_type {
+            ImpactType::Penalty => (base, false),
+            ImpactType::Reward => base.overflowing_neg(),
         }
     }
 }
@@ -118,40 +128,58 @@ where
     }
 
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        checked(self.on_insert_overflowing(solution, entity_index, descriptor_index))
+    }
+
+    fn on_insert_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+    ) -> (Sc, bool) {
         if !self
             .change_source
             .assert_localizes(descriptor_index, &self.constraint_ref.name)
         {
-            return Sc::zero();
+            return (Sc::zero(), false);
         }
         let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
-            return Sc::zero();
+            return (Sc::zero(), false);
         }
         let entity = &entities[entity_index];
         if self.matches(solution, entity) {
-            self.compute_delta(entity)
+            self.compute_delta_overflowing(entity)
         } else {
-            Sc::zero()
+            (Sc::zero(), false)
         }
     }
 
     fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc {
+        checked(self.on_retract_overflowing(solution, entity_index, descriptor_index))
+    }
+
+    fn on_retract_overflowing(
+        &mut self,
+        solution: &S,
+        entity_index: usize,
+        descriptor_index: usize,
+    ) -> (Sc, bool) {
         if !self
             .change_source
             .assert_localizes(descriptor_index, &self.constraint_ref.name)
         {
-            return Sc::zero();
+            return (Sc::zero(), false);
         }
         let entities = self.extractor.extract(solution);
         if entity_index >= entities.len() {
-            return Sc::zero();
+            return (Sc::zero(), false);
         }
         let entity = &entities[entity_index];
         if self.matches(solution, entity) {
-            self.reverse_delta(entity)
+            self.reverse_delta_overflowing(entity)
         } else {
-            Sc::zero()
+            (Sc::zero(), false)
         }
     }
 

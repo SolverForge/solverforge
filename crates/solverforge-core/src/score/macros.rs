@@ -21,27 +21,47 @@ macro_rules! impl_score_ops {
             }
         }
 
+        // Every level computes unconditionally and one branch checks them
+        // all; an overflow panics in every build profile instead of wrapping.
         impl std::ops::Add for $type {
             type Output = Self;
 
+            #[inline]
+            #[track_caller]
             fn add(self, other: Self) -> Self {
-                $type::$ctor( $(self.$field + other.$field),+ )
+                let (sum, overflow) = $crate::score::Score::overflowing_add(self, other);
+                if overflow {
+                    $crate::score::arithmetic_overflow("addition");
+                }
+                sum
             }
         }
 
         impl std::ops::Sub for $type {
             type Output = Self;
 
+            #[inline]
+            #[track_caller]
             fn sub(self, other: Self) -> Self {
-                $type::$ctor( $(self.$field - other.$field),+ )
+                let (difference, overflow) = $crate::score::Score::overflowing_sub(self, other);
+                if overflow {
+                    $crate::score::arithmetic_overflow("subtraction");
+                }
+                difference
             }
         }
 
         impl std::ops::Neg for $type {
             type Output = Self;
 
+            #[inline]
+            #[track_caller]
             fn neg(self) -> Self {
-                $type::$ctor( $(-self.$field),+ )
+                let (negated, overflow) = $crate::score::Score::overflowing_neg(self);
+                if overflow {
+                    $crate::score::arithmetic_overflow("negation");
+                }
+                negated
             }
         }
     };
@@ -58,31 +78,81 @@ Produces four method bodies that operate field-by-field.
 */
 macro_rules! impl_score_scale {
     ($type:ident { $($field:ident),+ } => $ctor:ident) => {
+        #[inline]
+        #[track_caller]
         fn multiply(&self, multiplicand: f64) -> Self {
-            $type::$ctor( $( (self.$field as f64 * multiplicand).round() as i64 ),+ )
+            let (product, overflow) = self.overflowing_multiply(multiplicand);
+            if overflow {
+                $crate::score::float_overflow(multiplicand);
+            }
+            product
         }
 
+        #[inline]
+        fn overflowing_multiply(&self, multiplicand: f64) -> (Self, bool) {
+            let mut overflow = !multiplicand.is_finite();
+            let product = $type::$ctor( $( $crate::score::float_level(self.$field, multiplicand, &mut overflow) ),+ );
+            (product, overflow)
+        }
+
+        #[inline]
+        #[track_caller]
         fn divide(&self, divisor: f64) -> Self {
-            $type::$ctor( $( (self.$field as f64 / divisor).round() as i64 ),+ )
+            let factor = 1.0 / divisor;
+            let mut overflow = !divisor.is_finite() || divisor == 0.0;
+            let quotient = $type::$ctor( $( $crate::score::float_level(self.$field, factor, &mut overflow) ),+ );
+            if overflow {
+                $crate::score::float_overflow(divisor);
+            }
+            quotient
         }
 
         #[inline]
         fn scale(&self, factor: i64) -> Self {
             // Every level multiplies unconditionally and one branch checks them all.
-            let mut overflow = false;
-            let scaled = $type::$ctor( $( {
-                let (level, wrapped) = self.$field.overflowing_mul(factor);
-                overflow |= wrapped;
-                level
-            } ),+ );
+            let (scaled, overflow) = self.overflowing_scale(factor);
             if overflow {
                 $crate::score::scale_overflow(factor);
             }
             scaled
         }
 
+        #[inline]
+        fn overflowing_scale(&self, factor: i64) -> (Self, bool) {
+            let mut overflow = false;
+            let scaled = $type::$ctor( $( $crate::score::track_overflow(self.$field.overflowing_mul(factor), &mut overflow) ),+ );
+            (scaled, overflow)
+        }
+
+        #[inline]
+        fn overflowing_add(self, other: Self) -> (Self, bool) {
+            let mut overflow = false;
+            let sum = $type::$ctor( $( $crate::score::add_level(self.$field, other.$field, &mut overflow) ),+ );
+            (sum, overflow)
+        }
+
+        #[inline]
+        fn overflowing_sub(self, other: Self) -> (Self, bool) {
+            let mut overflow = false;
+            let difference = $type::$ctor( $( $crate::score::sub_level(self.$field, other.$field, &mut overflow) ),+ );
+            (difference, overflow)
+        }
+
+        #[inline]
+        fn overflowing_neg(self) -> (Self, bool) {
+            let mut overflow = false;
+            let negated = $type::$ctor( $( $crate::score::neg_level(self.$field, &mut overflow) ),+ );
+            (negated, overflow)
+        }
+
+        #[track_caller]
         fn abs(&self) -> Self {
-            $type::$ctor( $( self.$field.abs() ),+ )
+            let mut overflow = false;
+            let absolute = $type::$ctor( $( $crate::score::track_overflow(self.$field.overflowing_abs(), &mut overflow) ),+ );
+            if overflow {
+                $crate::score::arithmetic_overflow("absolute value");
+            }
+            absolute
         }
     };
 }

@@ -118,10 +118,13 @@ Additionally, `pub mod constraint`, `pub mod constraint_weights`, `pub mod domai
 | `level_number` | `fn level_number(&self, index: usize) -> i64` | Required allocation-free per-level accessor |
 | `to_level_numbers` | `fn to_level_numbers(&self) -> Vec<i64>` | Defaulted allocating vector view, high-priority first |
 | `from_level_numbers` | `fn from_level_numbers(levels: &[i64]) -> Self` | Panics on wrong count |
-| `multiply` | `fn multiply(&self, multiplicand: f64) -> Self` | Scalar multiply |
-| `divide` | `fn divide(&self, divisor: f64) -> Self` | Scalar divide |
+| `multiply` | `fn multiply(&self, multiplicand: f64) -> Self` | Scalar multiply, rounded; panics for a non-finite factor or a level outside `i64` |
+| `divide` | `fn divide(&self, divisor: f64) -> Self` | Scalar divide, rounded; panics for a zero or non-finite divisor or a level outside `i64` |
 | `scale` | `fn scale(&self, factor: i64) -> Self` | Required exact integer multiply of every level; panics on `i64` overflow in every profile |
-| `abs` | `fn abs(&self) -> Self` | Absolute value |
+| `abs` | `fn abs(&self) -> Self` | Absolute value; panics for an `i64::MIN` level |
+| `overflowing_add` / `overflowing_sub` / `overflowing_neg` | `fn overflowing_add(self, other: Self) -> (Self, bool)` (and the analogous `sub`/`neg`) | Wrapping result plus a flag set when any level overflowed; lets a caller sum a batch and check once. Default delegates to `Add`/`Sub`/`Neg` with flag `false` |
+| `overflowing_scale` | `fn overflowing_scale(&self, factor: i64) -> (Self, bool)` | `scale` without panicking; default delegates to `scale` |
+| `overflowing_multiply` | `fn overflowing_multiply(&self, multiplicand: f64) -> (Self, bool)` | `multiply` without panicking; flag also set for a non-finite multiplicand; default delegates to `multiply` |
 | `to_scalar` | `fn to_scalar(&self) -> f64` | Weighted single f64 for SA temperature |
 | `level_label` | `fn level_label(index: usize) -> ScoreLevel` | Semantic label per level |
 | `compare` | `fn compare(&self, other: &Self) -> Ordering` | Default: `self.cmp(other)` |
@@ -131,6 +134,8 @@ Additionally, `pub mod constraint`, `pub mod constraint_weights`, `pub mod domai
 | `one_hard` | `fn one_hard() -> Self` | Score with 1 at first Hard level, 0 elsewhere |
 | `one_soft` | `fn one_soft() -> Self` | Score with 1 at last Soft level, 0 elsewhere |
 | `one_medium` | `fn one_medium() -> Self` | Score with 1 at first Medium level, 0 elsewhere |
+
+**Overflow contract:** score arithmetic never wraps. On every built-in score type, `Add`, `Sub`, `Neg`, `abs`, `scale`, `multiply` and `divide` panic in every build profile (`score addition overflows i64`, ...) when a level does not fit `i64`, and `HardSoftDecimalScore::of` / `of_hard` / `of_soft` panic when the unscaled value times 100,000 overflows (a compile error in a `const` context). A wrapped level would flip sign and turn a penalty into a reward; saturating would break the `a + d - d == a` identity incremental scoring relies on.
 
 ### `ParseableScore`
 

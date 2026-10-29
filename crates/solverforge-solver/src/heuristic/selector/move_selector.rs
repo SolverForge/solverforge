@@ -20,6 +20,8 @@ use super::value_selector::{StaticValueSelector, ValueSelector};
 mod scalar_union;
 
 include!("move_selector/borrowed.rs");
+include!("move_selector/unit_resource.rs");
+include!("move_selector/arena.rs");
 include!("move_selector/iter.rs");
 include!("move_selector/change.rs");
 include!("move_selector/swap.rs");

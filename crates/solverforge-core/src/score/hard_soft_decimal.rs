@@ -224,44 +224,95 @@ impl fmt::Debug for HardSoftDecimalScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "HardSoftDecimalScore({:.3}, {:.3})",
-            self.hard as f64 / SCALE as f64,
-            self.soft as f64 / SCALE as f64
+            "HardSoftDecimalScore({}, {})",
+            Fixed(self.hard),
+            Fixed(self.soft)
         )
     }
 }
 
 impl fmt::Display for HardSoftDecimalScore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn format_score_part(scaled: i64) -> String {
-            if scaled % SCALE == 0 {
-                // Integer value, no decimals needed
-                (scaled / SCALE).to_string()
-            } else {
-                // Has decimal part - format with precision and strip trailing zeros
-                let value = scaled as f64 / SCALE as f64;
-                let formatted = format!("{:.6}", value);
-                formatted
-                    .trim_end_matches('0')
-                    .trim_end_matches('.')
-                    .to_string()
-            }
-        }
-        write!(
-            f,
-            "{}hard/{}soft",
-            format_score_part(self.hard),
-            format_score_part(self.soft)
-        )
+        write!(f, "{}hard/{}soft", Fixed(self.hard), Fixed(self.soft))
     }
 }
 
-// HardSoftDecimalScore has custom parse logic (f64 parsing with scaling) so no macro.
+/* One scaled level written as an exact decimal: the integer part, then up to
+five fractional digits with trailing zeros trimmed. Integer arithmetic only,
+so every `i64` (including `i64::MIN`) prints exactly and parses back to itself.
+*/
+struct Fixed(i64);
+
+impl fmt::Display for Fixed {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let magnitude = self.0.unsigned_abs();
+        let scale = SCALE as u64;
+        let sign = if self.0 < 0 { "-" } else { "" };
+        let (whole, mut fraction) = (magnitude / scale, magnitude % scale);
+        if fraction == 0 {
+            return write!(f, "{sign}{whole}");
+        }
+        let mut digits = FRACTION_DIGITS;
+        while fraction % 10 == 0 {
+            fraction /= 10;
+            digits -= 1;
+        }
+        write!(f, "{sign}{whole}.{fraction:0digits$}")
+    }
+}
+
+/// Number of fractional decimal digits a scaled level holds.
+const FRACTION_DIGITS: usize = 5;
+
+/* Parses one level written as `[-+]?digits(.digits)?` with at most five
+fractional digits into its scaled value, rejecting anything outside `i64`
+after scaling. `NaN`, infinities and exponents are not decimals and fail.
+*/
+fn parse_fixed(text: &str) -> Result<i64, String> {
+    let (negative, unsigned) = match text.as_bytes().first() {
+        Some(b'-') => (true, &text[1..]),
+        Some(b'+') => (false, &text[1..]),
+        _ => (false, text),
+    };
+    let (whole, fraction) = match unsigned.split_once('.') {
+        Some((whole, fraction)) => (whole, Some(fraction)),
+        None => (unsigned, None),
+    };
+    let is_digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+    if !is_digits(whole) || fraction.is_some_and(|fraction| !is_digits(fraction)) {
+        return Err("expected a decimal number such as -12 or 3.25".to_string());
+    }
+    let fraction = fraction.unwrap_or("");
+    if fraction.len() > FRACTION_DIGITS {
+        return Err(format!(
+            "at most {FRACTION_DIGITS} decimal places are representable"
+        ));
+    }
+    let out_of_range = || "out of range for a HardSoftDecimalScore level".to_string();
+    // The magnitude of `i64::MIN` exceeds `i64::MAX`, so accumulate in i128.
+    let mut scaled: i128 = 0;
+    for digit in whole.bytes().chain(fraction.bytes()) {
+        scaled = scaled
+            .checked_mul(10)
+            .and_then(|value| value.checked_add(i128::from(digit - b'0')))
+            .filter(|value| *value <= i128::from(i64::MAX) + 1)
+            .ok_or_else(out_of_range)?;
+    }
+    for _ in fraction.len()..FRACTION_DIGITS {
+        scaled = scaled
+            .checked_mul(10)
+            .filter(|value| *value <= i128::from(i64::MAX) + 1)
+            .ok_or_else(out_of_range)?;
+    }
+    let scaled = if negative { -scaled } else { scaled };
+    i64::try_from(scaled).map_err(|_| out_of_range())
+}
+
 impl ParseableScore for HardSoftDecimalScore {
     fn parse(s: &str) -> Result<Self, ScoreParseError> {
         let s = s.trim();
 
-        // Format: "0.000hard/-100.500soft" or "-1hard/0soft"
+        // Format: "0.5hard/-100.25soft" or "-1hard/0soft"
         let parts: Vec<&str> = s.split('/').collect();
         if parts.len() != 2 {
             return Err(ScoreParseError {
@@ -286,17 +337,12 @@ impl ParseableScore for HardSoftDecimalScore {
                 message: format!("Soft score part '{}' must end with 'soft'", parts[1]),
             })?;
 
-        let hard_float = hard_str.parse::<f64>().map_err(|e| ScoreParseError {
-            message: format!("Invalid hard score '{}': {}", hard_str, e),
+        let hard = parse_fixed(hard_str).map_err(|reason| ScoreParseError {
+            message: format!("Invalid hard score '{}': {}", hard_str, reason),
         })?;
-
-        let soft_float = soft_str.parse::<f64>().map_err(|e| ScoreParseError {
-            message: format!("Invalid soft score '{}': {}", soft_str, e),
+        let soft = parse_fixed(soft_str).map_err(|reason| ScoreParseError {
+            message: format!("Invalid soft score '{}': {}", soft_str, reason),
         })?;
-
-        // Convert to scaled integers
-        let hard = (hard_float * SCALE as f64).round() as i64;
-        let soft = (soft_float * SCALE as f64).round() as i64;
 
         Ok(HardSoftDecimalScore::of_scaled(hard, soft))
     }

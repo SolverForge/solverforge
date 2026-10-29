@@ -781,7 +781,7 @@ Three declarative macros reduce boilerplate for score types:
 
 ### HardSoftDecimalScore Scaling
 
-Internal values are stored multiplied by 100,000 (`SCALE` constant). `of()` auto-scales; `of_scaled()` takes pre-scaled values. Display strips trailing zeros.
+Internal values are stored multiplied by 100,000 (`SCALE` constant). `of()` auto-scales; `of_scaled()` takes pre-scaled values. Text conversions use integer arithmetic only: `Display` and `Debug` print each level exactly (at most five fractional digits, trailing zeros trimmed, `i64::MIN` included), and `parse` accepts `[-+]?digits(.digits)?` with at most five fractional digits per level, rejecting `NaN`, infinities, exponents, extra decimals and values outside `i64` after scaling. Every value round-trips through `Display` and `parse`.
 
 ### BendableScore Const Generics
 

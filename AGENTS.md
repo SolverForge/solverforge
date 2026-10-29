@@ -126,8 +126,10 @@ When public surface changes, update the matching wireframe in the same change:
 5. Document public surface and usage only, not implementation detail.
 
 `make doc-names` (also run by the CI Docs job) fails when a wireframe or a
-`docs/` guide lists a CamelCase type, trait or variant name that no longer
-exists in `crates/*/src`.
+`docs/` guide names, in inline code, a type or function that no longer exists
+in `crates/*/src`; when a wireframe file map lists a missing file; and when a
+wireframe leaves out an item of its crate's `public-api.txt`. Example code
+belongs in fenced blocks, which the check skips.
 
 `make public-api` (in `make lint`, `make pre-release` and the CI Docs job)
 fails when the rustdoc-visible API of `solverforge-core`, `solverforge-scoring`

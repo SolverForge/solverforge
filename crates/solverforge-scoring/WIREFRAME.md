@@ -116,6 +116,29 @@ migration of the fluent stream families:
   conditions; the residual preserves the complete authored relationship.
 - `stream::joiner::pair_row(a, a_index, b, b_index)` constructs the
   existing `Concat<Leaf<A>, B>` view using semantic indexes.
+- Key shape: the first join of a stream takes entity keys
+  (`equal_bi(|a: &A| .., |b: &B| ..)`); every later join takes view keys,
+  through the `_on` joiners: `equal_on(left, right)`,
+  `less_than_on`, `less_than_or_equal_on`, `greater_than_on`,
+  `greater_than_or_equal_on`, `overlap_on(left_start, left_end, right_start,
+  right_end)` and `filtering_on(predicate)`. The left key reads the whole
+  borrowed prior row (`&Pair<Leaf<'_, A>, Leaf<'_, B>>`), the right key a
+  `&Leaf<'_, C>` (read `.entity`). `equal_raw(left, right)` builds a directed
+  `EqualJoiner` from two raw closures without lifting them onto views.
+- `stream::relational::view_plan` names the key adapters equality plans run
+  on: `ViewKey<V>` reads a key out of a view; `EntityKey<F>` lifts an entity
+  key onto a leaf view, `ChildKey<F>` onto a flattened child view; `PairKey<A, B>`
+  pairs two keys over one view; `FlattenedPairKey<KB, CK>` pairs the owning
+  entity's key with the flattened child's key; `GroupKey` reads a grouped row's
+  own key; and `ViewEqualPlan` is the typed hash-equality plan
+  over two named view keys.
+- `stream::relational::operator::FilterPredicate<S, V>` is the named predicate
+  `FilterNode` evaluates; `FlattenSource<S, O>` names a flatten extractor over
+  an operator view, and `ParentFlatten<Inner>` adapts an entity-level child
+  extractor to it.
+- `stream::cross::QuadBuilder` and `stream::cross::PentaBuilder` are the
+  `penalize`/`reward` builders of the cross `Quad` and `Penta` streams;
+  `named()` finalizes them into `OperatorTerminal`.
 
 New file map: `stream/relational/operator.rs`,
 `stream/relational/operator/{analysis,collection,complement,complement_view,
@@ -180,18 +203,11 @@ src/
 │   │   ├── operator_scorer.rs                      — OperatorScorer, OperatorScorerSet, ScorerChain, and RowWeight/AdaptWeight adapters
 │   │   ├── shared_terminal.rs                      — SharedOperatorTerminal/Builder and chained terminal sharing
 │   │   └── grouped_weights.rs                      — Group/direct-complement/optional-complement weight adapters
-│   ├── flattened_bi.rs                             — FlattenedBiConstraint module root and re-exports
-│   ├── flattened_bi/*.rs                           — Retained flattened-bi state, incremental callbacks, and debug accessors
-│   ├── exists.rs                                   — IncrementalExistsConstraint<S,A,P,B,K,EA,EP,KA,KB,FA,FP,Flatten,W,Sc>, SelfFlatten
-│   ├── exists/
-│   │   └── key_state.rs                            — Internal hashed/indexed key bookkeeping for existence constraints
 │   ├── projected.rs                                — Projected retained scoring-row constraint module root and re-exports
 │   ├── projected/uni.rs                            — projected::Uni terminal constraint for retained projected rows
 │   ├── projected/bi.rs                             — projected::Bi retained symmetric projected self-join constraint
 │   ├── projected/directed_bi.rs                    — projected::DirectedBi retained directed projected self-join state
 │   ├── projected/directed_bi_incremental.rs        — IncrementalConstraint callbacks for directed projected self-joins
-│   ├── projected/grouped.rs                        — projected::Grouped fluent builder over the shared terminal
-│   ├── projected/complemented_grouped.rs           — projected::ComplementedGrouped fluent builder over ComplementNode
 │   └── tests/
 │       ├── mod.rs                                  — Test module declarations
 │       ├── cross_bi_incr.rs                        — Fluent cross-bi join tests on the generic operator terminal
@@ -204,12 +220,15 @@ src/
 │       ├── grouped.rs                              — Grouped stream and shared terminal tests
 │       ├── balance.rs                              — BalanceConstraint tests
 │       ├── complemented.rs                         — Fluent complemented grouped tests
-│       ├── flattened_bi.rs                         — FlattenedBiConstraint tests
-│       ├── exists.rs                               — IncrementalExistsConstraint update tests
-│       ├── exists_storage.rs                       — Existence storage selection and parity tests
+│       ├── flattened_bi.rs                         — Flattened-bi stream tests on the operator terminal
+│       ├── exists.rs                               — Existence stream update tests over ExistenceNode
+│       ├── exists_descriptor_updates.rs            — Existence parent-side updates matching full evaluation
+│       ├── cross_grouped.rs                        — Cross-join grouped stream tests
+│       ├── cross_complemented_grouped.rs           — Cross-join complemented grouped stream tests
+│       ├── cross_tri_stream_chain.rs               — Cross tri stream chain tests
+│       ├── overflow.rs                             — Score overflow detection in incremental deltas
 │       ├── projected.rs                            — Projected constraint test module root
 │       ├── projected/*.rs                          — Projected support fixtures, localization, update, grouping, merge, and self-join tests
-│       ├── repro_unknown.rs                        — Regression fixture coverage for unknown-source behavior
 │       └── weights/*.rs                            — Constraint weight multipliers {0,1,3} on every family: incremental vs full vs analysis oracle, shared terminals, ordered chains, duplicate names, reset rebinding
 ├── director/
 │   ├── mod.rs                                      — Re-exports all director types and traits
@@ -307,7 +326,7 @@ src/
 │   ├── joiner/
 │   │   ├── mod.rs                                  — Re-exports all joiner types and functions
 │   │   ├── equal.rs                                — EqualJoiner, Symmetric/Directed mode markers, equal(), equal_bi() functions
-│   │   ├── comparison.rs                           — LessThan/GreaterThan joiners and factory functions
+│   │   ├── comparison.rs                           — LessThanJoiner/LessThanOrEqualJoiner/GreaterThanJoiner/GreaterThanOrEqualJoiner and factory functions
 │   │   ├── filtering.rs                            — FilteringJoiner and filtering() function
 │   │   ├── overlapping.rs                          — OverlappingJoiner and overlapping() function
 │   │   └── match_condition.rs                      — Joiner trait, AndJoiner, FnJoiner
@@ -648,44 +667,39 @@ plus collector result independently.
 
 **`constraint::projected::DirectedBi<S, Out, K, Src, F, KL, KR, PF, W, Sc>`** — Directed self-join constraint over retained projected rows with distinct left and right key extractors. It is produced by `stream::projected::Stream::join(equal_bi(left_key, right_key))`, evaluates oriented pairs where the left key equals the right key, and skips only the same retained row.
 
-**`constraint::projected::Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>`** where `C: Collector<&Out>` — Grouped retained projected rows.
+Projected grouped constraints (`stream::projected::GroupedBuilder::named()`)
+finalize into `SharedOperatorTerminal` over `GroupNode` + `SourceNode`. The
+common operators own projected rows, owner indexes, retraction tokens, and
+group accumulators; chained terminals share one group owner and stay
+independently scored. Projected grouped rows complemented against a second
+collection (`stream::projected::ComplementedGroupedBuilder::named()`, including
+`join(...).project(...).group_by(...).complement(...)` chains) finalize into
+`SharedOperatorTerminal` over `ComplementNode(CollectionNode, GroupNode)`;
+complement targets keep default rows until matched and each terminal scores
+independently.
 
-Projected grouped constraints finalize into `SharedOperatorTerminal` over
-`GroupNode` + `SourceNode`. The common operators own projected rows, owner
-indexes, retraction tokens, and group accumulators; chained terminals share one
-group owner and stay independently scored.
-
-**`constraint::projected::ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>`** where `C: Collector<&Out>` — Projected grouped rows complemented against a second collection, including `join(...).project(...).group_by(...).complement(...)` chains. It finalizes into `SharedOperatorTerminal` over `ComplementNode(CollectionNode, GroupNode)`; complement targets keep default rows until matched and each terminal scores independently.
-
-**`FlattenedBiConstraint<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc>`** — Cross-collection with nested collection flattening. Filters receive the A source index and the owning B source index for each flattened C row.
-
-**`IncrementalExistsConstraint<S, A, P, B, K, EA, EP, KA, KB, FA, FP, Flatten, W, Sc>`** — Existence/non-existence check over a source-aware direct or flattened collection source. The constraint owns one scoring algorithm and delegates only key bookkeeping to an internal `ExistsKeyState`: exact `usize` keys use indexed `Vec` storage, while all other key types use hashed storage.
+Flattened bi streams finalize into `OperatorTerminal` over `FlattenedBiScored`;
+filters receive the A source index and the owning B source index for each
+flattened C row. Existence streams finalize into `OperatorTerminal` over
+`ExistenceNode`, the pure-key, count-backed semi/anti join; conditions with a
+residual predicate use `JoinerExistenceNode` in hand-built operator trees.
 
 **`ExistenceMode`** — `enum { Exists, NotExists }`
 
-#### Shared grouped-state support
+#### Shared grouped terminals
 
-The grouped compiler surface deliberately exposes concrete retained-state and
-builder carriers so `#[solverforge_constraints]` can append terminals without
-erasing types. Unary sharing returns `GroupedConstraintSetBuilder`; direct
-cross and projected sharing return their module-specific `GroupedSetBuilder`;
-complemented direct/projected sharing returns
-`ComplementedGroupedSetBuilder`. The corresponding immutable analysis views
-are module-specific `GroupedEvaluationState` and
-`ComplementedGroupedEvaluationState` values.
-
-`GroupedStateView<K, R>` / `ComplementedGroupedStateView<K, R>` expose retained
-group results to scorers. `GroupedScorerSet<K, R, Sc>` /
-`ComplementedGroupedScorerSet<K, R, Sc>` are the concrete tuple-scorer
-dispatch contracts, and `ComplementedGroupedTerminalScorer` is the module-local
-alias of the common grouped terminal scorer. These support symbols are
-module-level compiler bridges (several are `#[doc(hidden)]`); they are not
-crate-root modeling APIs and do not introduce runtime node caches.
-
-Shared grouped node states expose `update_count()`, `changed_key_count()`, and
-`evaluation_state()` for compiler diagnostics. `GroupedTerminalScorer` exposes
-`refresh_all()`, `refresh_changed()`, and `refresh_count()` for the concrete
-shared-set dispatch path.
+`#[solverforge_constraints]` appends several terminals to one grouped node
+without erasing types. Every grouped family (`GroupedConstraintBuilder`, cross
+and projected grouped builders, and complemented builders) finalizes into
+`constraint::relational::SharedOperatorTerminal`, which owns the grouped
+operator once and exposes chained `penalize`/`reward` so the compiler can add
+terminals. `SharedOperatorBuilder` is the chained builder, `OperatorScorer`
+scores one terminal, and `OperatorScorerSet` / `ScorerChain` dispatch the
+terminals of one shared node. Weight adapters (`GroupAdapter`/`GroupWeight`,
+`GroupedJoinAdapter`/`GroupedJoinWeight`, `DirectComplementAdapter`/
+`DirectComplementWeight`, `OptionalComplementAdapter`/`OptionalComplementWeight`,
+`RowWeight`, `AdaptWeight`) adapt each family's weight closure to the shared
+row. Sharing is compiler-owned; there are no runtime node caches.
 
 **`SharedNodeId(pub usize)`** — Stable diagnostic identifier for one shared
 compiler node.
@@ -732,7 +746,7 @@ Dynamic closure weights are non-hard metadata by default, even when their score 
 - `UniConstraintStream` implements `CollectionExtract` by delegating extraction to its source and applying its accumulated filter through `contains(...)`.
 - Stream targets preserve their own source filters when passed to keyed or predicate cross-joins. This lets `.join((ConstraintFactory::new().for_each(source).filter(pred), equal_bi(...)))` keep the right-side source predicate inside the joined stream.
 - For the first unary keyed equality cross-join, the left unary filter is preserved through hidden source membership before key extraction and pair creation. Original source indexes and change metadata remain intact across incremental membership transitions. Post-join filters remain joined-row filters. This left-filter pushdown does not apply to comparison, overlap, composed-condition, predicate, or same-source self-join dispatch.
-- `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `stream::cross::Bi` (`BiUnaryPlan`); `(extractor_b, less_than/greater_than/…_or_equal(a, b))` → comparison `stream::cross::Bi` (`ViewComparisonPlan`); `(extractor_b, overlapping(sa, ea, sb, eb))` → overlap `stream::cross::Bi` (`ViewOverlapPlan`); `(extractor_b, a.and(b))` → composed `stream::cross::Bi` (operands convert via `ToViewPlan` into one concrete conjunction, `EqualityWithResidual` when equality keys the probe); `(other_stream, |a, b| pred)` → predicate `stream::cross::Bi` (`BiPredicatePlan`, an explicit opposite-input scan — never a synthetic constant equality key)
+- `join()` dispatch: `equal(|a| key)` → self-join `BiConstraintStream`; `(extractor_b, equal_bi(ka, kb))` → keyed `stream::cross::Bi` (`BiUnaryPlan`); `(extractor_b, less_than(a, b))` (and `less_than_or_equal`, `greater_than`, `greater_than_or_equal`) → comparison `stream::cross::Bi` (`ViewComparisonPlan`); `(extractor_b, overlapping(sa, ea, sb, eb))` → overlap `stream::cross::Bi` (`ViewOverlapPlan`); `(extractor_b, a.and(b))` → composed `stream::cross::Bi` (operands convert via `ToViewPlan` into one concrete conjunction, `EqualityWithResidual` when equality keys the probe); `(other_stream, |a, b| pred)` → predicate `stream::cross::Bi` (`BiPredicatePlan`, an explicit opposite-input scan — never a synthetic constant equality key)
 - `into_parts()` → `(E, F)`, `from_parts(extractor, filter)` → `Self`, `extractor()` → `&E`
 
 **`UniConstraintBuilder<S, A, E, F, W, Sc>`** — `named()` → `IncrementalUniConstraint`
@@ -834,13 +848,13 @@ further joins); low-level constructors are `new_self_join()` and
 
 **`BalanceConstraintStream/Builder`** — Balance stream. `penalize(weight)`, `reward(weight)`, `named()` → `BalanceConstraint`
 
-**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `OperatorTerminal` over a `ComplementNode` + `GroupNode` tree. Dynamic weighted operations receive the real or complemented key as `Fn(&K, &R) -> Sc`.
+**`ComplementedConstraintStream/Builder`** — Complemented stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `SharedOperatorTerminal` over a `ComplementNode` + `GroupNode` tree. Dynamic weighted operations receive the real or complemented key as `Fn(&K, &R) -> Sc`.
 
-**`stream::projected::ComplementedGrouped/Builder`** — Projected grouped complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `constraint::projected::ComplementedGrouped`. Complement defaults are produced from the complement entity and weighted by key plus collector result.
+**`stream::projected::ComplementedGrouped/Builder`** — Projected grouped complement stream. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `SharedOperatorTerminal` over `ComplementNode(CollectionNode, GroupNode)`. Complement defaults are produced from the complement entity and weighted by key plus collector result.
 
-**`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `FlattenedBiConstraint`. Low-level filters receive the A source index and the B owner index for the flattened C row.
+**`FlattenedBiConstraintStream/Builder`** — Flattened bi stream. `filter()`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `OperatorTerminal` over `FlattenedBiScored`. Low-level filters receive the A source index and the B owner index for the flattened C row.
 
-**`ExistsConstraintStream/ExistsConstraintBuilder`** — Existence stream over source-aware direct or flattened collection targets. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `IncrementalExistsConstraint`. There is no separate public indexed existence stream; storage selection is internal to `IncrementalExistsConstraint`.
+**`ExistsConstraintStream/ExistsConstraintBuilder`** — Existence stream over source-aware direct or flattened collection targets. `penalize(weight_or_fn)`, `reward(weight_or_fn)`, `named()` → `OperatorTerminal` over `ExistenceNode<S, L, R, K, LK, RK>`. There is no separate public indexed existence stream.
 
 ### Extractor Types
 

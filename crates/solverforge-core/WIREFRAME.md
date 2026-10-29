@@ -70,8 +70,6 @@ src/
 │   │       ├── entity_descriptor.rs       — EntityDescriptor tests
 │   │       ├── solution_descriptor.rs     — SolutionDescriptor tests
 │   │       └── variable_descriptor.rs     — VariableDescriptor tests
-│   │   └── tests.rs                       — Listener call counting tests
-│   │   └── tests.rs                       — Supply tests (inverse, list_state)
 │   └── tests/
 │       ├── mod.rs                         — Test module declarations
 │       ├── dynamic_list_tests.rs          — Dynamic list access, metadata, and slot validation tests
@@ -596,6 +594,15 @@ surface is index-based.
 | `UsizeNearbyEntityDistanceMeter` | `fn(&dyn Any, usize, usize) -> f64` | Ranks already bounded nearby entities |
 | `UsizeConstructionEntityOrderKey` | `fn(&dyn Any, usize) -> i64` | Construction entity order key |
 | `UsizeConstructionValueOrderKey` | `fn(&dyn Any, usize, usize) -> i64` | Construction value order key |
+
+### Fast Hashing (`fast_hash`)
+
+- `FastHasher` — deterministic hasher for engine-minted index keys (row
+  handles, source indexes, descriptor ids): a multiply-xor round for integer
+  writes, byte-wise FNV-1a for opaque keys. Bucket order is reproducible across
+  processes.
+- `FastMap<K, V>` = `HashMap<K, V, BuildHasherDefault<FastHasher>>`;
+  `FastSet<T>` = `HashSet<T, BuildHasherDefault<FastHasher>>`.
 
 ### Constraint Types
 

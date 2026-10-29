@@ -516,7 +516,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 |-------|------|---------|
 | `k` | `usize` | `3` |
 | `min_segment_len` | `usize` | `1` |
-| `max_nearby` | `usize` | `0` (full enumeration; >0 enables distance-pruned `NearbyKOptMoveSelector`) |
+| `max_nearby` | `usize` | `0` (full enumeration; >0 enables distance-pruned nearby k-opt selection) |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 

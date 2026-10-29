@@ -150,8 +150,9 @@ view retains a borrowed lineage owner rather than copying contributor payloads
 into downstream rows. Cold explanations resolve every contributing input row,
 including repeated bindings in joined input.
 
-Both `retract` and `insert` return `RowChanges` with removed and inserted handles.
-Removing a contributor from a surviving group replaces its old aggregate row
+`retract` and `insert` write into caller-owned `removed` / `inserted`
+`Vec<RowHandle>` buffers, which every operator clears on entry; one event
+yields one removed/inserted pair. Removing a contributor from a surviving group replaces its old aggregate row
 immediately. Returning only removed handles on retraction is incorrect: it loses
 changed nonempty groups, and a semi/anti join can also gain membership during
 retraction. Consumers remove all old indexes/scores before inserting replacement
@@ -164,8 +165,10 @@ value from a mutated accumulator.
 Compiler-owned derived-consumer sharing remains separate work; it is not supplied
 by a projection, group, or join alone.
 
-`ExistenceNode` uses the same compiled condition plans for semi/anti joins over
-arbitrary producers. It retains matching links/counts, not scored pair rows.
+Existence has two operators. `ExistenceNode` is the pure-key semi/anti join: it
+takes key extractors rather than a condition plan and keeps per-key counts, not
+pair rows. `JoinerExistenceNode` compiles a condition plan with a residual
+predicate and retains per-pair links. Neither retains scored pair rows.
 Only 0↔nonzero counts change left membership; right updates that keep a match
 present do not rescore an unchanged left row. Output lineage contains left
 bindings only, as the right relation is a membership test rather than a new
@@ -193,7 +196,7 @@ The enum borrowed view remains usable by downstream conditions and projections.
 ## Custom `IncrementalConstraint`
 
 A constraint the streams cannot express implements `IncrementalConstraint`
-by hand, with the empty `impl SingleConstraint for MyConstraint {}` beside
+by hand, with an empty `SingleConstraint` impl for the same type beside
 it. The marker tells the compiler the type is one constraint, so it composes
 in a tuple next to fluent constraints. Never implement the marker for a tuple,
 chain or other multi-constraint type. The score director drives an

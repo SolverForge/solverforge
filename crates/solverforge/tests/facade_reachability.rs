@@ -65,6 +65,14 @@ fn probe_types<'a>(
     takes_callback(());
 }
 
+/// The arity-free continuation `cross::Penta::join` returns is nameable.
+#[allow(dead_code)]
+fn takes_chain<O>(_: solverforge::stream::chain::Chain<Plan, O, HardSoftScore>)
+where
+    O: solverforge::stream::relational::operator::Operator<Plan>,
+{
+}
+
 fn load_config(text: &str) -> Result<SolverConfig, ConfigError> {
     SolverConfig::from_toml_str(text)
 }

@@ -129,10 +129,10 @@ fmt-check:
 		(printf "$(RED)$(CROSS) Formatting issues found$(RESET)\n" && exit 1)
 
 doc-names:
-	@printf "$(PROGRESS) Checking documented type names...\n"
+	@printf "$(PROGRESS) Checking documented names, file maps and public API coverage...\n"
 	@python3 scripts/check-doc-names.py && \
-		printf "$(GREEN)$(CHECK) Every documented type name exists$(RESET)\n" || \
-		(printf "$(RED)$(CROSS) Wireframes or guides name missing types$(RESET)\n" && exit 1)
+		printf "$(GREEN)$(CHECK) Every documented name and file exists; wireframes cover the public API$(RESET)\n" || \
+		(printf "$(RED)$(CROSS) Wireframes or guides name missing items or omit public ones$(RESET)\n" && exit 1)
 
 facade-reachability:
 	@printf "$(PROGRESS) Checking facade signatures name only facade types...\n"
@@ -279,7 +279,7 @@ help: banner
 	@/bin/echo -e "  $(GREEN)make fmt$(RESET)            - Format code"
 	@/bin/echo -e "  $(GREEN)make fmt-check$(RESET)      - Check formatting"
 	@/bin/echo -e "  $(GREEN)make clippy$(RESET)         - Run clippy lints"
-	@/bin/echo -e "  $(GREEN)make doc-names$(RESET)      - Check wireframes and guides name existing types"
+	@/bin/echo -e "  $(GREEN)make doc-names$(RESET)      - Check documented names, file maps and public API coverage"
 	@/bin/echo -e "  $(GREEN)make file-length$(RESET)    - Check every Rust file is within 500 lines"
 	@/bin/echo -e "  $(GREEN)make facade-reachability$(RESET) - Check facade signatures use only facade-exported types"
 	@/bin/echo -e "  $(GREEN)make public-api$(RESET)     - Check core/scoring/solver public API against crates/*/public-api.txt"

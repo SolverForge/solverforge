@@ -206,7 +206,7 @@ src/
 │   │   ├── phase.rs                     — ConstructionHeuristicPhase<S, M, P, Fo>
 │   │   ├── phase/*.rs                   — Construction phase type and selection helpers
 │   │   ├── phase/tests.rs               — Construction phase test root with support, selection, and lifecycle chunks
-│   │   ├── forager.rs                   — ConstructionChoice enum, ConstructionForager trait, FirstFit/BestFit/FirstFeasible/WeakestFit/StrongestFit forager types
+│   │   ├── forager.rs                   — ConstructionChoice enum, ConstructionForager trait, FirstFitForager, and crate-private BestFitForager/WeakestFitForager/StrongestFitForager
 │   │   ├── forager_impl.rs              — Stock construction forager strategy implementations
 │   │   ├── forager_step.rs              — Step-aware stock construction selection with telemetry and prompt/control polling
 │   │   ├── forager_step/strength.rs     — Weakest-fit and strongest-fit selection

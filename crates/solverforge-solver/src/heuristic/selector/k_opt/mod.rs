@@ -7,7 +7,7 @@ within selected entities and applying reconnection patterns.
 
 For a route of length n and k-opt:
 - Full enumeration: O(n^k) cut combinations × reconnection patterns
-- Use `NearbyKOptMoveSelector` to reduce to O(n × m^(k-1)) with nearby selection
+- Nearby k-opt (`max_nearby > 0`) reduces this to O(n × m^(k-1))
 
 # Example
 

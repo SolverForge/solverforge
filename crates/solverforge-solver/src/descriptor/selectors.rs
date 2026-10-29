@@ -55,5 +55,6 @@ const SWAP_LEGALITY_WORD_BITS: usize = usize::BITS as usize;
 
 include!("selectors/swap_legality.rs");
 include!("selectors/change_swap.rs");
+include!("selectors/nearby_change_swap.rs");
 include!("selectors/pillar_ruin.rs");
 include!("selectors/dispatch.rs");

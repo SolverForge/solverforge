@@ -11,6 +11,7 @@ mod emission;
 mod r#move;
 mod move_access;
 mod recipe;
+mod recipe_identity;
 mod spec;
 
 #[cfg(test)]

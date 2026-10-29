@@ -9,17 +9,12 @@ use solverforge_scoring::Director;
 
 use crate::builder::context::RuntimeListElement;
 use crate::heuristic::r#move::list_kernel::{
-    change_candidate_trace_identity, change_do_move, change_is_doable, change_tabu_signature,
-    change_undo_move, k_opt_do_move, k_opt_do_move_into, k_opt_is_doable, k_opt_tabu_signature,
-    k_opt_undo_move, multi_swap_do_move, multi_swap_is_doable, multi_swap_tabu_signature,
-    multi_swap_undo_move, permute_candidate_trace_identity, permute_do_move, permute_is_doable,
-    permute_tabu_signature, permute_undo_move, reverse_candidate_trace_identity, reverse_do_move,
-    reverse_is_doable, reverse_tabu_signature, ruin_do_move, ruin_is_doable, ruin_tabu_signature,
-    ruin_undo_move, sublist_change_candidate_trace_identity, sublist_change_do_move,
-    sublist_change_is_doable, sublist_change_tabu_signature, sublist_change_undo_move,
-    sublist_swap_candidate_trace_identity, sublist_swap_do_move, sublist_swap_is_doable,
-    sublist_swap_tabu_signature, sublist_swap_undo_move, swap_candidate_trace_identity,
-    swap_do_move, swap_is_doable, swap_tabu_signature, ListMoveAccess,
+    change_do_move, change_is_doable, change_undo_move, k_opt_do_move, k_opt_do_move_into,
+    k_opt_is_doable, k_opt_undo_move, multi_swap_do_move, multi_swap_is_doable,
+    multi_swap_undo_move, permute_do_move, permute_is_doable, permute_undo_move, reverse_do_move,
+    reverse_is_doable, ruin_do_move, ruin_is_doable, ruin_undo_move, sublist_change_do_move,
+    sublist_change_is_doable, sublist_change_undo_move, sublist_swap_do_move,
+    sublist_swap_is_doable, sublist_swap_undo_move, swap_do_move, swap_is_doable, ListMoveAccess,
 };
 use crate::heuristic::r#move::{ListUndoJournal, Move, MoveTabuSignature};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
@@ -27,6 +22,7 @@ use crate::stats::CandidateTraceIdentity;
 
 use super::move_access::RuntimeListMoveAccess;
 use super::recipe::{recipe_access, recipe_entity_indices, recipe_family, RuntimeListMoveUndo};
+use super::recipe_identity::{recipe_candidate_trace_identity, recipe_tabu_signature};
 use super::spec::RuntimeListRecipe;
 
 #[derive(Clone)]
@@ -405,137 +401,14 @@ where
     }
 
     fn tabu_signature<D: Director<S>>(&self, score_director: &D) -> Cow<'_, MoveTabuSignature> {
-        Cow::Owned(match &self.recipe {
-            RuntimeListRecipe::Change {
-                access,
-                coordinates,
-            } => change_tabu_signature(access, *coordinates, score_director),
-            RuntimeListRecipe::Swap {
-                access,
-                coordinates,
-            } => swap_tabu_signature(access, *coordinates, score_director),
-            RuntimeListRecipe::Permute {
-                access,
-                coordinates,
-                permutation,
-                inverse_permutation,
-            } => permute_tabu_signature(
-                access,
-                *coordinates,
-                permutation,
-                inverse_permutation,
-                score_director,
-            ),
-            RuntimeListRecipe::Reverse {
-                access,
-                coordinates,
-            } => reverse_tabu_signature(access, *coordinates, score_director),
-            RuntimeListRecipe::SublistChange {
-                access,
-                coordinates,
-            } => sublist_change_tabu_signature(access, *coordinates, score_director),
-            RuntimeListRecipe::SublistSwap {
-                access,
-                coordinates,
-            } => sublist_swap_tabu_signature(access, *coordinates, score_director),
-            RuntimeListRecipe::KOpt {
-                access,
-                entity,
-                cuts,
-                reconnection,
-                variable_id,
-            } => k_opt_tabu_signature(
-                access,
-                cuts,
-                reconnection,
-                *variable_id,
-                *entity,
-                score_director,
-            ),
-            RuntimeListRecipe::Ruin {
-                access, sources, ..
-            } => ruin_tabu_signature(access, sources, &self.entity_indices, score_director),
-            RuntimeListRecipe::MultiSwap {
-                access,
-                coordinates,
-                ..
-            } => {
-                multi_swap_tabu_signature(access, coordinates, &self.entity_indices, score_director)
-            }
-        })
+        Cow::Owned(recipe_tabu_signature(
+            &self.recipe,
+            &self.entity_indices,
+            score_director,
+        ))
     }
 
     fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> {
-        let identity = match &self.recipe {
-            RuntimeListRecipe::Change {
-                access,
-                coordinates,
-            } => change_candidate_trace_identity(access, *coordinates),
-            RuntimeListRecipe::Swap {
-                access,
-                coordinates,
-            } => swap_candidate_trace_identity(access, *coordinates),
-            RuntimeListRecipe::Permute {
-                access,
-                coordinates,
-                permutation,
-                ..
-            } => permute_candidate_trace_identity(access, *coordinates, permutation),
-            RuntimeListRecipe::Reverse {
-                access,
-                coordinates,
-            } => reverse_candidate_trace_identity(access, *coordinates),
-            RuntimeListRecipe::SublistChange {
-                access,
-                coordinates,
-            } => sublist_change_candidate_trace_identity(access, *coordinates),
-            RuntimeListRecipe::SublistSwap {
-                access,
-                coordinates,
-            } => sublist_swap_candidate_trace_identity(access, *coordinates),
-            RuntimeListRecipe::KOpt {
-                access,
-                entity,
-                cuts,
-                reconnection,
-                ..
-            } => CandidateTraceIdentity::logical_move(
-                ListMoveAccess::descriptor_index(access),
-                ListMoveAccess::variable_name(access),
-                "k_opt",
-                cuts.iter().flat_map(|cut| [*entity, cut.position()]).chain(
-                    reconnection
-                        .segment_order()
-                        .iter()
-                        .copied()
-                        .map(usize::from),
-                ),
-            ),
-            RuntimeListRecipe::Ruin {
-                access, sources, ..
-            } => CandidateTraceIdentity::logical_move(
-                ListMoveAccess::descriptor_index(access),
-                ListMoveAccess::variable_name(access),
-                "list_ruin",
-                sources.iter().flat_map(|(entity, indices)| {
-                    std::iter::once(*entity)
-                        .chain(std::iter::once(indices.len()))
-                        .chain(indices.iter().copied())
-                }),
-            ),
-            RuntimeListRecipe::MultiSwap {
-                access,
-                coordinates,
-                ..
-            } => CandidateTraceIdentity::logical_move(
-                ListMoveAccess::descriptor_index(access),
-                ListMoveAccess::variable_name(access),
-                "list_multi_swap",
-                coordinates
-                    .iter()
-                    .flat_map(|&(entity, first, second)| [entity, first, second]),
-            ),
-        };
-        Some(identity)
+        recipe_candidate_trace_identity(&self.recipe)
     }
 }

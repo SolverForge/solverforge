@@ -365,6 +365,12 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
 
 ## Build And Validation
 
+- `make deps` (in `make lint`, `make pre-release` and the CI Docs job) fails
+  on an unused direct dependency (`cargo machete`) and on a yanked or
+  RustSec-flagged version in `Cargo.lock` (`cargo deny check advisories`,
+  configured in `deny.toml`). Remove a dependency in the same change that
+  removes its last use.
+
 - `make build`
 - `make examples`
 - `make test`

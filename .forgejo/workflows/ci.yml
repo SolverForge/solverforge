@@ -64,5 +64,11 @@ jobs:
       - name: Check public API snapshots
         run: python3 scripts/check-public-api.py
 
+      # Unused direct dependencies, yanked versions and RustSec advisories fail.
+      - name: Check dependencies
+        run: |
+          cargo install --locked cargo-machete@0.9.2 cargo-deny@0.20.2
+          cargo machete && cargo deny check advisories
+
       - name: Package every publishable crate
         run: CARGO_TARGET_DIR="$PWD/target" make publish-crates-dry

@@ -10,9 +10,8 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 - `solverforge-core` (path) — Score types, domain traits, descriptors
 - `solverforge-scoring` (path) — Director trait, constraint scoring
 - `solverforge-config` (path) — SolverConfig, PhaseConfig, AcceptorConfig
-- `thiserror` (workspace) — Error derivation
 - `tracing` (workspace) — Logging
-- `rand` / `rand_chacha` (workspace) — RNG
+- `rand` (workspace) — RNG (`SmallRng`, `StdRng`)
 - `rayon` (workspace) — Parallel computation
 - `smallvec` (workspace) — Stack-allocated small vectors
 - `serde` (workspace) — Serialization

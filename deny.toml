@@ -1,0 +1,5 @@
+# `cargo deny check advisories` (Makefile `deps`, CI Docs job): fail on any
+# RustSec advisory against a locked dependency and on a yanked version in
+# Cargo.lock.
+[advisories]
+yanked = "deny"

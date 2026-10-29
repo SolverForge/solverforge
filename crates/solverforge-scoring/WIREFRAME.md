@@ -142,7 +142,6 @@ execution, ownership, and verification boundaries.
 ## Dependencies
 
 - `solverforge-core` (path) — Score types, domain traits, descriptors, ConstraintRef, ImpactType
-- `thiserror` (workspace) — error derive macros
 
 ## File Map
 

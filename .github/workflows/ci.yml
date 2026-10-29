@@ -104,6 +104,15 @@ jobs:
       - name: Check public API snapshots
         run: python3 scripts/check-public-api.py
 
+      # Unused direct dependencies, yanked versions and RustSec advisories fail.
+      - name: Install dependency checkers
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-machete@0.9.2,cargo-deny@0.20.2
+
+      - name: Check dependencies
+        run: cargo machete && cargo deny check advisories
+
   package:
     if: ${{ github.server_url == 'https://github.com' }}
     name: Package

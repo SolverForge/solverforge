@@ -7,7 +7,6 @@ Serde-based configuration system for loading solver settings from TOML files.
 
 ## Dependencies
 
-- `solverforge-core` (path) — Core types (unused at runtime; version-aligned dependency)
 - `serde` (workspace) — Serialization/deserialization
 - `toml` (workspace) — TOML parsing
 - `thiserror` (workspace) — Error derivation

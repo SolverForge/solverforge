@@ -151,7 +151,7 @@ src/
 ├── lib.rs                                          — Crate root; re-exports from all modules
 ├── api/
 │   ├── mod.rs                                      — Re-exports analysis, constraint_set, node_sharing
-│   ├── analysis.rs                                 — ScoreExplanation, ConstraintAnalysis, Indictment, IndictmentMap, DetailedConstraintMatch, etc.
+│   ├── analysis.rs                                 — EntityRef, ConstraintJustification, DetailedConstraintMatch, ConstraintAnalysis
 │   ├── node_sharing.rs                             — SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation
 │   ├── constraint_set/
 │   │   ├── mod.rs                                  — Re-exports ConstraintSet, ConstraintSetChain, OrderedConstraintSetChain, ConstraintSetSource, IncrementalConstraint, SingleConstraint, ConstraintMetadata, ConstraintResult
@@ -168,8 +168,6 @@ src/
 │       └── analysis.rs                             — Analysis type tests
 ├── constraint/
 │   ├── mod.rs                                      — Module declarations and selected root re-exports
-│   ├── macros.rs                                   — impl_get_matches_nary! macro for detailed match generation
-│   ├── shared.rs                                   — compute_hash<T>() utility function
 │   ├── list_precedence.rs                          — ListPrecedenceMakespanConstraint<S>; stock incremental list-plus-fixed-precedence makespan scoring with optional fixed owner checks
 │   ├── list_precedence/{graph,route}.rs            — Precedence-graph refresh and per-owner route bookkeeping for ListPrecedenceMakespanConstraint
 │   ├── single_constraint_markers.rs                — SingleConstraint impls for built-in constraint types
@@ -350,8 +348,7 @@ pub use director::{Director, DirectorScoreState, SolvableSolution};
 
 // Analysis
 pub use api::analysis::{
-    ConstraintAnalysis, ConstraintJustification, DetailedConstraintEvaluation,
-    DetailedConstraintMatch, EntityRef, Indictment, IndictmentMap, ScoreExplanation,
+    ConstraintAnalysis, ConstraintJustification, DetailedConstraintMatch, EntityRef,
 };
 
 // Fluent Stream API
@@ -708,18 +705,7 @@ Construct with `new(entities)` or `with_description(entities, description)`.
 
 **`DetailedConstraintMatch<'a, Sc: Score>`** — `{ constraint_ref: &'a ConstraintRef, score: Sc, justification: ConstraintJustification }`
 
-**`DetailedConstraintEvaluation<'a, Sc: Score>`** — `{ total_score: Sc, match_count: usize, matches: Vec<DetailedConstraintMatch<'a, Sc>> }`
-
 **`ConstraintAnalysis<'a, Sc: Score>`** — `{ constraint_ref: &'a ConstraintRef, weight_multiplier: u32, score: Sc, matches: Vec<DetailedConstraintMatch<'a, Sc>>, is_hard: bool }`; `new(constraint_ref, weight_multiplier, score, matches, is_hard)`
-
-**`ScoreExplanation<'a, Sc: Score>`** — `{ score: Sc, constraint_analyses: Vec<ConstraintAnalysis<'a, Sc>> }`
-- Methods: `total_match_count()`, `non_zero_constraints()`, `all_matches()`
-
-**`Indictment<'a, Sc: Score>`** — `{ entity: EntityRef, score: Sc, constraint_matches: HashMap<&'a ConstraintRef, Vec<DetailedConstraintMatch<'a, Sc>>> }`
-- Methods: `add_match()`, `match_count()`, `violated_constraints()`, `constraint_count()`
-
-**`IndictmentMap<'a, Sc: Score>`** — `{ indictments: HashMap<EntityRef, Indictment<'a, Sc>> }`
-- Methods: `from_matches()`, `get()`, `entities()`, `worst_entities()`, `len()`, `is_empty()`
 
 **`FixedWeight<Sc>` / `fixed_weight(score)`** — Public zero-erasure wrapper for custom fixed score weights. Use `penalize(fixed_weight(custom_score))` or `reward(fixed_weight(custom_score))` when `Sc` is user-defined.
 
@@ -900,10 +886,6 @@ factory.for_each(vec(|s: &Schedule| &s.employees))
 
 **`EntityKeyAdapter<KA>`** — Wraps `KA: Fn(&A) -> K` as a `KeyExtract`. Used in self-join `JoinTarget` impl to adapt entity-only key functions.
 - `new(key_fn: KA)` → `EntityKeyAdapter<KA>`
-
-`PhantomKey<T>` is the zero-sized type carrier used in inferred stream return
-types when a key parameter must not inherit `Send`, `Sync`, or `Clone` bounds.
-It has no public constructor and is not a crate-root modeling symbol.
 
 ### Filter Types
 

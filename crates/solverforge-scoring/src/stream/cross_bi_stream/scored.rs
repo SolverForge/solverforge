@@ -182,7 +182,7 @@ where
 }
 
 /* Borrowed (A, B) entity pair off a bi row view. */
-pub trait BiEntities<'a, A, B> {
+pub(super) trait BiEntities<'a, A, B> {
     fn entities(&self) -> (&'a A, &'a B);
     fn indexes(&self) -> (usize, usize);
 }

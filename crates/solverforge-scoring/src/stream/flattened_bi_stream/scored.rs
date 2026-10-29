@@ -14,7 +14,7 @@ use super::super::relational::operator::{FlattenView, Operator, Pair};
 use super::super::relational::{HandleMap, Leaf, RowHandle};
 
 /* Borrowed (A, C) pair plus the A and owning-B source indexes. */
-pub trait FlattenedBiEntities<'a, A, B, C> {
+pub(super) trait FlattenedBiEntities<'a, A, B, C> {
     fn entities(&self) -> (&'a A, &'a C);
     fn indexes(&self) -> (usize, usize);
 }

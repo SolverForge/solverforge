@@ -61,7 +61,7 @@ Depth keeps operator recursion monomorphized without runtime tags.
 `DEPTH` is read by row-shape assertions at operator construction sites.
 */
 #[allow(dead_code)]
-pub trait Row {
+pub(crate) trait Row {
     // Number of bound entities in this row (leaf = 1).
     const DEPTH: usize;
 }

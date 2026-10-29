@@ -24,7 +24,7 @@ pub(crate) struct CountSlot {
     touched_epoch: u64,
 }
 
-pub enum KeyState<K> {
+pub(crate) enum KeyState<K> {
     Dense(DenseKeys),
     Hashed {
         counts: FastMap<K, CountSlot>,
@@ -39,7 +39,7 @@ pub enum KeyState<K> {
 impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
     /// Picks the dense shape exactly when the key is `usize`, the planning-id
     /// case where the table beats the hash.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         if std::any::TypeId::of::<K>() == std::any::TypeId::of::<usize>() {
             // Safety of the cast pair below: every K-typed value stored in
             // the dense shape is repr-transparent here because this arm only
@@ -57,7 +57,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
     }
 
     /// Bump one key's count, marking it touched. Returns the fresh count.
-    pub fn add(&mut self, key: &K, n: usize) -> usize {
+    pub(crate) fn add(&mut self, key: &K, n: usize) -> usize {
         match self {
             Self::Dense(state) => {
                 let raw = dense_raw(key);
@@ -88,7 +88,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
     }
 
     /// Drop one key's count by `n` (count must be at least `n`).
-    pub fn take(&mut self, key: &K, n: usize) {
+    pub(crate) fn take(&mut self, key: &K, n: usize) {
         match self {
             Self::Dense(state) => state.take(dense_raw(key), n),
             Self::Hashed {
@@ -116,7 +116,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
     }
 
     /// Whether the key is currently alive (count > 0).
-    pub fn alive(&self, key: &K) -> bool {
+    pub(crate) fn alive(&self, key: &K) -> bool {
         match self {
             Self::Dense(state) => state.alive(dense_raw(key)),
             Self::Hashed { counts, .. } => counts.contains_key(key),
@@ -124,7 +124,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
     }
 
     /// Register one left row under its key's bucket.
-    pub fn left_insert(&mut self, key: &K, handle: RowHandle) {
+    pub(crate) fn left_insert(&mut self, key: &K, handle: RowHandle) {
         match self {
             Self::Dense(state) => state.left_insert(dense_raw(key), handle),
             Self::Hashed { left_buckets, .. } => {
@@ -140,7 +140,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
     }
 
     /// Remove one left row from its key's bucket (bucket empties are dropped).
-    pub fn left_remove(&mut self, key: &K, handle: RowHandle) {
+    pub(crate) fn left_remove(&mut self, key: &K, handle: RowHandle) {
         match self {
             Self::Dense(state) => state.left_remove(dense_raw(key), handle),
             Self::Hashed { left_buckets, .. } => {
@@ -157,7 +157,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
     }
 
     /// The live left rows under one key.
-    pub fn left_bucket<'a>(&'a self, key: &'a K) -> Option<&'a [RowHandle]> {
+    pub(crate) fn left_bucket<'a>(&'a self, key: &'a K) -> Option<&'a [RowHandle]> {
         match self {
             Self::Dense(state) => state.left_bucket(dense_raw(key)),
             Self::Hashed { left_buckets, .. } => left_buckets.get(key).map(Vec::as_slice),
@@ -165,7 +165,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
     }
 
     /// Begin a fresh event: clears the touched list only.
-    pub fn begin_event(&mut self) {
+    pub(crate) fn begin_event(&mut self) {
         match self {
             Self::Dense(state) => state.begin_event(),
             Self::Hashed { epoch, .. } => *epoch += 1,
@@ -174,7 +174,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
 
     /// Every key whose count changed during the current event, in first-touch
     /// order. The list drains; the next event starts unmarked.
-    pub fn drain_touched(&mut self, out: &mut Vec<K>) {
+    pub(crate) fn drain_touched(&mut self, out: &mut Vec<K>) {
         match self {
             Self::Dense(state) => {
                 for raw in state.touched.drain(..) {
@@ -188,7 +188,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
         }
     }
 
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         match self {
             Self::Dense(state) => state.clear(),
             Self::Hashed {
@@ -204,7 +204,7 @@ impl<K: Eq + std::hash::Hash + Clone + 'static> KeyState<K> {
 }
 
 /// Dense `usize`-keyed membership state.
-pub struct DenseKeys {
+pub(crate) struct DenseKeys {
     counts: Vec<u32>,
     /// Whether each key is already in the current event's touched list.
     in_touched: Vec<bool>,
@@ -214,7 +214,7 @@ pub struct DenseKeys {
 }
 
 impl DenseKeys {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             counts: Vec::new(),
             in_touched: Vec::new(),
@@ -233,7 +233,7 @@ impl DenseKeys {
     (no separate `touch` frame), and the grow branch is the cheap len compare
     — `grow` itself only runs during warmup, never again. */
     #[inline]
-    pub fn add(&mut self, raw: usize, n: usize) -> usize {
+    pub(crate) fn add(&mut self, raw: usize, n: usize) -> usize {
         if self.counts.len() <= raw {
             self.grow(raw);
         }
@@ -245,7 +245,7 @@ impl DenseKeys {
         self.counts[raw] as usize
     }
     #[inline]
-    pub fn take(&mut self, raw: usize, n: usize) {
+    pub(crate) fn take(&mut self, raw: usize, n: usize) {
         if self.counts.len() <= raw {
             self.grow(raw);
         }
@@ -257,16 +257,16 @@ impl DenseKeys {
         }
     }
     #[inline]
-    pub fn alive(&self, raw: usize) -> bool {
+    pub(crate) fn alive(&self, raw: usize) -> bool {
         self.counts.get(raw).copied().unwrap_or(0) > 0
     }
     #[inline]
-    pub fn left_insert(&mut self, raw: usize, handle: RowHandle) {
+    pub(crate) fn left_insert(&mut self, raw: usize, handle: RowHandle) {
         self.grow(raw);
         self.left_buckets[raw].push(handle);
     }
     #[inline]
-    pub fn left_remove(&mut self, raw: usize, handle: RowHandle) {
+    pub(crate) fn left_remove(&mut self, raw: usize, handle: RowHandle) {
         if raw >= self.left_buckets.len() {
             return;
         }
@@ -275,15 +275,15 @@ impl DenseKeys {
         }
     }
     #[inline]
-    pub fn left_bucket(&self, raw: usize) -> Option<&[RowHandle]> {
+    pub(crate) fn left_bucket(&self, raw: usize) -> Option<&[RowHandle]> {
         self.left_buckets.get(raw).map(Vec::as_slice)
     }
-    pub fn begin_event(&mut self) {
+    pub(crate) fn begin_event(&mut self) {
         for raw in self.touched.drain(..) {
             self.in_touched[raw] = false;
         }
     }
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.counts.clear();
         self.in_touched.clear();
         self.touched.clear();

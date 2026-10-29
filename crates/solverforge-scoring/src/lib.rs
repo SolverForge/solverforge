@@ -16,6 +16,7 @@
 
 // Zero-erasure architecture intentionally uses complex generic types
 #![allow(clippy::type_complexity)]
+#![warn(unreachable_pub)]
 
 // Core modules
 pub mod api;
@@ -58,8 +59,7 @@ Analysis (for score explanation)
 */
 
 pub use api::analysis::{
-    ConstraintAnalysis, ConstraintJustification, DetailedConstraintEvaluation,
-    DetailedConstraintMatch, EntityRef, Indictment, IndictmentMap, ScoreExplanation,
+    ConstraintAnalysis, ConstraintJustification, DetailedConstraintMatch, EntityRef,
 };
 
 /* ============================================================================

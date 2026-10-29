@@ -70,7 +70,7 @@ where
 }
 
 /* A key read straight off a leaf view's entity. */
-pub fn leaf_key<A, K, F>(f: F) -> impl Fn(&Leaf<'_, A>) -> K + Send + Sync
+pub(crate) fn leaf_key<A, K, F>(f: F) -> impl Fn(&Leaf<'_, A>) -> K + Send + Sync
 where
     F: Fn(&A) -> K + Send + Sync,
 {

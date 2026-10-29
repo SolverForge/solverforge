@@ -21,7 +21,6 @@ Core types and traits for the SolverForge constraint solver framework.
 ```
 src/
 ├── lib.rs                                 — Crate root; module declarations, public re-exports
-├── error.rs                               — SolverForgeError enum and Result type alias
 ├── constraint.rs                          — ConstraintRef (package/name identifier) and ImpactType enum
 ├── constraint_weights.rs                  — ConstraintWeights multiplier map, ConstraintWeightError, MAX_CONSTRAINT_WEIGHT_MULTIPLIER
 ├── constraint_tests.rs                    — Tests for ConstraintRef, ImpactType, and ConstraintWeights
@@ -49,7 +48,7 @@ src/
 │       └── custom_score.rs                — Custom Score contract tests
 ├── domain/
 │   ├── mod.rs                             — Module declarations and re-exports for domain types
-│   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId, ListVariableSolution
+│   ├── traits.rs                          — PlanningSolution, PlanningEntity, ProblemFact, PlanningId
 │   ├── dynamic.rs                         — DynamicModelBackend, scalar/list access contracts, explicit list access/metadata capabilities
 │   ├── dynamic/
 │   │   ├── assignment.rs                  — Dynamic scalar-assignment metadata contract and structural capabilities
@@ -59,7 +58,6 @@ src/
 │   │   └── scalar_slot.rs                 — DynamicScalarVariableSlot descriptor-resolved scalar slot adapter
 │   ├── entity_ref.rs                      — EntityRef, EntityExtractor trait, EntityCollectionExtractor
 │   ├── variable.rs                        — VariableType, ShadowVariableKind, ValueRangeType
-│   ├── value_range.rs                     — ValueRangeProvider trait, FieldValueRangeProvider, ComputedValueRangeProvider, StaticValueRange, IntegerRange
 │   ├── descriptor/
 │   │   ├── mod.rs                         — Re-exports descriptor types
 │   │   ├── entity.rs                      — EntityDescriptor struct
@@ -72,20 +70,12 @@ src/
 │   │       ├── entity_descriptor.rs       — EntityDescriptor tests
 │   │       ├── solution_descriptor.rs     — SolutionDescriptor tests
 │   │       └── variable_descriptor.rs     — VariableDescriptor tests
-│   ├── listener/
-│   │   ├── mod.rs                         — Re-exports listener traits and notification enums
-│   │   ├── traits.rs                      — VariableListener, ListVariableListener traits; VariableNotification, ListVariableNotification enums
 │   │   └── tests.rs                       — Listener call counting tests
-│   ├── supply/
-│   │   ├── mod.rs                         — Re-exports supply types
-│   │   ├── inverse.rs                     — InverseSupply<V>: value → entity_index mapping
-│   │   ├── list_state.rs                  — ListStateSupply<E>: element → (entity_idx, list_idx) mapping; ElementPosition
 │   │   └── tests.rs                       — Supply tests (inverse, list_state)
 │   └── tests/
 │       ├── mod.rs                         — Test module declarations
 │       ├── dynamic_list_tests.rs          — Dynamic list access, metadata, and slot validation tests
 │       ├── entity_ref_tests.rs            — EntityCollectionExtractor tests
-│       ├── value_range_tests.rs           — ValueRangeProvider tests
 │       └── variable_tests.rs             — VariableType and ShadowVariableKind tests
 ```
 
@@ -97,14 +87,13 @@ pub use constraint_weights::{
     ConstraintWeightError, ConstraintWeights, MAX_CONSTRAINT_WEIGHT_MULTIPLIER,
 };
 pub use domain::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
-pub use error::SolverForgeError;
 pub use score::{
     BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore,
     ParseableScore, Score, ScoreParseError, SoftScore,
 };
 ```
 
-Additionally, `pub mod constraint`, `pub mod constraint_weights`, `pub mod domain`, `pub mod error`, `pub mod score` are all public modules.
+Additionally, `pub mod constraint`, `pub mod constraint_weights`, `pub mod domain`, `pub mod score` are all public modules.
 
 ## Public Traits
 
@@ -193,33 +182,6 @@ Additionally, `pub mod constraint`, `pub mod constraint_weights`, `pub mod domai
 
 **Associated type:** `type Id: Eq + Hash + Clone + Send + Sync + 'static`
 
-### `ListVariableSolution`
-
-**Bounds:** `PlanningSolution`
-
-| Method | Signature | Note |
-|--------|-----------|------|
-| `entity_count` | `fn entity_count(&self) -> usize` | Number of list owners |
-| `list_len` | `fn list_len(&self, entity_idx: usize) -> usize` | Length of entity's list |
-| `list_get` | `fn list_get(&self, entity_idx: usize, position: usize) -> Self::Element` | Element at position |
-| `list_push` | `fn list_push(&mut self, entity_idx: usize, elem: Self::Element)` | Append to list |
-| `list_insert` | `fn list_insert(&mut self, entity_idx: usize, position: usize, elem: Self::Element)` | Insert at position |
-| `list_remove` | `fn list_remove(&mut self, entity_idx: usize, position: usize) -> Self::Element` | Remove at position |
-| `list_reverse` | `fn list_reverse(&mut self, entity_idx: usize, start: usize, end: usize)` | Reverse range [start, end) |
-| `unassigned_elements` | `fn unassigned_elements(&self) -> Vec<Self::Element>` | Elements not in any list |
-
-**Associated type:** `type Element: Copy + Send + Sync`
-
-### `ValueRangeProvider<S, V>`
-
-**Bounds:** `Send + Sync`
-
-| Method | Signature | Note |
-|--------|-----------|------|
-| `get_values` | `fn get_values(&self, solution: &S) -> Vec<V>` | All possible values |
-| `value_count` | `fn value_count(&self, solution: &S) -> usize` | Default: `get_values().len()` |
-| `is_empty` | `fn is_empty(&self, solution: &S) -> bool` | Default: `value_count() == 0` |
-
 ### `EntityExtractor`
 
 **Bounds:** `Send + Sync`
@@ -233,30 +195,6 @@ Additionally, `pub mod constraint`, `pub mod constraint_weights`, `pub mod domai
 | `clone_box` | `fn clone_box(&self) -> Box<dyn EntityExtractor>` | Clone as trait object |
 | `clone_entity_boxed` | `fn clone_entity_boxed(&self, solution: &dyn Any, index: usize) -> Option<Box<dyn Any + Send + Sync>>` | Clone entity as boxed Any |
 | `entity_type_id` | `fn entity_type_id(&self) -> TypeId` | TypeId of entity type |
-
-### `VariableListener<Solution, Entity>`
-
-**Bounds:** `Send + Sync`
-
-| Method | Signature | Note |
-|--------|-----------|------|
-| `before_variable_changed` | `fn before_variable_changed(&mut self, solution: &Solution, entity: &Entity)` | Capture old state |
-| `after_variable_changed` | `fn after_variable_changed(&mut self, solution: &mut Solution, entity: &Entity)` | Update shadows |
-| `requires_unique_entity_events` | `fn requires_unique_entity_events(&self) -> bool` | Default: `false` |
-| `reset_working_solution` | `fn reset_working_solution(&mut self, _solution: &Solution)` | Default: no-op |
-| `close` | `fn close(&mut self)` | Default: no-op |
-
-### `ListVariableListener<Solution, Entity, Element>`
-
-**Bounds:** `Send + Sync`
-
-| Method | Signature | Note |
-|--------|-----------|------|
-| `after_element_unassigned` | `fn after_element_unassigned(&mut self, solution: &mut Solution, element: &Element)` | Reset shadow vars on element |
-| `before_list_variable_changed` | `fn before_list_variable_changed(&mut self, solution: &Solution, entity: &Entity, from_index: usize, to_index: usize)` | Capture state before range change |
-| `after_list_variable_changed` | `fn after_list_variable_changed(&mut self, solution: &mut Solution, entity: &Entity, from_index: usize, to_index: usize)` | Update shadows after range change |
-| `reset_working_solution` | `fn reset_working_solution(&mut self, _solution: &Solution)` | Default: no-op |
-| `close` | `fn close(&mut self)` | Default: no-op |
 
 ## Public Structs
 
@@ -438,32 +376,6 @@ pub enum ValueRangeType {
     EntityDependent,
 }
 ```
-
-### Value Range Providers
-
-#### `FieldValueRangeProvider<S, V, F>`
-
-Generic over `F: Fn(&S) -> &Vec<V> + Send + Sync`. Uses `PhantomData<(fn() -> S, fn() -> V)>`.
-
-#### `ComputedValueRangeProvider<S, V, F>`
-
-Generic over `F: Fn(&S) -> Vec<V> + Send + Sync`. Uses `PhantomData<(fn() -> S, fn() -> V)>`.
-
-Static method: `value_range_type() -> ValueRangeType` (returns `EntityDependent`).
-
-#### `StaticValueRange<V>`
-
-Fields: `values: Vec<V>` (private)
-
-#### `IntegerRange`
-
-Fields: `start: i64`, `end: i64` (private)
-
-Constructors: `new(i64, i64)`, `from_zero(i64)`
-
-Method: `value_range_type() -> ValueRangeType`
-
-Implements `ValueRangeProvider<S, i64>` and `ValueRangeProvider<S, i32>` for any `S: Send + Sync`.
 
 ### Descriptors
 
@@ -685,67 +597,6 @@ surface is index-based.
 | `UsizeConstructionEntityOrderKey` | `fn(&dyn Any, usize) -> i64` | Construction entity order key |
 | `UsizeConstructionValueOrderKey` | `fn(&dyn Any, usize, usize) -> i64` | Construction value order key |
 
-### Supply Types
-
-#### `InverseSupply<V>` where `V: Eq + Hash`
-
-Index-based mapping: value → entity_index. Backed by `HashMap<V, usize>`.
-
-Methods: `new()`, `with_capacity(usize)`, `get(&V) -> Option<usize>`, `insert(V, usize) -> Option<usize>`, `remove(&V) -> Option<usize>`, `update(Option<&V>, V, usize)`, `clear()`, `len()`, `is_empty()`, `iter()`
-
-#### `ListStateSupply<E>` where `E: Eq + Hash`
-
-Index-based mapping: element → `ElementPosition { entity_idx, list_idx }`. Backed by `HashMap<E, ElementPosition>`.
-
-Methods: `new()`, `with_unassigned(usize)`, `initialize(usize)`, `assign(E, usize, usize)`, `unassign(&E) -> Option<ElementPosition>`, `update(&E, usize, usize) -> bool`, `get_position(&E) -> Option<ElementPosition>`, `get_entity(&E) -> Option<usize>`, `get_list_index(&E) -> Option<usize>`, `is_assigned(&E) -> bool`, `unassigned_count()`, `assigned_count()`, `clear()`, `iter()`, `elements_for_entity(usize) -> Vec<&E>`
-
-#### `ElementPosition`
-
-```rust
-pub struct ElementPosition {
-    pub entity_idx: usize,
-    pub list_idx: usize,
-}
-```
-
-Derives: `Debug, Clone, Copy, PartialEq, Eq`
-
-### Notification Enums
-
-#### `VariableNotification`
-
-```rust
-pub enum VariableNotification { EntityAdded, EntityRemoved, VariableChanged }
-```
-
-#### `ListVariableNotification`
-
-```rust
-pub enum ListVariableNotification {
-    ElementUnassigned,
-    RangeChanged { from_index: usize, to_index: usize },
-}
-```
-
-### Error Types
-
-#### `SolverForgeError`
-
-```rust
-pub enum SolverForgeError {
-    Config(String),
-    DomainModel(String),
-    ScoreCalculation(String),
-    Cancelled,
-    InvalidState(String),
-    Internal(String),
-}
-```
-
-Implements `thiserror::Error` + `Debug`.
-
-Type alias: `pub type Result<T> = std::result::Result<T, SolverForgeError>`
-
 ### Constraint Types
 
 #### `ConstraintRef`
@@ -796,21 +647,9 @@ Internal values are stored multiplied by 100,000 (`SCALE` constant). `of()` auto
 
 `BendableScore<const H: usize, const S: usize>` uses fixed-size arrays `[i64; H]` and `[i64; S]`. This enables `Copy` with zero heap allocation. It cannot use the declarative macros due to const generic array iteration. For the same reason serde's derive does not apply (serde implements array traits only up to length 32), so its serde impls are written by hand.
 
-### Supply Zero-Erasure Design
-
-Both supply types (`InverseSupply` and `ListStateSupply`) follow strict zero-erasure:
-- Index-based: store `usize` indices, not cloned domain objects
-- Owned: no `Arc`, `Box`, or `dyn`
-- Mutation via `&mut self`: no interior mutability
-- Generic type parameters preserved
-
 ### EntityExtractor as Intentional dyn Boundary
 
 `EntityExtractor` is a `dyn` trait object — this is an **intentional type-erasure boundary**. Descriptors need to work with entities of unknown concrete type at runtime. The `EntityCollectionExtractor<S, E>` provides the concrete implementation that downcasts via `Any`. `Box<dyn EntityExtractor>` appears in `EntityDescriptor` and `ProblemFactDescriptor`.
-
-### PhantomData Pattern
-
-`FieldValueRangeProvider` and `ComputedValueRangeProvider` use `PhantomData<(fn() -> S, fn() -> V)>` (function pointer form) to avoid inheriting `Clone`/`Send`/`Sync` bounds from phantom type parameters.
 
 ## Cross-Crate Dependencies
 

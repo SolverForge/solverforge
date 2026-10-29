@@ -11,15 +11,12 @@ fully monomorphized.
 - **Monomorphized pipelines**: Each constraint is fully specialized
 */
 
-#[macro_use]
-pub mod macros;
 pub mod balance;
 pub mod incremental;
 pub mod list_precedence;
 pub mod projected;
 pub mod relational;
 pub(crate) mod score_sum;
-pub mod shared;
 mod single_constraint_markers;
 
 #[cfg(test)]

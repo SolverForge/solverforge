@@ -1,5 +1,5 @@
 mod scored;
-pub use scored::PentaScored;
+pub(super) use scored::PentaScored;
 
 /* Canonical five-source fluent join: one operator tree, no per-arity engine.
 
@@ -23,7 +23,7 @@ use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
 
 /* The full penta tree: ((((A ⋈ B) ⋈ C) ⋈ D) ⋈ E), each step its own plan. */
-pub type BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4> = JoinNode<
+pub(super) type BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4> = JoinNode<
     S,
     JoinNode<
         S,
@@ -46,11 +46,11 @@ pub type BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4> = JoinNode<
 >;
 
 /* The penta tree's borrowed row: `Pair<Pair<Pair<Pair<Leaf<A>, Leaf<B>>, Leaf<C>>, Leaf<D>>, Leaf<E>>`. */
-pub type PentaRow<'a, S, EA, EB, EC, ED, EE, P1, P2, P3, P4> =
+pub(super) type PentaRow<'a, S, EA, EB, EC, ED, EE, P1, P2, P3, P4> =
     <BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4> as Operator<S>>::View<'a>;
 
 /* Borrowed (A, B, C, D, E) entity quintuple off a penta row view. */
-pub trait PentaEntities<'a, A, B, C, D, E> {
+pub(super) trait PentaEntities<'a, A, B, C, D, E> {
     fn entities(&self) -> (&'a A, &'a B, &'a C, &'a D, &'a E);
     fn indexes(&self) -> (usize, usize, usize, usize, usize);
 }

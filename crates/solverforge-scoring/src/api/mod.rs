@@ -14,8 +14,7 @@ pub mod node_sharing;
 mod tests;
 
 pub use analysis::{
-    ConstraintAnalysis, ConstraintJustification, DetailedConstraintEvaluation,
-    DetailedConstraintMatch, EntityRef, Indictment, IndictmentMap, ScoreExplanation,
+    ConstraintAnalysis, ConstraintJustification, DetailedConstraintMatch, EntityRef,
 };
 pub use constraint_set::{
     ConstraintMetadata, ConstraintSet, ConstraintSetChain, ConstraintSetSource,

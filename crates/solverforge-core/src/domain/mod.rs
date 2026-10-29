@@ -10,10 +10,7 @@ These traits define the structure of a planning problem:
 mod descriptor;
 mod dynamic;
 mod entity_ref;
-pub mod listener;
-pub mod supply;
 mod traits;
-mod value_range;
 mod variable;
 
 #[cfg(test)]
@@ -33,13 +30,5 @@ pub use dynamic::{
     DynamicScalarAssignmentMetadataCapabilities, DynamicScalarVariableSlot,
 };
 pub use entity_ref::{EntityCollectionExtractor, EntityExtractor, EntityRef};
-pub use listener::{
-    ListVariableListener, ListVariableNotification, VariableListener, VariableNotification,
-};
-pub use supply::{ElementPosition, InverseSupply, ListStateSupply};
-pub use traits::{ListVariableSolution, PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
-pub use value_range::{
-    ComputedValueRangeProvider, FieldValueRangeProvider, IntegerRange, StaticValueRange,
-    ValueRangeProvider,
-};
+pub use traits::{PlanningEntity, PlanningId, PlanningSolution, ProblemFact};
 pub use variable::{ShadowVariableKind, ValueRangeType, VariableType};

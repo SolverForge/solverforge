@@ -4,8 +4,6 @@ The `KeyExtract` trait replaces bare `Fn(&S, &A, usize) -> K` bounds,
 allowing named adapter structs to be used as associated types in `JoinTarget`.
 */
 
-use std::marker::PhantomData;
-
 /* Extracts a join key from a solution and entity.
 
 Blanket impl for `Fn(&S, &A, usize) -> K` preserves all existing usage.
@@ -61,6 +59,3 @@ impl<KA: Clone> Clone for EntityKeyAdapter<KA> {
 }
 
 impl<KA: Copy> Copy for EntityKeyAdapter<KA> {}
-
-// Phantom type parameter usage to avoid requiring Clone/Send on D.
-pub struct PhantomKey<T>(PhantomData<fn() -> T>);

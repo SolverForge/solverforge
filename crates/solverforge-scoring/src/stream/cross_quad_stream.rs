@@ -1,5 +1,5 @@
 mod scored;
-pub use scored::QuadScored;
+pub(crate) use scored::QuadScored;
 
 /* Canonical four-source fluent join: one operator tree, no per-arity engine.
 
@@ -23,7 +23,7 @@ use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
 
 /* The full quad tree: ((A ⋈ B) ⋈ C) ⋈ D, each step its own compiled plan. */
-pub type BuiltQuad<S, EA, EB, EC, ED, P1, P2, P3> = JoinNode<
+pub(crate) type BuiltQuad<S, EA, EB, EC, ED, P1, P2, P3> = JoinNode<
     S,
     JoinNode<
         S,
@@ -36,11 +36,11 @@ pub type BuiltQuad<S, EA, EB, EC, ED, P1, P2, P3> = JoinNode<
 >;
 
 /* The quad tree's borrowed row: `Pair<Pair<Pair<Leaf<A>, Leaf<B>>, Leaf<C>>, Leaf<D>>`. */
-pub type QuadRow<'a, S, EA, EB, EC, ED, P1, P2, P3> =
+pub(crate) type QuadRow<'a, S, EA, EB, EC, ED, P1, P2, P3> =
     <BuiltQuad<S, EA, EB, EC, ED, P1, P2, P3> as Operator<S>>::View<'a>;
 
 /* Borrowed (A, B, C, D) entity quadruple off a quad row view. */
-pub trait QuadEntities<'a, A, B, C, D> {
+pub(crate) trait QuadEntities<'a, A, B, C, D> {
     fn entities(&self) -> (&'a A, &'a B, &'a C, &'a D);
     fn indexes(&self) -> (usize, usize, usize, usize);
 }

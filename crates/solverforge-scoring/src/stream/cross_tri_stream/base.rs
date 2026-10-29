@@ -1,5 +1,5 @@
 mod scored;
-pub use scored::TriScored;
+pub(crate) use scored::TriScored;
 
 /* Canonical three-source fluent join: one operator tree, no per-arity engine.
 
@@ -26,7 +26,7 @@ use crate::constraint::relational::OperatorTerminal;
 
 /* The full tri tree: (A ⋈ B on the AB plan) ⋈ C on P2. Entity types ride
 inside the extractors and the AB plan's key closures. */
-pub type BuiltTri<S, EA, EB, EC, P1, P2> = JoinNode<
+pub(crate) type BuiltTri<S, EA, EB, EC, P1, P2> = JoinNode<
     S,
     JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>,
     CollectionNode<S, EC>,
@@ -34,7 +34,7 @@ pub type BuiltTri<S, EA, EB, EC, P1, P2> = JoinNode<
 >;
 
 /* The tri tree's borrowed row: `Pair<Pair<Leaf<A>, Leaf<B>>, Leaf<C>>`. */
-pub type TriRow<'a, S, EA, EB, EC, P1, P2> =
+pub(crate) type TriRow<'a, S, EA, EB, EC, P1, P2> =
     <BuiltTri<S, EA, EB, EC, P1, P2> as Operator<S>>::View<'a>;
 
 /* Assembles the tri tree from extractors, unary first keys, and a compiled
@@ -83,7 +83,7 @@ where
 /* Assembles a `Tri` from a Bi stream's parts plus the compiled second
 condition. Single construction point for `Bi::join` dispatch. */
 #[allow(clippy::too_many_arguments)]
-pub fn assemble_tri<S, A, B, C, EA, EB, EC, P1, P2, F, Sc>(
+pub(crate) fn assemble_tri<S, A, B, C, EA, EB, EC, P1, P2, F, Sc>(
     extractor_a: EA,
     extractor_b: EB,
     extractor_c: EC,
@@ -377,7 +377,7 @@ where
 }
 
 /* Borrowed (A, B, C) entity triple off a tri row view. */
-pub trait TriEntities<'a, A, B, C> {
+pub(crate) trait TriEntities<'a, A, B, C> {
     fn entities(&self) -> (&'a A, &'a B, &'a C);
     fn indexes(&self) -> (usize, usize, usize);
 }

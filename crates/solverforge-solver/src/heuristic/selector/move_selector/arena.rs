@@ -28,6 +28,7 @@ where
 
     /// Drops every stored candidate while retaining both backing
     /// capacities, so a reused store does not re-grow its vectors.
+    #[cfg(test)]
     pub(crate) fn reset(&mut self) {
         self.positions.clear();
         self.live.clear();
@@ -107,7 +108,7 @@ where
     }
 }
 
-pub struct ArenaMoveCursor<S, M>
+pub(crate) struct ArenaMoveCursor<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,

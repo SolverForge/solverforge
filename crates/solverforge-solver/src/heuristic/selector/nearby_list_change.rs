@@ -1,19 +1,28 @@
 //! Public static adapter for the canonical nearby list-change kernel.
 
+#[cfg(test)]
 use std::fmt::Debug;
+#[cfg(test)]
 use std::marker::PhantomData;
 
+#[cfg(test)]
 use solverforge_core::domain::PlanningSolution;
+#[cfg(test)]
 use solverforge_scoring::Director;
 
+#[cfg(test)]
 use crate::heuristic::r#move::ListChangeMove;
+#[cfg(test)]
 use crate::heuristic::selector::list_kernel::{
     NativeChangeEmitter, NativeNearbyProbe, NearbyChangeCursor, STATIC_NEARBY_CHANGE_ENTITY_SALT,
     STATIC_NEARBY_CHANGE_SOURCE_SALT,
 };
 
+#[cfg(test)]
 use super::entity::EntitySelector;
+#[cfg(test)]
 use super::list_support::collect_selected_entities;
+#[cfg(test)]
 use super::move_selector::{
     CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
@@ -58,7 +67,8 @@ impl<S> CrossEntityDistanceMeter<S> for DefaultCrossEntityDistanceMeter {
 }
 
 /// Public nearby list-change adapter.
-pub struct NearbyListChangeMoveSelector<S, V, D, ES> {
+#[cfg(test)]
+pub(crate) struct NearbyListChangeMoveSelector<S, V, D, ES> {
     entity_selector: ES,
     distance_meter: D,
     max_nearby: usize,
@@ -73,7 +83,8 @@ pub struct NearbyListChangeMoveSelector<S, V, D, ES> {
 }
 
 /// Public cursor facade that hides the crate-private generic emitter/probe.
-pub struct NearbyListChangeMoveCursor<'a, S, V, D>
+#[cfg(test)]
+pub(crate) struct NearbyListChangeMoveCursor<'a, S, V, D>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -82,6 +93,7 @@ where
     inner: NearbyChangeCursor<S, NativeChangeEmitter<S, V>, NativeNearbyProbe<'a, S, V, D>>,
 }
 
+#[cfg(test)]
 impl<'a, S, V, D> NearbyListChangeMoveCursor<'a, S, V, D>
 where
     S: PlanningSolution,
@@ -95,6 +107,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S, V, D> MoveCursor<S, ListChangeMove<S, V>> for NearbyListChangeMoveCursor<'_, S, V, D>
 where
     S: PlanningSolution,
@@ -131,6 +144,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S, V: Debug, D, ES: Debug> Debug for NearbyListChangeMoveSelector<S, V, D, ES> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NearbyListChangeMoveSelector")
@@ -143,9 +157,10 @@ impl<S, V: Debug, D, ES: Debug> Debug for NearbyListChangeMoveSelector<S, V, D, 
     }
 }
 
+#[cfg(test)]
 impl<S, V, D, ES> NearbyListChangeMoveSelector<S, V, D, ES> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_selector: ES,
         distance_meter: D,
         max_nearby: usize,
@@ -181,6 +196,7 @@ impl<S, V, D, ES> NearbyListChangeMoveSelector<S, V, D, ES> {
     }
 }
 
+#[cfg(test)]
 impl<S, V, D, ES> MoveSelector<S, ListChangeMove<S, V>>
     for NearbyListChangeMoveSelector<S, V, D, ES>
 where

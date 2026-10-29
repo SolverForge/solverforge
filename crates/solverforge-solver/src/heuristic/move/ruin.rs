@@ -31,7 +31,7 @@ use super::{Move, MoveTabuSignature};
 /// * `S` - The planning solution type
 /// * `V` - The variable value type
 ///
-pub struct RuinMove<S, V> {
+pub(crate) struct RuinMove<S, V> {
     // Indices of entities to unassign
     entity_indices: SmallVec<[usize; 8]>,
     getter: fn(&S, usize, usize) -> Option<V>,
@@ -96,10 +96,6 @@ impl<S, V> RuinMove<S, V> {
             variable_name,
             descriptor_index,
         }
-    }
-
-    pub fn entity_indices_slice(&self) -> &[usize] {
-        &self.entity_indices
     }
 
     #[cfg(test)]

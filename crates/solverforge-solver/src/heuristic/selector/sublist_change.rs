@@ -20,7 +20,7 @@ use super::move_selector::{
 };
 use super::sublist_support::count_sublist_change_moves_for_len;
 
-pub struct SublistChangeMoveSelector<S, V, ES> {
+pub(crate) struct SublistChangeMoveSelector<S, V, ES> {
     entity_selector: ES,
     min_sublist_size: usize,
     max_sublist_size: usize,
@@ -34,7 +34,7 @@ pub struct SublistChangeMoveSelector<S, V, ES> {
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-pub struct SublistChangeMoveCursor<S, V>
+pub(crate) struct SublistChangeMoveCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -99,7 +99,7 @@ impl<S, V: Debug, ES: Debug> Debug for SublistChangeMoveSelector<S, V, ES> {
 
 impl<S, V, ES> SublistChangeMoveSelector<S, V, ES> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_selector: ES,
         min_sublist_size: usize,
         max_sublist_size: usize,

@@ -18,7 +18,7 @@ use solverforge_scoring::Director;
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The value type
-pub trait ValueSelector<S: PlanningSolution, V>: Send + Debug {
+pub(crate) trait ValueSelector<S: PlanningSolution, V>: Send + Debug {
     // Returns an iterator over values for the given entity.
     fn iter<'a, D: Director<S>>(
         &'a self,
@@ -33,15 +33,10 @@ pub trait ValueSelector<S: PlanningSolution, V>: Send + Debug {
         descriptor_index: usize,
         entity_index: usize,
     ) -> usize;
-
-    // Returns true if this selector may return the same value multiple times.
-    fn is_never_ending(&self) -> bool {
-        false
-    }
 }
 
 /// A value selector with a static list of values.
-pub struct StaticValueSelector<S, V> {
+pub(crate) struct StaticValueSelector<S, V> {
     values: Vec<V>,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -64,7 +59,7 @@ impl<S, V: Debug> Debug for StaticValueSelector<S, V> {
 }
 
 impl<S, V: Clone> StaticValueSelector<S, V> {
-    pub fn new(values: Vec<V>) -> Self {
+    pub(crate) fn new(values: Vec<V>) -> Self {
         Self {
             values,
             _phantom: PhantomData,

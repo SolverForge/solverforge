@@ -50,9 +50,11 @@ sublist_insert,
 ```
 */
 
+#[cfg(test)]
 pub(crate) mod config;
 pub(crate) mod distance_meter;
 pub(crate) mod iterators;
+#[cfg(test)]
 pub(crate) mod selector;
 #[cfg(test)]
 mod tests;

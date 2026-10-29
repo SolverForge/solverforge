@@ -279,6 +279,7 @@ where
 }
 
 #[derive(Clone, Copy)]
+#[cfg(test)]
 pub(crate) struct StaticListChangeAccess<S, V> {
     pub(crate) list_len: fn(&S, usize) -> usize,
     pub(crate) list_get: fn(&S, usize, usize) -> Option<V>,
@@ -288,6 +289,7 @@ pub(crate) struct StaticListChangeAccess<S, V> {
     pub(crate) descriptor_index: usize,
 }
 
+#[cfg(test)]
 impl<S, V> fmt::Debug for StaticListChangeAccess<S, V> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -298,6 +300,7 @@ impl<S, V> fmt::Debug for StaticListChangeAccess<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> ListMoveAccess<S> for StaticListChangeAccess<S, V>
 where
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
@@ -321,6 +324,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S, V> ListChangeAccess<S> for StaticListChangeAccess<S, V>
 where
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
@@ -339,6 +343,7 @@ where
     }
 }
 
+#[cfg(test)]
 pub(crate) struct StaticListSwapAccess<S, V> {
     pub(crate) list_len: fn(&S, usize) -> usize,
     pub(crate) list_get: fn(&S, usize, usize) -> Option<V>,
@@ -347,14 +352,17 @@ pub(crate) struct StaticListSwapAccess<S, V> {
     pub(crate) descriptor_index: usize,
 }
 
+#[cfg(test)]
 impl<S, V> Copy for StaticListSwapAccess<S, V> {}
 
+#[cfg(test)]
 impl<S, V> Clone for StaticListSwapAccess<S, V> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
+#[cfg(test)]
 impl<S, V> fmt::Debug for StaticListSwapAccess<S, V> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -365,6 +373,7 @@ impl<S, V> fmt::Debug for StaticListSwapAccess<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> ListMoveAccess<S> for StaticListSwapAccess<S, V>
 where
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
@@ -388,6 +397,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S, V> ListSwapAccess<S> for StaticListSwapAccess<S, V>
 where
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,

@@ -884,7 +884,13 @@ harness sides share one package name so identical sources produce identical
 symbol mangling and code layout, and the report records per-case `.text`
 SHA-256 fingerprints for both binaries. A host that cannot run the
 controlled gate has not completed release qualification. The default cases
-exercise selectors against an empty constraint set; the opt-in
+compile a `SolverConfig` through the same runtime compilation a configured
+solve runs and enumerate the compiled runtime's own cursors against an empty
+constraint set: the local-search composition cursor over the compiled list
+and scalar neighborhood leaves (list change and swap, nearby change and swap,
+sublist change and swap, k-opt, union, Cartesian, scalar change, and scalar
+ruin/recreate), the scalar construction placer, and a first-fit construction
+solve through the compiled runtime phase runner; the opt-in
 `BENCH_CASES="scoring scoring_weights_one scoring_weights_mixed"` cases measure
 incremental scoring churn through uni, join, shared grouped, and balance
 constraints, with and without runtime constraint weights; both sides of the

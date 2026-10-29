@@ -10,6 +10,7 @@ mod k_opt;
 mod multi_swap;
 mod permute;
 mod range_access;
+#[cfg(test)]
 mod range_static;
 mod reverse;
 mod ruin;
@@ -18,9 +19,9 @@ mod sublist_change;
 mod sublist_swap;
 mod swap;
 
-pub(crate) use access::{
-    ListChangeAccess, ListMoveAccess, ListSwapAccess, StaticListChangeAccess, StaticListSwapAccess,
-};
+pub(crate) use access::{ListChangeAccess, ListMoveAccess, ListSwapAccess};
+#[cfg(test)]
+pub(crate) use access::{StaticListChangeAccess, StaticListSwapAccess};
 pub(crate) use change::{
     change_candidate_trace_identity, change_do_move, change_is_doable, change_tabu_signature,
     change_undo_move, ChangeCoordinates,
@@ -39,6 +40,7 @@ pub(crate) use permute::{
 pub(crate) use range_access::{ListRangeAccess, ListReverseAccess, ListWindowAccess};
 #[cfg(test)]
 pub(crate) use range_static::StaticListReverseAccess;
+#[cfg(test)]
 pub(crate) use range_static::StaticListWindowAccess;
 pub(crate) use reverse::{
     reverse_candidate_trace_identity, reverse_do_move, reverse_is_doable, reverse_tabu_signature,

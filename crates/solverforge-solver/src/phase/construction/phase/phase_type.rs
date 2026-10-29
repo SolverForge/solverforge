@@ -8,7 +8,7 @@
 /// * `M` - The move type
 /// * `P` - The entity placer type
 /// * `Fo` - The forager type
-pub struct ConstructionHeuristicPhase<S, M, P, Fo>
+pub(crate) struct ConstructionHeuristicPhase<S, M, P, Fo>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -32,7 +32,7 @@ where
     P: EntityPlacer<S, M>,
     Fo: ConstructionForager<S, M>,
 {
-    pub fn new(placer: P, forager: Fo) -> Self {
+    pub(crate) fn new(placer: P, forager: Fo) -> Self {
         Self {
             placer,
             forager,

@@ -4,7 +4,9 @@
 //! type stores its already-resolved result so candidate pulls cannot re-enter a
 //! callback or change their order.
 
-use crate::list_placement::{OwnerRestriction, SelectedOwnerRestrictions};
+use crate::list_placement::OwnerRestriction;
+#[cfg(test)]
+use crate::list_placement::SelectedOwnerRestrictions;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum SelectedListOwners {
@@ -14,6 +16,7 @@ pub(crate) enum SelectedListOwners {
 }
 
 impl SelectedListOwners {
+    #[cfg(test)]
     pub(crate) fn from_selected_restrictions(
         restrictions: Option<SelectedOwnerRestrictions>,
     ) -> Self {

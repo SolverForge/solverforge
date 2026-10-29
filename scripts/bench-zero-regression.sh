@@ -36,13 +36,20 @@ CARTESIAN_MEASURE_ITERATIONS=${CARTESIAN_MEASURE_ITERATIONS:-256}
 # cache misses (about 2.4k) vary by more than the regression budget. 1024
 # iterations make the measured placement work dominate every counter.
 FIRST_FIT_MEASURE_ITERATIONS=${FIRST_FIT_MEASURE_ITERATIONS:-1024}
+# The full list neighborhoods (list_change, list_swap, sublist_change,
+# sublist_swap and their union) enumerate 40k-130k candidates per iteration
+# through the compiled cursors, 10-40 ms each. Four iterations keep a trial
+# at 40-160 ms like the other cases, so each trial still measures hundreds of
+# millions of instructions while 51 trials x 45 counter repeats finish in
+# hours rather than a day.
+FULL_LIST_MEASURE_ITERATIONS=${FULL_LIST_MEASURE_ITERATIONS:-4}
 TOOLCHAIN=${TOOLCHAIN:-1.95.0}
 RESULTS=${RESULTS:-"/tmp/solverforge-zero-regression-$(date +%Y%m%d-%H%M%S)"}
 # Opt-in scoring cases (not in the default selector set): BENCH_CASES="scoring
 # scoring_weights_one scoring_weights_mixed" measures incremental score-director
 # churn through uni, join, shared grouped, and balance constraints; see
 # crates/solverforge-solver/benches/selector_cursor_gate/scoring_cases.rs.
-DEFAULT_CASES=(list_change list_swap nearby_change nearby_swap sublist_change sublist_swap filtering cartesian k_opt ruin construction_full construction_first_fit)
+DEFAULT_CASES=(list_change list_swap nearby_change nearby_swap sublist_change sublist_swap union cartesian k_opt ruin scalar_change construction_full construction_first_fit)
 if [[ -n ${BENCH_CASES:-} ]]; then
     read -r -a CASES <<<"$BENCH_CASES"
 else
@@ -73,6 +80,8 @@ measure_iterations_for_case() {
         printf '%s\n' "$CARTESIAN_MEASURE_ITERATIONS"
     elif [[ $case_name == construction_first_fit ]]; then
         printf '%s\n' "$FIRST_FIT_MEASURE_ITERATIONS"
+    elif [[ $case_name =~ ^(list_change|list_swap|sublist_change|sublist_swap|union)$ ]]; then
+        printf '%s\n' "$FULL_LIST_MEASURE_ITERATIONS"
     else
         printf '%s\n' "$MEASURE_ITERATIONS"
     fi
@@ -174,6 +183,7 @@ name = "selector_cursor_gate"
 path = "$bench_source"
 
 [dependencies]
+solverforge-config = { path = "$tree/crates/solverforge-config" }
 solverforge-core = { path = "$tree/crates/solverforge-core" }
 solverforge-scoring = { path = "$tree/crates/solverforge-scoring" }
 solverforge-solver = { path = "$tree/crates/solverforge-solver" }
@@ -275,7 +285,7 @@ if [[ $BENCH_ISOLATE == 1 ]]; then
 fi
 
 cat >"$RESULTS/environment.json" <<EOF
-{"baseline_requested":"$BASELINE","baseline_commit":"$BASELINE_COMMIT","baseline_cursor_api":$BASELINE_CURSOR_API,"candidate_head":"$(git -C "$ROOT" rev-parse HEAD)","candidate_dirty":$CANDIDATE_DIRTY,"candidate_tree_sha256":"$CANDIDATE_TREE_SHA256","profile":"release(codegen-units=1,incremental=false)","case_isolated_binaries":true,"cpu_model":"$CPU_MODEL","affinity_cpu":$BENCH_CPU,"thread_siblings":"$SIBLINGS","governor":"$GOVERNOR","toolchain":"$TOOLCHAIN","warmups":$WARMUPS,"trials":$TRIALS,"measure_iterations":{"default":$MEASURE_ITERATIONS,"cartesian":$CARTESIAN_MEASURE_ITERATIONS,"construction_first_fit":$FIRST_FIT_MEASURE_ITERATIONS},"perf_available":$PERF_AVAILABLE,"isolated_cpus":"$ISOLATED_CPUS","perf_repeats":$PERF_REPEATS,"tolerance_percent":$BENCH_TOLERANCE_PERCENT}
+{"baseline_requested":"$BASELINE","baseline_commit":"$BASELINE_COMMIT","baseline_cursor_api":$BASELINE_CURSOR_API,"candidate_head":"$(git -C "$ROOT" rev-parse HEAD)","candidate_dirty":$CANDIDATE_DIRTY,"candidate_tree_sha256":"$CANDIDATE_TREE_SHA256","profile":"release(codegen-units=1,incremental=false)","case_isolated_binaries":true,"cpu_model":"$CPU_MODEL","affinity_cpu":$BENCH_CPU,"thread_siblings":"$SIBLINGS","governor":"$GOVERNOR","toolchain":"$TOOLCHAIN","warmups":$WARMUPS,"trials":$TRIALS,"measure_iterations":{"default":$MEASURE_ITERATIONS,"cartesian":$CARTESIAN_MEASURE_ITERATIONS,"construction_first_fit":$FIRST_FIT_MEASURE_ITERATIONS,"full_list":$FULL_LIST_MEASURE_ITERATIONS},"perf_available":$PERF_AVAILABLE,"isolated_cpus":"$ISOLATED_CPUS","perf_repeats":$PERF_REPEATS,"tolerance_percent":$BENCH_TOLERANCE_PERCENT}
 EOF
 
 for case_name in "${CASES[@]}"; do

@@ -56,6 +56,7 @@ impl Iterator for CandidateEntityIter {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn owner_restriction<S, V>(
     owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     solution: &S,
@@ -83,6 +84,7 @@ pub(crate) fn candidate_entity_indices<S, V>(
     owner_restriction(owner_fn, solution, entity_count, element).candidates(entity_count)
 }
 
+#[cfg(test)]
 pub(crate) fn selected_owner_restrictions<S, V>(
     owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     solution: &S,
@@ -121,11 +123,13 @@ pub(crate) fn selected_owner_restrictions<S, V>(
     Some(SelectedOwnerRestrictions::Mixed(owners))
 }
 
+#[cfg(test)]
 pub(crate) enum SelectedOwnerRestrictions {
     FixedToCurrent,
     Mixed(Vec<Vec<OwnerRestriction>>),
 }
 
+#[cfg(test)]
 impl SelectedOwnerRestrictions {
     pub(crate) fn is_fixed_to_current(&self) -> bool {
         matches!(self, Self::FixedToCurrent)
@@ -139,6 +143,7 @@ impl SelectedOwnerRestrictions {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn selected_elements_fixed_to_current_entities<S, V>(
     owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     solution: &S,
@@ -166,6 +171,7 @@ pub(crate) fn selected_elements_fixed_to_current_entities<S, V>(
 }
 
 #[inline]
+#[cfg(test)]
 pub(crate) fn selected_owner_allows(
     owners: &[Vec<OwnerRestriction>],
     selected_entity_idx: usize,
@@ -180,6 +186,7 @@ pub(crate) fn selected_owner_allows(
 }
 
 #[inline]
+#[cfg(test)]
 pub(crate) fn selected_segment_allows(
     owners: &[Vec<OwnerRestriction>],
     selected_entity_idx: usize,

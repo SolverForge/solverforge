@@ -84,10 +84,12 @@ deliberately, in its own commit, after the workspace passes on the new version.
    isolates the measured CPU and its siblings in a cgroup cpuset partition
    while trials run), and optional unprivileged `perf` counters, run:
    `BENCH_CPU=10 WARMUPS=5 TRIALS=51 make bench-zero-regression`
-   For an apples-to-apples comparison against a baseline that already uses the
-   cursor-owned construction API, set
-   `BASELINE=<commit> BASELINE_CURSOR_API=1`; the default historical baseline
-   keeps `BASELINE_CURSOR_API=0` for its former eager construction harness.
+   The gate cases drive the compiled runtime's own cursors through the hidden
+   `solverforge_solver::__bench` handles (`CompiledRuntimeRunner` and the
+   neighborhood and construction cursors it hands out), and both sides compile
+   the candidate tree's gate sources, so the baseline must carry those
+   handles: compare against a commit at or after the change that introduced
+   them, with `BASELINE=<commit> BASELINE_CURSOR_API=1`.
    For a baseline from an older API generation whose bench sources no longer
    compile against it, set `BENCH_OWN_SOURCES=1`: each side then compiles its
    own tree's gate sources, the comparator relaxes semantic matching to exact

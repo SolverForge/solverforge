@@ -31,7 +31,7 @@ use super::{Move, MoveTabuSignature};
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
 ///
-pub struct SublistChangeMove<S, V> {
+pub(crate) struct SublistChangeMove<S, V> {
     // Source entity index
     source_entity_index: usize,
     // Start of range in source list (inclusive)
@@ -121,23 +121,23 @@ impl<S, V> SublistChangeMove<S, V> {
         }
     }
 
-    pub fn source_entity_index(&self) -> usize {
+    pub(crate) fn source_entity_index(&self) -> usize {
         self.source_entity_index
     }
 
-    pub fn source_start(&self) -> usize {
+    pub(crate) fn source_start(&self) -> usize {
         self.source_start
     }
 
-    pub fn source_end(&self) -> usize {
+    pub(crate) fn source_end(&self) -> usize {
         self.source_end
     }
 
-    pub fn dest_entity_index(&self) -> usize {
+    pub(crate) fn dest_entity_index(&self) -> usize {
         self.dest_entity_index
     }
 
-    pub fn dest_position(&self) -> usize {
+    pub(crate) fn dest_position(&self) -> usize {
         self.dest_position
     }
 

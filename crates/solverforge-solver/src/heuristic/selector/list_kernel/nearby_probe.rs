@@ -3,10 +3,15 @@
 //! The probe is intentionally immutable and borrowed by static adapters so
 //! opening a cursor does not clone or pre-observe user distance callbacks.
 
-use std::fmt::{self, Debug};
+#[cfg(test)]
+use std::fmt;
+use std::fmt::Debug;
 
+#[cfg(test)]
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-use crate::list_placement::{owner_restriction, OwnerRestriction};
+#[cfg(test)]
+use crate::list_placement::owner_restriction;
+use crate::list_placement::OwnerRestriction;
 
 pub(crate) trait NearbyChangeProbe<S>: Debug {
     fn distance(
@@ -51,12 +56,14 @@ pub(crate) trait NearbySwapProbe<S>: Debug {
 }
 
 /// Static adapter over the existing distance meter and owner callback.
+#[cfg(test)]
 pub(crate) struct NativeNearbyProbe<'a, S, V, D> {
     distance_meter: &'a D,
     list_get: fn(&S, usize, usize) -> Option<V>,
     element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
 }
 
+#[cfg(test)]
 impl<'a, S, V, D> NativeNearbyProbe<'a, S, V, D> {
     pub(crate) fn new(
         distance_meter: &'a D,
@@ -88,6 +95,7 @@ impl<'a, S, V, D> NativeNearbyProbe<'a, S, V, D> {
     }
 }
 
+#[cfg(test)]
 impl<S, V, D> Debug for NativeNearbyProbe<'_, S, V, D> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -97,6 +105,7 @@ impl<S, V, D> Debug for NativeNearbyProbe<'_, S, V, D> {
     }
 }
 
+#[cfg(test)]
 impl<S, V, D> NearbyChangeProbe<S> for NativeNearbyProbe<'_, S, V, D>
 where
     D: CrossEntityDistanceMeter<S>,
@@ -133,6 +142,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S, V, D> NearbySwapProbe<S> for NativeNearbyProbe<'_, S, V, D>
 where
     D: CrossEntityDistanceMeter<S>,

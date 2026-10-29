@@ -8,8 +8,8 @@ mod r#move;
 #[cfg(test)]
 pub(crate) use r#move::RuntimeNeighborhoodMove;
 
-pub(super) use leaf::ProviderExecutionResources;
+pub(crate) use leaf::ProviderExecutionResources;
 pub(super) use lower::{
     lower_default_selector_union, lower_selector, RuntimeLocalSearchLoweringError,
-    RuntimeNeighborhoodState,
 };
+pub(crate) use lower::{RuntimeNeighborhoodCursor, RuntimeNeighborhoodState};

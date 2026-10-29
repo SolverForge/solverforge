@@ -1,4 +1,5 @@
 #[inline(always)]
+#[cfg(test)]
 pub(crate) fn for_each_sublist_segment(
     route_len: usize,
     min_size: usize,
@@ -17,6 +18,7 @@ pub(crate) fn for_each_sublist_segment(
 }
 
 #[inline(always)]
+#[cfg(test)]
 pub(crate) fn for_each_following_sublist_segment(
     route_len: usize,
     start_at: usize,
@@ -36,6 +38,7 @@ pub(crate) fn for_each_following_sublist_segment(
 }
 
 #[inline]
+#[cfg(test)]
 pub(crate) fn count_sublist_segments(route_len: usize, min_size: usize, max_size: usize) -> usize {
     let mut count = 0;
     for_each_sublist_segment(route_len, min_size, max_size, |_, _, _| {
@@ -45,6 +48,7 @@ pub(crate) fn count_sublist_segments(route_len: usize, min_size: usize, max_size
 }
 
 #[inline]
+#[cfg(test)]
 pub(crate) fn count_sublist_change_moves_for_len(
     route_len: usize,
     inter_destinations: usize,
@@ -59,6 +63,7 @@ pub(crate) fn count_sublist_change_moves_for_len(
 }
 
 #[inline]
+#[cfg(test)]
 pub(crate) fn count_intra_sublist_swap_moves_for_len(
     route_len: usize,
     min_size: usize,

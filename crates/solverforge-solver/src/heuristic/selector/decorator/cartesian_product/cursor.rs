@@ -73,7 +73,7 @@ where
     }
 }
 
-pub struct CartesianProductCursor<'a, S, M, LeftCursor, Right>
+pub(crate) struct CartesianProductCursor<'a, S, M, LeftCursor, Right>
 where
     S: PlanningSolution,
     M: Move<S>,

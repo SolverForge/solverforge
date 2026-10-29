@@ -15,7 +15,7 @@ use solverforge_scoring::{
 };
 use tracing::info;
 
-use crate::builder::{RuntimeExtensionRegistry, Search};
+use crate::builder::{RuntimeExtensionRegistry, Search, SearchContext};
 use crate::constraint_weights::validate_constraint_weights;
 use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::Phase;
@@ -282,18 +282,46 @@ where
         move |config, descriptor| {
             let declaration = build_search(config, descriptor.clone())?;
             let (context, extensions) = declaration.into_runtime_parts();
-            let graph = compile_runtime_graph(config, RuntimeGraphInput::new(context, extensions))
-                .map_err(|error| {
-                    let message = error.to_string();
-                    RuntimeBuildError::Compilation {
-                        path: error.path,
-                        message,
-                    }
-                })?;
-            let executor = CompiledRuntimeExecutor::new(graph);
-            CompiledRuntimePhaseRunner::try_new(executor)
+            compile_runtime_runner(config, context, extensions)
         },
     )
+}
+
+/// Compiles one search declaration into the retained phase runner a
+/// configured solve executes. The selector benchmark builds its runners here
+/// too, so it measures the cursors this exact compilation produces.
+pub(crate) fn compile_runtime_runner<S, V, DM, IDM, Registry>(
+    config: &SolverConfig,
+    context: SearchContext<S, V, DM, IDM>,
+    extensions: Registry,
+) -> RuntimeBuildResult<CompiledRuntimePhaseRunner<S, V, DM, IDM, Registry::Phase>>
+where
+    S: PlanningSolution + Clone + Send + Sync + 'static,
+    S::Score: Score + Copy + Ord + ParseableScore,
+    V: Clone + PartialEq + Into<usize> + Send + Sync + fmt::Debug + 'static,
+    DM: crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>
+        + Clone
+        + Send
+        + Sync
+        + fmt::Debug
+        + 'static,
+    IDM: crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter<S>
+        + Clone
+        + Send
+        + Sync
+        + fmt::Debug
+        + 'static,
+    Registry: RuntimeExtensionRegistry<S, V, DM, IDM>,
+{
+    let graph = compile_runtime_graph(config, RuntimeGraphInput::new(context, extensions))
+        .map_err(|error| {
+            let message = error.to_string();
+            RuntimeBuildError::Compilation {
+                path: error.path,
+                message,
+            }
+        })?;
+    CompiledRuntimePhaseRunner::try_new(CompiledRuntimeExecutor::new(graph))
 }
 
 /* Shared configured solve. `W` is the mode a solution whose weights require

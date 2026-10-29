@@ -21,6 +21,7 @@ triggers on these tuples but the pattern is architecturally required.
 #[cfg(test)]
 mod test_utils;
 
+mod bench;
 mod builder;
 mod constraint_weights;
 mod descriptor;
@@ -164,32 +165,16 @@ pub use stats::telemetry::SelectorTelemetry;
 pub use stats::telemetry::SolverTelemetry;
 pub use stats::telemetry::Throughput;
 
-/// Internal types the selector benchmark drives directly. Hidden and not
-/// part of the supported API: no compatibility promise covers them.
+/// Handles the selector-cursor benchmark drives: the compiled runtime's own
+/// local-search and construction cursors, reached through the same
+/// compilation a configured solve runs. Hidden and not part of the supported
+/// API: no compatibility promise covers them.
 #[doc(hidden)]
 pub mod __bench {
-    pub use crate::heuristic::r#move::change::ChangeMove;
-    pub use crate::heuristic::r#move::list_change::ListChangeMove;
-    pub use crate::heuristic::selector::decorator::cartesian_product::CartesianProductSelector;
-    pub use crate::heuristic::selector::decorator::filtering::FilteringMoveSelector;
-    pub use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-    pub use crate::heuristic::selector::k_opt::config::KOptConfig;
-    pub use crate::heuristic::selector::k_opt::selector::KOptMoveSelector;
-    pub use crate::heuristic::selector::list_change::ListChangeMoveSelector;
-    pub use crate::heuristic::selector::list_swap::ListSwapMoveSelector;
-    pub use crate::heuristic::selector::move_selector::ChangeMoveSelector;
-    pub use crate::heuristic::selector::nearby_list_change::NearbyListChangeMoveSelector;
-    pub use crate::heuristic::selector::nearby_list_swap::NearbyListSwapMoveSelector;
-    pub use crate::heuristic::selector::ruin::RuinMoveSelector;
-    pub use crate::heuristic::selector::ruin::RuinVariableAccess;
-    pub use crate::heuristic::selector::sublist_change::SublistChangeMoveSelector;
-    pub use crate::heuristic::selector::sublist_swap::SublistSwapMoveSelector;
-    pub use crate::heuristic::selector::value_selector::StaticValueSelector;
-    pub use crate::phase::construction::forager::FirstFitForager;
-    pub use crate::phase::construction::phase::ConstructionHeuristicPhase;
-    pub use crate::phase::construction::placer::EntityPlacer;
-    pub use crate::phase::construction::placer::EntityPlacerCursor;
-    pub use crate::phase::construction::placer::QueuedEntityPlacer;
+    pub use crate::bench::{
+        CandidateVisitor, CompiledNeighborhood, CompiledNeighborhoodCursor, CompiledRuntimeRunner,
+        CompiledScalarPlacement, CompiledScalarPlacementCursor, CompiledScalarPlacer,
+    };
 }
 
 /// Solver internals other SolverForge crates build on: the host-provider

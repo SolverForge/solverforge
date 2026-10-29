@@ -1,14 +1,19 @@
+#[cfg(test)]
 use solverforge_core::domain::PlanningSolution;
+#[cfg(test)]
 use solverforge_scoring::Director;
 
+#[cfg(test)]
 use super::entity::EntitySelector;
 use super::move_selector::MoveStreamContext;
 
+#[cfg(test)]
 pub(crate) struct SelectedEntities {
     pub(crate) entities: Vec<usize>,
     pub(crate) route_lens: Vec<usize>,
 }
 
+#[cfg(test)]
 impl SelectedEntities {
     pub(crate) fn apply_stream_order(&mut self, context: MoveStreamContext, salt: u64) {
         let len = self.entities.len();
@@ -62,6 +67,7 @@ pub(crate) fn ordered_index(
     context.selection_index(offset, len, salt)
 }
 
+#[cfg(test)]
 pub(crate) fn collect_selected_entities<S, D, ES>(
     entity_selector: &ES,
     score_director: &D,

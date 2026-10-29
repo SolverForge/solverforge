@@ -20,7 +20,7 @@ use super::move_selector::{
 
 /// Native list swap selector.  It retains its public move type while the
 /// shared cursor owns ordering, ownership pruning, and candidate ownership.
-pub struct ListSwapMoveSelector<S, V, ES> {
+pub(crate) struct ListSwapMoveSelector<S, V, ES> {
     entity_selector: ES,
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
@@ -32,7 +32,7 @@ pub struct ListSwapMoveSelector<S, V, ES> {
 }
 
 /// Public cursor facade that hides the crate-private generic emitter/kernel.
-pub struct ListSwapMoveCursor<S, V>
+pub(crate) struct ListSwapMoveCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -96,7 +96,7 @@ impl<S, V: Debug, ES: Debug> Debug for ListSwapMoveSelector<S, V, ES> {
 }
 
 impl<S, V, ES> ListSwapMoveSelector<S, V, ES> {
-    pub fn new(
+    pub(crate) fn new(
         entity_selector: ES,
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,

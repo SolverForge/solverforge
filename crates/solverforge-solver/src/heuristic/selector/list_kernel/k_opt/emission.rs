@@ -1,13 +1,19 @@
 //! Physical K-opt move emission for the shared cursor kernels.
 
-use std::fmt::{self, Debug};
+#[cfg(test)]
+use std::fmt;
+use std::fmt::Debug;
+#[cfg(test)]
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 
 use crate::heuristic::r#move::k_opt_reconnection::KOptReconnection;
+#[cfg(test)]
 use crate::heuristic::r#move::metadata::hash_str;
-use crate::heuristic::r#move::{CutPoint, KOptMove, Move};
+#[cfg(test)]
+use crate::heuristic::r#move::KOptMove;
+use crate::heuristic::r#move::{CutPoint, Move};
 
 pub(crate) trait KOptEmitter<S: PlanningSolution>: Send + Sync + Debug {
     type Move: Move<S>;
@@ -18,6 +24,7 @@ pub(crate) trait KOptEmitter<S: PlanningSolution>: Send + Sync + Debug {
 /// Static emission preserving the public `KOptMove<S, V>` function-pointer
 /// carrier while the shared cursors retain coordinate and pattern ownership.
 #[derive(Clone, Copy)]
+#[cfg(test)]
 pub(crate) struct NativeKOptEmitter<S, V> {
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
@@ -29,6 +36,7 @@ pub(crate) struct NativeKOptEmitter<S, V> {
     _phantom: PhantomData<fn() -> (S, V)>,
 }
 
+#[cfg(test)]
 impl<S, V> NativeKOptEmitter<S, V> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -52,6 +60,7 @@ impl<S, V> NativeKOptEmitter<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> Debug for NativeKOptEmitter<S, V> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -62,6 +71,7 @@ impl<S, V> Debug for NativeKOptEmitter<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> KOptEmitter<S> for NativeKOptEmitter<S, V>
 where
     S: PlanningSolution,

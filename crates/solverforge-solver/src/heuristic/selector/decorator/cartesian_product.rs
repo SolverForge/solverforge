@@ -28,7 +28,7 @@ use crate::heuristic::selector::move_selector::{
 
 /// Cartesian product selector that evaluates the right child after the left
 /// child on a preview solution and yields borrowable sequential candidates.
-pub struct CartesianProductSelector<S, M, Left, Right>
+pub(crate) struct CartesianProductSelector<S, M, Left, Right>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -47,7 +47,7 @@ where
     Left: MoveSelector<S, M>,
     Right: MoveSelector<S, M>,
 {
-    pub fn new(left: Left, right: Right) -> Self {
+    pub(crate) fn new(left: Left, right: Right) -> Self {
         Self {
             left,
             right,

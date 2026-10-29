@@ -30,8 +30,9 @@ pub(crate) use phase::ConstructionHeuristicPhase;
 pub(crate) use placer::ConstructionTarget;
 pub(crate) use placer::{EntityPlacer, EntityPlacerCursor, Placement};
 pub(crate) use runtime_slots::{
-    FrozenRuntimeListConstructionSlot, FrozenScalarOrMixedConstruction, ScalarConstructionSchedule,
-    ScalarOrMixedSlotOrder,
+    descriptor_placer, FrozenRuntimeListConstructionSlot, FrozenScalarOrMixedConstruction,
+    RuntimeScalarCandidateCursor, RuntimeScalarConstructionCursor, RuntimeScalarConstructionMove,
+    RuntimeScalarConstructionPlacer, ScalarConstructionSchedule, ScalarOrMixedSlotOrder,
 };
 pub(crate) use slot::{
     ConstructionGroupSlotId, ConstructionGroupSlotKey, ConstructionListElementId,

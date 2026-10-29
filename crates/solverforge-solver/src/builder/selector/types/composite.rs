@@ -20,7 +20,7 @@ mod state;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use execution::SelectorCompositionState;
+pub(crate) use execution::{SelectorCompositionBorrowedCursor, SelectorCompositionState};
 pub(crate) use state::SelectorCompositionCursor;
 
 /// A move carrier that can own a selected Cartesian pair.

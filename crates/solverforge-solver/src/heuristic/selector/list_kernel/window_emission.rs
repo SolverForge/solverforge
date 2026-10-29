@@ -1,14 +1,17 @@
 //! Physical emission adapters for reverse and contiguous-window moves.
 
-use std::fmt::{self, Debug};
+#[cfg(test)]
+use std::fmt;
+use std::fmt::Debug;
+#[cfg(test)]
 use std::marker::PhantomData;
 
 use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 
-use crate::heuristic::r#move::{
-    ListPermuteMove, Move, SublistChangeMove, SublistSwapMove, MAX_LIST_PERMUTE_WINDOW_SIZE,
-};
+#[cfg(test)]
+use crate::heuristic::r#move::{ListPermuteMove, SublistChangeMove, SublistSwapMove};
+use crate::heuristic::r#move::{Move, MAX_LIST_PERMUTE_WINDOW_SIZE};
 
 pub(crate) trait SublistChangeEmitter<S: PlanningSolution>: Send + Sync + Debug {
     type Move: Move<S>;
@@ -57,6 +60,7 @@ pub(crate) trait PermuteEmitter<S: PlanningSolution>: Send + Sync + Debug {
 
 /// Static emission preserving ListPermuteMove contiguous-window mutation.
 #[derive(Clone, Copy)]
+#[cfg(test)]
 pub(crate) struct NativeWindowEmitter<S, V> {
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
@@ -67,6 +71,7 @@ pub(crate) struct NativeWindowEmitter<S, V> {
     _phantom: PhantomData<fn() -> (S, V)>,
 }
 
+#[cfg(test)]
 impl<S, V> NativeWindowEmitter<S, V> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -89,6 +94,7 @@ impl<S, V> NativeWindowEmitter<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> Debug for NativeWindowEmitter<S, V> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -99,6 +105,7 @@ impl<S, V> Debug for NativeWindowEmitter<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> SublistChangeEmitter<S> for NativeWindowEmitter<S, V>
 where
     S: PlanningSolution,
@@ -130,6 +137,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S, V> SublistSwapEmitter<S> for NativeWindowEmitter<S, V>
 where
     S: PlanningSolution,
@@ -163,6 +171,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S, V> PermuteEmitter<S> for NativeWindowEmitter<S, V>
 where
     S: PlanningSolution,

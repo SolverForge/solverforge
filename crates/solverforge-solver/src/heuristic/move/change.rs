@@ -27,7 +27,7 @@ use super::{Move, MoveTabuSignature};
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `V` - The variable value type
-pub struct ChangeMove<S, V> {
+pub(crate) struct ChangeMove<S, V> {
     entity_index: usize,
     to_value: Option<V>,
     getter: fn(&S, usize, usize) -> Option<V>,
@@ -95,11 +95,11 @@ impl<S, V> ChangeMove<S, V> {
         }
     }
 
-    pub fn entity_index(&self) -> usize {
+    pub(crate) fn entity_index(&self) -> usize {
         self.entity_index
     }
 
-    pub fn to_value(&self) -> Option<&V> {
+    pub(crate) fn to_value(&self) -> Option<&V> {
         self.to_value.as_ref()
     }
 }

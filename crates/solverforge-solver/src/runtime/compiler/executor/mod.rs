@@ -31,4 +31,6 @@ pub(crate) use prepared::{
     PreparedRuntimeExecution, PreparedRuntimePhase, RuntimeInstantiationError,
     RuntimeInstantiationErrorKind,
 };
-pub(crate) use runner::{take_runtime_execution_failure, CompiledRuntimePhaseRunner};
+pub(crate) use runner::{
+    take_runtime_execution_failure, CompiledRuntimePhaseRunner, ScalarConstructionHandoff,
+};

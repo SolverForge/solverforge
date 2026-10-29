@@ -21,7 +21,7 @@ use super::iterators::count_cut_combinations;
 
 /// Static K-opt selector.  It preserves its public move/cursor types while
 /// common cut and reconnection enumeration is owned by the shared list kernel.
-pub struct KOptMoveSelector<S, V, ES> {
+pub(crate) struct KOptMoveSelector<S, V, ES> {
     entity_selector: ES,
     config: KOptConfig,
     owned_patterns: Vec<KOptReconnection>,
@@ -34,7 +34,7 @@ pub struct KOptMoveSelector<S, V, ES> {
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-pub struct KOptMoveCursor<'a, S, V>
+pub(crate) struct KOptMoveCursor<'a, S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
@@ -95,7 +95,7 @@ impl<S, V: Debug, ES: Debug> Debug for KOptMoveSelector<S, V, ES> {
 
 impl<S: PlanningSolution, V, ES> KOptMoveSelector<S, V, ES> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_selector: ES,
         config: KOptConfig,
         list_len: fn(&S, usize) -> usize,

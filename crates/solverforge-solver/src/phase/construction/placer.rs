@@ -10,9 +10,15 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{ChangeMove, Move};
-use crate::heuristic::selector::move_selector::{CandidateId, MoveCandidateRef, MoveCursor};
-use crate::heuristic::selector::{EntityReference, EntitySelector, ValueSelector};
+#[cfg(test)]
+use crate::heuristic::r#move::ChangeMove;
+use crate::heuristic::r#move::Move;
+#[cfg(test)]
+use crate::heuristic::selector::move_selector::MoveCandidateRef;
+use crate::heuristic::selector::move_selector::{CandidateId, MoveCursor};
+use crate::heuristic::selector::EntityReference;
+#[cfg(test)]
+use crate::heuristic::selector::{EntitySelector, ValueSelector};
 use crate::stats::CandidateTracePullToken;
 
 use super::{ConstructionGroupSlotId, ConstructionSlotId};
@@ -59,8 +65,11 @@ impl ConstructionTarget {
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type
-pub struct Placement<S, M, C = crate::heuristic::selector::move_selector::ArenaMoveCursor<S, M>>
-where
+pub(crate) struct Placement<
+    S,
+    M,
+    C = crate::heuristic::selector::move_selector::ArenaMoveCursor<S, M>,
+> where
     S: PlanningSolution,
     M: Move<S>,
     C: MoveCursor<S, M>,
@@ -143,11 +152,11 @@ where
         (self.candidate_target)(&self.candidates, candidate_id).unwrap_or(&self.target)
     }
 
-    pub fn candidates(&self) -> &C {
+    pub(crate) fn candidates(&self) -> &C {
         &self.candidates
     }
 
-    pub fn candidates_mut(&mut self) -> &mut C {
+    pub(crate) fn candidates_mut(&mut self) -> &mut C {
         &mut self.candidates
     }
 
@@ -209,7 +218,7 @@ where
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type
-pub trait EntityPlacerCursor<S, M>
+pub(crate) trait EntityPlacerCursor<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -228,7 +237,7 @@ where
         ShouldStop: FnMut() -> bool;
 }
 
-pub trait EntityPlacer<S, M>: Send + Debug
+pub(crate) trait EntityPlacer<S, M>: Send + Debug
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -240,6 +249,7 @@ where
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a>;
 }
 
+#[cfg(test)]
 include!("placer/queued.rs");
 
 #[cfg(test)]

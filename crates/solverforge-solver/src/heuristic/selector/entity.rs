@@ -2,12 +2,14 @@
 
 use std::fmt::Debug;
 
+#[cfg(test)]
 use solverforge_core::domain::PlanningSolution;
+#[cfg(test)]
 use solverforge_scoring::Director;
 
 // A reference to an entity within a solution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct EntityReference {
+pub(crate) struct EntityReference {
     // Index of the entity descriptor.
     pub descriptor_index: usize,
     // Index of the entity within its collection.
@@ -30,7 +32,8 @@ impl EntityReference {
 ///
 /// # Type Parameters
 /// * `S` - The planning solution type
-pub trait EntitySelector<S: PlanningSolution>: Send + Debug {
+#[cfg(test)]
+pub(crate) trait EntitySelector<S: PlanningSolution>: Send + Debug {
     /* Returns an iterator over entity references.
 
     The iterator yields `EntityReference` values that identify entities
@@ -42,26 +45,24 @@ pub trait EntitySelector<S: PlanningSolution>: Send + Debug {
     ) -> impl Iterator<Item = EntityReference> + 'a;
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
-
-    // Returns true if this selector may return the same entity multiple times.
-    fn is_never_ending(&self) -> bool {
-        false
-    }
 }
 
 // An entity selector that iterates over all entities from the solution.
 #[derive(Clone, Debug)]
-pub struct FromSolutionEntitySelector {
+#[cfg(test)]
+pub(crate) struct FromSolutionEntitySelector {
     // The descriptor index to select from.
     descriptor_index: usize,
 }
 
+#[cfg(test)]
 impl FromSolutionEntitySelector {
-    pub fn new(descriptor_index: usize) -> Self {
+    pub(crate) fn new(descriptor_index: usize) -> Self {
         Self { descriptor_index }
     }
 }
 
+#[cfg(test)]
 impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
     fn iter<'a, D: Director<S>>(
         &'a self,

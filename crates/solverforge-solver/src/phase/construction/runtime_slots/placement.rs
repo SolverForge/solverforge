@@ -43,32 +43,8 @@ where
     D: Director<S>,
     ProgressCb: ProgressCallback<S>,
 {
-    let slots = slot_order
-        .into_iter()
-        .map(|entry| match entry {
-            ScalarOrMixedSlotOrder::Scalar {
-                scalar_index,
-                construction_slot_index,
-            } => FrozenScalarConstructionSlot {
-                slot: scalar_slots
-                    .get(scalar_index)
-                    .expect("frozen scalar construction order must reference a scalar slot")
-                    .clone(),
-                construction_slot_index,
-            },
-            ScalarOrMixedSlotOrder::List { .. } => {
-                panic!("descriptor-placement scalar construction cannot contain list order entries")
-            }
-        })
-        .collect::<Vec<_>>();
     let heuristic = config.construction_heuristic_type;
-    let placer = RuntimeScalarConstructionPlacer {
-        slots,
-        entity_order: entity_order_for(heuristic),
-        value_order: value_order_for(heuristic),
-        value_candidate_limit: config.value_candidate_limit,
-        live_refresh: requires_live_refresh(heuristic),
-    };
+    let placer = descriptor_placer(&config, scalar_slots, slot_order);
 
     match heuristic {
         ConstructionHeuristicType::FirstFit
@@ -104,6 +80,41 @@ where
         }
     }
     true
+}
+
+/// The descriptor-placement placer a scalar construction phase drives,
+/// built from the phase's frozen slots in their frozen order.
+pub(crate) fn descriptor_placer<S>(
+    config: &ConstructionHeuristicConfig,
+    scalar_slots: Vec<RuntimeScalarSlot<S>>,
+    slot_order: Vec<ScalarOrMixedSlotOrder>,
+) -> RuntimeScalarConstructionPlacer<S> {
+    let slots = slot_order
+        .into_iter()
+        .map(|entry| match entry {
+            ScalarOrMixedSlotOrder::Scalar {
+                scalar_index,
+                construction_slot_index,
+            } => FrozenScalarConstructionSlot {
+                slot: scalar_slots
+                    .get(scalar_index)
+                    .expect("frozen scalar construction order must reference a scalar slot")
+                    .clone(),
+                construction_slot_index,
+            },
+            ScalarOrMixedSlotOrder::List { .. } => {
+                panic!("descriptor-placement scalar construction cannot contain list order entries")
+            }
+        })
+        .collect::<Vec<_>>();
+    let heuristic = config.construction_heuristic_type;
+    RuntimeScalarConstructionPlacer {
+        slots,
+        entity_order: entity_order_for(heuristic),
+        value_order: value_order_for(heuristic),
+        value_candidate_limit: config.value_candidate_limit,
+        live_refresh: requires_live_refresh(heuristic),
+    }
 }
 
 fn runtime_strength<S>(move_: &RuntimeScalarConstructionMove<S>, solution: &S) -> i64
@@ -147,7 +158,7 @@ fn requires_live_refresh(heuristic: ConstructionHeuristicType) -> bool {
 }
 
 #[derive(Clone)]
-struct RuntimeScalarConstructionPlacer<S> {
+pub(crate) struct RuntimeScalarConstructionPlacer<S> {
     slots: Vec<FrozenScalarConstructionSlot<S>>,
     entity_order: EntityOrder,
     value_order: ValueOrder,
@@ -227,7 +238,7 @@ where
     }
 }
 
-struct RuntimeScalarCandidateCursor<S>
+pub(crate) struct RuntimeScalarCandidateCursor<S>
 where
     S: PlanningSolution,
 {
@@ -266,7 +277,7 @@ where
     }
 }
 
-struct RuntimeScalarConstructionCursor<'a, S>
+pub(crate) struct RuntimeScalarConstructionCursor<'a, S>
 where
     S: PlanningSolution,
 {

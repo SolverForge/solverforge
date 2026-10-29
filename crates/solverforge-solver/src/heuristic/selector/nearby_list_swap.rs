@@ -20,7 +20,7 @@ use super::move_selector::{
 use super::nearby_list_change::CrossEntityDistanceMeter;
 
 /// Public nearby list-swap adapter.
-pub struct NearbyListSwapMoveSelector<S, V, D, ES> {
+pub(crate) struct NearbyListSwapMoveSelector<S, V, D, ES> {
     entity_selector: ES,
     distance_meter: D,
     max_nearby: usize,
@@ -34,7 +34,7 @@ pub struct NearbyListSwapMoveSelector<S, V, D, ES> {
 }
 
 /// Public cursor facade that hides the crate-private generic emitter/probe.
-pub struct NearbyListSwapMoveCursor<'a, S, V, D>
+pub(crate) struct NearbyListSwapMoveCursor<'a, S, V, D>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -106,7 +106,7 @@ impl<S, V: Debug, D, ES: Debug> Debug for NearbyListSwapMoveSelector<S, V, D, ES
 
 impl<S, V, D, ES> NearbyListSwapMoveSelector<S, V, D, ES> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_selector: ES,
         distance_meter: D,
         max_nearby: usize,

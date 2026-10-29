@@ -8,7 +8,7 @@
 /// * `V` - The value type
 /// * `ES` - The entity selector type
 /// * `VS` - The value selector type
-pub struct QueuedEntityPlacer<S, V, ES, VS>
+pub(crate) struct QueuedEntityPlacer<S, V, ES, VS>
 where
     S: PlanningSolution,
     ES: EntitySelector<S>,
@@ -41,7 +41,7 @@ where
     ES: EntitySelector<S>,
     VS: ValueSelector<S, V>,
 {
-    pub fn new(
+    pub(crate) fn new(
         entity_selector: ES,
         value_selector: VS,
         getter: fn(&S, usize, usize) -> Option<V>,
@@ -158,7 +158,7 @@ where
     }
 }
 
-pub struct QueuedPlacementCandidateCursor<S, V>
+pub(crate) struct QueuedPlacementCandidateCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -218,7 +218,7 @@ where
     }
 }
 
-pub struct QueuedEntityPlacerCursor<'a, S, V, ES, VS>
+pub(crate) struct QueuedEntityPlacerCursor<'a, S, V, ES, VS>
 where
     S: PlanningSolution,
     ES: EntitySelector<S>,

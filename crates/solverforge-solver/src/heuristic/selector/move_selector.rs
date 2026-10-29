@@ -12,13 +12,18 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{ChangeMove, Move, SequentialCompositeMoveRef};
+#[cfg(test)]
+use crate::heuristic::r#move::ChangeMove;
+use crate::heuristic::r#move::{Move, SequentialCompositeMoveRef};
 
+#[cfg(test)]
 use super::entity::{EntitySelector, FromSolutionEntitySelector};
+#[cfg(test)]
 use super::value_selector::{StaticValueSelector, ValueSelector};
 
 include!("move_selector/borrowed.rs");
 include!("move_selector/unit_resource.rs");
 include!("move_selector/arena.rs");
 include!("move_selector/iter.rs");
+#[cfg(test)]
 include!("move_selector/change.rs");

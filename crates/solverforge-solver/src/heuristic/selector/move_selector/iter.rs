@@ -176,6 +176,7 @@ impl MoveStreamContext {
     /// the seeded permutation is walked as one rotation per cycle over the
     /// slice. The resulting order is exactly the `apply_selection_order`
     /// rotation.
+    #[cfg(test)]
     pub(crate) fn apply_selection_order_usize(self, values: &mut [usize], salt: u64) {
         if self.is_canonical() {
             return;

@@ -20,7 +20,7 @@ use super::move_selector::{
 };
 use super::sublist_support::{count_intra_sublist_swap_moves_for_len, count_sublist_segments};
 
-pub struct SublistSwapMoveSelector<S, V, ES> {
+pub(crate) struct SublistSwapMoveSelector<S, V, ES> {
     entity_selector: ES,
     min_sublist_size: usize,
     max_sublist_size: usize,
@@ -34,7 +34,7 @@ pub struct SublistSwapMoveSelector<S, V, ES> {
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-pub struct SublistSwapMoveCursor<S, V>
+pub(crate) struct SublistSwapMoveCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -96,7 +96,7 @@ impl<S, V: Debug, ES: Debug> Debug for SublistSwapMoveSelector<S, V, ES> {
 
 impl<S, V, ES> SublistSwapMoveSelector<S, V, ES> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_selector: ES,
         min_sublist_size: usize,
         max_sublist_size: usize,

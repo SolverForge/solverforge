@@ -18,7 +18,7 @@ use crate::stats::{CandidateTraceCoordinate, CandidateTraceIdentity};
 /// The physical dispatch is limited to the carrier legality distinction: typed
 /// candidate providers are authoritative, while dynamic slots retain their
 /// backend legality check.
-pub(super) struct RuntimeScalarConstructionMove<S> {
+pub(crate) struct RuntimeScalarConstructionMove<S> {
     slot: RuntimeScalarSlot<S>,
     entity_index: usize,
     value: usize,
@@ -37,11 +37,11 @@ impl<S> RuntimeScalarConstructionMove<S> {
         &self.slot
     }
 
-    pub(super) fn entity_index(&self) -> usize {
+    pub(crate) fn entity_index(&self) -> usize {
         self.entity_index
     }
 
-    pub(super) fn value(&self) -> usize {
+    pub(crate) fn value(&self) -> usize {
         self.value
     }
 }

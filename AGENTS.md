@@ -265,12 +265,33 @@ finalizers, or grouped/projection paths.
 
 ### Neighborhood Hot Paths
 
-List, nearby-list, and sublist selector cursor paths are production hot loops.
+Compiled solves enumerate candidates through these production loops, and the
+selector-cursor zero-regression gate
+(`crates/solverforge-solver/benches/selector_cursor_gate.rs`, run by
+`scripts/bench-zero-regression.sh`) drives each of them through
+`CompiledRuntimeRunner::compile`, the same compilation a configured solve
+runs:
+
+- The local-search composition cursor (`SelectorCompositionBorrowedCursor`
+  over `RuntimeNeighborhoodState`, which `RuntimeNeighborhoodFlatCursor` and
+  `RuntimeNeighborhoodLeafCursor` schedule), including its union and
+  Cartesian compositions.
+- The compiled list leaf `RuntimeListNeighborhoodCursor` (list change, swap,
+  nearby change and swap, sublist change and swap, and k-opt) over the shared
+  `list_kernel` emitters.
+- The scalar neighborhood leaf `RuntimeScalarNeighborhoodCursor` (change and
+  ruin/recreate).
+- The descriptor-placement scalar construction placer
+  (`RuntimeScalarConstructionPlacer`) and the compiled runtime phase runner
+  that solves first-fit construction.
+
+The standalone `heuristic/selector` selectors, decorators, and
+`QueuedEntityPlacer` are test oracles only; no production path runs them.
 
 - Preserve canonical enumeration order. Seeded order drift is a regression.
 - Generated moves from finite selectors must remain `is_doable`.
 - Cartesian selectors must keep preview-safe left-child validation, selector-order tabu composition, and borrowable sequential candidates.
-- Benchmark touched neighborhood families in release mode before and after refactors.
+- Benchmark touched neighborhood families in release mode before and after refactors with `make bench-zero-regression`; add a gate case when a production neighborhood loop has none.
 - Shared helpers are acceptable for selected-entity snapshots, candidate ordering, and exact `size()` accounting, but keep `open_cursor()` loops explicit when abstraction hurts throughput or clarity.
 - Do not accept a median throughput regression greater than 5% without explicit user approval.
 

@@ -24,11 +24,15 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 ```
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
+├── bench.rs                             — Hidden `__bench` handles: CompiledRuntimeRunner and CandidateVisitor
+├── bench/neighborhood.rs                — CompiledNeighborhood and CompiledNeighborhoodCursor over the lowered local-search composition cursor
+├── bench/construction.rs                — CompiledScalarPlacer and its placement cursors over the compiled descriptor-placement placer
 ├── solver.rs                            — Solver struct, SolveResult
 ├── solver/session.rs                    — Crate-private SolveSession: Solver::solve as start/run/finish over one phase, able to switch directors and resume the phase
 ├── runtime.rs                           — List-variable metadata plus the sole immutable compiled runtime-graph entrypoint
 ├── runtime/compiler/                    — Immutable runtime-graph compiler, prepared runner, default policy, and executor kernels; every reached source-backed construction boundary validates stable element keys against the frozen declared stream before deciding whether work remains
 ├── runtime/compiler/executor/completion.rs — Structural mandatory-work gate and deferred best-solution publication
+├── runtime/compiler/executor/runner/bench.rs — Moves a prepared runner's first lowered local search or scalar construction out for the `__bench` handles
 ├── runtime/compiler/executor/runner/failure.rs — Cold propagation of configured-runtime execution failures to the public run boundary
 ├── runtime/compiler/executor/runner/problem_change.rs — Problem-change pass loop and per-pass runner state reset
 ├── runtime/provider_cursor.rs           — One lazy compound-provider cursor; static Rust providers retain typed candidates/function pointers, while host callbacks alone use raw named edits and object-safe dispatch
@@ -85,18 +89,18 @@ src/
 │   ├── move/
 │   │   ├── mod.rs                       — Module declarations, re-exports
 │   │   ├── traits.rs                    — Move<S> trait definition
-│   │   ├── change.rs                    — ChangeMove<S, V>
-│   │   ├── list_change.rs              — ListChangeMove<S, V>
-│   │   ├── list_swap.rs                — ListSwapMove<S, V>
-│   │   ├── list_permute.rs             — ListPermuteMove<S, V>; contiguous intra-list window permutation; undo carries the inverse permutation indexes and restores through the same ownership-transfer gather
+│   │   ├── change.rs                    — Test-only ChangeMove<S, V> oracle
+│   │   ├── list_change.rs              — Test-only ListChangeMove<S, V> oracle
+│   │   ├── list_swap.rs                — Test-only ListSwapMove<S, V> oracle
+│   │   ├── list_permute.rs             — MAX_LIST_PERMUTE_WINDOW_SIZE and the test-only ListPermuteMove<S, V> oracle; contiguous intra-list window permutation; undo carries the inverse permutation indexes and restores through the same ownership-transfer gather
 │   │   ├── list_reverse.rs             — ListReverseMove<S, V>
 │   │   ├── list_ruin.rs                — ListRuinMove<S, V>
 │   │   ├── metadata.rs                 — MoveTabuSignature, scoped entity/value tabu tokens, exact move identities
-│   │   ├── sublist_change.rs           — SublistChangeMove<S, V>
-│   │   ├── sublist_swap.rs             — SublistSwapMove<S, V>
+│   │   ├── sublist_change.rs           — Test-only SublistChangeMove<S, V> oracle
+│   │   ├── sublist_swap.rs             — Test-only SublistSwapMove<S, V> oracle
 │   │   ├── segment_layout.rs           — Post-move segment coordinate derivation and reverse-identity helpers for sublist moves
-│   │   ├── ruin.rs                      — RuinMove<S, V>
-│   │   ├── k_opt.rs                     — KOptMove<S, V>, CutPoint
+│   │   ├── ruin.rs                      — Test-only RuinMove<S, V> oracle
+│   │   ├── k_opt.rs                     — CutPoint and the test-only KOptMove<S, V> oracle
 │   │   ├── k_opt_reconnection.rs       — KOptReconnection patterns
 │   │   ├── k_opt_reconnection_tests.rs — Tests
 │   │   ├── compound_scalar.rs          — CompoundScalarMove<S> for atomic multi-scalar edits with exact undo, tabu identity, and affected-entity reporting
@@ -127,42 +131,41 @@ src/
 │   │
 │   └── selector/
 │       ├── mod.rs                       — Re-exports
-│       ├── entity.rs                    — EntitySelector trait, EntityReference, FromSolutionEntitySelector
-│       ├── value_selector.rs              — ValueSelector trait, StaticValueSelector
+│       ├── entity.rs                    — EntityReference; test-only EntitySelector trait and FromSolutionEntitySelector
+│       ├── value_selector.rs              — Test-only ValueSelector trait and StaticValueSelector
 │       ├── move_selector.rs             — Re-exports for the move_selector/ files
-│       ├── move_selector/*.rs           — borrowed.rs candidate cursor, arena.rs candidate store and arena cursor, unit_resource.rs unit resource cursor, iter.rs adapter, and change.rs selector implementation chunks
+│       ├── move_selector/*.rs           — borrowed.rs candidate cursor, arena.rs candidate store and arena cursor, unit_resource.rs unit resource cursor, iter.rs adapter, and test-only change.rs selector chunks
 │       ├── dynamic_scalar_nearby_change.rs — Fallible DynamicScalarNearbyChangeMoveSelector<S> facade over the canonical nearby-value leaf
 │       ├── dynamic_scalar_nearby_swap.rs — Fallible DynamicScalarNearbySwapMoveSelector<S> facade over the canonical nearby-entity leaf
 │       ├── scalar_neighborhood/          — One frozen RuntimeScalarSlot leaf kernel, direct change/swap semantics, explicit ruin/recreate stream state, and thin static/dynamic move facades
 │       ├── dynamic_list_change.rs       — DynamicListChangeMoveSelector<S> for explicit unrestricted dynamic list-change phases
-│       ├── list_change.rs              — ListChangeMoveSelector<S, V, ES>
+│       ├── list_change.rs              — Test-only ListChangeMoveSelector<S, V, ES> oracle
 │       ├── list_support.rs             — Private selected-entity snapshots and exact list-neighborhood counting
-│       ├── list_swap.rs                — ListSwapMoveSelector<S, V, ES>
+│       ├── list_swap.rs                — Test-only ListSwapMoveSelector<S, V, ES> oracle
 │       ├── list_permute.rs             — ListPermuteMoveSelector<S, V, ES>; cursor-backed contiguous-window permutation
 │       ├── list_precedence.rs          — ListPrecedenceMoveSelector<S, V, ES>; cursor-backed critical-path, singleton critical-node, and critical-sublist moves for list variables with plain precedence hooks
 │       ├── precedence_route.rs         — Internal precedence route graph and cycle checks shared by list precedence neighborhoods
 │       ├── precedence_route/delta.rs   — Route-after-move builders, edge diffs, and route-delta cycle search
 │       ├── list_ruin.rs                — ListRuinMoveSelector<S, V>
-│       ├── sublist_change.rs           — SublistChangeMoveSelector<S, V, ES>
+│       ├── sublist_change.rs           — Test-only SublistChangeMoveSelector<S, V, ES> oracle
 │       ├── sublist_support.rs          — Private sublist segment enumeration and exact counting helpers
-│       ├── sublist_swap.rs             — SublistSwapMoveSelector<S, V, ES>
+│       ├── sublist_swap.rs             — Test-only SublistSwapMoveSelector<S, V, ES> oracle
 │       ├── pillar.rs                    — Pillar and SubPillarConfig: pillar groups the runtime pillar cursors read through collect_pillar_groups
 │       ├── pillar_support.rs            — Deterministic pillar grouping, legal-domain intersection, and mutual swap-compatibility helpers
-│       ├── ruin.rs                      — RuinMoveSelector<S, V>, RuinVariableAccess<S, V>
 │       ├── seed.rs                      — Scoped deterministic selector seed derivation from SolverConfig random_seed
 │       ├── entity_tests.rs              — Tests
 │       ├── value_selector_tests.rs     — Tests
-│       ├── nearby_list_change.rs       — CrossEntityDistanceMeter trait, NearbyListChangeMoveSelector
+│       ├── nearby_list_change.rs       — CrossEntityDistanceMeter trait; test-only NearbyListChangeMoveSelector oracle
 │       ├── nearby_list_support.rs      — Private selected-entity snapshots and bounded stable top-k nearby candidate ordering
-│       ├── nearby_list_swap.rs         — NearbyListSwapMoveSelector
+│       ├── nearby_list_swap.rs         — Test-only NearbyListSwapMoveSelector oracle
 │       ├── nearby_support.rs           — Shared nearest-candidate ordering and bounded stable top-k helpers for nearby neighborhoods
 │       ├── list_kernel/                — Shared list candidate enumeration/emission kernels, including precedence and k-opt
 │       ├── decorator/
 │       │   ├── mod.rs                   — Re-exports
-│       │   ├── cartesian_product.rs    — CartesianProductCursor<S, M>, CartesianProductSelector<S, M, Left, Right>
+│       │   ├── cartesian_product.rs    — Test-only CartesianProductCursor<S, M> and CartesianProductSelector<S, M, Left, Right> oracles
 │       │   ├── cartesian_product/cursor.rs — CartesianProductCursor rows, pair scratch, and MoveCursor impl
 │       │   ├── cartesian_product/tests.rs — Tests
-│       │   ├── filtering.rs            — FilteringMoveSelector<S, M, Inner>
+│       │   ├── filtering.rs            — Test-only FilteringMoveSelector<S, M, Inner>
 │       │   ├── filtering/tests.rs      — Tests
 │       │   ├── limited.rs              — Shared candidate-limit budget with test-only ordinary cursor adapter
 │       │   ├── limited/tests.rs        — Tests
@@ -174,11 +177,11 @@ src/
 │       │   └── {probability,shuffling,sorting,union}/tests.rs — Test-only coverage for ordering and union semantics
 │       ├── k_opt/
 │       │   ├── mod.rs                   — Re-exports
-│       │   ├── config.rs               — KOptConfig
+│       │   ├── config.rs               — Test-only KOptConfig
 │       │   ├── iterators.rs            — count_cut_combinations(), cut_combination_at(), binomial()
 │       │   ├── distance_meter.rs       — ListPositionDistanceMeter trait, DefaultDistanceMeter
 │       │   ├── distance.rs             — ListPositionDistanceMeter and DefaultDistanceMeter mirror used by the k-opt module split
-│       │   ├── selector.rs             — KOptMoveSelector<S, V, ES>
+│       │   ├── selector.rs             — Test-only KOptMoveSelector<S, V, ES> oracle
 │       │   └── tests.rs                — Tests
 │       └── tests/
 │           ├── mod.rs
@@ -212,7 +215,7 @@ src/
 │   │   ├── forager_step/strength.rs     — Weakest-fit and strongest-fit selection
 │   │   ├── forager/tests.rs             — Tests
 │   │   ├── placer.rs                    — EntityPlacer and EntityPlacerCursor traits, Placement, ConstructionTarget
-│   │   ├── placer/queued.rs             — QueuedEntityPlacer and its single-path streaming candidate cursor with bounded live-candidate storage
+│   │   ├── placer/queued.rs             — Test-only QueuedEntityPlacer and its single-path streaming candidate cursor with bounded live-candidate storage
 │   │   ├── placer/tests.rs              — Tests
 │   │   ├── slot.rs                      — ConstructionSlotId, exact-keyed ConstructionGroupSlotId, ConstructionGroupSlotKey, and ConstructionListElementId for construction frontier tracking
 │   │   ├── runtime_slots.rs             — Canonical scalar/list/mixed runtime-slot construction root
@@ -406,7 +409,7 @@ modules are private, so an item has exactly one path:
 
 ### Hidden modules
 
-- `__bench` (`#[doc(hidden)]`): the concrete selectors, moves, placers and the construction phase that `benches/selector_cursor_gate.rs` drives directly. No compatibility promise covers them: `ChangeMove`, `ListChangeMove`, `CartesianProductSelector`, `FilteringMoveSelector`, `FromSolutionEntitySelector`, `KOptConfig`, `KOptMoveSelector`, `ListChangeMoveSelector`, `ListSwapMoveSelector`, `ChangeMoveSelector`, `NearbyListChangeMoveSelector`, `NearbyListSwapMoveSelector`, `RuinMoveSelector`, `RuinVariableAccess`, `SublistChangeMoveSelector`, `SublistSwapMoveSelector`, `StaticValueSelector`, `FirstFitForager`, `ConstructionHeuristicPhase`, `EntityPlacer`, `EntityPlacerCursor`, `QueuedEntityPlacer`.
+- `__bench` (`#[doc(hidden)]`): handles over the compiled runtime's own cursors that `benches/selector_cursor_gate.rs` drives. No compatibility promise covers them. `CompiledRuntimeRunner<S, V, DM, IDM>::compile(&SolverConfig, SearchContext)` runs the compilation, preparation, and lowering a configured solve runs (the crate-private `compile_runtime_runner` that `try_run_solver_with_config_and_search` also calls) and implements `Phase` by delegating to the compiled runtime phase runner. `into_local_search_neighborhood()` moves out the first phase's lowered acceptor/forager neighborhood as `CompiledNeighborhood`, whose `open_cursor(director, MoveStreamContext)` returns `CompiledNeighborhoodCursor`: the composition cursor a local-search step pulls from, with `next_candidate(&mut director)` lending the solve's provider resources per pull, `visit_candidate(id, CandidateVisitor)`, and `release_candidate(id)`. `into_scalar_construction_placer()` moves out the first phase's descriptor-placement scalar construction as `CompiledScalarPlacer`, whose `open_cursor` yields `CompiledScalarPlacementCursor` and `CompiledScalarPlacement` (`next_candidate`, `visit_candidate`, `candidate_assignment`, `release_candidate`) over the placer the construction phase drives. `CandidateVisitor<S>` inspects one live candidate through the public `Move` contract without naming the runtime's private move carriers.
 - `__private` (`#[doc(hidden)]`): the host-provider contracts that `solverforge-bridge` re-exports for host-language bindings: `RuntimeCandidateMetric`, `RuntimeCandidateMetricBinding`, `RuntimeCandidateMetricRegistry`, `RuntimeProviderRegistry`, `ProviderResolutionError`, `RawProviderCandidate`, `RawProviderEdit`, `RuntimeConflictRepairProviderBinding`, `RuntimeHostCompoundProvider`, `RuntimeHostProviderErrorBoundary`, `RuntimeProviderLimits`, `RuntimeScalarGroupProviderBinding`, `NoDynamicExtensions`.
 
 Types that appear only inside public signatures, such as the concrete

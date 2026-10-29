@@ -1,5 +1,5 @@
 /// A change move selector that generates `ChangeMove` instances.
-pub struct ChangeMoveSelector<S, V, ES, VS> {
+pub(crate) struct ChangeMoveSelector<S, V, ES, VS> {
     entity_selector: ES,
     value_selector: VS,
     getter: fn(&S, usize, usize) -> Option<V>,
@@ -20,7 +20,7 @@ struct ChangeEntityValues<V> {
     current_assigned: bool,
 }
 
-pub struct ChangeMoveCursor<S, V>
+pub(crate) struct ChangeMoveCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -182,7 +182,7 @@ impl<S: PlanningSolution, V: Clone, ES, VS> ChangeMoveSelector<S, V, ES, VS> {
 impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static>
     ChangeMoveSelector<S, V, FromSolutionEntitySelector, StaticValueSelector<S, V>>
 {
-    pub fn simple(
+    pub(crate) fn simple(
         getter: fn(&S, usize, usize) -> Option<V>,
         setter: fn(&mut S, usize, usize, Option<V>),
         descriptor_index: usize,

@@ -29,7 +29,7 @@ use super::{Move, MoveTabuSignature};
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
 ///
-pub struct ListChangeMove<S, V> {
+pub(crate) struct ListChangeMove<S, V> {
     // Source entity index (which entity's list to remove from)
     source_entity_index: usize,
     // Position in source list to remove from
@@ -112,19 +112,19 @@ impl<S, V> ListChangeMove<S, V> {
         }
     }
 
-    pub fn source_entity_index(&self) -> usize {
+    pub(crate) fn source_entity_index(&self) -> usize {
         self.source_entity_index
     }
 
-    pub fn source_position(&self) -> usize {
+    pub(crate) fn source_position(&self) -> usize {
         self.source_position
     }
 
-    pub fn dest_entity_index(&self) -> usize {
+    pub(crate) fn dest_entity_index(&self) -> usize {
         self.dest_entity_index
     }
 
-    pub fn dest_position(&self) -> usize {
+    pub(crate) fn dest_position(&self) -> usize {
         self.dest_position
     }
 

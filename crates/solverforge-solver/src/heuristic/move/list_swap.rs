@@ -29,7 +29,7 @@ use super::{Move, MoveTabuSignature};
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
 ///
-pub struct ListSwapMove<S, V> {
+pub(crate) struct ListSwapMove<S, V> {
     // First entity index
     first_entity_index: usize,
     // Position in first entity's list
@@ -108,19 +108,19 @@ impl<S, V> ListSwapMove<S, V> {
         }
     }
 
-    pub fn first_entity_index(&self) -> usize {
+    pub(crate) fn first_entity_index(&self) -> usize {
         self.first_entity_index
     }
 
-    pub fn first_position(&self) -> usize {
+    pub(crate) fn first_position(&self) -> usize {
         self.first_position
     }
 
-    pub fn second_entity_index(&self) -> usize {
+    pub(crate) fn second_entity_index(&self) -> usize {
         self.second_entity_index
     }
 
-    pub fn second_position(&self) -> usize {
+    pub(crate) fn second_position(&self) -> usize {
         self.second_position
     }
 

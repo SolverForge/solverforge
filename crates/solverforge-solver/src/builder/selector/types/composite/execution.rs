@@ -66,7 +66,7 @@ where
         SelectorCompositionBorrowedSource { state: self }
     }
 
-    fn open_cursor_with_resources<'state, D: Director<S>>(
+    pub(crate) fn open_cursor_with_resources<'state, D: Director<S>>(
         &'state mut self,
         resources: &mut Resources,
         score_director: &D,

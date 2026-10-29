@@ -7,7 +7,8 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 
 use crate::builder::selector::types::{
-    CompositionNodeId, SelectorComposition, SelectorCompositionNode, SelectorCompositionState,
+    CompositionNodeId, SelectorComposition, SelectorCompositionBorrowedCursor,
+    SelectorCompositionNode, SelectorCompositionState,
 };
 use crate::builder::RuntimeCandidateMetricBinding;
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
@@ -30,6 +31,16 @@ pub(crate) type RuntimeNeighborhoodComposition<S, V, DM, IDM> = SelectorComposit
     RuntimeNeighborhoodMove<S, V, DM, IDM>,
     RuntimeNeighborhoodFlat<S, V, DM, IDM>,
     Vec<RuntimeNeighborhoodLeafStreamState>,
+>;
+
+/// The live cursor a compiled local-search step pulls candidates from.
+pub(crate) type RuntimeNeighborhoodCursor<'a, S, V, DM, IDM> = SelectorCompositionBorrowedCursor<
+    'a,
+    S,
+    RuntimeNeighborhoodMove<S, V, DM, IDM>,
+    RuntimeNeighborhoodFlat<S, V, DM, IDM>,
+    Vec<RuntimeNeighborhoodLeafStreamState>,
+    ProviderExecutionResources<S>,
 >;
 
 pub(crate) type RuntimeNeighborhoodState<S, V, DM, IDM> = SelectorCompositionState<

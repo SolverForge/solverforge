@@ -25,7 +25,7 @@ use super::Placement;
 
 /// Selection result for a single construction placement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConstructionChoice {
+pub(crate) enum ConstructionChoice {
     KeepCurrent,
     Select(CandidateId),
 }
@@ -38,7 +38,7 @@ pub enum ConstructionChoice {
 /// # Type Parameters
 /// * `S` - The planning solution type
 /// * `M` - The move type
-pub trait ConstructionForager<S, M>: Send + Debug
+pub(crate) trait ConstructionForager<S, M>: Send + Debug
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -59,7 +59,7 @@ where
 ///
 /// This is the fastest forager but may not produce optimal results.
 /// It simply takes the first move that can be executed.
-pub struct FirstFitForager<S, M> {
+pub(crate) struct FirstFitForager<S, M> {
     _phantom: PhantomData<fn() -> (S, M)>,
 }
 
@@ -84,7 +84,7 @@ impl<S, M> Debug for FirstFitForager<S, M> {
 }
 
 impl<S, M> FirstFitForager<S, M> {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             _phantom: PhantomData,
         }

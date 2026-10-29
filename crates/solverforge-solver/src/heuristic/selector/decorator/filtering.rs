@@ -14,7 +14,7 @@ use crate::heuristic::selector::move_selector::{
     CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
 
-pub struct FilteringMoveCursor<S, M, C>
+pub(crate) struct FilteringMoveCursor<S, M, C>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -122,7 +122,7 @@ where
 /// Only moves for which the predicate returns `true` are yielded.
 /// Uses a function pointer for zero-erasure filtering.
 ///
-pub struct FilteringMoveSelector<S, M, Inner>
+pub(crate) struct FilteringMoveSelector<S, M, Inner>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -137,7 +137,10 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    pub fn new(inner: Inner, predicate: for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool) -> Self {
+    pub(crate) fn new(
+        inner: Inner,
+        predicate: for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool,
+    ) -> Self {
         Self {
             inner,
             predicate,

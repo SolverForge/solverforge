@@ -19,6 +19,7 @@ ownership.
 /// per-trial journal pool so retained capacity is reused across trials.
 pub(crate) type ListUndoJournal<T> = smallvec::SmallVec<[T; 24]>;
 
+#[cfg(test)]
 pub(crate) mod change;
 pub(crate) mod composite;
 pub(crate) mod compound_scalar;
@@ -30,6 +31,7 @@ pub(crate) mod dynamic_scalar_change;
 pub(crate) mod dynamic_scalar_swap;
 pub(crate) mod k_opt;
 pub(crate) mod k_opt_reconnection;
+#[cfg(test)]
 pub(crate) mod list_change;
 pub(crate) mod list_kernel;
 #[cfg(test)]
@@ -39,20 +41,25 @@ pub(crate) mod list_permute;
 pub(crate) mod list_reverse;
 #[cfg(test)]
 pub(crate) mod list_ruin;
+#[cfg(test)]
 pub(crate) mod list_swap;
 #[cfg(test)]
 pub(crate) mod list_union;
 pub(crate) mod metadata;
+#[cfg(test)]
 pub(crate) mod ruin;
 pub(crate) mod runtime_compound;
 mod segment_layout;
+#[cfg(test)]
 pub(crate) mod sublist_change;
+#[cfg(test)]
 pub(crate) mod sublist_swap;
 pub(crate) mod traits;
 
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
 pub(crate) use change::ChangeMove;
 pub(crate) use composite::SequentialCompositeMove;
 pub(crate) use composite::SequentialCompositeMoveRef;
@@ -63,19 +70,26 @@ pub(crate) use dynamic_list_change::DynamicListChangeMove;
 pub(crate) use dynamic_scalar_change::DynamicScalarChangeMove;
 #[cfg(test)]
 pub(crate) use dynamic_scalar_swap::DynamicScalarSwapMove;
-pub(crate) use k_opt::{CutPoint, KOptMove};
+pub(crate) use k_opt::CutPoint;
+#[cfg(test)]
+pub(crate) use k_opt::KOptMove;
+#[cfg(test)]
 pub(crate) use list_change::ListChangeMove;
 #[cfg(test)]
 pub(crate) use list_multi_swap::ListMultiSwapMove;
-pub(crate) use list_permute::{ListPermuteMove, MAX_LIST_PERMUTE_WINDOW_SIZE};
+#[cfg(test)]
+pub(crate) use list_permute::ListPermuteMove;
+pub(crate) use list_permute::MAX_LIST_PERMUTE_WINDOW_SIZE;
 #[cfg(test)]
 pub(crate) use list_reverse::ListReverseMove;
 #[cfg(test)]
 pub(crate) use list_ruin::ListRuinMove;
+#[cfg(test)]
 pub(crate) use list_swap::ListSwapMove;
 #[cfg(test)]
 pub(crate) use list_union::ListMoveUnion;
 pub(crate) use metadata::MoveTabuSignature;
+#[cfg(test)]
 pub(crate) use ruin::RuinMove;
 #[cfg(test)]
 pub(crate) use runtime_compound::{
@@ -83,6 +97,8 @@ pub(crate) use runtime_compound::{
 };
 pub(crate) use runtime_compound::{RuntimeCompoundMove, RuntimeCompoundMoveKind};
 pub(crate) use segment_layout::{SegmentRelocationCoords, SegmentSwapCoords};
+#[cfg(test)]
 pub(crate) use sublist_change::SublistChangeMove;
+#[cfg(test)]
 pub(crate) use sublist_swap::SublistSwapMove;
 pub(crate) use traits::{Move, MoveAffectedEntity};

@@ -5,7 +5,9 @@ mod full;
 mod nearby;
 mod nearby_state;
 
-pub(crate) use emission::{KOptEmitter, NativeKOptEmitter};
+pub(crate) use emission::KOptEmitter;
+#[cfg(test)]
+pub(crate) use emission::NativeKOptEmitter;
 pub(crate) use full::KOptCursor;
 pub(crate) use nearby::NearbyKOptCursor;
 pub(crate) use nearby_state::{KOptDistanceProbe, NearbyCutState};

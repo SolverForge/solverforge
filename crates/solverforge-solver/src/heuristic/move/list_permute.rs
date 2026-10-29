@@ -1,21 +1,30 @@
 /* ListPermuteMove - permutes a contiguous window within a list variable. */
 
+#[cfg(test)]
 use std::borrow::Cow;
+#[cfg(test)]
 use std::fmt::Debug;
+#[cfg(test)]
 use std::marker::PhantomData;
 
+#[cfg(test)]
 use smallvec::{smallvec, SmallVec};
+#[cfg(test)]
 use solverforge_core::domain::PlanningSolution;
+#[cfg(test)]
 use solverforge_scoring::Director;
 
+#[cfg(test)]
 use super::list_kernel::{
     permute_candidate_trace_identity, permute_do_move, permute_is_doable, permute_tabu_signature,
     permute_undo_move, PermuteCoordinates, StaticListWindowAccess,
 };
+#[cfg(test)]
 use super::{Move, MoveTabuSignature};
 
 pub(crate) const MAX_LIST_PERMUTE_WINDOW_SIZE: usize = 8;
 
+#[cfg(test)]
 pub(crate) struct ListPermuteMove<S, V> {
     entity_index: usize,
     start: usize,
@@ -32,6 +41,7 @@ pub(crate) struct ListPermuteMove<S, V> {
     _phantom: PhantomData<fn() -> V>,
 }
 
+#[cfg(test)]
 impl<S, V: Debug> Debug for ListPermuteMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ListPermuteMove")
@@ -44,6 +54,7 @@ impl<S, V: Debug> Debug for ListPermuteMove<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> ListPermuteMove<S, V> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -130,6 +141,7 @@ impl<S, V> ListPermuteMove<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> Move<S> for ListPermuteMove<S, V>
 where
     S: PlanningSolution,
@@ -195,6 +207,7 @@ where
     }
 }
 
+#[cfg(test)]
 fn inverse_permutation(permutation: &[usize]) -> SmallVec<[usize; MAX_LIST_PERMUTE_WINDOW_SIZE]> {
     let mut inverse = smallvec![0; permutation.len()];
     for (new_idx, &old_idx) in permutation.iter().enumerate() {

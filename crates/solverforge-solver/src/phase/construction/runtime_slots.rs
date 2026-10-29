@@ -24,7 +24,12 @@ use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::scope::{ProgressCallback, SolverScope};
 
 use global::solve_global_runtime_slot_scan;
+pub(crate) use moves::RuntimeScalarConstructionMove;
 use placement::solve_descriptor_placement;
+pub(crate) use placement::{
+    descriptor_placer, RuntimeScalarCandidateCursor, RuntimeScalarConstructionCursor,
+    RuntimeScalarConstructionPlacer,
+};
 
 /// The construction selection schedule frozen by graph compilation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

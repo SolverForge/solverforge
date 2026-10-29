@@ -3,12 +3,17 @@
 //! Cursors choose coordinates only.  These adapters preserve the existing
 //! static and dynamic public move carriers without adding a second stream.
 
-use std::fmt::{self, Debug};
+#[cfg(test)]
+use std::fmt;
+use std::fmt::Debug;
+#[cfg(test)]
 use std::marker::PhantomData;
 
 use solverforge_core::domain::PlanningSolution;
 
-use crate::heuristic::r#move::{ListChangeMove, ListSwapMove, Move};
+use crate::heuristic::r#move::Move;
+#[cfg(test)]
+use crate::heuristic::r#move::{ListChangeMove, ListSwapMove};
 
 /// Emits one relocation move for already-approved coordinates.
 pub(crate) trait ChangeEmitter<S: PlanningSolution>: Send + Sync + Debug {
@@ -38,6 +43,7 @@ pub(crate) trait SwapEmitter<S: PlanningSolution>: Send + Sync + Debug {
 
 /// Static relocation emission preserving ListChangeMove function pointers.
 #[derive(Clone, Copy)]
+#[cfg(test)]
 pub(crate) struct NativeChangeEmitter<S, V> {
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
@@ -48,6 +54,7 @@ pub(crate) struct NativeChangeEmitter<S, V> {
     _phantom: PhantomData<fn() -> (S, V)>,
 }
 
+#[cfg(test)]
 impl<S, V> NativeChangeEmitter<S, V> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
@@ -70,6 +77,7 @@ impl<S, V> NativeChangeEmitter<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> Debug for NativeChangeEmitter<S, V> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -80,6 +88,7 @@ impl<S, V> Debug for NativeChangeEmitter<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> ChangeEmitter<S> for NativeChangeEmitter<S, V>
 where
     S: PlanningSolution,
@@ -111,6 +120,7 @@ where
 
 /// Static exchange emission preserving ListSwapMove function pointers.
 #[derive(Clone, Copy)]
+#[cfg(test)]
 pub(crate) struct NativeSwapEmitter<S, V> {
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
@@ -120,6 +130,7 @@ pub(crate) struct NativeSwapEmitter<S, V> {
     _phantom: PhantomData<fn() -> (S, V)>,
 }
 
+#[cfg(test)]
 impl<S, V> NativeSwapEmitter<S, V> {
     pub(crate) fn new(
         list_len: fn(&S, usize) -> usize,
@@ -139,6 +150,7 @@ impl<S, V> NativeSwapEmitter<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> Debug for NativeSwapEmitter<S, V> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -149,6 +161,7 @@ impl<S, V> Debug for NativeSwapEmitter<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> SwapEmitter<S> for NativeSwapEmitter<S, V>
 where
     S: PlanningSolution,

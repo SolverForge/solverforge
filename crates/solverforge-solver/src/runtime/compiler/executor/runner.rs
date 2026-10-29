@@ -4,6 +4,7 @@
 //! particular, it never re-enters public selector builders, reconstructs a
 //! construction model, or owns a second provider registry.
 
+mod bench;
 mod failure;
 mod local_search;
 mod lowering;
@@ -35,6 +36,7 @@ use failure::{map_preparation_error, panic_execution_error, panic_runtime_execut
 use local_search::RuntimeLocalSearch;
 use lowering::lower_runner_phase;
 
+pub(crate) use bench::ScalarConstructionHandoff;
 pub(crate) use failure::take_runtime_execution_failure;
 
 /// One retained per-solve executor. A public configured entrypoint creates it

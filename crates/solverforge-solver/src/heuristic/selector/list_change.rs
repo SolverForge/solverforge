@@ -29,7 +29,7 @@ use super::move_selector::{
 /// native mutation function pointers; the shared cursor owns candidate order,
 /// ownership pruning, trace-compatible selected-move transfer, and cycle
 /// filtering.
-pub struct ListChangeMoveSelector<S, V, ES> {
+pub(crate) struct ListChangeMoveSelector<S, V, ES> {
     entity_selector: ES,
     list_len: fn(&S, usize) -> usize,
     list_get: fn(&S, usize, usize) -> Option<V>,
@@ -43,7 +43,7 @@ pub struct ListChangeMoveSelector<S, V, ES> {
 
 /// Public cursor facade that keeps the historic type surface while hiding the
 /// crate-private generic emitter/kernel carrier.
-pub struct ListChangeMoveCursor<S, V>
+pub(crate) struct ListChangeMoveCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -108,7 +108,7 @@ impl<S, V: Debug, ES: Debug> Debug for ListChangeMoveSelector<S, V, ES> {
 
 impl<S, V, ES> ListChangeMoveSelector<S, V, ES> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_selector: ES,
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,

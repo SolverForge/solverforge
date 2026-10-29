@@ -1,3 +1,14 @@
+/* Zero-regression gate for the compiled runtime's own neighborhood and
+construction cursors.
+
+Every selector and construction case compiles a `SolverConfig` over a
+`RuntimeModel` with `CompiledRuntimeRunner::compile`, the compilation,
+preparation, and lowering a configured solve runs, and then pulls candidates
+from the cursor that runner hands out: the lowered local-search composition
+cursor for neighborhoods, the descriptor-placement placer for scalar
+construction, and the runner itself as the phase for first-fit construction.
+No case builds a selector, placer, or cursor of its own. */
+
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::any::TypeId;
 use std::hint::black_box;
@@ -5,25 +16,24 @@ use std::sync::atomic::{AtomicIsize, AtomicUsize, Ordering};
 use std::sync::OnceLock;
 use std::time::Instant;
 
+use solverforge_config::{
+    CartesianProductConfig, ChangeMoveConfig, ConstructionHeuristicConfig,
+    ConstructionHeuristicType, KOptMoveSelectorConfig, ListChangeMoveConfig, ListSwapMoveConfig,
+    LocalSearchConfig, MoveSelectorConfig, NearbyListChangeMoveConfig, NearbyListSwapMoveConfig,
+    PhaseConfig, RuinRecreateMoveSelectorConfig, SelectionOrder, SolverConfig,
+    SublistChangeMoveConfig, SublistSwapMoveConfig, UnionMoveSelectorConfig, VariableTargetConfig,
+};
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
+    VariableDescriptor,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
-use solverforge_solver::__bench::{
-    CartesianProductSelector, ChangeMove, ChangeMoveSelector, ConstructionHeuristicPhase,
-    FilteringMoveSelector, FirstFitForager, KOptConfig, KOptMoveSelector, ListSwapMoveSelector,
-    NearbyListChangeMoveSelector, NearbyListSwapMoveSelector, QueuedEntityPlacer,
-    RuinMoveSelector, RuinVariableAccess, StaticValueSelector, SublistChangeMoveSelector,
-    SublistSwapMoveSelector,
-};
-#[cfg(not(feature = "candidate"))]
-use solverforge_solver::__bench::EntityPlacer;
-#[cfg(feature = "candidate")]
-use solverforge_solver::__bench::{EntityPlacer, EntityPlacerCursor};
-use solverforge_solver::__bench::{FromSolutionEntitySelector, ListChangeMoveSelector};
+use solverforge_solver::__bench::{CandidateVisitor, CompiledNeighborhood, CompiledRuntimeRunner};
 use solverforge_solver::{
-    CrossEntityDistanceMeter, Move, MoveCandidateRef, MoveCursor, MoveSelector, Phase, SolverScope,
+    CandidateTraceCoordinate, CandidateTraceIdentity, CrossEntityDistanceMeter, ListVariableSlot,
+    Move, MoveCandidateRef, MoveStreamContext, Phase, RuntimeModel, ScalarVariableSlot,
+    SearchContext, SolverScope, ValueSource, VariableSlot,
 };
 
 struct MeasuringAllocator;
@@ -93,129 +103,7 @@ fn reset_allocator_metrics() {
     PEAK_LIVE_BYTES.store(0, Ordering::Relaxed);
 }
 
-#[derive(Clone, Debug)]
-struct Vehicle {
-    visits: Vec<usize>,
-}
-
-#[derive(Clone, Debug)]
-struct Plan {
-    vehicles: Vec<Vehicle>,
-    score: Option<SoftScore>,
-}
-
-impl PlanningSolution for Plan {
-    type Score = SoftScore;
-
-    fn score(&self) -> Option<Self::Score> {
-        self.score
-    }
-
-    fn set_score(&mut self, score: Option<Self::Score>) {
-        self.score = score;
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-struct PositionDistanceMeter;
-
-impl CrossEntityDistanceMeter<Plan> for PositionDistanceMeter {
-    fn distance(
-        &self,
-        _solution: &Plan,
-        source_entity: usize,
-        source_position: usize,
-        destination_entity: usize,
-        destination_position: usize,
-    ) -> f64 {
-        source_entity.abs_diff(destination_entity) as f64 * 100.0
-            + source_position.abs_diff(destination_position) as f64
-    }
-}
-
-fn get_vehicles(plan: &Plan) -> &Vec<Vehicle> {
-    &plan.vehicles
-}
-
-fn get_vehicles_mut(plan: &mut Plan) -> &mut Vec<Vehicle> {
-    &mut plan.vehicles
-}
-
-fn descriptor() -> SolutionDescriptor {
-    let extractor = Box::new(EntityCollectionExtractor::new(
-        "Vehicle",
-        "vehicles",
-        get_vehicles,
-        get_vehicles_mut,
-    ));
-    let entity = EntityDescriptor::new("Vehicle", TypeId::of::<Vehicle>(), "vehicles")
-        .with_extractor(extractor);
-    SolutionDescriptor::new("Plan", TypeId::of::<Plan>()).with_entity(entity)
-}
-
-fn director(vehicle_count: usize, visits_per_vehicle: usize) -> ScoreDirector<Plan, ()> {
-    let vehicles = (0..vehicle_count)
-        .map(|vehicle| Vehicle {
-            visits: (0..visits_per_vehicle)
-                .map(|visit| vehicle * 1_000 + visit)
-                .collect(),
-        })
-        .collect();
-    ScoreDirector::simple(
-        Plan {
-            vehicles,
-            score: None,
-        },
-        descriptor(),
-        |plan, _| plan.vehicles.len(),
-    )
-}
-
-fn list_len(plan: &Plan, entity: usize) -> usize {
-    plan.vehicles
-        .get(entity)
-        .map_or(0, |vehicle| vehicle.visits.len())
-}
-
-fn list_get(plan: &Plan, entity: usize, position: usize) -> Option<usize> {
-    plan.vehicles
-        .get(entity)
-        .and_then(|vehicle| vehicle.visits.get(position))
-        .copied()
-}
-
-fn list_set(plan: &mut Plan, entity: usize, position: usize, value: usize) {
-    if let Some(vehicle) = plan.vehicles.get_mut(entity) {
-        vehicle.visits[position] = value;
-    }
-}
-
-fn list_remove(plan: &mut Plan, entity: usize, position: usize) -> Option<usize> {
-    plan.vehicles.get_mut(entity).and_then(|vehicle| {
-        (position < vehicle.visits.len()).then(|| vehicle.visits.remove(position))
-    })
-}
-
-fn list_insert(plan: &mut Plan, entity: usize, position: usize, value: usize) {
-    if let Some(vehicle) = plan.vehicles.get_mut(entity) {
-        vehicle.visits.insert(position, value);
-    }
-}
-
-fn sublist_remove(plan: &mut Plan, entity: usize, start: usize, end: usize) -> Vec<usize> {
-    plan.vehicles
-        .get_mut(entity)
-        .map(|vehicle| vehicle.visits.drain(start..end).collect())
-        .unwrap_or_default()
-}
-
-fn sublist_insert(plan: &mut Plan, entity: usize, position: usize, values: Vec<usize>) {
-    if let Some(vehicle) = plan.vehicles.get_mut(entity) {
-        for (offset, value) in values.into_iter().enumerate() {
-            vehicle.visits.insert(position + offset, value);
-        }
-    }
-}
+include!("selector_cursor_gate/model.rs");
 
 fn mix(hash: &mut u64, value: usize) {
     *hash ^= value as u64;
@@ -225,16 +113,6 @@ fn mix(hash: &mut u64, value: usize) {
 fn mix_u64(hash: &mut u64, value: u64) {
     *hash ^= value;
     *hash = hash.wrapping_mul(0x0000_0100_0000_01B3);
-}
-
-/* Mixes a move identity with a FIXED, data-independent shape: the gate
-uses the identity hash only as a per-side determinism singleton (never
-compared across trees), so folding the ends and the length is enough and
-keeps the measured loop free of data-dependent branches. */
-fn mix_move_identity(hash: &mut u64, identity: &[u64]) {
-    mix_u64(hash, identity.first().copied().unwrap_or(0));
-    mix_u64(hash, identity.last().copied().unwrap_or(0));
-    mix_u64(hash, identity.len() as u64);
 }
 
 fn iterations() -> usize {
@@ -265,178 +143,9 @@ fn emit(case: &str, expected_count: usize, run: impl FnOnce() -> (usize, u64, u6
     );
 }
 
+include!("selector_cursor_gate/neighborhood_driver.rs");
 include!("selector_cursor_gate/list_cases.rs");
-
-fn scalar_get(plan: &Plan, entity: usize, _variable_index: usize) -> Option<usize> {
-    plan.vehicles
-        .get(entity)
-        .and_then(|vehicle| vehicle.visits.first())
-        .copied()
-}
-
-fn scalar_set(plan: &mut Plan, entity: usize, _variable_index: usize, value: Option<usize>) {
-    if let Some(vehicle) = plan.vehicles.get_mut(entity) {
-        match (vehicle.visits.first_mut(), value) {
-            (Some(first), Some(value)) => *first = value,
-            (None, Some(value)) => vehicle.visits.push(value),
-            (Some(_), None) => {
-                vehicle.visits.remove(0);
-            }
-            (None, None) => {}
-        }
-    }
-}
-
-fn unassigned_director(vehicle_count: usize) -> ScoreDirector<Plan, ()> {
-    ScoreDirector::simple(
-        Plan {
-            vehicles: (0..vehicle_count)
-                .map(|_| Vehicle { visits: Vec::new() })
-                .collect(),
-            score: None,
-        },
-        descriptor(),
-        |plan, _| plan.vehicles.len(),
-    )
-}
-
-fn keep_even_source(
-    candidate: MoveCandidateRef<
-        '_,
-        Plan,
-        solverforge_solver::__bench::ListChangeMove<Plan, usize>,
-    >,
-) -> bool {
-    matches!(candidate, MoveCandidateRef::Borrowed(mov) if mov.source_entity_index().is_multiple_of(2))
-}
-
-fn filtering() {
-    let director = director(12, 24);
-    let inner = ListChangeMoveSelector::<Plan, usize, _>::new(
-        FromSolutionEntitySelector::new(0),
-        list_len,
-        list_get,
-        list_remove,
-        list_insert,
-        "visits",
-        0,
-    );
-    let selector = FilteringMoveSelector::new(inner, keep_even_source);
-    emit("filtering", 42_912, || {
-        let mut count = 0;
-        let mut hash = 0xCBF2_9CE4_8422_2325;
-        for _ in 0..iterations() {
-            for mov in selector.iter_moves(&director) {
-                mix(&mut hash, mov.source_entity_index());
-                mix(&mut hash, mov.source_position());
-                mix(&mut hash, mov.dest_entity_index());
-                mix(&mut hash, mov.dest_position());
-                black_box(&mov);
-                count += 1;
-            }
-        }
-        (count, hash, hash)
-    });
-}
-
-fn cartesian() {
-    let mut director = director(12, 4);
-    let left = ChangeMoveSelector::simple(scalar_get, scalar_set, 0, 0, "first", vec![10, 11]);
-    let right = ChangeMoveSelector::simple(scalar_get, scalar_set, 0, 0, "first", vec![20, 21]);
-    let selector = CartesianProductSelector::new(left, right);
-    emit("cartesian", 576, || {
-        let mut count = 0;
-        let mut hash = 0xCBF2_9CE4_8422_2325;
-        let mut identity = 0xCBF2_9CE4_8422_2325;
-        for _ in 0..iterations() {
-            let mut cursor = selector.open_cursor(&director);
-            while let Some(candidate_id) = cursor.next_candidate_with_director(&mut director) {
-                let mov = cursor
-                    .candidate(candidate_id)
-                    .expect("cartesian benchmark candidate must remain live");
-                let signature = mov.tabu_signature(&director);
-                // Order hash carries the raw leg semantics (entity + target
-                // value); the tabu identity's move hash stays per-tree.
-                for &entity in mov.entity_indices() {
-                    mix(&mut hash, entity);
-                }
-                let MoveCandidateRef::Sequential(pairs) = &mov else {
-                    panic!("cartesian pairs are sequential composites");
-                };
-                for leg in [pairs.first(), pairs.second()] {
-                    mix(&mut hash, leg.entity_index());
-                    mix(&mut hash, leg.to_value().map_or(usize::MAX, |value| *value));
-                }
-                mix_move_identity(&mut identity, &signature.move_id);
-                black_box(&mov);
-                count += 1;
-            }
-        }
-        (count, hash, identity)
-    });
-}
-
-fn k_opt() {
-    let director = director(1, 18);
-    let selector = KOptMoveSelector::<Plan, usize, _>::new(
-        FromSolutionEntitySelector::new(0),
-        KOptConfig::new(3),
-        list_len,
-        list_get,
-        sublist_remove,
-        sublist_insert,
-        "visits",
-        0,
-    );
-    emit("k_opt", 4_760, || {
-        let mut count = 0;
-        let mut hash = 0xCBF2_9CE4_8422_2325;
-        let mut identity = 0xCBF2_9CE4_8422_2325;
-        for _ in 0..iterations() {
-            for mov in selector.iter_moves(&director) {
-                for cut in mov.cuts() {
-                    mix(&mut hash, cut.entity_index());
-                    mix(&mut hash, cut.position());
-                }
-                let signature = mov.tabu_signature(&director);
-                mix_move_identity(&mut identity, &signature.move_id);
-                black_box(&mov);
-                count += 1;
-            }
-        }
-        (count, hash, identity)
-    });
-}
-
-fn entity_count(plan: &Plan) -> usize {
-    plan.vehicles.len()
-}
-
-fn ruin() {
-    let director = director(4_096, 1);
-    let selector = RuinMoveSelector::<Plan, usize>::new(
-        4,
-        8,
-        RuinVariableAccess::new(entity_count, scalar_get, scalar_set, 0, "first", 0),
-    )
-    .with_moves_per_step(4_096)
-    .with_seed(0x5EED);
-    emit("ruin", 4_096, || {
-        let mut count = 0;
-        let mut hash = 0xCBF2_9CE4_8422_2325;
-        for _ in 0..iterations() {
-            for mov in selector.iter_moves(&director) {
-                for &entity_index in mov.entity_indices_slice() {
-                    mix(&mut hash, entity_index);
-                }
-                black_box(&mov);
-                count += 1;
-            }
-        }
-        (count, hash, hash)
-    });
-}
-
+include!("selector_cursor_gate/scalar_cases.rs");
 include!("selector_cursor_gate/construction_cases.rs");
 include!("selector_cursor_gate/scoring_cases.rs");
 
@@ -464,15 +173,26 @@ fn main() {
     run_case!(case, matched, "nearby_swap", nearby_swap);
     run_case!(case, matched, "sublist_change", sublist_change);
     run_case!(case, matched, "sublist_swap", sublist_swap);
-    run_case!(case, matched, "filtering", filtering);
+    run_case!(case, matched, "union", union);
     run_case!(case, matched, "cartesian", cartesian);
     run_case!(case, matched, "k_opt", k_opt);
     run_case!(case, matched, "ruin", ruin);
+    run_case!(case, matched, "scalar_change", scalar_change);
     run_case!(case, matched, "construction_full", construction_full);
-    run_case!(case, matched, "construction_first_fit", construction_first_fit);
+    run_case!(
+        case,
+        matched,
+        "construction_first_fit",
+        construction_first_fit
+    );
     run_case!(case, matched, "scoring", scoring);
     run_case!(case, matched, "scoring_weights_one", scoring_weights_one);
-    run_case!(case, matched, "scoring_weights_mixed", scoring_weights_mixed);
+    run_case!(
+        case,
+        matched,
+        "scoring_weights_mixed",
+        scoring_weights_mixed
+    );
     assert!(
         matched || case == "all",
         "unknown selector benchmark case `{case}`"

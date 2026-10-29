@@ -60,19 +60,27 @@ sublist_insert,
 ```
 */
 
+#[cfg(test)]
 use std::borrow::Cow;
 use std::fmt::Debug;
+#[cfg(test)]
 use std::marker::PhantomData;
 
+#[cfg(test)]
 use solverforge_core::domain::PlanningSolution;
+#[cfg(test)]
 use solverforge_scoring::Director;
 
+#[cfg(test)]
 use super::k_opt_reconnection::KOptReconnection;
+#[cfg(test)]
 use super::list_kernel::{
     k_opt_do_move, k_opt_do_move_into, k_opt_is_doable, k_opt_tabu_signature, k_opt_undo_move,
     StaticListWindowAccess,
 };
+#[cfg(test)]
 use super::ListUndoJournal;
+#[cfg(test)]
 use super::{Move, MoveTabuSignature};
 
 /* A cut point in a route, defining where an edge is removed.
@@ -91,7 +99,7 @@ assert_eq!(cut.position(), 5);
 ```
 */
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct CutPoint {
+pub(crate) struct CutPoint {
     // Entity (route/vehicle) index.
     entity_index: usize,
     // Position in the route where the cut occurs.
@@ -109,12 +117,12 @@ impl CutPoint {
     }
 
     #[inline]
-    pub const fn entity_index(&self) -> usize {
+    pub(crate) const fn entity_index(&self) -> usize {
         self.entity_index
     }
 
     #[inline]
-    pub const fn position(&self) -> usize {
+    pub(crate) const fn position(&self) -> usize {
         self.position
     }
 }
@@ -134,7 +142,8 @@ impl CutPoint {
 ///
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
-pub struct KOptMove<S, V> {
+#[cfg(test)]
+pub(crate) struct KOptMove<S, V> {
     // Cut points (up to 5 for 5-opt).
     cuts: [CutPoint; 5],
     // Number of actual cuts (k value).
@@ -157,6 +166,7 @@ pub struct KOptMove<S, V> {
     _phantom: PhantomData<fn() -> V>,
 }
 
+#[cfg(test)]
 impl<S, V: Debug> Debug for KOptMove<S, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let cuts: Vec<_> = self.cuts[..self.cut_count as usize]
@@ -173,6 +183,7 @@ impl<S, V: Debug> Debug for KOptMove<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> KOptMove<S, V> {
     /* Creates a new k-opt move.
 
@@ -260,7 +271,7 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> KOptMove<S, 
     }
 
     #[inline]
-    pub fn cuts(&self) -> &[CutPoint] {
+    pub(crate) fn cuts(&self) -> &[CutPoint] {
         &self.cuts[..self.cut_count as usize]
     }
 
@@ -276,6 +287,7 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> KOptMove<S, 
     }
 }
 
+#[cfg(test)]
 impl<S, V> Move<S> for KOptMove<S, V>
 where
     S: PlanningSolution,

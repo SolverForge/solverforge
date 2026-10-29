@@ -31,7 +31,7 @@ use super::{Move, MoveTabuSignature};
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
 ///
-pub struct SublistSwapMove<S, V> {
+pub(crate) struct SublistSwapMove<S, V> {
     // First entity index
     first_entity_index: usize,
     // Start of first range (inclusive)
@@ -126,27 +126,27 @@ impl<S, V> SublistSwapMove<S, V> {
         }
     }
 
-    pub fn first_entity_index(&self) -> usize {
+    pub(crate) fn first_entity_index(&self) -> usize {
         self.first_entity_index
     }
 
-    pub fn first_start(&self) -> usize {
+    pub(crate) fn first_start(&self) -> usize {
         self.first_start
     }
 
-    pub fn first_end(&self) -> usize {
+    pub(crate) fn first_end(&self) -> usize {
         self.first_end
     }
 
-    pub fn second_entity_index(&self) -> usize {
+    pub(crate) fn second_entity_index(&self) -> usize {
         self.second_entity_index
     }
 
-    pub fn second_start(&self) -> usize {
+    pub(crate) fn second_start(&self) -> usize {
         self.second_start
     }
 
-    pub fn second_end(&self) -> usize {
+    pub(crate) fn second_end(&self) -> usize {
         self.second_end
     }
 

@@ -14,66 +14,61 @@ use crate::constraint::score_sum::checked;
 /// Marks a type as one constraint.
 ///
 /// Every [`IncrementalConstraint`] is also a one-constraint [`ConstraintSet`]
-/// through a blanket impl; this marker is what keeps that impl coherent with
-/// the tuple and chain constraint sets. A hand-written constraint adds the
-/// empty `impl SingleConstraint for MyConstraint {}` next to its
-/// `IncrementalConstraint` impl.
+/// through a blanket impl. Tuples of constraint sets and constraint-set
+/// chains are constraint sets through their own impls, and without this
+/// marker the compiler could not tell those impls apart from the blanket one.
+/// A hand-written constraint adds the empty
+/// `impl SingleConstraint for MyConstraint {}` next to its
+/// `IncrementalConstraint` impl. Never implement it for a tuple, a chain or
+/// any other type that holds several constraints: that type is already a
+/// `ConstraintSet`, and the marker would claim it is one constraint.
 pub trait SingleConstraint {}
 
-/* A single constraint with incremental scoring capability.
-
-Unlike the trait-object `Constraint` trait, `IncrementalConstraint` is
-designed for monomorphized code paths where the concrete type is known.
-
-# Incremental Protocol
-
-The incremental methods allow delta-based score updates:
-
-1. Call `initialize` once to populate internal state
-2. Before changing an entity's variable: call `on_retract` with old state
-3. After changing the variable: call `on_insert` with new state
-4. Score delta = insert_delta - retract_delta
-
-This avoids full re-evaluation on every move.
-*/
+/// One named constraint whose score is kept up to date incrementally.
+///
+/// The fluent constraint stream API builds these; implement it directly for
+/// a constraint the streams cannot express. A score director drives it as
+/// follows, and an implementation must uphold every point:
+///
+/// - `initialize` is called on a fresh or [`reset`](Self::reset) constraint
+///   before any notification, and returns the same score as
+///   [`evaluate`](Self::evaluate) on that solution.
+/// - When a planning variable of entity `entity_index` in the entity class
+///   `descriptor_index` changes, `on_retract` is called once with the
+///   solution still in its old state, and `on_insert` once after the change.
+///   `on_retract` returns the negation of the score the entity's matches
+///   currently contribute and `on_insert` the score they contribute after the
+///   change. `initialize` plus every delta returned since must always equal
+///   `evaluate` on the current solution.
+/// - Entity indexes are local to their entity class. A notification for an
+///   entity class the constraint does not read returns zero.
+/// - `reset` drops all retained state; `initialize` is called again before
+///   the next notification.
+/// - `constraint_ref` returns the same reference for the constraint's whole
+///   life, and `is_hard` agrees with every other constraint sharing that
+///   full reference; conflicting hardness panics when the set's metadata is
+///   built.
+///
+/// See `docs/extend-scoring.md` for a worked example.
 pub trait IncrementalConstraint<S, Sc: Score>: SingleConstraint + Send + Sync {
-    /* Full evaluation of this constraint.
-
-    Iterates all entities and computes the total score impact.
-    Use this for initial scoring; use `on_insert`/`on_retract` for deltas.
-    */
+    /// Computes this constraint's whole score from scratch, without reading
+    /// or changing retained state.
     fn evaluate(&self, solution: &S) -> Sc;
 
-    // Returns the number of matches for this constraint.
+    /// Returns the number of matches for this constraint in `solution`.
     fn match_count(&self, solution: &S) -> usize;
 
-    /* Initializes internal state by inserting all entities.
-
-    Must be called before using incremental methods (`on_insert`/`on_retract`).
-    Returns the total score from initialization.
-    */
+    /// Builds retained state from `solution` and returns the constraint's
+    /// whole score, equal to [`evaluate`](Self::evaluate).
     fn initialize(&mut self, solution: &S) -> Sc;
 
-    /* Called when an entity is inserted or its variable changes.
-
-    Returns the score delta from this insertion.
-
-    # Arguments
-    * `solution` - The planning solution
-    * `entity_index` - Index of the entity within its class
-    * `descriptor_index` - Index of the entity class (descriptor) being modified
-    */
+    /// Called after entity `entity_index` of entity class `descriptor_index`
+    /// changed; returns the score its matches now add.
     fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
-    /* Called when an entity is retracted or before its variable changes.
-
-    Returns the score delta (negative) from this retraction.
-
-    # Arguments
-    * `solution` - The planning solution
-    * `entity_index` - Index of the entity within its class
-    * `descriptor_index` - Index of the entity class (descriptor) being modified
-    */
+    /// Called before entity `entity_index` of entity class
+    /// `descriptor_index` changes; returns the negation of the score its
+    /// matches currently contribute.
     fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
 
     /* `on_insert` returning the delta unchecked with a flag that is set when a
@@ -110,31 +105,27 @@ pub trait IncrementalConstraint<S, Sc: Score>: SingleConstraint + Send + Sync {
         )
     }
 
-    // Resets internal state for a new solving session.
+    /// Drops all retained state. `initialize` runs again before the next
+    /// notification.
     fn reset(&mut self);
 
-    // Returns the constraint reference (package + name).
+    /// Returns the constraint's reference (package and name), the same for
+    /// its whole life.
     fn constraint_ref(&self) -> &ConstraintRef;
 
-    // Returns the constraint name.
+    /// Returns the constraint's name.
     fn name(&self) -> &str {
         &self.constraint_ref().name
     }
 
-    // Returns true if this is a hard constraint.
+    /// Returns whether this is a hard constraint. Every constraint sharing
+    /// this constraint's full reference must agree.
     fn is_hard(&self) -> bool {
         false
     }
 
-    /* Returns detailed matches with entity justifications.
-
-    The default implementation returns an empty vector.
-    Constraints should override this to provide detailed match information
-    including the entities involved in each constraint violation.
-
-    This enables score explanation features without requiring all constraints
-    to implement detailed tracking.
-    */
+    /// Returns each match with the entities that justify it, for score
+    /// explanation. The default returns no matches.
     fn get_matches<'a>(&'a self, _solution: &S) -> Vec<DetailedConstraintMatch<'a, Sc>> {
         Vec::new()
     }

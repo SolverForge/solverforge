@@ -393,17 +393,19 @@ Committed score-state snapshot used to roll back speculative evaluation. Fields:
 
 ### `SingleConstraint`
 
-Marker that a type is one constraint. Every `IncrementalConstraint` is a one-constraint `ConstraintSet` through a blanket impl; the marker keeps that impl coherent with the tuple and chain sets. Hand-written constraints add `impl SingleConstraint for T {}`.
+Marker that a type is one constraint, the public companion of every hand-written `IncrementalConstraint`. Every `IncrementalConstraint` is a one-constraint `ConstraintSet` through a blanket impl; the marker keeps that impl coherent with the tuple and chain sets. Hand-written constraints add `impl SingleConstraint for T {}`; tuples, chains and other multi-constraint types never implement it.
 
 ### `IncrementalConstraint<S, Sc: Score>` — `SingleConstraint + Send + Sync`
 
+Implementing it by hand is a supported extension point; the contract an implementation upholds (initialize equals evaluate, retract before and insert after each change, class-local entity indexes, reset, stable reference and hardness) is in the trait's rustdoc and `docs/extend-scoring.md`.
+
 | Method | Signature | Note |
 |--------|-----------|------|
-| `evaluate` | `fn evaluate(&self, solution: &S) -> Sc` | Full recalculation |
+| `evaluate` | `fn evaluate(&self, solution: &S) -> Sc` | Full recalculation; reads no retained state |
 | `match_count` | `fn match_count(&self, solution: &S) -> usize` | Number of matches |
-| `initialize` | `fn initialize(&mut self, solution: &S) -> Sc` | Initialize state for incremental |
-| `on_insert` | `fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental insert delta |
-| `on_retract` | `fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Incremental retract delta |
+| `initialize` | `fn initialize(&mut self, solution: &S) -> Sc` | Builds retained state; returns the same score as `evaluate` |
+| `on_insert` | `fn on_insert(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | After a change: the score the entity's matches now add |
+| `on_retract` | `fn on_retract(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc` | Before a change: the negation of the score the entity's matches contribute |
 | `reset` | `fn reset(&mut self)` | Clear incremental state |
 | `name` | `fn name(&self) -> &str` | Constraint name; default derives from `constraint_ref()` |
 | `is_hard` | `fn is_hard(&self) -> bool` | Default: false |

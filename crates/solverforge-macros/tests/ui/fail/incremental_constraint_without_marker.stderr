@@ -1,0 +1,25 @@
+error[E0277]: the trait bound `Count: SingleConstraint` is not satisfied
+  --> tests/ui/fail/incremental_constraint_without_marker.rs:11:49
+   |
+11 | impl IncrementalConstraint<Plan, SoftScore> for Count {
+   |                                                 ^^^^^ unsatisfied trait bound
+   |
+help: the trait `SingleConstraint` is not implemented for `Count`
+  --> tests/ui/fail/incremental_constraint_without_marker.rs:7:1
+   |
+ 7 | struct Count {
+   | ^^^^^^^^^^^^
+   = help: the following other types implement trait `SingleConstraint`:
+             BalanceConstraint<S, A, K, E, F, KF, Sc>
+             IncrementalUniConstraint<S, A, E, F, W, Sc>
+             ListPrecedenceMakespanConstraint<S>
+             OperatorTerminal<S, O, W, Sc>
+             SharedOperatorTerminal<S, O, A, solverforge::constraint::relational::OperatorScorer<W, Sc>, Sc>
+             Uni<S, Out, Src, F, W, Sc>
+             solverforge::constraint::projected::Bi<S, Out, K, Src, F, KF, PF, W, Sc>
+             solverforge::constraint::projected::DirectedBi<S, Out, K, Src, F, KL, KR, PF, W, Sc>
+note: required by a bound in `solverforge::IncrementalConstraint`
+  --> $WORKSPACE/crates/solverforge-scoring/src/api/constraint_set/incremental.rs
+   |
+   | pub trait IncrementalConstraint<S, Sc: Score>: SingleConstraint + Send + Sync {
+   |                                                ^^^^^^^^^^^^^^^^ required by this bound in `IncrementalConstraint`

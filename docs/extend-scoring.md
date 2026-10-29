@@ -188,6 +188,35 @@ Default↔real replacements remove the old output before publishing the new one;
 real grouped results borrow their existing accumulator rather than copying it.
 The enum borrowed view remains usable by downstream conditions and projections.
 
+## Custom `IncrementalConstraint`
+
+A constraint the streams cannot express implements `IncrementalConstraint`
+by hand, with the empty `impl SingleConstraint for MyConstraint {}` beside
+it. The marker tells the compiler the type is one constraint, so it composes
+in a tuple next to fluent constraints. Never implement the marker for a tuple,
+chain or other multi-constraint type. The score director drives an
+implementation through this contract:
+
+- `initialize` runs on a fresh or reset constraint before any notification
+  and returns the same score as `evaluate` on that solution.
+- For each change to entity `entity_index` of entity class `descriptor_index`,
+  `on_retract` runs once with the solution still in its old state and returns
+  the negation of the score the entity's matches contribute; `on_insert` runs
+  once after the change and returns the score they now add. `initialize` plus
+  every delta since must equal `evaluate` on the current solution.
+- Entity indexes are local to their entity class. A notification for a class
+  the constraint does not read returns zero.
+- `reset` drops all retained state, and `initialize` runs again before the
+  next notification.
+- `constraint_ref` stays the same for the constraint's life, and `is_hard`
+  agrees with every other constraint sharing its full reference; building the
+  set's metadata panics on conflicting hardness.
+
+`crates/solverforge/tests/custom_constraint.rs` is a worked example: a
+per-resource load penalty that retains each resource's load, composed with a
+fluent constraint and checked against a from-scratch score after every
+change.
+
 ## Verify extensions
 
 Compare full and retained row multisets with an independent nested-loop oracle.

@@ -15,13 +15,13 @@ const DEFAULT_TARGET_ACCEPTANCE_PROBABILITY: f64 = 0.80;
 const DEFAULT_FALLBACK_TEMPERATURE: f64 = 1.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HardRegressionPolicy {
+pub(crate) enum HardRegressionPolicy {
     TemperatureControlled,
     NeverAcceptHardRegression,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct SimulatedAnnealingCalibration {
+pub(crate) struct SimulatedAnnealingCalibration {
     pub sample_size: usize,
     pub target_acceptance_probability: f64,
     pub fallback_temperature: f64,
@@ -39,7 +39,6 @@ impl Default for SimulatedAnnealingCalibration {
 
 #[derive(Debug, Clone)]
 enum TemperatureSeed {
-    Single(f64),
     PerLevel(Vec<f64>),
     Calibrated(SimulatedAnnealingCalibration),
 }
@@ -94,7 +93,7 @@ uses only that level's delta and temperature. Lower-priority levels never mask
 higher-priority regressions.
 */
 #[derive(Debug, Clone)]
-pub struct SimulatedAnnealingAcceptor {
+pub(crate) struct SimulatedAnnealingAcceptor {
     temperature_seed: TemperatureSeed,
     starting_temperatures: Vec<f64>,
     current_temperatures: Vec<f64>,
@@ -107,36 +106,6 @@ pub struct SimulatedAnnealingAcceptor {
 }
 
 impl SimulatedAnnealingAcceptor {
-    /// Creates an acceptor with the same delta temperature for every score level.
-    pub fn new(starting_temperature: f64, decay_rate: f64) -> Self {
-        Self::from_seed(
-            TemperatureSeed::Single(starting_temperature),
-            decay_rate,
-            DEFAULT_HILL_CLIMBING_TEMPERATURE,
-            HardRegressionPolicy::TemperatureControlled,
-            SmallRng::from_rng(&mut rand::rng()),
-        )
-    }
-
-    pub fn with_seed(starting_temperature: f64, decay_rate: f64, seed: u64) -> Self {
-        Self::from_seed(
-            TemperatureSeed::Single(starting_temperature),
-            decay_rate,
-            DEFAULT_HILL_CLIMBING_TEMPERATURE,
-            HardRegressionPolicy::TemperatureControlled,
-            SmallRng::seed_from_u64(seed),
-        )
-    }
-
-    pub fn with_level_temperatures(level_temperatures: Vec<f64>, decay_rate: f64) -> Self {
-        Self::with_level_temperatures_and_rng(
-            level_temperatures,
-            decay_rate,
-            DEFAULT_HILL_CLIMBING_TEMPERATURE,
-            HardRegressionPolicy::TemperatureControlled,
-        )
-    }
-
     pub(crate) fn with_level_temperatures_and_seed(
         level_temperatures: Vec<f64>,
         decay_rate: f64,
@@ -168,7 +137,7 @@ impl SimulatedAnnealingAcceptor {
         )
     }
 
-    pub fn auto_calibrate(decay_rate: f64) -> Self {
+    pub(crate) fn auto_calibrate(decay_rate: f64) -> Self {
         Self::with_calibration(
             decay_rate,
             DEFAULT_HILL_CLIMBING_TEMPERATURE,
@@ -378,17 +347,6 @@ where
         self.level_count = S::Score::levels_count();
         self.calibration_state = None;
         match self.temperature_seed.clone() {
-            TemperatureSeed::Single(temperature) => {
-                let temperatures = vec![temperature; self.level_count];
-                assert_simulated_annealing_parameters(
-                    Some(&temperatures),
-                    self.level_count,
-                    self.decay_rate,
-                    self.hill_climbing_temperature,
-                    None,
-                );
-                self.install_temperatures(temperatures);
-            }
             TemperatureSeed::PerLevel(temperatures) => {
                 assert_simulated_annealing_parameters(
                     Some(&temperatures),

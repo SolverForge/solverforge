@@ -13,25 +13,14 @@ use solverforge_scoring::Director;
 use crate::stats::CandidateTraceIdentity;
 
 use super::{
-    KOptMove, ListChangeMove, ListMultiSwapMove, ListPermuteMove, ListReverseMove, ListRuinMove,
+    ListChangeMove, ListMultiSwapMove, ListPermuteMove, ListReverseMove, ListRuinMove,
     ListSwapMove, Move, MoveTabuSignature, SublistChangeMove, SublistSwapMove,
 };
 
-/// A monomorphized union of all list-variable move types.
-///
-/// Implements `Move<S>` by delegating to the inner variant.
-/// Enables combining `ListChangeMoveSelector`, `ListSwapMoveSelector`,
-/// `ListPermuteMoveSelector`, `SublistChangeMoveSelector`, `SublistSwapMoveSelector`,
-/// `ListReverseMoveSelector`, `KOptMoveSelector`, and
-/// `ListRuinMoveSelector` without type erasure.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::ListMoveUnion;
-/// ```
+/// One move carrier for every move the reference precedence selector emits,
+/// without type erasure. Test-only: it backs the parity oracles.
 #[allow(clippy::large_enum_variant)]
-pub enum ListMoveUnion<S, V> {
+pub(crate) enum ListMoveUnion<S, V> {
     ListChange(ListChangeMove<S, V>),
     ListSwap(ListSwapMove<S, V>),
     ListMultiSwap(ListMultiSwapMove<S, V>),
@@ -39,11 +28,10 @@ pub enum ListMoveUnion<S, V> {
     SublistChange(SublistChangeMove<S, V>),
     SublistSwap(SublistSwapMove<S, V>),
     ListReverse(ListReverseMove<S, V>),
-    KOpt(KOptMove<S, V>),
     ListRuin(ListRuinMove<S, V>),
 }
 
-pub enum ListMoveUnionUndo<S, V>
+pub(crate) enum ListMoveUnionUndo<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -55,7 +43,6 @@ where
     SublistChange(<SublistChangeMove<S, V> as Move<S>>::Undo),
     SublistSwap(<SublistSwapMove<S, V> as Move<S>>::Undo),
     ListReverse(<ListReverseMove<S, V> as Move<S>>::Undo),
-    KOpt(<KOptMove<S, V> as Move<S>>::Undo),
     ListRuin(<ListRuinMove<S, V> as Move<S>>::Undo),
 }
 
@@ -73,7 +60,6 @@ where
             Self::SublistChange(m) => m.fmt(f),
             Self::SublistSwap(m) => m.fmt(f),
             Self::ListReverse(m) => m.fmt(f),
-            Self::KOpt(m) => m.fmt(f),
             Self::ListRuin(m) => m.fmt(f),
         }
     }
@@ -95,7 +81,6 @@ where
             Self::SublistChange(m) => m.is_doable(score_director),
             Self::SublistSwap(m) => m.is_doable(score_director),
             Self::ListReverse(m) => m.is_doable(score_director),
-            Self::KOpt(m) => m.is_doable(score_director),
             Self::ListRuin(m) => m.is_doable(score_director),
         }
     }
@@ -127,50 +112,7 @@ where
                 m.do_move(score_director);
                 ListMoveUnionUndo::ListReverse(())
             }
-            Self::KOpt(m) => ListMoveUnionUndo::KOpt(m.do_move(score_director)),
             Self::ListRuin(m) => ListMoveUnionUndo::ListRuin(m.do_move(score_director)),
-        }
-    }
-
-    fn do_move_with_scratch<D: Director<S>>(
-        &self,
-        score_director: &mut D,
-        journal_pool: &mut Vec<Self::Undo>,
-    ) -> Self::Undo {
-        match self {
-            Self::KOpt(m) => {
-                // The outer pool stores union undos; a K-opt-shaped entry
-                // carries an inner journal whose inlined capacity this arm
-                // reuses.
-                let mut journal = journal_pool
-                    .iter()
-                    .rposition(|undo| matches!(undo, ListMoveUnionUndo::KOpt(_)))
-                    .map(|index| match journal_pool.swap_remove(index) {
-                        ListMoveUnionUndo::KOpt(journal) => journal,
-                        _ => unreachable!("rposition matched the KOpt shape"),
-                    })
-                    .unwrap_or_default();
-                m.do_move_into_journal(score_director, &mut journal);
-                ListMoveUnionUndo::KOpt(journal)
-            }
-            other => other.do_move(score_director),
-        }
-    }
-
-    fn undo_move_with_scratch<D: Director<S>>(
-        &self,
-        score_director: &mut D,
-        undo: Self::Undo,
-        journal_pool: &mut Vec<Self::Undo>,
-    ) {
-        match (self, undo) {
-            (Self::KOpt(m), ListMoveUnionUndo::KOpt(undo)) => {
-                m.undo_move(score_director, undo);
-                journal_pool.push(ListMoveUnionUndo::KOpt(
-                    <KOptMove<S, V> as Move<S>>::Undo::new(),
-                ));
-            }
-            (other, undo) => other.undo_move(score_director, undo),
         }
     }
 
@@ -197,7 +139,6 @@ where
             (Self::ListReverse(m), ListMoveUnionUndo::ListReverse(undo)) => {
                 m.undo_move(score_director, undo)
             }
-            (Self::KOpt(m), ListMoveUnionUndo::KOpt(undo)) => m.undo_move(score_director, undo),
             (Self::ListRuin(m), ListMoveUnionUndo::ListRuin(undo)) => {
                 m.undo_move(score_director, undo)
             }
@@ -214,7 +155,6 @@ where
             Self::SublistChange(m) => m.descriptor_index(),
             Self::SublistSwap(m) => m.descriptor_index(),
             Self::ListReverse(m) => m.descriptor_index(),
-            Self::KOpt(m) => m.descriptor_index(),
             Self::ListRuin(m) => m.descriptor_index(),
         }
     }
@@ -228,7 +168,6 @@ where
             Self::SublistChange(m) => m.entity_indices(),
             Self::SublistSwap(m) => m.entity_indices(),
             Self::ListReverse(m) => m.entity_indices(),
-            Self::KOpt(m) => m.entity_indices(),
             Self::ListRuin(m) => m.entity_indices(),
         }
     }
@@ -242,7 +181,6 @@ where
             Self::SublistChange(m) => m.variable_name(),
             Self::SublistSwap(m) => m.variable_name(),
             Self::ListReverse(m) => m.variable_name(),
-            Self::KOpt(m) => m.variable_name(),
             Self::ListRuin(m) => m.variable_name(),
         }
     }
@@ -256,7 +194,6 @@ where
             Self::SublistChange(m) => m.telemetry_label(),
             Self::SublistSwap(m) => m.telemetry_label(),
             Self::ListReverse(m) => m.telemetry_label(),
-            Self::KOpt(m) => m.telemetry_label(),
             Self::ListRuin(m) => m.telemetry_label(),
         }
     }
@@ -270,7 +207,6 @@ where
             Self::SublistChange(m) => m.requires_hard_improvement(),
             Self::SublistSwap(m) => m.requires_hard_improvement(),
             Self::ListReverse(m) => m.requires_hard_improvement(),
-            Self::KOpt(m) => m.requires_hard_improvement(),
             Self::ListRuin(m) => m.requires_hard_improvement(),
         }
     }
@@ -284,7 +220,6 @@ where
             Self::SublistChange(m) => m.requires_score_improvement(),
             Self::SublistSwap(m) => m.requires_score_improvement(),
             Self::ListReverse(m) => m.requires_score_improvement(),
-            Self::KOpt(m) => m.requires_score_improvement(),
             Self::ListRuin(m) => m.requires_score_improvement(),
         }
     }
@@ -298,7 +233,6 @@ where
             Self::SublistChange(m) => m.tabu_signature(score_director),
             Self::SublistSwap(m) => m.tabu_signature(score_director),
             Self::ListReverse(m) => m.tabu_signature(score_director),
-            Self::KOpt(m) => m.tabu_signature(score_director),
             Self::ListRuin(m) => m.tabu_signature(score_director),
         }
     }
@@ -312,7 +246,6 @@ where
             Self::SublistChange(m) => m.candidate_trace_identity(),
             Self::SublistSwap(m) => m.candidate_trace_identity(),
             Self::ListReverse(m) => m.candidate_trace_identity(),
-            Self::KOpt(m) => m.candidate_trace_identity(),
             Self::ListRuin(m) => m.candidate_trace_identity(),
         }
     }

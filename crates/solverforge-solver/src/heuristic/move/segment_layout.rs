@@ -5,11 +5,11 @@ pub(crate) struct SegmentRange {
 }
 
 impl SegmentRange {
-    pub const fn new(start: usize, end: usize) -> Self {
+    pub(crate) const fn new(start: usize, end: usize) -> Self {
         Self { start, end }
     }
 
-    pub const fn len(self) -> usize {
+    pub(crate) const fn len(self) -> usize {
         self.end - self.start
     }
 }
@@ -23,7 +23,7 @@ pub(crate) struct SegmentRelocationCoords {
 }
 
 impl SegmentRelocationCoords {
-    pub const fn new(
+    pub(crate) const fn new(
         source_entity_index: usize,
         source_start: usize,
         source_end: usize,
@@ -80,7 +80,7 @@ pub(crate) struct SegmentSwapCoords {
 }
 
 impl SegmentSwapCoords {
-    pub const fn new(
+    pub(crate) const fn new(
         first_entity_index: usize,
         first_start: usize,
         first_end: usize,
@@ -96,11 +96,11 @@ impl SegmentSwapCoords {
         }
     }
 
-    pub const fn is_intra_list(self) -> bool {
+    pub(crate) const fn is_intra_list(self) -> bool {
         self.first_entity_index == self.second_entity_index
     }
 
-    pub fn ordered_ranges(self) -> (SegmentRange, SegmentRange) {
+    pub(crate) fn ordered_ranges(self) -> (SegmentRange, SegmentRange) {
         if self.first_range.start <= self.second_range.start {
             (self.first_range, self.second_range)
         } else {

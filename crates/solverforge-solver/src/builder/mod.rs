@@ -4,29 +4,23 @@ Provides wiring between `SolverConfig` and the actual solver types.
 All builders return concrete monomorphized enums — no `Box<dyn Trait>`.
 */
 
-pub mod acceptor;
-pub mod context;
-pub mod forager;
-mod local_search_policy;
-pub mod search;
+pub(crate) mod acceptor;
+pub(crate) mod context;
+pub(crate) mod forager;
+pub(crate) mod local_search_policy;
+pub(crate) mod search;
 pub(crate) mod selector;
 
-pub use acceptor::{AcceptorBuilder, AnyAcceptor};
-pub use context::{
-    bind_scalar_groups, usize_element_source_key, ConflictRepair, IntraDistanceAdapter,
-    ListVariableSlot, RepairCandidate, RepairLimits, RuntimeCandidateMetric,
-    RuntimeCandidateMetricBinding, RuntimeCandidateMetricRegistry, RuntimeHostCompoundProvider,
-    RuntimeHostProviderErrorBoundary, RuntimeModel, RuntimeProviderHandle, RuntimeProviderLimits,
-    RuntimeProviderRegistry, RuntimeScalarEdit, RuntimeScalarSlot, RuntimeScalarSlotId,
-    ScalarAccessCapability, ScalarAssignmentBinding, ScalarCandidate, ScalarEdit,
-    ScalarGroupBinding, ScalarGroupBindingKind, ScalarGroupLimits, ScalarGroupMemberBinding,
-    ScalarVariableSlot, StaticConflictRepairProviderBinding, StaticScalarGroupProviderBinding,
-    ValueSource, VariableSlot,
+pub(crate) use acceptor::AnyAcceptor;
+pub(crate) use context::{
+    ListVariableSlot, RuntimeCandidateMetricBinding, RuntimeModel, RuntimeProviderHandle,
+    RuntimeScalarEdit, RuntimeScalarSlot, RuntimeScalarSlotId, ScalarAccessCapability,
+    ScalarAssignmentBinding, ScalarGroupBinding, ScalarGroupBindingKind, ScalarGroupLimits,
+    ScalarVariableSlot, ValueSource, VariableSlot,
 };
-pub use forager::{AnyForager, ForagerBuilder};
-pub use local_search_policy::ConfigValueError;
+pub(crate) use forager::AnyForager;
+pub(crate) use local_search_policy::ConfigValueError;
 pub(crate) use local_search_policy::{CompiledAcceptor, CompiledForager};
-pub use search::{
-    local_search, CustomSearchPhase, NoDynamicExtensions, NoTypedExtensions,
-    RuntimeExtensionPolicy, RuntimeExtensionRegistry, Search, SearchContext,
+pub(crate) use search::{
+    CustomSearchPhase, RuntimeExtensionPolicy, RuntimeExtensionRegistry, Search, SearchContext,
 };

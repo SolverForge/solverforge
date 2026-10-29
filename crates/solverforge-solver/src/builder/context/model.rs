@@ -84,12 +84,18 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
     /// Attaches the immutable host-language generic-provider registry.  It is
     /// frozen against resolved dynamic slot identities during model resolution
     /// and is never consulted through a mutable schema/TLS lookup at solve
-    /// time.
+    /// time. Host-language bindings reach the registry type through
+    /// `solverforge_bridge`.
+    #[doc(hidden)]
     pub fn with_runtime_provider_registry(mut self, registry: RuntimeProviderRegistry<S>) -> Self {
         self.runtime_provider_registry = registry;
         self
     }
 
+    /// Attaches the host-language candidate metrics that `Sorted` and
+    /// `Probabilistic` selector ordering read. Host-language bindings reach
+    /// the registry type through `solverforge_bridge`.
+    #[doc(hidden)]
     pub fn with_candidate_metrics(mut self, metrics: RuntimeCandidateMetricRegistry<S>) -> Self {
         self.candidate_metrics = metrics;
         self
@@ -107,11 +113,11 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
         &self.conflict_repairs
     }
 
-    pub fn runtime_provider_registry(&self) -> &RuntimeProviderRegistry<S> {
+    pub(crate) fn runtime_provider_registry(&self) -> &RuntimeProviderRegistry<S> {
         &self.runtime_provider_registry
     }
 
-    pub fn candidate_metrics(&self) -> &RuntimeCandidateMetricRegistry<S> {
+    pub(crate) fn candidate_metrics(&self) -> &RuntimeCandidateMetricRegistry<S> {
         &self.candidate_metrics
     }
 

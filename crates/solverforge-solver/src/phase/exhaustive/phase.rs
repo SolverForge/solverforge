@@ -29,7 +29,7 @@ use super::priority_node::PriorityNode;
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::phase::exhaustive::{ExhaustiveSearchPhase, SimpleDecider, ExhaustiveSearchConfig};
+/// use solverforge_solver::{ExhaustiveSearchPhase, SimpleDecider, ExhaustiveSearchConfig};
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SoftScore;
 ///

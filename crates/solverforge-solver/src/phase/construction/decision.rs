@@ -7,12 +7,6 @@ use super::ConstructionChoice;
 use solverforge_config::ConstructionObligation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BaselinePolicy {
-    KeepIfAlreadyFeasible,
-    KeepOnlyIfStrictlyBetterThanAllMoves,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ScoredChoiceTracker<ScoreT>
 where
     ScoreT: Score,
@@ -70,51 +64,12 @@ pub(crate) fn select_best_fit<ScoreT>(
 where
     ScoreT: Score,
 {
-    resolve_scored_choice(
-        tracker,
-        baseline_score,
-        BaselinePolicy::KeepOnlyIfStrictlyBetterThanAllMoves,
-    )
-}
-
-pub(crate) fn select_first_feasible<ScoreT>(
-    first_feasible_idx: Option<CandidateId>,
-    fallback_tracker: ScoredChoiceTracker<ScoreT>,
-    baseline_score: Option<ScoreT>,
-) -> ConstructionChoice
-where
-    ScoreT: Score,
-{
-    if should_keep_current_immediately(baseline_score, BaselinePolicy::KeepIfAlreadyFeasible) {
-        return ConstructionChoice::KeepCurrent;
-    }
-
-    if let Some(idx) = first_feasible_idx {
-        return ConstructionChoice::Select(idx);
-    }
-
-    resolve_scored_choice(
-        fallback_tracker,
-        baseline_score,
-        BaselinePolicy::KeepOnlyIfStrictlyBetterThanAllMoves,
-    )
-}
-
-pub(crate) fn should_keep_current_immediately<ScoreT>(
-    baseline_score: Option<ScoreT>,
-    baseline_policy: BaselinePolicy,
-) -> bool
-where
-    ScoreT: Score,
-{
-    matches!(baseline_policy, BaselinePolicy::KeepIfAlreadyFeasible)
-        && baseline_score.is_some_and(|score| score.is_feasible())
+    resolve_scored_choice(tracker, baseline_score)
 }
 
 pub(crate) fn resolve_scored_choice<ScoreT>(
     tracker: ScoredChoiceTracker<ScoreT>,
     baseline_score: Option<ScoreT>,
-    baseline_policy: BaselinePolicy,
 ) -> ConstructionChoice
 where
     ScoreT: Score,
@@ -127,18 +82,10 @@ where
         return ConstructionChoice::Select(idx);
     };
 
-    match baseline_policy {
-        BaselinePolicy::KeepIfAlreadyFeasible if baseline_score.is_feasible() => {
-            ConstructionChoice::KeepCurrent
-        }
-        BaselinePolicy::KeepIfAlreadyFeasible
-        | BaselinePolicy::KeepOnlyIfStrictlyBetterThanAllMoves => {
-            match baseline_score.cmp(&candidate_score) {
-                Ordering::Greater => ConstructionChoice::KeepCurrent,
-                Ordering::Less => ConstructionChoice::Select(idx),
-                Ordering::Equal => ConstructionChoice::Select(idx),
-            }
-        }
+    // The current value stays only when it beats every candidate.
+    match baseline_score.cmp(&candidate_score) {
+        Ordering::Greater => ConstructionChoice::KeepCurrent,
+        Ordering::Less | Ordering::Equal => ConstructionChoice::Select(idx),
     }
 }
 

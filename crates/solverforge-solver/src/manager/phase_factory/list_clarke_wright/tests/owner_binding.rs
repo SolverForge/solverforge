@@ -1,3 +1,5 @@
+use crate::phase::Phase;
+use crate::scope::solver::SolverScope;
 use std::any::TypeId;
 
 use solverforge_core::domain::SolutionDescriptor;
@@ -59,7 +61,7 @@ fn clarke_wright_skips_savings_for_owner_that_cannot_take_merge() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         owner_binding_distance,
         owner_binding_feasible,
@@ -107,7 +109,7 @@ fn clarke_wright_skips_owner_ineligible_routes_before_matching() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         distance,
         single_visit_route,

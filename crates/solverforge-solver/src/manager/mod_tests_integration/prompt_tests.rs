@@ -1,6 +1,7 @@
+use crate::manager::solver_manager::manager::SolverManager;
 use std::time::{Duration, Instant};
 
-use super::super::{SolverEvent, SolverLifecycleState, SolverManager, SolverTerminalReason};
+use super::super::{SolverEvent, SolverLifecycleState, SolverTerminalReason};
 use super::common::recv_event;
 use super::gates::{BlockingEvaluationGate, BlockingPoint};
 use super::prompt_support::PromptControlSolution;

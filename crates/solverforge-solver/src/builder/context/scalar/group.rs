@@ -7,23 +7,23 @@ use crate::planning::{ScalarCandidateProvider, ScalarGroup, ScalarGroupKind, Sca
 
 use super::variable::ScalarVariableSlot;
 
-mod assignment;
-mod member;
+pub(crate) mod assignment;
+pub(crate) mod member;
 
-pub use assignment::ScalarAssignmentBinding;
-pub use member::ScalarGroupMemberBinding;
+pub(crate) use assignment::ScalarAssignmentBinding;
+pub(crate) use member::ScalarGroupMemberBinding;
 
 pub struct ScalarGroupBinding<S> {
     pub group_name: &'static str,
-    pub members: Vec<ScalarGroupMemberBinding<S>>,
-    pub kind: ScalarGroupBindingKind<S>,
+    pub(crate) members: Vec<ScalarGroupMemberBinding<S>>,
+    pub(crate) kind: ScalarGroupBindingKind<S>,
     pub limits: ScalarGroupLimits,
 }
 
 // Keep assignment metadata inline so the canonical grouped construction and
 // local-search path remains allocation-free after model compilation.
 #[allow(clippy::large_enum_variant)]
-pub enum ScalarGroupBindingKind<S> {
+pub(crate) enum ScalarGroupBindingKind<S> {
     Candidates {
         candidate_provider: ScalarCandidateProvider<S>,
     },
@@ -101,7 +101,7 @@ impl<S> ScalarGroupBinding<S> {
         }
     }
 
-    pub fn member_for_edit(
+    pub(crate) fn member_for_edit(
         &self,
         edit: &crate::planning::ScalarEdit<S>,
     ) -> Option<ScalarGroupMemberBinding<S>> {
@@ -114,7 +114,7 @@ impl<S> ScalarGroupBinding<S> {
             .cloned()
     }
 
-    pub fn assignment(&self) -> Option<&ScalarAssignmentBinding<S>> {
+    pub(crate) fn assignment(&self) -> Option<&ScalarAssignmentBinding<S>> {
         match &self.kind {
             ScalarGroupBindingKind::Assignment(assignment) => Some(assignment),
             ScalarGroupBindingKind::Candidates { .. } => None,

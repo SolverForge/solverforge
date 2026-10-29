@@ -1,27 +1,25 @@
-mod candidate_trace;
-mod candidate_trace_qualified;
-mod phase;
-mod solver;
-mod telemetry;
+pub(crate) mod candidate_trace;
+pub(crate) mod candidate_trace_qualified;
+pub(crate) mod phase;
+pub(crate) mod solver;
+pub(crate) mod telemetry;
 
-pub use candidate_trace::{
-    CandidatePullTelemetry, CandidateTraceCompositeIdentity, CandidateTraceConstructionTarget,
-    CandidateTraceCoordinate, CandidateTraceDigest, CandidateTraceDisposition,
-    CandidateTraceExecutionPolicy, CandidateTraceExternalDigest, CandidateTraceHeader,
-    CandidateTraceIdentity, CandidateTraceInputAttestation, CandidateTraceInputProvenance,
-    CandidateTraceInputProvenanceStatus, CandidateTraceOperationIdentity,
-    CandidateTracePhaseAttribute, CandidateTracePhasePlan, CandidateTraceProvenanceStatus,
-    CandidateTraceSource, CandidateTraceTelemetry, CANDIDATE_TRACE_FORMAT_VERSION,
+pub(crate) use candidate_trace::{
+    CandidatePullTelemetry, CandidateTraceConstructionTarget, CandidateTraceCoordinate,
+    CandidateTraceDisposition, CandidateTraceExecutionPolicy, CandidateTraceExternalDigest,
+    CandidateTraceHeader, CandidateTraceIdentity, CandidateTraceInputAttestation,
+    CandidateTraceInputProvenance, CandidateTracePhasePlan, CandidateTraceSource,
+    CandidateTraceTelemetry,
 };
 pub(crate) use candidate_trace::{CandidateTracePullToken, CandidateTraceRecordDecision};
-pub use candidate_trace_qualified::{
+pub(crate) use candidate_trace_qualified::{
     CandidateTraceQualificationError, CandidateTraceQualificationStatus,
     QualifiedCandidateTraceRunProvenance,
 };
-pub use phase::PhaseStats;
-pub use solver::SolverStats;
+pub(crate) use phase::PhaseStats;
+pub(crate) use solver::SolverStats;
 pub(crate) use telemetry::{format_duration, whole_units_per_second};
-pub use telemetry::{
+pub(crate) use telemetry::{
     AppliedMoveTelemetry, MoveTelemetry, PhaseTelemetry, SelectorTelemetry, SolverTelemetry,
     Throughput,
 };

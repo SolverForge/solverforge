@@ -46,7 +46,7 @@ The facade, `solverforge-console`, `solverforge-macros`, `solverforge-bridge` an
 
 ### Layer Modules
 
-Each module re-exports one public module of a layer crate, so every type a facade signature uses is importable from `solverforge`:
+Each module groups re-exports from one layer crate, so every type a facade signature uses is importable from `solverforge`. The solver groups list items explicitly, because `solverforge-solver` exports everything once at its root:
 
 | Module | Re-exports |
 |---|---|
@@ -55,10 +55,10 @@ Each module re-exports one public module of a layer crate, so every type a facad
 | `analysis` | `solverforge_scoring::api::analysis::*` — `ConstraintAnalysis`, `DetailedConstraintMatch`, score explanations |
 | `constraint` | `solverforge_scoring::constraint::*` — the constraint implementations stream builders produce |
 | `director` | `solverforge_scoring::director::*` — score directors, `DirectorScoreState`, weight modes |
-| `builder` | `solverforge_solver::builder::*` — `RuntimeModel`, `SearchBuilder` and the search-declaration types |
-| `heuristic` | `solverforge_solver::heuristic::*` — moves, move selectors and cursors |
-| `phase` | `solverforge_solver::phase::*` — phases, acceptors, foragers, exhaustive deciders, partitioned search |
-| `stats` | `solverforge_solver::stats::*` — solver and phase statistics, telemetry, candidate traces |
+| `builder` | the solver's model and search-declaration items — `RuntimeModel`, `Search`, `SearchContext`, `local_search` |
+| `heuristic` | the solver's move, selector and cursor contracts and distance meters |
+| `phase` | the solver's phase, acceptor, forager, exhaustive and partitioned-search items |
+| `stats` | the solver's statistics, telemetry and candidate-trace types |
 
 `scripts/check-facade-reachability.py` (`make facade-reachability`, CI Docs job) fails when a facade item's declaration or method signature links a type outside the facade's rustdoc.
 
@@ -389,56 +389,37 @@ Used exclusively by macro-generated code. Not public API.
 
 ### Re-exports
 
-**Domain types (from `solverforge-core::domain`):**
-- `PlanningEntity`, `PlanningSolution`, `PlanningId`, `ProblemFact`
-- `EntityDescriptor`, `SolutionDescriptor`, `ProblemFactDescriptor`, `VariableDescriptor`
-- `EntityClassId`, `ProblemFactClassId`, `VariableId`
-- `EntityCollectionExtractor`
-- `ShadowVariableKind`, `ValueRangeType`
+Exactly the items generated code names, and nothing else:
 
-**Scoring (from `solverforge-scoring`):**
-- `Director`, `ScoreDirector`
-- `SolvableSolution`
-- Hidden constraint composition support: `ConstraintSetChain`, `OrderedConstraintSetChain`,
-  `ConstraintSetSource`, `ConstraintWeight`, `ConstraintRef`, `ImpactType`,
-  concrete stream source/filter types, and solver runtime helpers. Node sharing
-  is finalized through the same fluent `.penalize(...).named(...)` /
-  `.reward(...).named(...)` path as ordinary constraints; internal shared
-  node-state types are not facade exports.
+**Derive support (from `solverforge-macros`):** `PlanningEntityImpl`,
+`PlanningSolutionImpl`, `ProblemFactImpl`. Attribute macros route their
+support derives through `__internal`; users should not import them directly.
 
-**Solver infrastructure (from `solverforge-solver`):**
-- `bind_scalar_groups`, `local_search`, `CustomSearchPhase`, `Search`, `SearchContext`
-- `ListVariableSlot`, `RuntimeModel`, `ScalarGroupBinding`, `ScalarGroupMemberBinding`, `ScalarVariableSlot`, `ValueSource`, `VariableSlot`, `usize_element_source_key`
+**Domain types (from `solverforge-core::domain`):** `EntityCollectionExtractor`,
+`EntityDescriptor`, `PlanningEntity`, `PlanningId`, `PlanningSolution`,
+`ProblemFact`, `ProblemFactDescriptor`, `ShadowVariableKind`,
+`SolutionDescriptor`, `ValueRangeType`, `VariableDescriptor`.
 
-Specialized list construction facades require an explicit `element_source_key`:
-the stable unique `usize` identity shared by declared, assigned, and
-precedence-successor element values. The solver binds it before construction
-and uses source indexes rather than payload equality or hashing.
-- `FromSolutionEntitySelector`, `DefaultCrossEntityDistanceMeter`, `DefaultDistanceMeter`
-- `KOptPhaseBuilder`, `ListConstructionPhaseBuilder`
-- `PhaseFactory`, `SolverFactory`
-- `ProgressCallback`, `SolverScope`
-- `SolverRuntime`, `SolverEvent`, `SolverTelemetry`
-- `log_solve_start`, `RuntimeBuildError`, `RuntimeBuildResult`, `try_run_solver_with_config_and_search`, `try_run_weighted_solver_with_config_and_search`
-- `ListVariableEntity`, `ListVariableMetadata`
-- `PlanningModelSupport`
+**Scoring (from `solverforge-scoring`):** `ConstraintSet`, `ConstraintSetChain`,
+`ConstraintSetSource`, `OrderedConstraintSetChain`, `Director`, `ScoreDirector`,
+`SolvableSolution`. Node sharing is finalized through the same fluent
+`.penalize(...).named(...)` / `.reward(...).named(...)` path as ordinary
+constraints; internal shared node-state types are not facade exports.
 
-Grouped scalar re-exports include the construction metadata surface on
-`ScalarCandidate`, `ScalarAssignmentRule`, and the split
-`ScalarGroupLimits` fields used by grouped construction and grouped
-local-search selectors.
+**Solver (from `solverforge-solver`):** `bind_scalar_groups`,
+`CustomSearchPhase`, `DefaultCrossEntityDistanceMeter`, `ListVariableEntity`,
+`ListVariableMetadata`, `ListVariableSlot`, `log_solve_start`,
+`PlanningModelSupport`, `ProgressCallback`, `RuntimeBuildResult`,
+`RuntimeModel`, `ScalarGroupBinding`, `ScalarVariableSlot`, `Search`,
+`SearchContext`, `SolverScope`, `try_run_solver_with_config_and_search`,
+`try_run_weighted_solver_with_config_and_search`, `ValueSource`,
+`VariableSlot`.
 
-**Config (from `solverforge-config`):**
-- `PhaseConfig`, `SolverConfig`
+**Config (from `solverforge-config`):** `SolverConfig`.
 
 **Stream types for macro-generated source methods (from `solverforge-scoring`):**
-- `ChangeSource`, `CollectionExtract`, `SourceExtract`
-- `UniConstraintStream`, `UniConstraintBuilder`
-- `TrueFilter`, `UniFilter`, `FnUniFilter`, `AndUniFilter`
-- `source`, `UnassignedEntity`
-
-**Macro support (hidden):**
-- Attribute macros route their support derives through `__internal`; users should not import those derive macros directly.
+`ChangeSource`, `source`, `SourceExtract`, `TrueFilter`, `UnassignedEntity`,
+`UniConstraintStream`.
 
 ### Functions
 

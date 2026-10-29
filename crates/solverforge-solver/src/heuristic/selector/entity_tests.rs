@@ -21,14 +21,3 @@ fn test_from_solution_entity_selector() {
 
     assert_eq!(selector.size(&director), 4);
 }
-
-#[test]
-fn test_all_entities_selector() {
-    let director = create_simple_nqueens_director(3);
-
-    let selector = AllEntitiesSelector::new();
-
-    let refs: Vec<_> = selector.iter(&director).collect();
-    assert_eq!(refs.len(), 3);
-    assert_eq!(selector.size(&director), 3);
-}

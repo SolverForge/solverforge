@@ -10,7 +10,7 @@ use crate::stats::{CandidateTraceCoordinate, CandidateTraceIdentity};
 use super::metadata::{encode_option_debug, encode_usize, hash_str, MoveTabuScope};
 use super::{Move, MoveTabuSignature};
 
-pub struct DynamicScalarChangeMove<S> {
+pub(crate) struct DynamicScalarChangeMove<S> {
     slot: DynamicScalarVariableSlot<S>,
     entity_index: usize,
     to_value: Option<usize>,
@@ -29,7 +29,7 @@ impl<S> Debug for DynamicScalarChangeMove<S> {
 }
 
 impl<S> DynamicScalarChangeMove<S> {
-    pub fn new(
+    pub(crate) fn new(
         slot: DynamicScalarVariableSlot<S>,
         entity_index: usize,
         to_value: Option<usize>,
@@ -41,11 +41,11 @@ impl<S> DynamicScalarChangeMove<S> {
         }
     }
 
-    pub fn entity_index(&self) -> usize {
+    pub(crate) fn entity_index(&self) -> usize {
         self.entity_index
     }
 
-    pub fn to_value(&self) -> Option<usize> {
+    pub(crate) fn to_value(&self) -> Option<usize> {
         self.to_value
     }
 }

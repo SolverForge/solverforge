@@ -1,5 +1,7 @@
 //! Public dynamic nearby-change facade over the canonical scalar leaf.
 
+use crate::heuristic::selector::scalar_neighborhood::spec::ScalarNeighborhoodBindingError;
+use crate::heuristic::selector::scalar_neighborhood::spec::ScalarNeighborhoodSpec;
 use std::fmt::{self, Debug};
 
 use solverforge_core::domain::{DynamicScalarVariableSlot, PlanningSolution};
@@ -11,25 +13,25 @@ use crate::heuristic::r#move::{DynamicScalarChangeMove, MoveArena};
 use super::move_selector::{MoveCursor, MoveSelector, MoveStreamContext};
 use super::scalar_neighborhood::{
     dynamic_slot, emit_dynamic_scalar_change_move, RuntimeScalarFacadeCursor,
-    ScalarNeighborhoodBindingError, ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec,
+    ScalarNeighborhoodLeaf,
 };
 
 /// Direct public facade for one declared dynamic nearby-value source.
 ///
 /// Construction is fallible by design. A missing structural nearby source is
 /// a binding error, not permission to substitute ordinary candidates.
-pub struct DynamicScalarNearbyChangeMoveSelector<S> {
+pub(crate) struct DynamicScalarNearbyChangeMoveSelector<S> {
     leaf: ScalarNeighborhoodLeaf<S>,
 }
 
-pub type DynamicScalarNearbyChangeMoveCursor<S> =
+pub(crate) type DynamicScalarNearbyChangeMoveCursor<S> =
     RuntimeScalarFacadeCursor<S, DynamicScalarChangeMove<S>>;
 
 impl<S> DynamicScalarNearbyChangeMoveSelector<S>
 where
     S: PlanningSolution,
 {
-    pub fn new(
+    pub(crate) fn new(
         slot: DynamicScalarVariableSlot<S>,
         max_nearby: usize,
         value_candidate_limit: Option<usize>,

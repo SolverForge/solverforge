@@ -96,7 +96,7 @@ impl<S, M> FirstFitForager<S, M> {
 /// This forager evaluates each candidate move by executing it,
 /// calculating the score, and undoing it. The move with the best
 /// score is selected.
-pub struct BestFitForager<S, M> {
+pub(crate) struct BestFitForager<S, M> {
     _phantom: PhantomData<fn() -> (S, M)>,
 }
 
@@ -121,43 +121,7 @@ impl<S, M> Debug for BestFitForager<S, M> {
 }
 
 impl<S, M> BestFitForager<S, M> {
-    pub fn new() -> Self {
-        Self {
-            _phantom: PhantomData,
-        }
-    }
-}
-
-/// First Feasible forager - picks the first move that results in a feasible score.
-///
-/// This forager evaluates moves until it finds one that produces a feasible
-/// (non-negative hard score) solution.
-pub struct FirstFeasibleForager<S, M> {
-    _phantom: PhantomData<fn() -> (S, M)>,
-}
-
-impl<S, M> Clone for FirstFeasibleForager<S, M> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S, M> Copy for FirstFeasibleForager<S, M> {}
-
-impl<S, M> Default for FirstFeasibleForager<S, M> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<S, M> Debug for FirstFeasibleForager<S, M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FirstFeasibleForager").finish()
-    }
-}
-
-impl<S, M> FirstFeasibleForager<S, M> {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             _phantom: PhantomData,
         }
@@ -169,7 +133,7 @@ impl<S, M> FirstFeasibleForager<S, M> {
 /// This forager evaluates each candidate move using a strength function
 /// and selects the move with the minimum strength. This is useful for
 /// assigning the "weakest" or least constraining values first.
-pub struct WeakestFitForager<S, M> {
+pub(crate) struct WeakestFitForager<S, M> {
     // Function to evaluate strength of a move.
     strength_fn: fn(&M, &S) -> i64,
     _phantom: PhantomData<fn() -> S>,
@@ -194,7 +158,7 @@ impl<S, M> WeakestFitForager<S, M> {
     ///
     /// The strength function evaluates how "strong" a move is. The forager
     /// picks the move with the minimum strength value.
-    pub fn new(strength_fn: fn(&M, &S) -> i64) -> Self {
+    pub(crate) fn new(strength_fn: fn(&M, &S) -> i64) -> Self {
         Self {
             strength_fn,
             _phantom: PhantomData,
@@ -211,7 +175,7 @@ impl<S, M> WeakestFitForager<S, M> {
 /// This forager evaluates each candidate move using a strength function
 /// and selects the move with the maximum strength. This is useful for
 /// assigning the "strongest" or most constraining values first.
-pub struct StrongestFitForager<S, M> {
+pub(crate) struct StrongestFitForager<S, M> {
     // Function to evaluate strength of a move.
     strength_fn: fn(&M, &S) -> i64,
     _phantom: PhantomData<fn() -> S>,
@@ -236,7 +200,7 @@ impl<S, M> StrongestFitForager<S, M> {
     ///
     /// The strength function evaluates how "strong" a move is. The forager
     /// picks the move with the maximum strength value.
-    pub fn new(strength_fn: fn(&M, &S) -> i64) -> Self {
+    pub(crate) fn new(strength_fn: fn(&M, &S) -> i64) -> Self {
         Self {
             strength_fn,
             _phantom: PhantomData,

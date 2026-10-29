@@ -1,4 +1,4 @@
-pub struct CandidateStore<S, M>
+pub(crate) struct CandidateStore<S, M>
 where
     S: PlanningSolution,
     M: Move<S>,
@@ -18,7 +18,7 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             positions: Vec::new(),
             live: Vec::new(),
@@ -28,12 +28,12 @@ where
 
     /// Drops every stored candidate while retaining both backing
     /// capacities, so a reused store does not re-grow its vectors.
-    pub fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         self.positions.clear();
         self.live.clear();
     }
 
-    pub fn with_capacity(capacity: usize) -> Self {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
             positions: Vec::with_capacity(capacity),
             live: Vec::with_capacity(capacity),
@@ -41,14 +41,15 @@ where
         }
     }
 
-    pub fn push(&mut self, mov: M) -> CandidateId {
+    pub(crate) fn push(&mut self, mov: M) -> CandidateId {
         let id = CandidateId::new(self.positions.len());
         self.positions.push(Some(self.live.len()));
         self.live.push(StoredCandidate { id, mov });
         id
     }
 
-    pub fn extend<I>(&mut self, iter: I)
+    #[cfg(test)]
+    pub(crate) fn extend<I>(&mut self, iter: I)
     where
         I: IntoIterator<Item = M>,
     {
@@ -57,14 +58,14 @@ where
         }
     }
 
-    pub fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
+    pub(crate) fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>> {
         let position = self.positions.get(id.index()).copied().flatten()?;
         self.live
             .get(position)
             .map(|stored| MoveCandidateRef::Borrowed(&stored.mov))
     }
 
-    pub fn take_candidate(&mut self, id: CandidateId) -> M {
+    pub(crate) fn take_candidate(&mut self, id: CandidateId) -> M {
         let position = self
             .positions
             .get_mut(id.index())
@@ -78,7 +79,7 @@ where
         stored.mov
     }
 
-    pub fn release_candidate(&mut self, id: CandidateId) -> bool {
+    pub(crate) fn release_candidate(&mut self, id: CandidateId) -> bool {
         if self
             .positions
             .get(id.index())
@@ -90,13 +91,10 @@ where
         true
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.positions.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.positions.is_empty()
-    }
 }
 
 impl<S, M> Default for CandidateStore<S, M>
@@ -123,21 +121,15 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             store: CandidateStore::new(),
             next_index: 0,
         }
     }
 
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            store: CandidateStore::with_capacity(capacity),
-            next_index: 0,
-        }
-    }
-
-    pub fn from_moves<I>(iter: I) -> Self
+    #[cfg(test)]
+    pub(crate) fn from_moves<I>(iter: I) -> Self
     where
         I: IntoIterator<Item = M>,
     {
@@ -146,24 +138,19 @@ where
         cursor
     }
 
-    pub fn push(&mut self, mov: M) -> CandidateId {
+    #[cfg(test)]
+    pub(crate) fn push(&mut self, mov: M) -> CandidateId {
         self.store.push(mov)
     }
 
-    pub fn extend<I>(&mut self, iter: I)
+    #[cfg(test)]
+    pub(crate) fn extend<I>(&mut self, iter: I)
     where
         I: IntoIterator<Item = M>,
     {
         self.store.extend(iter);
     }
 
-    pub fn len(&self) -> usize {
-        self.store.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.store.is_empty()
-    }
 }
 
 impl<S, M> Default for ArenaMoveCursor<S, M>

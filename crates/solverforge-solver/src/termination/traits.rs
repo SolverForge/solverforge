@@ -14,7 +14,7 @@ use crate::scope::SolverScope;
 /// * `S` - The planning solution type
 /// * `D` - The score director type
 /// * `BestCb` - The best-solution callback type (default `()`)
-pub trait Termination<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S> = ()>:
+pub(crate) trait Termination<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S> = ()>:
     Send + Debug
 {
     // Returns true if solving should terminate.

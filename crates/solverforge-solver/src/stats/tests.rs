@@ -1,3 +1,4 @@
+use crate::stats::candidate_trace::CandidateTraceDigest;
 use std::time::Duration;
 
 use super::*;

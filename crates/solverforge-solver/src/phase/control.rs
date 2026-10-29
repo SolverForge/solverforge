@@ -5,7 +5,6 @@ use crate::scope::{PendingControl, ProgressCallback, StepScope};
 
 pub(crate) const GENERATION_POLL_INTERVAL: usize = 256;
 pub(crate) const CONTROL_POLL_INTERVAL: usize = 64;
-pub(crate) const EVALUATION_POLL_INTERVAL: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StepInterrupt {
@@ -22,20 +21,6 @@ where
     ProgressCb: ProgressCallback<S>,
 {
     has_pending_control(step_scope)
-}
-
-pub(crate) fn should_interrupt_evaluation<'t, 'a, 'b, S, D, ProgressCb>(
-    step_scope: &StepScope<'t, 'a, 'b, S, D, ProgressCb>,
-    evaluated: usize,
-) -> bool
-where
-    S: PlanningSolution,
-    D: Director<S>,
-    ProgressCb: ProgressCallback<S>,
-{
-    evaluated != 0
-        && evaluated.is_multiple_of(EVALUATION_POLL_INTERVAL)
-        && has_pending_control(step_scope)
 }
 
 pub(crate) fn should_interrupt_before_evaluation<'t, 'a, 'b, S, D, ProgressCb>(

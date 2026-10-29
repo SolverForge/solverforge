@@ -1,3 +1,7 @@
+use crate::manager::solution_manager::Analyzable;
+use crate::manager::solution_manager::ConstraintAnalysis;
+use crate::manager::solution_manager::ScoreAnalysis;
+use crate::manager::solver_manager::manager::Solvable;
 use std::any::TypeId;
 use std::time::Duration;
 
@@ -5,9 +9,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::Director;
 
-use super::super::{
-    Analyzable, ConstraintAnalysis, ScoreAnalysis, Solvable, SolverRuntime, SolverTerminalReason,
-};
+use super::super::{SolverRuntime, SolverTerminalReason};
 use super::gates::{BlockingPoint, LifecycleStepGate};
 use super::runtime_helpers::{telemetry_with_steps, zero_telemetry};
 use crate::builder::{RuntimeModel, SearchContext};

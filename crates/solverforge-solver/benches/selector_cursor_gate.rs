@@ -10,33 +10,21 @@ use solverforge_core::domain::{
 };
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
-use solverforge_solver::heuristic::r#move::ChangeMove;
-use solverforge_solver::heuristic::r#move::Move;
-use solverforge_solver::heuristic::selector::decorator::{
-    CartesianProductSelector, FilteringMoveSelector,
+use solverforge_solver::__bench::{
+    CartesianProductSelector, ChangeMove, ChangeMoveSelector, ConstructionHeuristicPhase,
+    FilteringMoveSelector, FirstFitForager, KOptConfig, KOptMoveSelector, ListSwapMoveSelector,
+    NearbyListChangeMoveSelector, NearbyListSwapMoveSelector, QueuedEntityPlacer,
+    RuinMoveSelector, RuinVariableAccess, StaticValueSelector, SublistChangeMoveSelector,
+    SublistSwapMoveSelector,
 };
-use solverforge_solver::heuristic::selector::entity::FromSolutionEntitySelector;
-use solverforge_solver::heuristic::selector::k_opt::{KOptConfig, KOptMoveSelector};
-use solverforge_solver::heuristic::selector::list_change::ListChangeMoveSelector;
-use solverforge_solver::heuristic::selector::list_swap::ListSwapMoveSelector;
-use solverforge_solver::heuristic::selector::move_selector::{MoveCandidateRef, MoveCursor};
-use solverforge_solver::heuristic::selector::nearby_list_change::{
-    CrossEntityDistanceMeter, NearbyListChangeMoveSelector,
-};
-use solverforge_solver::heuristic::selector::nearby_list_swap::NearbyListSwapMoveSelector;
-use solverforge_solver::heuristic::selector::sublist_change::SublistChangeMoveSelector;
-use solverforge_solver::heuristic::selector::sublist_swap::SublistSwapMoveSelector;
-use solverforge_solver::heuristic::selector::{
-    ChangeMoveSelector, MoveSelector, RuinMoveSelector, RuinVariableAccess, StaticValueSelector,
-};
-use solverforge_solver::phase::Phase;
 #[cfg(not(feature = "candidate"))]
-use solverforge_solver::EntityPlacer;
-use solverforge_solver::{
-    ConstructionHeuristicPhase, FirstFitForager, QueuedEntityPlacer, SolverScope,
-};
+use solverforge_solver::__bench::EntityPlacer;
 #[cfg(feature = "candidate")]
-use solverforge_solver::{EntityPlacer, EntityPlacerCursor};
+use solverforge_solver::__bench::{EntityPlacer, EntityPlacerCursor};
+use solverforge_solver::__bench::{FromSolutionEntitySelector, ListChangeMoveSelector};
+use solverforge_solver::{
+    CrossEntityDistanceMeter, Move, MoveCandidateRef, MoveCursor, MoveSelector, Phase, SolverScope,
+};
 
 struct MeasuringAllocator;
 
@@ -316,7 +304,7 @@ fn keep_even_source(
     candidate: MoveCandidateRef<
         '_,
         Plan,
-        solverforge_solver::heuristic::r#move::ListChangeMove<Plan, usize>,
+        solverforge_solver::__bench::ListChangeMove<Plan, usize>,
     >,
 ) -> bool {
     matches!(candidate, MoveCandidateRef::Borrowed(mov) if mov.source_entity_index().is_multiple_of(2))

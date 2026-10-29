@@ -7,19 +7,16 @@ Phases are the main building blocks of solving:
 - PartitionedSearchPhase: Parallel solving via partitioning
 */
 
-pub mod construction;
+pub(crate) mod construction;
 pub(crate) mod control;
-pub mod exhaustive;
+pub(crate) mod exhaustive;
 mod hard_delta;
 #[cfg(test)]
 mod hard_delta_phase_tests;
 #[cfg(test)]
 mod hard_delta_tests;
-pub mod localsearch;
-pub mod partitioned;
-pub mod sequence;
-mod traits;
-mod tuple_impl;
+pub(crate) mod localsearch;
+pub(crate) mod partitioned;
+pub(crate) mod traits;
 
-pub use sequence::PhaseSequence;
-pub use traits::Phase;
+pub(crate) use traits::Phase;

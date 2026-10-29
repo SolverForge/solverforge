@@ -109,6 +109,7 @@ pub(super) fn multi_support_swaps(
     SmallVec::new()
 }
 
+#[cfg(test)]
 pub(crate) fn filtered_multi_support_swap_count(
     blocks: &[CriticalBlock],
     route_graph: &mut PrecedenceRouteGraph,

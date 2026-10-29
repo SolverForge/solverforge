@@ -46,6 +46,7 @@ impl<S> RuntimeScalarMove<S> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn into_recipe(self) -> RuntimeScalarRecipe<S> {
         self.recipe
     }

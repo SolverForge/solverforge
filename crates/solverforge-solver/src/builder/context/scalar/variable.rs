@@ -2,15 +2,15 @@ use std::fmt;
 
 use super::value_source::ValueSource;
 
-pub type ScalarGetter<S> = fn(&S, usize, usize) -> Option<usize>;
-pub type ScalarSetter<S> = fn(&mut S, usize, usize, Option<usize>);
-pub type ScalarCandidateValues<S> = for<'a> fn(&'a S, usize, usize) -> &'a [usize];
-pub type NearbyValueDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f64>;
-pub type NearbyEntityDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f64>;
-pub type ConstructionEntityOrderKey<S> = fn(&S, usize, usize) -> Option<i64>;
-pub type ConstructionValueOrderKey<S> = fn(&S, usize, usize, usize) -> Option<i64>;
-pub type SearchEntityOrderKey<S> = fn(&S, usize, usize) -> Option<i64>;
-pub type SearchValueOrderKey<S> = fn(&S, usize, usize, usize) -> Option<i64>;
+pub(crate) type ScalarGetter<S> = fn(&S, usize, usize) -> Option<usize>;
+pub(crate) type ScalarSetter<S> = fn(&mut S, usize, usize, Option<usize>);
+pub(crate) type ScalarCandidateValues<S> = for<'a> fn(&'a S, usize, usize) -> &'a [usize];
+pub(crate) type NearbyValueDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f64>;
+pub(crate) type NearbyEntityDistanceMeter<S> = fn(&S, usize, usize, usize) -> Option<f64>;
+pub(crate) type ConstructionEntityOrderKey<S> = fn(&S, usize, usize) -> Option<i64>;
+pub(crate) type ConstructionValueOrderKey<S> = fn(&S, usize, usize, usize) -> Option<i64>;
+pub(crate) type SearchEntityOrderKey<S> = fn(&S, usize, usize) -> Option<i64>;
+pub(crate) type SearchValueOrderKey<S> = fn(&S, usize, usize, usize) -> Option<i64>;
 
 pub struct ScalarVariableSlot<S> {
     pub descriptor_index: usize,

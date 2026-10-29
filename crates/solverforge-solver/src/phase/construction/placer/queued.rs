@@ -63,10 +63,6 @@ where
         }
     }
 
-    pub fn with_allows_unassigned(mut self, allows_unassigned: bool) -> Self {
-        self.allows_unassigned = allows_unassigned;
-        self
-    }
 }
 
 impl<S, V, ES, VS> Debug for QueuedEntityPlacer<S, V, ES, VS>

@@ -20,25 +20,7 @@ use crate::heuristic::r#move::MoveTabuSignature;
 /// 2. Each step, water level rises by `rain_speed * |initial_score|`
 /// 3. Accept if `move_score >= water_level`
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::localsearch::GreatDelugeAcceptor;
-/// use solverforge_core::score::SoftScore;
-/// use solverforge_core::domain::PlanningSolution;
-///
-/// #[derive(Clone)]
-/// struct MySolution;
-/// impl PlanningSolution for MySolution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { None }
-///     fn set_score(&mut self, _: Option<Self::Score>) {}
-/// }
-///
-/// // Rain speed of 0.001 means water level rises by 0.1% of |initial| per step
-/// let acceptor = GreatDelugeAcceptor::<MySolution>::new(0.001);
-/// ```
-pub struct GreatDelugeAcceptor<S: PlanningSolution> {
+pub(crate) struct GreatDelugeAcceptor<S: PlanningSolution> {
     // Rain speed - ratio of |initial_score| to add per step.
     rain_speed: f64,
     // Current water level.
@@ -71,7 +53,7 @@ impl<S: PlanningSolution> GreatDelugeAcceptor<S> {
     /// # Arguments
     /// * `rain_speed` - Ratio of |initial_score| to raise water level per step.
     ///   Typical values: 0.0001 to 0.01
-    pub fn new(rain_speed: f64) -> Self {
+    pub(crate) fn new(rain_speed: f64) -> Self {
         Self {
             rain_speed,
             water_level: None,

@@ -91,7 +91,7 @@ impl CandidateTracePhasePlan {
 /// execution policy: the configured entrypoint can inject a fallback time
 /// limit, discard an invalid score target, or compose a criterion with a
 /// time guard.  This value records that resolved result explicitly.  A
-/// generic [`crate::solver::Solver`] whose termination is supplied as an
+/// solver whose termination is supplied as an
 /// arbitrary Rust value is intentionally opaque unless its caller supplies a
 /// canonical policy through the internal configured-run seam.
 #[derive(Debug, Clone, PartialEq, Eq)]

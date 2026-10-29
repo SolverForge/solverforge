@@ -12,9 +12,9 @@ use super::metadata::{
 };
 use super::{Move, MoveAffectedEntity};
 
-pub const COMPOUND_SCALAR_VARIABLE: &str = "compound_scalar";
+pub(crate) const COMPOUND_SCALAR_VARIABLE: &str = "compound_scalar";
 
-pub type ScalarEditLegality<S> = fn(&S, usize, usize, Option<usize>) -> bool;
+pub(crate) type ScalarEditLegality<S> = fn(&S, usize, usize, Option<usize>) -> bool;
 
 enum CompoundScalarEditAccess<S> {
     Static {
@@ -30,7 +30,7 @@ enum CompoundScalarEditAccess<S> {
 /// The static form keeps the existing direct function pointers.  The dynamic
 /// form carries the already-bound dynamic slot, so move execution never needs
 /// a thread-local group name or a schema lookup.
-pub struct CompoundScalarEdit<S> {
+pub(crate) struct CompoundScalarEdit<S> {
     pub descriptor_index: usize,
     pub entity_index: usize,
     pub variable_index: usize,
@@ -41,7 +41,7 @@ pub struct CompoundScalarEdit<S> {
 
 impl<S> CompoundScalarEdit<S> {
     #[allow(clippy::too_many_arguments)]
-    pub fn static_edit(
+    pub(crate) fn static_edit(
         descriptor_index: usize,
         entity_index: usize,
         variable_index: usize,
@@ -65,7 +65,7 @@ impl<S> CompoundScalarEdit<S> {
         }
     }
 
-    pub fn dynamic_edit(
+    pub(crate) fn dynamic_edit(
         descriptor_index: usize,
         entity_index: usize,
         variable_index: usize,
@@ -86,7 +86,8 @@ impl<S> CompoundScalarEdit<S> {
         }
     }
 
-    pub fn with_value_is_legal(mut self, value_is_legal: ScalarEditLegality<S>) -> Self {
+    #[cfg(test)]
+    pub(crate) fn with_value_is_legal(mut self, value_is_legal: ScalarEditLegality<S>) -> Self {
         if let CompoundScalarEditAccess::Static {
             value_is_legal: legality,
             ..
@@ -155,7 +156,7 @@ impl<S> Debug for CompoundScalarEdit<S> {
     }
 }
 
-pub struct CompoundScalarMove<S> {
+pub(crate) struct CompoundScalarMove<S> {
     reason: &'static str,
     variable_label: &'static str,
     edits: Vec<CompoundScalarEdit<S>>,
@@ -166,11 +167,11 @@ pub struct CompoundScalarMove<S> {
 }
 
 impl<S> CompoundScalarMove<S> {
-    pub fn new(reason: &'static str, edits: Vec<CompoundScalarEdit<S>>) -> Self {
+    pub(crate) fn new(reason: &'static str, edits: Vec<CompoundScalarEdit<S>>) -> Self {
         Self::with_label(reason, COMPOUND_SCALAR_VARIABLE, edits)
     }
 
-    pub fn with_label(
+    pub(crate) fn with_label(
         reason: &'static str,
         variable_label: &'static str,
         edits: Vec<CompoundScalarEdit<S>>,
@@ -199,7 +200,7 @@ impl<S> CompoundScalarMove<S> {
         }
     }
 
-    pub fn with_require_hard_improvement(mut self, require_hard_improvement: bool) -> Self {
+    pub(crate) fn with_require_hard_improvement(mut self, require_hard_improvement: bool) -> Self {
         self.require_hard_improvement = require_hard_improvement;
         self
     }
@@ -213,12 +214,8 @@ impl<S> CompoundScalarMove<S> {
         self.construction_value_order_key
     }
 
-    pub fn edits(&self) -> &[CompoundScalarEdit<S>] {
+    pub(crate) fn edits(&self) -> &[CompoundScalarEdit<S>] {
         &self.edits
-    }
-
-    pub fn reason(&self) -> &'static str {
-        self.reason
     }
 
     pub(crate) fn is_doable_on(&self, solution: &S) -> bool

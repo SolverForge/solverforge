@@ -1,6 +1,7 @@
+use crate::manager::solver_manager::manager::SolverManager;
 use solverforge_core::score::SoftScore;
 
-use super::super::{SolverEvent, SolverLifecycleState, SolverManager, SolverTerminalReason};
+use super::super::{SolverEvent, SolverLifecycleState, SolverTerminalReason};
 use super::common::recv_event;
 use super::lifecycle_solutions::LifecycleSolution;
 use super::resume_support::{ConfigTerminatedSolution, FailureAfterSnapshotSolution};

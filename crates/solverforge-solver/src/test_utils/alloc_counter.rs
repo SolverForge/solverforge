@@ -34,6 +34,6 @@ unsafe impl GlobalAlloc for CountingAllocator {
 }
 
 /// Heap allocations made so far on the calling thread.
-pub fn thread_allocations() -> usize {
+pub(crate) fn thread_allocations() -> usize {
     THREAD_ALLOCATIONS.with(Cell::get)
 }

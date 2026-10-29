@@ -24,10 +24,6 @@ where
 {
     type Element = V;
 
-    fn entity_type_name(&self) -> &'static str {
-        self.entity_type_name
-    }
-
     fn variable_name(&self) -> &'static str {
         self.variable_name
     }

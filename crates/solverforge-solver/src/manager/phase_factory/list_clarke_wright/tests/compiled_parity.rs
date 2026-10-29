@@ -1,5 +1,7 @@
 //! Static/dynamic parity for the one compiled Clarke-Wright kernel.
 
+use crate::builder::context::list::usize_element_source_key;
+
 use std::any::TypeId;
 use std::sync::Arc;
 
@@ -14,9 +16,9 @@ use solverforge_scoring::ScoreDirector;
 use crate::builder::context::{
     bind_runtime_list_source, unassigned_from_current_assignment, RuntimeListSlot,
 };
-use crate::builder::{usize_element_source_key, ListVariableSlot};
+use crate::builder::ListVariableSlot;
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
-use crate::manager::ListConstructionPhaseBuilder;
+use crate::manager::phase_factory::list_construction::round_robin::ListConstructionPhase;
 use crate::phase::Phase;
 use crate::runtime::compiler::executor::list_construction::{
     execute_runtime_list_clarke_wright, execute_runtime_list_round_robin,
@@ -433,7 +435,7 @@ fn run_runtime_round_robin(slot: Slot) -> (Vec<Vec<usize>>, CandidateTraceTeleme
 fn run_public_round_robin() -> (Vec<Vec<usize>>, CandidateTraceTelemetry) {
     let mut scope = SolverScope::new(round_robin_director(round_robin_plan()));
     scope.enable_candidate_trace(round_robin_trace_header(), 128);
-    let builder = ListConstructionPhaseBuilder::<Plan, usize>::new(
+    let mut phase = ListConstructionPhase::<Plan, usize>::new(
         element_count,
         assigned_elements,
         entity_count,
@@ -442,7 +444,6 @@ fn run_public_round_robin() -> (Vec<Vec<usize>>, CandidateTraceTelemetry) {
         usize_element_source_key,
         0,
     );
-    let mut phase = builder.create_phase();
     phase.solve(&mut scope);
     let routes = scope.working_solution().routes.clone();
     let trace = round_robin_trace(&scope);

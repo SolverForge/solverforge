@@ -1,3 +1,4 @@
+use crate::builder::context::list::usize_element_source_key;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -10,7 +11,7 @@ use crate::builder::context::{
     bind_runtime_list_source, unassigned_from_current_assignment, ListConstructionKernelError,
     RuntimeListElement, RuntimeListSlot,
 };
-use crate::builder::{usize_element_source_key, ListVariableSlot};
+use crate::builder::ListVariableSlot;
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
 use crate::manager::{run_cheapest, CheapestInsertionObserver, CheapestInsertionTrial};
 

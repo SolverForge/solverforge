@@ -1,23 +1,12 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use crate::heuristic::selector::k_opt::ListPositionDistanceMeter;
-use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
-
-pub struct IntraDistanceAdapter<T>(pub T);
-
+#[cfg(test)]
 /// Canonical source key for the built-in `usize` planning-list representation.
 /// Generated list models and dynamic bridge lists use their logical element ID
 /// as the stable key; the per-run runtime binder maps it to source order.
-pub fn usize_element_source_key<S>(_solution: &S, element: &usize) -> usize {
+pub(crate) fn usize_element_source_key<S>(_solution: &S, element: &usize) -> usize {
     *element
-}
-
-impl<S, T: CrossEntityDistanceMeter<S>> ListPositionDistanceMeter<S> for IntraDistanceAdapter<T> {
-    fn distance(&self, solution: &S, entity_idx: usize, pos_a: usize, pos_b: usize) -> f64 {
-        self.0
-            .distance(solution, entity_idx, pos_a, entity_idx, pos_b)
-    }
 }
 
 pub struct ListVariableSlot<S, V, DM, IDM> {

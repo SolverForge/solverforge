@@ -10,26 +10,23 @@ use super::{
     QualifiedCandidateTraceRunProvenance,
 };
 
-mod identity;
+pub(crate) mod identity;
 pub(crate) use identity::CandidateTracePullToken;
-pub use identity::{
-    CandidateTraceCompositeIdentity, CandidateTraceConstructionTarget, CandidateTraceCoordinate,
-    CandidateTraceIdentity, CandidateTraceOperationIdentity,
+pub(crate) use identity::{
+    CandidateTraceConstructionTarget, CandidateTraceCoordinate, CandidateTraceIdentity,
 };
 
-mod provenance;
-pub use provenance::{
+pub(crate) mod provenance;
+pub(crate) use provenance::{
     CandidateTraceExternalDigest, CandidateTraceInputAttestation, CandidateTraceInputProvenance,
     CandidateTraceInputProvenanceStatus, CandidateTraceProvenanceStatus,
 };
 
-mod plan;
-pub use plan::{
-    CandidateTraceExecutionPolicy, CandidateTracePhaseAttribute, CandidateTracePhasePlan,
-};
+pub(crate) mod plan;
+pub(crate) use plan::{CandidateTraceExecutionPolicy, CandidateTracePhasePlan};
 
-mod pull;
-pub use pull::{CandidatePullTelemetry, CandidateTraceDisposition, CandidateTraceSource};
+pub(crate) mod pull;
+pub(crate) use pull::{CandidatePullTelemetry, CandidateTraceDisposition, CandidateTraceSource};
 
 /// Wire-format version for [`CandidateTraceHeader`] and every framed value in
 /// this module.

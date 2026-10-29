@@ -23,21 +23,13 @@ let term = TimeTermination::millis(500);
 ```
 */
 #[derive(Debug, Clone)]
-pub struct TimeTermination {
+pub(crate) struct TimeTermination {
     limit: Duration,
 }
 
 impl TimeTermination {
-    pub fn new(limit: Duration) -> Self {
+    pub(crate) fn new(limit: Duration) -> Self {
         Self { limit }
-    }
-
-    pub fn millis(ms: u64) -> Self {
-        Self::new(Duration::from_millis(ms))
-    }
-
-    pub fn seconds(secs: u64) -> Self {
-        Self::new(Duration::from_secs(secs))
     }
 }
 

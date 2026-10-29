@@ -41,7 +41,7 @@ where
         }
     }
 
-    pub fn with_construction_obligation(
+    pub(crate) fn with_construction_obligation(
         mut self,
         construction_obligation: ConstructionObligation,
     ) -> Self {

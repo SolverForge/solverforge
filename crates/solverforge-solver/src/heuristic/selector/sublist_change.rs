@@ -130,7 +130,8 @@ impl<S, V, ES> SublistChangeMoveSelector<S, V, ES> {
         }
     }
 
-    pub fn with_element_owner_fn(
+    #[cfg(test)]
+    pub(crate) fn with_element_owner_fn(
         mut self,
         element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     ) -> Self {

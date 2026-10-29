@@ -1,5 +1,9 @@
 //! Scalar and assignment parity for the compiler-owned default policy.
 
+use crate::builder::context::scalar::group::bind_scalar_groups;
+use crate::builder::search::custom::NoDynamicExtensions;
+use crate::planning::scalar::target::ScalarTarget;
+
 use std::any::TypeId;
 use std::sync::Arc;
 
@@ -22,11 +26,11 @@ use super::{
     RuntimeGraphInput,
 };
 use crate::builder::{
-    bind_scalar_groups, NoDynamicExtensions, RuntimeModel, ScalarGroupBinding, ScalarGroupLimits,
-    ScalarVariableSlot, SearchContext, ValueSource, VariableSlot,
+    RuntimeModel, ScalarGroupBinding, ScalarGroupLimits, ScalarVariableSlot, SearchContext,
+    ValueSource, VariableSlot,
 };
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
-use crate::planning::{ScalarGroup, ScalarTarget};
+use crate::planning::ScalarGroup;
 
 mod selector_groups;
 

@@ -5,8 +5,12 @@
 //! boundary; it deliberately knows nothing about compiler lowering.
 
 mod change;
+#[cfg(test)]
+mod dynamic_change_emission;
 mod emission;
 mod k_opt;
+#[cfg(test)]
+mod native_ruin_emission;
 mod nearby_change;
 mod nearby_probe;
 mod nearby_swap;
@@ -22,12 +26,14 @@ mod swap;
 mod window_emission;
 
 pub(crate) use change::{ChangeCursor, DYNAMIC_CHANGE_SALTS, STATIC_CHANGE_SALTS};
-pub(crate) use emission::{
-    ChangeEmitter, DynamicChangeEmitter, NativeChangeEmitter, NativeSwapEmitter, SwapEmitter,
-};
+#[cfg(test)]
+pub(crate) use dynamic_change_emission::DynamicChangeEmitter;
+pub(crate) use emission::{ChangeEmitter, NativeChangeEmitter, NativeSwapEmitter, SwapEmitter};
 pub(crate) use k_opt::{
     KOptCursor, KOptDistanceProbe, KOptEmitter, NativeKOptEmitter, NearbyKOptCursor,
 };
+#[cfg(test)]
+pub(crate) use native_ruin_emission::NativeRuinEmitter;
 pub(crate) use nearby_change::{
     NearbyChangeCursor, STATIC_NEARBY_CHANGE_ENTITY_SALT, STATIC_NEARBY_CHANGE_SOURCE_SALT,
 };
@@ -36,19 +42,23 @@ pub(crate) use nearby_swap::{
     NearbySwapCursor, STATIC_NEARBY_SWAP_ENTITY_SALT, STATIC_NEARBY_SWAP_SOURCE_SALT,
 };
 pub(crate) use ownership::SelectedListOwners;
-pub(crate) use permute::{count_list_permute_moves_for_len, factorial, PermuteCursor};
+pub(crate) use permute::PermuteCursor;
+#[cfg(test)]
+pub(crate) use permute::{count_list_permute_moves_for_len, factorial};
+#[cfg(test)]
 pub(crate) use precedence::{
-    critical_analysis, critical_analysis_from_graph, filtered_move_count,
-    filtered_multi_support_swap_count, multi_critical_ruin_count, CriticalAnalysis,
-    NativePrecedenceEmitter, PrecedenceCursor, PrecedenceEmitter,
+    critical_analysis, filtered_move_count, filtered_multi_support_swap_count,
+    multi_critical_ruin_count, NativePrecedenceEmitter,
+};
+pub(crate) use precedence::{
+    critical_analysis_from_graph, CriticalAnalysis, PrecedenceCursor, PrecedenceEmitter,
 };
 pub(crate) use reverse::{ReverseCursor, STATIC_REVERSE_ENTITY_SALT};
 pub(crate) use ruin::{RuinCursor, RuinSourcePool};
-pub(crate) use ruin_emission::{NativeRuinEmitter, RuinEmitter};
+pub(crate) use ruin_emission::RuinEmitter;
 pub(crate) use sublist_change::{SublistChangeCursor, STATIC_SUBLIST_CHANGE_SALTS};
 pub(crate) use sublist_swap::{SublistSwapCursor, STATIC_SUBLIST_SWAP_ENTITY_SALT};
 pub(crate) use swap::{SwapCursor, STATIC_SWAP_SALTS};
 pub(crate) use window_emission::{
-    NativeReverseEmitter, NativeWindowEmitter, PermuteEmitter, ReverseEmitter,
-    SublistChangeEmitter, SublistSwapEmitter,
+    NativeWindowEmitter, PermuteEmitter, ReverseEmitter, SublistChangeEmitter, SublistSwapEmitter,
 };

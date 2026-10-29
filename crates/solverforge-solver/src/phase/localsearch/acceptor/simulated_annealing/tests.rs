@@ -37,9 +37,20 @@ impl PlanningSolution for HardSoftSol {
     }
 }
 
+/// A one-level acceptor with a fixed seed, for `SoftScore` solutions.
+fn single_level(temperature: f64, decay_rate: f64) -> SimulatedAnnealingAcceptor {
+    SimulatedAnnealingAcceptor::with_level_temperatures_and_seed(
+        vec![temperature],
+        decay_rate,
+        DEFAULT_HILL_CLIMBING_TEMPERATURE,
+        HardRegressionPolicy::TemperatureControlled,
+        42,
+    )
+}
+
 #[test]
 fn accepts_improving_and_equal_moves() {
-    let mut acceptor = SimulatedAnnealingAcceptor::with_seed(1000.0, 0.99, 42);
+    let mut acceptor = single_level(1000.0, 0.99);
     let last = SoftScore::of(-10);
     assert!(Acceptor::<SimpleSol>::is_accepted(
         &mut acceptor,
@@ -57,7 +68,7 @@ fn accepts_improving_and_equal_moves() {
 
 #[test]
 fn single_level_high_temperature_accepts_most_worsening_moves() {
-    let mut acceptor = SimulatedAnnealingAcceptor::with_seed(1_000_000.0, 0.99, 42);
+    let mut acceptor = single_level(1_000_000.0, 0.99);
     Acceptor::<SimpleSol>::phase_started(&mut acceptor, &SoftScore::of(0));
     let last = SoftScore::of(-10);
     let worse = SoftScore::of(-11);
@@ -72,7 +83,7 @@ fn single_level_high_temperature_accepts_most_worsening_moves() {
 
 #[test]
 fn single_level_low_temperature_rejects_most_worsening_moves() {
-    let mut acceptor = SimulatedAnnealingAcceptor::with_seed(0.001, 0.99, 42);
+    let mut acceptor = single_level(0.001, 0.99);
     Acceptor::<SimpleSol>::phase_started(&mut acceptor, &SoftScore::of(0));
     let last = SoftScore::of(-10);
     let worse = SoftScore::of(-20);
@@ -129,7 +140,13 @@ fn huge_soft_improvement_does_not_mask_hard_regression() {
 
 #[test]
 fn hard_improvement_with_soft_regression_is_accepted_as_improving() {
-    let mut acceptor = SimulatedAnnealingAcceptor::with_seed(0.0, 1.0, 42);
+    let mut acceptor = SimulatedAnnealingAcceptor::with_level_temperatures_and_seed(
+        vec![0.0, 0.0],
+        1.0,
+        DEFAULT_HILL_CLIMBING_TEMPERATURE,
+        HardRegressionPolicy::TemperatureControlled,
+        42,
+    );
     let last = HardSoftScore::of(-2, 0);
     let better_hard_worse_soft = HardSoftScore::of(-1, -1_000_000);
     assert!(Acceptor::<HardSoftSol>::is_accepted(

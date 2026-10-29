@@ -21,7 +21,7 @@ use super::forager::{build_validated_forager, AnyForager};
 /// `field` is the configuration key below the acceptor or forager table, for
 /// example `entity_tabu_size` or `calibration.sample_size`.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ConfigValueError {
+pub(crate) struct ConfigValueError {
     field: &'static str,
     message: String,
 }
@@ -35,12 +35,12 @@ impl ConfigValueError {
     }
 
     /// The configuration key that holds the invalid value.
-    pub fn field(&self) -> &'static str {
+    pub(crate) fn field(&self) -> &'static str {
         self.field
     }
 
     /// Why the value is invalid.
-    pub fn message(&self) -> &str {
+    pub(crate) fn message(&self) -> &str {
         &self.message
     }
 }

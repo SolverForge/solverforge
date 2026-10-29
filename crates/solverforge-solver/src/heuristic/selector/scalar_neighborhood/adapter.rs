@@ -4,6 +4,7 @@
 //! established public move payload. They never inspect a model, invoke a
 //! source, rank candidates, or open another scalar cursor.
 
+use crate::heuristic::selector::scalar_neighborhood::spec::RuntimeScalarRecipe;
 use solverforge_core::domain::{DynamicScalarVariableSlot, PlanningSolution};
 use solverforge_core::score::Score;
 
@@ -13,12 +14,12 @@ use crate::heuristic::selector::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor,
 };
 
-use super::{RuntimeScalarMove, RuntimeScalarNeighborhoodCursor, RuntimeScalarRecipe};
+use super::{RuntimeScalarMove, RuntimeScalarNeighborhoodCursor};
 
 /// Candidate-store boundary for a typed move projection. The inner canonical cursor
 /// transfers each recipe by ownership, so a selected public candidate remains
 /// owned by exactly one outer store.
-pub struct RuntimeScalarFacadeCursor<S, M>
+pub(crate) struct RuntimeScalarFacadeCursor<S, M>
 where
     S: PlanningSolution,
     S::Score: Score,

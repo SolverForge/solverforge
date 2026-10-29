@@ -1,18 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-pub(crate) fn truncate_nearby_candidates<T>(
-    candidates: &mut Vec<(T, f64, usize)>,
-    max_nearby: usize,
-) {
-    candidates.sort_by(|left, right| {
-        left.1
-            .total_cmp(&right.1)
-            .then_with(|| left.2.cmp(&right.2))
-    });
-    candidates.truncate(max_nearby);
-}
-
 /// One source candidate ranked by nearby distance, then source order, then
 /// its logical index. The final index makes equal-distance ordering explicit
 /// even when a host source is not otherwise deterministic.

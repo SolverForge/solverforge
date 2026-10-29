@@ -1,10 +1,10 @@
 use super::super::assignment_candidate::ScalarAssignmentMoveOptions;
 use super::super::assignment_value_index::assigned_value_sequence_index;
 use super::*;
-use crate::builder::{
-    bind_scalar_groups, ScalarGroupBindingKind, ScalarGroupLimits, ScalarVariableSlot, ValueSource,
-};
-use crate::planning::{ScalarGroup, ScalarTarget};
+use crate::builder::context::scalar::group::bind_scalar_groups;
+use crate::builder::{ScalarGroupBindingKind, ScalarGroupLimits, ScalarVariableSlot, ValueSource};
+use crate::planning::scalar::target::ScalarTarget;
+use crate::planning::ScalarGroup;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
 use std::sync::atomic::{AtomicUsize, Ordering};

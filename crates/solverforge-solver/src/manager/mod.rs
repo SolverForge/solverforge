@@ -7,37 +7,19 @@ Runtime configuration from TOML is handled by the macro layer
 which generates concrete types at compile time.
 */
 
-mod builder;
-mod phase_factory;
-mod phase_factory_trait;
-mod solution_manager;
-mod solver_factory;
-mod solver_manager;
+pub(crate) mod phase_factory;
+pub(crate) mod solution_manager;
+pub(crate) mod solver_manager;
 
-#[cfg(test)]
-mod builder_tests;
-#[cfg(test)]
-mod mod_tests;
 #[cfg(test)]
 mod mod_tests_integration;
 
-pub use builder::{SolverBuildError, SolverFactoryBuilder};
 pub(crate) use phase_factory::{
     run_cheapest, run_clarke_wright, run_list_k_opt, run_regret, run_round_robin,
     PhaseCheapestInsertionObserver, ScoredListConstructionAccess,
 };
 #[cfg(test)]
 pub(crate) use phase_factory::{CheapestInsertionObserver, CheapestInsertionTrial};
-pub use phase_factory::{
-    ConstructionPhaseFactory, KOptPhase, KOptPhaseBuilder, ListCheapestInsertionPhase,
-    ListClarkeWrightPhase, ListConstructionPhase, ListConstructionPhaseBuilder, ListKOptPhase,
-    ListRegretInsertionPhase, LocalSearchPhaseFactory,
-};
-pub use phase_factory_trait::PhaseFactory;
-pub use solution_manager::{analyze, Analyzable, ConstraintAnalysis, ScoreAnalysis};
-pub use solver_factory::{solver_factory_builder, SolverFactory};
-pub use solver_manager::{
-    ProblemChangeId, Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState,
-    SolverManager, SolverManagerError, SolverPanicPayload, SolverRuntime, SolverSnapshot,
-    SolverSnapshotAnalysis, SolverStatus, SolverTelemetryDetail, SolverTerminalReason,
+pub(crate) use solver_manager::{
+    SolverEvent, SolverLifecycleState, SolverRuntime, SolverSnapshot, SolverTerminalReason,
 };

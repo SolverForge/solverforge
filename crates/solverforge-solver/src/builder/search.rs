@@ -13,11 +13,11 @@ use crate::RuntimeBuildResult;
 
 use super::RuntimeModel;
 
-mod custom;
+pub(crate) mod custom;
 
-pub use custom::{
-    CustomPhaseNode, CustomSearchPhase, NoDynamicExtensions, NoRuntimeExtensionPhase,
-    NoTypedExtensions, PartitionedPhaseNode, RuntimeExtensionPolicy, RuntimeExtensionRegistry,
+pub(crate) use custom::{
+    CustomPhaseNode, CustomSearchPhase, NoTypedExtensions, PartitionedPhaseNode,
+    RuntimeExtensionPolicy, RuntimeExtensionRegistry,
 };
 
 pub struct SearchContext<

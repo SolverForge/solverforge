@@ -1,3 +1,5 @@
+#[cfg(test)]
+use crate::heuristic::r#move::metadata::hash_str;
 /* K-opt move for tour optimization.
 
 K-opt removes k edges from a tour and reconnects the resulting segments
@@ -70,7 +72,6 @@ use super::list_kernel::{
     k_opt_do_move, k_opt_do_move_into, k_opt_is_doable, k_opt_tabu_signature, k_opt_undo_move,
     StaticListWindowAccess,
 };
-use super::metadata::hash_str;
 use super::ListUndoJournal;
 use super::{Move, MoveTabuSignature};
 
@@ -100,7 +101,7 @@ pub struct CutPoint {
 
 impl CutPoint {
     #[inline]
-    pub const fn new(entity_index: usize, position: usize) -> Self {
+    pub(crate) const fn new(entity_index: usize, position: usize) -> Self {
         Self {
             entity_index,
             position,
@@ -189,8 +190,9 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> KOptMove<S, 
 
     Panics if cuts is empty or has more than 5 elements.
     */
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         cuts: &[CutPoint],
         reconnection: &KOptReconnection,
         list_len: fn(&S, usize) -> usize,
@@ -251,21 +253,15 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> KOptMove<S, 
         }
     }
 
+    #[cfg(test)]
     #[inline]
-    pub fn k(&self) -> usize {
+    pub(crate) fn k(&self) -> usize {
         self.cut_count as usize
     }
 
     #[inline]
     pub fn cuts(&self) -> &[CutPoint] {
         &self.cuts[..self.cut_count as usize]
-    }
-
-    pub fn is_intra_route(&self) -> bool {
-        let first = self.cuts[0].entity_index;
-        self.cuts[..self.cut_count as usize]
-            .iter()
-            .all(|c| c.entity_index == first)
     }
 
     fn access(&self) -> StaticListWindowAccess<S, V> {
@@ -277,23 +273,6 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> KOptMove<S, 
             variable_name: self.variable_name,
             descriptor_index: self.descriptor_index,
         }
-    }
-
-    /// Scratch-carrying do: the pre-kopt route is returned through the
-    /// caller-owned journal so its inlined capacity is reused across trials.
-    pub(crate) fn do_move_into_journal<D: Director<S>>(
-        &self,
-        score_director: &mut D,
-        journal: &mut ListUndoJournal<V>,
-    ) {
-        k_opt_do_move_into(
-            &self.access(),
-            self.cuts(),
-            &self.reconnection,
-            self.entity_index,
-            score_director,
-            journal,
-        );
     }
 }
 

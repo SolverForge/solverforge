@@ -9,7 +9,7 @@ use solverforge_scoring::Director;
 
 use crate::builder::selector::types::SequentialMoveCarrier;
 use crate::heuristic::r#move::{
-    Move, MoveAffectedEntity, MoveTabuSignature, RuntimeCompoundMove, ScalarMoveUnion,
+    CompoundScalarMove, Move, MoveAffectedEntity, MoveTabuSignature, RuntimeCompoundMove,
     SequentialCompositeMove,
 };
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
@@ -32,7 +32,7 @@ where
 {
     Scalar(RuntimeScalarMove<S>),
     List(RuntimeListMove<S, V, DM, IDM>),
-    Grouped(ScalarMoveUnion<S, usize>),
+    Grouped(CompoundScalarMove<S>),
     Provider(RuntimeCompoundMove<S>),
     Sequential(SequentialCompositeMove<S, Self>),
 }
@@ -47,7 +47,7 @@ where
 {
     Scalar(<RuntimeScalarMove<S> as Move<S>>::Undo),
     List(<RuntimeListMove<S, V, DM, IDM> as Move<S>>::Undo),
-    Grouped(<ScalarMoveUnion<S, usize> as Move<S>>::Undo),
+    Grouped(<CompoundScalarMove<S> as Move<S>>::Undo),
     Provider(<RuntimeCompoundMove<S> as Move<S>>::Undo),
     Sequential(Box<(Self, Self)>),
 }

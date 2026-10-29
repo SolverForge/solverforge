@@ -1,15 +1,16 @@
+use crate::manager::solver_manager::manager::Solvable;
+use crate::manager::solver_manager::manager::SolverManager;
+use crate::phase::partitioned::partitioner::FunctionalPartitioner;
 use std::any::TypeId;
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::Director;
 
-use super::super::{
-    Solvable, SolverEvent, SolverLifecycleState, SolverManager, SolverRuntime, SolverTerminalReason,
-};
+use super::super::{SolverEvent, SolverLifecycleState, SolverRuntime, SolverTerminalReason};
 use super::common::recv_event;
 use super::gates::BlockingPoint;
-use crate::phase::partitioned::{FunctionalPartitioner, PartitionedSearchPhase};
+use crate::phase::partitioned::PartitionedSearchPhase;
 use crate::phase::Phase;
 use crate::scope::{ProgressCallback, SolverScope};
 

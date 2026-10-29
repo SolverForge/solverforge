@@ -14,7 +14,7 @@ use std::sync::{
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{
-    CandidateStore, ChangeMoveSelector, MoveCursor, MoveSelector, SwapMoveSelector,
+    CandidateStore, ChangeMoveSelector, MoveCursor, MoveSelector,
 };
 
 #[derive(Clone, Debug)]
@@ -391,41 +391,6 @@ fn change_selector_materializes_values_on_open_and_moves_on_demand() {
 }
 
 #[test]
-fn test_swap_move_selector() {
-    let director = create_director(vec![
-        Task {
-            id: 0,
-            priority: Some(1),
-        },
-        Task {
-            id: 1,
-            priority: Some(2),
-        },
-        Task {
-            id: 2,
-            priority: Some(3),
-        },
-        Task {
-            id: 3,
-            priority: Some(4),
-        },
-    ]);
-
-    let selector = SwapMoveSelector::simple(get_priority, set_priority, 0, 0, "priority");
-
-    let moves: Vec<_> = selector.iter_moves(&director).collect();
-
-    // 4 entities: 4*3/2 = 6 pairs
-    assert_eq!(moves.len(), 6);
-    assert_eq!(selector.size(&director), 6);
-
-    // Verify first swap
-    let first = &moves[0];
-    assert_eq!(first.left_entity_index(), 0);
-    assert_eq!(first.right_entity_index(), 1);
-}
-
-#[test]
 fn test_change_do_and_undo() {
     let mut director = create_director(vec![Task {
         id: 0,
@@ -454,44 +419,4 @@ fn test_change_do_and_undo() {
     // Verify restored using concrete getter
     let val = get_priority(director.working_solution(), 0, 0);
     assert_eq!(val, Some(1));
-}
-
-#[test]
-fn test_swap_do_and_undo() {
-    let mut director = create_director(vec![
-        Task {
-            id: 0,
-            priority: Some(10),
-        },
-        Task {
-            id: 1,
-            priority: Some(20),
-        },
-    ]);
-
-    let selector = SwapMoveSelector::simple(get_priority, set_priority, 0, 0, "priority");
-
-    let moves: Vec<_> = selector.iter_moves(&director).collect();
-    assert_eq!(moves.len(), 1);
-
-    let m = &moves[0];
-    assert!(m.is_doable(&director));
-
-    {
-        let undo = m.do_move(&mut director);
-
-        // Verify swap using concrete getter
-        let val0 = get_priority(director.working_solution(), 0, 0);
-        let val1 = get_priority(director.working_solution(), 1, 0);
-        assert_eq!(val0, Some(20));
-        assert_eq!(val1, Some(10));
-
-        m.undo_move(&mut director, undo);
-    }
-
-    // Verify restored using concrete getter
-    let val0 = get_priority(director.working_solution(), 0, 0);
-    let val1 = get_priority(director.working_solution(), 1, 0);
-    assert_eq!(val0, Some(10));
-    assert_eq!(val1, Some(20));
 }

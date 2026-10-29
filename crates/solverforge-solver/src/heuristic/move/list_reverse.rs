@@ -1,3 +1,4 @@
+use crate::heuristic::r#move::list_kernel::StaticListReverseAccess;
 /* ListReverseMove - reverses a segment within a list variable.
 
 This move reverses the order of elements in a range. Essential for
@@ -17,7 +18,7 @@ use solverforge_scoring::Director;
 
 use super::list_kernel::{
     reverse_candidate_trace_identity, reverse_do_move, reverse_is_doable, reverse_tabu_signature,
-    ReverseCoordinates, StaticListReverseAccess,
+    ReverseCoordinates,
 };
 use super::{Move, MoveTabuSignature};
 
@@ -59,7 +60,7 @@ use super::{Move, MoveTabuSignature};
 ///     "cities", 0,
 /// );
 /// ```
-pub struct ListReverseMove<S, V> {
+pub(crate) struct ListReverseMove<S, V> {
     // Entity index
     entity_index: usize,
     // Start of range to reverse (inclusive)
@@ -106,7 +107,7 @@ impl<S, V> ListReverseMove<S, V> {
     * `descriptor_index` - Entity descriptor index
     */
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_index: usize,
         start: usize,
         end: usize,
@@ -129,20 +130,16 @@ impl<S, V> ListReverseMove<S, V> {
         }
     }
 
-    pub fn entity_index(&self) -> usize {
+    pub(crate) fn entity_index(&self) -> usize {
         self.entity_index
     }
 
-    pub fn start(&self) -> usize {
+    pub(crate) fn start(&self) -> usize {
         self.start
     }
 
-    pub fn end(&self) -> usize {
+    pub(crate) fn end(&self) -> usize {
         self.end
-    }
-
-    pub fn segment_len(&self) -> usize {
-        self.end.saturating_sub(self.start)
     }
 
     fn access(&self) -> StaticListReverseAccess<S, V> {

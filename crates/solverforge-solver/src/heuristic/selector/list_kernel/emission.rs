@@ -6,9 +6,9 @@
 use std::fmt::{self, Debug};
 use std::marker::PhantomData;
 
-use solverforge_core::domain::{DynamicListVariableSlot, PlanningSolution};
+use solverforge_core::domain::PlanningSolution;
 
-use crate::heuristic::r#move::{DynamicListChangeMove, ListChangeMove, ListSwapMove, Move};
+use crate::heuristic::r#move::{ListChangeMove, ListSwapMove, Move};
 
 /// Emits one relocation move for already-approved coordinates.
 pub(crate) trait ChangeEmitter<S: PlanningSolution>: Send + Sync + Debug {
@@ -105,50 +105,6 @@ where
             self.list_insert,
             self.variable_name,
             self.descriptor_index,
-        )
-    }
-}
-
-/// Dynamic relocation emission preserving DynamicListChangeMove ownership.
-#[derive(Clone)]
-pub(crate) struct DynamicChangeEmitter<S> {
-    slot: DynamicListVariableSlot<S>,
-}
-
-impl<S> DynamicChangeEmitter<S> {
-    pub(crate) fn new(slot: DynamicListVariableSlot<S>) -> Self {
-        Self { slot }
-    }
-}
-
-impl<S> Debug for DynamicChangeEmitter<S> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("DynamicChangeEmitter")
-            .field("slot", &self.slot)
-            .finish()
-    }
-}
-
-impl<S> ChangeEmitter<S> for DynamicChangeEmitter<S>
-where
-    S: PlanningSolution,
-{
-    type Move = DynamicListChangeMove<S>;
-
-    fn emit_change(
-        &self,
-        source_entity: usize,
-        source_position: usize,
-        destination_entity: usize,
-        destination_position: usize,
-    ) -> Self::Move {
-        DynamicListChangeMove::new(
-            self.slot.clone(),
-            source_entity,
-            source_position,
-            destination_entity,
-            destination_position,
         )
     }
 }

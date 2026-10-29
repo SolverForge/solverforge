@@ -1,5 +1,5 @@
 mod cursor;
-pub use cursor::CartesianProductCursor;
+pub(crate) use cursor::CartesianProductCursor;
 use cursor::CartesianScratch;
 
 /* Cartesian product move selector.
@@ -25,109 +25,6 @@ use crate::heuristic::selector::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveSelectorIter,
     MoveStreamContext,
 };
-
-/// Holds two owned move arenas and provides indexed pair iteration.
-pub struct CartesianProductArena<S, M1, M2>
-where
-    S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
-{
-    arena_1: MoveArena<M1>,
-    arena_2: MoveArena<M2>,
-    _phantom: PhantomData<fn() -> S>,
-}
-
-impl<S, M1, M2> CartesianProductArena<S, M1, M2>
-where
-    S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
-{
-    pub fn new() -> Self {
-        Self {
-            arena_1: MoveArena::new(),
-            arena_2: MoveArena::new(),
-            _phantom: PhantomData,
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.arena_1.reset();
-        self.arena_2.reset();
-    }
-
-    pub fn populate_first<D, MS>(&mut self, selector: &MS, score_director: &D)
-    where
-        D: Director<S>,
-        MS: MoveSelector<S, M1>,
-    {
-        self.arena_1.extend(selector.iter_moves(score_director));
-    }
-
-    pub fn populate_second<D, MS>(&mut self, selector: &MS, score_director: &D)
-    where
-        D: Director<S>,
-        MS: MoveSelector<S, M2>,
-    {
-        self.arena_2.extend(selector.iter_moves(score_director));
-    }
-
-    pub fn len(&self) -> usize {
-        self.arena_1.len() * self.arena_2.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.arena_1.is_empty() || self.arena_2.is_empty()
-    }
-
-    pub fn get_first(&self, index: usize) -> Option<&M1> {
-        self.arena_1.get(index)
-    }
-
-    pub fn get_second(&self, index: usize) -> Option<&M2> {
-        self.arena_2.get(index)
-    }
-
-    pub fn iter_indices(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
-        let len_1 = self.arena_1.len();
-        let len_2 = self.arena_2.len();
-        (0..len_1).flat_map(move |i| (0..len_2).map(move |j| (i, j)))
-    }
-
-    pub fn iter_pairs(&self) -> impl Iterator<Item = (usize, usize, &M1, &M2)> + '_ {
-        self.iter_indices().filter_map(|(i, j)| {
-            let m1 = self.arena_1.get(i)?;
-            let m2 = self.arena_2.get(j)?;
-            Some((i, j, m1, m2))
-        })
-    }
-}
-
-impl<S, M1, M2> Default for CartesianProductArena<S, M1, M2>
-where
-    S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<S, M1, M2> Debug for CartesianProductArena<S, M1, M2>
-where
-    S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CartesianProductArena")
-            .field("arena_1_len", &self.arena_1.len())
-            .field("arena_2_len", &self.arena_2.len())
-            .finish()
-    }
-}
 
 /// Cartesian product selector that evaluates the right child after the left
 /// child on a preview solution and yields borrowable sequential candidates.
@@ -158,11 +55,6 @@ where
             scratch: Mutex::new(CartesianScratch::new()),
             _phantom: PhantomData,
         }
-    }
-
-    pub fn with_require_hard_improvement(mut self, require_hard_improvement: bool) -> Self {
-        self.require_hard_improvement = require_hard_improvement;
-        self
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::manager::solver_manager::manager::Solvable;
 use std::any::TypeId;
 use std::borrow::Cow;
 use std::time::Duration;
@@ -6,7 +7,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::Director;
 
-use super::super::{Solvable, SolverRuntime, SolverTerminalReason};
+use super::super::{SolverRuntime, SolverTerminalReason};
 use super::gates::{BlockingEvaluationGate, BlockingPoint};
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::{move_selector::ArenaMoveCursor, MoveSelector};

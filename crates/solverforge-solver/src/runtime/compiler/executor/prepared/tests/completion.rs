@@ -1,7 +1,7 @@
 use super::super::super::completion::require_mandatory_completion;
 use super::*;
 use crate::manager::SolverRuntime;
-use crate::realtime::ClosureProblemChange;
+use crate::realtime::problem_change::ClosureProblemChange;
 
 #[test]
 fn cancellation_retains_complete_working_solution_over_better_incomplete_best() {

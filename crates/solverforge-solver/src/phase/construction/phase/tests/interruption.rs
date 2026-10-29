@@ -22,35 +22,6 @@ fn time_limit_after_first_fit_selection_commits_before_termination() {
     );
 }
 
-#[test]
-fn time_limit_after_first_feasible_selection_commits_before_termination() {
-    let gate = BlockingEvaluationGate::delaying(Duration::from_millis(100));
-    let director = ConstructionPauseDirector::with_score_mode(
-        ConstructionPauseSolution::new(None),
-        ConstructionPauseScoreMode::AssignedSum {
-            unassigned_score: -2,
-        },
-    );
-    let mut solver_scope = SolverScope::new(director);
-    solver_scope.start_solving();
-    solver_scope.set_time_limit(Duration::from_millis(20));
-
-    let placer =
-        ScoredConstructionPlacer::new((0..66).collect(), true).with_eval_gate(Some(gate));
-    let mut phase = ConstructionHeuristicPhase::new(placer, FirstFeasibleForager::new());
-    phase.solve(&mut solver_scope);
-
-    assert_eq!(solver_scope.working_solution().entities[0].value, Some(0));
-    assert_eq!(solver_scope.stats().moves_generated(), 1);
-    assert_eq!(solver_scope.stats().moves_evaluated(), 1);
-    assert_eq!(solver_scope.stats().moves_accepted(), 1);
-    assert_eq!(solver_scope.stats().moves_applied(), 1);
-    assert_eq!(
-        solver_scope.terminal_reason(),
-        SolverTerminalReason::TerminatedByConfig
-    );
-}
-
 fn assert_direct_limit_commits_and_terminates(
     configure: impl FnOnce(&mut SolverScope<'static, ConstructionPauseSolution, ConstructionPauseDirector>),
     keep_current_legal: bool,

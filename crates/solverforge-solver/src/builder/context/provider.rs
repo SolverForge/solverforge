@@ -6,18 +6,17 @@
 //! never reaches back into mutable schema, a global map, or TLS.
 
 mod native;
-mod registry;
-mod resolver;
-mod types;
+pub(crate) mod registry;
+pub(crate) mod resolver;
+pub(crate) mod types;
 
-pub use registry::RuntimeProviderRegistry;
-pub use resolver::RuntimeProviderSlotResolver;
-pub use types::{
+pub(crate) use registry::RuntimeProviderRegistry;
+pub(crate) use resolver::RuntimeProviderSlotResolver;
+pub(crate) use types::{
     ProviderNormalizationState, ProviderReasonArena, ProviderReasonId, ProviderResolutionError,
     RawProviderCandidate, RawProviderEdit, ResolvedProviderCandidate, ResolvedProviderEdit,
-    RuntimeConflictRepairProviderBinding, RuntimeHostCompoundProvider,
-    RuntimeHostProviderErrorBoundary, RuntimeProviderHandle, RuntimeProviderLimits,
-    RuntimeScalarGroupProviderBinding, StaticConflictRepairProviderBinding,
+    RuntimeConflictRepairProviderBinding, RuntimeHostProviderErrorBoundary, RuntimeProviderHandle,
+    RuntimeProviderLimits, RuntimeScalarGroupProviderBinding, StaticConflictRepairProviderBinding,
     StaticScalarGroupProviderBinding,
 };
 

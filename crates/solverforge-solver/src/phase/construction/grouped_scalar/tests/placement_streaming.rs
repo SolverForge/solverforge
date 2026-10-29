@@ -18,7 +18,7 @@ fn counting_provider(
     _limits: ScalarGroupLimits,
 ) -> Vec<crate::planning::ScalarCandidate<AssignmentPlan>> {
     PROVIDER_CALLS.fetch_add(1, Ordering::SeqCst);
-    let target = crate::planning::ScalarTarget::from_descriptor_index(0, "worker");
+    let target = crate::planning::scalar::target::ScalarTarget::from_descriptor_index(0, "worker");
     (0..4)
         .map(|entity| {
             crate::planning::ScalarCandidate::new("batch", vec![target.set(entity, Some(entity))])
@@ -41,9 +41,7 @@ fn candidate_group() -> ScalarGroupBinding<AssignmentPlan> {
     ScalarGroupBinding::bind(
         crate::planning::ScalarGroup::candidates(
             "static_group",
-            vec![crate::planning::ScalarTarget::from_descriptor_index(
-                0, "worker",
-            )],
+            vec![crate::planning::scalar::target::ScalarTarget::from_descriptor_index(0, "worker")],
             counting_provider,
         ),
         &[slot],

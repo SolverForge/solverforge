@@ -99,13 +99,6 @@ where
 {
     type Element = RuntimeListElement<V>;
 
-    fn entity_type_name(&self) -> &'static str {
-        match self {
-            Self::Static { slot, .. } => slot.entity_type_name(),
-            Self::Dynamic(slot) => slot.entity_type_name(),
-        }
-    }
-
     fn variable_name(&self) -> &'static str {
         match self {
             Self::Static { slot, .. } => slot.variable_name(),

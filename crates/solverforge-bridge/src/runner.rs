@@ -10,12 +10,13 @@ use solverforge_config::SolverConfig;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
 use solverforge_scoring::ConstraintSet;
-use solverforge_solver::builder::{NoDynamicExtensions, Search, SearchContext};
-use solverforge_solver::stats::QualifiedCandidateTraceRunProvenance;
+use solverforge_solver::__private::NoDynamicExtensions;
+use solverforge_solver::QualifiedCandidateTraceRunProvenance;
 use solverforge_solver::{
     try_run_solver_with_config_and_search, CrossEntityDistanceMeter, RuntimeBuildResult,
     RuntimeModel, SolverRuntime,
 };
+use solverforge_solver::{Search, SearchContext};
 
 /// Dynamic authoring transferred to the shared graph compiler. The distinct
 /// empty extension registry makes custom and partitioned declarations a

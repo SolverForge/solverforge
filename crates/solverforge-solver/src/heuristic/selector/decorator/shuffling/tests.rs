@@ -1,22 +1,18 @@
 use super::super::test_utils::{create_director, get_priority, set_priority, Task};
 use super::*;
-use crate::heuristic::r#move::ScalarMoveUnion;
+use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::decorator::{test_utils::TaskSolution, CartesianProductSelector};
 use crate::heuristic::selector::move_selector::{collect_cursor_indices, MoveCandidateRef};
-use crate::heuristic::selector::{ChangeMoveSelector, ScalarChangeMoveSelector};
+use crate::heuristic::selector::move_selector::ChangeMoveSelector;
 
 fn composite_pair(
-    candidate: MoveCandidateRef<'_, TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
+    candidate: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>,
 ) -> Option<(i32, i32)> {
     let MoveCandidateRef::Sequential(sequence) = candidate else {
         return None;
     };
-    let ScalarMoveUnion::Change(first) = sequence.first() else {
-        return None;
-    };
-    let ScalarMoveUnion::Change(second) = sequence.second() else {
-        return None;
-    };
+    let first = sequence.first();
+    let second = sequence.second();
     Some((*first.to_value()?, *second.to_value()?))
 }
 
@@ -120,7 +116,7 @@ fn different_seeds_produce_different_order() {
 #[test]
 fn shuffles_cartesian_candidates_without_dropping_borrowable_access() {
     let director = create_director(vec![Task { priority: Some(0) }]);
-    let left = ScalarChangeMoveSelector::simple(
+    let left = ChangeMoveSelector::simple(
         get_priority,
         set_priority,
         0,
@@ -128,7 +124,7 @@ fn shuffles_cartesian_candidates_without_dropping_borrowable_access() {
         "priority",
         vec![10, 20],
     );
-    let right = ScalarChangeMoveSelector::simple(
+    let right = ChangeMoveSelector::simple(
         get_priority,
         set_priority,
         0,
@@ -141,7 +137,7 @@ fn shuffles_cartesian_candidates_without_dropping_borrowable_access() {
 
     let mut cursor = shuffled.open_cursor(&director);
     let indices =
-        collect_cursor_indices::<TaskSolution, ScalarMoveUnion<TaskSolution, i32>, _>(&mut cursor);
+        collect_cursor_indices::<TaskSolution, ChangeMove<TaskSolution, i32>, _>(&mut cursor);
 
     assert!(indices.len() >= 2);
     let pairs: Vec<_> = indices

@@ -11,7 +11,7 @@ use crate::builder::{RuntimeScalarSlot, RuntimeScalarSlotId, ScalarAccessCapabil
 /// compiler/executor module: static facades, dynamic facades, and compiled
 /// declarations all describe the same seven families.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ScalarNeighborhoodKind {
+pub(crate) enum ScalarNeighborhoodKind {
     Change,
     Swap,
     NearbyChange,
@@ -191,7 +191,7 @@ pub(crate) enum RuntimeScalarRecipe<S> {
 /// lowering use this same type so a missing nearby source never becomes an
 /// alternate candidate universe.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ScalarNeighborhoodBindingError {
+pub(crate) enum ScalarNeighborhoodBindingError {
     ConfigFamilyMismatch {
         kind: ScalarNeighborhoodKind,
     },

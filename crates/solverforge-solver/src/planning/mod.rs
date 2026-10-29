@@ -1,9 +1,9 @@
-mod conflict_repair;
-mod scalar;
+pub(crate) mod conflict_repair;
+pub(crate) mod scalar;
 
-pub use conflict_repair::{ConflictRepair, RepairCandidate, RepairLimits, RepairProvider};
+pub(crate) use conflict_repair::ConflictRepair;
 pub(crate) use scalar::{ScalarAssignmentDeclaration, ScalarGroupKind};
-pub use scalar::{
+pub(crate) use scalar::{
     ScalarAssignmentRule, ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup,
-    ScalarGroupLimits, ScalarTarget,
+    ScalarGroupLimits,
 };

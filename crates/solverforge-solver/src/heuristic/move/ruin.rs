@@ -31,38 +31,6 @@ use super::{Move, MoveTabuSignature};
 /// * `S` - The planning solution type
 /// * `V` - The variable value type
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::RuinMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SoftScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Task { assigned_to: Option<i32>, score: Option<SoftScore> }
-/// #[derive(Clone, Debug)]
-/// struct Schedule { tasks: Vec<Task>, score: Option<SoftScore> }
-///
-/// impl PlanningSolution for Schedule {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn get_task(s: &Schedule, idx: usize, _var: usize) -> Option<i32> {
-///     s.tasks.get(idx).and_then(|t| t.assigned_to)
-/// }
-/// fn set_task(s: &mut Schedule, idx: usize, _var: usize, v: Option<i32>) {
-///     if let Some(t) = s.tasks.get_mut(idx) { t.assigned_to = v; }
-/// }
-///
-/// // Ruin entities 0, 2, and 4
-/// let m = RuinMove::<Schedule, i32>::new(
-///     &[0, 2, 4],
-///     get_task, set_task,
-///     0, "assigned_to", 0,
-/// );
-/// ```
 pub struct RuinMove<S, V> {
     // Indices of entities to unassign
     entity_indices: SmallVec<[usize; 8]>,
@@ -85,6 +53,7 @@ impl<S, V: Debug> Debug for RuinMove<S, V> {
 }
 
 impl<S, V> RuinMove<S, V> {
+    #[cfg(test)]
     /// Creates a new ruin move with concrete function pointers.
     ///
     /// # Arguments
@@ -93,7 +62,7 @@ impl<S, V> RuinMove<S, V> {
     /// * `setter` - Function to set value
     /// * `variable_name` - Name of the planning variable
     /// * `descriptor_index` - Entity descriptor index
-    pub fn new(
+    pub(crate) fn new(
         entity_indices: &[usize],
         getter: fn(&S, usize, usize) -> Option<V>,
         setter: fn(&mut S, usize, usize, Option<V>),
@@ -133,7 +102,8 @@ impl<S, V> RuinMove<S, V> {
         &self.entity_indices
     }
 
-    pub fn ruin_count(&self) -> usize {
+    #[cfg(test)]
+    pub(crate) fn ruin_count(&self) -> usize {
         self.entity_indices.len()
     }
 }

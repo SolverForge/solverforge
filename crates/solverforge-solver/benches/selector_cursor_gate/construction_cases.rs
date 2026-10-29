@@ -1,5 +1,5 @@
 #[cfg(not(feature = "candidate"))]
-use solverforge_solver::EntityPlacerCursor;
+use solverforge_solver::__bench::EntityPlacerCursor;
 
 fn construction_placer(
 ) -> QueuedEntityPlacer<Plan, usize, FromSolutionEntitySelector, StaticValueSelector<Plan, usize>> {

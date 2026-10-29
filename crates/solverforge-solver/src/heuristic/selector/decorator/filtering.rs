@@ -122,45 +122,6 @@ where
 /// Only moves for which the predicate returns `true` are yielded.
 /// Uses a function pointer for zero-erasure filtering.
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::selector::decorator::FilteringMoveSelector;
-/// use solverforge_solver::heuristic::selector::move_selector::MoveCandidateRef;
-/// use solverforge_solver::heuristic::selector::{ChangeMoveSelector, MoveSelector};
-/// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SoftScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Task { id: usize, priority: Option<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { tasks: Vec<Task>, score: Option<SoftScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn get_priority(s: &Solution, i: usize, _variable_index: usize) -> Option<i32> { s.tasks.get(i).and_then(|t| t.priority) }
-/// fn set_priority(s: &mut Solution, i: usize, _variable_index: usize, v: Option<i32>) { if let Some(t) = s.tasks.get_mut(i) { t.priority = v; } }
-///
-/// // Filter to only high-priority moves (value > 50)
-/// fn high_priority_filter(
-///     m: MoveCandidateRef<'_, Solution, ChangeMove<Solution, i32>>,
-/// ) -> bool {
-///     matches!(m, MoveCandidateRef::Borrowed(mov) if mov.to_value().is_some_and(|v| *v > 50))
-/// }
-///
-/// let inner = ChangeMoveSelector::simple(
-///     get_priority, set_priority, 0,  0, "priority", vec![10, 60, 80],
-/// );
-/// let filtered: FilteringMoveSelector<Solution, _, _> =
-///     FilteringMoveSelector::new(inner, high_priority_filter);
-/// assert!(!filtered.is_never_ending());
-/// ```
 pub struct FilteringMoveSelector<S, M, Inner>
 where
     S: PlanningSolution,

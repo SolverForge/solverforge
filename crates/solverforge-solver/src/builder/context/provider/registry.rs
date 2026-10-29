@@ -131,11 +131,11 @@ impl<S: 'static> RuntimeProviderRegistry<S> {
         &self.repairs
     }
 
-    pub fn static_groups(&self) -> &[StaticScalarGroupProviderBinding<S>] {
+    pub(crate) fn static_groups(&self) -> &[StaticScalarGroupProviderBinding<S>] {
         &self.static_groups
     }
 
-    pub fn static_repairs(&self) -> &[StaticConflictRepairProviderBinding<S>] {
+    pub(crate) fn static_repairs(&self) -> &[StaticConflictRepairProviderBinding<S>] {
         &self.static_repairs
     }
 
@@ -148,7 +148,11 @@ impl<S: 'static> RuntimeProviderRegistry<S> {
     }
 
     /// Whether one frozen repair source declares a configured constraint.
-    pub fn declares_constraint(&self, handle: RuntimeProviderHandle, constraint: &str) -> bool {
+    pub(crate) fn declares_constraint(
+        &self,
+        handle: RuntimeProviderHandle,
+        constraint: &str,
+    ) -> bool {
         match handle {
             RuntimeProviderHandle::CallbackRepair(index) => self
                 .repairs
@@ -175,7 +179,7 @@ impl<S: 'static> RuntimeProviderRegistry<S> {
         }
     }
 
-    pub fn declares_any_constraint(
+    pub(crate) fn declares_any_constraint(
         &self,
         handle: RuntimeProviderHandle,
         constraints: &[String],
@@ -225,7 +229,7 @@ impl<S: 'static> RuntimeProviderRegistry<S> {
     }
 
     /// Pulls exactly one source without normalizing or reordering its result.
-    pub fn pull_callback_raw(
+    pub(crate) fn pull_callback_raw(
         &self,
         handle: RuntimeProviderHandle,
         solution: &S,
@@ -286,7 +290,7 @@ impl<S: 'static> RuntimeProviderRegistry<S> {
     /// Resolves one raw result in the caller-owned deduplication scope.
     /// Callback panics propagate from [`Self::pull_callback_raw`]; only structured core
     /// normalization failures cross the host error boundary here.
-    pub fn normalize_or_raise(
+    pub(crate) fn normalize_or_raise(
         &self,
         solution: &S,
         raw: Vec<RawProviderCandidate>,

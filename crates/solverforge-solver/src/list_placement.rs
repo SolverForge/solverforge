@@ -73,6 +73,7 @@ pub(crate) fn owner_restriction<S, V>(
     }
 }
 
+#[cfg(test)]
 pub(crate) fn candidate_entity_indices<S, V>(
     owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     solution: &S,

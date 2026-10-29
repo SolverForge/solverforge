@@ -60,7 +60,7 @@ assert!(!pattern.should_reverse(0)); // A not reversed
 ```
 */
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct KOptReconnection {
+pub(crate) struct KOptReconnection {
     // Segment order as fixed array.
     segment_order: [u8; 6],
     // Bitmask of segments to reverse.
@@ -92,7 +92,7 @@ impl KOptReconnection {
     ```
     */
     #[inline]
-    pub const fn new(segment_order: [u8; 6], reverse_mask: u8, len: u8) -> Self {
+    pub(crate) const fn new(segment_order: [u8; 6], reverse_mask: u8, len: u8) -> Self {
         Self {
             segment_order,
             reverse_mask,
@@ -111,7 +111,7 @@ impl KOptReconnection {
     ```
     */
     #[inline]
-    pub const fn k(&self) -> usize {
+    pub(crate) const fn k(&self) -> usize {
         (self.len - 1) as usize
     }
 
@@ -126,7 +126,7 @@ impl KOptReconnection {
     ```
     */
     #[inline]
-    pub const fn segment_count(&self) -> usize {
+    pub(crate) const fn segment_count(&self) -> usize {
         self.len as usize
     }
 
@@ -146,7 +146,7 @@ impl KOptReconnection {
     ```
     */
     #[inline]
-    pub const fn segment_at(&self, pos: usize) -> usize {
+    pub(crate) const fn segment_at(&self, pos: usize) -> usize {
         self.segment_order[pos] as usize
     }
 
@@ -165,12 +165,12 @@ impl KOptReconnection {
     ```
     */
     #[inline]
-    pub const fn should_reverse(&self, idx: usize) -> bool {
+    pub(crate) const fn should_reverse(&self, idx: usize) -> bool {
         (self.reverse_mask >> idx) & 1 == 1
     }
 
     #[inline]
-    pub fn segment_order(&self) -> &[u8] {
+    pub(crate) fn segment_order(&self) -> &[u8] {
         &self.segment_order[..self.len as usize]
     }
 
@@ -214,21 +214,7 @@ impl KOptReconnection {
 /// | 5 | A-C-B'-D   | B       | Swap, reverse B          |
 /// | 6 | A-C'-B'-D  | B,C     | Swap, reverse both       |
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::k_opt_reconnection::THREE_OPT_RECONNECTIONS;
-///
-/// assert_eq!(THREE_OPT_RECONNECTIONS.len(), 7);
-///
-/// // Pattern 3 swaps B and C without reversal
-/// let swap_pattern = &THREE_OPT_RECONNECTIONS[3];
-/// assert_eq!(swap_pattern.segment_at(1), 2); // C moved to position 1
-/// assert_eq!(swap_pattern.segment_at(2), 1); // B moved to position 2
-/// assert!(!swap_pattern.should_reverse(1));
-/// assert!(!swap_pattern.should_reverse(2));
-/// ```
-pub static THREE_OPT_RECONNECTIONS: &[KOptReconnection] = &[
+pub(crate) static THREE_OPT_RECONNECTIONS: &[KOptReconnection] = &[
     // No swap, with reversals
     KOptReconnection::new([0, 1, 2, 3, 0, 0], 0b0010, 4), // Reverse B
     KOptReconnection::new([0, 1, 2, 3, 0, 0], 0b0100, 4), // Reverse C
@@ -255,21 +241,7 @@ pub static THREE_OPT_RECONNECTIONS: &[KOptReconnection] = &[
 ///
 /// Panics if k < 2 or k > 5.
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::k_opt_reconnection::enumerate_reconnections;
-///
-/// let patterns_2opt = enumerate_reconnections(2);
-/// assert_eq!(patterns_2opt.len(), 1); // Only reverse middle
-///
-/// let patterns_3opt = enumerate_reconnections(3);
-/// assert_eq!(patterns_3opt.len(), 7);
-///
-/// let patterns_4opt = enumerate_reconnections(4);
-/// assert_eq!(patterns_4opt.len(), 47); // 3! * 2^3 - 1
-/// ```
-pub fn enumerate_reconnections(k: usize) -> Vec<KOptReconnection> {
+pub(crate) fn enumerate_reconnections(k: usize) -> Vec<KOptReconnection> {
     assert!((2..=5).contains(&k), "k must be between 2 and 5");
 
     let num_segments = k + 1;

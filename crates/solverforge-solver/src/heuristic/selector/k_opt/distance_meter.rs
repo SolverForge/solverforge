@@ -4,7 +4,7 @@
 ///
 /// Measures distance between elements at two positions in a list.
 /// Used by `NearbyKOptMoveSelector` to limit k-opt search space.
-pub trait ListPositionDistanceMeter<S>: Send + Sync {
+pub(crate) trait ListPositionDistanceMeter<S>: Send + Sync {
     // Measures distance between elements at two positions in the same entity.
     fn distance(&self, solution: &S, entity_idx: usize, pos_a: usize, pos_b: usize) -> f64;
 }

@@ -10,7 +10,7 @@ use super::list_kernel::{
 };
 use super::{Move, MoveTabuSignature};
 
-pub struct DynamicListChangeMove<S> {
+pub(crate) struct DynamicListChangeMove<S> {
     slot: DynamicListVariableSlot<S>,
     source_entity_index: usize,
     source_position: usize,
@@ -32,7 +32,7 @@ impl<S> Debug for DynamicListChangeMove<S> {
 }
 
 impl<S> DynamicListChangeMove<S> {
-    pub fn new(
+    pub(crate) fn new(
         slot: DynamicListVariableSlot<S>,
         source_entity_index: usize,
         source_position: usize,
@@ -53,19 +53,19 @@ impl<S> DynamicListChangeMove<S> {
         self.source_entity_index == self.dest_entity_index
     }
 
-    pub fn source_entity_index(&self) -> usize {
+    pub(crate) fn source_entity_index(&self) -> usize {
         self.source_entity_index
     }
 
-    pub fn source_position(&self) -> usize {
+    pub(crate) fn source_position(&self) -> usize {
         self.source_position
     }
 
-    pub fn dest_entity_index(&self) -> usize {
+    pub(crate) fn dest_entity_index(&self) -> usize {
         self.dest_entity_index
     }
 
-    pub fn dest_position(&self) -> usize {
+    pub(crate) fn dest_position(&self) -> usize {
         self.dest_position
     }
 

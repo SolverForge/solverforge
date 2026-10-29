@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 
 use smallvec::{smallvec, SmallVec};
 
-pub const NONE_ID: u64 = u64::MAX;
+pub(crate) const NONE_ID: u64 = u64::MAX;
 /// Canonical tag for a dynamic list element's declared source key.
 ///
 /// Runtime list moves must never hash the debug wrapper (`Dynamic(…)`): it is
@@ -14,7 +14,7 @@ pub const NONE_ID: u64 = u64::MAX;
 /// tag only distinguishes the dynamic source-key representation inside that
 /// declared slot.
 pub(crate) const TABU_VALUE_RUNTIME_DYNAMIC_LIST_SOURCE: u64 = 0xD1A5_7EED_0000_0001;
-pub type MoveIdentity = SmallVec<[u64; 8]>;
+pub(crate) type MoveIdentity = SmallVec<[u64; 8]>;
 
 /// Canonical tabu metadata for one move candidate.
 ///

@@ -1,3 +1,5 @@
+use crate::builder::search::custom::NoDynamicExtensions;
+use crate::builder::search::custom::NoTypedExtensions;
 use std::any::TypeId;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -12,9 +14,7 @@ use super::{
     compile_runtime_graph, CompiledRuntimeExecutor, CompiledRuntimeExtension, CompiledRuntimePhase,
     PreparedRuntimePhase, RuntimeCompileErrorKind, RuntimeExtensionKind, RuntimeGraphInput,
 };
-use crate::builder::{
-    CustomSearchPhase, NoDynamicExtensions, NoTypedExtensions, RuntimeModel, SearchContext,
-};
+use crate::builder::{CustomSearchPhase, RuntimeModel, SearchContext};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
 use crate::scope::{ProgressCallback, SolverScope};
 

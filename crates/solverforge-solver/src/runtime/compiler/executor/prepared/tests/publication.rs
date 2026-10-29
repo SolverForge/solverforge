@@ -107,7 +107,7 @@ fn compiled_runtime_fails_incomplete_list_work_without_publishing_a_best_solutio
         descriptor(),
         |plan, _| entity_count(plan),
     );
-    let solver = Solver::new((runner,))
+    let solver = Solver::new(runner)
         .with_config(config)
         .with_progress_callback(move |progress: SolverProgressRef<'_, Plan>| {
             if progress.kind == SolverProgressKind::BestSolution {
@@ -146,7 +146,7 @@ fn compiled_runtime_publishes_only_after_list_work_is_complete() {
         descriptor(),
         |plan, _| entity_count(plan),
     );
-    let solver = Solver::new((runner,))
+    let solver = Solver::new(runner)
         .with_config(config)
         .with_progress_callback(move |progress: SolverProgressRef<'_, Plan>| {
             if progress.kind == SolverProgressKind::BestSolution {
@@ -259,7 +259,7 @@ fn already_complete_list_work_can_terminate_by_config_and_publish() {
         descriptor(),
         |plan, _| entity_count(plan),
     );
-    let solver = Solver::new((runner,))
+    let solver = Solver::new(runner)
         .with_config(config)
         .with_time_limit(Duration::ZERO)
         .with_progress_callback(move |progress: SolverProgressRef<'_, Plan>| {

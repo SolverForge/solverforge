@@ -1,6 +1,6 @@
 use crate::phase::construction::grouped_scalar::ScalarAssignmentState;
 
-pub struct GroupedScalarSelector<S> {
+pub(crate) struct GroupedScalarSelector<S> {
     group: crate::builder::context::ScalarGroupBinding<S>,
     value_candidate_limit: Option<usize>,
     max_moves_per_step: Option<usize>,
@@ -63,11 +63,11 @@ impl<S> std::fmt::Debug for GroupedScalarSelector<S> {
     }
 }
 
-pub struct GroupedScalarCursor<'a, S>
+pub(crate) struct GroupedScalarCursor<'a, S>
 where
     S: PlanningSolution + 'static,
 {
-    store: CandidateStore<S, ScalarMoveUnion<S, usize>>,
+    store: CandidateStore<S, CompoundScalarMove<S>>,
     next_index: usize,
     group: &'a crate::builder::context::ScalarGroupBinding<S>,
     activation: Option<GroupedScalarActivation<'a, S>>,
@@ -91,7 +91,7 @@ where
 {
     fn new(
         group: &'a crate::builder::context::ScalarGroupBinding<S>,
-        store: CandidateStore<S, ScalarMoveUnion<S, usize>>,
+        store: CandidateStore<S, CompoundScalarMove<S>>,
     ) -> Self {
         Self {
             store,
@@ -221,7 +221,7 @@ where
                     };
                     let mov = mov.with_require_hard_improvement(require_hard_improvement);
                     if mov.is_doable_on(solution) {
-                        self.store.push(ScalarMoveUnion::CompoundScalar(mov));
+                        self.store.push(mov);
                         seen_candidates.push(candidate);
                     }
                 }
@@ -245,7 +245,7 @@ impl<S: PlanningSolution + 'static> GroupedScalarCursor<'_, S> {
     }
 }
 
-impl<S> MoveCursor<S, ScalarMoveUnion<S, usize>> for GroupedScalarCursor<'_, S>
+impl<S> MoveCursor<S, CompoundScalarMove<S>> for GroupedScalarCursor<'_, S>
 where
     S: PlanningSolution + 'static,
 {
@@ -277,7 +277,7 @@ where
         let mov = assignment_cursor
             .next_move_with_control(assignment, solution, should_stop)?
             .with_require_hard_improvement(self.require_hard_improvement);
-        let id = self.store.push(ScalarMoveUnion::CompoundScalar(mov));
+        let id = self.store.push(mov);
         self.next_index = id.index() + 1;
         Some(id)
     }
@@ -285,11 +285,11 @@ where
     fn candidate(
         &self,
         id: CandidateId,
-    ) -> Option<MoveCandidateRef<'_, S, ScalarMoveUnion<S, usize>>> {
+    ) -> Option<MoveCandidateRef<'_, S, CompoundScalarMove<S>>> {
         self.store.candidate(id)
     }
 
-    fn take_candidate(&mut self, id: CandidateId) -> ScalarMoveUnion<S, usize> {
+    fn take_candidate(&mut self, id: CandidateId) -> CompoundScalarMove<S> {
         self.store.take_candidate(id)
     }
 
@@ -298,7 +298,7 @@ where
     }
 }
 
-impl<S> MoveSelector<S, ScalarMoveUnion<S, usize>> for GroupedScalarSelector<S>
+impl<S> MoveSelector<S, CompoundScalarMove<S>> for GroupedScalarSelector<S>
 where
     S: PlanningSolution + 'static,
 {

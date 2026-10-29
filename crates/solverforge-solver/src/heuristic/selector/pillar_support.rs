@@ -109,32 +109,3 @@ where
 
     intersection
 }
-
-pub(crate) fn pillar_accepts_value<I, F>(
-    pillar: &Pillar,
-    candidate_value: usize,
-    values_for_entity: &mut F,
-) -> bool
-where
-    F: FnMut(usize) -> I,
-    I: IntoIterator<Item = usize>,
-{
-    pillar.iter().all(|entity| {
-        values_for_entity(entity.entity_index)
-            .into_iter()
-            .any(|value| value == candidate_value)
-    })
-}
-
-pub(crate) fn pillars_are_swap_compatible<I, F>(
-    left: &PillarGroup<usize>,
-    right: &PillarGroup<usize>,
-    mut values_for_entity: F,
-) -> bool
-where
-    F: FnMut(usize) -> I,
-    I: IntoIterator<Item = usize>,
-{
-    pillar_accepts_value(&left.pillar, right.shared_value, &mut values_for_entity)
-        && pillar_accepts_value(&right.pillar, left.shared_value, &mut values_for_entity)
-}

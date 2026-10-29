@@ -1,9 +1,9 @@
 use super::super::test_utils::{create_director, get_priority, set_priority, Task, TaskSolution};
 use super::*;
-use crate::heuristic::r#move::{ChangeMove, ScalarMoveUnion};
+use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::decorator::CartesianProductSelector;
 use crate::heuristic::selector::move_selector::{collect_cursor_indices, MoveCandidateRef};
-use crate::heuristic::selector::{ChangeMoveSelector, ScalarChangeMoveSelector};
+use crate::heuristic::selector::move_selector::ChangeMoveSelector;
 
 fn uniform_weight(_: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>) -> f64 {
     1.0
@@ -14,17 +14,13 @@ fn zero_weight(_: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i3
 }
 
 fn biased_cartesian_weight(
-    candidate: MoveCandidateRef<'_, TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
+    candidate: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>,
 ) -> f64 {
     let MoveCandidateRef::Sequential(sequence) = candidate else {
         return 0.0;
     };
-    let ScalarMoveUnion::Change(first) = sequence.first() else {
-        return 0.0;
-    };
-    let ScalarMoveUnion::Change(second) = sequence.second() else {
-        return 0.0;
-    };
+    let first = sequence.first();
+    let second = sequence.second();
     match (first.to_value().copied(), second.to_value().copied()) {
         (Some(10), Some(30)) | (Some(20), Some(40)) => 2.0,
         _ => 1.0,
@@ -106,7 +102,7 @@ fn same_seed_produces_same_selection() {
 #[test]
 fn probabilistic_filter_keeps_cartesian_candidates_borrowable() {
     let director = create_director(vec![Task { priority: Some(0) }]);
-    let left = ScalarChangeMoveSelector::simple(
+    let left = ChangeMoveSelector::simple(
         get_priority,
         set_priority,
         0,
@@ -114,7 +110,7 @@ fn probabilistic_filter_keeps_cartesian_candidates_borrowable() {
         "priority",
         vec![10, 20],
     );
-    let right = ScalarChangeMoveSelector::simple(
+    let right = ChangeMoveSelector::simple(
         get_priority,
         set_priority,
         0,
@@ -127,7 +123,7 @@ fn probabilistic_filter_keeps_cartesian_candidates_borrowable() {
 
     let mut cursor = probabilistic.open_cursor(&director);
     let indices =
-        collect_cursor_indices::<TaskSolution, ScalarMoveUnion<TaskSolution, i32>, _>(&mut cursor);
+        collect_cursor_indices::<TaskSolution, ChangeMove<TaskSolution, i32>, _>(&mut cursor);
 
     assert!(!indices.is_empty());
     assert!(indices.iter().all(|&index| {

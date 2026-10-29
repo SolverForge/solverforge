@@ -21,12 +21,11 @@ log_progress: true,
 ```
 */
 
-mod child_phases;
-mod config;
-mod partitioner;
-mod phase;
+pub(crate) mod child_phases;
+pub(crate) mod config;
+pub(crate) mod partitioner;
+pub(crate) mod phase;
 
-pub use child_phases::ChildPhases;
-pub use config::PartitionedSearchConfig;
-pub use partitioner::{FunctionalPartitioner, SolutionPartitioner, ThreadCount};
-pub use phase::PartitionedSearchPhase;
+pub(crate) use child_phases::ChildPhases;
+pub(crate) use partitioner::SolutionPartitioner;
+pub(crate) use phase::PartitionedSearchPhase;

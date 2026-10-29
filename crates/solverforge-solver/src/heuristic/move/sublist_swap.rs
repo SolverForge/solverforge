@@ -31,55 +31,6 @@ use super::{Move, MoveTabuSignature};
 /// * `S` - The planning solution type
 /// * `V` - The list element value type
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::heuristic::r#move::SublistSwapMove;
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SoftScore;
-///
-/// #[derive(Clone, Debug)]
-/// struct Vehicle { id: usize, visits: Vec<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { vehicles: Vec<Vehicle>, score: Option<SoftScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn list_len(s: &Solution, entity_idx: usize) -> usize {
-///     s.vehicles.get(entity_idx).map_or(0, |v| v.visits.len())
-/// }
-/// fn list_get(s: &Solution, entity_idx: usize, pos: usize) -> Option<i32> {
-///     s.vehicles
-///         .get(entity_idx)
-///         .and_then(|v| v.visits.get(pos))
-///         .copied()
-/// }
-/// fn sublist_remove(s: &mut Solution, entity_idx: usize, start: usize, end: usize) -> Vec<i32> {
-///     s.vehicles.get_mut(entity_idx)
-///         .map(|v| v.visits.drain(start..end).collect())
-///         .unwrap_or_default()
-/// }
-/// fn sublist_insert(s: &mut Solution, entity_idx: usize, pos: usize, items: Vec<i32>) {
-///     if let Some(v) = s.vehicles.get_mut(entity_idx) {
-///         for (i, item) in items.into_iter().enumerate() {
-///             v.visits.insert(pos + i, item);
-///         }
-///     }
-/// }
-///
-/// // Swap [1..3) from vehicle 0 with [0..2) from vehicle 1
-/// let m = SublistSwapMove::<Solution, i32>::new(
-///     0, 1, 3,  // first: entity 0, range [1, 3)
-///     1, 0, 2,  // second: entity 1, range [0, 2)
-///     list_len, list_get, sublist_remove, sublist_insert,
-///     "visits", 0,
-/// );
-/// ```
 pub struct SublistSwapMove<S, V> {
     // First entity index
     first_entity_index: usize,
@@ -143,7 +94,7 @@ impl<S, V> SublistSwapMove<S, V> {
     * `descriptor_index` - Entity descriptor index
     */
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         first_entity_index: usize,
         first_start: usize,
         first_end: usize,
@@ -187,10 +138,6 @@ impl<S, V> SublistSwapMove<S, V> {
         self.first_end
     }
 
-    pub fn first_len(&self) -> usize {
-        self.first_end.saturating_sub(self.first_start)
-    }
-
     pub fn second_entity_index(&self) -> usize {
         self.second_entity_index
     }
@@ -203,11 +150,7 @@ impl<S, V> SublistSwapMove<S, V> {
         self.second_end
     }
 
-    pub fn second_len(&self) -> usize {
-        self.second_end.saturating_sub(self.second_start)
-    }
-
-    pub fn is_intra_list(&self) -> bool {
+    pub(crate) fn is_intra_list(&self) -> bool {
         self.first_entity_index == self.second_entity_index
     }
 

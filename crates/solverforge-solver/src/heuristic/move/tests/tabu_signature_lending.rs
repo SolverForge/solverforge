@@ -7,8 +7,8 @@ use std::borrow::Cow;
 
 use crate::heuristic::r#move::metadata::MoveTabuScope;
 use crate::heuristic::r#move::{
-    ChangeMove, Move, MoveTabuSignature, ScalarMoveUnion, SequentialCompositeMove,
-    SequentialCompositeMoveRef,
+    ChangeMove, CompoundScalarEdit, CompoundScalarMove, Move, MoveTabuSignature,
+    SequentialCompositeMove, SequentialCompositeMoveRef,
 };
 use crate::heuristic::selector::move_selector::MoveCandidateRef;
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
@@ -36,15 +36,19 @@ fn set_row(solution: &mut NQueensSolution, entity: usize, variable: usize, value
 }
 
 fn runtime_move(entity: usize, row: usize) -> RuntimeMove {
-    RuntimeMove::Grouped(ScalarMoveUnion::Change(ChangeMove::new(
-        entity,
-        Some(row),
-        get_row,
-        set_row,
-        0,
-        "row",
-        0,
-    )))
+    RuntimeMove::Grouped(CompoundScalarMove::new(
+        "test",
+        vec![CompoundScalarEdit::static_edit(
+            0,
+            entity,
+            0,
+            "row",
+            Some(row),
+            get_row,
+            set_row,
+            None,
+        )],
+    ))
 }
 
 fn composite_signature() -> MoveTabuSignature {

@@ -107,7 +107,7 @@ impl<T: PartialEq> TabuMemory<T> {
 /// actual move signature emitted by the canonical move system. The score layer
 /// only participates through aspiration and phase-best tracking; admissible
 /// moves are left to the forager to rank.
-pub struct TabuSearchAcceptor<S: PlanningSolution> {
+pub(crate) struct TabuSearchAcceptor<S: PlanningSolution> {
     entity_memory: TabuMemory<ScopedEntityTabuToken>,
     value_memory: TabuMemory<ScopedValueTabuToken>,
     move_memory: TabuMemory<MoveIdentity>,

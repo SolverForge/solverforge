@@ -23,7 +23,7 @@ use solverforge_scoring::Director;
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::realtime::ProblemChange;
+/// use solverforge_solver::ProblemChange;
 /// use solverforge_scoring::Director;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SoftScore;
@@ -81,7 +81,7 @@ pub trait ProblemChange<S: PlanningSolution>: Send + Debug {
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::realtime::ClosureProblemChange;
+/// use solverforge_solver::ClosureProblemChange;
 /// use solverforge_scoring::Director;
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SoftScore;

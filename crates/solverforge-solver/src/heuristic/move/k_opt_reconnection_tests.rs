@@ -47,3 +47,12 @@ fn static_patterns_not_identity() {
         assert!(!p.is_identity());
     }
 }
+
+#[test]
+fn three_opt_pattern_three_swaps_middle_segments_without_reversal() {
+    let swap_pattern = &THREE_OPT_RECONNECTIONS[3];
+    assert_eq!(swap_pattern.segment_at(1), 2);
+    assert_eq!(swap_pattern.segment_at(2), 1);
+    assert!(!swap_pattern.should_reverse(1));
+    assert!(!swap_pattern.should_reverse(2));
+}

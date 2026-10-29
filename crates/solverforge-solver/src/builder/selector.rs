@@ -1,4 +1,4 @@
-use crate::heuristic::r#move::ScalarMoveUnion;
+use crate::heuristic::r#move::CompoundScalarMove;
 use crate::heuristic::selector::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };

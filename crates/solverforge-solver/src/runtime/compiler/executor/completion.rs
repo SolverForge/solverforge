@@ -233,6 +233,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::builder::context::scalar::group::bind_scalar_groups;
+
     use std::any::TypeId;
 
     use solverforge_config::SolverConfig;
@@ -244,11 +246,10 @@ mod tests {
 
     use super::unresolved_mandatory_work;
     use crate::builder::{
-        bind_scalar_groups, NoDynamicExtensions, RuntimeModel, ScalarVariableSlot, SearchContext,
-        ValueSource, VariableSlot,
+        RuntimeModel, ScalarVariableSlot, SearchContext, ValueSource, VariableSlot,
     };
     use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
-    use crate::planning::{ScalarGroup, ScalarTarget};
+    use crate::planning::ScalarGroup;
     use crate::runtime::compiler::{
         compile_runtime_graph, CompiledRuntimeExecutor, RuntimeGraphInput,
     };
@@ -332,7 +333,7 @@ mod tests {
             SearchContext::new(descriptor, model, None).expect("search context should bind");
         let graph = compile_runtime_graph(
             &SolverConfig::default(),
-            RuntimeGraphInput::new(context, NoDynamicExtensions),
+            RuntimeGraphInput::new(context, crate::builder::search::custom::NoDynamicExtensions),
         )
         .expect("scalar completion graph compiles");
         let executor = CompiledRuntimeExecutor::new(graph);
@@ -383,7 +384,7 @@ mod tests {
         let groups = bind_scalar_groups(
             vec![ScalarGroup::assignment(
                 "worker_assignment",
-                ScalarTarget::from_descriptor_index(0, "worker"),
+                crate::planning::scalar::target::ScalarTarget::from_descriptor_index(0, "worker"),
             )
             .with_required_entity(|plan: &ScalarPlan, entity| plan.required[entity])],
             &[slot],

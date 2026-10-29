@@ -1,5 +1,7 @@
 //! Public dynamic nearby-swap facade over the canonical scalar leaf.
 
+use crate::heuristic::selector::scalar_neighborhood::spec::ScalarNeighborhoodBindingError;
+use crate::heuristic::selector::scalar_neighborhood::spec::ScalarNeighborhoodSpec;
 use std::fmt::{self, Debug};
 
 use solverforge_core::domain::{DynamicScalarVariableSlot, PlanningSolution};
@@ -10,26 +12,25 @@ use crate::heuristic::r#move::{DynamicScalarSwapMove, MoveArena};
 
 use super::move_selector::{MoveCursor, MoveSelector, MoveStreamContext};
 use super::scalar_neighborhood::{
-    dynamic_slot, emit_dynamic_scalar_swap_move, RuntimeScalarFacadeCursor,
-    ScalarNeighborhoodBindingError, ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec,
+    dynamic_slot, emit_dynamic_scalar_swap_move, RuntimeScalarFacadeCursor, ScalarNeighborhoodLeaf,
 };
 
 /// Direct public facade for one declared dynamic nearby-entity source.
 ///
 /// Missing source metadata is a structural binding failure. In particular, it
 /// never changes the candidate universe to all entity pairs.
-pub struct DynamicScalarNearbySwapMoveSelector<S> {
+pub(crate) struct DynamicScalarNearbySwapMoveSelector<S> {
     leaf: ScalarNeighborhoodLeaf<S>,
 }
 
-pub type DynamicScalarNearbySwapMoveCursor<S> =
+pub(crate) type DynamicScalarNearbySwapMoveCursor<S> =
     RuntimeScalarFacadeCursor<S, DynamicScalarSwapMove<S>>;
 
 impl<S> DynamicScalarNearbySwapMoveSelector<S>
 where
     S: PlanningSolution,
 {
-    pub fn new(
+    pub(crate) fn new(
         slot: DynamicScalarVariableSlot<S>,
         max_nearby: usize,
     ) -> Result<Self, ScalarNeighborhoodBindingError> {

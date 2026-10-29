@@ -41,14 +41,14 @@ pub(crate) fn runtime_compound_move_clone_count() -> usize {
 /// accidentally share tabu memory.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
-pub enum RuntimeCompoundMoveKind {
+pub(crate) enum RuntimeCompoundMoveKind {
     Grouped = 1,
     ConflictRepair = 2,
     CompoundConflictRepair = 3,
 }
 
 impl RuntimeCompoundMoveKind {
-    pub const fn telemetry_label(self) -> &'static str {
+    pub(crate) const fn telemetry_label(self) -> &'static str {
         match self {
             Self::Grouped => "runtime_scalar_grouped",
             Self::ConflictRepair => "runtime_scalar_conflict_repair",
@@ -68,7 +68,7 @@ impl RuntimeCompoundMoveKind {
 /// A selected runtime-provider result. The callback reason is a compact
 /// per-run arena ID. It deliberately never participates in tabu or
 /// candidate-trace identity, and candidate moves never clone/refcount labels.
-pub struct RuntimeCompoundMove<S> {
+pub(crate) struct RuntimeCompoundMove<S> {
     kind: RuntimeCompoundMoveKind,
     reason: ProviderReasonId,
     edits: Vec<RuntimeScalarEdit<S>>,

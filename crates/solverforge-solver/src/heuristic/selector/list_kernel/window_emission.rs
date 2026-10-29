@@ -7,8 +7,7 @@ use smallvec::SmallVec;
 use solverforge_core::domain::PlanningSolution;
 
 use crate::heuristic::r#move::{
-    ListPermuteMove, ListReverseMove, Move, SublistChangeMove, SublistSwapMove,
-    MAX_LIST_PERMUTE_WINDOW_SIZE,
+    ListPermuteMove, Move, SublistChangeMove, SublistSwapMove, MAX_LIST_PERMUTE_WINDOW_SIZE,
 };
 
 pub(crate) trait SublistChangeEmitter<S: PlanningSolution>: Send + Sync + Debug {
@@ -54,67 +53,6 @@ pub(crate) trait PermuteEmitter<S: PlanningSolution>: Send + Sync + Debug {
         end: usize,
         permutation: SmallVec<[usize; MAX_LIST_PERMUTE_WINDOW_SIZE]>,
     ) -> Self::Move;
-}
-
-/// Static emission preserving ListReverseMove function-pointer behavior.
-#[derive(Clone, Copy)]
-pub(crate) struct NativeReverseEmitter<S, V> {
-    list_len: fn(&S, usize) -> usize,
-    list_get: fn(&S, usize, usize) -> Option<V>,
-    list_reverse: fn(&mut S, usize, usize, usize),
-    variable_name: &'static str,
-    descriptor_index: usize,
-    _phantom: PhantomData<fn() -> (S, V)>,
-}
-
-impl<S, V> NativeReverseEmitter<S, V> {
-    pub(crate) fn new(
-        list_len: fn(&S, usize) -> usize,
-        list_get: fn(&S, usize, usize) -> Option<V>,
-        list_reverse: fn(&mut S, usize, usize, usize),
-        variable_name: &'static str,
-        descriptor_index: usize,
-    ) -> Self {
-        Self {
-            list_len,
-            list_get,
-            list_reverse,
-            variable_name,
-            descriptor_index,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<S, V> Debug for NativeReverseEmitter<S, V> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("NativeReverseEmitter")
-            .field("variable_name", &self.variable_name)
-            .field("descriptor_index", &self.descriptor_index)
-            .finish()
-    }
-}
-
-impl<S, V> ReverseEmitter<S> for NativeReverseEmitter<S, V>
-where
-    S: PlanningSolution,
-    V: Clone + Send + Sync + Debug + 'static,
-{
-    type Move = ListReverseMove<S, V>;
-
-    fn emit_reverse(&self, entity: usize, start: usize, end: usize) -> Self::Move {
-        ListReverseMove::new(
-            entity,
-            start,
-            end,
-            self.list_len,
-            self.list_get,
-            self.list_reverse,
-            self.variable_name,
-            self.descriptor_index,
-        )
-    }
 }
 
 /// Static emission preserving ListPermuteMove contiguous-window mutation.

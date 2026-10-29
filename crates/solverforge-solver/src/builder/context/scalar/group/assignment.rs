@@ -44,7 +44,7 @@ impl<S> Clone for AssignmentMetadataAccess<S> {
 ///
 /// The access representation is private so grouped construction and search can
 /// never distinguish typed hooks from a dynamic binding implementation.
-pub struct ScalarAssignmentBinding<S> {
+pub(crate) struct ScalarAssignmentBinding<S> {
     pub(crate) target: ScalarGroupMemberBinding<S>,
     metadata: AssignmentMetadataAccess<S>,
 }
@@ -161,15 +161,15 @@ impl<S> ScalarAssignmentBinding<S> {
 }
 
 impl<S> ScalarAssignmentBinding<S> {
-    pub fn entity_count(&self, solution: &S) -> usize {
+    pub(crate) fn entity_count(&self, solution: &S) -> usize {
         self.target.entity_count(solution)
     }
 
-    pub fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize> {
+    pub(crate) fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize> {
         self.target.current_value(solution, entity_index)
     }
 
-    pub fn is_required(&self, solution: &S, entity_index: usize) -> bool {
+    pub(crate) fn is_required(&self, solution: &S, entity_index: usize) -> bool {
         match &self.metadata {
             AssignmentMetadataAccess::Static(metadata) => metadata
                 .required_entity
@@ -181,7 +181,12 @@ impl<S> ScalarAssignmentBinding<S> {
         }
     }
 
-    pub fn capacity_key(&self, solution: &S, entity_index: usize, value: usize) -> Option<usize> {
+    pub(crate) fn capacity_key(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value: usize,
+    ) -> Option<usize> {
         match &self.metadata {
             AssignmentMetadataAccess::Static(metadata) => metadata
                 .capacity_key
@@ -192,7 +197,7 @@ impl<S> ScalarAssignmentBinding<S> {
         }
     }
 
-    pub fn position_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
+    pub(crate) fn position_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
         match &self.metadata {
             AssignmentMetadataAccess::Static(metadata) => metadata
                 .position_key
@@ -203,7 +208,12 @@ impl<S> ScalarAssignmentBinding<S> {
         }
     }
 
-    pub fn sequence_key(&self, solution: &S, entity_index: usize, value: usize) -> Option<usize> {
+    pub(crate) fn sequence_key(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value: usize,
+    ) -> Option<usize> {
         match &self.metadata {
             AssignmentMetadataAccess::Static(metadata) => metadata
                 .sequence_key
@@ -214,7 +224,7 @@ impl<S> ScalarAssignmentBinding<S> {
         }
     }
 
-    pub fn entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
+    pub(crate) fn entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
         match &self.metadata {
             AssignmentMetadataAccess::Static(metadata) => metadata
                 .entity_order
@@ -225,7 +235,12 @@ impl<S> ScalarAssignmentBinding<S> {
         }
     }
 
-    pub fn value_order_key(&self, solution: &S, entity_index: usize, value: usize) -> Option<i64> {
+    pub(crate) fn value_order_key(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value: usize,
+    ) -> Option<i64> {
         match &self.metadata {
             AssignmentMetadataAccess::Static(metadata) => metadata
                 .value_order
@@ -236,7 +251,7 @@ impl<S> ScalarAssignmentBinding<S> {
         }
     }
 
-    pub fn assignment_edge_allowed(
+    pub(crate) fn assignment_edge_allowed(
         &self,
         solution: &S,
         left_entity: usize,
@@ -261,7 +276,7 @@ impl<S> ScalarAssignmentBinding<S> {
         }
     }
 
-    pub fn candidate_values(
+    pub(crate) fn candidate_values(
         &self,
         solution: &S,
         entity_index: usize,
@@ -274,11 +289,16 @@ impl<S> ScalarAssignmentBinding<S> {
         values
     }
 
-    pub fn value_is_legal(&self, solution: &S, entity_index: usize, value: Option<usize>) -> bool {
+    pub(crate) fn value_is_legal(
+        &self,
+        solution: &S,
+        entity_index: usize,
+        value: Option<usize>,
+    ) -> bool {
         self.target.value_is_legal(solution, entity_index, value)
     }
 
-    pub fn edit(&self, entity_index: usize, value: Option<usize>) -> ScalarEdit<S> {
+    pub(crate) fn edit(&self, entity_index: usize, value: Option<usize>) -> ScalarEdit<S> {
         ScalarEdit::from_descriptor_index(
             self.target.descriptor_index,
             entity_index,
@@ -287,7 +307,7 @@ impl<S> ScalarAssignmentBinding<S> {
         )
     }
 
-    pub fn remaining_required_count(&self, solution: &S) -> u64 {
+    pub(crate) fn remaining_required_count(&self, solution: &S) -> u64 {
         (0..self.entity_count(solution))
             .filter(|entity_index| {
                 self.is_required(solution, *entity_index)
@@ -296,7 +316,7 @@ impl<S> ScalarAssignmentBinding<S> {
             .fold(0_u64, |count, _| count.saturating_add(1))
     }
 
-    pub fn unassigned_count(&self, solution: &S) -> u64 {
+    pub(crate) fn unassigned_count(&self, solution: &S) -> u64 {
         (0..self.entity_count(solution))
             .filter(|entity_index| self.current_value(solution, *entity_index).is_none())
             .fold(0_u64, |count, _| count.saturating_add(1))

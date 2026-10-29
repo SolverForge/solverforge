@@ -14,7 +14,7 @@ use super::{BestCandidate, ForagerDecision, LocalSearchForager};
 /// Once a move with a score strictly better than the all-time best is found, the
 /// forager quits immediately and selects that move. If no such move exists, it falls
 /// back to the best among all accepted moves.
-pub struct FirstBestScoreImprovingForager<S>
+pub(crate) struct FirstBestScoreImprovingForager<S>
 where
     S: PlanningSolution,
 {
@@ -28,7 +28,7 @@ impl<S> FirstBestScoreImprovingForager<S>
 where
     S: PlanningSolution,
 {
-    pub fn new(random_ties: bool) -> Self {
+    pub(crate) fn new(random_ties: bool) -> Self {
         Self {
             best_score: S::Score::zero(),
             best_move: BestCandidate::new(random_ties),
@@ -108,7 +108,7 @@ where
 /// Once a move with a score strictly better than the previous step is found, the
 /// forager quits immediately and selects that move. If no such move exists, it falls
 /// back to the best among all accepted moves.
-pub struct FirstLastStepScoreImprovingForager<S>
+pub(crate) struct FirstLastStepScoreImprovingForager<S>
 where
     S: PlanningSolution,
 {
@@ -124,7 +124,7 @@ impl<S> FirstLastStepScoreImprovingForager<S>
 where
     S: PlanningSolution,
 {
-    pub fn new(random_ties: bool) -> Self {
+    pub(crate) fn new(random_ties: bool) -> Self {
         Self {
             last_step_score: S::Score::zero(),
             accepted_count: 0,

@@ -38,7 +38,7 @@ pub struct ScoreAnalysis<Sc> {
 /// ```
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SoftScore;
-/// use solverforge_solver::manager::{Analyzable, ScoreAnalysis, ConstraintAnalysis};
+/// use solverforge_solver::{Analyzable, ScoreAnalysis, ConstraintAnalysis};
 ///
 /// #[derive(Clone)]
 /// struct Schedule {
@@ -78,7 +78,7 @@ pub trait Analyzable: PlanningSolution + Clone + Send + 'static {
 /// ```
 /// use solverforge_core::domain::PlanningSolution;
 /// use solverforge_core::score::SoftScore;
-/// use solverforge_solver::manager::{analyze, Analyzable, ScoreAnalysis};
+/// use solverforge_solver::{analyze, Analyzable, ScoreAnalysis};
 ///
 /// #[derive(Clone)]
 /// struct Schedule { score: Option<SoftScore> }

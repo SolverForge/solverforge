@@ -15,7 +15,7 @@ use super::execute_runtime_list_k_opt;
 use crate::builder::context::RuntimeListSlot;
 use crate::builder::ListVariableSlot;
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
-use crate::manager::ListKOptPhase;
+use crate::manager::phase_factory::list_k_opt::ListKOptPhase;
 use crate::phase::Phase;
 use crate::scope::SolverScope;
 use crate::stats::{

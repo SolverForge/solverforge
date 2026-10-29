@@ -66,19 +66,7 @@ where
 }
 
 /// Builds a termination from config, returning both the termination and the time limit.
-pub fn build_termination<S, C>(
-    config: &SolverConfig,
-    default_secs: u64,
-) -> (AnyTermination<S, ScoreDirector<S, C>>, Option<Duration>)
-where
-    S: PlanningSolution,
-    S::Score: Score + ParseableScore,
-    C: ConstraintSet<S, S::Score>,
-{
-    build_director_termination(config, default_secs)
-}
-
-pub(super) fn build_director_termination<S, D>(
+pub(crate) fn build_director_termination<S, D>(
     config: &SolverConfig,
     default_secs: u64,
 ) -> (AnyTermination<S, D>, Option<Duration>)

@@ -19,7 +19,7 @@ use super::move_selector::{
 
 /// Public list ruin selector. Candidate source selection is shared; the
 /// emitted move retains its established self-contained recreate behavior.
-pub struct ListRuinMoveSelector<S, V> {
+pub(crate) struct ListRuinMoveSelector<S, V> {
     min_ruin_count: usize,
     max_ruin_count: usize,
     rng_carry: AtomicU64,
@@ -51,7 +51,7 @@ impl<S, V: Debug> Debug for ListRuinMoveSelector<S, V> {
     }
 }
 
-pub struct ListRuinMoveCursor<S, V>
+pub(crate) struct ListRuinMoveCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -101,7 +101,7 @@ where
 
 impl<S, V> ListRuinMoveSelector<S, V> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         min_ruin_count: usize,
         max_ruin_count: usize,
         entity_count: fn(&S) -> usize,
@@ -136,23 +136,19 @@ impl<S, V> ListRuinMoveSelector<S, V> {
         }
     }
 
-    pub fn with_moves_per_step(mut self, count: usize) -> Self {
+    pub(crate) fn with_moves_per_step(mut self, count: usize) -> Self {
         self.moves_per_step = count;
         self
     }
-    pub fn with_max_source_list_len(mut self, max_source_list_len: Option<usize>) -> Self {
+    pub(crate) fn with_max_source_list_len(mut self, max_source_list_len: Option<usize>) -> Self {
         self.max_source_list_len = max_source_list_len;
         self
     }
-    pub fn with_skip_empty_destinations(mut self, skip_empty_destinations: bool) -> Self {
-        self.skip_empty_destinations = skip_empty_destinations;
-        self
-    }
-    pub fn with_seed(mut self, seed: u64) -> Self {
+    pub(crate) fn with_seed(mut self, seed: u64) -> Self {
         self.rng_carry = AtomicU64::new(super::rng_advance::carry_from_seed(seed));
         self
     }
-    pub fn with_element_owner_fn(
+    pub(crate) fn with_element_owner_fn(
         mut self,
         element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     ) -> Self {

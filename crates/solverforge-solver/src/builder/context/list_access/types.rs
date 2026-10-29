@@ -44,7 +44,6 @@ impl fmt::Display for ListAccessError {
 pub(crate) trait ListAccess<S>: Clone + Send + Sync + fmt::Debug {
     type Element: Clone + PartialEq + Send + Sync + fmt::Debug + 'static;
 
-    fn entity_type_name(&self) -> &'static str;
     fn variable_name(&self) -> &'static str;
     fn descriptor_index(&self) -> usize;
 

@@ -1,3 +1,5 @@
+use crate::builder::context::scalar::group::bind_scalar_groups;
+use crate::planning::scalar::target::ScalarTarget;
 use std::any::{Any, TypeId};
 
 #[path = "tests/augmenting_overlay.rs"]
@@ -34,15 +36,15 @@ use super::assignment_state::ScalarAssignmentState;
 use super::assignment_stream::ScalarAssignmentMoveCursor;
 use super::build_scalar_group_construction;
 use crate::builder::{
-    bind_scalar_groups, RuntimeModel, ScalarAssignmentBinding, ScalarGroupBinding,
-    ScalarGroupBindingKind, ScalarVariableSlot, ValueSource, VariableSlot,
+    RuntimeModel, ScalarAssignmentBinding, ScalarGroupBinding, ScalarGroupBindingKind,
+    ScalarVariableSlot, ValueSource, VariableSlot,
 };
 use crate::descriptor::{collect_bindings, ResolvedVariableBinding};
 use crate::heuristic::selector::move_selector::MoveStreamContext;
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
 use crate::phase::control::GENERATION_POLL_INTERVAL;
 use crate::phase::Phase;
-use crate::planning::{ScalarGroup, ScalarGroupLimits, ScalarTarget};
+use crate::planning::{ScalarGroup, ScalarGroupLimits};
 use crate::scope::SolverScope;
 
 mod control;

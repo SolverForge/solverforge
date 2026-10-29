@@ -114,6 +114,7 @@ pub(crate) struct RuntimeListSourceBinding<E> {
 }
 
 impl<E> RuntimeListSourceBinding<E> {
+    #[cfg(test)]
     /// Consumes this validation result and retains the frozen declaration
     /// index. Callers that do not execute immediately intentionally discard
     /// the initial unassigned snapshot and refresh from the cached index.

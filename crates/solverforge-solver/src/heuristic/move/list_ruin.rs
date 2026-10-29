@@ -1,5 +1,6 @@
 //! Public static facade for canonical list ruin-and-recreate mechanics.
 
+use crate::heuristic::r#move::list_kernel::StaticListRuinAccess;
 use std::borrow::Cow;
 use std::fmt::Debug;
 
@@ -10,7 +11,6 @@ use solverforge_scoring::Director;
 use super::list_kernel::{
     merged_ruin_sources, ruin_count, ruin_do_move, ruin_entity_indices, ruin_is_doable,
     ruin_tabu_signature, ruin_undo_move, single_ruin_source, RuinSources, RuinUndo,
-    StaticListRuinAccess,
 };
 use super::{Move, MoveTabuSignature};
 
@@ -20,7 +20,7 @@ use super::{Move, MoveTabuSignature};
 /// mutation, restore, undo, owner policy, precedence filtering, and tabu
 /// mechanics live in `move::list_kernel` so runtime list moves reuse the same
 /// implementation instead of translating through this facade.
-pub struct ListRuinMove<S, V> {
+pub(crate) struct ListRuinMove<S, V> {
     entity_index: usize,
     element_indices: SmallVec<[usize; 8]>,
     sources: RuinSources,
@@ -41,7 +41,7 @@ impl<S, V: Debug> Debug for ListRuinMove<S, V> {
 
 impl<S, V> ListRuinMove<S, V> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_index: usize,
         element_indices: &[usize],
         entity_count: fn(&S) -> usize,
@@ -125,7 +125,7 @@ impl<S, V> ListRuinMove<S, V> {
         }
     }
 
-    pub fn with_element_owner_fn(
+    pub(crate) fn with_element_owner_fn(
         mut self,
         element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     ) -> Self {
@@ -145,20 +145,20 @@ impl<S, V> ListRuinMove<S, V> {
         self
     }
 
-    pub fn with_skip_empty_destinations(mut self, skip_empty_destinations: bool) -> Self {
+    pub(crate) fn with_skip_empty_destinations(mut self, skip_empty_destinations: bool) -> Self {
         self.skip_empty_destinations = skip_empty_destinations;
         self
     }
 
-    pub fn entity_index(&self) -> usize {
+    pub(crate) fn entity_index(&self) -> usize {
         self.entity_index
     }
 
-    pub fn element_indices(&self) -> &[usize] {
+    pub(crate) fn element_indices(&self) -> &[usize] {
         &self.element_indices
     }
 
-    pub fn ruin_count(&self) -> usize {
+    pub(crate) fn ruin_count(&self) -> usize {
         ruin_count(&self.sources)
     }
 }

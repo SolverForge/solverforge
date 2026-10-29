@@ -171,7 +171,8 @@ impl<S, V, D, ES> NearbyListChangeMoveSelector<S, V, D, ES> {
         }
     }
 
-    pub fn with_element_owner_fn(
+    #[cfg(test)]
+    pub(crate) fn with_element_owner_fn(
         mut self,
         element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
     ) -> Self {

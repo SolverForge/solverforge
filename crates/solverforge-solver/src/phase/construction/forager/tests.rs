@@ -351,19 +351,6 @@ fn best_fit_prefers_first_equal_score_candidate_over_keep_current() {
 }
 
 #[test]
-fn first_feasible_returns_keep_current_when_baseline_is_feasible() {
-    let director = create_test_director();
-    let mut placement = create_placement().with_keep_current_legal(true);
-
-    let forager = FirstFeasibleForager::<NQueensSolution, TestMove>::new();
-
-    assert_eq!(
-        select(&forager, &mut placement, director),
-        ConstructionChoice::KeepCurrent
-    );
-}
-
-#[test]
 fn best_fit_keeps_current_when_all_candidates_are_worse_than_baseline() {
     let director = create_scored_director(0);
     let mut placement = create_placement_with_values([-5, -1]).with_keep_current_legal(true);
@@ -386,31 +373,5 @@ fn best_fit_selects_best_candidate_when_it_beats_baseline() {
     assert_eq!(
         select(&forager, &mut placement, director),
         ConstructionChoice::Select(CandidateId::new(1))
-    );
-}
-
-#[test]
-fn first_feasible_selects_first_feasible_candidate_when_baseline_is_infeasible() {
-    let director = create_scored_director(-2);
-    let mut placement = create_placement_with_values([-3, 1, 5]).with_keep_current_legal(true);
-
-    let forager = FirstFeasibleForager::<NQueensSolution, TestMove>::new();
-
-    assert_eq!(
-        select(&forager, &mut placement, director),
-        ConstructionChoice::Select(CandidateId::new(1))
-    );
-}
-
-#[test]
-fn first_feasible_prefers_equal_score_candidate_over_infeasible_baseline() {
-    let director = create_scored_director(-1);
-    let mut placement = create_placement_with_values([-1, -2]).with_keep_current_legal(true);
-
-    let forager = FirstFeasibleForager::<NQueensSolution, TestMove>::new();
-
-    assert_eq!(
-        select(&forager, &mut placement, director),
-        ConstructionChoice::Select(CandidateId::new(0))
     );
 }

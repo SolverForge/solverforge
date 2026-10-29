@@ -1,3 +1,5 @@
+use crate::builder::search::custom::NoDynamicExtensions;
+use crate::builder::search::custom::NoTypedExtensions;
 use std::any::TypeId;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -24,8 +26,7 @@ use super::super::{
 use super::*;
 use crate::builder::search::CustomPhaseNode;
 use crate::builder::{
-    CustomSearchPhase, ListVariableSlot, NoDynamicExtensions, NoTypedExtensions, RuntimeModel,
-    SearchContext, VariableSlot,
+    CustomSearchPhase, ListVariableSlot, RuntimeModel, SearchContext, VariableSlot,
 };
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
 use crate::runtime::compiler::{

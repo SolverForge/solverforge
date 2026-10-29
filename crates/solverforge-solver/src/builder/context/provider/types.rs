@@ -31,7 +31,7 @@ pub struct RawProviderCandidate {
 /// must not clone or refcount a label. A runtime execution owns one arena and
 /// hands its mutable reference to each provider cursor it instantiates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct ProviderReasonId(u32);
+pub(crate) struct ProviderReasonId(u32);
 
 #[derive(Clone, Debug)]
 enum ProviderReasonLabel {
@@ -79,13 +79,13 @@ pub(super) enum ProviderCandidateReason {
 /// and lends a mutable reference to provider cursors only while they normalize
 /// a pull, keeping shared ownership out of the move hot path.
 #[derive(Debug, Default)]
-pub struct ProviderReasonArena {
+pub(crate) struct ProviderReasonArena {
     ids: HashMap<ProviderReasonLabel, ProviderReasonId>,
     labels: Vec<ProviderReasonLabel>,
 }
 
 impl ProviderReasonArena {
-    pub fn intern(&mut self, label: Arc<str>) -> ProviderReasonId {
+    pub(crate) fn intern(&mut self, label: Arc<str>) -> ProviderReasonId {
         self.intern_label(ProviderReasonLabel::Host(label))
     }
 
@@ -114,7 +114,8 @@ impl ProviderReasonArena {
         id
     }
 
-    pub fn label(&self, id: ProviderReasonId) -> &str {
+    #[cfg(test)]
+    pub(crate) fn label(&self, id: ProviderReasonId) -> &str {
         self.labels
             .get(id.0 as usize)
             .map(ProviderReasonLabel::as_ref)
@@ -145,7 +146,7 @@ pub enum RuntimeProviderLimits {
 
 /// Immutable source handle consumed by the one runtime-provider cursor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum RuntimeProviderHandle {
+pub(crate) enum RuntimeProviderHandle {
     CallbackGroup(usize),
     StaticGroup(usize),
     CallbackRepair(usize),
@@ -301,7 +302,7 @@ impl<S> fmt::Debug for RuntimeConflictRepairProviderBinding<S> {
 }
 
 /// One immutable function-pointer binding for a typed Rust candidate group.
-pub struct StaticScalarGroupProviderBinding<S> {
+pub(crate) struct StaticScalarGroupProviderBinding<S> {
     pub declared_index: usize,
     pub group_name: &'static str,
     pub provider: ScalarCandidateProvider<S>,
@@ -329,7 +330,7 @@ impl<S> fmt::Debug for StaticScalarGroupProviderBinding<S> {
 }
 
 /// One immutable function-pointer binding for a typed Rust repair provider.
-pub struct StaticConflictRepairProviderBinding<S> {
+pub(crate) struct StaticConflictRepairProviderBinding<S> {
     pub declared_index: usize,
     pub repair: ConflictRepair<S>,
 }
@@ -353,7 +354,7 @@ impl<S> fmt::Debug for StaticConflictRepairProviderBinding<S> {
 }
 
 #[derive(Clone, Debug)]
-pub struct ResolvedProviderEdit<S> {
+pub(crate) struct ResolvedProviderEdit<S> {
     pub descriptor_index: usize,
     pub variable_index: usize,
     pub slot: RuntimeScalarSlot<S>,
@@ -362,14 +363,14 @@ pub struct ResolvedProviderEdit<S> {
 }
 
 #[derive(Clone, Debug)]
-pub struct ResolvedProviderCandidate<S> {
+pub(crate) struct ResolvedProviderCandidate<S> {
     pub reason: ProviderReasonId,
     pub edits: Vec<ResolvedProviderEdit<S>>,
 }
 
 /// Deduplication state for one explicit provider result stream.
 #[derive(Debug, Default)]
-pub struct ProviderNormalizationState {
+pub(crate) struct ProviderNormalizationState {
     pub(super) seen_candidates:
         HashSet<(ProviderReasonId, Vec<(usize, usize, usize, Option<usize>)>)>,
 }

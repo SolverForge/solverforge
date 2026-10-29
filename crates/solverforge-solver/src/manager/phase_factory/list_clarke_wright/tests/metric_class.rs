@@ -1,3 +1,5 @@
+use crate::phase::Phase;
+use crate::scope::solver::SolverScope;
 use std::any::TypeId;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -89,7 +91,7 @@ fn clarke_wright_computes_savings_once_per_metric_class() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         counting_distance,
         feasible,
@@ -129,7 +131,7 @@ fn clarke_wright_keeps_feasibility_owner_specific_with_shared_metric_class() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         simple_distance,
         grouped_owner_feasible,
@@ -177,7 +179,7 @@ fn clarke_wright_checks_owner_matching_inside_shared_metric_class() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         conflict_distance,
         conflicting_shared_class_feasible,

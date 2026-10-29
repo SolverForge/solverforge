@@ -16,25 +16,7 @@ use crate::heuristic::r#move::MoveTabuSignature;
 ///
 /// This enables exploration while still requiring eventual improvement.
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::localsearch::StepCountingHillClimbingAcceptor;
-/// use solverforge_core::score::SoftScore;
-/// use solverforge_core::domain::PlanningSolution;
-///
-/// #[derive(Clone)]
-/// struct MySolution;
-/// impl PlanningSolution for MySolution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { None }
-///     fn set_score(&mut self, _: Option<Self::Score>) {}
-/// }
-///
-/// // Allow up to 100 non-improving steps before requiring improvement
-/// let acceptor = StepCountingHillClimbingAcceptor::<MySolution>::new(100);
-/// ```
-pub struct StepCountingHillClimbingAcceptor<S: PlanningSolution> {
+pub(crate) struct StepCountingHillClimbingAcceptor<S: PlanningSolution> {
     // Maximum steps allowed without improvement.
     step_count_limit: u64,
     // Current steps since last improvement.
@@ -67,7 +49,7 @@ impl<S: PlanningSolution> StepCountingHillClimbingAcceptor<S> {
     ///
     /// # Arguments
     /// * `step_count_limit` - Maximum steps allowed without finding improvement
-    pub fn new(step_count_limit: u64) -> Self {
+    pub(crate) fn new(step_count_limit: u64) -> Self {
         Self {
             step_count_limit,
             steps_since_improvement: 0,

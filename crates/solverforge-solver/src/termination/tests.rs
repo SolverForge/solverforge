@@ -7,6 +7,7 @@ use solverforge_core::domain::SolutionDescriptor;
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
+use std::time::Duration;
 
 #[test]
 fn test_step_count_termination() {
@@ -51,33 +52,6 @@ fn test_best_score_termination_no_score() {
     let mut term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore::of(0));
 
     assert!(!term.is_terminated(&scope));
-}
-
-#[test]
-fn test_best_score_feasible_termination() {
-    let scope = create_scope_with_score(SoftScore::of(0));
-    let mut term = BestScoreFeasibleTermination::<TestSolution, _>::score_at_least_zero();
-
-    assert!(term.is_terminated(&scope));
-}
-
-#[test]
-fn test_best_score_feasible_termination_not_feasible() {
-    let scope = create_scope_with_score(SoftScore::of(-5));
-    let mut term = BestScoreFeasibleTermination::<TestSolution, _>::score_at_least_zero();
-
-    assert!(!term.is_terminated(&scope));
-}
-
-#[test]
-fn test_best_score_feasible_termination_custom() {
-    let scope = create_scope_with_score(SoftScore::of(-3));
-    // Custom feasibility: score >= -5 is considered feasible
-    let mut term = BestScoreFeasibleTermination::<TestSolution, _>::new(|score: &SoftScore| {
-        *score >= SoftScore::of(-5)
-    });
-
-    assert!(term.is_terminated(&scope));
 }
 
 #[test]
@@ -150,35 +124,6 @@ fn test_unimproved_step_count_termination_with_improvement() {
 }
 
 #[test]
-fn test_and_termination() {
-    let mut scope = create_scope_with_score(SoftScore::of(-10));
-
-    // Both must be true: best score >= 0 AND step count >= 3
-    let mut term = AndTermination::new((
-        BestScoreTermination::new(SoftScore::of(0)),
-        StepCountTermination::new(3),
-    ));
-
-    // Neither condition met
-    assert!(!term.is_terminated(&scope));
-
-    // Only step count met
-    scope.increment_step_count();
-    scope.increment_step_count();
-    scope.increment_step_count();
-    assert!(!term.is_terminated(&scope));
-
-    // Now set best score to meet first condition too
-    scope.set_best_solution(
-        TestSolution {
-            score: Some(SoftScore::of(0)),
-        },
-        SoftScore::of(0),
-    );
-    assert!(term.is_terminated(&scope));
-}
-
-#[test]
 fn test_or_termination() {
     let mut scope = create_scope_with_score(SoftScore::of(-10));
 
@@ -201,7 +146,7 @@ fn test_or_termination() {
 #[test]
 fn test_unimproved_time_termination_no_score() {
     let scope = create_scope();
-    let mut term = UnimprovedTimeTermination::<TestSolution>::millis(10);
+    let mut term = UnimprovedTimeTermination::<TestSolution>::new(Duration::from_millis(10));
 
     // No score yet, should not terminate
     assert!(!term.is_terminated(&scope));
@@ -210,77 +155,8 @@ fn test_unimproved_time_termination_no_score() {
 #[test]
 fn test_unimproved_time_termination_initial_score() {
     let scope = create_scope_with_score(SoftScore::of(-10));
-    let mut term = UnimprovedTimeTermination::<TestSolution>::millis(100);
+    let mut term = UnimprovedTimeTermination::<TestSolution>::new(Duration::from_millis(100));
 
     // First check records the score, should not terminate
     assert!(!term.is_terminated(&scope));
-}
-
-// Diminished returns termination tests
-
-use std::thread::sleep;
-use std::time::Duration;
-
-#[test]
-fn test_diminished_not_terminated_during_grace_period() {
-    let mut termination =
-        DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(100), 0.0);
-
-    let scope = create_scope_with_score(SoftScore::of(-100));
-
-    // During grace period, should not terminate even with no improvement
-    assert!(!termination.is_terminated(&scope));
-}
-
-#[test]
-fn test_diminished_terminates_with_zero_improvement() {
-    let mut termination =
-        DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(500), 0.1);
-
-    let scope = create_scope_with_score(SoftScore::of(-100));
-
-    // First call starts tracking
-    assert!(!termination.is_terminated(&scope));
-
-    // Brief pause, well within 500ms grace period
-    sleep(Duration::from_millis(50));
-    assert!(!termination.is_terminated(&scope));
-
-    // Wait past grace period
-    sleep(Duration::from_millis(500));
-    assert!(termination.is_terminated(&scope));
-}
-
-#[test]
-fn test_diminished_not_terminated_with_sufficient_improvement() {
-    let mut termination =
-        DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(50), 10.0);
-
-    let mut scope = create_scope_with_score(SoftScore::of(-100));
-
-    // Check once to start tracking
-    assert!(!termination.is_terminated(&scope));
-
-    sleep(Duration::from_millis(60));
-
-    // Significant improvement: -100 -> 0 = +100 improvement over ~60ms
-    // Rate = 100 / 0.060 = ~1667/s, well above 10/s threshold
-    scope.set_best_solution(
-        TestSolution {
-            score: Some(SoftScore::of(0)),
-        },
-        SoftScore::of(0),
-    );
-    assert!(!termination.is_terminated(&scope));
-}
-
-#[test]
-fn test_diminished_no_score_does_not_terminate() {
-    let mut termination =
-        DiminishedReturnsTermination::<TestSolution>::new(Duration::from_millis(10), 0.0);
-
-    let scope = create_scope(); // No best score set
-
-    sleep(Duration::from_millis(20));
-    assert!(!termination.is_terminated(&scope));
 }

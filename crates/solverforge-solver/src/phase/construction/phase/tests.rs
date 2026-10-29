@@ -1,3 +1,8 @@
+use crate::heuristic::selector::entity::FromSolutionEntitySelector;
+use crate::manager::solver_manager::manager::Solvable;
+use crate::heuristic::selector::value_selector::StaticValueSelector;
+use crate::phase::construction::placer::QueuedEntityPlacer;
+use crate::manager::solver_manager::manager::SolverManager;
 use std::borrow::Cow;
 use super::*;
 use std::any::TypeId;
@@ -13,13 +18,12 @@ use crate::heuristic::selector::EntityReference;
 use crate::heuristic::selector::move_selector::{
     ArenaMoveCursor, CandidateId, CandidateStore, MoveCandidateRef, MoveCursor,
 };
-use crate::heuristic::selector::{FromSolutionEntitySelector, StaticValueSelector};
 use crate::manager::{
-    Solvable, SolverEvent, SolverLifecycleState, SolverManager, SolverRuntime, SolverTerminalReason,
+    SolverEvent, SolverLifecycleState, SolverRuntime, SolverTerminalReason,
 };
 use crate::phase::construction::{
-    BestFitForager, EntityPlacerCursor, FirstFeasibleForager, FirstFitForager, Placement,
-    QueuedEntityPlacer,
+    BestFitForager, EntityPlacerCursor, FirstFitForager, Placement,
+    
 };
 use crate::test_utils::{
     create_simple_nqueens_director, get_queen_row, set_queen_row, NQueensSolution,

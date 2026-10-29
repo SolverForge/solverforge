@@ -1,3 +1,4 @@
+use crate::heuristic::selector::move_selector::ChangeMoveSelector;
 use std::borrow::Cow;
 use super::*;
 
@@ -15,7 +16,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{ArenaMoveCursor, MoveStreamContext};
-use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector};
+use crate::heuristic::selector::{MoveSelector};
 use crate::phase::localsearch::{AcceptedCountForager, BestScoreForager, HillClimbingAcceptor};
 use crate::test_utils::{
     create_minimal_descriptor, create_minimal_director, create_nqueens_director, get_queen_row,
@@ -29,8 +30,8 @@ fn create_move_selector(
 ) -> ChangeMoveSelector<
     NQueensSolution,
     i64,
-    crate::heuristic::selector::FromSolutionEntitySelector,
-    crate::heuristic::selector::StaticValueSelector<NQueensSolution, i64>,
+    crate::heuristic::selector::entity::FromSolutionEntitySelector,
+    crate::heuristic::selector::value_selector::StaticValueSelector<NQueensSolution, i64>,
 > {
     ChangeMoveSelector::simple(get_queen_row, set_queen_row, 0, 0, "row", values)
 }

@@ -16,12 +16,12 @@ use super::move_selector::{
 
 /// Dynamic list change retains its public selector/move surface while sharing
 /// the canonical coordinate cursor with static list change.
-pub struct DynamicListChangeMoveSelector<S> {
+pub(crate) struct DynamicListChangeMoveSelector<S> {
     slot: DynamicListVariableSlot<S>,
 }
 
 /// Public cursor facade; the generic runtime emitter remains crate-private.
-pub struct DynamicListChangeMoveCursor<S>
+pub(crate) struct DynamicListChangeMoveCursor<S>
 where
     S: PlanningSolution,
 {
@@ -75,7 +75,7 @@ where
 }
 
 impl<S> DynamicListChangeMoveSelector<S> {
-    pub fn new(slot: DynamicListVariableSlot<S>) -> Self {
+    pub(crate) fn new(slot: DynamicListVariableSlot<S>) -> Self {
         Self { slot }
     }
 }

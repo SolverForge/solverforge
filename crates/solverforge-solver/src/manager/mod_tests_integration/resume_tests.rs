@@ -1,7 +1,8 @@
+use crate::manager::solver_manager::manager::SolverManager;
 use solverforge_core::score::SoftScore;
 use solverforge_core::PlanningSolution;
 
-use super::super::{SolverEvent, SolverLifecycleState, SolverManager};
+use super::super::{SolverEvent, SolverLifecycleState};
 use super::common::recv_event;
 use super::resume_support::{DeterministicResumeSolution, TracePairingResumeSolution};
 

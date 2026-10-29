@@ -1,5 +1,9 @@
 //! Public static facade for the canonical critical-path precedence kernel.
 
+use crate::heuristic::selector::list_kernel::critical_analysis;
+use crate::heuristic::selector::list_kernel::filtered_move_count;
+use crate::heuristic::selector::list_kernel::filtered_multi_support_swap_count;
+use crate::heuristic::selector::list_kernel::multi_critical_ruin_count;
 use std::fmt::Debug;
 
 use solverforge_core::domain::PlanningSolution;
@@ -7,8 +11,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::ListMoveUnion;
 use crate::heuristic::selector::list_kernel::{
-    critical_analysis, filtered_move_count, filtered_multi_support_swap_count,
-    multi_critical_ruin_count, CriticalAnalysis, NativePrecedenceEmitter, PrecedenceCursor,
+    CriticalAnalysis, NativePrecedenceEmitter, PrecedenceCursor,
 };
 
 use super::entity::EntitySelector;
@@ -22,7 +25,7 @@ use super::precedence_route::PrecedenceRouteHooks;
 /// The public constructor and static move union are unchanged. Critical-path
 /// analysis, ordering, cycle pruning, candidate ownership, and mixed move
 /// emission are shared with the future runtime-list leaf.
-pub struct ListPrecedenceMoveSelector<S, V, ES> {
+pub(crate) struct ListPrecedenceMoveSelector<S, V, ES> {
     entity_selector: ES,
     element_count: fn(&S) -> usize,
     index_to_element: fn(&S, usize) -> V,
@@ -45,7 +48,7 @@ pub struct ListPrecedenceMoveSelector<S, V, ES> {
 }
 
 /// Public cursor facade over the canonical precedence stream.
-pub struct ListPrecedenceMoveCursor<S, V>
+pub(crate) struct ListPrecedenceMoveCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + PartialEq + Send + Sync + Debug + 'static,
@@ -110,7 +113,7 @@ impl<S, V: Debug, ES: Debug> Debug for ListPrecedenceMoveSelector<S, V, ES> {
 
 impl<S, V, ES> ListPrecedenceMoveSelector<S, V, ES> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_selector: ES,
         element_count: fn(&S) -> usize,
         index_to_element: fn(&S, usize) -> V,

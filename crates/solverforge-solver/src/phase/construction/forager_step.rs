@@ -2,12 +2,11 @@ use std::time::{Duration, Instant};
 
 use solverforge_config::ConstructionObligation;
 use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
 use super::decision::{
-    is_first_fit_improvement, keep_current_allowed, select_best_fit, select_first_feasible,
-    select_first_fit, ScoredChoiceTracker,
+    is_first_fit_improvement, keep_current_allowed, select_best_fit, select_first_fit,
+    ScoredChoiceTracker,
 };
 use super::evaluation::evaluate_trial_move;
 use super::{ConstructionChoice, Placement, StrongestFitForager, WeakestFitForager};
@@ -338,136 +337,6 @@ where
     }
 
     let choice = select_best_fit(tracker, baseline_score);
-    if matches!(choice, ConstructionChoice::KeepCurrent) {
-        if let Some((retained, _)) = retained {
-            release(
-                placement,
-                retained,
-                CandidateTraceDisposition::ForagerIgnored,
-                step_scope,
-            );
-        }
-    }
-    Some(choice)
-}
-
-#[allow(clippy::drop_non_drop)]
-pub(super) fn select_first_feasible_index<S, D, BestCb, M, C>(
-    placement: &mut Placement<S, M, C>,
-    construction_obligation: ConstructionObligation,
-    step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>,
-) -> Option<ConstructionChoice>
-where
-    S: PlanningSolution,
-    D: Director<S>,
-    BestCb: ProgressCallback<S>,
-    M: Move<S>,
-    C: MoveCursor<S, M>,
-{
-    let baseline_score =
-        keep_current_allowed(placement.keep_current_legal(), construction_obligation)
-            .then(|| step_scope.calculate_score());
-    let mut tracker = ScoredChoiceTracker::default();
-    let mut retained: Option<(CandidateId, S::Score)> = None;
-    loop {
-        if evaluation_should_terminate(step_scope) {
-            mark_retained_ignored(
-                placement,
-                retained.map(|(candidate_id, _)| candidate_id),
-                step_scope,
-            );
-            return None;
-        }
-        let Some(candidate_id) = next_candidate(placement, step_scope) else {
-            if should_interrupt_before_candidate(step_scope) {
-                mark_retained_ignored(
-                    placement,
-                    retained.map(|(candidate_id, _)| candidate_id),
-                    step_scope,
-                );
-                return None;
-            }
-            break;
-        };
-        let evaluation_started = Instant::now();
-        let candidate = placement
-            .candidates()
-            .candidate(candidate_id)
-            .expect("construction candidate must remain live");
-        if crate::pinning::move_changes_pinned(&candidate, step_scope.score_director())
-            || !candidate.is_doable(step_scope.score_director())
-        {
-            drop(candidate);
-            mark_candidate_disposition(
-                placement,
-                candidate_id,
-                CandidateTraceDisposition::Evaluated,
-                step_scope,
-            );
-            release(
-                placement,
-                candidate_id,
-                CandidateTraceDisposition::NotDoable,
-                step_scope,
-            );
-            record_evaluated_candidate(step_scope, evaluation_started.elapsed());
-            continue;
-        }
-        let score = evaluate_trial_move(step_scope.score_director_mut(), &candidate);
-        drop(candidate);
-        placement.record_candidate_score(candidate_id, score);
-        step_scope.phase_scope_mut().record_score_calculation();
-        record_evaluated_candidate(step_scope, evaluation_started.elapsed());
-        mark_candidate_disposition(
-            placement,
-            candidate_id,
-            CandidateTraceDisposition::Evaluated,
-            step_scope,
-        );
-        if score.is_feasible() {
-            if let Some((fallback, _)) = retained {
-                release(
-                    placement,
-                    fallback,
-                    CandidateTraceDisposition::ForagerIgnored,
-                    step_scope,
-                );
-            }
-            let choice = select_first_feasible(Some(candidate_id), tracker, baseline_score);
-            match choice {
-                ConstructionChoice::Select(_) => {}
-                ConstructionChoice::KeepCurrent => {
-                    release(
-                        placement,
-                        candidate_id,
-                        CandidateTraceDisposition::ForagerIgnored,
-                        step_scope,
-                    );
-                }
-            }
-            return Some(choice);
-        }
-        if retained.is_none_or(|(_, best_score)| score > best_score) {
-            if let Some((replaced, _)) = retained.replace((candidate_id, score)) {
-                release(
-                    placement,
-                    replaced,
-                    CandidateTraceDisposition::ForagerIgnored,
-                    step_scope,
-                );
-            }
-            tracker.consider(candidate_id, score);
-        } else {
-            release(
-                placement,
-                candidate_id,
-                CandidateTraceDisposition::ForagerIgnored,
-                step_scope,
-            );
-        }
-    }
-
-    let choice = select_first_feasible(None, tracker, baseline_score);
     if matches!(choice, ConstructionChoice::KeepCurrent) {
         if let Some((retained, _)) = retained {
             release(

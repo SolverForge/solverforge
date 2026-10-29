@@ -14,9 +14,9 @@ use super::list_kernel::{
 };
 use super::{Move, MoveTabuSignature};
 
-pub const MAX_LIST_PERMUTE_WINDOW_SIZE: usize = 8;
+pub(crate) const MAX_LIST_PERMUTE_WINDOW_SIZE: usize = 8;
 
-pub struct ListPermuteMove<S, V> {
+pub(crate) struct ListPermuteMove<S, V> {
     entity_index: usize,
     start: usize,
     end: usize,
@@ -46,7 +46,7 @@ impl<S, V: Debug> Debug for ListPermuteMove<S, V> {
 
 impl<S, V> ListPermuteMove<S, V> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_index: usize,
         start: usize,
         end: usize,
@@ -86,23 +86,27 @@ impl<S, V> ListPermuteMove<S, V> {
         }
     }
 
+    #[cfg(test)]
     #[inline]
-    pub fn entity_index(&self) -> usize {
+    pub(crate) fn entity_index(&self) -> usize {
         self.entity_index
     }
 
+    #[cfg(test)]
     #[inline]
-    pub fn start(&self) -> usize {
+    pub(crate) fn start(&self) -> usize {
         self.start
     }
 
+    #[cfg(test)]
     #[inline]
-    pub fn end(&self) -> usize {
+    pub(crate) fn end(&self) -> usize {
         self.end
     }
 
+    #[cfg(test)]
     #[inline]
-    pub fn permutation(&self) -> &[usize] {
+    pub(crate) fn permutation(&self) -> &[usize] {
         &self.permutation
     }
 

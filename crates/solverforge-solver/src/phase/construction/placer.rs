@@ -85,7 +85,7 @@ where
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    pub fn new(entity_ref: EntityReference, candidates: C) -> Self {
+    pub(crate) fn new(entity_ref: EntityReference, candidates: C) -> Self {
         Self {
             entity_ref,
             candidates,
@@ -98,12 +98,12 @@ where
         }
     }
 
-    pub fn with_keep_current_legal(mut self, legal: bool) -> Self {
+    pub(crate) fn with_keep_current_legal(mut self, legal: bool) -> Self {
         self.keep_current_legal = legal;
         self
     }
 
-    pub fn keep_current_legal(&self) -> bool {
+    pub(crate) fn keep_current_legal(&self) -> bool {
         self.keep_current_legal
     }
 
@@ -151,7 +151,7 @@ where
         &mut self.candidates
     }
 
-    pub fn take_move(&mut self, candidate_id: CandidateId) -> M {
+    pub(crate) fn take_move(&mut self, candidate_id: CandidateId) -> M {
         self.candidates.take_candidate(candidate_id)
     }
 
@@ -241,180 +241,6 @@ where
 }
 
 include!("placer/queued.rs");
-/// Entity placer that sorts placements by a comparator function.
-///
-/// Wraps an inner placer and sorts its placements using a concrete comparator.
-/// This enables FIRST_FIT_DECREASING and similar construction variants.
-///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::construction::{SortedEntityPlacer, QueuedEntityPlacer, EntityPlacer};
-/// use solverforge_solver::heuristic::r#move::ChangeMove;
-/// use solverforge_solver::heuristic::selector::{FromSolutionEntitySelector, StaticValueSelector};
-/// use solverforge_core::domain::PlanningSolution;
-/// use solverforge_core::score::SoftScore;
-/// use solverforge_scoring::ScoreDirector;
-/// use std::cmp::Ordering;
-///
-/// #[derive(Clone, Debug)]
-/// struct Task { difficulty: i32, assigned: Option<i32> }
-///
-/// #[derive(Clone, Debug)]
-/// struct Solution { tasks: Vec<Task>, score: Option<SoftScore> }
-///
-/// impl PlanningSolution for Solution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { self.score }
-///     fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-/// }
-///
-/// fn get_assigned(s: &Solution, i: usize) -> Option<i32> {
-///     s.tasks.get(i).and_then(|t| t.assigned)
-/// }
-/// fn set_assigned(s: &mut Solution, i: usize, v: Option<i32>) {
-///     if let Some(t) = s.tasks.get_mut(i) { t.assigned = v; }
-/// }
-///
-/// // Sort entities by difficulty (descending) for FIRST_FIT_DECREASING
-/// fn difficulty_descending(s: &Solution, a: usize, b: usize) -> Ordering {
-///     let da = s.tasks.get(a).map(|t| t.difficulty).unwrap_or(0);
-///     let db = s.tasks.get(b).map(|t| t.difficulty).unwrap_or(0);
-///     db.cmp(&da)  // Descending order
-/// }
-/// ```
-pub struct SortedEntityPlacer<S, M, Inner>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    Inner: EntityPlacer<S, M>,
-{
-    inner: Inner,
-    // Comparator function: takes (solution, entity_index_a, entity_index_b) -> Ordering
-    comparator: fn(&S, usize, usize) -> std::cmp::Ordering,
-    _phantom: PhantomData<fn() -> (S, M)>,
-}
-
-impl<S, M, Inner> SortedEntityPlacer<S, M, Inner>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    Inner: EntityPlacer<S, M>,
-{
-    /// Creates a new sorted entity placer.
-    ///
-    /// # Arguments
-    /// * `inner` - The inner placer to wrap
-    /// * `comparator` - Function to compare entities: `(solution, idx_a, idx_b) -> Ordering`
-    pub fn new(inner: Inner, comparator: fn(&S, usize, usize) -> std::cmp::Ordering) -> Self {
-        Self {
-            inner,
-            comparator,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<S, M, Inner> Debug for SortedEntityPlacer<S, M, Inner>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    Inner: EntityPlacer<S, M>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SortedEntityPlacer")
-            .field("inner", &self.inner)
-            .finish()
-    }
-}
-
-type InnerPlacementCandidateCursor<'a, S, M, Inner> =
-    <<Inner as EntityPlacer<S, M>>::Cursor<'a> as EntityPlacerCursor<S, M>>::CandidateCursor;
-
-pub struct SortedEntityPlacerCursor<'a, S, M, Inner>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    Inner: EntityPlacer<S, M> + 'a,
-{
-    inner: Inner::Cursor<'a>,
-    comparator: fn(&S, usize, usize) -> std::cmp::Ordering,
-    placements:
-        Option<std::vec::IntoIter<Placement<S, M, InnerPlacementCandidateCursor<'a, S, M, Inner>>>>,
-}
-
-impl<'a, S, M, Inner> EntityPlacerCursor<S, M> for SortedEntityPlacerCursor<'a, S, M, Inner>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    Inner: EntityPlacer<S, M> + 'a,
-{
-    type CandidateCursor = InnerPlacementCandidateCursor<'a, S, M, Inner>;
-
-    fn next_placement<D, IsCompleted, ShouldStop>(
-        &mut self,
-        score_director: &D,
-        mut is_completed: IsCompleted,
-        mut should_stop: ShouldStop,
-    ) -> Option<Placement<S, M, Self::CandidateCursor>>
-    where
-        D: Director<S>,
-        IsCompleted: FnMut(&Placement<S, M, Self::CandidateCursor>) -> bool,
-        ShouldStop: FnMut() -> bool,
-    {
-        if self.placements.is_none() {
-            let mut placements = Vec::new();
-            while let Some(placement) =
-                self.inner
-                    .next_placement(score_director, |_| false, &mut should_stop)
-            {
-                placements.push(placement);
-            }
-            let solution = score_director.working_solution();
-            let comparator = self.comparator;
-            placements.sort_by(|left, right| {
-                comparator(
-                    solution,
-                    left.entity_ref.entity_index,
-                    right.entity_ref.entity_index,
-                )
-            });
-            self.placements = Some(placements.into_iter());
-        }
-
-        let placements = self
-            .placements
-            .as_mut()
-            .expect("sorted placement cursor must be initialized");
-        while !should_stop() {
-            let placement = placements.next()?;
-            if !is_completed(&placement) {
-                return Some(placement);
-            }
-        }
-        None
-    }
-}
-
-impl<S, M, Inner> EntityPlacer<S, M> for SortedEntityPlacer<S, M, Inner>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    Inner: EntityPlacer<S, M>,
-{
-    type Cursor<'a>
-        = SortedEntityPlacerCursor<'a, S, M, Inner>
-    where
-        Self: 'a;
-
-    fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a> {
-        SortedEntityPlacerCursor {
-            inner: self.inner.open_cursor(score_director),
-            comparator: self.comparator,
-            placements: None,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests;

@@ -1,3 +1,6 @@
+use crate::heuristic::selector::k_opt::config::KOptConfig;
+use crate::heuristic::selector::k_opt::iterators::binomial;
+use crate::heuristic::selector::k_opt::selector::KOptMoveSelector;
 // Tests for k-opt move selector.
 
 use solverforge_core::domain::{
@@ -9,9 +12,6 @@ use std::any::TypeId;
 
 use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::entity::FromSolutionEntitySelector;
-use crate::heuristic::selector::k_opt::{
-    binomial, CutCombinationIterator, KOptConfig, KOptMoveSelector,
-};
 use crate::heuristic::selector::MoveSelector;
 
 #[derive(Clone, Debug)]
@@ -77,35 +77,6 @@ fn create_director(tours: Vec<Tour>) -> ScoreDirector<TspSolution, ()> {
     let descriptor = SolutionDescriptor::new("TspSolution", TypeId::of::<TspSolution>())
         .with_entity(entity_desc);
     ScoreDirector::simple(solution, descriptor, |s, _| s.tours.len())
-}
-
-#[test]
-fn cut_combination_iterator_basic() {
-    /* For k=3, len=8, min_seg=1:
-    We need 4 segments of length >= 1
-    Cuts can be at positions 1-7 (not 0 or 8)
-    First combination: [1, 2, 3]
-    */
-    let mut iter = CutCombinationIterator::new(3, 8, 1, 0);
-
-    let first = iter.next().unwrap();
-    assert_eq!(first.len(), 3);
-    assert_eq!(first[0].position(), 1);
-    assert_eq!(first[1].position(), 2);
-    assert_eq!(first[2].position(), 3);
-
-    // Count total combinations
-    let count = 1 + iter.count(); // +1 for first we already took
-                                  // C(8 - 4 + 3, 3) = C(7, 3) = 35
-    assert_eq!(count, 35);
-}
-
-#[test]
-fn cut_combination_too_short() {
-    // Route too short for 3 cuts with min_seg=2
-    // Need 4 segments * 2 = 8 elements minimum
-    let mut iter = CutCombinationIterator::new(3, 6, 2, 0);
-    assert!(iter.next().is_none());
 }
 
 #[test]

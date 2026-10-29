@@ -7,22 +7,16 @@ changing the move type. All decorators preserve the zero-erasure architecture.
 - [`FilteringMoveSelector`] - filters moves by predicate
 */
 
-mod cartesian_product;
-mod filtering;
+pub(crate) mod cartesian_product;
+pub(crate) mod filtering;
 mod limited;
-mod mapped_cursor;
 #[cfg(test)]
 mod test_utils;
-mod vec_union;
+pub(crate) mod vec_union;
 
-pub(crate) use cartesian_product::CartesianProductCursor;
-pub use cartesian_product::{CartesianProductArena, CartesianProductSelector};
-pub use filtering::FilteringMoveSelector;
 pub(crate) use limited::LimitedCursorBudget;
-pub(crate) use mapped_cursor::MappedMoveCursor;
-pub use vec_union::VecUnionSelector;
 #[allow(unused_imports)] // Consumed by the resource-aware composed runtime cursor.
 pub(crate) use vec_union::{
-    resolve_union_weights, union_child_context, union_cursor_from_opened,
-    ResourceVecUnionMoveCursor, UnionScheduler, VecUnionMoveCursor,
+    resolve_union_weights, union_child_context, ResourceVecUnionMoveCursor, UnionScheduler,
+    VecUnionMoveCursor,
 };

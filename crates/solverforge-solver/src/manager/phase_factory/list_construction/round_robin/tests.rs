@@ -9,7 +9,7 @@ use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
 use super::*;
-use crate::builder::usize_element_source_key;
+use crate::builder::context::list::usize_element_source_key;
 use crate::manager::SolverTerminalReason;
 use crate::phase::Phase;
 use crate::scope::{SolverProgressKind, SolverProgressRef, SolverScope};
@@ -34,7 +34,7 @@ impl PlanningSolution for Plan {
 }
 
 fn phase() -> ListConstructionPhase<Plan, usize> {
-    ListConstructionPhaseBuilder::<Plan, usize>::new(
+    ListConstructionPhase::<Plan, usize>::new(
         |plan| plan.elements.len(),
         |plan| plan.routes.iter().flatten().copied().collect(),
         |plan| plan.routes.len(),
@@ -43,7 +43,6 @@ fn phase() -> ListConstructionPhase<Plan, usize> {
         usize_element_source_key,
         0,
     )
-    .create_phase()
 }
 
 #[test]

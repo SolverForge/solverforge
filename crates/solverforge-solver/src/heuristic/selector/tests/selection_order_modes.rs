@@ -16,7 +16,7 @@ use std::any::TypeId;
 use crate::heuristic::selector::move_selector::{
     ChangeMoveSelector, MoveCursor, MoveSelector, MoveStreamContext,
 };
-use crate::heuristic::selector::SelectionOrder;
+use solverforge_config::SelectionOrder;
 
 #[derive(Clone, Debug)]
 struct OrderTask {
@@ -82,8 +82,8 @@ fn pull_stream(
     selector: &ChangeMoveSelector<
         OrderSolution,
         usize,
-        crate::heuristic::selector::FromSolutionEntitySelector,
-        crate::heuristic::selector::StaticValueSelector<OrderSolution, usize>,
+        crate::heuristic::selector::entity::FromSolutionEntitySelector,
+        crate::heuristic::selector::value_selector::StaticValueSelector<OrderSolution, usize>,
     >,
     director: &mut ScoreDirector<OrderSolution, ()>,
     context: MoveStreamContext,

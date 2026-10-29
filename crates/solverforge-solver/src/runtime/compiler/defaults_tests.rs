@@ -1,5 +1,7 @@
 //! Default-runtime expansion parity for native and dynamic list bindings.
 
+use crate::builder::search::custom::NoDynamicExtensions;
+
 use std::any::TypeId;
 use std::sync::Arc;
 
@@ -17,9 +19,7 @@ use super::{
     DefaultLocalSearchForagerPolicy, DefaultLocalSearchPlan, DefaultLocalSearchSelectorFamily,
     DefaultPreconstructionStage, DefaultSelectorCapabilityPolicy, RuntimeGraphInput,
 };
-use crate::builder::{
-    ListVariableSlot, NoDynamicExtensions, RuntimeModel, SearchContext, VariableSlot,
-};
+use crate::builder::{ListVariableSlot, RuntimeModel, SearchContext, VariableSlot};
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
 
 mod dynamic;
@@ -212,7 +212,7 @@ fn static_model(scenario: Scenario) -> Model {
         ruin_remove,
         ruin_insert,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         entity_count,
         DefaultCrossEntityDistanceMeter,
         DefaultCrossEntityDistanceMeter,

@@ -18,12 +18,12 @@ let term = StepCountTermination::new(1000);
 ```
 */
 #[derive(Debug, Clone)]
-pub struct StepCountTermination {
+pub(crate) struct StepCountTermination {
     limit: u64,
 }
 
 impl StepCountTermination {
-    pub fn new(limit: u64) -> Self {
+    pub(crate) fn new(limit: u64) -> Self {
         Self { limit }
     }
 }

@@ -1,9 +1,9 @@
 use super::super::test_utils::{create_director, get_priority, set_priority, Task, TaskSolution};
 use super::*;
-use crate::heuristic::r#move::{ChangeMove, ScalarMoveUnion};
+use crate::heuristic::r#move::ChangeMove;
 use crate::heuristic::selector::decorator::CartesianProductSelector;
 use crate::heuristic::selector::move_selector::{collect_cursor_indices, MoveCandidateRef};
-use crate::heuristic::selector::{ChangeMoveSelector, ScalarChangeMoveSelector};
+use crate::heuristic::selector::move_selector::ChangeMoveSelector;
 
 fn by_value_asc(
     a: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>,
@@ -25,21 +25,19 @@ fn by_value_desc(
 }
 
 fn composite_second_value_desc(
-    a: MoveCandidateRef<'_, TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
-    b: MoveCandidateRef<'_, TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
+    a: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>,
+    b: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>,
 ) -> Ordering {
     composite_second_value(b).cmp(&composite_second_value(a))
 }
 
 fn composite_second_value(
-    candidate: MoveCandidateRef<'_, TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
+    candidate: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>,
 ) -> Option<i32> {
     let MoveCandidateRef::Sequential(sequence) = candidate else {
         return None;
     };
-    let ScalarMoveUnion::Change(second) = sequence.second() else {
-        return None;
-    };
+    let second = sequence.second();
     second.to_value().copied()
 }
 
@@ -102,7 +100,7 @@ fn preserves_size() {
 #[test]
 fn sorts_cartesian_candidates_by_borrowed_preview_data() {
     let director = create_director(vec![Task { priority: Some(0) }]);
-    let left = ScalarChangeMoveSelector::simple(
+    let left = ChangeMoveSelector::simple(
         get_priority,
         set_priority,
         0,
@@ -110,7 +108,7 @@ fn sorts_cartesian_candidates_by_borrowed_preview_data() {
         "priority",
         vec![10, 20],
     );
-    let right = ScalarChangeMoveSelector::simple(
+    let right = ChangeMoveSelector::simple(
         get_priority,
         set_priority,
         0,
@@ -123,7 +121,7 @@ fn sorts_cartesian_candidates_by_borrowed_preview_data() {
 
     let mut cursor = sorted.open_cursor(&director);
     let indices =
-        collect_cursor_indices::<TaskSolution, ScalarMoveUnion<TaskSolution, i32>, _>(&mut cursor);
+        collect_cursor_indices::<TaskSolution, ChangeMove<TaskSolution, i32>, _>(&mut cursor);
 
     assert!(indices.len() >= 2);
     let values: Vec<_> = indices

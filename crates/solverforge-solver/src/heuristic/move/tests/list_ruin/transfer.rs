@@ -3,6 +3,7 @@
 //! Both the public static move and the runtime carrier transfer removed
 //! values by ownership: no `CloneProbe::clone` may run during ruin do/undo.
 
+use crate::heuristic::r#move::list_kernel::StaticListRuinAccess;
 use std::any::TypeId;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -11,9 +12,7 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
-use crate::heuristic::r#move::list_kernel::{
-    ruin_do_move, single_ruin_source, StaticListRuinAccess,
-};
+use crate::heuristic::r#move::list_kernel::{ruin_do_move, single_ruin_source};
 use crate::heuristic::r#move::{ListRuinMove, Move};
 
 #[derive(Debug)]

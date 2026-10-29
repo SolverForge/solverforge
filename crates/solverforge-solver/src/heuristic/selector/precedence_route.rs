@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::marker::PhantomData;
 
 mod delta;
@@ -7,6 +8,7 @@ use delta::{
     route_delta_has_cycle_into,
 };
 
+#[cfg(test)]
 pub(crate) struct PrecedenceRouteHooks<S, V> {
     fixed_successors: fn(&S, V, &mut Vec<V>),
     entity_count: fn(&S) -> usize,
@@ -15,14 +17,17 @@ pub(crate) struct PrecedenceRouteHooks<S, V> {
     _phantom: PhantomData<fn() -> (S, V)>,
 }
 
+#[cfg(test)]
 impl<S, V> Clone for PrecedenceRouteHooks<S, V> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
+#[cfg(test)]
 impl<S, V> Copy for PrecedenceRouteHooks<S, V> {}
 
+#[cfg(test)]
 impl<S, V> PrecedenceRouteHooks<S, V> {
     pub(crate) fn new(
         fixed_successors: fn(&S, V, &mut Vec<V>),

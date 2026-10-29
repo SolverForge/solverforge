@@ -1,5 +1,7 @@
 //! Public static adapter for the canonical streamed list-permute cursor.
 
+use crate::heuristic::selector::list_kernel::count_list_permute_moves_for_len;
+use crate::heuristic::selector::list_kernel::factorial;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -8,8 +10,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::{ListPermuteMove, MAX_LIST_PERMUTE_WINDOW_SIZE};
 use crate::heuristic::selector::list_kernel::{
-    count_list_permute_moves_for_len, factorial, NativeWindowEmitter, PermuteCursor,
-    SelectedListOwners,
+    NativeWindowEmitter, PermuteCursor, SelectedListOwners,
 };
 use crate::list_placement::selected_segment_allows;
 
@@ -19,7 +20,7 @@ use super::move_selector::{
     CandidateId, MoveCandidateRef, MoveCursor, MoveSelector, MoveStreamContext,
 };
 
-pub struct ListPermuteMoveSelector<S, V, ES> {
+pub(crate) struct ListPermuteMoveSelector<S, V, ES> {
     entity_selector: ES,
     min_window_size: usize,
     max_window_size: usize,
@@ -33,7 +34,7 @@ pub struct ListPermuteMoveSelector<S, V, ES> {
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
 
-pub struct ListPermuteMoveCursor<S, V>
+pub(crate) struct ListPermuteMoveCursor<S, V>
 where
     S: PlanningSolution,
     V: Clone + Send + Sync + Debug + 'static,
@@ -94,7 +95,7 @@ impl<S, V: Debug, ES: Debug> Debug for ListPermuteMoveSelector<S, V, ES> {
 
 impl<S, V, ES> ListPermuteMoveSelector<S, V, ES> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub(crate) fn new(
         entity_selector: ES,
         min_window_size: usize,
         max_window_size: usize,
@@ -132,7 +133,10 @@ impl<S, V, ES> ListPermuteMoveSelector<S, V, ES> {
         }
     }
 
-    pub fn with_element_owner_fn(mut self, owner_fn: Option<fn(&S, &V) -> Option<usize>>) -> Self {
+    pub(crate) fn with_element_owner_fn(
+        mut self,
+        owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    ) -> Self {
         self.element_owner_fn = owner_fn;
         self
     }

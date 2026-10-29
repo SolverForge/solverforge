@@ -154,9 +154,9 @@ fn splitmix64(mut value: u64) -> u64 {
     value ^ (value >> 31)
 }
 
-mod improving;
+pub(crate) mod improving;
 
-pub use improving::{FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager};
+pub(crate) use improving::{FirstBestScoreImprovingForager, FirstLastStepScoreImprovingForager};
 
 /// A forager that stops after `N` accepted moves and picks the best of them.
 ///
@@ -164,7 +164,7 @@ pub use improving::{FirstBestScoreImprovingForager, FirstLastStepScoreImprovingF
 /// neighborhood scan. `AcceptedCountForager(1)` therefore behaves like first
 /// accepted selection, while larger limits select the best candidate among the
 /// first `N` accepted moves.
-pub struct AcceptedCountForager<S>
+pub(crate) struct AcceptedCountForager<S>
 where
     S: PlanningSolution,
 {
@@ -187,7 +187,7 @@ where
     ///
     /// # Arguments
     /// * `accepted_count_limit` - Collect this many accepted moves before quitting early
-    pub fn new(accepted_count_limit: usize, random_ties: bool) -> Self {
+    pub(crate) fn new(accepted_count_limit: usize, random_ties: bool) -> Self {
         assert!(
             accepted_count_limit > 0,
             "AcceptedCountForager: accepted_count_limit must be > 0, got 0"
@@ -261,7 +261,7 @@ where
 /// A forager that picks the first accepted move.
 ///
 /// This is the simplest forager - it quits after the first accepted move.
-pub struct FirstAcceptedForager<S>
+pub(crate) struct FirstAcceptedForager<S>
 where
     S: PlanningSolution,
 {
@@ -285,7 +285,7 @@ impl<S> FirstAcceptedForager<S>
 where
     S: PlanningSolution,
 {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             accepted_move: None,
             _phantom: PhantomData,
@@ -349,7 +349,7 @@ where
 ///
 /// Unlike `AcceptedCountForager(N)`, this forager never quits early - it
 /// always evaluates the full move space before selecting the best score.
-pub struct BestScoreForager<S>
+pub(crate) struct BestScoreForager<S>
 where
     S: PlanningSolution,
 {
@@ -362,7 +362,7 @@ impl<S> BestScoreForager<S>
 where
     S: PlanningSolution,
 {
-    pub fn new(random_ties: bool) -> Self {
+    pub(crate) fn new(random_ties: bool) -> Self {
         Self {
             best_move: BestCandidate::new(random_ties),
             _phantom: PhantomData,

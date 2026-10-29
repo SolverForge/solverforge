@@ -226,6 +226,7 @@ where
     }
 }
 
+#[cfg(test)]
 pub(crate) fn count_list_permute_moves_for_len(
     route_len: usize,
     min_window_size: usize,

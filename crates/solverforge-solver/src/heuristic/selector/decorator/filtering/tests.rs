@@ -1,9 +1,10 @@
 use super::super::test_utils::{create_director, get_priority, set_priority, Task, TaskSolution};
 use super::*;
-use crate::heuristic::r#move::ScalarMoveUnion;
-use crate::heuristic::selector::decorator::CartesianProductSelector;
+use crate::heuristic::r#move::ChangeMove;
+use crate::heuristic::selector::decorator::cartesian_product::CartesianProductSelector;
+use crate::heuristic::selector::move_selector::ChangeMoveSelector;
 use crate::heuristic::selector::move_selector::MoveCandidateRef;
-use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector, ScalarChangeMoveSelector};
+use crate::heuristic::selector::MoveSelector;
 
 fn high_value_filter(
     candidate: MoveCandidateRef<
@@ -16,22 +17,18 @@ fn high_value_filter(
 }
 
 fn composite_values(
-    candidate: MoveCandidateRef<'_, TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
+    candidate: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>,
 ) -> Option<(i32, i32)> {
     let MoveCandidateRef::Sequential(sequence) = candidate else {
         return None;
     };
-    let ScalarMoveUnion::Change(first) = sequence.first() else {
-        return None;
-    };
-    let ScalarMoveUnion::Change(second) = sequence.second() else {
-        return None;
-    };
+    let first = sequence.first();
+    let second = sequence.second();
     Some((*first.to_value()?, *second.to_value()?))
 }
 
 fn keep_first_value_10(
-    candidate: MoveCandidateRef<'_, TaskSolution, ScalarMoveUnion<TaskSolution, i32>>,
+    candidate: MoveCandidateRef<'_, TaskSolution, ChangeMove<TaskSolution, i32>>,
 ) -> bool {
     composite_values(candidate).is_some_and(|(first, _)| first == 10)
 }
@@ -75,22 +72,10 @@ fn empty_when_no_moves_pass() {
 #[test]
 fn filters_cartesian_candidates_without_materializing_the_full_stream() {
     let mut director = create_director(vec![Task { priority: Some(0) }]);
-    let left = ScalarChangeMoveSelector::simple(
-        get_priority,
-        set_priority,
-        0,
-        0,
-        "priority",
-        vec![10, 20],
-    );
-    let right = ScalarChangeMoveSelector::simple(
-        get_priority,
-        set_priority,
-        0,
-        0,
-        "priority",
-        vec![30, 40],
-    );
+    let left =
+        ChangeMoveSelector::simple(get_priority, set_priority, 0, 0, "priority", vec![10, 20]);
+    let right =
+        ChangeMoveSelector::simple(get_priority, set_priority, 0, 0, "priority", vec![30, 40]);
     let cartesian = CartesianProductSelector::new(left, right);
     let filtered = FilteringMoveSelector::new(cartesian, keep_first_value_10);
 

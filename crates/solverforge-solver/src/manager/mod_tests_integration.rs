@@ -1,7 +1,6 @@
-// Integration tests for SolverFactory with termination and retained lifecycle flows.
+// Integration tests for retained solver lifecycle flows.
 
 mod analysis_tests;
-mod basic;
 mod common;
 mod gates;
 mod lifecycle_solutions;

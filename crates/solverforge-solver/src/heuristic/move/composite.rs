@@ -20,116 +20,6 @@ use crate::stats::CandidateTraceIdentity;
 
 use super::{Move, MoveAffectedEntity, MoveArena, MoveTabuSignature};
 
-/// A move that applies two moves in sequence via arena indices.
-///
-/// The moves live in separate arenas. CompositeMove stores the indices
-/// and arena references needed to execute both moves.
-///
-/// # Type Parameters
-/// * `S` - The planning solution type
-/// * `M1` - The first move type
-/// * `M2` - The second move type
-pub struct CompositeMove<S, M1, M2>
-where
-    S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
-{
-    index_1: usize,
-    index_2: usize,
-    _phantom: PhantomData<(fn() -> S, fn() -> M1, fn() -> M2)>,
-}
-
-impl<S, M1, M2> CompositeMove<S, M1, M2>
-where
-    S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
-{
-    pub fn new(index_1: usize, index_2: usize) -> Self {
-        Self {
-            index_1,
-            index_2,
-            _phantom: PhantomData,
-        }
-    }
-
-    pub fn index_1(&self) -> usize {
-        self.index_1
-    }
-
-    pub fn index_2(&self) -> usize {
-        self.index_2
-    }
-
-    pub fn is_doable_with_arenas<D: Director<S>>(
-        &self,
-        arena_1: &MoveArena<M1>,
-        arena_2: &MoveArena<M2>,
-        score_director: &D,
-    ) -> bool {
-        let m1 = arena_1.get(self.index_1);
-        let m2 = arena_2.get(self.index_2);
-
-        match (m1, m2) {
-            (Some(m1), Some(m2)) => m1.is_doable(score_director) && m2.is_doable(score_director),
-            _ => false,
-        }
-    }
-
-    /// Executes both moves using the arenas.
-    pub fn do_move_with_arenas<D: Director<S>>(
-        &self,
-        arena_1: &MoveArena<M1>,
-        arena_2: &MoveArena<M2>,
-        score_director: &mut D,
-    ) -> (M1::Undo, M2::Undo) {
-        let m1 = arena_1
-            .get(self.index_1)
-            .expect("composite move first arena index must remain valid");
-        let m2 = arena_2
-            .get(self.index_2)
-            .expect("composite move second arena index must remain valid");
-
-        let first = m1.do_move(score_director);
-        let second = m2.do_move(score_director);
-        (first, second)
-    }
-}
-
-impl<S, M1, M2> Clone for CompositeMove<S, M1, M2>
-where
-    S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
-{
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<S, M1, M2> Copy for CompositeMove<S, M1, M2>
-where
-    S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
-{
-}
-
-impl<S, M1, M2> Debug for CompositeMove<S, M1, M2>
-where
-    S: PlanningSolution,
-    M1: Move<S>,
-    M2: Move<S>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CompositeMove")
-            .field("index_1", &self.index_1)
-            .field("index_2", &self.index_2)
-            .finish()
-    }
-}
-
 mod preview;
 pub(crate) use preview::SequentialPreviewDirector;
 
@@ -137,7 +27,7 @@ pub(crate) use preview::SequentialPreviewDirector;
 ///
 /// This keeps cartesian selector output valid even after the selector is
 /// reused or dropped.
-pub struct SequentialCompositeMove<S, M> {
+pub(crate) struct SequentialCompositeMove<S, M> {
     moves: MoveArena<M>,
     descriptor_index: usize,
     entity_indices: SmallVec<[usize; 8]>,
@@ -152,7 +42,7 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    pub fn new(
+    pub(crate) fn new(
         first: M,
         second: M,
         descriptor_index: usize,
@@ -175,7 +65,7 @@ where
         }
     }
 
-    pub fn with_require_hard_improvement(mut self, require_hard_improvement: bool) -> Self {
+    pub(crate) fn with_require_hard_improvement(mut self, require_hard_improvement: bool) -> Self {
         self.require_hard_improvement = require_hard_improvement;
         self
     }

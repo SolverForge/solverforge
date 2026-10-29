@@ -1,3 +1,6 @@
+use crate::heuristic::selector::dynamic_scalar_nearby_change::DynamicScalarNearbyChangeMoveSelector;
+use crate::heuristic::selector::dynamic_scalar_nearby_swap::DynamicScalarNearbySwapMoveSelector;
+use crate::heuristic::selector::scalar_neighborhood::spec::ScalarNeighborhoodSpec;
 use std::any::TypeId;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -11,9 +14,7 @@ use solverforge_core::domain::{
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
-use crate::heuristic::selector::{
-    DynamicScalarNearbyChangeMoveSelector, DynamicScalarNearbySwapMoveSelector, MoveSelector,
-};
+use crate::heuristic::selector::MoveSelector;
 
 mod coverage;
 
@@ -183,7 +184,7 @@ fn director(plan: Plan) -> ScoreDirector<Plan, ()> {
 
 #[test]
 fn scalar_cursor_open_and_enumeration_never_clone_the_solution() {
-    use super::{ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec};
+    use super::ScalarNeighborhoodLeaf;
     use crate::builder::RuntimeScalarSlot;
     use crate::heuristic::selector::move_selector::{MoveCursor, MoveStreamContext};
     use solverforge_config::RecreateHeuristicType;
@@ -359,7 +360,7 @@ impl DynamicScalarAccess<Plan> for CountingRowAccess {
 
 #[test]
 fn ordinary_change_stream_visits_row_values_lazily_one_row_at_a_time() {
-    use super::{ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec};
+    use super::ScalarNeighborhoodLeaf;
     use crate::builder::RuntimeScalarSlot;
     use crate::heuristic::selector::move_selector::{MoveCursor, MoveStreamContext};
 

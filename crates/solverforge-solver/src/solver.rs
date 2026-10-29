@@ -22,76 +22,38 @@ use crate::termination::Termination;
 
 /* Result of a solve operation containing solution and telemetry.
 
-This is the canonical return type for `Solver::solve()`. It provides
+This is what `SolveSession::finish` returns. It provides
 both the optimized solution and comprehensive statistics about the
 solving process.
 */
 #[derive(Debug)]
-pub struct SolveResult<S: PlanningSolution> {
+pub(crate) struct SolveResult<S: PlanningSolution> {
     // The best solution found during solving.
-    pub solution: S,
+    pub(crate) solution: S,
     // The final working score when solving stopped.
-    pub current_score: Option<S::Score>,
+    pub(crate) current_score: Option<S::Score>,
     // The canonical best score for the solve.
-    pub best_score: S::Score,
+    pub(crate) best_score: S::Score,
     // Why solving stopped.
-    pub terminal_reason: SolverTerminalReason,
+    pub(crate) terminal_reason: SolverTerminalReason,
     // Solver statistics including steps, moves evaluated, and acceptance rates.
-    pub stats: SolverStats,
-}
-
-impl<S: PlanningSolution> SolveResult<S> {
-    pub fn solution(&self) -> &S {
-        &self.solution
-    }
-
-    pub fn into_solution(self) -> S {
-        self.solution
-    }
-
-    pub fn current_score(&self) -> Option<&S::Score> {
-        self.current_score.as_ref()
-    }
-
-    pub fn best_score(&self) -> &S::Score {
-        &self.best_score
-    }
-
-    pub fn terminal_reason(&self) -> SolverTerminalReason {
-        self.terminal_reason
-    }
-
-    pub fn stats(&self) -> &SolverStats {
-        &self.stats
-    }
-
-    pub fn step_count(&self) -> u64 {
-        self.stats.step_count()
-    }
-
-    pub fn moves_evaluated(&self) -> u64 {
-        self.stats.moves_evaluated()
-    }
-
-    pub fn moves_accepted(&self) -> u64 {
-        self.stats.moves_accepted()
-    }
+    pub(crate) stats: SolverStats,
 }
 
 /// The main solver that optimizes planning solutions.
 ///
-/// Uses macro-generated tuple implementations for phases, preserving
-/// concrete types through the entire pipeline (zero-erasure architecture).
+/// Runs one phase (the compiled runtime runner in production) and keeps its
+/// concrete type through the entire pipeline (zero-erasure architecture).
 ///
 /// # Type Parameters
 /// * `'t` - Lifetime of the termination flag reference
-/// * `P` - Tuple of phases to execute
+/// * `P` - The phase to execute
 /// * `T` - Termination condition (use `Option<ConcreteTermination>`)
 /// * `S` - Solution type
 /// * `D` - Score director type
 /// * `ProgressCb` - Progress callback type (default `()`)
-pub struct Solver<'t, P, T, S: PlanningSolution, D, ProgressCb = ()> {
-    phases: P,
+pub(crate) struct Solver<'t, P, T, S: PlanningSolution, D, ProgressCb = ()> {
+    phase: P,
     termination: T,
     terminate: Option<&'t AtomicBool>,
     runtime: Option<SolverRuntime<S>>,
@@ -116,7 +78,7 @@ impl<P: Debug, T: Debug, S: PlanningSolution, D, ProgressCb> Debug
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Solver")
-            .field("phases", &self.phases)
+            .field("phase", &self.phase)
             .field("termination", &self.termination)
             .finish()
     }
@@ -126,9 +88,9 @@ impl<P, S, D> Solver<'static, P, NoTermination, S, D, ()>
 where
     S: PlanningSolution,
 {
-    pub fn new(phases: P) -> Self {
+    pub(crate) fn new(phase: P) -> Self {
         Solver {
-            phases,
+            phase,
             termination: NoTermination,
             terminate: None,
             runtime: None,
@@ -142,9 +104,12 @@ where
         }
     }
 
-    pub fn with_termination<T>(self, termination: T) -> Solver<'static, P, Option<T>, S, D, ()> {
+    pub(crate) fn with_termination<T>(
+        self,
+        termination: T,
+    ) -> Solver<'static, P, Option<T>, S, D, ()> {
         Solver {
-            phases: self.phases,
+            phase: self.phase,
             termination: Some(termination),
             terminate: self.terminate,
             runtime: self.runtime,
@@ -166,9 +131,12 @@ where
     /// Sets the external termination flag.
     ///
     /// The solver will check this flag periodically and terminate early if set.
-    pub fn with_terminate(self, terminate: &'t AtomicBool) -> Solver<'t, P, T, S, D, ProgressCb> {
+    pub(crate) fn with_terminate(
+        self,
+        terminate: &'t AtomicBool,
+    ) -> Solver<'t, P, T, S, D, ProgressCb> {
         Solver {
-            phases: self.phases,
+            phase: self.phase,
             termination: self.termination,
             terminate: Some(terminate),
             runtime: self.runtime,
@@ -182,12 +150,12 @@ where
         }
     }
 
-    pub fn with_time_limit(mut self, limit: Duration) -> Self {
+    pub(crate) fn with_time_limit(mut self, limit: Duration) -> Self {
         self.time_limit = Some(limit);
         self
     }
 
-    pub fn with_config(mut self, config: SolverConfig) -> Self {
+    pub(crate) fn with_config(mut self, config: SolverConfig) -> Self {
         self.config = Some(config);
         self
     }
@@ -208,7 +176,7 @@ where
     /// model/instance/state/core-tree/build attestation. Construction of the
     /// value validates the attestation before execution; it is never inferred
     /// from environment, callbacks, or working state.
-    pub fn with_qualified_candidate_trace_run_provenance(
+    pub(crate) fn with_qualified_candidate_trace_run_provenance(
         mut self,
         provenance: QualifiedCandidateTraceRunProvenance,
     ) -> Self {
@@ -219,9 +187,9 @@ where
     /// Sets a callback to be invoked for exact solver progress and best-solution updates.
     ///
     /// Transitions the callback type parameter to the concrete closure type.
-    pub fn with_progress_callback<F>(self, callback: F) -> Solver<'t, P, T, S, D, F> {
+    pub(crate) fn with_progress_callback<F>(self, callback: F) -> Solver<'t, P, T, S, D, F> {
         Solver {
-            phases: self.phases,
+            phase: self.phase,
             termination: self.termination,
             terminate: self.terminate,
             runtime: self.runtime,
@@ -233,10 +201,6 @@ where
             weight_mode_control: self.weight_mode_control,
             _phantom: PhantomData,
         }
-    }
-
-    pub fn config(&self) -> Option<&SolverConfig> {
-        self.config.as_ref()
     }
 
     pub(crate) fn with_runtime(mut self, runtime: SolverRuntime<S>) -> Self {
@@ -252,10 +216,10 @@ where
 
 // Marker type indicating no termination.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct NoTermination;
+pub(crate) struct NoTermination;
 
 /// Marker trait for termination types that can be used in Solver.
-pub trait MaybeTermination<
+pub(crate) trait MaybeTermination<
     S: PlanningSolution,
     D: Director<S>,
     ProgressCb: ProgressCallback<S> = (),
@@ -319,50 +283,6 @@ where
         false
     }
 }
-
-macro_rules! impl_solver_with_director {
-    ($($idx:tt: $P:ident),+) => {
-        impl<'t, S, T, ProgressCb, $($P),+> Solver<'t, ($($P,)+), T, S, (), ProgressCb>
-        where
-            S: PlanningSolution,
-            T: Send,
-            ProgressCb: Send + Sync,
-        {
-            /// Solves using a provided score director.
-            pub fn solve_with_director<D>(self, director: D) -> SolveResult<S>
-            where
-                D: Director<S>,
-                ProgressCb: ProgressCallback<S>,
-                T: MaybeTermination<S, D, ProgressCb>,
-                $($P: Phase<S, D, ProgressCb>,)+
-            {
-                let solver: Solver<'t, ($($P,)+), T, S, D, ProgressCb> = Solver {
-                    phases: self.phases,
-                    termination: self.termination,
-                    terminate: self.terminate,
-                    runtime: self.runtime,
-                    config: self.config,
-                    candidate_trace_execution_policy: self.candidate_trace_execution_policy,
-                    candidate_trace_qualified_run_provenance: self.candidate_trace_qualified_run_provenance,
-                    time_limit: self.time_limit,
-                    progress_callback: self.progress_callback,
-                    weight_mode_control: self.weight_mode_control,
-                    _phantom: PhantomData,
-                };
-                solver.solve(director)
-            }
-        }
-    };
-}
-
-impl_solver_with_director!(0: P0);
-impl_solver_with_director!(0: P0, 1: P1);
-impl_solver_with_director!(0: P0, 1: P1, 2: P2);
-impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3);
-impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4);
-impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5);
-impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6);
-impl_solver_with_director!(0: P0, 1: P1, 2: P2, 3: P3, 4: P4, 5: P5, 6: P6, 7: P7);
 
 mod session;
 

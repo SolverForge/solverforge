@@ -9,7 +9,7 @@ use solverforge_core::Score;
 use super::Acceptor;
 use crate::heuristic::r#move::MoveTabuSignature;
 
-pub struct DiversifiedLateAcceptanceAcceptor<S: PlanningSolution> {
+pub(crate) struct DiversifiedLateAcceptanceAcceptor<S: PlanningSolution> {
     late_acceptance_size: usize,
     previous_scores: Vec<S::Score>,
     late_score_index: usize,
@@ -40,7 +40,7 @@ impl<S: PlanningSolution> Clone for DiversifiedLateAcceptanceAcceptor<S> {
 }
 
 impl<S: PlanningSolution> DiversifiedLateAcceptanceAcceptor<S> {
-    pub fn new(late_acceptance_size: usize) -> Self {
+    pub(crate) fn new(late_acceptance_size: usize) -> Self {
         assert!(
             late_acceptance_size > 0,
             "late_acceptance_size must be > 0, got 0"

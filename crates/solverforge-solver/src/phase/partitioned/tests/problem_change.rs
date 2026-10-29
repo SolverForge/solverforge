@@ -1,3 +1,4 @@
+use crate::phase::partitioned::partitioner::FunctionalPartitioner;
 // Partitioned search yields to a queued problem change without merging.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -6,9 +7,9 @@ use std::sync::Arc;
 use solverforge_scoring::{Director, ScoreDirector};
 
 use crate::manager::{SolverRuntime, SolverTerminalReason};
-use crate::phase::partitioned::{FunctionalPartitioner, PartitionedSearchPhase};
+use crate::phase::partitioned::PartitionedSearchPhase;
 use crate::phase::Phase;
-use crate::realtime::ClosureProblemChange;
+use crate::realtime::problem_change::ClosureProblemChange;
 use crate::scope::{ProgressCallback, SolverScope};
 use crate::test_utils::{create_nqueens_descriptor, create_nqueens_director, NQueensSolution};
 

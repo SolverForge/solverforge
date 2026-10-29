@@ -19,7 +19,7 @@ type ModeDirector<'d, S, C, M> = ScoreDirector<S, C, ReplicaDescriptor<'d, S, C>
 
 type ModeSession<'d, S, C, M, Runner> = SolveSession<
     'static,
-    (Runner,),
+    Runner,
     Option<AnyTermination<S, ModeDirector<'d, S, C, M>>>,
     S,
     ModeDirector<'d, S, C, M>,
@@ -222,7 +222,7 @@ where
             build_director_termination(self.config, self.default_time_limit_secs);
         let execution_policy =
             configured_execution_policy::<S>(self.config, self.default_time_limit_secs, time_limit);
-        let mut solver = Solver::new((self.runner,))
+        let mut solver = Solver::new(self.runner)
             .with_config(self.config.clone())
             .with_candidate_trace_execution_policy(execution_policy)
             .with_termination(termination)

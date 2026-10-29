@@ -26,7 +26,7 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 src/
 ├── lib.rs                               — Crate root; module declarations, re-exports
 ├── solver.rs                            — Solver struct, SolveResult
-├── solver/session.rs                    — impl_solver! macro: Solver::solve as start/run/finish of a crate-private SolveSession that can switch directors
+├── solver/session.rs                    — Crate-private SolveSession: Solver::solve as start/run/finish over one phase, able to switch directors and resume the phase
 ├── runtime.rs                           — List-variable metadata plus the sole immutable compiled runtime-graph entrypoint
 ├── runtime/compiler/                    — Immutable runtime-graph compiler, prepared runner, default policy, and executor kernels; every reached source-backed construction boundary validates stable element keys against the frozen declared stream before deciding whether work remains
 ├── runtime/compiler/executor/completion.rs — Structural mandatory-work gate and deferred best-solution publication
@@ -41,27 +41,19 @@ src/
 │   ├── bindings.rs                      — Scalar-variable binding module root and public/internal re-exports
 │   ├── bindings/lookup.rs               — Binding collection, target matching, and frontier-aware scalar work checks
 │   ├── bindings/variable.rs             — VariableBinding and ResolvedVariableBinding metadata/value-source helpers
-│   ├── move_types.rs                    — DescriptorChangeMove<S>, DescriptorSwapMove<S>, DescriptorPillarChangeMove<S>, DescriptorPillarSwapMove<S>, DescriptorRuinRecreateMove<S>, DescriptorMoveUnion<S>
 │   ├── move_types/*.rs                  — Descriptor move implementations split by move family
-│   ├── selectors.rs                     — Descriptor selector tree, change/swap/pillar/ruin leaves, and build_descriptor_move_selector(config, descriptor, random_seed)
-│   ├── selectors/swap_legality.rs       — Descriptor swap legality index over value-range provider shapes
-│   ├── selectors/change_swap.rs         — Descriptor change and swap leaf selectors
-│   ├── selectors/nearby_change_swap.rs  — Descriptor nearby change and nearby swap leaf selectors
-│   ├── selectors/pillar_ruin.rs         — Descriptor pillar change/swap and ruin-recreate selectors
-│   ├── selectors/dispatch.rs            — Descriptor selector dispatch root
 │   ├── selectors/dispatch/*.rs          — Descriptor selector dispatch build/type chunks
-│   └── tests/mod.rs                     — Descriptor test root with support, selector, cartesian, pillar, nearby, and ruin-recreate chunks under `tests/mod/`
-├── run.rs                               — AnyTermination, ChannelProgressCallback, build_termination(), log_solve_start(), try_run_solver_with_config_and_search(), and hidden try_run_weighted_solver_with_config_and_search()
-├── run/termination.rs                   — Configured termination parsing, build_termination(), and the execution-policy description
+├── run.rs                               — log_solve_start(), try_run_solver_with_config_and_search(), and hidden try_run_weighted_solver_with_config_and_search(); crate-private configured termination and progress adapter
+├── run/termination.rs                   — Configured termination parsing, build_director_termination(), and the execution-policy description
 ├── run/weight_modes.rs                  — Per-solve weight-mode choice and the director-switching solve loop
 ├── run_tests.rs                         — Tests
 ├── runtime_build_error.rs               — Public RuntimeBuildError and RuntimeBuildResult declaration/compiler/constraint-weight/preparation/execution boundary
 ├── constraint_weights.rs                — Crate-private validation of a solution's constraint weights at solve start and after problem changes
 ├── builder/
 │   ├── mod.rs                           — Re-exports from all builder submodules
-│   ├── acceptor.rs                      — AnyAcceptor<S> enum, AcceptorBuilder
+│   ├── acceptor.rs                      — AnyAcceptor<S> enum built from validated acceptor config
 │   ├── acceptor/tests.rs                — Tests
-│   ├── forager.rs                       — AnyForager<S> enum, ForagerBuilder
+│   ├── forager.rs                       — AnyForager<S> enum built from validated forager config
 │   ├── context.rs                       — Public context module root and re-exports
 │   ├── context/model.rs                 — RuntimeModel<S, V, DM, IDM> and VariableSlot<S, V, DM, IDM>
 │   ├── context/model_resolution.rs      — Descriptor resolution and immutable runtime-model validation
@@ -96,7 +88,6 @@ src/
 │   │   ├── traits.rs                    — Move<S> trait definition
 │   │   ├── arena.rs                     — MoveArena<M> allocator
 │   │   ├── change.rs                    — ChangeMove<S, V>
-│   │   ├── swap.rs                      — SwapMove<S, V>
 │   │   ├── list_change.rs              — ListChangeMove<S, V>
 │   │   ├── list_swap.rs                — ListSwapMove<S, V>
 │   │   ├── list_permute.rs             — ListPermuteMove<S, V>; contiguous intra-list window permutation; undo carries the inverse permutation indexes and restores through the same ownership-transfer gather
@@ -106,22 +97,17 @@ src/
 │   │   ├── sublist_change.rs           — SublistChangeMove<S, V>
 │   │   ├── sublist_swap.rs             — SublistSwapMove<S, V>
 │   │   ├── segment_layout.rs           — Post-move segment coordinate derivation and reverse-identity helpers for sublist moves
-│   │   ├── pillar_change.rs            — PillarChangeMove<S, V>
-│   │   ├── pillar_swap.rs              — PillarSwapMove<S, V>
 │   │   ├── ruin.rs                      — RuinMove<S, V>
-│   │   ├── ruin_recreate.rs             — RuinRecreateMove<S> and ScalarRecreateValueSource<S>
 │   │   ├── k_opt.rs                     — KOptMove<S, V>, CutPoint
 │   │   ├── k_opt_reconnection.rs       — KOptReconnection patterns
 │   │   ├── k_opt_reconnection_tests.rs — Tests
 │   │   ├── compound_scalar.rs          — CompoundScalarMove<S> for atomic multi-scalar edits with exact undo, tabu identity, and affected-entity reporting
-│   │   ├── conflict_repair.rs          — ConflictRepairMove<S> wrapper over framework-owned compound repair edits
 │   │   ├── dynamic_scalar_change.rs    — DynamicScalarChangeMove<S> with `Option<usize>` undo over a descriptor-resolved DynamicScalarVariableSlot<S>
 │   │   ├── dynamic_scalar_swap.rs      — DynamicScalarSwapMove<S> over descriptor-resolved DynamicScalarVariableSlot<S>
 │   │   ├── dynamic_list_change.rs      — DynamicListChangeMove<S> over descriptor-resolved DynamicListVariableSlot<S>
 │   │   ├── runtime_compound.rs         — RuntimeCompoundMove<S> and RuntimeCompoundMoveKind for frozen provider candidates
-│   │   ├── composite.rs                — CompositeMove<S, M1, M2>, SequentialCompositeMove<S, M>
+│   │   ├── composite.rs                — SequentialCompositeMove<S, M> and the public borrowed SequentialCompositeMoveRef
 │   │   ├── composite/preview.rs         — Internal owned preview director for read-only sequential checks and ordinary Cartesian selectors
-│   │   ├── scalar_union.rs             — ScalarMoveUnion<S, V> enum
 │   │   ├── list_union.rs               — ListMoveUnion<S, V> enum
 │   │   ├── list_multi_swap.rs          — ListMultiSwapMove<S, V> for independent same-step intra-list swaps
 │   │   ├── list_kernel/                — Shared typed/dynamic list mutation kernels used by public moves and the compiled executor
@@ -129,9 +115,7 @@ src/
 │   │       ├── mod.rs
 │   │       ├── arena.rs
 │   │       ├── change.rs
-│   │       ├── swap.rs
 │   │       ├── compound_scalar.rs
-│   │       ├── conflict_repair.rs
 │   │       ├── list_multi_swap.rs
 │   │       ├── list_telemetry.rs
 │   │       ├── list_change.rs
@@ -139,8 +123,6 @@ src/
 │   │       ├── list_permute.rs
 │   │       ├── list_reverse.rs
 │   │       ├── list_ruin.rs (+ list_ruin/transfer.rs zero-clone ownership-transfer contract)
-│   │       ├── pillar_change.rs
-│   │       ├── pillar_swap.rs
 │   │       ├── ruin.rs
 │   │       ├── sublist_change.rs
 │   │       ├── sublist_swap.rs
@@ -148,12 +130,10 @@ src/
 │   │
 │   └── selector/
 │       ├── mod.rs                       — Re-exports
-│       ├── entity.rs                    — EntitySelector trait, FromSolutionEntitySelector, AllEntitiesSelector
-│       ├── value_selector.rs              — ValueSelector trait, StaticValueSelector, FromSolutionValueSelector
-│       ├── move_selector.rs             — MoveSelector trait, MoveCursor, MoveCandidateRef, ChangeMoveSelector, SwapMoveSelector, scalar union helpers; `ChangeMoveSelector::with_allows_unassigned()` enables `Some(v) -> None` generation for assigned optional variables
-│       ├── move_selector/*.rs           — borrowed.rs candidate cursor, arena.rs candidate store and arena cursor, unit_resource.rs unit resource cursor, iter.rs adapter, change.rs selector, and swap.rs selector implementation chunks
-│       ├── move_selector/scalar_union.rs — ScalarChangeMoveSelector, ScalarSwapMoveSelector
-│       ├── dynamic_scalar_change.rs     — DynamicScalarChangeMoveSelector<S> for explicit dynamic scalar change phases
+│       ├── entity.rs                    — EntitySelector trait, EntityReference, FromSolutionEntitySelector
+│       ├── value_selector.rs              — ValueSelector trait, StaticValueSelector
+│       ├── move_selector.rs             — Re-exports for the move_selector/ files
+│       ├── move_selector/*.rs           — borrowed.rs candidate cursor, arena.rs candidate store and arena cursor, unit_resource.rs unit resource cursor, iter.rs adapter, and change.rs selector implementation chunks
 │       ├── dynamic_scalar_nearby_change.rs — Fallible DynamicScalarNearbyChangeMoveSelector<S> facade over the canonical nearby-value leaf
 │       ├── dynamic_scalar_nearby_swap.rs — Fallible DynamicScalarNearbySwapMoveSelector<S> facade over the canonical nearby-entity leaf
 │       ├── scalar_neighborhood/          — One frozen RuntimeScalarSlot leaf kernel, direct change/swap semantics, explicit ruin/recreate stream state, and thin static/dynamic move facades
@@ -165,19 +145,16 @@ src/
 │       ├── list_precedence.rs          — ListPrecedenceMoveSelector<S, V, ES>; cursor-backed critical-path, singleton critical-node, and critical-sublist moves for list variables with plain precedence hooks
 │       ├── precedence_route.rs         — Internal precedence route graph and cycle checks shared by list precedence neighborhoods
 │       ├── precedence_route/delta.rs   — Route-after-move builders, edge diffs, and route-delta cycle search
-│       ├── list_reverse.rs             — ListReverseMoveSelector<S, V, ES>
 │       ├── list_ruin.rs                — ListRuinMoveSelector<S, V>
 │       ├── sublist_change.rs           — SublistChangeMoveSelector<S, V, ES>
 │       ├── sublist_support.rs          — Private sublist segment enumeration and exact counting helpers
 │       ├── sublist_swap.rs             — SublistSwapMoveSelector<S, V, ES>
-│       ├── pillar.rs                    — PillarSelector trait, DefaultPillarSelector, Pillar, SubPillarConfig
+│       ├── pillar.rs                    — Pillar and SubPillarConfig: pillar groups the runtime pillar cursors read through collect_pillar_groups
 │       ├── pillar_support.rs            — Deterministic pillar grouping, legal-domain intersection, and mutual swap-compatibility helpers
 │       ├── ruin.rs                      — RuinMoveSelector<S, V>, RuinVariableAccess<S, V>
 │       ├── seed.rs                      — Scoped deterministic selector seed derivation from SolverConfig random_seed
-│       ├── mimic.rs                     — MimicRecorder, MimicRecordingEntitySelector, MimicReplayingEntitySelector
 │       ├── entity_tests.rs              — Tests
 │       ├── value_selector_tests.rs     — Tests
-│       ├── nearby.rs                    — NearbyDistanceMeter trait, DynDistanceMeter, NearbyEntitySelector, NearbySelectionConfig
 │       ├── nearby_list_change.rs       — CrossEntityDistanceMeter trait, NearbyListChangeMoveSelector
 │       ├── nearby_list_support.rs      — Private selected-entity snapshots and bounded stable top-k nearby candidate ordering
 │       ├── nearby_list_swap.rs         — NearbyListSwapMoveSelector
@@ -185,15 +162,14 @@ src/
 │       ├── list_kernel/                — Shared list candidate enumeration/emission kernels, including precedence and k-opt
 │       ├── decorator/
 │       │   ├── mod.rs                   — Re-exports
-│       │   ├── cartesian_product.rs    — CartesianProductArena<S, M1, M2>, CartesianProductCursor<S, M>, CartesianProductSelector<S, M, Left, Right>
+│       │   ├── cartesian_product.rs    — CartesianProductCursor<S, M>, CartesianProductSelector<S, M, Left, Right>
 │       │   ├── cartesian_product/cursor.rs — CartesianProductCursor rows, pair scratch, and MoveCursor impl
 │       │   ├── cartesian_product/tests.rs — Tests
 │       │   ├── filtering.rs            — FilteringMoveSelector<S, M, Inner>
 │       │   ├── filtering/tests.rs      — Tests
 │       │   ├── limited.rs              — Shared candidate-limit budget with test-only ordinary cursor adapter
 │       │   ├── limited/tests.rs        — Tests
-│       │   ├── mapped_cursor.rs        — Shared mapped cursor adapter
-│       │   ├── vec_union.rs            — VecUnionSelector<S, M, Leaf> (Vec-backed union for config-driven composition)
+│       │   ├── vec_union.rs            — Union child context, union weights, and the VecUnionMoveCursor / ResourceVecUnionMoveCursor the compiled union drives
 │       │   ├── vec_union/scheduler.rs   — Canonical union scheduler shared by ordinary and indexed composition cursors
 │       │   ├── vec_union/tests.rs      — Tests
 │       │   ├── test_utils.rs           — Test helpers
@@ -202,10 +178,9 @@ src/
 │       ├── k_opt/
 │       │   ├── mod.rs                   — Re-exports
 │       │   ├── config.rs               — KOptConfig
-│       │   ├── iterators.rs            — CutCombinationIterator (pub), binomial(), count_cut_combinations()
+│       │   ├── iterators.rs            — count_cut_combinations(), cut_combination_at(), binomial()
 │       │   ├── distance_meter.rs       — ListPositionDistanceMeter trait, DefaultDistanceMeter
 │       │   ├── distance.rs             — ListPositionDistanceMeter and DefaultDistanceMeter mirror used by the k-opt module split
-│       │   ├── nearby.rs               — NearbyKOptMoveSelector<S, V, D, ES>
 │       │   ├── selector.rs             — KOptMoveSelector<S, V, ES>
 │       │   └── tests.rs                — Tests
 │       └── tests/
@@ -215,8 +190,6 @@ src/
 │           ├── list_permute.rs
 │           ├── list_precedence.rs
 │           ├── list_ruin.rs
-│           ├── mimic.rs
-│           ├── nearby.rs
 │           ├── nearby_list.rs
 │           ├── pillar.rs
 │           ├── sublist_neighborhood.rs
@@ -230,7 +203,6 @@ src/
 │   ├── hard_delta_phase_tests.rs        — Phase-level hard-improvement gate tests
 │   ├── construction/
 │   │   ├── mod.rs                       — Construction module declarations and re-exports
-│   │   ├── config.rs                    — ForagerType enum and ConstructionHeuristicConfig
 │   │   ├── decision.rs                  — Shared baseline/tie-breaking helpers for construction choice resolution
 │   │   ├── evaluation.rs                — Trial-move evaluation via typed move undo and score-state snapshots
 │   │   ├── frontier.rs                  — Revision-scoped ConstructionFrontier shared by generic scalar and list work
@@ -242,7 +214,7 @@ src/
 │   │   ├── forager_step.rs              — Step-aware stock construction selection with telemetry and prompt/control polling
 │   │   ├── forager_step/strength.rs     — Weakest-fit and strongest-fit selection
 │   │   ├── forager/tests.rs             — Tests
-│   │   ├── placer.rs                    — EntityPlacer trait, Placement, and SortedEntityPlacer
+│   │   ├── placer.rs                    — EntityPlacer and EntityPlacerCursor traits, Placement, ConstructionTarget
 │   │   ├── placer/queued.rs             — QueuedEntityPlacer and its single-path streaming candidate cursor with bounded live-candidate storage
 │   │   ├── placer/tests.rs              — Tests
 │   │   ├── slot.rs                      — ConstructionSlotId, exact-keyed ConstructionGroupSlotId, ConstructionGroupSlotKey, and ConstructionListElementId for construction frontier tracking
@@ -316,8 +288,7 @@ src/
 │   │       └── tests.rs                — Tests
 │   ├── exhaustive/
 │   │   ├── mod.rs                       — ExhaustiveSearchPhase, ExhaustiveSearchConfig, ExplorationType
-│   │   ├── bounder.rs                   — ScoreBounder trait, SoftScoreBounder, FixedOffsetBounder
-│   │   ├── bounder_tests.rs             — Tests
+│   │   ├── bounder.rs                   — ScoreBounder trait
 │   │   ├── decider.rs                   — ExhaustiveSearchDecider trait and SimpleDecider
 │   │   ├── decider_tests.rs             — Tests
 │   │   ├── node.rs                      — ExhaustiveSearchNode
@@ -334,7 +305,6 @@ src/
 │   │   ├── phase.rs                    — PartitionedSearchPhase<P, Part>
 │   │   ├── phase_tests.rs              — Tests
 │   │   └── tests/problem_change.rs     — Children yield to a queued problem change without merging
-│   ├── sequence.rs                      — PhaseSequence<P>
 │   └── localsearch/vnd/
 │       ├── mod.rs                       — Internal VND module declarations
 │       ├── phase.rs                     — Shared VND solve loop called by the compiled runner
@@ -342,9 +312,7 @@ src/
 │       └── tests.rs                     — Internal VND tests
 │
 ├── manager/
-│   ├── mod.rs                           — PhaseFactory trait, re-exports
-│   ├── builder.rs                       — SolverFactoryBuilder, SolverBuildError
-│   ├── solver_factory.rs               — SolverFactory, solver_factory_builder() free fn
+│   ├── mod.rs                           — Re-exports
 │   ├── solver_manager.rs               — Re-exports retained lifecycle manager surface
 │   ├── solver_manager/types.rs         — SolverLifecycleState, SolverTerminalReason, SolverStatus, SolverTelemetryDetail, SolverEventMetadata, SolverEvent, snapshots, and SolverManagerError
 │   ├── solver_manager/runtime.rs       — SolverRuntime retained lifecycle publisher and SolverPanicPayload
@@ -356,7 +324,6 @@ src/
 │   ├── solution_manager.rs             — analyze() free fn, Analyzable trait, ScoreAnalysis, ConstraintAnalysis
 │   ├── phase_factory/
 │   │   ├── mod.rs                       — Re-exports
-│   │   ├── construction.rs             — ConstructionPhaseFactory
 │   │   ├── list_construction.rs        — Re-exports
 │   │   ├── list_construction/access.rs — Source-indexed scored-list access shared by cheapest and regret kernels
 │   │   ├── list_construction/round_robin.rs — Explicit-source-key public facade for mandatory-construction round robin
@@ -375,13 +342,7 @@ src/
 │   │   ├── list_clarke_wright/tests/metric_class.rs — Shared metric-class and owner-feasibility tests
 │   │   ├── list_clarke_wright/tests/owner_binding.rs — Owner-specific hook binding tests
 │   │   ├── list_k_opt.rs               — ListKOptPhase
-│   │   ├── local_search.rs             — LocalSearchPhaseFactory
-│   │   └── k_opt.rs                     — KOptPhaseBuilder, KOptPhase
-│   ├── phase_factory_trait.rs          — PhaseFactory<S, D> zero-erasure factory trait
-│   ├── builder_tests.rs                — Tests
-│   ├── mod_tests.rs                    — Tests
 │   ├── mod_tests_integration.rs        — Integration test module declarations
-│   ├── mod_tests_integration/basic.rs  — Builder/factory integration tests
 │   ├── mod_tests_integration/common.rs — Shared no-op phase fixture
 │   ├── mod_tests_integration/gates.rs  — Shared retained-job gates and blockers
 │   ├── mod_tests_integration/lifecycle_solutions.rs — Retained lifecycle fixtures
@@ -414,13 +375,9 @@ src/
 │   ├── mod.rs                           — Termination<S, D, BestCb = ()> trait, re-exports
 │   ├── time.rs                          — TimeTermination
 │   ├── step_count.rs                    — StepCountTermination
-│   ├── best_score.rs                    — BestScoreTermination<Sc>, BestScoreFeasibleTermination<S, F>
+│   ├── best_score.rs                    — BestScoreTermination<Sc>
 │   ├── unimproved.rs                    — UnimprovedStepCountTermination<S>, UnimprovedTimeTermination<S>
-│   ├── composite.rs                     — OrTermination<T, S, D>, AndTermination<T, S, D> (tuple impls up to 8)
-│   ├── move_count.rs                    — MoveCountTermination<S>
-│   ├── score_calculation_count.rs      — ScoreCalculationCountTermination<S>
-│   ├── diminished_returns.rs           — DiminishedReturnsTermination<S>
-│   ├── diminished_returns_tests.rs     — Tests
+│   ├── composite.rs                     — OrTermination<T, S, D> (tuple impls up to 8)
 │   └── tests.rs                         — Tests
 │
 └── realtime/
@@ -428,6 +385,36 @@ src/
     ├── problem_change.rs               — ProblemChange trait, ClosureProblemChange
     └── problem_change_tests.rs         — Tests
 ```
+
+## Public Surface
+
+Every supported item is exported once, at the crate root. Implementation
+modules are private, so an item has exactly one path:
+`solverforge_solver::Name`. Applications reach these items through the
+`solverforge` facade.
+
+**Model and search composition:** `ListVariableSlot`, `RuntimeModel`, `VariableSlot`, `bind_scalar_groups`, `ScalarGroupBinding`, `ValueSource`, `ScalarVariableSlot`, `CustomSearchPhase`, `local_search`, `Search`, `SearchContext`, `PlanningModelSupport`, `ConflictRepair`, `RepairCandidate`, `RepairLimits`, `RepairProvider`, `ScalarAssignmentRule`, `ScalarCandidate`, `ScalarCandidateProvider`, `ScalarEdit`, `ScalarGroup`, `ScalarGroupLimits`, `ScalarTarget`, `ListVariableEntity`, `ListVariableMetadata`
+
+**Moves and move streams:** `MoveArena`, `SequentialCompositeMoveRef`, `MoveTabuScope`, `MoveTabuSignature`, `MoveUndoIdentity`, `ScopedEntityTabuToken`, `ScopedValueTabuToken`, `Move`, `MoveAffectedEntity`, `DefaultDistanceMeter`, `CandidateId`, `MoveCandidateRef`, `MoveCandidateUndo`, `MoveCursor`, `MoveSelector`, `MoveSelectorIter`, `MoveStreamContext`, `CrossEntityDistanceMeter`, `DefaultCrossEntityDistanceMeter`
+
+**Phases:** `ScoreBounder`, `ExhaustiveSearchConfig`, `ExhaustiveSearchDecider`, `SimpleDecider`, `ExplorationType`, `ExhaustiveSearchNode`, `ExhaustiveSearchPhase`, `Acceptor`, `ForagerDecision`, `LocalSearchForager`, `ChildPhases`, `PartitionedSearchConfig`, `FunctionalPartitioner`, `SolutionPartitioner`, `ThreadCount`, `PartitionedSearchPhase`, `Phase`
+
+**Solver scope and progress:** `PhaseScope`, `ProgressCallback`, `SolverProgressKind`, `SolverProgressRef`, `SolverScope`, `StepScope`
+
+**Solver management and analysis:** `analyze`, `Analyzable`, `ConstraintAnalysis`, `ScoreAnalysis`, `Solvable`, `SolverManager`, `ProblemChangeId`, `SolverPanicPayload`, `SolverRuntime`, `SolverEvent`, `SolverEventMetadata`, `SolverLifecycleState`, `SolverManagerError`, `SolverSnapshot`, `SolverSnapshotAnalysis`, `SolverStatus`, `SolverTelemetryDetail`, `SolverTerminalReason`, `ClosureProblemChange`, `ProblemChange`
+
+**Configured run boundary:** `log_solve_start`, `try_run_solver_with_config_and_search`, `try_run_weighted_solver_with_config_and_search`, `RuntimeBuildError`, `RuntimeBuildResult`
+
+**Statistics and candidate traces:** `CandidateTraceCompositeIdentity`, `CandidateTraceConstructionTarget`, `CandidateTraceCoordinate`, `CandidateTraceIdentity`, `CandidateTraceOperationIdentity`, `CandidateTraceExecutionPolicy`, `CandidateTracePhaseAttribute`, `CandidateTracePhasePlan`, `CandidateTraceExternalDigest`, `CandidateTraceInputAttestation`, `CandidateTraceInputProvenance`, `CandidateTraceInputProvenanceStatus`, `CandidateTraceProvenanceStatus`, `CandidatePullTelemetry`, `CandidateTraceDisposition`, `CandidateTraceSource`, `CandidateTraceDigest`, `CandidateTraceHeader`, `CandidateTraceTelemetry`, `CANDIDATE_TRACE_FORMAT_VERSION`, `CandidateTraceQualificationError`, `CandidateTraceQualificationStatus`, `QualifiedCandidateTraceRunProvenance`, `PhaseStats`, `SolverStats`, `AppliedMoveTelemetry`, `MoveTelemetry`, `PhaseTelemetry`, `SelectorTelemetry`, `SolverTelemetry`, `Throughput`
+
+### Hidden modules
+
+- `__bench` (`#[doc(hidden)]`): the concrete selectors, moves, placers and the construction phase that `benches/selector_cursor_gate.rs` drives directly. No compatibility promise covers them: `ChangeMove`, `ListChangeMove`, `CartesianProductSelector`, `FilteringMoveSelector`, `FromSolutionEntitySelector`, `KOptConfig`, `KOptMoveSelector`, `ListChangeMoveSelector`, `ListSwapMoveSelector`, `ChangeMoveSelector`, `NearbyListChangeMoveSelector`, `NearbyListSwapMoveSelector`, `RuinMoveSelector`, `RuinVariableAccess`, `SublistChangeMoveSelector`, `SublistSwapMoveSelector`, `StaticValueSelector`, `FirstFitForager`, `ConstructionHeuristicPhase`, `EntityPlacer`, `EntityPlacerCursor`, `QueuedEntityPlacer`.
+- `__private` (`#[doc(hidden)]`): the host-provider contracts that `solverforge-bridge` re-exports for host-language bindings: `RuntimeCandidateMetric`, `RuntimeCandidateMetricBinding`, `RuntimeCandidateMetricRegistry`, `RuntimeProviderRegistry`, `ProviderResolutionError`, `RawProviderCandidate`, `RawProviderEdit`, `RuntimeConflictRepairProviderBinding`, `RuntimeHostCompoundProvider`, `RuntimeHostProviderErrorBoundary`, `RuntimeProviderLimits`, `RuntimeScalarGroupProviderBinding`, `NoDynamicExtensions`.
+
+Types that appear only inside public signatures, such as the concrete
+builder types `SearchContext::defaults` and `local_search` return, stay
+unnameable: callers hold them through `impl Trait` or inference.
 
 ## Core Traits
 
@@ -487,18 +474,7 @@ Requires: `Send + Debug`.
 | `defers_initial_best_solution_publication` | `fn(&self) -> bool` (default `false`) |
 | `on_solver_terminal` | `fn(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>)` (default no-op) |
 
-All concrete phase types implement `Phase<S, D, ProgressCb>` for all `ProgressCb: ProgressCallback<S>`. Compiled runtime phases report whether their graph contains mandatory planning work through `defers_initial_best_solution_publication`; the solver then withholds public best-solution events until the compiled runtime proves that work complete. The solver invokes `on_solver_terminal` once for every configured top-level phase after the phase loop and before final statistics are taken, including a phase skipped by cancellation or configured termination. `PhaseSequence`, tuple, and runtime wrappers propagate both capabilities to their active children. Tuple implementations are via `tuple_impl.rs`.
-
-### `Termination<S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S> = ()>` — `termination/mod.rs`
-
-Requires: `Send + Debug`.
-
-| Method | Signature | Default |
-|--------|-----------|---------|
-| `is_terminated` | `fn(&mut self, solver_scope: &SolverScope<S, D, ProgressCb>) -> bool` | — |
-| `install_inphase_limits` | `fn(&self, solver_scope: &mut SolverScope<S, D, ProgressCb>)` | no-op |
-
-All concrete termination types implement `Termination<S, D, ProgressCb>` for all `ProgressCb: ProgressCallback<S>`.
+All concrete phase types implement `Phase<S, D, ProgressCb>` for all `ProgressCb: ProgressCallback<S>`. Compiled runtime phases report whether their graph contains mandatory planning work through `defers_initial_best_solution_publication`; the solver then withholds public best-solution events until the compiled runtime proves that work complete. The solver invokes `on_solver_terminal` once for every configured top-level phase after the phase loop and before final statistics are taken, including a phase skipped by cancellation or configured termination. The solver drives exactly one phase; the compiled runtime phase composes configured phases internally and propagates both capabilities to its active children.
 
 ### `Acceptor<S: PlanningSolution>` — `acceptor/mod.rs`
 
@@ -512,14 +488,6 @@ Requires: `Send + Debug`.
 | `phase_ended` | `fn(&mut self)` | no-op |
 | `step_started` | `fn(&mut self)` | no-op |
 | `step_ended` | `fn(&mut self, step_score: &S::Score, accepted_move_signature: Option<&MoveTabuSignature>)` | no-op |
-
-### `EntitySelector<S: PlanningSolution>` — `entity.rs`
-
-| Method | Signature |
-|--------|-----------|
-| `iter` | `fn<'a, D: Director<S>>(&'a self, score_director: &'a D) -> impl Iterator<Item = EntityReference> + 'a` |
-| `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
-| `is_never_ending` | `fn(&self) -> bool` |
 
 ### `MoveSelector<S: PlanningSolution, M: Move<S>>` — `move_selector.rs`
 
@@ -565,23 +533,18 @@ composition can transfer one inspected child without first storing it twice.
 
 Ordinary cursor pulls lend `&S` through `next_candidate(solution)`,
 `next_candidate_with_control(solution, should_stop)`, `next_owned_candidate(solution)`
-and `next_owned_candidate_inspected(solution, inspect)`. The hidden resource
-boundary instead uses `ResourceMoveCursor::next_candidate_with_resources<D: Director<S>>`
-with `(&mut self, director: &mut D, resources: &mut Resources) -> Option<CandidateId>`.
-Its inspected owned-pull helper also takes the mutable director. Compiled phases
+and `next_owned_candidate_inspected(solution, inspect)`. Inside the crate,
+compiled cursors pull through a resource boundary that takes the mutable
+director instead of `&S`. Compiled phases
 lend that director through unions and limits so Cartesian discovery can apply and
 undo preview moves without retaining a solution borrow between pulls. Open-time
-derived indexes and metric orders retain their own activation contracts. The
-ordinary public Cartesian selector still owns a separate preview solution.
+derived indexes and metric orders retain their own activation contracts.
 
 `MoveCandidateRef<'a, S, M>` is either a borrowed move or a borrowable
 two-child sequential composite; `MoveCandidateUndo<U>` mirrors those two
-shapes for exact rollback. `CandidateStore<M>` is the public cursor-owned
-stable-ID store, while `ArenaMoveCursor<'a, M>` adapts a `MoveArena<M>`.
-`MoveCursorSource<S, M>` is the phase-facing GAT contract for opening a
-resource-aware cursor from solve-owned state. Ordinary public selectors use
-the hidden `SelectorCursorSource<MS>` adapter; the compiled runtime implements
-the same contract with persistent selector/provider state.
+shapes for exact rollback. A `MoveSelector` implementation owns the store
+behind its stable IDs; `MoveArena<M>` is the reusable-capacity owner such an
+implementation can use.
 
 Compiled Limited/Union/Cartesian composition owns one immutable indexed declaration
 arena per execution and transfers its retained leaf-state arena into a cursor and
@@ -594,35 +557,6 @@ Cartesian cursor owns a cloned preview solution. Flat extensions remain concrete
 generic types, including non-Clone declaration/state types. This internal
 representation does not change the public `MoveSelector` extension contract or
 configured selector syntax.
-
-### `ValueSelector<S: PlanningSolution, V>` — `value_selector.rs`
-
-| Method | Signature |
-|--------|-----------|
-| `iter` | `fn<'a, D: Director<S>>(&'a self, score_director: &'a D, descriptor_index: usize, entity_index: usize) -> impl Iterator<Item = V> + 'a` |
-| `size` | `fn<D: Director<S>>(&self, score_director: &D, descriptor_index: usize, entity_index: usize) -> usize` |
-| `is_never_ending` | `fn(&self) -> bool` |
-
-### `PillarSelector<S: PlanningSolution>` — `pillar.rs`
-
-| Method | Signature |
-|--------|-----------|
-| `iter` | `fn<'a, D: Director<S>>(&'a self, score_director: &'a D) -> impl Iterator<Item = Pillar> + 'a` |
-| `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
-| `is_never_ending` | `fn(&self) -> bool` |
-| `descriptor_index` | `fn(&self) -> usize` |
-
-### `ConstructionForager<S, M>` — `construction/forager.rs`
-
-Requires: `Send + Debug`. Bounds: `S: PlanningSolution, M: Move<S>`.
-
-| Method | Signature |
-|--------|-----------|
-| `select_move_index` | `fn<D, BestCb, C>(&self, placement: &mut Placement<S, M, C>, construction_obligation: ConstructionObligation, step_scope: &mut StepScope<'_, '_, '_, S, D, BestCb>) -> Option<ConstructionChoice> where C: MoveCursor<S, M>` |
-
-Stock construction foragers consume the placement cursor directly, poll
-termination/control during evaluation, release all losing candidate payloads,
-and return either `ConstructionChoice::Select(CandidateId)` or `KeepCurrent`.
 
 ### `LocalSearchForager<S, M>` — `localsearch/forager.rs`
 
@@ -640,23 +574,10 @@ Requires: `Send + Debug`. Bounds: `S: PlanningSolution, M: Move<S>`.
 phase exactly which live candidate payload remains cursor-owned after online
 foraging.
 
-`AcceptedCountForager` is the default finite-horizon forager for broad stock
-models. It means "select the best among the first N accepted moves", not
-"scan the whole neighborhood and retain N". `BestScoreForager` remains
-available for explicit full-neighborhood scans.
-
-### `EntityPlacer<S, M>` — `construction/placer.rs`
-
-Requires: `Send + Debug`. Bounds: `S: PlanningSolution, M: Move<S>`.
-
-| Method | Signature |
-|--------|-----------|
-| `Cursor<'a>` | `type Cursor<'a>: EntityPlacerCursor<S, M> + 'a where Self: 'a` |
-| `open_cursor` | `fn<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a>` |
-
-`EntityPlacerCursor::next_placement()` produces one placement envelope at a
-time. Each envelope owns one concrete candidate cursor; construction has no
-parallel `Vec<Placement>` or `Vec<M>` fallback path.
+The stock foragers are chosen with `solverforge_config::ForagerConfig`. The
+default, `AcceptedCount`, means "select the best among the first N accepted
+moves", not "scan the whole neighborhood and retain N". `BestScore` scans the
+whole neighborhood.
 
 ### `ScoreBounder<S, D>` — `exhaustive/bounder.rs`
 
@@ -688,20 +609,6 @@ Requires: `Send + Sync + Debug`. Bounds: `S: PlanningSolution`.
 | `merge` | `fn(&self, original: &S, partitions: Vec<S>) -> S` | — |
 | `recommended_partition_count` | `fn(&self) -> Option<usize>` | `None` |
 
-### `NearbyDistanceMeter<Origin, Destination>` — `nearby.rs`
-
-| Method | Signature |
-|--------|-----------|
-| `distance` | `fn(&self, origin: &Origin, destination: &Destination) -> f64` |
-
-### `ListPositionDistanceMeter<S>` — `k_opt/distance_meter.rs`
-
-Requires: `Send + Sync + Debug`.
-
-| Method | Signature |
-|--------|-----------|
-| `distance` | `fn(&self, solution: &S, entity_idx: usize, pos_a: usize, pos_b: usize) -> f64` |
-
 ### `CrossEntityDistanceMeter<S>` — `nearby_list_change.rs`
 
 | Method | Signature |
@@ -711,18 +618,6 @@ Requires: `Send + Sync + Debug`.
 `DefaultCrossEntityDistanceMeter` is the zero-state default implementation. It
 returns absolute position distance within one list entity and infinity across
 different entities.
-
-### `PhaseFactory<S, D>` — `manager/mod.rs`
-
-Requires: `Send + Sync`. Bounds: `S: PlanningSolution, D: Director<S>`.
-
-| Associated Type | Bound |
-|----------------|-------|
-| `Phase` | `Phase<S, D>` |
-
-| Method | Signature |
-|--------|-----------|
-| `create` | `fn(&self) -> Self::Phase` |
 
 ### `Solvable` — `manager/solver_manager.rs`
 
@@ -779,691 +674,6 @@ Requires: `Send + Debug`.
 A change is consumed when applied, so it can move its payload into the
 working solution without cloning.
 
-## Move Types
-
-All moves are generic over `S` (solution) and `V` (value). All use concrete `fn` pointers for zero-erasure access.
-
-| Move | Type Params | Key Fields | Clone | Copy |
-|------|-------------|------------|-------|------|
-| `ChangeMove` | `<S, V>` | entity_index, to_value, getter/setter fn ptrs | Yes (V: Clone) | Yes (V: Copy) |
-| `SwapMove` | `<S, V>` | left/right entity indices, getter/setter fn ptrs | Yes | Yes |
-| `ListChangeMove` | `<S, V>` | src/dst entity+position, list_len/remove/insert fn ptrs | Yes | Yes |
-| `ListSwapMove` | `<S, V>` | first/second entity+position, list_len/get/set fn ptrs | Yes | Yes |
-| `ListReverseMove` | `<S, V>` | entity_index, start/end, list_len/reverse fn ptrs | Yes | Yes |
-| `ListRuinMove` | `<S, V>` | entity_index, SmallVec element_indices, fn ptrs | Yes (manual) | No |
-| `SublistChangeMove` | `<S, V>` | src entity+start/end, dst entity+position, fn ptrs | Yes | Yes |
-| `SublistSwapMove` | `<S, V>` | first/second entity+start/end, fn ptrs | Yes | Yes |
-| `PillarChangeMove` | `<S, V>` | Vec entity_indices, to_value, getter/setter fn ptrs | Yes (manual) | No |
-| `PillarSwapMove` | `<S, V>` | Vec left/right indices, getter/setter fn ptrs | Yes (manual) | No |
-| `RuinMove` | `<S, V>` | SmallVec entity_indices, getter/setter fn ptrs | Yes (manual) | No |
-| `RuinRecreateMove` | `<S>` | SmallVec ruined entities, bounded recreate value source, getter/setter fn ptrs | Yes (manual) | No |
-| `CompoundScalarMove` | `<S>` | provider/group reason plus N scalar edits with per-edit descriptor/entity/variable/from/to scope | Yes (manual) | No |
-| `ConflictRepairMove` | `<S>` | thin wrapper over `CompoundScalarMove` for provider repair edits | Yes (manual) | No |
-| `RuntimeCompoundMove` | `<S>` | frozen provider kind, arena-owned reason ID, and unified static/dynamic runtime scalar edits | Yes (manual) | No |
-| `DynamicScalarChangeMove` | `<S>` | descriptor-resolved dynamic scalar slot, entity index, optional usize destination | Yes (manual) | No |
-| `DynamicScalarSwapMove` | `<S>` | descriptor-resolved dynamic scalar slot, two entity indices | Yes (manual) | No |
-| `DynamicListChangeMove` | `<S>` | descriptor-resolved dynamic list slot, source entity/position, destination entity/pre-removal position | Yes (manual) | No |
-| `KOptMove` | `<S, V>` | [CutPoint; 5], KOptReconnection, fn ptrs | Yes (manual) | No |
-| `CompositeMove` | `<S, M1, M2>` | index_1, index_2, PhantomData | Yes | Yes |
-| `SequentialCompositeMove` | `<S, M>` | owned two-move arena plus cached descriptor/entity/tabu metadata | Yes (M: Clone) | No |
-| `ListMultiSwapMove` | `<S, V>` | SmallVec independent `(entity, first, second)` intra-list swaps, fn ptrs | Yes (manual) | No |
-| `ListPermuteMove` | `<S, V>` | contiguous intra-list window plus explicit permutation; undo is the inverse permutation indexes, values never clone | Yes (manual) | No |
-
-`CompoundScalarEdit<S>` is the crate-root edit payload used by
-`CompoundScalarMove<S>` and can be built with `static_edit()` or
-`dynamic_edit()`, then optionally gated with `with_value_is_legal()`.
-`COMPOUND_SCALAR_VARIABLE` is the stable public variable label
-`"compound_scalar"` used when a compound move spans several scalar variables.
-`RuntimeCompoundMoveKind` distinguishes grouped, conflict-repair, and compound
-conflict-repair provider candidates; runtime compound move construction itself
-remains owned by the compiled provider cursor.
-
-### Move Union Enums
-
-**`ScalarMoveUnion<S, V>`** — Scalar variable union:
-- `Change(ChangeMove<S, V>)`, `Swap(SwapMove<S, V>)`, `PillarChange(PillarChangeMove<S, V>)`, `PillarSwap(PillarSwapMove<S, V>)`, `RuinRecreate(RuinRecreateMove<S>)`, `ConflictRepair(ConflictRepairMove<S>)`, `CompoundScalar(CompoundScalarMove<S>)`, and `RuntimeCompound(RuntimeCompoundMove<S>)`
-
-**`ListMoveUnion<S, V>`** — List variable union:
-- `ListChange`, `ListSwap`, `ListMultiSwap`, `ListPermute`, `SublistChange`, `SublistSwap`, `ListReverse`, `KOpt`, and `ListRuin`
-
-`ScalarMoveUnionUndo<S, V>` and `ListMoveUnionUndo<S, V>` mirror their move
-union variants and keep speculative rollback statically typed.
-
-### Move Supporting Types
-
-**`MoveArena<M>`** — Reusable-capacity arena. `new()`, `with_capacity()`, `push()`, `get()`, `iter()`, `iter_mut()`, `take(index)`, `reset()`, `extend()`, `shuffle()`, `len()`, `is_empty()`, and `capacity()`. `take()` transfers exactly one selected slot per reset cycle; `reset()` drops the remaining live slots while retaining allocated capacity and panics are used to reject double-take.
-
-**`MoveCursor<S, M>`** — cursor contract pulling against the caller's live solution: `next_candidate(solution)`, `next_candidate_with_control(solution, should_stop)`, `candidate(id)`, `take_candidate(id)`, `release_candidate(id)`, `apply_owned_candidate(id)`, `next_owned_candidate(solution)`, `next_owned_candidate_matching(solution, predicate)`, `next_owned_candidate_inspected(solution, inspect)`, and optional `selector_index(id)`. Consumers may stop after any candidate; dropping a cursor releases retained candidates and unconsumed source state without exhausting the tail. Implementations must not require full enumeration for cleanup or callbacks.
-
-**`MoveCandidateRef<'a, S, M>`** — borrowable move view: either `Borrowed(&M)` or `Sequential(SequentialCompositeMoveRef<'a, S, M>)`.
-
-Pinning is enforced when solver phases evaluate candidates: local search and scalar construction reject any move editing a pinned entity, including compound and sequential children. List construction and ruin/recreate exclude pinned owners before insertion, removal, route replacement, or destination scoring. Exhaustive search advances past pinned rows without clearing their input values. A pinned required row left unassigned still fails the compiled mandatory-completion gate; optional unassigned rows remain valid. Directly applying a public move outside a solver phase does not perform this phase-level pin check.
-
-**`MoveStreamContext`** — `{ step_index, step_seed, accepted_count_limit, selection_order }`. Methods: `new()`, `with_selection_order()`, `selection_order()`, `step_index()`, `step_seed()`, `accepted_count_limit()`, `start_offset()`, `stride()`, and `offset_seed()`.
-
-**`CutPoint`** — `{ entity_index: usize, position: usize }`. Derives: Clone, Copy, Debug, Default, PartialEq, Eq.
-
-**`KOptReconnection`** — `{ segment_order: [u8; 6], reverse_mask: u8, len: u8 }`. Derives: Clone, Copy, Debug, PartialEq, Eq.
-
-## Selector Types
-
-### Entity Selectors
-
-| Selector | Note |
-|----------|------|
-| `FromSolutionEntitySelector` | Iterates every entity index from one descriptor; constructed with `new(descriptor_index)` |
-| `AllEntitiesSelector` | Iterates all entities across all descriptors |
-| `NearbyEntitySelector<S, M, ES>` | Distance-pruned entity selection |
-| `MimicRecordingEntitySelector<S, ES>` | Records selections for replay |
-| `MimicReplayingEntitySelector` | Replays recorded selections |
-
-### Value Selectors
-
-| Selector | Note |
-|----------|------|
-| `StaticValueSelector<S, V>` | Fixed value list |
-| `FromSolutionValueSelector<S, V>` | Extracts values from solution via `fn(&S) -> Vec<V>` |
-| `PerEntityValueSelector<S, V>` | Extracts owned per-entity values via `fn(&S, usize) -> Vec<V>` |
-| `PerEntitySliceValueSelector<S, V>` | Extracts copyable per-entity values via `for<'a> fn(&'a S, usize) -> &'a [V]` |
-| `RangeValueSelector<S>` | Generates 0..count_fn(solution) |
-
-### Move Selectors
-
-| Selector | Produces | Note |
-|----------|----------|------|
-| `ChangeMoveSelector<S, V, ES, VS>` | `ChangeMove<S, V>` | Scalar variable change; `.with_allows_unassigned(true)` adds exactly one assigned-entity `Some(v) -> None` move |
-| `SwapMoveSelector<S, V, LES, RES>` | `SwapMove<S, V>` | Scalar variable swap |
-| `ScalarChangeMoveSelector<S, V, ES, VS>` | `ScalarMoveUnion<S, V>` | Wraps ChangeMoveSelector |
-| `ScalarSwapMoveSelector<S, V, LES, RES>` | `ScalarMoveUnion<S, V>` | Wraps SwapMoveSelector |
-| `DynamicScalarChangeMoveSelector<S>` | `DynamicScalarChangeMove<S>` | Explicit dynamic scalar change selector over descriptor-resolved dynamic slots |
-| `DynamicScalarNearbyChangeMoveSelector<S>` | `DynamicScalarChangeMove<S>` | Fallible explicit dynamic nearby change selector. It requires declared nearby-value metadata before any callback pull; source access is lazy per row with bounded stable top-k. An empty declared row yields no replacement values but retains its independent optional unassignment candidate. |
-| `DynamicScalarNearbySwapMoveSelector<S>` | `DynamicScalarSwapMove<S>` | Fallible explicit dynamic nearby swap selector. It requires declared nearby-entity metadata before any callback pull; source access is lazy per left row with bounded stable top-k and preserves directional source entries. |
-| `DynamicListChangeMoveSelector<S>` | `DynamicListChangeMove<S>` | Explicit unrestricted dynamic list-change selector over descriptor-resolved dynamic slots; includes intra-list tail destinations |
-| `ListChangeMoveSelector<S, V, ES>` | `ListChangeMove<S, V>` | List element relocation; canonical order, exact `size()` |
-| `ListSwapMoveSelector<S, V, ES>` | `ListSwapMove<S, V>` | List element swap; canonical pair order, exact `size()` |
-| `ListPermuteMoveSelector<S, V, ES>` | `ListPermuteMove<S, V>` | Contiguous intra-list window permutation |
-| `ListPrecedenceMoveSelector<S, V, ES>` | `ListMoveUnion<S, V>` | Critical-path precedence repair over list variables with precedence hooks |
-| `ListReverseMoveSelector<S, V, ES>` | `ListReverseMove<S, V>` | Segment reversal (2-opt) |
-| `ListRuinMoveSelector<S, V>` | `ListRuinMove<S, V>` | LNS element removal |
-| `SublistChangeMoveSelector<S, V, ES>` | `SublistChangeMove<S, V>` | Segment relocation (Or-opt); canonical order, exact `size()` |
-| `SublistSwapMoveSelector<S, V, ES>` | `SublistSwapMove<S, V>` | Segment swap; canonical pair order, exact `size()` |
-| `KOptMoveSelector<S, V, ES>` | `KOptMove<S, V>` | K-opt tour optimization with bounded cut-metadata windows and lazy per-pattern move construction |
-| `NearbyKOptMoveSelector<S, V, D, ES>` | `KOptMove<S, V>` | Distance-pruned k-opt |
-| `NearbyListChangeMoveSelector<S, V, D, ES>` | `ListChangeMove<S, V>` | Distance-pruned relocation with bounded stable top-k tie ordering |
-| `NearbyListSwapMoveSelector<S, V, D, ES>` | `ListSwapMove<S, V>` | Distance-pruned swap with bounded stable top-k and canonical pair ordering |
-| `RuinMoveSelector<S, V>` | `RuinMove<S, V>` | Scalar variable LNS using `RuinVariableAccess<S, V>` |
-
-Configured conflict-repair leaves do not expose a parallel public selector
-type. The runtime compiler binds them to the shared provider cursor described
-below and emits `ConflictRepairMove`, `CompoundScalarMove`, or
-`RuntimeCompoundMove` payloads according to the registered provider kind.
-
-The public concrete cursor carriers returned by those selector GATs are
-`ChangeMoveCursor`, `SwapMoveCursor`, `DynamicScalarChangeMoveCursor`,
-`DynamicScalarNearbyChangeMoveCursor`, `DynamicScalarNearbySwapMoveCursor`,
-`DynamicListChangeMoveCursor`, `ListChangeMoveCursor`, `ListSwapMoveCursor`,
-`ListPermuteMoveCursor`, `ListPrecedenceMoveCursor`, `ListReverseMoveCursor`,
-`ListRuinMoveCursor`, `SublistChangeMoveCursor`, `SublistSwapMoveCursor`,
-`KOptMoveCursor`, `NearbyKOptMoveCursor`, `NearbyListChangeMoveCursor`,
-`NearbyListSwapMoveCursor`, `RuinMoveCursor`, and
-`RuntimeScalarFacadeCursor`. They are selector return types, not parallel eager
-generation APIs.
-
-List-selector lifting is direct union assembly. The canonical list builder opens
-concrete list leaves straight into `ListMoveUnion<S, V>` at leaf-open time, so
-cartesian-safe decorators stay same-type and cursor-native instead of relying
-on a generic type-lifting map adapter.
-
-### Selector Decorators
-
-| Decorator | Type Params | Note |
-|-----------|-------------|------|
-| `VecUnionSelector<S, M, Leaf>` | Any number of same-type selectors | Concrete child dispatch with `Sequential`, `RoundRobin`, `RotatingRoundRobin`, `Random`, or `StratifiedRandom`; supports equal, fixed, or candidate-count weighting and stable selector-index telemetry |
-| `CartesianProductArena<S, M1, M2>` | Two move types | Cross-product iteration arena |
-| `CartesianProductSelector<S, M, Left, Right>` | Two selectors plus a wrapping function | Preview-state sequential composition with borrowable candidates, selected-winner materialization, optional hard-improvement gating, and pure upper-bound `size()` |
-| `FilteringMoveSelector<S, M, Inner>` | Predicate `for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool` | Filters moves without reopening cartesian children |
-
-Their concrete public cursor types are `VecUnionMoveCursor`,
-`FilteringMoveCursor`, and `MappedMoveCursor`; mapping is a cursor carrier used
-by typed composition, not a separately configured selector family.
-
-Configured leaf `SelectionOrder` is implemented by the compiled selector
-pipeline rather than exported shuffling/sorting/probability wrapper types.
-
-Cartesian preview state uses `SequentialPreviewDirector`: it owns a cloned working solution for right-child selector generation, updates shadows for previewed left moves, borrows immutable descriptor and constraint metadata from the source director, and intentionally panics on `calculate_score()`.
-
-Conflict repair constraint keys resolve against scoring metadata by identity:
-package-qualified constraints must be configured with `ConstraintRef::full_name()`
-strings such as `package/name`, package-less constraints use their short name,
-and provider registration keys must match the configured key exactly.
-
-### Descriptor Scalar Selectors
-
-`build_descriptor_move_selector(config, descriptor, random_seed) ->
-Result<DescriptorSelector<S>, RuntimeBuildError>` builds the public
-descriptor-backed scalar selector tree. It returns
-`RuntimeBuildError::Declaration` instead of panicking for selectors this tree
-does not build (list, limited, grouped scalar, conflict-repair and nested
-cartesian selectors belong to the canonical runtime), a cartesian product
-without exactly two children or with a ruin/recreate left child, a target that
-matches no scalar variable, invalid ruin bounds, and a missing nearby or
-candidate hook. `descriptor_has_bindings()`
-reports whether a `SolutionDescriptor` contains scalar bindings before a caller
-chooses that explicit boundary. `DescriptorSelector<S>` is the outer
-`VecUnionSelector` alias and `DescriptorFlatSelector<S>` is the flat leaf-union
-alias.
-
-`DescriptorLeafSelector<S>` variants are `Change`, `Swap`, `NearbyChange`,
-`NearbySwap`, `PillarChange`, `PillarSwap`, and `RuinRecreate`;
-`DescriptorSelectorNode<S>` adds `Leaf` and two-child `Cartesian` composition.
-The corresponding concrete selectors are `DescriptorChangeMoveSelector`,
-`DescriptorSwapMoveSelector`, `DescriptorNearbyChangeMoveSelector`,
-`DescriptorNearbySwapMoveSelector`, `DescriptorPillarChangeMoveSelector`,
-`DescriptorPillarSwapMoveSelector`, and
-`DescriptorRuinRecreateMoveSelector`. Their public GAT carriers are
-`DescriptorChangeMoveCursor`, `DescriptorSwapMoveCursor`,
-`DescriptorPillarChangeMoveCursor`, `DescriptorPillarSwapMoveCursor`, and
-`DescriptorRuinRecreateMoveCursor`, composed by `DescriptorLeafCursor` and
-`DescriptorSelectorCursor`. Nearby change/swap deliberately reuse the change
-and swap cursor shapes after bounded nearby filtering.
-
-`DescriptorMoveUnionUndo<S>` mirrors the five variants of
-`DescriptorMoveUnion<S>` and is the typed speculative-rollback payload.
-The union and its five concrete move types do not implement `Clone`: cursors
-retain candidates by stable ID, lend them for evaluation, and transfer the
-selected winner by ownership. These
-descriptor selectors cover scalar change/swap, nearby, pillar, ruin/recreate,
-union, and cartesian configuration only; list, grouped-scalar, conflict-repair,
-and limited-neighborhood compilation remains in the canonical runtime graph.
-
-### Selector Supporting Types
-
-**`EntityReference`** — `{ descriptor_index: usize, entity_index: usize }`.
-
-**`Pillar`** — `{ entities: Vec<EntityReference> }`. Methods: `size()`, `is_empty()`, `first()`, `iter()`. Canonical public pillar semantics exclude unassigned entities and singleton pillars; entity order within a pillar is deterministic by `entity_index`.
-
-**`SubPillarConfig`** — `{ enabled: bool, minimum_size: usize, maximum_size: usize }`. Methods: `none()`, `all()`, `with_minimum_size()`, `with_maximum_size()`.
-
-**`SelectionOrder`** — Re-exported from `solverforge-config`. Enum: `Original`, `Random`, `Shuffled`, `Sorted`, `Probabilistic`. Methods: `is_random()`, `requires_complete_stream()`.
-
-**`NearbySelectionConfig`** — Builder: `new()`, `with_distribution_type()`,
-`with_max_nearby_size()`, `with_min_distance()`. Its
-`NearbyDistributionType` is `Linear` (default), `Parabolic`, or `Block`.
-
-**`KOptConfig`** — `{ k: usize, min_segment_len: usize, limited_patterns: bool }`. Methods: `new(k)`, `with_min_segment_len()`, `with_limited_patterns()`.
-
-`THREE_OPT_RECONNECTIONS` is the seven-pattern built-in 3-opt table;
-`enumerate_reconnections(k)` generates the supported reconnection patterns for
-other `k` values. `MAX_LIST_PERMUTE_WINDOW_SIZE` is `8`, the fixed public
-window bound used by `ListPermuteMove`.
-
-**`RuinVariableAccess<S, V>`** — `selector/ruin.rs`. Scalar-variable access bundle for `RuinMoveSelector::new(min, max, access)`: entity count, getter, setter, variable index, variable name, and descriptor index.
-
-**Scalar neighborhood facade types** — `ScalarNeighborhoodKind` enumerates
-`Change`, `Swap`, `NearbyChange`, `NearbySwap`, `PillarChange`, `PillarSwap`,
-and `RuinRecreate`. `ScalarNeighborhoodBindingError` is the shared fallible
-leaf-construction error: `ConfigFamilyMismatch`, `MissingCapability`, or
-`InvalidRuinBounds`. Direct static/dynamic facade constructors and compiler
-lowering use this same validation surface.
-
-**`VariableSlot<S, V, DM, IDM>` / `RuntimeModel<S, V, DM, IDM>`** —
-`builder/context.rs`. `VariableSlot` variants are `Scalar`, `List`,
-`DynamicScalar`, and `DynamicList`. `RuntimeModel::new(variables)` builds the
-model published by macro/runtime assembly or binding code. Public builder
-methods: `with_scalar_groups()`, `with_conflict_repairs()`,
-`with_runtime_provider_registry()`, `with_candidate_metrics()`, and
-`resolve_dynamic_descriptor_indexes(&SolutionDescriptor)`. Dynamic selector
-compilation requires descriptor-resolved dynamic slots and returns a declaration
-error with the slot diagnostic when a model contains unresolved dynamic slots.
-Query methods
-include `variables()`, `scalar_groups()`, `conflict_repairs()`,
-`runtime_provider_registry()`, `candidate_metrics()`, `is_empty()`,
-`has_scalar_variables()`, `has_list_variables()`, `has_dynamic_variables()`,
-`has_dynamic_list_variables()`, `is_scalar_only()`, `dynamic_scalar_variables()`,
-`dynamic_list_variables()`, and the scalar/list/grouped/repair capability
-helpers used by runtime default construction and selector routing.
-
-**`ListVariableSlot<S, V, DM, IDM>`** — typed list-variable access, stable
-element-source identity, distance meters, route/savings hooks, owner
-restrictions, construction ordering, and precedence metadata. Builder methods
-are `with_element_owner_fn()`, `with_construction_element_order_key()`, and
-`with_precedence_hooks()`; capability queries include `supports_clarke_wright`,
-`supports_k_opt`, `supports_ruin`, and `supports_precedence_moves`.
-`usize_element_source_key(&S, &usize) -> usize` is the canonical stable-key
-function used by generated `usize` list models.
-
-**Runtime candidate metrics** — `RuntimeCandidateMetric<S>` is the explicit
-object-safe host boundary used only by configured `Sorted` and
-`Probabilistic` leaf ordering. `measure(&S, &CandidateTraceIdentity) -> f64`
-receives the same logical identity recorded by candidate tracing.
-`RuntimeCandidateMetricBinding::new(name, Arc<dyn RuntimeCandidateMetric<S>>)`
-rejects an empty name and exposes `name()` / `measure()`.
-`RuntimeCandidateMetricRegistry::new(bindings)` rejects duplicate names and
-`get(name)` resolves an immutable binding. All three types are crate-root
-re-exports; the registry is attached with `RuntimeModel::with_candidate_metrics`.
-
-**Runtime scalar access** — `builder::context` publicly exposes
-`RuntimeScalarSlotId`, `ScalarAccessCapability`, `RuntimeScalarSlot<S>`, and
-`RuntimeScalarEdit<S>`. A slot is `Static(ScalarVariableSlot<S>)` or
-`Dynamic(DynamicScalarVariableSlot<S>)`; its public surface is `id()`,
-`matches_target()`, `has_capability()`, and `is_dynamic()`. An edit owns the
-slot plus public `entity_index` and `to_value` fields and exposes `id()`.
-
-**`ScalarVariableSlot<S>`** — `builder/context.rs`. Canonical scalar-variable metadata used by the monomorphized runtime. The compact scalar `variable_index` is the generated getter/setter dispatch index; hook attachment, descriptor ordering, and user-facing target matching use descriptor index plus variable name, with the canonical entity type name kept for target matching and diagnostics. Getter, setter, and entity-local value sources receive the scalar variable index so selector hot paths do not need descriptor-erased access. In addition to value-source hooks it carries optional nearby hooks and scalar construction order-key hooks via builder-style methods:
-- `with_candidate_values(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for bounded scalar value candidates; a search hint consumed by construction, change, pillar change, and ruin-recreate. Legality (`values_for_entity`, `value_is_legal`, and swap-family checks) reads only the `ValueSource`, so per-entity restrictions belong in `ValueSource::EntitySlice`
-- `with_nearby_value_candidates(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for nearby scalar change
-- `with_nearby_entity_candidates(for<'a> fn(&'a S, usize, usize) -> &'a [usize])` for nearby scalar swap
-- `with_nearby_value_distance_meter(fn(&S, usize, usize, usize) -> Option<f64>)` to rank/filter nearby value candidates
-- `with_nearby_entity_distance_meter(fn(&S, usize, usize, usize) -> Option<f64>)` to rank/filter nearby entity candidates
-- `with_construction_entity_order_key(fn(&S, usize, usize) -> Option<i64>)` for decreasing or queue-style entity ordering
-- `with_construction_value_order_key(fn(&S, usize, usize, usize) -> Option<i64>)` for weakest-fit, strongest-fit, or queue-style value ordering
-- `with_search_entity_order_key(fn(&S, usize, usize) -> Option<i64>)` for guided local-search entity ordering (lower key tried first, seeded-random tie-break)
-- `with_search_value_order_key(fn(&S, usize, usize, usize) -> Option<i64>)` for guided local-search value ordering
-
-The change and swap neighborhood cursors consume the search order keys when
-declared; variables without them enumerate the seeded-random candidate order
-exactly as before.
-
-The public function-pointer aliases used by this slot are `ScalarGetter<S>`,
-`ScalarSetter<S>`, `ScalarCandidateValues<S>`,
-`NearbyValueDistanceMeter<S>`, `NearbyEntityDistanceMeter<S>`,
-`ConstructionEntityOrderKey<S>`, and `ConstructionValueOrderKey<S>`.
-
-**`ValueSource<S>`** — Scalar source enum with `Empty`, `CountableRange { from,
-to }`, `SolutionCount { count_fn, provider_index }`, and `EntitySlice {
-values_for_entity }` variants.
-
-Runtime scalar construction resolves one canonical binding set per variable by
-overlaying these runtime hooks onto descriptor-discovered scalar bindings by
-descriptor index and variable name. Validation and execution use that
-same resolved binding set. Construction order-key hooks are construction-only:
-ordinary local-search change, pillar, and ruin/recreate selectors use canonical
-bounded candidate order and do not reorder candidates from
-`construction_value_order_key`.
-
-**`ScalarGroup<S>` / `ScalarGroupBinding<S>` / `ScalarGroupMemberBinding<S>`** — `planning/scalar/*` and
-`builder/context.rs`. `ScalarGroup<S>` is the public model-owned declaration
-used by grouped construction and grouped local-search selectors. It declares
-real scalar targets through `ScalarTarget<S>` and a candidate provider returning
-`ScalarCandidate<S>` values. Macro/runtime assembly binds those public targets
-to internal `ScalarGroupBinding<S>` values before phase construction. A candidate is
-applied as one `CompoundScalarMove<S>` after framework legality, duplicate, and
-not-doable checks. Grouped construction is opt-in by `ConstructionHeuristicConfig
-{ group_name }`; without a group name scalar construction remains single-slot.
-`ScalarGroupLimits` separates `value_candidate_limit`,
-`group_candidate_limit`, `max_moves_per_step`, `max_augmenting_depth`, and
-`max_rematch_size`. The latter two bound assignment augmenting-path depth and
-sequence/position rematch size through model-owned `with_limits`; stock defaults
-are depth 3 and rematch size 4, with rematch size clamped to at least 2.
-Grouped construction uses
-config values first and falls back to model-owned `ScalarGroup::with_limits`
-values; it passes effective limits to providers or stock assignment candidate
-generation and applies `group_candidate_limit` after framework normalization.
-Grouped local search uses config values first, falls back to model-owned
-`value_candidate_limit` and `max_moves_per_step`, and does not apply
-construction-only `group_candidate_limit`.
-`ScalarCandidate` exposes construction metadata with
-`with_construction_slot_key(usize)`,
-`with_construction_entity_order_key(i64)`, and
-`with_construction_value_order_key(i64)`. Grouped construction uses an explicit
-slot key when supplied; otherwise it keys frontier completion by the exact
-sorted set of scalar target slots touched by the candidate.
-
-`ScalarGroupBindingKind<S>` is `Candidates { candidate_provider }` or
-`Assignment(ScalarAssignmentBinding<S>)`. `bind_scalar_groups(groups, slots)`
-is the public typed binding helper used by macro/runtime assembly; it resolves
-public `ScalarTarget` declarations against the supplied scalar slots.
-
-`ScalarAssignmentRule<S>` is the public
-`fn(&S, left_entity, left_value, right_entity, right_value) -> bool` adjacent
-assignment-edge check used by assignment-backed groups.
-
-`RepairLimits` exposes `max_matches_per_step`, `max_repairs_per_match`, and
-`max_moves_per_step`. `RepairProvider<S>` is
-`fn(&S, RepairLimits) -> Vec<RepairCandidate<S>>`; a
-`ConflictRepair<S>` binds that provider to one scoring constraint name.
-`ConflictRepairScalarEdit<S>` is the public static edit carrier accepted by
-`ConflictRepairMove::new(reason, edits)`.
-
-**Runtime compound-provider boundary** — `builder/context/provider.rs`.
-`RuntimeProviderRegistry<S>` freezes schema-order provider declarations for the
-compiled provider cursor. Native Rust `ScalarCandidateProvider<S>` and
-`RepairProvider<S>` declarations remain function pointers: their original
-`ScalarCandidate<S>` / `RepairCandidate<S>` vectors and typed `ScalarEdit<S>`
-values pass directly through monomorphized normalization. Host integrations use
-the separate object-safe `RuntimeHostCompoundProvider<S>` contract and
-`RawProviderCandidate` / `RawProviderEdit` name payloads; structured resolution
-failures cross `RuntimeHostProviderErrorBoundary` only on that host path.
-Static and host sources share scheduling, legality, deduplication, reason-ID,
-candidate ownership, and tabu semantics without adapting static Rust providers
-through the host callback representation.
-
-The module-level public contract also includes `RawProviderEdit`,
-`RawProviderCandidate`, `ProviderReasonId`, `ProviderReasonArena`,
-`RuntimeProviderLimits`, `RuntimeProviderHandle`, `ProviderResolutionError`,
-`RuntimeScalarGroupProviderBinding`, `RuntimeConflictRepairProviderBinding`,
-`StaticScalarGroupProviderBinding`, `StaticConflictRepairProviderBinding`,
-`ResolvedProviderEdit`, `ResolvedProviderCandidate`,
-`ProviderNormalizationState`, and `RuntimeProviderSlotResolver`. Only host
-bindings contain `Arc<dyn RuntimeHostCompoundProvider<S>>`; static bindings
-retain concrete function pointers and typed edits.
-
-**Assignment-backed `ScalarGroup<S>` / `ScalarAssignmentBinding<S>`** —
-`planning/scalar/assignment.rs`, `planning/scalar/group.rs`, and
-`builder/context/scalar/group.rs`.
-`ScalarGroup::assignment` is the stock nullable scalar assignment declaration
-over one scalar target. It declares required-entity, capacity-key,
-assignment-rule, position-key, sequence-key, entity-order, value-order, and
-limit hooks. Assignment rules are adjacent-edge checks over post-edit
-assignment pairs; tentative assignment topology stays internal to grouped
-assignment state.
-Macro/runtime assembly binds public `ScalarGroup<S>` values to internal scalar
-group bindings before phase or selector construction. Assignment-backed
-construction generates stock grouped candidates and uses the same grouped
-selection engine as candidate-backed groups.
-
-**Dynamic assignment group boundary** — `builder/context/scalar/group.rs` and
-`solverforge-core::domain::DynamicScalarAssignmentMetadata<S>`. Dynamic
-assignment registration is declarative and group-bound:
-`ScalarGroupBinding::dynamic_assignment(...)` binds one resolved dynamic scalar
-slot and one metadata object to one group. The metadata declares required,
-capacity, ordering, sequence, and assignment-rule behavior; SolverForge owns
-all assignment candidate generation, construction, selected-move ownership,
-and grouped local search.
-
-`GroupedScalarSelector` remains an implementation type required by the public
-neighborhood graph, but direct construction is crate-private. Configuration is
-the only supported selector entrypoint. Its `Cursor<'a>` borrows the selector's
-immutable group binding; activation and candidate pulls use the solution lent
-to `MoveCursor`, without retaining a solution borrow across evaluation.
-Assignment stream cursors, move
-options, and retained streaming commits are internal implementation details;
-there is no dynamic phase, TLS lookup, direct cursor, or selector escape hatch.
-
-**`IntraDistanceAdapter<T>`** — `builder/context.rs`. Newtype wrapping `T: CrossEntityDistanceMeter<S>`. Implements `ListPositionDistanceMeter<S>` by forwarding to `T::distance` with `src_entity_idx == dst_entity_idx`.
-
-**`MimicRecorder`** — Shared state for recording/replaying entity selections. Methods: `new(id)`, `get_has_next()`, `get_recorded_entity()`, `reset()`.
-
-## Phase Types
-
-### Construction Heuristic
-
-**`ConstructionHeuristicPhase<S, M, P, Fo>`** — Bounds: `P: EntityPlacer<S, M>`, `Fo: ConstructionForager<S, M>`. The phase opens one placer cursor and requests one live placement at each step; descriptor and grouped placers own any required live-refresh behavior inside that single cursor path. Every construction step observes the configured solver and phase limits, including required assignment work. Forager step selection is dispatched through the concrete `Fo` type; stock foragers provide prompt/control-aware selection without `dyn Any` routing.
-
-Long-running construction uses the shared metadata-only one-second phase pulse.
-Completed placement boundaries report it automatically, while bounded inner
-candidate loops also poll it so one expensive placement cannot create a blind
-period. Pulse events attach phase-local telemetry to the cumulative snapshot;
-they do not clone or publish a solution and do not alter the shared solve clock.
-
-Runtime routing is capability-driven:
-- scalar-only `FirstFit` and `CheapestInsertion` use the descriptor boundary
-- named grouped scalar construction uses explicit `ScalarGroup` declarations bound to runtime scalar slots and applies all candidate edits atomically
-- assignment-backed `ScalarGroup` declarations run hard-first required
-  assignment allocation before optional slots; omitted-phase defaults use
-  grouped `FirstFit` to commit the dense required allocation before comparing
-  alternatives, then grouped `CheapestInsertion` for optional assignments
-- explicit scalar construction targets that name assignment-owned scalar
-  variables must use the owning `group_name`; ungrouped construction for those
-  targets is rejected before phase execution
-- scalar-only heuristics validate required scalar order-key hooks from the resolved descriptor-plus-runtime binding set before phase build
-- list-only route heuristics validate their required route-local and savings hook capabilities before phase build
-- `element_owner_fn` is interpreted through one crate-private owner-restriction helper: no hook or hook-returned `None` leaves an element unrestricted, valid `Some(owner)` fixes the element to that owner, and invalid owners produce no legal placement
-- generic mixed construction stays in the canonical engine
-
-Grouped scalar construction is slot-first: candidates are normalized into exact
-group slots, the next grouped slot is selected, and then a candidate inside
-that slot is chosen. Supported grouped scalar heuristics are `FirstFit`,
-`FirstFitDecreasing`, `CheapestInsertion`, `WeakestFit`,
-`WeakestFitDecreasing`, `StrongestFit`, and `StrongestFitDecreasing`. The
-decreasing variants require construction entity-order metadata; weakest and
-strongest variants require construction value-order metadata. Candidate-backed
-groups provide this metadata on `ScalarCandidate`; assignment-backed groups
-provide it through `ScalarGroup::with_entity_order` and
-`ScalarGroup::with_value_order`. Queue-based construction heuristics are
-rejected when `group_name` is set because they do not yet have a faithful
-grouped queue contract.
-
-Grouped scalar local-search selectors emit `CompoundScalarMove` candidates.
-When `GroupedScalarMoveSelectorConfig.require_hard_improvement` is true, those
-candidates carry the shared hard-improvement requirement enforced by local
-search, VND, and cartesian composition.
-
-Assignment-backed scalar construction generates compound scalar moves from a
-named scalar group. Required entities are handled before optional entities. A
-required assignment pass builds one hard-first allocation candidate from
-independent direct assignments for dense multi-slot coverage. Augmenting
-rematches are deferred to the following required cursor, where their
-multi-entity edits can be retained. Single-slot required construction still
-exposes bounded candidates to the grouped selector so `cheapest_insertion` and
-weakest/strongest variants preserve their scoring and value-order semantics.
-Required assignments may displace optional occupants, move required blockers,
-and use assignment-rule legality through the shared assignment state. With
-`construction_obligation = assign_when_candidate_exists`, required assignment
-construction may commit a doable candidate even when the unassigned baseline
-scores better. Optional assignments remain score-improving only.
-Keeping an optional assignment unassigned completes its anchor decision and
-continues the pass. Completed optional roots are skipped before reading candidate
-domains or generating moves, so they cannot exhaust later rows' candidate budget.
-Assigned occupants remain available for required augmenting rematches.
-
-Assignment-backed grouped scalar selectors emit `CompoundScalarMove`
-candidates for unassigned required entities, capacity conflicts, bounded
-same-sequence rematches, and bounded reassignments. The selector uses
-`GroupedScalarMoveSelectorConfig` values first, falls back to model-owned
-`ScalarGroup::with_limits` values for `max_moves_per_step` and
-`value_candidate_limit`, and carries `require_hard_improvement` from selector
-config.
-
-Construction foragers:
-
-| Forager | Strategy |
-|---------|----------|
-| `FirstFitForager<S, M>` | First doable move |
-| `BestFitForager<S, M>` | Best scoring move |
-| `FirstFeasibleForager<S, M>` | First feasible move |
-| `WeakestFitForager<S, M>` | Lowest live strength on the current working solution; when optional keep-current legality is enabled, keeps `None` unless the selected move strictly beats the current legal baseline |
-| `StrongestFitForager<S, M>` | Highest live strength on the current working solution; when optional keep-current legality is enabled, keeps `None` unless the selected move strictly beats the current legal baseline |
-
-Entity placers:
-
-| Placer | Note |
-|--------|------|
-| `QueuedEntityPlacer<S, V, ES, VS>` | Iterates entities, generates ChangeMove per value, and can mark keep-current as legal for optional variables via `.with_allows_unassigned(true)` so weakest-fit and strongest-fit may legally keep `None` |
-| `SortedEntityPlacer<S, M, Inner>` | Wraps placer, sorts entities by comparator |
-
-**`Placement<S, M, C>`** — one construction target plus a concrete cursor `C: MoveCursor<S, M>`. `entity_ref` remains public; methods expose `candidates()`, `candidates_mut()`, `with_keep_current_legal()`, `keep_current_legal()`, and ownership transfer through `take_move(CandidateId)`. It contains no placement-wide move vector.
-
-`QueuedEntityPlacerCursor`, `QueuedPlacementCandidateCursor`, and
-`SortedEntityPlacerCursor` are the public associated cursor carriers returned
-by the stock placers. They keep one current placement/candidate stream and do
-not expose an eager placement collection.
-
-### Local Search
-
-**`LocalSearchPhase<S, M, MS, A, Fo>`** — Bounds: `MS: MoveSelector<S, M>`, `A: Acceptor<S>`, `Fo: LocalSearchForager<S, M>`.
-
-Local search uses the same shared one-second phase pulse. Completed step
-boundaries report it automatically, and bounded inner candidate scans poll it
-for prompt progress and interruption; publication is not gated on accumulating
-a fixed-size candidate batch.
-
-**Parallel evaluation.** Acceptor-forager local search in the compiled runtime
-can evaluate candidates on several cores within one solve. Each step produces a
-window of candidates serially on the main director, in canonical order;
-evaluates the window on the main director plus `n - 1` persistent evaluator
-replicas (one allocation-free fork-join per window, slots handed out through
-one atomic counter); and consumes the results in candidate order through the unchanged
-acceptor and forager. The selected move is applied to every replica by borrow
-before the owned commit, and each replica must reach the committed step score.
-Replicas are forked from the working solution through
-`Director::fork_replica`, again whenever the working solution was written
-outside the loop's own commits. The solve entry points build the main
-`ScoreDirector` with a `ReplicaDescriptor` that borrows the solve's
-descriptor, so replicas share it; only the working solution is copied.
-Contract:
-
-- The evaluator count selects the step loop once per phase. One evaluator
-  runs the sequential loop, a separate monomorphized loop with no pool,
-  window, or replica state; two or more run the parallel window loop. Both
-  take the same candidates, checks, order, and decisions.
-- Windows aim at the number of candidates the previous step consumed: they
-  cover that target in windows of at most 32, then continue one candidate per
-  evaluator, so speculative work past the decision point stays near one
-  window of evaluators when step lengths are stable. Candidates are always
-  consumed in canonical order, so selectors that keep no stream state across
-  steps reach the sequential trajectory for every evaluator count. Ruin
-  selectors (cross-step RNG streams) and lazily activated providers see the
-  speculative pulls, so their trajectory depends on the evaluator count; it is
-  reproducible for a given count.
-- `moves_evaluated`, `score_calculations`, and the move-count and
-  score-calculation limits count only consumed candidates; the window never
-  exceeds the remaining in-phase move or score-calculation budget.
-- Candidates evaluated ahead of the decision point and then discarded are
-  counted in `moves_speculative` and traced as `DiscardedSpeculative`.
-- `LocalSearchPhase`, VND, construction, exhaustive search, and partitioned
-  child solves evaluate sequentially.
-
-When runtime phase configuration is omitted, SolverForge always builds
-state-aware construction. It appends the model-aware streaming local-search
-default only when the top-level solver termination parses to an effective
-finite policy (a time limit or a valid configured score/work criterion). No
-termination, an empty termination object, or an otherwise invalid score-only
-termination therefore remains construction-only; SolverForge does not invent a
-binding-specific timeout. When it is appended, omitted local-search
-configuration uses one capability table in canonical order. List slots with
-explicit precedence metadata receive precedence repair followed by list
-permute. Cross-position distance selects nearby change/swap; slots without it
-receive the corresponding plain change/swap fallback (swap also requires set
-access). Sublist change/swap and reverse are capability-gated. K-opt is nearby
-when intra-position distance exists and otherwise uses the unbounded kernel;
-both require sublist access. Every list slot receives list ruin through the
-shared ruin access contract. Scalar slots with nearby value/entity sources
-receive targeted nearby change/swap first, while every non-assignment-owned
-scalar slot retains targeted plain change/swap after nearby coverage. Scalar
-groups add grouped-scalar neighborhoods and registered repair providers add
-compound conflict-repair neighborhoods. Every default leaf uses randomized
-candidate order; multiple leaves use `StratifiedRandom` union order and a
-single leaf uses `Sequential`. The selected stock acceptor/forager policy keeps
-finite accepted-count horizons where applicable so search can improve under
-short budgets. VND remains available only through explicit local-search config;
-explicit configs own their acceptor, forager, selector, VND neighborhoods, and
-union order exactly.
-
-An explicit construction or local-search phase installs an internal
-phase-relative termination overlay for its `TerminationConfig`. Its time and
-work counters start at that phase boundary; score targets and unimproved limits
-observe committed step scores at the same boundary; and the overlay is removed
-before the next top-level phase runs. It does not publish extra callbacks or
-snapshots. Mandatory omitted construction deliberately has no such overlay so
-its required-completion stream remains governed by lifecycle control. The
-overlay is local to the top-level runtime phase: `SolverScopeChildConfig` does
-not propagate it into partitioned child solvers, which continue to inherit the
-documented runtime control, remaining time, and in-phase limits only.
-
-Assignment-owned scalar variables stay on the grouped scalar path. Default
-plain scalar neighborhoods and default conflict-repair neighborhoods exclude
-scalar slots covered by assignment-backed `ScalarGroup` declarations, and
-explicit scalar selector targets that name an assignment-owned variable are
-rejected with a diagnostic pointing at the owning grouped scalar selector.
-
-Dynamic scalar variables participate in explicit local-search
-`change_move_selector` phases through `DynamicScalarChangeMoveSelector` and
-`DynamicScalarChangeMove`, plus `nearby_change_move_selector` and
-`nearby_swap_move_selector` phases through the dynamic nearby selectors and
-`DynamicScalarSwapMove`. Nearby selectors reject missing declared source
-metadata before any callback pull. For declared sources, access remains lazy
-per cursor row, respects source-consumption limits, and retains stable bounded
-top-k ordering; an empty row supplies no replacement candidate rather than an
-ordinary-candidate substitute, while an independently valid optional
-unassignment remains available. The dynamic path uses the same score-director
-before/after variable-change protocol as typed scalar moves after resolving
-logical entity IDs to descriptor indexes. Dynamic list variables participate
-through the same compiled list leaves as typed list variables: change, nearby
-change, swap, nearby swap, permute, precedence, sublist change/swap, reverse,
-k-opt, and ruin. Those leaves share the canonical list kernels, ownership and
-precedence filtering, score-director change notifications, and pre-removal
-intra-list destination coordinates.
-
-Typed custom search is compiled into the solution, not loaded from a runtime
-registry. A solution can declare `#[planning_solution(search = "path::to::search")]`.
-The search function receives a `SearchContext<S, V, DM, IDM>`, calls
-`ctx.defaults()`, and registers named phases with `.phase("name", |ctx| ...)`.
-`SearchBuilder<S, V, DM, IDM, Extensions>` is the returned concrete declaration;
-it also exposes `.partitioned_phase(...)` and `into_runtime_parts()`.
-`SearchContext::new(descriptor, model, random_seed) ->
-RuntimeBuildResult<SearchContext<..>>` resolves dynamic logical IDs to
-descriptor indexes before the runtime compiler receives the model and fails
-with `RuntimeBuildError::Declaration` when a dynamic slot does not resolve, so configured and custom-extension phases
-use the same descriptor-index notifications. The configured entrypoint owns
-graph compilation, preparation, and execution; an unresolved dynamic slot
-fails declaration before the runner starts.
-TOML can then order those compiled-in names with `[[phases]] type = "custom"
-name = "..."`. Custom phases implement `CustomSearchPhase<S>` or use the
-typed `local_search(selector, acceptor, forager)` helper. Generated code lowers
-the result into concrete enums over known phase types; there is no
-`Box<dyn Phase>` registry. `CustomSearchPhase::on_solver_terminal(...)` is an
-optional matching terminal hook for custom runtime phases and defaults to a
-no-op. `CustomSearchPhase::on_problem_change(&mut self)` runs after the
-configured runtime applied real-time problem changes and before it restarts its
-phase sequence; it defaults to a no-op and should discard state sized or keyed
-by the previous solution.
-
-`RuntimeExtensionRegistry<S, V, DM, IDM>` is the recursive concrete registry
-contract transferred with `Search`; its `RuntimeExtensionPolicy` is `Typed` or
-`Dynamic`. `NoTypedExtensions` is the empty typed registry and
-`NoDynamicExtensions` is the distinct empty host/dynamic registry that lets
-compilation reject unsupported custom declarations. `CustomPhaseNode` and
-`PartitionedPhaseNode` prepend typed builders, `CustomPhaseUnion` composes their
-concrete phase results, and the uninhabited `NoRuntimeExtensionPhase` is their
-zero-extension phase type.
-
-Local search foragers:
-
-| Forager | Strategy |
-|---------|----------|
-| `AcceptedCountForager<S>` | Stop after N accepted moves and pick the best among them |
-| `FirstAcceptedForager<S>` | First accepted |
-| `BestScoreForager<S>` | Full-neighborhood greedy best accepted move |
-| `FirstBestScoreImprovingForager<S>` | First improving best |
-| `FirstLastStepScoreImprovingForager<S>` | First improving last step |
-
-### Acceptors
-
-| Acceptor | Type Param | Key Config |
-|----------|------------|------------|
-| `HillClimbingAcceptor` | — | — |
-| `LateAcceptanceAcceptor<S>` | `S: PlanningSolution` | `late_acceptance_size` |
-| `SimulatedAnnealingAcceptor` | — | `level_temperatures`, `decay_rate`, `hill_climbing_temperature`, `hard_regression_policy`, `calibration` |
-| `TabuSearchAcceptor<S>` | `S: PlanningSolution` | `entity_tabu_size`, `value_tabu_size`, `move_tabu_size`, `undo_move_tabu_size`, `aspiration_enabled`; config with all four sizes omitted normalizes to move-tabu-only with `move_tabu_size = 10` |
-| `EntityTabuAcceptor` | — | `entity_tabu_size` |
-| `ValueTabuAcceptor` | — | `value_tabu_size` |
-| `MoveTabuAcceptor` | — | `move_tabu_size`, `aspiration_enabled` |
-| `GreatDelugeAcceptor<S>` | `S: PlanningSolution` | `water_level_increase_ratio` |
-| `StepCountingHillClimbingAcceptor<S>` | `S: PlanningSolution` | `step_count_limit` |
-| `DiversifiedLateAcceptanceAcceptor<S>` | `S: PlanningSolution` | `late_acceptance_size`, `tolerance` |
-| `AnyAcceptor<S>` | `S: PlanningSolution` | Enum over all built-in acceptors; returned by `AcceptorBuilder::build()` |
-
-`AcceptorBuilder::build(&AcceptorConfig)` and
-`AcceptorBuilder::build_with_seed(&AcceptorConfig, Option<u64>)` return
-`Result<AnyAcceptor<S>, ConfigValueError>`, and
-`ForagerBuilder::build(Option<&ForagerConfig>, ScoreTieBreak)` returns
-`Result<AnyForager<S>, ConfigValueError>`. `ConfigValueError` (`field()`,
-`message()`, `Display` as `` `field` message ``) reports a value outside its
-domain: a zero tabu or late-acceptance size, a simulated-annealing
-`decay_rate` outside (0, 1], a negative or non-finite temperature, a
-`level_temperatures` length that differs from the score level count, an
-invalid calibration, or an `accepted_count` forager `limit = 0`. The
-configured runtime runs the same checks while compiling `solver.toml`, so an
-invalid value fails the solve with `RuntimeBuildError::Compilation` at the
-key's path (for example
-`phases[1].local_search.acceptor.entity_tabu_size`) before any phase runs.
-
-`HardRegressionPolicy` is `TemperatureControlled` or
-`NeverAcceptHardRegression`. `SimulatedAnnealingCalibration` exposes
-`sample_size`, `target_acceptance_probability`, and `fallback_temperature`;
-its default is used by `SimulatedAnnealingAcceptor::auto_calibrate(decay_rate)`.
-
 ### Exhaustive Search
 
 **`ExhaustiveSearchPhase<Dec>`** — Bounds: `Dec: ExhaustiveSearchDecider<S, D>`.
@@ -1472,7 +682,6 @@ its default is used by `SimulatedAnnealingAcceptor::auto_calibrate(decay_rate)`.
 
 **`ExhaustiveSearchConfig`** — `{ exploration_type, node_limit, depth_limit, enable_pruning }`.
 
-**`BounderType`** — `None` (default), `Simple`, or `FixedOffset`.
 
 `ExhaustiveSearchPhase` is cooperative with solver lifecycle control: every explored node advances the phase step count and the frontier loop polls pause, cancel, time, and in-phase limits before applying the next partial assignment. Finite `node_limit` or `depth_limit` bounds that leave frontier work unexplored terminate as `TerminatedByConfig`; an exhausted frontier remains `Completed`.
 
@@ -1480,7 +689,7 @@ its default is used by `SimulatedAnnealingAcceptor::auto_calibrate(decay_rate)`.
 
 **`SimpleDecider<S, V, B>`** — Generic decider with values and optional bounder.
 
-Score bounders: `SoftScoreBounder`, `FixedOffsetBounder<S>`, `()` (no-op).
+`SimpleDecider` takes any `ScoreBounder`; `()` is the no-op bounder.
 
 ### Partitioned Search
 
@@ -1489,16 +698,6 @@ Score bounders: `SoftScoreBounder`, `FixedOffsetBounder<S>`, `()` (no-op).
 **`FunctionalPartitioner<S, PF, MF>`** — Closure-based partitioner.
 
 **`ThreadCount`** — `Auto`, `Unlimited`, `Specific(usize)`. `PartitionedSearchPhase` solves child partitions sequentially when the resolved count is `1`, otherwise it installs a dedicated Rayon pool whose worker count matches the resolved value.
-
-### Variable Neighborhood Descent
-
-Variable Neighborhood Descent is an internal `local_search_type`, not a public
-standalone phase API. Configured runtime solving reaches it through
-the same compiled `RuntimeLocalSearch` runner as acceptor-forager search. It
-scans a neighborhood to completion only while no
-timeout, pause, or cancel is pending; interruption returns the last committed
-incumbent and never applies a partial best move discovered during the abandoned
-scan.
 
 ## Scope Hierarchy
 
@@ -1542,33 +741,7 @@ with unresolved mandatory work travels through `RuntimeBuildError::Execution`
 and the existing `Failed` manager lifecycle, without a `BestSolution`, completed
 snapshot, or partial paused snapshot.
 
-## Termination Types
-
-| Type | Config | Note |
-|------|--------|------|
-| `TimeTermination` | `Duration` | `seconds()`, `millis()` helpers |
-| `StepCountTermination` | `u64` | Total step limit |
-| `BestScoreTermination<Sc>` | `Sc: Score` | Target score |
-| `BestScoreFeasibleTermination<S, F>` | Closure | `score_at_least_zero()` convenience |
-| `UnimprovedStepCountTermination<S>` | `u64` | Steps without improvement |
-| `UnimprovedTimeTermination<S>` | `Duration` | Time without improvement |
-| `MoveCountTermination<S>` | `u64` | Total moves evaluated |
-| `ScoreCalculationCountTermination<S>` | `u64` | Total score calculations |
-| `DiminishedReturnsTermination<S>` | `Duration, f64` | Window + min improvement rate |
-| `OrTermination<T, S, D>` | Tuple | Any termination triggers |
-| `AndTermination<T, S, D>` | Tuple | All must trigger |
-
-Composite terminations use tuple impls (up to 8 elements) generated via `impl_composite_termination!` macro.
-
 ## Manager System
-
-### `SolverFactory<S, D, C, P, T>`
-
-Holds score calculator, phases, termination. Methods: `solve()`, `create_solver()`, `builder()`.
-
-### `SolverFactoryBuilder<S, D, C, P, T>`
-
-Fluent builder: `with_phase()`, `with_phase_factory()`, `with_config()`, `with_time_limit()`, `with_step_limit()`, `with_time_limit_or()`, `build()`.
 
 ### `SolverManager<S: Solvable>`
 
@@ -1640,40 +813,6 @@ Free function. Requires `S: Analyzable, S::Score: Score`. Delegates to `solution
 
 Serde-serializable. `ScoreAnalysis { score, constraints: Vec<ConstraintAnalysis> }`. `ConstraintAnalysis { name, weight_multiplier, score, match_count }` (serde `weightMultiplier`); `score` is the weighted contribution and `weight_multiplier` is the bound runtime multiplier (`0` = disabled).
 
-### Phase Factories
-
-| Factory | Produces |
-|---------|----------|
-| `ConstructionPhaseFactory<S, M, P, Fo>` | `ConstructionHeuristicPhase` |
-| `LocalSearchPhaseFactory<S, M, MS, A, Fo>` | `LocalSearchPhase` |
-| `ListConstructionPhaseBuilder<S, E>` | `ListConstructionPhase` |
-| `ListCheapestInsertionPhase<S, E>` | Self (implements Phase directly) |
-| `ListRegretInsertionPhase<S, E>` | Self (implements Phase directly) |
-| `ListClarkeWrightPhase<S, E>` | Self (implements Phase directly) |
-| `KOptPhaseBuilder<S, V>` | `KOptPhase` |
-
-`ListCheapestInsertionPhase<S, E>` and `ListRegretInsertionPhase<S, E>` expose
-`with_element_owner_fn(...)`, `with_element_order_key(...)`, and
-`with_precedence_hooks(...)`. Owner hooks restrict candidate entities through
-the shared owner-restriction relation. Element order hooks provide direct
-construction ordering. Precedence hooks supply duration and successor metadata:
-cheapest insertion orders unassigned elements by downstream criticality before
-greedy insertion, while regret insertion uses the same metadata for
-topological element ordering and regret tie-breaking.
-
-All specialized list-construction public constructors require an explicit
-`element_source_key`. It is the stable unique identity for a declared element,
-its assigned representation, and precedence-successor values. Construction
-binds the declared source once per solve and uses source indexes thereafter;
-there is no equality/hash identity fallback. Duplicate declarations, unknown
-assigned values, and duplicate assigned values fail before candidate work.
-When multiple configured phases target a slot, they reuse that frozen
-declaration binding but refresh current assignments before every phase, so no
-phase can reinsert earlier work or reread declaration callbacks.
-
-`ListClarkeWrightPhase<S, E>` preserves preassigned routes by filling only empty entities, computes savings per optional savings `metric_class` through savings `depot` and `distance`, and first assigns constructed routes through deterministic matching against savings `feasible` plus partial fixed-owner restrictions. The savings feasibility hook is a construction admissibility gate: stock CVRP rejects malformed owners/data/visit ids while leaving scoreable capacity and time-window violations to constraints. When route-to-owner matching is still short, Clarke-Wright completes construction with savings-distance cheapest insertion under the same savings feasibility hook. It uses route `set` only to commit the constructed assignment; it does not consume route-local distance or feasibility.
-`ListKOptPhase<S, E>` is route-local polishing: route `get` reads the route, route `set` writes an accepted route, route `depot` supplies the owner depot, route `distance` scores reversals for that owner, and route `feasible` is the route-local commit gate. Stock CVRP route feasibility is strict for capacity and time windows, so k-opt does not commit hard-infeasible route-local improvements. It does not consume Clarke-Wright savings hooks.
-
 ## Real-Time Planning
 
 Changes are submitted with `SolverManager::add_problem_change`, which boxes
@@ -1707,27 +846,6 @@ incomplete mandatory construction.
 
 **`ClosureProblemChange<S, F>`** — `new(name, change_fn)`; wraps a one-shot
 `FnOnce(&mut dyn Director<S>) + Send` and implements `ProblemChange<S>`.
-
-## Solver & Convenience Functions
-
-### `Solver<'t, P, T, S, D, ProgressCb = ()>`
-
-Main solver struct. Drives phases and checks termination. `impl_solver!` macro generates `solve(self, score_director: D) -> SolveResult<S>` for phase tuples up to 8.
-
-Builder methods: `new(phases)`, `with_termination(T)`, `with_terminate(&AtomicBool)`, `with_time_limit(Duration)`, `with_config(SolverConfig)`, `with_progress_callback<F>(F) -> Solver<.., F>`. The callback type transitions the `ProgressCb` parameter from `()` to the concrete closure type — no `Box<dyn Fn>` allocation.
-
-**`NoTermination`** is the marker type used by `Solver::new(...)` before a
-termination is configured.
-
-**`MaybeTermination<S, D, ProgressCb = ()>`** is the public marker trait for
-termination carriers used by `Solver`. It is implemented for `NoTermination`
-and `Option<T>` where `T: Termination<S, D, ProgressCb>`. Methods:
-`should_terminate(&mut self, SolverScope<...>)` and
-`install_inphase_limits(&mut self, SolverScope<...>)`.
-
-### `SolveResult<S>`
-
-`{ solution: S, current_score: Option<S::Score>, best_score: S::Score, terminal_reason: SolverTerminalReason, stats: SolverStats }`. Methods: `solution()`, `into_solution()`, `current_score()`, `best_score()`, `terminal_reason()`, `stats()`, `step_count()`, `moves_evaluated()`, `moves_accepted()`.
 
 ### `SolverStats` / `PhaseStats`
 
@@ -1840,10 +958,7 @@ existing provenance. `CandidateTraceQualificationStatus` is `NotRequested` or
 `Qualified`; `CandidateTraceQualificationError` distinguishes a request that
 was absent, an empty producer, and missing core-tree/build digests. A normal
 trace with optional provenance is never silently upgraded. Candidate-trace
-types are public through `solverforge_solver::stats`. Aggregate telemetry types
-`AppliedMoveTelemetry`, `MoveTelemetry`, `PhaseStats`, `PhaseTelemetry`,
-`SelectorTelemetry`, `SolverStats`, and `SolverTelemetry` are additionally
-crate-root re-exports.
+and aggregate telemetry types are crate-root re-exports.
 
 ### `runtime.rs`
 
@@ -1880,15 +995,10 @@ list solves log `element_count`, scalar solves log average
 `candidate_count`. Console formatting uses those fields to label startup scale
 as `elements` or `candidates`.
 
-`AnyTermination<S, D>`, `build_termination()`, and
-`ChannelProgressCallback<S>` are public under `solverforge_solver::run`, not
-crate-root re-exports. `AnyTermination` is the concrete config-dispatch enum
-over no termination and the supported time/score/work combinations;
-`build_termination()` returns it together with the effective time limit.
-`ChannelProgressCallback` is the runtime-owned `ProgressCallback` adapter and
-has no public constructor.
+The configured termination and the runtime's `ProgressCallback` adapter are
+internal to the run boundary.
 
-`LocalSearchPhase` emits `phase_start` with the current score after calculating
+The local-search phase emits `phase_start` with the current score after calculating
 the starting local-search score, and emits `phase_end` with the best score. The
 console layer renders phase-start scores when present; construction and
 partitioned phase starts currently omit a score field.
@@ -1964,10 +1074,9 @@ monomorphized score-director lifecycle.
 - **Function pointer storage.** Moves and selectors store index-aware `fn` pointers (e.g., `fn(&S, usize, usize) -> Option<V>`) instead of trait objects for solution access.
 - **PhantomData<fn() -> T>** pattern used in all move types to avoid inheriting Clone/Send/Sync bounds from phantom type parameters.
 - **SmallVec<[usize; 8]>** used in RuinMove and ListRuinMove for stack-allocated small ruin counts.
-- **Tuple-based composition.** Phases and terminations compose via nested tuples with macro-generated impls, avoiding `Vec<Box<dyn Phase>>`.
-- **Intentional `dyn` boundaries.** `DynDistanceMeter` and
-  `DefaultPillarSelector` retain concrete meter/closure types but accept
-  `&dyn Director<S>` at their scorer-agnostic callback seam. Dynamic scalar/list
+- **Tuple-based composition.** Terminations compose via nested tuples with macro-generated impls, and configured phases compose inside one compiled runtime phase, avoiding `Vec<Box<dyn Phase>>`.
+- **Intentional `dyn` boundaries.** `ProblemChange::apply` takes
+  `&mut dyn Director<S>` at the real-time integration seam. Dynamic scalar/list
   access and metadata, `RuntimeCandidateMetric`,
   `RuntimeHostCompoundProvider`, and the cold
   `RuntimeHostProviderErrorBoundary` are explicit host-language boundaries;

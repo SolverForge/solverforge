@@ -25,15 +25,4 @@ impl KOptConfig {
             limited_patterns: false,
         }
     }
-
-    pub fn with_min_segment_len(mut self, len: usize) -> Self {
-        self.min_segment_len = len;
-        self
-    }
-
-    /// Enables limited pattern mode (faster but less thorough).
-    pub fn with_limited_patterns(mut self, limited: bool) -> Self {
-        self.limited_patterns = limited;
-        self
-    }
 }

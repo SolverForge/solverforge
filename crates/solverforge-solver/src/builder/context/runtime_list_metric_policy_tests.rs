@@ -183,7 +183,7 @@ fn typed_list_slot(
         ruin_remove,
         ruin_insert,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         entity_count,
         DefaultCrossEntityDistanceMeter,
         DefaultCrossEntityDistanceMeter,

@@ -20,7 +20,7 @@ use super::types::{
 };
 
 /// Maximum concurrent jobs per SolverManager instance.
-pub const MAX_JOBS: usize = 16;
+pub(crate) const MAX_JOBS: usize = 16;
 
 /// Trait for solutions that can run inside the retained lifecycle manager.
 pub trait Solvable: PlanningSolution + Send + 'static {

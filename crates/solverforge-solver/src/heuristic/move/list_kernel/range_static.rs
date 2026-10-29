@@ -1,11 +1,14 @@
 //! Function-pointer adapters for public static range moves.
 
+#[cfg(test)]
+use crate::heuristic::r#move::list_kernel::range_access::ListReverseAccess;
 use std::fmt;
 
 use crate::builder::context::list_access::ListAccessError;
 
-use super::{ListRangeAccess, ListReverseAccess, ListWindowAccess};
+use super::{ListRangeAccess, ListWindowAccess};
 
+#[cfg(test)]
 #[derive(Clone, Copy)]
 pub(crate) struct StaticListReverseAccess<S, V> {
     pub(crate) list_len: fn(&S, usize) -> usize,
@@ -15,6 +18,7 @@ pub(crate) struct StaticListReverseAccess<S, V> {
     pub(crate) descriptor_index: usize,
 }
 
+#[cfg(test)]
 impl<S, V> fmt::Debug for StaticListReverseAccess<S, V> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -25,6 +29,7 @@ impl<S, V> fmt::Debug for StaticListReverseAccess<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> ListRangeAccess<S> for StaticListReverseAccess<S, V>
 where
     V: Clone + Send + Sync + fmt::Debug + 'static,
@@ -48,6 +53,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S, V> ListReverseAccess<S> for StaticListReverseAccess<S, V>
 where
     V: Clone + Send + Sync + fmt::Debug + 'static,

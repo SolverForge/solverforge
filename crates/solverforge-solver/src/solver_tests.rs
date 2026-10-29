@@ -5,7 +5,7 @@ use solverforge_config::{CandidateTraceConfig, SolverConfig};
 
 use super::Solver;
 use crate::manager::SolverTerminalReason;
-use crate::phase::{Phase, PhaseSequence};
+use crate::phase::Phase;
 use crate::scope::{ProgressCallback, SolverScope};
 use crate::stats::CandidateTracePhasePlan;
 use crate::termination::StepCountTermination;
@@ -149,81 +149,40 @@ fn recorded_events(events: &Arc<Mutex<Vec<String>>>) -> Vec<String> {
 #[test]
 fn phase_default_terminal_hook_preserves_ordinary_solver_semantics() {
     let solve_count = Arc::new(AtomicUsize::new(0));
-    let result = Solver::new((OrdinaryPhase {
+    let result = Solver::new(OrdinaryPhase {
         solve_count: Arc::clone(&solve_count),
-    },))
+    })
     .solve(create_minimal_director());
 
     assert_eq!(solve_count.load(Ordering::SeqCst), 1);
-    assert_eq!(result.step_count(), 1);
-    assert_eq!(result.terminal_reason(), SolverTerminalReason::Completed);
+    assert_eq!(result.stats.step_count(), 1);
+    assert_eq!(result.terminal_reason, SolverTerminalReason::Completed);
 }
 
 #[test]
-fn terminal_hook_propagates_once_through_phase_composites() {
-    let events = Arc::new(Mutex::new(Vec::new()));
-    let sequence = PhaseSequence::new(vec![
-        recording_phase("sequence-a", &events),
-        recording_phase("sequence-b", &events),
-    ]);
-    let nested_tuple = (
-        ((), recording_phase("tuple-a", &events)),
-        recording_phase("tuple-b", &events),
-    );
-    let result = Solver::new((sequence, nested_tuple)).solve(create_minimal_director());
-
-    assert_eq!(result.terminal_reason(), SolverTerminalReason::Completed);
-    assert_eq!(
-        recorded_events(&events),
-        [
-            "solve:sequence-a",
-            "solve:sequence-b",
-            "solve:tuple-a",
-            "solve:tuple-b",
-            "terminal:sequence-a",
-            "terminal:sequence-b",
-            "terminal:tuple-a",
-            "terminal:tuple-b",
-        ]
-    );
-}
-
-#[test]
-fn terminal_hook_runs_once_when_cancellation_skips_every_phase() {
+fn terminal_hook_runs_once_when_cancellation_skips_the_phase() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let cancel = AtomicBool::new(true);
-    let result = Solver::new((
-        recording_phase("first", &events),
-        recording_phase("second", &events),
-    ))
-    .with_terminate(&cancel)
-    .solve(create_minimal_director());
+    let result = Solver::new(recording_phase("only", &events))
+        .with_terminate(&cancel)
+        .solve(create_minimal_director());
 
-    assert_eq!(result.terminal_reason(), SolverTerminalReason::Cancelled);
-    assert_eq!(
-        recorded_events(&events),
-        ["terminal:first", "terminal:second"]
-    );
+    assert_eq!(result.terminal_reason, SolverTerminalReason::Cancelled);
+    assert_eq!(recorded_events(&events), ["terminal:only"]);
 }
 
 #[test]
-fn terminal_hook_runs_once_when_config_termination_skips_every_phase() {
+fn terminal_hook_runs_once_when_config_termination_skips_the_phase() {
     let events = Arc::new(Mutex::new(Vec::new()));
-    let result = Solver::new((
-        recording_phase("first", &events),
-        recording_phase("second", &events),
-    ))
-    .with_termination(StepCountTermination::new(0))
-    .solve(create_minimal_director());
+    let result = Solver::new(recording_phase("only", &events))
+        .with_termination(StepCountTermination::new(0))
+        .solve(create_minimal_director());
 
     assert_eq!(
-        result.terminal_reason(),
+        result.terminal_reason,
         SolverTerminalReason::TerminatedByConfig
     );
-    assert_eq!(
-        recorded_events(&events),
-        ["terminal:first", "terminal:second"]
-    );
+    assert_eq!(recorded_events(&events), ["terminal:only"]);
 }
 
 #[test]
@@ -241,16 +200,16 @@ fn terminal_hook_can_finalize_candidate_trace_before_final_stats_are_taken() {
         ..SolverConfig::default()
     };
 
-    let result = Solver::new((TraceFinalizingPhase {
+    let result = Solver::new(TraceFinalizingPhase {
         terminal_count: Arc::clone(&terminal_count),
         terminal_plan: terminal_plan.clone(),
-    },))
+    })
     .with_config(config)
     .solve(create_minimal_director());
 
     assert_eq!(terminal_count.load(Ordering::SeqCst), 1);
     let trace = result
-        .stats()
+        .stats
         .snapshot()
         .candidate_trace
         .expect("enabled candidate trace must be retained in final stats");
@@ -269,14 +228,14 @@ fn cancellation_accepted_during_terminal_hook_is_settled_before_result_extractio
     let (sender, receiver) = std::sync::mpsc::channel();
 
     rayon::spawn(move || {
-        let result = Solver::new((BlockingTerminalPhase {
+        let result = Solver::new(BlockingTerminalPhase {
             entered: worker_entered,
             release: worker_release,
-        },))
+        })
         .with_terminate(worker_cancel.as_ref())
         .solve(create_minimal_director());
         sender
-            .send(result.terminal_reason())
+            .send(result.terminal_reason)
             .expect("test receiver remains alive");
     });
 

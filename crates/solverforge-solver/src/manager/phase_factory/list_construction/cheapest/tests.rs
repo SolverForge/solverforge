@@ -8,8 +8,8 @@ use solverforge_core::score::{HardSoftScore, SoftScore};
 use solverforge_scoring::{ConstraintMetadata, Director, ScoreDirector};
 
 use super::*;
+use crate::builder::context::list::usize_element_source_key;
 use crate::builder::context::{bind_runtime_list_source, ListConstructionKernelError};
-use crate::builder::usize_element_source_key;
 use crate::manager::SolverTerminalReason;
 use crate::phase::Phase;
 use crate::scope::{SolverProgressKind, SolverProgressRef, SolverScope};

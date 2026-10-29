@@ -6,12 +6,13 @@
 //! edits, same order). Replacement changes the row count, forcing the
 //! structural rebuild branch.
 
+use crate::planning::scalar::target::ScalarTarget;
+
 use super::*;
 
-use crate::builder::bind_scalar_groups;
-use crate::heuristic::r#move::ScalarMoveUnion;
+use crate::builder::context::scalar::group::bind_scalar_groups;
 use crate::heuristic::selector::move_selector::MoveCursor;
-use crate::planning::{ScalarGroup, ScalarTarget};
+use crate::planning::ScalarGroup;
 use std::any::TypeId;
 
 #[derive(Clone, Debug)]
@@ -70,17 +71,11 @@ fn pooled_stream<S: PlanningSolution>(
     let mut stream = Vec::new();
     while let Some(id) = cursor.next_candidate(solution) {
         let mov = cursor.take_candidate(id);
-        let rows = match &mov {
-            ScalarMoveUnion::CompoundScalar(compound) => compound
-                .edits()
-                .iter()
-                .map(|edit| (edit.entity_index, edit.to_value))
-                .collect(),
-            other => {
-                let _ = other;
-                panic!("the pooled assignment stream only offers compound scalar moves")
-            }
-        };
+        let rows = mov
+            .edits()
+            .iter()
+            .map(|edit| (edit.entity_index, edit.to_value))
+            .collect();
         stream.push(rows);
     }
     stream

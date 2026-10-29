@@ -35,16 +35,15 @@ use crate::termination::{
     UnimprovedStepCountTermination, UnimprovedTimeTermination,
 };
 
-mod termination;
+pub(crate) mod termination;
 use termination::build_director_termination;
-pub use termination::build_termination;
 pub(crate) use termination::{configured_execution_policy, parse_configured_termination};
 
 /// Monomorphized termination enum for config-driven solver configurations.
 ///
 /// Avoids repeated branching across termination overloads by capturing the
 /// selected termination variant upfront.
-pub enum AnyTermination<S: PlanningSolution, D: Director<S>> {
+pub(crate) enum AnyTermination<S: PlanningSolution, D: Director<S>> {
     None(NoTermination),
     Default(OrTermination<(TimeTermination,), S, D>),
     WithBestScore(OrTermination<(TimeTermination, BestScoreTermination<S::Score>), S, D>),
@@ -54,7 +53,7 @@ pub enum AnyTermination<S: PlanningSolution, D: Director<S>> {
 }
 
 #[derive(Clone)]
-pub struct ChannelProgressCallback<S: PlanningSolution> {
+pub(crate) struct ChannelProgressCallback<S: PlanningSolution> {
     runtime: SolverRuntime<S>,
     _phantom: PhantomData<fn() -> S>,
 }
@@ -183,7 +182,7 @@ pub fn log_solve_start(
 ///
 /// Scores on the unweighted director: a solution type that carries runtime
 /// constraint weights solves through
-/// [`try_run_weighted_solver_with_config_and_search`], and fails here when
+/// `try_run_weighted_solver_with_config_and_search`, and fails here when
 /// some multiplier differs from `1`.
 #[allow(clippy::too_many_arguments)]
 pub fn try_run_solver_with_config_and_search<S, C, V, DM, IDM, Declaration, BuildSearch>(
@@ -428,9 +427,7 @@ where
     Ok(solution)
 }
 
-mod weight_modes;
-
-pub use weight_modes::try_run_weighted_solver_with_config_and_search;
+pub(crate) mod weight_modes;
 
 #[cfg(test)]
 #[path = "run_tests.rs"]

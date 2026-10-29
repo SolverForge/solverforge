@@ -17,25 +17,7 @@ use crate::scope::SolverScope;
 /// This is useful to avoid spending too much time when the solver has
 /// plateaued and is unlikely to find better solutions.
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::termination::UnimprovedStepCountTermination;
-/// use solverforge_core::score::SoftScore;
-/// use solverforge_core::domain::PlanningSolution;
-///
-/// #[derive(Clone)]
-/// struct MySolution;
-/// impl PlanningSolution for MySolution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { None }
-///     fn set_score(&mut self, _: Option<Self::Score>) {}
-/// }
-///
-/// // Terminate after 100 steps without improvement
-/// let term = UnimprovedStepCountTermination::<MySolution>::new(100);
-/// ```
-pub struct UnimprovedStepCountTermination<S: PlanningSolution> {
+pub(crate) struct UnimprovedStepCountTermination<S: PlanningSolution> {
     limit: u64,
     state: UnimprovedState<S::Score>,
     _phantom: PhantomData<fn() -> S>,
@@ -71,7 +53,7 @@ impl<Sc: Score> Default for UnimprovedState<Sc> {
 }
 
 impl<S: PlanningSolution> UnimprovedStepCountTermination<S> {
-    pub fn new(limit: u64) -> Self {
+    pub(crate) fn new(limit: u64) -> Self {
         Self {
             limit,
             state: UnimprovedState::default(),
@@ -129,26 +111,7 @@ impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Terminati
 /// This is useful for time-boxed optimization where you want to ensure
 /// progress is being made, but also allow more time if improvements are found.
 ///
-/// # Example
-///
-/// ```
-/// use std::time::Duration;
-/// use solverforge_solver::termination::UnimprovedTimeTermination;
-/// use solverforge_core::score::SoftScore;
-/// use solverforge_core::domain::PlanningSolution;
-///
-/// #[derive(Clone)]
-/// struct MySolution;
-/// impl PlanningSolution for MySolution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { None }
-///     fn set_score(&mut self, _: Option<Self::Score>) {}
-/// }
-///
-/// // Terminate after 5 seconds without improvement
-/// let term = UnimprovedTimeTermination::<MySolution>::seconds(5);
-/// ```
-pub struct UnimprovedTimeTermination<S: PlanningSolution> {
+pub(crate) struct UnimprovedTimeTermination<S: PlanningSolution> {
     limit: Duration,
     state: UnimprovedTimeState<S::Score>,
     _phantom: PhantomData<fn() -> S>,
@@ -177,20 +140,12 @@ impl<Sc: Score> Default for UnimprovedTimeState<Sc> {
 }
 
 impl<S: PlanningSolution> UnimprovedTimeTermination<S> {
-    pub fn new(limit: Duration) -> Self {
+    pub(crate) fn new(limit: Duration) -> Self {
         Self {
             limit,
             state: UnimprovedTimeState::default(),
             _phantom: PhantomData,
         }
-    }
-
-    pub fn millis(ms: u64) -> Self {
-        Self::new(Duration::from_millis(ms))
-    }
-
-    pub fn seconds(secs: u64) -> Self {
-        Self::new(Duration::from_secs(secs))
     }
 }
 

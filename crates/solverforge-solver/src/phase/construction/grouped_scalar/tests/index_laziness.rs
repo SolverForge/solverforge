@@ -1,6 +1,8 @@
 use super::*;
-use crate::builder::{bind_scalar_groups, ScalarGroupBindingKind, ScalarVariableSlot, ValueSource};
-use crate::planning::{ScalarGroup, ScalarGroupLimits, ScalarTarget};
+use crate::builder::context::scalar::group::bind_scalar_groups;
+use crate::builder::{ScalarGroupBindingKind, ScalarVariableSlot, ValueSource};
+use crate::planning::scalar::target::ScalarTarget;
+use crate::planning::{ScalarGroup, ScalarGroupLimits};
 use solverforge_core::score::SoftScore;
 
 use crate::heuristic::selector::move_selector::{MoveCursor, MoveSelector};
@@ -165,16 +167,12 @@ fn required_only_pulls_do_not_build_the_value_sequence_index() {
 }
 
 fn union_edit_rows(
-    mov: &crate::heuristic::r#move::ScalarMoveUnion<Plan, usize>,
+    mov: &crate::heuristic::r#move::CompoundScalarMove<Plan>,
 ) -> Vec<(usize, Option<usize>)> {
-    match mov {
-        crate::heuristic::r#move::ScalarMoveUnion::CompoundScalar(compound) => compound
-            .edits()
-            .iter()
-            .map(|edit| (edit.entity_index, edit.to_value))
-            .collect(),
-        _ => Vec::new(),
-    }
+    mov.edits()
+        .iter()
+        .map(|edit| (edit.entity_index, edit.to_value))
+        .collect()
 }
 
 #[test]

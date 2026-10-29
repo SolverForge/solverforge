@@ -58,73 +58,74 @@ arena.reset();
 /// and similar arbitrary-length undo payloads). Capacity is inline up to 24
 /// elements; longer routes spill to the heap and rely on the move's
 /// per-trial journal pool so retained capacity is reused across trials.
-pub type ListUndoJournal<T> = smallvec::SmallVec<[T; 24]>;
+pub(crate) type ListUndoJournal<T> = smallvec::SmallVec<[T; 24]>;
 
-mod arena;
-mod change;
-mod composite;
-mod compound_scalar;
-mod conflict_repair;
-mod dynamic_list_change;
-mod dynamic_scalar_change;
-mod dynamic_scalar_swap;
-mod k_opt;
-pub mod k_opt_reconnection;
-mod list_change;
+pub(crate) mod arena;
+pub(crate) mod change;
+pub(crate) mod composite;
+pub(crate) mod compound_scalar;
+#[cfg(test)]
+pub(crate) mod dynamic_list_change;
+#[cfg(test)]
+pub(crate) mod dynamic_scalar_change;
+#[cfg(test)]
+pub(crate) mod dynamic_scalar_swap;
+pub(crate) mod k_opt;
+pub(crate) mod k_opt_reconnection;
+pub(crate) mod list_change;
 pub(crate) mod list_kernel;
-mod list_multi_swap;
-mod list_permute;
-mod list_reverse;
-mod list_ruin;
-mod list_swap;
-mod list_union;
+#[cfg(test)]
+pub(crate) mod list_multi_swap;
+pub(crate) mod list_permute;
+#[cfg(test)]
+pub(crate) mod list_reverse;
+#[cfg(test)]
+pub(crate) mod list_ruin;
+pub(crate) mod list_swap;
+#[cfg(test)]
+pub(crate) mod list_union;
 pub(crate) mod metadata;
-mod pillar_change;
-mod pillar_swap;
-mod ruin;
-mod ruin_recreate;
-mod runtime_compound;
-mod scalar_union;
+pub(crate) mod ruin;
+pub(crate) mod runtime_compound;
 mod segment_layout;
-mod sublist_change;
-mod sublist_swap;
-mod swap;
-mod traits;
+pub(crate) mod sublist_change;
+pub(crate) mod sublist_swap;
+pub(crate) mod traits;
 
 #[cfg(test)]
 mod tests;
 
-pub use arena::MoveArena;
-pub use change::ChangeMove;
-pub use composite::CompositeMove;
-pub use composite::SequentialCompositeMove;
+pub(crate) use arena::MoveArena;
+pub(crate) use change::ChangeMove;
+pub(crate) use composite::SequentialCompositeMove;
 pub(crate) use composite::SequentialCompositeMoveRef;
-pub use compound_scalar::{CompoundScalarEdit, CompoundScalarMove, COMPOUND_SCALAR_VARIABLE};
-pub use conflict_repair::{ConflictRepairMove, ConflictRepairScalarEdit};
-pub use dynamic_list_change::DynamicListChangeMove;
-pub use dynamic_scalar_change::DynamicScalarChangeMove;
-pub use dynamic_scalar_swap::DynamicScalarSwapMove;
-pub use k_opt::{CutPoint, KOptMove};
-pub use list_change::ListChangeMove;
-pub use list_multi_swap::ListMultiSwapMove;
-pub use list_permute::{ListPermuteMove, MAX_LIST_PERMUTE_WINDOW_SIZE};
-pub use list_reverse::ListReverseMove;
-pub use list_ruin::ListRuinMove;
-pub use list_swap::ListSwapMove;
-pub use list_union::ListMoveUnion;
-pub use metadata::MoveTabuSignature;
-pub use pillar_change::PillarChangeMove;
-pub use pillar_swap::PillarSwapMove;
-pub use ruin::RuinMove;
-pub use ruin_recreate::{RuinRecreateMove, ScalarRecreateValueSource};
+pub(crate) use compound_scalar::{CompoundScalarEdit, CompoundScalarMove};
+#[cfg(test)]
+pub(crate) use dynamic_list_change::DynamicListChangeMove;
+#[cfg(test)]
+pub(crate) use dynamic_scalar_change::DynamicScalarChangeMove;
+#[cfg(test)]
+pub(crate) use dynamic_scalar_swap::DynamicScalarSwapMove;
+pub(crate) use k_opt::{CutPoint, KOptMove};
+pub(crate) use list_change::ListChangeMove;
+#[cfg(test)]
+pub(crate) use list_multi_swap::ListMultiSwapMove;
+pub(crate) use list_permute::{ListPermuteMove, MAX_LIST_PERMUTE_WINDOW_SIZE};
+#[cfg(test)]
+pub(crate) use list_reverse::ListReverseMove;
+#[cfg(test)]
+pub(crate) use list_ruin::ListRuinMove;
+pub(crate) use list_swap::ListSwapMove;
+#[cfg(test)]
+pub(crate) use list_union::ListMoveUnion;
+pub(crate) use metadata::MoveTabuSignature;
+pub(crate) use ruin::RuinMove;
 #[cfg(test)]
 pub(crate) use runtime_compound::{
     reset_runtime_compound_move_clone_count, runtime_compound_move_clone_count,
 };
-pub use runtime_compound::{RuntimeCompoundMove, RuntimeCompoundMoveKind};
-pub use scalar_union::ScalarMoveUnion;
+pub(crate) use runtime_compound::{RuntimeCompoundMove, RuntimeCompoundMoveKind};
 pub(crate) use segment_layout::{SegmentRelocationCoords, SegmentSwapCoords};
-pub use sublist_change::SublistChangeMove;
-pub use sublist_swap::SublistSwapMove;
-pub use swap::SwapMove;
-pub use traits::{Move, MoveAffectedEntity};
+pub(crate) use sublist_change::SublistChangeMove;
+pub(crate) use sublist_swap::SublistSwapMove;
+pub(crate) use traits::{Move, MoveAffectedEntity};

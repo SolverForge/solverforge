@@ -1,4 +1,6 @@
 use super::{ValueCycleCoordinates, ValuePairCoordinates, ValuePairKind};
+use crate::builder::context::scalar::group::bind_scalar_groups;
+use crate::planning::scalar::target::ScalarTarget;
 
 #[test]
 fn lazy_cycles_match_both_eager_orientations_through_rotation_wrap_and_exhaustion() {
@@ -56,10 +58,8 @@ impl solverforge_core::domain::PlanningSolution for ValuePlan {
 }
 
 fn binding() -> crate::builder::ScalarAssignmentBinding<ValuePlan> {
-    use crate::builder::{
-        bind_scalar_groups, ScalarGroupBindingKind, ScalarVariableSlot, ValueSource,
-    };
-    use crate::planning::{ScalarGroup, ScalarTarget};
+    use crate::builder::{ScalarGroupBindingKind, ScalarVariableSlot, ValueSource};
+    use crate::planning::ScalarGroup;
     let slot = ScalarVariableSlot::new(
         0,
         0,

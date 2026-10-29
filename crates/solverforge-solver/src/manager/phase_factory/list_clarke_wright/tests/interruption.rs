@@ -1,3 +1,5 @@
+use crate::phase::Phase;
+use crate::scope::solver::SolverScope;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use super::*;
@@ -39,7 +41,7 @@ fn phase() -> ListClarkeWrightPhase<Plan, usize> {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         line_distance,
         always_feasible,
@@ -219,7 +221,7 @@ fn interrupted_clarke_wright_publishes_a_partially_merged_route_set() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         merge_phase_distance,
         merge_phase_feasible,
@@ -271,7 +273,7 @@ fn cancellation_after_complete_commit_cannot_return_the_incomplete_prior_best() 
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         cancelling_distance,
         always_feasible,

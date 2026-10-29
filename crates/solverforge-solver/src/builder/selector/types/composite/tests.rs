@@ -1,6 +1,6 @@
 use super::state::{new_stream_state, open_cursor_with_owned_stream_state};
 use super::*;
-use crate::heuristic::r#move::{ChangeMove, ScalarMoveUnion};
+use crate::heuristic::r#move::{CompoundScalarEdit, CompoundScalarMove};
 use crate::heuristic::selector::decorator::ResourceVecUnionMoveCursor;
 use crate::heuristic::selector::move_selector::{
     ArenaMoveCursor, ResourceMoveCursor, UnitResourceCursor,
@@ -32,6 +32,22 @@ fn get_row(solution: &NQueensSolution, entity: usize, variable: usize) -> Option
 fn set_row(solution: &mut NQueensSolution, entity: usize, variable: usize, value: Option<usize>) {
     set_queen_row(solution, entity, variable, value.map(|value| value as i64));
 }
+
+fn grouped_row_move(entity: usize, row: usize) -> TestMove {
+    TestMove::Grouped(CompoundScalarMove::new(
+        "test",
+        vec![CompoundScalarEdit::static_edit(
+            0,
+            entity,
+            0,
+            "row",
+            Some(row),
+            get_row,
+            set_row,
+            None,
+        )],
+    ))
+}
 type Graph = SelectorComposition<NQueensSolution, TestMove, CustomFlat, CustomState>;
 
 impl StatefulComposedFlat<NQueensSolution, TestMove, CustomState, ()> for CustomFlat {
@@ -54,15 +70,7 @@ impl StatefulComposedFlat<NQueensSolution, TestMove, CustomState, ()> for Custom
             } else {
                 value
             };
-            store.push(TestMove::Grouped(ScalarMoveUnion::Change(ChangeMove::new(
-                self.entity,
-                Some(value as usize),
-                get_row,
-                set_row,
-                0,
-                "row",
-                0,
-            ))));
+            store.push(grouped_row_move(self.entity, value as usize));
         }
         UnitResourceCursor::new(store)
     }
@@ -174,15 +182,7 @@ fn arena_cartesian_lends_the_left_preview_to_lazy_right_pulls() {
             };
             Some(
                 self.store
-                    .push(TestMove::Grouped(ScalarMoveUnion::Change(ChangeMove::new(
-                        self.flat.entity,
-                        Some(value as usize),
-                        get_row,
-                        set_row,
-                        0,
-                        "row",
-                        0,
-                    )))),
+                    .push(grouped_row_move(self.flat.entity, value as usize)),
             )
         }
         fn candidate(

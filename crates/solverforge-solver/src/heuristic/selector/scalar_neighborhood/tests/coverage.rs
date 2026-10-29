@@ -1,8 +1,9 @@
 use super::*;
+use crate::heuristic::selector::scalar_neighborhood::spec::ScalarNeighborhoodSpec;
 
 #[test]
 fn scalar_change_coverage_across_all_selection_orders_matches_drained_size() {
-    use super::super::{ScalarNeighborhoodLeaf, ScalarNeighborhoodSpec};
+    use super::super::ScalarNeighborhoodLeaf;
     use crate::builder::RuntimeScalarSlot;
     use crate::heuristic::selector::move_selector::{MoveCursor, MoveSelector, MoveStreamContext};
     use solverforge_config::SelectionOrder;

@@ -6,7 +6,7 @@ use solverforge_core::domain::{
 use solverforge_core::score::SoftScore;
 use solverforge_scoring::ScoreDirector;
 
-use crate::builder::usize_element_source_key;
+use crate::builder::context::list::usize_element_source_key;
 use crate::manager::phase_factory::list_clarke_wright::ListClarkeWrightPhase;
 use crate::phase::Phase;
 use crate::scope::SolverScope;

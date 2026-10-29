@@ -249,6 +249,7 @@ pub(super) fn critical_permutation(
     panic!("critical permutation offset should map to a valid window")
 }
 
+#[cfg(test)]
 pub(crate) fn filtered_move_count(
     block: CriticalBlock,
     route_graph: &mut PrecedenceRouteGraph,

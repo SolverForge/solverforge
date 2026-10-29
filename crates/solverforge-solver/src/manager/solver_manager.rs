@@ -9,17 +9,13 @@ Provides the high-level API for:
 - Retrieving snapshot-bound solutions and score analysis
 */
 
-mod manager;
-mod problem_change;
-mod runtime;
+pub(crate) mod manager;
+pub(crate) mod problem_change;
+pub(crate) mod runtime;
 mod slot;
-mod types;
+pub(crate) mod types;
 
 #[allow(unused_imports)]
-pub use manager::{Solvable, SolverManager, MAX_JOBS};
-pub use problem_change::ProblemChangeId;
-pub use runtime::{SolverPanicPayload, SolverRuntime};
-pub use types::{
-    SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManagerError, SolverSnapshot,
-    SolverSnapshotAnalysis, SolverStatus, SolverTelemetryDetail, SolverTerminalReason,
-};
+pub(crate) use manager::{Solvable, SolverManager, MAX_JOBS};
+pub(crate) use runtime::SolverRuntime;
+pub(crate) use types::{SolverEvent, SolverLifecycleState, SolverSnapshot, SolverTerminalReason};

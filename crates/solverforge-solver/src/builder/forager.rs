@@ -12,15 +12,13 @@ use crate::phase::localsearch::{
     FirstLastStepScoreImprovingForager, ForagerDecision, LocalSearchForager,
 };
 
-use super::local_search_policy::{CompiledForager, ConfigValueError};
-
 /* A concrete enum over all built-in forager types.
 
-Returned by [`ForagerBuilder::build`] to keep forager dispatch statically typed.
+Built from a compiled forager configuration to keep forager dispatch statically typed.
 Dispatches to the inner forager via `match` — fully monomorphized.
 */
 #[allow(clippy::large_enum_variant)] // Inline storage keeps forager dispatch zero-erasure.
-pub enum AnyForager<S: PlanningSolution> {
+pub(crate) enum AnyForager<S: PlanningSolution> {
     // Stops after `N` accepted moves, picks the best among them.
     AcceptedCount(AcceptedCountForager<S>),
     // Picks the first accepted move.
@@ -113,31 +111,6 @@ where
             Self::BestScoreImproving(f) => LocalSearchForager::<S, M>::pick_move_index(f),
             Self::LastStepScoreImproving(f) => LocalSearchForager::<S, M>::pick_move_index(f),
         }
-    }
-}
-
-/// Builder for constructing foragers from configuration.
-pub struct ForagerBuilder;
-
-impl ForagerBuilder {
-    /// Builds a concrete [`AnyForager`] from configuration.
-    ///
-    /// Fails when `accepted_count` has `limit = 0`.
-    pub fn build<S: PlanningSolution>(
-        config: Option<&ForagerConfig>,
-        score_tie_break: ScoreTieBreak,
-    ) -> Result<AnyForager<S>, ConfigValueError>
-    where
-        S::Score: Score,
-    {
-        let Some(config) = config else {
-            let random_ties = matches!(score_tie_break, ScoreTieBreak::Random);
-            return Ok(AnyForager::AcceptedCount(AcceptedCountForager::new(
-                1,
-                random_ties,
-            )));
-        };
-        Ok(CompiledForager::compile(config)?.build(score_tie_break))
     }
 }
 

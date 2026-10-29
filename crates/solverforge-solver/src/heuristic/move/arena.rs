@@ -30,7 +30,7 @@ use rand::Rng;
 /// # Example
 ///
 /// ```
-/// use solverforge_solver::heuristic::r#move::MoveArena;
+/// use solverforge_solver::MoveArena;
 ///
 /// let mut arena: MoveArena<i32> = MoveArena::new();
 ///
@@ -155,7 +155,7 @@ impl<M> MoveArena<M> {
     # Example
 
     ```
-    use solverforge_solver::heuristic::r#move::MoveArena;
+    use solverforge_solver::MoveArena;
 
     let mut arena: MoveArena<String> = MoveArena::new();
     arena.push("first".to_string());

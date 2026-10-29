@@ -1,3 +1,4 @@
+use crate::manager::solver_manager::types::SolverManagerError;
 // Real-time problem-change control and application on the solver scope.
 
 use std::sync::atomic::AtomicBool;
@@ -5,8 +6,8 @@ use std::time::Duration;
 
 use solverforge_scoring::Director;
 
-use crate::manager::{SolverManagerError, SolverRuntime, SolverTerminalReason};
-use crate::realtime::ClosureProblemChange;
+use crate::manager::{SolverRuntime, SolverTerminalReason};
+use crate::realtime::problem_change::ClosureProblemChange;
 use crate::scope::{PendingControl, SolverScope};
 use crate::test_utils::{
     create_nqueens_director, create_simple_nqueens_director, NQueensSolution, Queen,
@@ -15,7 +16,7 @@ use crate::test_utils::{
 fn queue_change(
     runtime: SolverRuntime<NQueensSolution>,
     id: i64,
-) -> Result<crate::manager::ProblemChangeId, SolverManagerError> {
+) -> Result<crate::manager::solver_manager::problem_change::ProblemChangeId, SolverManagerError> {
     runtime.submit_problem_change_for_test(Box::new(
         ClosureProblemChange::<NQueensSolution, _>::new("add queen", move |director| {
             director

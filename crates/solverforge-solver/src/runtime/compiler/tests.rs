@@ -1,5 +1,7 @@
 //! Compilation legality matrix for frozen list metadata policies.
 
+use crate::builder::search::custom::NoDynamicExtensions;
+
 use std::any::TypeId;
 
 use solverforge_config::{
@@ -18,9 +20,7 @@ use super::{
     CompiledLocalSearch, CompiledRuntimePhase, ListConstructionKind, RuntimeCapability,
     RuntimeCompileErrorKind, RuntimeGraphInput,
 };
-use crate::builder::{
-    ListVariableSlot, NoDynamicExtensions, RuntimeModel, SearchContext, VariableSlot,
-};
+use crate::builder::{ListVariableSlot, RuntimeModel, SearchContext, VariableSlot};
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
 
 mod invalid_config;
@@ -153,7 +153,7 @@ fn model(shape: PrecedenceShape) -> RuntimeModel<Plan, usize, Meter, Meter> {
         ruin_remove,
         ruin_insert,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         entity_count,
         DefaultCrossEntityDistanceMeter,
         DefaultCrossEntityDistanceMeter,
@@ -198,7 +198,7 @@ fn savings_model() -> RuntimeModel<Plan, usize, Meter, Meter> {
         ruin_remove,
         ruin_insert,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         entity_count,
         DefaultCrossEntityDistanceMeter,
         DefaultCrossEntityDistanceMeter,

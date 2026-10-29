@@ -1,15 +1,19 @@
 //! Access boundary for shared list ruin-and-recreate mechanics.
 
+#[cfg(test)]
+use crate::list_placement::owner_restriction;
 use std::fmt;
 
 use solverforge_core::domain::PlanningSolution;
 
 use crate::builder::context::{list_access::ListAccess, RuntimeListSlot};
 use crate::heuristic::selector::nearby_list_change::CrossEntityDistanceMeter;
+#[cfg(test)]
+use crate::heuristic::selector::precedence_route::PrecedenceRouteHooks;
 use crate::heuristic::selector::precedence_route::{
-    build_precedence_route_graph, PrecedenceRouteGraph, PrecedenceRouteHooks,
+    build_precedence_route_graph, PrecedenceRouteGraph,
 };
-use crate::list_placement::{owner_restriction, OwnerRestriction};
+use crate::list_placement::OwnerRestriction;
 
 use super::ListMoveAccess;
 
@@ -36,6 +40,7 @@ pub(crate) trait ListRuinAccess<S>: ListMoveAccess<S> {
     ) -> Option<(Vec<Self::Element>, PrecedenceRouteGraph)>;
 }
 
+#[cfg(test)]
 /// Static function-pointer access retained by the public `ListRuinMove`.
 pub(crate) struct StaticListRuinAccess<S, V> {
     pub(crate) entity_count: fn(&S) -> usize,
@@ -51,14 +56,17 @@ pub(crate) struct StaticListRuinAccess<S, V> {
     pub(crate) descriptor_index: usize,
 }
 
+#[cfg(test)]
 impl<S, V> Copy for StaticListRuinAccess<S, V> {}
 
+#[cfg(test)]
 impl<S, V> Clone for StaticListRuinAccess<S, V> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
+#[cfg(test)]
 impl<S, V> fmt::Debug for StaticListRuinAccess<S, V> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -74,6 +82,7 @@ impl<S, V> fmt::Debug for StaticListRuinAccess<S, V> {
     }
 }
 
+#[cfg(test)]
 impl<S, V> ListMoveAccess<S> for StaticListRuinAccess<S, V>
 where
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,
@@ -97,6 +106,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<S, V> ListRuinAccess<S> for StaticListRuinAccess<S, V>
 where
     V: Clone + PartialEq + Send + Sync + fmt::Debug + 'static,

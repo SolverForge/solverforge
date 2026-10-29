@@ -33,7 +33,10 @@ impl<S: PlanningSolution> SolverRuntime<S> {
     pub(crate) fn submit_problem_change_for_test(
         &self,
         change: Box<dyn ProblemChange<S>>,
-    ) -> Result<crate::manager::ProblemChangeId, crate::manager::SolverManagerError> {
+    ) -> Result<
+        crate::manager::solver_manager::problem_change::ProblemChangeId,
+        crate::manager::solver_manager::types::SolverManagerError,
+    > {
         self.slot.submit_problem_change(self.job_id, change)
     }
 

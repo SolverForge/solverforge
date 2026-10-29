@@ -15,7 +15,7 @@ use super::{ScalarVariableSlot, ValueSource};
 /// Immutable scalar slot identity used by compiler errors, provider
 /// normalization, candidate ownership, and trace provenance.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct RuntimeScalarSlotId {
+pub(crate) struct RuntimeScalarSlotId {
     pub descriptor_index: usize,
     pub variable_index: usize,
     pub entity_class: Arc<str>,
@@ -24,7 +24,7 @@ pub struct RuntimeScalarSlotId {
 }
 
 impl RuntimeScalarSlotId {
-    pub fn from_static_slot<S>(slot: &ScalarVariableSlot<S>) -> Self {
+    pub(crate) fn from_static_slot<S>(slot: &ScalarVariableSlot<S>) -> Self {
         Self {
             descriptor_index: slot.descriptor_index,
             variable_index: slot.variable_index,
@@ -34,7 +34,7 @@ impl RuntimeScalarSlotId {
         }
     }
 
-    pub fn from_dynamic_slot<S>(slot: &DynamicScalarVariableSlot<S>) -> Self {
+    pub(crate) fn from_dynamic_slot<S>(slot: &DynamicScalarVariableSlot<S>) -> Self {
         Self {
             descriptor_index: slot.descriptor_index(),
             variable_index: slot.descriptor_variable_index(),
@@ -58,7 +58,7 @@ impl fmt::Display for RuntimeScalarSlotId {
 /// Structural scalar capability.  It answers whether an immutable binding
 /// supplies a source, not whether a particular row produces a candidate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ScalarAccessCapability {
+pub(crate) enum ScalarAccessCapability {
     Candidates,
     NearbyValue,
     NearbyEntity,
@@ -70,7 +70,7 @@ pub enum ScalarAccessCapability {
 
 /// Physical payload carrier.  This is the only typed/dynamic distinction
 /// retained by the shared scalar/provider kernels.
-pub enum RuntimeScalarSlot<S> {
+pub(crate) enum RuntimeScalarSlot<S> {
     Static(ScalarVariableSlot<S>),
     Dynamic(DynamicScalarVariableSlot<S>),
 }
@@ -94,21 +94,14 @@ impl<S> fmt::Debug for RuntimeScalarSlot<S> {
 }
 
 impl<S> RuntimeScalarSlot<S> {
-    pub fn id(&self) -> RuntimeScalarSlotId {
+    pub(crate) fn id(&self) -> RuntimeScalarSlotId {
         match self {
             Self::Static(slot) => RuntimeScalarSlotId::from_static_slot(slot),
             Self::Dynamic(slot) => RuntimeScalarSlotId::from_dynamic_slot(slot),
         }
     }
 
-    pub fn matches_target(&self, entity_class: Option<&str>, variable_name: Option<&str>) -> bool {
-        match self {
-            Self::Static(slot) => slot.matches_target(entity_class, variable_name),
-            Self::Dynamic(slot) => slot.matches_target(entity_class, variable_name),
-        }
-    }
-
-    pub fn has_capability(&self, capability: ScalarAccessCapability) -> bool {
+    pub(crate) fn has_capability(&self, capability: ScalarAccessCapability) -> bool {
         match (self, capability) {
             // Every scalar binding exposes an ordinary stream, even when a
             // row's stream is empty.
@@ -402,7 +395,7 @@ impl<S> RuntimeScalarSlot<S> {
         }
     }
 
-    pub fn is_dynamic(&self) -> bool {
+    pub(crate) fn is_dynamic(&self) -> bool {
         matches!(self, Self::Dynamic(_))
     }
 }
@@ -411,7 +404,7 @@ impl<S> RuntimeScalarSlot<S> {
 /// is lowered to the outer move payload.  The kind/reason policy lives above
 /// this type; apply/undo ownership never needs a second typed/dynamic edit
 /// implementation.
-pub struct RuntimeScalarEdit<S> {
+pub(crate) struct RuntimeScalarEdit<S> {
     pub slot: RuntimeScalarSlot<S>,
     pub entity_index: usize,
     pub to_value: Option<usize>,
@@ -438,10 +431,6 @@ impl<S> fmt::Debug for RuntimeScalarEdit<S> {
 }
 
 impl<S> RuntimeScalarEdit<S> {
-    pub fn id(&self) -> RuntimeScalarSlotId {
-        self.slot.id()
-    }
-
     pub(crate) fn descriptor_index(&self) -> usize {
         self.slot.descriptor_index()
     }

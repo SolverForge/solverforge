@@ -1,9 +1,8 @@
-use super::{
-    build_termination, log_solve_start, try_run_solver_with_config_and_search, AnyTermination,
-};
+use super::{log_solve_start, try_run_solver_with_config_and_search, AnyTermination};
 use crate::builder::{RuntimeModel, SearchContext};
 use crate::manager::{SolverRuntime, SolverTerminalReason};
 use crate::phase::Phase;
+use crate::run::termination::build_director_termination;
 use crate::scope::{ProgressCallback, SolverScope};
 use crate::solver::Solver;
 use crate::stats::{
@@ -234,7 +233,8 @@ fn zero_variable_run_builds_the_normal_graph_and_search_declaration() {
 #[test]
 fn build_termination_preserves_missing_time_limit_as_unlimited() {
     let config = SolverConfig::default();
-    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+    let (termination, time_limit) =
+        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
 
     assert!(matches!(termination, AnyTermination::None(_)));
     assert_eq!(time_limit, None);
@@ -253,7 +253,10 @@ fn build_termination_treats_empty_and_invalid_only_configs_as_unlimited() {
             termination: Some(termination_config),
             ..SolverConfig::default()
         };
-        let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+        let (termination, time_limit) = build_director_termination::<
+            TestSolution,
+            ScoreDirector<TestSolution, ()>,
+        >(&config, 180);
 
         assert!(matches!(termination, AnyTermination::None(_)));
         assert_eq!(time_limit, None);
@@ -270,7 +273,8 @@ fn build_termination_returns_fallback_time_for_best_score_limit() {
         ..Default::default()
     };
 
-    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+    let (termination, time_limit) =
+        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
 
     assert!(matches!(termination, AnyTermination::WithBestScore(_)));
     assert_eq!(time_limit, Some(Duration::from_secs(180)));
@@ -285,8 +289,10 @@ fn config_best_score_limit_stops_active_phase_loop() {
         }),
         ..Default::default()
     };
-    let (termination, time_limit) =
-        build_termination::<TestSolution, ScoreFromSolutionConstraints>(&config, 180);
+    let (termination, time_limit) = build_director_termination::<
+        TestSolution,
+        ScoreDirector<TestSolution, ScoreFromSolutionConstraints>,
+    >(&config, 180);
     let descriptor = SolutionDescriptor::new("TestSolution", TypeId::of::<TestSolution>());
     let director = ScoreDirector::with_descriptor(
         TestSolution {
@@ -297,7 +303,7 @@ fn config_best_score_limit_stops_active_phase_loop() {
         |_, _| 1,
     );
 
-    let mut solver = Solver::new((IncrementScorePhase { max_score: 5 },))
+    let mut solver = Solver::new(IncrementScorePhase { max_score: 5 })
         .with_config(config)
         .with_termination(termination);
     if let Some(time_limit) = time_limit {
@@ -307,11 +313,11 @@ fn config_best_score_limit_stops_active_phase_loop() {
     let result = solver.solve(director);
 
     assert_eq!(
-        result.terminal_reason(),
+        result.terminal_reason,
         SolverTerminalReason::TerminatedByConfig
     );
-    assert_eq!(*result.best_score(), SoftScore::of(2));
-    assert_eq!(result.step_count(), 2);
+    assert_eq!(result.best_score, SoftScore::of(2));
+    assert_eq!(result.stats.step_count(), 2);
 }
 
 #[test]
@@ -324,7 +330,8 @@ fn build_termination_returns_fallback_time_for_step_limit() {
         ..Default::default()
     };
 
-    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+    let (termination, time_limit) =
+        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
 
     assert!(matches!(termination, AnyTermination::WithStepCount(_)));
     assert_eq!(time_limit, Some(Duration::from_secs(180)));
@@ -340,7 +347,8 @@ fn build_termination_returns_fallback_time_for_unimproved_step_limit() {
         ..Default::default()
     };
 
-    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+    let (termination, time_limit) =
+        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
 
     assert!(matches!(termination, AnyTermination::WithUnimprovedStep(_)));
     assert_eq!(time_limit, Some(Duration::from_secs(180)));
@@ -356,7 +364,8 @@ fn build_termination_returns_fallback_time_for_unimproved_time_limit() {
         ..Default::default()
     };
 
-    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+    let (termination, time_limit) =
+        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
 
     assert!(matches!(termination, AnyTermination::WithUnimprovedTime(_)));
     assert_eq!(time_limit, Some(Duration::from_secs(180)));
@@ -373,7 +382,8 @@ fn build_termination_explicit_time_overrides_fallback() {
         ..Default::default()
     };
 
-    let (termination, time_limit) = build_termination::<TestSolution, ()>(&config, 180);
+    let (termination, time_limit) =
+        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
 
     assert!(matches!(termination, AnyTermination::WithStepCount(_)));
     assert_eq!(time_limit, Some(Duration::from_secs(5)));
@@ -435,12 +445,12 @@ fn qualified_solver_trace_preserves_exact_attestation_without_upgrading_normal_t
     )
     .expect("complete externally supplied run provenance qualifies");
 
-    let result = Solver::new((IncrementScorePhase { max_score: 0 },))
+    let result = Solver::new(IncrementScorePhase { max_score: 0 })
         .with_config(config)
         .with_qualified_candidate_trace_run_provenance(qualified.clone())
         .solve(director);
     let trace = result
-        .stats()
+        .stats
         .snapshot()
         .candidate_trace
         .expect("enabled trace is retained in final telemetry");

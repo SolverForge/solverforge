@@ -25,7 +25,7 @@ impl<S> Clone for ScalarGroupMemberAccess<S> {
 /// Typed members retain direct function pointers. Dynamic members retain the
 /// existing dynamic slot adapter; both are consumed through this one semantic
 /// surface by grouped construction and local search.
-pub struct ScalarGroupMemberBinding<S> {
+pub(crate) struct ScalarGroupMemberBinding<S> {
     pub descriptor_index: usize,
     pub variable_index: usize,
     pub entity_type_name: &'static str,
@@ -50,7 +50,7 @@ impl<S> Clone for ScalarGroupMemberBinding<S> {
 }
 
 impl<S> ScalarGroupMemberBinding<S> {
-    pub fn from_scalar_slot(slot: ScalarVariableSlot<S>) -> Self {
+    pub(crate) fn from_scalar_slot(slot: ScalarVariableSlot<S>) -> Self {
         Self {
             descriptor_index: slot.descriptor_index,
             variable_index: slot.variable_index,
@@ -62,7 +62,7 @@ impl<S> ScalarGroupMemberBinding<S> {
         }
     }
 
-    pub fn from_dynamic_slot(slot: DynamicScalarVariableSlot<S>) -> Self {
+    pub(crate) fn from_dynamic_slot(slot: DynamicScalarVariableSlot<S>) -> Self {
         Self {
             // Dynamic group targets are canonicalized only by RuntimeModel
             // compilation. This avoids accepting a stale prebound descriptor
@@ -132,21 +132,14 @@ impl<S> ScalarGroupMemberBinding<S> {
 }
 
 impl<S> ScalarGroupMemberBinding<S> {
-    pub fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize> {
+    pub(crate) fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize> {
         match &self.access {
             ScalarGroupMemberAccess::Static(slot) => slot.current_value(solution, entity_index),
             ScalarGroupMemberAccess::Dynamic(slot) => slot.current_value(solution, entity_index),
         }
     }
 
-    pub fn set_value(&self, solution: &mut S, entity_index: usize, value: Option<usize>) {
-        match &self.access {
-            ScalarGroupMemberAccess::Static(slot) => slot.set_value(solution, entity_index, value),
-            ScalarGroupMemberAccess::Dynamic(slot) => slot.set_value(solution, entity_index, value),
-        }
-    }
-
-    pub fn value_is_legal(
+    pub(crate) fn value_is_legal(
         &self,
         solution: &S,
         entity_index: usize,
@@ -162,14 +155,14 @@ impl<S> ScalarGroupMemberBinding<S> {
         }
     }
 
-    pub fn entity_count(&self, solution: &S) -> usize {
+    pub(crate) fn entity_count(&self, solution: &S) -> usize {
         match &self.access {
             ScalarGroupMemberAccess::Static(slot) => (slot.entity_count)(solution),
             ScalarGroupMemberAccess::Dynamic(slot) => slot.entity_count(solution),
         }
     }
 
-    pub fn candidate_values(
+    pub(crate) fn candidate_values(
         &self,
         solution: &S,
         entity_index: usize,

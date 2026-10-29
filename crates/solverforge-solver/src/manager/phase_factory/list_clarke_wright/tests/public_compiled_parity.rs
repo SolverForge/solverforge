@@ -1,5 +1,7 @@
 //! Public/static/dynamic parity for canonical Clarke-Wright construction.
 
+use crate::builder::context::list::usize_element_source_key;
+
 use std::any::TypeId;
 use std::sync::Arc;
 
@@ -17,9 +19,9 @@ use super::{
 use crate::builder::context::{
     bind_runtime_list_source, unassigned_from_current_assignment, RuntimeListSlot,
 };
-use crate::builder::{usize_element_source_key, ListVariableSlot};
+use crate::builder::ListVariableSlot;
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
-use crate::manager::ListClarkeWrightPhase;
+use crate::manager::phase_factory::list_clarke_wright::ListClarkeWrightPhase;
 use crate::phase::Phase;
 use crate::runtime::compiler::executor::list_construction::execute_runtime_list_clarke_wright;
 use crate::scope::SolverScope;

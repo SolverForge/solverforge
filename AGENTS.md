@@ -150,9 +150,6 @@ All hot-path code must stay monomorphized.
 
 Intentional type-erasure boundaries that should not be "fixed":
 
-- The `&dyn Director<S>` scorer argument used by `DynDistanceMeter` in
-  `nearby.rs` and by `DefaultPillarSelector` extractor closures in `pillar.rs`;
-  the meter and closure types themselves remain concrete generic parameters.
 - `EntityExtractor` in `solverforge-core`: runtime-erased
   `SolutionDescriptor` access only. Canonical generated `RuntimeModel` and
   scoring-stream paths retain concrete collection types.

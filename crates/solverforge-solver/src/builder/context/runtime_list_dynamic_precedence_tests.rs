@@ -1,5 +1,7 @@
 //! Dynamic successor-only precedence regression coverage.
 
+use crate::builder::search::custom::NoDynamicExtensions;
+
 use std::any::TypeId;
 use std::sync::Arc;
 
@@ -16,7 +18,7 @@ use solverforge_core::score::SoftScore;
 use super::list_access::ListAccess;
 use super::runtime_list::RuntimeListElement;
 use super::{RuntimeListSlot, RuntimeModel, VariableSlot};
-use crate::builder::{NoDynamicExtensions, SearchContext};
+use crate::builder::SearchContext;
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
 use crate::runtime::compiler::{compile_runtime_graph, RuntimeGraphInput};
 

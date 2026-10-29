@@ -6,15 +6,15 @@ Scopes maintain state at different levels of the solving process:
 - [`StepScope`]: Per-step state within a phase
 */
 
-mod phase;
-mod solver;
-mod step;
+pub(crate) mod phase;
+pub(crate) mod solver;
+pub(crate) mod step;
 
-pub use phase::PhaseScope;
+pub(crate) use phase::PhaseScope;
 pub(crate) use solver::{PendingControl, SolverScopeChildConfig, WeightModeControl};
-pub use solver::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
+pub(crate) use solver::{ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope};
 pub(crate) use step::StepControlPolicy;
-pub use step::StepScope;
+pub(crate) use step::StepScope;
 
 #[cfg(test)]
 mod tests;

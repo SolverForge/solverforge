@@ -55,7 +55,7 @@ impl<S> Clone for RuntimeProviderSlot<S> {
 /// unqualified edit therefore resolves in the allowed model universe rather
 /// than by scanning mutable host schema state.
 #[derive(Debug)]
-pub struct RuntimeProviderSlotResolver<S> {
+pub(crate) struct RuntimeProviderSlotResolver<S> {
     slots: Vec<RuntimeProviderSlot<S>>,
 }
 
@@ -68,7 +68,7 @@ impl<S> Clone for RuntimeProviderSlotResolver<S> {
 }
 
 impl<S> RuntimeProviderSlotResolver<S> {
-    pub fn new(slots: Vec<RuntimeScalarSlot<S>>) -> Result<Self, String> {
+    pub(crate) fn new(slots: Vec<RuntimeScalarSlot<S>>) -> Result<Self, String> {
         let mut seen = HashSet::new();
         let mut resolved = Vec::with_capacity(slots.len());
         for slot in slots {
@@ -82,10 +82,6 @@ impl<S> RuntimeProviderSlotResolver<S> {
             resolved.push(RuntimeProviderSlot { id, slot });
         }
         Ok(Self { slots: resolved })
-    }
-
-    pub fn slot_ids(&self) -> impl Iterator<Item = &RuntimeScalarSlotId> {
-        self.slots.iter().map(|slot| &slot.id)
     }
 
     fn resolve_raw_index(
@@ -160,7 +156,8 @@ impl<S> RuntimeProviderSlotResolver<S> {
         Ok(index)
     }
 
-    pub fn resolve_and_normalize(
+    #[cfg(test)]
+    pub(crate) fn resolve_and_normalize(
         &self,
         solution: &S,
         candidates: Vec<RawProviderCandidate>,
@@ -178,7 +175,7 @@ impl<S> RuntimeProviderSlotResolver<S> {
 
     /// Resolves raw candidates in returned order while applying deduplication
     /// in the explicit caller-owned scope.
-    pub fn resolve_and_normalize_with_state(
+    pub(crate) fn resolve_and_normalize_with_state(
         &self,
         solution: &S,
         candidates: Vec<RawProviderCandidate>,

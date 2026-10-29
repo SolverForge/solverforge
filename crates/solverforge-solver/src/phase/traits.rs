@@ -57,22 +57,3 @@ pub trait Phase<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>
         CandidateTracePhasePlan::opaque(self.phase_type_name())
     }
 }
-
-// Unit type implements Phase as a no-op (empty phase list).
-impl<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>> Phase<S, D, BestCb> for () {
-    fn solve(&mut self, _solver_scope: &mut SolverScope<'_, S, D, BestCb>) {
-        // No-op: empty phase list does nothing
-    }
-
-    fn phase_type_name(&self) -> &'static str {
-        "NoOp"
-    }
-
-    fn candidate_trace_plan(&self) -> CandidateTracePhasePlan {
-        CandidateTracePhasePlan::known(
-            "solverforge.phase.no_op",
-            std::iter::empty::<(String, String)>(),
-            Vec::new(),
-        )
-    }
-}

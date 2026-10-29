@@ -47,6 +47,6 @@ score_director.working_solution_mut().tasks.push(self.task);
 ```
 */
 
-mod problem_change;
+pub(crate) mod problem_change;
 
-pub use problem_change::{ClosureProblemChange, ProblemChange};
+pub(crate) use problem_change::ProblemChange;

@@ -1,7 +1,8 @@
+use crate::heuristic::selector::entity::FromSolutionEntitySelector;
+use crate::heuristic::selector::value_selector::StaticValueSelector;
 // Tests for entity placers.
 
 use super::*;
-use crate::heuristic::selector::{FromSolutionEntitySelector, StaticValueSelector};
 use solverforge_core::domain::{
     EntityCollectionExtractor, EntityDescriptor, PlanningSolution, SolutionDescriptor,
 };
@@ -175,40 +176,4 @@ fn test_queued_placer_all_initialized() {
 
     // No placements - all already initialized
     assert_eq!(placements.len(), 0);
-}
-
-#[test]
-fn test_sorted_entity_placer_descending() {
-    // Create 3 uninitialized queens
-    let director = create_test_director(&[false, false, false]);
-
-    let entity_selector = FromSolutionEntitySelector::new(0);
-    let value_selector = StaticValueSelector::new(vec![0i32, 1, 2]);
-
-    let inner = QueuedEntityPlacer::new(
-        entity_selector,
-        value_selector,
-        get_queen_row,
-        set_queen_row,
-        0,
-        0,
-        "row",
-    );
-
-    // Sort by entity index descending (2, 1, 0)
-    fn descending_index(_s: &NQueensSolution, a: usize, b: usize) -> std::cmp::Ordering {
-        b.cmp(&a)
-    }
-
-    let sorted = SortedEntityPlacer::new(inner, descending_index);
-    let mut cursor = sorted.open_cursor(&director);
-    let mut placements = Vec::new();
-    while let Some(placement) = cursor.next_placement(&director, |_| false, || false) {
-        placements.push(placement.entity_ref);
-    }
-
-    assert_eq!(placements.len(), 3);
-    assert_eq!(placements[0].entity_index, 2);
-    assert_eq!(placements[1].entity_index, 1);
-    assert_eq!(placements[2].entity_index, 0);
 }

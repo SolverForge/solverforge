@@ -5,10 +5,7 @@ use solverforge_scoring::ScoreDirector;
 use std::any::TypeId;
 
 #[derive(Clone, Debug)]
-struct Task {
-    id: usize,
-    priority: Option<i32>,
-}
+struct Task;
 
 #[derive(Clone, Debug)]
 struct TaskSolution {
@@ -45,40 +42,10 @@ fn create_director(tasks: Vec<Task>) -> ScoreDirector<TaskSolution, ()> {
 
 #[test]
 fn test_static_value_selector_selector() {
-    let director = create_director(vec![Task {
-        id: 0,
-        priority: None,
-    }]);
+    let director = create_director(vec![Task]);
     let selector = StaticValueSelector::<TaskSolution, i32>::new(vec![1, 2, 3, 4, 5]);
 
     let values: Vec<_> = selector.iter(&director, 0, 0).collect();
     assert_eq!(values, vec![1, 2, 3, 4, 5]);
     assert_eq!(selector.size(&director, 0, 0), 5);
-}
-
-#[test]
-fn test_from_solution_value_selector_selector() {
-    let director = create_director(vec![
-        Task {
-            id: 0,
-            priority: Some(10),
-        },
-        Task {
-            id: 1,
-            priority: Some(20),
-        },
-    ]);
-
-    let solution = director.working_solution();
-    assert_eq!(solution.tasks[0].id, 0);
-    assert_eq!(solution.tasks[1].id, 1);
-
-    fn extract_priorities(s: &TaskSolution) -> Vec<i32> {
-        s.tasks.iter().filter_map(|t| t.priority).collect()
-    }
-
-    let selector = FromSolutionValueSelector::new(extract_priorities);
-
-    let values: Vec<_> = selector.iter(&director, 0, 0).collect();
-    assert_eq!(values, vec![10, 20]);
 }

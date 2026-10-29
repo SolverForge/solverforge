@@ -21,10 +21,10 @@ let acceptor = HillClimbingAcceptor::new();
 ```
 */
 #[derive(Debug, Clone, Default)]
-pub struct HillClimbingAcceptor;
+pub(crate) struct HillClimbingAcceptor;
 
 impl HillClimbingAcceptor {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self
     }
 }

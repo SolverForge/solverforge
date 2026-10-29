@@ -1,11 +1,11 @@
+use crate::manager::solver_manager::manager::SolverManager;
+use crate::manager::solver_manager::types::SolverManagerError;
 use std::time::Duration;
 
 use solverforge_core::score::SoftScore;
 use solverforge_core::PlanningSolution;
 
-use super::super::{
-    SolverEvent, SolverLifecycleState, SolverManager, SolverManagerError, SolverTerminalReason,
-};
+use super::super::{SolverEvent, SolverLifecycleState, SolverTerminalReason};
 use super::common::recv_event;
 use super::lifecycle_solutions::{
     DeleteReservationSolution, LifecycleSolution, PanickingLifecycleSolution,

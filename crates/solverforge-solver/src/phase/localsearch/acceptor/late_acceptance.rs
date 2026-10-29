@@ -12,24 +12,7 @@ use crate::heuristic::r#move::MoveTabuSignature;
 /// Maintains a circular buffer of recent scores and accepts moves that
 /// are better than a score from N steps ago.
 ///
-/// # Example
-///
-/// ```
-/// use solverforge_solver::phase::localsearch::LateAcceptanceAcceptor;
-/// use solverforge_core::score::SoftScore;
-/// use solverforge_core::domain::PlanningSolution;
-///
-/// #[derive(Clone)]
-/// struct MySolution;
-/// impl PlanningSolution for MySolution {
-///     type Score = SoftScore;
-///     fn score(&self) -> Option<Self::Score> { None }
-///     fn set_score(&mut self, _: Option<Self::Score>) {}
-/// }
-///
-/// let acceptor = LateAcceptanceAcceptor::<MySolution>::new(400);
-/// ```
-pub struct LateAcceptanceAcceptor<S: PlanningSolution> {
+pub(crate) struct LateAcceptanceAcceptor<S: PlanningSolution> {
     // Size of the late acceptance list.
     late_acceptance_size: usize,
     // Circular buffer of historical scores.
@@ -70,7 +53,7 @@ impl<S: PlanningSolution> LateAcceptanceAcceptor<S> {
     /// # Panics
     ///
     /// Panics if `late_acceptance_size` is 0.
-    pub fn new(late_acceptance_size: usize) -> Self {
+    pub(crate) fn new(late_acceptance_size: usize) -> Self {
         assert!(
             late_acceptance_size > 0,
             "late_acceptance_size must be > 0, got 0"

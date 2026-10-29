@@ -15,7 +15,7 @@ pub struct EntityReference {
 }
 
 impl EntityReference {
-    pub fn new(descriptor_index: usize, entity_index: usize) -> Self {
+    pub(crate) fn new(descriptor_index: usize, entity_index: usize) -> Self {
         Self {
             descriptor_index,
             entity_index,
@@ -78,40 +78,6 @@ impl<S: PlanningSolution> EntitySelector<S> for FromSolutionEntitySelector {
         score_director
             .entity_count(self.descriptor_index)
             .unwrap_or(0)
-    }
-}
-
-// An entity selector that iterates over all entities from all descriptors.
-#[derive(Debug, Clone, Default)]
-pub struct AllEntitiesSelector;
-
-impl AllEntitiesSelector {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl<S: PlanningSolution> EntitySelector<S> for AllEntitiesSelector {
-    fn iter<'a, D: Director<S>>(
-        &'a self,
-        score_director: &D,
-    ) -> impl Iterator<Item = EntityReference> + 'a {
-        let desc = score_director.solution_descriptor();
-        let descriptor_count = desc.entity_descriptors.len();
-
-        let mut refs = Vec::new();
-        for desc_idx in 0..descriptor_count {
-            let count = score_director.entity_count(desc_idx).unwrap_or(0);
-            for entity_idx in 0..count {
-                refs.push(EntityReference::new(desc_idx, entity_idx));
-            }
-        }
-
-        refs.into_iter()
-    }
-
-    fn size<D: Director<S>>(&self, score_director: &D) -> usize {
-        score_director.total_entity_count().unwrap_or(0)
     }
 }
 

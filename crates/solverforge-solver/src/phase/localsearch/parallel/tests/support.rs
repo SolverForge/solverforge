@@ -7,7 +7,7 @@ use solverforge_scoring::stream::collection_extract::{source, ChangeSource};
 use solverforge_scoring::IncrementalUniConstraint;
 
 use crate::heuristic::r#move::ChangeMove;
-use crate::heuristic::selector::ChangeMoveSelector;
+use crate::heuristic::selector::move_selector::ChangeMoveSelector;
 use crate::phase::localsearch::{
     solve_local_search_with_resources, HillClimbingAcceptor, LocalSearchForager,
     SelectorCursorSource,
@@ -69,8 +69,8 @@ pub(super) use forkable_director;
 type QueenSelector = ChangeMoveSelector<
     NQueensSolution,
     i64,
-    crate::heuristic::selector::FromSolutionEntitySelector,
-    crate::heuristic::selector::StaticValueSelector<NQueensSolution, i64>,
+    crate::heuristic::selector::entity::FromSolutionEntitySelector,
+    crate::heuristic::selector::value_selector::StaticValueSelector<NQueensSolution, i64>,
 >;
 
 pub(super) fn selector() -> SelectorCursorSource<QueenSelector> {

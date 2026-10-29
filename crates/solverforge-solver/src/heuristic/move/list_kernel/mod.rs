@@ -37,18 +37,24 @@ pub(crate) use permute::{
     permute_undo_move, PermuteCoordinates,
 };
 pub(crate) use range_access::{ListRangeAccess, ListReverseAccess, ListWindowAccess};
-pub(crate) use range_static::{StaticListReverseAccess, StaticListWindowAccess};
+#[cfg(test)]
+pub(crate) use range_static::StaticListReverseAccess;
+pub(crate) use range_static::StaticListWindowAccess;
 pub(crate) use reverse::{
     reverse_candidate_trace_identity, reverse_do_move, reverse_is_doable, reverse_tabu_signature,
     ReverseCoordinates,
 };
 #[cfg(test)]
 pub(crate) use ruin::final_positions_after_insertions;
+#[cfg(test)]
+pub(crate) use ruin::ruin_count;
 pub(crate) use ruin::{
-    merged_ruin_sources, ruin_count, ruin_do_move, ruin_entity_indices, ruin_is_doable,
-    ruin_tabu_signature, ruin_undo_move, single_ruin_source, RuinSources, RuinUndo,
+    merged_ruin_sources, ruin_do_move, ruin_entity_indices, ruin_is_doable, ruin_tabu_signature,
+    ruin_undo_move, single_ruin_source, RuinSources, RuinUndo,
 };
-pub(crate) use ruin_access::{ListRuinAccess, StaticListRuinAccess};
+pub(crate) use ruin_access::ListRuinAccess;
+#[cfg(test)]
+pub(crate) use ruin_access::StaticListRuinAccess;
 pub(crate) use sublist_change::{
     sublist_change_candidate_trace_identity, sublist_change_do_move, sublist_change_is_doable,
     sublist_change_tabu_signature, sublist_change_undo_move,

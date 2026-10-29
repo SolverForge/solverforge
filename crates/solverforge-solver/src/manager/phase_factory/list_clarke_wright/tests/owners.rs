@@ -1,4 +1,6 @@
 use super::*;
+use crate::phase::Phase;
+use crate::scope::solver::SolverScope;
 
 #[test]
 fn clarke_wright_preserves_preassigned_routes() {
@@ -30,7 +32,7 @@ fn clarke_wright_preserves_preassigned_routes() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         distance,
         feasible,
@@ -75,7 +77,7 @@ fn clarke_wright_assigns_constructed_routes_to_feasible_owners() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         distance,
         owner_feasible,
@@ -125,7 +127,7 @@ fn clarke_wright_uses_owner_depots_for_savings() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot_by_owner,
         distance_records_owner,
         single_visit_route,
@@ -173,7 +175,7 @@ fn clarke_wright_skips_merge_that_breaks_global_owner_matching() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         scarce_owner_distance,
         scarce_owner_feasible,
@@ -230,7 +232,7 @@ fn clarke_wright_completes_unmatched_routes_with_savings_insertion() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         scarce_capacity_distance,
         scarce_capacity_feasible,

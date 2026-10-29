@@ -157,7 +157,6 @@ where
     }
 }
 
-
 impl<S, V: Debug, ES: Debug, VS: Debug> Debug for ChangeMoveSelector<S, V, ES, VS> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ChangeMoveSelector")
@@ -172,29 +171,9 @@ impl<S, V: Debug, ES: Debug, VS: Debug> Debug for ChangeMoveSelector<S, V, ES, V
 }
 
 impl<S: PlanningSolution, V: Clone, ES, VS> ChangeMoveSelector<S, V, ES, VS> {
-    pub fn new(
-        entity_selector: ES,
-        value_selector: VS,
-        getter: fn(&S, usize, usize) -> Option<V>,
-        setter: fn(&mut S, usize, usize, Option<V>),
-        descriptor_index: usize,
-        variable_index: usize,
-        variable_name: &'static str,
-    ) -> Self {
-        Self {
-            entity_selector,
-            value_selector,
-            getter,
-            setter,
-            descriptor_index,
-            variable_index,
-            variable_name,
-            allows_unassigned: false,
-            _phantom: PhantomData,
-        }
-    }
 
-    pub fn with_allows_unassigned(mut self, allows_unassigned: bool) -> Self {
+    #[cfg(test)]
+    pub(crate) fn with_allows_unassigned(mut self, allows_unassigned: bool) -> Self {
         self.allows_unassigned = allows_unassigned;
         self
     }

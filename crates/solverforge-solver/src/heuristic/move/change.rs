@@ -75,7 +75,7 @@ impl<S, V> ChangeMove<S, V> {
     /// * `setter` - Function pointer to set value on solution
     /// * `variable_name` - Name of the variable (for debugging)
     /// * `descriptor_index` - Index of the entity descriptor
-    pub fn new(
+    pub(crate) fn new(
         entity_index: usize,
         to_value: Option<V>,
         getter: fn(&S, usize, usize) -> Option<V>,
@@ -101,18 +101,6 @@ impl<S, V> ChangeMove<S, V> {
 
     pub fn to_value(&self) -> Option<&V> {
         self.to_value.as_ref()
-    }
-
-    pub fn getter(&self) -> fn(&S, usize, usize) -> Option<V> {
-        self.getter
-    }
-
-    pub fn setter(&self) -> fn(&mut S, usize, usize, Option<V>) {
-        self.setter
-    }
-
-    pub fn variable_index(&self) -> usize {
-        self.variable_index
     }
 }
 

@@ -104,8 +104,7 @@ values directly into the shared cursor normalizer.
 The object-safe `EntityExtractor` boundary belongs to runtime-erased
 `SolutionDescriptor` access; canonical generated runtime and scoring-stream
 paths retain their concrete collection and selector types. Public concrete
-adapters and selector APIs are `EntityCollectionExtractor`, `ValueSelector`,
-and `MoveSelector`.
+adapters and selector APIs are `EntityCollectionExtractor` and `MoveSelector`.
 
 Typed row-operator extension contracts and their current ownership boundary are
 in [Extending typed relational scoring](docs/extend-scoring.md). Equality
@@ -372,18 +371,18 @@ hook; intra-owner ordering moves remain available.
 
 ### Specialized list-construction source identity
 
-`ListConstructionPhaseBuilder`, `ListCheapestInsertionPhase`,
-`ListRegretInsertionPhase`, and `ListClarkeWrightPhase` require an explicit
-`element_source_key` function. The function maps each declared element, each
-currently assigned element, and each precedence-successor value to the same
-unique, stable `usize` source identity. SolverForge freezes that binding before
-construction, then uses source indexes for ordering, ownership, precedence,
-candidate traces, and static/dynamic execution. It never recovers identity by
-payload equality or hashing; duplicate, missing, or inconsistent keys are a
-construction bind error. When multiple construction phases target the same
-list slot, they share the frozen declaration binding but refresh current
-assignments before each phase, so later phases cannot reinsert earlier work or
-reread declaration callbacks.
+List construction (cheapest insertion, regret insertion, Clarke-Wright) keys
+every declared element, every currently assigned element, and every
+precedence-successor value by one unique, stable `usize` source identity. For
+models assembled with `planning_model!` that identity is the element index the
+list variable stores, so there is nothing to write. SolverForge freezes that
+binding before construction, then uses source indexes for ordering, ownership,
+precedence, candidate traces, and static/dynamic execution. It never recovers
+identity by payload equality or hashing; duplicate, missing, or inconsistent
+keys are a construction bind error. When multiple construction phases target
+the same list slot, they share the frozen declaration binding but refresh
+current assignments before each phase, so later phases cannot reinsert earlier
+work or reread declaration callbacks.
 
 When top-level termination contains an effective parsed limit, those defaults
 run as one streaming acceptor/forager local-search phase after construction.

@@ -1,3 +1,8 @@
+use crate::builder::context::provider::types::ProviderResolutionError;
+use crate::builder::context::provider::types::RawProviderEdit;
+use crate::builder::context::provider::types::RuntimeHostCompoundProvider;
+use crate::builder::context::provider::types::RuntimeHostProviderErrorBoundary;
+use crate::builder::context::provider::types::RuntimeScalarGroupProviderBinding;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -5,10 +10,8 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
 
 use crate::builder::context::{
-    ProviderReasonArena, ProviderResolutionError, RawProviderCandidate, RawProviderEdit,
-    RuntimeHostCompoundProvider, RuntimeHostProviderErrorBoundary, RuntimeProviderLimits,
-    RuntimeProviderRegistry, RuntimeScalarGroupProviderBinding, RuntimeScalarSlot,
-    ScalarGroupBinding, ScalarVariableSlot, ValueSource,
+    ProviderReasonArena, RawProviderCandidate, RuntimeProviderLimits, RuntimeProviderRegistry,
+    RuntimeScalarSlot, ScalarGroupBinding, ScalarVariableSlot, ValueSource,
 };
 use crate::heuristic::r#move::{
     reset_runtime_compound_move_clone_count, runtime_compound_move_clone_count,

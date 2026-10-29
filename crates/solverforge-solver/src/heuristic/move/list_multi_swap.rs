@@ -18,7 +18,7 @@ use super::{Move, MoveTabuSignature};
 /// The public move keeps its historic constructor and score-improvement flag;
 /// shared list-kernel mechanics own doability, notifications, mutation, undo,
 /// and tabu identity for static and runtime carriers alike.
-pub struct ListMultiSwapMove<S, V> {
+pub(crate) struct ListMultiSwapMove<S, V> {
     swaps: MultiSwapCoordinates,
     access: StaticListSwapAccess<S, V>,
     indices: SmallVec<[usize; 4]>,
@@ -37,7 +37,7 @@ impl<S, V: Debug> Debug for ListMultiSwapMove<S, V> {
 }
 
 impl<S, V> ListMultiSwapMove<S, V> {
-    pub fn new(
+    pub(crate) fn new(
         swaps: &[(usize, usize, usize)],
         list_len: fn(&S, usize) -> usize,
         list_get: fn(&S, usize, usize) -> Option<V>,
@@ -59,12 +59,15 @@ impl<S, V> ListMultiSwapMove<S, V> {
         }
     }
 
-    pub fn with_require_score_improvement(mut self, require_score_improvement: bool) -> Self {
+    pub(crate) fn with_require_score_improvement(
+        mut self,
+        require_score_improvement: bool,
+    ) -> Self {
         self.require_score_improvement = require_score_improvement;
         self
     }
 
-    pub fn swaps(&self) -> &[(usize, usize, usize)] {
+    pub(crate) fn swaps(&self) -> &[(usize, usize, usize)] {
         &self.swaps
     }
 }

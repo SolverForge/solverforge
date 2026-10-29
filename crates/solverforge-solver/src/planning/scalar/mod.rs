@@ -1,11 +1,11 @@
-mod assignment;
-mod candidate;
-mod group;
-mod target;
+pub(crate) mod assignment;
+pub(crate) mod candidate;
+pub(crate) mod group;
+pub(crate) mod target;
 
 pub(crate) use assignment::ScalarAssignmentDeclaration;
-pub use assignment::ScalarAssignmentRule;
-pub use candidate::{ScalarCandidate, ScalarCandidateProvider, ScalarEdit};
+pub(crate) use assignment::ScalarAssignmentRule;
+pub(crate) use candidate::{ScalarCandidate, ScalarCandidateProvider, ScalarEdit};
 pub(crate) use group::ScalarGroupKind;
-pub use group::{ScalarGroup, ScalarGroupLimits};
-pub use target::ScalarTarget;
+pub(crate) use group::{ScalarGroup, ScalarGroupLimits};
+pub(crate) use target::ScalarTarget;

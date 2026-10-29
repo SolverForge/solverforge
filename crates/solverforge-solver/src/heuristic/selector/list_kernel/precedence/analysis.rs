@@ -1,14 +1,21 @@
 //! Critical-path analysis for the canonical precedence cursor.
 
 use std::collections::VecDeque;
+#[cfg(test)]
 use std::fmt::Debug;
 
+#[cfg(test)]
 use solverforge_core::domain::PlanningSolution;
+#[cfg(test)]
 use solverforge_scoring::Director;
 
+#[cfg(test)]
 use crate::heuristic::selector::entity::EntitySelector;
+#[cfg(test)]
 use crate::heuristic::selector::list_support::collect_selected_entities;
-use crate::heuristic::selector::precedence_route::{PrecedenceRouteGraph, PrecedenceRouteHooks};
+use crate::heuristic::selector::precedence_route::PrecedenceRouteGraph;
+#[cfg(test)]
+use crate::heuristic::selector::precedence_route::PrecedenceRouteHooks;
 
 use super::coordinates::CriticalBlock;
 
@@ -18,6 +25,7 @@ pub(crate) struct CriticalAnalysis {
     pub(crate) route_graph: PrecedenceRouteGraph,
 }
 
+#[cfg(test)]
 /// Builds immutable critical blocks once at cursor opening.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn critical_analysis<S, V, D, ES>(
@@ -187,6 +195,7 @@ fn is_critical_node(node: usize, summary: &GraphSummary) -> bool {
     summary.earliest[node] == summary.latest[node]
 }
 
+#[cfg(test)]
 fn usize_to_i64(value: usize) -> i64 {
     i64::try_from(value).unwrap_or(i64::MAX)
 }

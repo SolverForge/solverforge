@@ -13,7 +13,7 @@ use super::metadata::{
 use super::{Move, MoveTabuSignature};
 
 /// Exchanges two values in one descriptor-resolved dynamic scalar variable.
-pub struct DynamicScalarSwapMove<S> {
+pub(crate) struct DynamicScalarSwapMove<S> {
     slot: DynamicScalarVariableSlot<S>,
     left_entity_index: usize,
     right_entity_index: usize,
@@ -33,7 +33,7 @@ impl<S> Debug for DynamicScalarSwapMove<S> {
 }
 
 impl<S> DynamicScalarSwapMove<S> {
-    pub fn new(
+    pub(crate) fn new(
         slot: DynamicScalarVariableSlot<S>,
         left_entity_index: usize,
         right_entity_index: usize,
@@ -46,11 +46,11 @@ impl<S> DynamicScalarSwapMove<S> {
         }
     }
 
-    pub fn left_entity_index(&self) -> usize {
+    pub(crate) fn left_entity_index(&self) -> usize {
         self.left_entity_index
     }
 
-    pub fn right_entity_index(&self) -> usize {
+    pub(crate) fn right_entity_index(&self) -> usize {
         self.right_entity_index
     }
 }

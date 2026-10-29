@@ -26,12 +26,12 @@ let term: BestScoreTermination<SoftScore> = BestScoreTermination::new(SoftScore:
 ```
 */
 #[derive(Debug, Clone)]
-pub struct BestScoreTermination<Sc: Score> {
+pub(crate) struct BestScoreTermination<Sc: Score> {
     target_score: Sc,
 }
 
 impl<Sc: Score> BestScoreTermination<Sc> {
-    pub fn new(target_score: Sc) -> Self {
+    pub(crate) fn new(target_score: Sc) -> Self {
         Self { target_score }
     }
 }
@@ -52,71 +52,5 @@ where
 
     fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
         solver_scope.install_inphase_best_score_limit(self.target_score);
-    }
-}
-
-/// Terminates when the best score becomes feasible.
-///
-/// A score is considered feasible when it meets a feasibility check defined
-/// by a user-provided function. For HardSoftScore, this typically means
-/// hard score >= 0 (no hard constraint violations).
-///
-/// # Zero-Erasure Design
-///
-/// The feasibility check function `F` is stored as a concrete generic type
-/// parameter, eliminating virtual dispatch overhead when checking termination.
-pub struct BestScoreFeasibleTermination<S, F>
-where
-    S: PlanningSolution,
-    F: Fn(&S::Score) -> bool + Send + Sync,
-{
-    feasibility_check: F,
-    _phantom: std::marker::PhantomData<fn() -> S>,
-}
-
-impl<S, F> Debug for BestScoreFeasibleTermination<S, F>
-where
-    S: PlanningSolution,
-    F: Fn(&S::Score) -> bool + Send + Sync,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BestScoreFeasibleTermination").finish()
-    }
-}
-
-impl<S, F> BestScoreFeasibleTermination<S, F>
-where
-    S: PlanningSolution,
-    F: Fn(&S::Score) -> bool + Send + Sync,
-{
-    pub fn new(feasibility_check: F) -> Self {
-        Self {
-            feasibility_check,
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<S: PlanningSolution> BestScoreFeasibleTermination<S, fn(&S::Score) -> bool> {
-    /// Creates a termination that checks if score >= zero.
-    ///
-    /// This is the typical feasibility check for most score types.
-    pub fn score_at_least_zero() -> Self {
-        Self::new(|score| *score >= S::Score::zero())
-    }
-}
-
-impl<S, D, BestCb, F> Termination<S, D, BestCb> for BestScoreFeasibleTermination<S, F>
-where
-    S: PlanningSolution,
-    D: Director<S>,
-    BestCb: ProgressCallback<S>,
-    F: Fn(&S::Score) -> bool + Send + Sync,
-{
-    fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
-        solver_scope
-            .best_score()
-            .map(|score| (self.feasibility_check)(score))
-            .unwrap_or(false)
     }
 }

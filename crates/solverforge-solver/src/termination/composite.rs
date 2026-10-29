@@ -1,4 +1,4 @@
-/* Composite termination conditions (AND/OR).
+/* Composite OR termination condition.
 
 Uses macro-generated tuple implementations for zero-erasure architecture.
 */
@@ -16,35 +16,9 @@ use crate::scope::SolverScope;
 /* Combines multiple terminations with OR logic.
 
 Terminates when ANY of the child terminations triggers.
-
-# Example
-
-```
-use solverforge_solver::termination::{OrTermination, TimeTermination, StepCountTermination};
-use solverforge_scoring::ScoreDirector;
-use solverforge_core::domain::PlanningSolution;
-use solverforge_core::score::SoftScore;
-use std::time::Duration;
-
-#[derive(Clone)]
-struct MySolution;
-impl PlanningSolution for MySolution {
-type Score = SoftScore;
-fn score(&self) -> Option<Self::Score> { None }
-fn set_score(&mut self, _: Option<Self::Score>) {}
-}
-
-type MyDirector = ScoreDirector<MySolution, ()>;
-
-// Terminate after 30 seconds OR 1000 steps
-let term: OrTermination<_, MySolution, MyDirector> = OrTermination::new((
-TimeTermination::seconds(30),
-StepCountTermination::new(1000),
-));
-```
 */
 #[derive(Clone)]
-pub struct OrTermination<T, S, D>(pub T, PhantomData<fn(S, D)>);
+pub(crate) struct OrTermination<T, S, D>(pub T, PhantomData<fn(S, D)>);
 
 impl<T: Debug, S, D> Debug for OrTermination<T, S, D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -53,52 +27,7 @@ impl<T: Debug, S, D> Debug for OrTermination<T, S, D> {
 }
 
 impl<T, S, D> OrTermination<T, S, D> {
-    pub fn new(terminations: T) -> Self {
-        Self(terminations, PhantomData)
-    }
-}
-
-/* Combines multiple terminations with AND logic.
-
-All terminations must agree before solving terminates.
-
-# Example
-
-```
-use solverforge_solver::termination::{AndTermination, TimeTermination, StepCountTermination};
-use solverforge_scoring::ScoreDirector;
-use solverforge_core::score::SoftScore;
-use solverforge_core::domain::PlanningSolution;
-use std::time::Duration;
-
-#[derive(Clone)]
-struct MySolution;
-impl PlanningSolution for MySolution {
-type Score = SoftScore;
-fn score(&self) -> Option<Self::Score> { None }
-fn set_score(&mut self, _: Option<Self::Score>) {}
-}
-
-type MyDirector = ScoreDirector<MySolution, ()>;
-
-// Terminate when both conditions are met
-let term: AndTermination<_, MySolution, MyDirector> = AndTermination::new((
-TimeTermination::seconds(10),
-StepCountTermination::new(100),
-));
-```
-*/
-#[derive(Clone)]
-pub struct AndTermination<T, S, D>(pub T, PhantomData<fn(S, D)>);
-
-impl<T: Debug, S, D> Debug for AndTermination<T, S, D> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("AndTermination").field(&self.0).finish()
-    }
-}
-
-impl<T, S, D> AndTermination<T, S, D> {
-    pub fn new(terminations: T) -> Self {
+    pub(crate) fn new(terminations: T) -> Self {
         Self(terminations, PhantomData)
     }
 }
@@ -124,29 +53,6 @@ macro_rules! impl_composite_termination {
             fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
                 // Propagate in-phase limits from all child terminations.
                 // For OR, each child independently may set a limit.
-                $(
-                    self.0.$idx.install_inphase_limits(solver_scope);
-                )+
-            }
-        }
-
-        impl<S, D, BestCb, $($T),+> Termination<S, D, BestCb> for AndTermination<($($T,)+), S, D>
-        where
-            S: PlanningSolution,
-            D: Director<S>,
-            BestCb: ProgressCallback<S>,
-            $($T: Termination<S, D, BestCb>,)+
-        {
-            fn is_terminated(&mut self, solver_scope: &SolverScope<S, D, BestCb>) -> bool {
-                $(
-                    if !self.0.$idx.is_terminated(solver_scope) {
-                        return false;
-                    }
-                )+
-                true
-            }
-
-            fn install_inphase_limits(&self, solver_scope: &mut SolverScope<S, D, BestCb>) {
                 $(
                     self.0.$idx.install_inphase_limits(solver_scope);
                 )+

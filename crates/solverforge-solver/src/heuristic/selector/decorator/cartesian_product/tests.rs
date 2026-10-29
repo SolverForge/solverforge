@@ -1,9 +1,9 @@
 use super::*;
-use crate::heuristic::r#move::{ChangeMove, Move, ScalarMoveUnion};
+use crate::heuristic::r#move::{ChangeMove, Move};
 use crate::heuristic::selector::move_selector::{
     ArenaMoveCursor, CandidateId, MoveCandidateRef, MoveCursor,
 };
-use crate::heuristic::selector::{ChangeMoveSelector, MoveSelector};
+use crate::heuristic::selector::MoveSelector;
 use crate::phase::localsearch::{Acceptor, TabuSearchAcceptor, TabuSearchPolicy};
 use solverforge_core::domain::{EntityCollectionExtractor, EntityDescriptor, SolutionDescriptor};
 use solverforge_core::score::SoftScore;
@@ -98,12 +98,12 @@ fn create_director(tasks: Vec<Task>) -> ScoreDirector<Sol, ()> {
 
 #[derive(Clone, Copy, Debug)]
 struct TestSelector {
-    build: fn(&Sol) -> Vec<ScalarMoveUnion<Sol, i32>>,
+    build: fn(&Sol) -> Vec<ChangeMove<Sol, i32>>,
 }
 
-impl MoveSelector<Sol, ScalarMoveUnion<Sol, i32>> for TestSelector {
+impl MoveSelector<Sol, ChangeMove<Sol, i32>> for TestSelector {
     type Cursor<'a>
-        = ArenaMoveCursor<Sol, ScalarMoveUnion<Sol, i32>>
+        = ArenaMoveCursor<Sol, ChangeMove<Sol, i32>>
     where
         Self: 'a;
 
@@ -119,7 +119,7 @@ impl MoveSelector<Sol, ScalarMoveUnion<Sol, i32>> for TestSelector {
     }
 }
 
-fn collect_indices<D: Director<Sol>, C: MoveCursor<Sol, ScalarMoveUnion<Sol, i32>>>(
+fn collect_indices<D: Director<Sol>, C: MoveCursor<Sol, ChangeMove<Sol, i32>>>(
     cursor: &mut C,
     director: &mut D,
 ) -> Vec<CandidateId> {
@@ -130,31 +130,31 @@ fn collect_indices<D: Director<Sol>, C: MoveCursor<Sol, ScalarMoveUnion<Sol, i32
     indices
 }
 
-fn x_move(value: i32) -> ScalarMoveUnion<Sol, i32> {
-    ScalarMoveUnion::Change(ChangeMove::new(0, Some(value), get_x, set_x, 0, "x", 0))
+fn x_move(value: i32) -> ChangeMove<Sol, i32> {
+    ChangeMove::new(0, Some(value), get_x, set_x, 0, "x", 0)
 }
 
-fn y_move(value: i32) -> ScalarMoveUnion<Sol, i32> {
-    ScalarMoveUnion::Change(ChangeMove::new(0, Some(value), get_y, set_y, 0, "y", 0))
+fn y_move(value: i32) -> ChangeMove<Sol, i32> {
+    ChangeMove::new(0, Some(value), get_y, set_y, 0, "y", 0)
 }
 
-fn left_x_to_one_then_two(_solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
+fn left_x_to_one_then_two(_solution: &Sol) -> Vec<ChangeMove<Sol, i32>> {
     vec![x_move(1), x_move(2)]
 }
 
-fn right_x_to_one(_solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
+fn right_x_to_one(_solution: &Sol) -> Vec<ChangeMove<Sol, i32>> {
     vec![x_move(1)]
 }
 
-fn right_y_to_ten(_solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
+fn right_y_to_ten(_solution: &Sol) -> Vec<ChangeMove<Sol, i32>> {
     vec![y_move(10)]
 }
 
-fn right_y_to_ten_then_twenty(_solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
+fn right_y_to_ten_then_twenty(_solution: &Sol) -> Vec<ChangeMove<Sol, i32>> {
     vec![y_move(10), y_move(20)]
 }
 
-fn right_shadow_backed_y(solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
+fn right_shadow_backed_y(solution: &Sol) -> Vec<ChangeMove<Sol, i32>> {
     solution.tasks[0]
         .shadow_y_target
         .map(y_move)
@@ -162,57 +162,12 @@ fn right_shadow_backed_y(solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
         .collect()
 }
 
-fn left_increment_x(solution: &Sol) -> Vec<ScalarMoveUnion<Sol, i32>> {
+fn left_increment_x(solution: &Sol) -> Vec<ChangeMove<Sol, i32>> {
     solution.tasks[0]
         .x
         .map(|value| x_move(value + 1))
         .into_iter()
         .collect()
-}
-
-#[test]
-fn cartesian_product_arena_yields_all_pairs() {
-    let director = create_director(vec![Task {
-        x: Some(0),
-        y: Some(0),
-        shadow_y_target: None,
-    }]);
-
-    let x_selector = ChangeMoveSelector::simple(get_x, set_x, 0, 0, "x", vec![1, 2]);
-    let y_selector = ChangeMoveSelector::simple(get_y, set_y, 0, 0, "y", vec![10, 20, 30]);
-
-    let mut arena: CartesianProductArena<Sol, ChangeMove<Sol, i32>, ChangeMove<Sol, i32>> =
-        CartesianProductArena::new();
-
-    arena.populate_first(&x_selector, &director);
-    arena.populate_second(&y_selector, &director);
-
-    assert_eq!(arena.len(), 6);
-    let pairs: Vec<_> = arena.iter_pairs().collect();
-    assert_eq!(pairs.len(), 6);
-}
-
-#[test]
-fn reset_clears_both_arenas() {
-    let director = create_director(vec![Task {
-        x: Some(0),
-        y: Some(0),
-        shadow_y_target: None,
-    }]);
-
-    let x_selector = ChangeMoveSelector::simple(get_x, set_x, 0, 0, "x", vec![1, 2]);
-    let y_selector = ChangeMoveSelector::simple(get_y, set_y, 0, 0, "y", vec![10, 20]);
-
-    let mut arena: CartesianProductArena<Sol, ChangeMove<Sol, i32>, ChangeMove<Sol, i32>> =
-        CartesianProductArena::new();
-
-    arena.populate_first(&x_selector, &director);
-    arena.populate_second(&y_selector, &director);
-    assert_eq!(arena.len(), 4);
-
-    arena.reset();
-    assert!(arena.is_empty());
-    assert_eq!(arena.len(), 0);
 }
 
 #[test]
@@ -364,11 +319,11 @@ fn cartesian_product_moves_remain_stable_after_selector_reuse() {
 #[derive(Debug)]
 struct CountingSelector {
     open_count: std::cell::Cell<usize>,
-    build: fn(&Sol) -> Vec<ScalarMoveUnion<Sol, i32>>,
+    build: fn(&Sol) -> Vec<ChangeMove<Sol, i32>>,
 }
 
 impl CountingSelector {
-    fn new(build: fn(&Sol) -> Vec<ScalarMoveUnion<Sol, i32>>) -> Self {
+    fn new(build: fn(&Sol) -> Vec<ChangeMove<Sol, i32>>) -> Self {
         Self {
             open_count: std::cell::Cell::new(0),
             build,
@@ -376,9 +331,9 @@ impl CountingSelector {
     }
 }
 
-impl MoveSelector<Sol, ScalarMoveUnion<Sol, i32>> for CountingSelector {
+impl MoveSelector<Sol, ChangeMove<Sol, i32>> for CountingSelector {
     type Cursor<'a>
-        = ArenaMoveCursor<Sol, ScalarMoveUnion<Sol, i32>>
+        = ArenaMoveCursor<Sol, ChangeMove<Sol, i32>>
     where
         Self: 'a;
 

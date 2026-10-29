@@ -25,6 +25,16 @@ pub use score::{
     active_dynamic_score_family, scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily,
 };
 pub use slots::{DynamicListVariableSlot, DynamicScalarVariableSlot};
+/* Host-language provider and metric contracts: what a binding implements so a
+host callback can generate compound scalar candidates and conflict repairs, or
+rank candidates for `Sorted`/`Probabilistic` selector ordering. */
+pub use solverforge_solver::__private::{
+    ProviderResolutionError, RawProviderCandidate, RawProviderEdit, RuntimeCandidateMetric,
+    RuntimeCandidateMetricBinding, RuntimeCandidateMetricRegistry,
+    RuntimeConflictRepairProviderBinding, RuntimeHostCompoundProvider,
+    RuntimeHostProviderErrorBoundary, RuntimeProviderLimits, RuntimeProviderRegistry,
+    RuntimeScalarGroupProviderBinding,
+};
 
 #[cfg(test)]
 mod backend_tests;

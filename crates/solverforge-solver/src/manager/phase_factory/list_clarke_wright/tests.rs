@@ -1,4 +1,6 @@
 use super::*;
+use crate::phase::Phase;
+use crate::scope::solver::SolverScope;
 use std::any::TypeId;
 use std::sync::{Mutex, OnceLock};
 
@@ -260,7 +262,7 @@ fn clarke_wright_hooks_receive_actual_list_values() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         actual_value_distance,
         actual_value_feasible,
@@ -317,7 +319,7 @@ fn clarke_wright_route_feasible_preserves_capacity_hook_behavior() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         distance,
         capacity_feasible,
@@ -371,7 +373,7 @@ fn clarke_wright_extreme_distances_do_not_overflow_savings() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         extreme_distance,
         single_visit_route,
@@ -418,7 +420,7 @@ fn clarke_wright_respects_fixed_element_owner() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         distance,
         feasible,
@@ -462,7 +464,7 @@ fn clarke_wright_keeps_unrestricted_elements_when_owner_hook_exists() {
         route_len,
         assign_route,
         index_to_element,
-        crate::builder::usize_element_source_key,
+        crate::builder::context::list::usize_element_source_key,
         depot,
         distance,
         single_visit_route,

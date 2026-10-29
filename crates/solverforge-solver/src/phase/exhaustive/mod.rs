@@ -12,17 +12,12 @@ best solution found so far.
 - **Optimistic Bound First**: Explores most promising bounds first (A*)
 */
 
-mod bounder;
-mod config;
-mod decider;
-mod exploration_type;
-mod node;
-mod phase;
+pub(crate) mod bounder;
+pub(crate) mod config;
+pub(crate) mod decider;
+pub(crate) mod exploration_type;
+pub(crate) mod node;
+pub(crate) mod phase;
 mod priority_node;
 
-pub use bounder::{BounderType, FixedOffsetBounder, ScoreBounder, SoftScoreBounder};
-pub use config::ExhaustiveSearchConfig;
-pub use decider::{ExhaustiveSearchDecider, SimpleDecider};
-pub use exploration_type::ExplorationType;
-pub use node::ExhaustiveSearchNode;
-pub use phase::ExhaustiveSearchPhase;
+pub(crate) use exploration_type::ExplorationType;

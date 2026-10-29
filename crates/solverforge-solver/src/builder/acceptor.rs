@@ -15,15 +15,15 @@ use crate::phase::localsearch::{
     StepCountingHillClimbingAcceptor, TabuSearchAcceptor, TabuSearchPolicy,
 };
 
-use super::local_search_policy::{resolved_calibration, CompiledAcceptor, ConfigValueError};
+use super::local_search_policy::resolved_calibration;
 
 /* A concrete enum over all built-in acceptor types.
 
-Returned by [`AcceptorBuilder::build`] to avoid `Box<dyn Acceptor<S>>`.
+Built from a compiled acceptor configuration to avoid `Box<dyn Acceptor<S>>`.
 Dispatches to the inner acceptor via `match` — fully monomorphized.
 */
 #[allow(clippy::large_enum_variant)] // Inline storage keeps acceptor dispatch zero-erasure.
-pub enum AnyAcceptor<S: PlanningSolution> {
+pub(crate) enum AnyAcceptor<S: PlanningSolution> {
     // Hill climbing acceptor.
     HillClimbing(HillClimbingAcceptor),
     // Step counting hill climbing acceptor.
@@ -186,53 +186,6 @@ where
                 Acceptor::<S>::step_ended(a, step_score, accepted_move_signature)
             }
         }
-    }
-}
-
-/// Builder for constructing acceptors from configuration.
-pub struct AcceptorBuilder;
-
-impl AcceptorBuilder {
-    /// Builds a concrete [`AnyAcceptor`] from configuration.
-    ///
-    /// Fails when a configured value is outside its domain, for example a
-    /// zero tabu size or a `decay_rate` outside (0, 1].
-    pub fn build<S: PlanningSolution>(
-        config: &AcceptorConfig,
-    ) -> Result<AnyAcceptor<S>, ConfigValueError>
-    where
-        S::Score: Score + ParseableScore,
-    {
-        Self::build_with_seed(config, None)
-    }
-
-    /// Builds a concrete [`AnyAcceptor`] from configuration with an optional deterministic seed.
-    ///
-    /// Fails like [`Self::build`] on an invalid configured value.
-    pub fn build_with_seed<S: PlanningSolution>(
-        config: &AcceptorConfig,
-        random_seed: Option<u64>,
-    ) -> Result<AnyAcceptor<S>, ConfigValueError>
-    where
-        S::Score: Score + ParseableScore,
-    {
-        Ok(CompiledAcceptor::<S>::compile(config)?.build(random_seed))
-    }
-
-    pub fn hill_climbing<S: PlanningSolution>() -> HillClimbingAcceptor {
-        HillClimbingAcceptor::new()
-    }
-
-    pub fn tabu_search<S: PlanningSolution>(tabu_size: usize) -> TabuSearchAcceptor<S> {
-        TabuSearchAcceptor::<S>::new(TabuSearchPolicy::move_only(tabu_size))
-    }
-
-    pub fn simulated_annealing(starting_temp: f64, decay_rate: f64) -> SimulatedAnnealingAcceptor {
-        SimulatedAnnealingAcceptor::new(starting_temp, decay_rate)
-    }
-
-    pub fn late_acceptance<S: PlanningSolution>(size: usize) -> LateAcceptanceAcceptor<S> {
-        LateAcceptanceAcceptor::<S>::new(size)
     }
 }
 

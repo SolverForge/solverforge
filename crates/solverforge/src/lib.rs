@@ -127,7 +127,19 @@ pub mod config {
 pub mod cvrp;
 /// Solver and phase statistics, telemetry and candidate-trace types.
 pub mod stats {
-    pub use solverforge_solver::stats::*;
+    pub use solverforge_solver::{
+        AppliedMoveTelemetry, CandidatePullTelemetry, CandidateTraceCompositeIdentity,
+        CandidateTraceConstructionTarget, CandidateTraceCoordinate, CandidateTraceDigest,
+        CandidateTraceDisposition, CandidateTraceExecutionPolicy, CandidateTraceExternalDigest,
+        CandidateTraceHeader, CandidateTraceIdentity, CandidateTraceInputAttestation,
+        CandidateTraceInputProvenance, CandidateTraceInputProvenanceStatus,
+        CandidateTraceOperationIdentity, CandidateTracePhaseAttribute, CandidateTracePhasePlan,
+        CandidateTraceProvenanceStatus, CandidateTraceQualificationError,
+        CandidateTraceQualificationStatus, CandidateTraceSource, CandidateTraceTelemetry,
+        MoveTelemetry, PhaseStats, PhaseTelemetry, QualifiedCandidateTraceRunProvenance,
+        SelectorTelemetry, SolverStats, SolverTelemetry, Throughput,
+        CANDIDATE_TRACE_FORMAT_VERSION,
+    };
 }
 /// Planning-model traits and runtime descriptors (`PlanningSolution`,
 /// `SolutionDescriptor`, entity and variable descriptors).
@@ -148,16 +160,30 @@ pub mod director {
 }
 /// Search declaration building blocks behind `SearchContext` and `Search`.
 pub mod builder {
-    pub use solverforge_solver::builder::*;
+    pub use solverforge_solver::{
+        bind_scalar_groups, local_search, CustomSearchPhase, ListVariableSlot, RuntimeModel,
+        ScalarGroupBinding, ScalarVariableSlot, Search, SearchContext, ValueSource, VariableSlot,
+    };
 }
 /// Moves, move selectors and move cursors for custom search.
 pub mod heuristic {
-    pub use solverforge_solver::heuristic::*;
+    pub use solverforge_solver::{
+        CandidateId, CrossEntityDistanceMeter, DefaultCrossEntityDistanceMeter,
+        DefaultDistanceMeter, Move, MoveAffectedEntity, MoveArena, MoveCandidateRef,
+        MoveCandidateUndo, MoveCursor, MoveSelector, MoveSelectorIter, MoveStreamContext,
+        MoveTabuScope, MoveTabuSignature, MoveUndoIdentity, ScopedEntityTabuToken,
+        ScopedValueTabuToken, SequentialCompositeMoveRef,
+    };
 }
 /// Phases and their parts: local search acceptors and foragers, exhaustive
 /// search deciders, partitioned search.
 pub mod phase {
-    pub use solverforge_solver::phase::*;
+    pub use solverforge_solver::{
+        Acceptor, ChildPhases, ExhaustiveSearchConfig, ExhaustiveSearchDecider,
+        ExhaustiveSearchNode, ExhaustiveSearchPhase, ExplorationType, ForagerDecision,
+        FunctionalPartitioner, LocalSearchForager, PartitionedSearchConfig, PartitionedSearchPhase,
+        Phase, ScoreBounder, SimpleDecider, SolutionPartitioner, ThreadCount,
+    };
 }
 /// Scalar and repair planning types and source-to-target helpers.
 pub mod planning;
@@ -194,21 +220,8 @@ Solver
 */
 
 pub use solverforge_bridge as bridge;
-pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
-pub use solverforge_solver::scope::{
-    PhaseScope, ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope, StepScope,
-};
-pub use solverforge_solver::stats::{
-    CandidatePullTelemetry, CandidateTraceCompositeIdentity, CandidateTraceConstructionTarget,
-    CandidateTraceCoordinate, CandidateTraceDigest, CandidateTraceDisposition,
-    CandidateTraceExecutionPolicy, CandidateTraceExternalDigest, CandidateTraceHeader,
-    CandidateTraceIdentity, CandidateTraceInputAttestation, CandidateTraceInputProvenance,
-    CandidateTraceInputProvenanceStatus, CandidateTraceOperationIdentity,
-    CandidateTracePhaseAttribute, CandidateTracePhasePlan, CandidateTraceProvenanceStatus,
-    CandidateTraceQualificationError, CandidateTraceQualificationStatus, CandidateTraceSource,
-    CandidateTraceTelemetry, QualifiedCandidateTraceRunProvenance, CANDIDATE_TRACE_FORMAT_VERSION,
-};
 pub use solverforge_solver::CrossEntityDistanceMeter;
+pub use solverforge_solver::DefaultDistanceMeter;
 pub use solverforge_solver::{
     analyze, local_search, Analyzable, AppliedMoveTelemetry, ClosureProblemChange, ConflictRepair,
     ConstraintAnalysis, CustomSearchPhase, ExhaustiveSearchConfig, ExhaustiveSearchPhase,
@@ -220,6 +233,19 @@ pub use solverforge_solver::{
     Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager,
     SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
     SolverTelemetry, SolverTelemetryDetail, SolverTerminalReason, ThreadCount,
+};
+pub use solverforge_solver::{
+    CandidatePullTelemetry, CandidateTraceCompositeIdentity, CandidateTraceConstructionTarget,
+    CandidateTraceCoordinate, CandidateTraceDigest, CandidateTraceDisposition,
+    CandidateTraceExecutionPolicy, CandidateTraceExternalDigest, CandidateTraceHeader,
+    CandidateTraceIdentity, CandidateTraceInputAttestation, CandidateTraceInputProvenance,
+    CandidateTraceInputProvenanceStatus, CandidateTraceOperationIdentity,
+    CandidateTracePhaseAttribute, CandidateTracePhasePlan, CandidateTraceProvenanceStatus,
+    CandidateTraceQualificationError, CandidateTraceQualificationStatus, CandidateTraceSource,
+    CandidateTraceTelemetry, QualifiedCandidateTraceRunProvenance, CANDIDATE_TRACE_FORMAT_VERSION,
+};
+pub use solverforge_solver::{
+    PhaseScope, ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope, StepScope,
 };
 
 /* ============================================================================

@@ -1,3 +1,4 @@
+use crate::realtime::problem_change::ClosureProblemChange;
 // Weight-mode switching requested by applied problem changes.
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
@@ -7,7 +8,7 @@ use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
 use solverforge_scoring::stream::collection_extract::{source, ChangeSource};
 use solverforge_scoring::{ConstraintSet, ScoreDirector, UnweightedMode, WeightMode, WeightedMode};
 
-use crate::realtime::{ClosureProblemChange, ProblemChange};
+use crate::realtime::ProblemChange;
 use crate::runtime_build_error::RuntimeBuildError;
 use crate::scope::{SolverScope, WeightModeControl};
 

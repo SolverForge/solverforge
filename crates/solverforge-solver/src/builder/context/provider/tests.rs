@@ -1,11 +1,12 @@
+use crate::builder::context::provider::resolver::RuntimeProviderSlotResolver;
+use crate::builder::context::provider::types::RawProviderEdit;
 use std::sync::Arc;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::SoftScore;
 
 use crate::builder::context::{
-    ProviderReasonArena, RawProviderCandidate, RawProviderEdit, RuntimeProviderSlotResolver,
-    RuntimeScalarSlot, ScalarVariableSlot, ValueSource,
+    ProviderReasonArena, RawProviderCandidate, RuntimeScalarSlot, ScalarVariableSlot, ValueSource,
 };
 
 #[derive(Clone, Debug)]

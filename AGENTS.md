@@ -336,6 +336,11 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
   files and keep the public module entrypoint small. `make file-length` (in
   `make lint`, `make pre-release` and the CI Docs job) fails on any `*.rs`
   file under `crates/` or `examples/` longer than 500 lines.
+- The `solverforge` facade is the single dependency: every type a facade
+  item's signature uses must be importable from `solverforge` (a root
+  re-export or one of its layer modules). `make facade-reachability` (in
+  `make lint`, `make pre-release` and the CI Docs job) checks the facade
+  rustdoc for links into other crates.
 - Prefer doctests for public APIs when practical, and make them compile meaningfully.
 - Keep examples and scaffold-facing guidance on the public fluent API surface. If an example requires internal wiring, improve the public API instead.
 - Canonical multi-file move and selector behavior tests belong under subsystem `tests/` trees. Do not reintroduce parallel `*_tests.rs` siblings once coverage has been consolidated.

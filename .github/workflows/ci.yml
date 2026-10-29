@@ -96,6 +96,10 @@ jobs:
       - name: Check Rust file lengths
         run: python3 scripts/check-file-length.py
 
+      # Every type a facade signature uses must be importable from solverforge.
+      - name: Check facade reachability
+        run: python3 scripts/check-facade-reachability.py
+
   package:
     if: ${{ github.server_url == 'https://github.com' }}
     name: Package

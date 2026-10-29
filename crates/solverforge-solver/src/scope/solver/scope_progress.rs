@@ -151,8 +151,22 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.set_best_solution(solution, score);
     }
 
-    pub fn rng(&mut self) -> &mut StdRng {
+    pub(crate) fn rng(&mut self) -> &mut StdRng {
         &mut self.rng
+    }
+
+    /// A uniformly random index below `upper`, drawn from the solve's seeded
+    /// generator so a fixed `with_seed` reproduces it.
+    ///
+    /// # Panics
+    /// When `upper` is zero.
+    pub fn random_below(&mut self, upper: usize) -> usize {
+        rand::RngExt::random_range(&mut self.rng, 0..upper)
+    }
+
+    /// A uniformly random `u64` from the solve's seeded generator.
+    pub fn random_u64(&mut self) -> u64 {
+        rand::RngExt::random(&mut self.rng)
     }
 
     pub fn increment_step_count(&mut self) -> u64 {

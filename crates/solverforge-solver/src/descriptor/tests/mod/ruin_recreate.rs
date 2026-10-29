@@ -1,4 +1,3 @@
-
 #[test]
 fn descriptor_ruin_recreate_first_fit_reassigns_to_first_improving_value() {
     let descriptor = descriptor();
@@ -28,7 +27,8 @@ fn descriptor_ruin_recreate_first_fit_reassigns_to_first_improving_value() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     assert_eq!(moves.len(), 1);
 
@@ -66,7 +66,8 @@ fn descriptor_ruin_recreate_cheapest_insertion_picks_best_value() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     assert_eq!(moves.len(), 1);
 
@@ -97,7 +98,8 @@ fn descriptor_ruin_recreate_skips_required_entities_without_recreate_values() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert!(moves.is_empty());
@@ -127,15 +129,13 @@ fn descriptor_ruin_recreate_honors_configured_random_seed() {
             recreate_heuristic_type: RecreateHeuristicType::FirstFit,
             target: VariableTargetConfig::default(),
         });
-        let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, seed);
+        let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, seed)
+            .expect("descriptor selector should build");
 
         selector
             .iter_moves(&director)
             .map(|mov| {
-                assert!(matches!(
-                    mov,
-                    super::DescriptorMoveUnion::RuinRecreate(_)
-                ));
+                assert!(matches!(mov, super::DescriptorMoveUnion::RuinRecreate(_)));
                 mov.entity_indices().to_vec()
             })
             .collect()

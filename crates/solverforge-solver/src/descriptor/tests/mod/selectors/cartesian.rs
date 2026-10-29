@@ -1,5 +1,7 @@
-
-fn director_cursor_indices<C>(cursor: &mut C, director: &mut ScoreDirector<Plan, ()>) -> Vec<crate::heuristic::selector::move_selector::CandidateId>
+fn director_cursor_indices<C>(
+    cursor: &mut C,
+    director: &mut ScoreDirector<Plan, ()>,
+) -> Vec<crate::heuristic::selector::move_selector::CandidateId>
 where
     C: MoveCursor<Plan, super::DescriptorMoveUnion<Plan>>,
 {
@@ -43,7 +45,8 @@ fn descriptor_cartesian_builds_composite_moves() {
         ],
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let mut cursor = selector.open_cursor(&director);
     let indices = director_cursor_indices(&mut cursor, &mut director);
 
@@ -100,7 +103,8 @@ fn descriptor_cartesian_selector_survives_filtering_wrapper() {
         ],
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let filtered = FilteringMoveSelector::new(selector, keep_all_descriptor_cartesian_candidates);
     let mut cursor = filtered.open_cursor(&director);
     let indices = director_cursor_indices(&mut cursor, &mut director);
@@ -116,9 +120,6 @@ fn descriptor_cartesian_selector_survives_filtering_wrapper() {
 }
 
 #[test]
-#[should_panic(
-    expected = "cartesian_product left child cannot contain ruin_recreate_move_selector"
-)]
 fn descriptor_cartesian_rejects_score_seeking_left_child() {
     let descriptor = descriptor();
     let config = MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
@@ -134,5 +135,37 @@ fn descriptor_cartesian_rejects_score_seeking_left_child() {
         ],
     });
 
-    let _ = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let error = match build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None) {
+        Ok(_) => panic!("selector must be rejected"),
+        Err(error) => error,
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("cartesian_product left child cannot contain ruin_recreate_move_selector"),
+        "{error}"
+    );
+}
+
+#[test]
+fn descriptor_selector_rejects_selectors_owned_by_the_canonical_runtime() {
+    let descriptor = descriptor();
+    for config in [
+        MoveSelectorConfig::ListChangeMoveSelector(
+            solverforge_config::ListChangeMoveConfig::default(),
+        ),
+        MoveSelectorConfig::CartesianProductMoveSelector(CartesianProductConfig {
+            require_hard_improvement: false,
+            selectors: Vec::new(),
+        }),
+    ] {
+        let error = match build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None) {
+            Ok(_) => panic!("selector must be rejected"),
+            Err(error) => error,
+        };
+        assert!(
+            matches!(error, crate::RuntimeBuildError::Declaration { .. }),
+            "{error}"
+        );
+    }
 }

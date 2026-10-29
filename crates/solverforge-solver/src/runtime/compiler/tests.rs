@@ -228,7 +228,8 @@ fn compile(
         })],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), model(shape), config.random_seed);
+    let context = SearchContext::new(descriptor(), model(shape), config.random_seed)
+        .expect("search context should bind");
     compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),
@@ -251,7 +252,8 @@ fn compile_construction(
         )],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), model, config.random_seed);
+    let context = SearchContext::new(descriptor(), model, config.random_seed)
+        .expect("search context should bind");
     compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),
@@ -424,7 +426,8 @@ fn compile_policy(
         ],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), model(PrecedenceShape::Absent), None);
+    let context = SearchContext::new(descriptor(), model(PrecedenceShape::Absent), None)
+        .expect("search context should bind");
     compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),

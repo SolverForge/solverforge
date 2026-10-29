@@ -132,6 +132,7 @@ fn search_context() -> SearchContext<TestSolution> {
         RuntimeModel::new(Vec::new()),
         Some(7),
     )
+    .expect("search context should bind")
 }
 
 #[test]
@@ -153,7 +154,7 @@ fn search_context_resolves_dynamic_slots_for_custom_search() {
     let model: RuntimeModel<TestSolution, usize, (), ()> =
         RuntimeModel::new(vec![VariableSlot::DynamicScalar(scalar)]);
 
-    let context = SearchContext::try_new(descriptor, model, Some(7))
+    let context = SearchContext::new(descriptor, model, Some(7))
         .expect("descriptor-backed dynamic slot should resolve");
     let scalar = context
         .model()
@@ -178,7 +179,7 @@ fn search_context_reports_descriptor_resolution_as_a_runtime_build_error() {
     let model: RuntimeModel<TestSolution, usize, (), ()> =
         RuntimeModel::new(vec![VariableSlot::DynamicScalar(scalar)]);
 
-    let error = match SearchContext::try_new(descriptor, model, Some(7)) {
+    let error = match SearchContext::new(descriptor, model, Some(7)) {
         Ok(_) => panic!("unknown dynamic entity must fail declaration construction"),
         Err(error) => error,
     };

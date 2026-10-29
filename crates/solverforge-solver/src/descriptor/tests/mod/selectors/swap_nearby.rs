@@ -22,7 +22,8 @@ fn descriptor_nearby_change_uses_value_distance_meter() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 4);
@@ -52,7 +53,8 @@ fn descriptor_nearby_change_applies_value_candidate_limit_before_ranking() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     let targets: Vec<_> = moves
         .iter()
@@ -68,7 +70,6 @@ fn descriptor_nearby_change_applies_value_candidate_limit_before_ranking() {
 }
 
 #[test]
-#[should_panic(expected = "nearby_change_move selector requires nearby_value_candidates")]
 fn descriptor_nearby_change_rejects_distance_meter_without_candidate_hook() {
     let descriptor = descriptor_with_nearby_value_meter_only();
     let config = MoveSelectorConfig::NearbyChangeMoveSelector(NearbyChangeMoveConfig {
@@ -79,7 +80,16 @@ fn descriptor_nearby_change_rejects_distance_meter_without_candidate_hook() {
         target: VariableTargetConfig::default(),
     });
 
-    let _ = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let error = match build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None) {
+        Ok(_) => panic!("selector must be rejected"),
+        Err(error) => error,
+    };
+    assert!(
+        error
+            .to_string()
+            .contains("nearby_change_move selector requires nearby_value_candidates"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -108,7 +118,8 @@ fn descriptor_nearby_swap_filters_same_value_candidates_before_limiting() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     let swap_pairs: Vec<Vec<_>> = moves
         .iter()
@@ -150,7 +161,8 @@ fn descriptor_swap_move_uses_indexed_legality_after_generation() {
         target: VariableTargetConfig::default(),
     });
     let selector =
-        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None);
+        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None)
+            .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(moves.len(), 2);
@@ -187,7 +199,8 @@ fn descriptor_swap_selector_prunes_illegal_entity_ranges() {
     });
 
     let selector =
-        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None);
+        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None)
+            .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     let swap_pairs: Vec<_> = moves
         .iter()
@@ -224,15 +237,13 @@ fn descriptor_swap_selector_emits_complete_assignment_swaps_without_domain() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 1);
     assert_eq!(moves.len(), 1);
-    assert!(matches!(
-        moves[0],
-        super::DescriptorMoveUnion::Swap(_)
-    ));
+    assert!(matches!(moves[0], super::DescriptorMoveUnion::Swap(_)));
     assert_eq!(moves[0].entity_indices(), [0, 1]);
     assert!(moves[0].is_doable(&director));
 }
@@ -259,7 +270,8 @@ fn descriptor_swap_selector_rejects_explicit_empty_domain() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 0);
@@ -296,7 +308,8 @@ fn descriptor_nearby_swap_prunes_illegal_entity_ranges_before_limiting() {
     });
 
     let selector =
-        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None);
+        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None)
+            .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     let swap_pairs: Vec<_> = moves
         .iter()
@@ -332,7 +345,8 @@ fn descriptor_swap_tabu_identity_is_direction_stable() {
         selection_metric: None,
         target: VariableTargetConfig::default(),
     });
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
     let forward = moves
         .iter()
@@ -342,7 +356,8 @@ fn descriptor_swap_tabu_identity_is_direction_stable() {
 
     forward.do_move(&mut director);
 
-    let reverse_selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let reverse_selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let reverse_moves: Vec<_> = reverse_selector.iter_moves(&director).collect();
     let reverse = reverse_moves
         .iter()

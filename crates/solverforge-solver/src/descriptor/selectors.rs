@@ -11,6 +11,8 @@ use solverforge_core::domain::{PlanningSolution, SolutionDescriptor, ValueRangeT
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
+use crate::RuntimeBuildError;
+
 use crate::heuristic::selector::decorator::{
     CartesianProductCursor, CartesianProductSelector, VecUnionSelector,
 };

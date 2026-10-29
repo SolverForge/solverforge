@@ -55,7 +55,7 @@ where
     IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + Sync + 'static,
 {
     Ok(DynamicSearchDeclaration {
-        context: SearchContext::try_new(descriptor, model, config.random_seed)?,
+        context: SearchContext::new(descriptor, model, config.random_seed)?,
     })
 }
 

@@ -932,8 +932,15 @@ and provider registration keys must match the configured key exactly.
 
 ### Descriptor Scalar Selectors
 
-`build_descriptor_move_selector(config, descriptor, random_seed)` builds the
-public descriptor-backed scalar selector tree. `descriptor_has_bindings()`
+`build_descriptor_move_selector(config, descriptor, random_seed) ->
+Result<DescriptorSelector<S>, RuntimeBuildError>` builds the public
+descriptor-backed scalar selector tree. It returns
+`RuntimeBuildError::Declaration` instead of panicking for selectors this tree
+does not build (list, limited, grouped scalar, conflict-repair and nested
+cartesian selectors belong to the canonical runtime), a cartesian product
+without exactly two children or with a ruin/recreate left child, a target that
+matches no scalar variable, invalid ruin bounds, and a missing nearby or
+candidate hook. `descriptor_has_bindings()`
 reports whether a `SolutionDescriptor` contains scalar bindings before a caller
 chooses that explicit boundary. `DescriptorSelector<S>` is the outer
 `VecUnionSelector` alias and `DescriptorFlatSelector<S>` is the flat leaf-union
@@ -1377,8 +1384,10 @@ The search function receives a `SearchContext<S, V, DM, IDM>`, calls
 `ctx.defaults()`, and registers named phases with `.phase("name", |ctx| ...)`.
 `SearchBuilder<S, V, DM, IDM, Extensions>` is the returned concrete declaration;
 it also exposes `.partitioned_phase(...)` and `into_runtime_parts()`.
-`SearchContext` resolves dynamic logical IDs to descriptor indexes before the
-runtime compiler receives the model, so configured and custom-extension phases
+`SearchContext::new(descriptor, model, random_seed) ->
+RuntimeBuildResult<SearchContext<..>>` resolves dynamic logical IDs to
+descriptor indexes before the runtime compiler receives the model and fails
+with `RuntimeBuildError::Declaration` when a dynamic slot does not resolve, so configured and custom-extension phases
 use the same descriptor-index notifications. The configured entrypoint owns
 graph compilation, preparation, and execution; an unresolved dynamic slot
 fails declaration before the runner starts.

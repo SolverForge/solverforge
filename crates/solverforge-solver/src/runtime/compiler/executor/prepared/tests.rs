@@ -202,7 +202,8 @@ fn plan(elements: Vec<usize>, routes: Vec<Vec<usize>>) -> Plan {
 fn executor(
     config: &SolverConfig,
 ) -> CompiledRuntimeExecutor<Plan, usize, Meter, Meter, NoDynamicExtensions> {
-    let context = SearchContext::new(descriptor(), model(), config.random_seed);
+    let context = SearchContext::new(descriptor(), model(), config.random_seed)
+        .expect("search context should bind");
     let graph = compile_runtime_graph(config, RuntimeGraphInput::new(context, NoDynamicExtensions))
         .expect("test graph compiles");
     CompiledRuntimeExecutor::new(graph)
@@ -881,7 +882,8 @@ fn eager_extension_preparation_precedes_lazy_source_binding() {
         ],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), model(), config.random_seed);
+    let context = SearchContext::new(descriptor(), model(), config.random_seed)
+        .expect("search context should bind");
     let input = RuntimeGraphInput::new(
         context,
         CustomPhaseNode::new(NoTypedExtensions, "marker", build_marker),

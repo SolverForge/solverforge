@@ -56,6 +56,7 @@ fn context(seed: Option<u64>) -> SearchContext<Plan> {
         RuntimeModel::new(Vec::new()),
         seed,
     )
+    .expect("search context should bind")
 }
 
 /// Test-only reference meter. The direct executor accepts the same
@@ -78,6 +79,7 @@ fn extension_context(
         RuntimeModel::new(Vec::new()),
         seed,
     )
+    .expect("search context should bind")
 }
 
 fn custom(name: &str) -> PhaseConfig {

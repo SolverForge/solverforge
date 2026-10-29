@@ -483,7 +483,8 @@ fn resolved_preconstruction_kinds(
     stage: DefaultPreconstructionStage,
     plan: &Plan,
 ) -> (DefaultConstructionStage, Vec<DefaultConstructionStepKind>) {
-    let context = SearchContext::new(descriptor(), model, config.random_seed);
+    let context = SearchContext::new(descriptor(), model, config.random_seed)
+        .expect("search context should bind");
     let graph = compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),
@@ -505,7 +506,8 @@ fn resolved_postconstruction_kinds(
     config: SolverConfig,
     plan: &Plan,
 ) -> (DefaultConstructionStage, Vec<DefaultConstructionStepKind>) {
-    let context = SearchContext::new(descriptor(), model, config.random_seed);
+    let context = SearchContext::new(descriptor(), model, config.random_seed)
+        .expect("search context should bind");
     let graph = compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),
@@ -523,7 +525,8 @@ fn default_local_search_eligibility(
     model: Model,
     config: SolverConfig,
 ) -> DefaultLocalSearchEligibility {
-    let context = SearchContext::new(descriptor(), model, config.random_seed);
+    let context = SearchContext::new(descriptor(), model, config.random_seed)
+        .expect("search context should bind");
     let graph = compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),
@@ -537,7 +540,8 @@ fn default_local_search_eligibility(
 
 fn default_local_search_plan(model: Model) -> DefaultLocalSearchPlan {
     let config = SolverConfig::default();
-    let context = SearchContext::new(descriptor(), model, config.random_seed);
+    let context = SearchContext::new(descriptor(), model, config.random_seed)
+        .expect("search context should bind");
     compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),

@@ -328,7 +328,8 @@ mod tests {
         descriptor: SolutionDescriptor,
         plan: &ScalarPlan,
     ) -> Option<String> {
-        let context = SearchContext::new(descriptor, model, None);
+        let context =
+            SearchContext::new(descriptor, model, None).expect("search context should bind");
         let graph = compile_runtime_graph(
             &SolverConfig::default(),
             RuntimeGraphInput::new(context, NoDynamicExtensions),

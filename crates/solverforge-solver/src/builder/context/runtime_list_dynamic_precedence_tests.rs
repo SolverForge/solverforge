@@ -237,7 +237,8 @@ fn dynamic_successors_only_metadata_executes_for_list_ruin_without_duration() {
         ..SolverConfig::default()
     };
 
-    let context = SearchContext::new(descriptor(), model, config.random_seed);
+    let context = SearchContext::new(descriptor(), model, config.random_seed)
+        .expect("search context should bind");
     compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),

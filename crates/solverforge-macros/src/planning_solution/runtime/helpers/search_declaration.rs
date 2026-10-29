@@ -99,7 +99,7 @@ fn generate_list_search_declaration_fn(input: ListSearchDeclarationInput<'_>) ->
                 >::new(__solverforge_variables)
                 .with_scalar_groups(__solverforge_scalar_groups)
                 #conflict_repair_expr;
-                let context = ::solverforge::__internal::SearchContext::try_new(
+                let context = ::solverforge::__internal::SearchContext::new(
                     descriptor,
                     model,
                     config.random_seed,
@@ -185,7 +185,7 @@ fn generate_list_search_declaration_fn(input: ListSearchDeclarationInput<'_>) ->
                 >::new(__solverforge_variables)
                 .with_scalar_groups(__solverforge_scalar_groups)
                 #conflict_repair_expr;
-                let context = ::solverforge::__internal::SearchContext::try_new(
+                let context = ::solverforge::__internal::SearchContext::new(
                     descriptor,
                     model,
                     config.random_seed,
@@ -241,7 +241,7 @@ fn generate_scalar_search_declaration_fn(
                 >::new(__solverforge_variables)
                 .with_scalar_groups(__solverforge_scalar_groups)
                 #conflict_repair_expr;
-                let context = ::solverforge::__internal::SearchContext::try_new(
+                let context = ::solverforge::__internal::SearchContext::new(
                     descriptor,
                     model,
                     config.random_seed,
@@ -287,7 +287,7 @@ fn generate_scalar_search_declaration_fn(
                 >::new(__solverforge_variables)
                 .with_scalar_groups(__solverforge_scalar_groups)
                 #conflict_repair_expr;
-                let context = ::solverforge::__internal::SearchContext::try_new(
+                let context = ::solverforge::__internal::SearchContext::new(
                     descriptor,
                     model,
                     config.random_seed,

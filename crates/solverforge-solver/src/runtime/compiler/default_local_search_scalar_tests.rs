@@ -300,7 +300,8 @@ fn default_plan(model: Model) -> DefaultLocalSearchPlan {
 }
 
 fn default_plan_with_config(model: Model, config: SolverConfig) -> DefaultLocalSearchPlan {
-    let context = SearchContext::new(descriptor(), model, config.random_seed);
+    let context = SearchContext::new(descriptor(), model, config.random_seed)
+        .expect("search context should bind");
     compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),
@@ -422,7 +423,8 @@ fn omitted_explicit_acceptor_forager_phase_refs_the_compiled_default_declaration
         })],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), dynamic_scalar_model(), config.random_seed);
+    let context = SearchContext::new(descriptor(), dynamic_scalar_model(), config.random_seed)
+        .expect("search context should bind");
     let graph = compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),
@@ -458,7 +460,8 @@ fn omitted_selector_provenance_keeps_the_explicit_local_search_policy() {
         phases: vec![PhaseConfig::LocalSearch(local_search)],
         ..SolverConfig::default()
     };
-    let context = SearchContext::new(descriptor(), dynamic_scalar_model(), config.random_seed);
+    let context = SearchContext::new(descriptor(), dynamic_scalar_model(), config.random_seed)
+        .expect("search context should bind");
     let graph = compile_runtime_graph(
         &config,
         RuntimeGraphInput::new(context, NoDynamicExtensions),
@@ -552,7 +555,7 @@ fn assignment_and_candidate_groups_reject_sharing_one_name() {
     let model: Model =
         RuntimeModel::new(vec![VariableSlot::Scalar(slot)]).with_scalar_groups(groups);
 
-    let error = match SearchContext::try_new(descriptor(), model, None) {
+    let error = match SearchContext::new(descriptor(), model, None) {
         Err(error) => error,
         Ok(_) => panic!("assignment and callback provider must not share one group name"),
     };

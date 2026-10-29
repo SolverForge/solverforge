@@ -37,18 +37,11 @@ impl<S, V, DM, IDM> SearchContext<S, V, DM, IDM>
 where
     S: PlanningSolution,
 {
+    /// Binds `model` to `descriptor`.
+    ///
+    /// Fails with [`crate::RuntimeBuildError::Declaration`] when a dynamic
+    /// model slot does not resolve against the descriptor.
     pub fn new(
-        descriptor: SolutionDescriptor,
-        model: RuntimeModel<S, V, DM, IDM>,
-        random_seed: Option<u64>,
-    ) -> Self {
-        Self::try_new(descriptor, model, random_seed).unwrap_or_else(|error| match error {
-            crate::RuntimeBuildError::Declaration { message } => panic!("{message}"),
-            other => panic!("{other}"),
-        })
-    }
-
-    pub fn try_new(
         descriptor: SolutionDescriptor,
         model: RuntimeModel<S, V, DM, IDM>,
         random_seed: Option<u64>,

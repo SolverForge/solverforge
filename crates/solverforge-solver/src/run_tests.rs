@@ -238,7 +238,7 @@ fn zero_variable_run_builds_the_normal_graph_and_search_declaration() {
                 DefaultCrossEntityDistanceMeter,
                 DefaultCrossEntityDistanceMeter,
             >::new(Vec::new());
-            Ok(SearchContext::try_new(descriptor, model, config.random_seed)?.defaults())
+            Ok(SearchContext::new(descriptor, model, config.random_seed)?.defaults())
         },
     );
 

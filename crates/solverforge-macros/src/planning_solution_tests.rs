@@ -114,7 +114,7 @@ fn golden_solution_expansion_binds_typed_custom_search_path() {
         .to_string();
 
     assert!(expanded.contains("crate :: search :: search"));
-    assert!(expanded.contains("SearchContext :: try_new"));
+    assert!(expanded.contains("SearchContext :: new"));
     assert!(expanded.contains("RuntimeBuildResult"));
     assert!(expanded.contains("__solverforge_search_declaration"));
     assert!(!expanded.contains("build_search"));
@@ -212,7 +212,7 @@ fn golden_solution_expansion_sorts_runtime_variables_by_descriptor_order() {
     assert!(expanded.contains("PlanningModelSupport"));
     assert!(expanded.contains("ctx . variable_name"));
     assert!(expanded.contains("__solverforge_search_declaration"));
-    assert!(expanded.contains("SearchContext :: try_new"));
+    assert!(expanded.contains("SearchContext :: new"));
 }
 
 #[test]

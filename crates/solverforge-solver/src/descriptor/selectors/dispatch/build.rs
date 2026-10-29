@@ -2,7 +2,7 @@ fn build_descriptor_flat_selector<S>(
     config: Option<&MoveSelectorConfig>,
     descriptor: &SolutionDescriptor,
     random_seed: Option<u64>,
-) -> DescriptorFlatSelector<S>
+) -> Result<DescriptorFlatSelector<S>, RuntimeBuildError>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
@@ -15,16 +15,17 @@ where
         entity_class: Option<&str>,
         variable_name: Option<&str>,
         matched: &[VariableBinding],
-    ) where
+    ) -> Result<(), RuntimeBuildError>
+    where
         S: PlanningSolution + 'static,
         S::Score: Score,
     {
-        assert!(
-            !matched.is_empty(),
-            "{label} selector matched no scalar planning variables for entity_class={:?} variable_name={:?}",
-            entity_class,
-            variable_name,
-        );
+        if matched.is_empty() {
+            return Err(RuntimeBuildError::declaration(format!(
+                "{label} selector matched no scalar planning variables for entity_class={entity_class:?} variable_name={variable_name:?}"
+            )));
+        }
+        Ok(())
     }
 
     fn collect<S>(
@@ -33,7 +34,8 @@ where
         bindings: &[VariableBinding],
         random_seed: Option<u64>,
         leaves: &mut Vec<DescriptorLeafSelector<S>>,
-    ) where
+    ) -> Result<(), RuntimeBuildError>
+    where
         S: PlanningSolution + 'static,
         S::Score: Score,
     {
@@ -49,7 +51,7 @@ where
                     change.target.entity_class.as_deref(),
                     change.target.variable_name.as_deref(),
                     &matched,
-                );
+                )?;
                 for binding in matched {
                     leaves.push(DescriptorLeafSelector::Change(
                         DescriptorChangeMoveSelector::new(
@@ -71,7 +73,7 @@ where
                     swap.target.entity_class.as_deref(),
                     swap.target.variable_name.as_deref(),
                     &matched,
-                );
+                )?;
                 for binding in matched {
                     leaves.push(DescriptorLeafSelector::Swap(
                         DescriptorSwapMoveSelector::new(binding, descriptor.clone()),
@@ -89,14 +91,14 @@ where
                     nearby_change.target.entity_class.as_deref(),
                     nearby_change.target.variable_name.as_deref(),
                     &matched,
-                );
+                )?;
                 for binding in matched {
-                    assert!(
-                        binding.nearby_value_candidates.is_some(),
-                        "nearby_change_move selector requires nearby_value_candidates for {}::{}",
-                        binding.entity_type_name,
-                        binding.variable_name,
-                    );
+                    if binding.nearby_value_candidates.is_none() {
+                        return Err(RuntimeBuildError::declaration(format!(
+                            "nearby_change_move selector requires nearby_value_candidates for {}::{}",
+                            binding.entity_type_name, binding.variable_name,
+                        )));
+                    }
                     leaves.push(DescriptorLeafSelector::NearbyChange(
                         DescriptorNearbyChangeMoveSelector {
                             binding,
@@ -119,14 +121,14 @@ where
                     nearby_swap.target.entity_class.as_deref(),
                     nearby_swap.target.variable_name.as_deref(),
                     &matched,
-                );
+                )?;
                 for binding in matched {
-                    assert!(
-                        binding.nearby_entity_candidates.is_some(),
-                        "nearby_swap_move selector requires nearby_entity_candidates for {}::{}",
-                        binding.entity_type_name,
-                        binding.variable_name,
-                    );
+                    if binding.nearby_entity_candidates.is_none() {
+                        return Err(RuntimeBuildError::declaration(format!(
+                            "nearby_swap_move selector requires nearby_entity_candidates for {}::{}",
+                            binding.entity_type_name, binding.variable_name,
+                        )));
+                    }
                     leaves.push(DescriptorLeafSelector::NearbySwap(
                         DescriptorNearbySwapMoveSelector {
                             binding,
@@ -148,7 +150,7 @@ where
                     pillar_change.target.entity_class.as_deref(),
                     pillar_change.target.variable_name.as_deref(),
                     &matched,
-                );
+                )?;
                 for binding in matched {
                     leaves.push(DescriptorLeafSelector::PillarChange(
                         DescriptorPillarChangeMoveSelector {
@@ -173,7 +175,7 @@ where
                     pillar_swap.target.entity_class.as_deref(),
                     pillar_swap.target.variable_name.as_deref(),
                     &matched,
-                );
+                )?;
                 for binding in matched {
                     leaves.push(DescriptorLeafSelector::PillarSwap(
                         DescriptorPillarSwapMoveSelector {
@@ -190,7 +192,7 @@ where
                 validate_ruin_recreate_bounds(
                     ruin_recreate.min_ruin_count,
                     ruin_recreate.max_ruin_count,
-                );
+                )?;
                 let matched = find_binding(
                     bindings,
                     ruin_recreate.target.entity_class.as_deref(),
@@ -201,16 +203,17 @@ where
                     ruin_recreate.target.entity_class.as_deref(),
                     ruin_recreate.target.variable_name.as_deref(),
                     &matched,
-                );
+                )?;
                 for binding in matched {
-                    if ruin_recreate.recreate_heuristic_type == RecreateHeuristicType::CheapestInsertion {
-                        assert!(
-                            binding.candidate_values.is_some()
-                                || ruin_recreate.value_candidate_limit.is_some(),
+                    if ruin_recreate.recreate_heuristic_type
+                        == RecreateHeuristicType::CheapestInsertion
+                        && binding.candidate_values.is_none()
+                        && ruin_recreate.value_candidate_limit.is_none()
+                    {
+                        return Err(RuntimeBuildError::declaration(format!(
                             "cheapest_insertion descriptor-driven ruin_recreate requires candidate_values or value_candidate_limit for {}::{}",
-                            binding.entity_type_name,
-                            binding.variable_name,
-                        );
+                            binding.entity_type_name, binding.variable_name,
+                        )));
                     }
                     let carry = match scoped_seed(
                         random_seed,
@@ -240,11 +243,13 @@ where
             }
             MoveSelectorConfig::UnionMoveSelector(union) => {
                 for child in &union.selectors {
-                    collect::<S>(child, descriptor, bindings, random_seed, leaves);
+                    collect::<S>(child, descriptor, bindings, random_seed, leaves)?;
                 }
             }
             MoveSelectorConfig::LimitedNeighborhood(_) => {
-                panic!("limited_neighborhood must be handled by the canonical runtime");
+                return Err(unsupported(
+                    "limited_neighborhood must be handled by the canonical runtime",
+                ));
             }
             MoveSelectorConfig::ListChangeMoveSelector(_)
             | MoveSelectorConfig::NearbyListChangeMoveSelector(_)
@@ -257,29 +262,36 @@ where
             | MoveSelectorConfig::ListReverseMoveSelector(_)
             | MoveSelectorConfig::KOptMoveSelector(_)
             | MoveSelectorConfig::ListRuinMoveSelector(_) => {
-                panic!("list move selector configured against a scalar-variable model");
+                return Err(unsupported(
+                    "list move selector configured against a scalar-variable model",
+                ));
             }
             MoveSelectorConfig::CartesianProductMoveSelector(_) => {
-                panic!(
-                    "nested cartesian_product move selectors are not supported inside descriptor cartesian children"
-                );
+                return Err(unsupported(
+                    "nested cartesian_product move selectors are not supported inside descriptor cartesian children",
+                ));
             }
             MoveSelectorConfig::ConflictRepairMoveSelector(_) => {
-                panic!("conflict_repair_move_selector must be handled by the canonical runtime");
+                return Err(unsupported(
+                    "conflict_repair_move_selector must be handled by the canonical runtime",
+                ));
             }
             MoveSelectorConfig::CompoundConflictRepairMoveSelector(_) => {
-                panic!(
-                    "compound_conflict_repair_move_selector must be handled by the canonical runtime"
-                );
+                return Err(unsupported(
+                    "compound_conflict_repair_move_selector must be handled by the canonical runtime",
+                ));
             }
             MoveSelectorConfig::GroupedScalarMoveSelector(_) => {
-                panic!("grouped_scalar_move_selector must be handled by the canonical runtime");
+                return Err(unsupported(
+                    "grouped_scalar_move_selector must be handled by the canonical runtime",
+                ));
             }
         }
+        Ok(())
     }
 
     match config {
-        Some(cfg) => collect::<S>(cfg, descriptor, &bindings, random_seed, &mut leaves),
+        Some(cfg) => collect::<S>(cfg, descriptor, &bindings, random_seed, &mut leaves)?,
         None => {
             for binding in bindings {
                 leaves.push(DescriptorLeafSelector::Change(
@@ -292,23 +304,39 @@ where
         }
     }
 
-    assert!(
-        !leaves.is_empty(),
-        "move selector configuration produced no scalar neighborhoods"
-    );
+    if leaves.is_empty() {
+        return Err(no_neighborhoods());
+    }
 
     let selection_order = match config {
         Some(MoveSelectorConfig::UnionMoveSelector(union)) => union.selection_order,
         _ => solverforge_config::UnionSelectionOrder::default(),
     };
-    VecUnionSelector::with_selection_order(leaves, selection_order)
+    Ok(VecUnionSelector::with_selection_order(
+        leaves,
+        selection_order,
+    ))
 }
 
+fn unsupported(message: &str) -> RuntimeBuildError {
+    RuntimeBuildError::declaration(message)
+}
+
+fn no_neighborhoods() -> RuntimeBuildError {
+    RuntimeBuildError::declaration("move selector configuration produced no scalar neighborhoods")
+}
+
+/// Builds the descriptor-driven scalar selector tree for `config`.
+///
+/// Fails with [`RuntimeBuildError::Declaration`] for selectors this scalar
+/// tree cannot build (list, limited, grouped and conflict-repair selectors
+/// belong to the canonical runtime), for a target that matches no scalar
+/// variable, and for a missing nearby or candidate hook.
 pub fn build_descriptor_move_selector<S>(
     config: Option<&MoveSelectorConfig>,
     descriptor: &SolutionDescriptor,
     random_seed: Option<u64>,
-) -> DescriptorSelector<S>
+) -> Result<DescriptorSelector<S>, RuntimeBuildError>
 where
     S: PlanningSolution + 'static,
     S::Score: Score,
@@ -328,11 +356,15 @@ where
         }
     }
 
-    fn assert_cartesian_left_preview_safe(config: &MoveSelectorConfig) {
-        assert!(
-            !selector_requires_score_during_move(config),
-            "cartesian_product left child cannot contain ruin_recreate_move_selector because preview directors do not calculate scores",
-        );
+    fn check_cartesian_left_preview_safe(
+        config: &MoveSelectorConfig,
+    ) -> Result<(), RuntimeBuildError> {
+        if selector_requires_score_during_move(config) {
+            return Err(RuntimeBuildError::declaration(
+                "cartesian_product left child cannot contain ruin_recreate_move_selector because preview directors do not calculate scores",
+            ));
+        }
+        Ok(())
     }
 
     fn collect_nodes<S>(
@@ -340,40 +372,42 @@ where
         descriptor: &SolutionDescriptor,
         random_seed: Option<u64>,
         nodes: &mut Vec<DescriptorSelectorNode<S>>,
-    ) where
+    ) -> Result<(), RuntimeBuildError>
+    where
         S: PlanningSolution + 'static,
         S::Score: Score,
     {
         match config {
             Some(MoveSelectorConfig::UnionMoveSelector(union)) => {
                 for child in &union.selectors {
-                    collect_nodes::<S>(Some(child), descriptor, random_seed, nodes);
+                    collect_nodes::<S>(Some(child), descriptor, random_seed, nodes)?;
                 }
             }
             Some(MoveSelectorConfig::CartesianProductMoveSelector(cartesian)) => {
-                assert_eq!(
-                    cartesian.selectors.len(),
-                    2,
-                    "cartesian_product move selector requires exactly two child selectors"
-                );
-                assert_cartesian_left_preview_safe(&cartesian.selectors[0]);
+                if cartesian.selectors.len() != 2 {
+                    return Err(RuntimeBuildError::declaration(format!(
+                        "cartesian_product move selector requires exactly two child selectors, found {}",
+                        cartesian.selectors.len()
+                    )));
+                }
+                check_cartesian_left_preview_safe(&cartesian.selectors[0])?;
                 let left = build_descriptor_flat_selector::<S>(
                     Some(&cartesian.selectors[0]),
                     descriptor,
                     random_seed,
-                );
+                )?;
                 let right = build_descriptor_flat_selector::<S>(
                     Some(&cartesian.selectors[1]),
                     descriptor,
                     random_seed,
-                );
+                )?;
                 nodes.push(DescriptorSelectorNode::Cartesian(
                     CartesianProductSelector::new(left, right)
                         .with_require_hard_improvement(cartesian.require_hard_improvement),
                 ));
             }
             other => {
-                let flat = build_descriptor_flat_selector::<S>(other, descriptor, random_seed);
+                let flat = build_descriptor_flat_selector::<S>(other, descriptor, random_seed)?;
                 nodes.extend(
                     flat.into_selectors()
                         .into_iter()
@@ -381,17 +415,20 @@ where
                 );
             }
         }
+        Ok(())
     }
 
     let mut nodes = Vec::new();
-    collect_nodes::<S>(config, descriptor, random_seed, &mut nodes);
-    assert!(
-        !nodes.is_empty(),
-        "move selector configuration produced no scalar neighborhoods"
-    );
+    collect_nodes::<S>(config, descriptor, random_seed, &mut nodes)?;
+    if nodes.is_empty() {
+        return Err(no_neighborhoods());
+    }
     let selection_order = match config {
         Some(MoveSelectorConfig::UnionMoveSelector(union)) => union.selection_order,
         _ => solverforge_config::UnionSelectionOrder::default(),
     };
-    VecUnionSelector::with_selection_order(nodes, selection_order)
+    Ok(VecUnionSelector::with_selection_order(
+        nodes,
+        selection_order,
+    ))
 }

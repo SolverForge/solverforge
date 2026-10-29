@@ -1,4 +1,3 @@
-
 #[test]
 fn descriptor_pillar_change_uses_public_pillar_semantics() {
     let descriptor = descriptor();
@@ -27,7 +26,8 @@ fn descriptor_pillar_change_uses_public_pillar_semantics() {
         target: VariableTargetConfig::default(),
     });
 
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(selector.size(&director), 2);
@@ -69,7 +69,8 @@ fn descriptor_pillar_change_intersects_entity_domains() {
     });
 
     let selector =
-        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None);
+        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None)
+            .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(moves.len(), 1);
@@ -122,7 +123,8 @@ fn descriptor_pillar_swap_prunes_illegal_partners() {
     });
 
     let selector =
-        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None);
+        build_descriptor_move_selector::<RestrictedPlan>(Some(&config), &descriptor, None)
+            .expect("descriptor selector should build");
     let moves: Vec<_> = selector.iter_moves(&director).collect();
 
     assert_eq!(moves.len(), 2);
@@ -158,7 +160,8 @@ fn descriptor_pillar_swap_tabu_identity_is_direction_stable() {
         maximum_sub_pillar_size: 0,
         target: VariableTargetConfig::default(),
     });
-    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let mut moves: Vec<_> = selector.iter_moves(&director).collect();
     assert_eq!(moves.len(), 1);
     let forward = moves
@@ -168,7 +171,8 @@ fn descriptor_pillar_swap_tabu_identity_is_direction_stable() {
 
     forward.do_move(&mut director);
 
-    let reverse_selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None);
+    let reverse_selector = build_descriptor_move_selector::<Plan>(Some(&config), &descriptor, None)
+        .expect("descriptor selector should build");
     let mut reverse_moves: Vec<_> = reverse_selector.iter_moves(&director).collect();
     assert_eq!(reverse_moves.len(), 1);
     let reverse = reverse_moves

@@ -1,13 +1,18 @@
-
-fn validate_ruin_recreate_bounds(min_ruin_count: usize, max_ruin_count: usize) {
-    assert!(
-        min_ruin_count >= 1,
-        "descriptor ruin_recreate_move_selector requires min_ruin_count >= 1"
-    );
-    assert!(
-        max_ruin_count >= min_ruin_count,
-        "descriptor ruin_recreate_move_selector requires max_ruin_count >= min_ruin_count"
-    );
+fn validate_ruin_recreate_bounds(
+    min_ruin_count: usize,
+    max_ruin_count: usize,
+) -> Result<(), RuntimeBuildError> {
+    if min_ruin_count < 1 {
+        return Err(RuntimeBuildError::declaration(
+            "descriptor ruin_recreate_move_selector requires min_ruin_count >= 1",
+        ));
+    }
+    if max_ruin_count < min_ruin_count {
+        return Err(RuntimeBuildError::declaration(
+            "descriptor ruin_recreate_move_selector requires max_ruin_count >= min_ruin_count",
+        ));
+    }
+    Ok(())
 }
 
 enum SwapLegalityDomain {
@@ -206,4 +211,3 @@ impl SwapLegalityIndex {
         total
     }
 }
-

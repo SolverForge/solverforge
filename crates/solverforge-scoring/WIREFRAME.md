@@ -281,7 +281,7 @@ src/
 │   ├── projected_stream/source/filtered.rs         — Row-level filtered projected source
 │   ├── projected_stream/source/merged.rs           — Merged projected sources with source-slot offsets
 │   ├── projected_stream/source/joined.rs           — Cross-join `.project(...)` projected source
-│   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata and FilteredExtract membership adapter, VecExtract wrapper, vec() constructor
+│   ├── collection_extract.rs                       — CollectionExtract trait, hidden source metadata and FilteredExtract membership adapter, source() constructor
 │   ├── unassigned.rs                               — Hidden UnassignedEntity hook and `.unassigned()` stream method
 │   ├── weighting_support.rs                        — ConstraintWeight, FixedWeight, HardWeight, and dynamic closure-weight adapters
 │   ├── join_target.rs                              — JoinTarget/ToViewPlan dispatch for self-join, keyed cross-join, comparison, overlap, composed, and predicate cross-join
@@ -749,7 +749,7 @@ callers obtain these opaque carriers through fluent operations and continue on
 
 **`ProjectionSink<Out>`** — Emission sink used by `Projection<A>` implementations. `emit(output)` is the only projection output channel.
 
-**`stream::projected::Stream<S, Out, Src, F, Sc>`** — Scoring rows from one or more source streams. Single-source output type is inferred from the named projection type passed to `project(...)`; keyed cross joins use `stream::cross::Bi::project(|left, right| row)` and emit exactly one scoring row per retained joined pair. Retained rows are cached by `RowCoordinate` and indexed by one or two `RowOwner` values. Single-source projected rows update incrementally from their source owner; joined-pair projected rows update incrementally from either joined source when that source is descriptor-localized. Symmetric projected self-join pair order follows `RowCoordinate` ordering; pair-filter indexes use each row's primary owner entity index, and retained storage row IDs are internal and never semantic. Projected rows can be self-joined by `equal(|row| key)` or by directed `equal_bi(left_key, right_key)` without materialized facts, and projected output rows plus projected self-join keys do not need `Clone`. Raw `for_each` extractors with `ChangeSource::Unknown` can evaluate and initialize projected constraints, but localized incremental callbacks panic because their entity indexes cannot be mapped safely.
+**`stream::projected::Stream<S, Out, Src, F, Sc>`** — Scoring rows from one or more source streams. Single-source output type is inferred from the named projection type passed to `project(...)`; keyed cross joins use `stream::cross::Bi::project(|left, right| row)` and emit exactly one scoring row per retained joined pair. Retained rows are cached by `RowCoordinate` and indexed by one or two `RowOwner` values. Single-source projected rows update incrementally from their source owner; joined-pair projected rows update incrementally from either joined source when that source is descriptor-localized. Symmetric projected self-join pair order follows `RowCoordinate` ordering; pair-filter indexes use each row's primary owner entity index, and retained storage row IDs are internal and never semantic. Projected rows can be self-joined by `equal(|row| key)` or by directed `equal_bi(left_key, right_key)` without materialized facts, and projected output rows plus projected self-join keys do not need `Clone`. Every projected source is a planning-model collection, so each row owner maps to a descriptor or is static.
 - Operations: `filter()`, `merge(other)`, `group_by()`, `join(equal(...))`, `join(equal_bi(...))`, `penalize(weight_or_fn)`, `reward(weight_or_fn)`
 
 **`stream::projected::Builder`** — `named()` → `constraint::projected::Uni`
@@ -844,25 +844,16 @@ further joins); low-level constructors are `new_self_join()` and
 
 ### Extractor Types
 
-**`CollectionExtract<S>`** — Trait for extracting an entity slice from the solution. All `E`/`EA`/`EB` type params in streams and constraints are bounded by `CollectionExtract<S, Item = A>` rather than raw `Fn(&S) -> &[A]`, allowing both closure forms.
+**`CollectionExtract<S>`** — Trait for a stream source: the planning-model collection a stream reads. All `E`/`EA`/`EB` type params in streams and constraints are bounded by `CollectionExtract<S, Item = A>`. A raw closure or `fn` item is not a source; passing one fails to compile with "stream sources must come from the planning model" (`#[diagnostic::on_unimplemented]`).
 - Associated type: `type Item` — the entity type yielded.
 - Method: `fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]`
-- Method: `fn contains(&self, s: &S, item: &Self::Item) -> bool` — source-level membership predicate; plain extractors default to `true`, while `UniConstraintStream` delegates to its accumulated source filter.
-- Blanket impl for `Fn(&S) -> &[A] + Send + Sync` — plain slice closures `|s| s.field.as_slice()` work directly.
-
-**`VecExtract<F>`** — Wraps `Fn(&S) -> &Vec<A>` closures so they satisfy `CollectionExtract<S>`. Construct via `vec(f)`.
-- Users can write `|s| &s.field` without `.as_slice()`.
-
-**`vec(f)`** — Free function: `fn vec<S, A, F>(f: F) -> VecExtract<F>`. Use when the extractor closure returns `&Vec<A>`:
-```rust
-factory.for_each(vec(|s: &Schedule| &s.employees))
-// or in a join:
-.join((vec(|s: &Schedule| &s.employees), equal_bi(...)))
-```
+- Method: `fn contains(&self, s: &S, item: &Self::Item) -> bool` — source-level membership predicate; defaults to `true`, while `UniConstraintStream` delegates to its accumulated source filter.
+- Required method: `fn change_source(&self) -> ChangeSource` — the descriptor that owns the source's rows, or `Static`.
+- Implemented by `SourceExtract` (generated accessors), `FilteredExtract` and `UniConstraintStream`.
 
 **`SourceExtract<E>`** — Hidden descriptor-aware collection extraction wrapper used by macro-generated solution source methods. It satisfies `CollectionExtract<S>` and preserves source metadata for raw keyed joins.
 
-**`ChangeSource`** — Hidden enum describing whether a stream source can localize descriptor-owned incremental callbacks: `Unknown`, `Static`, or `Descriptor(idx)`. `Descriptor(idx)` owns localized events for that descriptor. `Static` never localizes. `Unknown` is non-localized metadata for raw/manual extraction: it is valid for `evaluate()` and `initialize()`, but localized `on_insert(...)` / `on_retract(...)` callbacks panic because the entity index cannot be safely mapped to a source.
+**`ChangeSource`** — Hidden enum naming which descriptor owns a stream source's rows: `Static` or `Descriptor(idx)`. `Descriptor(idx)` owns localized events for that descriptor; `Static` ignores every descriptor notification.
 
 **`source(...)`** — Hidden constructor for descriptor-aware collection extraction used by macro-generated solution source methods. Planning entity collections carry `ChangeSource::Descriptor(idx)`; static fact and list-element collections carry `ChangeSource::Static`. This symbol is not part of the facade stream workflow.
 

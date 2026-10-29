@@ -3,7 +3,7 @@ use std::ops::{Add, Neg, Sub};
 
 use solverforge_core::score::{HardSoftScore, Score, ScoreLevel};
 
-use super::collection_extract::vec as source_vec;
+use super::collection_extract::{source, ChangeSource};
 use super::{fixed_weight, hard_weight, ConstraintFactory};
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 
@@ -129,7 +129,10 @@ fn sample_plan() -> Plan {
 #[test]
 fn fixed_weight_supports_custom_scores() {
     let constraint = ConstraintFactory::<Plan, CustomScore>::new()
-        .for_each(source_vec(|plan: &Plan| &plan.items))
+        .for_each(source(
+            (|plan: &Plan| plan.items.as_slice()) as fn(&Plan) -> &[Item],
+            ChangeSource::Descriptor(0),
+        ))
         .filter(|item: &Item| item.active)
         .penalize(fixed_weight(CustomScore::of(0, 2)))
         .named("custom fixed score");
@@ -141,7 +144,10 @@ fn fixed_weight_supports_custom_scores() {
 #[test]
 fn dynamic_hard_soft_weights_are_non_hard_metadata_by_default() {
     let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
-        .for_each(source_vec(|plan: &Plan| &plan.items))
+        .for_each(source(
+            (|plan: &Plan| plan.items.as_slice()) as fn(&Plan) -> &[Item],
+            ChangeSource::Descriptor(0),
+        ))
         .penalize(|_item: &Item| HardSoftScore::of_soft(1))
         .named("dynamic soft score");
 
@@ -155,7 +161,10 @@ fn dynamic_hard_soft_weights_are_non_hard_metadata_by_default() {
 #[test]
 fn hard_weight_marks_dynamic_weights_as_hard_metadata() {
     let constraint = ConstraintFactory::<Plan, HardSoftScore>::new()
-        .for_each(source_vec(|plan: &Plan| &plan.items))
+        .for_each(source(
+            (|plan: &Plan| plan.items.as_slice()) as fn(&Plan) -> &[Item],
+            ChangeSource::Descriptor(0),
+        ))
         .penalize(hard_weight(|_item: &Item| HardSoftScore::of_hard(1)))
         .named("explicit hard score");
 
@@ -169,11 +178,17 @@ fn hard_weight_marks_dynamic_weights_as_hard_metadata() {
 #[test]
 fn fixed_soft_and_dynamic_soft_metadata_deduplicate_without_conflict() {
     let fixed = ConstraintFactory::<Plan, HardSoftScore>::new()
-        .for_each(source_vec(|plan: &Plan| &plan.items))
+        .for_each(source(
+            (|plan: &Plan| plan.items.as_slice()) as fn(&Plan) -> &[Item],
+            ChangeSource::Descriptor(0),
+        ))
         .penalize(HardSoftScore::of_soft(1))
         .named("same soft score");
     let dynamic = ConstraintFactory::<Plan, HardSoftScore>::new()
-        .for_each(source_vec(|plan: &Plan| &plan.items))
+        .for_each(source(
+            (|plan: &Plan| plan.items.as_slice()) as fn(&Plan) -> &[Item],
+            ChangeSource::Descriptor(0),
+        ))
         .penalize(|_item: &Item| HardSoftScore::of_soft(1))
         .named("same soft score");
 

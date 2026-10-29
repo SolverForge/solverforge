@@ -117,7 +117,7 @@ where
             if self
                 .source
                 .change_source(slot)
-                .assert_localizes(descriptor_index, &self.constraint_ref.name)
+                .owns_descriptor(descriptor_index)
             {
                 owners.push(RowOwner {
                     source_slot: slot,

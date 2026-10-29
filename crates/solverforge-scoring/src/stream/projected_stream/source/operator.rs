@@ -91,11 +91,7 @@ where
 
     fn localized_owners(&self, descriptor: usize, index: usize) -> Vec<RowOwner> {
         (0..self.source.source_count())
-            .filter(|slot| {
-                self.source
-                    .change_source(*slot)
-                    .assert_localizes(descriptor, "projected operator")
-            })
+            .filter(|slot| self.source.change_source(*slot).owns_descriptor(descriptor))
             .map(|source_slot| RowOwner {
                 source_slot,
                 entity_index: index,

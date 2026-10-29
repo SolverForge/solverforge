@@ -12,5 +12,5 @@ mod projected;
 mod relational;
 mod weights;
 
-mod repro_unknown;
+mod exists_descriptor_updates;
 mod self_join_bi_fluent;

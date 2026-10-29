@@ -1,23 +1,11 @@
-/* CollectionExtract trait for ergonomic entity collection extraction.
+/* `CollectionExtract`: the source of a stream's rows.
 
-Allows extractor closures to return either `&[A]` or `&Vec<A>`,
-so users can write `vec(|s| &s.employees)` without `.as_slice()`.
-
-# Usage
-
-```
-use solverforge_scoring::stream::collection_extract::{CollectionExtract, VecExtract, vec};
-
-struct Schedule { employees: Vec<String> }
-
-// Direct slice closure — works out of the box:
-let e1 = |s: &Schedule| s.employees.as_slice();
-let _: &[String] = e1.extract(&Schedule { employees: vec![] });
-
-// Vec reference closure — wrap with `vec(...)`:
-let e2 = vec(|s: &Schedule| &s.employees);
-let _: &[String] = e2.extract(&Schedule { employees: vec![] });
-```
+A stream source is a planning-model collection: the accessor that
+`#[planning_solution]` generates for each entity, fact and list-element
+collection (`Plan::shifts()`). Each accessor reports which descriptor owns its
+rows, so incremental scoring can map an entity notification to the rows it
+changes. A raw closure or `fn` item carries no such identity and is not a
+source.
 */
 
 /* Extracts a slice of entities from the solution.
@@ -26,6 +14,11 @@ The associated type `Item` names the entity type, allowing callers to
 write `E: CollectionExtract<S, Item = A>` when `A` must be inferred from `E`
 rather than stated as a separate generic parameter.
 */
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` is not a stream source",
+    label = "stream sources must come from the planning model",
+    note = "pass the generated accessor, e.g. `Plan::shifts()`"
+)]
 pub trait CollectionExtract<S>: Send + Sync {
     // The entity type yielded by this extractor.
     type Item;
@@ -38,12 +31,10 @@ pub trait CollectionExtract<S>: Send + Sync {
         true
     }
 
-    // Identifies whether the solution source owns descriptor-scoped localized updates.
-    // Plain extractors are non-localized. Macro-generated solution source methods
-    // attach descriptor/static metadata through hidden internal support.
-    fn change_source(&self) -> ChangeSource {
-        ChangeSource::Unknown
-    }
+    // The descriptor that owns this source's rows, or `Static` when no
+    // planning-variable change can alter them. Macro-generated solution source
+    // methods attach it through hidden internal support.
+    fn change_source(&self) -> ChangeSource;
 }
 
 /* Preserves a unary stream's membership at the source boundary, before
@@ -84,47 +75,19 @@ where
 #[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChangeSource {
-    Unknown,
     Static,
     Descriptor(usize),
 }
 
 impl ChangeSource {
     #[inline]
-    pub fn reacts_to(self, descriptor_index: usize) -> bool {
-        match self {
-            Self::Unknown => true,
-            Self::Static => false,
-            Self::Descriptor(index) => index == descriptor_index,
-        }
-    }
-
-    #[inline]
     pub fn owns_descriptor(self, descriptor_index: usize) -> bool {
         matches!(self, Self::Descriptor(index) if index == descriptor_index)
     }
 
     #[inline]
-    pub fn is_unknown(self) -> bool {
-        matches!(self, Self::Unknown)
-    }
-
-    #[inline]
     pub fn same_index_domain(self, other: Self) -> bool {
         matches!((self, other), (Self::Descriptor(left), Self::Descriptor(right)) if left == right)
-    }
-
-    #[inline]
-    pub fn assert_localizes(self, descriptor_index: usize, constraint_name: &str) -> bool {
-        if self.owns_descriptor(descriptor_index) {
-            return true;
-        }
-        if self.reacts_to(descriptor_index) {
-            panic!(
-                "constraint `{constraint_name}` received descriptor {descriptor_index}, but source {self:?} cannot localize entity indexes"
-            );
-        }
-        false
     }
 }
 
@@ -132,18 +95,6 @@ pub trait FlattenExtract<P>: Send + Sync {
     type Item;
 
     fn extract<'s>(&self, parent: &'s P) -> &'s [Self::Item];
-}
-
-impl<S, A, F> CollectionExtract<S> for F
-where
-    F: for<'a> Fn(&'a S) -> &'a [A] + Send + Sync,
-{
-    type Item = A;
-
-    #[inline]
-    fn extract<'s>(&self, s: &'s S) -> &'s [A] {
-        self(s)
-    }
 }
 
 impl<P, B, F> FlattenExtract<P> for F
@@ -193,68 +144,20 @@ impl<E> SourceExtract<E> {
     }
 }
 
-impl<S, E> CollectionExtract<S> for SourceExtract<E>
+impl<S, A, E> CollectionExtract<S> for SourceExtract<E>
 where
-    E: CollectionExtract<S>,
-{
-    type Item = E::Item;
-
-    #[inline]
-    fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item] {
-        self.extractor.extract(s)
-    }
-
-    #[inline]
-    fn contains(&self, s: &S, item: &Self::Item) -> bool {
-        self.extractor.contains(s, item)
-    }
-
-    fn change_source(&self) -> ChangeSource {
-        self.change_source
-    }
-}
-
-/* Wraps a `Fn(&S) -> &Vec<A>` closure so it satisfies `CollectionExtract<S>`.
-
-Construct via the [`vec`] free function.
-*/
-pub struct VecExtract<F>(pub F);
-
-impl<S, A, F> CollectionExtract<S> for VecExtract<F>
-where
-    F: for<'a> Fn(&'a S) -> &'a Vec<A> + Send + Sync,
+    E: for<'a> Fn(&'a S) -> &'a [A] + Send + Sync,
 {
     type Item = A;
 
     #[inline]
     fn extract<'s>(&self, s: &'s S) -> &'s [A] {
-        (self.0)(s).as_slice()
+        (self.extractor)(s)
     }
-}
 
-/* Wraps a `Fn(&S) -> &Vec<A>` closure into a [`VecExtract`] that satisfies
-[`CollectionExtract<S>`].
-
-Use this when your solution field is a `Vec<A>` and you want to write
-`|s| &s.field` instead of `|s| s.field.as_slice()`.
-
-# Example
-
-```
-use solverforge_scoring::stream::collection_extract::{CollectionExtract, vec};
-
-struct Schedule { employees: Vec<String> }
-
-let extractor = vec(|s: &Schedule| &s.employees);
-let schedule = Schedule { employees: vec!["Alice".into()] };
-assert_eq!(extractor.extract(&schedule), &["Alice".to_string()]);
-```
-*/
-pub fn vec<S, A, F>(f: F) -> VecExtract<F>
-where
-    F: for<'a> Fn(&'a S) -> &'a Vec<A> + Send + Sync,
-{
-    VecExtract(f)
+    fn change_source(&self) -> ChangeSource {
+        self.change_source
+    }
 }
 
 #[doc(hidden)]

@@ -30,39 +30,6 @@ fn as_b(state: &State) -> &[B] {
 }
 
 #[test]
-#[should_panic(expected = "cannot localize entity indexes")]
-fn unknown_source_same_source_wrong_delta_on_wrong_descriptor_update() {
-    let mut constraint = ConstraintFactory::<State, SoftScore>::new()
-        .for_each(source(as_a as fn(&State) -> &[A], ChangeSource::Unknown))
-        .filter(|_a: &A| true)
-        .if_exists((
-            ConstraintFactory::<State, SoftScore>::new()
-                .for_each(source(as_b as fn(&State) -> &[B], ChangeSource::Unknown))
-                .filter(|_b: &B| true),
-            equal_bi(|a: &A| a.id, |b: &B| b.id),
-        ))
-        .penalize(SoftScore::of(1))
-        .named("exists from unknown source");
-
-    let mut state = State {
-        a: vec![A { id: 2 }, A { id: 2 }],
-        b: vec![B { id: 3 }, B { id: 2 }],
-    };
-
-    let initial = constraint.initialize(&state);
-    assert_eq!(initial, SoftScore::of(-2));
-
-    let mut total = initial;
-    total = total + constraint.on_retract(&state, 1, 0);
-    state.a[1].id = 3;
-
-    total = total + constraint.on_insert(&state, 1, 0);
-
-    assert_eq!(total, SoftScore::of(-1));
-    assert_eq!(total, constraint.evaluate(&state));
-}
-
-#[test]
 fn descriptor_exists_parent_side_update_matches_evaluate() {
     let mut constraint = ConstraintFactory::<State, SoftScore>::new()
         .for_each(source(

@@ -11,11 +11,11 @@ fn shifts(plan: &Plan) -> &[usize] {
 fn fixed_constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let g = ConstraintFactory::<Plan, SoftScore>::new();
     let fixed_one = g
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .penalize(SoftScore::ONE)
         .named("fixed one");
     let fixed_two = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .reward(SoftScore::ONE)
         .named("fixed two");
 
@@ -26,7 +26,7 @@ fn fixed_constraints() -> impl ConstraintSet<Plan, SoftScore> {
 fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let g = ConstraintFactory::<Plan, SoftScore>::new();
     let by_employee = g
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|employee_id: &usize| *employee_id, count());
 
     (

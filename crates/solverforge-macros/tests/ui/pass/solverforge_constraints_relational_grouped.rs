@@ -25,9 +25,9 @@ fn budgets(schedule: &Schedule) -> &[i64] {
 fn constraints() -> impl ConstraintSet<Schedule, SoftScore> {
     let g = ConstraintFactory::<Schedule, SoftScore>::new();
     let assigned_by_employee = g
-        .for_each(shifts as fn(&Schedule) -> &[Option<usize>])
+        .for_each(solverforge::stream::source(shifts as fn(&Schedule) -> &[Option<usize>], solverforge::stream::ChangeSource::Descriptor(0)))
         .join((
-            employees as fn(&Schedule) -> &[usize],
+            solverforge::stream::source(employees as fn(&Schedule) -> &[usize], solverforge::stream::ChangeSource::Static),
             joiner::equal_bi(
                 |shift: &Option<usize>| *shift,
                 |employee: &usize| Some(*employee),
@@ -39,13 +39,13 @@ fn constraints() -> impl ConstraintSet<Schedule, SoftScore> {
         );
 
     let budgeted = ConstraintFactory::<Schedule, SoftScore>::new()
-        .for_each(shifts as fn(&Schedule) -> &[Option<usize>])
+        .for_each(solverforge::stream::source(shifts as fn(&Schedule) -> &[Option<usize>], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(
             |shift: &Option<usize>| shift.unwrap_or(usize::MAX),
             count(),
         )
         .join((
-            budgets as fn(&Schedule) -> &[i64],
+            solverforge::stream::source(budgets as fn(&Schedule) -> &[i64], solverforge::stream::ChangeSource::Static),
             |_budget: &i64| 0usize,
         ));
 

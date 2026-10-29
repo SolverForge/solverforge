@@ -327,10 +327,7 @@ where
         entity_index: usize,
         _descriptor_index: usize,
     ) -> (Sc, bool) {
-        if !self
-            .change_source
-            .assert_localizes(_descriptor_index, &self.constraint_ref.name)
-        {
+        if !self.change_source.owns_descriptor(_descriptor_index) {
             return (Sc::zero(), false);
         }
         let entities = self.extractor.extract(solution);
@@ -383,10 +380,7 @@ where
         entity_index: usize,
         _descriptor_index: usize,
     ) -> (Sc, bool) {
-        if !self
-            .change_source
-            .assert_localizes(_descriptor_index, &self.constraint_ref.name)
-        {
+        if !self.change_source.owns_descriptor(_descriptor_index) {
             return (Sc::zero(), false);
         }
         let entities = self.extractor.extract(solution);

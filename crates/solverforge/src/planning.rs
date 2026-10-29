@@ -20,11 +20,6 @@ pub trait EntitySourceTargetExt<S>: CollectionExtract<S> {
             crate::__internal::ChangeSource::Static => {
                 panic!("scalar target `{variable_name}` was requested from a static source")
             }
-            crate::__internal::ChangeSource::Unknown => {
-                panic!(
-                    "scalar target `{variable_name}` requires a model-owned planning entity source"
-                )
-            }
         }
     }
 }

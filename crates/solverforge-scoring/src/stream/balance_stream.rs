@@ -44,7 +44,7 @@ struct Shift { employee_id: Option<usize> }
 struct Solution { shifts: Vec<Shift> }
 
 let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-.for_each(|s: &Solution| &s.shifts)
+.for_each(Solution::shifts())
 .balance(|shift: &Shift| shift.employee_id)
 .penalize(SoftScore::of(1000))
 .named("Balance workload");

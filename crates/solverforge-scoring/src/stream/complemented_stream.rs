@@ -67,7 +67,7 @@ shifts: Vec<Shift>,
 
 // Count shifts per employee, including employees with 0 shifts
 let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
-.for_each(|s: &Schedule| &s.shifts)
+.for_each(Schedule::shifts())
 .group_by(|shift: &Shift| shift.employee_id, count())
 .complement(
 |s: &Schedule| s.employees.as_slice(),

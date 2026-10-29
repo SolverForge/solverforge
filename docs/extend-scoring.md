@@ -88,8 +88,9 @@ filtered unary streams; arbitrary derived producers are inputs to low-level
 Route each descriptor notification through every applicable binding. A binary
 join retracts affected outputs once, updates both input branches before insertion
 probing, and deduplicates outputs by joined identity. Repeated insertion and
-retraction are no-ops. Static and unknown sources retain `ChangeSource` semantics;
-unknown changes must not silently trigger a rebuild fallback.
+retraction are no-ops. A `Static` source ignores every descriptor notification, and a
+`Descriptor(idx)` source reacts only to its own descriptor; there is no
+unlocalized source and no rebuild fallback.
 
 `OperatorTerminal` retains each signed contribution in a checked generational
 side-table. Return the inverse retained score on retraction; do not recompute

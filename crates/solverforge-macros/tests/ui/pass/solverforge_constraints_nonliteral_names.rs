@@ -14,7 +14,7 @@ fn shifts(plan: &Plan) -> &[usize] {
 fn shared_constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let g = ConstraintFactory::<Plan, SoftScore>::new();
     let by_employee = g
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|employee_id: &usize| *employee_id, count());
     let squared_name = "squared employee load";
 
@@ -36,7 +36,7 @@ fn passthrough_constraints() -> impl ConstraintSet<Plan, SoftScore> {
 
     (
         ConstraintFactory::<Plan, SoftScore>::new()
-            .for_each(shifts as fn(&Plan) -> &[usize])
+            .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
             .penalize(SoftScore::ONE)
             .named(name),
     )

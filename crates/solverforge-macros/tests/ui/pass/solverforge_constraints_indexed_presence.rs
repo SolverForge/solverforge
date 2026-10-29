@@ -12,7 +12,7 @@ fn shifts(plan: &Plan) -> &[(usize, i64, bool)] {
 fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let g = ConstraintFactory::<Plan, SoftScore>::new();
     let nurse_presence = g
-        .for_each(shifts as fn(&Plan) -> &[(usize, i64, bool)])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[(usize, i64, bool)], solverforge::stream::ChangeSource::Descriptor(0)))
         .filter(|shift: &(usize, i64, bool)| shift.2)
         .group_by(
             |shift: &(usize, i64, bool)| shift.0,

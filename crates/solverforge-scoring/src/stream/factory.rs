@@ -31,7 +31,7 @@ values: Vec<Option<i32>>,
 let factory = ConstraintFactory::<Solution, SoftScore>::new();
 
 let constraint = factory
-.for_each(|s: &Solution| &s.values)
+.for_each(Solution::values())
 .filter(|v: &Option<i32>| v.is_none())
 .penalize(SoftScore::of(1))
 .named("Unassigned");

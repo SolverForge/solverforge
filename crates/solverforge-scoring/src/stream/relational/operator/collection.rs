@@ -89,11 +89,7 @@ where
         _inserted: &mut Vec<RowHandle>,
     ) {
         removed.clear();
-        if !self
-            .extractor
-            .change_source()
-            .assert_localizes(descriptor, "relational source")
-        {
+        if !self.extractor.change_source().owns_descriptor(descriptor) {
             return;
         }
         if let Some(slot) = self.handles.get_mut(index) {
@@ -113,11 +109,7 @@ where
         inserted: &mut Vec<RowHandle>,
     ) {
         inserted.clear();
-        if !self
-            .extractor
-            .change_source()
-            .assert_localizes(descriptor, "relational source")
-        {
+        if !self.extractor.change_source().owns_descriptor(descriptor) {
             return;
         }
         if self.handles.get(index).is_some_and(Option::is_some) {

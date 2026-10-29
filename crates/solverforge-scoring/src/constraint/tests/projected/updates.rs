@@ -388,25 +388,3 @@ fn projected_merged_descriptor_sources_keep_same_entity_index_slots_distinct() {
     assert_eq!(total, SoftScore::of(-5));
     assert_eq!(total, constraint.evaluate(&plan));
 }
-
-#[test]
-#[should_panic(expected = "cannot localize entity indexes")]
-fn projected_unknown_source_panics_on_localized_callback() {
-    let mut constraint = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(work as fn(&Plan) -> &[Work])
-        .project(WorkEntryProjection)
-        .penalize(|entry: &Entry| SoftScore::of(entry.delta))
-        .named("unknown projected");
-
-    let plan = Plan {
-        work: vec![Work {
-            bucket: 0,
-            demand: 5,
-            enabled: true,
-        }],
-        capacity: Vec::new(),
-    };
-
-    constraint.initialize(&plan);
-    constraint.on_retract(&plan, 0, 0);
-}

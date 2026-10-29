@@ -3,7 +3,7 @@
 
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
 use crate::constraint::incremental::IncrementalUniConstraint;
-use crate::stream::collection_extract::{source, vec, ChangeSource};
+use crate::stream::collection_extract::{source, ChangeSource};
 use solverforge_core::score::SoftScore;
 use solverforge_core::{ConstraintRef, ImpactType};
 
@@ -22,7 +22,10 @@ fn uni(
     IncrementalUniConstraint::new(
         ConstraintRef::new("", "Weight"),
         impact,
-        source(vec(|plan: &Plan| &plan.items), ChangeSource::Descriptor(0)),
+        source(
+            (|plan: &Plan| plan.items.as_slice()) as fn(&Plan) -> &[Item],
+            ChangeSource::Descriptor(0),
+        ),
         |_: &Plan, _: &Item| true,
         |item: &Item| SoftScore::of(item.weight),
         false,

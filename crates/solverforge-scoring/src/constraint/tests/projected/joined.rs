@@ -261,14 +261,3 @@ fn joined_projected_rows_same_descriptor_owners_do_not_double_delta() {
     total = total + constraint.on_insert(&timetable, 0, 0);
     assert_eq!(total, SoftScore::of(-1));
 }
-
-#[test]
-#[should_panic(expected = "cannot localize entity indexes")]
-fn joined_projected_rows_unknown_source_panics_on_localized_callback() {
-    let mut constraint =
-        assigned_lesson_penalty(ChangeSource::Unknown, ChangeSource::Descriptor(1));
-    let timetable = overlapping_timetable();
-
-    constraint.initialize(&timetable);
-    constraint.on_retract(&timetable, 0, 0);
-}

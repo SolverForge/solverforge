@@ -11,10 +11,10 @@ fn shifts(plan: &Plan) -> &[(usize, usize)] {
 #[solverforge_constraints]
 fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[(usize, usize)])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[(usize, usize)], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|shift: &(usize, usize)| shift.0, count());
     let by_day = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[(usize, usize)])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[(usize, usize)], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|shift: &(usize, usize)| shift.1, count());
 
     (

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use solverforge_core::score::SoftScore;
 
 use crate::api::constraint_set::{ConstraintSet, IncrementalConstraint};
-use crate::stream::collection_extract::{source, vec, ChangeSource};
+use crate::stream::collection_extract::{source, ChangeSource};
 use crate::stream::collector::{collect_vec, count, CollectedVec};
 use crate::stream::ConstraintFactory;
 
@@ -24,7 +24,7 @@ struct GroupedSolution {
 fn test_grouped_constraint_evaluate() {
     let constraint = ConstraintFactory::<GroupedSolution, SoftScore>::new()
         .for_each(source(
-            vec(|s: &GroupedSolution| &s.shifts),
+            (|s: &GroupedSolution| s.shifts.as_slice()) as fn(&GroupedSolution) -> &[GroupedShift],
             ChangeSource::Descriptor(0),
         ))
         .group_by(|shift: &GroupedShift| shift.employee_id, count())
@@ -51,7 +51,7 @@ fn test_grouped_constraint_evaluate() {
 fn test_grouped_constraint_incremental() {
     let mut constraint = ConstraintFactory::<GroupedSolution, SoftScore>::new()
         .for_each(source(
-            vec(|s: &GroupedSolution| &s.shifts),
+            (|s: &GroupedSolution| s.shifts.as_slice()) as fn(&GroupedSolution) -> &[GroupedShift],
             ChangeSource::Descriptor(0),
         ))
         .group_by(|shift: &GroupedShift| shift.employee_id, count())
@@ -88,7 +88,10 @@ fn test_grouped_constraint_incremental() {
 #[test]
 fn test_grouped_constraint_reward() {
     let constraint = ConstraintFactory::<GroupedSolution, SoftScore>::new()
-        .for_each(vec(|s: &GroupedSolution| &s.shifts))
+        .for_each(source(
+            (|s: &GroupedSolution| s.shifts.as_slice()) as fn(&GroupedSolution) -> &[GroupedShift],
+            ChangeSource::Descriptor(0),
+        ))
         .group_by(|shift: &GroupedShift| shift.employee_id, count())
         .reward(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
         .named("Collaboration");
@@ -107,7 +110,10 @@ fn test_grouped_constraint_reward() {
 #[test]
 fn test_grouped_constraint_weight_can_use_key() {
     let constraint = ConstraintFactory::<GroupedSolution, SoftScore>::new()
-        .for_each(vec(|s: &GroupedSolution| &s.shifts))
+        .for_each(source(
+            (|s: &GroupedSolution| s.shifts.as_slice()) as fn(&GroupedSolution) -> &[GroupedShift],
+            ChangeSource::Descriptor(0),
+        ))
         .group_by(|shift: &GroupedShift| shift.employee_id, count())
         .penalize(|employee_id: &usize, count: &usize| {
             SoftScore::of((*employee_id as i64) * (*count as i64))
@@ -128,7 +134,10 @@ fn test_grouped_constraint_weight_can_use_key() {
 #[test]
 fn test_grouped_constraint_collect_vec_accepts_owned_labels() {
     let constraint = ConstraintFactory::<GroupedSolution, SoftScore>::new()
-        .for_each(vec(|s: &GroupedSolution| &s.shifts))
+        .for_each(source(
+            (|s: &GroupedSolution| s.shifts.as_slice()) as fn(&GroupedSolution) -> &[GroupedShift],
+            ChangeSource::Descriptor(0),
+        ))
         .group_by(
             |shift: &GroupedShift| shift.employee_id,
             collect_vec(|shift: &GroupedShift| format!("employee-{}", shift.employee_id)),
@@ -153,7 +162,7 @@ fn test_grouped_constraint_collect_vec_accepts_owned_labels() {
 fn test_shared_grouped_constraint_set_updates_one_node_for_multiple_terminals() {
     let mut constraints = ConstraintFactory::<GroupedSolution, SoftScore>::new()
         .for_each(source(
-            vec(|s: &GroupedSolution| &s.shifts),
+            (|s: &GroupedSolution| s.shifts.as_slice()) as fn(&GroupedSolution) -> &[GroupedShift],
             ChangeSource::Descriptor(0),
         ))
         .group_by(|shift: &GroupedShift| shift.employee_id, count())
@@ -195,7 +204,7 @@ fn test_shared_grouped_constraint_set_updates_one_node_for_multiple_terminals() 
 fn test_grouped_fluent_chain_appends_terminals_to_one_node() {
     let mut constraints = ConstraintFactory::<GroupedSolution, SoftScore>::new()
         .for_each(source(
-            vec(|s: &GroupedSolution| &s.shifts),
+            (|s: &GroupedSolution| s.shifts.as_slice()) as fn(&GroupedSolution) -> &[GroupedShift],
             ChangeSource::Descriptor(0),
         ))
         .group_by(|shift: &GroupedShift| shift.employee_id, count())
@@ -238,7 +247,7 @@ fn test_grouped_fluent_chain_appends_terminals_to_one_node() {
 fn test_shared_grouped_constraint_set_refreshes_only_dirty_keys() {
     let mut constraints = ConstraintFactory::<GroupedSolution, SoftScore>::new()
         .for_each(source(
-            vec(|s: &GroupedSolution| &s.shifts),
+            (|s: &GroupedSolution| s.shifts.as_slice()) as fn(&GroupedSolution) -> &[GroupedShift],
             ChangeSource::Descriptor(0),
         ))
         .group_by(|shift: &GroupedShift| shift.employee_id, count())
@@ -273,7 +282,7 @@ fn test_shared_grouped_constraint_set_refreshes_only_dirty_keys() {
 fn shared_grouped_terminals_keep_independent_detailed_identity() {
     let mut constraints = ConstraintFactory::<GroupedSolution, SoftScore>::new()
         .for_each(source(
-            vec(|s: &GroupedSolution| &s.shifts),
+            (|s: &GroupedSolution| s.shifts.as_slice()) as fn(&GroupedSolution) -> &[GroupedShift],
             ChangeSource::Descriptor(0),
         ))
         .group_by(|shift: &GroupedShift| shift.employee_id, count())
@@ -348,7 +357,7 @@ fn non_clone_payload_grouped_set_retracts_exactly_on_mutation() {
     let payload_drops = Arc::clone(&drops);
     let mut constraints = ConstraintFactory::<GroupedSolution, SoftScore>::new()
         .for_each(source(
-            vec(|s: &GroupedSolution| &s.shifts),
+            (|s: &GroupedSolution| s.shifts.as_slice()) as fn(&GroupedSolution) -> &[GroupedShift],
             ChangeSource::Descriptor(0),
         ))
         .group_by(

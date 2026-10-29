@@ -127,6 +127,11 @@ impl solverforge::stream::CollectionExtract<Plan> for CustomCapacityExtract {
     fn extract<'s>(&self, plan: &'s Plan) -> &'s [Capacity] {
         plan.capacities.as_slice()
     }
+
+    // Capacities are problem facts: no planning-variable change alters them.
+    fn change_source(&self) -> solverforge::stream::ChangeSource {
+        solverforge::stream::ChangeSource::Static
+    }
 }
 
 #[test]

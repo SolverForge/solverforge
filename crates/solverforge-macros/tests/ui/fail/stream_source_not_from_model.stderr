@@ -1,0 +1,59 @@
+error[E0277]: `for<'a> fn(&'a Plan) -> &'a [usize]` is not a stream source
+  --> tests/ui/fail/stream_source_not_from_model.rs:16:19
+   |
+16 |         .for_each(shifts as fn(&Plan) -> &[usize]);
+   |          -------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ stream sources must come from the planning model
+   |          |
+   |          required by a bound introduced by this call
+   |
+   = help: the trait `CollectionExtract<Plan>` is not implemented for `for<'a> fn(&'a Plan) -> &'a [usize]`
+   = note: pass the generated accessor, e.g. `Plan::shifts()`
+help: the trait `CollectionExtract<S>` is implemented for `UniConstraintStream<S, A, E, F, Sc>`
+  --> $WORKSPACE/crates/solverforge-scoring/src/stream/uni_stream/base.rs
+   |
+   | / impl<S, A, E, F, Sc> CollectionExtract<S> for UniConstraintStream<S, A, E, F, Sc>
+   | | where
+   | |     S: Send + Sync + 'static,
+   | |     A: Clone + Send + Sync + 'static,
+   | |     E: CollectionExtract<S, Item = A>,
+   | |     F: UniFilter<S, A>,
+   | |     Sc: Score + 'static,
+   | |________________________^
+note: required by a bound in `solverforge::prelude::ConstraintFactory::<S, Sc>::for_each`
+  --> $WORKSPACE/crates/solverforge-scoring/src/stream/factory.rs
+   |
+   |     pub fn for_each<A, E>(self, extractor: E) -> UniConstraintStream<S, A, E, TrueFilter, Sc>
+   |            -------- required by a bound in this associated function
+...
+   |         E: CollectionExtract<S, Item = A>,
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ConstraintFactory::<S, Sc>::for_each`
+
+error[E0277]: `{closure@$DIR/tests/ui/fail/stream_source_not_from_model.rs:18:19: 18:32}` is not a stream source
+  --> tests/ui/fail/stream_source_not_from_model.rs:18:19
+   |
+18 |         .for_each(|plan: &Plan| plan.shifts.as_slice());
+   |          -------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ stream sources must come from the planning model
+   |          |
+   |          required by a bound introduced by this call
+   |
+   = help: the trait `CollectionExtract<Plan>` is not implemented for closure `{closure@$DIR/tests/ui/fail/stream_source_not_from_model.rs:18:19: 18:32}`
+   = note: pass the generated accessor, e.g. `Plan::shifts()`
+help: the trait `CollectionExtract<S>` is implemented for `UniConstraintStream<S, A, E, F, Sc>`
+  --> $WORKSPACE/crates/solverforge-scoring/src/stream/uni_stream/base.rs
+   |
+   | / impl<S, A, E, F, Sc> CollectionExtract<S> for UniConstraintStream<S, A, E, F, Sc>
+   | | where
+   | |     S: Send + Sync + 'static,
+   | |     A: Clone + Send + Sync + 'static,
+   | |     E: CollectionExtract<S, Item = A>,
+   | |     F: UniFilter<S, A>,
+   | |     Sc: Score + 'static,
+   | |________________________^
+note: required by a bound in `solverforge::prelude::ConstraintFactory::<S, Sc>::for_each`
+  --> $WORKSPACE/crates/solverforge-scoring/src/stream/factory.rs
+   |
+   |     pub fn for_each<A, E>(self, extractor: E) -> UniConstraintStream<S, A, E, TrueFilter, Sc>
+   |            -------- required by a bound in this associated function
+...
+   |         E: CollectionExtract<S, Item = A>,
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `ConstraintFactory::<S, Sc>::for_each`

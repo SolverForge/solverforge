@@ -29,7 +29,7 @@ required_skill: String,
 
 // Define constraints using the fluent API
 let unassigned = ConstraintFactory::<Schedule, SoftScore>::new()
-.for_each(|s: &Schedule| &s.shifts)
+.for_each(Schedule::shifts())
 .filter(|shift: &Shift| shift.employee_idx.is_none())
 .penalize(SoftScore::of(1))
 .named("Unassigned shift");
@@ -123,7 +123,7 @@ pub mod projected {
 pub use balance_stream::{BalanceConstraintBuilder, BalanceConstraintStream};
 pub use bi_stream::{BiConstraintBuilder, BiConstraintStream};
 pub use collection_extract::{
-    source, ChangeSource, CollectionExtract, FlattenExtract, SourceExtract, VecExtract,
+    source, ChangeSource, CollectionExtract, FlattenExtract, SourceExtract,
 };
 pub use complemented_stream::{ComplementedConstraintBuilder, ComplementedConstraintStream};
 pub use existence_stream::{ExistenceMode, ExistsConstraintBuilder, ExistsConstraintStream};

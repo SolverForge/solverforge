@@ -34,7 +34,7 @@ fn work(plan: &Plan) -> &[(usize, i64)] {
 fn constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let g = ConstraintFactory::<Plan, SoftScore>::new();
     let demand_by_bucket = g
-        .for_each(work as fn(&Plan) -> &[(usize, i64)])
+        .for_each(solverforge::stream::source(work as fn(&Plan) -> &[(usize, i64)], solverforge::stream::ChangeSource::Descriptor(0)))
         .project(WorkEntryProjection)
         .group_by(|entry: &Entry| entry.bucket, sum(|entry: &Entry| entry.delta));
 

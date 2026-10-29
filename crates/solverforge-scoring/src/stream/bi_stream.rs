@@ -20,7 +20,7 @@ struct Solution { tasks: Vec<Task> }
 
 // Penalize when two tasks are on the same team
 let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-.for_each(|s: &Solution| s.tasks.as_slice())
+.for_each(Solution::tasks())
 .join(equal(|t: &Task| t.team))
 .penalize(SoftScore::of(1))
 .named("Team conflict");
@@ -77,7 +77,7 @@ where
 
     // Penalize when three tasks are on the same team
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(|s: &Solution| s.tasks.as_slice())
+    .for_each(Solution::tasks())
     .join(equal(|t: &Task| t.team))
     .join(equal(|t: &Task| t.team))
     .penalize(SoftScore::of(1))
@@ -137,7 +137,7 @@ mod doctests {
     struct Solution { items: Vec<Item> }
 
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(|s: &Solution| s.items.as_slice())
+    .for_each(Solution::items())
     .join(equal(|i: &Item| i.group))
     .filter(|a: &Item, b: &Item| a.value + b.value > 10)
     .penalize(SoftScore::of(1))
@@ -169,7 +169,7 @@ mod doctests {
     struct Solution { tasks: Vec<Task> }
 
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(|s: &Solution| s.tasks.as_slice())
+    .for_each(Solution::tasks())
     .join(equal(|t: &Task| t.priority))
     .penalize(SoftScore::of(5))
     .named("Pair priority conflict");
@@ -200,7 +200,7 @@ mod doctests {
     struct Solution { tasks: Vec<Task> }
 
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(|s: &Solution| s.tasks.as_slice())
+    .for_each(Solution::tasks())
     .join(equal(|t: &Task| t.team))
     .penalize(|a: &Task, b: &Task| {
     SoftScore::of(a.cost + b.cost)
@@ -233,7 +233,7 @@ mod doctests {
     struct Solution { people: Vec<Person> }
 
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(|s: &Solution| s.people.as_slice())
+    .for_each(Solution::people())
     .join(equal(|p: &Person| p.team))
     .reward(SoftScore::of(10))
     .named("Team synergy");
@@ -264,7 +264,7 @@ mod doctests {
     struct Solution { items: Vec<Item> }
 
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(|s: &Solution| s.items.as_slice())
+    .for_each(Solution::items())
     .join(equal(|i: &Item| i.id))
     .penalize(SoftScore::of(1))
     .named("Pair items");

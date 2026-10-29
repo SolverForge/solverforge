@@ -12,25 +12,25 @@ fn shifts(plan: &Plan) -> &[usize] {
 
 fn fixed_one() -> impl IncrementalConstraint<Plan, SoftScore> {
     ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .penalize(SoftScore::ONE)
         .named("fixed one")
 }
 
 fn fixed_named(name: String) -> impl ConstraintSet<Plan, SoftScore> {
     ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .penalize(SoftScore::ONE)
         .named(name.as_str())
 }
 
 fn fixed_constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let fixed_two = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .penalize(SoftScore::ONE)
         .named("fixed duplicate");
     let fixed_three = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .reward(SoftScore::ONE)
         .named("fixed duplicate");
 
@@ -40,7 +40,7 @@ fn fixed_constraints() -> impl ConstraintSet<Plan, SoftScore> {
 #[solverforge_constraints]
 fn moved_name_constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|employee_id: &usize| *employee_id, count());
     let name = String::from("moved fixed");
 
@@ -60,7 +60,7 @@ fn moved_name_constraints() -> impl ConstraintSet<Plan, SoftScore> {
 #[solverforge_constraints]
 fn empty_tuple_constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|employee_id: &usize| *employee_id, count());
 
     (
@@ -79,7 +79,7 @@ fn empty_tuple_constraints() -> impl ConstraintSet<Plan, SoftScore> {
 #[solverforge_constraints]
 fn alias_terminal_constraints() -> impl CSet<Plan, SoftScore> {
     let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|employee_id: &usize| *employee_id, count());
 
     (
@@ -97,7 +97,7 @@ fn alias_terminal_constraints() -> impl CSet<Plan, SoftScore> {
 #[solverforge_constraints]
 fn alias_empty_tuple_constraints() -> impl CSet<Plan, SoftScore> {
     let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|employee_id: &usize| *employee_id, count());
 
     (
@@ -116,7 +116,7 @@ fn alias_empty_tuple_constraints() -> impl CSet<Plan, SoftScore> {
 #[solverforge_constraints]
 fn call_single_constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|employee_id: &usize| *employee_id, count());
 
     (
@@ -136,7 +136,7 @@ fn call_single_constraints() -> impl ConstraintSet<Plan, SoftScore> {
 #[solverforge_constraints]
 fn bound_set_constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let by_employee = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|employee_id: &usize| *employee_id, count());
     let fixed = fixed_constraints();
 

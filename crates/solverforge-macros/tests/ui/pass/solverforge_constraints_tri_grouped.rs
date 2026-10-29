@@ -12,9 +12,9 @@ fn leaf_key(row: &Leaf<'_, u32>) -> u32 { *row.entity }
 fn constraints() -> impl ConstraintSet<Model, SoftScore> {
     let factory = ConstraintFactory::<Model, SoftScore>::new();
     (
-        factory.for_each(a as fn(&Model) -> &[u32])
-            .join((b as fn(&Model) -> &[u32], joiner::equal_bi(|a: &u32| *a, |b: &u32| *b)))
-            .join((c as fn(&Model) -> &[u32], joiner::equal_on(pair_key, leaf_key)))
+        factory.for_each(solverforge::stream::source(a as fn(&Model) -> &[u32], solverforge::stream::ChangeSource::Descriptor(0)))
+            .join((solverforge::stream::source(b as fn(&Model) -> &[u32], solverforge::stream::ChangeSource::Static), joiner::equal_bi(|a: &u32| *a, |b: &u32| *b)))
+            .join((solverforge::stream::source(c as fn(&Model) -> &[u32], solverforge::stream::ChangeSource::Static), joiner::equal_on(pair_key, leaf_key)))
             .group_by(|a: &u32, _: &u32, _: &u32| *a, count())
             .penalize(|_: &u32, n: &usize| SoftScore::of(*n as i64))
             .named("tri grouped count"),

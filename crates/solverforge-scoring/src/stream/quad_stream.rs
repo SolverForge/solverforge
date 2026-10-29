@@ -20,7 +20,7 @@ struct Solution { tasks: Vec<Task> }
 
 // Penalize when four tasks are on the same team
 let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-.for_each(|s: &Solution| s.tasks.as_slice())
+.for_each(Solution::tasks())
 .join(equal(|t: &Task| t.team))
 .join(equal(|t: &Task| t.team))
 .join(equal(|t: &Task| t.team))
@@ -82,7 +82,7 @@ where
 
     // Penalize when five tasks are on the same team
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(|s: &Solution| s.tasks.as_slice())
+    .for_each(Solution::tasks())
     .join(equal(|t: &Task| t.team))
     .join(equal(|t: &Task| t.team))
     .join(equal(|t: &Task| t.team))
@@ -155,7 +155,7 @@ mod doctests {
     struct Solution { items: Vec<Item> }
 
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(|s: &Solution| s.items.as_slice())
+    .for_each(Solution::items())
     .join(equal(|i: &Item| i.group))
     .join(equal(|i: &Item| i.group))
     .join(equal(|i: &Item| i.group))
@@ -193,7 +193,7 @@ mod doctests {
     struct Solution { tasks: Vec<Task> }
 
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(|s: &Solution| s.tasks.as_slice())
+    .for_each(Solution::tasks())
     .join(equal(|t: &Task| t.priority))
     .join(equal(|t: &Task| t.priority))
     .join(equal(|t: &Task| t.priority))
@@ -228,7 +228,7 @@ mod doctests {
     struct Solution { items: Vec<Item> }
 
     let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(|s: &Solution| s.items.as_slice())
+    .for_each(Solution::items())
     .join(equal(|i: &Item| i.id))
     .join(equal(|i: &Item| i.id))
     .join(equal(|i: &Item| i.id))

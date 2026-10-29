@@ -447,29 +447,3 @@ fn cross_bi_unrelated_descriptor_is_noop() {
     assert_eq!(initial, SoftScore::of(-1));
     assert_eq!(delta, SoftScore::zero());
 }
-
-#[test]
-#[should_panic(expected = "cannot localize entity indexes")]
-fn cross_bi_unknown_source_panics_on_localized_callback() {
-    let mut constraint = ConstraintFactory::<Schedule, SoftScore>::new()
-        .for_each((|schedule: &Schedule| schedule.shifts.as_slice()) as fn(&Schedule) -> &[Shift])
-        .join((
-            source(
-                employees_src as fn(&Schedule) -> &[Employee],
-                ChangeSource::Descriptor(1),
-            ),
-            equal_bi(
-                |shift: &Shift| shift.employee_id,
-                |employee: &Employee| Some(employee.id),
-            ),
-        ))
-        .filter(|shift: &Shift, employee: &Employee| {
-            shift.employee_id.is_some() && employee.unavailable_days.contains(&shift.day)
-        })
-        .penalize(SoftScore::of(1))
-        .named("Unavailable employee");
-    let schedule = sample_schedule();
-
-    constraint.initialize(&schedule);
-    constraint.on_insert(&schedule, 0, 0);
-}

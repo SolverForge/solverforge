@@ -44,7 +44,7 @@ fn self_join_tri_group_by_counts_combinations() {
         _,
         SoftScore,
     >::new_self_join(
-        a as fn(&Model) -> &[Item],
+        source(a as fn(&Model) -> &[Item], ChangeSource::Descriptor(0)),
         |_: &Model, i: &Item, _: usize| i.key,
     )
     .group_by(|i: &Item, _: &Item, _: &Item| i.key, count())

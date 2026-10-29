@@ -12,12 +12,12 @@ fn shifts(plan: &Plan) -> &[usize] {
 fn inline_constraints() -> impl ConstraintSet<Plan, SoftScore> {
     (
         ConstraintFactory::<Plan, SoftScore>::new()
-            .for_each(shifts as fn(&Plan) -> &[usize])
+            .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
             .group_by(|employee_id: &usize| *employee_id, count())
             .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
             .named("linear employee load"),
         ConstraintFactory::<Plan, SoftScore>::new()
-            .for_each(shifts as fn(&Plan) -> &[usize])
+            .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
             .group_by(|employee_id: &usize| *employee_id, count())
             .penalize(|_employee_id: &usize, count: &usize| {
                 SoftScore::of((*count * *count) as i64)
@@ -29,10 +29,10 @@ fn inline_constraints() -> impl ConstraintSet<Plan, SoftScore> {
 #[solverforge_constraints]
 fn binding_constraints() -> impl ConstraintSet<Plan, SoftScore> {
     let first = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|employee_id: &usize| *employee_id, count());
     let second = ConstraintFactory::<Plan, SoftScore>::new()
-        .for_each(shifts as fn(&Plan) -> &[usize])
+        .for_each(solverforge::stream::source(shifts as fn(&Plan) -> &[usize], solverforge::stream::ChangeSource::Descriptor(0)))
         .group_by(|employee_id: &usize| *employee_id, count());
 
     (

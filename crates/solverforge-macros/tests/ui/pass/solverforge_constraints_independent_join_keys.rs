@@ -67,16 +67,16 @@ fn constraints() -> impl ConstraintSet<RelSchedule, SoftScore> {
     let factory = ConstraintFactory::<RelSchedule, SoftScore>::new();
     (
         factory
-            .for_each(assignments as fn(&RelSchedule) -> &[RelAssignment])
+            .for_each(solverforge::stream::source(assignments as fn(&RelSchedule) -> &[RelAssignment], solverforge::stream::ChangeSource::Descriptor(0)))
             .join((
-                shifts as fn(&RelSchedule) -> &[RelShift],
+                solverforge::stream::source(shifts as fn(&RelSchedule) -> &[RelShift], solverforge::stream::ChangeSource::Static),
                 joiner::equal_bi(
                     assignment_shift_id as fn(&RelAssignment) -> u32,
                     shift_id as fn(&RelShift) -> u32,
                 ),
             ))
             .join((
-                employees as fn(&RelSchedule) -> &[RelEmployee],
+                solverforge::stream::source(employees as fn(&RelSchedule) -> &[RelEmployee], solverforge::stream::ChangeSource::Static),
                 joiner::equal_on(
                     row_employee_code
                         as fn(

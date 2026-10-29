@@ -200,7 +200,6 @@ struct stream::chain::ChainBuilder: pub struct ChainBuilder<S: 'static, O, W, Sc
     stream::chain::ChainBuilder: pub fn hard(self) -> Self
     stream::chain::ChainBuilder: pub fn named(self, name: &str) -> OperatorTerminal<S, O, W, Sc>
 struct stream::collection_extract::FlattenVecExtract: pub struct FlattenVecExtract<F>(pub F);
-struct stream::collection_extract::VecExtract: pub struct VecExtract<F>(pub F);
 struct stream::collector::CollectVecAccumulator: pub struct CollectVecAccumulator<T> { /* private fields */ }
 struct stream::collector::CollectVecCollector: pub struct CollectVecCollector<T, F> { /* private fields */ }
 struct stream::collector::CollectedVec: pub struct CollectedVec<T> { /* private fields */ }
@@ -513,11 +512,11 @@ trait stream::Projection: pub trait Projection<A>: Send + Sync { type Out: Send 
     stream::Projection: fn project<Sink>(&self, input: &A, sink: &mut Sink) where Sink: ProjectionSink<Self::Out>,
 trait stream::ProjectionSink: pub trait ProjectionSink<Out> { // Required method fn emit(&mut self, output: Out); }
     stream::ProjectionSink: fn emit(&mut self, output: Out)
-trait stream::collection_extract::CollectionExtract: pub trait CollectionExtract<S>: Send + Sync { type Item; // Required method fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]; // Provided methods fn contains(&self, _s: &S, _item: &Self::Item) -> bool { ... } fn change_source(&self) -> ChangeSource { ... } }
+trait stream::collection_extract::CollectionExtract: pub trait CollectionExtract<S>: Send + Sync { type Item; // Required methods fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]; fn change_source(&self) -> ChangeSource; // Provided method fn contains(&self, _s: &S, _item: &Self::Item) -> bool { ... } }
     stream::collection_extract::CollectionExtract: type Item
     stream::collection_extract::CollectionExtract: fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]
-    stream::collection_extract::CollectionExtract: fn contains(&self, _s: &S, _item: &Self::Item) -> bool
     stream::collection_extract::CollectionExtract: fn change_source(&self) -> ChangeSource
+    stream::collection_extract::CollectionExtract: fn contains(&self, _s: &S, _item: &Self::Item) -> bool
 trait stream::collection_extract::FlattenExtract: pub trait FlattenExtract<P>: Send + Sync { type Item; // Required method fn extract<'s>(&self, parent: &'s P) -> &'s [Self::Item]; }
     stream::collection_extract::FlattenExtract: type Item
     stream::collection_extract::FlattenExtract: fn extract<'s>(&self, parent: &'s P) -> &'s [Self::Item]
@@ -596,7 +595,6 @@ trait stream::relational::view_plan::ViewKey: pub trait ViewKey<V> { type Key; /
     stream::relational::view_plan::ViewKey: type Key
     stream::relational::view_plan::ViewKey: fn key(&self, view: &V) -> Self::Key
 fn director::score_director::requires_weighted_mode: pub fn requires_weighted_mode<S: PlanningSolution>(solution: &S) -> bool
-fn stream::collection_extract::vec: pub fn vec<S, A, F>(f: F) -> VecExtract<F> where F: for<'a> Fn(&'a S) -> &'a Vec<A> + Send + Sync,
 fn stream::collector::collect_vec: pub fn collect_vec<T, F>(mapper: F) -> CollectVecCollector<T, F> where T: Send + Sync + 'static, F: Send + Sync + 'static,
 fn stream::collector::consecutive_runs: pub fn consecutive_runs<F>(index_fn: F) -> RunsCollector<F> where F: Send + Sync,
 fn stream::collector::count: pub const fn count() -> CountCollector

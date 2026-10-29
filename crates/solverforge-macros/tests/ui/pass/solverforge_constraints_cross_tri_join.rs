@@ -23,16 +23,16 @@ fn constraints() -> impl ConstraintSet<Schedule, SoftScore> {
     let factory = ConstraintFactory::<Schedule, SoftScore>::new();
     (
         factory
-            .for_each(shifts as fn(&Schedule) -> &[Option<usize>])
+            .for_each(solverforge::stream::source(shifts as fn(&Schedule) -> &[Option<usize>], solverforge::stream::ChangeSource::Descriptor(0)))
             .join((
-                employees as fn(&Schedule) -> &[usize],
+                solverforge::stream::source(employees as fn(&Schedule) -> &[usize], solverforge::stream::ChangeSource::Static),
                 joiner::equal_bi(
                     |shift: &Option<usize>| *shift,
                     |employee: &usize| Some(*employee),
                 ),
             ))
             .join((
-                days_off as fn(&Schedule) -> &[Option<usize>],
+                solverforge::stream::source(days_off as fn(&Schedule) -> &[Option<usize>], solverforge::stream::ChangeSource::Static),
                 joiner::filtering_on(
                     |row: &solverforge::stream::relational::operator::Pair<
                         solverforge::stream::relational::Leaf<'_, Option<usize>>,

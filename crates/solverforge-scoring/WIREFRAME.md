@@ -248,6 +248,7 @@ src/
 │   ├── penta_stream.rs                             — PentaConstraintStream, PentaConstraintBuilder (via macro)
 │   ├── chain_stream.rs                             — Chain/ChainBuilder: arity-free fluent join continuation
 │   ├── cross_penta_stream.rs                       — stream::cross::Penta and its Penta::join → Chain
+│   ├── cross_penta_stream/scored.rs                — PentaScored operator (tree plus authored filter)
 │   ├── grouped_stream.rs                           — Re-exports
 │   ├── grouped_stream/base.rs                      — GroupedConstraintStream
 │   ├── grouped_stream/weighting.rs                 — GroupedConstraintBuilder
@@ -263,6 +264,7 @@ src/
 │   ├── cross_bi_stream/weighting.rs                — stream::cross::Builder
 │   ├── cross_tri_stream.rs                         — Re-exports
 │   ├── cross_tri_stream/base.rs                    — stream::cross::Tri and builder
+│   ├── cross_tri_stream/base/scored.rs               — TriScored operator (tree plus authored filter)
 │   ├── flattened_bi_stream.rs                      — Re-exports
 │   ├── flattened_bi_stream/base.rs                 — FlattenedBiConstraintStream
 │   ├── flattened_bi_stream/builder.rs              — FlattenedBiConstraintBuilder

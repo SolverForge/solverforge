@@ -21,7 +21,8 @@ src/
 ├── director.rs      — DirectorConfig
 ├── error.rs         — ConfigError
 ├── forager.rs       — ForagerConfig, AcceptedCountForagerConfig, and ScoreTieBreak
-├── move_selector.rs — MoveSelectorConfig, leaf ordering/metrics, union weighting, and selector-specific config structs
+├── move_selector.rs — MoveSelectorConfig, leaf ordering/metrics, union weighting, and scalar/composite selector config structs
+├── move_selector/list.rs — List-variable selector config structs (list change through list ruin)
 ├── phase.rs         — PhaseConfig plus construction/local-search/partitioned/custom configs
 ├── solver_config.rs — SolverConfig, bounded candidate-trace config, canonical provenance serialization, overrides, and environment/thread settings
 ├── termination.rs   — TerminationConfig

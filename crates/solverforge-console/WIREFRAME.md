@@ -21,6 +21,7 @@ src/
 ├── lib.rs          — Crate root; module declarations and public exports
 ├── banner.rs       — ASCII banner and `CARGO_PKG_VERSION` version line
 ├── format.rs       — Event formatting for solve, phase, progress, and trace-step events
+├── format/solve_end.rs — Solve-end summary formatting
 ├── format_tests.rs — Console formatter tests
 ├── init.rs         — `init()` tracing subscriber setup
 ├── layer.rs        — `SolverConsoleLayer` tracing layer

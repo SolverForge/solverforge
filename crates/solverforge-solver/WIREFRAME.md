@@ -46,11 +46,13 @@ src/
 │   ├── selectors.rs                     — Descriptor selector tree, change/swap/pillar/ruin leaves, and build_descriptor_move_selector(config, descriptor, random_seed)
 │   ├── selectors/swap_legality.rs       — Descriptor swap legality index over value-range provider shapes
 │   ├── selectors/change_swap.rs         — Descriptor change and swap leaf selectors
+│   ├── selectors/nearby_change_swap.rs  — Descriptor nearby change and nearby swap leaf selectors
 │   ├── selectors/pillar_ruin.rs         — Descriptor pillar change/swap and ruin-recreate selectors
 │   ├── selectors/dispatch.rs            — Descriptor selector dispatch root
 │   ├── selectors/dispatch/*.rs          — Descriptor selector dispatch build/type chunks
 │   └── tests/mod.rs                     — Descriptor test root with support, selector, cartesian, pillar, nearby, and ruin-recreate chunks under `tests/mod/`
 ├── run.rs                               — AnyTermination, ChannelProgressCallback, build_termination(), log_solve_start(), try_run_solver_with_config_and_search(), and hidden try_run_weighted_solver_with_config_and_search()
+├── run/termination.rs                   — Configured termination parsing, build_termination(), and the execution-policy description
 ├── run/weight_modes.rs                  — Per-solve weight-mode choice and the director-switching solve loop
 ├── run_tests.rs                         — Tests
 ├── runtime_build_error.rs               — Public RuntimeBuildError and RuntimeBuildResult declaration/compiler/constraint-weight/preparation/execution boundary
@@ -149,7 +151,7 @@ src/
 │       ├── entity.rs                    — EntitySelector trait, FromSolutionEntitySelector, AllEntitiesSelector
 │       ├── value_selector.rs              — ValueSelector trait, StaticValueSelector, FromSolutionValueSelector
 │       ├── move_selector.rs             — MoveSelector trait, MoveCursor, MoveCandidateRef, ChangeMoveSelector, SwapMoveSelector, scalar union helpers; `ChangeMoveSelector::with_allows_unassigned()` enables `Some(v) -> None` generation for assigned optional variables
-│       ├── move_selector/*.rs           — borrowed.rs candidate cursor, iter.rs adapter, change.rs selector, and swap.rs selector implementation chunks
+│       ├── move_selector/*.rs           — borrowed.rs candidate cursor, arena.rs candidate store and arena cursor, unit_resource.rs unit resource cursor, iter.rs adapter, change.rs selector, and swap.rs selector implementation chunks
 │       ├── move_selector/scalar_union.rs — ScalarChangeMoveSelector, ScalarSwapMoveSelector
 │       ├── dynamic_scalar_change.rs     — DynamicScalarChangeMoveSelector<S> for explicit dynamic scalar change phases
 │       ├── dynamic_scalar_nearby_change.rs — Fallible DynamicScalarNearbyChangeMoveSelector<S> facade over the canonical nearby-value leaf
@@ -162,6 +164,7 @@ src/
 │       ├── list_permute.rs             — ListPermuteMoveSelector<S, V, ES>; cursor-backed contiguous-window permutation
 │       ├── list_precedence.rs          — ListPrecedenceMoveSelector<S, V, ES>; cursor-backed critical-path, singleton critical-node, and critical-sublist moves for list variables with plain precedence hooks
 │       ├── precedence_route.rs         — Internal precedence route graph and cycle checks shared by list precedence neighborhoods
+│       ├── precedence_route/delta.rs   — Route-after-move builders, edge diffs, and route-delta cycle search
 │       ├── list_reverse.rs             — ListReverseMoveSelector<S, V, ES>
 │       ├── list_ruin.rs                — ListRuinMoveSelector<S, V>
 │       ├── sublist_change.rs           — SublistChangeMoveSelector<S, V, ES>
@@ -183,6 +186,7 @@ src/
 │       ├── decorator/
 │       │   ├── mod.rs                   — Re-exports
 │       │   ├── cartesian_product.rs    — CartesianProductArena<S, M1, M2>, CartesianProductCursor<S, M>, CartesianProductSelector<S, M, Left, Right>
+│       │   ├── cartesian_product/cursor.rs — CartesianProductCursor rows, pair scratch, and MoveCursor impl
 │       │   ├── cartesian_product/tests.rs — Tests
 │       │   ├── filtering.rs            — FilteringMoveSelector<S, M, Inner>
 │       │   ├── filtering/tests.rs      — Tests
@@ -236,6 +240,7 @@ src/
 │   │   ├── forager.rs                   — ConstructionChoice enum, ConstructionForager trait, FirstFit/BestFit/FirstFeasible/WeakestFit/StrongestFit forager types
 │   │   ├── forager_impl.rs              — Stock construction forager strategy implementations
 │   │   ├── forager_step.rs              — Step-aware stock construction selection with telemetry and prompt/control polling
+│   │   ├── forager_step/strength.rs     — Weakest-fit and strongest-fit selection
 │   │   ├── forager/tests.rs             — Tests
 │   │   ├── placer.rs                    — EntityPlacer trait, Placement, and SortedEntityPlacer
 │   │   ├── placer/queued.rs             — QueuedEntityPlacer and its single-path streaming candidate cursor with bounded live-candidate storage
@@ -362,7 +367,7 @@ src/
 │   │   ├── list_construction/regret.rs — Explicit-source-key public facade for canonical regret insertion
 │   │   ├── list_construction/regret/kernel/ — Source-indexed regret evaluation, precedence, fallback, and execution kernel
 │   │   ├── list_clarke_wright.rs       — ListClarkeWrightPhase
-│   │   ├── list_clarke_wright/kernel.rs — Canonical savings construction shared by public/static/dynamic adapters
+│   │   ├── list_clarke_wright/kernel.rs — Canonical savings merge and route assignment (savings.rs generates and sorts savings) shared by public/static/dynamic adapters
 │   │   ├── list_clarke_wright/tests.rs — Tests
 │   │   ├── list_clarke_wright/owner_assignment.rs — Owner-specific route assignment, buffered-merge publication on interruption, and preservation helpers
 │   │   ├── list_clarke_wright/route_state.rs — Route state and merge bookkeeping
@@ -392,9 +397,11 @@ src/
 ├── scope/
 │   ├── mod.rs                           — Re-exports
 │   ├── solver.rs                        — SolverScope<'t, S, D, ProgressCb = ()>, ProgressCallback trait, lifecycle-aware SolveResult, and included scope chunks
-│   ├── solver/progress.rs               — SolverProgressRef, SolverProgressKind, SolverLifecycleState status, and ProgressCallback dispatch
-│   ├── solver/scope_core.rs             — Core SolverScope construction, shared phase progress pulse, runtime publication, lifecycle control, mutation, and child-scope helpers
+│   ├── solver/progress.rs               — SolverProgressRef, SolverProgressKind, SolverLifecycleState status, ProgressCallback dispatch, and the shared phase progress pulse
+│   ├── solver/scope_core.rs             — Core SolverScope construction, runtime publication, lifecycle control, mutation, and child-scope helpers
+│   ├── solver/phase_budget.rs           — PhaseBudget and scoped phase termination for child phases
 │   ├── solver/scope_progress.rs         — SolverScope score/best-solution/progress/stat reporting helpers
+│   ├── solver/scope_trace.rs            — SolverScope candidate-trace recording
 │   ├── solver/problem_change.rs         — Pending problem-change control, queue drain/close, and batch application
 │   ├── solver/weight_mode.rs            — Crate-private weight-mode control: switch detection after a change and moving the scope onto a rebuilt director
 │   ├── phase.rs                         — PhaseScope<'t, 'a, S, D, BestCb = ()>

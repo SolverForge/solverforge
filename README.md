@@ -870,8 +870,11 @@ and the controlled paired benchmark gate below for regression decisions.
 `make pre-release` is portable across supported development hosts. Release
 qualification also requires the separate controlled-host
 `make bench-zero-regression` gate on Linux with `taskset`, `/usr/bin/time`,
-readable `/sys` CPU topology, and the selected `BENCH_CPU` available (CPU 10 by
-default); `perf` counters are collected when permitted. The gate builds an
+readable `/sys` CPU topology, the selected `BENCH_CPU` available (CPU 10 by
+default), and passwordless `sudo`, which the gate uses to give that CPU and its
+hyperthread siblings to the measurement alone through an isolated cgroup
+cpuset partition; `perf` counters are collected when permitted, each trial's
+counters averaged over `PERF_REPEATS` runs (45 by default). The gate builds an
 independently linked binary for each case, alternates paired trials, verifies
 full-enumeration candidate count and order separately from first-fit work,
 requires exact equality for the deterministic allocation counters, and grades
@@ -884,7 +887,9 @@ controlled gate has not completed release qualification. The default cases
 exercise selectors against an empty constraint set; the opt-in
 `BENCH_CASES="scoring scoring_weights_one scoring_weights_mixed"` cases measure
 incremental scoring churn through uni, join, shared grouped, and balance
-constraints, with and without runtime constraint weights.
+constraints, with and without runtime constraint weights; both sides of the
+weighted cases are built with the weight API, so a baseline without it is
+refused rather than compared unweighted.
 
 ## Status
 

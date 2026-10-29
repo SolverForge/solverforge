@@ -16,8 +16,26 @@ BENCH_TOLERANCE_PERCENT=${BENCH_TOLERANCE_PERCENT:-5.0}
 # source mode needs every API call to exist in both trees). Cross-tree hash
 # comparison is then disabled: only exact counts and allocation metrics compare.
 BENCH_OWN_SOURCES=${BENCH_OWN_SOURCES:-0}
+# BENCH_ISOLATE=1 (default) gives BENCH_CPU and its hyperthread siblings to
+# the measurement alone: an isolated cgroup cpuset partition moves every other
+# task off them while trials run. Without it, other processes sharing the
+# core's L2 move cache counters far more than the regression budget. Needs
+# passwordless sudo; BENCH_ISOLATE=0 measures on a shared CPU and is recorded
+# as such in environment.json.
+BENCH_ISOLATE=${BENCH_ISOLATE:-1}
+# Each trial's hardware counters are the mean of PERF_REPEATS process runs.
+# cache-misses counts last-level misses, and the last-level cache is shared
+# with every other core, so one run's count spreads by 20-80% of its median
+# even on an isolated CPU. Averaging PERF_REPEATS runs per trial narrows that
+# spread enough for the regression budget to separate a change from noise.
+PERF_REPEATS=${PERF_REPEATS:-45}
 MEASURE_ITERATIONS=${MEASURE_ITERATIONS:-32}
 CARTESIAN_MEASURE_ITERATIONS=${CARTESIAN_MEASURE_ITERATIONS:-256}
+# construction_first_fit places one value per entity and stops, so 32
+# iterations measure about 0.1 ms of placement against a process start whose
+# cache misses (about 2.4k) vary by more than the regression budget. 1024
+# iterations make the measured placement work dominate every counter.
+FIRST_FIT_MEASURE_ITERATIONS=${FIRST_FIT_MEASURE_ITERATIONS:-1024}
 TOOLCHAIN=${TOOLCHAIN:-1.95.0}
 RESULTS=${RESULTS:-"/tmp/solverforge-zero-regression-$(date +%Y%m%d-%H%M%S)"}
 # Opt-in scoring cases (not in the default selector set): BENCH_CASES="scoring
@@ -31,6 +49,14 @@ else
     CASES=("${DEFAULT_CASES[@]}")
 fi
 
+if [[ $BENCH_ISOLATE != 0 && $BENCH_ISOLATE != 1 ]]; then
+    echo "BENCH_ISOLATE must be 0 or 1" >&2
+    exit 2
+fi
+if [[ $BENCH_ISOLATE == 1 ]] && ! sudo -n true 2>/dev/null; then
+    echo "BENCH_ISOLATE=1 needs passwordless sudo to isolate CPU ${BENCH_CPU}" >&2
+    exit 2
+fi
 if [[ $BASELINE_CURSOR_API != 0 && $BASELINE_CURSOR_API != 1 ]]; then
     echo "BASELINE_CURSOR_API must be 0 or 1" >&2
     exit 2
@@ -45,6 +71,8 @@ measure_iterations_for_case() {
     local case_name=$1
     if [[ $case_name == cartesian ]]; then
         printf '%s\n' "$CARTESIAN_MEASURE_ITERATIONS"
+    elif [[ $case_name == construction_first_fit ]]; then
+        printf '%s\n' "$FIRST_FIT_MEASURE_ITERATIONS"
     else
         printf '%s\n' "$MEASURE_ITERATIONS"
     fi
@@ -79,7 +107,12 @@ mkdir -p "$RESULTS/raw" "$RESULTS/harnesses" "$RESULTS/targets" "$RESULTS/binari
 BASELINE_TREE="$RESULTS/trees/base"
 CANDIDATE_TREE="$RESULTS/trees/cand"
 BASELINE_REGISTERED=0
+ISOLATION_CGROUP=""
 cleanup() {
+    if [[ -n $ISOLATION_CGROUP ]]; then
+        echo $$ | sudo -n tee /sys/fs/cgroup/cgroup.procs >/dev/null 2>&1 || true
+        sudo -n rmdir "$ISOLATION_CGROUP" 2>/dev/null || true
+    fi
     if [[ $BASELINE_REGISTERED == 1 ]]; then
         git -C "$ROOT" worktree remove --force "$BASELINE_TREE" >/dev/null 2>&1 || true
     fi
@@ -132,9 +165,8 @@ publish = false
 
 [features]
 candidate = []
-# Enables the scoring cases' runtime constraint-weight variants; set only for
-# the candidate side of scoring_weights_* cases, so baselines without the weight
-# API still compile and no other case links the extra code.
+# Enables the scoring cases' runtime constraint-weight variants; set on both
+# sides of scoring_weights_* cases only, so no other case links the extra code.
 constraint_weights = []
 
 [[bin]]
@@ -159,15 +191,24 @@ EOF
 make_harness baseline "$BASELINE_TREE"
 make_harness candidate "$CANDIDATE_TREE"
 
+for case_name in "${CASES[@]}"; do
+    if [[ $case_name == scoring_weights_* ]] &&
+        ! grep -rqs 'pub struct ConstraintWeights' "$BASELINE_TREE/crates/solverforge-core/src"; then
+        echo "$case_name needs a baseline with runtime constraint weights; ${BASELINE} has none" >&2
+        exit 2
+    fi
+done
+
 build_case_binary() {
     local side=$1
     local case_name=$2
     local manifest="$RESULTS/harnesses/$side/Cargo.toml"
     local target="$RESULTS/targets/$side"
     local feature_args=()
-    if [[ $side == candidate && $case_name == scoring_weights_* ]]; then
-        # Only the weighted scoring cases compile the weight API, so every
-        # other case links the same harness code on both sides.
+    if [[ $case_name == scoring_weights_* ]]; then
+        # Both sides score with the same weights, so the case compares the
+        # two trees' weighted scoring rather than weighted against unweighted.
+        # Only these cases compile the weight API.
         feature_args=(--features "candidate constraint_weights")
     elif [[ $side == candidate || $BASELINE_CURSOR_API == 1 ]]; then
         feature_args=(--features candidate)
@@ -214,8 +255,27 @@ CANDIDATE_TREE_SHA256=$(
         sha256sum | cut -d' ' -f1
 )
 
+ISOLATED_CPUS=none
+if [[ $BENCH_ISOLATE == 1 ]]; then
+    ISOLATED_CPUS=$SIBLINGS
+    if [[ $ISOLATED_CPUS == unknown ]]; then
+        ISOLATED_CPUS=$BENCH_CPU
+    fi
+    # Builds are done; only measurement runs from here on, so the script
+    # itself moves into the partition and every trial inherits it.
+    ISOLATION_CGROUP=/sys/fs/cgroup/solverforge-bench-$$
+    sudo -n mkdir "$ISOLATION_CGROUP"
+    echo "$ISOLATED_CPUS" | sudo -n tee "$ISOLATION_CGROUP/cpuset.cpus" >/dev/null
+    echo isolated | sudo -n tee "$ISOLATION_CGROUP/cpuset.cpus.partition" >/dev/null
+    if [[ $(<"$ISOLATION_CGROUP/cpuset.cpus.partition") != isolated ]]; then
+        echo "could not isolate CPUs ${ISOLATED_CPUS}: $(<"$ISOLATION_CGROUP/cpuset.cpus.partition")" >&2
+        exit 2
+    fi
+    echo $$ | sudo -n tee "$ISOLATION_CGROUP/cgroup.procs" >/dev/null
+fi
+
 cat >"$RESULTS/environment.json" <<EOF
-{"baseline_requested":"$BASELINE","baseline_commit":"$BASELINE_COMMIT","baseline_cursor_api":$BASELINE_CURSOR_API,"candidate_head":"$(git -C "$ROOT" rev-parse HEAD)","candidate_dirty":$CANDIDATE_DIRTY,"candidate_tree_sha256":"$CANDIDATE_TREE_SHA256","profile":"release(codegen-units=1,incremental=false)","case_isolated_binaries":true,"cpu_model":"$CPU_MODEL","affinity_cpu":$BENCH_CPU,"thread_siblings":"$SIBLINGS","governor":"$GOVERNOR","toolchain":"$TOOLCHAIN","warmups":$WARMUPS,"trials":$TRIALS,"measure_iterations":{"default":$MEASURE_ITERATIONS,"cartesian":$CARTESIAN_MEASURE_ITERATIONS},"perf_available":$PERF_AVAILABLE,"tolerance_percent":$BENCH_TOLERANCE_PERCENT}
+{"baseline_requested":"$BASELINE","baseline_commit":"$BASELINE_COMMIT","baseline_cursor_api":$BASELINE_CURSOR_API,"candidate_head":"$(git -C "$ROOT" rev-parse HEAD)","candidate_dirty":$CANDIDATE_DIRTY,"candidate_tree_sha256":"$CANDIDATE_TREE_SHA256","profile":"release(codegen-units=1,incremental=false)","case_isolated_binaries":true,"cpu_model":"$CPU_MODEL","affinity_cpu":$BENCH_CPU,"thread_siblings":"$SIBLINGS","governor":"$GOVERNOR","toolchain":"$TOOLCHAIN","warmups":$WARMUPS,"trials":$TRIALS,"measure_iterations":{"default":$MEASURE_ITERATIONS,"cartesian":$CARTESIAN_MEASURE_ITERATIONS,"construction_first_fit":$FIRST_FIT_MEASURE_ITERATIONS},"perf_available":$PERF_AVAILABLE,"isolated_cpus":"$ISOLATED_CPUS","perf_repeats":$PERF_REPEATS,"tolerance_percent":$BENCH_TOLERANCE_PERCENT}
 EOF
 
 for case_name in "${CASES[@]}"; do
@@ -244,7 +304,7 @@ run_trial() {
     /usr/bin/time -f '%M' -o "$sample_rss" \
         taskset -c "$BENCH_CPU" "$binary" "$case_name" "$case_iterations" >"$sample_file"
     if [[ $PERF_AVAILABLE == 1 ]]; then
-        perf stat -x, -o "$perf_file" \
+        perf stat -r "$PERF_REPEATS" -x, -o "$perf_file" \
             -e instructions:u,cycles:u,branches:u,branch-misses:u,cache-references:u,cache-misses:u -- \
             taskset -c "$BENCH_CPU" "$binary" "$case_name" "$case_iterations" >/dev/null
     fi

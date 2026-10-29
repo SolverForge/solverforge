@@ -5,22 +5,21 @@ terminals (`ScorerChain`), and one balance constraint.
 Unlike the selector cases (which run against an empty constraint set), these
 measure incremental scoring through every constraint family that constraint
 weights touch:
-- `scoring`: a solution type without constraint weights on either side, so
-  the candidate director compiles to the unweighted scoring calls;
-- `scoring_weights_one`: the candidate's solution type carries weights set
-  to multiplier 1 explicitly, so the director is chosen exactly as a solve
-  chooses it (`requires_weighted_mode`): the unweighted director, running the
-  same code as `scoring`; the baseline (no weight API) runs unweighted;
-- `scoring_weights_mixed`: the candidate binds multipliers 0 and 3 on a
-  weighted director and takes the weighted per-constraint calls; reported for
-  information only, since its scores intentionally differ.
+- `scoring`: a solution type without constraint weights, so the director
+  compiles to the unweighted scoring calls;
+- `scoring_weights_one`: the solution type carries weights set to multiplier
+  1 explicitly, so the director is chosen exactly as a solve chooses it
+  (`requires_weighted_mode`): the unweighted director, running the same code
+  as `scoring`;
+- `scoring_weights_mixed`: binds multipliers 0 and 3 on a weighted director
+  and takes the weighted per-constraint calls.
 
 Weighted code compiles only under the harness-only `constraint_weights`
-feature, which the gate enables for the candidate side alone, so baselines
-that predate the weight API still build and the `scoring` case never links
-it. The cross-tree order hash covers
-only the move sequence; scores feed the
-per-tree identity hash, so weighted variants stay comparable. Run with
+feature. The gate enables it on both sides of the `scoring_weights_*` cases,
+so each compares the two trees' weighted scoring, and refuses those cases for
+a baseline without the weight API; the `scoring` case never links it. The
+cross-tree order hash covers only the move sequence; scores feed the per-tree
+identity hash. Run with
 `BENCH_CASES="scoring scoring_weights_one scoring_weights_mixed"`.
 */
 

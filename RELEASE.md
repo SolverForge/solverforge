@@ -80,8 +80,9 @@ deliberately, in its own commit, after the workspace passes on the new version.
    `make pre-release`
 7. Run the controlled-host zero-regression qualification.
    On a dedicated Linux host with `taskset`, `/usr/bin/time`, readable `/sys`
-   CPU topology, CPU 10 available by default, and optional unprivileged `perf`
-   counters, run:
+   CPU topology, CPU 10 available by default, passwordless `sudo` (the gate
+   isolates the measured CPU and its siblings in a cgroup cpuset partition
+   while trials run), and optional unprivileged `perf` counters, run:
    `BENCH_CPU=10 WARMUPS=5 TRIALS=51 make bench-zero-regression`
    For an apples-to-apples comparison against a baseline that already uses the
    cursor-owned construction API, set

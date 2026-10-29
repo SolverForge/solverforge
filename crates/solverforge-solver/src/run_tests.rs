@@ -241,26 +241,16 @@ fn build_termination_preserves_missing_time_limit_as_unlimited() {
 }
 
 #[test]
-fn build_termination_treats_empty_and_invalid_only_configs_as_unlimited() {
-    for termination_config in [
-        solverforge_config::TerminationConfig::default(),
-        solverforge_config::TerminationConfig {
-            best_score_limit: Some("not-a-score".to_string()),
-            ..solverforge_config::TerminationConfig::default()
-        },
-    ] {
-        let config = SolverConfig {
-            termination: Some(termination_config),
-            ..SolverConfig::default()
-        };
-        let (termination, time_limit) = build_director_termination::<
-            TestSolution,
-            ScoreDirector<TestSolution, ()>,
-        >(&config, 180);
+fn build_termination_treats_an_empty_config_as_unlimited() {
+    let config = SolverConfig {
+        termination: Some(solverforge_config::TerminationConfig::default()),
+        ..SolverConfig::default()
+    };
+    let (termination, time_limit) =
+        build_director_termination::<TestSolution, ScoreDirector<TestSolution, ()>>(&config, 180);
 
-        assert!(matches!(termination, AnyTermination::None(_)));
-        assert_eq!(time_limit, None);
-    }
+    assert!(matches!(termination, AnyTermination::None(_)));
+    assert_eq!(time_limit, None);
 }
 
 #[test]

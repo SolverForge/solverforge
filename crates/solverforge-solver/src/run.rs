@@ -37,7 +37,9 @@ use crate::termination::{
 
 pub(crate) mod termination;
 use termination::build_director_termination;
-pub(crate) use termination::{configured_execution_policy, parse_configured_termination};
+pub(crate) use termination::{
+    configured_best_score_limit, configured_execution_policy, parse_configured_termination,
+};
 
 /// Monomorphized termination enum for config-driven solver configurations.
 ///

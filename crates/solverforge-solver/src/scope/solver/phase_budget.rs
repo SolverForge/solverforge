@@ -98,10 +98,7 @@ where
         ProgressCb: ProgressCallback<S>,
         S::Score: ParseableScore,
     {
-        let best_score_limit = config
-            .best_score_limit
-            .as_deref()
-            .and_then(|score| S::Score::parse(score).ok());
+        let best_score_limit = crate::run::configured_best_score_limit::<S::Score>(config);
         let time_limit = config.time_limit();
         let step_count_limit = config.step_count_limit;
         let unimproved_step_count_limit = config.unimproved_step_count_limit;

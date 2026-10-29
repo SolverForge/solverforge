@@ -82,6 +82,22 @@ fn invalid_configuration_fails_before_any_phase_without_panicking() {
         "{error}"
     );
 
+    let events_for_solver_limit = events(&MANAGER, ConfigCase::InvalidSolverScoreLimit);
+    let error = single_failure(&events_for_solver_limit);
+    assert!(
+        error.contains("termination.best_score_limit") && error.contains("not-a-score"),
+        "{error}"
+    );
+    assert!(!error.contains("phases["), "{error}");
+
+    let events_for_phase_limit = events(&MANAGER, ConfigCase::InvalidPhaseScoreLimit);
+    let error = single_failure(&events_for_phase_limit);
+    assert!(
+        error.contains("phases[1].local_search.termination.best_score_limit")
+            && error.contains("0hard/-5sotf"),
+        "{error}"
+    );
+
     let valid = events(&MANAGER, ConfigCase::Valid);
     assert!(
         matches!(valid.last(), Some(SolverEvent::Completed { .. })),

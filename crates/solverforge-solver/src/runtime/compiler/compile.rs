@@ -1,5 +1,6 @@
 use solverforge_config::{PhaseConfig, SolverConfig};
 use solverforge_core::domain::PlanningSolution;
+use solverforge_core::score::ParseableScore;
 
 use crate::builder::{RuntimeExtensionPolicy, RuntimeExtensionRegistry};
 
@@ -9,6 +10,7 @@ use super::defaults::compile_default_runtime_bindings;
 use super::graph::{CompiledRuntimeExtension, CompiledRuntimeGraph, CompiledRuntimePhase};
 use super::input::RuntimeGraphInput;
 use super::local_search::compile_local_search;
+use super::score_limits::validate_best_score_limits;
 use super::types::{RuntimeCompileError, RuntimeCompileErrorKind, RuntimeExtensionKind};
 
 /// Compiles one recursive graph for typed and dynamic runtime slots.
@@ -21,11 +23,13 @@ pub(crate) fn compile_runtime_graph<S, V, DM, IDM, E>(
 ) -> Result<CompiledRuntimeGraph<S, V, DM, IDM, E>, RuntimeCompileError>
 where
     S: PlanningSolution + 'static,
+    S::Score: ParseableScore,
     V: Clone,
     DM: Clone,
     IDM: Clone,
     E: RuntimeExtensionRegistry<S, V, DM, IDM>,
 {
+    validate_best_score_limits::<S::Score>(config)?;
     let (context, extensions) = input.into_parts();
     if context.seed() != config.random_seed {
         return Err(RuntimeCompileError {

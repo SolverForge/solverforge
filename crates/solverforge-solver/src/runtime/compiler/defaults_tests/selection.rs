@@ -114,23 +114,11 @@ fn metadata_free_lists_use_cheapest_without_postconstruction_kopt() {
 #[test]
 fn omitted_local_search_requires_an_effective_solver_termination() {
     let bounded = SolverConfig::default().with_termination_seconds(1);
-    let invalid_score_only = SolverConfig {
-        termination: Some(TerminationConfig {
-            best_score_limit: Some("not-a-soft-score".to_string()),
-            ..TerminationConfig::default()
-        }),
-        ..SolverConfig::default()
-    };
 
     for model in [static_model(Scenario::Cvrp), dynamic_model(Scenario::Cvrp)] {
         assert_eq!(
             default_local_search_eligibility(model.clone(), SolverConfig::default()),
             DefaultLocalSearchEligibility::IneligibleWithoutEffectiveTermination,
-        );
-        assert_eq!(
-            default_local_search_eligibility(model.clone(), invalid_score_only.clone()),
-            DefaultLocalSearchEligibility::IneligibleWithoutEffectiveTermination,
-            "a present but unparsable score limit is not an effective solver boundary",
         );
         assert_eq!(
             default_local_search_eligibility(model, bounded.clone()),

@@ -98,7 +98,7 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 |-------|------|------|
 | `seconds_spent_limit` | `Option<u64>` | Max seconds |
 | `minutes_spent_limit` | `Option<u64>` | Max minutes |
-| `best_score_limit` | `Option<String>` | Target score as string (e.g., `"0hard/0soft"`) |
+| `best_score_limit` | `Option<String>` | Target score as string (e.g., `"0hard/0soft"`); a value that does not parse as the model's score fails the solve with a `Failed` event naming the key |
 | `step_count_limit` | `Option<u64>` | Max steps |
 | `unimproved_step_count_limit` | `Option<u64>` | Max unimproved steps |
 | `unimproved_seconds_spent_limit` | `Option<u64>` | Max seconds without improvement |

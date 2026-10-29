@@ -29,6 +29,21 @@ impl<Sc> ConfiguredTermination<Sc> {
     }
 }
 
+/// Returns a termination's `best_score_limit` as the model's score.
+///
+/// `compile_runtime_graph` rejects a limit that does not parse before any
+/// solve starts, so every reader after compilation sees either no limit or a
+/// valid one.
+pub(crate) fn configured_best_score_limit<Sc: ParseableScore>(
+    config: &TerminationConfig,
+) -> Option<Sc> {
+    config.best_score_limit.as_deref().map(|score| {
+        Sc::parse(score).unwrap_or_else(|error| {
+            panic!("best_score_limit `{score}` reached a solve unvalidated: {error}")
+        })
+    })
+}
+
 pub(crate) fn parse_configured_termination<S>(
     config: Option<&TerminationConfig>,
 ) -> ConfiguredTermination<S::Score>
@@ -38,10 +53,7 @@ where
 {
     let time_limit = config.and_then(TerminationConfig::time_limit);
     let criterion = config.and_then(|config| {
-        config
-            .best_score_limit
-            .as_deref()
-            .and_then(|score| S::Score::parse(score).ok())
+        configured_best_score_limit::<S::Score>(config)
             .map(ConfiguredTerminationCriterion::BestScore)
             .or_else(|| {
                 config

@@ -5,7 +5,7 @@ use crate::builder::search::custom::NoDynamicExtensions;
 use std::any::TypeId;
 use std::sync::Arc;
 
-use solverforge_config::{ConstructionHeuristicType, SolverConfig, TerminationConfig};
+use solverforge_config::{ConstructionHeuristicType, SolverConfig};
 use solverforge_core::domain::{
     DynamicListAccess, DynamicListAccessCapabilities, DynamicListMetadata,
     DynamicListMetadataCapabilities, DynamicListVariableSlot, EntityClassId, EntityDescriptor,

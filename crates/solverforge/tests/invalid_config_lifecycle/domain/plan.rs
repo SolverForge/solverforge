@@ -15,6 +15,10 @@ pub enum ConfigCase {
     ZeroTabuSize,
     /// Construction, then a list selector on this scalar-only model.
     ListSelectorOnScalarModel,
+    /// A solver `best_score_limit` that is not a `HardSoftScore`.
+    InvalidSolverScoreLimit,
+    /// A local-search phase `best_score_limit` that is not a `HardSoftScore`.
+    InvalidPhaseScoreLimit,
     /// Construction, then a valid tabu search.
     Valid,
 }
@@ -43,11 +47,24 @@ fn define_constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
 
 fn config_for_case(plan: &Plan, _: SolverConfig) -> SolverConfig {
     let local_search = match plan.case {
-        ConfigCase::ZeroTabuSize | ConfigCase::Valid => LocalSearchConfig {
+        ConfigCase::ZeroTabuSize | ConfigCase::InvalidSolverScoreLimit | ConfigCase::Valid => {
+            LocalSearchConfig {
             acceptor: Some(AcceptorConfig::TabuSearch(TabuSearchConfig {
-                entity_tabu_size: Some(if plan.case == ConfigCase::Valid { 2 } else { 0 }),
-                ..TabuSearchConfig::default()
-            })),
+                    entity_tabu_size: Some(if plan.case == ConfigCase::ZeroTabuSize {
+                        0
+                    } else {
+                        2
+                    }),
+                    ..TabuSearchConfig::default()
+                })),
+                ..LocalSearchConfig::default()
+            }
+        }
+        ConfigCase::InvalidPhaseScoreLimit => LocalSearchConfig {
+            termination: Some(TerminationConfig {
+                best_score_limit: Some("0hard/-5sotf".to_string()),
+                ..TerminationConfig::default()
+            }),
             ..LocalSearchConfig::default()
         },
         ConfigCase::ListSelectorOnScalarModel => LocalSearchConfig {
@@ -61,6 +78,8 @@ fn config_for_case(plan: &Plan, _: SolverConfig) -> SolverConfig {
         random_seed: Some(7),
         termination: Some(TerminationConfig {
             step_count_limit: Some(20),
+            best_score_limit: (plan.case == ConfigCase::InvalidSolverScoreLimit)
+                .then(|| "not-a-score".to_string()),
             ..TerminationConfig::default()
         }),
         phases: vec![

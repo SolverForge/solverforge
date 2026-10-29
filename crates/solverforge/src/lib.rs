@@ -169,10 +169,10 @@ pub mod builder {
 pub mod heuristic {
     pub use solverforge_solver::{
         CandidateId, CrossEntityDistanceMeter, DefaultCrossEntityDistanceMeter,
-        DefaultDistanceMeter, Move, MoveAffectedEntity, MoveArena, MoveCandidateRef,
-        MoveCandidateUndo, MoveCursor, MoveSelector, MoveSelectorIter, MoveStreamContext,
-        MoveTabuScope, MoveTabuSignature, MoveUndoIdentity, ScopedEntityTabuToken,
-        ScopedValueTabuToken, SequentialCompositeMoveRef,
+        DefaultDistanceMeter, Move, MoveAffectedEntity, MoveCandidateRef, MoveCandidateUndo,
+        MoveCursor, MoveSelector, MoveSelectorIter, MoveStreamContext, MoveTabuScope,
+        MoveTabuSignature, MoveUndoIdentity, ScopedEntityTabuToken, ScopedValueTabuToken,
+        SequentialCompositeMoveRef,
     };
 }
 /// Phases and their parts: local search acceptors and foragers, exhaustive

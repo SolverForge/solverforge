@@ -86,7 +86,6 @@ src/
 │   ├── move/
 │   │   ├── mod.rs                       — Module declarations, re-exports
 │   │   ├── traits.rs                    — Move<S> trait definition
-│   │   ├── arena.rs                     — MoveArena<M> allocator
 │   │   ├── change.rs                    — ChangeMove<S, V>
 │   │   ├── list_change.rs              — ListChangeMove<S, V>
 │   │   ├── list_swap.rs                — ListSwapMove<S, V>
@@ -113,7 +112,6 @@ src/
 │   │   ├── list_kernel/                — Shared typed/dynamic list mutation kernels used by public moves and the compiled executor
 │   │   └── tests/                       — Additional test modules
 │   │       ├── mod.rs
-│   │       ├── arena.rs
 │   │       ├── change.rs
 │   │       ├── compound_scalar.rs
 │   │       ├── list_multi_swap.rs
@@ -395,7 +393,7 @@ modules are private, so an item has exactly one path:
 
 **Model and search composition:** `ListVariableSlot`, `RuntimeModel`, `VariableSlot`, `bind_scalar_groups`, `ScalarGroupBinding`, `ValueSource`, `ScalarVariableSlot`, `CustomSearchPhase`, `local_search`, `Search`, `SearchContext`, `PlanningModelSupport`, `ConflictRepair`, `RepairCandidate`, `RepairLimits`, `RepairProvider`, `ScalarAssignmentRule`, `ScalarCandidate`, `ScalarCandidateProvider`, `ScalarEdit`, `ScalarGroup`, `ScalarGroupLimits`, `ScalarTarget`, `ListVariableEntity`, `ListVariableMetadata`
 
-**Moves and move streams:** `MoveArena`, `SequentialCompositeMoveRef`, `MoveTabuScope`, `MoveTabuSignature`, `MoveUndoIdentity`, `ScopedEntityTabuToken`, `ScopedValueTabuToken`, `Move`, `MoveAffectedEntity`, `DefaultDistanceMeter`, `CandidateId`, `MoveCandidateRef`, `MoveCandidateUndo`, `MoveCursor`, `MoveSelector`, `MoveSelectorIter`, `MoveStreamContext`, `CrossEntityDistanceMeter`, `DefaultCrossEntityDistanceMeter`
+**Moves and move streams:** `SequentialCompositeMoveRef`, `MoveTabuScope`, `MoveTabuSignature`, `MoveUndoIdentity`, `ScopedEntityTabuToken`, `ScopedValueTabuToken`, `Move`, `MoveAffectedEntity`, `DefaultDistanceMeter`, `CandidateId`, `MoveCandidateRef`, `MoveCandidateUndo`, `MoveCursor`, `MoveSelector`, `MoveSelectorIter`, `MoveStreamContext`, `CrossEntityDistanceMeter`, `DefaultCrossEntityDistanceMeter`
 
 **Phases:** `ScoreBounder`, `ExhaustiveSearchConfig`, `ExhaustiveSearchDecider`, `SimpleDecider`, `ExplorationType`, `ExhaustiveSearchNode`, `ExhaustiveSearchPhase`, `Acceptor`, `ForagerDecision`, `LocalSearchForager`, `ChildPhases`, `PartitionedSearchConfig`, `FunctionalPartitioner`, `SolutionPartitioner`, `ThreadCount`, `PartitionedSearchPhase`, `Phase`
 
@@ -506,7 +504,6 @@ preview state; it is not the grouped atomic scalar-search primitive.
 | `validate_cursor` | `fn<D: Director<S>>(&self, score_director: &D)` (default no-op) |
 | `iter_moves` | `fn<'a, 'd, D: Director<S>>(&'a self, score_director: &'d D) -> MoveSelectorIter<'d, S, M, Self::Cursor<'a>>` |
 | `size` | `fn<D: Director<S>>(&self, score_director: &D) -> usize` |
-| `append_moves` | `fn<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>)` |
 | `is_never_ending` | `fn(&self) -> bool` |
 
 `MoveStreamContext` is a small copy context passed by runtime streaming
@@ -543,8 +540,8 @@ derived indexes and metric orders retain their own activation contracts.
 `MoveCandidateRef<'a, S, M>` is either a borrowed move or a borrowable
 two-child sequential composite; `MoveCandidateUndo<U>` mirrors those two
 shapes for exact rollback. A `MoveSelector` implementation owns the store
-behind its stable IDs; `MoveArena<M>` is the reusable-capacity owner such an
-implementation can use.
+behind its stable IDs; candidates leave it only by `take_candidate`, so there
+is no eager move-collection path.
 
 Compiled Limited/Union/Cartesian composition owns one immutable indexed declaration
 arena per execution and transfers its retained leaf-state arena into a cursor and
@@ -1084,7 +1081,7 @@ monomorphized score-director lifecycle.
 - **`ProblemChange::apply` uses `&mut dyn Director<S>`, and queued changes are `Box<dyn ProblemChange<S>>`** — intentional, cold, per-change type erasure at the real-time planning boundary.
 - **`SolverPanicPayload` owns `Box<dyn Any + Send>`** — cold foreign-runtime
   panic preservation, outside candidate generation and scoring.
-- **Cursor-owned candidate lifetime.** Hot phases evaluate cursor candidates by stable ID, release losers immediately, and move the winner out exactly once. `MoveArena` remains the reusable-capacity owner for APIs and concrete composite storage that require it.
+- **Cursor-owned candidate lifetime.** Hot phases evaluate cursor candidates by stable ID, release losers immediately, and move the winner out exactly once. A sequential composite owns its two child moves in one two-slot allocation.
 - **Neighborhood support modules stay private.** `list_support.rs`, `nearby_list_support.rs`, and `sublist_support.rs` exist only to share selected-entity snapshots, bounded stable top-k nearby ordering, and exact finite-selector counting. Public cursor hot loops for list and sublist neighborhoods remain explicit.
 - **Canonical neighborhood tests live under subsystem trees.** Multi-file selector behavior for list, nearby-list, and sublist families is documented under `heuristic/selector/tests/`, while move legality stays under `heuristic/move/tests/`.
 - **Rayon for parallelism.** Partitioned search uses rayon for CPU-bound parallel solving. `tokio::sync::mpsc` for solution streaming.

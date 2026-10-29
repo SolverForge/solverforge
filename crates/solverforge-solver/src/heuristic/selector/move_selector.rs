@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{ChangeMove, Move, MoveArena, SequentialCompositeMoveRef};
+use crate::heuristic::r#move::{ChangeMove, Move, SequentialCompositeMoveRef};
 
 use super::entity::{EntitySelector, FromSolutionEntitySelector};
 use super::value_selector::{StaticValueSelector, ValueSelector};

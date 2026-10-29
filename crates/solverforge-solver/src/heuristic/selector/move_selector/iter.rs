@@ -321,14 +321,6 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
 
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
-    fn append_moves<D: Director<S>>(&self, score_director: &D, arena: &mut MoveArena<M>) {
-        let mut cursor = self.open_cursor(score_director);
-        let solution = score_director.working_solution();
-        for id in collect_cursor_indices::<S, M, _>(&mut cursor, solution) {
-            arena.push(cursor.take_candidate(id));
-        }
-    }
-
     fn is_never_ending(&self) -> bool {
         false
     }

@@ -5,7 +5,7 @@ use std::fmt::{self, Debug};
 use solverforge_core::domain::{DynamicListVariableSlot, PlanningSolution};
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{DynamicListChangeMove, MoveArena};
+use crate::heuristic::r#move::DynamicListChangeMove;
 use crate::heuristic::selector::list_kernel::{
     ChangeCursor, DynamicChangeEmitter, SelectedListOwners, DYNAMIC_CHANGE_SALTS,
 };
@@ -151,17 +151,5 @@ where
                 intra_moves + source_len * inter_destinations
             })
             .sum()
-    }
-
-    fn append_moves<D: Director<S>>(
-        &self,
-        score_director: &D,
-        arena: &mut MoveArena<DynamicListChangeMove<S>>,
-    ) {
-        let solution = score_director.working_solution();
-        let mut cursor = self.open_cursor(score_director);
-        while let Some(id) = cursor.next_candidate(solution) {
-            arena.push(cursor.take_candidate(id));
-        }
     }
 }

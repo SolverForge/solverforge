@@ -19,7 +19,7 @@ use solverforge_scoring::Director;
 
 use crate::heuristic::r#move::metadata::compose_sequential_tabu_signature;
 use crate::heuristic::r#move::{
-    Move, MoveArena, MoveTabuSignature, SequentialCompositeMove, SequentialCompositeMoveRef,
+    Move, MoveTabuSignature, SequentialCompositeMove, SequentialCompositeMoveRef,
 };
 use crate::heuristic::selector::move_selector::{
     CandidateId, CandidateStore, MoveCandidateRef, MoveCursor, MoveSelector, MoveSelectorIter,
@@ -133,12 +133,6 @@ where
         self.left
             .size(score_director)
             .saturating_mul(self.right.size(score_director))
-    }
-
-    fn append_moves<D: Director<S>>(&self, _score_director: &D, _arena: &mut MoveArena<M>) {
-        panic!(
-            "cartesian selectors do not support append_moves(); use open_cursor() and candidate() to evaluate or commit the selected borrowed sequential candidate",
-        );
     }
 }
 

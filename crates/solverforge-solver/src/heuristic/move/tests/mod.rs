@@ -115,7 +115,6 @@ where
     }
 }
 
-mod arena;
 mod change;
 mod composite_preview;
 mod compound_scalar;

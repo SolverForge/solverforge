@@ -51,7 +51,6 @@ pub use builder::search::custom::CustomSearchPhase;
 pub use builder::search::local_search;
 pub use builder::search::Search;
 pub use builder::search::SearchContext;
-pub use heuristic::r#move::arena::MoveArena;
 pub use heuristic::r#move::composite::SequentialCompositeMoveRef;
 pub use heuristic::r#move::metadata::MoveTabuScope;
 pub use heuristic::r#move::metadata::MoveTabuSignature;

@@ -448,19 +448,3 @@ pub trait ResourceMoveCursor<S: PlanningSolution, M: Move<S>, Resources> {
     fn selector_index(&self, id: CandidateId) -> Option<usize>;
 }
 
-
-pub(crate) fn collect_cursor_indices<S, M, C>(
-    cursor: &mut C,
-    solution: &S,
-) -> Vec<CandidateId>
-where
-    S: PlanningSolution,
-    M: Move<S>,
-    C: MoveCursor<S, M>,
-{
-    let mut indices = Vec::new();
-    while let Some(id) = cursor.next_candidate(solution) {
-        indices.push(id);
-    }
-    indices
-}

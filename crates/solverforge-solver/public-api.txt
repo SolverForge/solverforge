@@ -92,20 +92,6 @@ struct ListVariableSlot: pub struct ListVariableSlot<S, V, DM, IDM> {Show 34 fie
     ListVariableSlot: pub fn supports_ruin(&self) -> bool
     ListVariableSlot: pub fn supports_precedence_moves(&self) -> bool
 struct MoveAffectedEntity: pub struct MoveAffectedEntity<'a> { pub descriptor_index: usize, pub entity_index: usize, pub variable_name: &'a str, }
-struct MoveArena: pub struct MoveArena<M> { /* private fields */ }
-    MoveArena: pub fn new() -> Self
-    MoveArena: pub fn with_capacity(capacity: usize) -> Self
-    MoveArena: pub fn reset(&mut self)
-    MoveArena: pub fn push(&mut self, m: M)
-    MoveArena: pub fn len(&self) -> usize
-    MoveArena: pub fn is_empty(&self) -> bool
-    MoveArena: pub fn iter(&self) -> impl Iterator<Item = &M>
-    MoveArena: pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut M>
-    MoveArena: pub fn get(&self, index: usize) -> Option<&M>
-    MoveArena: pub fn take(&mut self, index: usize) -> M
-    MoveArena: pub fn extend<I: IntoIterator<Item = M>>(&mut self, iter: I)
-    MoveArena: pub fn shuffle<R: Rng>(&mut self, rng: &mut R)
-    MoveArena: pub fn capacity(&self) -> usize
 struct MoveSelectorIter: pub struct MoveSelectorIter<'a, S, M, C> where S: PlanningSolution, M: Move<S>, C: MoveCursor<S, M>,{ /* private fields */ }
 struct MoveStreamContext: pub struct MoveStreamContext { /* private fields */ }
     MoveStreamContext: pub const fn new( step_index: u64, step_seed: u64, accepted_count_limit: Option<usize>, ) -> Self
@@ -637,14 +623,13 @@ trait MoveCursor: pub trait MoveCursor<S: PlanningSolution, M: Move<S>> { // Req
     MoveCursor: fn apply_owned_candidate<D: Director<S>>( &mut self, id: CandidateId, score_director: &mut D, )
     MoveCursor: fn release_candidate(&mut self, id: CandidateId) -> bool
     MoveCursor: fn selector_index(&self, _id: CandidateId) -> Option<usize>
-trait MoveSelector: pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug { type Cursor<'a>: MoveCursor<S, M> + 'a where Self: 'a; // Required methods fn open_cursor<'a, D: Director<S>>( &'a self, score_director: &D, ) -> Self::Cursor<'a>; fn size<D: Director<S>>(&self, score_director: &D) -> usize; // Provided methods fn open_cursor_with_context<'a, D: Director<S>>( &'a self, score_director: &D, _context: MoveStreamContext, ) -> Self::Cursor<'a> { ... } fn validate_cursor<D: Director<S>>(&self, _score_director: &D) { ... } fn iter_moves<'a, 'd, D: Director<S>>( &'a self, score_director: &'d D, ) -> MoveSelectorIter<'d, S, M, Self::Cursor<'a>> { ... } fn append_moves<D: Director<S>>( &self, score_director: &D, arena: &mut MoveArena<M>, ) { ... } fn is_never_ending(&self) -> bool { ... } }
+trait MoveSelector: pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug { type Cursor<'a>: MoveCursor<S, M> + 'a where Self: 'a; // Required methods fn open_cursor<'a, D: Director<S>>( &'a self, score_director: &D, ) -> Self::Cursor<'a>; fn size<D: Director<S>>(&self, score_director: &D) -> usize; // Provided methods fn open_cursor_with_context<'a, D: Director<S>>( &'a self, score_director: &D, _context: MoveStreamContext, ) -> Self::Cursor<'a> { ... } fn validate_cursor<D: Director<S>>(&self, _score_director: &D) { ... } fn iter_moves<'a, 'd, D: Director<S>>( &'a self, score_director: &'d D, ) -> MoveSelectorIter<'d, S, M, Self::Cursor<'a>> { ... } fn is_never_ending(&self) -> bool { ... } }
     MoveSelector: type Cursor<'a>: MoveCursor<S, M> + 'a where Self: 'a
     MoveSelector: fn open_cursor<'a, D: Director<S>>( &'a self, score_director: &D, ) -> Self::Cursor<'a>
     MoveSelector: fn size<D: Director<S>>(&self, score_director: &D) -> usize
     MoveSelector: fn open_cursor_with_context<'a, D: Director<S>>( &'a self, score_director: &D, _context: MoveStreamContext, ) -> Self::Cursor<'a>
     MoveSelector: fn validate_cursor<D: Director<S>>(&self, _score_director: &D)
     MoveSelector: fn iter_moves<'a, 'd, D: Director<S>>( &'a self, score_director: &'d D, ) -> MoveSelectorIter<'d, S, M, Self::Cursor<'a>>
-    MoveSelector: fn append_moves<D: Director<S>>( &self, score_director: &D, arena: &mut MoveArena<M>, )
     MoveSelector: fn is_never_ending(&self) -> bool
 trait Phase: pub trait Phase<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S> = ()>: Send + Debug { // Required methods fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>); fn phase_type_name(&self) -> &'static str; // Provided methods fn defers_initial_best_solution_publication(&self) -> bool { ... } fn on_solver_terminal( &mut self, _solver_scope: &mut SolverScope<'_, S, D, BestCb>, ) { ... } fn candidate_trace_plan(&self) -> CandidateTracePhasePlan { ... } }
     Phase: fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>)

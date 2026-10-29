@@ -8,7 +8,7 @@ use solverforge_core::domain::{DynamicScalarVariableSlot, PlanningSolution};
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::{DynamicScalarChangeMove, MoveArena};
+use crate::heuristic::r#move::DynamicScalarChangeMove;
 
 use super::move_selector::{MoveCursor, MoveSelector, MoveStreamContext};
 use super::scalar_neighborhood::{
@@ -96,17 +96,5 @@ where
             count += 1;
         }
         count
-    }
-
-    fn append_moves<D: Director<S>>(
-        &self,
-        director: &D,
-        arena: &mut MoveArena<DynamicScalarChangeMove<S>>,
-    ) {
-        let solution = director.working_solution();
-        let mut cursor = self.open_cursor(director);
-        while let Some(id) = cursor.next_candidate(solution) {
-            arena.push(cursor.take_candidate(id));
-        }
     }
 }

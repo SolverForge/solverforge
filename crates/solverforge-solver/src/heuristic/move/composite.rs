@@ -1,11 +1,9 @@
-/* CompositeMove - applies two moves in sequence by arena indices.
+/* SequentialCompositeMove - applies two owned moves in sequence.
 
-This move stores indices into two arenas. The moves themselves
-live in their respective arenas - CompositeMove just references them.
-
-# Zero-Erasure Design
-
-No cloning, no boxing - just concrete arena indices.
+The composite owns both child moves in one two-slot heap allocation, the
+same single allocation the composite always made. The indirection is
+required: the runtime's move union contains this composite of itself, so the
+children cannot be stored inline.
 */
 
 use std::borrow::Cow;
@@ -18,7 +16,7 @@ use solverforge_scoring::Director;
 
 use crate::stats::CandidateTraceIdentity;
 
-use super::{Move, MoveAffectedEntity, MoveArena, MoveTabuSignature};
+use super::{Move, MoveAffectedEntity, MoveTabuSignature};
 
 mod preview;
 pub(crate) use preview::SequentialPreviewDirector;
@@ -28,7 +26,7 @@ pub(crate) use preview::SequentialPreviewDirector;
 /// This keeps cartesian selector output valid even after the selector is
 /// reused or dropped.
 pub(crate) struct SequentialCompositeMove<S, M> {
-    moves: MoveArena<M>,
+    moves: Box<[M; 2]>,
     descriptor_index: usize,
     entity_indices: SmallVec<[usize; 8]>,
     variable_name: String,
@@ -50,12 +48,8 @@ where
         variable_name: impl Into<String>,
         tabu_signature: MoveTabuSignature,
     ) -> Self {
-        let mut moves = MoveArena::with_capacity(2);
-        moves.push(first);
-        moves.push(second);
-
         Self {
-            moves,
+            moves: Box::new([first, second]),
             descriptor_index,
             entity_indices,
             variable_name: variable_name.into(),
@@ -71,15 +65,11 @@ where
     }
 
     fn first_move(&self) -> &M {
-        self.moves
-            .get(0)
-            .expect("sequential composite first move must remain valid")
+        &self.moves[0]
     }
 
     fn second_move(&self) -> &M {
-        self.moves
-            .get(1)
-            .expect("sequential composite second move must remain valid")
+        &self.moves[1]
     }
 }
 

@@ -3,8 +3,9 @@
 Decorators wrap an inner [`MoveSelector`] to modify its behavior without
 changing the move type. All decorators preserve the zero-erasure architecture.
 
-- [`CartesianProductArena`] - stores moves from two selectors for pair iteration
-- [`FilteringMoveSelector`] - filters moves by predicate
+- `CartesianProductSelector` - composes two selectors, previewing the left move
+- `FilteringMoveSelector` - filters moves by predicate
+- `VecUnionMoveCursor` - the union cursor the compiled pipeline schedules
 */
 
 pub(crate) mod cartesian_product;

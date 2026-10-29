@@ -328,7 +328,9 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
 - Move implementation code into dedicated files.
 - Keep Rust source and test files under 500 LOC. When a module grows beyond
   that boundary, split it by subsystem or behavior into adjacent implementation
-  files and keep the public module entrypoint small.
+  files and keep the public module entrypoint small. `make file-length` (in
+  `make lint`, `make pre-release` and the CI Docs job) fails on any `*.rs`
+  file under `crates/` or `examples/` longer than 500 lines.
 - Prefer doctests for public APIs when practical, and make them compile meaningfully.
 - Keep examples and scaffold-facing guidance on the public fluent API surface. If an example requires internal wiring, improve the public API instead.
 - Canonical multi-file move and selector behavior tests belong under subsystem `tests/` trees. Do not reintroduce parallel `*_tests.rs` siblings once coverage has been consolidated.

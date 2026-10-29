@@ -24,7 +24,7 @@ EXAMPLE_PACKAGES := $(shell find examples -mindepth 2 -maxdepth 2 -name Cargo.to
 
 # ============== Phony Targets ==============
 .PHONY: banner help build build-release examples test test-quick test-doc test-unit test-one \
-        lint fmt fmt-check clippy doc-names ci-local bench-zero-regression pre-release version bump-patch bump-minor bump-major \
+        lint fmt fmt-check clippy doc-names file-length ci-local bench-zero-regression pre-release version bump-patch bump-minor bump-major \
         bump-dry publish-crates-dry clean watch
 
 # ============== Default Target ==============
@@ -114,7 +114,7 @@ test-one:
 
 # ============== Lint & Format ==============
 
-lint: banner fmt-check clippy doc-names
+lint: banner fmt-check clippy doc-names file-length
 	@printf "\n$(GREEN)$(BOLD)$(CHECK) All lint checks passed$(RESET)\n\n"
 
 fmt:
@@ -133,6 +133,12 @@ doc-names:
 	@python3 scripts/check-doc-names.py && \
 		printf "$(GREEN)$(CHECK) Every documented type name exists$(RESET)\n" || \
 		(printf "$(RED)$(CROSS) Wireframes or guides name missing types$(RESET)\n" && exit 1)
+
+file-length:
+	@printf "$(PROGRESS) Checking Rust file lengths...\n"
+	@python3 scripts/check-file-length.py && \
+		printf "$(GREEN)$(CHECK) Every Rust file is within 500 lines$(RESET)\n" || \
+		(printf "$(RED)$(CROSS) Rust files exceed 500 lines$(RESET)\n" && exit 1)
 
 clippy:
 	@printf "$(PROGRESS) Running clippy...\n"
@@ -198,6 +204,8 @@ pre-release: banner
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"
 	@$(MAKE) fmt-check --no-print-directory
 	@$(MAKE) clippy --no-print-directory
+	@$(MAKE) doc-names --no-print-directory
+	@$(MAKE) file-length --no-print-directory
 	@printf "$(PROGRESS) Running full test suite...\n"
 	@cargo test --workspace --quiet && printf "$(GREEN)$(CHECK) All tests passed$(RESET)\n"
 	@printf "\n$(GREEN)$(BOLD)$(CHECK) Ready for release v$(VERSION)$(RESET)\n\n"
@@ -242,11 +250,12 @@ help: banner
 	@/bin/echo -e "  $(GREEN)make test-one TEST=name$(RESET) - Run specific test with output"
 	@/bin/echo -e ""
 	@/bin/echo -e "$(CYAN)$(BOLD)Lint & Format:$(RESET)"
-	@/bin/echo -e "  $(GREEN)make lint$(RESET)           - Run fmt-check + clippy + doc-names"
+	@/bin/echo -e "  $(GREEN)make lint$(RESET)           - Run fmt-check + clippy + doc-names + file-length"
 	@/bin/echo -e "  $(GREEN)make fmt$(RESET)            - Format code"
 	@/bin/echo -e "  $(GREEN)make fmt-check$(RESET)      - Check formatting"
 	@/bin/echo -e "  $(GREEN)make clippy$(RESET)         - Run clippy lints"
 	@/bin/echo -e "  $(GREEN)make doc-names$(RESET)      - Check wireframes and guides name existing types"
+	@/bin/echo -e "  $(GREEN)make file-length$(RESET)    - Check every Rust file is within 500 lines"
 	@/bin/echo -e ""
 	@/bin/echo -e "$(CYAN)$(BOLD)CI & Quality:$(RESET)"
 	@/bin/echo -e "  $(GREEN)make ci-local$(RESET)       - $(YELLOW)$(BOLD)Simulate GitHub Actions CI locally$(RESET)"

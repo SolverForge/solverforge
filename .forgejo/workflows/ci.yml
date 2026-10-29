@@ -52,5 +52,9 @@ jobs:
       - name: Check documented type names
         run: python3 scripts/check-doc-names.py
 
+      # AGENTS.md: Rust source and test files stay within 500 lines.
+      - name: Check Rust file lengths
+        run: python3 scripts/check-file-length.py
+
       - name: Package every publishable crate
         run: CARGO_TARGET_DIR="$PWD/target" make publish-crates-dry

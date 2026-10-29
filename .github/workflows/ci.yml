@@ -92,6 +92,10 @@ jobs:
       - name: Check documented type names
         run: python3 scripts/check-doc-names.py
 
+      # AGENTS.md: Rust source and test files stay within 500 lines.
+      - name: Check Rust file lengths
+        run: python3 scripts/check-file-length.py
+
   package:
     if: ${{ github.server_url == 'https://github.com' }}
     name: Package

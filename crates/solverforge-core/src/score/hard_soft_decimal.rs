@@ -120,6 +120,23 @@ impl HardSoftDecimalScore {
         }
     }
 
+    /* Parses one level written in decimal units (`-12`, `3.25`, at most five
+    fractional digits) into its scaled value, with the same rules as
+    `ParseableScore::parse`.
+
+    ```
+    use solverforge_core::HardSoftDecimalScore;
+
+    assert_eq!(HardSoftDecimalScore::parse_level("-1.5"), Ok(-150_000));
+    assert!(HardSoftDecimalScore::parse_level("NaN").is_err());
+    ```
+    */
+    pub fn parse_level(text: &str) -> Result<i64, ScoreParseError> {
+        parse_fixed(text).map_err(|reason| ScoreParseError {
+            message: format!("Invalid HardSoftDecimalScore level '{}': {}", text, reason),
+        })
+    }
+
     #[inline]
     pub const fn of_hard_scaled(hard: i64) -> Self {
         HardSoftDecimalScore { hard, soft: 0 }

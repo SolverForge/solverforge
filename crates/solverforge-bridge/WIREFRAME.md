@@ -174,6 +174,10 @@ Every family shares one three-level value: unused levels stay zero and
 `HardSoftDecimal` levels hold values scaled by 100 000. Equality, ordering, and
 hashing compare the levels only, and `zero()`, `from_level_numbers(...)`, and
 the arithmetic never read a family, so scores computed on any thread agree.
+Under `HardSoftDecimal` the text form is `HardSoftDecimalScore`'s: `Display`
+prints it exactly and `parse` reads decimal literals with
+`HardSoftDecimalScore::parse_level`, rejecting `NaN`, infinities, exponents,
+more than five decimals and values outside `i64` after scaling.
 
 ### Family scope
 

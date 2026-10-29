@@ -305,6 +305,8 @@ Constants: `ZERO`, `ONE_HARD`, `ONE_SOFT`
 
 Constructors: `of(i64, i64)` (unscaled), `of_scaled(i64, i64)` (pre-scaled), `of_hard(i64)`, `of_soft(i64)`, `of_hard_scaled(i64)`, `of_soft_scaled(i64)`
 
+Parsing one level: `parse_level(&str) -> Result<i64, ScoreParseError>` (decimal units in, scaled value out; same rules as `parse`)
+
 Accessors: `hard_scaled() -> i64`, `soft_scaled() -> i64`, `hard_score() -> HardSoftDecimalScore`, `soft_score() -> HardSoftDecimalScore`, `has_hard_component() -> bool`
 
 Implements: `Score`, `ParseableScore`, `Ord`, `Copy`, `Eq`, `Hash`, `Default`, `Debug`, `Display`

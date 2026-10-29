@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use solverforge_core::score::{ParseableScore, Score};
+use solverforge_core::score::{HardSoftDecimalScore, ParseableScore, Score};
 
 use crate::{
     active_dynamic_score_family, scoped_dynamic_score_family, DynamicScore, DynamicScoreFamily,
@@ -133,4 +133,38 @@ fn dynamic_score_scale_is_exact_on_every_level() {
 #[should_panic(expected = "overflows i64")]
 fn dynamic_score_scale_panics_on_overflow() {
     let _ = DynamicScore::of(0, 0, i64::MAX).scale(2);
+}
+
+#[test]
+fn dynamic_decimal_scores_print_and_parse_exactly() {
+    scoped_dynamic_score_family(DynamicScoreFamily::HardSoftDecimal, || {
+        for scaled in [1, -1, -50_000, 9_410_874_450_160_629, i64::MAX, i64::MIN] {
+            let score = DynamicScore::hard_soft(scaled, -scaled.saturating_add(1));
+            let text = score.to_string();
+            assert_eq!(
+                text,
+                HardSoftDecimalScore::of_scaled(score.hard, score.soft).to_string()
+            );
+            assert_eq!(DynamicScore::parse(&text).unwrap(), score, "{text}");
+        }
+    });
+}
+
+#[test]
+fn dynamic_score_rejects_unrepresentable_decimal_text() {
+    scoped_dynamic_score_family(DynamicScoreFamily::HardSoftDecimal, || {
+        for input in [
+            "NaNhard/0soft",
+            "0hard/inf.0soft",
+            "1e3.0hard/0soft",
+            "0hard/0.000004soft",
+            "92233720368548hard/0soft",
+            "0hard/92233720368548soft",
+        ] {
+            assert!(
+                DynamicScore::parse(input).is_err(),
+                "{input} must not parse"
+            );
+        }
+    });
 }

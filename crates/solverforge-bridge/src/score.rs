@@ -4,7 +4,9 @@ use std::cell::Cell;
 use std::fmt;
 use std::ops::{Add, Neg, Sub};
 
-use solverforge_core::score::{ParseableScore, Score, ScoreLevel, ScoreParseError};
+use solverforge_core::score::{
+    HardSoftDecimalScore, ParseableScore, Score, ScoreLevel, ScoreParseError,
+};
 
 /// Declared host-language score family.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -113,12 +115,13 @@ impl fmt::Display for DynamicScore {
         match active_dynamic_score_family() {
             DynamicScoreFamily::Soft => write!(f, "{}", self.soft),
             DynamicScoreFamily::HardSoft => write!(f, "{}hard/{}soft", self.hard, self.soft),
-            DynamicScoreFamily::HardSoftDecimal => write!(
-                f,
-                "{}hard/{}soft",
-                format_decimal_score_part(self.hard),
-                format_decimal_score_part(self.soft)
-            ),
+            DynamicScoreFamily::HardSoftDecimal => {
+                write!(
+                    f,
+                    "{}",
+                    HardSoftDecimalScore::of_scaled(self.hard, self.soft)
+                )
+            }
             DynamicScoreFamily::HardMediumSoft => write!(
                 f,
                 "{}hard/{}medium/{}soft",
@@ -263,12 +266,16 @@ impl ParseableScore for DynamicScore {
         }
         let scale = |(value, decimal): (i64, bool)| {
             if (decimal_family || has_decimal_literal) && !decimal {
-                value * DECIMAL_SCALE
-            } else {
                 value
+                    .checked_mul(DECIMAL_SCALE)
+                    .ok_or_else(|| ScoreParseError {
+                        message: format!("dynamic score `{s}` is out of range"),
+                    })
+            } else {
+                Ok(value)
             }
         };
-        Ok(Self::hard_soft(scale(hard), scale(soft)))
+        Ok(Self::hard_soft(scale(hard)?, scale(soft)?))
     }
 
     fn to_string_repr(&self) -> String {
@@ -278,23 +285,13 @@ impl ParseableScore for DynamicScore {
 
 const DECIMAL_SCALE: i64 = 100_000;
 
-fn format_decimal_score_part(scaled: i64) -> String {
-    if scaled % DECIMAL_SCALE == 0 {
-        return (scaled / DECIMAL_SCALE).to_string();
-    }
-    let value = scaled as f64 / DECIMAL_SCALE as f64;
-    format!("{value:.6}")
-        .trim_end_matches('0')
-        .trim_end_matches('.')
-        .to_string()
-}
-
 fn parse_score_part(raw: &str, label: &str) -> Result<(i64, bool), ScoreParseError> {
     if raw.contains('.') {
-        let value = raw.parse::<f64>().map_err(|_| ScoreParseError {
-            message: format!("invalid {label} score `{raw}`"),
-        })?;
-        return Ok(((value * DECIMAL_SCALE as f64).round() as i64, true));
+        return HardSoftDecimalScore::parse_level(raw)
+            .map(|scaled| (scaled, true))
+            .map_err(|error| ScoreParseError {
+                message: format!("invalid {label} score `{raw}`: {}", error.message),
+            });
     }
     raw.parse::<i64>()
         .map(|value| (value, false))

@@ -7,6 +7,8 @@ All score types are immutable and implement arithmetic operations.
 #[macro_use]
 mod macros;
 mod bendable;
+#[cfg(feature = "serde")]
+mod bendable_serde;
 mod hard_medium_soft;
 mod hard_soft;
 mod hard_soft_decimal;

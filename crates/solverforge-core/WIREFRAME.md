@@ -36,6 +36,7 @@ src/
 │   ├── hard_medium_soft.rs                — HardMediumSoftScore: three i64 levels
 │   ├── hard_soft_decimal.rs               — HardSoftDecimalScore: two levels with x100000 scaling
 │   ├── bendable.rs                        — BendableScore<H, S>: const-generic multi-level score
+│   ├── bendable_serde.rs                  — Serialize/Deserialize for BendableScore (feature `serde`)
 │   └── tests/
 │       ├── mod.rs                         — Test module declarations
 │       ├── soft_score.rs                  — SoftScore tests
@@ -44,6 +45,7 @@ src/
 │       ├── hard_soft_decimal_score.rs     — HardSoftDecimalScore tests
 │       ├── scale.rs                       — Exact integer scaling tests for every score type
 │       ├── bendable_score.rs              — BendableScore tests
+│       ├── bendable_serde.rs              — BendableScore serde round-trip and level-count tests
 │       └── custom_score.rs                — Custom Score contract tests
 ├── domain/
 │   ├── mod.rs                             — Module declarations and re-exports for domain types
@@ -279,6 +281,8 @@ Accessors: `hard() -> i64`, `soft() -> i64`, `hard_score() -> HardSoftScore`, `s
 
 Implements: `Score`, `ParseableScore`, `Ord`, `Copy`, `Eq`, `Hash`, `Default`, `Debug`, `Display`
 
+Optional: `serde::Serialize + Deserialize` (feature `serde`)
+
 #### `HardMediumSoftScore`
 
 Fields: `hard: i64`, `medium: i64`, `soft: i64` (private)
@@ -290,6 +294,8 @@ Constructors: `of(i64, i64, i64)`, `of_hard(i64)`, `of_medium(i64)`, `of_soft(i6
 Accessors: `hard() -> i64`, `medium() -> i64`, `soft() -> i64`
 
 Implements: `Score`, `ParseableScore`, `Ord`, `Copy`, `Eq`, `Hash`, `Default`, `Debug`, `Display`
+
+Optional: `serde::Serialize + Deserialize` (feature `serde`)
 
 #### `HardSoftDecimalScore`
 
@@ -303,6 +309,8 @@ Accessors: `hard_scaled() -> i64`, `soft_scaled() -> i64`, `hard_score() -> Hard
 
 Implements: `Score`, `ParseableScore`, `Ord`, `Copy`, `Eq`, `Hash`, `Default`, `Debug`, `Display`
 
+Optional: `serde::Serialize + Deserialize` (feature `serde`)
+
 #### `BendableScore<const H: usize, const S: usize>`
 
 Fields: `hard: [i64; H]`, `soft: [i64; S]` (private)
@@ -314,6 +322,8 @@ Accessors: `hard_levels_count() -> usize`, `soft_levels_count() -> usize`, `hard
 Implements: `Score`, `Ord`, `Copy`, `Eq`, `Hash`, `Default`, `Debug`, `Display`
 
 Does **not** implement `ParseableScore`.
+
+Optional: `serde::Serialize + Deserialize` (feature `serde`), hand-written in `score/bendable_serde.rs`: the wire shape is `{"hard": [...], "soft": [...]}`, and a level list whose length is not exactly `H` (or `S`) is rejected with an `invalid length` error.
 
 ### Other Score Types
 
@@ -775,7 +785,7 @@ Internal values are stored multiplied by 100,000 (`SCALE` constant). `of()` auto
 
 ### BendableScore Const Generics
 
-`BendableScore<const H: usize, const S: usize>` uses fixed-size arrays `[i64; H]` and `[i64; S]`. This enables `Copy` with zero heap allocation. It cannot use the declarative macros due to const generic array iteration.
+`BendableScore<const H: usize, const S: usize>` uses fixed-size arrays `[i64; H]` and `[i64; S]`. This enables `Copy` with zero heap allocation. It cannot use the declarative macros due to const generic array iteration. For the same reason serde's derive does not apply (serde implements array traits only up to length 32), so its serde impls are written by hand.
 
 ### Supply Zero-Erasure Design
 

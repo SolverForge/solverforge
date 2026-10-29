@@ -9,8 +9,9 @@ pub(crate) const MAX_SAFE_LEG_COST: i64 = i64::MAX / 4;
 
 /// Immutable problem data shared by all vehicles.
 ///
-/// Stored via raw pointer in each vehicle so the framework can clone vehicles
-/// freely during local search without copying matrices.
+/// A solution typically holds it once (for example behind an `Arc`) and
+/// returns a reference from [`VrpSolution::vehicle_data`](crate::VrpSolution::vehicle_data),
+/// so cloning vehicles during local search never copies the matrices.
 #[derive(Clone, Debug)]
 pub struct ProblemData {
     /// Vehicle capacity, in the units of `demands`.

@@ -51,8 +51,8 @@ fn base_problem_data() -> ProblemData {
 }
 
 impl VrpSolution for TestSolution {
-    fn vehicle_data_ptr(&self, entity_idx: usize) -> *const ProblemData {
-        &self.data[entity_idx] as *const ProblemData
+    fn vehicle_data(&self, entity_idx: usize) -> Option<&ProblemData> {
+        self.data.get(entity_idx)
     }
 
     fn vehicle_visits(&self, entity_idx: usize) -> &[usize] {
@@ -69,8 +69,8 @@ impl VrpSolution for TestSolution {
 }
 
 impl VrpSolution for SharedDataSolution {
-    fn vehicle_data_ptr(&self, _entity_idx: usize) -> *const ProblemData {
-        &self.data as *const ProblemData
+    fn vehicle_data(&self, _entity_idx: usize) -> Option<&ProblemData> {
+        Some(&self.data)
     }
 
     fn vehicle_visits(&self, entity_idx: usize) -> &[usize] {
@@ -91,8 +91,8 @@ struct NullDataSolution {
 }
 
 impl VrpSolution for NullDataSolution {
-    fn vehicle_data_ptr(&self, _entity_idx: usize) -> *const ProblemData {
-        std::ptr::null()
+    fn vehicle_data(&self, _entity_idx: usize) -> Option<&ProblemData> {
+        None
     }
 
     fn vehicle_visits(&self, entity_idx: usize) -> &[usize] {
@@ -302,7 +302,7 @@ fn hook_bundles_expose_route_and_savings_semantics() {
 }
 
 #[test]
-#[should_panic(expected = "vehicle_data_ptr(0) returned null")]
+#[should_panic(expected = "vehicle_data(0) returned None")]
 fn helpers_reject_missing_problem_data_for_non_empty_fleets() {
     let solution = NullDataSolution {
         routes: vec![vec![1, 2]],

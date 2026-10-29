@@ -30,12 +30,8 @@ impl solverforge::__internal::PlanningSolution for Plan {
 }
 
 impl VrpSolution for Plan {
-    fn vehicle_data_ptr(&self, entity_idx: usize) -> *const ProblemData {
-        if entity_idx < self.vehicles.len() {
-            &self.data as *const ProblemData
-        } else {
-            std::ptr::null()
-        }
+    fn vehicle_data(&self, entity_idx: usize) -> Option<&ProblemData> {
+        (entity_idx < self.vehicles.len()).then_some(&self.data)
     }
 
     fn vehicle_visits(&self, entity_idx: usize) -> &[usize] {

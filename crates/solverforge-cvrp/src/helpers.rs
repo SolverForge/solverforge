@@ -8,14 +8,12 @@ pub(crate) fn problem_data_for_entity<S: VrpSolution>(
     if entity_idx >= plan.vehicle_count() {
         return None;
     }
-    let ptr = plan.vehicle_data_ptr(entity_idx);
+    let data = plan.vehicle_data(entity_idx);
     assert!(
-        !ptr.is_null(),
-        "VrpSolution::vehicle_data_ptr({entity_idx}) returned null for a non-empty fleet"
+        data.is_some(),
+        "VrpSolution::vehicle_data({entity_idx}) returned None for a non-empty fleet"
     );
-    // SAFETY: VrpSolution implementors guarantee valid pointers for the duration
-    // of the solve call; null for a non-empty fleet is rejected above.
-    unsafe { ptr.as_ref() }
+    data
 }
 
 #[inline]
@@ -26,14 +24,8 @@ fn optional_problem_data_for_entity<S: VrpSolution>(
     if entity_idx >= plan.vehicle_count() {
         return None;
     }
-    let ptr = plan.vehicle_data_ptr(entity_idx);
-    if ptr.is_null() {
-        return None;
-    }
-    // SAFETY: VrpSolution implementors guarantee valid pointers for the duration
-    // of the solve call; this path treats null as non-admissible instead of
-    // panicking because it is used by feasibility gates.
-    unsafe { ptr.as_ref() }
+    // Feasibility gates treat missing data as non-admissible instead of panicking.
+    plan.vehicle_data(entity_idx)
 }
 
 /// Depot location of vehicle `entity_idx`, or `0` when it has no problem data.
@@ -43,19 +35,13 @@ pub fn depot_for_entity<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
 
 /// Construction metric class for the route owner.
 ///
-/// Owners that share the same `ProblemData` pointer share depot and distance
-/// behavior, so Clarke-Wright can compute their savings rows once.
+/// Owners that return the same `ProblemData` (by address) share depot and
+/// distance behavior, so Clarke-Wright can compute their savings rows once.
 pub fn savings_metric_class<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
-    if entity_idx >= plan.vehicle_count() {
-        return entity_idx;
-    }
-
-    let ptr = plan.vehicle_data_ptr(entity_idx);
-    assert!(
-        !ptr.is_null(),
-        "VrpSolution::vehicle_data_ptr({entity_idx}) returned null for a non-empty fleet"
-    );
-    ptr as usize
+    // `None` only for an out-of-range owner; missing data for an in-range one
+    // panics in `problem_data_for_entity`.
+    problem_data_for_entity(plan, entity_idx)
+        .map_or(entity_idx, |data| std::ptr::from_ref(data).addr())
 }
 
 /// Depot token used by Clarke-Wright construction.

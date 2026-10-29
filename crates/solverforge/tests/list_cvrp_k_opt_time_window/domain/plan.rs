@@ -23,8 +23,8 @@ pub struct Plan {
 }
 
 impl solverforge::cvrp::VrpSolution for Plan {
-    fn vehicle_data_ptr(&self, _entity_idx: usize) -> *const ProblemData {
-        Arc::as_ptr(&self.shared)
+    fn vehicle_data(&self, _entity_idx: usize) -> Option<&ProblemData> {
+        Some(&self.shared)
     }
 
     fn vehicle_visits(&self, entity_idx: usize) -> &[usize] {

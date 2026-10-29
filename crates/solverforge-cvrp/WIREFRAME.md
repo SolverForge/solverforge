@@ -53,12 +53,12 @@ Trait implemented by a planning solution that holds a fleet of vehicles.
 
 | Method | Signature |
 |--------|-----------|
-| `vehicle_data_ptr` | `fn(&self, entity_idx: usize) -> *const ProblemData` |
+| `vehicle_data` | `fn(&self, entity_idx: usize) -> Option<&ProblemData>` |
 | `vehicle_visits` | `fn(&self, entity_idx: usize) -> &[usize]` |
 | `vehicle_visits_mut` | `fn(&mut self, entity_idx: usize) -> &mut Vec<usize>` |
 | `vehicle_count` | `fn(&self) -> usize` |
 
-**Safety:** Implementors must ensure every `vehicle_data_ptr` points to a valid `ProblemData` for the entire duration of a solve call.
+Vehicles that share one `ProblemData` return the same reference, so `savings_metric_class` groups them by address. `None` for an in-range vehicle makes the route and savings helpers panic and the feasibility gates return `false`.
 
 ### `MatrixDistanceMeter`
 

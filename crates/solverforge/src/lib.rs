@@ -109,14 +109,56 @@ pub use solverforge_config::{
 };
 pub use solverforge_core::domain::{EntityClassId, ProblemFactClassId, VariableId};
 pub use solverforge_core::score::{
-    BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, Score, SoftScore,
+    BendableScore, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, ParseableScore, Score,
+    ScoreLevel, ScoreParseError, SoftScore,
 };
+pub use solverforge_core::PlanningSolution;
 pub use solverforge_core::{
-    ConstraintWeightError, ConstraintWeights, MAX_CONSTRAINT_WEIGHT_MULTIPLIER,
+    ConstraintRef, ConstraintWeightError, ConstraintWeights, ImpactType,
+    MAX_CONSTRAINT_WEIGHT_MULTIPLIER,
 };
 
+/// Every solver configuration type: phases, move selectors, acceptors,
+/// foragers, termination and the configuration error.
+pub mod config {
+    pub use solverforge_config::*;
+}
 /// Stock CVRP profile: problem data, distance meters and route hooks.
 pub mod cvrp;
+/// Solver and phase statistics, telemetry and candidate-trace types.
+pub mod stats {
+    pub use solverforge_solver::stats::*;
+}
+/// Planning-model traits and runtime descriptors (`PlanningSolution`,
+/// `SolutionDescriptor`, entity and variable descriptors).
+pub mod domain {
+    pub use solverforge_core::domain::*;
+}
+/// Score analysis types returned by constraints and score directors.
+pub mod analysis {
+    pub use solverforge_scoring::api::analysis::*;
+}
+/// Built-in constraint implementations that the stream builders produce.
+pub mod constraint {
+    pub use solverforge_scoring::constraint::*;
+}
+/// Score directors and their weight modes.
+pub mod director {
+    pub use solverforge_scoring::director::*;
+}
+/// Search declaration building blocks behind `SearchContext` and `Search`.
+pub mod builder {
+    pub use solverforge_solver::builder::*;
+}
+/// Moves, move selectors and move cursors for custom search.
+pub mod heuristic {
+    pub use solverforge_solver::heuristic::*;
+}
+/// Phases and their parts: local search acceptors and foragers, exhaustive
+/// search deciders, partitioned search.
+pub mod phase {
+    pub use solverforge_solver::phase::*;
+}
 /// Scalar and repair planning types and source-to-target helpers.
 pub mod planning;
 /// Glob import for domain models and constraint providers.
@@ -133,9 +175,10 @@ Constraint API
 */
 
 pub use solverforge_scoring::{
-    fixed_weight, hard_weight, ConstraintMetadata, ConstraintSet, FixedWeight, HardWeight,
-    IncrementalConstraint, IncrementalUniConstraint, ListPrecedenceMakespanConstraint, Projection,
-    ProjectionSink, SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation, SingleConstraint,
+    fixed_weight, hard_weight, ConstraintMetadata, ConstraintResult, ConstraintSet, FixedWeight,
+    HardWeight, IncrementalConstraint, IncrementalUniConstraint, ListPrecedenceMakespanConstraint,
+    Projection, ProjectionSink, SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation,
+    SingleConstraint,
 };
 
 /* ============================================================================
@@ -152,6 +195,9 @@ Solver
 
 pub use solverforge_bridge as bridge;
 pub use solverforge_solver::heuristic::selector::DefaultDistanceMeter;
+pub use solverforge_solver::scope::{
+    PhaseScope, ProgressCallback, SolverProgressKind, SolverProgressRef, SolverScope, StepScope,
+};
 pub use solverforge_solver::stats::{
     CandidatePullTelemetry, CandidateTraceCompositeIdentity, CandidateTraceConstructionTarget,
     CandidateTraceCoordinate, CandidateTraceDigest, CandidateTraceDisposition,

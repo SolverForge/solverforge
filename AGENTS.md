@@ -72,6 +72,11 @@ Treat the repository documentation as a coordinated surface, not as isolated fil
   it with `solverforge-cli`, and where to go next. Do not turn the README into
   a long release-history dump; use `CHANGELOG.md` for release history and
   `RELEASE.md` for maintainer release operations.
+  Every ```rust block in the README is compiled:
+  `crates/solverforge/tests/readme_examples.rs` fails unless each block is
+  checked in verbatim between `// readme:begin` and `// readme:end` under
+  `crates/solverforge/tests/readme_examples/`, so add or edit a block there
+  in the same change.
 - `CONTRIBUTING.md` owns the contribution policy. Keep README contribution
   guidance, agent instructions, and pull request templates consistent with it;
   do not introduce separate AI acceptance rules on those surfaces.

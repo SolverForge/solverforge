@@ -7,12 +7,13 @@ pub use crate::stream::collector::{
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     fixed_weight, hard_weight, planning_entity, planning_model, planning_solution, problem_fact,
-    solverforge_constraints, BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet,
-    ConstraintWeights, CustomSearchPhase, Director, ExhaustiveSearchConfig, ExhaustiveSearchPhase,
-    ExplorationType, FixedWeight, FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore,
-    HardSoftScore, HardWeight, ListPrecedenceMakespanConstraint, PartitionedSearchPhase,
-    Projection, ProjectionSink, RepairCandidate, RepairLimits, ScalarAssignmentRule,
-    ScalarCandidate, ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget, Score,
-    ScoreDirector, Search, SearchContext, SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation,
-    SimpleDecider, SoftScore, SolutionPartitioner, ThreadCount,
+    solverforge_constraints, BendableScore, ConflictRepair, ConstraintMetadata, ConstraintRef,
+    ConstraintSet, ConstraintWeights, CustomSearchPhase, Director, ExhaustiveSearchConfig,
+    ExhaustiveSearchPhase, ExplorationType, FixedWeight, FunctionalPartitioner,
+    HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, HardWeight, ImpactType,
+    IncrementalConstraint, ListPrecedenceMakespanConstraint, PartitionedSearchPhase, Projection,
+    ProjectionSink, RepairCandidate, RepairLimits, ScalarAssignmentRule, ScalarCandidate,
+    ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget, Score, ScoreDirector, Search,
+    SearchContext, SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation, SimpleDecider,
+    SingleConstraint, SoftScore, SolutionPartitioner, ThreadCount,
 };

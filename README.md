@@ -645,6 +645,13 @@ Or programmatically, where the `Result` is yours to handle:
 let config = SolverConfig::load("solver.toml")?;
 ```
 
+Every configuration type is reachable as `solverforge::config::*`. To solve on
+the calling thread with exactly that config, without a `SolverManager`:
+
+```rust
+let solved = plan.solve_with_config(config)?;
+```
+
 Macro-generated retained solves read configuration only from
 `#[planning_solution(solver_toml = "...")]`, which embeds the file at compile
 time (the path is relative to the solution's source file). Without
@@ -662,7 +669,16 @@ decorate that base config instead of replacing it:
     config = "solver_config_for_solution"
 )]
 pub struct Schedule {
-    // ...
+    #[problem_fact_collection]
+    pub nurses: Vec<Nurse>,
+
+    #[planning_entity_collection]
+    pub shifts: Vec<Shift>,
+
+    pub time_limit_secs: u64,
+
+    #[planning_score]
+    pub score: Option<HardSoftScore>,
 }
 
 fn solver_config_for_solution(solution: &Schedule, config: SolverConfig) -> SolverConfig {
@@ -682,7 +698,7 @@ completed solution.
 The `SolverManager` owns the retained runtime lifecycle for each job. The public contract uses neutral `job`, `snapshot`, and `checkpoint` terminology throughout the API. `pause()` settles at a runtime-owned safe boundary and `resume()` continues from the exact in-process state rather than restarting from the best solution. Before mandatory construction completes, that state remains an internal resumable pause and is not exposed as a solution snapshot. Built-in search phases poll retained-runtime control during large neighborhood generation and evaluation, so config time limits, `pause()`, and `cancel()` unwind promptly without app-side watchdogs. Declare a `static` instance so it satisfies the `'static` lifetime requirement:
 
 ```rust
-use solverforge::{SolverLifecycleState, SolverManager, SolverStatus, Solvable};
+use solverforge::{SolverLifecycleState, SolverManager, SolverStatus};
 
 static MANAGER: SolverManager<MySchedule> = SolverManager::new();
 
@@ -708,7 +724,7 @@ solution, rescores from scratch, and restarts its phases so construction
 assigns new work before local search resumes:
 
 ```rust
-use solverforge::{ClosureProblemChange, SolverEvent};
+use solverforge::ClosureProblemChange;
 
 let id = MANAGER
     .add_problem_change(
@@ -765,7 +781,12 @@ pub struct Schedule {
     #[planning_score]
     pub score: Option<HardSoftScore>,
 }
+```
 
+`validate_constraint_weights` runs the checks a solve runs at start, so a typo
+is rejected before the job is submitted:
+
+```rust
 let mut weights = ConstraintWeights::new();
 weights.set("Travel time", 10).set("Overtime", 0);
 Schedule::validate_constraint_weights(&weights)?;

@@ -168,7 +168,10 @@ are rejected up front.
 Exact tree search is available as a typed extension point, not as a runtime
 fallback built from generated scalar slots. If a model needs exact search, add a
 custom phase that owns its concrete decider and register it through the typed
-search function. Assignment-backed scalar variables still belong to their
+search function. A custom phase implements `CustomSearchPhase<S>` against
+`solverforge::{SolverScope, ProgressCallback}`; it draws randomness with
+`SolverScope::random_below` and `random_u64`, which use the solve's seeded
+generator. Assignment-backed scalar variables still belong to their
 `ScalarGroup`; exact scalar assignment should not be configured as a second
 path beside grouped assignment.
 

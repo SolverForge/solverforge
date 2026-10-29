@@ -44,6 +44,24 @@ The facade, `solverforge-console`, `solverforge-macros`, `solverforge-bridge` an
 
 ## Public Re-exports
 
+### Layer Modules
+
+Each module re-exports one public module of a layer crate, so every type a facade signature uses is importable from `solverforge`:
+
+| Module | Re-exports |
+|---|---|
+| `config` | `solverforge_config::*` — every configuration type, including `TerminationConfig` and `ConfigError` |
+| `domain` | `solverforge_core::domain::*` — `PlanningSolution`, `SolutionDescriptor`, entity and variable descriptors |
+| `analysis` | `solverforge_scoring::api::analysis::*` — `ConstraintAnalysis`, `DetailedConstraintMatch`, score explanations |
+| `constraint` | `solverforge_scoring::constraint::*` — the constraint implementations stream builders produce |
+| `director` | `solverforge_scoring::director::*` — score directors, `DirectorScoreState`, weight modes |
+| `builder` | `solverforge_solver::builder::*` — `RuntimeModel`, `SearchBuilder` and the search-declaration types |
+| `heuristic` | `solverforge_solver::heuristic::*` — moves, move selectors and cursors |
+| `phase` | `solverforge_solver::phase::*` — phases, acceptors, foragers, exhaustive deciders, partitioned search |
+| `stats` | `solverforge_solver::stats::*` — solver and phase statistics, telemetry, candidate traces |
+
+`scripts/check-facade-reachability.py` (`make facade-reachability`, CI Docs job) fails when a facade item's declaration or method signature links a type outside the facade's rustdoc.
+
 ### Model Macros (from `solverforge-macros`)
 
 - `planning_model`
@@ -53,6 +71,8 @@ The facade, `solverforge-console`, `solverforge-macros`, `solverforge-bridge` an
 - `problem_fact`
 
 ### Score Types (from `solverforge-core`)
+
+- `PlanningSolution` (trait), `ParseableScore` (trait), `ScoreLevel`, `ScoreParseError`
 
 - `Score` (trait)
 - `SoftScore`
@@ -84,7 +104,7 @@ The facade, `solverforge-console`, `solverforge-macros`, `solverforge-bridge` an
 - `FixedWeight`
 - `HardWeight`
 - `ConstraintSet` (trait)
-- `ConstraintMetadata<'a>` (borrowed constraint identity view)
+- `ConstraintMetadata<'a>` (borrowed constraint identity view), `ConstraintResult`
 - `SharedNodeDiagnostics`, `SharedNodeId`, `SharedNodeOperation`
 - `IncrementalConstraint` (trait)
 - `SingleConstraint` (marker trait every hand-written `IncrementalConstraint` implements with an empty impl)
@@ -98,7 +118,14 @@ The facade, `solverforge-console`, `solverforge-macros`, `solverforge-bridge` an
 - `Director` (trait)
 - `ScoreDirector`
 
+### Constraint Identity (from `solverforge-core`)
+
+- `ConstraintRef` (returned by `IncrementalConstraint::constraint_ref`)
+- `ImpactType`
+
 ### Configuration (from `solverforge-config`)
+
+The root keeps these; `solverforge::config` has every configuration type:
 
 - `AcceptorConfig`
 - `CandidateTraceConfig`
@@ -114,6 +141,11 @@ The facade, `solverforge-console`, `solverforge-macros`, `solverforge-bridge` an
 - `SolverConfig`
 - `SolverConfigOverride`
 - `UnionSelectionOrder`
+
+### Custom Phase Scope (from `solverforge-solver::scope`)
+
+- `SolverScope` — the scope a `CustomSearchPhase` receives. Seeded draws go through `random_below(upper)` and `random_u64()`; the raw generator is not public.
+- `ProgressCallback` (trait), `SolverProgressRef`, `SolverProgressKind`, `PhaseScope`, `StepScope`
 
 ### Solver (from `solverforge-solver`)
 
@@ -234,20 +266,22 @@ Convenient single import for user code:
 ```rust
 pub use crate::local_search;
 pub use crate::planning::EntitySourceTargetExt;
-pub use crate::stream::collector::{collect_vec, consecutive_runs, count, indexed_presence, load_balance, sum, CollectedVec, IndexedPresence, Run, Runs};
+pub use crate::stream::collector::{
+    collect_vec, consecutive_runs, count, indexed_presence, load_balance, sum, CollectedVec,
+    IndexedPresence, Run, Runs,
+};
 pub use crate::stream::{joiner, ConstraintFactory};
 pub use crate::{
     fixed_weight, hard_weight, planning_entity, planning_model, planning_solution, problem_fact,
-    solverforge_constraints,
-    BendableScore, ConflictRepair, ConstraintMetadata, ConstraintSet, ConstraintWeights,
-    CustomSearchPhase, Director,
-    ExhaustiveSearchConfig, ExhaustiveSearchPhase, ExplorationType, FixedWeight,
-    FunctionalPartitioner, HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, HardWeight,
-    ListPrecedenceMakespanConstraint, PartitionedSearchPhase, Projection, ProjectionSink,
-    RepairCandidate, RepairLimits, ScalarAssignmentRule, ScalarCandidate, ScalarEdit,
-    ScalarGroup, ScalarGroupLimits, ScalarTarget, Score, ScoreDirector, Search, SearchContext,
-    SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation, SimpleDecider, SoftScore,
-    SolutionPartitioner, ThreadCount,
+    solverforge_constraints, BendableScore, ConflictRepair, ConstraintMetadata, ConstraintRef,
+    ConstraintSet, ConstraintWeights, CustomSearchPhase, Director, ExhaustiveSearchConfig,
+    ExhaustiveSearchPhase, ExplorationType, FixedWeight, FunctionalPartitioner,
+    HardMediumSoftScore, HardSoftDecimalScore, HardSoftScore, HardWeight, ImpactType,
+    IncrementalConstraint, ListPrecedenceMakespanConstraint, PartitionedSearchPhase, Projection,
+    ProjectionSink, RepairCandidate, RepairLimits, ScalarAssignmentRule, ScalarCandidate,
+    ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget, Score, ScoreDirector, Search,
+    SearchContext, SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation, SimpleDecider,
+    SingleConstraint, SoftScore, SolutionPartitioner, ThreadCount,
 };
 ```
 
@@ -284,16 +318,14 @@ use erased phase registries.
 
 ## `stream` Module
 
-Re-exports the fluent constraint stream API:
+Re-exports the whole fluent constraint stream API of `solverforge-scoring`:
 
 ```rust
 pub use solverforge_scoring::stream::collection_extract::vec;
-pub use solverforge_scoring::stream::collection_extract::{
-    CollectionExtract, FlattenExtract, VecExtract,
-};
-pub use solverforge_scoring::stream::collector;
-pub use solverforge_scoring::stream::{joiner, ConstraintFactory, FlattenedCollectionTarget};
+pub use solverforge_scoring::stream::*;
 ```
+
+`stream::cross` holds the cross-join `Bi`/`Tri`/`Quad`/`Penta` streams, `stream::projected` the projected streams and `Source`, `stream::chain` the arity-free `Chain` that `cross::Penta::join` returns, and `stream::filter` the filter traits and adapters the stream types are generic over.
 
 Key stream API: `ConstraintFactory::new().for_each(extractor).filter(pred).penalize(weight).named("name")`. Use `.join(target)` for all join patterns: self-join, keyed cross-join, and predicate cross-join. Keyed and predicate cross-joins can take a right-hand `UniConstraintStream`, including one with its own `.filter(...)`. Keyed cross joins can either score pairs directly, group joined pairs with `.group_by(|left, right| key, collector)`, complement those grouped pairs with `.complement(source, key, default)`, or project joined pairs into rows with `.project(|left, right| row)`. A keyed cross Bi stream extends to a third source with `.join((extractor_c, key_c))`, yielding `stream::cross::Tri` rows `(A, B, C)` where `key_a(a) == key_b(b) == key_c(c)`; the bi stream's own keys stay authoritative for A and B. `#[planning_solution]` also generates a solution-named convenience trait, such as `PlanConstraintStreams`, so callers can import the trait and write `ConstraintFactory::new().assignments()` for the same concrete source stream.
 

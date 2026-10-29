@@ -11,7 +11,6 @@ use solverforge::prelude::*;
 use solverforge::stream::relational::operator::Pair;
 use solverforge::stream::relational::Leaf;
 use solverforge::stream::{source, ChangeSource};
-use solverforge::IncrementalConstraint;
 
 #[derive(Clone, Debug)]
 struct RelShift {

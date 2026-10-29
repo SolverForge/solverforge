@@ -27,7 +27,9 @@ use crate::stats::{
 
 include!("solver/progress.rs");
 include!("solver/scope_core.rs");
+include!("solver/phase_budget.rs");
 include!("solver/scope_progress.rs");
+include!("solver/scope_trace.rs");
 include!("solver/problem_change.rs");
 include!("solver/weight_mode.rs");
 

@@ -7,19 +7,25 @@ pub(super) fn generate_runtime_solve_internal(
     let Some(constraints_fn) = constraints_path.as_ref() else {
         return TokenStream::new();
     };
+    /* The base configuration is the embedded `solver_toml` file or the
+    defaults; nothing is read from the working directory. A file that does not
+    parse fails the solve through the returned error. */
     let base_config_expr = if let Some(solver_toml_path) = solver_toml_path.as_ref() {
         quote! {{
-            static CONFIG: ::std::sync::OnceLock<::solverforge::SolverConfig> =
-                ::std::sync::OnceLock::new();
+            static CONFIG: ::std::sync::OnceLock<
+                ::core::result::Result<::solverforge::SolverConfig, ::solverforge::RuntimeBuildError>,
+            > = ::std::sync::OnceLock::new();
             CONFIG
                 .get_or_init(|| {
                     ::solverforge::SolverConfig::from_toml_str(include_str!(#solver_toml_path))
-                        .expect("embedded solver.toml must be valid")
+                        .map_err(|error| ::solverforge::RuntimeBuildError::Configuration {
+                            message: error.to_string(),
+                        })
                 })
-                .clone()
+                .clone()?
         }}
     } else {
-        quote! { ::solverforge::__internal::load_solver_config() }
+        quote! { ::solverforge::SolverConfig::default() }
     };
     let config_expr = if let Some(config_fn) = config_path.as_ref() {
         quote! {

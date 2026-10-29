@@ -69,13 +69,18 @@ impl Drop for TempSolverConfigDir {
 }
 
 #[test]
-fn planning_solution_config_provider_decorates_solver_toml_for_retained_runtime_solves() {
+fn planning_solution_without_solver_toml_ignores_the_working_directory() {
     static MANAGER: SolverManager<ConfigurableSolution> = SolverManager::new();
 
+    // A solver.toml in the working directory must not be read: the model has
+    // no `solver_toml`, so its config callback starts from the defaults.
     let _cwd_lock = cwd_test_lock().lock().expect("cwd lock should be acquired");
     let _temp_solver_dir = TempSolverConfigDir::new(Some(
         r#"
 random_seed = 19
+
+[termination]
+seconds_spent_limit = 1
 
 [[phases]]
 type = "construction_heuristic"
@@ -111,10 +116,10 @@ construction_heuristic_type = "first_fit"
 
     assert!(completed, "expected a completed event");
     assert_eq!(LAST_CONFIG_SECONDS.load(Ordering::SeqCst), 7);
-    assert_eq!(LAST_BASE_RANDOM_SEED.load(Ordering::SeqCst), 19);
-    assert_eq!(LAST_BASE_PHASE_COUNT.load(Ordering::SeqCst), 1);
-    assert_eq!(LAST_FINAL_RANDOM_SEED.load(Ordering::SeqCst), 19);
-    assert_eq!(LAST_FINAL_PHASE_COUNT.load(Ordering::SeqCst), 1);
+    assert_eq!(LAST_BASE_RANDOM_SEED.load(Ordering::SeqCst), 0);
+    assert_eq!(LAST_BASE_PHASE_COUNT.load(Ordering::SeqCst), 0);
+    assert_eq!(LAST_FINAL_RANDOM_SEED.load(Ordering::SeqCst), 0);
+    assert_eq!(LAST_FINAL_PHASE_COUNT.load(Ordering::SeqCst), 0);
     assert_eq!(LAST_FINAL_TERMINATION_SECONDS.load(Ordering::SeqCst), 7);
 
     MANAGER.delete(job_id).expect("delete completed job");

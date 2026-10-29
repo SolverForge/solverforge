@@ -640,15 +640,22 @@ Configuration parsing is strict: a misspelled or unknown key anywhere in the
 file (for example `secnds_spent_limit`) fails with a `ConfigError::Toml` that
 names the key, instead of being ignored.
 
-Or programmatically:
+Or programmatically, where the `Result` is yours to handle:
 
 ```rust
-let config = SolverConfig::load("solver.toml").unwrap_or_default();
+let config = SolverConfig::load("solver.toml")?;
 ```
 
-For macro-generated retained solves, the solution module listed by
-`planning_model!` can use `config = "..."` to decorate the loaded `solver.toml`
-config instead of replacing it:
+Macro-generated retained solves read configuration only from
+`#[planning_solution(solver_toml = "...")]`, which embeds the file at compile
+time (the path is relative to the solution's source file). Without
+`solver_toml` they start from `SolverConfig::default()`; nothing is read from
+the working directory. An embedded file that does not parse fails the job with
+a `SolverEvent::Failed` whose error reads
+`solver configuration invalid: TOML parse error ...`.
+
+The solution module listed by `planning_model!` can use `config = "..."` to
+decorate that base config instead of replacing it:
 
 ```rust
 #[planning_solution(

@@ -1,15 +1,8 @@
-use solverforge_config::SolverConfig as FacadeSolverConfig;
-
 // Initializes console output if the feature is enabled.
 #[inline]
 pub fn init_console() {
     #[cfg(feature = "console")]
     solverforge_console::init();
-}
-
-#[inline]
-pub fn load_solver_config() -> FacadeSolverConfig {
-    FacadeSolverConfig::load("solver.toml").unwrap_or_default()
 }
 
 // Derive macros

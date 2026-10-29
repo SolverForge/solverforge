@@ -6,9 +6,6 @@ use std::marker::PhantomData;
 use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::time::Duration;
 
-#[cfg(test)]
-use std::path::Path;
-
 use solverforge_config::{SolverConfig, TerminationConfig};
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{ParseableScore, Score};
@@ -421,11 +418,6 @@ pub fn log_solve_start(
             );
         }
     }
-}
-
-#[cfg(test)]
-fn load_solver_config_from(path: impl AsRef<Path>) -> SolverConfig {
-    SolverConfig::load(path).unwrap_or_default()
 }
 
 /// Runs one configured model through the immutable runtime graph compiler and

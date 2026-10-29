@@ -412,12 +412,11 @@ local-search selectors.
 | Function | Signature | Note |
 |----------|-----------|------|
 | `init_console` | `fn()` | No-op unless `console` feature enabled |
-| `load_solver_config` | `fn() -> SolverConfig` | Loads `solver.toml`, falling back to `SolverConfig::default()` |
 
 ## Architectural Notes
 
 - **Facade crate.** Public modules are re-exports; implementation is limited to
-  tiny hidden macro helpers such as `init_console()` and `load_solver_config()`.
+  tiny hidden macro helpers such as `init_console()`.
 - **`__internal` module** exists so that macro-generated code can reference types via `::solverforge::__internal::*` paths. This allows derive macros in `solverforge-macros` to generate code that compiles in user crates that only depend on `solverforge`.
 - **Shape-aware startup telemetry.** Hidden runtime logging helpers under `__internal` emit `element_count` for list solves and average `candidate_count` for scalar solves so console startup output can label the scale correctly.
 - **Macro-built runtime slots stay model-owned.** `planning_model!` generates

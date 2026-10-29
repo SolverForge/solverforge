@@ -9,8 +9,8 @@ application that depends on `solverforge`.
 - Tune `solver.toml` when the search strategy, termination, or runtime settings
   need to change.
 - Use `#[planning_solution(config = "...")]` when a retained solve needs a
-  per-solution override; the callback should decorate the loaded `solver.toml`
-  config rather than replace it.
+  per-solution override; the callback should decorate the base config (the
+  embedded `solver_toml` file, or the defaults) rather than replace it.
 - Introduce custom phases, selectors, or acceptors when the built-in search flow
   is not a fit for the problem shape.
 

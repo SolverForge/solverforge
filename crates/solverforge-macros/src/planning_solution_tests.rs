@@ -43,7 +43,7 @@ fn golden_solution_expansion_emits_model_sources_and_descriptor() {
 }
 
 #[test]
-fn golden_solution_expansion_loads_solver_config_before_config_callback() {
+fn golden_solution_expansion_without_solver_toml_starts_from_defaults() {
     let input = parse_quote! {
         #[solverforge_constraints_path = "crate::constraints::create_constraints"]
         #[solverforge_config_path = "crate::config::for_solution"]
@@ -59,8 +59,11 @@ fn golden_solution_expansion_loads_solver_config_before_config_callback() {
         .expect("solution expansion should succeed")
         .to_string();
 
-    assert!(expanded
-        .contains("let base_config = :: solverforge :: __internal :: load_solver_config ()"));
+    assert!(expanded.contains("let base_config = :: solverforge :: SolverConfig :: default ()"));
+    // Without `solver_toml` nothing reads a file from the working directory.
+    assert!(!expanded.contains("load_solver_config"));
+    assert!(!expanded.contains("solver.toml"));
+    assert!(!expanded.contains("SolverConfig :: load"));
     assert!(
         expanded.contains("let config = crate :: config :: for_solution (& self , base_config)")
     );
@@ -91,7 +94,8 @@ fn golden_solution_expansion_embeds_explicit_solver_toml_source() {
         .to_string();
 
     assert!(expanded.contains("include_str ! (\"fixtures/solver.toml\")"));
-    assert!(expanded.contains("OnceLock < :: solverforge :: SolverConfig >"));
+    assert!(expanded.contains("RuntimeBuildError :: Configuration"));
+    assert!(!expanded.contains("embedded solver.toml must be valid"));
     assert!(expanded.contains("try_run_solver_with_config_and_search"));
     assert!(!expanded.contains("load_solver_config ()"));
 }

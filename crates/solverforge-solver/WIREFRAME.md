@@ -1916,7 +1916,9 @@ monomorphize the weighted solver. Graph
 compilation and solve-owned source preparation remain private; there is no
 public graph or alternate phase-builder fallback.
 
-`RuntimeBuildError` is `Declaration { message }`,
+`RuntimeBuildError` is `Configuration { message }` (an embedded `solver.toml`
+that does not parse; displayed as `solver configuration invalid: ...`),
+`Declaration { message }`,
 `Compilation { path, message }`, `ConstraintWeights { message }`,
 `Preparation { phase_index, message }`, or
 `Execution { phase_index, message }`; `RuntimeBuildResult<T>` is its result

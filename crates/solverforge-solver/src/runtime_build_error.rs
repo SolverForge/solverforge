@@ -11,6 +11,12 @@ use std::fmt;
 /// prepared for one solve.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeBuildError {
+    /// The solver configuration could not be read, for example an embedded
+    /// `solver.toml` that is not valid TOML or has an unknown key.
+    Configuration {
+        /// The configuration error's message.
+        message: String,
+    },
     /// The descriptor-backed runtime declaration could not be formed.
     Declaration {
         /// Actionable explanation of the invalid declaration.
@@ -57,6 +63,9 @@ impl RuntimeBuildError {
 impl fmt::Display for RuntimeBuildError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Configuration { message } => {
+                write!(formatter, "solver configuration invalid: {message}")
+            }
             Self::Declaration { message } => {
                 write!(formatter, "runtime declaration failed: {message}")
             }

@@ -1,8 +1,8 @@
 // Tests for constraint set types.
 
 use super::super::{
-    ConstraintSet, ConstraintSetSource, IncrementalConstraint, IncrementalConstraintSealed,
-    OrderedConstraintSetChain,
+    ConstraintSet, ConstraintSetSource, IncrementalConstraint, OrderedConstraintSetChain,
+    SingleConstraint,
 };
 use solverforge_core::score::SoftScore;
 use solverforge_core::ConstraintRef;
@@ -66,7 +66,7 @@ where
     }
 }
 
-impl<S, F> IncrementalConstraintSealed for CountingConstraint<S, F> {}
+impl<S, F> SingleConstraint for CountingConstraint<S, F> {}
 
 impl<S, F> IncrementalConstraint<S, SoftScore> for CountingConstraint<S, F>
 where

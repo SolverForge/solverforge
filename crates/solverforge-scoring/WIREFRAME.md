@@ -154,7 +154,7 @@ src/
 │   ├── analysis.rs                                 — ScoreExplanation, ConstraintAnalysis, Indictment, IndictmentMap, DetailedConstraintMatch, etc.
 │   ├── node_sharing.rs                             — SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation
 │   ├── constraint_set/
-│   │   ├── mod.rs                                  — Re-exports ConstraintSet, ConstraintSetChain, OrderedConstraintSetChain, ConstraintSetSource, IncrementalConstraint, IncrementalConstraintSealed, ConstraintMetadata, ConstraintResult
+│   │   ├── mod.rs                                  — Re-exports ConstraintSet, ConstraintSetChain, OrderedConstraintSetChain, ConstraintSetSource, IncrementalConstraint, SingleConstraint, ConstraintMetadata, ConstraintResult
 │   │   ├── chain.rs                                — ConstraintSetChain, OrderedConstraintSetChain, and authored-order source spans
 │   │   ├── incremental.rs                          — IncrementalConstraint trait, ConstraintSet trait, result and metadata types
 │   │   ├── blanket.rs                              — ConstraintSet for every IncrementalConstraint (singleton set)
@@ -172,7 +172,7 @@ src/
 │   ├── shared.rs                                   — compute_hash<T>() utility function
 │   ├── list_precedence.rs                          — ListPrecedenceMakespanConstraint<S>; stock incremental list-plus-fixed-precedence makespan scoring with optional fixed owner checks
 │   ├── list_precedence/{graph,route}.rs            — Precedence-graph refresh and per-owner route bookkeeping for ListPrecedenceMakespanConstraint
-│   ├── incremental_markers.rs                      — Hidden IncrementalConstraintSealed impls for built-in constraint types
+│   ├── single_constraint_markers.rs                — SingleConstraint impls for built-in constraint types
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
 │   ├── score_sum.rs                                — Crate-private batch score accumulation with one overflow check
 │   ├── balance.rs                                  — BalanceConstraint<S,A,K,E,F,KF,Sc>
@@ -340,7 +340,7 @@ pub use constraint::{IncrementalUniConstraint, ListPrecedenceMakespanConstraint}
 // Constraint Set
 pub use api::constraint_set::{
     ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
-    IncrementalConstraintSealed,
+    SingleConstraint,
 };
 pub use api::node_sharing::{SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation};
 
@@ -395,7 +395,11 @@ pub use stream::{
 Committed score-state snapshot used to roll back speculative evaluation. Fields:
 `solution_score`, `committed_score`, `initialized`.
 
-### `IncrementalConstraint<S, Sc: Score>` — `IncrementalConstraintSealed + Send + Sync`
+### `SingleConstraint`
+
+Marker that a type is one constraint. Every `IncrementalConstraint` is a one-constraint `ConstraintSet` through a blanket impl; the marker keeps that impl coherent with the tuple and chain sets. Hand-written constraints add `impl SingleConstraint for T {}`.
+
+### `IncrementalConstraint<S, Sc: Score>` — `SingleConstraint + Send + Sync`
 
 | Method | Signature | Note |
 |--------|-----------|------|

@@ -19,5 +19,5 @@ pub use analysis::{
 };
 pub use constraint_set::{
     ConstraintMetadata, ConstraintSet, ConstraintSetChain, ConstraintSetSource,
-    IncrementalConstraint, IncrementalConstraintSealed, OrderedConstraintSetChain,
+    IncrementalConstraint, OrderedConstraintSetChain, SingleConstraint,
 };

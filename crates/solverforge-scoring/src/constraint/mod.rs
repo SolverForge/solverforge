@@ -15,12 +15,12 @@ fully monomorphized.
 pub mod macros;
 pub mod balance;
 pub mod incremental;
-mod incremental_markers;
 pub mod list_precedence;
 pub mod projected;
 pub mod relational;
 pub(crate) mod score_sum;
 pub mod shared;
+mod single_constraint_markers;
 
 #[cfg(test)]
 mod tests;

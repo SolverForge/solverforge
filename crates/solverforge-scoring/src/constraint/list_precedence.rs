@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use solverforge_core::score::HardSoftScore;
 use solverforge_core::ConstraintRef;
 
-use crate::api::constraint_set::{IncrementalConstraint, IncrementalConstraintSealed};
+use crate::api::constraint_set::{IncrementalConstraint, SingleConstraint};
 
 mod graph;
 mod route;
@@ -113,7 +113,7 @@ impl<S> ListPrecedenceMakespanConstraint<S> {
     }
 }
 
-impl<S> IncrementalConstraintSealed for ListPrecedenceMakespanConstraint<S> {}
+impl<S> SingleConstraint for ListPrecedenceMakespanConstraint<S> {}
 
 impl<S> IncrementalConstraint<S, HardSoftScore> for ListPrecedenceMakespanConstraint<S>
 where

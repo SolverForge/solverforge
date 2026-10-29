@@ -11,7 +11,6 @@ mod tests;
 
 pub use chain::{ConstraintSetChain, ConstraintSetSource, OrderedConstraintSetChain};
 pub use incremental::{
-    ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
-    IncrementalConstraintSealed,
+    ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint, SingleConstraint,
 };
 pub(crate) use weighting::{scale_contribution, scale_contribution_parts};

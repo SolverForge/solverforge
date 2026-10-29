@@ -87,7 +87,7 @@ The facade, `solverforge-console`, `solverforge-macros`, `solverforge-bridge` an
 - `ConstraintMetadata<'a>` (borrowed constraint identity view)
 - `SharedNodeDiagnostics`, `SharedNodeId`, `SharedNodeOperation`
 - `IncrementalConstraint` (trait)
-- `IncrementalConstraintSealed` (marker trait required by direct custom `IncrementalConstraint` implementors)
+- `SingleConstraint` (marker trait every hand-written `IncrementalConstraint` implements with an empty impl)
 - `IncrementalUniConstraint`
 - `ListPrecedenceMakespanConstraint`
 - `Projection` (trait)

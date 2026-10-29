@@ -11,7 +11,7 @@ use crate::api::{
     analysis::{ConstraintAnalysis, ConstraintJustification, DetailedConstraintMatch},
     constraint_set::{
         ConstraintMetadata, ConstraintResult, ConstraintSet, IncrementalConstraint,
-        IncrementalConstraintSealed,
+        SingleConstraint,
     },
 };
 use crate::stream::relational::operator::Operator;
@@ -386,7 +386,7 @@ where
     }
 }
 
-impl<S, O, A, W, Sc> IncrementalConstraintSealed
+impl<S, O, A, W, Sc> SingleConstraint
     for SharedOperatorTerminal<S, O, A, OperatorScorer<W, Sc>, Sc>
 {
 }

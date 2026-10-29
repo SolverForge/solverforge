@@ -4,7 +4,7 @@ use super::*;
 use crate::heuristic::r#move::list_ruin::final_positions_after_insertions;
 use smallvec::SmallVec;
 use solverforge_core::ConstraintRef;
-use solverforge_scoring::{IncrementalConstraint, IncrementalConstraintSealed};
+use solverforge_scoring::{IncrementalConstraint, SingleConstraint};
 
 #[derive(Clone, Debug)]
 struct Route {
@@ -111,7 +111,7 @@ impl RouteScoreConstraint {
     }
 }
 
-impl IncrementalConstraintSealed for RouteScoreConstraint {}
+impl SingleConstraint for RouteScoreConstraint {}
 
 impl IncrementalConstraint<VrpSolution, SoftScore> for RouteScoreConstraint {
     fn evaluate(&self, solution: &VrpSolution) -> SoftScore {

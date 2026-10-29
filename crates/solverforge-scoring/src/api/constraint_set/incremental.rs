@@ -11,8 +11,14 @@ use super::super::analysis::{ConstraintAnalysis, DetailedConstraintMatch};
 use super::weighting::{scale_contribution, scale_contribution_parts};
 use crate::constraint::score_sum::checked;
 
-#[doc(hidden)]
-pub trait IncrementalConstraintSealed {}
+/// Marks a type as one constraint.
+///
+/// Every [`IncrementalConstraint`] is also a one-constraint [`ConstraintSet`]
+/// through a blanket impl; this marker is what keeps that impl coherent with
+/// the tuple and chain constraint sets. A hand-written constraint adds the
+/// empty `impl SingleConstraint for MyConstraint {}` next to its
+/// `IncrementalConstraint` impl.
+pub trait SingleConstraint {}
 
 /* A single constraint with incremental scoring capability.
 
@@ -30,7 +36,7 @@ The incremental methods allow delta-based score updates:
 
 This avoids full re-evaluation on every move.
 */
-pub trait IncrementalConstraint<S, Sc: Score>: IncrementalConstraintSealed + Send + Sync {
+pub trait IncrementalConstraint<S, Sc: Score>: SingleConstraint + Send + Sync {
     /* Full evaluation of this constraint.
 
     Iterates all entities and computes the total score impact.

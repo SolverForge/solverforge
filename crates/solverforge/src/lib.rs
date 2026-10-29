@@ -134,9 +134,8 @@ Constraint API
 
 pub use solverforge_scoring::{
     fixed_weight, hard_weight, ConstraintMetadata, ConstraintSet, FixedWeight, HardWeight,
-    IncrementalConstraint, IncrementalConstraintSealed, IncrementalUniConstraint,
-    ListPrecedenceMakespanConstraint, Projection, ProjectionSink, SharedNodeDiagnostics,
-    SharedNodeId, SharedNodeOperation,
+    IncrementalConstraint, IncrementalUniConstraint, ListPrecedenceMakespanConstraint, Projection,
+    ProjectionSink, SharedNodeDiagnostics, SharedNodeId, SharedNodeOperation, SingleConstraint,
 };
 
 /* ============================================================================

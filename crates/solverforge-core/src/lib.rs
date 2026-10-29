@@ -1,11 +1,11 @@
-/* SolverForge Core - Core types and traits for constraint solving
-
-This crate provides the fundamental abstractions for SolverForge:
-- Score types for representing solution quality
-- Domain traits for defining planning problems
-- Descriptor types for runtime metadata
-- Constraint types for incremental evaluation
-*/
+//! Core types and traits for SolverForge.
+//!
+//! Applications use them through the `solverforge` facade. This crate
+//! provides:
+//! - Score types for representing solution quality
+//! - Domain traits for defining planning problems
+//! - Descriptor types for runtime metadata
+//! - Constraint types for incremental evaluation
 
 /* PhantomData<(fn() -> T, ...)> is an intentional pattern to avoid inheriting
 trait bounds from phantom type parameters. Clippy's type_complexity lint

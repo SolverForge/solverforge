@@ -1,9 +1,10 @@
-/* CVRP domain helpers for SolverForge.
+//! CVRP domain helpers for SolverForge.
+//!
+//! Provides `ProblemData`, `MatrixDistanceMeter`, `MatrixIntraDistanceMeter`,
+//! the `VrpSolution` trait, and the stock helpers behind
+//! `#[planning_list_variable(domain = "cvrp")]`.
 
-Provides `ProblemData`, `MatrixDistanceMeter`, `MatrixIntraDistanceMeter`,
-the `VrpSolution` trait, and the stock helpers behind
-`#[planning_list_variable(domain = "cvrp")]`.
-*/
+#![warn(missing_docs)]
 
 mod helpers;
 mod meters;

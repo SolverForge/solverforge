@@ -1,39 +1,91 @@
-/* SolverForge - A Constraint Solver in Rust
+//! SolverForge is a constraint solver for planning and scheduling problems:
+//! you describe what may change and what makes a plan good or bad, and the
+//! solver searches for the best plan it can find in the time you give it.
+//!
+//! This crate is the facade: it re-exports the model macros, score types,
+//! constraint streams, configuration and the [`SolverManager`] that runs
+//! solves. The repository README walks through the concepts, and
+//! `examples/` holds complete applications.
+//!
+//! # Quick Start
+//!
+//! A model is a directory of ordinary Rust modules (`src/domain` in an
+//! application). Problem facts are the inputs the solver reads:
+//!
+//! ```rust,ignore
+#![doc = include_str!("../doc/quick_start/employee.rs")]
+//! ```
+//!
+//! Planning entities hold the planning variables the solver assigns. A scalar
+//! planning variable stores the index of its value in a solution collection:
+//!
+//! ```rust,ignore
+#![doc = include_str!("../doc/quick_start/shift.rs")]
+//! ```
+//!
+//! The planning solution owns the collections, the score and the
+//! constraints, and links the solver configuration (`solver.toml` holds
+//! `[termination] seconds_spent_limit = 5`):
+//!
+//! ```rust,ignore
+#![doc = include_str!("../doc/quick_start/schedule.rs")]
+//! ```
+//!
+//! `planning_model!` in the domain's `mod.rs` lists those modules, and
+//! [`SolverManager`] solves a problem on a background thread, streaming
+//! progress and the final solution as [`SolverEvent`]s. The three files
+//! above are this example's `doc/quick_start` directory, so it compiles
+//! against exactly the code shown:
+//!
+//! ```rust,no_run
+//! solverforge::planning_model! {
+//!     root = "doc/quick_start";
+//!
+//! #   #[path = "../doc/quick_start/employee.rs"]
+//!     mod employee;
+//! #   #[path = "../doc/quick_start/schedule.rs"]
+//!     mod schedule;
+//! #   #[path = "../doc/quick_start/shift.rs"]
+//!     mod shift;
+//!
+//!     pub use employee::Employee;
+//!     pub use schedule::Schedule;
+//!     pub use shift::Shift;
+//! }
+//!
+//! use solverforge::{SolverEvent, SolverManager};
+//!
+//! static MANAGER: SolverManager<Schedule> = SolverManager::new();
+//!
+//! fn main() {
+//!     let schedule = Schedule {
+//!         employees: ["Amina", "Bruno"]
+//!             .iter()
+//!             .enumerate()
+//!             .map(|(id, name)| Employee { id, name: name.to_string() })
+//!             .collect(),
+//!         shifts: (0..4)
+//!             .map(|id| Shift { id, day: id as u32 / 2, employee_idx: None })
+//!             .collect(),
+//!         score: None,
+//!     };
+//!
+//!     let (job_id, mut events) = MANAGER.solve(schedule).expect("solver job should start");
+//!     while let Some(event) = events.blocking_recv() {
+//!         match event {
+//!             SolverEvent::Completed { solution, .. } => {
+//!                 println!("score: {:?}", solution.score);
+//!                 break;
+//!             }
+//!             SolverEvent::Failed { error, .. } => panic!("solve failed: {error}"),
+//!             _ => {}
+//!         }
+//!     }
+//!     MANAGER.delete(job_id).expect("finished job should delete");
+//! }
+//! ```
 
-SolverForge is a high-performance constraint satisfaction/optimization solver.
-It helps you optimize planning and scheduling problems.
-
-# Quick Start
-
-```
-use solverforge::prelude::*;
-
-#[problem_fact]
-pub struct Employee {
-#[planning_id]
-pub id: i64,
-pub name: String,
-}
-
-#[planning_entity]
-pub struct Shift {
-#[planning_id]
-pub id: i64,
-#[planning_variable(value_range_provider = "employees", allows_unassigned = true)]
-pub employee_idx: Option<usize>,
-}
-
-#[planning_solution]
-pub struct Schedule {
-#[problem_fact_collection]
-pub employees: Vec<Employee>,
-#[planning_entity_collection]
-pub shifts: Vec<Shift>,
-#[planning_score]
-pub score: Option<HardSoftScore>,
-}
-```
-*/
+#![warn(missing_docs)]
 
 /* ============================================================================
 Attribute Macros
@@ -63,9 +115,13 @@ pub use solverforge_core::{
     ConstraintWeightError, ConstraintWeights, MAX_CONSTRAINT_WEIGHT_MULTIPLIER,
 };
 
+/// Stock CVRP profile: problem data, distance meters and route hooks.
 pub mod cvrp;
+/// Scalar and repair planning types and source-to-target helpers.
 pub mod planning;
+/// Glob import for domain models and constraint providers.
 pub mod prelude;
+/// Fluent constraint stream API.
 pub mod stream;
 
 #[doc(hidden)]

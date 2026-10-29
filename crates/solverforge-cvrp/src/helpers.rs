@@ -36,6 +36,7 @@ fn optional_problem_data_for_entity<S: VrpSolution>(
     unsafe { ptr.as_ref() }
 }
 
+/// Depot location of vehicle `entity_idx`, or `0` when it has no problem data.
 pub fn depot_for_entity<S: VrpSolution>(plan: &S, entity_idx: usize) -> usize {
     problem_data_for_entity(plan, entity_idx).map_or(0, |data| data.depot)
 }

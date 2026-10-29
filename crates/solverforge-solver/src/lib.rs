@@ -1,13 +1,14 @@
-/* SolverForge Solver Engine
-
-This crate provides the main solver implementation including:
-- Solver and SolverFactory
-- Phases (construction heuristic, local search, exhaustive search)
-- Move system
-- Termination conditions
-- Tracing-based structured logging
-- Configuration wiring (builder module)
-*/
+//! The SolverForge solver engine.
+//!
+//! Applications use it through the `solverforge` facade. It contains:
+//! - [`SolverManager`], which runs solve jobs and streams [`SolverEvent`]s,
+//!   and [`Solver`], one configured solve;
+//! - the phases: construction heuristics, local search, exhaustive search,
+//!   partitioned search and the list construction heuristics;
+//! - moves and the selectors that enumerate them;
+//! - termination conditions, and the [`builder`] module that turns a
+//!   `solverforge_config::SolverConfig` into phases;
+//! - the compiled [`runtime`] the generated model code solves through.
 
 /* PhantomData<(fn() -> T, ...)> is an intentional pattern to avoid inheriting
 trait bounds from phantom type parameters. Clippy's type_complexity lint

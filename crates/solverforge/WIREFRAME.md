@@ -33,11 +33,14 @@ The CLI lives in the standalone `solverforge-cli` repository and is not part of 
 src/
 ├── __internal.rs  — Hidden macro support re-exports and helpers
 ├── cvrp.rs        — CVRP facade re-exports
-├── lib.rs         — Top-level crate re-exports and module declarations
+├── lib.rs         — Crate docs (`//!`, Quick Start doctest), top-level re-exports and module declarations
 ├── planning.rs    — Planning target helpers for scalar groups and conflict repair
 ├── prelude.rs     — Prelude exports
 └── stream.rs      — Fluent constraint stream facade
+doc/quick_start/   — Quick Start model (employee, shift, schedule, solver.toml) included by the crate docs and compiled by its doctest
 ```
+
+The facade, `solverforge-console`, `solverforge-macros`, `solverforge-bridge` and `solverforge-cvrp` set `#![warn(missing_docs)]`; CI's clippy `-D warnings` makes an undocumented public item an error.
 
 ## Public Re-exports
 

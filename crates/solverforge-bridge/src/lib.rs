@@ -6,6 +6,8 @@
 //! dynamic state without pretending that one host-language entity class maps to
 //! one concrete Rust entity type.
 
+#![warn(missing_docs)]
+
 mod backend;
 mod ids;
 mod runner;

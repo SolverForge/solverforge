@@ -13,13 +13,23 @@ pub(crate) const MAX_SAFE_LEG_COST: i64 = i64::MAX / 4;
 /// freely during local search without copying matrices.
 #[derive(Clone, Debug)]
 pub struct ProblemData {
+    /// Vehicle capacity, in the units of `demands`.
     pub capacity: i64,
+    /// Location index of the depot every route starts and ends at.
     pub depot: usize,
+    /// Demand of each location, indexed by location.
     pub demands: Vec<i32>,
+    /// Distance from location `[from][to]`; [`UNREACHABLE`] marks a leg that
+    /// cannot be traversed.
     pub distance_matrix: Vec<Vec<i64>>,
+    /// `(earliest, latest)` service start of each location.
     pub time_windows: Vec<(i64, i64)>,
+    /// Service time spent at each location.
     pub service_durations: Vec<i64>,
+    /// Travel time from location `[from][to]`; [`UNREACHABLE`] marks a leg that
+    /// cannot be traversed.
     pub travel_times: Vec<Vec<i64>>,
+    /// Time each vehicle leaves the depot.
     pub vehicle_departure_time: i64,
 }
 

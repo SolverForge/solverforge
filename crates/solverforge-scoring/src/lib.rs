@@ -1,15 +1,18 @@
-/*
-Zero-erasure incremental constraint scoring for SolverForge.
-
-This crate provides monomorphized incremental scoring infrastructure:
-- Zero-erasure incremental constraints (IncrementalUniConstraint, etc.)
-- Incremental score directors (ScoreDirector)
-- Tuple-based constraint sets (zero virtual dispatch)
-
-Architecture:
-All scoring is fully monomorphized - no Box<dyn Trait> in hot paths.
-Closures are stored as generic type parameters, not Arc<dyn Fn>.
-*/
+//! Incremental constraint scoring for SolverForge.
+//!
+//! Applications use it through the `solverforge` facade. It provides:
+//! - the constraint stream API (`stream`): `for_each`, joins, filters,
+//!   grouping and the `penalize`/`reward` terminals that build constraints;
+//! - incremental constraints such as [`IncrementalUniConstraint`], which
+//!   update their score from the entities a move changed instead of
+//!   rescoring the whole solution;
+//! - [`ScoreDirector`], which owns the working solution and its constraint
+//!   set and keeps the score current as moves are applied and undone;
+//! - [`ConstraintSet`], a tuple of constraints evaluated without dynamic
+//!   dispatch.
+//!
+//! Every constraint is monomorphized: closures are generic parameters, and
+//! there is no `Box<dyn Trait>` on the scoring path.
 
 // Zero-erasure architecture intentionally uses complex generic types
 #![allow(clippy::type_complexity)]

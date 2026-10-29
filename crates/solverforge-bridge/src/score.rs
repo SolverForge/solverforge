@@ -11,9 +11,14 @@ use solverforge_core::score::{
 /// Declared host-language score family.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum DynamicScoreFamily {
+    /// One soft level, like `SoftScore`.
     Soft,
+    /// Hard and soft levels, like `HardSoftScore`.
     HardSoft,
+    /// Hard and soft levels in fixed-point hundred-thousandths, like
+    /// `HardSoftDecimalScore`.
     HardSoftDecimal,
+    /// Hard, medium and soft levels, like `HardMediumSoftScore`.
     #[default]
     HardMediumSoft,
 }
@@ -69,26 +74,34 @@ impl Drop for ActiveScoreFamilyGuard<'_> {
 /// the solve, not of the value; see [`scoped_dynamic_score_family`].
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DynamicScore {
+    /// Hard level; zero in the `Soft` family.
     pub hard: i64,
+    /// Medium level; zero outside the `HardMediumSoft` family.
     pub medium: i64,
+    /// Soft level.
     pub soft: i64,
 }
 
 impl DynamicScore {
+    /// The score with every level zero.
     pub const ZERO: Self = Self::of(0, 0, 0);
 
+    /// A score from its hard, medium and soft levels.
     pub const fn of(hard: i64, medium: i64, soft: i64) -> Self {
         Self { hard, medium, soft }
     }
 
+    /// A score with only a soft level.
     pub const fn soft(soft: i64) -> Self {
         Self::of(0, 0, soft)
     }
 
+    /// A score with hard and soft levels and a zero medium level.
     pub const fn hard_soft(hard: i64, soft: i64) -> Self {
         Self::of(hard, 0, soft)
     }
 
+    /// The levels `family` declares, hardest first.
     pub fn family_levels(self, family: DynamicScoreFamily) -> Vec<i64> {
         match family {
             DynamicScoreFamily::Soft => vec![self.soft],

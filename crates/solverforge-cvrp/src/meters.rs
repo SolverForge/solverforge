@@ -3,7 +3,9 @@ use solverforge_solver::CrossEntityDistanceMeter;
 use crate::helpers::problem_data_for_entity;
 use crate::VrpSolution;
 
-// Cross-entity distance meter backed by the solution's distance matrix.
+/// Cross-entity distance meter backed by the solution's distance matrix.
+///
+/// Positions outside a route and unreachable legs measure `f64::INFINITY`.
 #[derive(Clone, Debug, Default)]
 pub struct MatrixDistanceMeter;
 
@@ -27,7 +29,9 @@ impl<S: VrpSolution> CrossEntityDistanceMeter<S> for MatrixDistanceMeter {
     }
 }
 
-// Intra-entity distance meter backed by the solution's distance matrix.
+/// Intra-entity distance meter backed by the solution's distance matrix.
+///
+/// Positions outside the route and unreachable legs measure `f64::INFINITY`.
 #[derive(Clone, Debug, Default)]
 pub struct MatrixIntraDistanceMeter;
 

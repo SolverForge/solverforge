@@ -1,4 +1,11 @@
-// Macros for SolverForge domain models.
+//! Procedural macros for SolverForge domain models.
+//!
+//! Use them through the `solverforge` facade, which re-exports
+//! `planning_model!`, `#[planning_solution]`, `#[planning_entity]`,
+//! `#[problem_fact]` and `#[solverforge_constraints]`; the generated code
+//! refers to `::solverforge` paths.
+
+#![warn(missing_docs)]
 
 use proc_macro::TokenStream;
 
@@ -11,26 +18,35 @@ mod planning_model;
 mod planning_solution;
 mod problem_fact;
 
+/// Derives planning-entity metadata for a struct: its `#[planning_id]`,
+/// scalar and list planning variables, and shadow variables.
 #[proc_macro_attribute]
 pub fn planning_entity(attr: TokenStream, item: TokenStream) -> TokenStream {
     entrypoints::planning_entity_attr(attr, item)
 }
 
+/// Derives the planning solution: entity and fact collections, the score
+/// field, the runtime model and the generated `Solvable` solve entry point.
 #[proc_macro_attribute]
 pub fn planning_solution(attr: TokenStream, item: TokenStream) -> TokenStream {
     entrypoints::planning_solution_attr(attr, item)
 }
 
+/// Derives problem-fact metadata for an immutable input struct.
 #[proc_macro_attribute]
 pub fn problem_fact(attr: TokenStream, item: TokenStream) -> TokenStream {
     entrypoints::problem_fact_attr(attr, item)
 }
 
+/// Compiles a constraint-provider function's constraint streams into one
+/// shared, incremental constraint set.
 #[proc_macro_attribute]
 pub fn solverforge_constraints(attr: TokenStream, item: TokenStream) -> TokenStream {
     entrypoints::solverforge_constraints_attr(attr, item)
 }
 
+/// Declares a domain's model manifest: the solution, entity and fact modules
+/// that make up one planning model.
 #[proc_macro]
 pub fn planning_model(input: TokenStream) -> TokenStream {
     entrypoints::planning_model_macro(input)

@@ -9,9 +9,6 @@ pub enum ConfigError {
     #[error("TOML parse error: {0}")]
     Toml(#[from] toml::de::Error),
 
-    #[error("YAML parse error: {0}")]
-    Yaml(#[from] serde_yaml::Error),
-
     #[error("Invalid configuration: {0}")]
     Invalid(String),
 }

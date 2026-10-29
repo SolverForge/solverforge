@@ -149,7 +149,7 @@ replacement for every public fluent stream family.
   use strict capacity, time-window, and unreachable-leg feasibility;
   Clarke-Wright construction uses relaxed savings admissibility so assignment
   remains score-comparable.
-- **Configuration**: TOML/YAML support with builder APIs, bounded candidate tracing, per-selector ordering and host metrics, weighted union scheduling, score tie-breaking, grouped scalar and conflict-repair selectors, and level-aware simulated annealing configuration
+- **Configuration**: TOML support with builder APIs, bounded candidate tracing, per-selector ordering and host metrics, weighted union scheduling, score tie-breaking, grouped scalar and conflict-repair selectors, and level-aware simulated annealing configuration
 - **Console Output**: Colorful tracing-based progress display with solve telemetry
 
 Grouped scoring weights receive both the group key and collected result:
@@ -572,7 +572,7 @@ solverforge
   |-- solverforge-core      scores, domain traits, descriptors, logical IDs
   |-- solverforge-macros    planning_model! and attribute macros
   |-- solverforge-scoring   ConstraintStream API and SERIO scoring
-  |-- solverforge-config    TOML/YAML configuration
+  |-- solverforge-config    TOML configuration
   |-- solverforge-solver    phases, moves, selectors, runtime, SolverManager
   |-- solverforge-bridge    dynamic host-language binding contracts
   |-- solverforge-cvrp      CVRP profile helpers, traits, meters, and hook bundles
@@ -871,7 +871,7 @@ The current checked-in workspace exposes:
   conflict-repair, ruin-recreate, cartesian, and nearby neighborhoods;
 - retained `SolverManager` jobs with progress events, exact pause/resume,
   snapshots, checkpoint status, telemetry, and snapshot-bound analysis;
-- TOML/YAML solver configuration plus programmatic overrides;
+- TOML solver configuration plus programmatic overrides;
 - optional console rendering through the `console` feature; and
 - five workspace examples validated by `make examples`.
 

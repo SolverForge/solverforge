@@ -1,6 +1,6 @@
 # solverforge-config WIREFRAME
 
-Serde-based configuration system for loading solver settings from TOML or YAML files.
+Serde-based configuration system for loading solver settings from TOML files.
 
 **Location:** `crates/solverforge-config/`
 **Workspace Release:** `0.23.0`
@@ -10,7 +10,6 @@ Serde-based configuration system for loading solver settings from TOML or YAML f
 - `solverforge-core` (path) — Core types (unused at runtime; version-aligned dependency)
 - `serde` (workspace) — Serialization/deserialization
 - `toml` (workspace) — TOML parsing
-- `serde_yaml` (workspace) — YAML parsing
 - `thiserror` (workspace) — Error derivation
 
 ## File Map
@@ -27,7 +26,7 @@ src/
 ├── solver_config.rs — SolverConfig, bounded candidate-trace config, canonical provenance serialization, overrides, and environment/thread settings
 ├── termination.rs   — TerminationConfig
 └── tests.rs         — Test module root
-    └── tests/*.rs   — Unit tests for TOML/YAML parsing, selector config, and roundtrips
+    └── tests/*.rs   — Unit tests for TOML parsing, selector config, and roundtrips
 ```
 
 ## Public Re-exports (lib.rs)
@@ -43,7 +42,6 @@ Implementation is split by configuration family. The modules stay private, and
 pub enum ConfigError {
     Io(std::io::Error),
     Toml(toml::de::Error),
-    Yaml(serde_yaml::Error),
     Invalid(String),
 }
 ```
@@ -74,8 +72,6 @@ Top-level solver configuration. Derives: `Debug, Clone, Default, Deserialize, Se
 | `load` | `fn(path: impl AsRef<Path>) -> Result<Self, ConfigError>` | Delegates to `from_toml_file` |
 | `from_toml_file` | `fn(path: impl AsRef<Path>) -> Result<Self, ConfigError>` | Reads file, parses TOML |
 | `from_toml_str` | `fn(s: &str) -> Result<Self, ConfigError>` | Parses TOML string |
-| `from_yaml_file` | `fn(path: impl AsRef<Path>) -> Result<Self, ConfigError>` | Reads file, parses YAML |
-| `from_yaml_str` | `fn(s: &str) -> Result<Self, ConfigError>` | Parses YAML string |
 | `with_termination_seconds` | `fn(self, seconds: u64) -> Self` | Builder: sets seconds_spent_limit |
 | `with_random_seed` | `fn(self, seed: u64) -> Self` | Builder: sets random_seed |
 | `with_phase` | `fn(self, phase: PhaseConfig) -> Self` | Builder: appends phase |
@@ -857,7 +853,7 @@ Decorator notes:
 ## Architectural Notes
 
 - **Pure data crate.** No solver logic — only serde structs and parsing. Consumed by `solverforge-solver` which maps these configs to runtime phase/acceptor/forager/selector enums.
-- **All serde `rename_all = "snake_case"`** for consistent TOML/YAML key naming.
+- **All serde `rename_all = "snake_case"`** for consistent TOML key naming.
 - **Internally-tagged enums** (`#[serde(tag = "type")]`) for `PhaseConfig`, `AcceptorConfig`, `MoveSelectorConfig` — the `type` field selects the variant.
 - **`SolverConfigOverride` is not serde.** It exists for runtime termination overrides only.
 - **No traits defined.** This crate defines no traits — it is a config schema consumed by other crates.

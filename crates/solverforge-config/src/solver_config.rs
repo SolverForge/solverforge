@@ -71,17 +71,6 @@ impl SolverConfig {
         Ok(toml::from_str(s)?)
     }
 
-    /// Loads configuration from a YAML file.
-    pub fn from_yaml_file(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
-        let contents = std::fs::read_to_string(path)?;
-        Self::from_yaml_str(&contents)
-    }
-
-    /// Parses configuration from a YAML string.
-    pub fn from_yaml_str(s: &str) -> Result<Self, ConfigError> {
-        Ok(serde_yaml::from_str(s)?)
-    }
-
     pub fn with_termination_seconds(mut self, seconds: u64) -> Self {
         self.termination = Some(TerminationConfig {
             seconds_spent_limit: Some(seconds),

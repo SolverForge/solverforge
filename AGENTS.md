@@ -33,7 +33,7 @@ solverforge (facade + re-exports)
     |
     |-- solverforge-solver   - Phases, moves, selectors, termination, SolverManager
     |-- solverforge-scoring  - ConstraintStream API, SERIO incremental scoring
-    |-- solverforge-config   - TOML/YAML configuration
+    |-- solverforge-config   - TOML configuration
     |-- solverforge-bridge   - Dynamic host-language binding contracts
     |-- solverforge-console  - Tracing-driven console output and progress formatting
     |-- solverforge-cvrp     - CVRP profile helpers, traits, meters, and hook bundles

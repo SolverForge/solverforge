@@ -3,7 +3,7 @@
 # Zero-Erasure Design
 
 All types flow through generics - no Box, Arc, or dyn anywhere.
-Runtime configuration from TOML/YAML is handled by the macro layer
+Runtime configuration from TOML is handled by the macro layer
 which generates concrete types at compile time.
 */
 

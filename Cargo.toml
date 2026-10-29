@@ -40,7 +40,6 @@ solverforge-cvrp = { path = "crates/solverforge-cvrp" }
 thiserror = "2.0.18"
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "1.1.2"
-serde_yaml = "0.9.34"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio = { version = "1.52.1", default-features = false }

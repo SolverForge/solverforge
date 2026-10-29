@@ -30,27 +30,6 @@ fn test_toml_parsing() {
 }
 
 #[test]
-fn test_yaml_parsing() {
-    let yaml = r#"
-        environment_mode: reproducible
-        random_seed: 42
-        termination:
-          seconds_spent_limit: 30
-        phases:
-          - type: construction_heuristic
-            construction_heuristic_type: first_fit_decreasing
-          - type: local_search
-            acceptor:
-              type: late_acceptance
-              late_acceptance_size: 400
-    "#;
-
-    let config = SolverConfig::from_yaml_str(yaml).unwrap();
-    assert_eq!(config.environment_mode, EnvironmentMode::Reproducible);
-    assert_eq!(config.random_seed, Some(42));
-}
-
-#[test]
 fn test_builder() {
     let config = SolverConfig::new()
         .with_random_seed(123)

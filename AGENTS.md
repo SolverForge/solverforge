@@ -42,7 +42,9 @@ solverforge (facade + re-exports)
     `-> solverforge-core     - Score types, domain traits, descriptors
 ```
 
-Publishing order: `core -> macros -> scoring -> config -> solver -> bridge -> cvrp -> console -> facade`
+Publishing runs only in the Release workflow (`.github/workflows/release.yml`,
+see `RELEASE.md`); cargo derives the upload order from the crates' dependencies,
+so the order is not listed anywhere by hand.
 
 Standalone ecosystem repos such as `solverforge-cli`, `solverforge-ui`, and `solverforge-maps` are not part of this workspace. Treat references to them as external integrations, not in-repo crates.
 

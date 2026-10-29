@@ -880,8 +880,8 @@ steps live in [RELEASE.md](RELEASE.md).
 
 ## Release Operations
 
-The workspace release checklist, publish order, and crate stability matrix live
-in [RELEASE.md](RELEASE.md). Version bumps are explicit release decisions, and
+The workspace release checklist, release pipeline, and crate stability matrix
+live in [RELEASE.md](RELEASE.md). Version bumps are explicit release decisions, and
 `CHANGELOG.md` remains managed by the `csemver` release tool (configured in
 `csemver.toml`) rather than hand-maintained in feature branches.
 

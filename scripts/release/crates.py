@@ -4,7 +4,8 @@
     crates.py version              print the shared workspace release version
     crates.py publishable          print the publishable package names
     crates.py unpublished VERSION  print the publishable packages whose VERSION
-                                   is not yet in the crates.io index
+                                   is not yet in the crates.io index, logging
+                                   each package it skips to stderr
 
 `version` fails unless every publishable package carries the same version.
 `unpublished` fails on any index error other than "crate not found", so a
@@ -87,7 +88,9 @@ def main(argv):
         if version != expected:
             sys.exit(f"requested version {version} is not the workspace version {expected}")
         for package in packages:
-            if version not in published_versions(package["name"]):
+            if version in published_versions(package["name"]):
+                print(f"skip {package['name']} {version} (already on crates.io)", file=sys.stderr)
+            else:
                 print(package["name"])
     else:
         sys.exit(__doc__)

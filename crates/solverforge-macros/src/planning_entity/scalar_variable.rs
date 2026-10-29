@@ -213,7 +213,7 @@ pub(super) fn generate_scalar_helpers(
     })
 }
 
-fn parse_range(field: &syn::Field, range: &str) -> Result<(i64, i64), Error> {
+pub(super) fn parse_range(field: &syn::Field, range: &str) -> Result<(i64, i64), Error> {
     let parts: Vec<_> = range.split("..").collect();
     if parts.len() != 2 {
         return Err(Error::new_spanned(

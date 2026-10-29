@@ -1,9 +1,9 @@
 pub(super) fn generate_runtime_phase_support(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::token::Comma>,
-    constraints_path: &Option<String>,
-    conflict_repairs_path: &Option<String>,
-    scalar_groups_path: &Option<String>,
-    search_path: &Option<String>,
+    constraints_path: &Option<syn::Path>,
+    conflict_repairs_path: &Option<syn::Path>,
+    scalar_groups_path: &Option<syn::Path>,
+    search_path: &Option<syn::Path>,
     solution_name: &Ident,
 ) -> TokenStream {
     if constraints_path.is_none() {
@@ -27,17 +27,11 @@ pub(super) fn generate_runtime_phase_support(
     let scalar_setup = generate_scalar_runtime_setup(fields, solution_name);
     let conflict_repair_expr = conflict_repairs_path
         .as_ref()
-        .map(|path| {
-            let repairs_fn: syn::Path =
-                syn::parse_str(path).expect("conflict repairs path must be valid");
-            quote! { .with_conflict_repairs(#repairs_fn()) }
-        })
+        .map(|repairs_fn| quote! { .with_conflict_repairs(#repairs_fn()) })
         .unwrap_or_else(|| quote! {});
     let scalar_groups_expr = scalar_groups_path
         .as_ref()
-        .map(|path| {
-            let groups_fn: syn::Path =
-                syn::parse_str(path).expect("scalar groups path must be valid");
+        .map(|groups_fn| {
             quote! {
                 ::solverforge::__internal::bind_scalar_groups(
                     #groups_fn(),
@@ -52,9 +46,7 @@ pub(super) fn generate_runtime_phase_support(
                 )
             }
         });
-    let search_fn = search_path.as_ref().map(|path| {
-        syn::parse_str::<syn::Path>(path).expect("search path must be a valid Rust path")
-    });
+    let search_fn = search_path.clone();
     let scalar_candidate_count_helper =
         generate_scalar_candidate_count_helper(fields, solution_name);
 

@@ -131,12 +131,12 @@ pub(crate) fn parse_serde_flag(attr: TokenStream, macro_name: &str) -> Result<bo
 #[derive(Debug, Default)]
 pub(crate) struct SolutionFlags {
     pub(crate) has_serde: bool,
-    pub(crate) constraints_path: Option<String>,
-    pub(crate) config_path: Option<String>,
+    pub(crate) constraints_path: Option<syn::Path>,
+    pub(crate) config_path: Option<syn::Path>,
     pub(crate) solver_toml_path: Option<String>,
-    pub(crate) search_path: Option<String>,
-    pub(crate) conflict_repairs_path: Option<String>,
-    pub(crate) scalar_groups_path: Option<String>,
+    pub(crate) search_path: Option<syn::Path>,
+    pub(crate) conflict_repairs_path: Option<syn::Path>,
+    pub(crate) scalar_groups_path: Option<syn::Path>,
 }
 
 pub(crate) fn parse_solution_flags(attr: TokenStream) -> Result<SolutionFlags, Error> {
@@ -154,25 +154,22 @@ pub(crate) fn parse_solution_flags(attr: TokenStream) -> Result<SolutionFlags, E
                 flags.has_serde = true;
             }
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "constraints") => {
-                flags.constraints_path = lit_string_value(&nv.value);
+                flags.constraints_path = rust_path_argument("constraints", &nv)?;
             }
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "config") => {
-                flags.config_path = lit_string_value(&nv.value);
+                flags.config_path = rust_path_argument("config", &nv)?;
             }
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "solver_toml") => {
                 flags.solver_toml_path = lit_string_value(&nv.value);
             }
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "search") => {
-                if let Some(path) = lit_string_value(&nv.value) {
-                    validate_rust_path("search", &path, &nv)?;
-                    flags.search_path = Some(path);
-                }
+                flags.search_path = rust_path_argument("search", &nv)?;
             }
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "conflict_repairs") => {
-                flags.conflict_repairs_path = lit_string_value(&nv.value);
+                flags.conflict_repairs_path = rust_path_argument("conflict_repairs", &nv)?;
             }
             Meta::NameValue(nv) if path_matches_ident(&nv.path, "scalar_groups") => {
-                flags.scalar_groups_path = lit_string_value(&nv.value);
+                flags.scalar_groups_path = rust_path_argument("scalar_groups", &nv)?;
             }
             _ => {}
         }
@@ -181,10 +178,18 @@ pub(crate) fn parse_solution_flags(attr: TokenStream) -> Result<SolutionFlags, E
     Ok(flags)
 }
 
-fn validate_rust_path(arg_name: &str, path: &str, meta: &syn::MetaNameValue) -> Result<(), Error> {
-    syn::parse_str::<syn::Path>(path).map(|_| ()).map_err(|_| {
+/// Parses a Rust-path argument once, when the attribute is read, so a bad
+/// value is a spanned diagnostic on that argument rather than a derive panic.
+fn rust_path_argument(
+    arg_name: &str,
+    meta: &syn::MetaNameValue,
+) -> Result<Option<syn::Path>, Error> {
+    let Some(raw) = lit_string_value(&meta.value) else {
+        return Ok(None);
+    };
+    syn::parse_str::<syn::Path>(&raw).map(Some).map_err(|_| {
         Error::new_spanned(
-            meta,
+            &meta.value,
             format!("planning_solution argument `{arg_name}` must be a valid Rust path string"),
         )
     })

@@ -285,14 +285,14 @@ semantics should omit `domain = "cvrp"` and declare explicit hook paths instead.
 
 | Function | Signature | Note |
 |----------|-----------|------|
-| `parse_constraints_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_constraints_path = "..."]` |
-| `parse_config_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_config_path = "..."]` |
+| `parse_constraints_path` | `fn(&[Attribute]) -> syn::Result<Option<syn::Path>>` | Extracts and parses `#[solverforge_constraints_path = "..."]`; an unparsable path is a spanned error |
+| `parse_config_path` | `fn(&[Attribute]) -> syn::Result<Option<syn::Path>>` | Extracts and parses `#[solverforge_config_path = "..."]`; an unparsable path is a spanned error |
 | `parse_solver_toml_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_solver_toml_path = "..."]` |
-| `parse_search_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_search_path = "..."]` |
-| `parse_conflict_repairs_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_conflict_repairs_path = "..."]` |
-| `parse_scalar_groups_path` | `fn(&[Attribute]) -> Option<String>` | Extracts `#[solverforge_scalar_groups_path = "..."]` |
+| `parse_search_path` | `fn(&[Attribute]) -> syn::Result<Option<syn::Path>>` | Extracts and parses `#[solverforge_search_path = "..."]`; an unparsable path is a spanned error |
+| `parse_conflict_repairs_path` | `fn(&[Attribute]) -> syn::Result<Option<syn::Path>>` | Extracts and parses `#[solverforge_conflict_repairs_path = "..."]`; an unparsable path is a spanned error |
+| `parse_scalar_groups_path` | `fn(&[Attribute]) -> syn::Result<Option<syn::Path>>` | Extracts and parses `#[solverforge_scalar_groups_path = "..."]`; an unparsable path is a spanned error |
 | `parse_shadow_config` | `fn(&[Attribute]) -> ShadowConfig` | Parses `#[shadow_variable_updates(...)]` |
-| `generate_runtime_phase_support` | `fn(&Fields, &Option<String>, &Option<String>, &Option<String>, &Option<String>, &Ident) -> TokenStream` | Generates runtime-model assembly and the configured/custom search declaration for constraints, repairs, scalar groups, and search callbacks |
+| `generate_runtime_phase_support` | `fn(&Fields, &Option<syn::Path>, &Option<syn::Path>, &Option<syn::Path>, &Option<syn::Path>, &Ident) -> TokenStream` | Generates runtime-model assembly and the configured/custom search declaration for constraints, repairs, scalar groups, and search callbacks |
 | `shadow_updates_requested` | `fn(&ShadowConfig) -> bool` | Detects whether real shadow update work is configured |
 | `generate_list_operations` | `fn(&Fields) -> TokenStream` | Generates private owner-specific list mutation/source helpers and aggregate list entity/element counts for the canonical runtime |
 | `generate_solvable_solution` | `fn(&Ident, &Option<String>) -> TokenStream` | Generates SolvableSolution/Solvable/Analyzable impls |

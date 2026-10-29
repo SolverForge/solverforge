@@ -145,47 +145,36 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
                 };
 
                 let descriptor = if let Some(range) = countable_range {
-                    let parts: Vec<_> = range.split("..").collect();
-                    if parts.len() != 2 {
-                        quote! {
-                            compile_error!("countable_range must use `from..to` syntax");
-                        }
-                    } else {
-                        let from_lit: i64 = parts[0]
-                            .trim()
-                            .parse()
-                            .expect("countable_range start must be an integer");
-                        let to_lit: i64 = parts[1]
-                            .trim()
-                            .parse()
-                            .expect("countable_range end must be an integer");
-                        quote! {
-                            #with_provider.with_value_range_type(
-                                ::solverforge::__internal::ValueRangeType::CountableRange {
-                                    from: #from_lit,
-                                    to: #to_lit,
-                                }
-                            )
-                        }
+                    let (from_lit, to_lit) = match parse_range(field, &range) {
+                        Ok(bounds) => bounds,
+                        Err(error) => return Some(Err(error)),
+                    };
+                    quote! {
+                        #with_provider.with_value_range_type(
+                            ::solverforge::__internal::ValueRangeType::CountableRange {
+                                from: #from_lit,
+                                to: #to_lit,
+                            }
+                        )
                     }
                 } else {
                     with_provider
                 };
 
-                return Some(descriptor);
+                return Some(Ok(descriptor));
             }
 
             if has_attribute(&field.attrs, "planning_list_variable") {
                 let field_name = field.ident.as_ref().unwrap();
                 let field_name_str = field_name.to_string();
-                return Some(
+                return Some(Ok(
                     quote! { ::solverforge::__internal::VariableDescriptor::list(#field_name_str) },
-                );
+                ));
             }
 
             None
         })
-        .collect();
+        .collect::<Result<_, Error>>()?;
 
     let variable_helpers: Vec<_> = planning_variables
         .iter()

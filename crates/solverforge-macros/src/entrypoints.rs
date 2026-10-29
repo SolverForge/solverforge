@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::{parse_macro_input, parse_quote, Attribute, DeriveInput, ItemFn, ItemStruct};
+use quote::{quote, ToTokens};
+use syn::spanned::Spanned;
+use syn::{parse_macro_input, parse_quote, Attribute, DeriveInput, ItemFn, ItemStruct, LitStr};
 
 use crate::attr_validation::{parse_serde_flag, parse_solution_flags};
 
@@ -27,36 +28,31 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
     let mut leading: Vec<Attribute> = vec![parse_quote! {
         #[derive(Clone, Debug, #serde_derives ::solverforge::__internal::PlanningSolutionImpl)]
     }];
-    leading.extend(
-        flags
-            .constraints_path
-            .map(|p| parse_quote! { #[solverforge_constraints_path = #p] }),
-    );
-    leading.extend(
-        flags
-            .config_path
-            .map(|p| parse_quote! { #[solverforge_config_path = #p] }),
-    );
+    leading.extend(flags.constraints_path.map(|p| {
+        let p = hidden_path_literal(&p);
+        parse_quote! { #[solverforge_constraints_path = #p] }
+    }));
+    leading.extend(flags.config_path.map(|p| {
+        let p = hidden_path_literal(&p);
+        parse_quote! { #[solverforge_config_path = #p] }
+    }));
     leading.extend(
         flags
             .solver_toml_path
             .map(|p| parse_quote! { #[solverforge_solver_toml_path = #p] }),
     );
-    leading.extend(
-        flags
-            .search_path
-            .map(|p| parse_quote! { #[solverforge_search_path = #p] }),
-    );
-    leading.extend(
-        flags
-            .conflict_repairs_path
-            .map(|p| parse_quote! { #[solverforge_conflict_repairs_path = #p] }),
-    );
-    leading.extend(
-        flags
-            .scalar_groups_path
-            .map(|p| parse_quote! { #[solverforge_scalar_groups_path = #p] }),
-    );
+    leading.extend(flags.search_path.map(|p| {
+        let p = hidden_path_literal(&p);
+        parse_quote! { #[solverforge_search_path = #p] }
+    }));
+    leading.extend(flags.conflict_repairs_path.map(|p| {
+        let p = hidden_path_literal(&p);
+        parse_quote! { #[solverforge_conflict_repairs_path = #p] }
+    }));
+    leading.extend(flags.scalar_groups_path.map(|p| {
+        let p = hidden_path_literal(&p);
+        parse_quote! { #[solverforge_scalar_groups_path = #p] }
+    }));
     emit_with_leading_attrs(item, leading)
 }
 
@@ -71,6 +67,12 @@ pub(crate) fn problem_fact_attr(attr: TokenStream, item: TokenStream) -> TokenSt
         #[derive(Clone, Debug, PartialEq, Eq, #serde_derives ::solverforge::__internal::ProblemFactImpl)]
     };
     emit_with_leading_attrs(item, vec![derive])
+}
+
+/// The derive reads the hidden path attributes as string literals; the
+/// literal keeps the span of the user's argument.
+fn hidden_path_literal(path: &syn::Path) -> LitStr {
+    LitStr::new(&path.to_token_stream().to_string(), path.span())
 }
 
 fn serde_derives(has_serde: bool) -> proc_macro2::TokenStream {

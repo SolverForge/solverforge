@@ -118,12 +118,12 @@ pub(crate) fn expand_derive(input: DeriveInput) -> Result<TokenStream, Error> {
 
     let shadow_config = parse_shadow_config(&input.attrs);
     let shadow_support_impl = generate_shadow_support(&shadow_config, fields, name)?;
-    let constraints_path = parse_constraints_path(&input.attrs);
-    let config_path = parse_config_path(&input.attrs);
+    let constraints_path = parse_constraints_path(&input.attrs)?;
+    let config_path = parse_config_path(&input.attrs)?;
     let solver_toml_path = parse_solver_toml_path(&input.attrs);
-    let search_path = parse_search_path(&input.attrs);
-    let conflict_repairs_path = parse_conflict_repairs_path(&input.attrs);
-    let scalar_groups_path = parse_scalar_groups_path(&input.attrs);
+    let search_path = parse_search_path(&input.attrs)?;
+    let conflict_repairs_path = parse_conflict_repairs_path(&input.attrs)?;
+    let scalar_groups_path = parse_scalar_groups_path(&input.attrs)?;
     let entity_count_arms: Vec<_> = fields
         .iter()
         .filter(|f| has_attribute(&f.attrs, "planning_entity_collection"))

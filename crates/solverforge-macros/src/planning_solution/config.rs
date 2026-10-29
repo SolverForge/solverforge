@@ -1,4 +1,4 @@
-use syn::{Lit, Meta};
+use syn::{Error, Lit, LitStr, Meta, Result};
 
 use crate::attr_parse::{get_attribute, parse_attribute_list, parse_attribute_string};
 
@@ -15,13 +15,13 @@ pub(super) struct ShadowConfig {
     pub(super) entity_computes: Vec<String>,
 }
 
-fn parse_hidden_path_attr(attrs: &[syn::Attribute], attr_name: &str) -> Option<String> {
+fn hidden_string_attr(attrs: &[syn::Attribute], attr_name: &str) -> Option<LitStr> {
     for attr in attrs {
         if attr.path().is_ident(attr_name) {
             if let Meta::NameValue(nv) = &attr.meta {
                 if let syn::Expr::Lit(expr_lit) = &nv.value {
                     if let Lit::Str(lit_str) = &expr_lit.lit {
-                        return Some(lit_str.value());
+                        return Some(lit_str.clone());
                     }
                 }
             }
@@ -30,28 +30,43 @@ fn parse_hidden_path_attr(attrs: &[syn::Attribute], attr_name: &str) -> Option<S
     None
 }
 
-pub(super) fn parse_constraints_path(attrs: &[syn::Attribute]) -> Option<String> {
-    parse_hidden_path_attr(attrs, "solverforge_constraints_path")
+/// Reads a hidden attribute that names a Rust item and parses it as a path,
+/// reporting an unparsable value as a spanned error instead of panicking.
+fn hidden_rust_path_attr(attrs: &[syn::Attribute], attr_name: &str) -> Result<Option<syn::Path>> {
+    hidden_string_attr(attrs, attr_name)
+        .map(|lit| {
+            lit.parse::<syn::Path>().map_err(|_| {
+                Error::new_spanned(
+                    &lit,
+                    format!("`{attr_name}` must be a valid Rust path string"),
+                )
+            })
+        })
+        .transpose()
 }
 
-pub(super) fn parse_config_path(attrs: &[syn::Attribute]) -> Option<String> {
-    parse_hidden_path_attr(attrs, "solverforge_config_path")
+pub(super) fn parse_constraints_path(attrs: &[syn::Attribute]) -> Result<Option<syn::Path>> {
+    hidden_rust_path_attr(attrs, "solverforge_constraints_path")
+}
+
+pub(super) fn parse_config_path(attrs: &[syn::Attribute]) -> Result<Option<syn::Path>> {
+    hidden_rust_path_attr(attrs, "solverforge_config_path")
 }
 
 pub(super) fn parse_solver_toml_path(attrs: &[syn::Attribute]) -> Option<String> {
-    parse_hidden_path_attr(attrs, "solverforge_solver_toml_path")
+    hidden_string_attr(attrs, "solverforge_solver_toml_path").map(|lit| lit.value())
 }
 
-pub(super) fn parse_search_path(attrs: &[syn::Attribute]) -> Option<String> {
-    parse_hidden_path_attr(attrs, "solverforge_search_path")
+pub(super) fn parse_search_path(attrs: &[syn::Attribute]) -> Result<Option<syn::Path>> {
+    hidden_rust_path_attr(attrs, "solverforge_search_path")
 }
 
-pub(super) fn parse_conflict_repairs_path(attrs: &[syn::Attribute]) -> Option<String> {
-    parse_hidden_path_attr(attrs, "solverforge_conflict_repairs_path")
+pub(super) fn parse_conflict_repairs_path(attrs: &[syn::Attribute]) -> Result<Option<syn::Path>> {
+    hidden_rust_path_attr(attrs, "solverforge_conflict_repairs_path")
 }
 
-pub(super) fn parse_scalar_groups_path(attrs: &[syn::Attribute]) -> Option<String> {
-    parse_hidden_path_attr(attrs, "solverforge_scalar_groups_path")
+pub(super) fn parse_scalar_groups_path(attrs: &[syn::Attribute]) -> Result<Option<syn::Path>> {
+    hidden_rust_path_attr(attrs, "solverforge_scalar_groups_path")
 }
 
 pub(super) fn parse_shadow_config(attrs: &[syn::Attribute]) -> ShadowConfig {

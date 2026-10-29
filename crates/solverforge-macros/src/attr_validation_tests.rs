@@ -1,4 +1,4 @@
-use quote::quote;
+use quote::{quote, ToTokens};
 
 use super::{parse_serde_flag, parse_solution_flags};
 
@@ -16,12 +16,24 @@ fn parse_solution_flags_accepts_current_arguments() {
     .expect("current planning_solution arguments should parse");
 
     assert!(flags.has_serde);
-    assert_eq!(flags.constraints_path.as_deref(), Some("constraints"));
-    assert_eq!(flags.config_path.as_deref(), Some("config"));
+    assert_eq!(
+        path_text(&flags.constraints_path),
+        Some("constraints".to_string())
+    );
+    assert_eq!(path_text(&flags.config_path), Some("config".to_string()));
     assert_eq!(flags.solver_toml_path.as_deref(), Some("solver.toml"));
-    assert_eq!(flags.search_path.as_deref(), Some("search::search"));
-    assert_eq!(flags.conflict_repairs_path.as_deref(), Some("repairs"));
-    assert_eq!(flags.scalar_groups_path.as_deref(), Some("groups"));
+    assert_eq!(
+        path_text(&flags.search_path),
+        Some("search :: search".to_string())
+    );
+    assert_eq!(
+        path_text(&flags.conflict_repairs_path),
+        Some("repairs".to_string())
+    );
+    assert_eq!(
+        path_text(&flags.scalar_groups_path),
+        Some("groups".to_string())
+    );
 }
 
 #[test]
@@ -45,13 +57,33 @@ fn parse_solution_flags_rejects_malformed_values() {
 }
 
 #[test]
-fn parse_solution_flags_rejects_invalid_search_path() {
-    let error = parse_solution_flags(quote! { search = "search::" })
-        .expect_err("invalid search path strings should fail");
+fn parse_solution_flags_rejects_every_invalid_rust_path() {
+    let cases = [
+        quote! { search = "search::" },
+        quote! { constraints = "crate::constraints::create constraints" },
+        quote! { constraints = "" },
+        quote! { config = "crate::my config" },
+        quote! { conflict_repairs = "repairs()" },
+        quote! { scalar_groups = "groups-fn" },
+    ];
+    for (args, name) in cases.into_iter().zip([
+        "search",
+        "constraints",
+        "constraints",
+        "config",
+        "conflict_repairs",
+        "scalar_groups",
+    ]) {
+        let error = parse_solution_flags(args).expect_err("invalid path strings should fail");
+        assert_eq!(
+            error.to_string(),
+            format!("planning_solution argument `{name}` must be a valid Rust path string")
+        );
+    }
+}
 
-    assert!(error
-        .to_string()
-        .contains("planning_solution argument `search` must be a valid Rust path string"));
+fn path_text(path: &Option<syn::Path>) -> Option<String> {
+    path.as_ref().map(|path| path.to_token_stream().to_string())
 }
 
 #[test]

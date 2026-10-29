@@ -1,0 +1,23 @@
+error: planning_solution argument `constraints` must be a valid Rust path string
+ --> tests/ui/fail/planning_solution_invalid_path_arguments.rs:3:35
+  |
+3 | #[planning_solution(constraints = "crate::constraints::create constraints")]
+  |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: planning_solution argument `config` must be a valid Rust path string
+ --> tests/ui/fail/planning_solution_invalid_path_arguments.rs:9:30
+  |
+9 | #[planning_solution(config = "crate::my config")]
+  |                              ^^^^^^^^^^^^^^^^^^
+
+error: planning_solution argument `conflict_repairs` must be a valid Rust path string
+  --> tests/ui/fail/planning_solution_invalid_path_arguments.rs:15:40
+   |
+15 | #[planning_solution(conflict_repairs = "repairs()")]
+   |                                        ^^^^^^^^^^^
+
+error: planning_solution argument `scalar_groups` must be a valid Rust path string
+  --> tests/ui/fail/planning_solution_invalid_path_arguments.rs:21:37
+   |
+21 | #[planning_solution(scalar_groups = "groups-fn")]
+   |                                     ^^^^^^^^^^^

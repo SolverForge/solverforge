@@ -1,15 +1,12 @@
 pub(super) fn generate_runtime_solve_internal(
-    constraints_path: &Option<String>,
-    config_path: &Option<String>,
+    constraints_path: &Option<syn::Path>,
+    config_path: &Option<syn::Path>,
     solver_toml_path: &Option<String>,
     has_constraint_weights: bool,
 ) -> TokenStream {
-    let Some(path) = constraints_path.as_ref() else {
+    let Some(constraints_fn) = constraints_path.as_ref() else {
         return TokenStream::new();
     };
-
-    let constraints_fn: syn::Path =
-        syn::parse_str(path).expect("constraints path must be a valid Rust path");
     let base_config_expr = if let Some(solver_toml_path) = solver_toml_path.as_ref() {
         quote! {{
             static CONFIG: ::std::sync::OnceLock<::solverforge::SolverConfig> =
@@ -24,9 +21,7 @@ pub(super) fn generate_runtime_solve_internal(
     } else {
         quote! { ::solverforge::__internal::load_solver_config() }
     };
-    let config_expr = if let Some(config_path) = config_path.as_ref() {
-        let config_fn: syn::Path =
-            syn::parse_str(config_path).expect("config path must be a valid Rust path");
+    let config_expr = if let Some(config_fn) = config_path.as_ref() {
         quote! {
             let base_config = #base_config_expr;
             let config = #config_fn(&self, base_config);

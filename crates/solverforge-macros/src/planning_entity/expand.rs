@@ -12,7 +12,7 @@ use crate::attr_validation::{
 };
 
 use super::list_variable::{generate_list_metadata, generate_list_trait_impl};
-use super::scalar_variable::generate_scalar_helpers;
+use super::scalar_variable::{generate_scalar_helpers, parse_range};
 use super::utils::{field_is_option_usize, field_option_inner_type};
 
 include!("expand/derive.rs");

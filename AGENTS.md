@@ -77,6 +77,11 @@ Treat the repository documentation as a coordinated surface, not as isolated fil
   checked in verbatim between `// readme:begin` and `// readme:end` under
   `crates/solverforge/tests/readme_examples/`, so add or edit a block there
   in the same change.
+- `crates/*/README.md` is each published crate's crates.io page: one
+  paragraph on what the crate is, pointing applications at the `solverforge`
+  facade. The facade's page is the root `README.md`. Every published crate
+  also packages `LICENSE` (a symlink to the root file), and
+  `make publish-crates-dry` fails on a `manifest has no` packaging warning.
 - `CONTRIBUTING.md` owns the contribution policy. Keep README contribution
   guidance, agent instructions, and pull request templates consistent with it;
   do not introduce separate AI acceptance rules on those surfaces.

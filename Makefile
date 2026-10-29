@@ -240,7 +240,9 @@ pre-release: banner
 publish-crates-dry: banner
 	@printf "$(PROGRESS) Packaging every publishable crate against a local registry overlay...\n"
 	@packages=""; for name in $$(python3 scripts/release/crates.py publishable); do packages="$$packages -p $$name"; done; \
-		cargo package --locked $$packages && \
+		log=$$(mktemp); cargo package --locked $$packages >"$$log" 2>&1; status=$$?; cat "$$log"; \
+		! grep -E 'warning: manifest has no|yanked' "$$log"; clean=$$?; rm -f "$$log"; \
+		[ $$status -eq 0 ] && [ $$clean -eq 0 ] && \
 		printf "$(GREEN)$(CHECK) All publishable crates package and build$(RESET)\n" || \
 		(printf "$(RED)$(CROSS) Packaging failed$(RESET)\n" && exit 1)
 

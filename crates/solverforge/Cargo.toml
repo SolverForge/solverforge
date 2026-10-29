@@ -3,6 +3,11 @@ name = "solverforge"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "../../README.md"
 rust-version.workspace = true
 description = "SolverForge - A constraint solver in Rust"
 

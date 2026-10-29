@@ -22,6 +22,9 @@ version = "0.23.0"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/SolverForge/solverforge"
+homepage = "https://solverforge.org"
+keywords = ["constraint-solver", "optimization", "scheduling", "planning", "metaheuristics"]
+categories = ["algorithms", "science", "mathematics"]
 rust-version = "1.95"
 
 [workspace.dependencies]

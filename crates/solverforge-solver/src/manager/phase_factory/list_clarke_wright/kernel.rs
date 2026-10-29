@@ -14,15 +14,13 @@ use super::owner_assignment::{
 use super::route_state::{
     route_elements, route_values, routes_match_owners_after_merge, ConstructedRoute,
 };
-use super::savings::{sort_savings, SavingsEntry};
+use super::savings::{generate_savings, sort_savings};
 use super::{owner_allows, ClarkeWrightAccess, RuntimeListSourceIndex, SourceElement};
 use crate::phase::construction::{
     record_construction_candidate, run_construction_phase, PendingConstructionMoveTelemetry,
 };
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy};
-use crate::stats::{
-    CandidateTraceConstructionTarget, CandidateTraceDisposition, CandidateTraceSource,
-};
+use crate::stats::{CandidateTraceDisposition, CandidateTraceSource};
 
 /* Runs the one canonical Clarke-Wright algorithm against a pre-bound source.
 
@@ -156,80 +154,14 @@ fn run_clarke_wright_in_phase<S, A, D, BestCb>(
         return;
     }
 
-    let mut savings = Vec::with_capacity(
-        n.saturating_mul(n.saturating_sub(1))
-            .saturating_div(2)
-            .saturating_mul(representative_owner_slots.len()),
+    let (mut savings, mut construction_interrupted) = generate_savings(
+        phase_scope,
+        access,
+        &unassigned,
+        &representative_owner_slots,
+        &trace_metric_class_by_value,
+        control_policy,
     );
-    let mut construction_interrupted = false;
-    'savings_generation: for owner_slot in &representative_owner_slots {
-        let owner_idx = owner_slot.owner_idx;
-        for a in 0..n {
-            if (a & 0x1F) == 0
-                && control_policy.should_terminate_construction(phase_scope.solver_scope_mut())
-            {
-                construction_interrupted = true;
-                break 'savings_generation;
-            }
-            for b in (a + 1)..n {
-                let left = &unassigned[a];
-                let right = &unassigned[b];
-                let trace_token = phase_scope.record_candidate_operation(
-                    CandidateTraceSource::ListClarkeWrightSavings,
-                    None,
-                    savings.len(),
-                    Some(CandidateTraceConstructionTarget {
-                        descriptor_index: access.descriptor_index(),
-                        entity_index: owner_idx,
-                    }),
-                    access.descriptor_index(),
-                    "clarke_wright_savings_pair",
-                    [
-                        owner_idx as u64,
-                        trace_metric_class_by_value[&owner_slot.metric_class],
-                        left.source_index as u64,
-                        right.source_index as u64,
-                    ],
-                );
-                let solution = phase_scope.score_director().working_solution();
-                let depot = access.savings_depot(solution, owner_idx);
-                let left_value = access.route_value(&left.element);
-                let right_value = access.route_value(&right.element);
-                let saving = super::sum_two_minus_one(
-                    access.savings_distance(solution, owner_idx, depot, left_value),
-                    access.savings_distance(solution, owner_idx, depot, right_value),
-                    access.savings_distance(solution, owner_idx, left_value, right_value),
-                );
-                savings.push(SavingsEntry {
-                    saving,
-                    metric_class: owner_slot.metric_class,
-                    left_idx: left.source_index,
-                    right_idx: right.source_index,
-                });
-                if let Some(token) = trace_token {
-                    phase_scope.record_candidate_trace_disposition(
-                        token,
-                        CandidateTraceDisposition::Evaluated,
-                    );
-                    phase_scope.record_candidate_trace_disposition(
-                        token,
-                        CandidateTraceDisposition::ForagerIgnored,
-                    );
-                }
-                record_construction_candidate(
-                    phase_scope,
-                    std::time::Duration::ZERO,
-                    std::time::Duration::ZERO,
-                );
-                if (savings.len() & 0x3FF) == 0
-                    && control_policy.should_terminate_construction(phase_scope.solver_scope_mut())
-                {
-                    construction_interrupted = true;
-                    break 'savings_generation;
-                }
-            }
-        }
-    }
     sort_savings(&mut savings);
     let mut pending_move_telemetry = PendingConstructionMoveTelemetry::default();
 

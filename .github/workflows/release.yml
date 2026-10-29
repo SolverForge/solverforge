@@ -54,12 +54,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Package every publishable crate
-        shell: bash
-        run: |
-          packages=()
-          while IFS= read -r name; do packages+=(-p "$name"); done \
-            < <(python3 scripts/release/crates.py publishable)
-          cargo package --locked "${packages[@]}"
+        run: make publish-crates-dry
 
   publish:
     if: ${{ github.server_url == 'https://github.com' && github.event_name == 'push' }}

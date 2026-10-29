@@ -55,3 +55,50 @@ jobs:
       - name: Run doc tests with default features
         if: runner.os == 'Linux'
         run: cargo test --workspace --doc
+
+  msrv:
+    if: ${{ github.server_url == 'https://github.com' }}
+    name: MSRV
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # The workspace `rust-version` is the declared minimum; check it with
+      # exactly that toolchain.
+      - name: Check with the declared minimum Rust version
+        run: |
+          msrv=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)
+          rustup toolchain install "$msrv" --profile minimal
+          cargo +"$msrv" check --workspace --all-targets --all-features --locked
+
+  docs:
+    if: ${{ github.server_url == 'https://github.com' }}
+    name: Docs
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -D warnings
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        run: rustup toolchain install
+
+      - name: Build API docs with warnings denied
+        run: cargo doc --workspace --no-deps --all-features --locked
+
+  package:
+    if: ${{ github.server_url == 'https://github.com' }}
+    name: Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        run: rustup toolchain install
+
+      # The same packaging the Release workflow runs before it publishes.
+      - name: Package every publishable crate
+        run: make publish-crates-dry

@@ -39,3 +39,15 @@ jobs:
       # build with the default feature set.
       - name: Run doc tests with default features
         run: CARGO_TARGET_DIR="$PWD/target" cargo test --workspace --doc
+
+      - name: Check with the declared minimum Rust version
+        run: |
+          msrv=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)
+          rustup toolchain install "$msrv" --profile minimal
+          CARGO_TARGET_DIR="$PWD/target/msrv" cargo +"$msrv" check --workspace --all-targets --all-features --locked
+
+      - name: Build API docs with warnings denied
+        run: RUSTDOCFLAGS="-D warnings" CARGO_TARGET_DIR="$PWD/target" cargo doc --workspace --no-deps --all-features --locked
+
+      - name: Package every publishable crate
+        run: CARGO_TARGET_DIR="$PWD/target" make publish-crates-dry

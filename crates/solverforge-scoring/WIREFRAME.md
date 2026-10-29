@@ -171,6 +171,7 @@ src/
 │   ├── macros.rs                                   — impl_get_matches_nary! macro for detailed match generation
 │   ├── shared.rs                                   — compute_hash<T>() utility function
 │   ├── list_precedence.rs                          — ListPrecedenceMakespanConstraint<S>; stock incremental list-plus-fixed-precedence makespan scoring with optional fixed owner checks
+│   ├── list_precedence/{graph,route}.rs            — Precedence-graph refresh and per-owner route bookkeeping for ListPrecedenceMakespanConstraint
 │   ├── incremental_markers.rs                      — Hidden IncrementalConstraintSealed impls for built-in constraint types
 │   ├── incremental.rs                              — IncrementalUniConstraint<S,A,E,F,W,Sc>
 │   ├── score_sum.rs                                — Crate-private batch score accumulation with one overflow check

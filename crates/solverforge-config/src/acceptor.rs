@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 
 // Acceptor configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AcceptorConfig {
     // Hill climbing (only accept improving moves).
-    HillClimbing,
+    HillClimbing {},
 
     // Step counting hill climbing (allow limited non-improving moves).
     StepCountingHillClimbing(StepCountingHillClimbingConfig),
@@ -28,14 +28,14 @@ pub enum AcceptorConfig {
 
 // Step counting hill climbing configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct StepCountingHillClimbingConfig {
     pub step_count_limit: Option<u64>,
 }
 
 // Tabu search configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct TabuSearchConfig {
     // Size of entity tabu list. Explicit `0` is invalid.
     pub entity_tabu_size: Option<usize>,
@@ -57,7 +57,7 @@ pub struct TabuSearchConfig {
 
 // Simulated annealing configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct SimulatedAnnealingConfig {
     // Per-score-level delta temperatures, highest priority level first.
     pub level_temperatures: Option<Vec<f64>>,
@@ -84,7 +84,7 @@ pub enum HardRegressionPolicyConfig {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct SimulatedAnnealingCalibrationConfig {
     pub sample_size: Option<usize>,
     pub target_acceptance_probability: Option<f64>,
@@ -93,7 +93,7 @@ pub struct SimulatedAnnealingCalibrationConfig {
 
 // Late acceptance configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct LateAcceptanceConfig {
     // Size of late acceptance list.
     pub late_acceptance_size: Option<usize>,
@@ -101,7 +101,7 @@ pub struct LateAcceptanceConfig {
 
 // Diversified late acceptance configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct DiversifiedLateAcceptanceConfig {
     // Size of late acceptance list.
     pub late_acceptance_size: Option<usize>,
@@ -109,7 +109,7 @@ pub struct DiversifiedLateAcceptanceConfig {
 
 // Great deluge configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct GreatDelugeConfig {
     // Water level increase ratio.
     pub water_level_increase_ratio: Option<f64>,

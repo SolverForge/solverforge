@@ -636,6 +636,10 @@ unimproved_seconds_spent_limit = 5
 step_count_limit = 10000
 ```
 
+Configuration parsing is strict: a misspelled or unknown key anywhere in the
+file (for example `secnds_spent_limit`) fails with a `ConfigError::Toml` that
+names the key, instead of being ignored.
+
 Or programmatically:
 
 ```rust

@@ -232,6 +232,6 @@ fn test_tagged_forager_variants_roundtrip() {
     };
     assert!(matches!(
         local_search.forager,
-        Some(ForagerConfig::FirstBestScoreImproving)
+        Some(ForagerConfig::FirstBestScoreImproving {})
     ));
 }

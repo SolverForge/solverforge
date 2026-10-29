@@ -446,8 +446,8 @@ fn omitted_explicit_acceptor_forager_phase_refs_the_compiled_default_declaration
 fn omitted_selector_provenance_keeps_the_explicit_local_search_policy() {
     let local_search = LocalSearchConfig {
         local_search_type: LocalSearchType::AcceptorForager,
-        acceptor: Some(AcceptorConfig::HillClimbing),
-        forager: Some(ForagerConfig::FirstAccepted),
+        acceptor: Some(AcceptorConfig::HillClimbing {}),
+        forager: Some(ForagerConfig::FirstAccepted {}),
         termination: Some(TerminationConfig {
             step_count_limit: Some(17),
             ..TerminationConfig::default()

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 // Score director configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct DirectorConfig {
     // Fully qualified name of the constraint provider type.
     pub constraint_provider: Option<String>,

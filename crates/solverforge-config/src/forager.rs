@@ -10,27 +10,27 @@ pub enum ScoreTieBreak {
 
 // Forager configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ForagerConfig {
     // Stop after N accepted candidates and pick the best among them.
     AcceptedCount(AcceptedCountForagerConfig),
 
     // Evaluate the full neighborhood and pick the best accepted move.
-    BestScore,
+    BestScore {},
 
     // Pick the first accepted move.
-    FirstAccepted,
+    FirstAccepted {},
 
     // Stop on the first move improving the phase-best score.
-    FirstBestScoreImproving,
+    FirstBestScoreImproving {},
 
     // Stop on the first move improving the previous step score.
-    FirstLastStepScoreImproving,
+    FirstLastStepScoreImproving {},
 }
 
 // Accepted-count forager configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct AcceptedCountForagerConfig {
     pub limit: Option<usize>,
 }

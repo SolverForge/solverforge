@@ -223,15 +223,18 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq`.
 
 ### `ForagerConfig`
 
-Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", rename_all = "snake_case")]`.
+Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]`.
 
 | Variant | Payload | Note |
 |---------|---------|------|
 | `AcceptedCount` | `AcceptedCountForagerConfig` | Stop after `limit` accepted moves and pick the best among them |
-| `BestScore` | — | Evaluate the full neighborhood and pick the best accepted move |
-| `FirstAccepted` | — | Stop on the first accepted move |
-| `FirstBestScoreImproving` | — | Stop on the first move improving the phase-best score |
-| `FirstLastStepScoreImproving` | — | Stop on the first move improving the previous step score |
+| `BestScore {}` | — | Evaluate the full neighborhood and pick the best accepted move |
+| `FirstAccepted {}` | — | Stop on the first accepted move |
+| `FirstBestScoreImproving {}` | — | Stop on the first move improving the phase-best score |
+| `FirstLastStepScoreImproving {}` | — | Stop on the first move improving the previous step score |
+
+The payload-free variants are empty struct variants so that a key next to
+their `type` is rejected like any other unknown key.
 
 ### `AcceptedCountForagerConfig`
 
@@ -801,11 +804,11 @@ Derives: `Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize`.
 
 ### `AcceptorConfig`
 
-Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", rename_all = "snake_case")]`.
+Derives: `Debug, Clone, Deserialize, Serialize`. Tagged `#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]`.
 
 | Variant | Payload |
 |---------|---------|
-| `HillClimbing` | — |
+| `HillClimbing {}` | — (empty struct variant, so extra keys are rejected) |
 | `TabuSearch` | `TabuSearchConfig` |
 | `StepCountingHillClimbing` | `StepCountingHillClimbingConfig` |
 | `SimulatedAnnealing` | `SimulatedAnnealingConfig` |
@@ -854,6 +857,7 @@ Decorator notes:
 
 - **Pure data crate.** No solver logic — only serde structs and parsing. Consumed by `solverforge-solver` which maps these configs to runtime phase/acceptor/forager/selector enums.
 - **All serde `rename_all = "snake_case"`** for consistent TOML key naming.
+- **Strict parsing.** Every deserialized struct, plus `AcceptorConfig` and `ForagerConfig`, carries `#[serde(deny_unknown_fields)]`: a misspelled or obsolete key fails `from_toml_*` with `ConfigError::Toml` naming the key instead of silently falling back to a default. `VariableTargetConfig` is the one exception because it is only ever `#[serde(flatten)]`ed into a strict parent, which rejects the leftover keys.
 - **Internally-tagged enums** (`#[serde(tag = "type")]`) for `PhaseConfig`, `AcceptorConfig`, `MoveSelectorConfig` — the `type` field selects the variant.
 - **`SolverConfigOverride` is not serde.** It exists for runtime termination overrides only.
 - **No traits defined.** This crate defines no traits — it is a config schema consumed by other crates.

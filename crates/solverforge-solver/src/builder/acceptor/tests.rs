@@ -42,7 +42,7 @@ impl PlanningSolution for TestSolution {
 
 #[test]
 fn test_acceptor_builder_hill_climbing() {
-    let config = AcceptorConfig::HillClimbing;
+    let config = AcceptorConfig::HillClimbing {};
     let _acceptor: AnyAcceptor<TestSolution> = AcceptorBuilder::build(&config);
 }
 

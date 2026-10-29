@@ -29,7 +29,7 @@ fn default_k() -> usize {
 
 // Construction heuristic configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ConstructionHeuristicConfig {
     // Type of construction heuristic.
     #[serde(default)]
@@ -156,7 +156,7 @@ pub enum LocalSearchType {
 
 // Local search configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct LocalSearchConfig {
     // Local search type.
     #[serde(default)]
@@ -185,7 +185,7 @@ pub struct LocalSearchConfig {
 
 // Partitioned search configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct PartitionedSearchConfig {
     // Compile-time registered partitioner name.
     pub partitioner: Option<String>,
@@ -208,7 +208,7 @@ pub struct PartitionedSearchConfig {
 
 // Custom phase configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct CustomPhaseConfig {
     // Compile-time registered custom phase name.
     pub name: String,

@@ -11,7 +11,7 @@ use crate::termination::TerminationConfig;
 
 // Main solver configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct SolverConfig {
     // Environment mode affecting reproducibility and assertions.
     #[serde(default)]
@@ -148,7 +148,7 @@ impl SolverConfig {
 /// total pull count even after the cap, marks itself truncated, and never
 /// retains identities beyond this limit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct CandidateTraceConfig {
     pub max_entries: NonZeroUsize,
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 // Termination configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct TerminationConfig {
     // Maximum seconds to spend solving.
     pub seconds_spent_limit: Option<u64>,

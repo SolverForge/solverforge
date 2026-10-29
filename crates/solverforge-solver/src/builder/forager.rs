@@ -136,12 +136,16 @@ impl ForagerBuilder {
                 let limit = accepted.limit.unwrap_or(1).max(1);
                 AnyForager::AcceptedCount(AcceptedCountForager::new(limit, random_ties))
             }
-            ForagerConfig::BestScore => AnyForager::BestScore(BestScoreForager::new(random_ties)),
-            ForagerConfig::FirstAccepted => AnyForager::FirstAccepted(FirstAcceptedForager::new()),
-            ForagerConfig::FirstBestScoreImproving => {
+            ForagerConfig::BestScore {} => {
+                AnyForager::BestScore(BestScoreForager::new(random_ties))
+            }
+            ForagerConfig::FirstAccepted {} => {
+                AnyForager::FirstAccepted(FirstAcceptedForager::new())
+            }
+            ForagerConfig::FirstBestScoreImproving {} => {
                 AnyForager::BestScoreImproving(FirstBestScoreImprovingForager::new(random_ties))
             }
-            ForagerConfig::FirstLastStepScoreImproving => AnyForager::LastStepScoreImproving(
+            ForagerConfig::FirstLastStepScoreImproving {} => AnyForager::LastStepScoreImproving(
                 FirstLastStepScoreImprovingForager::new(random_ties),
             ),
         }

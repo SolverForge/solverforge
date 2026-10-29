@@ -210,7 +210,9 @@ impl AcceptorBuilder {
         S::Score: Score + ParseableScore,
     {
         match config {
-            AcceptorConfig::HillClimbing => AnyAcceptor::HillClimbing(HillClimbingAcceptor::new()),
+            AcceptorConfig::HillClimbing {} => {
+                AnyAcceptor::HillClimbing(HillClimbingAcceptor::new())
+            }
 
             AcceptorConfig::StepCountingHillClimbing(step_counting_config) => {
                 AnyAcceptor::StepCountingHillClimbing(StepCountingHillClimbingAcceptor::new(

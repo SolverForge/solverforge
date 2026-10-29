@@ -170,7 +170,7 @@ impl MoveSelectorConfig {
 
 // Change move configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ChangeMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -182,7 +182,7 @@ pub struct ChangeMoveConfig {
 
 // Swap move configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct SwapMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -193,7 +193,7 @@ pub struct SwapMoveConfig {
 
 // Nearby change move configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct NearbyChangeMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -219,7 +219,7 @@ impl Default for NearbyChangeMoveConfig {
 
 // Nearby swap move configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct NearbySwapMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -243,7 +243,7 @@ impl Default for NearbySwapMoveConfig {
 
 // Pillar change move configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct PillarChangeMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -257,7 +257,7 @@ pub struct PillarChangeMoveConfig {
 
 // Pillar swap move configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct PillarSwapMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -298,7 +298,7 @@ pub enum UnionWeighting {
 
 // Ruin-and-recreate move configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct RuinRecreateMoveSelectorConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -329,7 +329,7 @@ impl Default for RuinRecreateMoveSelectorConfig {
 
 // Configuration for `GroupedScalarMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct GroupedScalarMoveSelectorConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -343,7 +343,7 @@ pub struct GroupedScalarMoveSelectorConfig {
 
 // Configuration for `ListChangeMoveSelector`.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListChangeMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -354,7 +354,7 @@ pub struct ListChangeMoveConfig {
 
 // Configuration for `NearbyListChangeMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct NearbyListChangeMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -379,7 +379,7 @@ impl Default for NearbyListChangeMoveConfig {
 
 // Configuration for `ListSwapMoveSelector`.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListSwapMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -390,7 +390,7 @@ pub struct ListSwapMoveConfig {
 
 // Configuration for `ListPermuteMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListPermuteMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -417,7 +417,7 @@ impl Default for ListPermuteMoveConfig {
 
 // Configuration for `ListPrecedenceMoveSelector`.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListPrecedenceMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -428,7 +428,7 @@ pub struct ListPrecedenceMoveConfig {
 
 // Configuration for `NearbyListSwapMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct NearbyListSwapMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -453,7 +453,7 @@ impl Default for NearbyListSwapMoveConfig {
 
 // Configuration for `SublistChangeMoveSelector` (Or-opt).
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct SublistChangeMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -481,7 +481,7 @@ impl Default for SublistChangeMoveConfig {
 
 // Configuration for `SublistSwapMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct SublistSwapMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -509,7 +509,7 @@ impl Default for SublistSwapMoveConfig {
 
 // Configuration for `ListReverseMoveSelector` (2-opt).
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListReverseMoveConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -520,7 +520,7 @@ pub struct ListReverseMoveConfig {
 
 // Configuration for `KOptMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct KOptMoveSelectorConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -551,7 +551,7 @@ impl Default for KOptMoveSelectorConfig {
 
 // Configuration for `ListRuinMoveSelector` (LNS).
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListRuinMoveSelectorConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -588,7 +588,7 @@ impl Default for ListRuinMoveSelectorConfig {
 
 // Configuration for `LimitedNeighborhood`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct LimitedNeighborhoodConfig {
     // Maximum number of moves yielded from the child selector.
     pub selected_count_limit: usize,
@@ -598,7 +598,7 @@ pub struct LimitedNeighborhoodConfig {
 
 // Union move selector configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct UnionMoveSelectorConfig {
     #[serde(default)]
     pub selection_order: UnionSelectionOrder,
@@ -612,7 +612,7 @@ pub struct UnionMoveSelectorConfig {
 
 // Cartesian product move selector configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct CartesianProductConfig {
     // When true, search phases reject composed candidates unless the hard score improves.
     #[serde(default)]
@@ -623,7 +623,7 @@ pub struct CartesianProductConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ConflictRepairMoveSelectorConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
@@ -657,7 +657,7 @@ impl Default for ConflictRepairMoveSelectorConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct CompoundConflictRepairMoveSelectorConfig {
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,

@@ -45,21 +45,27 @@ pub(super) fn generate_runtime_solve_internal(
     } else {
         quote! { ::solverforge::__internal::try_run_solver_with_config_and_search }
     };
-    let solve_expr = quote! {
-        #config_expr
-        #run_solver(
-            self,
-            (|_: &Self| #constraints_fn()) as fn(&Self) -> _,
-            Self::descriptor(),
-            Self::entity_count,
-            runtime,
-            config,
-            Self::__solverforge_default_time_limit_secs(),
-            Self::__solverforge_log_scale,
-            qualified_candidate_trace_provenance,
-            Self::__solverforge_search_declaration,
-        )
+    let run = |runtime: TokenStream, provenance: TokenStream| {
+        quote! {
+            #run_solver(
+                self,
+                (|_: &Self| #constraints_fn()) as fn(&Self) -> _,
+                Self::descriptor(),
+                Self::entity_count,
+                #runtime,
+                config,
+                Self::__solverforge_default_time_limit_secs(),
+                Self::__solverforge_log_scale,
+                #provenance,
+                Self::__solverforge_search_declaration,
+            )
+        }
     };
+    let retained_run = run(quote! { runtime }, quote! { qualified_candidate_trace_provenance });
+    let detached_run = run(
+        quote! { ::solverforge::SolverRuntime::detached() },
+        quote! { ::core::option::Option::None },
+    );
     quote! {
         fn solve_internal(
             self,
@@ -69,7 +75,22 @@ pub(super) fn generate_runtime_solve_internal(
             >,
         ) -> ::solverforge::RuntimeBuildResult<Self> {
             ::solverforge::__internal::init_console();
-            #solve_expr
+            #config_expr
+            #retained_run
+        }
+
+        /// Solves this solution on the calling thread with exactly `config`
+        /// and returns the best solution found.
+        ///
+        /// Neither the embedded `solver_toml` nor the solution's `config`
+        /// callback is applied. Fails with the same errors as a retained
+        /// solve; nothing is published to a [`SolverManager`](::solverforge::SolverManager).
+        pub fn solve_with_config(
+            self,
+            config: ::solverforge::SolverConfig,
+        ) -> ::solverforge::RuntimeBuildResult<Self> {
+            ::solverforge::__internal::init_console();
+            #detached_run
         }
     }
 }

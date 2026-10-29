@@ -1,0 +1,5 @@
+error: #[planning_solution] requires named fields
+ --> tests/ui/fail/planning_solution_tuple_struct.rs:5:1
+  |
+5 | struct Plan(#[planning_score] Option<HardSoftScore>);
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

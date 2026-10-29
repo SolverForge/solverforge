@@ -1,7 +1,8 @@
 error: #[planning_solution] requires a #[planning_score] field
- --> tests/ui/fail/planning_solution_missing_score.rs:9:1
-  |
-9 | #[planning_solution]
-  | ^^^^^^^^^^^^^^^^^^^^
-  |
-  = note: this error originates in the attribute macro `planning_solution` (in Nightly builds, run with -Z macro-backtrace for more info)
+  --> tests/ui/fail/planning_solution_missing_score.rs:10:1
+   |
+10 | / struct Plan {
+11 | |     #[planning_entity_collection]
+12 | |     tasks: Vec<Task>,
+13 | | }
+   | |_^

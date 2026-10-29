@@ -1,5 +1,5 @@
-error: expected one of `;` or `where`, found `<eof>`
- --> tests/ui/fail/planning_entity_tuple_struct.rs:4:12
+error: #[planning_entity] requires named fields
+ --> tests/ui/fail/planning_entity_tuple_struct.rs:4:1
   |
 4 | struct Task(String);
-  |            ^^^^^^^^ expected one of `;` or `where`
+  | ^^^^^^^^^^^^^^^^^^^^

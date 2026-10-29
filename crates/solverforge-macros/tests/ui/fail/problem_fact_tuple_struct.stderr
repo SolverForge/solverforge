@@ -1,0 +1,5 @@
+error: #[problem_fact] requires named fields
+ --> tests/ui/fail/problem_fact_tuple_struct.rs:4:1
+  |
+4 | struct Worker(#[planning_id] usize);
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

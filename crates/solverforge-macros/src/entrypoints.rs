@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, ItemFn, ItemStruct};
+use syn::{parse_macro_input, parse_quote, Attribute, DeriveInput, ItemFn, ItemStruct};
 
 use crate::attr_validation::{parse_serde_flag, parse_solution_flags};
 
@@ -9,25 +9,12 @@ pub(crate) fn planning_entity_attr(attr: TokenStream, item: TokenStream) -> Toke
         Ok(has_serde) => has_serde,
         Err(error) => return error.to_compile_error().into(),
     };
-    let input = parse_macro_input!(item as ItemStruct);
-    let name = &input.ident;
-    let vis = &input.vis;
-    let generics = &input.generics;
-    let attrs: Vec<_> = input.attrs.iter().collect();
-    let fields = &input.fields;
-
-    let serde_derives = if has_serde {
-        quote! { ::serde::Serialize, ::serde::Deserialize, }
-    } else {
-        quote! {}
-    };
-
-    let expanded = quote! {
+    let item = parse_macro_input!(item as ItemStruct);
+    let serde_derives = serde_derives(has_serde);
+    let derive: Attribute = parse_quote! {
         #[derive(Clone, Debug, PartialEq, Eq, Hash, #serde_derives ::solverforge::__internal::PlanningEntityImpl)]
-        #(#attrs)*
-        #vis struct #name #generics #fields
     };
-    expanded.into()
+    emit_with_leading_attrs(item, vec![derive])
 }
 
 pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -35,50 +22,42 @@ pub(crate) fn planning_solution_attr(attr: TokenStream, item: TokenStream) -> To
         Ok(flags) => flags,
         Err(error) => return error.to_compile_error().into(),
     };
-    let input = parse_macro_input!(item as ItemStruct);
-    let name = &input.ident;
-    let vis = &input.vis;
-    let generics = &input.generics;
-    let attrs: Vec<_> = input.attrs.iter().collect();
-    let fields = &input.fields;
-
-    let serde_derives = if flags.has_serde {
-        quote! { ::serde::Serialize, ::serde::Deserialize, }
-    } else {
-        quote! {}
-    };
-
-    let constraints_attr = flags
-        .constraints_path
-        .map(|p| quote! { #[solverforge_constraints_path = #p] });
-    let config_attr = flags
-        .config_path
-        .map(|p| quote! { #[solverforge_config_path = #p] });
-    let solver_toml_attr = flags
-        .solver_toml_path
-        .map(|p| quote! { #[solverforge_solver_toml_path = #p] });
-    let search_attr = flags
-        .search_path
-        .map(|p| quote! { #[solverforge_search_path = #p] });
-    let conflict_repairs_attr = flags
-        .conflict_repairs_path
-        .map(|p| quote! { #[solverforge_conflict_repairs_path = #p] });
-    let scalar_groups_attr = flags
-        .scalar_groups_path
-        .map(|p| quote! { #[solverforge_scalar_groups_path = #p] });
-
-    let expanded = quote! {
+    let item = parse_macro_input!(item as ItemStruct);
+    let serde_derives = serde_derives(flags.has_serde);
+    let mut leading: Vec<Attribute> = vec![parse_quote! {
         #[derive(Clone, Debug, #serde_derives ::solverforge::__internal::PlanningSolutionImpl)]
-        #constraints_attr
-        #config_attr
-        #solver_toml_attr
-        #search_attr
-        #conflict_repairs_attr
-        #scalar_groups_attr
-        #(#attrs)*
-        #vis struct #name #generics #fields
-    };
-    expanded.into()
+    }];
+    leading.extend(
+        flags
+            .constraints_path
+            .map(|p| parse_quote! { #[solverforge_constraints_path = #p] }),
+    );
+    leading.extend(
+        flags
+            .config_path
+            .map(|p| parse_quote! { #[solverforge_config_path = #p] }),
+    );
+    leading.extend(
+        flags
+            .solver_toml_path
+            .map(|p| parse_quote! { #[solverforge_solver_toml_path = #p] }),
+    );
+    leading.extend(
+        flags
+            .search_path
+            .map(|p| parse_quote! { #[solverforge_search_path = #p] }),
+    );
+    leading.extend(
+        flags
+            .conflict_repairs_path
+            .map(|p| parse_quote! { #[solverforge_conflict_repairs_path = #p] }),
+    );
+    leading.extend(
+        flags
+            .scalar_groups_path
+            .map(|p| parse_quote! { #[solverforge_scalar_groups_path = #p] }),
+    );
+    emit_with_leading_attrs(item, leading)
 }
 
 pub(crate) fn problem_fact_attr(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -86,25 +65,29 @@ pub(crate) fn problem_fact_attr(attr: TokenStream, item: TokenStream) -> TokenSt
         Ok(has_serde) => has_serde,
         Err(error) => return error.to_compile_error().into(),
     };
-    let input = parse_macro_input!(item as ItemStruct);
-    let name = &input.ident;
-    let vis = &input.vis;
-    let generics = &input.generics;
-    let attrs: Vec<_> = input.attrs.iter().collect();
-    let fields = &input.fields;
+    let item = parse_macro_input!(item as ItemStruct);
+    let serde_derives = serde_derives(has_serde);
+    let derive: Attribute = parse_quote! {
+        #[derive(Clone, Debug, PartialEq, Eq, #serde_derives ::solverforge::__internal::ProblemFactImpl)]
+    };
+    emit_with_leading_attrs(item, vec![derive])
+}
 
-    let serde_derives = if has_serde {
+fn serde_derives(has_serde: bool) -> proc_macro2::TokenStream {
+    if has_serde {
         quote! { ::serde::Serialize, ::serde::Deserialize, }
     } else {
         quote! {}
-    };
+    }
+}
 
-    let expanded = quote! {
-        #[derive(Clone, Debug, PartialEq, Eq, #serde_derives ::solverforge::__internal::ProblemFactImpl)]
-        #(#attrs)*
-        #vis struct #name #generics #fields
-    };
-    expanded.into()
+/// Re-emits the user's struct unchanged apart from the generated attributes
+/// placed in front of its own, so where clauses, the trailing `;` of tuple and
+/// unit structs, and every other part of the item survive the attribute.
+fn emit_with_leading_attrs(mut item: ItemStruct, mut leading: Vec<Attribute>) -> TokenStream {
+    leading.append(&mut item.attrs);
+    item.attrs = leading;
+    quote!(#item).into()
 }
 
 pub(crate) fn solverforge_constraints_attr(attr: TokenStream, item: TokenStream) -> TokenStream {

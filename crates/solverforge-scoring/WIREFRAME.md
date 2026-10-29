@@ -87,7 +87,7 @@ migration of the fluent stream families:
   produces `Pair<L::View<'a>, R::View<'a>>`; either input can itself be a join.
   `Pair<L, R>` has public `left` and `right` fields. Depth is recursive rather
   than fixed to a named arity.
-- `stream::chain::Chain<S, O, Sc>` is the arity-free fluent continuation:
+- `stream::chain::{Chain<S, O, Sc>, ChainBuilder}` is the arity-free fluent continuation:
   `stream::cross::Penta::join` returns one, and `Chain::join` nests further `JoinNode`s with no
   ceiling; `Chain::filter` wraps the tree in an identity-preserving
   `FilterNode`; `Chain::penalize`/`reward` then `ChainBuilder::named` finalize

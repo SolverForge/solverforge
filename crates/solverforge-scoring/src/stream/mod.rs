@@ -108,6 +108,10 @@ pub mod cross {
     pub use super::cross_tri_stream::Tri;
 }
 
+pub mod chain {
+    pub use super::chain_stream::{Chain, ChainBuilder};
+}
+
 pub mod projected {
     pub use super::projected_stream::{
         Bi, BiBuilder, Builder, ComplementedGrouped, ComplementedGroupedBuilder, DirectedBi,

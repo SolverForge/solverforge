@@ -15,20 +15,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
 
+      # rust-toolchain.toml names the toolchain and its components.
       - name: Install Rust toolchain
-        run: |
-          toolchain=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
-          rustup toolchain install "$toolchain" --profile minimal --component rustfmt --component clippy
-          rustup default "$toolchain"
-
-      - name: Configure Python for PyO3
-        run: |
-          PYTHON_BIN="$(command -v python3 || command -v python)"
-          echo "PYO3_PYTHON=${PYTHON_BIN}" >> "$GITHUB_ENV"
-          echo "PYTHON_SYS_EXECUTABLE=${PYTHON_BIN}" >> "$GITHUB_ENV"
+        run: rustup toolchain install
 
       # Runner environment overrides workflow-level CARGO_TARGET_DIR. Set it on
       # each Cargo process so trybuild's generated crate stays under this workspace
@@ -45,8 +35,7 @@ jobs:
       - name: Run tests
         run: CARGO_TARGET_DIR="$PWD/target" cargo test --workspace --all-features
 
-      - name: Run integration tests
-        run: CARGO_TARGET_DIR="$PWD/target" cargo test --workspace --all-features --test '*'
-
-      - name: Run doc tests
+      # Doctests already ran above with --all-features; this checks they also
+      # build with the default feature set.
+      - name: Run doc tests with default features
         run: CARGO_TARGET_DIR="$PWD/target" cargo test --workspace --doc

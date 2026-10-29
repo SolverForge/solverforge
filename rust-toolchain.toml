@@ -3,3 +3,4 @@
 # deliberately so a new stable release cannot fail a tag that passed CI.
 channel = "1.99.1"
 components = ["clippy", "rustfmt"]
+profile = "minimal"

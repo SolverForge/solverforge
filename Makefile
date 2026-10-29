@@ -218,7 +218,7 @@ bump-dry:
 # ============== Pre-Release Validation ==============
 
 pre-release: banner
-	@csemver --dry-run >/dev/null && printf "$(GREEN)$(CHECK) Release updaters resolved every configured surface$(RESET)\n"
+	@python3 scripts/release/check-changelog.py && printf "$(GREEN)$(CHECK) Release updaters resolved every surface; the new CHANGELOG section is unique and links real tags$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╔══════════════════════════════════════════════════════════╗$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)║            Pre-Release Validation v$(VERSION)                  ║$(RESET)\n"
 	@printf "$(CYAN)$(BOLD)╚══════════════════════════════════════════════════════════╝$(RESET)\n\n"

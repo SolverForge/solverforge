@@ -45,7 +45,6 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio = { version = "1.52.1", default-features = false }
 crossbeam = "0.8.4"
 num-traits = "0.2.19"
-rust_decimal = "1.41.0"
 rand = "0.10.1"
 rand_chacha = "0.10.0"
 rayon = "1.12.0"

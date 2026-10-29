@@ -14,7 +14,6 @@ Core types and traits for the SolverForge constraint solver framework.
 | Feature | Effect |
 |---------|--------|
 | `default` | Empty default feature set |
-| `decimal` | Currently empty forwarded feature; `HardSoftDecimalScore` is always available with fixed-scale `i64` storage |
 | `serde` | Enables `Serialize` / `Deserialize` for score types and `ConstraintWeights` (a transparent name-to-multiplier map) |
 
 ## File Map

@@ -23,10 +23,9 @@ The CLI lives in the standalone `solverforge-cli` repository and is not part of 
 | Feature | Effect |
 |---------|--------|
 | `default` | Empty default feature set |
-| `decimal` | Forwards the currently empty `solverforge-core/decimal` feature; fixed-scale `HardSoftDecimalScore` is always available |
 | `serde` | Enables `solverforge-core/serde` (Serialize/Deserialize for score types) |
 | `console` | Enables `dep:solverforge-console` (terminal output) |
-| `verbose-logging` | Enables verbose tracing output |
+| `verbose-logging` | Console output at DEBUG level; implies `console` |
 
 ## File Map
 
@@ -439,4 +438,4 @@ local-search selectors.
   attribute macros, score types, constraint traits, stream entry points,
   model-source scalar target helpers, and the public scalar-group and
   conflict-repair declaration types needed by generated applications.
-- **Feature flags** propagate to sub-crates: `decimal` → `solverforge-core/decimal`, `serde` → `solverforge-core/serde`.
+- **Feature flags** propagate to sub-crates: `serde` → `solverforge-core/serde`, `console` → `solverforge-console`, `verbose-logging` → `console` + `solverforge-console/verbose-logging`. `HardSoftDecimalScore` needs no feature.

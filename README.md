@@ -441,8 +441,7 @@ monomorphized.
 | Feature | Description |
 |---------|-------------|
 | `console` | Colorful console output with progress tracking |
-| `verbose-logging` | DEBUG-level construction and local-search progress: prompt first work, then about once/sec during long-running phases |
-| `decimal` | Forwards the currently empty `solverforge-core/decimal` feature; fixed-scale `HardSoftDecimalScore` is always available |
+| `verbose-logging` | Console output at DEBUG level (implies `console`): construction and local-search progress, prompt first work, then about once/sec during long-running phases |
 | `serde` | Serialization support for score types |
 
 ## Quick Start

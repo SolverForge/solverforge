@@ -8,10 +8,10 @@ description = "SolverForge - A constraint solver in Rust"
 
 [features]
 default = []
-decimal = ["solverforge-core/decimal"]
 serde = ["solverforge-core/serde"]
 console = ["dep:solverforge-console"]
-verbose-logging = ["solverforge-console/verbose-logging"]
+# Console output at DEBUG level; implies `console`.
+verbose-logging = ["console", "solverforge-console/verbose-logging"]
 
 [dependencies]
 solverforge-core = { version = "0.23.0", path = "../solverforge-core" }

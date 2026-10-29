@@ -7,6 +7,7 @@ use solverforge_core::score::Score;
 use tokio::sync::mpsc;
 
 use crate::stats::QualifiedCandidateTraceRunProvenance;
+use crate::RuntimeBuildResult;
 
 use super::super::solution_manager::Analyzable;
 use super::runtime::{panic_payload_to_string, SolverRuntime};
@@ -23,11 +24,17 @@ pub const MAX_JOBS: usize = 16;
 
 /// Trait for solutions that can run inside the retained lifecycle manager.
 pub trait Solvable: PlanningSolution + Send + 'static {
+    /// Runs one retained solve, publishing lifecycle events through `runtime`.
+    ///
+    /// Return `Err` when the solve could not be declared, compiled, prepared
+    /// or executed. The manager emits `SolverEvent::Failed` with the error's
+    /// message unless the solve already emitted a terminal event. A panic is
+    /// treated as a bug and also ends the job with `Failed`.
     fn solve(
         self,
         runtime: SolverRuntime<Self>,
         qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
-    );
+    ) -> RuntimeBuildResult<()>;
 }
 
 /// Manages retained async solve jobs with lifecycle-complete event streaming.
@@ -114,7 +121,12 @@ where
             }));
 
             match result {
-                Ok(()) => {
+                Ok(Err(error)) => {
+                    if !runtime.is_terminal() {
+                        runtime.emit_failed(error.to_string());
+                    }
+                }
+                Ok(Ok(())) => {
                     if !runtime.is_terminal() {
                         if runtime.is_cancel_requested() {
                             let (current_score, best_score, telemetry) =

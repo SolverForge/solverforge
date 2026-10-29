@@ -28,7 +28,7 @@ impl Solvable for ManualRuntimeSolution {
         mut self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> solverforge::RuntimeBuildResult<()> {
         let score = SoftScore::of(self.value);
         self.set_score(Some(score));
 
@@ -41,6 +41,7 @@ impl Solvable for ManualRuntimeSolution {
             SolverTelemetry::default(),
             SolverTerminalReason::Completed,
         );
+        Ok(())
     }
 }
 

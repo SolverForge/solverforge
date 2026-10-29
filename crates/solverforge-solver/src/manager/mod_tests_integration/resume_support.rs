@@ -63,7 +63,7 @@ impl Solvable for DeterministicResumeSolution {
         mut self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         self.value = 10;
         let initial_score = SoftScore::of(self.value);
         self.set_score(Some(initial_score));
@@ -96,7 +96,7 @@ impl Solvable for DeterministicResumeSolution {
                     Some(boundary_score),
                     telemetry_with_steps(2),
                 );
-                return;
+                return Ok(());
             }
 
             runtime.emit_best_solution(
@@ -123,6 +123,7 @@ impl Solvable for DeterministicResumeSolution {
             telemetry_with_steps(4),
             SolverTerminalReason::Completed,
         );
+        Ok(())
     }
 }
 
@@ -167,7 +168,7 @@ impl Solvable for TracePairingResumeSolution {
         mut self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let score = SoftScore::of(17);
         self.set_score(Some(score));
         runtime.emit_best_solution(self.clone(), Some(score), score, telemetry_with_steps(0));
@@ -180,7 +181,7 @@ impl Solvable for TracePairingResumeSolution {
             telemetry_with_trace(1, "retained-trace-pairing-pause"),
         ) {
             runtime.emit_cancelled(Some(score), Some(score), zero_telemetry());
-            return;
+            return Ok(());
         }
 
         // `pause_with_snapshot` has already published Resumed at this point.
@@ -194,6 +195,7 @@ impl Solvable for TracePairingResumeSolution {
             telemetry_with_trace(3, "retained-trace-pairing-terminal"),
             SolverTerminalReason::Completed,
         );
+        Ok(())
     }
 }
 
@@ -241,11 +243,11 @@ impl Solvable for FailureAfterSnapshotSolution {
         mut self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let score = SoftScore::of(self.value);
         self.set_score(Some(score));
         runtime.emit_best_solution(self, Some(score), score, zero_telemetry());
-        panic!("expected retained lifecycle failure");
+        panic!("expected retained lifecycle failure")
     }
 }
 
@@ -293,7 +295,7 @@ impl Solvable for ConfigTerminatedSolution {
         mut self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let score = SoftScore::of(self.value);
         self.set_score(Some(score));
         runtime.emit_best_solution(self.clone(), Some(score), score, zero_telemetry());
@@ -304,5 +306,6 @@ impl Solvable for ConfigTerminatedSolution {
             zero_telemetry(),
             SolverTerminalReason::TerminatedByConfig,
         );
+        Ok(())
     }
 }

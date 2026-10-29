@@ -139,7 +139,7 @@ impl Solvable for PartitionedRetainedSolution {
         self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let mut solver_scope = SolverScope::new_with_callback(
             PartitionedRetainedDirector::new(self),
             (),
@@ -200,6 +200,7 @@ impl Solvable for PartitionedRetainedSolution {
             }
             SolverTerminalReason::Failed => unreachable!("test solver scope cannot fail"),
         }
+        Ok(())
     }
 }
 

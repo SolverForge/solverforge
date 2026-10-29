@@ -723,7 +723,12 @@ Requires: `PlanningSolution + Send + 'static`.
 
 | Method | Signature |
 |--------|-----------|
-| `solve` | `fn(self, runtime: SolverRuntime<Self>, qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>)` |
+| `solve` | `fn(self, runtime: SolverRuntime<Self>, qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>) -> RuntimeBuildResult<()>` |
+
+Return `Err` when the solve could not be declared, compiled, prepared, or
+executed. The manager emits `SolverEvent::Failed` with the error's message
+unless the solve already emitted a terminal event; a panic is treated as a
+bug and also ends the job with `Failed`.
 
 ### `SolverRuntime<S>` — `manager/solver_manager.rs`
 

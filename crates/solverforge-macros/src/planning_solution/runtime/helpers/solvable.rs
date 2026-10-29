@@ -31,12 +31,13 @@ pub(super) fn generate_solvable_solution(
                     qualified_candidate_trace_provenance: ::core::option::Option<
                         ::solverforge::QualifiedCandidateTraceRunProvenance,
                     >,
-                ) {
-                    let _ = #solution_name::solve_internal(
+                ) -> ::solverforge::RuntimeBuildResult<()> {
+                    #solution_name::solve_internal(
                         self,
                         runtime,
                         qualified_candidate_trace_provenance,
-                    );
+                    )
+                    .map(|_| ())
                 }
             }
 

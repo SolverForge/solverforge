@@ -129,7 +129,7 @@ impl Solvable for LifecycleSolution {
         self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let mut solver_scope =
             SolverScope::new_with_callback(LifecycleDirector::new(self), (), None, Some(runtime));
 
@@ -183,6 +183,7 @@ impl Solvable for LifecycleSolution {
                 SolverTerminalReason::Completed,
             );
         }
+        Ok(())
     }
 }
 
@@ -285,7 +286,7 @@ impl Solvable for PanickingLifecycleSolution {
         self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let mut solver_scope = SolverScope::new_with_callback(
             PanickingLifecycleDirector::new(self),
             (),
@@ -294,7 +295,7 @@ impl Solvable for PanickingLifecycleSolution {
         );
 
         solver_scope.start_solving();
-        panic!("panicking job explosion marker");
+        panic!("panicking job explosion marker")
     }
 }
 
@@ -332,7 +333,7 @@ impl Solvable for PauseRequestedProgressSolution {
         mut self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let score = SoftScore::of(self.value);
         self.set_score(Some(score));
         runtime.emit_best_solution(self.clone(), Some(score), score, zero_telemetry());
@@ -351,6 +352,7 @@ impl Solvable for PauseRequestedProgressSolution {
         } else {
             runtime.emit_cancelled(Some(score), Some(score), zero_telemetry());
         }
+        Ok(())
     }
 }
 
@@ -388,7 +390,7 @@ impl Solvable for TerminalHookLifecycleSolution {
         mut self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let score = SoftScore::of(self.value);
         self.set_score(Some(score));
         self.terminal_hook.block();
@@ -399,6 +401,7 @@ impl Solvable for TerminalHookLifecycleSolution {
             zero_telemetry(),
             SolverTerminalReason::Completed,
         );
+        Ok(())
     }
 }
 
@@ -431,7 +434,7 @@ impl Solvable for PauseOrderingSolution {
         mut self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let score = SoftScore::of(self.value);
         self.set_score(Some(score));
         runtime.emit_best_solution(self.clone(), Some(score), score, zero_telemetry());
@@ -460,6 +463,7 @@ impl Solvable for PauseOrderingSolution {
         } else {
             runtime.emit_cancelled(Some(score), Some(score), telemetry_with_steps(9));
         }
+        Ok(())
     }
 }
 
@@ -495,7 +499,7 @@ impl Solvable for DeleteReservationSolution {
         mut self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let score = SoftScore::of(1);
         self.set_score(Some(score));
         runtime.emit_completed(
@@ -506,6 +510,7 @@ impl Solvable for DeleteReservationSolution {
             SolverTerminalReason::Completed,
         );
         self.release_return.wait_for_permit();
+        Ok(())
     }
 }
 
@@ -563,7 +568,7 @@ impl Solvable for ZeroVariableLifecycleSolution {
         self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let result = try_run_solver_with_config_and_search(
             self,
             zero_variable_constraints,
@@ -588,5 +593,6 @@ impl Solvable for ZeroVariableLifecycleSolution {
             result.is_ok(),
             "zero-variable compiled runtime solve must succeed"
         );
+        Ok(())
     }
 }

@@ -276,7 +276,7 @@ impl Solvable for PromptControlSolution {
         self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let mut solver_scope = SolverScope::new_with_callback(
             PromptControlDirector::new(self),
             (),
@@ -324,5 +324,6 @@ impl Solvable for PromptControlSolution {
                 reason,
             ),
         }
+        Ok(())
     }
 }

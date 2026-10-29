@@ -429,7 +429,7 @@ impl Solvable for ConstructionPauseSolution {
         self,
         runtime: SolverRuntime<Self>,
         _provenance: Option<crate::stats::QualifiedCandidateTraceRunProvenance>,
-    ) {
+    ) -> crate::RuntimeBuildResult<()> {
         let eval_gate = self.eval_gate.clone();
         let solvable_mode = self.solvable_mode;
         let mut solver_scope = SolverScope::new_with_callback(
@@ -492,5 +492,6 @@ impl Solvable for ConstructionPauseSolution {
                 SolverTerminalReason::Completed,
             );
         }
+        Ok(())
     }
 }

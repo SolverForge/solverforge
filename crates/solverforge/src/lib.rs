@@ -113,12 +113,12 @@ pub use solverforge_solver::{
     ConstraintAnalysis, CustomSearchPhase, ExhaustiveSearchConfig, ExhaustiveSearchPhase,
     ExplorationType, FunctionalPartitioner, MoveTelemetry, PartitionedSearchPhase, PhaseTelemetry,
     ProblemChange, ProblemChangeId, RepairCandidate, RepairLimits, RepairProvider,
-    ScalarAssignmentRule, ScalarCandidate, ScalarCandidateProvider, ScalarEdit, ScalarGroup,
-    ScalarGroupLimits, ScalarTarget, ScoreAnalysis, Search, SearchContext, SelectorTelemetry,
-    SimpleDecider, SolutionPartitioner, Solvable, SolverEvent, SolverEventMetadata,
-    SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime, SolverSnapshot,
-    SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTelemetryDetail,
-    SolverTerminalReason, ThreadCount,
+    RuntimeBuildError, RuntimeBuildResult, ScalarAssignmentRule, ScalarCandidate,
+    ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget,
+    ScoreAnalysis, Search, SearchContext, SelectorTelemetry, SimpleDecider, SolutionPartitioner,
+    Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager,
+    SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
+    SolverTelemetry, SolverTelemetryDetail, SolverTerminalReason, ThreadCount,
 };
 
 /* ============================================================================

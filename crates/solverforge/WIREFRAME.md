@@ -118,6 +118,7 @@ src/
 
 - `analyze` (free function)
 - `Solvable` (trait)
+- `RuntimeBuildError`, `RuntimeBuildResult` (the `Solvable::solve` error type)
 - `Analyzable` (trait)
 - `AppliedMoveTelemetry`
 - `MoveTelemetry`

@@ -1,0 +1,679 @@
+struct AppliedMoveTelemetry: pub struct AppliedMoveTelemetry { pub step_index: u64, pub move_label: &'static str, pub selected_candidate_index: usize, pub moves_generated_this_step: u64, pub moves_evaluated_this_step: u64, pub moves_accepted_this_step: u64, pub moves_forager_ignored_this_step: u64, pub score_before: f64, pub score_after: f64, pub score_delta: f64, pub hard_feasible_before: bool, pub hard_feasible_after: bool, }
+struct CandidateId: pub struct CandidateId(/* private fields */);
+    CandidateId: pub fn new(index: usize) -> Self
+    CandidateId: pub fn index(self) -> usize
+struct CandidatePullTelemetry: pub struct CandidatePullTelemetry { pub ordinal: u64, pub source: CandidateTraceSource, pub phase_index: usize, pub phase_type: String, pub step_index: u64, pub selector_index: Option<usize>, pub candidate_index: usize, pub construction_target: Option<CandidateTraceConstructionTarget>, pub identity: Option<CandidateTraceIdentity>, pub dispositions: Vec<CandidateTraceDisposition>, }
+struct CandidateTraceCompositeIdentity: pub struct CandidateTraceCompositeIdentity { pub operation: String, pub children: Vec<CandidateTraceIdentity>, }
+struct CandidateTraceConstructionTarget: pub struct CandidateTraceConstructionTarget { pub descriptor_index: usize, pub entity_index: usize, }
+struct CandidateTraceDigest: pub struct CandidateTraceDigest { pub first: u64, pub second: u64, }
+    CandidateTraceDigest: pub const fn empty() -> Self
+    CandidateTraceDigest: pub fn of_bytes(bytes: &[u8]) -> Self
+    CandidateTraceDigest: pub fn update(&mut self, bytes: &[u8])
+struct CandidateTraceExecutionPolicy: pub struct CandidateTraceExecutionPolicy { pub kind: String, pub attributes: Vec<CandidateTracePhaseAttribute>, pub opaque: bool, }
+    CandidateTraceExecutionPolicy: pub fn known<K, V, I>(kind: impl Into<String>, attributes: I) -> Self where I: IntoIterator<Item = (K, V)>, K: Into<String>, V: Into<String>,
+    CandidateTraceExecutionPolicy: pub fn opaque(kind: impl Into<String>) -> Self
+    CandidateTraceExecutionPolicy: pub fn opaque_with_attributes<K, V, I>( kind: impl Into<String>, attributes: I, ) -> Self where I: IntoIterator<Item = (K, V)>, K: Into<String>, V: Into<String>,
+    CandidateTraceExecutionPolicy: pub const fn is_complete(&self) -> bool
+    CandidateTraceExecutionPolicy: pub fn canonical_bytes(&self) -> Vec<u8>
+struct CandidateTraceExternalDigest: pub struct CandidateTraceExternalDigest { pub bytes: [u8; 32], }
+    CandidateTraceExternalDigest: pub const fn sha256(bytes: [u8; 32]) -> Self
+struct CandidateTraceHeader: pub struct CandidateTraceHeader { pub format_version: u32, pub configured_input: String, pub configured_input_digest: CandidateTraceDigest, pub execution_policy: CandidateTraceExecutionPolicy, pub execution_policy_digest: CandidateTraceDigest, pub execution_policy_complete: bool, pub input_provenance: Option<CandidateTraceInputProvenance>, pub input_provenance_digest: Option<CandidateTraceDigest>, pub qualified_run_provenance: Option<QualifiedCandidateTraceRunProvenance>, pub resolved_phase_plan: CandidateTracePhasePlan, pub resolved_phase_plan_digest: CandidateTraceDigest, pub resolved_phase_plan_complete: bool, }
+    CandidateTraceHeader: pub fn new( configured_input: String, execution_policy: CandidateTraceExecutionPolicy, resolved_phase_plan: CandidateTracePhasePlan, input_provenance: Option<CandidateTraceInputProvenance>, ) -> Self
+    CandidateTraceHeader: pub fn new_qualified( configured_input: String, execution_policy: CandidateTraceExecutionPolicy, resolved_phase_plan: CandidateTracePhasePlan, qualified_run_provenance: QualifiedCandidateTraceRunProvenance, ) -> Self
+struct CandidateTraceInputAttestation: pub struct CandidateTraceInputAttestation { /* private fields */ }
+    CandidateTraceInputAttestation: pub fn external(producer: impl Into<String>) -> Self
+    CandidateTraceInputAttestation: pub fn external_producer(&self) -> &str
+struct CandidateTraceInputProvenance: pub struct CandidateTraceInputProvenance { pub schema_digest: CandidateTraceExternalDigest, pub instance_digest: CandidateTraceExternalDigest, pub initial_state_digest: CandidateTraceExternalDigest, pub core_tree_digest: Option<CandidateTraceExternalDigest>, pub build_digest: Option<CandidateTraceExternalDigest>, pub attestation: CandidateTraceInputAttestation, }
+    CandidateTraceInputProvenance: pub fn externally_attested( schema_digest: CandidateTraceExternalDigest, instance_digest: CandidateTraceExternalDigest, initial_state_digest: CandidateTraceExternalDigest, producer: impl Into<String>, ) -> Self
+    CandidateTraceInputProvenance: pub fn with_core_tree_digest(self, digest: CandidateTraceExternalDigest) -> Self
+    CandidateTraceInputProvenance: pub fn with_build_digest(self, digest: CandidateTraceExternalDigest) -> Self
+struct CandidateTraceOperationIdentity: pub struct CandidateTraceOperationIdentity { pub descriptor_index: usize, pub variable_name: Option<String>, pub operation: String, pub components: Vec<CandidateTraceCoordinate>, }
+struct CandidateTracePhaseAttribute: pub struct CandidateTracePhaseAttribute { pub key: String, pub value: String, }
+struct CandidateTracePhasePlan: pub struct CandidateTracePhasePlan { pub kind: String, pub attributes: Vec<CandidateTracePhaseAttribute>, pub opaque: bool, pub children: Vec<Self>, }
+    CandidateTracePhasePlan: pub fn known<K, V, I>( kind: impl Into<String>, attributes: I, children: Vec<Self>, ) -> Self where I: IntoIterator<Item = (K, V)>, K: Into<String>, V: Into<String>,
+    CandidateTracePhasePlan: pub fn opaque(kind: impl Into<String>) -> Self
+    CandidateTracePhasePlan: pub fn is_complete(&self) -> bool
+    CandidateTracePhasePlan: pub fn canonical_bytes(&self) -> Vec<u8>
+struct CandidateTraceProvenanceStatus: pub struct CandidateTraceProvenanceStatus { pub execution_policy_complete: bool, pub resolved_phase_plan_complete: bool, pub input_provenance: CandidateTraceInputProvenanceStatus, pub qualification: CandidateTraceQualificationStatus, }
+    CandidateTraceProvenanceStatus: pub const fn has_complete_execution_plan(self) -> bool
+struct CandidateTraceTelemetry: pub struct CandidateTraceTelemetry { pub header: CandidateTraceHeader, pub max_entries: usize, pub total_pulls: u64, pub pulls: Vec<CandidatePullTelemetry>, pub truncated: bool, pub prefix_digest: CandidateTraceDigest, pub unencoded_identity_count: u64, /* private fields */ }
+    CandidateTraceTelemetry: pub fn is_complete(&self) -> bool
+    CandidateTraceTelemetry: pub fn has_complete_execution_provenance(&self) -> bool
+    CandidateTraceTelemetry: pub fn provenance_status(&self) -> CandidateTraceProvenanceStatus
+    CandidateTraceTelemetry: pub fn require_qualified_run_provenance( &self, ) -> Result<&QualifiedCandidateTraceRunProvenance, CandidateTraceQualificationError>
+struct ClosureProblemChange: pub struct ClosureProblemChange<S: PlanningSolution, F> where F: FnOnce(&mut dyn Director<S>) + Send,{ /* private fields */ }
+    ClosureProblemChange: pub fn new(name: &'static str, change_fn: F) -> Self
+struct ConflictRepair: pub struct ConflictRepair<S> { /* private fields */ }
+    ConflictRepair: pub const fn new( constraint_name: &'static str, provider: RepairProvider<S>, ) -> Self
+struct ConstraintAnalysis: pub struct ConstraintAnalysis<Sc> { pub name: String, pub weight_multiplier: u32, pub score: Sc, pub match_count: usize, }
+struct DefaultCrossEntityDistanceMeter: pub struct DefaultCrossEntityDistanceMeter;
+struct DefaultDistanceMeter: pub struct DefaultDistanceMeter;
+struct ExhaustiveSearchConfig: pub struct ExhaustiveSearchConfig { pub exploration_type: ExplorationType, pub node_limit: Option<u64>, pub depth_limit: Option<usize>, pub enable_pruning: bool, }
+struct ExhaustiveSearchNode: pub struct ExhaustiveSearchNode<S: PlanningSolution> { /* private fields */ }
+    ExhaustiveSearchNode: pub fn root(score: S::Score) -> Self
+    ExhaustiveSearchNode: pub fn child( parent_index: usize, depth: usize, score: S::Score, descriptor_index: usize, variable_index: usize, entity_index: usize, candidate_value_index: usize, ) -> Self
+    ExhaustiveSearchNode: pub fn depth(&self) -> usize
+    ExhaustiveSearchNode: pub fn score(&self) -> &S::Score
+    ExhaustiveSearchNode: pub fn set_score(&mut self, score: S::Score)
+    ExhaustiveSearchNode: pub fn optimistic_bound(&self) -> Option<&S::Score>
+    ExhaustiveSearchNode: pub fn set_optimistic_bound(&mut self, bound: S::Score)
+    ExhaustiveSearchNode: pub fn descriptor_index(&self) -> Option<usize>
+    ExhaustiveSearchNode: pub fn variable_index(&self) -> Option<usize>
+    ExhaustiveSearchNode: pub fn entity_index(&self) -> Option<usize>
+    ExhaustiveSearchNode: pub fn candidate_value_index(&self) -> Option<usize>
+    ExhaustiveSearchNode: pub fn parent_index(&self) -> Option<usize>
+    ExhaustiveSearchNode: pub fn is_expanded(&self) -> bool
+    ExhaustiveSearchNode: pub fn mark_expanded(&mut self)
+    ExhaustiveSearchNode: pub fn is_leaf(&self, total_entities: usize) -> bool
+    ExhaustiveSearchNode: pub fn can_prune(&self, best_score: &S::Score) -> bool
+    ExhaustiveSearchNode: pub fn assignment_path<'a>(&'a self, all_nodes: &'a [Self]) -> Vec<&'a Self>
+struct ExhaustiveSearchPhase: pub struct ExhaustiveSearchPhase<Dec> { /* private fields */ }
+    ExhaustiveSearchPhase: pub fn new(decider: Dec, config: ExhaustiveSearchConfig) -> Self
+    ExhaustiveSearchPhase: pub fn depth_first(decider: Dec) -> Self
+    ExhaustiveSearchPhase: pub fn breadth_first(decider: Dec) -> Self
+    ExhaustiveSearchPhase: pub fn score_first(decider: Dec) -> Self
+    ExhaustiveSearchPhase: pub fn phase_type_name(&self) -> &'static str
+struct FunctionalPartitioner: pub struct FunctionalPartitioner<S, PF, MF> where S: PlanningSolution, PF: Fn(&S) -> Vec<S> + Send + Sync, MF: Fn(&S, Vec<S>) -> S + Send + Sync,{ /* private fields */ }
+    FunctionalPartitioner: pub fn new(partition_fn: PF, merge_fn: MF) -> Self
+    FunctionalPartitioner: pub fn with_recommended_count(self, count: usize) -> Self
+struct ListVariableMetadata: pub struct ListVariableMetadata<S, DM, IDM> { pub cross_distance_meter: DM, pub intra_distance_meter: IDM, pub route_get_fn: Option<fn(&S, usize) -> Vec<usize>>, pub route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>, pub route_depot_fn: Option<fn(&S, usize) -> usize>, pub route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, pub route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, pub savings_depot_fn: Option<fn(&S, usize) -> usize>, pub savings_metric_class_fn: Option<fn(&S, usize) -> usize>, pub savings_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, pub savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, pub element_owner_fn: Option<fn(&S, &usize) -> Option<usize>>, /* private fields */ }
+    ListVariableMetadata: pub fn new( cross_distance_meter: DM, intra_distance_meter: IDM, route_get_fn: Option<fn(&S, usize) -> Vec<usize>>, route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>, route_depot_fn: Option<fn(&S, usize) -> usize>, route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, savings_depot_fn: Option<fn(&S, usize) -> usize>, savings_metric_class_fn: Option<fn(&S, usize) -> usize>, savings_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, ) -> Self
+    ListVariableMetadata: pub fn with_element_owner_fn( self, element_owner_fn: Option<fn(&S, &usize) -> Option<usize>>, ) -> Self
+struct ListVariableSlot: pub struct ListVariableSlot<S, V, DM, IDM> {Show 34 fields pub entity_type_name: &'static str, pub element_count: fn(&S) -> usize, pub assigned_elements: fn(&S) -> Vec<V>, pub list_len: fn(&S, usize) -> usize, pub list_remove: fn(&mut S, usize, usize) -> Option<V>, pub construction_list_remove: fn(&mut S, usize, usize) -> V, pub list_insert: fn(&mut S, usize, usize, V), pub list_get: fn(&S, usize, usize) -> Option<V>, pub list_set: fn(&mut S, usize, usize, V), pub list_reverse: fn(&mut S, usize, usize, usize), pub sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>, pub sublist_insert: fn(&mut S, usize, usize, Vec<V>), pub ruin_remove: fn(&mut S, usize, usize) -> V, pub ruin_insert: fn(&mut S, usize, usize, V), pub index_to_element: fn(&S, usize) -> V, pub element_source_key: fn(&S, &V) -> usize, pub entity_count: fn(&S) -> usize, pub cross_distance_meter: DM, pub intra_distance_meter: IDM, pub variable_name: &'static str, pub descriptor_index: usize, pub route_get_fn: Option<fn(&S, usize) -> Vec<usize>>, pub route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>, pub route_depot_fn: Option<fn(&S, usize) -> usize>, pub route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, pub route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, pub savings_depot_fn: Option<fn(&S, usize) -> usize>, pub savings_metric_class_fn: Option<fn(&S, usize) -> usize>, pub savings_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, pub savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, pub element_owner_fn: Option<fn(&S, &V) -> Option<usize>>, pub construction_element_order_key: Option<fn(&S, V) -> i64>, pub precedence_duration_fn: Option<fn(&S, V) -> usize>, pub precedence_successors_fn: Option<fn(&S, V, &mut Vec<V>)>, /* private fields */ }
+    ListVariableSlot: pub fn new( entity_type_name: &'static str, element_count: fn(&S) -> usize, assigned_elements: fn(&S) -> Vec<V>, list_len: fn(&S, usize) -> usize, list_remove: fn(&mut S, usize, usize) -> Option<V>, construction_list_remove: fn(&mut S, usize, usize) -> V, list_insert: fn(&mut S, usize, usize, V), list_get: fn(&S, usize, usize) -> Option<V>, list_set: fn(&mut S, usize, usize, V), list_reverse: fn(&mut S, usize, usize, usize), sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>, sublist_insert: fn(&mut S, usize, usize, Vec<V>), ruin_remove: fn(&mut S, usize, usize) -> V, ruin_insert: fn(&mut S, usize, usize, V), index_to_element: fn(&S, usize) -> V, element_source_key: fn(&S, &V) -> usize, entity_count: fn(&S) -> usize, cross_distance_meter: DM, intra_distance_meter: IDM, variable_name: &'static str, descriptor_index: usize, route_get_fn: Option<fn(&S, usize) -> Vec<usize>>, route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>, route_depot_fn: Option<fn(&S, usize) -> usize>, route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, savings_depot_fn: Option<fn(&S, usize) -> usize>, savings_metric_class_fn: Option<fn(&S, usize) -> usize>, savings_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>, savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>, ) -> Self
+    ListVariableSlot: pub fn with_element_owner_fn( self, element_owner_fn: Option<fn(&S, &V) -> Option<usize>>, ) -> Self
+    ListVariableSlot: pub fn with_construction_element_order_key( self, construction_element_order_key: Option<fn(&S, V) -> i64>, ) -> Self
+    ListVariableSlot: pub fn with_precedence_hooks( self, duration_fn: Option<fn(&S, V) -> usize>, successors_fn: Option<fn(&S, V, &mut Vec<V>)>, ) -> Self
+    ListVariableSlot: pub fn matches_target( &self, entity_class: Option<&str>, variable_name: Option<&str>, ) -> bool
+    ListVariableSlot: pub fn has_unassigned_elements(&self, solution: &S) -> bool
+    ListVariableSlot: pub fn has_list_content(&self, solution: &S) -> bool
+    ListVariableSlot: pub fn supports_clarke_wright(&self) -> bool
+    ListVariableSlot: pub fn supports_k_opt(&self) -> bool
+    ListVariableSlot: pub fn supports_ruin(&self) -> bool
+    ListVariableSlot: pub fn supports_precedence_moves(&self) -> bool
+struct MoveAffectedEntity: pub struct MoveAffectedEntity<'a> { pub descriptor_index: usize, pub entity_index: usize, pub variable_name: &'a str, }
+struct MoveArena: pub struct MoveArena<M> { /* private fields */ }
+    MoveArena: pub fn new() -> Self
+    MoveArena: pub fn with_capacity(capacity: usize) -> Self
+    MoveArena: pub fn reset(&mut self)
+    MoveArena: pub fn push(&mut self, m: M)
+    MoveArena: pub fn len(&self) -> usize
+    MoveArena: pub fn is_empty(&self) -> bool
+    MoveArena: pub fn iter(&self) -> impl Iterator<Item = &M>
+    MoveArena: pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut M>
+    MoveArena: pub fn get(&self, index: usize) -> Option<&M>
+    MoveArena: pub fn take(&mut self, index: usize) -> M
+    MoveArena: pub fn extend<I: IntoIterator<Item = M>>(&mut self, iter: I)
+    MoveArena: pub fn shuffle<R: Rng>(&mut self, rng: &mut R)
+    MoveArena: pub fn capacity(&self) -> usize
+struct MoveSelectorIter: pub struct MoveSelectorIter<'a, S, M, C> where S: PlanningSolution, M: Move<S>, C: MoveCursor<S, M>,{ /* private fields */ }
+struct MoveStreamContext: pub struct MoveStreamContext { /* private fields */ }
+    MoveStreamContext: pub const fn new( step_index: u64, step_seed: u64, accepted_count_limit: Option<usize>, ) -> Self
+    MoveStreamContext: pub const fn with_selection_order(self, selection_order: SelectionOrder) -> Self
+    MoveStreamContext: pub const fn selection_order(self) -> SelectionOrder
+    MoveStreamContext: pub const fn step_index(self) -> u64
+    MoveStreamContext: pub const fn step_seed(self) -> u64
+    MoveStreamContext: pub const fn accepted_count_limit(self) -> Option<usize>
+    MoveStreamContext: pub fn start_offset(self, len: usize, salt: u64) -> usize
+    MoveStreamContext: pub fn stride(self, len: usize, salt: u64) -> usize
+    MoveStreamContext: pub fn offset_seed(self, salt: u64) -> usize
+struct MoveTabuScope: pub struct MoveTabuScope { pub descriptor_index: usize, pub variable_name: &'static str, }
+    MoveTabuScope: pub const fn new(descriptor_index: usize, variable_name: &'static str) -> Self
+    MoveTabuScope: pub const fn entity_token(self, entity_id: u64) -> ScopedEntityTabuToken
+    MoveTabuScope: pub const fn value_token(self, value_id: u64) -> ScopedValueTabuToken
+struct MoveTabuSignature: pub struct MoveTabuSignature { pub scope: MoveTabuScope, pub entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]>, pub destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]>, pub move_id: SmallVec<[u64; 8]>, pub undo_move_id: MoveUndoIdentity, }
+    MoveTabuSignature: pub fn new_self_undoing( scope: MoveTabuScope, move_id: SmallVec<[u64; 8]>, ) -> Self
+    MoveTabuSignature: pub fn new( scope: MoveTabuScope, move_id: SmallVec<[u64; 8]>, undo_move_id: SmallVec<[u64; 8]>, ) -> Self
+    MoveTabuSignature: pub fn undo_id(&self) -> &SmallVec<[u64; 8]>
+    MoveTabuSignature: pub fn with_entity_tokens<I>(self, entity_tokens: I) -> Self where I: IntoIterator<Item = ScopedEntityTabuToken>,
+    MoveTabuSignature: pub fn with_destination_value_tokens<I>( self, destination_value_tokens: I, ) -> Self where I: IntoIterator<Item = ScopedValueTabuToken>,
+struct MoveTelemetry: pub struct MoveTelemetry {Show 14 fields pub move_label: String, pub moves_generated: u64, pub moves_evaluated: u64, pub moves_accepted: u64, pub moves_applied: u64, pub moves_not_doable: u64, pub moves_acceptor_rejected: u64, pub moves_forager_ignored: u64, pub moves_score_improving: u64, pub moves_applied_improving: u64, pub moves_score_equal: u64, pub moves_score_worse: u64, pub moves_rejected_improving: u64, pub applied_score_improvement: f64, }
+struct PartitionedSearchConfig: pub struct PartitionedSearchConfig { pub thread_count: ThreadCount, pub log_progress: bool, }
+    PartitionedSearchConfig: pub fn from_serialized(config: &PartitionedSearchConfig) -> Self
+struct PartitionedSearchPhase: pub struct PartitionedSearchPhase<S, PD, Part, SDF, PF, CP> where S: PlanningSolution, PD: Director<S>, Part: SolutionPartitioner<S>, SDF: Fn(S) -> PD + Send + Sync, PF: Fn() -> CP + Send + Sync, CP: ChildPhases<S, PD>,{ /* private fields */ }
+    PartitionedSearchPhase: pub fn new( partitioner: Part, score_director_factory: SDF, phase_factory: PF, ) -> Self
+    PartitionedSearchPhase: pub fn with_config( partitioner: Part, score_director_factory: SDF, phase_factory: PF, config: PartitionedSearchConfig, ) -> Self
+struct PhaseScope: pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb = ()> { /* private fields */ }
+    PhaseScope: pub fn new( solver_scope: &'a mut SolverScope<'t, S, D, BestCb>, phase_index: usize, ) -> Self
+    PhaseScope: pub fn with_phase_type( solver_scope: &'a mut SolverScope<'t, S, D, BestCb>, phase_index: usize, phase_type: &'static str, ) -> Self
+    PhaseScope: pub fn phase_index(&self) -> usize
+    PhaseScope: pub fn starting_score(&self) -> Option<&S::Score>
+    PhaseScope: pub fn elapsed(&self) -> Duration
+    PhaseScope: pub fn step_count(&self) -> u64
+    PhaseScope: pub fn increment_step_count(&mut self) -> u64
+    PhaseScope: pub fn solver_scope(&self) -> &SolverScope<'t, S, D, BestCb>
+    PhaseScope: pub fn solver_scope_mut(&mut self) -> &mut SolverScope<'t, S, D, BestCb>
+    PhaseScope: pub fn score_director(&self) -> &D
+    PhaseScope: pub fn mutate<T, F>(&mut self, mutate: F) -> T where F: FnOnce(&mut D) -> T,
+    PhaseScope: pub fn calculate_score(&mut self) -> S::Score
+    PhaseScope: pub fn update_best_solution(&mut self)
+    PhaseScope: pub fn stats(&self) -> &PhaseStats
+    PhaseScope: pub fn stats_mut(&mut self) -> &mut PhaseStats
+    PhaseScope: pub fn report_progress(&self)
+    PhaseScope: pub fn report_progress_if_due(&mut self) -> bool
+    PhaseScope: pub fn record_generated_batch(&mut self, count: u64, duration: Duration)
+    PhaseScope: pub fn record_generated_move(&mut self, duration: Duration)
+    PhaseScope: pub fn record_selector_generated_move( &mut self, selector_index: usize, duration: Duration, )
+    PhaseScope: pub fn record_selector_generated_move_with_label( &mut self, selector_index: usize, selector_label: impl Into<String>, duration: Duration, )
+    PhaseScope: pub fn record_generation_time(&mut self, duration: Duration)
+    PhaseScope: pub fn record_evaluated_move(&mut self, duration: Duration)
+    PhaseScope: pub fn record_selector_evaluated_move( &mut self, selector_index: usize, duration: Duration, )
+    PhaseScope: pub fn record_move_accepted(&mut self)
+    PhaseScope: pub fn record_move_applied(&mut self)
+    PhaseScope: pub fn record_selector_move_accepted(&mut self, selector_index: usize)
+    PhaseScope: pub fn record_selector_move_applied(&mut self, selector_index: usize)
+    PhaseScope: pub fn record_move_not_doable(&mut self)
+    PhaseScope: pub fn record_selector_move_not_doable(&mut self, selector_index: usize)
+    PhaseScope: pub fn record_move_acceptor_rejected(&mut self)
+    PhaseScope: pub fn record_selector_move_acceptor_rejected(&mut self, selector_index: usize)
+    PhaseScope: pub fn record_moves_forager_ignored(&mut self, count: u64)
+    PhaseScope: pub fn record_move_kind_generated(&mut self, move_label: &'static str)
+    PhaseScope: pub fn record_move_kind_evaluated( &mut self, move_label: &'static str, score_ordering: Ordering, )
+    PhaseScope: pub fn record_move_kind_evaluated_unscored(&mut self, move_label: &'static str)
+    PhaseScope: pub fn record_move_kind_accepted(&mut self, move_label: &'static str)
+    PhaseScope: pub fn record_move_kind_applied( &mut self, move_label: &'static str, score_improvement: f64, )
+    PhaseScope: pub fn record_move_kind_not_doable(&mut self, move_label: &'static str)
+    PhaseScope: pub fn record_move_kind_acceptor_rejected( &mut self, move_label: &'static str, score_ordering: Ordering, )
+    PhaseScope: pub fn record_move_kind_forager_ignored( &mut self, move_label: &'static str, count: u64, )
+    PhaseScope: pub fn record_applied_move_trace(&mut self, applied_move: AppliedMoveTelemetry)
+    PhaseScope: pub fn can_record_applied_move_trace(&self) -> bool
+    PhaseScope: pub fn record_move_hard_improving(&mut self)
+    PhaseScope: pub fn record_move_hard_neutral(&mut self)
+    PhaseScope: pub fn record_move_hard_worse(&mut self)
+    PhaseScope: pub fn record_score_calculation(&mut self)
+    PhaseScope: pub fn record_move_speculative(&mut self)
+    PhaseScope: pub fn record_construction_slot_assigned(&mut self)
+    PhaseScope: pub fn record_construction_slot_kept(&mut self)
+    PhaseScope: pub fn record_construction_slot_no_doable(&mut self)
+    PhaseScope: pub fn record_scalar_assignment_required_remaining( &mut self, group_name: &'static str, count: u64, )
+struct PhaseStats: pub struct PhaseStats {Show 25 fields pub phase_index: usize, pub phase_type: &'static str, pub step_count: u64, pub moves_generated: u64, pub moves_evaluated: u64, pub moves_speculative: u64, pub moves_accepted: u64, pub moves_applied: u64, pub moves_not_doable: u64, pub moves_acceptor_rejected: u64, pub moves_forager_ignored: u64, pub moves_hard_improving: u64, pub moves_hard_neutral: u64, pub moves_hard_worse: u64, pub conflict_repair_provider_generated: u64, pub conflict_repair_duplicate_filtered: u64, pub conflict_repair_illegal_filtered: u64, pub conflict_repair_not_doable_filtered: u64, pub conflict_repair_hard_improving: u64, pub conflict_repair_exposed: u64, pub score_calculations: u64, pub construction_slots_assigned: u64, pub construction_slots_kept: u64, pub construction_slots_no_doable: u64, pub scalar_assignment_required_remaining: u64, /* private fields */ }
+    PhaseStats: pub fn new(phase_index: usize, phase_type: &'static str) -> Self
+    PhaseStats: pub fn elapsed(&self) -> Duration
+    PhaseStats: pub fn snapshot(&self) -> PhaseTelemetry
+    PhaseStats: pub fn record_step(&mut self)
+    PhaseStats: pub fn record_generated_batch(&mut self, count: u64, duration: Duration)
+    PhaseStats: pub fn record_selector_generated( &mut self, selector_index: usize, count: u64, duration: Duration, )
+    PhaseStats: pub fn record_generation_time(&mut self, duration: Duration)
+    PhaseStats: pub fn record_generated_move(&mut self, duration: Duration)
+    PhaseStats: pub fn record_evaluated_move(&mut self, duration: Duration)
+    PhaseStats: pub fn record_selector_evaluated( &mut self, selector_index: usize, duration: Duration, )
+    PhaseStats: pub fn record_move_accepted(&mut self)
+    PhaseStats: pub fn record_selector_accepted(&mut self, selector_index: usize)
+    PhaseStats: pub fn record_move_applied(&mut self)
+    PhaseStats: pub fn record_selector_applied(&mut self, selector_index: usize)
+    PhaseStats: pub fn record_move_not_doable(&mut self)
+    PhaseStats: pub fn record_selector_not_doable(&mut self, selector_index: usize)
+    PhaseStats: pub fn record_move_acceptor_rejected(&mut self)
+    PhaseStats: pub fn record_selector_acceptor_rejected(&mut self, selector_index: usize)
+    PhaseStats: pub fn record_moves_forager_ignored(&mut self, count: u64)
+    PhaseStats: pub fn record_move_hard_improving(&mut self)
+    PhaseStats: pub fn record_move_hard_neutral(&mut self)
+    PhaseStats: pub fn record_move_hard_worse(&mut self)
+    PhaseStats: pub fn record_conflict_repair_provider_generated(&mut self, count: u64)
+    PhaseStats: pub fn record_conflict_repair_duplicate_filtered(&mut self)
+    PhaseStats: pub fn record_conflict_repair_illegal_filtered(&mut self)
+    PhaseStats: pub fn record_conflict_repair_not_doable_filtered(&mut self)
+    PhaseStats: pub fn record_conflict_repair_hard_improving(&mut self)
+    PhaseStats: pub fn record_conflict_repair_exposed(&mut self)
+    PhaseStats: pub fn record_score_calculation(&mut self)
+    PhaseStats: pub fn record_move_speculative(&mut self)
+    PhaseStats: pub fn record_construction_slot_assigned(&mut self)
+    PhaseStats: pub fn record_construction_slot_kept(&mut self)
+    PhaseStats: pub fn record_construction_slot_no_doable(&mut self)
+    PhaseStats: pub fn record_scalar_assignment_required_remaining(&mut self, count: u64)
+    PhaseStats: pub fn generated_throughput(&self) -> Throughput
+    PhaseStats: pub fn evaluated_throughput(&self) -> Throughput
+    PhaseStats: pub fn acceptance_rate(&self) -> f64
+    PhaseStats: pub fn generation_time(&self) -> Duration
+    PhaseStats: pub fn evaluation_time(&self) -> Duration
+    PhaseStats: pub fn selector_telemetry(&self) -> &[SelectorTelemetry]
+    PhaseStats: pub fn applied_move_trace(&self) -> &[AppliedMoveTelemetry]
+    PhaseStats: pub fn move_telemetry(&self) -> Vec<MoveTelemetry>
+    PhaseStats: pub fn moves_score_improving(&self) -> u64
+    PhaseStats: pub fn moves_applied_improving(&self) -> u64
+    PhaseStats: pub fn can_record_applied_move_trace(&self) -> bool
+    PhaseStats: pub fn record_move_kind_generated(&mut self, move_label: &'static str)
+    PhaseStats: pub fn record_move_kind_evaluated( &mut self, move_label: &'static str, score_ordering: Ordering, )
+    PhaseStats: pub fn record_move_kind_evaluated_unscored(&mut self, move_label: &'static str)
+    PhaseStats: pub fn record_move_kind_accepted(&mut self, move_label: &'static str)
+    PhaseStats: pub fn record_move_kind_applied( &mut self, move_label: &'static str, score_improvement: f64, )
+    PhaseStats: pub fn record_move_kind_not_doable(&mut self, move_label: &'static str)
+    PhaseStats: pub fn record_move_kind_acceptor_rejected( &mut self, move_label: &'static str, score_ordering: Ordering, )
+    PhaseStats: pub fn record_move_kind_forager_ignored( &mut self, move_label: &'static str, count: u64, )
+    PhaseStats: pub fn record_applied_move_trace(&mut self, applied_move: AppliedMoveTelemetry)
+    PhaseStats: pub fn record_selector_generated_with_label( &mut self, selector_index: usize, selector_label: impl Into<String>, count: u64, duration: Duration, )
+struct PhaseTelemetry: pub struct PhaseTelemetry {Show 14 fields pub phase_index: usize, pub phase_type: String, pub elapsed: Duration, pub step_count: u64, pub moves_generated: u64, pub moves_evaluated: u64, pub moves_speculative: u64, pub moves_accepted: u64, pub moves_applied: u64, pub moves_score_improving: u64, pub moves_applied_improving: u64, pub score_calculations: u64, pub generation_time: Duration, pub evaluation_time: Duration, }
+struct ProblemChangeId: pub struct ProblemChangeId(/* private fields */);
+    ProblemChangeId: pub fn get(self) -> u64
+struct QualifiedCandidateTraceRunProvenance: pub struct QualifiedCandidateTraceRunProvenance { /* private fields */ }
+    QualifiedCandidateTraceRunProvenance: pub fn externally_attested( schema_digest: CandidateTraceExternalDigest, instance_digest: CandidateTraceExternalDigest, initial_state_digest: CandidateTraceExternalDigest, core_tree_digest: CandidateTraceExternalDigest, build_digest: CandidateTraceExternalDigest, producer: impl Into<String>, ) -> Result<Self, CandidateTraceQualificationError>
+    QualifiedCandidateTraceRunProvenance: pub fn try_from_input( input: CandidateTraceInputProvenance, ) -> Result<Self, CandidateTraceQualificationError>
+    QualifiedCandidateTraceRunProvenance: pub fn input_provenance(&self) -> &CandidateTraceInputProvenance
+struct RepairCandidate: pub struct RepairCandidate<S> { /* private fields */ }
+    RepairCandidate: pub fn new(reason: &'static str, edits: Vec<ScalarEdit<S>>) -> Self
+struct RepairLimits: pub struct RepairLimits { pub max_matches_per_step: usize, pub max_repairs_per_match: usize, pub max_moves_per_step: usize, }
+struct RuntimeModel: pub struct RuntimeModel<S, V, DM, IDM> { /* private fields */ }
+    RuntimeModel: pub fn new(variables: Vec<VariableSlot<S, V, DM, IDM>>) -> Self
+    RuntimeModel: pub fn with_scalar_groups(self, groups: Vec<ScalarGroupBinding<S>>) -> Self
+    RuntimeModel: pub fn with_conflict_repairs(self, repairs: Vec<ConflictRepair<S>>) -> Self
+    RuntimeModel: pub fn variables(&self) -> &[VariableSlot<S, V, DM, IDM>]
+    RuntimeModel: pub fn scalar_groups(&self) -> &[ScalarGroupBinding<S>]
+    RuntimeModel: pub fn conflict_repairs(&self) -> &[ConflictRepair<S>]
+    RuntimeModel: pub fn is_empty(&self) -> bool
+    RuntimeModel: pub fn has_list_variables(&self) -> bool
+    RuntimeModel: pub fn has_scalar_variables(&self) -> bool
+    RuntimeModel: pub fn has_dynamic_variables(&self) -> bool
+    RuntimeModel: pub fn has_dynamic_list_variables(&self) -> bool
+    RuntimeModel: pub fn is_scalar_only(&self) -> bool
+    RuntimeModel: pub fn has_nearby_scalar_change_variables(&self) -> bool
+    RuntimeModel: pub fn has_nearby_scalar_swap_variables(&self) -> bool
+    RuntimeModel: pub fn assignment_scalar_groups( &self, ) -> impl Iterator<Item = (usize, &ScalarGroupBinding<S>)>
+    RuntimeModel: pub fn assignment_group_covers_scalar_variable( &self, variable: &ScalarVariableSlot<S>, ) -> bool
+    RuntimeModel: pub fn assignment_group_covers_dynamic_scalar_variable( &self, variable: &DynamicScalarVariableSlot<S>, ) -> bool
+    RuntimeModel: pub fn has_scalar_groups(&self) -> bool
+    RuntimeModel: pub fn has_assignment_scalar_groups(&self) -> bool
+    RuntimeModel: pub fn candidate_scalar_groups( &self, ) -> impl Iterator<Item = (usize, &ScalarGroupBinding<S>)>
+    RuntimeModel: pub fn has_candidate_scalar_groups(&self) -> bool
+    RuntimeModel: pub fn has_list_ruin_variables(&self) -> bool
+    RuntimeModel: pub fn list_precedence_variables( &self, ) -> impl Iterator<Item = &ListVariableSlot<S, V, DM, IDM>>
+    RuntimeModel: pub fn has_list_precedence_variables(&self) -> bool
+    RuntimeModel: pub fn has_k_opt_variables(&self) -> bool
+    RuntimeModel: pub fn has_conflict_repairs(&self) -> bool
+    RuntimeModel: pub fn scalar_variables(&self) -> impl Iterator<Item = &ScalarVariableSlot<S>>
+    RuntimeModel: pub fn dynamic_scalar_variables( &self, ) -> impl Iterator<Item = &DynamicScalarVariableSlot<S>>
+    RuntimeModel: pub fn scalar_variable_target( &self, entity_class: Option<&str>, variable_name: Option<&str>, ) -> Result<ScalarVariableSlot<S>, String>
+    RuntimeModel: pub fn finite_scalar_candidate_space_estimate( &self, solution: &S, slot: ScalarVariableSlot<S>, value_candidate_limit: Option<usize>, ) -> Option<usize>
+    RuntimeModel: pub fn list_variables( &self, ) -> impl Iterator<Item = &ListVariableSlot<S, V, DM, IDM>>
+    RuntimeModel: pub fn dynamic_list_variables( &self, ) -> impl Iterator<Item = &DynamicListVariableSlot<S>>
+    RuntimeModel: pub fn resolve_dynamic_descriptor_indexes( self, descriptor: &SolutionDescriptor, ) -> Result<Self, String> where S: 'static,
+    RuntimeModel: pub fn assert_dynamic_descriptor_indexes_resolved(&self)
+struct ScalarCandidate: pub struct ScalarCandidate<S> { /* private fields */ }
+    ScalarCandidate: pub fn new(reason: &'static str, edits: Vec<ScalarEdit<S>>) -> Self
+    ScalarCandidate: pub fn with_construction_slot_key(self, key: usize) -> Self
+    ScalarCandidate: pub fn with_construction_entity_order_key(self, key: i64) -> Self
+    ScalarCandidate: pub fn with_construction_value_order_key(self, key: i64) -> Self
+struct ScalarEdit: pub struct ScalarEdit<S> { /* private fields */ }
+struct ScalarGroup: pub struct ScalarGroup<S> { /* private fields */ }
+    ScalarGroup: pub fn candidates( group_name: &'static str, targets: Vec<ScalarTarget<S>>, candidate_provider: ScalarCandidateProvider<S>, ) -> Self
+    ScalarGroup: pub fn assignment(group_name: &'static str, target: ScalarTarget<S>) -> Self
+    ScalarGroup: pub fn with_required_entity( self, required_entity: fn(&S, usize) -> bool, ) -> Self
+    ScalarGroup: pub fn with_capacity_key( self, capacity_key: fn(&S, usize, usize) -> Option<usize>, ) -> Self
+    ScalarGroup: pub fn with_assignment_rule( self, assignment_rule: ScalarAssignmentRule<S>, ) -> Self
+    ScalarGroup: pub fn with_position_key(self, position_key: fn(&S, usize) -> i64) -> Self
+    ScalarGroup: pub fn with_sequence_key( self, sequence_key: fn(&S, usize, usize) -> Option<usize>, ) -> Self
+    ScalarGroup: pub fn with_entity_order(self, entity_order: fn(&S, usize) -> i64) -> Self
+    ScalarGroup: pub fn with_value_order(self, value_order: fn(&S, usize, usize) -> i64) -> Self
+    ScalarGroup: pub fn with_limits(self, limits: ScalarGroupLimits) -> Self
+struct ScalarGroupBinding: pub struct ScalarGroupBinding<S> { pub group_name: &'static str, pub limits: ScalarGroupLimits, /* private fields */ }
+    ScalarGroupBinding: pub fn bind( group: ScalarGroup<S>, scalar_slots: &[ScalarVariableSlot<S>], ) -> Self
+    ScalarGroupBinding: pub fn dynamic_assignment( group_name: &'static str, target: DynamicScalarVariableSlot<S>, metadata: Arc<dyn DynamicScalarAssignmentMetadata<S>>, limits: ScalarGroupLimits, ) -> Self
+    ScalarGroupBinding: pub fn is_assignment(&self) -> bool
+    ScalarGroupBinding: pub fn is_candidate_group(&self) -> bool
+    ScalarGroupBinding: pub fn has_sequence_metadata(&self) -> bool
+    ScalarGroupBinding: pub fn has_position_metadata(&self) -> bool
+    ScalarGroupBinding: pub fn default_max_moves_per_step(&self) -> Option<usize>
+struct ScalarGroupLimits: pub struct ScalarGroupLimits { pub value_candidate_limit: Option<usize>, pub group_candidate_limit: Option<usize>, pub max_moves_per_step: Option<usize>, pub max_augmenting_depth: Option<usize>, pub max_rematch_size: Option<usize>, }
+    ScalarGroupLimits: pub const fn new() -> Self
+struct ScalarTarget: pub struct ScalarTarget<S> { /* private fields */ }
+    ScalarTarget: pub fn set(self, entity_index: usize, to_value: Option<usize>) -> ScalarEdit<S>
+struct ScalarVariableSlot: pub struct ScalarVariableSlot<S> {Show 18 fields pub descriptor_index: usize, pub variable_index: usize, pub entity_type_name: &'static str, pub entity_count: fn(&S) -> usize, pub variable_name: &'static str, pub getter: fn(&S, usize, usize) -> Option<usize>, pub setter: fn(&mut S, usize, usize, Option<usize>), pub value_source: ValueSource<S>, pub allows_unassigned: bool, pub candidate_values: Option<for<'a> fn(&'a S, usize, usize) -> &'a [usize]>, pub nearby_value_candidates: Option<for<'a> fn(&'a S, usize, usize) -> &'a [usize]>, pub nearby_entity_candidates: Option<for<'a> fn(&'a S, usize, usize) -> &'a [usize]>, pub nearby_value_distance_meter: Option<fn(&S, usize, usize, usize) -> Option<f64>>, pub nearby_entity_distance_meter: Option<fn(&S, usize, usize, usize) -> Option<f64>>, pub construction_entity_order_key: Option<fn(&S, usize, usize) -> Option<i64>>, pub construction_value_order_key: Option<fn(&S, usize, usize, usize) -> Option<i64>>, pub search_entity_order_key: Option<fn(&S, usize, usize) -> Option<i64>>, pub search_value_order_key: Option<fn(&S, usize, usize, usize) -> Option<i64>>, }
+    ScalarVariableSlot: pub fn new( descriptor_index: usize, variable_index: usize, entity_type_name: &'static str, entity_count: fn(&S) -> usize, variable_name: &'static str, getter: fn(&S, usize, usize) -> Option<usize>, setter: fn(&mut S, usize, usize, Option<usize>), value_source: ValueSource<S>, allows_unassigned: bool, ) -> Self
+    ScalarVariableSlot: pub fn with_nearby_value_distance_meter( self, meter: fn(&S, usize, usize, usize) -> Option<f64>, ) -> Self
+    ScalarVariableSlot: pub fn with_candidate_values( self, provider: for<'a> fn(&'a S, usize, usize) -> &'a [usize], ) -> Self
+    ScalarVariableSlot: pub fn with_nearby_value_candidates( self, provider: for<'a> fn(&'a S, usize, usize) -> &'a [usize], ) -> Self
+    ScalarVariableSlot: pub fn with_nearby_entity_candidates( self, provider: for<'a> fn(&'a S, usize, usize) -> &'a [usize], ) -> Self
+    ScalarVariableSlot: pub fn with_nearby_entity_distance_meter( self, meter: fn(&S, usize, usize, usize) -> Option<f64>, ) -> Self
+    ScalarVariableSlot: pub fn with_construction_entity_order_key( self, order_key: fn(&S, usize, usize) -> Option<i64>, ) -> Self
+    ScalarVariableSlot: pub fn with_construction_value_order_key( self, order_key: fn(&S, usize, usize, usize) -> Option<i64>, ) -> Self
+    ScalarVariableSlot: pub fn with_search_entity_order_key( self, order_key: fn(&S, usize, usize) -> Option<i64>, ) -> Self
+    ScalarVariableSlot: pub fn with_search_value_order_key( self, order_key: fn(&S, usize, usize, usize) -> Option<i64>, ) -> Self
+    ScalarVariableSlot: pub fn matches_target( &self, entity_class: Option<&str>, variable_name: Option<&str>, ) -> bool
+    ScalarVariableSlot: pub fn supports_nearby_change(&self) -> bool
+    ScalarVariableSlot: pub fn supports_nearby_swap(&self) -> bool
+    ScalarVariableSlot: pub fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize>
+    ScalarVariableSlot: pub fn set_value( &self, solution: &mut S, entity_index: usize, value: Option<usize>, )
+    ScalarVariableSlot: pub fn values_for_entity(&self, solution: &S, entity_index: usize) -> Vec<usize>
+    ScalarVariableSlot: pub fn candidate_values_for_entity( &self, solution: &S, entity_index: usize, value_candidate_limit: Option<usize>, ) -> Vec<usize>
+    ScalarVariableSlot: pub fn has_values_for_entity(&self, solution: &S, entity_index: usize) -> bool
+    ScalarVariableSlot: pub fn value_is_legal( &self, solution: &S, entity_index: usize, candidate: Option<usize>, ) -> bool
+    ScalarVariableSlot: pub fn nearby_value_distance( &self, solution: &S, entity_index: usize, value: usize, ) -> Option<f64>
+    ScalarVariableSlot: pub fn nearby_entity_distance( &self, solution: &S, left_entity_index: usize, right_entity_index: usize, ) -> Option<f64>
+    ScalarVariableSlot: pub fn construction_entity_order_key( &self, solution: &S, entity_index: usize, ) -> Option<i64>
+    ScalarVariableSlot: pub fn construction_value_order_key( &self, solution: &S, entity_index: usize, value: usize, ) -> Option<i64>
+    ScalarVariableSlot: pub fn search_entity_order_key( &self, solution: &S, entity_index: usize, ) -> Option<i64>
+    ScalarVariableSlot: pub fn search_value_order_key( &self, solution: &S, entity_index: usize, value: usize, ) -> Option<i64>
+struct ScopedEntityTabuToken: pub struct ScopedEntityTabuToken { pub scope: MoveTabuScope, pub entity_id: u64, }
+struct ScopedValueTabuToken: pub struct ScopedValueTabuToken { pub scope: MoveTabuScope, pub value_id: u64, }
+struct ScoreAnalysis: pub struct ScoreAnalysis<Sc> { pub score: Sc, pub constraints: Vec<ConstraintAnalysis<Sc>>, }
+struct SearchContext: pub struct SearchContext<S, V = usize, DM = DefaultCrossEntityDistanceMeter, IDM = DefaultCrossEntityDistanceMeter> where S: PlanningSolution,{ /* private fields */ }
+    SearchContext: pub fn new( descriptor: SolutionDescriptor, model: RuntimeModel<S, V, DM, IDM>, random_seed: Option<u64>, ) -> RuntimeBuildResult<Self>
+    SearchContext: pub fn descriptor(&self) -> &SolutionDescriptor
+    SearchContext: pub fn model(&self) -> &RuntimeModel<S, V, DM, IDM>
+    SearchContext: pub fn seed(&self) -> Option<u64>
+    SearchContext: pub fn defaults(self) -> SearchBuilder<S, V, DM, IDM, NoTypedExtensions>
+struct SelectorTelemetry: pub struct SelectorTelemetry {Show 20 fields pub selector_index: usize, pub selector_label: String, pub moves_generated: u64, pub moves_evaluated: u64, pub moves_accepted: u64, pub moves_applied: u64, pub moves_not_doable: u64, pub moves_acceptor_rejected: u64, pub moves_forager_ignored: u64, pub moves_hard_improving: u64, pub moves_hard_neutral: u64, pub moves_hard_worse: u64, pub conflict_repair_provider_generated: u64, pub conflict_repair_duplicate_filtered: u64, pub conflict_repair_illegal_filtered: u64, pub conflict_repair_not_doable_filtered: u64, pub conflict_repair_hard_improving: u64, pub conflict_repair_exposed: u64, pub generation_time: Duration, pub evaluation_time: Duration, }
+struct SequentialCompositeMoveRef: pub struct SequentialCompositeMoveRef<'a, S, M> where S: PlanningSolution, M: Move<S>,{ /* private fields */ }
+    SequentialCompositeMoveRef: pub fn new( first: &'a M, second: &'a M, descriptor_index: usize, entity_indices: &'a [usize], variable_name: &'a str, tabu_signature: &'a MoveTabuSignature, require_hard_improvement: bool, ) -> Self
+    SequentialCompositeMoveRef: pub fn first(&self) -> &'a M
+    SequentialCompositeMoveRef: pub fn second(&self) -> &'a M
+struct SimpleDecider: pub struct SimpleDecider<S: PlanningSolution, V: Clone + Send + Sync + 'static, B = ()> { /* private fields */ }
+    SimpleDecider: pub fn new( descriptor_index: usize, variable_name: impl Into<String>, values: Vec<V>, setter: fn(&mut S, usize, Option<V>), ) -> Self
+    SimpleDecider: pub fn with_bounder<B2>(self, bounder: B2) -> SimpleDecider<S, V, B2>
+    SimpleDecider: pub fn with_variable_index(self, variable_index: usize) -> Self
+struct SolverEventMetadata: pub struct SolverEventMetadata<Sc: Score> { pub job_id: usize, pub event_sequence: u64, pub lifecycle_state: SolverLifecycleState, pub terminal_reason: Option<SolverTerminalReason>, pub telemetry: SolverTelemetry, pub current_score: Option<Sc>, pub best_score: Option<Sc>, pub snapshot_revision: Option<u64>, }
+struct SolverManager: pub struct SolverManager<S: Solvable> { /* private fields */ }
+    SolverManager: pub const fn new() -> Self
+    SolverManager: pub fn solve( &'static self, solution: S, ) -> Result<(usize, UnboundedReceiver<SolverEvent<S>>), SolverManagerError>
+    SolverManager: pub fn solve_with_qualified_candidate_trace_provenance( &'static self, solution: S, provenance: QualifiedCandidateTraceRunProvenance, ) -> Result<(usize, UnboundedReceiver<SolverEvent<S>>), SolverManagerError>
+    SolverManager: pub fn get_status( &self, job_id: usize, ) -> Result<SolverStatus<S::Score>, SolverManagerError>
+    SolverManager: pub fn get_telemetry_detail( &self, job_id: usize, ) -> Result<SolverTelemetryDetail<S::Score>, SolverManagerError>
+    SolverManager: pub fn pause(&self, job_id: usize) -> Result<(), SolverManagerError>
+    SolverManager: pub fn resume(&self, job_id: usize) -> Result<(), SolverManagerError>
+    SolverManager: pub fn cancel(&self, job_id: usize) -> Result<(), SolverManagerError>
+    SolverManager: pub fn delete(&self, job_id: usize) -> Result<(), SolverManagerError>
+    SolverManager: pub fn get_snapshot( &self, job_id: usize, snapshot_revision: Option<u64>, ) -> Result<SolverSnapshot<S>, SolverManagerError>
+    SolverManager: pub fn analyze_snapshot( &self, job_id: usize, snapshot_revision: Option<u64>, ) -> Result<SolverSnapshotAnalysis<S::Score>, SolverManagerError> where S: Analyzable,
+    SolverManager: pub fn active_job_count(&self) -> usize
+    SolverManager: pub fn add_problem_change<P>( &self, job_id: usize, change: P, ) -> Result<ProblemChangeId, SolverManagerError> where P: ProblemChange<S> + 'static,
+struct SolverPanicPayload: pub struct SolverPanicPayload { /* private fields */ }
+    SolverPanicPayload: pub fn new(message: impl Into<String>, payload: impl Any + Send) -> Self
+    SolverPanicPayload: pub fn message(&self) -> &str
+    SolverPanicPayload: pub fn into_parts(self) -> (String, Box<dyn Any + Send>)
+struct SolverProgressRef: pub struct SolverProgressRef<'a, S: PlanningSolution> { pub kind: SolverProgressKind, pub status: SolverLifecycleState, pub solution: Option<&'a S>, pub current_score: Option<&'a S::Score>, pub best_score: Option<&'a S::Score>, pub telemetry: SolverTelemetry, }
+struct SolverRuntime: pub struct SolverRuntime<S: PlanningSolution> { /* private fields */ }
+    SolverRuntime: pub fn pause_with_snapshot( &self, solution: S, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry, ) -> bool
+    SolverRuntime: pub fn detached() -> Self
+    SolverRuntime: pub fn job_id(&self) -> usize
+    SolverRuntime: pub fn is_cancel_requested(&self) -> bool
+    SolverRuntime: pub fn emit_progress( &self, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry, )
+    SolverRuntime: pub fn emit_best_solution( &self, solution: S, current_score: Option<S::Score>, best_score: S::Score, telemetry: SolverTelemetry, )
+    SolverRuntime: pub fn emit_completed( &self, solution: S, current_score: Option<S::Score>, best_score: S::Score, telemetry: SolverTelemetry, terminal_reason: SolverTerminalReason, )
+    SolverRuntime: pub fn emit_cancelled( &self, current_score: Option<S::Score>, best_score: Option<S::Score>, telemetry: SolverTelemetry, )
+    SolverRuntime: pub fn emit_failed(&self, error: String)
+struct SolverScope: pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()> { pub inphase_step_count_limit: Option<u64>, pub inphase_move_count_limit: Option<u64>, pub inphase_score_calc_count_limit: Option<u64>, /* private fields */ }
+    SolverScope: pub fn new(score_director: D) -> Self
+    SolverScope: pub fn new_with_callback( score_director: D, callback: ProgressCb, terminate: Option<&'t AtomicBool>, runtime: Option<SolverRuntime<S>>, ) -> Self
+    SolverScope: pub fn with_terminate(self, terminate: Option<&'t AtomicBool>) -> Self
+    SolverScope: pub fn with_runtime(self, runtime: Option<SolverRuntime<S>>) -> Self
+    SolverScope: pub fn with_environment_mode(self, environment_mode: EnvironmentMode) -> Self
+    SolverScope: pub fn with_seed(self, seed: u64) -> Self
+    SolverScope: pub fn with_progress_callback<F: ProgressCallback<S>>( self, callback: F, ) -> SolverScope<'t, S, D, F>
+    SolverScope: pub fn start_solving(&mut self)
+    SolverScope: pub fn elapsed(&self) -> Option<Duration>
+    SolverScope: pub fn time_since_last_improvement(&self) -> Option<Duration>
+    SolverScope: pub fn score_director(&self) -> &D
+    SolverScope: pub fn working_solution(&self) -> &S
+    SolverScope: pub fn mutate<T, F>(&mut self, mutate: F) -> T where F: FnOnce(&mut D) -> T,
+    SolverScope: pub fn calculate_score(&mut self) -> S::Score
+    SolverScope: pub fn initialize_working_solution_as_best(&mut self) -> S::Score
+    SolverScope: pub fn replace_working_solution_and_reinitialize( &mut self, solution: S, ) -> S::Score
+    SolverScope: pub fn best_solution(&self) -> Option<&S>
+    SolverScope: pub fn best_score(&self) -> Option<&S::Score>
+    SolverScope: pub fn current_score(&self) -> Option<&S::Score>
+    SolverScope: pub fn terminal_reason(&self) -> SolverTerminalReason
+    SolverScope: pub fn set_current_score(&mut self, score: S::Score)
+    SolverScope: pub fn report_progress(&self)
+    SolverScope: pub fn report_best_solution(&self)
+    SolverScope: pub fn update_best_solution(&mut self)
+    SolverScope: pub fn set_best_solution(&mut self, solution: S, score: S::Score)
+    SolverScope: pub fn random_below(&mut self, upper: usize) -> usize
+    SolverScope: pub fn random_u64(&mut self) -> u64
+    SolverScope: pub fn increment_step_count(&mut self) -> u64
+    SolverScope: pub fn total_step_count(&self) -> u64
+    SolverScope: pub fn take_best_solution(self) -> Option<S>
+    SolverScope: pub fn take_best_or_working_solution(self) -> S
+    SolverScope: pub fn take_solution_and_stats( self, ) -> (S, Option<S::Score>, S::Score, SolverStats, SolverTerminalReason)
+    SolverScope: pub fn is_terminate_early(&self) -> bool
+    SolverScope: pub fn set_time_limit(&mut self, limit: Duration)
+    SolverScope: pub fn pause_if_requested(&mut self)
+    SolverScope: pub fn pause_timers(&mut self)
+    SolverScope: pub fn resume_timers(&mut self)
+    SolverScope: pub fn should_terminate_construction(&mut self) -> bool
+    SolverScope: pub fn should_terminate(&mut self) -> bool
+    SolverScope: pub fn mark_cancelled(&mut self)
+    SolverScope: pub fn mark_terminated_by_config(&mut self)
+    SolverScope: pub fn stats(&self) -> &SolverStats
+    SolverScope: pub fn stats_mut(&mut self) -> &mut SolverStats
+struct SolverSnapshot: pub struct SolverSnapshot<S: PlanningSolution> { pub job_id: usize, pub snapshot_revision: u64, pub lifecycle_state: SolverLifecycleState, pub terminal_reason: Option<SolverTerminalReason>, pub current_score: Option<S::Score>, pub best_score: Option<S::Score>, pub telemetry: SolverTelemetry, pub solution: S, }
+struct SolverSnapshotAnalysis: pub struct SolverSnapshotAnalysis<Sc: Score> { pub job_id: usize, pub lifecycle_state: SolverLifecycleState, pub terminal_reason: Option<SolverTerminalReason>, pub snapshot_revision: u64, pub analysis: ScoreAnalysis<Sc>, }
+struct SolverStats: pub struct SolverStats { /* private fields */ }
+    SolverStats: pub fn snapshot(&self) -> SolverTelemetry
+    SolverStats: pub fn snapshot_without_applied_move_trace(&self) -> SolverTelemetry
+    SolverStats: pub fn start(&mut self)
+    SolverStats: pub fn elapsed(&self) -> Duration
+    SolverStats: pub fn active_elapsed(&self) -> Option<Duration>
+    SolverStats: pub fn started_at(&self) -> Option<Instant>
+    SolverStats: pub fn is_paused(&self) -> bool
+    SolverStats: pub fn pause(&mut self)
+    SolverStats: pub fn resume(&mut self)
+    SolverStats: pub fn begin_phase(&mut self, phase_type: &'static str)
+    SolverStats: pub fn end_phase(&mut self)
+    SolverStats: pub fn phase_elapsed(&self) -> Option<Duration>
+    SolverStats: pub fn phase(&self) -> Option<&PhaseStats>
+    SolverStats: pub fn phase_mut(&mut self) -> Option<&mut PhaseStats>
+    SolverStats: pub fn step_count(&self) -> u64
+    SolverStats: pub fn moves_generated(&self) -> u64
+    SolverStats: pub fn moves_evaluated(&self) -> u64
+    SolverStats: pub fn moves_speculative(&self) -> u64
+    SolverStats: pub fn moves_accepted(&self) -> u64
+    SolverStats: pub fn moves_applied(&self) -> u64
+    SolverStats: pub fn moves_not_doable(&self) -> u64
+    SolverStats: pub fn moves_acceptor_rejected(&self) -> u64
+    SolverStats: pub fn moves_forager_ignored(&self) -> u64
+    SolverStats: pub fn moves_hard_improving(&self) -> u64
+    SolverStats: pub fn moves_hard_neutral(&self) -> u64
+    SolverStats: pub fn moves_hard_worse(&self) -> u64
+    SolverStats: pub fn conflict_repair_provider_generated(&self) -> u64
+    SolverStats: pub fn conflict_repair_duplicate_filtered(&self) -> u64
+    SolverStats: pub fn conflict_repair_illegal_filtered(&self) -> u64
+    SolverStats: pub fn conflict_repair_not_doable_filtered(&self) -> u64
+    SolverStats: pub fn conflict_repair_hard_improving(&self) -> u64
+    SolverStats: pub fn conflict_repair_exposed(&self) -> u64
+    SolverStats: pub fn score_calculations(&self) -> u64
+    SolverStats: pub fn construction_slots_assigned(&self) -> u64
+    SolverStats: pub fn construction_slots_kept(&self) -> u64
+    SolverStats: pub fn construction_slots_no_doable(&self) -> u64
+    SolverStats: pub fn scalar_assignment_required_remaining(&self) -> u64
+    SolverStats: pub fn record_generated_batch(&mut self, count: u64, duration: Duration)
+    SolverStats: pub fn record_selector_generated( &mut self, selector_index: usize, count: u64, duration: Duration, )
+    SolverStats: pub fn record_generation_time(&mut self, duration: Duration)
+    SolverStats: pub fn record_generated_move(&mut self, duration: Duration)
+    SolverStats: pub fn record_evaluated_move(&mut self, duration: Duration)
+    SolverStats: pub fn record_selector_evaluated( &mut self, selector_index: usize, duration: Duration, )
+    SolverStats: pub fn record_move_accepted(&mut self)
+    SolverStats: pub fn record_selector_accepted(&mut self, selector_index: usize)
+    SolverStats: pub fn record_move_applied(&mut self)
+    SolverStats: pub fn record_selector_applied(&mut self, selector_index: usize)
+    SolverStats: pub fn record_move_not_doable(&mut self)
+    SolverStats: pub fn record_selector_not_doable(&mut self, selector_index: usize)
+    SolverStats: pub fn record_move_acceptor_rejected(&mut self)
+    SolverStats: pub fn record_selector_acceptor_rejected(&mut self, selector_index: usize)
+    SolverStats: pub fn record_moves_forager_ignored(&mut self, count: u64)
+    SolverStats: pub fn record_move_hard_improving(&mut self)
+    SolverStats: pub fn record_move_hard_neutral(&mut self)
+    SolverStats: pub fn record_move_hard_worse(&mut self)
+    SolverStats: pub fn record_conflict_repair_provider_generated(&mut self, count: u64)
+    SolverStats: pub fn record_conflict_repair_duplicate_filtered(&mut self)
+    SolverStats: pub fn record_conflict_repair_illegal_filtered(&mut self)
+    SolverStats: pub fn record_conflict_repair_not_doable_filtered(&mut self)
+    SolverStats: pub fn record_conflict_repair_hard_improving(&mut self)
+    SolverStats: pub fn record_conflict_repair_exposed(&mut self)
+    SolverStats: pub fn record_step(&mut self)
+    SolverStats: pub fn record_score_calculation(&mut self)
+    SolverStats: pub fn record_move_speculative(&mut self)
+    SolverStats: pub fn record_construction_slot_assigned(&mut self)
+    SolverStats: pub fn record_construction_slot_kept(&mut self)
+    SolverStats: pub fn record_construction_slot_no_doable(&mut self)
+    SolverStats: pub fn record_move_kind_generated(&mut self, move_label: &'static str)
+    SolverStats: pub fn record_move_kind_evaluated( &mut self, move_label: &'static str, score_ordering: Ordering, )
+    SolverStats: pub fn record_move_kind_evaluated_unscored(&mut self, move_label: &'static str)
+    SolverStats: pub fn record_move_kind_accepted(&mut self, move_label: &'static str)
+    SolverStats: pub fn record_move_kind_applied( &mut self, move_label: &'static str, score_improvement: f64, )
+    SolverStats: pub fn record_move_kind_not_doable(&mut self, move_label: &'static str)
+    SolverStats: pub fn record_move_kind_acceptor_rejected( &mut self, move_label: &'static str, score_ordering: Ordering, )
+    SolverStats: pub fn record_move_kind_forager_ignored( &mut self, move_label: &'static str, count: u64, )
+    SolverStats: pub fn record_applied_move_trace(&mut self, applied_move: AppliedMoveTelemetry)
+    SolverStats: pub fn record_selector_generated_with_label( &mut self, selector_index: usize, selector_label: impl Into<String>, count: u64, duration: Duration, )
+    SolverStats: pub fn record_scalar_assignment_required_remaining( &mut self, group_name: &'static str, count: u64, )
+    SolverStats: pub fn generation_time(&self) -> Duration
+    SolverStats: pub fn evaluation_time(&self) -> Duration
+    SolverStats: pub fn generated_throughput(&self) -> Throughput
+    SolverStats: pub fn evaluated_throughput(&self) -> Throughput
+    SolverStats: pub fn acceptance_rate(&self) -> f64
+    SolverStats: pub fn problem_changes_applied(&self) -> u64
+    SolverStats: pub fn record_problem_changes_applied(&mut self, count: u64)
+    SolverStats: pub fn moves_score_improving(&self) -> u64
+    SolverStats: pub fn moves_applied_improving(&self) -> u64
+struct SolverStatus: pub struct SolverStatus<Sc: Score> { pub job_id: usize, pub lifecycle_state: SolverLifecycleState, pub terminal_reason: Option<SolverTerminalReason>, pub checkpoint_available: bool, pub event_sequence: u64, pub latest_snapshot_revision: Option<u64>, pub current_score: Option<Sc>, pub best_score: Option<Sc>, pub telemetry: SolverTelemetry, }
+    SolverStatus: pub fn is_terminal(&self) -> bool
+struct SolverTelemetry: pub struct SolverTelemetry {Show 34 fields pub elapsed: Duration, pub step_count: u64, pub moves_generated: u64, pub moves_evaluated: u64, pub moves_speculative: u64, pub moves_accepted: u64, pub moves_applied: u64, pub moves_score_improving: u64, pub moves_applied_improving: u64, pub moves_not_doable: u64, pub moves_acceptor_rejected: u64, pub moves_forager_ignored: u64, pub moves_hard_improving: u64, pub moves_hard_neutral: u64, pub moves_hard_worse: u64, pub conflict_repair_provider_generated: u64, pub conflict_repair_duplicate_filtered: u64, pub conflict_repair_illegal_filtered: u64, pub conflict_repair_not_doable_filtered: u64, pub conflict_repair_hard_improving: u64, pub conflict_repair_exposed: u64, pub score_calculations: u64, pub construction_slots_assigned: u64, pub construction_slots_kept: u64, pub construction_slots_no_doable: u64, pub scalar_assignment_required_remaining: u64, pub problem_changes_applied: u64, pub generation_time: Duration, pub evaluation_time: Duration, pub phases: Vec<PhaseTelemetry>, pub selector_telemetry: Vec<SelectorTelemetry>, pub move_telemetry: Vec<MoveTelemetry>, pub applied_move_trace: Vec<AppliedMoveTelemetry>, pub candidate_trace: Option<CandidateTraceTelemetry>, }
+    SolverTelemetry: pub const fn new_const() -> Self
+struct SolverTelemetryDetail: pub struct SolverTelemetryDetail<Sc: Score> { pub status: SolverStatus<Sc>, pub candidate_trace: Option<CandidateTraceTelemetry>, }
+struct StepScope: pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb = ()> { /* private fields */ }
+    StepScope: pub fn new(phase_scope: &'a mut PhaseScope<'t, 'b, S, D, BestCb>) -> Self
+    StepScope: pub fn step_index(&self) -> u64
+    StepScope: pub fn step_score(&self) -> Option<&S::Score>
+    StepScope: pub fn set_step_score(&mut self, score: S::Score) where S::Score: Copy,
+    StepScope: pub fn complete(&mut self)
+    StepScope: pub fn phase_scope(&self) -> &PhaseScope<'t, 'b, S, D, BestCb>
+    StepScope: pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'t, 'b, S, D, BestCb>
+    StepScope: pub fn score_director(&self) -> &D
+    StepScope: pub fn mutate<T, F>(&mut self, mutate: F) -> T where F: FnOnce(&mut D) -> T,
+    StepScope: pub fn calculate_score(&mut self) -> S::Score
+struct Throughput: pub struct Throughput { pub count: u64, pub elapsed: Duration, }
+enum CandidateTraceCoordinate: pub enum CandidateTraceCoordinate { Unsigned(u64), Absent, Text(String), Bytes(Vec<u8>), }
+enum CandidateTraceDisposition: pub enum CandidateTraceDisposition { InterruptedBeforeEvaluation, Evaluated, NotDoable, RejectedByHardImprovement, RejectedByScoreImprovement, AcceptorRejected, ForagerIgnored, Selected, Applied, DiscardedSpeculative, }
+enum CandidateTraceIdentity: pub enum CandidateTraceIdentity { Operation(CandidateTraceOperationIdentity), Composite(CandidateTraceCompositeIdentity), }
+    CandidateTraceIdentity: pub fn operation<I, T>( descriptor_index: usize, operation: impl Into<String>, components: I, ) -> Self where I: IntoIterator<Item = T>, T: Into<CandidateTraceCoordinate>,
+    CandidateTraceIdentity: pub fn logical_move<I, T>( descriptor_index: usize, variable_name: impl Into<String>, family: impl Into<String>, coordinates: I, ) -> Self where I: IntoIterator<Item = T>, T: Into<CandidateTraceCoordinate>,
+    CandidateTraceIdentity: pub fn composite( operation: impl Into<String>, children: impl IntoIterator<Item = CandidateTraceIdentity>, ) -> Self
+    CandidateTraceIdentity: pub fn canonical_bytes(&self) -> Vec<u8>
+enum CandidateTraceInputProvenanceStatus: pub enum CandidateTraceInputProvenanceStatus { Absent, ExternallyAttested, }
+enum CandidateTraceQualificationError: pub enum CandidateTraceQualificationError { QualificationNotRequested, EmptyExternalProducer, MissingCoreTreeDigest, MissingBuildDigest, }
+enum CandidateTraceQualificationStatus: pub enum CandidateTraceQualificationStatus { NotRequested, Qualified, }
+enum CandidateTraceSource: pub enum CandidateTraceSource { Construction, LocalSearch, VariableNeighborhoodDescent, KOpt, ListRoundRobinConstruction, ListCheapestInsertionTrial, ListRegretInsertionTrial, ListClarkeWrightSavings, ListClarkeWrightMerge, ListClarkeWrightCompletionInsertion, ListKOptReconnection, ListRegretOwnerAppend, }
+enum ExplorationType: pub enum ExplorationType { DepthFirst, BreadthFirst, ScoreFirst, OptimisticBoundFirst, }
+enum ForagerDecision: pub enum ForagerDecision { Keep, Release, Replace(CandidateId), }
+enum MoveCandidateRef: pub enum MoveCandidateRef<'a, S, M> where S: PlanningSolution, M: Move<S>,{ Borrowed(&'a M), Sequential(SequentialCompositeMoveRef<'a, S, M>), }
+enum MoveCandidateUndo: pub enum MoveCandidateUndo<U> { Borrowed(U), Sequential { first: U, second: U, }, }
+enum MoveUndoIdentity: pub enum MoveUndoIdentity { SameAsMoveId, Explicit(SmallVec<[u64; 8]>), }
+enum RuntimeBuildError: pub enum RuntimeBuildError { Configuration { message: String, }, Declaration { message: String, }, Compilation { path: String, message: String, }, Preparation { phase_index: usize, message: String, }, ConstraintWeights { message: String, }, Execution { phase_index: usize, message: String, }, }
+    RuntimeBuildError: pub fn declaration(message: impl Into<String>) -> Self
+enum SolverEvent: pub enum SolverEvent<S: PlanningSolution> { Progress { metadata: SolverEventMetadata<S::Score>, }, BestSolution { metadata: SolverEventMetadata<S::Score>, solution: S, }, PauseRequested { metadata: SolverEventMetadata<S::Score>, }, Paused { metadata: SolverEventMetadata<S::Score>, }, Resumed { metadata: SolverEventMetadata<S::Score>, }, Completed { metadata: SolverEventMetadata<S::Score>, solution: S, }, Cancelled { metadata: SolverEventMetadata<S::Score>, }, Failed { metadata: SolverEventMetadata<S::Score>, error: String, }, }
+    SolverEvent: pub fn metadata(&self) -> &SolverEventMetadata<S::Score>
+enum SolverLifecycleState: pub enum SolverLifecycleState { Solving, PauseRequested, Paused, Completed, Cancelled, Failed, }
+    SolverLifecycleState: pub fn is_terminal(self) -> bool
+enum SolverManagerError: pub enum SolverManagerError { NoFreeJobSlots, JobNotFound { job_id: usize, }, InvalidStateTransition { job_id: usize, action: &'static str, state: SolverLifecycleState, }, NoSnapshotAvailable { job_id: usize, }, SnapshotNotFound { job_id: usize, snapshot_revision: u64, }, }
+enum SolverProgressKind: pub enum SolverProgressKind { Progress, BestSolution, }
+enum SolverTerminalReason: pub enum SolverTerminalReason { Completed, TerminatedByConfig, Cancelled, Failed, }
+enum ThreadCount: pub enum ThreadCount { Auto, Unlimited, Specific(usize), }
+    ThreadCount: pub fn resolve(&self, partition_count: usize) -> usize
+enum ValueSource: pub enum ValueSource<S> { Empty, CountableRange { from: usize, to: usize, }, SolutionCount { count_fn: fn(&S, usize) -> usize, provider_index: usize, }, EntitySlice { values_for_entity: for<'a> fn(&'a S, usize, usize) -> &'a [usize], }, }
+enum VariableSlot: pub enum VariableSlot<S, V, DM, IDM> { Scalar(ScalarVariableSlot<S>), List(ListVariableSlot<S, V, DM, IDM>), DynamicScalar(DynamicScalarVariableSlot<S>), DynamicList(DynamicListVariableSlot<S>), }
+trait Acceptor: pub trait Acceptor<S: PlanningSolution>: Send + Debug { // Required method fn is_accepted( &mut self, last_step_score: &S::Score, move_score: &S::Score, move_signature: Option<&MoveTabuSignature>, ) -> bool; // Provided methods fn requires_move_signatures(&self) -> bool { ... } fn phase_started(&mut self, _initial_score: &S::Score) { ... } fn phase_ended(&mut self) { ... } fn step_started(&mut self) { ... } fn step_ended( &mut self, _step_score: &S::Score, _accepted_move_signature: Option<MoveTabuSignature>, ) { ... } }
+    Acceptor: fn is_accepted( &mut self, last_step_score: &S::Score, move_score: &S::Score, move_signature: Option<&MoveTabuSignature>, ) -> bool
+    Acceptor: fn requires_move_signatures(&self) -> bool
+    Acceptor: fn phase_started(&mut self, _initial_score: &S::Score)
+    Acceptor: fn phase_ended(&mut self)
+    Acceptor: fn step_started(&mut self)
+    Acceptor: fn step_ended( &mut self, _step_score: &S::Score, _accepted_move_signature: Option<MoveTabuSignature>, )
+trait Analyzable: pub trait Analyzable: PlanningSolution + Clone + Send + 'static { // Required method fn analyze(&self) -> ScoreAnalysis<Self::Score>; }
+    Analyzable: fn analyze(&self) -> ScoreAnalysis<Self::Score>
+trait ChildPhases: pub trait ChildPhases<S, D> where S: PlanningSolution, D: Director<S>,{ // Required method fn solve_all(&mut self, solver_scope: &mut SolverScope<'_, S, D>); }
+    ChildPhases: fn solve_all(&mut self, solver_scope: &mut SolverScope<'_, S, D>)
+trait CrossEntityDistanceMeter: pub trait CrossEntityDistanceMeter<S>: Send + Sync { // Required method fn distance( &self, solution: &S, source_entity: usize, source_position: usize, destination_entity: usize, destination_position: usize, ) -> f64; }
+    CrossEntityDistanceMeter: fn distance( &self, solution: &S, source_entity: usize, source_position: usize, destination_entity: usize, destination_position: usize, ) -> f64
+trait CustomSearchPhase: pub trait CustomSearchPhase<S>: Debug + Send where S: PlanningSolution,{ // Required method fn solve<D, ProgressCb>( &mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>, ) where D: Director<S>, ProgressCb: ProgressCallback<S>; // Provided methods fn on_solver_terminal<D, ProgressCb>( &mut self, _solver_scope: &mut SolverScope<'_, S, D, ProgressCb>, ) where D: Director<S>, ProgressCb: ProgressCallback<S> { ... } fn on_problem_change(&mut self) { ... } fn phase_type_name(&self) -> &'static str { ... } }
+    CustomSearchPhase: fn solve<D, ProgressCb>( &mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>, ) where D: Director<S>, ProgressCb: ProgressCallback<S>,
+    CustomSearchPhase: fn on_solver_terminal<D, ProgressCb>( &mut self, _solver_scope: &mut SolverScope<'_, S, D, ProgressCb>, ) where D: Director<S>, ProgressCb: ProgressCallback<S>,
+    CustomSearchPhase: fn on_problem_change(&mut self)
+    CustomSearchPhase: fn phase_type_name(&self) -> &'static str
+trait ExhaustiveSearchDecider: pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: Director<S>>: Send + Debug { // Required methods fn expand( &self, parent_index: usize, parent: &ExhaustiveSearchNode<S>, score_director: &mut D, ) -> Vec<ExhaustiveSearchNode<S>>; fn reset_assignments(&self, score_director: &mut D); fn apply_assignment( &self, node: &ExhaustiveSearchNode<S>, score_director: &mut D, ); fn total_entities(&self, score_director: &D) -> usize; }
+    ExhaustiveSearchDecider: fn expand( &self, parent_index: usize, parent: &ExhaustiveSearchNode<S>, score_director: &mut D, ) -> Vec<ExhaustiveSearchNode<S>>
+    ExhaustiveSearchDecider: fn reset_assignments(&self, score_director: &mut D)
+    ExhaustiveSearchDecider: fn apply_assignment( &self, node: &ExhaustiveSearchNode<S>, score_director: &mut D, )
+    ExhaustiveSearchDecider: fn total_entities(&self, score_director: &D) -> usize
+trait ListVariableEntity: pub trait ListVariableEntity<S> { type CrossDistanceMeter: CrossEntityDistanceMeter<S> + Clone + Debug; type IntraDistanceMeter: CrossEntityDistanceMeter<S> + Clone + Debug + 'static; const HAS_LIST_VARIABLE: bool; const LIST_VARIABLE_NAME: &'static str; const LIST_ELEMENT_SOURCE: Option<&'static str>; // Required methods fn list_field(entity: &Self) -> &[usize]; fn list_field_mut(entity: &mut Self) -> &mut Vec<usize>; fn list_metadata( ) -> ListVariableMetadata<S, Self::CrossDistanceMeter, Self::IntraDistanceMeter>; }
+    ListVariableEntity: const HAS_LIST_VARIABLE: bool
+    ListVariableEntity: const LIST_VARIABLE_NAME: &'static str
+    ListVariableEntity: const LIST_ELEMENT_SOURCE: Option<&'static str>
+    ListVariableEntity: type CrossDistanceMeter: CrossEntityDistanceMeter<S> + Clone + Debug
+    ListVariableEntity: type IntraDistanceMeter: CrossEntityDistanceMeter<S> + Clone + Debug + 'static
+    ListVariableEntity: fn list_field(entity: &Self) -> &[usize]
+    ListVariableEntity: fn list_field_mut(entity: &mut Self) -> &mut Vec<usize>
+    ListVariableEntity: fn list_metadata() -> ListVariableMetadata<S, Self::CrossDistanceMeter, Self::IntraDistanceMeter>
+trait LocalSearchForager: pub trait LocalSearchForager<S, M>: Send + Debug where S: PlanningSolution, M: Move<S>,{ // Required methods fn step_started( &mut self, best_score: S::Score, last_step_score: S::Score, step_seed: u64, ); fn add_move_index( &mut self, index: CandidateId, score: S::Score, ) -> ForagerDecision; fn is_quit_early(&self) -> bool; fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)>; // Provided method fn accepted_count_limit(&self) -> Option<usize> { ... } }
+    LocalSearchForager: fn step_started( &mut self, best_score: S::Score, last_step_score: S::Score, step_seed: u64, )
+    LocalSearchForager: fn add_move_index( &mut self, index: CandidateId, score: S::Score, ) -> ForagerDecision
+    LocalSearchForager: fn is_quit_early(&self) -> bool
+    LocalSearchForager: fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)>
+    LocalSearchForager: fn accepted_count_limit(&self) -> Option<usize>
+trait Move: pub trait Move<S: PlanningSolution>: Send + Sync + Debug { type Undo: Send; Show 15 methods // Required methods fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool; fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo; fn undo_move<D: Director<S>>( &self, score_director: &mut D, undo: Self::Undo, ); fn descriptor_index(&self) -> usize; fn entity_indices(&self) -> &[usize]; fn variable_name(&self) -> &str; fn tabu_signature<D: Director<S>>( &self, score_director: &D, ) -> Cow<'_, MoveTabuSignature>; // Provided methods fn do_move_with_scratch<D: Director<S>>( &self, score_director: &mut D, journal_pool: &mut Vec<Self::Undo>, ) -> Self::Undo { ... } fn undo_move_with_scratch<D: Director<S>>( &self, score_director: &mut D, undo: Self::Undo, journal_pool: &mut Vec<Self::Undo>, ) { ... } fn is_doable_with_working_preview<D: Director<S>>( &self, score_director: &mut D, ) -> bool { ... } fn telemetry_label(&self) -> &'static str { ... } fn requires_hard_improvement(&self) -> bool { ... } fn requires_score_improvement(&self) -> bool { ... } fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity> { ... } fn for_each_affected_entity<V: FnMut(MoveAffectedEntity<'_>)>( &self, visitor: &mut V, ) { ... } }
+    Move: type Undo: Send
+    Move: fn is_doable<D: Director<S>>(&self, score_director: &D) -> bool
+    Move: fn do_move<D: Director<S>>(&self, score_director: &mut D) -> Self::Undo
+    Move: fn undo_move<D: Director<S>>(&self, score_director: &mut D, undo: Self::Undo)
+    Move: fn descriptor_index(&self) -> usize
+    Move: fn entity_indices(&self) -> &[usize]
+    Move: fn variable_name(&self) -> &str
+    Move: fn tabu_signature<D: Director<S>>( &self, score_director: &D, ) -> Cow<'_, MoveTabuSignature>
+    Move: fn do_move_with_scratch<D: Director<S>>( &self, score_director: &mut D, journal_pool: &mut Vec<Self::Undo>, ) -> Self::Undo
+    Move: fn undo_move_with_scratch<D: Director<S>>( &self, score_director: &mut D, undo: Self::Undo, journal_pool: &mut Vec<Self::Undo>, )
+    Move: fn is_doable_with_working_preview<D: Director<S>>( &self, score_director: &mut D, ) -> bool
+    Move: fn telemetry_label(&self) -> &'static str
+    Move: fn requires_hard_improvement(&self) -> bool
+    Move: fn requires_score_improvement(&self) -> bool
+    Move: fn candidate_trace_identity(&self) -> Option<CandidateTraceIdentity>
+    Move: fn for_each_affected_entity<V: FnMut(MoveAffectedEntity<'_>)>( &self, visitor: &mut V, )
+trait MoveCursor: pub trait MoveCursor<S: PlanningSolution, M: Move<S>> { // Required methods fn next_candidate(&mut self, solution: &S) -> Option<CandidateId>; fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>>; fn take_candidate(&mut self, id: CandidateId) -> M; // Provided methods fn next_candidate_with_director<D: Director<S>>( &mut self, director: &mut D, ) -> Option<CandidateId> { ... } fn next_candidate_with_control<ShouldStop>( &mut self, solution: &S, should_stop: &mut ShouldStop, ) -> Option<CandidateId> where ShouldStop: FnMut() -> bool { ... } fn next_owned_candidate(&mut self, solution: &S) -> Option<M> { ... } fn next_owned_candidate_matching( &mut self, solution: &S, predicate: for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool, ) -> Option<M> { ... } fn next_owned_candidate_inspected<T, F>( &mut self, solution: &S, inspect: F, ) -> Option<(M, T)> where F: for<'a> FnMut(MoveCandidateRef<'a, S, M>) -> Option<T> { ... } fn apply_owned_candidate<D: Director<S>>( &mut self, id: CandidateId, score_director: &mut D, ) { ... } fn release_candidate(&mut self, id: CandidateId) -> bool { ... } fn selector_index(&self, _id: CandidateId) -> Option<usize> { ... } }
+    MoveCursor: fn next_candidate(&mut self, solution: &S) -> Option<CandidateId>
+    MoveCursor: fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>>
+    MoveCursor: fn take_candidate(&mut self, id: CandidateId) -> M
+    MoveCursor: fn next_candidate_with_director<D: Director<S>>( &mut self, director: &mut D, ) -> Option<CandidateId>
+    MoveCursor: fn next_candidate_with_control<ShouldStop>( &mut self, solution: &S, should_stop: &mut ShouldStop, ) -> Option<CandidateId> where ShouldStop: FnMut() -> bool,
+    MoveCursor: fn next_owned_candidate(&mut self, solution: &S) -> Option<M>
+    MoveCursor: fn next_owned_candidate_matching( &mut self, solution: &S, predicate: for<'a> fn(MoveCandidateRef<'a, S, M>) -> bool, ) -> Option<M>
+    MoveCursor: fn next_owned_candidate_inspected<T, F>( &mut self, solution: &S, inspect: F, ) -> Option<(M, T)> where F: for<'a> FnMut(MoveCandidateRef<'a, S, M>) -> Option<T>,
+    MoveCursor: fn apply_owned_candidate<D: Director<S>>( &mut self, id: CandidateId, score_director: &mut D, )
+    MoveCursor: fn release_candidate(&mut self, id: CandidateId) -> bool
+    MoveCursor: fn selector_index(&self, _id: CandidateId) -> Option<usize>
+trait MoveSelector: pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug { type Cursor<'a>: MoveCursor<S, M> + 'a where Self: 'a; // Required methods fn open_cursor<'a, D: Director<S>>( &'a self, score_director: &D, ) -> Self::Cursor<'a>; fn size<D: Director<S>>(&self, score_director: &D) -> usize; // Provided methods fn open_cursor_with_context<'a, D: Director<S>>( &'a self, score_director: &D, _context: MoveStreamContext, ) -> Self::Cursor<'a> { ... } fn validate_cursor<D: Director<S>>(&self, _score_director: &D) { ... } fn iter_moves<'a, 'd, D: Director<S>>( &'a self, score_director: &'d D, ) -> MoveSelectorIter<'d, S, M, Self::Cursor<'a>> { ... } fn append_moves<D: Director<S>>( &self, score_director: &D, arena: &mut MoveArena<M>, ) { ... } fn is_never_ending(&self) -> bool { ... } }
+    MoveSelector: type Cursor<'a>: MoveCursor<S, M> + 'a where Self: 'a
+    MoveSelector: fn open_cursor<'a, D: Director<S>>( &'a self, score_director: &D, ) -> Self::Cursor<'a>
+    MoveSelector: fn size<D: Director<S>>(&self, score_director: &D) -> usize
+    MoveSelector: fn open_cursor_with_context<'a, D: Director<S>>( &'a self, score_director: &D, _context: MoveStreamContext, ) -> Self::Cursor<'a>
+    MoveSelector: fn validate_cursor<D: Director<S>>(&self, _score_director: &D)
+    MoveSelector: fn iter_moves<'a, 'd, D: Director<S>>( &'a self, score_director: &'d D, ) -> MoveSelectorIter<'d, S, M, Self::Cursor<'a>>
+    MoveSelector: fn append_moves<D: Director<S>>( &self, score_director: &D, arena: &mut MoveArena<M>, )
+    MoveSelector: fn is_never_ending(&self) -> bool
+trait Phase: pub trait Phase<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S> = ()>: Send + Debug { // Required methods fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>); fn phase_type_name(&self) -> &'static str; // Provided methods fn defers_initial_best_solution_publication(&self) -> bool { ... } fn on_solver_terminal( &mut self, _solver_scope: &mut SolverScope<'_, S, D, BestCb>, ) { ... } fn candidate_trace_plan(&self) -> CandidateTracePhasePlan { ... } }
+    Phase: fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>)
+    Phase: fn phase_type_name(&self) -> &'static str
+    Phase: fn defers_initial_best_solution_publication(&self) -> bool
+    Phase: fn on_solver_terminal( &mut self, _solver_scope: &mut SolverScope<'_, S, D, BestCb>, )
+    Phase: fn candidate_trace_plan(&self) -> CandidateTracePhasePlan
+trait ProblemChange: pub trait ProblemChange<S: PlanningSolution>: Send + Debug { // Required method fn apply(self: Box<Self>, score_director: &mut dyn Director<S>); }
+    ProblemChange: fn apply(self: Box<Self>, score_director: &mut dyn Director<S>)
+trait ProgressCallback: pub trait ProgressCallback<S: PlanningSolution>: Send + Sync { // Required method fn invoke(&self, progress: SolverProgressRef<'_, S>); }
+    ProgressCallback: fn invoke(&self, progress: SolverProgressRef<'_, S>)
+trait ScoreBounder: pub trait ScoreBounder<S: PlanningSolution, D: Director<S>>: Send + Debug { // Required method fn calculate_optimistic_bound(&self, score_director: &D) -> Option<S::Score>; // Provided method fn calculate_pessimistic_bound( &self, score_director: &D, ) -> Option<S::Score> { ... } }
+    ScoreBounder: fn calculate_optimistic_bound(&self, score_director: &D) -> Option<S::Score>
+    ScoreBounder: fn calculate_pessimistic_bound(&self, score_director: &D) -> Option<S::Score>
+trait Search: pub trait Search<S, V = usize, DM = DefaultCrossEntityDistanceMeter, IDM = DefaultCrossEntityDistanceMeter> where S: PlanningSolution + 'static, S::Score: Score + ParseableScore, V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static, DM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static, IDM: CrossEntityDistanceMeter<S> + Clone + Debug + Send + 'static,{ type Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>; }
+    Search: type Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>
+trait SolutionPartitioner: pub trait SolutionPartitioner<S: PlanningSolution>: Send + Sync + Debug { // Required methods fn partition(&self, solution: &S) -> Vec<S>; fn merge(&self, original: &S, partitions: Vec<S>) -> S; // Provided method fn recommended_partition_count(&self) -> Option<usize> { ... } }
+    SolutionPartitioner: fn partition(&self, solution: &S) -> Vec<S>
+    SolutionPartitioner: fn merge(&self, original: &S, partitions: Vec<S>) -> S
+    SolutionPartitioner: fn recommended_partition_count(&self) -> Option<usize>
+trait Solvable: pub trait Solvable: PlanningSolution + Send + 'static { // Required method fn solve( self, runtime: SolverRuntime<Self>, qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>, ) -> RuntimeBuildResult<()>; }
+    Solvable: fn solve( self, runtime: SolverRuntime<Self>, qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>, ) -> RuntimeBuildResult<()>
+fn analyze: pub fn analyze<S>(solution: &S) -> ScoreAnalysis<S::Score> where S: Analyzable, S::Score: Score,
+fn bind_scalar_groups: pub fn bind_scalar_groups<S>( groups: Vec<ScalarGroup<S>>, scalar_slots: &[ScalarVariableSlot<S>], ) -> Vec<ScalarGroupBinding<S>>
+fn local_search: pub fn local_search<S, M, MS, A, Fo>( move_selector: MS, acceptor: A, forager: Fo, ) -> LocalSearchPhase<S, M, SelectorCursorSource<MS>, A, Fo> where S: PlanningSolution, M: Move<S> + 'static, MS: MoveSelector<S, M>, A: Acceptor<S>, Fo: LocalSearchForager<S, M>,
+fn log_solve_start: pub fn log_solve_start( entity_count: usize, element_count: Option<usize>, candidate_count: Option<usize>, )
+fn try_run_solver_with_config_and_search: pub fn try_run_solver_with_config_and_search<S, C, V, DM, IDM, Declaration, BuildSearch>( solution: S, constraints: fn(&S) -> C, descriptor: SolutionDescriptor, entity_count_by_descriptor: fn(&S, usize) -> usize, runtime: SolverRuntime<S>, config: SolverConfig, default_time_limit_secs: u64, log_scale: fn(&S), qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>, build_search: BuildSearch, ) -> RuntimeBuildResult<S> where S: PlanningSolution + Clone + Send + Sync + 'static, S::Score: Score + Copy + Ord + ParseableScore, C: ConstraintSet<S, S::Score>, V: Clone + Copy + PartialEq + Eq + Hash + Into<usize> + Send + Sync + Debug + 'static, DM: CrossEntityDistanceMeter<S> + Clone + Send + Sync + Debug + 'static, IDM: CrossEntityDistanceMeter<S> + Clone + Send + Sync + Debug + 'static, Declaration: Search<S, V, DM, IDM>, Declaration::Extensions: RuntimeExtensionRegistry<S, V, DM, IDM>, BuildSearch: FnOnce(&SolverConfig, SolutionDescriptor) -> RuntimeBuildResult<Declaration>,
+type RepairProvider: pub type RepairProvider<S> = fn(&S, RepairLimits) -> Vec<RepairCandidate<S>>;
+type RuntimeBuildResult: pub type RuntimeBuildResult<T> = Result<T, RuntimeBuildError>;
+type ScalarAssignmentRule: pub type ScalarAssignmentRule<S> = fn(&S, usize, usize, usize, usize) -> bool;
+type ScalarCandidateProvider: pub type ScalarCandidateProvider<S> = fn(&S, ScalarGroupLimits) -> Vec<ScalarCandidate<S>>;
+constant CANDIDATE_TRACE_FORMAT_VERSION: pub const CANDIDATE_TRACE_FORMAT_VERSION: u32 = 3;

@@ -24,7 +24,7 @@ EXAMPLE_PACKAGES := $(shell find examples -mindepth 2 -maxdepth 2 -name Cargo.to
 
 # ============== Phony Targets ==============
 .PHONY: banner help build build-release examples test test-quick test-doc test-unit test-one \
-        lint fmt fmt-check clippy doc-names file-length facade-reachability ci-local bench-zero-regression pre-release version bump-patch bump-minor bump-major \
+        lint fmt fmt-check clippy doc-names file-length facade-reachability public-api ci-local bench-zero-regression pre-release version bump-patch bump-minor bump-major \
         bump-dry publish-crates-dry clean watch
 
 # ============== Default Target ==============
@@ -114,7 +114,7 @@ test-one:
 
 # ============== Lint & Format ==============
 
-lint: banner fmt-check clippy doc-names file-length facade-reachability
+lint: banner fmt-check clippy doc-names file-length facade-reachability public-api
 	@printf "\n$(GREEN)$(BOLD)$(CHECK) All lint checks passed$(RESET)\n\n"
 
 fmt:
@@ -140,6 +140,13 @@ facade-reachability:
 		python3 scripts/check-facade-reachability.py && \
 		printf "$(GREEN)$(CHECK) Every type in a facade signature is reachable through solverforge$(RESET)\n" || \
 		(printf "$(RED)$(CROSS) Facade signatures use types solverforge does not export$(RESET)\n" && exit 1)
+
+public-api:
+	@printf "$(PROGRESS) Checking the public API snapshots...\n"
+	@cargo doc --quiet -p solverforge-core -p solverforge-scoring -p solverforge-solver --no-deps --all-features && \
+		python3 scripts/check-public-api.py && \
+		printf "$(GREEN)$(CHECK) Public API matches crates/*/public-api.txt$(RESET)\n" || \
+		(printf "$(RED)$(CROSS) Public API changed; review and run scripts/check-public-api.py --bless$(RESET)\n" && exit 1)
 
 file-length:
 	@printf "$(PROGRESS) Checking Rust file lengths...\n"
@@ -214,6 +221,7 @@ pre-release: banner
 	@$(MAKE) doc-names --no-print-directory
 	@$(MAKE) file-length --no-print-directory
 	@$(MAKE) facade-reachability --no-print-directory
+	@$(MAKE) public-api --no-print-directory
 	@printf "$(PROGRESS) Running full test suite...\n"
 	@cargo test --workspace --quiet && printf "$(GREEN)$(CHECK) All tests passed$(RESET)\n"
 	@printf "\n$(GREEN)$(BOLD)$(CHECK) Ready for release v$(VERSION)$(RESET)\n\n"
@@ -258,13 +266,14 @@ help: banner
 	@/bin/echo -e "  $(GREEN)make test-one TEST=name$(RESET) - Run specific test with output"
 	@/bin/echo -e ""
 	@/bin/echo -e "$(CYAN)$(BOLD)Lint & Format:$(RESET)"
-	@/bin/echo -e "  $(GREEN)make lint$(RESET)           - Run fmt-check + clippy + doc-names + file-length + facade-reachability"
+	@/bin/echo -e "  $(GREEN)make lint$(RESET)           - Run fmt-check + clippy + doc-names + file-length + facade-reachability + public-api"
 	@/bin/echo -e "  $(GREEN)make fmt$(RESET)            - Format code"
 	@/bin/echo -e "  $(GREEN)make fmt-check$(RESET)      - Check formatting"
 	@/bin/echo -e "  $(GREEN)make clippy$(RESET)         - Run clippy lints"
 	@/bin/echo -e "  $(GREEN)make doc-names$(RESET)      - Check wireframes and guides name existing types"
 	@/bin/echo -e "  $(GREEN)make file-length$(RESET)    - Check every Rust file is within 500 lines"
 	@/bin/echo -e "  $(GREEN)make facade-reachability$(RESET) - Check facade signatures use only facade-exported types"
+	@/bin/echo -e "  $(GREEN)make public-api$(RESET)     - Check core/scoring/solver public API against crates/*/public-api.txt"
 	@/bin/echo -e ""
 	@/bin/echo -e "$(CYAN)$(BOLD)CI & Quality:$(RESET)"
 	@/bin/echo -e "  $(GREEN)make ci-local$(RESET)       - $(YELLOW)$(BOLD)Simulate GitHub Actions CI locally$(RESET)"

@@ -1,0 +1,621 @@
+struct api::analysis::ConstraintAnalysis: pub struct ConstraintAnalysis<'a, Sc: Score> { pub constraint_ref: &'a ConstraintRef, pub weight_multiplier: u32, pub score: Sc, pub matches: Vec<DetailedConstraintMatch<'a, Sc>>, pub is_hard: bool, }
+    api::analysis::ConstraintAnalysis: pub fn new( constraint_ref: &'a ConstraintRef, weight_multiplier: u32, score: Sc, matches: Vec<DetailedConstraintMatch<'a, Sc>>, is_hard: bool, ) -> Self
+    api::analysis::ConstraintAnalysis: pub fn match_count(&self) -> usize
+    api::analysis::ConstraintAnalysis: pub fn name(&self) -> &str
+struct api::analysis::ConstraintJustification: pub struct ConstraintJustification { pub entities: Vec<EntityRef>, pub description: String, }
+    api::analysis::ConstraintJustification: pub fn new(entities: Vec<EntityRef>) -> Self
+    api::analysis::ConstraintJustification: pub fn with_description(entities: Vec<EntityRef>, description: String) -> Self
+struct api::analysis::DetailedConstraintMatch: pub struct DetailedConstraintMatch<'a, Sc: Score> { pub constraint_ref: &'a ConstraintRef, pub score: Sc, pub justification: ConstraintJustification, }
+    api::analysis::DetailedConstraintMatch: pub fn new( constraint_ref: &'a ConstraintRef, score: Sc, justification: ConstraintJustification, ) -> Self
+struct api::analysis::EntityRef: pub struct EntityRef { pub type_name: String, pub display: String, /* private fields */ }
+    api::analysis::EntityRef: pub fn new<T: Clone + Debug + Send + Sync + 'static>(entity: &T) -> Self
+    api::analysis::EntityRef: pub fn with_display<T: Clone + Send + Sync + 'static>( entity: &T, display: String, ) -> Self
+    api::analysis::EntityRef: pub fn as_entity<T: 'static>(&self) -> Option<&T>
+    api::analysis::EntityRef: pub fn short_type_name(&self) -> &str
+struct api::constraint_set::ConstraintMetadata: pub struct ConstraintMetadata<'a> { pub constraint_ref: &'a ConstraintRef, pub is_hard: bool, }
+    api::constraint_set::ConstraintMetadata: pub fn new(constraint_ref: &'a ConstraintRef, is_hard: bool) -> Self
+    api::constraint_set::ConstraintMetadata: pub fn name(&self) -> &str
+    api::constraint_set::ConstraintMetadata: pub fn full_name(&self) -> String
+struct api::constraint_set::ConstraintResult: pub struct ConstraintResult<'a, Sc> { pub name: &'a str, pub score: Sc, pub match_count: usize, pub is_hard: bool, pub weight_multiplier: u32, }
+struct api::constraint_set::ConstraintSetChain: pub struct ConstraintSetChain<Left, Right> { /* private fields */ }
+    api::constraint_set::ConstraintSetChain: pub fn new(left: Left, right: Right) -> Self
+struct api::constraint_set::OrderedConstraintSetChain: pub struct OrderedConstraintSetChain<Left, Right> { /* private fields */ }
+    api::constraint_set::OrderedConstraintSetChain: pub fn new(left: Left, right: Right, order: Vec<ConstraintSetSource>) -> Self
+struct api::node_sharing::SharedNodeDiagnostics: pub struct SharedNodeDiagnostics { pub id: SharedNodeId, pub fingerprint: String, pub operation: SharedNodeOperation, pub terminal_consumers: Vec<String>, pub update_count: usize, pub changed_key_count: usize, }
+    api::node_sharing::SharedNodeDiagnostics: pub fn new( id: SharedNodeId, fingerprint: impl Into<String>, operation: SharedNodeOperation, terminal_consumers: Vec<String>, update_count: usize, changed_key_count: usize, ) -> Self
+struct api::node_sharing::SharedNodeId: pub struct SharedNodeId(pub usize);
+struct constraint::balance::BalanceConstraint: pub struct BalanceConstraint<S, A, K, E, F, KF, Sc> where Sc: Score,{ /* private fields */ }
+    constraint::balance::BalanceConstraint: pub fn new( constraint_ref: ConstraintRef, impact_type: ImpactType, extractor: E, filter: F, key_fn: KF, base_score: Sc, is_hard: bool, ) -> Self
+struct constraint::incremental::IncrementalUniConstraint: pub struct IncrementalUniConstraint<S, A, E, F, W, Sc> where Sc: Score,{ /* private fields */ }
+    constraint::incremental::IncrementalUniConstraint: pub fn new( constraint_ref: ConstraintRef, impact_type: ImpactType, extractor: E, filter: F, weight: W, is_hard: bool, ) -> Self
+struct constraint::list_precedence::ListPrecedenceMakespanConstraint: pub struct ListPrecedenceMakespanConstraint<S> { /* private fields */ }
+    constraint::list_precedence::ListPrecedenceMakespanConstraint: pub fn new( constraint_ref: ConstraintRef, list_descriptor_index: usize, node_count: fn(&S) -> usize, node_duration: fn(&S, usize) -> usize, fixed_successors: fn(&S, usize, &mut Vec<usize>), list_owner_count: fn(&S) -> usize, list_len: fn(&S, usize) -> usize, list_get: fn(&S, usize, usize) -> Option<usize>, ) -> Self
+    constraint::list_precedence::ListPrecedenceMakespanConstraint: pub fn with_expected_owner( self, expected_owner: Option<fn(&S, usize) -> Option<usize>>, ) -> Self
+struct constraint::projected::Bi: pub struct Bi<S, Out, K, Src, F, KF, PF, W, Sc> where Src: Source<S, Out>, Sc: Score,{ /* private fields */ }
+    constraint::projected::Bi: pub fn new( constraint_ref: ConstraintRef, impact_type: ImpactType, source: Src, filter: F, key_fn: KF, pair_filter: PF, weight: W, is_hard: bool, ) -> Self
+struct constraint::projected::DirectedBi: pub struct DirectedBi<S, Out, K, Src, F, KL, KR, PF, W, Sc> where Src: Source<S, Out>, Sc: Score,{ /* private fields */ }
+    constraint::projected::DirectedBi: pub fn new( constraint_ref: ConstraintRef, impact_type: ImpactType, source: Src, filter: F, left_key_fn: KL, right_key_fn: KR, pair_filter: PF, weight: W, is_hard: bool, ) -> Self
+struct constraint::projected::Uni: pub struct Uni<S, Out, Src, F, W, Sc> where Src: Source<S, Out>, Sc: Score,{ /* private fields */ }
+    constraint::projected::Uni: pub fn new( constraint_ref: ConstraintRef, impact_type: ImpactType, source: Src, filter: F, weight: W, is_hard: bool, ) -> Self
+struct constraint::relational::DirectComplementAdapter: pub struct DirectComplementAdapter<KB, K, R> { /* private fields */ }
+    constraint::relational::DirectComplementAdapter: pub fn new(key: KB) -> Self
+struct constraint::relational::GroupAdapter: pub struct GroupAdapter<K, R>(/* private fields */);
+    constraint::relational::GroupAdapter: pub fn new() -> Self
+struct constraint::relational::GroupedJoinAdapter: pub struct GroupedJoinAdapter<K, R, B>(/* private fields */);
+    constraint::relational::GroupedJoinAdapter: pub fn new() -> Self
+struct constraint::relational::OperatorTerminal: pub struct OperatorTerminal<S, O, W, Sc> { /* private fields */ }
+    constraint::relational::OperatorTerminal: pub fn new( constraint_ref: ConstraintRef, impact: ImpactType, operator: O, weight: W, hard: bool, ) -> Self
+struct constraint::relational::OptionalComplementAdapter: pub struct OptionalComplementAdapter<KB, K, R> { /* private fields */ }
+    constraint::relational::OptionalComplementAdapter: pub fn new(key: KB) -> Self
+struct constraint::relational::SharedOperatorBuilder: pub struct SharedOperatorBuilder<S, O, A, Scorers, W, Sc> { /* private fields */ }
+    constraint::relational::SharedOperatorBuilder: pub fn first(operator: O, adapter: A, impact: ImpactType, weight: W) -> Self
+    constraint::relational::SharedOperatorBuilder: pub fn with_explainer( self, explain: fn(&O, &S, RowHandle, &mut Vec<EntityRef>), ) -> Self
+    constraint::relational::SharedOperatorBuilder: pub fn first_with_hard( operator: O, adapter: A, impact: ImpactType, weight: W, hard: bool, ) -> Self
+    constraint::relational::SharedOperatorBuilder: pub fn first_named( self, name: &str, ) -> SharedOperatorTerminal<S, O, A, OperatorScorer<A::RowWeight, Sc>, Sc>
+    constraint::relational::SharedOperatorBuilder: pub fn named( self, name: &str, ) -> SharedOperatorTerminal<S, O, A, ScorerChain<(Scorers, OperatorScorer<A::RowWeight, Sc>)>, Sc>
+struct constraint::relational::SharedOperatorTerminal: pub struct SharedOperatorTerminal<S, O, A, Scorers, Sc> { /* private fields */ }
+    constraint::relational::SharedOperatorTerminal: pub fn penalize<W>( self, weight: W, ) -> SharedOperatorBuilder<S, O, A, Scorers, W, Sc>
+    constraint::relational::SharedOperatorTerminal: pub fn reward<W>( self, weight: W, ) -> SharedOperatorBuilder<S, O, A, Scorers, W, Sc>
+    constraint::relational::SharedOperatorTerminal: pub fn evaluate(&self, solution: &S) -> Sc where Scorers: OperatorScorerSet<S, O, Sc>,
+    constraint::relational::SharedOperatorTerminal: pub fn initialize(&mut self, solution: &S) -> Sc where Scorers: OperatorScorerSet<S, O, Sc>,
+    constraint::relational::SharedOperatorTerminal: pub fn on_retract( &mut self, solution: &S, index: usize, descriptor: usize, ) -> Sc where Scorers: OperatorScorerSet<S, O, Sc>,
+    constraint::relational::SharedOperatorTerminal: pub fn on_insert(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc where Scorers: OperatorScorerSet<S, O, Sc>,
+    constraint::relational::SharedOperatorTerminal: pub fn update_count(&self) -> usize
+    constraint::relational::SharedOperatorTerminal: pub fn changed_key_count(&self) -> usize
+struct director::DirectorScoreState: pub struct DirectorScoreState<Sc> { pub solution_score: Option<Sc>, pub committed_score: Option<Sc>, pub initialized: bool, }
+struct director::score_director::ReplicaDescriptor: pub struct ReplicaDescriptor<'d, S, C> { /* private fields */ }
+    director::score_director::ReplicaDescriptor: pub fn new(descriptor: &'d SolutionDescriptor, constraints: fn(&S) -> C) -> Self
+struct director::score_director::ScoreDirector: pub struct ScoreDirector<S, C, Desc = SolutionDescriptor, M = UnweightedMode> where S: PlanningSolution, C: ConstraintSet<S, S::Score>, Desc: DirectorDescriptor<S, C>, M: WeightMode,{ /* private fields */ }
+    director::score_director::ScoreDirector: pub fn constraint_results(&self) -> Vec<ConstraintResult<'_, S::Score>>
+    director::score_director::ScoreDirector: pub fn constraint_analyses(&self) -> Vec<ConstraintAnalysis<'_, S::Score>>
+    director::score_director::ScoreDirector: pub fn constraint_match_totals(&self) -> Vec<(String, u32, S::Score, usize)>
+    director::score_director::ScoreDirector: pub fn new(solution: S, constraints: C) -> Self
+    director::score_director::ScoreDirector: pub fn with_descriptor( solution: S, constraints: C, solution_descriptor: Desc, entity_counter: fn(&S, usize) -> usize, ) -> Self
+    director::score_director::ScoreDirector: pub fn new_weighted(solution: S, constraints: C) -> Self
+    director::score_director::ScoreDirector: pub fn with_descriptor_weighted( solution: S, constraints: C, solution_descriptor: Desc, entity_counter: fn(&S, usize) -> usize, ) -> Self
+    director::score_director::ScoreDirector: pub fn with_descriptor_in_mode( solution: S, constraints: C, solution_descriptor: Desc, entity_counter: fn(&S, usize) -> usize, ) -> Self
+    director::score_director::ScoreDirector: pub fn into_weight_mode<M2: WeightMode>(self) -> ScoreDirector<S, C, Desc, M2>
+    director::score_director::ScoreDirector: pub fn simple( solution: S, descriptor: SolutionDescriptor, entity_counter: fn(&S, usize) -> usize, ) -> Self
+    director::score_director::ScoreDirector: pub fn simple_zero(solution: S) -> Self
+    director::score_director::ScoreDirector: pub fn working_solution(&self) -> &S
+    director::score_director::ScoreDirector: pub fn working_solution_mut(&mut self) -> &mut S
+    director::score_director::ScoreDirector: pub fn into_working_solution(self) -> S
+    director::score_director::ScoreDirector: pub fn calculate_score(&mut self) -> S::Score
+    director::score_director::ScoreDirector: pub fn before_variable_changed( &mut self, descriptor_index: usize, entity_index: usize, )
+    director::score_director::ScoreDirector: pub fn after_variable_changed( &mut self, descriptor_index: usize, entity_index: usize, )
+    director::score_director::ScoreDirector: pub fn do_change<F>( &mut self, descriptor_index: usize, entity_index: usize, change_fn: F, ) -> S::Score where F: FnOnce(&mut S),
+    director::score_director::ScoreDirector: pub fn get_score(&self) -> S::Score
+    director::score_director::ScoreDirector: pub fn reset(&mut self)
+    director::score_director::ScoreDirector: pub fn clone_working_solution(&self) -> S
+    director::score_director::ScoreDirector: pub fn constraints(&self) -> &C
+    director::score_director::ScoreDirector: pub fn constraints_mut(&mut self) -> &mut C
+    director::score_director::ScoreDirector: pub fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>
+    director::score_director::ScoreDirector: pub fn constraint_count(&self) -> usize
+    director::score_director::ScoreDirector: pub fn is_initialized(&self) -> bool
+    director::score_director::ScoreDirector: pub fn take_solution(self) -> S
+struct director::score_director::UnweightedMode: pub struct UnweightedMode;
+struct director::score_director::WeightedMode: pub struct WeightedMode { /* private fields */ }
+struct stream::BalanceConstraintBuilder: pub struct BalanceConstraintBuilder<S, A, K, E, F, KF, Sc> where Sc: Score,{ /* private fields */ }
+    stream::BalanceConstraintBuilder: pub fn named(self, name: &str) -> BalanceConstraint<S, A, K, E, F, KF, Sc>
+struct stream::BalanceConstraintStream: pub struct BalanceConstraintStream<S, A, K, E, F, KF, Sc> where Sc: Score,{ /* private fields */ }
+    stream::BalanceConstraintStream: pub fn penalize( self, base_score: Sc, ) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc>
+    stream::BalanceConstraintStream: pub fn reward( self, base_score: Sc, ) -> BalanceConstraintBuilder<S, A, K, E, F, KF, Sc>
+struct stream::BiConstraintBuilder: pub struct BiConstraintBuilder<S, A, K, E, KE, F, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::BiConstraintBuilder: pub fn named( self, name: &str, ) -> OperatorTerminal<S, FilterNode<SelfJoinNode<S, A, CollectionNode<S, E>, K, KE, 2>, impl for<'a, 'b> Fn(&'a S, &[Leaf<'b, A>; 2]) -> bool + Send + Sync>, impl for<'a, 'b> Fn(&'a S, &[Leaf<'b, A>; 2]) -> Sc + Send + Sync, Sc>
+struct stream::BiConstraintStream: pub struct BiConstraintStream<S, A, K, E, KE, F, Sc> where Sc: Score,{ /* private fields */ }
+    stream::BiConstraintStream: pub fn new_self_join(extractor: E, key_extractor: KE) -> Self
+    stream::BiConstraintStream: pub fn new_self_join_with_filter( extractor: E, key_extractor: KE, filter: F, ) -> Self
+    stream::BiConstraintStream: pub fn filter<P>( self, predicate: P, ) -> BiConstraintStream<S, A, K, E, KE, AndBiFilter<F, FnBiFilter<impl Fn(&S, &A, &A, usize, usize) -> bool + Send + Sync>>, Sc> where P: Fn(&A, &A) -> bool + Send + Sync + 'static,
+    stream::BiConstraintStream: pub fn group_by<GK, GF, Co, V, R, Acc>( self, key: GF, collector: Co, ) -> JoinedGroupedStream<S, FilterNode<SelfJoinNode<S, A, CollectionNode<S, E>, K, KE, 2>, impl Fn(&S, &[Leaf<'_, A>; 2]) -> bool + Send + Sync>, impl Fn(&[Leaf<'_, A>; 2]) -> GK + Send + Sync, TupleCollector<Co, V, R, Acc>, GK, V, R, Acc, Sc> where E: 'static, KE: 'static, F: 'static, K: 'static, GK: Eq + Hash + Clone + Send + Sync + 'static, GF: Fn(&A, &A) -> GK + Send + Sync + 'static, Co: for<'i> Collector<(&'i A, &'i A), Value = V, Result = R, Accumulator = Acc> + 'static, V: Send + Sync + 'static, R: Send + Sync + 'static, Acc: Accumulator<V, R> + 'static, for<'i> TupleCollector<Co, V, R, Acc>: Collector<[Leaf<'i, A>; 2], Value = V, Result = R, Accumulator = Acc>,
+    stream::BiConstraintStream: pub fn penalize<W>( self, weight: W, ) -> BiConstraintBuilder<S, A, K, E, KE, F, impl Fn(&A, &A) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w A), Sc> + Send + Sync,
+    stream::BiConstraintStream: pub fn reward<W>( self, weight: W, ) -> BiConstraintBuilder<S, A, K, E, KE, F, impl Fn(&A, &A) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w A), Sc> + Send + Sync,
+    stream::BiConstraintStream: pub fn join<J>( self, joiner: J, ) -> TriConstraintStream<S, A, K, E, KE, impl TriFilter<S, A, A, A>, Sc> where J: Joiner<A, A> + 'static, F: 'static,
+struct stream::ComplementedConstraintBuilder: pub struct ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::ComplementedConstraintBuilder: pub fn named( self, name: &str, ) -> SharedOperatorTerminal<S, ComplementNode<S, CollectionNode<S, EB>, GroupNode<CollectionNode<S, EA>, impl for<'l> Fn(&Leaf<'l, A>) -> Option<K> + Send + Sync, LeafCollector<C, V, R, Acc>, Option<K>, Acc, V, R>, ViewEqualPlan<Option<K>, OptionalEntityKey<KB>, GroupKey>, impl for<'l> Fn(&S, &Leaf<'l, B>) -> R + Send + Sync, R>, OptionalComplementAdapter<KB, K, R>, OperatorScorer<OptionalComplementWeight<W, KB>, Sc>, Sc>
+struct stream::ComplementedConstraintStream: pub struct ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc> where Sc: Score,{ /* private fields */ }
+    stream::ComplementedConstraintStream: pub fn penalize<W>( self, weight: W, ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, impl Fn(&K, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    stream::ComplementedConstraintStream: pub fn reward<W>( self, weight: W, ) -> ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, impl Fn(&K, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+struct stream::ConstraintFactory: pub struct ConstraintFactory<S, Sc: Score> { /* private fields */ }
+    stream::ConstraintFactory: pub fn new() -> Self
+    stream::ConstraintFactory: pub fn for_each<A, E>( self, extractor: E, ) -> UniConstraintStream<S, A, E, TrueFilter, Sc> where A: Clone + Send + Sync + 'static, E: CollectionExtract<S, Item = A>,
+struct stream::ExistsConstraintBuilder: pub struct ExistsConstraintBuilder<S, A, K, L, R, LK, RK, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::ExistsConstraintBuilder: pub fn named( self, name: &str, ) -> OperatorTerminal<S, ExistenceNode<S, L, R, K, LK, RK>, W, Sc>
+struct stream::ExistsConstraintStream: pub struct ExistsConstraintStream<S, A, K, L, R, LK, RK, Sc> where Sc: Score,{ /* private fields */ }
+    stream::ExistsConstraintStream: pub fn penalize<W>( self, weight: W, ) -> ExistsConstraintBuilder<S, A, K, L, R, LK, RK, impl for<'a> Fn(&S, &Leaf<'a, A>) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A,), Sc> + Send + Sync,
+    stream::ExistsConstraintStream: pub fn reward<W>( self, weight: W, ) -> ExistsConstraintBuilder<S, A, K, L, R, LK, RK, impl for<'a> Fn(&S, &Leaf<'a, A>) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A,), Sc> + Send + Sync,
+struct stream::FixedWeight: pub struct FixedWeight<Sc> { /* private fields */ }
+struct stream::FlattenedBiConstraintBuilder: pub struct FlattenedBiConstraintBuilder<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::FlattenedBiConstraintBuilder: pub fn named( self, name: &str, ) -> OperatorTerminal<S, FlattenedBiScored<S, A, B, C, JoinNode<S, CollectionNode<S, EA>, FlattenNode<CollectionNode<S, EB>, ParentFlatten<Flatten>>, ViewEqualPlan<(K, CK), PairKey<EntityKey<KA>, EntityKey<ALookup>>, FlattenedPairKey<KB, CKeyFn>>>, F>, impl for<'a> Fn(&S, &Pair<Leaf<'a, A>, FlattenView<'a, Leaf<'a, B>, C>>) -> Sc + Send + Sync, Sc>
+struct stream::FlattenedBiConstraintStream: pub struct FlattenedBiConstraintStream<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, Sc> where Sc: Score,{ /* private fields */ }
+    stream::FlattenedBiConstraintStream: pub fn new( extractor_a: EA, extractor_b: EB, key_a: KA, key_b: KB, flatten: Flatten, c_key_fn: CKeyFn, a_lookup_fn: ALookup, ) -> Self
+    stream::FlattenedBiConstraintStream: pub fn filter<P>( self, predicate: P, ) -> FlattenedBiConstraintStream<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, AndBiFilter<F, FnBiFilter<impl Fn(&S, &A, &C, usize, usize) -> bool + Send + Sync>>, Sc> where P: Fn(&A, &C) -> bool + Send + Sync,
+    stream::FlattenedBiConstraintStream: pub fn penalize<W>( self, weight: W, ) -> FlattenedBiConstraintBuilder<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, impl Fn(&A, &C) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w C), Sc> + Send + Sync,
+    stream::FlattenedBiConstraintStream: pub fn reward<W>( self, weight: W, ) -> FlattenedBiConstraintBuilder<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, F, impl Fn(&A, &C) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w C), Sc> + Send + Sync,
+struct stream::FlattenedCollectionTarget: pub struct FlattenedCollectionTarget<S, P, B, EP, FP, Flatten, Sc> where Sc: Score,{ /* private fields */ }
+struct stream::GroupedConstraintBuilder: pub struct GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::GroupedConstraintBuilder: pub fn named( self, name: &str, ) -> SharedOperatorTerminal<S, GroupNode<FilterNode<CollectionNode<S, E>, LeafFilter<S, A, Fi>>, impl Fn(&Leaf<'_, A>) -> K + Send + Sync, LeafCollector<C, V, R, Acc>, K, Acc, V, R>, GroupAdapter<K, R>, OperatorScorer<GroupWeight<W>, Sc>, Sc>
+struct stream::GroupedConstraintStream: pub struct GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc> where Sc: Score,{ /* private fields */ }
+    stream::GroupedConstraintStream: pub fn penalize<W>( self, weight: W, ) -> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, impl Fn(&K, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    stream::GroupedConstraintStream: pub fn reward<W>( self, weight: W, ) -> GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, impl Fn(&K, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    stream::GroupedConstraintStream: pub fn complement<B, EB, KB, D>( self, extractor_b: EB, key_b: KB, default_fn: D, ) -> ComplementedConstraintStream<S, A, B, K, E, EB, impl Fn(&A) -> Option<K> + Send + Sync, KB, C, V, R, Acc, D, Sc> where B: Clone + Send + Sync + 'static, EB: CollectionExtract<S, Item = B>, KB: Fn(&B) -> K + Send + Sync, D: Fn(&B) -> R + Send + Sync + 'static,
+    stream::GroupedConstraintStream: pub fn join<B, EB, KB>( self, target: (EB, KB), ) -> GroupedJoinedStream<S, A, B, K, E, EB, Fi, KF, C, V, R, Acc, KB, Sc> where B: Clone + Send + Sync + 'static, EB: CollectionExtract<S, Item = B> + 'static, KB: Fn(&B) -> K + Send + Sync + 'static,
+    stream::GroupedConstraintStream: pub fn complement_with_key<B, EB, KA2, KB, D>( self, extractor_b: EB, key_a: KA2, key_b: KB, default_fn: D, ) -> ComplementedConstraintStream<S, A, B, K, E, EB, KA2, KB, C, V, R, Acc, D, Sc> where B: Clone + Send + Sync + 'static, EB: CollectionExtract<S, Item = B>, KA2: Fn(&A) -> Option<K> + Send + Sync, KB: Fn(&B) -> K + Send + Sync, D: Fn(&B) -> R + Send + Sync + 'static,
+struct stream::HardWeight: pub struct HardWeight<W> { /* private fields */ }
+struct stream::JoinedGroupedBuilder: pub struct JoinedGroupedBuilder<S, O, F, C, K, V, R, Acc: Accumulator<V, R>, W, Sc> { /* private fields */ }
+    stream::JoinedGroupedBuilder: pub fn named( self, name: &str, ) -> SharedOperatorTerminal<S, GroupNode<O, F, C, K, Acc, V, R>, GroupAdapter<K, R>, OperatorScorer<<GroupAdapter<K, R> as AdaptWeight<S, GroupNode<O, F, C, K, Acc, V, R>, W, Sc>>::RowWeight, Sc>, Sc>
+struct stream::JoinedGroupedStream: pub struct JoinedGroupedStream<S, O, F, C, K, V, R, Acc: Accumulator<V, R>, Sc> { /* private fields */ }
+    stream::JoinedGroupedStream: pub fn penalize<W>( self, weight: W, ) -> JoinedGroupedBuilder<S, O, F, C, K, V, R, Acc, impl Fn(&K, &R) -> Sc + Send + Sync, Sc> where W: for<'a> ConstraintWeight<(&'a K, &'a R), Sc> + Send + Sync,
+    stream::JoinedGroupedStream: pub fn reward<W>( self, weight: W, ) -> JoinedGroupedBuilder<S, O, F, C, K, V, R, Acc, impl Fn(&K, &R) -> Sc + Send + Sync, Sc> where W: for<'a> ConstraintWeight<(&'a K, &'a R), Sc> + Send + Sync,
+struct stream::PentaConstraintBuilder: pub struct PentaConstraintBuilder<S, A, K, E, KE, F, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::PentaConstraintBuilder: pub fn named( self, name: &str, ) -> OperatorTerminal<S, FilterNode<SelfJoinNode<S, A, CollectionNode<S, E>, K, KE, 5>, impl for<'a, 'b> Fn(&'a S, &[Leaf<'b, A>; 5]) -> bool + Send + Sync>, impl for<'a, 'b> Fn(&'a S, &[Leaf<'b, A>; 5]) -> Sc + Send + Sync, Sc>
+struct stream::PentaConstraintStream: pub struct PentaConstraintStream<S, A, K, E, KE, F, Sc> where Sc: Score,{ /* private fields */ }
+    stream::PentaConstraintStream: pub fn new_self_join(extractor: E, key_extractor: KE) -> Self
+    stream::PentaConstraintStream: pub fn new_self_join_with_filter( extractor: E, key_extractor: KE, filter: F, ) -> Self
+    stream::PentaConstraintStream: pub fn filter<P>( self, predicate: P, ) -> PentaConstraintStream<S, A, K, E, KE, AndPentaFilter<F, FnPentaFilter<impl Fn(&S, &A, &A, &A, &A, &A, usize, usize, usize, usize, usize) -> bool + Send + Sync>>, Sc> where P: Fn(&A, &A, &A, &A, &A) -> bool + Send + Sync + 'static,
+    stream::PentaConstraintStream: pub fn group_by<GK, GF, Co, V, R, Acc>( self, key: GF, collector: Co, ) -> JoinedGroupedStream<S, FilterNode<SelfJoinNode<S, A, CollectionNode<S, E>, K, KE, 5>, impl Fn(&S, &[Leaf<'_, A>; 5]) -> bool + Send + Sync>, impl Fn(&[Leaf<'_, A>; 5]) -> GK + Send + Sync, TupleCollector<Co, V, R, Acc>, GK, V, R, Acc, Sc> where E: 'static, KE: 'static, F: 'static, K: 'static, GK: Eq + Hash + Clone + Send + Sync + 'static, GF: Fn(&A, &A, &A, &A, &A) -> GK + Send + Sync + 'static, Co: for<'i> Collector<(&'i A, &'i A, &'i A, &'i A, &'i A), Value = V, Result = R, Accumulator = Acc> + 'static, V: Send + Sync + 'static, R: Send + Sync + 'static, Acc: Accumulator<V, R> + 'static, for<'i> TupleCollector<Co, V, R, Acc>: Collector<[Leaf<'i, A>; 5], Value = V, Result = R, Accumulator = Acc>,
+    stream::PentaConstraintStream: pub fn penalize<W>( self, weight: W, ) -> PentaConstraintBuilder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w A, &'w A, &'w A, &'w A), Sc> + Send + Sync,
+    stream::PentaConstraintStream: pub fn reward<W>( self, weight: W, ) -> PentaConstraintBuilder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A, &A) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w A, &'w A, &'w A, &'w A), Sc> + Send + Sync,
+struct stream::QuadConstraintBuilder: pub struct QuadConstraintBuilder<S, A, K, E, KE, F, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::QuadConstraintBuilder: pub fn named( self, name: &str, ) -> OperatorTerminal<S, FilterNode<SelfJoinNode<S, A, CollectionNode<S, E>, K, KE, 4>, impl for<'a, 'b> Fn(&'a S, &[Leaf<'b, A>; 4]) -> bool + Send + Sync>, impl for<'a, 'b> Fn(&'a S, &[Leaf<'b, A>; 4]) -> Sc + Send + Sync, Sc>
+struct stream::QuadConstraintStream: pub struct QuadConstraintStream<S, A, K, E, KE, F, Sc> where Sc: Score,{ /* private fields */ }
+    stream::QuadConstraintStream: pub fn new_self_join(extractor: E, key_extractor: KE) -> Self
+    stream::QuadConstraintStream: pub fn new_self_join_with_filter( extractor: E, key_extractor: KE, filter: F, ) -> Self
+    stream::QuadConstraintStream: pub fn filter<P>( self, predicate: P, ) -> QuadConstraintStream<S, A, K, E, KE, AndQuadFilter<F, FnQuadFilter<impl Fn(&S, &A, &A, &A, &A, usize, usize, usize, usize) -> bool + Send + Sync>>, Sc> where P: Fn(&A, &A, &A, &A) -> bool + Send + Sync + 'static,
+    stream::QuadConstraintStream: pub fn group_by<GK, GF, Co, V, R, Acc>( self, key: GF, collector: Co, ) -> JoinedGroupedStream<S, FilterNode<SelfJoinNode<S, A, CollectionNode<S, E>, K, KE, 4>, impl Fn(&S, &[Leaf<'_, A>; 4]) -> bool + Send + Sync>, impl Fn(&[Leaf<'_, A>; 4]) -> GK + Send + Sync, TupleCollector<Co, V, R, Acc>, GK, V, R, Acc, Sc> where E: 'static, KE: 'static, F: 'static, K: 'static, GK: Eq + Hash + Clone + Send + Sync + 'static, GF: Fn(&A, &A, &A, &A) -> GK + Send + Sync + 'static, Co: for<'i> Collector<(&'i A, &'i A, &'i A, &'i A), Value = V, Result = R, Accumulator = Acc> + 'static, V: Send + Sync + 'static, R: Send + Sync + 'static, Acc: Accumulator<V, R> + 'static, for<'i> TupleCollector<Co, V, R, Acc>: Collector<[Leaf<'i, A>; 4], Value = V, Result = R, Accumulator = Acc>,
+    stream::QuadConstraintStream: pub fn penalize<W>( self, weight: W, ) -> QuadConstraintBuilder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w A, &'w A, &'w A), Sc> + Send + Sync,
+    stream::QuadConstraintStream: pub fn reward<W>( self, weight: W, ) -> QuadConstraintBuilder<S, A, K, E, KE, F, impl Fn(&A, &A, &A, &A) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w A, &'w A, &'w A), Sc> + Send + Sync,
+    stream::QuadConstraintStream: pub fn join<J>( self, joiner: J, ) -> PentaConstraintStream<S, A, K, E, KE, impl PentaFilter<S, A, A, A, A, A>, Sc> where J: Joiner<A, A> + 'static, F: 'static,
+struct stream::TriConstraintBuilder: pub struct TriConstraintBuilder<S, A, K, E, KE, F, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::TriConstraintBuilder: pub fn named( self, name: &str, ) -> OperatorTerminal<S, FilterNode<SelfJoinNode<S, A, CollectionNode<S, E>, K, KE, 3>, impl for<'a, 'b> Fn(&'a S, &[Leaf<'b, A>; 3]) -> bool + Send + Sync>, impl for<'a, 'b> Fn(&'a S, &[Leaf<'b, A>; 3]) -> Sc + Send + Sync, Sc>
+struct stream::TriConstraintStream: pub struct TriConstraintStream<S, A, K, E, KE, F, Sc> where Sc: Score,{ /* private fields */ }
+    stream::TriConstraintStream: pub fn new_self_join(extractor: E, key_extractor: KE) -> Self
+    stream::TriConstraintStream: pub fn new_self_join_with_filter( extractor: E, key_extractor: KE, filter: F, ) -> Self
+    stream::TriConstraintStream: pub fn filter<P>( self, predicate: P, ) -> TriConstraintStream<S, A, K, E, KE, AndTriFilter<F, FnTriFilter<impl Fn(&S, &A, &A, &A, usize, usize, usize) -> bool + Send + Sync>>, Sc> where P: Fn(&A, &A, &A) -> bool + Send + Sync + 'static,
+    stream::TriConstraintStream: pub fn group_by<GK, GF, Co, V, R, Acc>( self, key: GF, collector: Co, ) -> JoinedGroupedStream<S, FilterNode<SelfJoinNode<S, A, CollectionNode<S, E>, K, KE, 3>, impl Fn(&S, &[Leaf<'_, A>; 3]) -> bool + Send + Sync>, impl Fn(&[Leaf<'_, A>; 3]) -> GK + Send + Sync, TupleCollector<Co, V, R, Acc>, GK, V, R, Acc, Sc> where E: 'static, KE: 'static, F: 'static, K: 'static, GK: Eq + Hash + Clone + Send + Sync + 'static, GF: Fn(&A, &A, &A) -> GK + Send + Sync + 'static, Co: for<'i> Collector<(&'i A, &'i A, &'i A), Value = V, Result = R, Accumulator = Acc> + 'static, V: Send + Sync + 'static, R: Send + Sync + 'static, Acc: Accumulator<V, R> + 'static, for<'i> TupleCollector<Co, V, R, Acc>: Collector<[Leaf<'i, A>; 3], Value = V, Result = R, Accumulator = Acc>,
+    stream::TriConstraintStream: pub fn penalize<W>( self, weight: W, ) -> TriConstraintBuilder<S, A, K, E, KE, F, impl Fn(&A, &A, &A) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w A, &'w A), Sc> + Send + Sync,
+    stream::TriConstraintStream: pub fn reward<W>( self, weight: W, ) -> TriConstraintBuilder<S, A, K, E, KE, F, impl Fn(&A, &A, &A) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w A, &'w A), Sc> + Send + Sync,
+    stream::TriConstraintStream: pub fn join<J>( self, joiner: J, ) -> QuadConstraintStream<S, A, K, E, KE, impl QuadFilter<S, A, A, A, A>, Sc> where J: Joiner<A, A> + 'static, F: 'static,
+struct stream::UniConstraintBuilder: pub struct UniConstraintBuilder<S, A, E, F, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::UniConstraintBuilder: pub fn named( self, name: &str, ) -> IncrementalUniConstraint<S, A, E, impl Fn(&S, &A) -> bool + Send + Sync, W, Sc>
+struct stream::UniConstraintStream: pub struct UniConstraintStream<S, A, E, F, Sc> where Sc: Score,{ /* private fields */ }
+    stream::UniConstraintStream: pub fn project<P>( self, projection: P, ) -> Stream<S, P::Out, SingleSource<S, A, E, F, P, P::Out>, TrueFilter, Sc> where P: Projection<A> + 'static,
+    stream::UniConstraintStream: pub fn unassigned( self, ) -> UniConstraintStream<S, A, E, AndUniFilter<F, FnUniFilter<fn(&S, &A) -> bool>>, Sc>
+    stream::UniConstraintStream: pub fn new(extractor: E) -> Self
+    stream::UniConstraintStream: pub fn flattened<B, Flat>( self, flatten: Flat, ) -> FlattenedCollectionTarget<S, A, B, E, F, FlattenVecExtract<Flat>, Sc> where E: CollectionExtract<S, Item = A>, B: Clone + Send + Sync + 'static, Flat: for<'a> Fn(&'a A) -> &'a Vec<B> + Send + Sync,
+    stream::UniConstraintStream: pub fn filter<P>( self, predicate: P, ) -> UniConstraintStream<S, A, E, AndUniFilter<F, FnUniFilter<impl Fn(&S, &A) -> bool + Send + Sync>>, Sc> where P: Fn(&A) -> bool + Send + Sync + 'static,
+    stream::UniConstraintStream: pub fn join<J>(self, target: J) -> J::Output where J: JoinTarget<S, A, E, F, Sc>,
+    stream::UniConstraintStream: pub fn group_by<K, KF, C, V, R, Acc>( self, key_fn: KF, collector: C, ) -> GroupedConstraintStream<S, A, K, E, F, KF, C, V, R, Acc, Sc> where K: Clone + Eq + Hash + Send + Sync + 'static, KF: Fn(&A) -> K + Send + Sync, C: for<'i> Collector<&'i A, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static, V: Send + Sync + 'static, R: Send + Sync + 'static, Acc: Accumulator<V, R> + Send + Sync + 'static,
+    stream::UniConstraintStream: pub fn balance<K, KF>( self, key_fn: KF, ) -> BalanceConstraintStream<S, A, K, E, F, KF, Sc> where K: Clone + Eq + Hash + Send + Sync + 'static, KF: Fn(&A) -> Option<K> + Send + Sync,
+    stream::UniConstraintStream: pub fn if_exists<T>(self, target: T) -> T::Output where T: ExistenceTarget<S, A, E, F, Sc>,
+    stream::UniConstraintStream: pub fn if_not_exists<T>(self, target: T) -> T::Output where T: ExistenceTarget<S, A, E, F, Sc>,
+    stream::UniConstraintStream: pub fn penalize<W>( self, weight: W, ) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A,), Sc> + Send + Sync,
+    stream::UniConstraintStream: pub fn reward<W>( self, weight: W, ) -> UniConstraintBuilder<S, A, E, F, impl Fn(&A) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A,), Sc> + Send + Sync,
+struct stream::chain::Chain: pub struct Chain<S: 'static, O, Sc> where O: Operator<S>,{ /* private fields */ }
+    stream::chain::Chain: pub fn new(tree: O, next_binding: u32) -> Self
+    stream::chain::Chain: pub fn filter<P>(self, predicate: P) -> Chain<S, FilterNode<O, P>, Sc> where P: for<'a> FilterPredicate<S, O::View<'a>> + 'static, FilterNode<O, P>: Operator<S>,
+    stream::chain::Chain: pub fn join<B, EB, P>( self, target: (EB, P), ) -> Chain<S, JoinNode<S, O, CollectionNode<S, EB>, P::Plan>, Sc> where B: Clone + Send + Sync + 'static, EB: CollectionExtract<S, Item = B> + 'static, P: CompileCondition + 'static, for<'a> P::Plan: IndexedPlan + ExecutablePlan<O::View<'a>, Leaf<'a, B>>, for<'a> CollectionNode<S, EB>: Operator<S, View<'a> = Leaf<'a, B>>, JoinNode<S, O, CollectionNode<S, EB>, P::Plan>: Operator<S>,
+    stream::chain::Chain: pub fn penalize<W>(self, weight: W) -> ChainBuilder<S, O, W, Sc> where W: for<'a> Fn(&S, &O::View<'a>) -> Sc + Send + Sync,
+    stream::chain::Chain: pub fn reward<W>(self, weight: W) -> ChainBuilder<S, O, W, Sc> where W: for<'a> Fn(&S, &O::View<'a>) -> Sc + Send + Sync,
+struct stream::chain::ChainBuilder: pub struct ChainBuilder<S: 'static, O, W, Sc> where O: Operator<S>,{ /* private fields */ }
+    stream::chain::ChainBuilder: pub fn hard(self) -> Self
+    stream::chain::ChainBuilder: pub fn named(self, name: &str) -> OperatorTerminal<S, O, W, Sc>
+struct stream::collection_extract::FlattenVecExtract: pub struct FlattenVecExtract<F>(pub F);
+struct stream::collection_extract::VecExtract: pub struct VecExtract<F>(pub F);
+struct stream::collector::CollectVecAccumulator: pub struct CollectVecAccumulator<T> { /* private fields */ }
+struct stream::collector::CollectVecCollector: pub struct CollectVecCollector<T, F> { /* private fields */ }
+struct stream::collector::CollectedVec: pub struct CollectedVec<T> { /* private fields */ }
+    stream::collector::CollectedVec: pub fn iter(&self) -> CollectedVecIter<'_, T>
+    stream::collector::CollectedVec: pub fn len(&self) -> usize
+    stream::collector::CollectedVec: pub fn is_empty(&self) -> bool
+    stream::collector::CollectedVec: pub fn to_vec(&self) -> Vec<T> where T: Clone,
+struct stream::collector::CountAccumulator: pub struct CountAccumulator { /* private fields */ }
+    stream::collector::CountAccumulator: pub fn get(&self) -> usize
+struct stream::collector::CountCollector: pub struct CountCollector;
+struct stream::collector::IndexedPresence: pub struct IndexedPresence { /* private fields */ }
+    stream::collector::IndexedPresence: pub fn contains(&self, index: i64) -> bool
+    stream::collector::IndexedPresence: pub fn count(&self) -> usize
+    stream::collector::IndexedPresence: pub fn item_count(&self) -> usize
+    stream::collector::IndexedPresence: pub fn is_empty(&self) -> bool
+    stream::collector::IndexedPresence: pub fn runs(&self) -> Runs
+    stream::collector::IndexedPresence: pub fn complement_runs(&self, horizon: Range<i64>) -> Runs
+    stream::collector::IndexedPresence: pub fn count_in(&self, range: Range<i64>) -> usize
+    stream::collector::IndexedPresence: pub fn any_in(&self, range: Range<i64>) -> bool
+struct stream::collector::IndexedPresenceAccumulator: pub struct IndexedPresenceAccumulator { /* private fields */ }
+struct stream::collector::IndexedPresenceCollector: pub struct IndexedPresenceCollector<F> { /* private fields */ }
+struct stream::collector::LoadBalance: pub struct LoadBalance<K> { /* private fields */ }
+    stream::collector::LoadBalance: pub fn loads(&self) -> &HashMap<K, i64>
+    stream::collector::LoadBalance: pub fn unfairness(&self) -> i64
+struct stream::collector::LoadBalanceAccumulator: pub struct LoadBalanceAccumulator<K> { /* private fields */ }
+struct stream::collector::LoadBalanceCollector: pub struct LoadBalanceCollector<K, F, M> { /* private fields */ }
+struct stream::collector::Run: pub struct Run { /* private fields */ }
+    stream::collector::Run: pub fn start(&self) -> i64
+    stream::collector::Run: pub fn end(&self) -> i64
+    stream::collector::Run: pub fn point_count(&self) -> usize
+    stream::collector::Run: pub fn item_count(&self) -> usize
+struct stream::collector::Runs: pub struct Runs { /* private fields */ }
+    stream::collector::Runs: pub fn runs(&self) -> &[Run]
+    stream::collector::Runs: pub fn point_count(&self) -> usize
+    stream::collector::Runs: pub fn item_count(&self) -> usize
+    stream::collector::Runs: pub fn len(&self) -> usize
+    stream::collector::Runs: pub fn is_empty(&self) -> bool
+struct stream::collector::RunsAccumulator: pub struct RunsAccumulator { /* private fields */ }
+struct stream::collector::RunsCollector: pub struct RunsCollector<F> { /* private fields */ }
+struct stream::collector::SumAccumulator: pub struct SumAccumulator<T> { /* private fields */ }
+struct stream::collector::SumCollector: pub struct SumCollector<T, F> { /* private fields */ }
+struct stream::cross::Bi: pub struct Bi<S, A, B, P, EA, EB, F, Sc> where Sc: Score,{ /* private fields */ }
+    stream::cross::Bi: pub fn new(extractor_a: EA, extractor_b: EB, key_a: KA, key_b: KB) -> Self
+    stream::cross::Bi: pub fn new_with_filter( extractor_a: EA, extractor_b: EB, key_a: KA, key_b: KB, filter: F, ) -> Self
+    stream::cross::Bi: pub fn filter<Q>( self, predicate: Q, ) -> Bi<S, A, B, P, EA, EB, AndBiFilter<F, FnBiFilter<impl Fn(&S, &A, &B, usize, usize) -> bool + Send + Sync>>, Sc> where Q: Fn(&A, &B) -> bool + Send + Sync,
+    stream::cross::Bi: pub fn join<C, EC, P2>( self, target: (EC, P2), ) -> Tri<S, A, B, C, EA, EB, EC, P, P2, TriAsBiFilter<F, A, B>, Sc> where C: Clone + Send + Sync + 'static, EC: CollectionExtract<S, Item = C> + 'static, P: CompileCondition + 'static, for<'a> P::Plan: ExecutablePlan<Leaf<'a, A>, Leaf<'a, B>> + IndexedPlan<Indexes: Send + Sync>, P2: CompileCondition + 'static, for<'a> P2::Plan: IndexedPlan + ExecutablePlan<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>, EA: 'static, EB: 'static,
+    stream::cross::Bi: pub fn flatten_last<C, CK, Flatten, CKeyFn, ALookup>( self, flatten: Flatten, c_key_fn: CKeyFn, a_lookup_fn: ALookup, ) -> FlattenedBiConstraintStream<S, A, B, C, K, CK, EA, EB, KA, KB, Flatten, CKeyFn, ALookup, TrueFilter, Sc> where C: Clone + Send + Sync + 'static, CK: Eq + Hash + Clone + Send + Sync, Flatten: Fn(&B) -> &[C] + Send + Sync, CKeyFn: Fn(&C) -> CK + Send + Sync, ALookup: Fn(&A) -> CK + Send + Sync,
+    stream::cross::Bi: pub fn group_by<GK, GF, C, V, R, Acc>( self, group_key_fn: GF, collector: C, ) -> Grouped<S, A, B, K, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc> where GK: Eq + Hash + Clone + Send + Sync + 'static, GF: Fn(&A, &B) -> GK + Send + Sync, C: for<'i> Collector<(&'i A, &'i B), Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static, V: Send + Sync + 'static, R: Send + Sync + 'static, Acc: Accumulator<V, R> + Send + Sync + 'static,
+    stream::cross::Bi: pub fn project<Out, Proj>( self, project: Proj, ) -> Stream<S, Out, JoinedSource<S, A, B, K, EA, EB, KA, KB, F, Proj, Out>, TrueFilter, Sc> where Out: Send + Sync + 'static, Proj: Fn(&A, &B) -> Out + Send + Sync + 'static,
+    stream::cross::Bi: pub fn penalize<W>( self, weight: W, ) -> Builder<S, A, B, P, EA, EB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w B), Sc> + Send + Sync,
+    stream::cross::Bi: pub fn reward<W>( self, weight: W, ) -> Builder<S, A, B, P, EA, EB, F, impl Fn(&A, &B) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w B), Sc> + Send + Sync,
+struct stream::cross::Builder: pub struct Builder<S, A, B, P, EA, EB, F, W, Sc> where Sc: Score, P: CompileCondition,{ /* private fields */ }
+    stream::cross::Builder: pub fn named( self, name: &str, ) -> OperatorTerminal<S, BiScored<S, A, B, EA, EB, P::Plan, F>, impl Fn(&S, &Pair<Leaf<'_, A>, Leaf<'_, B>>) -> Sc + Send + Sync, Sc> where for<'a> JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, P::Plan>: Operator<S, View<'a> = Pair<Leaf<'a, A>, Leaf<'a, B>>>,
+struct stream::cross::ComplementedGrouped: pub struct ComplementedGrouped<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Sc> where Sc: Score,{ /* private fields */ }
+    stream::cross::ComplementedGrouped: pub fn penalize<W>( self, weight: W, ) -> ComplementedGroupedBuilder<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, impl Fn(&GK, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w GK, &'w R), Sc> + Send + Sync,
+    stream::cross::ComplementedGrouped: pub fn reward<W>( self, weight: W, ) -> ComplementedGroupedBuilder<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, impl Fn(&GK, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w GK, &'w R), Sc> + Send + Sync,
+struct stream::cross::ComplementedGroupedBuilder: pub struct ComplementedGroupedBuilder<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::cross::ComplementedGroupedBuilder: pub fn named( self, name: &str, ) -> SharedOperatorTerminal<S, ComplementNode<S, CollectionNode<S, ET>, GroupNode<BiScored<S, A, B, EA, EB, BiUnaryPlan<JK, KA, KB>, F>, impl Fn(&Pair<Leaf<'_, A>, Leaf<'_, B>>) -> GK + Send + Sync, TupleCollector<C, V, R, Acc>, GK, Acc, V, R>, ViewEqualPlan<GK, EntityKey<KT>, GroupKey>, impl Fn(&S, &Leaf<'_, T>) -> R + Send + Sync, R>, DirectComplementAdapter<KT, GK, R>, OperatorScorer<DirectComplementWeight<W, KT>, Sc>, Sc>
+struct stream::cross::Grouped: pub struct Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc> where Sc: Score,{ /* private fields */ }
+    stream::cross::Grouped: pub fn penalize<W>( self, weight: W, ) -> GroupedBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, impl Fn(&GK, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w GK, &'w R), Sc> + Send + Sync,
+    stream::cross::Grouped: pub fn reward<W>( self, weight: W, ) -> GroupedBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, impl Fn(&GK, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w GK, &'w R), Sc> + Send + Sync,
+    stream::cross::Grouped: pub fn complement<T, ET, KT, D>( self, extractor_t: ET, key_t: KT, default_fn: D, ) -> ComplementedGrouped<S, A, B, T, JK, GK, EA, EB, ET, KA, KB, F, GF, KT, C, V, R, Acc, D, Sc> where T: Clone + Send + Sync + 'static, ET: CollectionExtract<S, Item = T>, KT: Fn(&T) -> GK + Send + Sync, D: Fn(&T) -> R + Send + Sync,
+struct stream::cross::GroupedBuilder: pub struct GroupedBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::cross::GroupedBuilder: pub fn named( self, name: &str, ) -> SharedOperatorTerminal<S, GroupNode<BiScored<S, A, B, EA, EB, BiUnaryPlan<JK, KA, KB>, F>, impl Fn(&Pair<Leaf<'_, A>, Leaf<'_, B>>) -> GK + Send + Sync, TupleCollector<C, V, R, Acc>, GK, Acc, V, R>, GroupAdapter<GK, R>, OperatorScorer<GroupWeight<W>, Sc>, Sc>
+struct stream::cross::Penta: pub struct Penta<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, Sc> where Sc: Score, P1: CompileCondition<Plan: IndexedPlan>, P2: CompileCondition<Plan: IndexedPlan>, P3: CompileCondition<Plan: IndexedPlan>, P4: CompileCondition<Plan: IndexedPlan>,{ /* private fields */ }
+    stream::cross::Penta: pub fn filter<P>( self, predicate: P, ) -> Penta<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, AndPentaFilter<F, FnPentaFilter<impl Fn(&S, &A, &B, &C, &D, &E, usize, usize, usize, usize, usize) -> bool + Send + Sync>>, Sc> where P: Fn(&A, &B, &C, &D, &E) -> bool + Send + Sync,
+    stream::cross::Penta: pub fn penalize<W>( self, weight: W, ) -> PentaBuilder<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, impl Fn(&A, &B, &C, &D, &E) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w B, &'w C, &'w D, &'w E), Sc> + Send + Sync,
+    stream::cross::Penta: pub fn reward<W>( self, weight: W, ) -> PentaBuilder<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, impl Fn(&A, &B, &C, &D, &E) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w B, &'w C, &'w D, &'w E), Sc> + Send + Sync,
+    stream::cross::Penta: pub fn join<G, EG, P5>( self, target: (EG, P5), ) -> Chain<S, JoinNode<S, JoinNode<S, JoinNode<S, JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, CollectionNode<S, ED>, <P3 as CompileCondition>::Plan>, CollectionNode<S, EE>, <P4 as CompileCondition>::Plan>, CollectionNode<S, EG>, <P5 as CompileCondition>::Plan>, Sc> where G: Clone + Send + Sync + 'static, EG: CollectionExtract<S, Item = G> + 'static, P5: CompileCondition + 'static, for<'a> P5::Plan: IndexedPlan + ExecutablePlan<<JoinNode<S, JoinNode<S, JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, CollectionNode<S, ED>, <P3 as CompileCondition>::Plan>, CollectionNode<S, EE>, <P4 as CompileCondition>::Plan> as Operator<S>>::View<'a>, Leaf<'a, G>>, for<'a> JoinNode<S, JoinNode<S, JoinNode<S, JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, CollectionNode<S, ED>, <P3 as CompileCondition>::Plan>, CollectionNode<S, EE>, <P4 as CompileCondition>::Plan>, CollectionNode<S, EG>, <P5 as CompileCondition>::Plan>: Operator<S>,
+    stream::cross::Penta: pub fn group_by<GK, GF, Co, V, R, Acc>( self, key: GF, collector: Co, ) -> JoinedGroupedStream<S, FilterNode<JoinNode<S, JoinNode<S, JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, CollectionNode<S, ED>, <P3 as CompileCondition>::Plan>, CollectionNode<S, EE>, <P4 as CompileCondition>::Plan>, impl Fn(&S, &Pair<Pair<Pair<Pair<Leaf<'_, A>, Leaf<'_, B>>, Leaf<'_, C>>, Leaf<'_, D>>, Leaf<'_, E>>) -> bool + Send + Sync>, impl Fn(&Pair<Pair<Pair<Pair<Leaf<'_, A>, Leaf<'_, B>>, Leaf<'_, C>>, Leaf<'_, D>>, Leaf<'_, E>>) -> GK + Send + Sync, TupleCollector<Co, V, R, Acc>, GK, V, R, Acc, Sc> where GK: Eq + Hash + Clone + Send + Sync + 'static, GF: Fn(&A, &B, &C, &D, &E) -> GK + Send + Sync + 'static, Co: for<'i> Collector<(&'i A, &'i B, &'i C, &'i D, &'i E), Value = V, Result = R, Accumulator = Acc> + 'static, V: Send + Sync + 'static, R: Send + Sync + 'static, Acc: Accumulator<V, R> + 'static,
+struct stream::cross::PentaBuilder: pub struct PentaBuilder<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, W, Sc> where Sc: Score, P1: CompileCondition<Plan: IndexedPlan>, P2: CompileCondition<Plan: IndexedPlan>, P3: CompileCondition<Plan: IndexedPlan>, P4: CompileCondition<Plan: IndexedPlan>,{ /* private fields */ }
+    stream::cross::PentaBuilder: pub fn named( self, name: &str, ) -> OperatorTerminal<S, PentaScored<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F>, impl Fn(&S, &<JoinNode<S, JoinNode<S, JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, CollectionNode<S, ED>, <P3 as CompileCondition>::Plan>, CollectionNode<S, EE>, <P4 as CompileCondition>::Plan> as Operator<S>>::View<'_>) -> Sc + Send + Sync, Sc>
+struct stream::cross::Quad: pub struct Quad<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F, Sc> where Sc: Score, P1: CompileCondition<Plan: IndexedPlan>, P2: CompileCondition<Plan: IndexedPlan>, P3: CompileCondition<Plan: IndexedPlan>,{ /* private fields */ }
+    stream::cross::Quad: pub fn filter<P>( self, predicate: P, ) -> Quad<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, AndQuadFilter<F, FnQuadFilter<impl Fn(&S, &A, &B, &C, &D, usize, usize, usize, usize) -> bool + Send + Sync>>, Sc> where P: Fn(&A, &B, &C, &D) -> bool + Send + Sync,
+    stream::cross::Quad: pub fn join<E, EE, P4>( self, target: (EE, P4), ) -> Penta<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, QuadAsPentaFilter<F, A, B, C, D>, Sc> where E: Clone + Send + Sync + 'static, EE: CollectionExtract<S, Item = E> + 'static, P4: CompileCondition + 'static, for<'a> P4::Plan: IndexedPlan + ExecutablePlan<Pair<Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>, Leaf<'a, D>>, Leaf<'a, E>>, for<'a> JoinNode<S, JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, CollectionNode<S, ED>, <P3 as CompileCondition>::Plan>: Operator<S, View<'a> = Pair<Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>, Leaf<'a, D>>>, for<'a> JoinNode<S, JoinNode<S, JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, CollectionNode<S, ED>, <P3 as CompileCondition>::Plan>, CollectionNode<S, EE>, <P4 as CompileCondition>::Plan>: Operator<S>,
+    stream::cross::Quad: pub fn penalize<W>( self, weight: W, ) -> QuadBuilder<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F, impl Fn(&A, &B, &C, &D) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w B, &'w C, &'w D), Sc> + Send + Sync,
+    stream::cross::Quad: pub fn reward<W>( self, weight: W, ) -> QuadBuilder<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F, impl Fn(&A, &B, &C, &D) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w B, &'w C, &'w D), Sc> + Send + Sync,
+    stream::cross::Quad: pub fn group_by<GK, GF, Co, V, R, Acc>( self, key: GF, collector: Co, ) -> JoinedGroupedStream<S, FilterNode<JoinNode<S, JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, CollectionNode<S, ED>, <P3 as CompileCondition>::Plan>, impl Fn(&S, &Pair<Pair<Pair<Leaf<'_, A>, Leaf<'_, B>>, Leaf<'_, C>>, Leaf<'_, D>>) -> bool + Send + Sync>, impl Fn(&Pair<Pair<Pair<Leaf<'_, A>, Leaf<'_, B>>, Leaf<'_, C>>, Leaf<'_, D>>) -> GK + Send + Sync, TupleCollector<Co, V, R, Acc>, GK, V, R, Acc, Sc> where GK: Eq + Hash + Clone + Send + Sync + 'static, GF: Fn(&A, &B, &C, &D) -> GK + Send + Sync + 'static, Co: for<'i> Collector<(&'i A, &'i B, &'i C, &'i D), Value = V, Result = R, Accumulator = Acc> + 'static, V: Send + Sync + 'static, R: Send + Sync + 'static, Acc: Accumulator<V, R> + 'static,
+struct stream::cross::QuadBuilder: pub struct QuadBuilder<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F, W, Sc> where Sc: Score, P1: CompileCondition<Plan: IndexedPlan>, P2: CompileCondition<Plan: IndexedPlan>, P3: CompileCondition<Plan: IndexedPlan>,{ /* private fields */ }
+    stream::cross::QuadBuilder: pub fn named( self, name: &str, ) -> OperatorTerminal<S, QuadScored<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F>, impl Fn(&S, &<JoinNode<S, JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, CollectionNode<S, ED>, <P3 as CompileCondition>::Plan> as Operator<S>>::View<'_>) -> Sc + Send + Sync, Sc>
+struct stream::cross::Tri: pub struct Tri<S, A, B, C, EA, EB, EC, P1, P2, F, Sc> where Sc: Score, P1: CompileCondition<Plan: IndexedPlan>, P2: CompileCondition<Plan: IndexedPlan>,{ /* private fields */ }
+    stream::cross::Tri: pub fn filter<P>( self, predicate: P, ) -> Tri<S, A, B, C, EA, EB, EC, P1, P2, AndTriFilter<F, FnTriFilter<impl Fn(&S, &A, &B, &C, usize, usize, usize) -> bool + Send + Sync>>, Sc> where P: Fn(&A, &B, &C) -> bool + Send + Sync,
+    stream::cross::Tri: pub fn join<D, ED, P3>( self, target: (ED, P3), ) -> Quad<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, TriAsQuadFilter<F, A, B, C>, Sc> where D: Clone + Send + Sync + 'static, ED: CollectionExtract<S, Item = D> + 'static, P3: CompileCondition + 'static, for<'a> P3::Plan: IndexedPlan + ExecutablePlan<Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>, Leaf<'a, D>>, for<'a> JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>: Operator<S, View<'a> = Pair<Pair<Leaf<'a, A>, Leaf<'a, B>>, Leaf<'a, C>>>, for<'a> JoinNode<S, JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, CollectionNode<S, ED>, <P3 as CompileCondition>::Plan>: Operator<S>,
+    stream::cross::Tri: pub fn penalize<W>( self, weight: W, ) -> Builder<S, A, B, C, EA, EB, EC, P1, P2, F, impl Fn(&A, &B, &C) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w B, &'w C), Sc> + Send + Sync,
+    stream::cross::Tri: pub fn reward<W>( self, weight: W, ) -> Builder<S, A, B, C, EA, EB, EC, P1, P2, F, impl Fn(&A, &B, &C) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w A, &'w B, &'w C), Sc> + Send + Sync,
+    stream::cross::Tri: pub fn group_by<GK, GF, Co, V, R, Acc>( self, key: GF, collector: Co, ) -> JoinedGroupedStream<S, FilterNode<JoinNode<S, JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>, CollectionNode<S, EC>, <P2 as CompileCondition>::Plan>, impl Fn(&S, &Pair<Pair<Leaf<'_, A>, Leaf<'_, B>>, Leaf<'_, C>>) -> bool + Send + Sync>, impl Fn(&Pair<Pair<Leaf<'_, A>, Leaf<'_, B>>, Leaf<'_, C>>) -> GK + Send + Sync, TupleCollector<Co, V, R, Acc>, GK, V, R, Acc, Sc> where GK: Eq + Hash + Clone + Send + Sync + 'static, GF: Fn(&A, &B, &C) -> GK + Send + Sync + 'static, Co: for<'i> Collector<(&'i A, &'i B, &'i C), Value = V, Result = R, Accumulator = Acc> + 'static, V: Send + Sync + 'static, R: Send + Sync + 'static, Acc: Accumulator<V, R> + 'static,
+struct stream::filter::AndBiFilter: pub struct AndBiFilter<F1, F2> { /* private fields */ }
+    stream::filter::AndBiFilter: pub fn new(first: F1, second: F2) -> Self
+struct stream::filter::AndPentaFilter: pub struct AndPentaFilter<F1, F2> { /* private fields */ }
+    stream::filter::AndPentaFilter: pub fn new(first: F1, second: F2) -> Self
+struct stream::filter::AndQuadFilter: pub struct AndQuadFilter<F1, F2> { /* private fields */ }
+    stream::filter::AndQuadFilter: pub fn new(first: F1, second: F2) -> Self
+struct stream::filter::AndTriFilter: pub struct AndTriFilter<F1, F2> { /* private fields */ }
+    stream::filter::AndTriFilter: pub fn new(first: F1, second: F2) -> Self
+struct stream::filter::AndUniFilter: pub struct AndUniFilter<F1, F2> { /* private fields */ }
+    stream::filter::AndUniFilter: pub fn new(first: F1, second: F2) -> Self
+struct stream::filter::FnBiFilter: pub struct FnBiFilter<F> { /* private fields */ }
+    stream::filter::FnBiFilter: pub fn new(f: F) -> Self
+struct stream::filter::FnPentaFilter: pub struct FnPentaFilter<F> { /* private fields */ }
+    stream::filter::FnPentaFilter: pub fn new(f: F) -> Self
+struct stream::filter::FnQuadFilter: pub struct FnQuadFilter<F> { /* private fields */ }
+    stream::filter::FnQuadFilter: pub fn new(f: F) -> Self
+struct stream::filter::FnTriFilter: pub struct FnTriFilter<F> { /* private fields */ }
+    stream::filter::FnTriFilter: pub fn new(f: F) -> Self
+struct stream::filter::FnUniFilter: pub struct FnUniFilter<F> { /* private fields */ }
+    stream::filter::FnUniFilter: pub fn new(f: F) -> Self
+struct stream::filter::TrueFilter: pub struct TrueFilter;
+struct stream::filter::UniBiFilter: pub struct UniBiFilter<F, A> { /* private fields */ }
+    stream::filter::UniBiFilter: pub fn new(filter: F) -> Self
+struct stream::filter::UniLeftBiFilter: pub struct UniLeftBiFilter<F, B> { /* private fields */ }
+    stream::filter::UniLeftBiFilter: pub fn new(filter: F) -> Self
+struct stream::filter::UniPairFilter: pub struct UniPairFilter<L, R> { /* private fields */ }
+    stream::filter::UniPairFilter: pub fn new(left_filter: L, right_filter: R) -> Self
+struct stream::joiner::AndJoiner: pub struct AndJoiner<J1, J2> { /* private fields */ }
+    stream::joiner::AndJoiner: pub fn new(first: J1, second: J2) -> Self
+    stream::joiner::AndJoiner: pub fn into_parts(self) -> (J1, J2)
+    stream::joiner::AndJoiner: pub fn and<J>(self, other: J) -> AndJoiner<Self, J>
+struct stream::joiner::Directed: pub struct Directed;
+struct stream::joiner::EqualJoiner: pub struct EqualJoiner<Fa, Fb, T, Mode = Directed> { /* private fields */ }
+    stream::joiner::EqualJoiner: pub fn and<J>(self, other: J) -> AndJoiner<Self, J>
+    stream::joiner::EqualJoiner: pub fn key_a<A>(&self, a: &A) -> T where Fa: Fn(&A) -> T,
+    stream::joiner::EqualJoiner: pub fn key_b<B>(&self, b: &B) -> T where Fb: Fn(&B) -> T,
+    stream::joiner::EqualJoiner: pub fn into_keys(self) -> (Fa, Fb)
+    stream::joiner::EqualJoiner: pub fn key_extractors(&self) -> (&Fa, &Fb)
+struct stream::joiner::FilteringJoiner: pub struct FilteringJoiner<F> { /* private fields */ }
+    stream::joiner::FilteringJoiner: pub fn and<J>(self, other: J) -> AndJoiner<Self, J>
+    stream::joiner::FilteringJoiner: pub fn new(predicate: F) -> Self
+struct stream::joiner::FnJoiner: pub struct FnJoiner<F> { /* private fields */ }
+    stream::joiner::FnJoiner: pub fn new(f: F) -> Self
+struct stream::joiner::GreaterThanJoiner: pub struct GreaterThanJoiner<Fa, Fb, T> { /* private fields */ }
+    stream::joiner::GreaterThanJoiner: pub fn and<J>(self, other: J) -> AndJoiner<Self, J>
+    stream::joiner::GreaterThanJoiner: pub fn into_keys(self) -> (Fa, Fb)
+struct stream::joiner::GreaterThanOrEqualJoiner: pub struct GreaterThanOrEqualJoiner<Fa, Fb, T> { /* private fields */ }
+    stream::joiner::GreaterThanOrEqualJoiner: pub fn and<J>(self, other: J) -> AndJoiner<Self, J>
+    stream::joiner::GreaterThanOrEqualJoiner: pub fn into_keys(self) -> (Fa, Fb)
+struct stream::joiner::LessThanJoiner: pub struct LessThanJoiner<Fa, Fb, T> { /* private fields */ }
+    stream::joiner::LessThanJoiner: pub fn and<J>(self, other: J) -> AndJoiner<Self, J>
+    stream::joiner::LessThanJoiner: pub fn into_keys(self) -> (Fa, Fb)
+struct stream::joiner::LessThanOrEqualJoiner: pub struct LessThanOrEqualJoiner<Fa, Fb, T> { /* private fields */ }
+    stream::joiner::LessThanOrEqualJoiner: pub fn and<J>(self, other: J) -> AndJoiner<Self, J>
+    stream::joiner::LessThanOrEqualJoiner: pub fn into_keys(self) -> (Fa, Fb)
+struct stream::joiner::OverlappingJoiner: pub struct OverlappingJoiner<Fsa, Fea, Fsb, Feb, T> { /* private fields */ }
+    stream::joiner::OverlappingJoiner: pub fn and<J>(self, other: J) -> AndJoiner<Self, J>
+    stream::joiner::OverlappingJoiner: pub fn into_bounds(self) -> (Fsa, Fea, Fsb, Feb)
+struct stream::joiner::Symmetric: pub struct Symmetric;
+struct stream::key_extract::EntityKeyAdapter: pub struct EntityKeyAdapter<KA> { /* private fields */ }
+    stream::key_extract::EntityKeyAdapter: pub fn new(key_fn: KA) -> Self
+struct stream::projected::Bi: pub struct Bi<S, Out, K, Src, F, KF, PF, Sc> where Sc: Score,{ /* private fields */ }
+    stream::projected::Bi: pub fn filter<P>( self, predicate: P, ) -> Bi<S, Out, K, Src, F, KF, AndBiFilter<PF, FnBiFilter<impl Fn(&S, &Out, &Out, usize, usize) -> bool + Send + Sync>>, Sc> where P: Fn(&Out, &Out) -> bool + Send + Sync + 'static,
+    stream::projected::Bi: pub fn penalize<W>( self, weight: W, ) -> BiBuilder<S, Out, K, Src, F, KF, PF, impl Fn(&Out, &Out) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w Out, &'w Out), Sc> + Send + Sync,
+    stream::projected::Bi: pub fn reward<W>( self, weight: W, ) -> BiBuilder<S, Out, K, Src, F, KF, PF, impl Fn(&Out, &Out) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w Out, &'w Out), Sc> + Send + Sync,
+struct stream::projected::BiBuilder: pub struct BiBuilder<S, Out, K, Src, F, KF, PF, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::projected::BiBuilder: pub fn named(self, name: &str) -> Bi<S, Out, K, Src, F, KF, PF, W, Sc>
+struct stream::projected::Builder: pub struct Builder<S, Out, Src, F, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::projected::Builder: pub fn named(self, name: &str) -> Uni<S, Out, Src, F, W, Sc>
+struct stream::projected::ComplementedGrouped: pub struct ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Sc> where Sc: Score,{ /* private fields */ }
+    stream::projected::ComplementedGrouped: pub fn penalize<W>( self, weight: W, ) -> ComplementedGroupedBuilder<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, impl Fn(&K, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    stream::projected::ComplementedGrouped: pub fn reward<W>( self, weight: W, ) -> ComplementedGroupedBuilder<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, impl Fn(&K, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+struct stream::projected::ComplementedGroupedBuilder: pub struct ComplementedGroupedBuilder<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::projected::ComplementedGroupedBuilder: pub fn named( self, name: &str, ) -> SharedOperatorTerminal<S, ComplementNode<S, CollectionNode<S, EB>, GroupNode<FilterNode<SourceNode<S, Out, Src>, impl Fn(&S, &ProjectedRow<'_, Out>) -> bool + Send + Sync>, impl Fn(&ProjectedRow<'_, Out>) -> Option<K> + Send + Sync, ProjectedCollector<C, V, R, Acc>, Option<K>, Acc, V, R>, ViewEqualPlan<Option<K>, OptionalEntityKey<KB>, GroupKey>, impl Fn(&S, &Leaf<'_, B>) -> R + Send + Sync, R>, OptionalComplementAdapter<KB, K, R>, OperatorScorer<OptionalComplementWeight<W, KB>, Sc>, Sc>
+struct stream::projected::DirectedBi: pub struct DirectedBi<S, Out, K, Src, F, KL, KR, PF, Sc> where Sc: Score,{ /* private fields */ }
+    stream::projected::DirectedBi: pub fn filter<P>( self, predicate: P, ) -> DirectedBi<S, Out, K, Src, F, KL, KR, AndBiFilter<PF, FnBiFilter<impl Fn(&S, &Out, &Out, usize, usize) -> bool + Send + Sync>>, Sc> where P: Fn(&Out, &Out) -> bool + Send + Sync + 'static,
+    stream::projected::DirectedBi: pub fn penalize<W>( self, weight: W, ) -> DirectedBiBuilder<S, Out, K, Src, F, KL, KR, PF, impl Fn(&Out, &Out) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w Out, &'w Out), Sc> + Send + Sync,
+    stream::projected::DirectedBi: pub fn reward<W>( self, weight: W, ) -> DirectedBiBuilder<S, Out, K, Src, F, KL, KR, PF, impl Fn(&Out, &Out) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w Out, &'w Out), Sc> + Send + Sync,
+struct stream::projected::DirectedBiBuilder: pub struct DirectedBiBuilder<S, Out, K, Src, F, KL, KR, PF, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::projected::DirectedBiBuilder: pub fn named( self, name: &str, ) -> DirectedBi<S, Out, K, Src, F, KL, KR, PF, W, Sc>
+struct stream::projected::Grouped: pub struct Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, Sc> where Sc: Score,{ /* private fields */ }
+    stream::projected::Grouped: pub fn penalize<W>( self, weight_fn: W, ) -> GroupedBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, impl Fn(&K, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    stream::projected::Grouped: pub fn reward<W>( self, weight_fn: W, ) -> GroupedBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, impl Fn(&K, &R) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w K, &'w R), Sc> + Send + Sync,
+    stream::projected::Grouped: pub fn complement<B, EB, KB, D>( self, extractor_b: EB, key_b: KB, default_fn: D, ) -> ComplementedGrouped<S, Out, B, K, Src, EB, F, impl Fn(&Out) -> Option<K> + Send + Sync, KB, C, V, R, Acc, D, Sc> where B: Send + Sync + 'static, EB: CollectionExtract<S, Item = B>, KB: Fn(&B) -> K + Send + Sync, D: Fn(&B) -> R + Send + Sync,
+    stream::projected::Grouped: pub fn complement_with_key<B, EB, KA2, KB, D>( self, extractor_b: EB, key_a: KA2, key_b: KB, default_fn: D, ) -> ComplementedGrouped<S, Out, B, K, Src, EB, F, KA2, KB, C, V, R, Acc, D, Sc> where B: Send + Sync + 'static, EB: CollectionExtract<S, Item = B>, KA2: Fn(&Out) -> Option<K> + Send + Sync, KB: Fn(&B) -> K + Send + Sync, D: Fn(&B) -> R + Send + Sync,
+struct stream::projected::GroupedBuilder: pub struct GroupedBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc> where Sc: Score,{ /* private fields */ }
+    stream::projected::GroupedBuilder: pub fn named( self, name: &str, ) -> SharedOperatorTerminal<S, GroupNode<FilterNode<SourceNode<S, Out, Src>, impl Fn(&S, &ProjectedRow<'_, Out>) -> bool + Send + Sync>, impl Fn(&ProjectedRow<'_, Out>) -> K + Send + Sync, ProjectedCollector<C, V, R, Acc>, K, Acc, V, R>, GroupAdapter<K, R>, OperatorScorer<GroupWeight<W>, Sc>, Sc>
+struct stream::projected::JoinedSource: pub struct JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out> { /* private fields */ }
+struct stream::projected::Stream: pub struct Stream<S, Out, Src, F, Sc> where Sc: Score,{ /* private fields */ }
+    stream::projected::Stream: pub fn filter<P>( self, predicate: P, ) -> Stream<S, Out, Src, AndUniFilter<F, FnUniFilter<impl Fn(&S, &Out) -> bool + Send + Sync>>, Sc> where P: Fn(&Out) -> bool + Send + Sync + 'static,
+    stream::projected::Stream: pub fn merge<OtherSrc, OtherF>( self, other: Stream<S, Out, OtherSrc, OtherF, Sc>, ) -> Stream<S, Out, MergedSource<FilteredSource<S, Out, Src, F>, FilteredSource<S, Out, OtherSrc, OtherF>>, TrueFilter, Sc> where OtherSrc: Source<S, Out>, OtherF: UniFilter<S, Out>,
+    stream::projected::Stream: pub fn group_by<K, KF, C, V, R, Acc>( self, key_fn: KF, collector: C, ) -> Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, Sc> where K: Eq + Hash + Send + Sync + 'static, KF: Fn(&Out) -> K + Send + Sync, C: for<'i> Collector<&'i Out, Value = V, Result = R, Accumulator = Acc> + Send + Sync + 'static, V: Send + Sync + 'static, R: Send + Sync + 'static, Acc: Accumulator<V, R> + Send + Sync + 'static,
+    stream::projected::Stream: pub fn join<J>(self, joiner: J) -> J::Output where J: ProjectedJoinTarget<S, Out, Src, F, Sc>,
+    stream::projected::Stream: pub fn penalize<W>( self, weight: W, ) -> Builder<S, Out, Src, F, impl Fn(&Out) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w Out,), Sc> + Send + Sync,
+    stream::projected::Stream: pub fn reward<W>( self, weight: W, ) -> Builder<S, Out, Src, F, impl Fn(&Out) -> Sc + Send + Sync, Sc> where W: for<'w> ConstraintWeight<(&'w Out,), Sc> + Send + Sync,
+struct stream::relational::Concat: pub struct Concat<'r, Left, T> { pub left: Left, pub right: Leaf<'r, T>, }
+    stream::relational::Concat: pub fn new(left: Left, entity: &'r T, index: usize) -> Concat<'r, Left, T>
+struct stream::relational::Leaf: pub struct Leaf<'r, T> { pub entity: &'r T, pub index: usize, }
+    stream::relational::Leaf: pub fn new(entity: &'r T, index: usize) -> Leaf<'r, T>
+struct stream::relational::operator::CollectionNode: pub struct CollectionNode<S, E> { /* private fields */ }
+    stream::relational::operator::CollectionNode: pub fn new(extractor: E, binding: u32) -> Self
+struct stream::relational::operator::ComplementNode: pub struct ComplementNode<S, L, R, P: IndexedPlan + KeyOf + RightKeyOf<Key = <P as KeyOf>::Key>, F, T> { /* private fields */ }
+    stream::relational::operator::ComplementNode: pub fn new<C: CompileCondition<Plan = P>>( targets: L, results: R, condition: C, default: F, ) -> Self
+struct stream::relational::operator::ExistenceNode: pub struct ExistenceNode<S, L, R, K, LK, RK> { /* private fields */ }
+    stream::relational::operator::ExistenceNode: pub fn new( left: L, right: R, left_key: LK, right_keys: RK, exists: bool, ) -> Self
+struct stream::relational::operator::FilterNode: pub struct FilterNode<O, F> { /* private fields */ }
+    stream::relational::operator::FilterNode: pub fn new(input: O, predicate: F) -> Self
+struct stream::relational::operator::FlattenNode: pub struct FlattenNode<O, F> { /* private fields */ }
+    stream::relational::operator::FlattenNode: pub fn new(input: O, extractor: F) -> Self
+struct stream::relational::operator::FlattenView: pub struct FlattenView<'a, V, T> { pub input: V, pub value: &'a T, pub child: usize, }
+struct stream::relational::operator::GroupNode: pub struct GroupNode<O, F, C, K, A: Accumulator<V, R>, V, R> { /* private fields */ }
+    stream::relational::operator::GroupNode: pub fn new(input: O, key: F, collector: C) -> Self
+struct stream::relational::operator::GroupRightKeys: pub struct GroupRightKeys<RK>(/* private fields */);
+    stream::relational::operator::GroupRightKeys: pub fn new(inner: RK) -> Self
+struct stream::relational::operator::GroupView: pub struct GroupView<'a, S: 'static, O: Operator<S>, K, A, V, R> { pub key: &'a K, /* private fields */ }
+    stream::relational::operator::GroupView: pub fn with_result<T>(&self, f: impl FnOnce(&R) -> T) -> T
+struct stream::relational::operator::JoinNode: pub struct JoinNode<S, L, R, P: IndexedPlan> { /* private fields */ }
+    stream::relational::operator::JoinNode: pub fn new<C: CompileCondition<Plan = P>>( left: L, right: R, condition: C, ) -> Self
+struct stream::relational::operator::JoinerExistenceNode: pub struct JoinerExistenceNode<S, L, R, P: IndexedPlan> { /* private fields */ }
+    stream::relational::operator::JoinerExistenceNode: pub fn new<C: CompileCondition<Plan = P>>( left: L, right: R, condition: C, exists: bool, ) -> Self
+struct stream::relational::operator::MergeNode: pub struct MergeNode<L, R> { /* private fields */ }
+    stream::relational::operator::MergeNode: pub fn new(left: L, right: R) -> Self
+struct stream::relational::operator::Pair: pub struct Pair<L, R> { pub left: L, pub right: R, }
+struct stream::relational::operator::ParentChildKeys: pub struct ParentChildKeys<KB, F> { /* private fields */ }
+    stream::relational::operator::ParentChildKeys: pub fn new(key_b: KB, flatten: F) -> Self
+struct stream::relational::operator::ParentFlatten: pub struct ParentFlatten<Inner> { /* private fields */ }
+    stream::relational::operator::ParentFlatten: pub fn new(inner: Inner) -> Self
+struct stream::relational::operator::ProjectNode: pub struct ProjectNode<O, F, T> { /* private fields */ }
+    stream::relational::operator::ProjectNode: pub fn new(input: O, mapper: F) -> Self
+struct stream::relational::operator::ProjectView: pub struct ProjectView<'a, V, T> { pub input: V, pub value: &'a T, pub emission: usize, }
+struct stream::relational::operator::SelfJoinNode: pub struct SelfJoinNode<S, A, O, K, KE, const N: usize> { /* private fields */ }
+    stream::relational::operator::SelfJoinNode: pub fn new(input: O, key: KE) -> Self
+struct stream::relational::operator::UnitKeys: pub struct UnitKeys<VK>(/* private fields */);
+    stream::relational::operator::UnitKeys: pub fn new(inner: VK) -> Self
+struct stream::relational::view_plan::ChildKey: pub struct ChildKey<F>(/* private fields */);
+    stream::relational::view_plan::ChildKey: pub fn new(inner: F) -> Self
+struct stream::relational::view_plan::EntityKey: pub struct EntityKey<F>(/* private fields */);
+    stream::relational::view_plan::EntityKey: pub fn new(inner: F) -> Self
+struct stream::relational::view_plan::FlattenedPairKey: pub struct FlattenedPairKey<KB, CK>(/* private fields */);
+    stream::relational::view_plan::FlattenedPairKey: pub fn new(owner_key: KB, child_key: CK) -> Self
+struct stream::relational::view_plan::GroupKey: pub struct GroupKey;
+struct stream::relational::view_plan::PairKey: pub struct PairKey<A, B>(/* private fields */);
+    stream::relational::view_plan::PairKey: pub fn new(first: A, second: B) -> Self
+struct stream::relational::view_plan::ViewEqualPlan: pub struct ViewEqualPlan<K, KeyA, KeyB> { /* private fields */ }
+    stream::relational::view_plan::ViewEqualPlan: pub fn new(key_a: KeyA, key_b: KeyB) -> Self
+enum api::constraint_set::ConstraintSetSource: pub enum ConstraintSetSource { Left, Right { constraint_count: usize, metadata_entry_count: usize, }, }
+enum api::node_sharing::SharedNodeOperation: pub enum SharedNodeOperation { Grouped, ProjectedGrouped, CrossGrouped, CrossComplementedGrouped, ProjectedComplementedGrouped, }
+enum stream::ExistenceMode: pub enum ExistenceMode { Exists, NotExists, }
+enum stream::joiner::Strategy: pub enum Strategy { EquiHash, OrderedScan, IntervalNarrow, Scan, }
+    stream::joiner::Strategy: pub const fn combine(self, other: Strategy) -> Strategy
+enum stream::relational::operator::ComplementView: pub enum ComplementView<'a, L, R, T> { Real(Pair<L, R>), Default(ProjectView<'a, L, T>), }
+trait api::constraint_set::ConstraintSet: pub trait ConstraintSet<S, Sc: Score>: Send + Sync { Show 16 methods // Required methods fn evaluate_all(&self, solution: &S) -> Sc; fn constraint_count(&self) -> usize; fn evaluate_each<'a>( &'a self, solution: &S, ) -> Vec<ConstraintResult<'a, Sc>>; fn evaluate_detailed<'a>( &'a self, solution: &S, ) -> Vec<ConstraintAnalysis<'a, Sc>>; fn initialize_all(&mut self, solution: &S) -> Sc; fn on_insert_all( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, ) -> Sc; fn on_retract_all( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, ) -> Sc; fn reset_all(&mut self); fn constraint_weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>); fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc; fn evaluate_each_weighted<'a>( &'a self, solution: &S, multipliers: &[u32], ) -> Vec<ConstraintResult<'a, Sc>>; fn evaluate_detailed_weighted<'a>( &'a self, solution: &S, multipliers: &[u32], ) -> Vec<ConstraintAnalysis<'a, Sc>>; fn initialize_all_weighted( &mut self, solution: &S, multipliers: &[u32], ) -> Sc; fn on_insert_all_weighted( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, multipliers: &[u32], ) -> Sc; fn on_retract_all_weighted( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, multipliers: &[u32], ) -> Sc; // Provided method fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> { ... } }
+    api::constraint_set::ConstraintSet: fn evaluate_all(&self, solution: &S) -> Sc
+    api::constraint_set::ConstraintSet: fn constraint_count(&self) -> usize
+    api::constraint_set::ConstraintSet: fn evaluate_each<'a>(&'a self, solution: &S) -> Vec<ConstraintResult<'a, Sc>>
+    api::constraint_set::ConstraintSet: fn evaluate_detailed<'a>( &'a self, solution: &S, ) -> Vec<ConstraintAnalysis<'a, Sc>>
+    api::constraint_set::ConstraintSet: fn initialize_all(&mut self, solution: &S) -> Sc
+    api::constraint_set::ConstraintSet: fn on_insert_all( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, ) -> Sc
+    api::constraint_set::ConstraintSet: fn on_retract_all( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, ) -> Sc
+    api::constraint_set::ConstraintSet: fn reset_all(&mut self)
+    api::constraint_set::ConstraintSet: fn constraint_weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>)
+    api::constraint_set::ConstraintSet: fn evaluate_all_weighted(&self, solution: &S, multipliers: &[u32]) -> Sc
+    api::constraint_set::ConstraintSet: fn evaluate_each_weighted<'a>( &'a self, solution: &S, multipliers: &[u32], ) -> Vec<ConstraintResult<'a, Sc>>
+    api::constraint_set::ConstraintSet: fn evaluate_detailed_weighted<'a>( &'a self, solution: &S, multipliers: &[u32], ) -> Vec<ConstraintAnalysis<'a, Sc>>
+    api::constraint_set::ConstraintSet: fn initialize_all_weighted(&mut self, solution: &S, multipliers: &[u32]) -> Sc
+    api::constraint_set::ConstraintSet: fn on_insert_all_weighted( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, multipliers: &[u32], ) -> Sc
+    api::constraint_set::ConstraintSet: fn on_retract_all_weighted( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, multipliers: &[u32], ) -> Sc
+    api::constraint_set::ConstraintSet: fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>
+trait api::constraint_set::IncrementalConstraint: pub trait IncrementalConstraint<S, Sc: Score>: SingleConstraint + Send + Sync { Show 15 methods // Required methods fn evaluate(&self, solution: &S) -> Sc; fn match_count(&self, solution: &S) -> usize; fn initialize(&mut self, solution: &S) -> Sc; fn on_insert( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, ) -> Sc; fn on_retract( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, ) -> Sc; fn reset(&mut self); fn constraint_ref(&self) -> &ConstraintRef; // Provided methods fn name(&self) -> &str { ... } fn is_hard(&self) -> bool { ... } fn get_matches<'a>( &'a self, _solution: &S, ) -> Vec<DetailedConstraintMatch<'a, Sc>> { ... } fn evaluate_weighted(&self, solution: &S, multiplier: u32) -> Sc { ... } fn initialize_weighted(&mut self, solution: &S, multiplier: u32) -> Sc { ... } fn on_insert_weighted( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, multiplier: u32, ) -> Sc { ... } fn on_retract_weighted( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, multiplier: u32, ) -> Sc { ... } fn get_matches_weighted<'a>( &'a self, solution: &S, multiplier: u32, ) -> Vec<DetailedConstraintMatch<'a, Sc>> { ... } }
+    api::constraint_set::IncrementalConstraint: fn evaluate(&self, solution: &S) -> Sc
+    api::constraint_set::IncrementalConstraint: fn match_count(&self, solution: &S) -> usize
+    api::constraint_set::IncrementalConstraint: fn initialize(&mut self, solution: &S) -> Sc
+    api::constraint_set::IncrementalConstraint: fn on_insert( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, ) -> Sc
+    api::constraint_set::IncrementalConstraint: fn on_retract( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, ) -> Sc
+    api::constraint_set::IncrementalConstraint: fn reset(&mut self)
+    api::constraint_set::IncrementalConstraint: fn constraint_ref(&self) -> &ConstraintRef
+    api::constraint_set::IncrementalConstraint: fn name(&self) -> &str
+    api::constraint_set::IncrementalConstraint: fn is_hard(&self) -> bool
+    api::constraint_set::IncrementalConstraint: fn get_matches<'a>( &'a self, _solution: &S, ) -> Vec<DetailedConstraintMatch<'a, Sc>>
+    api::constraint_set::IncrementalConstraint: fn evaluate_weighted(&self, solution: &S, multiplier: u32) -> Sc
+    api::constraint_set::IncrementalConstraint: fn initialize_weighted(&mut self, solution: &S, multiplier: u32) -> Sc
+    api::constraint_set::IncrementalConstraint: fn on_insert_weighted( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, multiplier: u32, ) -> Sc
+    api::constraint_set::IncrementalConstraint: fn on_retract_weighted( &mut self, solution: &S, entity_index: usize, descriptor_index: usize, multiplier: u32, ) -> Sc
+    api::constraint_set::IncrementalConstraint: fn get_matches_weighted<'a>( &'a self, solution: &S, multiplier: u32, ) -> Vec<DetailedConstraintMatch<'a, Sc>>
+trait api::constraint_set::SingleConstraint: pub trait SingleConstraint { }
+trait constraint::relational::AdaptWeight: pub trait AdaptWeight<S: 'static, O: Operator<S>, W, Sc>: Send + Sync { type RowWeight: RowWeight<S, O, Sc>; // Required methods fn adapt(&self, weight: W) -> Self::RowWeight; fn is_hard(&self, weight: &W) -> bool; }
+    constraint::relational::AdaptWeight: type RowWeight: RowWeight<S, O, Sc>
+    constraint::relational::AdaptWeight: fn adapt(&self, weight: W) -> Self::RowWeight
+    constraint::relational::AdaptWeight: fn is_hard(&self, weight: &W) -> bool
+trait constraint::relational::RowWeight: pub trait RowWeight<S: 'static, O: Operator<S>, Sc>: Send + Sync { // Required method fn score(&self, solution: &S, row: &O::View<'_>) -> Sc; }
+    constraint::relational::RowWeight: fn score(&self, solution: &S, row: &O::View<'_>) -> Sc
+trait director::Director: pub trait Director<S: PlanningSolution>: Send { Show 17 methods // Required methods fn working_solution(&self) -> &S; fn working_solution_mut(&mut self) -> &mut S; fn calculate_score(&mut self) -> S::Score; fn solution_descriptor(&self) -> &SolutionDescriptor; fn clone_working_solution(&self) -> S; fn before_variable_changed( &mut self, descriptor_index: usize, entity_index: usize, ); fn after_variable_changed( &mut self, descriptor_index: usize, entity_index: usize, ); fn entity_count(&self, descriptor_index: usize) -> Option<usize>; fn total_entity_count(&self) -> Option<usize>; fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>; // Provided methods fn fresh_score(&self) -> Option<S::Score> { ... } fn constraint_is_hard(&self, constraint_ref: &ConstraintRef) -> Option<bool> { ... } fn is_incremental(&self) -> bool { ... } fn snapshot_score_state(&self) -> DirectorScoreState<S::Score> { ... } fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>) { ... } fn reset(&mut self) { ... } fn fork_replica(&self) -> Option<Self> where Self: Sized { ... } }
+    director::Director: fn working_solution(&self) -> &S
+    director::Director: fn working_solution_mut(&mut self) -> &mut S
+    director::Director: fn calculate_score(&mut self) -> S::Score
+    director::Director: fn solution_descriptor(&self) -> &SolutionDescriptor
+    director::Director: fn clone_working_solution(&self) -> S
+    director::Director: fn before_variable_changed( &mut self, descriptor_index: usize, entity_index: usize, )
+    director::Director: fn after_variable_changed( &mut self, descriptor_index: usize, entity_index: usize, )
+    director::Director: fn entity_count(&self, descriptor_index: usize) -> Option<usize>
+    director::Director: fn total_entity_count(&self) -> Option<usize>
+    director::Director: fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>
+    director::Director: fn fresh_score(&self) -> Option<S::Score>
+    director::Director: fn constraint_is_hard(&self, constraint_ref: &ConstraintRef) -> Option<bool>
+    director::Director: fn is_incremental(&self) -> bool
+    director::Director: fn snapshot_score_state(&self) -> DirectorScoreState<S::Score>
+    director::Director: fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>)
+    director::Director: fn reset(&mut self)
+    director::Director: fn fork_replica(&self) -> Option<Self> where Self: Sized,
+trait director::score_director::DirectorDescriptor: pub trait DirectorDescriptor<S, C> { // Required methods fn solution_descriptor(&self) -> &SolutionDescriptor; fn replica(&self) -> Option<(Self, fn(&S) -> C)> where Self: Sized; }
+    director::score_director::DirectorDescriptor: fn solution_descriptor(&self) -> &SolutionDescriptor
+    director::score_director::DirectorDescriptor: fn replica(&self) -> Option<(Self, fn(&S) -> C)> where Self: Sized,
+trait director::score_director::WeightMode: pub trait WeightMode: Mode + Send + Sync + Sized + 'static { const WEIGHTED: bool; }
+    director::score_director::WeightMode: const WEIGHTED: bool
+trait director::shadow_aware::SolvableSolution: pub trait SolvableSolution: PlanningSolution { // Required methods fn descriptor() -> SolutionDescriptor; fn entity_count(solution: &Self, descriptor_index: usize) -> usize; }
+    director::shadow_aware::SolvableSolution: fn descriptor() -> SolutionDescriptor
+    director::shadow_aware::SolvableSolution: fn entity_count(solution: &Self, descriptor_index: usize) -> usize
+trait stream::ExistenceTarget: pub trait ExistenceTarget<S, A, EA, FA, Sc: Score> where EA: CollectionExtract<S, Item = A>, FA: UniFilter<S, A>,{ type Output; // Required method fn apply( self, mode: ExistenceMode, extractor_a: EA, filter_a: FA, ) -> Self::Output; }
+    stream::ExistenceTarget: type Output
+    stream::ExistenceTarget: fn apply( self, mode: ExistenceMode, extractor_a: EA, filter_a: FA, ) -> Self::Output
+trait stream::Projection: pub trait Projection<A>: Send + Sync { type Out: Send + Sync + 'static; const MAX_EMITS: usize; // Required method fn project<Sink>(&self, input: &A, sink: &mut Sink) where Sink: ProjectionSink<Self::Out>; }
+    stream::Projection: const MAX_EMITS: usize
+    stream::Projection: type Out: Send + Sync + 'static
+    stream::Projection: fn project<Sink>(&self, input: &A, sink: &mut Sink) where Sink: ProjectionSink<Self::Out>,
+trait stream::ProjectionSink: pub trait ProjectionSink<Out> { // Required method fn emit(&mut self, output: Out); }
+    stream::ProjectionSink: fn emit(&mut self, output: Out)
+trait stream::collection_extract::CollectionExtract: pub trait CollectionExtract<S>: Send + Sync { type Item; // Required method fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]; // Provided methods fn contains(&self, _s: &S, _item: &Self::Item) -> bool { ... } fn change_source(&self) -> ChangeSource { ... } }
+    stream::collection_extract::CollectionExtract: type Item
+    stream::collection_extract::CollectionExtract: fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item]
+    stream::collection_extract::CollectionExtract: fn contains(&self, _s: &S, _item: &Self::Item) -> bool
+    stream::collection_extract::CollectionExtract: fn change_source(&self) -> ChangeSource
+trait stream::collection_extract::FlattenExtract: pub trait FlattenExtract<P>: Send + Sync { type Item; // Required method fn extract<'s>(&self, parent: &'s P) -> &'s [Self::Item]; }
+    stream::collection_extract::FlattenExtract: type Item
+    stream::collection_extract::FlattenExtract: fn extract<'s>(&self, parent: &'s P) -> &'s [Self::Item]
+trait stream::collector::Accumulator: pub trait Accumulator<V, R>: Send + Sync { type Retraction: Send + Sync; // Required methods fn accumulate(&mut self, value: V) -> Self::Retraction; fn retract(&mut self, retraction: Self::Retraction); fn with_result<T>(&self, f: impl FnOnce(&R) -> T) -> T; fn reset(&mut self); // Provided method fn finish(&self) -> R where R: Clone { ... } }
+    stream::collector::Accumulator: type Retraction: Send + Sync
+    stream::collector::Accumulator: fn accumulate(&mut self, value: V) -> Self::Retraction
+    stream::collector::Accumulator: fn retract(&mut self, retraction: Self::Retraction)
+    stream::collector::Accumulator: fn with_result<T>(&self, f: impl FnOnce(&R) -> T) -> T
+    stream::collector::Accumulator: fn reset(&mut self)
+    stream::collector::Accumulator: fn finish(&self) -> R where R: Clone,
+trait stream::collector::Collector: pub trait Collector<Input>: Send + Sync { type Value; type Result: Send + Sync; type Accumulator: Accumulator<Self::Value, Self::Result>; // Required methods fn extract(&self, input: Input) -> Self::Value; fn create_accumulator(&self) -> Self::Accumulator; }
+    stream::collector::Collector: type Value
+    stream::collector::Collector: type Result: Send + Sync
+    stream::collector::Collector: type Accumulator: Accumulator<Self::Value, Self::Result>
+    stream::collector::Collector: fn extract(&self, input: Input) -> Self::Value
+    stream::collector::Collector: fn create_accumulator(&self) -> Self::Accumulator
+trait stream::filter::BiFilter: pub trait BiFilter<S, A, B>: Send + Sync { // Required method fn test( &self, solution: &S, a: &A, b: &B, a_idx: usize, b_idx: usize, ) -> bool; }
+    stream::filter::BiFilter: fn test(&self, solution: &S, a: &A, b: &B, a_idx: usize, b_idx: usize) -> bool
+trait stream::filter::PentaFilter: pub trait PentaFilter<S, A, B, C, D, E>: Send + Sync { // Required method fn test( &self, solution: &S, a: &A, b: &B, c: &C, d: &D, e: &E, a_idx: usize, b_idx: usize, c_idx: usize, d_idx: usize, e_idx: usize, ) -> bool; }
+    stream::filter::PentaFilter: fn test( &self, solution: &S, a: &A, b: &B, c: &C, d: &D, e: &E, a_idx: usize, b_idx: usize, c_idx: usize, d_idx: usize, e_idx: usize, ) -> bool
+trait stream::filter::QuadFilter: pub trait QuadFilter<S, A, B, C, D>: Send + Sync { // Required method fn test( &self, solution: &S, a: &A, b: &B, c: &C, d: &D, a_idx: usize, b_idx: usize, c_idx: usize, d_idx: usize, ) -> bool; }
+    stream::filter::QuadFilter: fn test( &self, solution: &S, a: &A, b: &B, c: &C, d: &D, a_idx: usize, b_idx: usize, c_idx: usize, d_idx: usize, ) -> bool
+trait stream::filter::TriFilter: pub trait TriFilter<S, A, B, C>: Send + Sync { // Required method fn test( &self, solution: &S, a: &A, b: &B, c: &C, a_idx: usize, b_idx: usize, c_idx: usize, ) -> bool; }
+    stream::filter::TriFilter: fn test( &self, solution: &S, a: &A, b: &B, c: &C, a_idx: usize, b_idx: usize, c_idx: usize, ) -> bool
+trait stream::filter::UniFilter: pub trait UniFilter<S, A>: Send + Sync { // Required method fn test(&self, solution: &S, a: &A) -> bool; }
+    stream::filter::UniFilter: fn test(&self, solution: &S, a: &A) -> bool
+trait stream::join_target::JoinTarget: pub trait JoinTarget<S, A, E, F, Sc: Score> { type Output; // Required method fn apply(self, extractor_a: E, filter_a: F) -> Self::Output; }
+    stream::join_target::JoinTarget: type Output
+    stream::join_target::JoinTarget: fn apply(self, extractor_a: E, filter_a: F) -> Self::Output
+trait stream::join_target::ToViewPlan: pub trait ToViewPlan<A, B> { type ViewPlan; // Required method fn into_view_plan(self) -> Self::ViewPlan; }
+    stream::join_target::ToViewPlan: type ViewPlan
+    stream::join_target::ToViewPlan: fn into_view_plan(self) -> Self::ViewPlan
+trait stream::joiner::Joiner: pub trait Joiner<A, B>: Send + Sync { // Required method fn matches(&self, a: &A, b: &B) -> bool; // Provided method fn and<J>(self, other: J) -> AndJoiner<Self, J> where Self: Sized, J: Joiner<A, B> { ... } }
+    stream::joiner::Joiner: fn matches(&self, a: &A, b: &B) -> bool
+    stream::joiner::Joiner: fn and<J>(self, other: J) -> AndJoiner<Self, J> where Self: Sized, J: Joiner<A, B>,
+trait stream::joiner::PlannedCondition: pub trait PlannedCondition<Row, C>: Send + Sync { const STRATEGY: Strategy; // Required method fn check(&self, row: &Row, c: &C) -> bool; }
+    stream::joiner::PlannedCondition: const STRATEGY: Strategy
+    stream::joiner::PlannedCondition: fn check(&self, row: &Row, c: &C) -> bool
+trait stream::key_extract::KeyExtract: pub trait KeyExtract<S, A, K>: Send + Sync { // Required method fn extract(&self, s: &S, a: &A, idx: usize) -> K; }
+    stream::key_extract::KeyExtract: fn extract(&self, s: &S, a: &A, idx: usize) -> K
+trait stream::projected::ProjectedJoinTarget: pub trait ProjectedJoinTarget<S, Out, Src, F, Sc: Score> where Src: Source<S, Out>, F: UniFilter<S, Out>,{ type Output; // Required method fn apply(self, source: Src, filter: F) -> Self::Output; }
+    stream::projected::ProjectedJoinTarget: type Output
+    stream::projected::ProjectedJoinTarget: fn apply(self, source: Src, filter: F) -> Self::Output
+trait stream::projected::Projection: pub trait Projection<A>: Send + Sync { type Out: Send + Sync + 'static; const MAX_EMITS: usize; // Required method fn project<Sink>(&self, input: &A, sink: &mut Sink) where Sink: ProjectionSink<Self::Out>; }
+    stream::projected::Projection: const MAX_EMITS: usize
+    stream::projected::Projection: type Out: Send + Sync + 'static
+    stream::projected::Projection: fn project<Sink>(&self, input: &A, sink: &mut Sink) where Sink: ProjectionSink<Self::Out>,
+trait stream::projected::ProjectionSink: pub trait ProjectionSink<Out> { // Required method fn emit(&mut self, output: Out); }
+    stream::projected::ProjectionSink: fn emit(&mut self, output: Out)
+trait stream::relational::operator::FilterPredicate: pub trait FilterPredicate<S, V>: Send + Sync { // Required method fn accepts(&self, solution: &S, row: &V) -> bool; }
+    stream::relational::operator::FilterPredicate: fn accepts(&self, solution: &S, row: &V) -> bool
+trait stream::relational::operator::FlattenSource: pub trait FlattenSource<S: 'static, O: Operator<S>> { type Item: 'static; // Required method fn flatten<'a>( &self, solution: &'a S, view: O::View<'a>, ) -> &'a [Self::Item]; }
+    stream::relational::operator::FlattenSource: type Item: 'static
+    stream::relational::operator::FlattenSource: fn flatten<'a>(&self, solution: &'a S, view: O::View<'a>) -> &'a [Self::Item]
+trait stream::relational::operator::Operator: pub trait Operator<S: 'static>: 'static { type View<'a>: Copy; type Evaluation; // Required methods fn prepare_evaluation(&self, solution: &S) -> Self::Evaluation; fn visit_evaluation<'a>( &'a self, solution: &'a S, evaluation: &'a Self::Evaluation, visitor: &mut impl FnMut(Self::View<'a>), ); fn clear(&mut self); fn initialize(&mut self, solution: &S); fn handles(&self) -> Vec<RowHandle>; fn resolve<'a>( &'a self, solution: &'a S, handle: RowHandle, ) -> Option<Self::View<'a>>; fn visit_provenance( &self, handle: RowHandle, visitor: &mut impl FnMut(u32, usize, usize), ); fn retract( &mut self, solution: &S, descriptor: usize, index: usize, removed: &mut Vec<RowHandle>, inserted: &mut Vec<RowHandle>, ); fn insert( &mut self, solution: &S, descriptor: usize, index: usize, removed: &mut Vec<RowHandle>, inserted: &mut Vec<RowHandle>, ); // Provided method fn visit_all( &self, solution: &S, visitor: &mut impl for<'a> FnMut(Self::View<'a>), ) { ... } }
+    stream::relational::operator::Operator: type View<'a>: Copy
+    stream::relational::operator::Operator: type Evaluation
+    stream::relational::operator::Operator: fn prepare_evaluation(&self, solution: &S) -> Self::Evaluation
+    stream::relational::operator::Operator: fn visit_evaluation<'a>( &'a self, solution: &'a S, evaluation: &'a Self::Evaluation, visitor: &mut impl FnMut(Self::View<'a>), )
+    stream::relational::operator::Operator: fn clear(&mut self)
+    stream::relational::operator::Operator: fn initialize(&mut self, solution: &S)
+    stream::relational::operator::Operator: fn handles(&self) -> Vec<RowHandle>
+    stream::relational::operator::Operator: fn resolve<'a>( &'a self, solution: &'a S, handle: RowHandle, ) -> Option<Self::View<'a>>
+    stream::relational::operator::Operator: fn visit_provenance( &self, handle: RowHandle, visitor: &mut impl FnMut(u32, usize, usize), )
+    stream::relational::operator::Operator: fn retract( &mut self, solution: &S, descriptor: usize, index: usize, removed: &mut Vec<RowHandle>, inserted: &mut Vec<RowHandle>, )
+    stream::relational::operator::Operator: fn insert( &mut self, solution: &S, descriptor: usize, index: usize, removed: &mut Vec<RowHandle>, inserted: &mut Vec<RowHandle>, )
+    stream::relational::operator::Operator: fn visit_all( &self, solution: &S, visitor: &mut impl for<'a> FnMut(Self::View<'a>), )
+trait stream::relational::operator::RightKeySet: pub trait RightKeySet<V>: Send + Sync { type Key; // Required method fn push_keys(&self, view: &V, out: &mut Vec<Self::Key>); }
+    stream::relational::operator::RightKeySet: type Key
+    stream::relational::operator::RightKeySet: fn push_keys(&self, view: &V, out: &mut Vec<Self::Key>)
+trait stream::relational::view_plan::ViewKey: pub trait ViewKey<V> { type Key; // Required method fn key(&self, view: &V) -> Self::Key; }
+    stream::relational::view_plan::ViewKey: type Key
+    stream::relational::view_plan::ViewKey: fn key(&self, view: &V) -> Self::Key
+fn director::score_director::requires_weighted_mode: pub fn requires_weighted_mode<S: PlanningSolution>(solution: &S) -> bool
+fn stream::collection_extract::vec: pub fn vec<S, A, F>(f: F) -> VecExtract<F> where F: for<'a> Fn(&'a S) -> &'a Vec<A> + Send + Sync,
+fn stream::collector::collect_vec: pub fn collect_vec<T, F>(mapper: F) -> CollectVecCollector<T, F> where T: Send + Sync + 'static, F: Send + Sync + 'static,
+fn stream::collector::consecutive_runs: pub fn consecutive_runs<F>(index_fn: F) -> RunsCollector<F> where F: Send + Sync,
+fn stream::collector::count: pub const fn count() -> CountCollector
+fn stream::collector::indexed_presence: pub fn indexed_presence<F>(index_fn: F) -> IndexedPresenceCollector<F> where F: Send + Sync,
+fn stream::collector::load_balance: pub fn load_balance<K, F, M>( key_fn: F, metric_fn: M, ) -> LoadBalanceCollector<K, F, M> where K: Clone + Eq + Hash + Send + Sync, F: Send + Sync, M: Send + Sync,
+fn stream::collector::sum: pub fn sum<T, F>(mapper: F) -> SumCollector<T, F> where T: Default + Copy + AddAssign + SubAssign + Send + Sync + 'static, F: Send + Sync + 'static,
+fn stream::fixed_weight: pub const fn fixed_weight<Sc>(score: Sc) -> FixedWeight<Sc>
+fn stream::hard_weight: pub const fn hard_weight<W>(weight: W) -> HardWeight<W>
+fn stream::joiner::equal: pub fn equal<A, T, F>(key: F) -> EqualJoiner<F, F, T, Symmetric> where T: PartialEq, F: Fn(&A) -> T + Clone + Send + Sync,
+fn stream::joiner::equal_bi: pub fn equal_bi<T, Fa, Fb>( left: Fa, right: Fb, ) -> EqualJoiner<Fa, Fb, T, Directed> where T: PartialEq, Fa: Send + Sync, Fb: Send + Sync,
+fn stream::joiner::equal_on: pub fn equal_on<K2, LK, KC>( left: LK, right: KC, ) -> EqualJoiner<LK, KC, K2, Directed> where K2: PartialEq, LK: Send + Sync, KC: Send + Sync,
+fn stream::joiner::equal_raw: pub fn equal_raw<Fa, Fb, T>( left: Fa, right: Fb, ) -> EqualJoiner<Fa, Fb, T, Directed> where T: PartialEq, Fa: Send + Sync, Fb: Send + Sync,
+fn stream::joiner::filtering: pub fn filtering<F>(predicate: F) -> FilteringJoiner<F> where F: Send + Sync,
+fn stream::joiner::filtering_on: pub fn filtering_on<F>(predicate: F) -> FilteringJoiner<F> where F: Send + Sync,
+fn stream::joiner::greater_than: pub fn greater_than<T, Fa, Fb>( left: Fa, right: Fb, ) -> GreaterThanJoiner<Fa, Fb, T> where T: Ord, Fa: Send + Sync, Fb: Send + Sync,
+fn stream::joiner::greater_than_on: pub fn greater_than_on<T, LK, KC>( left: LK, right: KC, ) -> GreaterThanJoiner<LK, KC, T> where T: Ord, LK: Send + Sync, KC: Send + Sync,
+fn stream::joiner::greater_than_or_equal: pub fn greater_than_or_equal<T, Fa, Fb>( left: Fa, right: Fb, ) -> GreaterThanOrEqualJoiner<Fa, Fb, T> where T: Ord, Fa: Send + Sync, Fb: Send + Sync,
+fn stream::joiner::greater_than_or_equal_on: pub fn greater_than_or_equal_on<T, LK, KC>( left: LK, right: KC, ) -> GreaterThanOrEqualJoiner<LK, KC, T> where T: Ord, LK: Send + Sync, KC: Send + Sync,
+fn stream::joiner::less_than: pub fn less_than<T, Fa, Fb>(left: Fa, right: Fb) -> LessThanJoiner<Fa, Fb, T> where T: Ord, Fa: Send + Sync, Fb: Send + Sync,
+fn stream::joiner::less_than_on: pub fn less_than_on<T, LK, KC>(left: LK, right: KC) -> LessThanJoiner<LK, KC, T> where T: Ord, LK: Send + Sync, KC: Send + Sync,
+fn stream::joiner::less_than_or_equal: pub fn less_than_or_equal<T, Fa, Fb>( left: Fa, right: Fb, ) -> LessThanOrEqualJoiner<Fa, Fb, T> where T: Ord, Fa: Send + Sync, Fb: Send + Sync,
+fn stream::joiner::less_than_or_equal_on: pub fn less_than_or_equal_on<T, LK, KC>( left: LK, right: KC, ) -> LessThanOrEqualJoiner<LK, KC, T> where T: Ord, LK: Send + Sync, KC: Send + Sync,
+fn stream::joiner::overlap_on: pub fn overlap_on<T, LS, LE, CS, CE>( start_row: LS, end_row: LE, start_c: CS, end_c: CE, ) -> OverlappingJoiner<LS, LE, CS, CE, T> where T: Ord, LS: Send + Sync, LE: Send + Sync, CS: Send + Sync, CE: Send + Sync,
+fn stream::joiner::overlapping: pub fn overlapping<T, Fsa, Fea, Fsb, Feb>( start_a: Fsa, end_a: Fea, start_b: Fsb, end_b: Feb, ) -> OverlappingJoiner<Fsa, Fea, Fsb, Feb, T> where T: Ord, Fsa: Send + Sync, Fea: Send + Sync, Fsb: Send + Sync, Feb: Send + Sync,
+fn stream::joiner::pair_row: pub fn pair_row<'r, A, B>( a: &'r A, a_idx: usize, b: &'r B, b_idx: usize, ) -> Concat<'r, Leaf<'r, A>, B>
+fn stream::joiner::plan_strategy: pub fn plan_strategy<Row, C, P>(condition: &P) -> Strategy where P: PlannedCondition<Row, C>,

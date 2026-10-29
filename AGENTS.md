@@ -124,6 +124,15 @@ When public surface changes, update the matching wireframe in the same change:
 `docs/` guide lists a CamelCase type, trait or variant name that no longer
 exists in `crates/*/src`.
 
+`make public-api` (in `make lint`, `make pre-release` and the CI Docs job)
+fails when the rustdoc-visible API of `solverforge-core`, `solverforge-scoring`
+or `solverforge-solver` differs from `crates/<crate>/public-api.txt`. A change
+that adds, removes or changes a public item regenerates that snapshot with
+`python3 scripts/check-public-api.py --bless` in the same commit, so review
+sees the surface change. Inside those crates, `pub` means supported surface:
+`#![warn(unreachable_pub)]` is on, implementation modules are private, and
+`solverforge-solver` exports every supported item once, at its root.
+
 When a public API change also affects how users discover or reason about the
 feature, update the corresponding top-level docs in the same change. Extension
 point changes should leave a clear trail in `README.md`, the relevant extension

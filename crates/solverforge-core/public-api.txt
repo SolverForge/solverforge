@@ -1,0 +1,348 @@
+struct constraint::ConstraintRef: pub struct ConstraintRef { pub package: String, pub name: String, }
+    constraint::ConstraintRef: pub fn new(package: impl Into<String>, name: impl Into<String>) -> Self
+    constraint::ConstraintRef: pub fn full_name(&self) -> String
+struct constraint_weights::ConstraintWeights: pub struct ConstraintWeights { /* private fields */ }
+    constraint_weights::ConstraintWeights: pub fn new() -> Self
+    constraint_weights::ConstraintWeights: pub fn set( &mut self, constraint: impl Into<String>, multiplier: u32, ) -> &mut Self
+    constraint_weights::ConstraintWeights: pub fn remove(&mut self, constraint: &str) -> Option<u32>
+    constraint_weights::ConstraintWeights: pub fn get(&self, constraint: &str) -> Option<u32>
+    constraint_weights::ConstraintWeights: pub fn multiplier_for(&self, constraint: &ConstraintRef) -> u32
+    constraint_weights::ConstraintWeights: pub fn is_empty(&self) -> bool
+    constraint_weights::ConstraintWeights: pub fn len(&self) -> usize
+    constraint_weights::ConstraintWeights: pub fn iter(&self) -> impl Iterator<Item = (&str, u32)>
+    constraint_weights::ConstraintWeights: pub fn validate<'a>( &self, known: impl IntoIterator<Item = &'a ConstraintRef>, ) -> Result<(), ConstraintWeightError>
+struct domain::DynamicListAccessCapabilities: pub struct DynamicListAccessCapabilities { pub set: bool, pub replace: bool, pub reverse: bool, pub sublist: bool, }
+struct domain::DynamicListMetadataCapabilities: pub struct DynamicListMetadataCapabilities { pub element_owner: bool, pub construction_order_key: bool, pub precedence_duration: bool, pub precedence_successors: bool, pub cross_position_distance: bool, pub intra_position_distance: bool, pub route: bool, pub savings: bool, }
+struct domain::DynamicListVariableSlot: pub struct DynamicListVariableSlot<S> { pub entity: EntityClassId, pub variable: VariableId, pub entity_type_name: &'static str, pub variable_name: &'static str, /* private fields */ }
+    domain::DynamicListVariableSlot: pub fn try_with_access( entity: EntityClassId, variable: VariableId, entity_type_name: &'static str, variable_name: &'static str, access: Arc<dyn DynamicListAccess<S>>, ) -> Result<Self, String>
+    domain::DynamicListVariableSlot: pub fn with_access_and_metadata( entity: EntityClassId, variable: VariableId, entity_type_name: &'static str, variable_name: &'static str, access: Arc<dyn DynamicListAccess<S>>, metadata: Arc<dyn DynamicListMetadata<S>>, ) -> Result<Self, String>
+    domain::DynamicListVariableSlot: pub fn with_metadata( self, metadata: Arc<dyn DynamicListMetadata<S>>, ) -> Result<Self, String>
+    domain::DynamicListVariableSlot: pub fn resolve_descriptor_index( &mut self, descriptor: &SolutionDescriptor, ) -> Result<(), String>
+    domain::DynamicListVariableSlot: pub fn resolved_against( self, descriptor: &SolutionDescriptor, ) -> Result<Self, String>
+    domain::DynamicListVariableSlot: pub fn is_descriptor_resolved(&self) -> bool
+    domain::DynamicListVariableSlot: pub fn descriptor_index(&self) -> usize
+    domain::DynamicListVariableSlot: pub fn descriptor_variable_index(&self) -> usize
+    domain::DynamicListVariableSlot: pub fn matches_target( &self, entity_class: Option<&str>, variable_name: Option<&str>, ) -> bool
+    domain::DynamicListVariableSlot: pub fn entity_count(&self, solution: &S) -> usize
+    domain::DynamicListVariableSlot: pub fn element_count(&self, solution: &S) -> usize
+    domain::DynamicListVariableSlot: pub fn element(&self, solution: &S, element_index: usize) -> Option<usize>
+    domain::DynamicListVariableSlot: pub fn assigned_elements(&self, solution: &S) -> Vec<usize>
+    domain::DynamicListVariableSlot: pub fn list_len(&self, solution: &S, row: usize) -> usize
+    domain::DynamicListVariableSlot: pub fn list_get(&self, solution: &S, row: usize, pos: usize) -> Option<usize>
+    domain::DynamicListVariableSlot: pub fn list_insert( &self, solution: &mut S, row: usize, pos: usize, value: usize, )
+    domain::DynamicListVariableSlot: pub fn list_remove( &self, solution: &mut S, row: usize, pos: usize, ) -> Option<usize>
+    domain::DynamicListVariableSlot: pub fn access_capabilities(&self) -> DynamicListAccessCapabilities
+    domain::DynamicListVariableSlot: pub fn list_set( &self, solution: &mut S, row: usize, pos: usize, value: usize, ) -> bool
+    domain::DynamicListVariableSlot: pub fn list_replace( &self, solution: &mut S, row: usize, values: Vec<usize>, ) -> bool
+    domain::DynamicListVariableSlot: pub fn list_reverse( &self, solution: &mut S, row: usize, start: usize, end: usize, ) -> bool
+    domain::DynamicListVariableSlot: pub fn sublist_remove( &self, solution: &mut S, row: usize, start: usize, end: usize, ) -> Option<Vec<usize>>
+    domain::DynamicListVariableSlot: pub fn sublist_insert( &self, solution: &mut S, row: usize, pos: usize, values: Vec<usize>, ) -> bool
+    domain::DynamicListVariableSlot: pub fn metadata(&self) -> Option<&dyn DynamicListMetadata<S>>
+    domain::DynamicListVariableSlot: pub fn metadata_capabilities(&self) -> Option<DynamicListMetadataCapabilities>
+    domain::DynamicListVariableSlot: pub fn require_metadata(&self) -> Result<&dyn DynamicListMetadata<S>, String>
+    domain::DynamicListVariableSlot: pub fn new( entity: EntityClassId, variable: VariableId, entity_type_name: &'static str, variable_name: &'static str, ) -> Self
+    domain::DynamicListVariableSlot: pub fn new_with_metadata( entity: EntityClassId, variable: VariableId, entity_type_name: &'static str, variable_name: &'static str, metadata: Arc<dyn DynamicListMetadata<S>>, ) -> Result<Self, String>
+struct domain::DynamicScalarAssignmentMetadataCapabilities: pub struct DynamicScalarAssignmentMetadataCapabilities { pub required_entity: bool, pub capacity_key: bool, pub position_key: bool, pub sequence_key: bool, pub entity_order: bool, pub value_order: bool, pub assignment_rule: bool, }
+struct domain::DynamicScalarVariableSlot: pub struct DynamicScalarVariableSlot<S> { pub entity: EntityClassId, pub variable: VariableId, pub entity_type_name: &'static str, pub variable_name: &'static str, pub allows_unassigned: bool, /* private fields */ }
+    domain::DynamicScalarVariableSlot: pub fn with_access( entity: EntityClassId, variable: VariableId, entity_type_name: &'static str, variable_name: &'static str, allows_unassigned: bool, access: Arc<dyn DynamicScalarAccess<S>>, ) -> Self
+    domain::DynamicScalarVariableSlot: pub fn resolve_descriptor_index( &mut self, descriptor: &SolutionDescriptor, ) -> Result<(), String>
+    domain::DynamicScalarVariableSlot: pub fn resolved_against( self, descriptor: &SolutionDescriptor, ) -> Result<Self, String>
+    domain::DynamicScalarVariableSlot: pub fn is_descriptor_resolved(&self) -> bool
+    domain::DynamicScalarVariableSlot: pub fn descriptor_index(&self) -> usize
+    domain::DynamicScalarVariableSlot: pub fn descriptor_variable_index(&self) -> usize
+    domain::DynamicScalarVariableSlot: pub fn matches_target( &self, entity_class: Option<&str>, variable_name: Option<&str>, ) -> bool
+    domain::DynamicScalarVariableSlot: pub fn entity_count(&self, solution: &S) -> usize
+    domain::DynamicScalarVariableSlot: pub fn current_value(&self, solution: &S, row: usize) -> Option<usize>
+    domain::DynamicScalarVariableSlot: pub fn set_value(&self, solution: &mut S, row: usize, value: Option<usize>)
+    domain::DynamicScalarVariableSlot: pub fn candidate_values<'a>(&self, solution: &'a S, row: usize) -> &'a [usize]
+    domain::DynamicScalarVariableSlot: pub fn has_nearby_value_candidates(&self) -> bool
+    domain::DynamicScalarVariableSlot: pub fn visit_nearby_value_candidates( &self, solution: &S, row: usize, limit: usize, visit: &mut dyn FnMut(usize), ) -> bool
+    domain::DynamicScalarVariableSlot: pub fn nearby_value_distance( &self, solution: &S, row: usize, candidate: usize, ) -> Option<f64>
+    domain::DynamicScalarVariableSlot: pub fn has_nearby_entity_candidates(&self) -> bool
+    domain::DynamicScalarVariableSlot: pub fn visit_nearby_entity_candidates( &self, solution: &S, left_row: usize, limit: usize, visit: &mut dyn FnMut(usize), ) -> bool
+    domain::DynamicScalarVariableSlot: pub fn nearby_entity_distance( &self, solution: &S, left_row: usize, right_row: usize, ) -> Option<f64>
+    domain::DynamicScalarVariableSlot: pub fn value_is_legal( &self, solution: &S, row: usize, value: Option<usize>, ) -> bool
+    domain::DynamicScalarVariableSlot: pub fn new( entity: EntityClassId, variable: VariableId, entity_type_name: &'static str, variable_name: &'static str, allows_unassigned: bool, ) -> Self
+struct domain::EntityClassId: pub struct EntityClassId(pub usize);
+struct domain::EntityCollectionExtractor: pub struct EntityCollectionExtractor<S, E> { /* private fields */ }
+    domain::EntityCollectionExtractor: pub fn new( type_name: &'static str, collection_field: &'static str, get_collection: fn(&S) -> &Vec<E>, get_collection_mut: fn(&mut S) -> &mut Vec<E>, ) -> Self
+struct domain::EntityDescriptor: pub struct EntityDescriptor { pub type_name: &'static str, pub type_id: TypeId, pub logical_id: Option<EntityClassId>, pub solution_field: &'static str, pub is_collection: bool, pub variable_descriptors: Vec<VariableDescriptor>, pub extractor: Option<Box<dyn EntityExtractor>>, pub id_field: Option<&'static str>, pub pin_field: Option<&'static str>, /* private fields */ }
+    domain::EntityDescriptor: pub fn new( type_name: &'static str, type_id: TypeId, solution_field: &'static str, ) -> Self
+    domain::EntityDescriptor: pub fn with_extractor(self, extractor: Box<dyn EntityExtractor>) -> Self
+    domain::EntityDescriptor: pub fn with_logical_id(self, logical_id: EntityClassId) -> Self
+    domain::EntityDescriptor: pub fn with_variable(self, descriptor: VariableDescriptor) -> Self
+    domain::EntityDescriptor: pub fn with_id_field(self, field: &'static str) -> Self
+    domain::EntityDescriptor: pub fn with_pin_field(self, field: &'static str) -> Self
+    domain::EntityDescriptor: pub fn with_pin_predicate(self, predicate: fn(&dyn Any) -> bool) -> Self
+    domain::EntityDescriptor: pub fn is_pinned(&self, solution: &dyn Any, index: usize) -> bool
+    domain::EntityDescriptor: pub fn has_pin_predicate(&self) -> bool
+    domain::EntityDescriptor: pub fn genuine_variable_descriptors( &self, ) -> impl Iterator<Item = &VariableDescriptor>
+    domain::EntityDescriptor: pub fn shadow_variable_descriptors( &self, ) -> impl Iterator<Item = &VariableDescriptor>
+    domain::EntityDescriptor: pub fn find_variable(&self, name: &str) -> Option<&VariableDescriptor>
+    domain::EntityDescriptor: pub fn has_genuine_variables(&self) -> bool
+    domain::EntityDescriptor: pub fn has_extractor(&self) -> bool
+    domain::EntityDescriptor: pub fn entity_count(&self, solution: &dyn Any) -> Option<usize>
+    domain::EntityDescriptor: pub fn get_entity<'a>( &self, solution: &'a dyn Any, index: usize, ) -> Option<&'a dyn Any>
+    domain::EntityDescriptor: pub fn get_entity_mut<'a>( &self, solution: &'a mut dyn Any, index: usize, ) -> Option<&'a mut dyn Any>
+    domain::EntityDescriptor: pub fn entity_refs(&self, solution: &dyn Any) -> Vec<EntityRef>
+    domain::EntityDescriptor: pub fn for_each_entity<F>(&self, solution: &dyn Any, f: F) -> Option<()> where F: FnMut(usize, &dyn Any),
+    domain::EntityDescriptor: pub fn for_each_entity_mut<F>(&self, solution: &mut dyn Any, f: F) -> Option<()> where F: FnMut(usize, &mut dyn Any),
+struct domain::EntityRef: pub struct EntityRef { pub index: usize, pub type_name: &'static str, pub collection_field: &'static str, }
+    domain::EntityRef: pub fn new( index: usize, type_name: &'static str, collection_field: &'static str, ) -> Self
+struct domain::ProblemFactClassId: pub struct ProblemFactClassId(pub usize);
+struct domain::ProblemFactDescriptor: pub struct ProblemFactDescriptor { pub type_name: &'static str, pub type_id: TypeId, pub logical_id: Option<ProblemFactClassId>, pub solution_field: &'static str, pub is_collection: bool, pub id_field: Option<&'static str>, pub extractor: Option<Box<dyn EntityExtractor>>, }
+    domain::ProblemFactDescriptor: pub fn new( type_name: &'static str, type_id: TypeId, solution_field: &'static str, ) -> Self
+    domain::ProblemFactDescriptor: pub fn with_extractor(self, extractor: Box<dyn EntityExtractor>) -> Self
+    domain::ProblemFactDescriptor: pub fn with_logical_id(self, logical_id: ProblemFactClassId) -> Self
+    domain::ProblemFactDescriptor: pub fn single(self) -> Self
+    domain::ProblemFactDescriptor: pub fn with_id_field(self, field: &'static str) -> Self
+struct domain::SolutionDescriptor: pub struct SolutionDescriptor { pub type_name: &'static str, pub type_id: TypeId, pub entity_descriptors: Vec<EntityDescriptor>, pub problem_fact_descriptors: Vec<ProblemFactDescriptor>, pub score_field: &'static str, pub score_is_optional: bool, /* private fields */ }
+    domain::SolutionDescriptor: pub fn new(type_name: &'static str, type_id: TypeId) -> Self
+    domain::SolutionDescriptor: pub fn with_entity(self, descriptor: EntityDescriptor) -> Self
+    domain::SolutionDescriptor: pub fn with_problem_fact(self, descriptor: ProblemFactDescriptor) -> Self
+    domain::SolutionDescriptor: pub fn with_score_field(self, field: &'static str) -> Self
+    domain::SolutionDescriptor: pub fn find_entity_descriptor( &self, type_name: &str, ) -> Option<&EntityDescriptor>
+    domain::SolutionDescriptor: pub fn find_entity_descriptor_by_type( &self, type_id: TypeId, ) -> Option<&EntityDescriptor>
+    domain::SolutionDescriptor: pub fn find_entity_descriptor_by_logical_id( &self, logical_id: EntityClassId, ) -> Option<&EntityDescriptor>
+    domain::SolutionDescriptor: pub fn entity_descriptor_index_by_logical_id( &self, logical_id: EntityClassId, ) -> Option<usize>
+    domain::SolutionDescriptor: pub fn genuine_variable_descriptors(&self) -> Vec<&VariableDescriptor>
+    domain::SolutionDescriptor: pub fn shadow_variable_descriptors(&self) -> Vec<&VariableDescriptor>
+    domain::SolutionDescriptor: pub fn total_entity_count(&self, solution: &dyn Any) -> Option<usize>
+    domain::SolutionDescriptor: pub fn all_entity_refs(&self, solution: &dyn Any) -> Vec<(usize, EntityRef)>
+    domain::SolutionDescriptor: pub fn for_each_entity<F>(&self, solution: &dyn Any, f: F) where F: FnMut(usize, usize, &dyn Any),
+    domain::SolutionDescriptor: pub fn get_entity<'a>( &self, solution: &'a dyn Any, descriptor_index: usize, entity_index: usize, ) -> Option<&'a dyn Any>
+    domain::SolutionDescriptor: pub fn get_entity_mut<'a>( &self, solution: &'a mut dyn Any, descriptor_index: usize, entity_index: usize, ) -> Option<&'a mut dyn Any>
+    domain::SolutionDescriptor: pub fn entity_descriptor_count(&self) -> usize
+    domain::SolutionDescriptor: pub fn problem_fact_descriptor_count(&self) -> usize
+    domain::SolutionDescriptor: pub fn all_extractors_configured(&self) -> bool
+struct domain::VariableDescriptor: pub struct VariableDescriptor {Show 20 fields pub name: &'static str, pub logical_id: Option<VariableId>, pub variable_type: VariableType, pub allows_unassigned: bool, pub value_range_provider: Option<&'static str>, pub value_range_type: ValueRangeType, pub source_variable: Option<&'static str>, pub source_entity: Option<&'static str>, pub usize_getter: Option<UsizeGetter>, pub usize_setter: Option<UsizeSetter>, pub entity_value_provider: Option<UsizeEntityValueProvider>, pub candidate_values: Option<UsizeCandidateValues>, pub nearby_value_candidates: Option<UsizeCandidateValues>, pub nearby_entity_candidates: Option<UsizeCandidateValues>, pub nearby_value_distance_meter: Option<UsizeNearbyValueDistanceMeter>, pub nearby_entity_distance_meter: Option<UsizeNearbyEntityDistanceMeter>, pub construction_entity_order_key: Option<UsizeConstructionEntityOrderKey>, pub construction_value_order_key: Option<UsizeConstructionValueOrderKey>, pub search_entity_order_key: Option<UsizeSearchEntityOrderKey>, pub search_value_order_key: Option<UsizeSearchValueOrderKey>, }
+    domain::VariableDescriptor: pub fn genuine(name: &'static str) -> Self
+    domain::VariableDescriptor: pub fn list(name: &'static str) -> Self
+    domain::VariableDescriptor: pub fn shadow(name: &'static str, kind: ShadowVariableKind) -> Self
+    domain::VariableDescriptor: pub fn with_value_range(self, provider: &'static str) -> Self
+    domain::VariableDescriptor: pub fn with_allows_unassigned(self, allows: bool) -> Self
+    domain::VariableDescriptor: pub fn with_logical_id(self, logical_id: VariableId) -> Self
+    domain::VariableDescriptor: pub fn piggyback(name: &'static str, source_shadow: &'static str) -> Self
+    domain::VariableDescriptor: pub fn with_value_range_type(self, value_range_type: ValueRangeType) -> Self
+    domain::VariableDescriptor: pub fn with_source(self, entity: &'static str, variable: &'static str) -> Self
+    domain::VariableDescriptor: pub fn with_usize_accessors( self, getter: UsizeGetter, setter: UsizeSetter, ) -> Self
+    domain::VariableDescriptor: pub fn with_entity_value_provider( self, provider: UsizeEntityValueProvider, ) -> Self
+    domain::VariableDescriptor: pub fn with_candidate_values(self, provider: UsizeCandidateValues) -> Self
+    domain::VariableDescriptor: pub fn with_nearby_value_candidates( self, provider: UsizeCandidateValues, ) -> Self
+    domain::VariableDescriptor: pub fn with_nearby_entity_candidates( self, provider: UsizeCandidateValues, ) -> Self
+    domain::VariableDescriptor: pub fn with_nearby_value_distance_meter( self, meter: UsizeNearbyValueDistanceMeter, ) -> Self
+    domain::VariableDescriptor: pub fn with_nearby_entity_distance_meter( self, meter: UsizeNearbyEntityDistanceMeter, ) -> Self
+    domain::VariableDescriptor: pub fn with_construction_entity_order_key( self, order_key: UsizeConstructionEntityOrderKey, ) -> Self
+    domain::VariableDescriptor: pub fn with_construction_value_order_key( self, order_key: UsizeConstructionValueOrderKey, ) -> Self
+struct domain::VariableId: pub struct VariableId(pub usize);
+struct fast_hash::FastHasher: pub struct FastHasher(/* private fields */);
+struct score::BendableScore: pub struct BendableScore<const H: usize, const S: usize> { /* private fields */ }
+    score::BendableScore: pub const fn of(hard: [i64; H], soft: [i64; S]) -> Self
+    score::BendableScore: pub const fn zero() -> Self
+    score::BendableScore: pub const fn hard_levels_count(&self) -> usize
+    score::BendableScore: pub const fn soft_levels_count(&self) -> usize
+    score::BendableScore: pub const fn hard_score(&self, level: usize) -> i64
+    score::BendableScore: pub const fn soft_score(&self, level: usize) -> i64
+    score::BendableScore: pub const fn hard_scores(&self) -> &[i64; H]
+    score::BendableScore: pub const fn soft_scores(&self) -> &[i64; S]
+    score::BendableScore: pub const fn one_hard(level: usize) -> Self
+    score::BendableScore: pub const fn one_soft(level: usize) -> Self
+struct score::HardMediumSoftScore: pub struct HardMediumSoftScore { /* private fields */ }
+    score::HardMediumSoftScore: pub const ZERO: HardMediumSoftScore
+    score::HardMediumSoftScore: pub const ONE_HARD: HardMediumSoftScore
+    score::HardMediumSoftScore: pub const ONE_MEDIUM: HardMediumSoftScore
+    score::HardMediumSoftScore: pub const ONE_SOFT: HardMediumSoftScore
+    score::HardMediumSoftScore: pub const fn of(hard: i64, medium: i64, soft: i64) -> Self
+    score::HardMediumSoftScore: pub const fn of_hard(hard: i64) -> Self
+    score::HardMediumSoftScore: pub const fn of_medium(medium: i64) -> Self
+    score::HardMediumSoftScore: pub const fn of_soft(soft: i64) -> Self
+    score::HardMediumSoftScore: pub const fn hard(&self) -> i64
+    score::HardMediumSoftScore: pub const fn medium(&self) -> i64
+    score::HardMediumSoftScore: pub const fn soft(&self) -> i64
+struct score::HardSoftDecimalScore: pub struct HardSoftDecimalScore { /* private fields */ }
+    score::HardSoftDecimalScore: pub const ZERO: HardSoftDecimalScore
+    score::HardSoftDecimalScore: pub const ONE_HARD: HardSoftDecimalScore
+    score::HardSoftDecimalScore: pub const ONE_SOFT: HardSoftDecimalScore
+    score::HardSoftDecimalScore: pub const fn of(hard: i64, soft: i64) -> Self
+    score::HardSoftDecimalScore: pub const fn of_scaled(hard: i64, soft: i64) -> Self
+    score::HardSoftDecimalScore: pub const fn of_hard(hard: i64) -> Self
+    score::HardSoftDecimalScore: pub const fn of_soft(soft: i64) -> Self
+    score::HardSoftDecimalScore: pub fn parse_level(text: &str) -> Result<i64, ScoreParseError>
+    score::HardSoftDecimalScore: pub const fn of_hard_scaled(hard: i64) -> Self
+    score::HardSoftDecimalScore: pub const fn of_soft_scaled(soft: i64) -> Self
+    score::HardSoftDecimalScore: pub const fn hard_scaled(&self) -> i64
+    score::HardSoftDecimalScore: pub const fn soft_scaled(&self) -> i64
+    score::HardSoftDecimalScore: pub const fn hard_score(&self) -> HardSoftDecimalScore
+    score::HardSoftDecimalScore: pub const fn soft_score(&self) -> HardSoftDecimalScore
+    score::HardSoftDecimalScore: pub const fn has_hard_component(&self) -> bool
+struct score::HardSoftScore: pub struct HardSoftScore { /* private fields */ }
+    score::HardSoftScore: pub const ZERO: HardSoftScore
+    score::HardSoftScore: pub const ONE_HARD: HardSoftScore
+    score::HardSoftScore: pub const ONE_SOFT: HardSoftScore
+    score::HardSoftScore: pub const fn of(hard: i64, soft: i64) -> Self
+    score::HardSoftScore: pub const fn of_hard(hard: i64) -> Self
+    score::HardSoftScore: pub const fn of_soft(soft: i64) -> Self
+    score::HardSoftScore: pub const fn hard(&self) -> i64
+    score::HardSoftScore: pub const fn soft(&self) -> i64
+    score::HardSoftScore: pub const fn hard_score(&self) -> HardSoftScore
+    score::HardSoftScore: pub const fn soft_score(&self) -> HardSoftScore
+struct score::ScoreParseError: pub struct ScoreParseError { pub message: String, }
+struct score::SoftScore: pub struct SoftScore { /* private fields */ }
+    score::SoftScore: pub const ZERO: SoftScore
+    score::SoftScore: pub const ONE: SoftScore
+    score::SoftScore: pub const fn of(score: i64) -> Self
+    score::SoftScore: pub const fn score(&self) -> i64
+enum constraint::ImpactType: pub enum ImpactType { Penalty, Reward, }
+enum constraint_weights::ConstraintWeightError: pub enum ConstraintWeightError { UnknownConstraint { name: String, suggestions: Vec<String>, known: Vec<String>, }, MultiplierTooLarge { name: String, multiplier: u32, max: u32, }, }
+enum domain::ShadowVariableKind: pub enum ShadowVariableKind { Custom, InverseRelation, Index, NextElement, PreviousElement, Cascading, Piggyback, }
+    domain::ShadowVariableKind: pub fn requires_listener(&self) -> bool
+    domain::ShadowVariableKind: pub fn is_automatic(&self) -> bool
+    domain::ShadowVariableKind: pub fn is_piggyback(&self) -> bool
+enum domain::ValueRangeType: pub enum ValueRangeType { Collection, CountableRange { from: i64, to: i64, }, EntityDependent, }
+enum domain::VariableType: pub enum VariableType { Genuine, List, Shadow(ShadowVariableKind), }
+    domain::VariableType: pub fn is_genuine(&self) -> bool
+    domain::VariableType: pub fn is_shadow(&self) -> bool
+    domain::VariableType: pub fn is_list(&self) -> bool
+    domain::VariableType: pub fn is_basic(&self) -> bool
+enum score::ScoreLevel: pub enum ScoreLevel { Hard, Medium, Soft, }
+trait domain::DynamicListAccess: pub trait DynamicListAccess<S>: Send + Sync { Show 16 methods // Required methods fn entity_class(&self) -> EntityClassId; fn variable(&self) -> VariableId; fn entity_count(&self, solution: &S) -> usize; fn element_count(&self, solution: &S) -> usize; fn element(&self, solution: &S, element_index: usize) -> Option<usize>; fn assigned_elements(&self, solution: &S) -> Vec<usize>; fn len(&self, solution: &S, row: usize) -> usize; fn get(&self, solution: &S, row: usize, pos: usize) -> Option<usize>; fn insert(&self, solution: &mut S, row: usize, pos: usize, value: usize); fn remove(&self, solution: &mut S, row: usize, pos: usize) -> Option<usize>; // Provided methods fn capabilities(&self) -> DynamicListAccessCapabilities { ... } fn set( &self, _solution: &mut S, _row: usize, _pos: usize, _value: usize, ) -> bool { ... } fn replace( &self, _solution: &mut S, _row: usize, _values: Vec<usize>, ) -> bool { ... } fn reverse( &self, _solution: &mut S, _row: usize, _start: usize, _end: usize, ) -> bool { ... } fn sublist_remove( &self, _solution: &mut S, _row: usize, _start: usize, _end: usize, ) -> Option<Vec<usize>> { ... } fn sublist_insert( &self, _solution: &mut S, _row: usize, _pos: usize, _values: Vec<usize>, ) -> bool { ... } }
+    domain::DynamicListAccess: fn entity_class(&self) -> EntityClassId
+    domain::DynamicListAccess: fn variable(&self) -> VariableId
+    domain::DynamicListAccess: fn entity_count(&self, solution: &S) -> usize
+    domain::DynamicListAccess: fn element_count(&self, solution: &S) -> usize
+    domain::DynamicListAccess: fn element(&self, solution: &S, element_index: usize) -> Option<usize>
+    domain::DynamicListAccess: fn assigned_elements(&self, solution: &S) -> Vec<usize>
+    domain::DynamicListAccess: fn len(&self, solution: &S, row: usize) -> usize
+    domain::DynamicListAccess: fn get(&self, solution: &S, row: usize, pos: usize) -> Option<usize>
+    domain::DynamicListAccess: fn insert(&self, solution: &mut S, row: usize, pos: usize, value: usize)
+    domain::DynamicListAccess: fn remove(&self, solution: &mut S, row: usize, pos: usize) -> Option<usize>
+    domain::DynamicListAccess: fn capabilities(&self) -> DynamicListAccessCapabilities
+    domain::DynamicListAccess: fn set( &self, _solution: &mut S, _row: usize, _pos: usize, _value: usize, ) -> bool
+    domain::DynamicListAccess: fn replace(&self, _solution: &mut S, _row: usize, _values: Vec<usize>) -> bool
+    domain::DynamicListAccess: fn reverse( &self, _solution: &mut S, _row: usize, _start: usize, _end: usize, ) -> bool
+    domain::DynamicListAccess: fn sublist_remove( &self, _solution: &mut S, _row: usize, _start: usize, _end: usize, ) -> Option<Vec<usize>>
+    domain::DynamicListAccess: fn sublist_insert( &self, _solution: &mut S, _row: usize, _pos: usize, _values: Vec<usize>, ) -> bool
+trait domain::DynamicListMetadata: pub trait DynamicListMetadata<S>: Send + Sync { Show 16 methods // Required methods fn entity_class(&self) -> EntityClassId; fn variable(&self) -> VariableId; fn capabilities(&self) -> DynamicListMetadataCapabilities; fn element_owner(&self, solution: &S, element: usize) -> Option<usize>; fn construction_order_key( &self, solution: &S, element: usize, ) -> Option<i64>; fn precedence_duration(&self, solution: &S, element: usize) -> Option<usize>; fn extend_precedence_successors( &self, solution: &S, element: usize, successors: &mut Vec<usize>, ) -> bool; fn cross_position_distance( &self, solution: &S, from_entity: usize, from_position: usize, to_entity: usize, to_position: usize, ) -> Option<f64>; fn intra_position_distance( &self, solution: &S, entity: usize, from_position: usize, to_position: usize, ) -> Option<f64>; fn route_depot(&self, solution: &S, entity: usize) -> Option<usize>; fn route_distance( &self, solution: &S, entity: usize, from: usize, to: usize, ) -> Option<i64>; fn route_feasible( &self, solution: &S, entity: usize, route: &[usize], ) -> Option<bool>; fn savings_depot(&self, solution: &S, entity: usize) -> Option<usize>; fn savings_metric_class(&self, solution: &S, entity: usize) -> Option<usize>; fn savings_distance( &self, solution: &S, entity: usize, from: usize, to: usize, ) -> Option<i64>; fn savings_feasible( &self, solution: &S, entity: usize, route: &[usize], ) -> Option<bool>; }
+    domain::DynamicListMetadata: fn entity_class(&self) -> EntityClassId
+    domain::DynamicListMetadata: fn variable(&self) -> VariableId
+    domain::DynamicListMetadata: fn capabilities(&self) -> DynamicListMetadataCapabilities
+    domain::DynamicListMetadata: fn element_owner(&self, solution: &S, element: usize) -> Option<usize>
+    domain::DynamicListMetadata: fn construction_order_key(&self, solution: &S, element: usize) -> Option<i64>
+    domain::DynamicListMetadata: fn precedence_duration(&self, solution: &S, element: usize) -> Option<usize>
+    domain::DynamicListMetadata: fn extend_precedence_successors( &self, solution: &S, element: usize, successors: &mut Vec<usize>, ) -> bool
+    domain::DynamicListMetadata: fn cross_position_distance( &self, solution: &S, from_entity: usize, from_position: usize, to_entity: usize, to_position: usize, ) -> Option<f64>
+    domain::DynamicListMetadata: fn intra_position_distance( &self, solution: &S, entity: usize, from_position: usize, to_position: usize, ) -> Option<f64>
+    domain::DynamicListMetadata: fn route_depot(&self, solution: &S, entity: usize) -> Option<usize>
+    domain::DynamicListMetadata: fn route_distance( &self, solution: &S, entity: usize, from: usize, to: usize, ) -> Option<i64>
+    domain::DynamicListMetadata: fn route_feasible( &self, solution: &S, entity: usize, route: &[usize], ) -> Option<bool>
+    domain::DynamicListMetadata: fn savings_depot(&self, solution: &S, entity: usize) -> Option<usize>
+    domain::DynamicListMetadata: fn savings_metric_class(&self, solution: &S, entity: usize) -> Option<usize>
+    domain::DynamicListMetadata: fn savings_distance( &self, solution: &S, entity: usize, from: usize, to: usize, ) -> Option<i64>
+    domain::DynamicListMetadata: fn savings_feasible( &self, solution: &S, entity: usize, route: &[usize], ) -> Option<bool>
+trait domain::DynamicModelBackend: pub trait DynamicModelBackend: Clone + Send + Sync + 'static { type Score: Score; // Required methods fn entity_count(&self, entity: EntityClassId) -> usize; fn get_scalar( &self, entity: EntityClassId, row: usize, variable: VariableId, ) -> Option<usize>; fn set_scalar( &mut self, entity: EntityClassId, row: usize, variable: VariableId, value: Option<usize>, ); fn list_len( &self, entity: EntityClassId, row: usize, variable: VariableId, ) -> usize; fn list_get( &self, entity: EntityClassId, row: usize, variable: VariableId, pos: usize, ) -> Option<usize>; fn list_insert( &mut self, entity: EntityClassId, row: usize, variable: VariableId, pos: usize, value: usize, ); fn list_remove( &mut self, entity: EntityClassId, row: usize, variable: VariableId, pos: usize, ) -> Option<usize>; fn candidate_values( &self, entity: EntityClassId, row: usize, variable: VariableId, ) -> &[usize]; fn scalar_value_is_legal( &self, entity: EntityClassId, row: usize, variable: VariableId, value: usize, ) -> bool; // Provided methods fn list_element_count( &self, _entity: EntityClassId, _variable: VariableId, ) -> usize { ... } fn list_element( &self, _entity: EntityClassId, _variable: VariableId, element_index: usize, ) -> Option<usize> { ... } fn list_assigned_elements( &self, _entity: EntityClassId, _variable: VariableId, ) -> Vec<usize> { ... } }
+    domain::DynamicModelBackend: type Score: Score
+    domain::DynamicModelBackend: fn entity_count(&self, entity: EntityClassId) -> usize
+    domain::DynamicModelBackend: fn get_scalar( &self, entity: EntityClassId, row: usize, variable: VariableId, ) -> Option<usize>
+    domain::DynamicModelBackend: fn set_scalar( &mut self, entity: EntityClassId, row: usize, variable: VariableId, value: Option<usize>, )
+    domain::DynamicModelBackend: fn list_len( &self, entity: EntityClassId, row: usize, variable: VariableId, ) -> usize
+    domain::DynamicModelBackend: fn list_get( &self, entity: EntityClassId, row: usize, variable: VariableId, pos: usize, ) -> Option<usize>
+    domain::DynamicModelBackend: fn list_insert( &mut self, entity: EntityClassId, row: usize, variable: VariableId, pos: usize, value: usize, )
+    domain::DynamicModelBackend: fn list_remove( &mut self, entity: EntityClassId, row: usize, variable: VariableId, pos: usize, ) -> Option<usize>
+    domain::DynamicModelBackend: fn candidate_values( &self, entity: EntityClassId, row: usize, variable: VariableId, ) -> &[usize]
+    domain::DynamicModelBackend: fn scalar_value_is_legal( &self, entity: EntityClassId, row: usize, variable: VariableId, value: usize, ) -> bool
+    domain::DynamicModelBackend: fn list_element_count( &self, _entity: EntityClassId, _variable: VariableId, ) -> usize
+    domain::DynamicModelBackend: fn list_element( &self, _entity: EntityClassId, _variable: VariableId, element_index: usize, ) -> Option<usize>
+    domain::DynamicModelBackend: fn list_assigned_elements( &self, _entity: EntityClassId, _variable: VariableId, ) -> Vec<usize>
+trait domain::DynamicScalarAccess: pub trait DynamicScalarAccess<S>: Send + Sync { Show 13 methods // Required methods fn entity_class(&self) -> EntityClassId; fn variable(&self) -> VariableId; fn entity_count(&self, solution: &S) -> usize; fn get(&self, solution: &S, row: usize) -> Option<usize>; fn set(&self, solution: &mut S, row: usize, value: Option<usize>); fn candidate_values<'a>(&self, solution: &'a S, row: usize) -> &'a [usize]; fn value_is_legal(&self, solution: &S, row: usize, value: usize) -> bool; // Provided methods fn has_nearby_value_candidates(&self) -> bool { ... } fn visit_nearby_value_candidates( &self, _solution: &S, _row: usize, _limit: usize, _visit: &mut dyn FnMut(usize), ) -> bool { ... } fn nearby_value_distance( &self, _solution: &S, _row: usize, _candidate: usize, ) -> Option<f64> { ... } fn has_nearby_entity_candidates(&self) -> bool { ... } fn visit_nearby_entity_candidates( &self, _solution: &S, _left_row: usize, _limit: usize, _visit: &mut dyn FnMut(usize), ) -> bool { ... } fn nearby_entity_distance( &self, _solution: &S, _left_row: usize, _right_row: usize, ) -> Option<f64> { ... } }
+    domain::DynamicScalarAccess: fn entity_class(&self) -> EntityClassId
+    domain::DynamicScalarAccess: fn variable(&self) -> VariableId
+    domain::DynamicScalarAccess: fn entity_count(&self, solution: &S) -> usize
+    domain::DynamicScalarAccess: fn get(&self, solution: &S, row: usize) -> Option<usize>
+    domain::DynamicScalarAccess: fn set(&self, solution: &mut S, row: usize, value: Option<usize>)
+    domain::DynamicScalarAccess: fn candidate_values<'a>(&self, solution: &'a S, row: usize) -> &'a [usize]
+    domain::DynamicScalarAccess: fn value_is_legal(&self, solution: &S, row: usize, value: usize) -> bool
+    domain::DynamicScalarAccess: fn has_nearby_value_candidates(&self) -> bool
+    domain::DynamicScalarAccess: fn visit_nearby_value_candidates( &self, _solution: &S, _row: usize, _limit: usize, _visit: &mut dyn FnMut(usize), ) -> bool
+    domain::DynamicScalarAccess: fn nearby_value_distance( &self, _solution: &S, _row: usize, _candidate: usize, ) -> Option<f64>
+    domain::DynamicScalarAccess: fn has_nearby_entity_candidates(&self) -> bool
+    domain::DynamicScalarAccess: fn visit_nearby_entity_candidates( &self, _solution: &S, _left_row: usize, _limit: usize, _visit: &mut dyn FnMut(usize), ) -> bool
+    domain::DynamicScalarAccess: fn nearby_entity_distance( &self, _solution: &S, _left_row: usize, _right_row: usize, ) -> Option<f64>
+trait domain::DynamicScalarAssignmentMetadata: pub trait DynamicScalarAssignmentMetadata<S>: Send + Sync { // Required methods fn capabilities(&self) -> DynamicScalarAssignmentMetadataCapabilities; fn required_entity(&self, solution: &S, entity_index: usize) -> bool; fn capacity_key( &self, solution: &S, entity_index: usize, value: usize, ) -> Option<usize>; fn position_key(&self, solution: &S, entity_index: usize) -> Option<i64>; fn sequence_key( &self, solution: &S, entity_index: usize, value: usize, ) -> Option<usize>; fn entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64>; fn value_order_key( &self, solution: &S, entity_index: usize, value: usize, ) -> Option<i64>; fn assignment_edge_allowed( &self, solution: &S, left_entity: usize, left_value: usize, right_entity: usize, right_value: usize, ) -> bool; }
+    domain::DynamicScalarAssignmentMetadata: fn capabilities(&self) -> DynamicScalarAssignmentMetadataCapabilities
+    domain::DynamicScalarAssignmentMetadata: fn required_entity(&self, solution: &S, entity_index: usize) -> bool
+    domain::DynamicScalarAssignmentMetadata: fn capacity_key( &self, solution: &S, entity_index: usize, value: usize, ) -> Option<usize>
+    domain::DynamicScalarAssignmentMetadata: fn position_key(&self, solution: &S, entity_index: usize) -> Option<i64>
+    domain::DynamicScalarAssignmentMetadata: fn sequence_key( &self, solution: &S, entity_index: usize, value: usize, ) -> Option<usize>
+    domain::DynamicScalarAssignmentMetadata: fn entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64>
+    domain::DynamicScalarAssignmentMetadata: fn value_order_key( &self, solution: &S, entity_index: usize, value: usize, ) -> Option<i64>
+    domain::DynamicScalarAssignmentMetadata: fn assignment_edge_allowed( &self, solution: &S, left_entity: usize, left_value: usize, right_entity: usize, right_value: usize, ) -> bool
+trait domain::EntityExtractor: pub trait EntityExtractor: Send + Sync { // Required methods fn count(&self, solution: &dyn Any) -> Option<usize>; fn get<'a>( &self, solution: &'a dyn Any, index: usize, ) -> Option<&'a dyn Any>; fn get_mut<'a>( &self, solution: &'a mut dyn Any, index: usize, ) -> Option<&'a mut dyn Any>; fn entity_refs(&self, solution: &dyn Any) -> Vec<EntityRef>; fn clone_box(&self) -> Box<dyn EntityExtractor>; fn clone_entity_boxed( &self, solution: &dyn Any, index: usize, ) -> Option<Box<dyn Any + Send + Sync>>; fn entity_type_id(&self) -> TypeId; }
+    domain::EntityExtractor: fn count(&self, solution: &dyn Any) -> Option<usize>
+    domain::EntityExtractor: fn get<'a>(&self, solution: &'a dyn Any, index: usize) -> Option<&'a dyn Any>
+    domain::EntityExtractor: fn get_mut<'a>( &self, solution: &'a mut dyn Any, index: usize, ) -> Option<&'a mut dyn Any>
+    domain::EntityExtractor: fn entity_refs(&self, solution: &dyn Any) -> Vec<EntityRef>
+    domain::EntityExtractor: fn clone_box(&self) -> Box<dyn EntityExtractor>
+    domain::EntityExtractor: fn clone_entity_boxed( &self, solution: &dyn Any, index: usize, ) -> Option<Box<dyn Any + Send + Sync>>
+    domain::EntityExtractor: fn entity_type_id(&self) -> TypeId
+trait domain::PlanningEntity: pub trait PlanningEntity: Clone + Send + Sync + Any + 'static { // Required methods fn as_any(&self) -> &dyn Any; fn as_any_mut(&mut self) -> &mut dyn Any; // Provided method fn is_pinned(&self) -> bool { ... } }
+    domain::PlanningEntity: fn as_any(&self) -> &dyn Any
+    domain::PlanningEntity: fn as_any_mut(&mut self) -> &mut dyn Any
+    domain::PlanningEntity: fn is_pinned(&self) -> bool
+trait domain::PlanningId: pub trait PlanningId { type Id: Eq + Hash + Clone + Send + Sync + 'static; // Required method fn planning_id(&self) -> Self::Id; }
+    domain::PlanningId: type Id: Eq + Hash + Clone + Send + Sync + 'static
+    domain::PlanningId: fn planning_id(&self) -> Self::Id
+trait domain::PlanningSolution: pub trait PlanningSolution: Clone + Send + Sync + 'static { type Score: Score; const HAS_CONSTRAINT_WEIGHTS: bool = false; // Required methods fn score(&self) -> Option<Self::Score>; fn set_score(&mut self, score: Option<Self::Score>); // Provided methods fn update_entity_shadows( &mut self, _descriptor_index: usize, _entity_index: usize, ) { ... } fn update_all_shadows(&mut self) { ... } fn constraint_weights(&self) -> Option<&ConstraintWeights> { ... } fn list_shadow_elements( &self, _descriptor_index: usize, _entity_index: usize, ) -> Option<(usize, &[usize])> { ... } fn clear_list_shadows(&mut self, _element: usize) { ... } fn list_shadow_source(_collection: &str) -> Option<usize> { ... } fn is_initialized(&self) -> bool { ... } }
+    domain::PlanningSolution: const HAS_CONSTRAINT_WEIGHTS: bool = false
+    domain::PlanningSolution: type Score: Score
+    domain::PlanningSolution: fn score(&self) -> Option<Self::Score>
+    domain::PlanningSolution: fn set_score(&mut self, score: Option<Self::Score>)
+    domain::PlanningSolution: fn update_entity_shadows( &mut self, _descriptor_index: usize, _entity_index: usize, )
+    domain::PlanningSolution: fn update_all_shadows(&mut self)
+    domain::PlanningSolution: fn constraint_weights(&self) -> Option<&ConstraintWeights>
+    domain::PlanningSolution: fn list_shadow_elements( &self, _descriptor_index: usize, _entity_index: usize, ) -> Option<(usize, &[usize])>
+    domain::PlanningSolution: fn clear_list_shadows(&mut self, _element: usize)
+    domain::PlanningSolution: fn list_shadow_source(_collection: &str) -> Option<usize>
+    domain::PlanningSolution: fn is_initialized(&self) -> bool
+trait domain::ProblemFact: pub trait ProblemFact: Clone + Send + Sync + Any + 'static { // Required method fn as_any(&self) -> &dyn Any; }
+    domain::ProblemFact: fn as_any(&self) -> &dyn Any
+trait score::ParseableScore: pub trait ParseableScore: Score { // Required methods fn parse(s: &str) -> Result<Self, ScoreParseError>; fn to_string_repr(&self) -> String; }
+    score::ParseableScore: fn parse(s: &str) -> Result<Self, ScoreParseError>
+    score::ParseableScore: fn to_string_repr(&self) -> String
+trait score::Score: pub trait Score: Copy + Debug + Display + Default + Send + Sync + PartialEq + Eq + PartialOrd + Ord + Add<Output = Self> + Sub<Output = Self> + Neg<Output = Self> + 'static { Show 24 methods // Required methods fn is_feasible(&self) -> bool; fn zero() -> Self; fn levels_count() -> usize; fn level_number(&self, index: usize) -> i64; fn from_level_numbers(levels: &[i64]) -> Self; fn multiply(&self, multiplicand: f64) -> Self; fn divide(&self, divisor: f64) -> Self; fn scale(&self, factor: i64) -> Self; fn abs(&self) -> Self; fn to_scalar(&self) -> f64; fn level_label(index: usize) -> ScoreLevel; // Provided methods fn to_level_numbers(&self) -> Vec<i64> { ... } fn overflowing_add(self, other: Self) -> (Self, bool) { ... } fn overflowing_sub(self, other: Self) -> (Self, bool) { ... } fn overflowing_neg(self) -> (Self, bool) { ... } fn overflowing_scale(&self, factor: i64) -> (Self, bool) { ... } fn overflowing_multiply(&self, multiplicand: f64) -> (Self, bool) { ... } fn compare(&self, other: &Self) -> Ordering { ... } fn is_better_than(&self, other: &Self) -> bool { ... } fn is_worse_than(&self, other: &Self) -> bool { ... } fn is_equal_to(&self, other: &Self) -> bool { ... } fn one_hard() -> Self { ... } fn one_soft() -> Self { ... } fn one_medium() -> Self { ... } }
+    score::Score: fn is_feasible(&self) -> bool
+    score::Score: fn zero() -> Self
+    score::Score: fn levels_count() -> usize
+    score::Score: fn level_number(&self, index: usize) -> i64
+    score::Score: fn from_level_numbers(levels: &[i64]) -> Self
+    score::Score: fn multiply(&self, multiplicand: f64) -> Self
+    score::Score: fn divide(&self, divisor: f64) -> Self
+    score::Score: fn scale(&self, factor: i64) -> Self
+    score::Score: fn abs(&self) -> Self
+    score::Score: fn to_scalar(&self) -> f64
+    score::Score: fn level_label(index: usize) -> ScoreLevel
+    score::Score: fn to_level_numbers(&self) -> Vec<i64>
+    score::Score: fn overflowing_add(self, other: Self) -> (Self, bool)
+    score::Score: fn overflowing_sub(self, other: Self) -> (Self, bool)
+    score::Score: fn overflowing_neg(self) -> (Self, bool)
+    score::Score: fn overflowing_scale(&self, factor: i64) -> (Self, bool)
+    score::Score: fn overflowing_multiply(&self, multiplicand: f64) -> (Self, bool)
+    score::Score: fn compare(&self, other: &Self) -> Ordering
+    score::Score: fn is_better_than(&self, other: &Self) -> bool
+    score::Score: fn is_worse_than(&self, other: &Self) -> bool
+    score::Score: fn is_equal_to(&self, other: &Self) -> bool
+    score::Score: fn one_hard() -> Self
+    score::Score: fn one_soft() -> Self
+    score::Score: fn one_medium() -> Self
+type domain::UsizeCandidateValues: pub type UsizeCandidateValues = for<'a> fn(&'a dyn Any, usize, usize) -> &'a [usize];
+type domain::UsizeConstructionEntityOrderKey: pub type UsizeConstructionEntityOrderKey = fn(&dyn Any, usize) -> i64;
+type domain::UsizeConstructionValueOrderKey: pub type UsizeConstructionValueOrderKey = fn(&dyn Any, usize, usize) -> i64;
+type domain::UsizeEntityValueProvider: pub type UsizeEntityValueProvider = for<'a> fn(&'a dyn Any) -> Vec<usize>;
+type domain::UsizeGetter: pub type UsizeGetter = for<'a> fn(&'a dyn Any) -> Option<usize>;
+type domain::UsizeNearbyEntityDistanceMeter: pub type UsizeNearbyEntityDistanceMeter = fn(&dyn Any, usize, usize) -> f64;
+type domain::UsizeNearbyValueDistanceMeter: pub type UsizeNearbyValueDistanceMeter = fn(&dyn Any, usize, usize) -> f64;
+type domain::UsizeSearchEntityOrderKey: pub type UsizeSearchEntityOrderKey = fn(&dyn Any, usize) -> i64;
+type domain::UsizeSearchValueOrderKey: pub type UsizeSearchValueOrderKey = fn(&dyn Any, usize, usize) -> i64;
+type domain::UsizeSetter: pub type UsizeSetter = fn(&mut dyn Any, Option<usize>);
+type fast_hash::FastMap: pub type FastMap<K, V> = HashMap<K, V, BuildHasherDefault<FastHasher>>;
+type fast_hash::FastSet: pub type FastSet<T> = HashSet<T, BuildHasherDefault<FastHasher>>;
+constant constraint_weights::MAX_CONSTRAINT_WEIGHT_MULTIPLIER: pub const MAX_CONSTRAINT_WEIGHT_MULTIPLIER: u32 = 1_000_000;

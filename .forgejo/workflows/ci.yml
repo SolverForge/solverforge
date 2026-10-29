@@ -60,5 +60,9 @@ jobs:
       - name: Check facade reachability
         run: python3 scripts/check-facade-reachability.py
 
+      # Every change to the core, scoring or solver public API updates its snapshot.
+      - name: Check public API snapshots
+        run: python3 scripts/check-public-api.py
+
       - name: Package every publishable crate
         run: CARGO_TARGET_DIR="$PWD/target" make publish-crates-dry

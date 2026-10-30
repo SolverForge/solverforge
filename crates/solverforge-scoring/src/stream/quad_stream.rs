@@ -10,7 +10,7 @@
 //! use solverforge_core::score::SoftScore;
 //! use solverforge_scoring::api::constraint_set::IncrementalConstraint;
 //! use solverforge_scoring::stream::joiner::equal;
-//! use solverforge_scoring::stream::BiConstraintStream;
+//! use solverforge_scoring::stream::ConstraintFactory;
 //!
 //! #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 //! struct Task {
@@ -32,13 +32,9 @@
 //! # }
 //!
 //! // Penalize when four tasks are on the same team
-//! // `join` needs a `Fn(&S, &A, usize) -> K` key, so start from a closure-keyed
-//! // self-join rather than `.for_each(..).join(equal(..))`, whose key is an
-//! // `EntityKeyAdapter`.
-//! let constraint = BiConstraintStream::<_, _, _, _, _, _, SoftScore>::new_self_join(
-//!     Solution::tasks(),
-//!     |_s: &Solution, t: &Task, _idx: usize| t.team,
-//! )
+//! let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+//!     .for_each(Solution::tasks())
+//!     .join(equal(|t: &Task| t.team))
 //!     .join(equal(|t: &Task| t.team))
 //!     .join(equal(|t: &Task| t.team))
 //!     .penalize(SoftScore::of(1))
@@ -76,7 +72,7 @@ where
     A: Clone + Hash + PartialEq + Send + Sync + 'static,
     K: Eq + Hash + Clone + Send + Sync,
     E: CollectionExtract<S, Item = A>,
-    KE: Fn(&S, &A, usize) -> K + Send + Sync,
+    KE: super::key_extract::KeyExtract<S, A, K>,
     F: QuadFilter<S, A, A, A, A>,
     Sc: Score + 'static,
 {
@@ -88,7 +84,7 @@ where
     /// use solverforge_core::score::SoftScore;
     /// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
     /// use solverforge_scoring::stream::joiner::equal;
-    /// use solverforge_scoring::stream::BiConstraintStream;
+    /// use solverforge_scoring::stream::ConstraintFactory;
     ///
     /// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
     /// struct Task {
@@ -110,13 +106,9 @@ where
     /// # }
     ///
     /// // Penalize when five tasks are on the same team
-    /// // `join` needs a `Fn(&S, &A, usize) -> K` key, so start from a closure-keyed
-    /// // self-join rather than `.for_each(..).join(equal(..))`, whose key is an
-    /// // `EntityKeyAdapter`.
-    /// let constraint = BiConstraintStream::<_, _, _, _, _, _, SoftScore>::new_self_join(
-    ///     Solution::tasks(),
-    ///     |_s: &Solution, t: &Task, _idx: usize| t.team,
-    /// )
+    /// let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+    ///     .for_each(Solution::tasks())
+    ///     .join(equal(|t: &Task| t.team))
     ///     .join(equal(|t: &Task| t.team))
     ///     .join(equal(|t: &Task| t.team))
     ///     .join(equal(|t: &Task| t.team))

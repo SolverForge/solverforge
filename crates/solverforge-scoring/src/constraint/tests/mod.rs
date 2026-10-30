@@ -14,3 +14,4 @@ mod weights;
 
 mod exists_descriptor_updates;
 mod self_join_bi_fluent;
+mod self_join_fluent_chain;

@@ -18,7 +18,7 @@ use crate::phase::localsearch::evaluation::{
     evaluate_candidate, record_evaluated_move, CandidateEvaluation,
 };
 use crate::phase::localsearch::vnd::telemetry::{candidate_selector_label, VndProgress};
-use crate::phase::localsearch::MoveCursorSource;
+use crate::phase::localsearch::{CursorResources, MoveCursorSource};
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepScope};
 use crate::stats::{
     format_duration, whole_units_per_second, CandidateTraceDisposition, CandidateTracePullToken,
@@ -79,13 +79,15 @@ pub(crate) fn solve_vnd_with_resources<S, D, ProgressCb, M, Source>(
         let mut cursor =
             neighborhoods[k].open_cursor(resources, step_scope.score_director(), stream_context);
 
-        match find_best_improving_move(
+        let search = find_best_improving_move(
             &mut cursor,
             resources,
             &mut step_scope,
             &current_score,
             &mut progress,
-        ) {
+        );
+        resources.flush_step_telemetry(step_scope.phase_scope_mut().stats_mut());
+        match search {
             MoveSearchResult::Found(
                 selected_index,
                 selected_score,

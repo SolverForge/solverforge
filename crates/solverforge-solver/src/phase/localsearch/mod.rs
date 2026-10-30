@@ -17,9 +17,9 @@ pub(crate) use acceptor::{
     HillClimbingAcceptor, LateAcceptanceAcceptor, SimulatedAnnealingAcceptor,
     SimulatedAnnealingCalibration, StepCountingHillClimbingAcceptor, TabuSearchAcceptor,
 };
-pub(crate) use cursor_source::MoveCursorSource;
 #[doc(hidden)]
 pub(crate) use cursor_source::SelectorCursorSource;
+pub(crate) use cursor_source::{CursorResources, MoveCursorSource};
 pub(crate) use forager::{
     AcceptedCountForager, BestScoreForager, FirstAcceptedForager, FirstBestScoreImprovingForager,
     FirstLastStepScoreImprovingForager, ForagerDecision, LocalSearchForager,

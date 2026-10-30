@@ -61,12 +61,6 @@ fn add_selector(into: &mut SelectorTelemetry, from: &SelectorTelemetry) {
     into.moves_hard_improving += from.moves_hard_improving;
     into.moves_hard_neutral += from.moves_hard_neutral;
     into.moves_hard_worse += from.moves_hard_worse;
-    into.conflict_repair_provider_generated += from.conflict_repair_provider_generated;
-    into.conflict_repair_duplicate_filtered += from.conflict_repair_duplicate_filtered;
-    into.conflict_repair_illegal_filtered += from.conflict_repair_illegal_filtered;
-    into.conflict_repair_not_doable_filtered += from.conflict_repair_not_doable_filtered;
-    into.conflict_repair_hard_improving += from.conflict_repair_hard_improving;
-    into.conflict_repair_exposed += from.conflict_repair_exposed;
     into.generation_time += from.generation_time;
     into.evaluation_time += from.evaluation_time;
 }

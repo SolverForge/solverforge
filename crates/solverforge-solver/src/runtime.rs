@@ -12,10 +12,15 @@ use crate::scope::{ProgressCallback, SolverScope};
 pub(crate) mod compiler;
 #[path = "runtime/provider_cursor.rs"]
 pub(crate) mod provider_cursor;
+#[path = "runtime/provider_telemetry.rs"]
+pub(crate) mod provider_telemetry;
 
 #[cfg(test)]
 #[path = "runtime/provider_cursor_tests.rs"]
 mod provider_cursor_tests;
+#[cfg(test)]
+#[path = "runtime/provider_telemetry_tests.rs"]
+mod provider_telemetry_tests;
 
 /// Distance meters and route/savings hooks of a list variable, supplied by
 /// its entity through [`ListVariableEntity::list_metadata`].

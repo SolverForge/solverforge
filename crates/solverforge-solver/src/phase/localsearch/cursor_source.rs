@@ -13,6 +13,24 @@ use crate::heuristic::r#move::Move;
 use crate::heuristic::selector::move_selector::{
     MoveSelector, MoveStreamContext, ResourceMoveCursor, UnitResourceCursor,
 };
+use crate::stats::PhaseStats;
+
+/// Solve-owned data a cursor source lends to cursor pulls.
+///
+/// A cursor cannot reach the phase statistics, so a pull that decides an
+/// outcome only it can see counts it into the lent resource. The step loop
+/// flushes those counts into the phase statistics once the step's pulls are
+/// done.
+pub trait CursorResources: Send {
+    /// Moves the outcomes counted during this step's pulls into `stats`.
+    fn flush_step_telemetry(&mut self, stats: &mut PhaseStats);
+}
+
+/// Stock selectors lend no resource and count nothing.
+impl CursorResources for () {
+    #[inline]
+    fn flush_step_telemetry(&mut self, _stats: &mut PhaseStats) {}
+}
 
 /// Opens the next phase cursor from mutable solve-owned execution state.
 ///
@@ -30,7 +48,7 @@ where
     /// sources receive the runner's one provider registry/reason arena here,
     /// so VND can retain many neighborhood states without cloning or storing
     /// a mutable resource in any one of them.
-    type Resources: Send;
+    type Resources: CursorResources;
 
     /// The cursor has no mutable resource field. The shared phase loop lends
     /// `Resources` only for each candidate pull through

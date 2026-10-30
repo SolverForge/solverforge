@@ -410,8 +410,17 @@ pub(crate) struct ResolvedProviderCandidate<S> {
 }
 
 /// Deduplication state for one explicit provider result stream.
+///
+/// Normalization counts the candidates it drops here, at the point it drops
+/// them, so conflict-repair telemetry needs no second pass over a result.
 #[derive(Debug, Default)]
 pub(crate) struct ProviderNormalizationState {
     pub(super) seen_candidates:
         HashSet<(ProviderReasonId, Vec<(usize, usize, usize, Option<usize>)>)>,
+    /// Candidates dropped as exact repeats (same reason and resolved edits)
+    /// of an earlier candidate in this scope.
+    pub(crate) duplicate_filtered: u64,
+    /// Candidates dropped as structurally illegal: no edits, or two edits
+    /// on the same entity variable.
+    pub(crate) illegal_filtered: u64,
 }

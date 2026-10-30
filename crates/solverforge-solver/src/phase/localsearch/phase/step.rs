@@ -13,7 +13,7 @@ use crate::phase::control::{
     settle_search_interrupt, should_interrupt_after_step, should_interrupt_before_candidate,
     StepInterrupt,
 };
-use crate::phase::localsearch::{Acceptor, LocalSearchForager, MoveCursorSource};
+use crate::phase::localsearch::{Acceptor, CursorResources, LocalSearchForager, MoveCursorSource};
 use crate::scope::{PendingControl, PhaseScope, ProgressCallback, StepScope};
 use crate::stats::{AppliedMoveTelemetry, CandidateTraceDisposition};
 
@@ -97,6 +97,7 @@ where
         requires_move_signatures,
         CandidateLoopState::new(interrupted),
     );
+    resources.flush_step_telemetry(step_scope.phase_scope_mut().stats_mut());
 
     if !interrupted && should_interrupt_after_step(&step_scope) {
         interrupted = true;

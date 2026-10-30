@@ -4,7 +4,7 @@ use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
 use solverforge_scoring::Director;
 
-use crate::heuristic::r#move::Move;
+use crate::heuristic::r#move::{Move, RuntimeCompoundMoveKind};
 use crate::heuristic::selector::move_selector::MoveCandidateRef;
 use crate::phase::hard_delta::{hard_score_delta, HardScoreDelta};
 use crate::pinning::move_changes_pinned;
@@ -74,6 +74,7 @@ where
     match hard_delta {
         Some(HardScoreDelta::Improving) => {
             step_scope.phase_scope_mut().record_move_hard_improving();
+            record_conflict_repair_hard_improving(mov, step_scope);
         }
         Some(HardScoreDelta::Neutral) => {
             step_scope.phase_scope_mut().record_move_hard_neutral();
@@ -196,6 +197,7 @@ where
     match hard_delta {
         Some(HardScoreDelta::Improving) => {
             step_scope.phase_scope_mut().record_move_hard_improving();
+            record_conflict_repair_hard_improving(mov, step_scope);
         }
         Some(HardScoreDelta::Neutral) => {
             step_scope.phase_scope_mut().record_move_hard_neutral();
@@ -278,5 +280,25 @@ pub(crate) fn record_evaluated_elapsed<S, D, ProgressCb>(
             .record_selector_evaluated_move(selector_index, elapsed);
     } else {
         step_scope.phase_scope_mut().record_evaluated_move(elapsed);
+    }
+}
+
+/// Counts a hard-improving trial of a conflict-repair candidate. Only the
+/// improving branch pays for the label check.
+#[inline]
+fn record_conflict_repair_hard_improving<S, D, ProgressCb, M>(
+    mov: &MoveCandidateRef<'_, S, M>,
+    step_scope: &mut StepScope<'_, '_, '_, S, D, ProgressCb>,
+) where
+    S: PlanningSolution,
+    D: Director<S>,
+    ProgressCb: ProgressCallback<S>,
+    M: Move<S>,
+{
+    if RuntimeCompoundMoveKind::is_conflict_repair_label(mov.telemetry_label()) {
+        step_scope
+            .phase_scope_mut()
+            .stats_mut()
+            .record_conflict_repair_hard_improving();
     }
 }

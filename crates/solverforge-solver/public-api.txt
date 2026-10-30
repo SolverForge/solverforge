@@ -200,11 +200,11 @@ struct PhaseStats: pub struct PhaseStats {Show 25 fields pub phase_index: usize,
     PhaseStats: pub fn record_move_hard_neutral(&mut self)
     PhaseStats: pub fn record_move_hard_worse(&mut self)
     PhaseStats: pub fn record_conflict_repair_provider_generated(&mut self, count: u64)
-    PhaseStats: pub fn record_conflict_repair_duplicate_filtered(&mut self)
-    PhaseStats: pub fn record_conflict_repair_illegal_filtered(&mut self)
-    PhaseStats: pub fn record_conflict_repair_not_doable_filtered(&mut self)
+    PhaseStats: pub fn record_conflict_repair_duplicate_filtered(&mut self, count: u64)
+    PhaseStats: pub fn record_conflict_repair_illegal_filtered(&mut self, count: u64)
+    PhaseStats: pub fn record_conflict_repair_not_doable_filtered(&mut self, count: u64)
     PhaseStats: pub fn record_conflict_repair_hard_improving(&mut self)
-    PhaseStats: pub fn record_conflict_repair_exposed(&mut self)
+    PhaseStats: pub fn record_conflict_repair_exposed(&mut self, count: u64)
     PhaseStats: pub fn record_score_calculation(&mut self)
     PhaseStats: pub fn record_move_speculative(&mut self)
     PhaseStats: pub fn record_construction_slot_assigned(&mut self)
@@ -341,7 +341,7 @@ struct SearchContext: pub struct SearchContext<S, V = usize, DM = DefaultCrossEn
     SearchContext: pub fn model(&self) -> &RuntimeModel<S, V, DM, IDM>
     SearchContext: pub fn seed(&self) -> Option<u64>
     SearchContext: pub fn defaults(self) -> SearchBuilder<S, V, DM, IDM, NoTypedExtensions>
-struct SelectorTelemetry: pub struct SelectorTelemetry {Show 20 fields pub selector_index: usize, pub selector_label: String, pub moves_generated: u64, pub moves_evaluated: u64, pub moves_accepted: u64, pub moves_applied: u64, pub moves_not_doable: u64, pub moves_acceptor_rejected: u64, pub moves_forager_ignored: u64, pub moves_hard_improving: u64, pub moves_hard_neutral: u64, pub moves_hard_worse: u64, pub conflict_repair_provider_generated: u64, pub conflict_repair_duplicate_filtered: u64, pub conflict_repair_illegal_filtered: u64, pub conflict_repair_not_doable_filtered: u64, pub conflict_repair_hard_improving: u64, pub conflict_repair_exposed: u64, pub generation_time: Duration, pub evaluation_time: Duration, }
+struct SelectorTelemetry: pub struct SelectorTelemetry {Show 14 fields pub selector_index: usize, pub selector_label: String, pub moves_generated: u64, pub moves_evaluated: u64, pub moves_accepted: u64, pub moves_applied: u64, pub moves_not_doable: u64, pub moves_acceptor_rejected: u64, pub moves_forager_ignored: u64, pub moves_hard_improving: u64, pub moves_hard_neutral: u64, pub moves_hard_worse: u64, pub generation_time: Duration, pub evaluation_time: Duration, }
 struct SequentialCompositeMoveRef: pub struct SequentialCompositeMoveRef<'a, S, M> where S: PlanningSolution, M: Move<S>,{ /* private fields */ }
     SequentialCompositeMoveRef: pub fn new( first: &'a M, second: &'a M, descriptor_index: usize, entity_indices: &'a [usize], variable_name: &'a str, tabu_signature: &'a MoveTabuSignature, require_hard_improvement: bool, ) -> Self
     SequentialCompositeMoveRef: pub fn first(&self) -> &'a M
@@ -487,11 +487,11 @@ struct SolverStats: pub struct SolverStats { /* private fields */ }
     SolverStats: pub fn record_move_hard_neutral(&mut self)
     SolverStats: pub fn record_move_hard_worse(&mut self)
     SolverStats: pub fn record_conflict_repair_provider_generated(&mut self, count: u64)
-    SolverStats: pub fn record_conflict_repair_duplicate_filtered(&mut self)
-    SolverStats: pub fn record_conflict_repair_illegal_filtered(&mut self)
-    SolverStats: pub fn record_conflict_repair_not_doable_filtered(&mut self)
+    SolverStats: pub fn record_conflict_repair_duplicate_filtered(&mut self, count: u64)
+    SolverStats: pub fn record_conflict_repair_illegal_filtered(&mut self, count: u64)
+    SolverStats: pub fn record_conflict_repair_not_doable_filtered(&mut self, count: u64)
     SolverStats: pub fn record_conflict_repair_hard_improving(&mut self)
-    SolverStats: pub fn record_conflict_repair_exposed(&mut self)
+    SolverStats: pub fn record_conflict_repair_exposed(&mut self, count: u64)
     SolverStats: pub fn record_step(&mut self)
     SolverStats: pub fn record_score_calculation(&mut self)
     SolverStats: pub fn record_move_speculative(&mut self)

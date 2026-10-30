@@ -909,9 +909,21 @@ cannot fill those members one by one. Assignment-backed decisions complete only
 the anchor group slot; assigned occupants remain available to required augmenting
 rematches. `SelectorTelemetry` exposes
 `selector_index`, `selector_label`, generated, evaluated, accepted, applied,
-not-doable, acceptor-rejected, forager-ignored, hard-delta, conflict-repair,
+not-doable, acceptor-rejected, forager-ignored, hard-delta,
 generation-time, and evaluation-time counters for local-search and VND
 selector diagnosis.
+
+The conflict-repair counters are run and phase counters for
+`conflict_repair_move_selector` and `compound_conflict_repair_move_selector`
+leaves: `conflict_repair_provider_generated` counts raw provider results;
+`conflict_repair_duplicate_filtered` and `conflict_repair_illegal_filtered`
+count candidates normalization drops as exact repeats or as structurally
+illegal (no edits, or two edits on one entity variable);
+`conflict_repair_not_doable_filtered` counts candidates not doable on the
+working solution; `conflict_repair_exposed` counts candidates the leaf hands on
+for evaluation; and `conflict_repair_hard_improving` counts evaluated repair
+candidates whose hard score improved. An edit with an unknown slot or an
+illegal value fails the solve rather than being filtered.
 
 `MoveTelemetry` aggregates the same lifecycle by `move_label`, including
 score-improving/equal/worse, rejected-improving, applied-improving, and total

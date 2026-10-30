@@ -56,6 +56,12 @@ impl RuntimeCompoundMoveKind {
         }
     }
 
+    /// Whether `label` is the telemetry label of a conflict-repair kind.
+    pub(crate) fn is_conflict_repair_label(label: &str) -> bool {
+        label == Self::ConflictRepair.telemetry_label()
+            || label == Self::CompoundConflictRepair.telemetry_label()
+    }
+
     const fn trace_operation(self) -> &'static str {
         match self {
             Self::Grouped => "runtime_provider_grouped",

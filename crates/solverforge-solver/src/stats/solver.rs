@@ -240,23 +240,24 @@ impl SolverStats {
         moves_hard_neutral,
         /// Scored local-search moves whose hard score fell below the reference.
         moves_hard_worse,
-        /// Conflict-repair candidates the provider generated. No shipped engine
-        /// path records it yet, so it stays 0.
+        /// Raw candidates conflict-repair providers returned, before filtering
+        /// and before the per-match and per-step caps.
         conflict_repair_provider_generated,
-        /// Conflict-repair candidates dropped as duplicates. No shipped engine
-        /// path records it yet, so it stays 0.
+        /// Conflict-repair candidates dropped as exact repeats (same reason and
+        /// resolved edits) of an earlier candidate in the same provider pull.
         conflict_repair_duplicate_filtered,
-        /// Conflict-repair candidates dropped as illegal. No shipped engine
-        /// path records it yet, so it stays 0.
+        /// Conflict-repair candidates dropped as structurally illegal: no edits,
+        /// or two edits on the same entity variable. An edit with an unknown slot
+        /// or an illegal value fails the solve instead of being dropped.
         conflict_repair_illegal_filtered,
-        /// Conflict-repair candidates dropped as not doable. No shipped engine
-        /// path records it yet, so it stays 0.
+        /// Conflict-repair candidates dropped as not doable on the working
+        /// solution, such as a repair whose edits change no value.
         conflict_repair_not_doable_filtered,
-        /// Conflict-repair candidates that improved the hard score. No shipped
-        /// engine path records it yet, so it stays 0.
+        /// Evaluated conflict-repair candidates whose hard score beat the step's
+        /// reference score.
         conflict_repair_hard_improving,
-        /// Conflict-repair candidates exposed to the search. No shipped engine
-        /// path records it yet, so it stays 0.
+        /// Conflict-repair candidates handed on for evaluation, directly or to an
+        /// enclosing cartesian composition.
         conflict_repair_exposed,
         /// Score calculations across the solve, the initial one included.
         score_calculations,
@@ -317,16 +318,16 @@ impl SolverStats {
         record_move_hard_worse(),
         /// Adds `count` to the conflict-repair generated counter.
         record_conflict_repair_provider_generated(count: u64),
-        /// Increments the conflict-repair duplicate-filtered counter.
-        record_conflict_repair_duplicate_filtered(),
-        /// Increments the conflict-repair illegal-filtered counter.
-        record_conflict_repair_illegal_filtered(),
-        /// Increments the conflict-repair not-doable-filtered counter.
-        record_conflict_repair_not_doable_filtered(),
+        /// Adds `count` to the conflict-repair duplicate-filtered counter.
+        record_conflict_repair_duplicate_filtered(count: u64),
+        /// Adds `count` to the conflict-repair illegal-filtered counter.
+        record_conflict_repair_illegal_filtered(count: u64),
+        /// Adds `count` to the conflict-repair not-doable-filtered counter.
+        record_conflict_repair_not_doable_filtered(count: u64),
         /// Increments the conflict-repair hard-improving counter.
         record_conflict_repair_hard_improving(),
-        /// Increments the conflict-repair exposed counter.
-        record_conflict_repair_exposed(),
+        /// Adds `count` to the conflict-repair exposed counter.
+        record_conflict_repair_exposed(count: u64),
         /// Records a step completion.
         record_step(),
         /// Records a score calculation.

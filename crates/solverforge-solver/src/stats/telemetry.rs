@@ -40,24 +40,6 @@ pub struct SelectorTelemetry {
     pub moves_hard_neutral: u64,
     /// Scored moves from this selector whose hard score fell below the reference.
     pub moves_hard_worse: u64,
-    /// Conflict-repair candidates the provider generated. No shipped engine path
-    /// records this counter yet, so it stays 0.
-    pub conflict_repair_provider_generated: u64,
-    /// Conflict-repair candidates dropped as duplicates. No shipped engine path
-    /// records this counter yet, so it stays 0.
-    pub conflict_repair_duplicate_filtered: u64,
-    /// Conflict-repair candidates dropped as illegal. No shipped engine path
-    /// records this counter yet, so it stays 0.
-    pub conflict_repair_illegal_filtered: u64,
-    /// Conflict-repair candidates dropped as not doable. No shipped engine path
-    /// records this counter yet, so it stays 0.
-    pub conflict_repair_not_doable_filtered: u64,
-    /// Conflict-repair candidates that improved the hard score. No shipped engine
-    /// path records this counter yet, so it stays 0.
-    pub conflict_repair_hard_improving: u64,
-    /// Conflict-repair candidates exposed to the search. No shipped engine path
-    /// records this counter yet, so it stays 0.
-    pub conflict_repair_exposed: u64,
     /// Time this selector spent generating its moves.
     pub generation_time: Duration,
     /// Time spent evaluating this selector's moves.
@@ -211,23 +193,24 @@ pub struct SolverTelemetry {
     pub moves_hard_neutral: u64,
     /// Scored local-search moves whose hard score fell below the reference score.
     pub moves_hard_worse: u64,
-    /// Conflict-repair candidates the provider generated. No shipped engine path
-    /// records this counter yet, so it stays 0.
+    /// Raw candidates conflict-repair providers returned, before filtering
+    /// and before the per-match and per-step caps.
     pub conflict_repair_provider_generated: u64,
-    /// Conflict-repair candidates dropped as duplicates. No shipped engine path
-    /// records this counter yet, so it stays 0.
+    /// Conflict-repair candidates dropped as exact repeats (same reason and
+    /// resolved edits) of an earlier candidate in the same provider pull.
     pub conflict_repair_duplicate_filtered: u64,
-    /// Conflict-repair candidates dropped as illegal. No shipped engine path
-    /// records this counter yet, so it stays 0.
+    /// Conflict-repair candidates dropped as structurally illegal: no edits,
+    /// or two edits on the same entity variable. An edit with an unknown slot
+    /// or an illegal value fails the solve instead of being dropped.
     pub conflict_repair_illegal_filtered: u64,
-    /// Conflict-repair candidates dropped as not doable. No shipped engine path
-    /// records this counter yet, so it stays 0.
+    /// Conflict-repair candidates dropped as not doable on the working
+    /// solution, such as a repair whose edits change no value.
     pub conflict_repair_not_doable_filtered: u64,
-    /// Conflict-repair candidates that improved the hard score. No shipped engine
-    /// path records this counter yet, so it stays 0.
+    /// Evaluated conflict-repair candidates whose hard score beat the step's
+    /// reference score.
     pub conflict_repair_hard_improving: u64,
-    /// Conflict-repair candidates exposed to the search. No shipped engine path
-    /// records this counter yet, so it stays 0.
+    /// Conflict-repair candidates handed on for evaluation, directly or to an
+    /// enclosing cartesian composition.
     pub conflict_repair_exposed: u64,
     /// Score calculations across the solve, the initial one included.
     pub score_calculations: u64,

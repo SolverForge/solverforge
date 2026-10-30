@@ -23,6 +23,7 @@ use crate::runtime::compiler::{
     ProviderSchedule, ProviderTabuIdentity,
 };
 use crate::runtime::provider_cursor::RuntimeProviderCursor;
+use crate::runtime::provider_telemetry::ConflictRepairCounts;
 use crate::{
     ConflictRepair, RepairCandidate, RepairLimits, ScalarCandidate, ScalarGroup, ScalarGroupLimits,
     ScalarTarget,
@@ -74,8 +75,9 @@ fn provider_cursor_lends_the_activation_solution_without_snapshotting() {
     SOLUTION_CLONES.with(|count| count.set(0));
     let mut cursor = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
     let mut reasons = ProviderReasonArena::default();
+    let mut counts = ConflictRepairCounts::default();
     let id = cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .expect("candidate");
     let mov = cursor.take_candidate(id);
     assert_eq!(pulls.load(Ordering::SeqCst), 1);
@@ -295,18 +297,19 @@ fn callback_group_is_lazy_and_explicit_zero_clamps_to_one_candidate() {
     };
 
     let mut reasons = ProviderReasonArena::default();
+    let mut counts = ConflictRepairCounts::default();
     reset_runtime_compound_move_clone_count();
     let mut cursor = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
     assert_eq!(pulls.load(Ordering::SeqCst), 0);
 
     let id = cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .expect("first callback candidate");
     assert_eq!(pulls.load(Ordering::SeqCst), 1);
     let selected = cursor.take_candidate(id);
     let reason_id = selected.reason_id();
     assert!(cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .is_none());
     assert_eq!(pulls.load(Ordering::SeqCst), 1);
     drop(cursor);
@@ -338,20 +341,21 @@ fn static_group_stays_lazy_and_normalizes_typed_candidates_directly() {
         values: vec![Some(0)],
     };
     let mut reasons = ProviderReasonArena::default();
+    let mut counts = ConflictRepairCounts::default();
     let mut cursor = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
     assert_eq!(STATIC_GROUP_PULLS.load(Ordering::SeqCst), 0);
 
     let first_id = cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .expect("first static candidate");
     let first_reason = cursor.take_candidate(first_id).reason_id();
     let second_id = cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .expect("second static candidate");
     let second_reason = cursor.take_candidate(second_id).reason_id();
 
     assert!(cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .is_none());
     assert_eq!(STATIC_GROUP_PULLS.load(Ordering::SeqCst), 1);
     assert_eq!(first_reason, second_reason);
@@ -380,20 +384,21 @@ fn static_repair_stays_on_the_typed_candidate_path() {
         values: vec![Some(0)],
     };
     let mut reasons = ProviderReasonArena::default();
+    let mut counts = ConflictRepairCounts::default();
     let mut cursor = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
     assert_eq!(STATIC_REPAIR_PULLS.load(Ordering::SeqCst), 0);
 
     let first_id = cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .expect("first static repair");
     let first_reason = cursor.take_candidate(first_id).reason_id();
     let second_id = cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .expect("second static repair");
     let second_reason = cursor.take_candidate(second_id).reason_id();
 
     assert!(cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .is_none());
     assert_eq!(STATIC_REPAIR_PULLS.load(Ordering::SeqCst), 1);
     assert_eq!(first_reason, second_reason);
@@ -425,14 +430,15 @@ fn provider_reason_arena_reuses_one_id_for_repeated_callback_labels() {
         values: vec![Some(0)],
     };
     let mut reasons = ProviderReasonArena::default();
+    let mut counts = ConflictRepairCounts::default();
     let mut cursor = RuntimeProviderCursor::new(&plan, MoveStreamContext::default(), false);
 
     let first_id = cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .expect("first candidate");
     let first = cursor.take_candidate(first_id);
     let second_id = cursor
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .expect("second candidate");
     let second = cursor.take_candidate(second_id);
     let first_reason = first.reason_id();
@@ -469,6 +475,7 @@ fn concurrent_lazy_cursors_share_the_execution_arena_without_retaining_its_borro
         values: vec![Some(0)],
     };
     let mut reasons = ProviderReasonArena::default();
+    let mut counts = ConflictRepairCounts::default();
 
     // Both leaves can remain live. The top-level execution owns the only
     // mutable arena and lends it to whichever lazy leaf reaches a pull.
@@ -477,11 +484,11 @@ fn concurrent_lazy_cursors_share_the_execution_arena_without_retaining_its_borro
     assert_eq!(pulls.load(Ordering::SeqCst), 0);
 
     let first_id = first
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .expect("first lazy candidate");
     let first = first.take_candidate(first_id).reason_id();
     let second_id = second
-        .next_candidate(&solution, &registry, &mut reasons)
+        .next_candidate(&solution, &registry, &mut reasons, &mut counts)
         .expect("second lazy candidate");
     let second = second.take_candidate(second_id).reason_id();
 

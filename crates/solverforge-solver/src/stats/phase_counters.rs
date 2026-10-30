@@ -196,19 +196,19 @@ impl PhaseStats {
         self.conflict_repair_provider_generated += count;
     }
 
-    /// Increments the conflict-repair duplicate-filtered counter.
-    pub fn record_conflict_repair_duplicate_filtered(&mut self) {
-        self.conflict_repair_duplicate_filtered += 1;
+    /// Adds `count` to the conflict-repair duplicate-filtered counter.
+    pub fn record_conflict_repair_duplicate_filtered(&mut self, count: u64) {
+        self.conflict_repair_duplicate_filtered += count;
     }
 
-    /// Increments the conflict-repair illegal-filtered counter.
-    pub fn record_conflict_repair_illegal_filtered(&mut self) {
-        self.conflict_repair_illegal_filtered += 1;
+    /// Adds `count` to the conflict-repair illegal-filtered counter.
+    pub fn record_conflict_repair_illegal_filtered(&mut self, count: u64) {
+        self.conflict_repair_illegal_filtered += count;
     }
 
-    /// Increments the conflict-repair not-doable-filtered counter.
-    pub fn record_conflict_repair_not_doable_filtered(&mut self) {
-        self.conflict_repair_not_doable_filtered += 1;
+    /// Adds `count` to the conflict-repair not-doable-filtered counter.
+    pub fn record_conflict_repair_not_doable_filtered(&mut self, count: u64) {
+        self.conflict_repair_not_doable_filtered += count;
     }
 
     /// Increments the conflict-repair hard-improving counter.
@@ -216,9 +216,9 @@ impl PhaseStats {
         self.conflict_repair_hard_improving += 1;
     }
 
-    /// Increments the conflict-repair exposed counter.
-    pub fn record_conflict_repair_exposed(&mut self) {
-        self.conflict_repair_exposed += 1;
+    /// Adds `count` to the conflict-repair exposed counter.
+    pub fn record_conflict_repair_exposed(&mut self, count: u64) {
+        self.conflict_repair_exposed += count;
     }
 
     /// Records a score calculation.

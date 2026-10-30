@@ -4,8 +4,6 @@
 //! older typed group/repair selectors. A source policy is data in the compiled
 //! graph; this cursor is the only code that interprets it.
 
-use std::sync::Arc;
-
 use solverforge_core::domain::PlanningSolution;
 
 use crate::builder::context::{
@@ -14,12 +12,15 @@ use crate::builder::context::{
 };
 use crate::heuristic::r#move::{RuntimeCompoundMove, RuntimeCompoundMoveKind};
 use crate::heuristic::selector::move_selector::{CandidateId, CandidateStore, MoveStreamContext};
-use crate::RepairLimits;
 
 use super::compiler::{
     CompiledProviderPlan, ProviderBindingPlan, ProviderBindingPolicy, ProviderMoveKind,
     ProviderSchedule,
 };
+use super::provider_telemetry::ConflictRepairCounts;
+
+#[path = "provider_cursor/repair.rs"]
+mod repair;
 
 /// Cursor-owned, lazily initialized compound-provider stream.
 ///
@@ -63,6 +64,7 @@ where
         solution: &S,
         registry: &RuntimeProviderRegistry<S>,
         reason_arena: &mut ProviderReasonArena,
+        telemetry: &mut ConflictRepairCounts,
     ) {
         if self.prepared {
             return;
@@ -94,6 +96,7 @@ where
                 *max_moves_per_step,
                 *include_soft_matches,
                 reason_arena,
+                telemetry,
             ),
         }
     }
@@ -190,231 +193,6 @@ where
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn prepare_repair(
-        &mut self,
-        solution: &S,
-        registry: &RuntimeProviderRegistry<S>,
-        constraints: &[String],
-        max_matches_per_step: usize,
-        max_repairs_per_match: usize,
-        max_moves_per_step: usize,
-        include_soft_matches: bool,
-        reason_arena: &mut ProviderReasonArena,
-    ) {
-        if constraints.is_empty()
-            || max_matches_per_step == 0
-            || max_repairs_per_match == 0
-            || max_moves_per_step == 0
-        {
-            return;
-        }
-        let mut provider_invocations = 0usize;
-        self.prepare_callback_repairs(
-            solution,
-            registry,
-            constraints,
-            max_matches_per_step,
-            max_repairs_per_match,
-            max_moves_per_step,
-            include_soft_matches,
-            &mut provider_invocations,
-            reason_arena,
-        );
-        if self.store.len() < max_moves_per_step && provider_invocations < max_matches_per_step {
-            self.prepare_static_repairs(
-                solution,
-                registry,
-                constraints,
-                max_matches_per_step,
-                max_repairs_per_match,
-                max_moves_per_step,
-                &mut provider_invocations,
-                reason_arena,
-            );
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn prepare_callback_repairs(
-        &mut self,
-        solution: &S,
-        registry: &RuntimeProviderRegistry<S>,
-        constraints: &[String],
-        max_matches_per_step: usize,
-        max_repairs_per_match: usize,
-        max_moves_per_step: usize,
-        include_soft_matches: bool,
-        provider_invocations: &mut usize,
-        reason_arena: &mut ProviderReasonArena,
-    ) {
-        let mut indexes = self
-            .plan
-            .bindings
-            .iter()
-            .enumerate()
-            .filter_map(|(index, binding)| {
-                matches!(binding.policy, ProviderBindingPolicy::CallbackRepair { .. })
-                    .then_some(index)
-            })
-            .collect::<Vec<_>>();
-        let Some(&first_index) = indexes.first() else {
-            return;
-        };
-        let ProviderBindingPolicy::CallbackRepair {
-            rotation_seed_salt, ..
-        } = self.plan.bindings[first_index].policy
-        else {
-            unreachable!();
-        };
-        let limits = Arc::<[Arc<str>]>::from(
-            constraints
-                .iter()
-                .map(|constraint| Arc::from(constraint.as_str()))
-                .collect::<Vec<_>>(),
-        );
-        // Rotate the complete callback declaration stream before testing
-        // constraint membership. A multi-constraint provider is called once.
-        self.context
-            .apply_selection_order(&mut indexes, rotation_seed_salt);
-        for binding_index in indexes {
-            if self.store.len() >= max_moves_per_step
-                || *provider_invocations >= max_matches_per_step
-            {
-                break;
-            }
-            let binding = &self.plan.bindings[binding_index];
-            if !registry.declares_any_constraint(binding.handle, constraints) {
-                continue;
-            }
-            *provider_invocations += 1;
-            let raw = registry.pull_callback_raw(
-                binding.handle,
-                solution,
-                repair_limits(
-                    &limits,
-                    max_matches_per_step,
-                    max_repairs_per_match,
-                    max_moves_per_step,
-                    include_soft_matches,
-                ),
-            );
-            let mut normalization = ProviderNormalizationState::default();
-            let mut candidates = self.normalize(
-                solution,
-                registry,
-                binding,
-                raw,
-                &mut normalization,
-                reason_arena,
-            );
-            candidates.truncate(max_repairs_per_match);
-            for candidate in candidates {
-                if self.store.len() >= max_moves_per_step {
-                    break;
-                }
-                self.push_candidate(solution, candidate);
-            }
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn prepare_static_repairs(
-        &mut self,
-        solution: &S,
-        registry: &RuntimeProviderRegistry<S>,
-        constraints: &[String],
-        max_matches_per_step: usize,
-        max_repairs_per_match: usize,
-        max_moves_per_step: usize,
-        provider_invocations: &mut usize,
-        reason_arena: &mut ProviderReasonArena,
-    ) {
-        let static_indexes = self
-            .plan
-            .bindings
-            .iter()
-            .enumerate()
-            .filter_map(|(index, binding)| {
-                matches!(binding.policy, ProviderBindingPolicy::StaticRepair { .. })
-                    .then_some(index)
-            })
-            .collect::<Vec<_>>();
-        let Some(&first_index) = static_indexes.first() else {
-            return;
-        };
-        let ProviderBindingPolicy::StaticRepair {
-            constraint_rotation_seed_salt,
-            provider_rotation_seed_salt,
-            spec_rotation_seed_salt,
-            ..
-        } = self.plan.bindings[first_index].policy
-        else {
-            unreachable!();
-        };
-        let mut constraint_indexes = (0..constraints.len()).collect::<Vec<_>>();
-        self.context.apply_selection_order(
-            &mut constraint_indexes,
-            constraint_rotation_seed_salt ^ max_moves_per_step as u64,
-        );
-        let mut normalization = ProviderNormalizationState::default();
-        for constraint_index in constraint_indexes {
-            let constraint = &constraints[constraint_index];
-            let mut indexes = static_indexes
-                .iter()
-                .copied()
-                .filter(|&binding_index| {
-                    registry
-                        .declares_constraint(self.plan.bindings[binding_index].handle, constraint)
-                })
-                .collect::<Vec<_>>();
-            self.context.apply_selection_order(
-                &mut indexes,
-                provider_rotation_seed_salt ^ constraint_index as u64,
-            );
-            for binding_index in indexes {
-                if self.store.len() >= max_moves_per_step
-                    || *provider_invocations >= max_matches_per_step
-                {
-                    return;
-                }
-                *provider_invocations += 1;
-                let binding = &self.plan.bindings[binding_index];
-                let crate::builder::RuntimeProviderHandle::StaticRepair(provider_index) =
-                    binding.handle
-                else {
-                    unreachable!("static repair policy must retain a static repair handle")
-                };
-                let mut native = registry.pull_static_repair(
-                    provider_index,
-                    solution,
-                    RepairLimits {
-                        max_matches_per_step,
-                        max_repairs_per_match,
-                        max_moves_per_step,
-                    },
-                );
-                self.context.apply_selection_order(
-                    &mut native,
-                    spec_rotation_seed_salt ^ binding.declared_schema_index as u64,
-                );
-                native.truncate(max_repairs_per_match);
-                for candidate in registry.normalize_static_repair(
-                    solution,
-                    native,
-                    &binding.allowed_slots,
-                    &mut normalization,
-                    reason_arena,
-                ) {
-                    if self.store.len() >= max_moves_per_step {
-                        return;
-                    }
-                    self.push_candidate(solution, candidate);
-                }
-            }
-        }
-    }
-
     fn normalize(
         &self,
         solution: &S,
@@ -427,7 +205,9 @@ where
         registry.normalize_or_raise(solution, raw, &binding.allowed_slots, state, reason_arena)
     }
 
-    fn push_candidate(&mut self, solution: &S, candidate: ResolvedProviderCandidate<S>) {
+    /// Stores `candidate` when it is doable on `solution`; returns whether it
+    /// was stored.
+    fn push_candidate(&mut self, solution: &S, candidate: ResolvedProviderCandidate<S>) -> bool {
         let edits = candidate
             .edits
             .into_iter()
@@ -439,9 +219,11 @@ where
             edits,
             self.require_hard_improvement,
         );
-        if mov.is_doable_on(solution) {
+        let doable = mov.is_doable_on(solution);
+        if doable {
             self.store.push(mov);
         }
+        doable
     }
 }
 
@@ -451,18 +233,23 @@ where
 {
     /// Pulls one candidate through the caller-owned per-execution reason
     /// arena. The arena is borrowed only while a provider is prepared; the
-    /// cursor never retains it between pulls.
+    /// cursor never retains it between pulls. Conflict-repair outcomes are
+    /// counted into the caller-owned `telemetry`; group providers count none.
     pub(crate) fn next_candidate(
         &mut self,
         solution: &S,
         registry: &RuntimeProviderRegistry<S>,
         reason_arena: &mut ProviderReasonArena,
+        telemetry: &mut ConflictRepairCounts,
     ) -> Option<CandidateId> {
-        self.prepare(solution, registry, reason_arena);
+        self.prepare(solution, registry, reason_arena, telemetry);
         while self.next_index < self.store.len() {
             let id = CandidateId::new(self.next_index);
             self.next_index += 1;
             if self.store.candidate(id).is_some() {
+                if matches!(self.plan.schedule, ProviderSchedule::Repair { .. }) {
+                    telemetry.exposed += 1;
+                }
                 return Some(id);
             }
         }
@@ -471,22 +258,6 @@ where
 
     pub(crate) fn take_candidate(&mut self, id: CandidateId) -> RuntimeCompoundMove<S> {
         self.store.take_candidate(id)
-    }
-}
-
-fn repair_limits(
-    constraints: &Arc<[Arc<str>]>,
-    max_matches_per_step: usize,
-    max_repairs_per_match: usize,
-    max_moves_per_step: usize,
-    include_soft_matches: bool,
-) -> RuntimeProviderLimits {
-    RuntimeProviderLimits::Repair {
-        constraints: Arc::clone(constraints),
-        max_matches_per_step,
-        max_repairs_per_match,
-        max_moves_per_step,
-        include_soft_matches,
     }
 }
 

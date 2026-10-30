@@ -9,7 +9,7 @@ use solverforge_scoring::Director;
 use crate::heuristic::selector::move_selector::{
     CandidateId, MoveCandidateRef, MoveStreamContext, ResourceMoveCursor,
 };
-use crate::phase::localsearch::MoveCursorSource;
+use crate::phase::localsearch::{CursorResources, MoveCursorSource};
 
 use super::state::{
     new_stream_state, open_cursor_with_owned_stream_state, SelectorCompositionStreamState,
@@ -140,7 +140,7 @@ where
     S: PlanningSolution,
     M: SequentialMoveCarrier<S> + 'static,
     Flat: StatefulComposedFlat<S, M, FlatState, Resources>,
-    Resources: Send,
+    Resources: CursorResources,
 {
     /// The runner owns this resource for the whole solve and lends it to the
     /// shared phase loop at each candidate pull. The source and its cursor

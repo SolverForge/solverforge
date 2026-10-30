@@ -18,8 +18,11 @@ use crate::heuristic::selector::scalar_neighborhood::{
     ScalarNeighborhoodLeaf, ScalarNeighborhoodStreamState,
 };
 use crate::phase::construction::grouped_scalar::ScalarAssignmentState;
+use crate::phase::localsearch::CursorResources;
 use crate::runtime::compiler::graph::CompiledProviderPlan;
 use crate::runtime::provider_cursor::RuntimeProviderCursor;
+use crate::runtime::provider_telemetry::ConflictRepairCounts;
+use crate::stats::PhaseStats;
 
 use super::super::{RuntimeListNeighborhoodLeaf, RuntimeListNeighborhoodStreamState};
 use super::cursor::{RuntimeNeighborhoodFlatCursor, RuntimeNeighborhoodLeafCursor};
@@ -29,13 +32,15 @@ use super::r#move::RuntimeNeighborhoodMove;
 ///
 /// The runner creates this once from the frozen graph. It survives all
 /// sequential local-search phases and pause/resume; leaves and cursors only
-/// borrow it at a scheduler-reached pull boundary.
+/// borrow it at a scheduler-reached pull boundary. Conflict-repair outcomes
+/// the provider cursors count wait here until the step flushes them.
 pub(crate) struct ProviderExecutionResources<S>
 where
     S: PlanningSolution,
 {
     pub(super) registry: RuntimeProviderRegistry<S>,
     pub(super) reason_arena: ProviderReasonArena,
+    pub(super) conflict_repair: ConflictRepairCounts,
 }
 
 impl<S> ProviderExecutionResources<S>
@@ -46,7 +51,17 @@ where
         Self {
             registry: registry.clone(),
             reason_arena: ProviderReasonArena::default(),
+            conflict_repair: ConflictRepairCounts::default(),
         }
+    }
+}
+
+impl<S> CursorResources for ProviderExecutionResources<S>
+where
+    S: PlanningSolution,
+{
+    fn flush_step_telemetry(&mut self, stats: &mut PhaseStats) {
+        self.conflict_repair.flush_into(stats);
     }
 }
 
@@ -394,7 +409,12 @@ where
         let cursor = self.cursor.get_or_insert_with(|| {
             RuntimeProviderCursor::new(self.plan, self.context, self.require_hard_improvement)
         });
-        cursor.next_candidate(solution, &resources.registry, &mut resources.reason_arena)
+        cursor.next_candidate(
+            solution,
+            &resources.registry,
+            &mut resources.reason_arena,
+            &mut resources.conflict_repair,
+        )
     }
 
     pub(super) fn cursor_mut(&mut self) -> &mut RuntimeProviderCursor<'a, S> {

@@ -271,6 +271,7 @@ impl<S> RuntimeProviderSlotResolver<S> {
         for candidate in candidates {
             let (reason, candidate_edits) = split(candidate);
             if candidate_edits.is_empty() {
+                state.illegal_filtered += 1;
                 continue;
             }
             let mut edits = Vec::with_capacity(candidate_edits.len());
@@ -316,6 +317,7 @@ impl<S> RuntimeProviderSlotResolver<S> {
                 });
             }
             if duplicate_target {
+                state.illegal_filtered += 1;
                 continue;
             }
             let dedup_edits = edits
@@ -331,6 +333,7 @@ impl<S> RuntimeProviderSlotResolver<S> {
                 .collect::<Vec<_>>();
             let reason = reasons.intern_candidate(reason);
             if !state.seen_candidates.insert((reason, dedup_edits)) {
+                state.duplicate_filtered += 1;
                 continue;
             }
             normalized.push(ResolvedProviderCandidate { reason, edits });

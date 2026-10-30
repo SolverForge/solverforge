@@ -20,7 +20,6 @@ verbose-logging = ["console", "solverforge-console/verbose-logging"]
 
 [dependencies]
 solverforge-core = { version = "=0.23.0", path = "../solverforge-core" }
-solverforge-bridge = { version = "=0.23.0", path = "../solverforge-bridge" }
 solverforge-macros = { version = "=0.23.0", path = "../solverforge-macros" }
 solverforge-scoring = { version = "=0.23.0", path = "../solverforge-scoring" }
 solverforge-solver = { version = "=0.23.0", path = "../solverforge-solver" }

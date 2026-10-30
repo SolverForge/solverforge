@@ -219,7 +219,6 @@ Solver
 ============================================================================
 */
 
-pub use solverforge_bridge as bridge;
 pub use solverforge_solver::CrossEntityDistanceMeter;
 pub use solverforge_solver::DefaultDistanceMeter;
 pub use solverforge_solver::{
@@ -253,5 +252,10 @@ Console Output (feature-gated)
 ============================================================================
 */
 
+/// Console output for solves: a `tracing` layer that prints the SolverForge
+/// banner and solver lifecycle and progress events. Available with the
+/// `console` feature.
 #[cfg(feature = "console")]
-pub use solverforge_console as console;
+pub mod console {
+    pub use solverforge_console::init;
+}

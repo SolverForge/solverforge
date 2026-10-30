@@ -577,7 +577,7 @@ solverforge
   `-- solverforge-console   optional tracing console feature
 
 Dependency layers:
-  solverforge          -> all listed SolverForge crates (console optional)
+  solverforge          -> every SolverForge crate except solverforge-bridge (console optional)
   solverforge-scoring -> solverforge-core
   solverforge-config  -> solverforge-core
   solverforge-solver  -> solverforge-core + solverforge-scoring + solverforge-config + tokio sync
@@ -904,7 +904,8 @@ refused rather than compared unweighted.
 The current checked-in workspace exposes:
 
 - the `solverforge` facade crate for application code;
-- the `solverforge-bridge` crate for dynamic host-language binding contracts;
+- the `solverforge-bridge` crate for dynamic host-language binding contracts,
+  which host bindings depend on directly;
 - `solverforge-cli` as the recommended first project path;
 - model-owned `planning_model!` domains with generated collection sources;
 - scalar, list, grouped-scalar,

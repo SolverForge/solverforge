@@ -440,7 +440,6 @@ name = "solverforge"
 version = "0.23.0"
 dependencies = [
  "serde",
- "solverforge-bridge",
  "solverforge-config",
  "solverforge-console",
  "solverforge-core",

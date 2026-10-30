@@ -10,7 +10,6 @@ The CLI lives in the standalone `solverforge-cli` repository and is not part of 
 ## Dependencies
 
 - `solverforge-core` (path) — Score types, domain traits
-- `solverforge-bridge` (path) — Dynamic host-language binding contracts
 - `solverforge-macros` (path) — Attribute and derive macros
 - `solverforge-scoring` (path) — Constraint API, Director
 - `solverforge-solver` (path) — Solver engine, manager, phases
@@ -95,7 +94,6 @@ Each module groups re-exports from one layer crate, so every type a facade signa
 
 ### Dynamic Bridge
 
-- `solverforge::bridge` module alias, re-exporting `solverforge-bridge`
 
 ### Constraint API (from `solverforge-scoring`)
 
@@ -257,7 +255,7 @@ profile is omitted.
 
 ### Console (feature-gated)
 
-- `solverforge::console` module (re-exports `solverforge-console`)
+- `solverforge::console::init()` — starts console output (the SolverForge banner and solver lifecycle and progress events through a `tracing` layer). It is the only `solverforge-console` item the facade exposes, so the rest of that crate stays outside the facade's API.
 
 ## `prelude` Module
 

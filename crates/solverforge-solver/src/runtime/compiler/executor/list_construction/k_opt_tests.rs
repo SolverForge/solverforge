@@ -137,7 +137,6 @@ fn static_slot() -> Slot {
             assigned_elements,
             list_len,
             list_remove,
-            construction_remove,
             list_insert,
             list_get,
             list_set,

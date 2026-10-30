@@ -137,7 +137,6 @@ fn keyed_slot() -> KeyedSlot {
             keyed_assigned_elements,
             keyed_list_len,
             keyed_list_remove,
-            keyed_construction_remove,
             keyed_list_insert,
             keyed_list_get,
             keyed_list_set,

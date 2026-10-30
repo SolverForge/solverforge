@@ -100,7 +100,6 @@ fn typed_slot() -> Slot {
             assigned_elements,
             list_len,
             list_remove,
-            construction_remove,
             insert,
             get,
             set,

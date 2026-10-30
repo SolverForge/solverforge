@@ -129,7 +129,6 @@ fn context() -> SearchContext<Routes, usize, Meter, Meter> {
         assigned,
         len,
         remove,
-        take,
         insert,
         get,
         set,

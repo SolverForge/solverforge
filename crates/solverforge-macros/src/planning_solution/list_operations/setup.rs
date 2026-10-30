@@ -66,8 +66,6 @@ macro_rules! __solverforge_list_setup {
                 format_ident!("__solverforge_sublist_insert_{}", field_name);
             let ruin_remove_ident = format_ident!("__solverforge_ruin_remove_{}", field_name);
             let ruin_insert_ident = format_ident!("__solverforge_ruin_insert_{}", field_name);
-            let list_remove_for_construction_ident =
-                format_ident!("__solverforge_list_remove_for_construction_{}", field_name);
             let index_to_element_ident =
                 format_ident!("__solverforge_index_to_element_{}", field_name);
             let element_source_key_ident =
@@ -174,15 +172,6 @@ macro_rules! __solverforge_list_setup {
                 #[inline]
                 fn #ruin_insert_ident(s: &mut Self, entity_idx: usize, pos: usize, val: usize) {
                     #list_trait::list_field_mut(&mut s.#field_ident[entity_idx]).insert(pos, val);
-                }
-
-                #[inline]
-                fn #list_remove_for_construction_ident(
-                    s: &mut Self,
-                    entity_idx: usize,
-                    pos: usize,
-                ) -> usize {
-                    #list_trait::list_field_mut(&mut s.#field_ident[entity_idx]).remove(pos)
                 }
 
                 #[inline]

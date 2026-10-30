@@ -63,10 +63,6 @@ fn list_remove(plan: &mut Plan, entity: usize, position: usize) -> Option<usize>
     (position < plan.routes[entity].len()).then(|| plan.routes[entity].remove(position))
 }
 
-fn construction_list_remove(plan: &mut Plan, entity: usize, position: usize) -> usize {
-    plan.routes[entity].remove(position)
-}
-
 fn list_insert(plan: &mut Plan, entity: usize, position: usize, value: usize) {
     plan.routes[entity].insert(position, value);
 }
@@ -173,7 +169,6 @@ fn typed_list_slot(
         assigned_elements,
         list_len,
         list_remove,
-        construction_list_remove,
         list_insert,
         list_get,
         list_set,

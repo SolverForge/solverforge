@@ -158,7 +158,6 @@ fn model() -> Model {
         assigned,
         list_len,
         list_remove,
-        construction_remove,
         list_insert,
         list_get,
         list_set,

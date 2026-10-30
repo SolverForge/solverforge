@@ -65,10 +65,6 @@ fn list_remove(_: &mut Plan, _: usize, _: usize) -> Option<usize> {
     None
 }
 
-fn construction_list_remove(_: &mut Plan, _: usize, _: usize) -> usize {
-    unreachable!("compiler legality tests never execute list construction")
-}
-
 fn list_insert(_: &mut Plan, _: usize, _: usize, _: usize) {}
 
 fn list_get(_: &Plan, _: usize, _: usize) -> Option<usize> {
@@ -144,7 +140,6 @@ fn model(shape: PrecedenceShape) -> RuntimeModel<Plan, usize, Meter, Meter> {
         assigned_elements,
         list_len,
         list_remove,
-        construction_list_remove,
         list_insert,
         list_get,
         list_set,
@@ -189,7 +184,6 @@ fn savings_model() -> RuntimeModel<Plan, usize, Meter, Meter> {
         assigned_elements,
         list_len,
         list_remove,
-        construction_list_remove,
         list_insert,
         list_get,
         list_set,

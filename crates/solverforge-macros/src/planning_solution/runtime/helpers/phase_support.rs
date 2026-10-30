@@ -130,10 +130,6 @@ pub(super) fn generate_runtime_phase_support(
                     format_ident!("__solverforge_element_count_{}", field_name);
                 let assigned_elements_ident =
                     format_ident!("__solverforge_assigned_elements_{}", field_name);
-                let list_remove_for_construction_ident = format_ident!(
-                    "__solverforge_list_remove_for_construction_{}",
-                    field_name
-                );
                 let index_to_element_ident =
                     format_ident!("__solverforge_index_to_element_{}", field_name);
                 let element_source_key_ident =
@@ -155,7 +151,6 @@ pub(super) fn generate_runtime_phase_support(
                                     Self::#assigned_elements_ident,
                                     Self::#list_len_ident,
                                     Self::#list_remove_ident,
-                                    Self::#list_remove_for_construction_ident,
                                     Self::#list_insert_ident,
                                     Self::#list_get_ident,
                                     Self::#list_set_ident,

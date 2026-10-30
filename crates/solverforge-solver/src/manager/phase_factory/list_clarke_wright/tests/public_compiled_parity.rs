@@ -92,7 +92,6 @@ fn static_slot() -> Slot {
             get_assigned,
             route_len,
             list_remove,
-            construction_remove,
             list_insert,
             list_get,
             list_set,

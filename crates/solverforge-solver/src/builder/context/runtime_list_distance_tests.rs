@@ -132,7 +132,6 @@ fn static_slot() -> RuntimeListSlot<Plan, usize, StaticIntraMetric, StaticIntraM
             assigned_elements,
             list_len,
             list_remove,
-            construction_remove,
             list_insert,
             list_get,
             list_set,

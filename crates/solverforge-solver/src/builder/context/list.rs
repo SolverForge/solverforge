@@ -28,9 +28,6 @@ pub struct ListVariableSlot<S, V, DM, IDM> {
     /// Removes and returns the element at `(entity, position)`; `None` when the
     /// entity does not exist.
     pub list_remove: fn(&mut S, usize, usize) -> Option<V>,
-    /// Removes and returns the element at `(entity, position)`. Kept on the
-    /// slot; the current solver does not call it.
-    pub construction_list_remove: fn(&mut S, usize, usize) -> V,
     /// Inserts an element at `(entity, position)`.
     pub list_insert: fn(&mut S, usize, usize, V),
     /// The element at `(entity, position)`, if any.
@@ -106,7 +103,6 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
             assigned_elements: self.assigned_elements,
             list_len: self.list_len,
             list_remove: self.list_remove,
-            construction_list_remove: self.construction_list_remove,
             list_insert: self.list_insert,
             list_get: self.list_get,
             list_set: self.list_set,
@@ -151,7 +147,6 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         assigned_elements: fn(&S) -> Vec<V>,
         list_len: fn(&S, usize) -> usize,
         list_remove: fn(&mut S, usize, usize) -> Option<V>,
-        construction_list_remove: fn(&mut S, usize, usize) -> V,
         list_insert: fn(&mut S, usize, usize, V),
         list_get: fn(&S, usize, usize) -> Option<V>,
         list_set: fn(&mut S, usize, usize, V),
@@ -183,7 +178,6 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             assigned_elements,
             list_len,
             list_remove,
-            construction_list_remove,
             list_insert,
             list_get,
             list_set,

@@ -168,7 +168,6 @@ fn visits_slot() -> Slot {
         assigned_elements,
         list_len,
         list_remove,
-        list_take,
         list_insert,
         list_get,
         list_set,

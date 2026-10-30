@@ -1,25 +1,41 @@
 use super::*;
 
-// Configuration for `ListChangeMoveSelector`.
+/// Configuration for `ListChangeMoveSelector`.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListChangeMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
 
-// Configuration for `NearbyListChangeMoveSelector`.
+/// Configuration for `NearbyListChangeMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct NearbyListChangeMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
-    // Maximum nearby destination positions to consider per source element.
+    /// Maximum nearby destination positions to consider per source element.
+    /// Required in TOML;
+    /// `Default::default()` uses `10`.
     pub max_nearby: usize,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -36,28 +52,44 @@ impl Default for NearbyListChangeMoveConfig {
     }
 }
 
-// Configuration for `ListSwapMoveSelector`.
+/// Configuration for `ListSwapMoveSelector`.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListSwapMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
 
-// Configuration for `ListPermuteMoveSelector`.
+/// Configuration for `ListPermuteMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListPermuteMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
-    // Minimum window size (inclusive). Default: 2.
+    /// Minimum window size (inclusive). Required in TOML;
+    /// `Default::default()` uses `2`.
     pub min_window_size: usize,
-    // Maximum window size (inclusive). Default: 5.
+    /// Maximum window size (inclusive). Required in TOML;
+    /// `Default::default()` uses `5`.
     pub max_window_size: usize,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -74,26 +106,42 @@ impl Default for ListPermuteMoveConfig {
     }
 }
 
-// Configuration for `ListPrecedenceMoveSelector`.
+/// Configuration for `ListPrecedenceMoveSelector`.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListPrecedenceMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
 
-// Configuration for `NearbyListSwapMoveSelector`.
+/// Configuration for `NearbyListSwapMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct NearbyListSwapMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
-    // Maximum nearby swap partners to consider per source element.
+    /// Maximum nearby swap partners to consider per source element.
+    /// Required in TOML;
+    /// `Default::default()` uses `10`.
     pub max_nearby: usize,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -110,17 +158,26 @@ impl Default for NearbyListSwapMoveConfig {
     }
 }
 
-// Configuration for `SublistChangeMoveSelector` (Or-opt).
+/// Configuration for `SublistChangeMoveSelector` (Or-opt).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct SublistChangeMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
-    // Minimum segment size (inclusive). Default: 1.
+    /// Minimum segment size (inclusive). Required in TOML;
+    /// `Default::default()` uses `1`.
     pub min_sublist_size: usize,
-    // Maximum segment size (inclusive). Default: 3.
+    /// Maximum segment size (inclusive). Required in TOML;
+    /// `Default::default()` uses `3`.
     pub max_sublist_size: usize,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -138,17 +195,26 @@ impl Default for SublistChangeMoveConfig {
     }
 }
 
-// Configuration for `SublistSwapMoveSelector`.
+/// Configuration for `SublistSwapMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct SublistSwapMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
-    // Minimum segment size (inclusive). Default: 1.
+    /// Minimum segment size (inclusive). Required in TOML;
+    /// `Default::default()` uses `1`.
     pub min_sublist_size: usize,
-    // Maximum segment size (inclusive). Default: 3.
+    /// Maximum segment size (inclusive). Required in TOML;
+    /// `Default::default()` uses `3`.
     pub max_sublist_size: usize,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -166,31 +232,49 @@ impl Default for SublistSwapMoveConfig {
     }
 }
 
-// Configuration for `ListReverseMoveSelector` (2-opt).
+/// Configuration for `ListReverseMoveSelector` (2-opt).
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListReverseMoveConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
 
-// Configuration for `KOptMoveSelector`.
+/// Configuration for `KOptMoveSelector`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct KOptMoveSelectorConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
-    // K value (number of cuts). Default: 3.
+    /// Number of cuts, from 2 to 5. Required in TOML;
+    /// `Default::default()` uses `3`.
     pub k: usize,
-    // Minimum segment length between cuts. Default: 1.
+    /// Minimum segment length between cuts. Required in TOML;
+    /// `Default::default()` uses `1`.
     pub min_segment_len: usize,
-    // Maximum nearby positions to consider per cut. Default: 0 (full enumeration).
-    // When > 0, uses distance-pruned nearby k-opt candidates instead of full enumeration.
+    /// Maximum nearby positions to consider per cut; `0` enumerates every cut
+    /// and a positive value uses distance-pruned nearby k-opt candidates.
+    /// Required in TOML;
+    /// `Default::default()` uses `0`.
     pub max_nearby: usize,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }
@@ -208,24 +292,33 @@ impl Default for KOptMoveSelectorConfig {
     }
 }
 
-// Configuration for `ListRuinMoveSelector` (LNS).
+/// Configuration for `ListRuinMoveSelector` (LNS).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct ListRuinMoveSelectorConfig {
+    /// Order in which this selector's candidates are tried. Omitted, the runtime
+    /// supplies the surrounding default (`random` in local search).
     #[serde(default)]
     pub selection_order: Option<SelectionOrder>,
+    /// Name of a registered candidate metric. Required with `sorted` and
+    /// `probabilistic` order; rejected with any other order.
     pub selection_metric: Option<String>,
-    // Minimum number of elements to ruin per move. Default: 2.
+    /// Minimum number of elements to ruin per move. Required in TOML;
+    /// `Default::default()` uses `2`.
     pub min_ruin_count: usize,
-    // Maximum number of elements to ruin per move. Default: 5.
+    /// Maximum number of elements to ruin per move. Required in TOML;
+    /// `Default::default()` uses `5`.
     pub max_ruin_count: usize,
-    // Number of ruin moves to generate per step. Default: 10.
+    /// Number of ruin moves to generate per step. Omitted: `10`.
     pub moves_per_step: Option<usize>,
-    // Optional maximum source list length eligible for this selector.
+    /// Optional maximum source list length eligible for this selector.
     pub max_source_list_len: Option<usize>,
-    // Whether recreate should skip currently empty destination lists.
+    /// Whether recreate should skip currently empty destination lists.
     #[serde(default)]
     pub skip_empty_destinations: bool,
+    /// Restricts the selector to one planning variable through the top-level
+    /// `entity_class` and `variable_name` keys; both omitted means every matching
+    /// variable.
     #[serde(flatten)]
     pub target: VariableTargetConfig,
 }

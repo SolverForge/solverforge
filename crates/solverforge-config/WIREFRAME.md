@@ -20,8 +20,10 @@ src/
 ├── director.rs      — DirectorConfig
 ├── error.rs         — ConfigError
 ├── forager.rs       — ForagerConfig, AcceptedCountForagerConfig, and ScoreTieBreak
-├── move_selector.rs — MoveSelectorConfig, leaf ordering/metrics, union weighting, and scalar/composite selector config structs
+├── move_selector.rs — MoveSelectorConfig, VariableTargetConfig, SelectionOrder, and shared selector defaults
+├── move_selector/composite.rs — Limited, union (order/weighting), cartesian, and conflict-repair selector config structs
 ├── move_selector/list.rs — List-variable selector config structs (list change through list ruin)
+├── move_selector/scalar.rs — Scalar selector config structs (change through grouped scalar) and RecreateHeuristicType
 ├── phase.rs         — PhaseConfig plus construction/local-search/partitioned/custom configs
 ├── solver_config.rs — SolverConfig, bounded candidate-trace config, canonical provenance serialization, overrides, and environment/thread settings
 ├── termination.rs   — TerminationConfig

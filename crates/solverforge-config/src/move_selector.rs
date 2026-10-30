@@ -1,122 +1,156 @@
 use serde::{Deserialize, Serialize};
 
+mod composite;
 mod list;
+mod scalar;
+
+pub use composite::{
+    CartesianProductConfig, CompoundConflictRepairMoveSelectorConfig,
+    ConflictRepairMoveSelectorConfig, LimitedNeighborhoodConfig, UnionMoveSelectorConfig,
+    UnionSelectionOrder, UnionWeighting,
+};
 pub use list::{
     KOptMoveSelectorConfig, ListChangeMoveConfig, ListPermuteMoveConfig, ListPrecedenceMoveConfig,
     ListReverseMoveConfig, ListRuinMoveSelectorConfig, ListSwapMoveConfig,
     NearbyListChangeMoveConfig, NearbyListSwapMoveConfig, SublistChangeMoveConfig,
     SublistSwapMoveConfig,
 };
+pub use scalar::{
+    ChangeMoveConfig, GroupedScalarMoveSelectorConfig, NearbyChangeMoveConfig,
+    NearbySwapMoveConfig, PillarChangeMoveConfig, PillarSwapMoveConfig, RecreateHeuristicType,
+    RuinRecreateMoveSelectorConfig, SwapMoveConfig,
+};
 
+/// Optional restriction of a selector or phase to one planning variable.
+///
+/// Always flattened into its parent, so TOML writes `entity_class` and
+/// `variable_name` as top-level keys of the selector or phase.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub struct VariableTargetConfig {
+    /// Entity class name to target; omitted means every entity class.
     pub entity_class: Option<String>,
+    /// Planning variable name to target; omitted means every variable.
     pub variable_name: Option<String>,
 }
 
+/// Order in which a leaf selector yields its candidates.
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum SelectionOrder {
+    /// Source order. Default.
     #[default]
     Original,
+    /// Seeded random selection with replacement.
     Random,
+    /// Seeded permutation of the source order, each candidate at most once.
     Shuffled,
+    /// Ascending value of `selection_metric` over the materialized
+    /// neighborhood.
     Sorted,
+    /// Seeded random order weighted by `selection_metric`; zero-weight
+    /// candidates are skipped.
     Probabilistic,
 }
 
 impl SelectionOrder {
+    /// Returns `true` for the seeded orders: `random`, `shuffled` and
+    /// `probabilistic`.
     pub const fn is_random(self) -> bool {
         matches!(self, Self::Random | Self::Shuffled | Self::Probabilistic)
     }
 
+    /// Returns `true` for orders that must materialize the whole neighborhood:
+    /// `sorted` and `probabilistic`.
     pub const fn requires_complete_stream(self) -> bool {
         matches!(self, Self::Sorted | Self::Probabilistic)
     }
 }
 
-// Move selector configuration.
+/// Move selector configuration.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MoveSelectorConfig {
-    // Change move selector (scalar variables).
+    /// Change move selector (scalar variables).
     ChangeMoveSelector(ChangeMoveConfig),
 
-    // Swap move selector (scalar variables).
+    /// Swap move selector (scalar variables).
     SwapMoveSelector(SwapMoveConfig),
 
-    // Nearby change move selector (scalar variables).
+    /// Nearby change move selector (scalar variables).
     NearbyChangeMoveSelector(NearbyChangeMoveConfig),
 
-    // Nearby swap move selector (scalar variables).
+    /// Nearby swap move selector (scalar variables).
     NearbySwapMoveSelector(NearbySwapMoveConfig),
 
-    // Pillar change move selector (scalar variables).
+    /// Pillar change move selector (scalar variables).
     PillarChangeMoveSelector(PillarChangeMoveConfig),
 
-    // Pillar swap move selector (scalar variables).
+    /// Pillar swap move selector (scalar variables).
     PillarSwapMoveSelector(PillarSwapMoveConfig),
 
-    // Ruin-and-recreate move selector (scalar variables).
+    /// Ruin-and-recreate move selector (scalar variables).
     RuinRecreateMoveSelector(RuinRecreateMoveSelectorConfig),
 
-    // Atomic grouped scalar move selector.
+    /// Atomic grouped scalar move selector.
     GroupedScalarMoveSelector(GroupedScalarMoveSelectorConfig),
 
-    // List change move selector — relocates single elements within/between routes.
+    /// List change move selector — relocates single elements within/between routes.
     ListChangeMoveSelector(ListChangeMoveConfig),
 
-    // Nearby list change move selector — distance-pruned element relocation.
+    /// Nearby list change move selector — distance-pruned element relocation.
     NearbyListChangeMoveSelector(NearbyListChangeMoveConfig),
 
-    // List swap move selector — swaps single elements within/between routes.
+    /// List swap move selector — swaps single elements within/between routes.
     ListSwapMoveSelector(ListSwapMoveConfig),
 
-    // List permute move selector — permutes contiguous windows within routes.
+    /// List permute move selector — permutes contiguous windows within routes.
     ListPermuteMoveSelector(ListPermuteMoveConfig),
 
-    // List precedence move selector — prioritizes critical list arcs in precedence makespan models.
+    /// List precedence move selector — prioritizes critical list arcs in
+    /// precedence makespan models.
     ListPrecedenceMoveSelector(ListPrecedenceMoveConfig),
 
-    // Nearby list swap move selector — distance-pruned element swap.
+    /// Nearby list swap move selector — distance-pruned element swap.
     NearbyListSwapMoveSelector(NearbyListSwapMoveConfig),
 
-    // Sublist change move selector (Or-opt) — relocates contiguous segments.
+    /// Sublist change move selector (Or-opt) — relocates contiguous segments.
     SublistChangeMoveSelector(SublistChangeMoveConfig),
 
-    // Sublist swap move selector — swaps contiguous segments between routes.
+    /// Sublist swap move selector — swaps contiguous segments between routes.
     SublistSwapMoveSelector(SublistSwapMoveConfig),
 
-    // List reverse move selector (2-opt) — reverses segments within a route.
+    /// List reverse move selector (2-opt) — reverses segments within a route.
     ListReverseMoveSelector(ListReverseMoveConfig),
 
-    // K-opt move selector — generalised route reconnection.
+    /// K-opt move selector — generalised route reconnection.
     KOptMoveSelector(KOptMoveSelectorConfig),
 
-    // List ruin move selector (LNS) — removes elements for reinsertion.
+    /// List ruin move selector (LNS) — removes elements for reinsertion.
     ListRuinMoveSelector(ListRuinMoveSelectorConfig),
 
-    // Neighborhood that limits the number of yielded candidates from a child selector while
-    // preserving selector order.
+    /// Neighborhood that limits the number of yielded candidates from a child selector while
+    /// preserving selector order.
     LimitedNeighborhood(LimitedNeighborhoodConfig),
 
-    // Union of multiple selectors.
+    /// Union of multiple selectors.
     UnionMoveSelector(UnionMoveSelectorConfig),
 
-    // Cartesian product of selectors. Evaluates the right child on the left preview state,
-    // composes tabu ids in selector order, and rejects left children that require full score
-    // evaluation during preview.
+    /// Cartesian product of selectors. Evaluates the right child on the left preview state,
+    /// composes tabu ids in selector order, and rejects left children that require full score
+    /// evaluation during preview.
     CartesianProductMoveSelector(CartesianProductConfig),
 
-    // Conflict-directed scalar repair selector.
+    /// Conflict-directed scalar repair selector.
     ConflictRepairMoveSelector(ConflictRepairMoveSelectorConfig),
 
-    // Conflict-directed compound scalar repair selector with framework-enforced hard improvement.
+    /// Conflict-directed compound scalar repair selector with framework-enforced hard improvement.
     CompoundConflictRepairMoveSelector(CompoundConflictRepairMoveSelectorConfig),
 }
 
 impl MoveSelectorConfig {
+    /// The leaf selector's `selection_order`; `None` for limited, union and
+    /// cartesian composites.
     pub const fn selection_order(&self) -> Option<SelectionOrder> {
         match self {
             Self::ChangeMoveSelector(config) => config.selection_order,
@@ -146,6 +180,8 @@ impl MoveSelectorConfig {
         }
     }
 
+    /// The leaf selector's `selection_metric`; `None` for limited, union and
+    /// cartesian composites.
     pub fn selection_metric(&self) -> Option<&str> {
         match self {
             Self::ChangeMoveSelector(config) => config.selection_metric.as_deref(),
@@ -172,283 +208,6 @@ impl MoveSelectorConfig {
             Self::LimitedNeighborhood(_)
             | Self::UnionMoveSelector(_)
             | Self::CartesianProductMoveSelector(_) => None,
-        }
-    }
-}
-
-// Change move configuration.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct ChangeMoveConfig {
-    #[serde(default)]
-    pub selection_order: Option<SelectionOrder>,
-    pub selection_metric: Option<String>,
-    pub value_candidate_limit: Option<usize>,
-    #[serde(flatten)]
-    pub target: VariableTargetConfig,
-}
-
-// Swap move configuration.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct SwapMoveConfig {
-    #[serde(default)]
-    pub selection_order: Option<SelectionOrder>,
-    pub selection_metric: Option<String>,
-    #[serde(flatten)]
-    pub target: VariableTargetConfig,
-}
-
-// Nearby change move configuration.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct NearbyChangeMoveConfig {
-    #[serde(default)]
-    pub selection_order: Option<SelectionOrder>,
-    pub selection_metric: Option<String>,
-    pub max_nearby: usize,
-    pub value_candidate_limit: Option<usize>,
-    #[serde(flatten)]
-    pub target: VariableTargetConfig,
-}
-
-impl Default for NearbyChangeMoveConfig {
-    fn default() -> Self {
-        let (max_nearby, target) = default_nearby_target_config();
-        Self {
-            selection_order: None,
-            selection_metric: None,
-            max_nearby,
-            value_candidate_limit: None,
-            target,
-        }
-    }
-}
-
-// Nearby swap move configuration.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct NearbySwapMoveConfig {
-    #[serde(default)]
-    pub selection_order: Option<SelectionOrder>,
-    pub selection_metric: Option<String>,
-    pub max_nearby: usize,
-    #[serde(flatten)]
-    pub target: VariableTargetConfig,
-}
-
-impl Default for NearbySwapMoveConfig {
-    fn default() -> Self {
-        let (max_nearby, target) = default_nearby_target_config();
-        Self {
-            selection_order: None,
-            selection_metric: None,
-            max_nearby,
-            target,
-        }
-    }
-}
-
-// Pillar change move configuration.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct PillarChangeMoveConfig {
-    #[serde(default)]
-    pub selection_order: Option<SelectionOrder>,
-    pub selection_metric: Option<String>,
-    pub minimum_sub_pillar_size: usize,
-    pub maximum_sub_pillar_size: usize,
-    pub value_candidate_limit: Option<usize>,
-    #[serde(flatten)]
-    pub target: VariableTargetConfig,
-}
-
-// Pillar swap move configuration.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct PillarSwapMoveConfig {
-    #[serde(default)]
-    pub selection_order: Option<SelectionOrder>,
-    pub selection_metric: Option<String>,
-    pub minimum_sub_pillar_size: usize,
-    pub maximum_sub_pillar_size: usize,
-    #[serde(flatten)]
-    pub target: VariableTargetConfig,
-}
-
-#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum RecreateHeuristicType {
-    #[default]
-    FirstFit,
-    CheapestInsertion,
-}
-
-#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum UnionSelectionOrder {
-    Sequential,
-    RoundRobin,
-    RotatingRoundRobin,
-    Random,
-    #[default]
-    StratifiedRandom,
-}
-
-#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum UnionWeighting {
-    #[default]
-    Equal,
-    Fixed,
-    CandidateCount,
-}
-
-// Ruin-and-recreate move configuration.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct RuinRecreateMoveSelectorConfig {
-    #[serde(default)]
-    pub selection_order: Option<SelectionOrder>,
-    pub selection_metric: Option<String>,
-    pub min_ruin_count: usize,
-    pub max_ruin_count: usize,
-    pub moves_per_step: Option<usize>,
-    pub value_candidate_limit: Option<usize>,
-    pub recreate_heuristic_type: RecreateHeuristicType,
-    #[serde(flatten)]
-    pub target: VariableTargetConfig,
-}
-
-impl Default for RuinRecreateMoveSelectorConfig {
-    fn default() -> Self {
-        Self {
-            selection_order: None,
-            selection_metric: None,
-            min_ruin_count: 2,
-            max_ruin_count: 5,
-            moves_per_step: None,
-            value_candidate_limit: None,
-            recreate_heuristic_type: RecreateHeuristicType::FirstFit,
-            target: VariableTargetConfig::default(),
-        }
-    }
-}
-
-// Configuration for `GroupedScalarMoveSelector`.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct GroupedScalarMoveSelectorConfig {
-    #[serde(default)]
-    pub selection_order: Option<SelectionOrder>,
-    pub selection_metric: Option<String>,
-    pub group_name: String,
-    pub value_candidate_limit: Option<usize>,
-    pub max_moves_per_step: Option<usize>,
-    #[serde(default)]
-    pub require_hard_improvement: bool,
-}
-
-// Configuration for `LimitedNeighborhood`.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct LimitedNeighborhoodConfig {
-    // Maximum number of moves yielded from the child selector.
-    pub selected_count_limit: usize,
-    // Child selector to wrap.
-    pub selector: Box<MoveSelectorConfig>,
-}
-
-// Union move selector configuration.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct UnionMoveSelectorConfig {
-    #[serde(default)]
-    pub selection_order: UnionSelectionOrder,
-    #[serde(default)]
-    pub weighting: UnionWeighting,
-    #[serde(default)]
-    pub weights: Vec<u64>,
-    // Child selectors.
-    pub selectors: Vec<MoveSelectorConfig>,
-}
-
-// Cartesian product move selector configuration.
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct CartesianProductConfig {
-    // When true, search phases reject composed candidates unless the hard score improves.
-    #[serde(default)]
-    pub require_hard_improvement: bool,
-
-    // Child selectors.
-    pub selectors: Vec<MoveSelectorConfig>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct ConflictRepairMoveSelectorConfig {
-    #[serde(default)]
-    pub selection_order: Option<SelectionOrder>,
-    pub selection_metric: Option<String>,
-    pub constraints: Vec<String>,
-    #[serde(default = "default_conflict_repair_max_matches")]
-    pub max_matches_per_step: usize,
-    #[serde(default = "default_conflict_repair_max_repairs")]
-    pub max_repairs_per_match: usize,
-    #[serde(default = "default_conflict_repair_max_moves")]
-    pub max_moves_per_step: usize,
-    #[serde(default)]
-    pub require_hard_improvement: bool,
-    #[serde(default)]
-    pub include_soft_matches: bool,
-}
-
-impl Default for ConflictRepairMoveSelectorConfig {
-    fn default() -> Self {
-        Self {
-            selection_order: None,
-            selection_metric: None,
-            constraints: Vec::new(),
-            max_matches_per_step: default_conflict_repair_max_matches(),
-            max_repairs_per_match: default_conflict_repair_max_repairs(),
-            max_moves_per_step: default_conflict_repair_max_moves(),
-            require_hard_improvement: false,
-            include_soft_matches: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct CompoundConflictRepairMoveSelectorConfig {
-    #[serde(default)]
-    pub selection_order: Option<SelectionOrder>,
-    pub selection_metric: Option<String>,
-    pub constraints: Vec<String>,
-    #[serde(default = "default_conflict_repair_max_matches")]
-    pub max_matches_per_step: usize,
-    #[serde(default = "default_conflict_repair_max_repairs")]
-    pub max_repairs_per_match: usize,
-    #[serde(default = "default_conflict_repair_max_moves")]
-    pub max_moves_per_step: usize,
-    #[serde(default = "default_require_hard_improvement")]
-    pub require_hard_improvement: bool,
-    #[serde(default)]
-    pub include_soft_matches: bool,
-}
-
-impl Default for CompoundConflictRepairMoveSelectorConfig {
-    fn default() -> Self {
-        Self {
-            selection_order: None,
-            selection_metric: None,
-            constraints: Vec::new(),
-            max_matches_per_step: default_conflict_repair_max_matches(),
-            max_repairs_per_match: default_conflict_repair_max_repairs(),
-            max_moves_per_step: default_conflict_repair_max_moves(),
-            require_hard_improvement: default_require_hard_improvement(),
-            include_soft_matches: false,
         }
     }
 }

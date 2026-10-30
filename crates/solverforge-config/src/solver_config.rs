@@ -9,31 +9,35 @@ use crate::error::ConfigError;
 use crate::phase::PhaseConfig;
 use crate::termination::TerminationConfig;
 
-// Main solver configuration.
+/// Main solver configuration.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct SolverConfig {
-    // Environment mode affecting reproducibility and assertions.
+    /// Runtime checking mode. Default: `non_reproducible`.
     #[serde(default)]
     pub environment_mode: EnvironmentMode,
 
-    // Random seed for reproducible results.
+    /// Seed for the solver's random choices. Omitted: every run seeds itself
+    /// from the operating system, so runs differ.
     #[serde(default)]
     pub random_seed: Option<u64>,
 
-    // Number of threads for parallel move evaluation.
+    /// Number of evaluators for parallel move evaluation in acceptor-forager
+    /// local search. Default: `auto`.
     #[serde(default)]
     pub move_thread_count: MoveThreadCount,
 
-    // Termination configuration.
+    /// Solver-wide termination. Omitted: no solver-wide limit.
     #[serde(default)]
     pub termination: Option<TerminationConfig>,
 
-    // Score director configuration.
+    /// Score director settings. Parsed and serialized, but not read by the
+    /// current solver runtime.
     #[serde(default)]
     pub score_director: Option<DirectorConfig>,
 
-    // Phase configurations.
+    /// Phases, run in order. Omitted or empty: the model-aware default
+    /// profile.
     #[serde(default)]
     pub phases: Vec<PhaseConfig>,
 
@@ -47,6 +51,7 @@ pub struct SolverConfig {
 }
 
 impl SolverConfig {
+    /// Creates an empty configuration; equivalent to `SolverConfig::default()`.
     pub fn new() -> Self {
         Self::default()
     }
@@ -71,6 +76,7 @@ impl SolverConfig {
         Ok(toml::from_str(s)?)
     }
 
+    /// Sets `termination.seconds_spent_limit`, keeping other termination keys.
     pub fn with_termination_seconds(mut self, seconds: u64) -> Self {
         self.termination = Some(TerminationConfig {
             seconds_spent_limit: Some(seconds),
@@ -79,11 +85,13 @@ impl SolverConfig {
         self
     }
 
+    /// Sets `random_seed`.
     pub fn with_random_seed(mut self, seed: u64) -> Self {
         self.random_seed = Some(seed);
         self
     }
 
+    /// Appends a phase.
     pub fn with_phase(mut self, phase: PhaseConfig) -> Self {
         self.phases.push(phase);
         self
@@ -150,57 +158,64 @@ impl SolverConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct CandidateTraceConfig {
+    /// Most candidate identities retained; zero is rejected. Required.
     pub max_entries: NonZeroUsize,
 }
 
 impl CandidateTraceConfig {
+    /// Creates a trace configuration retaining at most `max_entries`
+    /// identities.
     pub const fn new(max_entries: NonZeroUsize) -> Self {
         Self { max_entries }
     }
 }
 
-// Environment mode affecting solver behavior.
+/// Environment mode affecting solver behavior.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EnvironmentMode {
-    // Non-reproducible mode with minimal overhead.
+    /// No extra runtime checks. Default.
     #[default]
     NonReproducible,
 
-    // Reproducible mode with deterministic behavior.
+    /// Currently runs exactly like `non_reproducible`; repeatable runs come
+    /// from setting `random_seed`.
     Reproducible,
 
-    // Fast assert mode with basic assertions.
+    /// Currently runs exactly like `non_reproducible`.
     FastAssert,
 
-    // Full assert mode with comprehensive assertions.
+    /// On score calculation and best-solution updates, asserts that the
+    /// incremental score equals a fresh full calculation, panicking on drift.
     FullAssert,
 }
 
-// Move thread count configuration.
+/// Move thread count configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MoveThreadCount {
-    // Sequential until benchmarks set an automatic policy.
+    /// Sequential until benchmarks set an automatic policy.
     #[default]
     Auto,
 
-    // No parallel move evaluation.
+    /// No parallel move evaluation.
     None,
 
-    // Evaluator count, main director included; bounded by the solve's
-    // Rayon threads and by one 32-candidate evaluation window.
+    /// Evaluator count, main director included; bounded by the solve's
+    /// Rayon threads and by one 32-candidate evaluation window.
     Count(usize),
 }
 
-// Runtime configuration overrides.
+/// Runtime configuration overrides.
 #[derive(Debug, Clone, Default)]
 pub struct SolverConfigOverride {
-    // Override termination configuration.
+    /// Override termination configuration.
     pub termination: Option<TerminationConfig>,
 }
 
 impl SolverConfigOverride {
+    /// Creates an override that replaces the solver's termination
+    /// configuration.
     pub fn with_termination(termination: TerminationConfig) -> Self {
         SolverConfigOverride {
             termination: Some(termination),

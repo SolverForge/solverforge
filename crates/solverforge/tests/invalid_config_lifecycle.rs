@@ -98,6 +98,35 @@ fn invalid_configuration_fails_before_any_phase_without_panicking() {
         "{error}"
     );
 
+    for (case, key) in [
+        (
+            ConfigCase::ZeroConstructionValueCandidateLimit,
+            "phases[0].construction.value_candidate_limit",
+        ),
+        (
+            ConfigCase::ZeroChangeValueCandidateLimit,
+            "phases[1].local_search.move_selector.value_candidate_limit",
+        ),
+        (
+            ConfigCase::PillarChangeMinimumAboveMaximum,
+            "phases[1].local_search.move_selector.minimum_sub_pillar_size",
+        ),
+        (
+            ConfigCase::PillarSwapMinimumAboveMaximum,
+            "phases[1].local_search.move_selector.minimum_sub_pillar_size",
+        ),
+    ] {
+        let case_events = events(&MANAGER, case);
+        let error = single_failure(&case_events);
+        assert!(error.contains(key), "{case:?}: {error}");
+    }
+
+    let full_pillars = events(&MANAGER, ConfigCase::FullPillarChange);
+    assert!(
+        matches!(full_pillars.last(), Some(SolverEvent::Completed { .. })),
+        "0/0 sub-pillar sizes (full pillars only) should complete"
+    );
+
     let valid = events(&MANAGER, ConfigCase::Valid);
     assert!(
         matches!(valid.last(), Some(SolverEvent::Completed { .. })),

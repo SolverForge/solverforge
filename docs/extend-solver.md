@@ -153,7 +153,11 @@ wrapping broad generation by default.
 
 Scalar value generation is separate from scalar legality. `value_candidate_limit`
 caps candidate values for scalar construction, scalar change, pillar change, and
-scalar ruin-recreate. Nearby scalar selectors require `nearby_*_candidates`;
+scalar ruin-recreate, and must be at least 1 when set: a configured value outside
+a field's range (for example `value_candidate_limit = 0`, a minimum above its
+maximum, or a `selected_count_limit = 0` cap) fails the solve at compile time
+with the key path, as listed in the `solverforge-config` wireframe. Nearby
+scalar selectors require `nearby_*_candidates`;
 distance meters only rank or filter those bounded candidates. Scalar
 `cheapest_insertion` is accepted only when a bounded candidate source is present.
 

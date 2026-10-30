@@ -11,6 +11,7 @@ use super::graph::{CompiledRuntimeExtension, CompiledRuntimeGraph, CompiledRunti
 use super::input::RuntimeGraphInput;
 use super::local_search::compile_local_search;
 use super::score_limits::validate_best_score_limits;
+use super::selector_values::validate_selector_values;
 use super::types::{RuntimeCompileError, RuntimeCompileErrorKind, RuntimeExtensionKind};
 
 /// Compiles one recursive graph for typed and dynamic runtime slots.
@@ -30,6 +31,7 @@ where
     E: RuntimeExtensionRegistry<S, V, DM, IDM>,
 {
     validate_best_score_limits::<S::Score>(config)?;
+    validate_selector_values(config)?;
     let (context, extensions) = input.into_parts();
     if context.seed() != config.random_seed {
         return Err(RuntimeCompileError {

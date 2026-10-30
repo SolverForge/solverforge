@@ -24,6 +24,7 @@ use crate::builder::{ListVariableSlot, RuntimeModel, SearchContext, VariableSlot
 use crate::heuristic::selector::nearby_list_change::DefaultCrossEntityDistanceMeter;
 
 mod invalid_config;
+mod invalid_selector_values;
 
 type Meter = DefaultCrossEntityDistanceMeter;
 

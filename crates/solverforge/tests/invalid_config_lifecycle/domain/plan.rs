@@ -2,8 +2,8 @@ use solverforge::prelude::*;
 use solverforge::stream::ConstraintFactory;
 use solverforge::{AcceptorConfig, MoveSelectorConfig, PhaseConfig, SolverConfig};
 use solverforge_config::{
-    ConstructionHeuristicConfig, ListChangeMoveConfig, LocalSearchConfig, TabuSearchConfig,
-    TerminationConfig,
+    ChangeMoveConfig, ConstructionHeuristicConfig, ListChangeMoveConfig, LocalSearchConfig,
+    PillarChangeMoveConfig, PillarSwapMoveConfig, TabuSearchConfig, TerminationConfig,
 };
 
 use super::{Resource, Task};
@@ -19,6 +19,16 @@ pub enum ConfigCase {
     InvalidSolverScoreLimit,
     /// A local-search phase `best_score_limit` that is not a `HardSoftScore`.
     InvalidPhaseScoreLimit,
+    /// Construction with `value_candidate_limit = 0`.
+    ZeroConstructionValueCandidateLimit,
+    /// Construction, then a change selector with `value_candidate_limit = 0`.
+    ZeroChangeValueCandidateLimit,
+    /// Construction, then pillar change with sub-pillar sizes `5/2`.
+    PillarChangeMinimumAboveMaximum,
+    /// Construction, then pillar swap with sub-pillar sizes `5/2`.
+    PillarSwapMinimumAboveMaximum,
+    /// Construction, then pillar change with `0/0` (full pillars only).
+    FullPillarChange,
     /// Construction, then a valid tabu search.
     Valid,
 }
@@ -47,7 +57,10 @@ fn define_constraints() -> impl ConstraintSet<Plan, HardSoftScore> {
 
 fn config_for_case(plan: &Plan, _: SolverConfig) -> SolverConfig {
     let local_search = match plan.case {
-        ConfigCase::ZeroTabuSize | ConfigCase::InvalidSolverScoreLimit | ConfigCase::Valid => {
+        ConfigCase::ZeroTabuSize
+        | ConfigCase::InvalidSolverScoreLimit
+        | ConfigCase::ZeroConstructionValueCandidateLimit
+        | ConfigCase::Valid => {
             LocalSearchConfig {
             acceptor: Some(AcceptorConfig::TabuSearch(TabuSearchConfig {
                     entity_tabu_size: Some(if plan.case == ConfigCase::ZeroTabuSize {
@@ -67,6 +80,29 @@ fn config_for_case(plan: &Plan, _: SolverConfig) -> SolverConfig {
             }),
             ..LocalSearchConfig::default()
         },
+        ConfigCase::ZeroChangeValueCandidateLimit => {
+            selector(MoveSelectorConfig::ChangeMoveSelector(ChangeMoveConfig {
+                value_candidate_limit: Some(0),
+                ..ChangeMoveConfig::default()
+            }))
+        }
+        ConfigCase::PillarChangeMinimumAboveMaximum => selector(
+            MoveSelectorConfig::PillarChangeMoveSelector(PillarChangeMoveConfig {
+                minimum_sub_pillar_size: 5,
+                maximum_sub_pillar_size: 2,
+                ..PillarChangeMoveConfig::default()
+            }),
+        ),
+        ConfigCase::PillarSwapMinimumAboveMaximum => selector(
+            MoveSelectorConfig::PillarSwapMoveSelector(PillarSwapMoveConfig {
+                minimum_sub_pillar_size: 5,
+                maximum_sub_pillar_size: 2,
+                ..PillarSwapMoveConfig::default()
+            }),
+        ),
+        ConfigCase::FullPillarChange => selector(MoveSelectorConfig::PillarChangeMoveSelector(
+            PillarChangeMoveConfig::default(),
+        )),
         ConfigCase::ListSelectorOnScalarModel => LocalSearchConfig {
             move_selector: Some(MoveSelectorConfig::ListChangeMoveSelector(
                 ListChangeMoveConfig::default(),
@@ -83,9 +119,21 @@ fn config_for_case(plan: &Plan, _: SolverConfig) -> SolverConfig {
             ..TerminationConfig::default()
         }),
         phases: vec![
-            PhaseConfig::ConstructionHeuristic(ConstructionHeuristicConfig::default()),
+            PhaseConfig::ConstructionHeuristic(ConstructionHeuristicConfig {
+                value_candidate_limit: (plan.case
+                    == ConfigCase::ZeroConstructionValueCandidateLimit)
+                    .then_some(0),
+                ..ConstructionHeuristicConfig::default()
+            }),
             PhaseConfig::LocalSearch(local_search),
         ],
         ..SolverConfig::default()
+    }
+}
+
+fn selector(move_selector: MoveSelectorConfig) -> LocalSearchConfig {
+    LocalSearchConfig {
+        move_selector: Some(move_selector),
+        ..LocalSearchConfig::default()
     }
 }

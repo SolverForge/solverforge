@@ -128,10 +128,10 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | `construction_heuristic_type` | `ConstructionHeuristicType` | `FirstFit` |
 | `construction_obligation` | `ConstructionObligation` | `PreserveUnassigned` |
 | `target` | `VariableTargetConfig` | empty target |
-| `k` | `usize` | `2` (for `ListKOpt`) |
-| `value_candidate_limit` | `Option<usize>` | `None` |
+| `k` | `usize` | `2` (for `ListKOpt`); valid: exactly `2` (the list k-opt construction kernel implements 2-opt only) |
+| `value_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `group_name` | `Option<String>` | `None` |
-| `group_candidate_limit` | `Option<usize>` | `None` |
+| `group_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `termination` | `Option<TerminationConfig>` | `None` |
 
 `target` is flattened in serde, so configuration files still use top-level
@@ -347,13 +347,28 @@ ordering. `MoveSelectorConfig::selection_order()` and
 `MoveSelectorConfig::selection_metric()` expose the leaf values and return
 `None` for limited, union, and cartesian composites.
 
+### Numeric selector and construction values
+
+Compiling a `SolverConfig` into the runtime graph checks every numeric
+move-selector and construction-phase value against the domain its cursor or
+phase can use, in every phase including partitioned `child_phases` and in
+nested `limited_neighborhood`, union, and cartesian children. A value outside
+its domain fails the solve before any phase runs with one `Failed` event whose
+message names the key path, for example
+`phases[1].local_search.move_selector.selectors[0].min_sublist_size` or
+`phases[0].construction.value_candidate_limit`. The valid range of each field
+is listed in its table below. Counts and limits that would leave the selector
+or the construction phase without a candidate must be at least `1`; a minimum
+must not exceed its maximum. `0/0` sub-pillar sizes keep their meaning (full
+pillars only), and k-opt `max_nearby = 0` keeps full enumeration.
+
 ### `ChangeMoveConfig`
 
 Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type |
 |-------|------|
-| `value_candidate_limit` | `Option<usize>` |
+| `value_candidate_limit` | `Option<usize>`; valid: `>= 1` when set |
 | `entity_class` | `Option<String>` |
 | `variable_name` | `Option<String>` |
 
@@ -381,7 +396,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default` (max_nearby = 
 
 | Field | Type | Default |
 |-------|------|---------|
-| `max_nearby` | `usize` | `10` |
+| `max_nearby` | `usize` | `10`; valid: `>= 1` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -400,8 +415,8 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `min_window_size` | `usize` | `2` |
-| `max_window_size` | `usize` | `5` |
+| `min_window_size` | `usize` | `2`; valid: `2..=max_window_size` |
+| `max_window_size` | `usize` | `5`; valid: `min_window_size..=8` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -429,7 +444,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default` (max_nearby = 
 
 | Field | Type | Default |
 |-------|------|---------|
-| `max_nearby` | `usize` | `10` |
+| `max_nearby` | `usize` | `10`; valid: `>= 1` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -439,8 +454,8 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `min_sublist_size` | `usize` | `1` |
-| `max_sublist_size` | `usize` | `3` |
+| `min_sublist_size` | `usize` | `1`; valid: `1..=max_sublist_size` |
+| `max_sublist_size` | `usize` | `3`; valid: `>= min_sublist_size` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -450,8 +465,8 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `min_sublist_size` | `usize` | `1` |
-| `max_sublist_size` | `usize` | `3` |
+| `min_sublist_size` | `usize` | `1`; valid: `1..=max_sublist_size` |
+| `max_sublist_size` | `usize` | `3`; valid: `>= min_sublist_size` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -470,8 +485,8 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `max_nearby` | `usize` | `10` |
-| `value_candidate_limit` | `Option<usize>` | `None` |
+| `max_nearby` | `usize` | `10`; valid: `>= 1` |
+| `value_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -481,7 +496,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `max_nearby` | `usize` | `10` |
+| `max_nearby` | `usize` | `10`; valid: `>= 1` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -491,9 +506,9 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `minimum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only) |
-| `maximum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only) |
-| `value_candidate_limit` | `Option<usize>` | `None` |
+| `minimum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only); valid: `0/0`, or `1..=maximum_sub_pillar_size` |
+| `maximum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only); valid: `0/0`, or `>= minimum_sub_pillar_size` |
+| `value_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -503,8 +518,8 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `minimum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only) |
-| `maximum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only) |
+| `minimum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only); valid: `0/0`, or `1..=maximum_sub_pillar_size` |
+| `maximum_sub_pillar_size` | `usize` | `0` (`0/0` means full pillars only); valid: `0/0`, or `>= minimum_sub_pillar_size` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -514,9 +529,9 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `k` | `usize` | `3` |
-| `min_segment_len` | `usize` | `1` |
-| `max_nearby` | `usize` | `0` (full enumeration; >0 enables distance-pruned nearby k-opt selection) |
+| `k` | `usize` | `3`; valid: `2..=5` |
+| `min_segment_len` | `usize` | `1`; valid: `>= 1` |
+| `max_nearby` | `usize` | `0` (full enumeration; >0 enables distance-pruned nearby k-opt selection); valid: any |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
 
@@ -526,10 +541,10 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `min_ruin_count` | `usize` | `2` |
-| `max_ruin_count` | `usize` | `5` |
-| `moves_per_step` | `Option<usize>` | `None` |
-| `max_source_list_len` | `Option<usize>` | `None` |
+| `min_ruin_count` | `usize` | `2`; valid: `1..=max_ruin_count` |
+| `max_ruin_count` | `usize` | `5`; valid: `>= min_ruin_count` |
+| `moves_per_step` | `Option<usize>` | `None`; valid: `>= 1` when set |
+| `max_source_list_len` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `skip_empty_destinations` | `bool` | `false` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
@@ -544,10 +559,10 @@ Derives: `Debug, Clone, Deserialize, Serialize`. Manual `Default`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `min_ruin_count` | `usize` | `2` |
-| `max_ruin_count` | `usize` | `5` |
-| `moves_per_step` | `Option<usize>` | `None` |
-| `value_candidate_limit` | `Option<usize>` | `None` |
+| `min_ruin_count` | `usize` | `2`; valid: `1..=max_ruin_count` |
+| `max_ruin_count` | `usize` | `5`; valid: `>= min_ruin_count` |
+| `moves_per_step` | `Option<usize>` | `None`; valid: `>= 1` when set |
+| `value_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `recreate_heuristic_type` | `RecreateHeuristicType` | `FirstFit` |
 | `entity_class` | `Option<String>` | `None` |
 | `variable_name` | `Option<String>` | `None` |
@@ -559,8 +574,8 @@ Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`.
 | Field | Type | Default |
 |-------|------|---------|
 | `group_name` | `String` | required |
-| `value_candidate_limit` | `Option<usize>` | `None` |
-| `max_moves_per_step` | `Option<usize>` | `None` |
+| `value_candidate_limit` | `Option<usize>` | `None`; valid: `>= 1` when set |
+| `max_moves_per_step` | `Option<usize>` | `None`; valid: `>= 1` when set |
 | `require_hard_improvement` | `bool` | `false` |
 
 `value_candidate_limit` is provider-defined per assignment or value-source
@@ -584,7 +599,7 @@ Derives: `Debug, Clone, Deserialize, Serialize`.
 
 | Field | Type | Default |
 |-------|------|---------|
-| `selected_count_limit` | `usize` | |
+| `selected_count_limit` | `usize` |; valid: `>= 1` |
 | `selector` | `Box<MoveSelectorConfig>` | |
 
 ### `UnionMoveSelectorConfig`
@@ -631,9 +646,9 @@ Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`. Manual `Default`
 | Field | Type | Default |
 |-------|------|---------|
 | `constraints` | `Vec<String>` | `[]` |
-| `max_matches_per_step` | `usize` | `16` |
-| `max_repairs_per_match` | `usize` | `32` |
-| `max_moves_per_step` | `usize` | `256` |
+| `max_matches_per_step` | `usize` | `16`; valid: `>= 1` |
+| `max_repairs_per_match` | `usize` | `32`; valid: `>= 1` |
+| `max_moves_per_step` | `usize` | `256`; valid: `>= 1` |
 | `require_hard_improvement` | `bool` | `false` |
 | `include_soft_matches` | `bool` | `false` |
 
@@ -651,9 +666,9 @@ Derives: `Debug, Clone, Deserialize, Serialize, PartialEq, Eq`. Manual `Default`
 | Field | Type | Default |
 |-------|------|---------|
 | `constraints` | `Vec<String>` | `[]` |
-| `max_matches_per_step` | `usize` | `16` |
-| `max_repairs_per_match` | `usize` | `32` |
-| `max_moves_per_step` | `usize` | `256` |
+| `max_matches_per_step` | `usize` | `16`; valid: `>= 1` |
+| `max_repairs_per_match` | `usize` | `32`; valid: `>= 1` |
+| `max_moves_per_step` | `usize` | `256`; valid: `>= 1` |
 | `require_hard_improvement` | `bool` | `true` |
 | `include_soft_matches` | `bool` | `false` |
 

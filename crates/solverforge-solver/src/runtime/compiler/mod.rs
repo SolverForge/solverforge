@@ -16,6 +16,7 @@ mod local_search;
 mod providers;
 mod score_limits;
 mod selector_tree;
+mod selector_values;
 mod slots;
 mod types;
 

@@ -1,8 +1,7 @@
-/* Acceptors for local search move acceptance.
-
-Acceptors determine whether a move should be accepted based on
-comparing the resulting score with the previous score.
-*/
+//! Acceptors for local search move acceptance.
+//!
+//! Acceptors determine whether a move should be accepted based on
+//! comparing the resulting score with the previous score.
 
 pub(crate) mod diversified_late_acceptance;
 pub(crate) mod great_deluge;

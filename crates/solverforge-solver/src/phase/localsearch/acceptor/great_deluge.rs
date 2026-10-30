@@ -1,4 +1,4 @@
-// Great Deluge acceptor.
+//! Great Deluge acceptor.
 
 use std::fmt::Debug;
 

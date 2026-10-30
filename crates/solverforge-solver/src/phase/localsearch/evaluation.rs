@@ -17,9 +17,8 @@ pub(crate) enum CandidateEvaluation<Sc> {
     RejectedByScoreImprovement(Sc),
 }
 
-/* Director-only result of one trial transaction. Statistics are recorded by
-`account_trial` on the thread that owns the step scope.
-*/
+/// Director-only result of one trial transaction. Statistics are recorded by
+/// `account_trial` on the thread that owns the step scope.
 pub(crate) enum TrialOutcome<Sc> {
     NotDoable,
     Scored(Sc),
@@ -126,10 +125,9 @@ where
     CandidateEvaluation::Scored(move_score)
 }
 
-/* Runs the trial transaction on `director`: the pinned/doable check, then
-apply, score, undo and restore. Touches nothing but the director and the
-undo journal, so it can run on an evaluator replica.
-*/
+/// Runs the trial transaction on `director`: the pinned/doable check, then
+/// apply, score, undo and restore. Touches nothing but the director and the
+/// undo journal, so it can run on an evaluator replica.
 #[inline]
 pub(crate) fn run_trial<S, D, M>(
     mov: &MoveCandidateRef<'_, S, M>,
@@ -153,9 +151,8 @@ where
     TrialOutcome::Scored(move_score)
 }
 
-/* Records the statistics and improvement-gate decisions for one trial
-outcome, in the order the sequential evaluation loop has always used.
-*/
+/// Records the statistics and improvement-gate decisions for one trial
+/// outcome, in the order the sequential evaluation loop has always used.
 #[inline]
 pub(crate) fn account_trial<S, D, ProgressCb, M>(
     mov: &MoveCandidateRef<'_, S, M>,
@@ -263,9 +260,8 @@ pub(crate) fn record_evaluated_move<S, D, ProgressCb>(
     record_evaluated_elapsed(step_scope, selector_index, evaluation_started.elapsed());
 }
 
-/* Records one evaluated move whose trial time was measured elsewhere, as
-parallel evaluation does on the evaluator that ran the trial.
-*/
+/// Records one evaluated move whose trial time was measured elsewhere, as
+/// parallel evaluation does on the evaluator that ran the trial.
 #[inline]
 pub(crate) fn record_evaluated_elapsed<S, D, ProgressCb>(
     step_scope: &mut StepScope<'_, '_, '_, S, D, ProgressCb>,

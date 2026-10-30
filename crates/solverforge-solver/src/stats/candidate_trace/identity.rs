@@ -12,7 +12,9 @@ pub(crate) struct CandidateTracePullToken {
 /// for.  It is absent for local-search candidates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CandidateTraceConstructionTarget {
+    /// Entity descriptor index of the target.
     pub descriptor_index: usize,
+    /// Entity index within that descriptor's collection.
     pub entity_index: usize,
 }
 
@@ -42,6 +44,7 @@ pub enum CandidateTraceIdentity {
 /// ordered raw coordinates chosen by that engine's actual trial loop.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandidateTraceOperationIdentity {
+    /// Entity descriptor index the operation is scoped to.
     pub descriptor_index: usize,
     /// Present for a move-family identity and absent for a phase-local
     /// specialized operation that has no variable scope.
@@ -49,6 +52,7 @@ pub struct CandidateTraceOperationIdentity {
     /// Explicit family/operation grammar token, never a pointer, debug value,
     /// or tabu-derived hash.
     pub operation: String,
+    /// Ordered raw coordinates of the operation.
     pub components: Vec<CandidateTraceCoordinate>,
 }
 
@@ -59,7 +63,10 @@ pub struct CandidateTraceOperationIdentity {
 /// exact generation/execution order. Children may themselves be composites.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandidateTraceCompositeIdentity {
+    /// Composition semantics, for example `compound_scalar` or
+    /// `cartesian_product`.
     pub operation: String,
+    /// Child identities in generation and execution order.
     pub children: Vec<CandidateTraceIdentity>,
 }
 
@@ -70,7 +77,9 @@ pub struct CandidateTraceCompositeIdentity {
 /// pure typed-value codec; it is never populated from `Debug` output.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CandidateTraceCoordinate {
+    /// An unsigned integer coordinate, such as an index.
     Unsigned(u64),
+    /// No value, for example an unassigned scalar target.
     Absent,
     /// A declared logical token such as a variable name or operation-local
     /// label. It is framed as text, never debug-rendered or hashed.
@@ -112,6 +121,7 @@ impl From<&str> for CandidateTraceCoordinate {
 }
 
 impl CandidateTraceIdentity {
+    /// Builds a leaf identity for an engine operation with no variable scope.
     pub fn operation<I, T>(
         descriptor_index: usize,
         operation: impl Into<String>,
@@ -129,6 +139,7 @@ impl CandidateTraceIdentity {
         })
     }
 
+    /// Builds a leaf identity for a move family scoped to `variable_name`.
     pub fn logical_move<I, T>(
         descriptor_index: usize,
         variable_name: impl Into<String>,
@@ -159,6 +170,8 @@ impl CandidateTraceIdentity {
         })
     }
 
+    /// Returns the canonical framed encoding of this identity, which preserves
+    /// every field and list boundary.
     pub fn canonical_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
         self.append_canonical_bytes(&mut out);

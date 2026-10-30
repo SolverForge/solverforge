@@ -1,8 +1,7 @@
-/* Folding one phase's statistics into an accumulator.
-
-Run totals are the fold of every finished phase into one accumulator, so a
-counter recorded once per phase can never disagree with its run total.
-*/
+//! Folding one phase's statistics into an accumulator.
+//!
+//! Run totals are the fold of every finished phase into one accumulator, so a
+//! counter recorded once per phase can never disagree with its run total.
 
 use super::{PhaseStats, APPLIED_MOVE_TRACE_LIMIT};
 use crate::stats::{MoveTelemetry, SelectorTelemetry};

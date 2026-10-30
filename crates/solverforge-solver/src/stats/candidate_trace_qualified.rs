@@ -13,11 +13,16 @@ use super::{
     CandidateTraceExternalDigest, CandidateTraceInputAttestation, CandidateTraceInputProvenance,
 };
 
+/// Why qualified candidate-trace provenance could not be built or read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CandidateTraceQualificationError {
+    /// The trace was not started with qualified provenance.
     QualificationNotRequested,
+    /// The external producer name is empty or whitespace.
     EmptyExternalProducer,
+    /// The input provenance has no core-tree digest.
     MissingCoreTreeDigest,
+    /// The input provenance has no loaded-build digest.
     MissingBuildDigest,
 }
 
@@ -51,7 +56,9 @@ impl std::error::Error for CandidateTraceQualificationError {}
 /// qualification unless the qualified run entrypoint installed this value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CandidateTraceQualificationStatus {
+    /// The run did not request qualification.
     NotRequested,
+    /// The run was started with qualified provenance.
     Qualified,
 }
 
@@ -68,6 +75,13 @@ pub struct QualifiedCandidateTraceRunProvenance {
 }
 
 impl QualifiedCandidateTraceRunProvenance {
+    /// Builds qualified provenance from all five digests and the external
+    /// `producer`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CandidateTraceQualificationError::EmptyExternalProducer`] when
+    /// `producer` is empty or whitespace.
     #[allow(clippy::too_many_arguments)]
     pub fn externally_attested(
         schema_digest: CandidateTraceExternalDigest,
@@ -111,6 +125,7 @@ impl QualifiedCandidateTraceRunProvenance {
         Ok(Self { input })
     }
 
+    /// The full input provenance this attestation carries.
     pub fn input_provenance(&self) -> &CandidateTraceInputProvenance {
         &self.input
     }

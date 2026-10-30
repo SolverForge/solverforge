@@ -101,8 +101,8 @@ pub(super) fn phase_with_outcome(
     )
 }
 
-/* Declaration-only planning used after the owned local search was consumed
-into its runtime phase; it plans from the same retained config fields. */
+/// Declaration-only planning used after the owned local search was consumed
+/// into its runtime phase; it plans from the same retained config fields.
 pub(super) fn local_search_config_plan(
     config: &LocalSearchConfig,
     components: DefaultLocalSearchComponents,

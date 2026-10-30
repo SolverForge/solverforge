@@ -1,8 +1,8 @@
-/* The public Clarke-Wright facade and its one canonical access protocol.
-
-The savings/merge/matching/completion algorithm lives in `kernel.rs`.
-Both this established public phase and compiled `RuntimeListSlot` instances
-adapt to that one kernel; neither owns a second construction algorithm. */
+//! The public Clarke-Wright facade and its one canonical access protocol.
+//!
+//! The savings/merge/matching/completion algorithm lives in `kernel.rs`.
+//! Both this established public phase and compiled `RuntimeListSlot` instances
+//! adapt to that one kernel; neither owns a second construction algorithm.
 
 use solverforge_core::domain::PlanningSolution;
 
@@ -26,13 +26,13 @@ mod savings;
 pub(crate) use facade::ListClarkeWrightPhase;
 pub(crate) use kernel::run_clarke_wright;
 
-/* The declaration-resolved operations used by canonical Clarke-Wright.
-
-The type is deliberately small: it exposes exactly the source, savings,
-owner, and route-replacement semantics that the algorithm consumes. It is
-implemented by the public function-pointer facade and by `RuntimeListSlot`.
-Thus static and dynamic models run the same savings ordering, merge logic,
-completion logic, and trace sources. */
+/// The declaration-resolved operations used by canonical Clarke-Wright.
+///
+/// The type is deliberately small: it exposes exactly the source, savings,
+/// owner, and route-replacement semantics that the algorithm consumes. It is
+/// implemented by the public function-pointer facade and by `RuntimeListSlot`.
+/// Thus static and dynamic models run the same savings ordering, merge logic,
+/// completion logic, and trace sources.
 pub(crate) trait ClarkeWrightAccess<S>: ListSourceAccess<S> {
     fn descriptor_index(&self) -> usize;
     fn entity_count(&self, solution: &S) -> usize;

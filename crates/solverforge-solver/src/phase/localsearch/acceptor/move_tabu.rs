@@ -1,4 +1,4 @@
-// Move tabu acceptor.
+//! Move tabu acceptor.
 
 use std::fmt::Debug;
 

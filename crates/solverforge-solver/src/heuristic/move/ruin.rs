@@ -1,13 +1,12 @@
-/* RuinMove - unassigns a subset of entities for Large Neighborhood Search.
-
-This move "ruins" (unassigns) selected entities, allowing a construction
-heuristic to reassign them. This is the fundamental building block for
-Large Neighborhood Search (LNS) algorithms.
-
-# Zero-Erasure Design
-
-Uses concrete function pointers for variable access. No `dyn Any`, no downcasting.
-*/
+//! RuinMove - unassigns a subset of entities for Large Neighborhood Search.
+//!
+//! This move "ruins" (unassigns) selected entities, allowing a construction
+//! heuristic to reassign them. This is the fundamental building block for
+//! Large Neighborhood Search (LNS) algorithms.
+//!
+//! # Zero-Erasure Design
+//!
+//! Uses concrete function pointers for variable access. No `dyn Any`, no downcasting.
 
 use std::borrow::Cow;
 use std::fmt::Debug;

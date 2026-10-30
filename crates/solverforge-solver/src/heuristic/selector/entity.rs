@@ -1,4 +1,4 @@
-// Entity selectors for iterating over planning entities
+//! Entity selectors for iterating over planning entities
 
 use std::fmt::Debug;
 
@@ -7,12 +7,12 @@ use solverforge_core::domain::PlanningSolution;
 #[cfg(test)]
 use solverforge_scoring::Director;
 
-// A reference to an entity within a solution.
+/// A reference to an entity within a solution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct EntityReference {
-    // Index of the entity descriptor.
+    /// Index of the entity descriptor.
     pub descriptor_index: usize,
-    // Index of the entity within its collection.
+    /// Index of the entity within its collection.
     pub entity_index: usize,
 }
 
@@ -34,11 +34,10 @@ impl EntityReference {
 /// * `S` - The planning solution type
 #[cfg(test)]
 pub(crate) trait EntitySelector<S: PlanningSolution>: Send + Debug {
-    /* Returns an iterator over entity references.
-
-    The iterator yields `EntityReference` values that identify entities
-    within the solution.
-    */
+    /// Returns an iterator over entity references.
+    ///
+    /// The iterator yields `EntityReference` values that identify entities
+    /// within the solution.
     fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
@@ -47,7 +46,7 @@ pub(crate) trait EntitySelector<S: PlanningSolution>: Send + Debug {
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 }
 
-// An entity selector that iterates over all entities from the solution.
+/// An entity selector that iterates over all entities from the solution.
 #[derive(Clone, Debug)]
 #[cfg(test)]
 pub(crate) struct FromSolutionEntitySelector {

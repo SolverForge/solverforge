@@ -12,24 +12,47 @@ pub(crate) type ConstructionValueOrderKey<S> = fn(&S, usize, usize, usize) -> Op
 pub(crate) type SearchEntityOrderKey<S> = fn(&S, usize, usize) -> Option<i64>;
 pub(crate) type SearchValueOrderKey<S> = fn(&S, usize, usize, usize) -> Option<i64>;
 
+/// Function-pointer access to one scalar planning variable of a typed
+/// model. Values are indexes into the variable's value source; `None` means
+/// unassigned.
 pub struct ScalarVariableSlot<S> {
+    /// Index of the owning entity's descriptor.
     pub descriptor_index: usize,
+    /// Index of the variable within its entity.
     pub variable_index: usize,
+    /// Type name of the owning entity.
     pub entity_type_name: &'static str,
+    /// Number of entities in the owning collection.
     pub entity_count: fn(&S) -> usize,
+    /// Name of the variable.
     pub variable_name: &'static str,
+    /// Reads the value of `(entity_index, variable_index)`.
     pub getter: ScalarGetter<S>,
+    /// Writes the value of `(entity_index, variable_index)`.
     pub setter: ScalarSetter<S>,
+    /// Where the legal values come from.
     pub value_source: ValueSource<S>,
+    /// Whether `None` (unassigned) is a legal value.
     pub allows_unassigned: bool,
+    /// Candidate values per entity that replace the value source when
+    /// enumerating candidates; legality still follows the value source.
     pub candidate_values: Option<ScalarCandidateValues<S>>,
+    /// Nearby value candidates per entity; enables nearby change moves.
     pub nearby_value_candidates: Option<ScalarCandidateValues<S>>,
+    /// Nearby entity candidates per entity; enables nearby swap moves.
     pub nearby_entity_candidates: Option<ScalarCandidateValues<S>>,
+    /// Distance from an entity to a value, ranking nearby value candidates.
     pub nearby_value_distance_meter: Option<NearbyValueDistanceMeter<S>>,
+    /// Distance between two entities, ranking nearby entity candidates.
     pub nearby_entity_distance_meter: Option<NearbyEntityDistanceMeter<S>>,
+    /// Construction order key of an entity.
     pub construction_entity_order_key: Option<ConstructionEntityOrderKey<S>>,
+    /// Construction order key of a value for an entity.
     pub construction_value_order_key: Option<ConstructionValueOrderKey<S>>,
+    /// Local-search order key of an entity; lower keys are tried first.
     pub search_entity_order_key: Option<SearchEntityOrderKey<S>>,
+    /// Local-search order key of a value for an entity; lower keys are tried
+    /// first.
     pub search_value_order_key: Option<SearchValueOrderKey<S>>,
 }
 
@@ -42,6 +65,8 @@ impl<S> Clone for ScalarVariableSlot<S> {
 impl<S> Copy for ScalarVariableSlot<S> {}
 
 impl<S> ScalarVariableSlot<S> {
+    /// Builds a slot from its required accessors; every optional hook starts
+    /// unset.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         descriptor_index: usize,
@@ -76,26 +101,31 @@ impl<S> ScalarVariableSlot<S> {
         }
     }
 
+    /// Sets the nearby value distance meter.
     pub fn with_nearby_value_distance_meter(mut self, meter: NearbyValueDistanceMeter<S>) -> Self {
         self.nearby_value_distance_meter = Some(meter);
         self
     }
 
+    /// Sets the candidate values provider.
     pub fn with_candidate_values(mut self, provider: ScalarCandidateValues<S>) -> Self {
         self.candidate_values = Some(provider);
         self
     }
 
+    /// Sets the nearby value candidates provider.
     pub fn with_nearby_value_candidates(mut self, provider: ScalarCandidateValues<S>) -> Self {
         self.nearby_value_candidates = Some(provider);
         self
     }
 
+    /// Sets the nearby entity candidates provider.
     pub fn with_nearby_entity_candidates(mut self, provider: ScalarCandidateValues<S>) -> Self {
         self.nearby_entity_candidates = Some(provider);
         self
     }
 
+    /// Sets the nearby entity distance meter.
     pub fn with_nearby_entity_distance_meter(
         mut self,
         meter: NearbyEntityDistanceMeter<S>,
@@ -104,6 +134,7 @@ impl<S> ScalarVariableSlot<S> {
         self
     }
 
+    /// Sets the construction entity order key.
     pub fn with_construction_entity_order_key(
         mut self,
         order_key: ConstructionEntityOrderKey<S>,
@@ -112,6 +143,7 @@ impl<S> ScalarVariableSlot<S> {
         self
     }
 
+    /// Sets the construction value order key.
     pub fn with_construction_value_order_key(
         mut self,
         order_key: ConstructionValueOrderKey<S>,
@@ -120,37 +152,46 @@ impl<S> ScalarVariableSlot<S> {
         self
     }
 
+    /// Sets the local-search entity order key.
     pub fn with_search_entity_order_key(mut self, order_key: SearchEntityOrderKey<S>) -> Self {
         self.search_entity_order_key = Some(order_key);
         self
     }
 
+    /// Sets the local-search value order key.
     pub fn with_search_value_order_key(mut self, order_key: SearchValueOrderKey<S>) -> Self {
         self.search_value_order_key = Some(order_key);
         self
     }
 
+    /// Whether this slot matches the given entity class and variable name;
+    /// `None` matches any.
     pub fn matches_target(&self, entity_class: Option<&str>, variable_name: Option<&str>) -> bool {
         entity_class.is_none_or(|name| name == self.entity_type_name)
             && variable_name.is_none_or(|name| name == self.variable_name)
     }
 
+    /// Whether nearby value candidates are present.
     pub fn supports_nearby_change(&self) -> bool {
         self.nearby_value_candidates.is_some()
     }
 
+    /// Whether nearby entity candidates are present.
     pub fn supports_nearby_swap(&self) -> bool {
         self.nearby_entity_candidates.is_some()
     }
 
+    /// The entity's current value.
     pub fn current_value(&self, solution: &S, entity_index: usize) -> Option<usize> {
         (self.getter)(solution, entity_index, self.variable_index)
     }
 
+    /// Sets the entity's value.
     pub fn set_value(&self, solution: &mut S, entity_index: usize, value: Option<usize>) {
         (self.setter)(solution, entity_index, self.variable_index, value);
     }
 
+    /// Every legal value for the entity, per the value source.
     pub fn values_for_entity(&self, solution: &S, entity_index: usize) -> Vec<usize> {
         match self.value_source {
             ValueSource::Empty => Vec::new(),
@@ -165,6 +206,8 @@ impl<S> ScalarVariableSlot<S> {
         }
     }
 
+    /// Candidate values for the entity, at most `value_candidate_limit` when
+    /// set: the candidate values provider when present, else the value source.
     pub fn candidate_values_for_entity(
         &self,
         solution: &S,
@@ -207,6 +250,7 @@ impl<S> ScalarVariableSlot<S> {
         }
     }
 
+    /// Whether the value source offers any value for the entity.
     pub fn has_values_for_entity(&self, solution: &S, entity_index: usize) -> bool {
         match self.value_source {
             ValueSource::Empty => false,
@@ -221,6 +265,8 @@ impl<S> ScalarVariableSlot<S> {
         }
     }
 
+    /// Whether `candidate` is legal for the entity: `None` when unassigned
+    /// values are allowed, otherwise a value in the value source.
     pub fn value_is_legal(
         &self,
         solution: &S,
@@ -243,6 +289,8 @@ impl<S> ScalarVariableSlot<S> {
         }
     }
 
+    /// Nearby distance from the entity to `value`; `None` without a meter or
+    /// when the meter returns `None`.
     pub fn nearby_value_distance(
         &self,
         solution: &S,
@@ -253,6 +301,8 @@ impl<S> ScalarVariableSlot<S> {
             .and_then(|meter| meter(solution, entity_index, self.variable_index, value))
     }
 
+    /// Nearby distance between two entities; `None` without a meter or when the
+    /// meter returns `None`.
     pub fn nearby_entity_distance(
         &self,
         solution: &S,
@@ -269,11 +319,14 @@ impl<S> ScalarVariableSlot<S> {
         })
     }
 
+    /// Construction order key of the entity; `None` without the hook.
     pub fn construction_entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
         self.construction_entity_order_key
             .and_then(|order_key| order_key(solution, entity_index, self.variable_index))
     }
 
+    /// Construction order key of `value` for the entity; `None` without the
+    /// hook.
     pub fn construction_value_order_key(
         &self,
         solution: &S,
@@ -284,11 +337,14 @@ impl<S> ScalarVariableSlot<S> {
             .and_then(|order_key| order_key(solution, entity_index, self.variable_index, value))
     }
 
+    /// Local-search order key of the entity; `None` without the hook.
     pub fn search_entity_order_key(&self, solution: &S, entity_index: usize) -> Option<i64> {
         self.search_entity_order_key
             .and_then(|order_key| order_key(solution, entity_index, self.variable_index))
     }
 
+    /// Local-search order key of `value` for the entity; `None` without the
+    /// hook.
     pub fn search_value_order_key(
         &self,
         solution: &S,

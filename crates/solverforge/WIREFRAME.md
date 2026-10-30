@@ -39,7 +39,7 @@ src/
 doc/quick_start/   — Quick Start model (employee, shift, schedule, solver.toml) included by the crate docs and compiled by its doctest
 ```
 
-The facade, `solverforge-core`, `solverforge-config`, `solverforge-scoring`, `solverforge-console`, `solverforge-macros`, `solverforge-bridge` and `solverforge-cvrp` set `#![warn(missing_docs)]`; CI's clippy `-D warnings` makes an undocumented public item an error.
+Every workspace crate (the facade, `solverforge-core`, `solverforge-config`, `solverforge-scoring`, `solverforge-solver`, `solverforge-console`, `solverforge-macros`, `solverforge-bridge` and `solverforge-cvrp`) sets `#![warn(missing_docs)]`; CI's clippy `-D warnings` makes an undocumented public item an error.
 
 ## Public Re-exports
 

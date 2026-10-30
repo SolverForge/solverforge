@@ -1,4 +1,4 @@
-/* Solver entry point. */
+//! Solver entry point.
 
 use std::fmt;
 use std::hash::Hash;
@@ -140,6 +140,14 @@ where
     }
 }
 
+/// Logs the `solve_start` tracing event with the entity count and exactly
+/// one solve scale: `element_count` for list models or `candidate_count` for
+/// scalar models.
+///
+/// # Panics
+///
+/// Panics unless exactly one of `element_count` and `candidate_count` is
+/// `Some`.
 pub fn log_solve_start(
     entity_count: usize,
     element_count: Option<usize>,
@@ -324,12 +332,12 @@ where
     CompiledRuntimePhaseRunner::try_new(CompiledRuntimeExecutor::new(graph))
 }
 
-/* Shared configured solve. `W` is the mode a solution whose weights require
-weighting scores in: `WeightedMode` for the weighted entrypoint, which then
-starts each solve in the mode its weights need and switches modes when a
-problem change needs the other; `UnweightedMode` for the plain entrypoint,
-which instantiates only the unweighted solver and fails weights it cannot
-apply. */
+/// Shared configured solve. `W` is the mode a solution whose weights require
+/// weighting scores in: `WeightedMode` for the weighted entrypoint, which then
+/// starts each solve in the mode its weights need and switches modes when a
+/// problem change needs the other; `UnweightedMode` for the plain entrypoint,
+/// which instantiates only the unweighted solver and fails weights it cannot
+/// apply.
 #[allow(clippy::too_many_arguments)]
 fn try_run_solver_with_candidate_trace_request<S, C, W, Runner, BuildRunner>(
     solution: S,

@@ -1,12 +1,11 @@
-/* Move selector decorators.
-
-- `VecUnionMoveCursor` - the union cursor the compiled pipeline schedules
-- `LimitedCursorBudget` - the candidate-limit budget the compiled limited
-  composition applies
-- `CartesianProductSelector`, `FilteringMoveSelector` - test-only oracles; the
-  compiled pipeline composes Cartesian products in its own composition cursor
-  and has no filtering decorator
-*/
+//! Move selector decorators.
+//!
+//! - `VecUnionMoveCursor` - the union cursor the compiled pipeline schedules
+//! - `LimitedCursorBudget` - the candidate-limit budget the compiled limited
+//!   composition applies
+//! - `CartesianProductSelector`, `FilteringMoveSelector` - test-only oracles; the
+//!   compiled pipeline composes Cartesian products in its own composition cursor
+//!   and has no filtering decorator
 
 #[cfg(test)]
 pub(crate) mod cartesian_product;

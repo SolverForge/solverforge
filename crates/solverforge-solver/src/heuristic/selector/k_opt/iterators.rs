@@ -1,4 +1,4 @@
-// Iterators for k-opt cut combinations.
+//! Iterators for k-opt cut combinations.
 
 use crate::heuristic::r#move::CutPoint;
 

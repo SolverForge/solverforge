@@ -1,13 +1,12 @@
-// Solve-start validation of a solution's runtime constraint weights.
+//! Solve-start validation of a solution's runtime constraint weights.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::{ConstraintSet, Director};
 
 use crate::runtime_build_error::{RuntimeBuildError, RuntimeBuildResult};
 
-/* Rejects constraint weights that name no constraint of `constraints` or
-exceed the multiplier cap, before any solving work starts.
-*/
+/// Rejects constraint weights that name no constraint of `constraints` or
+/// exceed the multiplier cap, before any solving work starts.
 pub(crate) fn validate_constraint_weights<S, C>(
     solution: &S,
     constraints: &C,
@@ -27,10 +26,9 @@ where
         })
 }
 
-/* Rejects constraint weights on the director's working solution after a
-problem change rewrote it: a change may install weights the solve-start check
-never saw.
-*/
+/// Rejects constraint weights on the director's working solution after a
+/// problem change rewrote it: a change may install weights the solve-start check
+/// never saw.
 pub(crate) fn validate_director_constraint_weights<S, D>(director: &D) -> RuntimeBuildResult<()>
 where
     S: PlanningSolution,

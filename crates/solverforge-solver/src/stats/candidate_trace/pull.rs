@@ -3,17 +3,29 @@ use super::*;
 /// The engine path that consumed a candidate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CandidateTraceSource {
+    /// The construction heuristic phase.
     Construction,
+    /// The local search phase.
     LocalSearch,
+    /// The variable neighborhood descent phase.
     VariableNeighborhoodDescent,
+    /// A k-opt move evaluation.
     KOpt,
+    /// Round-robin list construction.
     ListRoundRobinConstruction,
+    /// A cheapest-insertion trial in list construction.
     ListCheapestInsertionTrial,
+    /// A regret-insertion trial in list construction.
     ListRegretInsertionTrial,
+    /// A Clarke-Wright savings evaluation.
     ListClarkeWrightSavings,
+    /// A Clarke-Wright route merge.
     ListClarkeWrightMerge,
+    /// A Clarke-Wright completion insertion of elements left unrouted.
     ListClarkeWrightCompletionInsertion,
+    /// A list k-opt reconnection trial.
     ListKOptReconnection,
+    /// A regret-insertion fallback that appends to an owner.
     ListRegretOwnerAppend,
 }
 
@@ -103,10 +115,16 @@ impl CandidateTraceDisposition {
 pub struct CandidatePullTelemetry {
     /// Monotonic zero-based ordinal across all instrumented engine pulls.
     pub ordinal: u64,
+    /// Engine path that consumed the candidate.
     pub source: CandidateTraceSource,
+    /// Index of the phase that pulled the candidate.
     pub phase_index: usize,
+    /// Type name of that phase.
     pub phase_type: String,
+    /// Step index within the phase.
     pub step_index: u64,
+    /// Selector that yielded the candidate, when the engine pulls from
+    /// indexed selectors.
     pub selector_index: Option<usize>,
     /// Source-local cursor/trial coordinate reported by the engine.
     ///
@@ -115,6 +133,8 @@ pub struct CandidatePullTelemetry {
     /// can reuse local coordinates across owners or passes. Consumers compare
     /// the globally monotonic [`Self::ordinal`] together with `identity`.
     pub candidate_index: usize,
+    /// Construction slot the candidate was generated for; `None` for
+    /// local-search candidates.
     pub construction_target: Option<CandidateTraceConstructionTarget>,
     /// `None` explicitly means this move family did not provide a canonical
     /// logical-coordinate identity. Such a trace is not qualifying evidence.

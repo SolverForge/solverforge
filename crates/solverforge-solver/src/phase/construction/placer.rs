@@ -1,8 +1,7 @@
-/* Entity placers for construction heuristic
-
-Placers enumerate the entities that need values assigned and
-generate candidate moves for each entity.
-*/
+//! Entity placers for construction heuristic
+//!
+//! Placers enumerate the entities that need values assigned and
+//! generate candidate moves for each entity.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -74,7 +73,7 @@ pub(crate) struct Placement<
     M: Move<S>,
     C: MoveCursor<S, M>,
 {
-    // The entity reference.
+    /// The entity reference.
     pub entity_ref: EntityReference,
     candidates: C,
     // Whether keeping the current value is a legal construction choice.

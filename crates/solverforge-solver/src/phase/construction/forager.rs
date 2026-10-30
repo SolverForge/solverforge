@@ -1,14 +1,13 @@
-/* Foragers for construction heuristic move selection
-
-Foragers determine which move to select from the candidates
-generated for each entity placement.
-
-# Zero-Erasure Design
-
-Foragers return stable candidate IDs into the placement's cursor-owned store.
-Rejected candidates are released immediately and the caller takes ownership of
-the selected move by ID.
-*/
+//! Foragers for construction heuristic move selection
+//!
+//! Foragers determine which move to select from the candidates
+//! generated for each entity placement.
+//!
+//! # Zero-Erasure Design
+//!
+//! Foragers return stable candidate IDs into the placement's cursor-owned store.
+//! Rejected candidates are released immediately and the caller takes ownership of
+//! the selected move by ID.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;

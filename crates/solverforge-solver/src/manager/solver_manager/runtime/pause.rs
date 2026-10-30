@@ -33,6 +33,13 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         solver_scope.resume_timers();
     }
 
+    /// Settles a requested pause at this point: retains `solution` as a
+    /// snapshot, emits [`SolverEvent::Paused`](crate::SolverEvent::Paused) and
+    /// blocks until the job is resumed or cancelled.
+    ///
+    /// Returns `true` when the job resumed (a `Resumed` event was emitted) and
+    /// `false` when no pause was pending, the job was cancelled, or it is
+    /// already terminal.
     pub fn pause_with_snapshot(
         &self,
         solution: S,

@@ -1,9 +1,8 @@
-/* Zero-erasure move selectors for zero-erasure move generation.
-
-Selectors now expose cursor-owned storage plus borrowable candidates.
-The solver evaluates candidates by reference and only takes ownership of the
-selected move once the forager commits to an index.
-*/
+//! Zero-erasure move selectors for zero-erasure move generation.
+//!
+//! Selectors now expose cursor-owned storage plus borrowable candidates.
+//! The solver evaluates candidates by reference and only takes ownership of the
+//! selected move once the forager commits to an index.
 
 use std::borrow::Cow;
 use std::fmt::Debug;

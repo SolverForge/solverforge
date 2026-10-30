@@ -14,10 +14,13 @@ use crate::scope::{ProgressCallback, SolverScope};
 
 use super::SearchContext;
 
+/// A user-defined phase registered on a search declaration by name and run
+/// by the configured runtime where `solver.toml` names it.
 pub trait CustomSearchPhase<S>: Debug + Send
 where
     S: PlanningSolution,
 {
+    /// Runs the phase on the solver scope.
     fn solve<D, ProgressCb>(&mut self, solver_scope: &mut SolverScope<'_, S, D, ProgressCb>)
     where
         D: Director<S>,
@@ -43,6 +46,7 @@ where
     /// keyed by the previous solution.
     fn on_problem_change(&mut self) {}
 
+    /// Phase type name used in telemetry and logs.
     fn phase_type_name(&self) -> &'static str {
         "CustomSearchPhase"
     }

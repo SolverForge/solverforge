@@ -1,4 +1,4 @@
-// ExhaustiveSearchPhase implementation.
+//! ExhaustiveSearchPhase implementation.
 
 use std::collections::BinaryHeap;
 use std::fmt::Debug;
@@ -69,10 +69,12 @@ impl<Dec: Debug> Debug for ExhaustiveSearchPhase<Dec> {
 }
 
 impl<Dec> ExhaustiveSearchPhase<Dec> {
+    /// Creates the phase with `config`.
     pub fn new(decider: Dec, config: ExhaustiveSearchConfig) -> Self {
         Self { decider, config }
     }
 
+    /// Creates a depth-first phase with the default limits.
     pub fn depth_first(decider: Dec) -> Self {
         Self::new(
             decider,
@@ -83,6 +85,7 @@ impl<Dec> ExhaustiveSearchPhase<Dec> {
         )
     }
 
+    /// Creates a breadth-first phase with the default limits.
     pub fn breadth_first(decider: Dec) -> Self {
         Self::new(
             decider,
@@ -93,6 +96,7 @@ impl<Dec> ExhaustiveSearchPhase<Dec> {
         )
     }
 
+    /// Creates a score-first phase with the default limits.
     pub fn score_first(decider: Dec) -> Self {
         Self::new(
             decider,
@@ -103,6 +107,7 @@ impl<Dec> ExhaustiveSearchPhase<Dec> {
         )
     }
 
+    /// The phase type name, `ExhaustiveSearch`.
     pub fn phase_type_name(&self) -> &'static str {
         "ExhaustiveSearch"
     }

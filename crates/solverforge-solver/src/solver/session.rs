@@ -1,14 +1,13 @@
-/* A running solve: the solver's phase and termination plus the solver scope.
-
-The configured runtime entrypoint starts a session, runs its phase and
-finishes it, driving the three steps itself so it can
-switch the score director's constraint weight mode between them: when an
-applied problem change needs the other mode, the runner returns, `run`
-reports the switch, `switch_director` moves the whole session onto a
-director of the other mode, and `run` resumes the phase where it stopped. Every
-lifecycle step outside the phase (initial best publication, terminal
-notifications, result extraction) still happens exactly once.
-*/
+//! A running solve: the solver's phase and termination plus the solver scope.
+//!
+//! The configured runtime entrypoint starts a session, runs its phase and
+//! finishes it, driving the three steps itself so it can
+//! switch the score director's constraint weight mode between them: when an
+//! applied problem change needs the other mode, the runner returns, `run`
+//! reports the switch, `switch_director` moves the whole session onto a
+//! director of the other mode, and `run` resumes the phase where it stopped. Every
+//! lifecycle step outside the phase (initial best publication, terminal
+//! notifications, result extraction) still happens exactly once.
 
 use super::*;
 

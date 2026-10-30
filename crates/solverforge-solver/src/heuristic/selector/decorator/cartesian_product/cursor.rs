@@ -15,8 +15,8 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /* Replaces the row's left move and clears its candidate store; the store
-    keeps its backing capacity so repeated opens do not re-grow it. */
+    /// Replaces the row's left move and clears its candidate store; the store
+    /// keeps its backing capacity so repeated opens do not re-grow it.
     fn replace_left(&mut self, left: M) -> M {
         self.right_moves.reset();
         self.live_pairs = 0;
@@ -38,11 +38,11 @@ pub(super) struct CartesianPair {
     pub(super) tabu_signature: MoveTabuSignature,
 }
 
-/* Per-selector scratch pool. Rows and pair slots retain their backing
-capacities across cursor opens; each open drains the pool and the cursor
-returns the buffers on drop. Rows are reset in place (left move replaced,
-right store cleared with capacity kept, live_pairs zeroed) so no stale move
-state survives into the next open. */
+/// Per-selector scratch pool. Rows and pair slots retain their backing
+/// capacities across cursor opens; each open drains the pool and the cursor
+/// returns the buffers on drop. Rows are reset in place (left move replaced,
+/// right store cleared with capacity kept, live_pairs zeroed) so no stale move
+/// state survives into the next open.
 pub(super) struct CartesianScratch<S, M>
 where
     S: PlanningSolution,
@@ -102,9 +102,9 @@ where
     LeftCursor: MoveCursor<S, M>,
     Right: MoveSelector<S, M>,
 {
-    /* Returns the rows and pair slots to the selector's scratch pool with
-    their backing capacities intact, so the next open_cursor() does not
-    re-grow the vectors. */
+    /// Returns the rows and pair slots to the selector's scratch pool with
+    /// their backing capacities intact, so the next open_cursor() does not
+    /// re-grow the vectors.
     fn drop(&mut self) {
         if let Some(pool) = self.scratch {
             if let Ok(mut pool) = pool.lock() {

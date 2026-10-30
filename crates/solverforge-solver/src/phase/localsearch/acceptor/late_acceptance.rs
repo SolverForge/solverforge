@@ -1,4 +1,4 @@
-// Late acceptance acceptor.
+//! Late acceptance acceptor.
 
 use std::fmt::Debug;
 

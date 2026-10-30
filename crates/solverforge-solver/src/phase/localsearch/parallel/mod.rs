@@ -1,9 +1,8 @@
-/* Parallel local-search evaluation.
-
-The main director and persistent evaluator replicas run trials for one window
-of candidates at a time; the coordinator consumes the results in candidate
-order through the unchanged acceptor and forager.
-*/
+//! Parallel local-search evaluation.
+//!
+//! The main director and persistent evaluator replicas run trials for one window
+//! of candidates at a time; the coordinator consumes the results in candidate
+//! order through the unchanged acceptor and forager.
 
 mod budget;
 mod config;

@@ -95,17 +95,16 @@ impl<S, V: Debug> Debug for ListReverseMove<S, V> {
 }
 
 impl<S, V> ListReverseMove<S, V> {
-    /* Creates a new list reverse move with concrete function pointers.
-
-    # Arguments
-    * `entity_index` - Entity index
-    * `start` - Start of range (inclusive)
-    * `end` - End of range (exclusive)
-    * `list_len` - Function to get list length
-    * `list_reverse` - Function to reverse elements in range
-    * `variable_name` - Name of the list variable
-    * `descriptor_index` - Entity descriptor index
-    */
+    /// Creates a new list reverse move with concrete function pointers.
+    ///
+    /// # Arguments
+    /// * `entity_index` - Entity index
+    /// * `start` - Start of range (inclusive)
+    /// * `end` - End of range (exclusive)
+    /// * `list_len` - Function to get list length
+    /// * `list_reverse` - Function to reverse elements in range
+    /// * `variable_name` - Name of the list variable
+    /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         entity_index: usize,

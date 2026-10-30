@@ -21,8 +21,8 @@ where
     _phantom: PhantomData<fn() -> (S, M)>,
 }
 
-// Candidate-enumeration calls between wall-clock stop checks in the
-// grouped-scalar placement machinery.
+/// Candidate-enumeration calls between wall-clock stop checks in the
+/// grouped-scalar placement machinery.
 const STOP_POLL_INTERVAL: u64 = 64;
 
 impl<S, M, P, Fo> ConstructionHeuristicPhase<S, M, P, Fo>

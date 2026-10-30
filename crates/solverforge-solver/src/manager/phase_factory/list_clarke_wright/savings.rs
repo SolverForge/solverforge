@@ -30,9 +30,9 @@ pub(crate) fn sort_savings(entries: &mut [SavingsEntry]) {
     });
 }
 
-/* Scores every pair of unassigned elements once per representative owner,
-recording each pair as a construction candidate. Returns the savings and
-whether configured termination interrupted the generation. */
+/// Scores every pair of unassigned elements once per representative owner,
+/// recording each pair as a construction candidate. Returns the savings and
+/// whether configured termination interrupted the generation.
 pub(super) fn generate_savings<S, A, D, BestCb>(
     phase_scope: &mut PhaseScope<'_, '_, S, D, BestCb>,
     access: &A,

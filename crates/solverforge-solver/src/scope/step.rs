@@ -1,4 +1,4 @@
-// Step-level scope.
+//! Step-level scope.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
@@ -55,6 +55,8 @@ pub struct StepScope<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb = (
 impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
     StepScope<'t, 'a, 'b, S, D, BestCb>
 {
+    /// Opens the next step of `phase_scope`; its index is the phase's step
+    /// count.
     pub fn new(phase_scope: &'a mut PhaseScope<'t, 'b, S, D, BestCb>) -> Self {
         Self::new_with_control_policy(phase_scope, StepControlPolicy::ObserveConfigLimits)
     }
@@ -76,10 +78,12 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
         }
     }
 
+    /// Index of this step within the phase (0-based).
     pub fn step_index(&self) -> u64 {
         self.step_index
     }
 
+    /// Score after this step, once set.
     pub fn step_score(&self) -> Option<&S::Score> {
         self.step_score.as_ref()
     }
@@ -99,6 +103,7 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
         self.progress_polling_required
     }
 
+    /// Sets the step score, which also becomes the solver's current score.
     pub fn set_step_score(&mut self, score: S::Score)
     where
         S::Score: Copy,
@@ -117,14 +122,17 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
         self.phase_scope.report_progress_if_due();
     }
 
+    /// The parent phase scope.
     pub fn phase_scope(&self) -> &PhaseScope<'t, 'b, S, D, BestCb> {
         self.phase_scope
     }
 
+    /// The parent phase scope, mutably.
     pub fn phase_scope_mut(&mut self) -> &mut PhaseScope<'t, 'b, S, D, BestCb> {
         self.phase_scope
     }
 
+    /// The score director holding the working solution.
     pub fn score_director(&self) -> &D {
         self.phase_scope.score_director()
     }
@@ -133,6 +141,8 @@ impl<'t, 'a, 'b, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S
         self.phase_scope.score_director_mut()
     }
 
+    /// Applies a committed change to the working solution through the score
+    /// director and returns the closure's result.
     pub fn mutate<T, F>(&mut self, mutate: F) -> T
     where
         F: FnOnce(&mut D) -> T,

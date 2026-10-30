@@ -1,8 +1,7 @@
-/* Exhaustive search decider for node expansion.
-
-The decider is responsible for expanding nodes and generating
-child nodes in the search tree.
-*/
+//! Exhaustive search decider for node expansion.
+//!
+//! The decider is responsible for expanding nodes and generating
+//! child nodes in the search tree.
 
 use std::fmt::Debug;
 
@@ -19,10 +18,9 @@ use super::node::ExhaustiveSearchNode;
 /// - Generating all possible value assignments
 /// - Creating child nodes for each assignment
 pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: Director<S>>: Send + Debug {
-    /* Expands a node by generating all child nodes.
-
-    Returns a vector of child nodes, one for each possible assignment.
-    */
+    /// Expands a node by generating all child nodes.
+    ///
+    /// Returns a vector of child nodes, one for each possible assignment.
     fn expand(
         &self,
         parent_index: usize,
@@ -30,10 +28,14 @@ pub trait ExhaustiveSearchDecider<S: PlanningSolution, D: Director<S>>: Send + D
         score_director: &mut D,
     ) -> Vec<ExhaustiveSearchNode<S>>;
 
+    /// Unassigns the variable on every non-pinned entity.
     fn reset_assignments(&self, score_director: &mut D);
 
+    /// Applies the assignment `node` records, if any; pinned entities stay
+    /// unchanged.
     fn apply_assignment(&self, node: &ExhaustiveSearchNode<S>, score_director: &mut D);
 
+    /// Number of entities to assign; the depth of a leaf.
     fn total_entities(&self, score_director: &D) -> usize;
 }
 
@@ -86,6 +88,7 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + 'static> SimpleDecider<S, V, 
 }
 
 impl<S: PlanningSolution, V: Clone + Send + Sync + 'static, B> SimpleDecider<S, V, B> {
+    /// Replaces the bounder used for optimistic bounds.
     pub fn with_bounder<B2>(self, bounder: B2) -> SimpleDecider<S, V, B2> {
         SimpleDecider {
             descriptor_index: self.descriptor_index,
@@ -97,6 +100,7 @@ impl<S: PlanningSolution, V: Clone + Send + Sync + 'static, B> SimpleDecider<S, 
         }
     }
 
+    /// Sets the index of the assigned variable within its entity.
     pub fn with_variable_index(mut self, variable_index: usize) -> Self {
         self.variable_index = variable_index;
         self
@@ -257,7 +261,7 @@ where
     }
 }
 
-// Implement ScoreBounder for () to allow SimpleDecider<S, V> (no bounder)
+/// Implement ScoreBounder for () to allow SimpleDecider<S, V> (no bounder)
 impl<S: PlanningSolution, D: Director<S>> ScoreBounder<S, D> for () {
     fn calculate_optimistic_bound(&self, _score_director: &D) -> Option<S::Score> {
         None

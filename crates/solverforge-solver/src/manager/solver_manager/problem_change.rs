@@ -22,6 +22,7 @@ use crate::realtime::ProblemChange;
 pub struct ProblemChangeId(u64);
 
 impl ProblemChangeId {
+    /// Returns the 1-based submission ordinal.
     pub fn get(self) -> u64 {
         self.0
     }

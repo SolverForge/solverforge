@@ -1,4 +1,4 @@
-// Canonical Clarke-Wright completion-insertion pass.
+//! Canonical Clarke-Wright completion-insertion pass.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;

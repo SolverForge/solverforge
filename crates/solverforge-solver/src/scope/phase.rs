@@ -1,18 +1,20 @@
-// Phase-level scope.
+//! Phase-level scope.
 
 use std::cmp::Ordering;
 use std::time::Duration;
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;
-use tracing::debug;
 
 use super::solver::ProgressCallback;
 use super::SolverScope;
 use crate::stats::{
-    whole_units_per_second, AppliedMoveTelemetry, CandidateTraceConstructionTarget,
-    CandidateTraceDisposition, CandidateTracePullToken, CandidateTraceSource, PhaseStats,
+    AppliedMoveTelemetry, CandidateTraceConstructionTarget, CandidateTraceDisposition,
+    CandidateTracePullToken, CandidateTraceSource,
 };
+
+#[path = "phase_lifecycle.rs"]
+mod lifecycle;
 
 /// Scope for a single phase of solving.
 ///
@@ -40,188 +42,29 @@ pub struct PhaseScope<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb = ()> 
 impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
     PhaseScope<'t, 'a, S, D, BestCb>
 {
-    pub fn new(solver_scope: &'a mut SolverScope<'t, S, D, BestCb>, phase_index: usize) -> Self {
-        Self::with_phase_type(solver_scope, phase_index, "Unknown")
-    }
-
-    pub fn with_phase_type(
-        solver_scope: &'a mut SolverScope<'t, S, D, BestCb>,
-        phase_index: usize,
-        phase_type: &'static str,
-    ) -> Self {
-        let candidate_trace_phase_index = solver_scope.begin_candidate_trace_phase();
-        solver_scope.begin_phase_progress(phase_index, phase_type, 0, 0);
-        solver_scope.stats_mut().begin_phase(phase_type);
-        let starting_score = solver_scope.best_score().cloned();
-        Self {
-            solver_scope,
-            phase_index,
-            candidate_trace_phase_index,
-            starting_score,
-            step_count: 0,
-            phase_type,
-        }
-    }
-
-    pub fn phase_index(&self) -> usize {
-        self.phase_index
-    }
-
-    pub fn starting_score(&self) -> Option<&S::Score> {
-        self.starting_score.as_ref()
-    }
-
-    /// Solver-active time this phase has spent; the solver clock excludes
-    /// pauses.
-    pub fn elapsed(&self) -> std::time::Duration {
-        self.solver_scope
-            .stats()
-            .phase_elapsed()
-            .expect("a phase scope keeps its phase record open")
-    }
-
-    pub fn step_count(&self) -> u64 {
-        self.step_count
-    }
-
-    /// Increments the phase step count.
-    pub fn increment_step_count(&mut self) -> u64 {
-        self.step_count += 1;
-        self.solver_scope.increment_step_count();
-        self.step_count
-    }
-
-    pub fn solver_scope(&self) -> &SolverScope<'t, S, D, BestCb> {
-        self.solver_scope
-    }
-
-    pub fn solver_scope_mut(&mut self) -> &mut SolverScope<'t, S, D, BestCb> {
-        self.solver_scope
-    }
-
-    pub fn score_director(&self) -> &D {
-        self.solver_scope.score_director()
-    }
-
-    pub(crate) fn score_director_mut(&mut self) -> &mut D {
-        self.solver_scope.score_director_mut()
-    }
-
-    pub fn mutate<T, F>(&mut self, mutate: F) -> T
-    where
-        F: FnOnce(&mut D) -> T,
-    {
-        self.solver_scope.mutate(mutate)
-    }
-
-    /// Calculates the current score.
-    pub fn calculate_score(&mut self) -> S::Score {
-        self.solver_scope.calculate_score()
-    }
-
-    /// Updates best solution.
-    pub fn update_best_solution(&mut self) {
-        self.solver_scope.update_best_solution()
-    }
-
-    /// Publishes the current working solution when it ties the current best score.
-    pub(crate) fn promote_current_solution_on_score_tie(&mut self) {
-        self.solver_scope.promote_current_solution_on_score_tie()
-    }
-
-    /// Statistics of this phase. They live in the solver's statistics, which
-    /// open this phase's record for the scope's lifetime.
-    pub fn stats(&self) -> &PhaseStats {
-        self.solver_scope
-            .stats()
-            .phase()
-            .expect("a phase scope keeps its phase record open")
-    }
-
-    pub fn stats_mut(&mut self) -> &mut PhaseStats {
-        self.solver_scope
-            .stats_mut()
-            .phase_mut()
-            .expect("a phase scope keeps its phase record open")
-    }
-
-    pub fn report_progress(&self) {
-        self.solver_scope.report_phase_progress();
-    }
-
-    pub fn report_progress_if_due(&mut self) -> bool {
-        if !BestCb::PUBLISHES_PROGRESS && !tracing::enabled!(tracing::Level::DEBUG) {
-            return false;
-        }
-        let (step_count, moves_evaluated) = {
-            let stats = self.stats();
-            (stats.step_count, stats.moves_evaluated)
-        };
-        let tick = self.solver_scope.take_phase_progress_tick(
-            self.phase_index,
-            self.phase_type,
-            step_count,
-            moves_evaluated,
-        );
-        let Some(tick) = tick else {
-            return false;
-        };
-        let speed_count = if tick.move_delta > 0 {
-            tick.move_delta
-        } else {
-            tick.step_delta
-        };
-        let current_score = self.solver_scope.current_score();
-        let published_best_score = self.solver_scope.best_score();
-        let reported_best_score = match (current_score, published_best_score) {
-            (Some(current), Some(best)) if current > best => Some(current),
-            (_, Some(best)) => Some(best),
-            (Some(current), None) => Some(current),
-            (None, None) => None,
-        };
-        let current_score = current_score
-            .map(ToString::to_string)
-            .unwrap_or_else(|| "none".to_string());
-        let best_score = reported_best_score
-            .map(ToString::to_string)
-            .unwrap_or_else(|| "none".to_string());
-        let stats = self.stats();
-        debug!(
-            event = "progress",
-            phase = self.phase_type,
-            phase_index = self.phase_index,
-            steps = stats.step_count,
-            moves_generated = stats.moves_generated,
-            moves_evaluated = stats.moves_evaluated,
-            moves_accepted = stats.moves_accepted,
-            moves_score_improving = stats.moves_score_improving(),
-            moves_applied_improving = stats.moves_applied_improving(),
-            score_calculations = stats.score_calculations,
-            speed = whole_units_per_second(speed_count, tick.elapsed),
-            acceptance_rate = format!("{:.1}%", stats.acceptance_rate() * 100.0),
-            current_score = current_score,
-            best_score = best_score,
-        );
-        self.report_progress();
-        true
-    }
-
+    /// Records `count` generated moves and the time spent generating them.
     pub fn record_generated_batch(&mut self, count: u64, duration: Duration) {
         self.solver_scope
             .stats_mut()
             .record_generated_batch(count, duration);
     }
 
+    /// Records one generated move and the time spent generating it.
     pub fn record_generated_move(&mut self, duration: Duration) {
         self.record_generated_batch(1, duration);
     }
 
+    /// Records one move generated by selector `selector_index` and its
+    /// generation time.
     pub fn record_selector_generated_move(&mut self, selector_index: usize, duration: Duration) {
         self.solver_scope
             .stats_mut()
             .record_selector_generated(selector_index, 1, duration);
     }
 
+    /// Records one move generated by selector `selector_index` and its
+    /// generation time, labelling the selector `selector_label` unless it
+    /// already carries a descriptive label.
     pub fn record_selector_generated_move_with_label(
         &mut self,
         selector_index: usize,
@@ -233,75 +76,91 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
             .record_selector_generated_with_label(selector_index, selector_label, 1, duration);
     }
 
+    /// Records generation time that did not yield a counted move.
     pub fn record_generation_time(&mut self, duration: Duration) {
         self.solver_scope
             .stats_mut()
             .record_generation_time(duration);
     }
 
+    /// Records one evaluated move and the time spent evaluating it.
     pub fn record_evaluated_move(&mut self, duration: Duration) {
         self.solver_scope.record_evaluated_move(duration);
     }
 
+    /// Records one move evaluated from selector `selector_index` and its
+    /// evaluation time.
     pub fn record_selector_evaluated_move(&mut self, selector_index: usize, duration: Duration) {
         self.solver_scope
             .record_selector_evaluated(selector_index, duration);
     }
 
+    /// Records an accepted move.
     pub fn record_move_accepted(&mut self) {
         self.solver_scope.stats_mut().record_move_accepted();
     }
 
+    /// Records a move committed to the working solution.
     pub fn record_move_applied(&mut self) {
         self.solver_scope.stats_mut().record_move_applied();
     }
 
+    /// Records one accepted move from selector `selector_index`.
     pub fn record_selector_move_accepted(&mut self, selector_index: usize) {
         self.solver_scope
             .stats_mut()
             .record_selector_accepted(selector_index);
     }
 
+    /// Records one committed move from selector `selector_index`.
     pub fn record_selector_move_applied(&mut self, selector_index: usize) {
         self.solver_scope
             .stats_mut()
             .record_selector_applied(selector_index);
     }
 
+    /// Records a move rejected as not doable before scoring.
     pub fn record_move_not_doable(&mut self) {
         self.solver_scope.stats_mut().record_move_not_doable();
     }
 
+    /// Records one not-doable move from selector `selector_index`.
     pub fn record_selector_move_not_doable(&mut self, selector_index: usize) {
         self.solver_scope
             .stats_mut()
             .record_selector_not_doable(selector_index);
     }
 
+    /// Records a scored move the acceptor rejected.
     pub fn record_move_acceptor_rejected(&mut self) {
         self.solver_scope
             .stats_mut()
             .record_move_acceptor_rejected();
     }
 
+    /// Records one acceptor-rejected move from selector `selector_index`.
     pub fn record_selector_move_acceptor_rejected(&mut self, selector_index: usize) {
         self.solver_scope
             .stats_mut()
             .record_selector_acceptor_rejected(selector_index);
     }
 
+    /// Records `count` accepted moves the forager did not pick.
     pub fn record_moves_forager_ignored(&mut self, count: u64) {
         self.solver_scope
             .stats_mut()
             .record_moves_forager_ignored(count);
     }
 
+    /// Records one generated move of kind `move_label`.
     pub fn record_move_kind_generated(&mut self, move_label: &'static str) {
         self.solver_scope
             .stats_mut()
             .record_move_kind_generated(move_label);
     }
 
+    /// Records one scored move of kind `move_label`, classified by how its
+    /// score compares with the reference (`Greater` means improving).
     pub fn record_move_kind_evaluated(
         &mut self,
         move_label: &'static str,
@@ -312,30 +171,37 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
             .record_move_kind_evaluated(move_label, score_ordering);
     }
 
+    /// Records one evaluated move of kind `move_label` that was never scored.
     pub fn record_move_kind_evaluated_unscored(&mut self, move_label: &'static str) {
         self.solver_scope
             .stats_mut()
             .record_move_kind_evaluated_unscored(move_label);
     }
 
+    /// Records one accepted move of kind `move_label`.
     pub fn record_move_kind_accepted(&mut self, move_label: &'static str) {
         self.solver_scope
             .stats_mut()
             .record_move_kind_accepted(move_label);
     }
 
+    /// Records one applied move of kind `move_label`; a positive
+    /// `score_improvement` also counts it as improving and adds the gain.
     pub fn record_move_kind_applied(&mut self, move_label: &'static str, score_improvement: f64) {
         self.solver_scope
             .stats_mut()
             .record_move_kind_applied(move_label, score_improvement);
     }
 
+    /// Records one not-doable move of kind `move_label`.
     pub fn record_move_kind_not_doable(&mut self, move_label: &'static str) {
         self.solver_scope
             .stats_mut()
             .record_move_kind_not_doable(move_label);
     }
 
+    /// Records one acceptor-rejected move of kind `move_label`; a `Greater`
+    /// `score_ordering` also counts it as a rejected improving move.
     pub fn record_move_kind_acceptor_rejected(
         &mut self,
         move_label: &'static str,
@@ -346,18 +212,22 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
             .record_move_kind_acceptor_rejected(move_label, score_ordering);
     }
 
+    /// Records `count` forager-ignored moves of kind `move_label`.
     pub fn record_move_kind_forager_ignored(&mut self, move_label: &'static str, count: u64) {
         self.solver_scope
             .stats_mut()
             .record_move_kind_forager_ignored(move_label, count);
     }
 
+    /// Appends an applied move to the running phase's trace; dropped once that
+    /// trace holds eight entries.
     pub fn record_applied_move_trace(&mut self, applied_move: AppliedMoveTelemetry) {
         self.solver_scope
             .stats_mut()
             .record_applied_move_trace(applied_move);
     }
 
+    /// Whether the running phase's applied-move trace still has room.
     pub fn can_record_applied_move_trace(&self) -> bool {
         self.stats().can_record_applied_move_trace()
     }
@@ -424,18 +294,22 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
             .record_candidate_trace_disposition(token, disposition);
     }
 
+    /// Records a scored move whose hard score beat the reference score.
     pub fn record_move_hard_improving(&mut self) {
         self.solver_scope.stats_mut().record_move_hard_improving();
     }
 
+    /// Records a scored move whose hard score equalled the reference score.
     pub fn record_move_hard_neutral(&mut self) {
         self.solver_scope.stats_mut().record_move_hard_neutral();
     }
 
+    /// Records a scored move whose hard score fell below the reference score.
     pub fn record_move_hard_worse(&mut self) {
         self.solver_scope.stats_mut().record_move_hard_worse();
     }
 
+    /// Records one score calculation.
     pub fn record_score_calculation(&mut self) {
         self.solver_scope.record_score_calculation();
     }
@@ -446,24 +320,29 @@ impl<'t, 'a, S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S>>
         self.solver_scope.record_move_speculative();
     }
 
+    /// Records a construction slot filled by an applied move.
     pub fn record_construction_slot_assigned(&mut self) {
         self.solver_scope
             .stats_mut()
             .record_construction_slot_assigned();
     }
 
+    /// Records a construction slot whose current value was legally kept.
     pub fn record_construction_slot_kept(&mut self) {
         self.solver_scope
             .stats_mut()
             .record_construction_slot_kept();
     }
 
+    /// Records a construction slot completed without a doable candidate.
     pub fn record_construction_slot_no_doable(&mut self) {
         self.solver_scope
             .stats_mut()
             .record_construction_slot_no_doable();
     }
 
+    /// Records the required rows the scalar-assignment group `group_name` still
+    /// leaves unassigned.
     pub fn record_scalar_assignment_required_remaining(
         &mut self,
         group_name: &'static str,

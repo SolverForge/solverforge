@@ -3,11 +3,10 @@ use solverforge_scoring::Director;
 
 use crate::scope::{ProgressCallback, SolverScope};
 
-/* Remaining in-phase evaluation budget: the smaller of the move-count and
-score-calculation limits minus the work already counted, or `None` when the
-phase sets neither limit. A window never exceeds it, so fixed-work limits stop
-at the same candidate as sequential evaluation.
-*/
+/// Remaining in-phase evaluation budget: the smaller of the move-count and
+/// score-calculation limits minus the work already counted, or `None` when the
+/// phase sets neither limit. A window never exceeds it, so fixed-work limits stop
+/// at the same candidate as sequential evaluation.
 pub(crate) fn remaining_evaluation_budget<S, D, BestCb>(
     solver_scope: &SolverScope<'_, S, D, BestCb>,
 ) -> Option<u64>

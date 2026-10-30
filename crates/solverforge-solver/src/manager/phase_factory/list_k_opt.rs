@@ -1,9 +1,8 @@
-/* Per-route k-opt polishing phase for list-variable problems.
-
-Applies 2-opt local search to each entity's route independently,
-improving solution quality after construction without modifying the
-overall assignment structure.
-*/
+//! Per-route k-opt polishing phase for list-variable problems.
+//!
+//! Applies 2-opt local search to each entity's route independently,
+//! improving solution quality after construction without modifying the
+//! overall assignment structure.
 
 use solverforge_core::domain::PlanningSolution;
 

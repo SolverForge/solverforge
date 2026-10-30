@@ -1,12 +1,18 @@
 use crate::planning::ScalarEdit;
 
+/// Limits a conflict-repair provider must respect per step.
 #[derive(Debug, Clone, Copy)]
 pub struct RepairLimits {
+    /// Most constraint matches to repair.
     pub max_matches_per_step: usize,
+    /// Most repairs per match.
     pub max_repairs_per_match: usize,
+    /// Most moves in total.
     pub max_moves_per_step: usize,
 }
 
+/// One repair proposed by a provider: a reason and the scalar edits
+/// applied together.
 #[derive(Debug)]
 pub struct RepairCandidate<S> {
     reason: &'static str,
@@ -38,6 +44,7 @@ impl<S> std::hash::Hash for RepairCandidate<S> {
 }
 
 impl<S> RepairCandidate<S> {
+    /// Creates a candidate from a reason label and its edits.
     pub fn new(reason: &'static str, edits: Vec<ScalarEdit<S>>) -> Self {
         Self { reason, edits }
     }
@@ -61,14 +68,17 @@ impl<S> RepairCandidate<S> {
     }
 }
 
+/// Proposes repairs for `solution` within the limits.
 pub type RepairProvider<S> = fn(&S, RepairLimits) -> Vec<RepairCandidate<S>>;
 
+/// A repair provider registered for a named constraint.
 pub struct ConflictRepair<S> {
     constraint_name: &'static str,
     provider: RepairProvider<S>,
 }
 
 impl<S> ConflictRepair<S> {
+    /// Registers `provider` for the constraint named `constraint_name`.
     pub const fn new(constraint_name: &'static str, provider: RepairProvider<S>) -> Self {
         Self {
             constraint_name,

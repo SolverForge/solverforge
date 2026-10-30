@@ -1,4 +1,4 @@
-// Termination conditions based on lack of improvement.
+//! Termination conditions based on lack of improvement.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;

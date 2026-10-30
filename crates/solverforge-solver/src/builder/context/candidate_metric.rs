@@ -10,15 +10,24 @@ use crate::stats::CandidateTraceIdentity;
 /// candidate trace, so native and host-language models rank identical move
 /// coordinates without rebuilding or executing a second selector.
 pub trait RuntimeCandidateMetric<S>: Send + Sync {
+    /// Returns the metric value of `candidate` against `solution`; selector
+    /// ordering ranks candidates by it.
     fn measure(&self, solution: &S, candidate: &CandidateTraceIdentity) -> f64;
 }
 
+/// A named [`RuntimeCandidateMetric`] that selector configuration refers to
+/// by name.
 pub struct RuntimeCandidateMetricBinding<S> {
     name: Arc<str>,
     metric: Arc<dyn RuntimeCandidateMetric<S>>,
 }
 
 impl<S> RuntimeCandidateMetricBinding<S> {
+    /// Binds `metric` under `name`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `name` is empty.
     pub fn new(
         name: impl Into<Arc<str>>,
         metric: Arc<dyn RuntimeCandidateMetric<S>>,
@@ -30,10 +39,12 @@ impl<S> RuntimeCandidateMetricBinding<S> {
         Ok(Self { name, metric })
     }
 
+    /// The metric's name.
     pub fn name(&self) -> &str {
         self.name.as_ref()
     }
 
+    /// Measures `candidate` against `solution` with the bound metric.
     pub fn measure(&self, solution: &S, candidate: &CandidateTraceIdentity) -> f64 {
         self.metric.measure(solution, candidate)
     }
@@ -57,6 +68,7 @@ impl<S> fmt::Debug for RuntimeCandidateMetricBinding<S> {
     }
 }
 
+/// The set of candidate metrics a model declares, looked up by name.
 pub struct RuntimeCandidateMetricRegistry<S> {
     metrics: Vec<RuntimeCandidateMetricBinding<S>>,
 }
@@ -79,6 +91,11 @@ impl<S> fmt::Debug for RuntimeCandidateMetricRegistry<S> {
 }
 
 impl<S> RuntimeCandidateMetricRegistry<S> {
+    /// Builds a registry from `metrics`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when two metrics share a name.
     pub fn new(metrics: Vec<RuntimeCandidateMetricBinding<S>>) -> Result<Self, String> {
         for (index, metric) in metrics.iter().enumerate() {
             if metrics[..index]
@@ -94,6 +111,7 @@ impl<S> RuntimeCandidateMetricRegistry<S> {
         Ok(Self { metrics })
     }
 
+    /// The metric named `name`, if declared.
     pub fn get(&self, name: &str) -> Option<&RuntimeCandidateMetricBinding<S>> {
         self.metrics.iter().find(|metric| metric.name() == name)
     }

@@ -1,13 +1,12 @@
-/* ChangeMove - assigns a value to a planning variable.
-
-This is the most fundamental move type. It takes a value and assigns
-it to a planning variable on an entity.
-
-# Zero-Erasure Design
-
-This move stores concrete function pointers that operate directly on
-the solution. No `Arc<dyn>`, no `Box<dyn Any>`, no `downcast_ref`.
-*/
+//! ChangeMove - assigns a value to a planning variable.
+//!
+//! This is the most fundamental move type. It takes a value and assigns
+//! it to a planning variable on an entity.
+//!
+//! # Zero-Erasure Design
+//!
+//! This move stores concrete function pointers that operate directly on
+//! the solution. No `Arc<dyn>`, no `Box<dyn Any>`, no `downcast_ref`.
 
 use std::borrow::Cow;
 use std::fmt::Debug;

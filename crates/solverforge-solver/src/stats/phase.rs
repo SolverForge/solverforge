@@ -2,51 +2,97 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
-use super::{AppliedMoveTelemetry, MoveTelemetry, PhaseTelemetry, SelectorTelemetry, Throughput};
+use super::{AppliedMoveTelemetry, MoveTelemetry, SelectorTelemetry};
 
 const APPLIED_MOVE_TRACE_LIMIT: usize = 8;
 
 #[path = "phase_absorb.rs"]
 mod absorb;
+#[path = "phase_counters.rs"]
+mod counters;
 
+/// Phase-level statistics.
+///
+/// Tracks metrics for a single solver phase.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_solver::PhaseStats;
+/// use std::time::Duration;
+///
+/// let mut stats = PhaseStats::new(0, "LocalSearch");
+/// stats.record_step();
+/// stats.record_generated_move(Duration::from_millis(1));
+/// stats.record_evaluated_move(Duration::from_millis(2));
+/// stats.record_move_accepted();
+///
+/// assert_eq!(stats.phase_index, 0);
+/// assert_eq!(stats.phase_type, "LocalSearch");
+/// assert_eq!(stats.step_count, 1);
+/// assert_eq!(stats.moves_accepted, 1);
+/// ```
 #[derive(Debug, Clone)]
 pub struct PhaseStats {
-    // Index of this phase (0-based).
+    /// Index of this phase (0-based).
     pub phase_index: usize,
-    // Type name of the phase.
+    /// Type name of the phase.
     pub phase_type: &'static str,
     start_time: Instant,
-    // Number of steps taken in this phase.
+    /// Number of steps taken in this phase.
     pub step_count: u64,
     /// Number of candidate moves actually yielded by cursors in this phase.
     /// Unrequested logical neighborhood tails are not generated work.
     pub moves_generated: u64,
-    // Number of moves evaluated in this phase.
+    /// Number of moves evaluated in this phase.
     pub moves_evaluated: u64,
     /// Candidates parallel evaluation evaluated ahead of the sequential
     /// decision point in this phase and then discarded.
     pub moves_speculative: u64,
-    // Number of moves accepted in this phase.
+    /// Number of moves accepted in this phase.
     pub moves_accepted: u64,
-    // Number of moves applied in this phase.
+    /// Number of moves applied in this phase.
     pub moves_applied: u64,
+    /// Moves rejected as not doable (or touching pinned entities) before scoring.
     pub moves_not_doable: u64,
+    /// Scored moves the acceptor rejected.
     pub moves_acceptor_rejected: u64,
+    /// Accepted moves that lost the forager's pick.
     pub moves_forager_ignored: u64,
+    /// Scored local-search moves whose hard score beat the reference score.
     pub moves_hard_improving: u64,
+    /// Scored local-search moves whose hard score equalled the reference score.
     pub moves_hard_neutral: u64,
+    /// Scored local-search moves whose hard score fell below the reference score.
     pub moves_hard_worse: u64,
+    /// Conflict-repair candidates the provider generated. No shipped engine path
+    /// records this counter yet, so it stays 0.
     pub conflict_repair_provider_generated: u64,
+    /// Conflict-repair candidates dropped as duplicates. No shipped engine path
+    /// records this counter yet, so it stays 0.
     pub conflict_repair_duplicate_filtered: u64,
+    /// Conflict-repair candidates dropped as illegal. No shipped engine path
+    /// records this counter yet, so it stays 0.
     pub conflict_repair_illegal_filtered: u64,
+    /// Conflict-repair candidates dropped as not doable. No shipped engine path
+    /// records this counter yet, so it stays 0.
     pub conflict_repair_not_doable_filtered: u64,
+    /// Conflict-repair candidates that improved the hard score. No shipped engine
+    /// path records this counter yet, so it stays 0.
     pub conflict_repair_hard_improving: u64,
+    /// Conflict-repair candidates exposed to the search. No shipped engine path
+    /// records this counter yet, so it stays 0.
     pub conflict_repair_exposed: u64,
-    // Number of score calculations in this phase.
+    /// Number of score calculations in this phase.
     pub score_calculations: u64,
+    /// Construction slots filled by an applied move.
     pub construction_slots_assigned: u64,
+    /// Construction slots whose current value was legally kept.
     pub construction_slots_kept: u64,
+    /// Construction slots completed without a doable candidate to assign.
     pub construction_slots_no_doable: u64,
+    /// Latest count of required scalar-assignment rows still unassigned. A
+    /// level, not a sum: each record overwrites it.
     pub scalar_assignment_required_remaining: u64,
     generation_time: Duration,
     evaluation_time: Duration,
@@ -56,285 +102,13 @@ pub struct PhaseStats {
 }
 
 impl PhaseStats {
-    /// Creates new phase statistics.
-    pub fn new(phase_index: usize, phase_type: &'static str) -> Self {
-        Self {
-            phase_index,
-            phase_type,
-            start_time: Instant::now(),
-            step_count: 0,
-            moves_generated: 0,
-            moves_evaluated: 0,
-            moves_speculative: 0,
-            moves_accepted: 0,
-            moves_applied: 0,
-            moves_not_doable: 0,
-            moves_acceptor_rejected: 0,
-            moves_forager_ignored: 0,
-            moves_hard_improving: 0,
-            moves_hard_neutral: 0,
-            moves_hard_worse: 0,
-            conflict_repair_provider_generated: 0,
-            conflict_repair_duplicate_filtered: 0,
-            conflict_repair_illegal_filtered: 0,
-            conflict_repair_not_doable_filtered: 0,
-            conflict_repair_hard_improving: 0,
-            conflict_repair_exposed: 0,
-            score_calculations: 0,
-            construction_slots_assigned: 0,
-            construction_slots_kept: 0,
-            construction_slots_no_doable: 0,
-            scalar_assignment_required_remaining: 0,
-            generation_time: Duration::default(),
-            evaluation_time: Duration::default(),
-            selector_stats: Vec::new(),
-            move_stats: BTreeMap::new(),
-            applied_move_trace: Vec::new(),
-        }
-    }
-
-    pub fn elapsed(&self) -> Duration {
-        self.start_time.elapsed()
-    }
-
-    pub fn snapshot(&self) -> PhaseTelemetry {
-        self.snapshot_with_elapsed(self.elapsed())
-    }
-
-    pub(crate) fn snapshot_with_elapsed(&self, elapsed: Duration) -> PhaseTelemetry {
-        PhaseTelemetry {
-            phase_index: self.phase_index,
-            phase_type: self.phase_type.to_string(),
-            elapsed,
-            step_count: self.step_count,
-            moves_generated: self.moves_generated,
-            moves_evaluated: self.moves_evaluated,
-            moves_speculative: self.moves_speculative,
-            moves_accepted: self.moves_accepted,
-            moves_applied: self.moves_applied,
-            moves_score_improving: self.moves_score_improving(),
-            moves_applied_improving: self.moves_applied_improving(),
-            score_calculations: self.score_calculations,
-            generation_time: self.generation_time,
-            evaluation_time: self.evaluation_time,
-        }
-    }
-
-    /// Records a step completion.
-    pub fn record_step(&mut self) {
-        self.step_count += 1;
-    }
-
-    /// Records one or more generated candidate moves and the time spent generating them.
-    pub fn record_generated_batch(&mut self, count: u64, duration: Duration) {
-        self.moves_generated += count;
-        self.generation_time += duration;
-    }
-
-    pub fn record_selector_generated(
-        &mut self,
-        selector_index: usize,
-        count: u64,
-        duration: Duration,
-    ) {
-        self.record_generated_batch(count, duration);
-        let selector = self.selector_stats_entry(selector_index);
-        selector.moves_generated += count;
-        selector.generation_time += duration;
-    }
-
-    /// Records generation time that did not itself yield a counted move.
-    pub fn record_generation_time(&mut self, duration: Duration) {
-        self.generation_time += duration;
-    }
-
-    /// Records a single generated candidate move and the time spent generating it.
-    pub fn record_generated_move(&mut self, duration: Duration) {
-        self.record_generated_batch(1, duration);
-    }
-
-    /// Records a move evaluation and the time spent evaluating it.
-    pub fn record_evaluated_move(&mut self, duration: Duration) {
-        self.moves_evaluated += 1;
-        self.evaluation_time += duration;
-    }
-
-    pub fn record_selector_evaluated(&mut self, selector_index: usize, duration: Duration) {
-        self.record_evaluated_move(duration);
-        let selector = self.selector_stats_entry(selector_index);
-        selector.moves_evaluated += 1;
-        selector.evaluation_time += duration;
-    }
-
-    /// Records an accepted move.
-    pub fn record_move_accepted(&mut self) {
-        self.moves_accepted += 1;
-    }
-
-    pub fn record_selector_accepted(&mut self, selector_index: usize) {
-        self.record_move_accepted();
-        self.selector_stats_entry(selector_index).moves_accepted += 1;
-    }
-
-    pub fn record_move_applied(&mut self) {
-        self.moves_applied += 1;
-    }
-
-    pub fn record_selector_applied(&mut self, selector_index: usize) {
-        self.record_move_applied();
-        self.selector_stats_entry(selector_index).moves_applied += 1;
-    }
-
-    pub fn record_move_not_doable(&mut self) {
-        self.moves_not_doable += 1;
-    }
-
-    pub fn record_selector_not_doable(&mut self, selector_index: usize) {
-        self.record_move_not_doable();
-        self.selector_stats_entry(selector_index).moves_not_doable += 1;
-    }
-
-    pub fn record_move_acceptor_rejected(&mut self) {
-        self.moves_acceptor_rejected += 1;
-    }
-
-    pub fn record_selector_acceptor_rejected(&mut self, selector_index: usize) {
-        self.record_move_acceptor_rejected();
-        self.selector_stats_entry(selector_index)
-            .moves_acceptor_rejected += 1;
-    }
-
-    pub fn record_moves_forager_ignored(&mut self, count: u64) {
-        self.moves_forager_ignored += count;
-    }
-
-    pub fn record_move_hard_improving(&mut self) {
-        self.moves_hard_improving += 1;
-    }
-
-    pub fn record_move_hard_neutral(&mut self) {
-        self.moves_hard_neutral += 1;
-    }
-
-    pub fn record_move_hard_worse(&mut self) {
-        self.moves_hard_worse += 1;
-    }
-
-    pub fn record_conflict_repair_provider_generated(&mut self, count: u64) {
-        self.conflict_repair_provider_generated += count;
-    }
-
-    pub fn record_conflict_repair_duplicate_filtered(&mut self) {
-        self.conflict_repair_duplicate_filtered += 1;
-    }
-
-    pub fn record_conflict_repair_illegal_filtered(&mut self) {
-        self.conflict_repair_illegal_filtered += 1;
-    }
-
-    pub fn record_conflict_repair_not_doable_filtered(&mut self) {
-        self.conflict_repair_not_doable_filtered += 1;
-    }
-
-    pub fn record_conflict_repair_hard_improving(&mut self) {
-        self.conflict_repair_hard_improving += 1;
-    }
-
-    pub fn record_conflict_repair_exposed(&mut self) {
-        self.conflict_repair_exposed += 1;
-    }
-
-    /// Records a score calculation.
-    pub fn record_score_calculation(&mut self) {
-        self.score_calculations += 1;
-    }
-
-    /// Records a candidate that parallel evaluation evaluated ahead of the
-    /// sequential decision point and then discarded.
-    pub fn record_move_speculative(&mut self) {
-        self.moves_speculative += 1;
-    }
-
-    pub fn record_construction_slot_assigned(&mut self) {
-        self.construction_slots_assigned += 1;
-    }
-
-    pub fn record_construction_slot_kept(&mut self) {
-        self.construction_slots_kept += 1;
-    }
-
-    pub fn record_construction_slot_no_doable(&mut self) {
-        self.construction_slots_no_doable += 1;
-    }
-
-    pub fn record_scalar_assignment_required_remaining(&mut self, count: u64) {
-        self.scalar_assignment_required_remaining = count;
-    }
-
-    pub fn generated_throughput(&self) -> Throughput {
-        Throughput {
-            count: self.moves_generated,
-            elapsed: self.generation_time,
-        }
-    }
-
-    pub fn evaluated_throughput(&self) -> Throughput {
-        Throughput {
-            count: self.moves_evaluated,
-            elapsed: self.evaluation_time,
-        }
-    }
-
-    pub fn acceptance_rate(&self) -> f64 {
-        if self.moves_evaluated == 0 {
-            0.0
-        } else {
-            self.moves_accepted as f64 / self.moves_evaluated as f64
-        }
-    }
-
-    pub fn generation_time(&self) -> Duration {
-        self.generation_time
-    }
-
-    pub fn evaluation_time(&self) -> Duration {
-        self.evaluation_time
-    }
-
-    pub fn selector_telemetry(&self) -> &[SelectorTelemetry] {
-        &self.selector_stats
-    }
-
-    pub fn applied_move_trace(&self) -> &[AppliedMoveTelemetry] {
-        &self.applied_move_trace
-    }
-
-    pub fn move_telemetry(&self) -> Vec<MoveTelemetry> {
-        self.move_stats.values().cloned().collect()
-    }
-
-    pub fn moves_score_improving(&self) -> u64 {
-        self.move_stats
-            .values()
-            .map(|entry| entry.moves_score_improving)
-            .sum()
-    }
-
-    pub fn moves_applied_improving(&self) -> u64 {
-        self.move_stats
-            .values()
-            .map(|entry| entry.moves_applied_improving)
-            .sum()
-    }
-
-    pub fn can_record_applied_move_trace(&self) -> bool {
-        self.applied_move_trace.len() < APPLIED_MOVE_TRACE_LIMIT
-    }
-
+    /// Records one generated move of kind `move_label`.
     pub fn record_move_kind_generated(&mut self, move_label: &'static str) {
         self.move_stats_entry(move_label).moves_generated += 1;
     }
 
+    /// Records one scored move of kind `move_label`, classified by how its
+    /// score compares with the reference (`Greater` means improving).
     pub fn record_move_kind_evaluated(
         &mut self,
         move_label: &'static str,
@@ -349,14 +123,19 @@ impl PhaseStats {
         }
     }
 
+    /// Records one evaluated move of kind `move_label` that was never scored
+    /// (for example because it was not doable).
     pub fn record_move_kind_evaluated_unscored(&mut self, move_label: &'static str) {
         self.move_stats_entry(move_label).moves_evaluated += 1;
     }
 
+    /// Records one accepted move of kind `move_label`.
     pub fn record_move_kind_accepted(&mut self, move_label: &'static str) {
         self.move_stats_entry(move_label).moves_accepted += 1;
     }
 
+    /// Records one applied move of kind `move_label`. A positive
+    /// `score_improvement` also counts the move as improving and adds the gain.
     pub fn record_move_kind_applied(&mut self, move_label: &'static str, score_improvement: f64) {
         let entry = self.move_stats_entry(move_label);
         entry.moves_applied += 1;
@@ -366,10 +145,13 @@ impl PhaseStats {
         }
     }
 
+    /// Records one not-doable move of kind `move_label`.
     pub fn record_move_kind_not_doable(&mut self, move_label: &'static str) {
         self.move_stats_entry(move_label).moves_not_doable += 1;
     }
 
+    /// Records one acceptor-rejected move of kind `move_label`; a `Greater`
+    /// `score_ordering` also counts it as a rejected improving move.
     pub fn record_move_kind_acceptor_rejected(
         &mut self,
         move_label: &'static str,
@@ -382,6 +164,7 @@ impl PhaseStats {
         }
     }
 
+    /// Records `count` forager-ignored moves of kind `move_label`; zero is a no-op.
     pub fn record_move_kind_forager_ignored(&mut self, move_label: &'static str, count: u64) {
         if count == 0 {
             return;
@@ -389,12 +172,17 @@ impl PhaseStats {
         self.move_stats_entry(move_label).moves_forager_ignored += count;
     }
 
+    /// Appends an applied move to the trace; dropped once the trace holds eight
+    /// entries.
     pub fn record_applied_move_trace(&mut self, applied_move: AppliedMoveTelemetry) {
         if self.applied_move_trace.len() < APPLIED_MOVE_TRACE_LIMIT {
             self.applied_move_trace.push(applied_move);
         }
     }
 
+    /// Records `count` moves generated by selector `selector_index` with their
+    /// generation time, and labels the selector `selector_label` unless it
+    /// already carries a descriptive label.
     pub fn record_selector_generated_with_label(
         &mut self,
         selector_index: usize,

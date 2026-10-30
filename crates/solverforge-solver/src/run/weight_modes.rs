@@ -1,14 +1,13 @@
-/* The configured solve across constraint weight modes.
-
-A score director's weight mode is a type, chosen here once per solve: a
-solution whose weights require weighting (`requires_weighted_mode`) starts on
-a director of mode `W`, every other solution on an `UnweightedMode` director.
-When an applied problem change needs the other mode, the session stops before
-rescoring and is moved, with all of its state, onto a director of that mode
-rebuilt from the changed working solution; then it resumes. For the plain
-entrypoint `W` is `UnweightedMode`, so both arms below are one instantiation
-and the weighted solver is never compiled.
-*/
+//! The configured solve across constraint weight modes.
+//!
+//! A score director's weight mode is a type, chosen here once per solve: a
+//! solution whose weights require weighting (`requires_weighted_mode`) starts on
+//! a director of mode `W`, every other solution on an `UnweightedMode` director.
+//! When an applied problem change needs the other mode, the session stops before
+//! rescoring and is moved, with all of its state, onto a director of that mode
+//! rebuilt from the changed working solution; then it resumes. For the plain
+//! entrypoint `W` is `UnweightedMode`, so both arms below are one instantiation
+//! and the weighted solver is never compiled.
 
 use super::*;
 
@@ -194,7 +193,7 @@ where
     }
 }
 
-// Everything the first session is configured from, besides its director.
+/// Everything the first session is configured from, besides its director.
 struct SessionStart<'c, S: PlanningSolution, Runner> {
     runner: Runner,
     config: &'c SolverConfig,

@@ -1,4 +1,4 @@
-// Value tabu acceptor.
+//! Value tabu acceptor.
 
 use std::fmt::Debug;
 

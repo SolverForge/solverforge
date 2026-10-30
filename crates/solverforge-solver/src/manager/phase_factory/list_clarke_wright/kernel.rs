@@ -1,4 +1,4 @@
-// Canonical Clarke-Wright savings and merge execution.
+//! Canonical Clarke-Wright savings and merge execution.
 
 use std::collections::{HashMap, HashSet};
 
@@ -22,11 +22,11 @@ use crate::phase::construction::{
 use crate::scope::{PhaseScope, ProgressCallback, SolverScope, StepControlPolicy};
 use crate::stats::{CandidateTraceDisposition, CandidateTraceSource};
 
-/* Runs the one canonical Clarke-Wright algorithm against a pre-bound source.
-
-The caller must bind declarations and assigned values before entering this
-function. That keeps source errors outside phase execution for direct and
-retained runtime callers. */
+/// Runs the one canonical Clarke-Wright algorithm against a pre-bound source.
+///
+/// The caller must bind declarations and assigned values before entering this
+/// function. That keeps source errors outside phase execution for direct and
+/// retained runtime callers.
 pub(crate) fn run_clarke_wright<S, A, D, BestCb>(
     access: &A,
     source_index: &RuntimeListSourceIndex<A::Element>,

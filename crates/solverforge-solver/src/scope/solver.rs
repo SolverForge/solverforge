@@ -1,4 +1,4 @@
-// Solver-level scope.
+//! Solver-level scope.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -27,8 +27,10 @@ use crate::stats::{
 
 include!("solver/progress.rs");
 include!("solver/scope_core.rs");
+include!("solver/scope_frontier.rs");
 include!("solver/phase_budget.rs");
 include!("solver/scope_progress.rs");
+include!("solver/scope_termination.rs");
 include!("solver/scope_trace.rs");
 include!("solver/problem_change.rs");
 include!("solver/weight_mode.rs");

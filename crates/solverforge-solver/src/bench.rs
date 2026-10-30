@@ -1,11 +1,11 @@
-/* Handles the selector-cursor zero-regression benchmark drives through the
-hidden `__bench` module.
-
-Every handle starts from `CompiledRuntimeRunner::compile`, the same
-compilation, preparation, and lowering a configured solve runs, and then
-moves existing state out of that runner. No handle rebuilds a selector,
-placer, or cursor: the benchmark pulls candidates from the cursor types a
-compiled solve pulls them from. */
+//! Handles the selector-cursor zero-regression benchmark drives through the
+//! hidden `__bench` module.
+//!
+//! Every handle starts from `CompiledRuntimeRunner::compile`, the same
+//! compilation, preparation, and lowering a configured solve runs, and then
+//! moves existing state out of that runner. No handle rebuilds a selector,
+//! placer, or cursor: the benchmark pulls candidates from the cursor types a
+//! compiled solve pulls them from.
 
 mod construction;
 mod neighborhood;
@@ -40,8 +40,10 @@ pub use neighborhood::{CompiledNeighborhood, CompiledNeighborhoodCursor};
 /// Inspects one live candidate through the public [`Move`] contract, so the
 /// benchmark never names the compiled runtime's private move carriers.
 pub trait CandidateVisitor<S: PlanningSolution> {
+    /// Value the visitor returns.
     type Output;
 
+    /// Visits one live candidate.
     fn visit<M: Move<S>>(self, candidate: MoveCandidateRef<'_, S, M>) -> Self::Output;
 }
 

@@ -1,22 +1,20 @@
-/* Pillar selector for selecting groups of entities with the same variable value.
-
-A pillar is a group of entities that share the same planning variable value.
-Pillar moves operate on entire pillars, changing or swapping all entities
-in the pillar atomically.
-*/
+//! Pillar selector for selecting groups of entities with the same variable value.
+//!
+//! A pillar is a group of entities that share the same planning variable value.
+//! Pillar moves operate on entire pillars, changing or swapping all entities
+//! in the pillar atomically.
 
 use std::fmt::Debug;
 
 use super::entity::EntityReference;
 
-/* A pillar is a group of entity references that share the same variable value.
-
-All entities in a pillar have the same value for a specific planning variable,
-which allows them to be moved together atomically.
-*/
+/// A pillar is a group of entity references that share the same variable value.
+///
+/// All entities in a pillar have the same value for a specific planning variable,
+/// which allows them to be moved together atomically.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Pillar {
-    // The entity references in this pillar.
+    /// The entity references in this pillar.
     pub entities: Vec<EntityReference>,
 }
 
@@ -39,14 +37,14 @@ impl Pillar {
     }
 }
 
-// Configuration for sub-pillar selection.
+/// Configuration for sub-pillar selection.
 #[derive(Debug, Clone)]
 pub(crate) struct SubPillarConfig {
-    // Whether sub-pillar selection is enabled.
+    /// Whether sub-pillar selection is enabled.
     pub enabled: bool,
-    // Minimum size of a sub-pillar (default: 1).
+    /// Minimum size of a sub-pillar (default: 1).
     pub minimum_size: usize,
-    // Maximum size of a sub-pillar (default: usize::MAX).
+    /// Maximum size of a sub-pillar (default: usize::MAX).
     pub maximum_size: usize,
 }
 

@@ -11,12 +11,11 @@ use crate::phase::localsearch::evaluation::TrialOutcome;
 use crate::phase::localsearch::phase::WindowSlot;
 use crate::scope::{ProgressCallback, SolverScope};
 
-/* Largest parallel window. Windows aim at the number of candidates the
-previous step consumed: they cover that target in windows of at most this
-size, then continue one candidate per evaluator. Candidates past the
-decision point are speculative work, so overshooting the step wastes
-evaluations.
-*/
+/// Largest parallel window. Windows aim at the number of candidates the
+/// previous step consumed: they cover that target in windows of at most this
+/// size, then continue one candidate per evaluator. Candidates past the
+/// decision point are speculative work, so overshooting the step wastes
+/// evaluations.
 pub(crate) const MAX_PARALLEL_EVALUATION_WINDOW: usize = 32;
 
 pub(super) type TrialOutputs<Sc> = Vec<(usize, TrialOutcome<Sc>, Duration)>;
@@ -24,11 +23,10 @@ pub(super) type TrialOutputs<Sc> = Vec<(usize, TrialOutcome<Sc>, Duration)>;
 /// Trial results of one window, indexed by window slot.
 pub(crate) type WindowResults<Sc> = Vec<Option<(TrialOutcome<Sc>, Duration)>>;
 
-/* Evaluators for one local-search phase: the main director plus
-`evaluators - 1` persistent replicas, kept at the committed working solution.
-The pool never holds more evaluators than one full window has slots, so every
-replica can receive a candidate.
-*/
+/// Evaluators for one local-search phase: the main director plus
+/// `evaluators - 1` persistent replicas, kept at the committed working solution.
+/// The pool never holds more evaluators than one full window has slots, so every
+/// replica can receive a candidate.
 pub(crate) struct EvaluatorPool<S, D, M>
 where
     S: PlanningSolution,
@@ -64,8 +62,8 @@ where
     D: Director<S>,
     M: Move<S>,
 {
-    // `requested` counts evaluators, the main director included; it is
-    // capped at the window ceiling.
+    /// `requested` counts evaluators, the main director included; it is
+    /// capped at the window ceiling.
     pub(crate) fn new(requested: usize) -> Self {
         Self {
             evaluators: requested.clamp(1, MAX_PARALLEL_EVALUATION_WINDOW),
@@ -131,10 +129,9 @@ where
         self.last_step_consumed = usize::try_from(consumed).unwrap_or(usize::MAX);
     }
 
-    /* Rebuilds the replicas when the working solution was written since they
-    last synced. Each replica clones the working solution once; this is the
-    evaluator replica clone boundary.
-    */
+    /// Rebuilds the replicas when the working solution was written since they
+    /// last synced. Each replica clones the working solution once; this is the
+    /// evaluator replica clone boundary.
     pub(crate) fn sync<BestCb>(&mut self, solver_scope: &SolverScope<'_, S, D, BestCb>)
     where
         BestCb: ProgressCallback<S>,
@@ -157,10 +154,9 @@ where
         self.synced_generation = Some(generation);
     }
 
-    /* Applies the selected move to every replica by borrow, ahead of the
-    owned commit on the main director, and checks that each replica reaches
-    the committed step score.
-    */
+    /// Applies the selected move to every replica by borrow, ahead of the
+    /// owned commit on the main director, and checks that each replica reaches
+    /// the committed step score.
     pub(crate) fn advance(&mut self, selected: &MoveCandidateRef<'_, S, M>, expected: S::Score) {
         if !self.is_parallel() {
             return;

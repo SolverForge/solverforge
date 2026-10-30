@@ -1,4 +1,4 @@
-// Problem change trait for real-time planning.
+//! Problem change trait for real-time planning.
 
 use std::fmt::Debug;
 

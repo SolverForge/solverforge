@@ -374,7 +374,7 @@ impl PrecedenceRouteGraph {
         }
     }
 
-    /* `after` must have been staged in `scratch_after_route` by the caller. */
+    /// `after` must have been staged in `scratch_after_route` by the caller.
     fn route_move_introduces_cycle(&mut self, before: &[usize]) -> bool {
         changed_route_edges_into(
             before,

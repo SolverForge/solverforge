@@ -1,7 +1,6 @@
-/* Composite OR termination condition.
-
-Uses macro-generated tuple implementations for zero-erasure architecture.
-*/
+//! Composite OR termination condition.
+//!
+//! Uses macro-generated tuple implementations for zero-erasure architecture.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -13,10 +12,9 @@ use super::Termination;
 use crate::scope::ProgressCallback;
 use crate::scope::SolverScope;
 
-/* Combines multiple terminations with OR logic.
-
-Terminates when ANY of the child terminations triggers.
-*/
+/// Combines multiple terminations with OR logic.
+///
+/// Terminates when ANY of the child terminations triggers.
 #[derive(Clone)]
 pub(crate) struct OrTermination<T, S, D>(pub T, PhantomData<fn(S, D)>);
 

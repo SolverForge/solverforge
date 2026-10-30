@@ -294,11 +294,11 @@ where
         candidate
     }
 
-    // Builds the assigned value/sequence index once per step. Family opens
-    // and pulls borrow it; no family cursor owns a copy any more. Builds
-    // are pure reads of the committed solution/state (every candidate
-    // build rolls back), so the content is identical across opens within
-    // a step.
+    /// Builds the assigned value/sequence index once per step. Family opens
+    /// and pulls borrow it; no family cursor owns a copy any more. Builds
+    /// are pure reads of the committed solution/state (every candidate
+    /// build rolls back), so the content is identical across opens within
+    /// a step.
     fn build_index_if_needed(&mut self, group: &ScalarAssignmentBinding<S>, solution: &S) {
         if self.index_cache.is_none() {
             self.index_cache = Some(assigned_value_sequence_index(

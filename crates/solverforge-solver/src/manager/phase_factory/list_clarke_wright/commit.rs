@@ -1,4 +1,4 @@
-// Atomic route-assignment commits for Clarke-Wright construction.
+//! Atomic route-assignment commits for Clarke-Wright construction.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;

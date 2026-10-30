@@ -1,8 +1,7 @@
-/* Foragers for local search move selection
-
-Foragers collect accepted move indices during a step and select the
-best one to apply. Uses index-based API for zero-clone operation.
-*/
+//! Foragers for local search move selection
+//!
+//! Foragers collect accepted move indices during a step and select the
+//! best one to apply. Uses index-based API for zero-clone operation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -26,33 +25,32 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
-    /* Called at the start of each step to reset state.
-
-    `best_score` is the best solution score ever seen.
-    `last_step_score` is the score at the end of the previous step.
-    Foragers that implement pick-early-on-improvement use these to decide
-    when to stop evaluating moves.
-    */
+    /// Called at the start of each step to reset state.
+    ///
+    /// `best_score` is the best solution score ever seen.
+    /// `last_step_score` is the score at the end of the previous step.
+    /// Foragers that implement pick-early-on-improvement use these to decide
+    /// when to stop evaluating moves.
     fn step_started(&mut self, best_score: S::Score, last_step_score: S::Score, step_seed: u64);
 
-    /* Adds an accepted move index to the forager.
-
-    The ID refers to a live candidate in the current move cursor.
-    */
+    /// Adds an accepted move index to the forager.
+    ///
+    /// The ID refers to a live candidate in the current move cursor.
     fn add_move_index(&mut self, index: CandidateId, score: S::Score) -> ForagerDecision;
 
-    // Returns true if the forager has collected enough moves and
-    // wants to stop evaluating more.
+    /// Returns true if the forager has collected enough moves and
+    /// wants to stop evaluating more.
     fn is_quit_early(&self) -> bool;
 
+    /// Most accepted moves the forager uses per step, passed to move streams;
+    /// `None` (the default) means no limit.
     fn accepted_count_limit(&self) -> Option<usize> {
         None
     }
 
-    /* Picks the best move index from those collected.
-
-    Returns None if no moves were accepted.
-    */
+    /// Picks the best move index from those collected.
+    ///
+    /// Returns None if no moves were accepted.
     fn pick_move_index(&mut self) -> Option<(CandidateId, S::Score)>;
 }
 

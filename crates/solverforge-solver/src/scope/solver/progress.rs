@@ -1,23 +1,42 @@
+/// What a [`SolverProgressRef`] reports.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SolverProgressKind {
+    /// A periodic progress report; carries no solution.
     Progress,
+    /// A new best solution; carries the solution.
     BestSolution,
 }
 
+/// A progress report passed to a [`ProgressCallback`]; borrows the scope's
+/// solution and scores for the duration of the call.
 #[derive(Debug, Clone)]
 pub struct SolverProgressRef<'a, S: PlanningSolution> {
+    /// Whether this is a progress or best-solution report.
     pub kind: SolverProgressKind,
+    /// `Solving`, or `Completed` once the retained runtime is terminal.
     pub status: SolverLifecycleState,
+    /// The new best solution for [`SolverProgressKind::BestSolution`];
+    /// `None` for progress reports.
     pub solution: Option<&'a S>,
+    /// Score of the working solution, when calculated.
     pub current_score: Option<&'a S::Score>,
+    /// Best score so far; `None` while best-solution publication is deferred.
     pub best_score: Option<&'a S::Score>,
+    /// Solve telemetry at the time of the report, without the applied-move
+    /// trace.
     pub telemetry: crate::stats::SolverTelemetry,
 }
 
+/// Receives progress and best-solution reports from a running solve.
+///
+/// Implemented for `()` (reports nothing) and for every
+/// `Fn(SolverProgressRef<'_, S>) + Send + Sync` closure.
 pub trait ProgressCallback<S: PlanningSolution>: Send + Sync {
     #[doc(hidden)]
     const PUBLISHES_PROGRESS: bool = true;
 
+    /// Handles one report. Runs on the solver thread, so it should return
+    /// quickly.
     fn invoke(&self, progress: SolverProgressRef<'_, S>);
 }
 

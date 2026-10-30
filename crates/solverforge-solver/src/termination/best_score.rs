@@ -1,4 +1,4 @@
-// Score-based termination conditions.
+//! Score-based termination conditions.
 
 use std::fmt::Debug;
 

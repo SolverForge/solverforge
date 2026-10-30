@@ -1,4 +1,4 @@
-/* Canonical vector-backed union scheduling for selector composition. */
+//! Canonical vector-backed union scheduling for selector composition.
 
 use std::marker::PhantomData;
 

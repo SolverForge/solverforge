@@ -1,3 +1,6 @@
+/// Whether `left_entity` holding `left_value` may directly precede
+/// `right_entity` holding `right_value` in a sequence. Arguments:
+/// `(solution, left_entity, left_value, right_entity, right_value)`.
 pub type ScalarAssignmentRule<S> = fn(&S, usize, usize, usize, usize) -> bool;
 
 pub(crate) struct ScalarAssignmentDeclaration<S> {

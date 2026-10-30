@@ -11,9 +11,14 @@ use crate::{ConflictRepair, ScalarCandidateProvider, ScalarGroupLimits};
 /// or pre-bound slots: the core resolver binds it after callback return.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RawProviderEdit {
+    /// Entity class of the edited variable; `None` resolves by variable name
+    /// alone.
     pub entity_class: Option<Arc<str>>,
+    /// Name of the edited scalar variable.
     pub variable_name: Arc<str>,
+    /// Index of the edited entity.
     pub entity_index: usize,
+    /// New value; `None` unassigns.
     pub to_value: Option<usize>,
 }
 
@@ -21,7 +26,9 @@ pub struct RawProviderEdit {
 /// per-provider deduplication, but never in tabu identity.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RawProviderCandidate {
+    /// Reason label of the candidate.
     pub reason: Arc<str>,
+    /// Edits applied together by the candidate.
     pub edits: Vec<RawProviderEdit>,
 }
 
@@ -131,15 +138,24 @@ impl ProviderReasonArena {
 /// The immutable callback request supplied by the one shared provider kernel.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeProviderLimits {
+    /// Limits for a scalar candidate group pull.
     Group {
+        /// Most candidate values per entity; `None` means no limit.
         value_candidate_limit: Option<usize>,
+        /// Most moves per step; `None` means no limit.
         max_moves_per_step: Option<usize>,
     },
+    /// Limits for a conflict-repair pull.
     Repair {
+        /// Constraints whose matches to repair.
         constraints: Arc<[Arc<str>]>,
+        /// Most constraint matches to repair per step.
         max_matches_per_step: usize,
+        /// Most repairs per match.
         max_repairs_per_match: usize,
+        /// Most moves per step.
         max_moves_per_step: usize,
+        /// Whether matches that only affect soft score levels are included.
         include_soft_matches: bool,
     },
 }
@@ -161,6 +177,7 @@ pub(crate) enum RuntimeProviderHandle {
 /// and retained solves. `open_cursor`, `size`, and `validate_cursor` must not
 /// call this method.
 pub trait RuntimeHostCompoundProvider<S>: Send + Sync {
+    /// Returns the raw candidates for `solution` within `limits`.
     fn pull(&self, solution: &S, limits: RuntimeProviderLimits) -> Vec<RawProviderCandidate>;
 }
 
@@ -169,23 +186,38 @@ pub trait RuntimeHostCompoundProvider<S>: Send + Sync {
 /// or otherwise replaces callback failures.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ProviderResolutionError {
+    /// An edit names no scalar variable of the model.
     UnknownSlot {
+        /// The named entity class, if any.
         entity_class: Option<Arc<str>>,
+        /// The named variable.
         variable_name: Arc<str>,
     },
+    /// An edit targets a variable outside the selector that pulled it.
     SlotOutsideSelector {
+        /// The entity class.
         entity_class: Arc<str>,
+        /// The variable.
         variable_name: Arc<str>,
     },
+    /// An edit's entity index is out of bounds.
     EntityIndexOutOfBounds {
+        /// The entity class.
         entity_class: Arc<str>,
+        /// The variable.
         variable_name: Arc<str>,
+        /// The out-of-bounds index.
         entity_index: usize,
     },
+    /// An edit's value is not legal for the row.
     IllegalValue {
+        /// The entity class.
         entity_class: Arc<str>,
+        /// The variable.
         variable_name: Arc<str>,
+        /// The row.
         entity_index: usize,
+        /// The rejected value.
         to_value: Option<usize>,
     },
 }
@@ -236,6 +268,7 @@ impl fmt::Display for ProviderResolutionError {
 /// Host exception boundary for core normalization errors. Python bindings
 /// implement this by calling their existing `panic_with_py_err(py_err(...))`.
 pub trait RuntimeHostProviderErrorBoundary: Send + Sync {
+    /// Raises `error` as a host-native exception; never returns.
     fn raise(&self, error: ProviderResolutionError) -> !;
 }
 
@@ -250,8 +283,12 @@ impl RuntimeHostProviderErrorBoundary for PanicProviderErrorBoundary {
 
 /// One host-language callback group declaration in immutable schema order.
 pub struct RuntimeScalarGroupProviderBinding<S> {
+    /// Index of this group in the host schema; strictly increasing across
+    /// groups.
     pub declared_index: usize,
+    /// Name of the scalar group the callback serves.
     pub group_name: Arc<str>,
+    /// The callback.
     pub callback: Arc<dyn RuntimeHostCompoundProvider<S>>,
 }
 
@@ -277,8 +314,12 @@ impl<S> fmt::Debug for RuntimeScalarGroupProviderBinding<S> {
 /// One host-language conflict-repair declaration in immutable schema order.
 /// A multi-constraint declaration retains one index and one pull.
 pub struct RuntimeConflictRepairProviderBinding<S> {
+    /// Index of this repair in the host schema; strictly increasing across
+    /// repairs.
     pub declared_index: usize,
+    /// Constraints the repair serves.
     pub declared_constraints: Arc<[Arc<str>]>,
+    /// The callback.
     pub callback: Arc<dyn RuntimeHostCompoundProvider<S>>,
 }
 

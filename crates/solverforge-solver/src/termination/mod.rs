@@ -1,4 +1,4 @@
-// Termination conditions for solver phases.
+//! Termination conditions for solver phases.
 
 pub(crate) mod best_score;
 pub(crate) mod composite;

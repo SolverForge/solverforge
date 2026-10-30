@@ -1,17 +1,16 @@
-/* Move system for modifying planning solutions.
-
-Moves are the fundamental operations that modify planning variables during
-solving. The solver explores the solution space by applying different moves
-and evaluating their impact on the score.
-
-All moves are fully monomorphized with inline value storage. Each move returns
-typed undo data from `do_move` and restores itself through `undo_move`;
-speculative evaluation does not use boxed callbacks.
-
-Moves are never cloned: selector cursors own discovered candidates behind
-stable `CandidateId`s, and the selected move is taken from its cursor by
-ownership.
-*/
+//! Move system for modifying planning solutions.
+//!
+//! Moves are the fundamental operations that modify planning variables during
+//! solving. The solver explores the solution space by applying different moves
+//! and evaluating their impact on the score.
+//!
+//! All moves are fully monomorphized with inline value storage. Each move returns
+//! typed undo data from `do_move` and restores itself through `undo_move`;
+//! speculative evaluation does not use boxed callbacks.
+//!
+//! Moves are never cloned: selector cursors own discovered candidates behind
+//! stable `CandidateId`s, and the selected move is taken from its cursor by
+//! ownership.
 
 /// Inlined undo journal for short list edit sets (K-opt route restorations
 /// and similar arbitrary-length undo payloads). Capacity is inline up to 24

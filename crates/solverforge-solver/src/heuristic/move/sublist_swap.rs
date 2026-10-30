@@ -1,12 +1,11 @@
-/* SublistSwapMove - swaps two contiguous sublists within or between list variables.
-
-This move exchanges two ranges of elements. Essential for vehicle routing
-where segments need to be swapped between vehicles.
-
-# Zero-Erasure Design
-
-Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
-*/
+//! SublistSwapMove - swaps two contiguous sublists within or between list variables.
+//!
+//! This move exchanges two ranges of elements. Essential for vehicle routing
+//! where segments need to be swapped between vehicles.
+//!
+//! # Zero-Erasure Design
+//!
+//! Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
 
 use std::borrow::Cow;
 use std::fmt::Debug;
@@ -78,21 +77,20 @@ impl<S, V: Debug> Debug for SublistSwapMove<S, V> {
 }
 
 impl<S, V> SublistSwapMove<S, V> {
-    /* Creates a new sublist swap move with concrete function pointers.
-
-    # Arguments
-    * `first_entity_index` - First entity index
-    * `first_start` - Start of first range (inclusive)
-    * `first_end` - End of first range (exclusive)
-    * `second_entity_index` - Second entity index
-    * `second_start` - Start of second range (inclusive)
-    * `second_end` - End of second range (exclusive)
-    * `list_len` - Function to get list length
-    * `sublist_remove` - Function to remove range [start, end)
-    * `sublist_insert` - Function to insert elements at position
-    * `variable_name` - Name of the list variable
-    * `descriptor_index` - Entity descriptor index
-    */
+    /// Creates a new sublist swap move with concrete function pointers.
+    ///
+    /// # Arguments
+    /// * `first_entity_index` - First entity index
+    /// * `first_start` - Start of first range (inclusive)
+    /// * `first_end` - End of first range (exclusive)
+    /// * `second_entity_index` - Second entity index
+    /// * `second_start` - Start of second range (inclusive)
+    /// * `second_end` - End of second range (exclusive)
+    /// * `list_len` - Function to get list length
+    /// * `sublist_remove` - Function to remove range [start, end)
+    /// * `sublist_insert` - Function to insert elements at position
+    /// * `variable_name` - Name of the list variable
+    /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         first_entity_index: usize,

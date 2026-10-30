@@ -1,4 +1,4 @@
-// Acceptor builder and `AnyAcceptor` enum.
+//! Acceptor builder and `AnyAcceptor` enum.
 
 use std::fmt::Debug;
 
@@ -17,26 +17,25 @@ use crate::phase::localsearch::{
 
 use super::local_search_policy::resolved_calibration;
 
-/* A concrete enum over all built-in acceptor types.
-
-Built from a compiled acceptor configuration to avoid `Box<dyn Acceptor<S>>`.
-Dispatches to the inner acceptor via `match` — fully monomorphized.
-*/
+/// A concrete enum over all built-in acceptor types.
+///
+/// Built from a compiled acceptor configuration to avoid `Box<dyn Acceptor<S>>`.
+/// Dispatches to the inner acceptor via `match` — fully monomorphized.
 #[allow(clippy::large_enum_variant)] // Inline storage keeps acceptor dispatch zero-erasure.
 pub(crate) enum AnyAcceptor<S: PlanningSolution> {
-    // Hill climbing acceptor.
+    /// Hill climbing acceptor.
     HillClimbing(HillClimbingAcceptor),
-    // Step counting hill climbing acceptor.
+    /// Step counting hill climbing acceptor.
     StepCountingHillClimbing(StepCountingHillClimbingAcceptor<S>),
-    // Tabu search acceptor.
+    /// Tabu search acceptor.
     TabuSearch(TabuSearchAcceptor<S>),
-    // Simulated annealing acceptor.
+    /// Simulated annealing acceptor.
     SimulatedAnnealing(SimulatedAnnealingAcceptor),
-    // Late acceptance acceptor.
+    /// Late acceptance acceptor.
     LateAcceptance(LateAcceptanceAcceptor<S>),
-    // Diversified late acceptance acceptor.
+    /// Diversified late acceptance acceptor.
     DiversifiedLateAcceptance(DiversifiedLateAcceptanceAcceptor<S>),
-    // Great deluge acceptor.
+    /// Great deluge acceptor.
     GreatDeluge(GreatDelugeAcceptor<S>),
 }
 

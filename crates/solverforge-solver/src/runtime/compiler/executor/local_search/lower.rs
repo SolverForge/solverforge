@@ -78,8 +78,8 @@ impl fmt::Display for RuntimeLocalSearchLoweringError {
 
 impl std::error::Error for RuntimeLocalSearchLoweringError {}
 
-/* Consumes one child node out of the graph arena in postorder; structural
-postorder guarantees every arena slot lowers exactly once. */
+/// Consumes one child node out of the graph arena in postorder; structural
+/// postorder guarantees every arena slot lowers exactly once.
 fn pop_child<S, V, DM, IDM>(
     nodes: &mut [Option<CompiledSelectorNode<S, V, DM, IDM>>],
     id: CompiledSelectorNodeId,

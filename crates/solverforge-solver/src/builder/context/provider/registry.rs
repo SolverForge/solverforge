@@ -68,6 +68,13 @@ impl<S> fmt::Debug for RuntimeProviderRegistry<S> {
 }
 
 impl<S: 'static> RuntimeProviderRegistry<S> {
+    /// Builds a registry of host callback groups and repairs that reports
+    /// normalization errors through `error_boundary`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message when a group name is empty or repeated, or when group
+    /// or repair declared indexes are not strictly increasing.
     pub fn new(
         groups: Vec<RuntimeScalarGroupProviderBinding<S>>,
         repairs: Vec<RuntimeConflictRepairProviderBinding<S>>,
@@ -116,6 +123,7 @@ impl<S: 'static> RuntimeProviderRegistry<S> {
         })
     }
 
+    /// Whether the registry holds no callback or typed provider.
     pub fn is_empty(&self) -> bool {
         self.groups.is_empty()
             && self.repairs.is_empty()
@@ -123,10 +131,12 @@ impl<S: 'static> RuntimeProviderRegistry<S> {
             && self.static_repairs.is_empty()
     }
 
+    /// Host callback groups, in declared order.
     pub fn groups(&self) -> &[RuntimeScalarGroupProviderBinding<S>] {
         &self.groups
     }
 
+    /// Host callback repairs, in declared order.
     pub fn repairs(&self) -> &[RuntimeConflictRepairProviderBinding<S>] {
         &self.repairs
     }
@@ -139,6 +149,7 @@ impl<S: 'static> RuntimeProviderRegistry<S> {
         &self.static_repairs
     }
 
+    /// Positions of the callback groups named `group_name`.
     pub fn group_indices(&self, group_name: &str) -> Vec<usize> {
         self.groups
             .iter()

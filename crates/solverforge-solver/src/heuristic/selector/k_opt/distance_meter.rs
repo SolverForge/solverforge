@@ -1,15 +1,15 @@
-// Distance meters for k-opt nearby selection.
+//! Distance meters for k-opt nearby selection.
 
 /// A distance meter for list element positions.
 ///
 /// Measures distance between elements at two positions in a list.
 /// Used by nearby k-opt selection (`max_nearby > 0`) to limit the k-opt search space.
 pub(crate) trait ListPositionDistanceMeter<S>: Send + Sync {
-    // Measures distance between elements at two positions in the same entity.
+    /// Measures distance between elements at two positions in the same entity.
     fn distance(&self, solution: &S, entity_idx: usize, pos_a: usize, pos_b: usize) -> f64;
 }
 
-// Default distance meter using position difference.
+/// Default distance meter using position difference.
 #[derive(Debug, Clone, Copy)]
 pub struct DefaultDistanceMeter;
 

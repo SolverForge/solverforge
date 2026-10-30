@@ -33,9 +33,9 @@ where
     fn solution(&self) -> &S;
     fn owner_is_pinned(&self, descriptor_index: usize, entity_index: usize) -> bool;
     fn should_interrupt_construction(&mut self) -> bool;
-    /* Evaluates one insertion trial by transferring the element in and
-    receiving the removed element back: the caller keeps cycling the same
-    owned element across trials without re-cloning it. */
+    /// Evaluates one insertion trial by transferring the element in and
+    /// receiving the removed element back: the caller keeps cycling the same
+    /// owned element across trials without re-cloning it.
     fn evaluate_insertion(
         &mut self,
         access: &A,

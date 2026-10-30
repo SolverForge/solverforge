@@ -29,6 +29,8 @@ use super::move_selector::{
 
 /// Measures distance between two list positions, potentially across entities.
 pub trait CrossEntityDistanceMeter<S>: Send + Sync {
+    /// Distance from `(source_entity, source_position)` to
+    /// `(destination_entity, destination_position)`.
     fn distance(
         &self,
         solution: &S,

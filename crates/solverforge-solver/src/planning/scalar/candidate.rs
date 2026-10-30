@@ -2,6 +2,8 @@ use std::marker::PhantomData;
 
 use super::ScalarGroupLimits;
 
+/// One scalar variable edit: set an entity's variable to a value (`None`
+/// unassigns). Built with [`ScalarTarget::set`](crate::ScalarTarget::set).
 #[derive(Debug)]
 pub struct ScalarEdit<S> {
     descriptor_index: usize,
@@ -81,6 +83,8 @@ impl<S> ScalarEdit<S> {
     }
 }
 
+/// A group candidate: scalar edits applied together, with optional
+/// construction ordering keys.
 #[derive(Debug)]
 pub struct ScalarCandidate<S> {
     reason: &'static str,
@@ -125,6 +129,7 @@ impl<S> std::hash::Hash for ScalarCandidate<S> {
 }
 
 impl<S> ScalarCandidate<S> {
+    /// Creates a candidate from a reason label and its edits.
     pub fn new(reason: &'static str, edits: Vec<ScalarEdit<S>>) -> Self {
         Self {
             reason,
@@ -135,16 +140,19 @@ impl<S> ScalarCandidate<S> {
         }
     }
 
+    /// Sets the construction slot key.
     pub fn with_construction_slot_key(mut self, key: usize) -> Self {
         self.construction_slot_key = Some(key);
         self
     }
 
+    /// Sets the construction entity order key.
     pub fn with_construction_entity_order_key(mut self, key: i64) -> Self {
         self.construction_entity_order_key = Some(key);
         self
     }
 
+    /// Sets the construction value order key.
     pub fn with_construction_value_order_key(mut self, key: i64) -> Self {
         self.construction_value_order_key = Some(key);
         self
@@ -187,4 +195,5 @@ impl<S> ScalarCandidate<S> {
     }
 }
 
+/// Proposes candidates for `solution` within the group limits.
 pub type ScalarCandidateProvider<S> = fn(&S, ScalarGroupLimits) -> Vec<ScalarCandidate<S>>;

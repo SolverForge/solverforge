@@ -11,13 +11,12 @@ use crate::phase::localsearch::evaluation::{run_trial, TrialOutcome};
 
 use super::pool::{EvaluatorPool, TrialOutputs};
 
-/* Runs the trial for every candidate in the window. One fork-join splits the
-work: the main director drains slots on the coordinator thread while the
-replicas drain theirs through a parallel iterator. Fork-join jobs live on the
-stack, so dispatch allocates nothing. Slots are handed out through one atomic
-counter, and results land at their slot index, so which evaluator ran a slot
-never affects the outcome.
-*/
+/// Runs the trial for every candidate in the window. One fork-join splits the
+/// work: the main director drains slots on the coordinator thread while the
+/// replicas drain theirs through a parallel iterator. Fork-join jobs live on the
+/// stack, so dispatch allocates nothing. Slots are handed out through one atomic
+/// counter, and results land at their slot index, so which evaluator ran a slot
+/// never affects the outcome.
 pub(crate) fn evaluate_window<S, D, M>(
     candidates: &[MoveCandidateRef<'_, S, M>],
     main_director: &mut D,

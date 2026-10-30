@@ -20,6 +20,8 @@ pub(crate) use custom::{
     RuntimeExtensionPolicy, RuntimeExtensionRegistry,
 };
 
+/// A model bound to its solution descriptor plus the solve's random seed:
+/// the input custom phases and the configured runtime build from.
 pub struct SearchContext<
     S,
     V = usize,
@@ -56,18 +58,22 @@ where
         })
     }
 
+    /// The solution descriptor.
     pub fn descriptor(&self) -> &SolutionDescriptor {
         &self.descriptor
     }
 
+    /// The resolved runtime model.
     pub fn model(&self) -> &RuntimeModel<S, V, DM, IDM> {
         &self.model
     }
 
+    /// Random seed for the solve; `None` seeds from entropy.
     pub fn seed(&self) -> Option<u64> {
         self.random_seed
     }
 
+    /// Starts a search declaration with no custom or partitioned phases.
     pub fn defaults(self) -> SearchBuilder<S, V, DM, IDM, NoTypedExtensions> {
         SearchBuilder {
             context: self,
@@ -190,6 +196,8 @@ where
     }
 }
 
+/// Builds a local search phase from a move selector, an acceptor and a
+/// forager, with no step limit.
 pub fn local_search<S, M, MS, A, Fo>(
     move_selector: MS,
     acceptor: A,

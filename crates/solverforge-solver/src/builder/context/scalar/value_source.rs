@@ -1,16 +1,26 @@
 use std::fmt;
 
+/// Where a scalar variable's legal values come from. Values are indexes.
 pub enum ValueSource<S> {
+    /// No legal values.
     Empty,
+    /// The values `from..to`.
     CountableRange {
+        /// First value (inclusive).
         from: usize,
+        /// End of the range (exclusive).
         to: usize,
     },
+    /// The values `0..count_fn(solution, provider_index)`.
     SolutionCount {
+        /// Returns the number of values in the provider collection.
         count_fn: fn(&S, usize) -> usize,
+        /// Index of the provider collection passed to `count_fn`.
         provider_index: usize,
     },
+    /// A per-entity slice of legal values.
     EntitySlice {
+        /// Returns the legal values for `(entity_index, variable_index)`.
         values_for_entity: for<'a> fn(&'a S, usize, usize) -> &'a [usize],
     },
 }

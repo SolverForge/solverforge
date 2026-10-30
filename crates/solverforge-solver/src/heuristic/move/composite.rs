@@ -1,10 +1,9 @@
-/* SequentialCompositeMove - applies two owned moves in sequence.
-
-The composite owns both child moves in one two-slot heap allocation, the
-same single allocation the composite always made. The indirection is
-required: the runtime's move union contains this composite of itself, so the
-children cannot be stored inline.
-*/
+//! SequentialCompositeMove - applies two owned moves in sequence.
+//!
+//! The composite owns both child moves in one two-slot heap allocation, the
+//! same single allocation the composite always made. The indirection is
+//! required: the runtime's move union contains this composite of itself, so the
+//! children cannot be stored inline.
 
 use std::borrow::Cow;
 use std::fmt::Debug;
@@ -73,6 +72,8 @@ where
     }
 }
 
+/// A borrowed view of two moves applied in sequence, as a cursor lends one
+/// without materializing a composite move.
 pub struct SequentialCompositeMoveRef<'a, S, M>
 where
     S: PlanningSolution,
@@ -107,6 +108,8 @@ where
     S: PlanningSolution,
     M: Move<S>,
 {
+    /// Builds the view from both moves and the composite's identity: scope,
+    /// affected entities, tabu signature and hard-improvement requirement.
     pub fn new(
         first: &'a M,
         second: &'a M,
@@ -128,10 +131,12 @@ where
         }
     }
 
+    /// The move applied first.
     pub fn first(&self) -> &'a M {
         self.first
     }
 
+    /// The move applied second.
     pub fn second(&self) -> &'a M {
         self.second
     }

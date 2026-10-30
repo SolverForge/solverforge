@@ -1,4 +1,4 @@
-// Local-search phase definition and outer solve lifecycle.
+//! Local-search phase definition and outer solve lifecycle.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;

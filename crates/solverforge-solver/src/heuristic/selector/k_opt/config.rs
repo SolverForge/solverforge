@@ -1,11 +1,11 @@
-// Configuration for k-opt move generation.
+//! Configuration for k-opt move generation.
 
-// Configuration for k-opt move generation.
+/// Configuration for k-opt move generation.
 #[derive(Debug, Clone)]
 pub(crate) struct KOptConfig {
-    // The k value (2-5).
+    /// The k value (2-5).
     pub k: usize,
-    // Minimum segment length between cuts (default: 1).
+    /// Minimum segment length between cuts (default: 1).
     pub min_segment_len: usize,
 }
 

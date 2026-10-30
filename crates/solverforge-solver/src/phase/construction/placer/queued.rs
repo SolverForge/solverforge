@@ -32,7 +32,7 @@ where
     _phantom: PhantomData<fn() -> V>,
 }
 
-// Entity visits between wall-clock stop checks inside one placement scan.
+/// Entity visits between wall-clock stop checks inside one placement scan.
 const STOP_POLL_INTERVAL: u64 = 64;
 
 impl<S, V, ES, VS> QueuedEntityPlacer<S, V, ES, VS>

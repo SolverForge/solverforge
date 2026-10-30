@@ -1,8 +1,7 @@
-/* Local search phase
-
-Improves an existing solution by iteratively applying moves
-that are accepted according to an acceptance criterion.
-*/
+//! Local search phase
+//!
+//! Improves an existing solution by iteratively applying moves
+//! that are accepted according to an acceptance criterion.
 
 pub(crate) mod acceptor;
 pub(crate) mod cursor_source;

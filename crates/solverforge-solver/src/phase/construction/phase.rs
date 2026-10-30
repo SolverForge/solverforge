@@ -1,4 +1,4 @@
-// Construction heuristic phase implementation.
+//! Construction heuristic phase implementation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;

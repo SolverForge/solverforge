@@ -1,8 +1,7 @@
-/* Value selectors for high-performance value iteration.
-
-Unlike the type-erased `ValueSelector` that yields `Arc<dyn Any>`,
-these selectors yield `V` directly with no heap allocation.
-*/
+//! Value selectors for high-performance value iteration.
+//!
+//! Unlike the type-erased `ValueSelector` that yields `Arc<dyn Any>`,
+//! these selectors yield `V` directly with no heap allocation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -19,7 +18,7 @@ use solverforge_scoring::Director;
 /// * `S` - The planning solution type
 /// * `V` - The value type
 pub(crate) trait ValueSelector<S: PlanningSolution, V>: Send + Debug {
-    // Returns an iterator over values for the given entity.
+    /// Returns an iterator over values for the given entity.
     fn iter<'a, D: Director<S>>(
         &'a self,
         score_director: &D,

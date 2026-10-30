@@ -16,25 +16,18 @@ pub(crate) const NONE_ID: u64 = u64::MAX;
 pub(crate) const TABU_VALUE_RUNTIME_DYNAMIC_LIST_SOURCE: u64 = 0xD1A5_7EED_0000_0001;
 pub(crate) type MoveIdentity = SmallVec<[u64; 8]>;
 
-/// Canonical tabu metadata for one move candidate.
-///
-/// The canonical local-search path uses this structure to drive all tabu
-/// dimensions from one source of truth:
-/// - `entity_tokens` for entity tabu
-/// - `destination_value_tokens` for value tabu
-/// - `move_id` for exact move tabu
-/// - `undo_move_id` for reverse-move tabu
-///
-/// Exact-move identities intentionally stay as ordered raw components rather
-/// than pre-hashed scalars so exact and reverse memories retain their original
-/// structure.
+/// The variable a tabu token or signature belongs to: an entity descriptor
+/// and one of its variables.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MoveTabuScope {
+    /// Entity descriptor index of the move's variable.
     pub descriptor_index: usize,
+    /// Name of the move's variable.
     pub variable_name: &'static str,
 }
 
 impl MoveTabuScope {
+    /// Builds a scope for a variable.
     pub const fn new(descriptor_index: usize, variable_name: &'static str) -> Self {
         Self {
             descriptor_index,
@@ -42,6 +35,7 @@ impl MoveTabuScope {
         }
     }
 
+    /// Builds an entity tabu token in this scope.
     pub const fn entity_token(self, entity_id: u64) -> ScopedEntityTabuToken {
         ScopedEntityTabuToken {
             scope: self,
@@ -49,6 +43,7 @@ impl MoveTabuScope {
         }
     }
 
+    /// Builds a value tabu token in this scope.
     pub const fn value_token(self, value_id: u64) -> ScopedValueTabuToken {
         ScopedValueTabuToken {
             scope: self,
@@ -57,15 +52,21 @@ impl MoveTabuScope {
     }
 }
 
+/// An entity identity scoped to a variable, used by entity tabu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ScopedEntityTabuToken {
+    /// The variable scope.
     pub scope: MoveTabuScope,
+    /// Identity of the entity.
     pub entity_id: u64,
 }
 
+/// A value identity scoped to a variable, used by value tabu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ScopedValueTabuToken {
+    /// The variable scope.
     pub scope: MoveTabuScope,
+    /// Identity of the destination value.
     pub value_id: u64,
 }
 
@@ -85,6 +86,17 @@ pub(crate) enum MoveUndoIdentity {
 ///
 /// Constructors copy the given ids into inline storage; ids of up to eight
 /// components and up to two tokens of each kind stay off the heap.
+///
+/// The canonical local-search path uses this structure to drive all tabu
+/// dimensions from one source of truth:
+/// - `entity_tokens` for entity tabu
+/// - `destination_value_tokens` for value tabu
+/// - `move_id` for exact move tabu
+/// - `undo_move_id` for reverse-move tabu
+///
+/// Exact-move identities intentionally stay as ordered raw components rather
+/// than pre-hashed scalars so exact and reverse memories retain their original
+/// structure.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoveTabuSignature {
     pub(crate) scope: MoveTabuScope,

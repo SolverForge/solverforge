@@ -1,11 +1,10 @@
-/* Solver phases for different solving strategies
-
-Phases are the main building blocks of solving:
-- ConstructionHeuristicPhase: Builds an initial solution
-- LocalSearchPhase: Improves an existing solution, including Variable Neighborhood Descent
-- ExhaustiveSearchPhase: Explores entire solution space
-- PartitionedSearchPhase: Parallel solving via partitioning
-*/
+//! Solver phases for different solving strategies
+//!
+//! Phases are the main building blocks of solving:
+//! - ConstructionHeuristicPhase: Builds an initial solution
+//! - LocalSearchPhase: Improves an existing solution, including Variable Neighborhood Descent
+//! - ExhaustiveSearchPhase: Explores entire solution space
+//! - PartitionedSearchPhase: Parallel solving via partitioning
 
 pub(crate) mod construction;
 pub(crate) mod control;

@@ -1,4 +1,4 @@
-// Solver implementation.
+//! Solver implementation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -20,23 +20,22 @@ use crate::stats::{
 };
 use crate::termination::Termination;
 
-/* Result of a solve operation containing solution and telemetry.
-
-This is what `SolveSession::finish` returns. It provides
-both the optimized solution and comprehensive statistics about the
-solving process.
-*/
+/// Result of a solve operation containing solution and telemetry.
+///
+/// This is what `SolveSession::finish` returns. It provides
+/// both the optimized solution and comprehensive statistics about the
+/// solving process.
 #[derive(Debug)]
 pub(crate) struct SolveResult<S: PlanningSolution> {
-    // The best solution found during solving.
+    /// The best solution found during solving.
     pub(crate) solution: S,
-    // The final working score when solving stopped.
+    /// The final working score when solving stopped.
     pub(crate) current_score: Option<S::Score>,
-    // The canonical best score for the solve.
+    /// The canonical best score for the solve.
     pub(crate) best_score: S::Score,
-    // Why solving stopped.
+    /// Why solving stopped.
     pub(crate) terminal_reason: SolverTerminalReason,
-    // Solver statistics including steps, moves evaluated, and acceptance rates.
+    /// Solver statistics including steps, moves evaluated, and acceptance rates.
     pub(crate) stats: SolverStats,
 }
 
@@ -214,7 +213,7 @@ where
     }
 }
 
-// Marker type indicating no termination.
+/// Marker type indicating no termination.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct NoTermination;
 
@@ -225,17 +224,16 @@ pub(crate) trait MaybeTermination<
     ProgressCb: ProgressCallback<S> = (),
 >: Send
 {
-    // Checks if the solver should terminate.
+    /// Checks if the solver should terminate.
     fn should_terminate(&mut self, solver_scope: &SolverScope<'_, S, D, ProgressCb>) -> bool;
 
-    /* Installs in-phase termination limits on the solver scope.
-
-    This allows `Termination` conditions (step count, move count, etc.) to fire
-    inside the phase step loop, not only between phases (T1 fix).
-
-    The default implementation is a no-op. Override for terminations that
-    express a concrete limit via a scope field.
-    */
+    /// Installs in-phase termination limits on the solver scope.
+    ///
+    /// This allows `Termination` conditions (step count, move count, etc.) to fire
+    /// inside the phase step loop, not only between phases (T1 fix).
+    ///
+    /// The default implementation is a no-op. Override for terminations that
+    /// express a concrete limit via a scope field.
     fn install_inphase_limits(&self, _solver_scope: &mut SolverScope<'_, S, D, ProgressCb>) {}
 }
 

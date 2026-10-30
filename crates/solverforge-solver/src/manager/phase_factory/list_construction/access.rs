@@ -21,8 +21,8 @@ pub(crate) trait ScoredListConstructionAccess<S> {
         position: usize,
         element: Self::Element,
     );
-    /* Removes the element at the position and TRANSFERS it back by ownership so
-    trial evaluation can cycle the same element without re-cloning it. */
+    /// Removes the element at the position and TRANSFERS it back by ownership so
+    /// trial evaluation can cycle the same element without re-cloning it.
     fn remove_element(
         &self,
         solution: &mut S,

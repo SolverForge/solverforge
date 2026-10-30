@@ -1,18 +1,16 @@
-/* Exhaustive search node representation.
-
-Each node represents a partial solution state in the search tree.
-*/
+//! Exhaustive search node representation.
+//!
+//! Each node represents a partial solution state in the search tree.
 
 use solverforge_core::domain::PlanningSolution;
 
-/* A node in the exhaustive search tree.
-
-Each node represents a partial solution state, containing:
-- The depth in the search tree (number of variables assigned)
-- The score at this node
-- An optimistic bound (best possible score from this node)
-- The scalar assignment index tuple to reach this node from its parent
-*/
+/// A node in the exhaustive search tree.
+///
+/// Each node represents a partial solution state, containing:
+/// - The depth in the search tree (number of variables assigned)
+/// - The score at this node
+/// - An optimistic bound (best possible score from this node)
+/// - The scalar assignment index tuple to reach this node from its parent
 #[derive(Clone, Debug)]
 pub struct ExhaustiveSearchNode<S: PlanningSolution> {
     // Depth in the search tree (0 = root, number of entity positions processed).
@@ -45,6 +43,7 @@ pub struct ExhaustiveSearchNode<S: PlanningSolution> {
 }
 
 impl<S: PlanningSolution> ExhaustiveSearchNode<S> {
+    /// Creates the root node with `score`.
     pub fn root(score: S::Score) -> Self {
         Self {
             depth: 0,
@@ -59,6 +58,9 @@ impl<S: PlanningSolution> ExhaustiveSearchNode<S> {
         }
     }
 
+    /// Creates a child of node `parent_index` that assigns candidate value
+    /// `candidate_value_index` to `(descriptor_index, variable_index,
+    /// entity_index)`.
     pub fn child(
         parent_index: usize,
         depth: usize,
@@ -96,55 +98,67 @@ impl<S: PlanningSolution> ExhaustiveSearchNode<S> {
         }
     }
 
+    /// Depth in the tree: entity positions processed so far (0 at the root).
     #[inline]
     pub fn depth(&self) -> usize {
         self.depth
     }
 
+    /// Score at this node.
     #[inline]
     pub fn score(&self) -> &S::Score {
         &self.score
     }
 
+    /// Sets the score at this node.
     pub fn set_score(&mut self, score: S::Score) {
         self.score = score;
     }
 
+    /// Optimistic bound, when calculated.
     #[inline]
     pub fn optimistic_bound(&self) -> Option<&S::Score> {
         self.optimistic_bound.as_ref()
     }
 
+    /// Sets the optimistic bound.
     pub fn set_optimistic_bound(&mut self, bound: S::Score) {
         self.optimistic_bound = Some(bound);
     }
 
+    /// Descriptor index of the assignment; `None` for the root and pinned
+    /// rows.
     #[inline]
     pub fn descriptor_index(&self) -> Option<usize> {
         self.descriptor_index
     }
 
+    /// Variable index of the assignment; `None` for the root and pinned rows.
     #[inline]
     pub fn variable_index(&self) -> Option<usize> {
         self.variable_index
     }
 
+    /// Entity index of the assignment; `None` for the root and pinned rows.
     #[inline]
     pub fn entity_index(&self) -> Option<usize> {
         self.entity_index
     }
 
+    /// Index of the assigned candidate value; `None` for the root and pinned
+    /// rows.
     #[inline]
     pub fn candidate_value_index(&self) -> Option<usize> {
         self.candidate_value_index
     }
 
+    /// Index of the parent in the node list; `None` for the root.
     #[inline]
     pub fn parent_index(&self) -> Option<usize> {
         self.parent_index
     }
 
-    // Returns whether this node has been expanded.
+    /// Returns whether this node has been expanded.
     #[inline]
     pub fn is_expanded(&self) -> bool {
         self.expanded
@@ -155,10 +169,13 @@ impl<S: PlanningSolution> ExhaustiveSearchNode<S> {
         self.expanded = true;
     }
 
+    /// Whether every entity has been processed.
     pub fn is_leaf(&self, total_entities: usize) -> bool {
         self.depth >= total_entities
     }
 
+    /// Whether the optimistic bound shows the node cannot beat `best_score`;
+    /// `false` without a bound.
     pub fn can_prune(&self, best_score: &S::Score) -> bool {
         match &self.optimistic_bound {
             Some(bound) => bound <= best_score,
@@ -166,6 +183,8 @@ impl<S: PlanningSolution> ExhaustiveSearchNode<S> {
         }
     }
 
+    /// The non-root nodes from the root down to this node, looked up in
+    /// `all_nodes`.
     pub fn assignment_path<'a>(&'a self, all_nodes: &'a [Self]) -> Vec<&'a Self> {
         let mut path = Vec::with_capacity(self.depth);
         let mut current = Some(self);

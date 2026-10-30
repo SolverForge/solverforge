@@ -2,6 +2,8 @@ use std::marker::PhantomData;
 
 use super::ScalarEdit;
 
+/// One scalar planning variable a group targets, identified by entity
+/// descriptor and variable name.
 #[derive(Debug)]
 pub struct ScalarTarget<S> {
     descriptor_index: usize,
@@ -45,6 +47,8 @@ impl<S> ScalarTarget<S> {
         }
     }
 
+    /// Builds an edit setting the variable of `entity_index` to `to_value`
+    /// (`None` unassigns).
     #[inline]
     pub fn set(self, entity_index: usize, to_value: Option<usize>) -> ScalarEdit<S> {
         ScalarEdit::from_descriptor_index(

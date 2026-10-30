@@ -1,7 +1,6 @@
-/* Filtering move selector decorator.
-
-Filters moves from an inner selector based on a predicate function.
-*/
+//! Filtering move selector decorator.
+//!
+//! Filters moves from an inner selector based on a predicate function.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -91,9 +90,9 @@ where
         self.inner.take_candidate(self.discovered[id.index()])
     }
 
-    // Keep the potentially large child cursor state machine out of every
-    // iterator consumer. This boundary avoids instruction-layout duplication
-    // while still returning each accepted move by value without storage.
+    /// Keep the potentially large child cursor state machine out of every
+    /// iterator consumer. This boundary avoids instruction-layout duplication
+    /// while still returning each accepted move by value without storage.
     #[inline(never)]
     fn next_owned_candidate(&mut self, solution: &S) -> Option<M> {
         self.inner

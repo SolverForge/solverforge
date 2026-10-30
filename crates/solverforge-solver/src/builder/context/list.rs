@@ -9,43 +9,91 @@ pub(crate) fn usize_element_source_key<S>(_solution: &S, element: &usize) -> usi
     *element
 }
 
+/// Function-pointer access to one list planning variable of a typed model.
+///
+/// `S` is the solution, `V` the list element type, and `DM` / `IDM` the
+/// cross-entity and intra-entity distance meters nearby list selectors use.
+/// Entity arguments are indexes into the owning entity collection and
+/// positions are indexes into that entity's list. Generated models build
+/// this through `planning_model!`.
 pub struct ListVariableSlot<S, V, DM, IDM> {
+    /// Type name of the entity that owns the list.
     pub entity_type_name: &'static str,
+    /// Number of elements the lists draw from.
     pub element_count: fn(&S) -> usize,
+    /// Every element currently assigned to some entity's list.
     pub assigned_elements: fn(&S) -> Vec<V>,
+    /// Length of entity `entity`'s list.
     pub list_len: fn(&S, usize) -> usize,
+    /// Removes and returns the element at `(entity, position)`; `None` when the
+    /// entity does not exist.
     pub list_remove: fn(&mut S, usize, usize) -> Option<V>,
+    /// Removes and returns the element at `(entity, position)`. Kept on the
+    /// slot; the current solver does not call it.
     pub construction_list_remove: fn(&mut S, usize, usize) -> V,
+    /// Inserts an element at `(entity, position)`.
     pub list_insert: fn(&mut S, usize, usize, V),
+    /// The element at `(entity, position)`, if any.
     pub list_get: fn(&S, usize, usize) -> Option<V>,
+    /// Replaces the element at `(entity, position)`.
     pub list_set: fn(&mut S, usize, usize, V),
+    /// Reverses the range `start..end` of entity `entity`'s list.
     pub list_reverse: fn(&mut S, usize, usize, usize),
+    /// Removes and returns the range `start..end` of entity `entity`'s list.
     pub sublist_remove: fn(&mut S, usize, usize, usize) -> Vec<V>,
+    /// Inserts elements into entity `entity`'s list starting at a position.
     pub sublist_insert: fn(&mut S, usize, usize, Vec<V>),
+    /// Removes and returns the element at `(entity, position)` for ruin moves.
     pub ruin_remove: fn(&mut S, usize, usize) -> V,
+    /// Inserts an element at `(entity, position)` for ruin moves.
     pub ruin_insert: fn(&mut S, usize, usize, V),
+    /// The element with the given source index (`0..element_count`).
     pub index_to_element: fn(&S, usize) -> V,
     /// Stable identity key for a list element. The per-run runtime binder
     /// resolves these keys to declared source indexes once; it never scans
     /// payloads by `PartialEq` during construction.
     pub element_source_key: fn(&S, &V) -> usize,
+    /// Number of entities that own a list.
     pub entity_count: fn(&S) -> usize,
+    /// Distance meter between positions of different entities, for nearby list
+    /// selection.
     pub cross_distance_meter: DM,
+    /// Distance meter between positions within one entity, for nearby list
+    /// selection.
     pub intra_distance_meter: IDM,
+    /// Name of the list variable.
     pub variable_name: &'static str,
+    /// Index of the owning entity's descriptor.
     pub descriptor_index: usize,
+    /// Whole-route getter; required with the other route hooks for k-opt.
     pub route_get_fn: Option<fn(&S, usize) -> Vec<usize>>,
+    /// Replaces an entity's whole route in one mutation; required by k-opt and
+    /// Clarke-Wright construction.
     pub route_set_fn: Option<fn(&mut S, usize, Vec<usize>)>,
+    /// Depot of an entity's route, for route-local neighborhoods.
     pub route_depot_fn: Option<fn(&S, usize) -> usize>,
+    /// Distance between two elements on an entity's route.
     pub route_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
+    /// Whether a candidate route for an entity is feasible.
     pub route_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
+    /// Depot of an entity for Clarke-Wright savings.
     pub savings_depot_fn: Option<fn(&S, usize) -> usize>,
+    /// Metric class of an entity; owners in one class share depot and distance
+    /// behavior for savings.
     pub savings_metric_class_fn: Option<fn(&S, usize) -> usize>,
+    /// Distance between two elements for an entity's savings computation.
     pub savings_distance_fn: Option<fn(&S, usize, usize, usize) -> i64>,
+    /// Whether a candidate route for an entity is feasible during savings
+    /// construction.
     pub savings_feasible_fn: Option<fn(&S, usize, &[usize]) -> bool>,
+    /// The entity whose list must hold an element, when the model restricts
+    /// ownership; `None` from the hook means any entity.
     pub element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
+    /// Construction order key of an element; lower keys are placed first.
     pub construction_element_order_key: Option<fn(&S, V) -> i64>,
+    /// Duration of an element for precedence-aware list moves.
     pub precedence_duration_fn: Option<fn(&S, V) -> usize>,
+    /// Appends the precedence successors of an element to the buffer.
     pub precedence_successors_fn: Option<fn(&S, V, &mut Vec<V>)>,
     _phantom: PhantomData<(fn() -> S, fn() -> V)>,
 }
@@ -93,6 +141,9 @@ impl<S, V, DM: Clone, IDM: Clone> Clone for ListVariableSlot<S, V, DM, IDM> {
 }
 
 impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
+    /// Builds a slot from the required list operations and the optional route
+    /// and savings hooks; ownership, construction-order and precedence hooks
+    /// start unset.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         entity_type_name: &'static str,
@@ -165,6 +216,7 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         }
     }
 
+    /// Sets the element ownership hook.
     pub fn with_element_owner_fn(
         mut self,
         element_owner_fn: Option<fn(&S, &V) -> Option<usize>>,
@@ -173,6 +225,7 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         self
     }
 
+    /// Sets the construction order key hook.
     pub fn with_construction_element_order_key(
         mut self,
         construction_element_order_key: Option<fn(&S, V) -> i64>,
@@ -181,6 +234,7 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         self
     }
 
+    /// Sets both precedence hooks.
     pub fn with_precedence_hooks(
         mut self,
         duration_fn: Option<fn(&S, V) -> usize>,
@@ -191,20 +245,26 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
         self
     }
 
+    /// Whether this slot matches the given entity class and variable name;
+    /// `None` matches any.
     pub fn matches_target(&self, entity_class: Option<&str>, variable_name: Option<&str>) -> bool {
         entity_class.is_none_or(|name| name == self.entity_type_name)
             && variable_name.is_none_or(|name| name == self.variable_name)
     }
 
+    /// Whether fewer elements are assigned than exist.
     pub fn has_unassigned_elements(&self, solution: &S) -> bool {
         (self.assigned_elements)(solution).len() < (self.element_count)(solution)
     }
 
+    /// Whether any entity's list is non-empty.
     pub fn has_list_content(&self, solution: &S) -> bool {
         (0..(self.entity_count)(solution))
             .any(|entity_index| (self.list_len)(solution, entity_index) > 0)
     }
 
+    /// Whether the route-replacement and savings depot, distance and
+    /// feasibility hooks needed by Clarke-Wright construction are present.
     pub fn supports_clarke_wright(&self) -> bool {
         self.route_set_fn.is_some()
             && self.savings_depot_fn.is_some()
@@ -212,6 +272,8 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             && self.savings_feasible_fn.is_some()
     }
 
+    /// Whether the route getter, setter, depot and distance hooks needed by
+    /// k-opt are present.
     pub fn supports_k_opt(&self) -> bool {
         self.route_get_fn.is_some()
             && self.route_set_fn.is_some()
@@ -219,10 +281,12 @@ impl<S, V, DM, IDM> ListVariableSlot<S, V, DM, IDM> {
             && self.route_distance_fn.is_some()
     }
 
+    /// Whether ruin moves are available; always `true`.
     pub fn supports_ruin(&self) -> bool {
         true
     }
 
+    /// Whether both precedence hooks are present.
     pub fn supports_precedence_moves(&self) -> bool {
         self.precedence_duration_fn.is_some() && self.precedence_successors_fn.is_some()
     }

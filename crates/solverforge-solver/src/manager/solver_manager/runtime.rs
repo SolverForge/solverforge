@@ -21,6 +21,7 @@ pub struct SolverPanicPayload {
 }
 
 impl SolverPanicPayload {
+    /// Wraps a foreign `payload` with the failure `message` the job reports.
     pub fn new(message: impl Into<String>, payload: impl Any + Send) -> Self {
         Self {
             message: message.into(),
@@ -28,10 +29,12 @@ impl SolverPanicPayload {
         }
     }
 
+    /// The failure message reported for the job.
     pub fn message(&self) -> &str {
         &self.message
     }
 
+    /// Returns the message and the original payload.
     pub fn into_parts(self) -> (String, Box<dyn Any + Send>) {
         (self.message, self.payload)
     }
@@ -126,10 +129,13 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         }
     }
 
+    /// The job's slot index; `usize::MAX` for a detached runtime.
     pub fn job_id(&self) -> usize {
         self.job_id
     }
 
+    /// Whether [`SolverManager::cancel`](crate::SolverManager::cancel) was
+    /// requested for this job.
     pub fn is_cancel_requested(&self) -> bool {
         self.slot.terminate.load(Ordering::Acquire)
     }
@@ -150,6 +156,8 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         &self.slot.terminate
     }
 
+    /// Publishes a [`SolverEvent::Progress`] with the given scores and telemetry
+    /// in the job's current lifecycle state.
     pub fn emit_progress(
         &self,
         current_score: Option<S::Score>,
@@ -159,6 +167,8 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         self.emit_non_snapshot_event(current_score, best_score, telemetry, EventKind::Progress);
     }
 
+    /// Publishes a new best solution: retains it as the next snapshot and emits
+    /// [`SolverEvent::BestSolution`].
     pub fn emit_best_solution(
         &self,
         solution: S,
@@ -191,6 +201,12 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         });
     }
 
+    /// Completes the job with `terminal_reason`: retains the final snapshot and
+    /// emits [`SolverEvent::Completed`].
+    ///
+    /// A pending cancel turns completion into [`Self::emit_cancelled`]; a pending
+    /// pause first pauses with this solution as the snapshot and completes after
+    /// the job resumes. A no-op once the job is terminal.
     pub fn emit_completed(
         &self,
         solution: S,
@@ -274,6 +290,8 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         }
     }
 
+    /// Ends the job as cancelled and emits [`SolverEvent::Cancelled`]; no
+    /// snapshot is retained. A no-op once the job is terminal.
     pub fn emit_cancelled(
         &self,
         current_score: Option<S::Score>,
@@ -290,6 +308,8 @@ impl<S: PlanningSolution> SolverRuntime<S> {
         );
     }
 
+    /// Ends the job as failed with the `error` message and emits
+    /// [`SolverEvent::Failed`]. A no-op once the job is terminal.
     pub fn emit_failed(&self, error: String) {
         self.slot.with_publication(|sender, record| {
             if matches!(

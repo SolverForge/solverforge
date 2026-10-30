@@ -1,5 +1,5 @@
-// Diversified Late Acceptance Search with exact worst-score occurrence tracking.
-// Acceptance and ring updates advance for each evaluated candidate.
+//! Diversified Late Acceptance Search with exact worst-score occurrence tracking.
+//! Acceptance and ring updates advance for each evaluated candidate.
 
 use std::fmt::Debug;
 

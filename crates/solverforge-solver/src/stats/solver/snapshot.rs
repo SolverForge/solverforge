@@ -4,10 +4,14 @@ use super::super::{CandidateTraceTelemetry, PhaseTelemetry, SolverTelemetry};
 use super::SolverStats;
 
 impl SolverStats {
+    /// Returns the solve's telemetry: run totals, one entry per started phase
+    /// (the running one last), and the applied-move and candidate traces.
     pub fn snapshot(&self) -> SolverTelemetry {
         self.snapshot_with_applied_move_trace(true)
     }
 
+    /// Returns the solve's telemetry without the applied-move trace and without
+    /// the candidate trace.
     pub fn snapshot_without_applied_move_trace(&self) -> SolverTelemetry {
         self.snapshot_with_applied_move_trace(false)
     }

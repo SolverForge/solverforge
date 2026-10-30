@@ -33,9 +33,9 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.weight_mode_switch_pending
     }
 
-    /* Whether the working solution, just rewritten by a problem change, needs
-    the other weight mode. Constant `false` for solution types without
-    constraint weights. */
+    /// Whether the working solution, just rewritten by a problem change, needs
+    /// the other weight mode. Constant `false` for solution types without
+    /// constraint weights.
     fn weight_mode_switch_required(&self) -> RuntimeBuildResult<bool> {
         if !S::HAS_CONSTRAINT_WEIGHTS {
             return Ok(false);

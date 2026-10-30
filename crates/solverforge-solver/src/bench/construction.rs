@@ -32,6 +32,7 @@ where
         }
     }
 
+    /// Opens the placement cursor over the current working solution.
     pub fn open_cursor<D: Director<S>>(
         &self,
         score_director: &D,
@@ -93,6 +94,7 @@ impl<S> CompiledScalarPlacement<S>
 where
     S: PlanningSolution,
 {
+    /// Pulls the next candidate of this placement.
     pub fn next_candidate(&mut self, solution: &S) -> Option<CandidateId> {
         self.placement.candidates_mut().next_candidate(solution)
     }
@@ -123,6 +125,7 @@ where
         }
     }
 
+    /// Drops a live candidate; returns whether it was live.
     pub fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.placement.candidates_mut().release_candidate(id)
     }

@@ -1,4 +1,4 @@
-/* ListPermuteMove - permutes a contiguous window within a list variable. */
+//! ListPermuteMove - permutes a contiguous window within a list variable.
 
 #[cfg(test)]
 use std::borrow::Cow;

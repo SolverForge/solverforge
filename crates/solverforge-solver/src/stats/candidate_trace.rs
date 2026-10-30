@@ -40,7 +40,9 @@ pub const CANDIDATE_TRACE_FORMAT_VERSION: u32 = 3;
 /// a collision-resistant proof.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CandidateTraceDigest {
+    /// First 64-bit lane (FNV-1a over the input bytes).
     pub first: u64,
+    /// Second 64-bit lane (a rotate-multiply mix over the input bytes).
     pub second: u64,
 }
 
@@ -50,6 +52,7 @@ impl CandidateTraceDigest {
     const SECOND_OFFSET: u64 = 0x9e37_79b9_7f4a_7c15;
     const SECOND_MULTIPLIER: u64 = 0xd6e8_feb8_6659_fd93;
 
+    /// Returns the digest of no bytes; the starting state for [`Self::update`].
     pub const fn empty() -> Self {
         Self {
             first: Self::FIRST_OFFSET,
@@ -57,12 +60,15 @@ impl CandidateTraceDigest {
         }
     }
 
+    /// Returns the digest of `bytes`.
     pub fn of_bytes(bytes: &[u8]) -> Self {
         let mut digest = Self::empty();
         digest.update(bytes);
         digest
     }
 
+    /// Folds `bytes` into the digest; updating with `a` then `b` equals one
+    /// update with their concatenation.
     pub fn update(&mut self, bytes: &[u8]) {
         for &byte in bytes {
             self.first ^= u64::from(byte);
@@ -87,6 +93,8 @@ impl Default for CandidateTraceDigest {
 /// Immutable provenance emitted once for an opt-in candidate trace.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandidateTraceHeader {
+    /// Trace wire-format version; [`CANDIDATE_TRACE_FORMAT_VERSION`] when built
+    /// by this crate.
     pub format_version: u32,
     /// Canonical TOML from the exact `SolverConfig` supplied to the run.
     ///
@@ -94,10 +102,12 @@ pub struct CandidateTraceHeader {
     /// configuration": effective execution behavior is represented by
     /// [`Self::execution_policy`] and [`Self::resolved_phase_plan`].
     pub configured_input: String,
+    /// Digest of `configured_input`.
     pub configured_input_digest: CandidateTraceDigest,
     /// Actual resolved solver policy, including entrypoint defaults injected
     /// by the configured runtime path.
     pub execution_policy: CandidateTraceExecutionPolicy,
+    /// Digest of the canonical bytes of `execution_policy`.
     pub execution_policy_digest: CandidateTraceDigest,
     /// False means the execution policy came from an arbitrary generic Rust
     /// termination and cannot qualify as exact work-equivalence evidence.
@@ -105,12 +115,16 @@ pub struct CandidateTraceHeader {
     /// Optional immutable model/instance/initial-state provenance supplied by
     /// the entrypoint.
     pub input_provenance: Option<CandidateTraceInputProvenance>,
+    /// Digest of the canonical bytes of `input_provenance`, when present.
     pub input_provenance_digest: Option<CandidateTraceDigest>,
     /// Present only when the caller explicitly requested a qualified
     /// diagnostic run. It repeats the exact immutable attestation rather than
     /// requiring consumers to infer qualification from optional fields.
     pub qualified_run_provenance: Option<QualifiedCandidateTraceRunProvenance>,
+    /// Phase plan the run resolved. A staged runtime may replace a provisional
+    /// plan once at terminal completion.
     pub resolved_phase_plan: CandidateTracePhasePlan,
+    /// Digest of the canonical bytes of `resolved_phase_plan`.
     pub resolved_phase_plan_digest: CandidateTraceDigest,
     /// False means at least one phase supplied only opaque provenance and
     /// cannot qualify as an exact work-equivalence comparison.
@@ -118,6 +132,8 @@ pub struct CandidateTraceHeader {
 }
 
 impl CandidateTraceHeader {
+    /// Builds a header for an ordinary (unqualified) trace, deriving every
+    /// digest and completeness flag from the given parts.
     pub fn new(
         configured_input: String,
         execution_policy: CandidateTraceExecutionPolicy,
@@ -150,6 +166,9 @@ impl CandidateTraceHeader {
         }
     }
 
+    /// Builds a header for a qualified diagnostic run: like [`Self::new`] with
+    /// the qualified provenance's input provenance, plus the attestation itself
+    /// in `qualified_run_provenance`.
     pub fn new_qualified(
         configured_input: String,
         execution_policy: CandidateTraceExecutionPolicy,
@@ -170,7 +189,9 @@ impl CandidateTraceHeader {
 /// Bounded trace emitted in final/pause snapshots for an enabled run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandidateTraceTelemetry {
+    /// Provenance header of the run.
     pub header: CandidateTraceHeader,
+    /// Most pulls the trace retains; later pulls are counted but not kept.
     pub max_entries: usize,
     /// All instrumented pulls, including pulls beyond `max_entries`.
     pub total_pulls: u64,
@@ -232,6 +253,8 @@ impl CandidateTraceTelemetry {
         self.resolved_phase_plan_finalized = true;
     }
 
+    /// Whether the retained pulls are the whole pull stream: not truncated, every
+    /// pull has an identity, and every pull ends in a terminal disposition.
     pub fn is_complete(&self) -> bool {
         !self.truncated
             && self.total_pulls == self.pulls.len() as u64
@@ -252,6 +275,8 @@ impl CandidateTraceTelemetry {
         self.header.execution_policy_complete && self.header.resolved_phase_plan_complete
     }
 
+    /// Execution and input provenance status of this trace, for benchmark
+    /// qualification.
     pub fn provenance_status(&self) -> CandidateTraceProvenanceStatus {
         let input_provenance = match self.header.input_provenance.as_ref() {
             None => CandidateTraceInputProvenanceStatus::Absent,

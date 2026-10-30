@@ -1,4 +1,4 @@
-// Simulated annealing acceptor with lexicographic score-level temperatures.
+//! Simulated annealing acceptor with lexicographic score-level temperatures.
 
 use rand::rngs::SmallRng;
 use rand::{RngExt, SeedableRng};
@@ -85,13 +85,12 @@ impl CalibrationState {
     }
 }
 
-/* Simulated annealing acceptor using first-differing-level Boltzmann acceptance.
-
-Improving or equal moves are accepted unconditionally. Worsening moves are
-classified by the first score level that differs, and the acceptance probability
-uses only that level's delta and temperature. Lower-priority levels never mask
-higher-priority regressions.
-*/
+/// Simulated annealing acceptor using first-differing-level Boltzmann acceptance.
+///
+/// Improving or equal moves are accepted unconditionally. Worsening moves are
+/// classified by the first score level that differs, and the acceptance probability
+/// uses only that level's delta and temperature. Lower-priority levels never mask
+/// higher-priority regressions.
 #[derive(Debug, Clone)]
 pub(crate) struct SimulatedAnnealingAcceptor {
     temperature_seed: TemperatureSeed,

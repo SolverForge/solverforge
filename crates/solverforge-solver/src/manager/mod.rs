@@ -1,11 +1,10 @@
-/* High-level solver management with zero-erasure API.
-
-# Zero-Erasure Design
-
-All types flow through generics - no Box, Arc, or dyn anywhere.
-Runtime configuration from TOML is handled by the macro layer
-which generates concrete types at compile time.
-*/
+//! High-level solver management with zero-erasure API.
+//!
+//! # Zero-Erasure Design
+//!
+//! All types flow through generics - no Box, Arc, or dyn anywhere.
+//! Runtime configuration from TOML is handled by the macro layer
+//! which generates concrete types at compile time.
 
 pub(crate) mod phase_factory;
 pub(crate) mod solution_manager;

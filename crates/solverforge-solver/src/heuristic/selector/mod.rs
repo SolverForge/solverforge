@@ -1,8 +1,7 @@
-/* Selectors for entities, values, and moves.
-
-Selectors enumerate the elements that the solver considers when
-exploring the solution space.
-*/
+//! Selectors for entities, values, and moves.
+//!
+//! Selectors enumerate the elements that the solver considers when
+//! exploring the solution space.
 
 pub(crate) mod decorator;
 #[cfg(test)]

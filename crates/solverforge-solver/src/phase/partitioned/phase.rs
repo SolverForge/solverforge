@@ -1,4 +1,4 @@
-// PartitionedSearchPhase implementation.
+//! PartitionedSearchPhase implementation.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -79,6 +79,7 @@ where
     PF: Fn() -> CP + Send + Sync,
     CP: ChildPhases<S, PD>,
 {
+    /// Creates the phase with the default configuration.
     pub fn new(partitioner: Part, score_director_factory: SDF, phase_factory: PF) -> Self {
         Self {
             partitioner,
@@ -89,6 +90,7 @@ where
         }
     }
 
+    /// Creates the phase with `config`.
     pub fn with_config(
         partitioner: Part,
         score_director_factory: SDF,
@@ -218,7 +220,7 @@ where
     PF: Fn() -> CP + Send + Sync,
     CP: ChildPhases<S, PD>,
 {
-    // Solves a single partition and returns the solved solution.
+    /// Solves a single partition and returns the solved solution.
     fn solve_partition<'t>(
         &self,
         partition: S,

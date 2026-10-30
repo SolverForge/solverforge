@@ -1,4 +1,4 @@
-// Step count termination.
+//! Step count termination.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_scoring::Director;

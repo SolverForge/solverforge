@@ -9,6 +9,14 @@ use crate::descriptor::collect_bindings;
 use super::{RuntimeModel, RuntimeScalarSlot, VariableSlot};
 
 impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
+    /// Resolves every dynamic variable and dynamic scalar-group member against
+    /// `descriptor`, freezes the host provider registry against the resolved
+    /// slots and binds scalar-group construction slots.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message when a dynamic slot or group does not resolve or a
+    /// scalar group is registered twice.
     pub fn resolve_dynamic_descriptor_indexes(
         mut self,
         descriptor: &SolutionDescriptor,
@@ -43,6 +51,12 @@ impl<S, V, DM, IDM> RuntimeModel<S, V, DM, IDM> {
         Ok(self)
     }
 
+    /// Checks that every dynamic slot and dynamic scalar-group member was
+    /// resolved.
+    ///
+    /// # Panics
+    ///
+    /// Panics on the first unresolved slot or member.
     pub fn assert_dynamic_descriptor_indexes_resolved(&self) {
         for variable in &self.variables {
             match variable {

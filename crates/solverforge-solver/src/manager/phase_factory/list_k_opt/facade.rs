@@ -50,20 +50,19 @@ where
     S: PlanningSolution,
     E: Copy + Send + Sync + 'static,
 {
-    /* Creates a new k-opt polishing phase.
-
-    # Arguments
-
-    * `k` — k value; only k=2 (2-opt) is implemented; k>2 logs a warning and is a no-op
-    * `entity_count` — number of entities (routes) in the solution
-    * `get_route` — returns the route for entity at given index as element indices
-    * `set_route` — replaces the route for entity at given index
-    * `depot_fn` — returns the depot element index for a given entity
-    * `distance_fn` — distance between two element indices for the given entity
-    * `feasible_fn` — optional feasibility gate; receives solution, entity index, and
-    candidate route after tentative reversal; return `false` to reject the move
-    * `descriptor_index` — entity descriptor index for change notification
-    */
+    /// Creates a new k-opt polishing phase.
+    ///
+    /// # Arguments
+    ///
+    /// * `k` — k value; only k=2 (2-opt) is implemented; k>2 logs a warning and is a no-op
+    /// * `entity_count` — number of entities (routes) in the solution
+    /// * `get_route` — returns the route for entity at given index as element indices
+    /// * `set_route` — replaces the route for entity at given index
+    /// * `depot_fn` — returns the depot element index for a given entity
+    /// * `distance_fn` — distance between two element indices for the given entity
+    /// * `feasible_fn` — optional feasibility gate; receives solution, entity index, and
+    ///   candidate route after tentative reversal; return `false` to reject the move
+    /// * `descriptor_index` — entity descriptor index for change notification
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         k: usize,

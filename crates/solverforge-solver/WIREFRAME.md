@@ -59,6 +59,7 @@ src/
 │   ├── forager.rs                       — AnyForager<S> enum built from validated forager config
 │   ├── context.rs                       — Public context module root and re-exports
 │   ├── context/model.rs                 — RuntimeModel<S, V, DM, IDM> and VariableSlot<S, V, DM, IDM>
+│   ├── context/model_queries.rs         — Read-only RuntimeModel queries over variables and scalar groups
 │   ├── context/model_resolution.rs      — Descriptor resolution and immutable runtime-model validation
 │   ├── context/candidate_metric.rs      — RuntimeCandidateMetric, binding, and immutable registry for sorted/probabilistic leaves
 │   ├── context/list.rs                  — Static list slot metadata and stable element-source keys
@@ -361,12 +362,15 @@ src/
 │   ├── solver.rs                        — SolverScope<'t, S, D, ProgressCb = ()>, ProgressCallback trait, lifecycle-aware SolveResult, and included scope chunks
 │   ├── solver/progress.rs               — SolverProgressRef, SolverProgressKind, SolverLifecycleState status, ProgressCallback dispatch, and the shared phase progress pulse
 │   ├── solver/scope_core.rs             — Core SolverScope construction, runtime publication, lifecycle control, mutation, and child-scope helpers
+│   ├── solver/scope_frontier.rs         — SolverScope construction-frontier and working-solution revision bookkeeping
 │   ├── solver/phase_budget.rs           — PhaseBudget and scoped phase termination for child phases
 │   ├── solver/scope_progress.rs         — SolverScope score/best-solution/progress/stat reporting helpers
+│   ├── solver/scope_termination.rs      — SolverScope cancellation, pause, and configured-limit checks, statistics accessors, and committed-mutation bookkeeping
 │   ├── solver/scope_trace.rs            — SolverScope candidate-trace recording
 │   ├── solver/problem_change.rs         — Pending problem-change control, queue drain/close, and batch application
 │   ├── solver/weight_mode.rs            — Crate-private weight-mode control: switch detection after a change and moving the scope onto a rebuilt director
-│   ├── phase.rs                         — PhaseScope<'t, 'a, S, D, BestCb = ()>
+│   ├── phase.rs                         — PhaseScope<'t, 'a, S, D, BestCb = ()> and its move-counter, move-kind, candidate-trace and construction-slot recording
+│   ├── phase_lifecycle.rs               — PhaseScope opening, parent-scope access, scoring, and progress reporting
 │   ├── step.rs                          — StepScope<'t, 'a, 'b, S, D, BestCb = ()>
 │   ├── tests.rs                         — Tests
 │   ├── tests/problem_change.rs          — Problem-change control priority, child yield, and application tests

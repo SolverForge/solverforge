@@ -1,12 +1,11 @@
-/* ListSwapMove - swaps two elements within or between list variables.
-
-This move exchanges two elements at different positions.
-Useful for TSP-style improvements and route optimization.
-
-# Zero-Erasure Design
-
-Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
-*/
+//! ListSwapMove - swaps two elements within or between list variables.
+//!
+//! This move exchanges two elements at different positions.
+//! Useful for TSP-style improvements and route optimization.
+//!
+//! # Zero-Erasure Design
+//!
+//! Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
 
 use std::borrow::Cow;
 use std::fmt::Debug;
@@ -69,19 +68,18 @@ impl<S, V: Debug> Debug for ListSwapMove<S, V> {
 }
 
 impl<S, V> ListSwapMove<S, V> {
-    /* Creates a new list swap move with concrete function pointers.
-
-    # Arguments
-    * `first_entity_index` - First entity index
-    * `first_position` - Position in first entity's list
-    * `second_entity_index` - Second entity index
-    * `second_position` - Position in second entity's list
-    * `list_len` - Function to get list length
-    * `list_get` - Function to get element at position
-    * `list_set` - Function to set element at position
-    * `variable_name` - Name of the list variable
-    * `descriptor_index` - Entity descriptor index
-    */
+    /// Creates a new list swap move with concrete function pointers.
+    ///
+    /// # Arguments
+    /// * `first_entity_index` - First entity index
+    /// * `first_position` - Position in first entity's list
+    /// * `second_entity_index` - Second entity index
+    /// * `second_position` - Position in second entity's list
+    /// * `list_len` - Function to get list length
+    /// * `list_get` - Function to get element at position
+    /// * `list_set` - Function to set element at position
+    /// * `variable_name` - Name of the list variable
+    /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         first_entity_index: usize,

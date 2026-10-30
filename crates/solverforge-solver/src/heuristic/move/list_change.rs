@@ -1,12 +1,11 @@
-/* ListChangeMove - relocates an element within or between list variables.
-
-This move removes an element from one position and inserts it at another.
-Essential for vehicle routing and scheduling problems.
-
-# Zero-Erasure Design
-
-Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
-*/
+//! ListChangeMove - relocates an element within or between list variables.
+//!
+//! This move removes an element from one position and inserts it at another.
+//! Essential for vehicle routing and scheduling problems.
+//!
+//! # Zero-Erasure Design
+//!
+//! Uses concrete function pointers for list operations. No `dyn Any`, no downcasting.
 
 use std::borrow::Cow;
 use std::fmt::Debug;
@@ -71,19 +70,18 @@ impl<S, V: Debug> Debug for ListChangeMove<S, V> {
 }
 
 impl<S, V> ListChangeMove<S, V> {
-    /* Creates a new list change move with concrete function pointers.
-
-    # Arguments
-    * `source_entity_index` - Entity index to remove from
-    * `source_position` - Position in source list
-    * `dest_entity_index` - Entity index to insert into
-    * `dest_position` - Position in destination list
-    * `list_len` - Function to get list length
-    * `list_remove` - Function to remove element at position
-    * `list_insert` - Function to insert element at position
-    * `variable_name` - Name of the list variable
-    * `descriptor_index` - Entity descriptor index
-    */
+    /// Creates a new list change move with concrete function pointers.
+    ///
+    /// # Arguments
+    /// * `source_entity_index` - Entity index to remove from
+    /// * `source_position` - Position in source list
+    /// * `dest_entity_index` - Entity index to insert into
+    /// * `dest_position` - Position in destination list
+    /// * `list_len` - Function to get list length
+    /// * `list_remove` - Function to remove element at position
+    /// * `list_insert` - Function to insert element at position
+    /// * `variable_name` - Name of the list variable
+    /// * `descriptor_index` - Entity descriptor index
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         source_entity_index: usize,

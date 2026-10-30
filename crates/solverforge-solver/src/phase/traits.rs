@@ -1,4 +1,4 @@
-// Phase trait definition.
+//! Phase trait definition.
 
 use std::fmt::Debug;
 
@@ -21,14 +21,14 @@ use crate::stats::CandidateTracePhasePlan;
 pub trait Phase<S: PlanningSolution, D: Director<S>, BestCb: ProgressCallback<S> = ()>:
     Send + Debug
 {
-    /* Executes this phase.
-
-    The phase should inspect the current state through immutable accessors,
-    use typed move undo for speculative work, use `mutate(...)` for committed
-    arbitrary changes, and update the best solution when improvements are found.
-    */
+    /// Executes this phase.
+    ///
+    /// The phase should inspect the current state through immutable accessors,
+    /// use typed move undo for speculative work, use `mutate(...)` for committed
+    /// arbitrary changes, and update the best solution when improvements are found.
     fn solve(&mut self, solver_scope: &mut SolverScope<'_, S, D, BestCb>);
 
+    /// Phase type name used in telemetry and logs.
     fn phase_type_name(&self) -> &'static str;
 
     /// Whether this phase owns a structural completion gate that must pass

@@ -185,22 +185,21 @@ impl<S, V: Debug> Debug for KOptMove<S, V> {
 
 #[cfg(test)]
 impl<S: PlanningSolution, V: Clone + Send + Sync + Debug + 'static> KOptMove<S, V> {
-    /* Creates a new k-opt move.
-
-    # Arguments
-
-    * `cuts` - Slice of cut points (must be sorted by position for intra-route)
-    * `reconnection` - How to reconnect the segments
-    * `list_len` - Function to get list length
-    * `sublist_remove` - Function to remove a range
-    * `sublist_insert` - Function to insert elements
-    * `variable_name` - Name of the list variable
-    * `descriptor_index` - Entity descriptor index
-
-    # Panics
-
-    Panics if cuts is empty or has more than 5 elements.
-    */
+    /// Creates a new k-opt move.
+    ///
+    /// # Arguments
+    ///
+    /// * `cuts` - Slice of cut points (must be sorted by position for intra-route)
+    /// * `reconnection` - How to reconnect the segments
+    /// * `list_len` - Function to get list length
+    /// * `sublist_remove` - Function to remove a range
+    /// * `sublist_insert` - Function to insert elements
+    /// * `variable_name` - Name of the list variable
+    /// * `descriptor_index` - Entity descriptor index
+    ///
+    /// # Panics
+    ///
+    /// Panics if cuts is empty or has more than 5 elements.
     #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(

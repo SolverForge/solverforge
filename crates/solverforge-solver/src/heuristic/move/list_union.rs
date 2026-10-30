@@ -1,8 +1,7 @@
-/* ListMoveUnion - a monomorphized union of all list-variable move types.
-
-This allows local search to combine all list move types in a single arena
-without trait-object dispatch.
-*/
+//! ListMoveUnion - a monomorphized union of all list-variable move types.
+//!
+//! This allows local search to combine all list move types in a single arena
+//! without trait-object dispatch.
 
 use std::borrow::Cow;
 use std::fmt::Debug;

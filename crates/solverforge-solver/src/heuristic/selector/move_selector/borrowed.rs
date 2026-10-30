@@ -82,28 +82,42 @@ where
     }
 }
 
+/// A live candidate lent by a [`MoveCursor`].
 pub enum MoveCandidateRef<'a, S, M>
 where
     S: PlanningSolution,
     M: Move<S>,
 {
+    /// A single stored move.
     Borrowed(&'a M),
+    /// Two stored moves applied in sequence.
     Sequential(SequentialCompositeMoveRef<'a, S, M>),
 }
 
+/// Undo data of a [`MoveCandidateRef`], matching its shape.
 pub enum MoveCandidateUndo<U> {
+    /// Undo data of a single move.
     Borrowed(U),
-    Sequential { first: U, second: U },
+    /// Undo data of both moves of a sequential candidate.
+    Sequential {
+        /// Undo data of the first move.
+        first: U,
+        /// Undo data of the second move.
+        second: U,
+    },
 }
 
+/// Stable identity of a candidate within one cursor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CandidateId(usize);
 
 impl CandidateId {
+    /// Wraps a cursor-local index.
     pub fn new(index: usize) -> Self {
         Self(index)
     }
 
+    /// The cursor-local index.
     pub fn index(self) -> usize {
         self.0
     }
@@ -337,15 +351,21 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
         }
     }
 
+    /// Lends the live candidate `id`; `None` once it was taken or released.
     fn candidate(&self, id: CandidateId) -> Option<MoveCandidateRef<'_, S, M>>;
 
+    /// Transfers ownership of candidate `id` out of the cursor; `id` must be
+    /// live.
     fn take_candidate(&mut self, id: CandidateId) -> M;
 
+    /// Pulls the next candidate and takes ownership of it.
     fn next_owned_candidate(&mut self, solution: &S) -> Option<M> {
         let id = self.next_candidate(solution)?;
         Some(self.take_candidate(id))
     }
 
+    /// Pulls candidates until `predicate` accepts one and takes it, releasing
+    /// the rejected ones.
     fn next_owned_candidate_matching(
         &mut self,
         solution: &S,
@@ -364,6 +384,8 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
         }
     }
 
+    /// Pulls candidates until `inspect` returns metadata for one and takes it
+    /// with that metadata, releasing the rejected ones.
     fn next_owned_candidate_inspected<T, F>(&mut self, solution: &S, mut inspect: F) -> Option<(M, T)>
     where
         F: for<'a> FnMut(MoveCandidateRef<'a, S, M>) -> Option<T>,
@@ -380,11 +402,13 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
         }
     }
 
+    /// Takes candidate `id` and applies it to the working solution.
     fn apply_owned_candidate<D: Director<S>>(&mut self, id: CandidateId, score_director: &mut D) {
         let mov = self.take_candidate(id);
         mov.do_move(score_director);
     }
 
+    /// Drops candidate `id`; returns whether it was live.
     fn release_candidate(&mut self, id: CandidateId) -> bool {
         if self.candidate(id).is_none() {
             return false;
@@ -393,6 +417,8 @@ pub trait MoveCursor<S: PlanningSolution, M: Move<S>> {
         true
     }
 
+    /// Index of the child selector that produced `id`; `None` for cursors
+    /// without child selectors.
     fn selector_index(&self, _id: CandidateId) -> Option<usize> {
         None
     }

@@ -54,6 +54,8 @@ impl<S: Solvable> SolverManager<S>
 where
     S::Score: Score,
 {
+    /// Creates a manager with all 16 job slots free. `const`, so a manager can
+    /// live in a `static` (the solve methods take `&'static self`).
     pub const fn new() -> Self {
         Self {
             slots: [
@@ -160,6 +162,11 @@ where
         Ok((slot_idx, SolverEventReceiver::new(receiver)))
     }
 
+    /// Returns the job's current lifecycle state, scores and compact telemetry.
+    ///
+    /// # Errors
+    ///
+    /// [`SolverManagerError::JobNotFound`] when `job_id` names no live job.
     pub fn get_status(&self, job_id: usize) -> Result<SolverStatus<S::Score>, SolverManagerError> {
         let slot = self.slot(job_id)?;
         slot.with_publication(|_, record| {
@@ -195,6 +202,15 @@ where
         })
     }
 
+    /// Requests a pause of a solving job. The job moves to `PauseRequested` and
+    /// emits [`SolverEvent::PauseRequested`]; the worker then stops at its next
+    /// safe point and emits [`SolverEvent::Paused`], publishing a snapshot when
+    /// best-solution publication is enabled.
+    ///
+    /// # Errors
+    ///
+    /// [`SolverManagerError::JobNotFound`] for an unknown job, and
+    /// [`SolverManagerError::InvalidStateTransition`] unless the job is `Solving`.
     pub fn pause(&self, job_id: usize) -> Result<(), SolverManagerError> {
         let slot = self.slot(job_id)?;
         let paused = slot.with_publication(|sender, record| {
@@ -232,6 +248,13 @@ where
         }
     }
 
+    /// Resumes a paused job; the worker emits [`SolverEvent::Resumed`] when it
+    /// continues.
+    ///
+    /// # Errors
+    ///
+    /// [`SolverManagerError::JobNotFound`] for an unknown job, and
+    /// [`SolverManagerError::InvalidStateTransition`] unless the job is `Paused`.
     pub fn resume(&self, job_id: usize) -> Result<(), SolverManagerError> {
         let slot = self.slot(job_id)?;
         slot.with_publication(|_, _record| {
@@ -251,6 +274,15 @@ where
         Ok(())
     }
 
+    /// Requests cancellation of a job that is solving, pause-requested or paused
+    /// (a paused worker is woken). The worker stops at its next safe point and
+    /// the job ends with [`SolverEvent::Cancelled`].
+    ///
+    /// # Errors
+    ///
+    /// [`SolverManagerError::JobNotFound`] for an unknown job, and
+    /// [`SolverManagerError::InvalidStateTransition`] when the job is already
+    /// terminal.
     pub fn cancel(&self, job_id: usize) -> Result<(), SolverManagerError> {
         let slot = self.slot(job_id)?;
         slot.with_publication(|_, _record| {
@@ -277,6 +309,14 @@ where
         Ok(())
     }
 
+    /// Removes a terminal job, closing its event stream and freeing its slot once
+    /// the worker has exited.
+    ///
+    /// # Errors
+    ///
+    /// [`SolverManagerError::JobNotFound`] for an unknown or already deleted job,
+    /// and [`SolverManagerError::InvalidStateTransition`] while the job is not
+    /// terminal.
     pub fn delete(&self, job_id: usize) -> Result<(), SolverManagerError> {
         let slot = self.slot(job_id)?;
         match slot.delete_terminal() {
@@ -294,6 +334,16 @@ where
         Ok(())
     }
 
+    /// Returns a retained snapshot of the job: the one with `snapshot_revision`,
+    /// or the latest when `None`. Best-solution, pause and completion
+    /// publications each retain a snapshot with the next revision, starting at 1.
+    ///
+    /// # Errors
+    ///
+    /// [`SolverManagerError::JobNotFound`] for an unknown job,
+    /// [`SolverManagerError::NoSnapshotAvailable`] before the first snapshot, and
+    /// [`SolverManagerError::SnapshotNotFound`] for a revision that was never
+    /// retained.
     pub fn get_snapshot(
         &self,
         job_id: usize,
@@ -328,6 +378,12 @@ where
         })
     }
 
+    /// Runs [`Analyzable::analyze`] on a retained snapshot (the latest when
+    /// `snapshot_revision` is `None`).
+    ///
+    /// # Errors
+    ///
+    /// The same errors as [`Self::get_snapshot`].
     pub fn analyze_snapshot(
         &self,
         job_id: usize,
@@ -346,6 +402,8 @@ where
         })
     }
 
+    /// Number of slots holding a visible job, terminal or not; deleted jobs are
+    /// not counted.
     pub fn active_job_count(&self) -> usize {
         self.slots
             .iter()

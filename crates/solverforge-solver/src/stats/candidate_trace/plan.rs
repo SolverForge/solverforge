@@ -6,24 +6,35 @@ use super::*;
 /// Consumers must reject an incomplete plan when proving work equivalence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandidateTracePhasePlan {
+    /// Phase or plan-node kind.
     pub kind: String,
     /// Structured, sorted effective settings for this resolved node.  Keys
     /// are unique, which makes the canonical framing unambiguous and prevents
     /// a display-only label from hiding material selector/acceptor/forager or
     /// termination differences.
     pub attributes: Vec<CandidateTracePhaseAttribute>,
+    /// Whether this node supplied only opaque provenance; an opaque node makes
+    /// the plan incomplete.
     pub opaque: bool,
+    /// Child plan nodes in execution order.
     pub children: Vec<Self>,
 }
 
 /// One canonical resolved-plan attribute.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CandidateTracePhaseAttribute {
+    /// Attribute name; unique within its node.
     pub key: String,
+    /// Attribute value, rendered as text.
     pub value: String,
 }
 
 impl CandidateTracePhasePlan {
+    /// Builds a fully known plan node; the attributes are sorted by key.
+    ///
+    /// # Panics
+    ///
+    /// Panics if two attributes share a key.
     pub fn known<K, V, I>(kind: impl Into<String>, attributes: I, children: Vec<Self>) -> Self
     where
         I: IntoIterator<Item = (K, V)>,
@@ -50,6 +61,7 @@ impl CandidateTracePhasePlan {
         }
     }
 
+    /// Builds an opaque plan node with no attributes or children.
     pub fn opaque(kind: impl Into<String>) -> Self {
         Self {
             kind: kind.into(),
@@ -59,10 +71,12 @@ impl CandidateTracePhasePlan {
         }
     }
 
+    /// Whether this node and all its descendants are known (not opaque).
     pub fn is_complete(&self) -> bool {
         !self.opaque && self.children.iter().all(Self::is_complete)
     }
 
+    /// Returns the canonical framed encoding of the plan tree.
     pub fn canonical_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
         self.append_canonical_bytes(&mut out);
@@ -96,14 +110,21 @@ impl CandidateTracePhasePlan {
 /// canonical policy through the internal configured-run seam.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandidateTraceExecutionPolicy {
+    /// Kind of the installed termination policy.
     pub kind: String,
     /// Sorted, unique material policy attributes.  These identify the
     /// installed termination composition rather than a display-only summary.
     pub attributes: Vec<CandidateTracePhaseAttribute>,
+    /// Whether the policy could not be inspected completely.
     pub opaque: bool,
 }
 
 impl CandidateTraceExecutionPolicy {
+    /// Builds a fully known policy; the attributes are sorted by key.
+    ///
+    /// # Panics
+    ///
+    /// Panics if two attributes share a key.
     pub fn known<K, V, I>(kind: impl Into<String>, attributes: I) -> Self
     where
         I: IntoIterator<Item = (K, V)>,
@@ -129,6 +150,7 @@ impl CandidateTraceExecutionPolicy {
         }
     }
 
+    /// Builds an opaque policy with no attributes.
     pub fn opaque(kind: impl Into<String>) -> Self {
         Self::opaque_with_attributes(kind, std::iter::empty::<(String, String)>())
     }
@@ -162,10 +184,12 @@ impl CandidateTraceExecutionPolicy {
         }
     }
 
+    /// Whether the policy is fully known (not opaque).
     pub const fn is_complete(&self) -> bool {
         !self.opaque
     }
 
+    /// Returns the canonical framed encoding of the policy.
     pub fn canonical_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
         out.push(0x58);

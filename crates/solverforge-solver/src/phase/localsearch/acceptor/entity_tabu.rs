@@ -1,4 +1,4 @@
-// Entity tabu acceptor.
+//! Entity tabu acceptor.
 
 use std::fmt::Debug;
 

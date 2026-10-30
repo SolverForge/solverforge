@@ -3,6 +3,7 @@ mod conflict_repair;
 pub(crate) mod list;
 pub(crate) mod list_access;
 pub(crate) mod model;
+mod model_queries;
 mod model_resolution;
 pub(crate) mod provider;
 mod runtime_list;

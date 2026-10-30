@@ -1,8 +1,7 @@
-/* Construction heuristic phase
-
-Builds an initial solution by assigning values to uninitialized
-planning variables one at a time.
-*/
+//! Construction heuristic phase
+//!
+//! Builds an initial solution by assigning values to uninitialized
+//! planning variables one at a time.
 
 mod decision;
 mod evaluation;

@@ -1,5 +1,6 @@
 use solverforge_config::SelectionOrder;
 
+/// Iterator over the owned moves of a cursor, against a fixed solution.
 pub struct MoveSelectorIter<'a, S, M, C>
 where
     S: PlanningSolution,
@@ -26,6 +27,7 @@ where
     }
 }
 
+/// Per-step parameters a move stream is opened with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MoveStreamContext {
     step_index: u64,
@@ -35,6 +37,7 @@ pub struct MoveStreamContext {
 }
 
 impl MoveStreamContext {
+    /// Creates a context with `SelectionOrder::Original` order.
     pub const fn new(
         step_index: u64,
         step_seed: u64,
@@ -48,27 +51,34 @@ impl MoveStreamContext {
         }
     }
 
+    /// Sets the selection order.
     pub const fn with_selection_order(mut self, selection_order: SelectionOrder) -> Self {
         self.selection_order = selection_order;
         self
     }
 
+    /// The selection order.
     pub const fn selection_order(self) -> SelectionOrder {
         self.selection_order
     }
 
+    /// Index of the step opening the stream.
     pub const fn step_index(self) -> u64 {
         self.step_index
     }
 
+    /// Seed drawn for this step.
     pub const fn step_seed(self) -> u64 {
         self.step_seed
     }
 
+    /// The forager's accepted-count limit; `None` means no limit.
     pub const fn accepted_count_limit(self) -> Option<usize> {
         self.accepted_count_limit
     }
 
+    /// Seeded starting offset in `0..len` for a source salted by `salt`; 0 in
+    /// original order or when `len <= 1`.
     pub fn start_offset(self, len: usize, salt: u64) -> usize {
         if len <= 1 {
             return 0;
@@ -79,6 +89,8 @@ impl MoveStreamContext {
         (self.mixed_seed(salt) as usize) % len
     }
 
+    /// Seeded stride coprime with `len`, so a strided walk visits every index;
+    /// 1 in original order or when `len <= 1`.
     pub fn stride(self, len: usize, salt: u64) -> usize {
         if len <= 1 {
             return 1;
@@ -93,6 +105,7 @@ impl MoveStreamContext {
         stride
     }
 
+    /// Seed derived from the step seed and `salt`; 0 in original order.
     pub fn offset_seed(self, salt: u64) -> usize {
         if self.is_canonical() {
             return 0;
@@ -290,12 +303,15 @@ where
 /// A zero-erasure move selector that yields stable candidate indices plus borrowable
 /// move views. Ownership is transferred only via `take_candidate`.
 pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
+    /// The cursor type this selector opens.
     type Cursor<'a>: MoveCursor<S, M> + 'a
     where
         Self: 'a;
 
+    /// Opens a cursor over the current working solution.
     fn open_cursor<'a, D: Director<S>>(&'a self, score_director: &D) -> Self::Cursor<'a>;
 
+    /// Opens a cursor with per-step context; ignores the context by default.
     fn open_cursor_with_context<'a, D: Director<S>>(
         &'a self,
         score_director: &D,
@@ -310,6 +326,7 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
     /// configuration errors retain their cursor-open timing.
     fn validate_cursor<D: Director<S>>(&self, _score_director: &D) {}
 
+    /// Iterates the owned moves of a fresh cursor.
     fn iter_moves<'a, 'd, D: Director<S>>(
         &'a self,
         score_director: &'d D,
@@ -320,8 +337,10 @@ pub trait MoveSelector<S: PlanningSolution, M: Move<S>>: Send + Debug {
         )
     }
 
+    /// Size of the neighborhood for the current working solution.
     fn size<D: Director<S>>(&self, score_director: &D) -> usize;
 
+    /// Whether the selector never runs out of candidates; `false` by default.
     fn is_never_ending(&self) -> bool {
         false
     }

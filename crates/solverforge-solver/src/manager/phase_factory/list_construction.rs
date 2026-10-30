@@ -1,4 +1,4 @@
-/* List construction phases and shared kernels for list variables. */
+//! List construction phases and shared kernels for list variables.
 
 mod access;
 pub(crate) mod cheapest;

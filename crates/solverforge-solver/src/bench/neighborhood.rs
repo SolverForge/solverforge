@@ -94,6 +94,7 @@ where
     DM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
     IDM: Clone + Send + Sync + Debug + CrossEntityDistanceMeter<S> + 'static,
 {
+    /// Pulls the next candidate while lending the live director.
     pub fn next_candidate<D: Director<S>>(&mut self, director: &mut D) -> Option<CandidateId> {
         self.cursor
             .next_candidate_with_resources(director, self.resources)
@@ -110,6 +111,7 @@ where
             .map(|candidate| visitor.visit(candidate))
     }
 
+    /// Drops a live candidate; returns whether it was live.
     pub fn release_candidate(&mut self, id: CandidateId) -> bool {
         self.cursor.release_candidate(id)
     }

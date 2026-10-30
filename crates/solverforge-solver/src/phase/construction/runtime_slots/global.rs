@@ -195,8 +195,8 @@ fn candidate_values<S>(
     values
 }
 
-/* The first admissible owner is read directly from the element-owner
-restriction; no full owner vector is materialized to take its head. */
+/// The first admissible owner is read directly from the element-owner
+/// restriction; no full owner vector is materialized to take its head.
 fn first_owner<S, V, DM, IDM>(
     slot: &RuntimeListSlot<S, V, DM, IDM>,
     element: &RuntimeListElement<V>,

@@ -1,15 +1,15 @@
-// Partitioned search phase configuration.
+//! Partitioned search phase configuration.
 
 use solverforge_config::MoveThreadCount;
 
 use super::partitioner::ThreadCount;
 
-// Configuration for partitioned search phase.
+/// Configuration for partitioned search phase.
 #[derive(Debug, Clone)]
 pub struct PartitionedSearchConfig {
-    // Thread count configuration.
+    /// Thread count configuration.
     pub thread_count: ThreadCount,
-    // Whether to log partition progress.
+    /// Whether to log partition progress.
     pub log_progress: bool,
 }
 
@@ -23,6 +23,8 @@ impl Default for PartitionedSearchConfig {
 }
 
 impl PartitionedSearchConfig {
+    /// Converts the TOML configuration: thread count `none` becomes one
+    /// thread and an explicit count is at least one.
     pub fn from_serialized(config: &solverforge_config::PartitionedSearchConfig) -> Self {
         Self {
             thread_count: match config.thread_count {

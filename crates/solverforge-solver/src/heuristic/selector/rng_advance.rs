@@ -9,7 +9,7 @@
 #[cfg(test)]
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/* One splitmix64 step: advances the carry and returns a mixed draw. */
+/// One splitmix64 step: advances the carry and returns a mixed draw.
 #[inline]
 #[cfg(test)]
 pub(crate) fn advance_carry(state: &AtomicU64) -> u64 {
@@ -23,7 +23,7 @@ pub(crate) fn advance_carry(state: &AtomicU64) -> u64 {
     z ^ (z >> 31)
 }
 
-/* Initializes a carry from a user seed so distinct seeds give distinct streams. */
+/// Initializes a carry from a user seed so distinct seeds give distinct streams.
 #[inline]
 #[cfg(test)]
 pub(crate) fn carry_from_seed(seed: u64) -> u64 {

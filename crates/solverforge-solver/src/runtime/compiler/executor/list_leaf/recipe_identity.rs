@@ -1,4 +1,4 @@
-// Tabu signatures and candidate-trace identities of runtime list moves.
+//! Tabu signatures and candidate-trace identities of runtime list moves.
 
 use std::fmt;
 

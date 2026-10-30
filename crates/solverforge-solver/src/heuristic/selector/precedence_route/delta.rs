@@ -66,8 +66,8 @@ pub(super) fn route_after_permutation_into(
     debug_assert_eq!(start + permutation.len(), end);
 }
 
-/* Edge diff into reusable buffers; contains() checks run on the small
-per-route edge vectors (routes are short; the win is zero allocation). */
+/// Edge diff into reusable buffers; contains() checks run on the small
+/// per-route edge vectors (routes are short; the win is zero allocation).
 fn route_edges_into(route: &[usize], edges: &mut Vec<(usize, usize)>) {
     edges.clear();
     edges.extend(route.windows(2).map(|window| (window[0], window[1])));
@@ -136,9 +136,9 @@ pub(super) fn added_edges_introduce_cycle(
     false
 }
 
-/* Topological cycle check over the live successor lists plus the delta:
-indegree is recomputed into a reusable buffer; adjacency stays implicit
-(the live lists minus removed plus added, with fixed successors pinned). */
+/// Topological cycle check over the live successor lists plus the delta:
+/// indegree is recomputed into a reusable buffer; adjacency stays implicit
+/// (the live lists minus removed plus added, with fixed successors pinned).
 pub(super) fn route_delta_has_cycle_into(
     fixed_successors: &[Vec<usize>],
     successors: &[Vec<usize>],

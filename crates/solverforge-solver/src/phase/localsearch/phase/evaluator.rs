@@ -13,16 +13,15 @@ use crate::scope::{ProgressCallback, SolverScope, StepScope};
 use super::candidates::{evaluate_candidate_windows, CandidateLoopState};
 use super::sequential;
 
-/* How a phase evaluates each step's candidates. Each implementation is its
-own monomorphized step loop; the phase selects one before its first step.
-*/
+/// How a phase evaluates each step's candidates. Each implementation is its
+/// own monomorphized step loop; the phase selects one before its first step.
 pub(crate) trait StepEvaluator<S, D, M>
 where
     S: PlanningSolution,
     D: Director<S>,
     M: Move<S>,
 {
-    // Brings the evaluators to the committed working solution.
+    /// Brings the evaluators to the committed working solution.
     fn step_started<BestCb>(&mut self, solver_scope: &SolverScope<'_, S, D, BestCb>)
     where
         BestCb: ProgressCallback<S>;
@@ -45,10 +44,10 @@ where
         A: Acceptor<S>,
         Fo: LocalSearchForager<S, M>;
 
-    // Applies the selected move ahead of its owned commit on the main director.
+    /// Applies the selected move ahead of its owned commit on the main director.
     fn step_selected(&mut self, selected: &MoveCandidateRef<'_, S, M>, score: S::Score);
 
-    // Records the working-solution generation after the commit.
+    /// Records the working-solution generation after the commit.
     fn step_committed(&mut self, generation: u64);
 }
 

@@ -1,9 +1,14 @@
+/// Order in which exhaustive search expands the frontier.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ExplorationType {
+    /// Deepest node first.
     #[default]
     DepthFirst,
+    /// Shallowest node first.
     BreadthFirst,
+    /// Best-scoring node first.
     ScoreFirst,
+    /// Node with the best optimistic bound first; unbounded nodes last.
     OptimisticBoundFirst,
 }
 

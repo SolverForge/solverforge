@@ -6,15 +6,14 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
             .is_some_and(|runtime| runtime.is_problem_change_pending())
     }
 
-    /* Out-of-line decode of a non-zero runtime control word for
-    `settle_pause_if_requested`. A pause settles first (a child scope yields
-    it to its parent); the word is then re-read so changes queued before or
-    during the pause stop the running work through the existing
-    `yielded_to_parent` early exits, without a terminal reason. Configured
-    limits outrank changes, so the yield is skipped while one has fired and
-    the caller's limit checks record it instead. Only the top-level runner
-    drains the queue and clears the flag again.
-    */
+    /// Out-of-line decode of a non-zero runtime control word for
+    /// `settle_pause_if_requested`. A pause settles first (a child scope yields
+    /// it to its parent); the word is then re-read so changes queued before or
+    /// during the pause stop the running work through the existing
+    /// `yielded_to_parent` early exits, without a terminal reason. Configured
+    /// limits outrank changes, so the yield is skipped while one has fired and
+    /// the caller's limit checks record it instead. Only the top-level runner
+    /// drains the queue and clears the flag again.
     #[cold]
     #[inline(never)]
     fn settle_runtime_control(&mut self, runtime: SolverRuntime<S>) {

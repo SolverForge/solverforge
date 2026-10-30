@@ -13,15 +13,19 @@ pub(crate) mod member;
 pub(crate) use assignment::ScalarAssignmentBinding;
 pub(crate) use member::ScalarGroupMemberBinding;
 
+/// A [`ScalarGroup`](crate::ScalarGroup) bound to the scalar variables of a
+/// model.
 pub struct ScalarGroupBinding<S> {
+    /// Name of the group.
     pub group_name: &'static str,
     pub(crate) members: Vec<ScalarGroupMemberBinding<S>>,
     pub(crate) kind: ScalarGroupBindingKind<S>,
+    /// Limits declared on the group.
     pub limits: ScalarGroupLimits,
 }
 
-// Keep assignment metadata inline so the canonical grouped construction and
-// local-search path remains allocation-free after model compilation.
+/// Keep assignment metadata inline so the canonical grouped construction and
+/// local-search path remains allocation-free after model compilation.
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum ScalarGroupBindingKind<S> {
     Candidates {
@@ -42,6 +46,14 @@ impl<S> Clone for ScalarGroupBindingKind<S> {
 }
 
 impl<S> ScalarGroupBinding<S> {
+    /// Binds `group` to the scalar slots its targets name.
+    ///
+    /// # Panics
+    ///
+    /// Panics when a target names no slot in `scalar_slots`, and for an
+    /// assignment group whose declaration is invalid (more than one target, a
+    /// target that does not allow unassigned values, or an assignment rule
+    /// without a sequence key).
     pub fn bind(group: ScalarGroup<S>, scalar_slots: &[ScalarVariableSlot<S>]) -> Self {
         let members = group
             .targets()
@@ -85,6 +97,8 @@ impl<S> ScalarGroupBinding<S> {
         }
     }
 
+    /// Builds an assignment group over a dynamic scalar `target` whose
+    /// assignment metadata comes from a host binding.
     pub fn dynamic_assignment(
         group_name: &'static str,
         target: DynamicScalarVariableSlot<S>,
@@ -169,24 +183,29 @@ impl<S> ScalarGroupBinding<S> {
         assignment.target_mut().canonicalize_dynamic_slot(slot)
     }
 
+    /// Whether this is an assignment-backed group.
     pub fn is_assignment(&self) -> bool {
         matches!(self.kind, ScalarGroupBindingKind::Assignment(_))
     }
 
+    /// Whether this is a candidate-backed group.
     pub fn is_candidate_group(&self) -> bool {
         matches!(self.kind, ScalarGroupBindingKind::Candidates { .. })
     }
 
+    /// Whether the assignment declares a sequence key.
     pub fn has_sequence_metadata(&self) -> bool {
         self.assignment()
             .is_some_and(ScalarAssignmentBinding::has_sequence_metadata)
     }
 
+    /// Whether the assignment declares a position key.
     pub fn has_position_metadata(&self) -> bool {
         self.assignment()
             .is_some_and(ScalarAssignmentBinding::has_position_metadata)
     }
 
+    /// The group's per-step move limit; `None` means no limit.
     pub fn default_max_moves_per_step(&self) -> Option<usize> {
         self.limits.max_moves_per_step
     }
@@ -212,6 +231,11 @@ impl<S> fmt::Debug for ScalarGroupBinding<S> {
     }
 }
 
+/// Binds every group with [`ScalarGroupBinding::bind`].
+///
+/// # Panics
+///
+/// As [`ScalarGroupBinding::bind`].
 pub fn bind_scalar_groups<S>(
     groups: Vec<ScalarGroup<S>>,
     scalar_slots: &[ScalarVariableSlot<S>],

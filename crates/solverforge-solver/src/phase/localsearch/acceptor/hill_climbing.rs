@@ -1,4 +1,4 @@
-// Hill climbing acceptor.
+//! Hill climbing acceptor.
 
 use std::fmt::Debug;
 

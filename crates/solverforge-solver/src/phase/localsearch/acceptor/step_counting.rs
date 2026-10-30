@@ -1,4 +1,4 @@
-// Step Counting Hill Climbing acceptor.
+//! Step Counting Hill Climbing acceptor.
 
 use std::fmt::Debug;
 

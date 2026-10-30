@@ -1,4 +1,4 @@
-// Time-based termination.
+//! Time-based termination.
 
 use std::time::Duration;
 

@@ -1,3 +1,9 @@
+/// Solver-wide state of one solve: the score director with the working
+/// solution, the best solution and scores, the seeded random generator,
+/// termination limits, lifecycle control and statistics.
+///
+/// `ProgressCb` receives progress and best-solution reports; `()` reports
+/// nothing. `'t` bounds the borrowed cancellation flag.
 pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()> {
     score_director: D,
     best_solution: Option<S>,
@@ -27,8 +33,14 @@ pub struct SolverScope<'t, S: PlanningSolution, D: Director<S>, ProgressCb = ()>
     working_solution_generation: u64,
     construction_frontier: ConstructionFrontier,
     phase_budget: Option<&'t PhaseBudget>,
+    /// Stops the solve once the total step count reaches this many steps;
+    /// `None` means no limit.
     pub inphase_step_count_limit: Option<u64>,
+    /// Stops the solve once this many moves were evaluated; `None` means no
+    /// limit.
     pub inphase_move_count_limit: Option<u64>,
+    /// Stops the solve once this many score calculations ran; `None` means no
+    /// limit.
     pub inphase_score_calc_count_limit: Option<u64>,
     inphase_best_score_limit: Option<S::Score>,
     phase_termination: Option<ScopedPhaseTermination<S>>,
@@ -85,6 +97,8 @@ pub(crate) enum PendingControl {
 }
 
 impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
+    /// Creates a scope over `score_director` with no progress callback, an
+    /// entropy-seeded random generator and no limits.
     pub fn new(score_director: D) -> Self {
         let construction_frontier = ConstructionFrontier::new();
         Self {
@@ -126,6 +140,9 @@ impl<'t, S: PlanningSolution, D: Director<S>> SolverScope<'t, S, D, ()> {
 impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
     SolverScope<'t, S, D, ProgressCb>
 {
+    /// Creates a scope over `score_director` with a progress `callback`, an
+    /// optional cancellation flag and an optional retained runtime for
+    /// lifecycle control.
     pub fn new_with_callback(
         score_director: D,
         callback: ProgressCb,
@@ -168,11 +185,14 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         }
     }
 
+    /// Sets the cancellation flag; the solve stops once it reads `true`.
     pub fn with_terminate(mut self, terminate: Option<&'t AtomicBool>) -> Self {
         self.terminate = terminate;
         self
     }
 
+    /// Attaches the retained runtime that delivers pause, cancel and problem
+    /// changes.
     pub fn with_runtime(mut self, runtime: Option<SolverRuntime<S>>) -> Self {
         self.runtime = runtime;
         self
@@ -195,11 +215,14 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.yielded_to_parent
     }
 
+    /// Sets the environment mode; `FullAssert` checks every calculated score
+    /// against a fresh recalculation.
     pub fn with_environment_mode(mut self, environment_mode: EnvironmentMode) -> Self {
         self.environment_mode = environment_mode;
         self
     }
 
+    /// Seeds the random generator so the solve is reproducible.
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.rng = StdRng::seed_from_u64(seed);
         self
@@ -295,6 +318,7 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         })
     }
 
+    /// Replaces the progress callback, keeping all other state.
     pub fn with_progress_callback<F: ProgressCallback<S>>(
         self,
         callback: F,
@@ -334,6 +358,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         }
     }
 
+    /// Resets the per-solve counters and best-solution tracking and starts the
+    /// solve clock.
     pub fn start_solving(&mut self) {
         self.total_step_count = 0;
         self.terminal_reason = None;
@@ -346,16 +372,21 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.stats.start();
     }
 
+    /// Solver-active time since the solve started, excluding pauses; `None`
+    /// before it started.
     pub fn elapsed(&self) -> Option<Duration> {
         self.stats.active_elapsed()
     }
 
+    /// Solver-active time since the best solution last improved; `None` before
+    /// the solve or the first best solution.
     pub fn time_since_last_improvement(&self) -> Option<Duration> {
         let elapsed = self.elapsed()?;
         let last_best_elapsed = self.last_best_elapsed?;
         Some(elapsed.saturating_sub(last_best_elapsed))
     }
 
+    /// The score director holding the working solution.
     pub fn score_director(&self) -> &D {
         &self.score_director
     }
@@ -364,10 +395,14 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         &mut self.score_director
     }
 
+    /// The working solution.
     pub fn working_solution(&self) -> &S {
         self.score_director.working_solution()
     }
 
+    /// Applies a committed change to the working solution through the score
+    /// director and returns the closure's result. The cached current score is
+    /// cleared and the working-solution revision advances.
     pub fn mutate<T, F>(&mut self, mutate: F) -> T
     where
         F: FnOnce(&mut D) -> T,
@@ -375,6 +410,13 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.committed_mutation(mutate)
     }
 
+    /// Calculates the working solution's score, records the calculation and
+    /// stores it as the current score.
+    ///
+    /// # Panics
+    ///
+    /// In `FullAssert` mode, panics when the score differs from a fresh
+    /// recalculation.
     pub fn calculate_score(&mut self) -> S::Score {
         self.record_score_calculation();
         let score = self.score_director.calculate_score();
@@ -396,6 +438,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         );
     }
 
+    /// Starts the solve if needed, scores the working solution and records it
+    /// as the best solution. Returns the score.
     pub fn initialize_working_solution_as_best(&mut self) -> S::Score {
         if self.stats.started_at().is_none() {
             self.start_solving();
@@ -406,6 +450,8 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         score
     }
 
+    /// Replaces the working solution, resets the score director and the
+    /// construction progress, and returns the new solution's score.
     pub fn replace_working_solution_and_reinitialize(&mut self, solution: S) -> S::Score {
         self.working_solution_generation += 1;
         *self.score_director.working_solution_mut() = solution;
@@ -417,69 +463,20 @@ impl<'t, S: PlanningSolution, D: Director<S>, ProgressCb: ProgressCallback<S>>
         self.calculate_score()
     }
 
+    /// The best solution so far; `None` before one was recorded.
     pub fn best_solution(&self) -> Option<&S> {
         self.best_solution.as_ref()
     }
 
+    /// Score of the best solution; `None` before one was recorded.
     pub fn best_score(&self) -> Option<&S::Score> {
         self.best_score.as_ref()
     }
 
+    /// Latest calculated score of the working solution; `None` after a
+    /// mutation until the next calculation.
     pub fn current_score(&self) -> Option<&S::Score> {
         self.current_score.as_ref()
-    }
-
-    pub(crate) fn is_scalar_slot_completed(&self, slot_id: ConstructionSlotId) -> bool {
-        self.construction_frontier
-            .is_scalar_completed(slot_id, self.solution_revision)
-    }
-
-    pub(crate) fn mark_scalar_slot_completed(&mut self, slot_id: ConstructionSlotId) {
-        self.construction_frontier
-            .mark_scalar_completed(slot_id, self.solution_revision);
-    }
-
-    pub(crate) fn is_group_slot_completed(&self, slot_id: &ConstructionGroupSlotId) -> bool {
-        self.construction_frontier
-            .is_group_completed(slot_id, self.solution_revision)
-    }
-
-    pub(crate) fn mark_group_slot_completed(&mut self, slot_id: ConstructionGroupSlotId) {
-        self.construction_frontier
-            .mark_group_completed(slot_id, self.solution_revision);
-    }
-
-    pub(crate) fn is_list_element_completed(&self, element_id: ConstructionListElementId) -> bool {
-        self.construction_frontier
-            .is_list_completed(element_id, self.solution_revision)
-    }
-
-    pub(crate) fn mark_list_element_completed(&mut self, element_id: ConstructionListElementId) {
-        self.construction_frontier
-            .mark_list_completed(element_id, self.solution_revision);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn solution_revision(&self) -> u64 {
-        self.solution_revision
-    }
-
-    pub(crate) fn working_solution_generation(&self) -> u64 {
-        self.working_solution_generation
-    }
-
-    pub(crate) fn apply_committed_move<M>(&mut self, mov: &M)
-    where
-        M: Move<S>,
-    {
-        self.committed_mutation(|score_director| mov.do_move(score_director));
-    }
-
-    pub(crate) fn apply_committed_change<F>(&mut self, change: F)
-    where
-        F: FnOnce(&mut D),
-    {
-        self.committed_mutation(change);
     }
 
 }

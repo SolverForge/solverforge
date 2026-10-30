@@ -27,7 +27,9 @@ bumpFiles = [
   # Workspace version.
   { filename = "Cargo.toml", type = "toml" },
   # Internal path-dependency versions in the non-leaf crate manifests move
-  # through the postbump script below: the native regex updater replaces only
+  # through the postbump script below (they are exact `=x.y.z` requirements,
+  # so macro output always meets the facade it was built with): the native
+  # regex updater replaces only
   # the first match per entry, and each manifest carries several dependency
   # lines. The script reads the already-bumped workspace version out of
   # Cargo.toml, rewrites every internal path-dep line to it, then regenerates
@@ -55,4 +57,4 @@ bumpFiles = [
 # crate block carries the version), and the internal path-dependency lines move
 # as a group, so the postbump script rewrites them from the bumped workspace
 # version, regenerates the lock, and rebuilds the architecture page.
-postbump = """new_version=$(awk '/^version = / { gsub(/\"/, \"\", $3); print $3; exit }' Cargo.toml) && sed -i -E \"s|(version = \\")[0-9]+\\.[0-9]+\\.[0-9]+(\\", path = \\"\\.\\./solverforge-)|\\1${new_version}\\2|\" crates/*/Cargo.toml && cargo update --workspace --offline && node scripts/solverforge-architecture.js && git add Cargo.lock docs/architecture.html crates/*/Cargo.toml"""
+postbump = """new_version=$(awk '/^version = / { gsub(/\"/, \"\", $3); print $3; exit }' Cargo.toml) && sed -i -E \"s|(version = \\"=)[0-9]+\\.[0-9]+\\.[0-9]+(\\", path = \\"\\.\\./solverforge-)|\\1${new_version}\\2|\" crates/*/Cargo.toml && cargo update --workspace --offline && node scripts/solverforge-architecture.js && git add Cargo.lock docs/architecture.html crates/*/Cargo.toml"""

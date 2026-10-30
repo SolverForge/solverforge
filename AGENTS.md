@@ -147,7 +147,7 @@ guide under `docs/`, and the affected wireframes.
 
 Version bumps are documentation changes too. When the published version changes, update the manifest version plus the coordinated public docs surface in the same change:
 
-- `Cargo.toml` workspace version and publish-time inter-crate dependency versions
+- `Cargo.toml` workspace version and the exact (`=x.y.z`) inter-crate dependency versions in every crate manifest, which csemver's postbump moves together
 - `README.md`
 - `AGENTS.md`
 - affected `crates/*/WIREFRAME.md` files

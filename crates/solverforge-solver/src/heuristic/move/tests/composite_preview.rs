@@ -108,8 +108,8 @@ fn composite(
         "rows",
         MoveTabuSignature::new(
             crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "rows"),
-            smallvec::smallvec![1],
-            smallvec::smallvec![1],
+            &[1],
+            &[1],
         ),
     )
 }

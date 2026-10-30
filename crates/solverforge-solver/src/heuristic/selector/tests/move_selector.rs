@@ -128,8 +128,8 @@ impl Move<TaskSolution> for StoredMove {
         let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "stored");
         Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
-            smallvec::smallvec![1],
-            smallvec::smallvec![1],
+            &[1],
+            &[1],
         ))
     }
 }

@@ -250,12 +250,12 @@ impl Move<ConstructionPauseSolution> for ConstructionPauseMove {
         let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "value");
         Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
-            smallvec::smallvec![
+            &[
                 crate::heuristic::r#move::metadata::hash_str("construction_pause_move"),
                 self.entity_index as u64,
                 self.value as u64,
             ],
-            smallvec::smallvec![
+            &[
                 crate::heuristic::r#move::metadata::hash_str("construction_pause_move"),
                 self.entity_index as u64,
                 self.value as u64,

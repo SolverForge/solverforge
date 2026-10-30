@@ -122,7 +122,7 @@ fn cartesian_product_reverse_signature_matches_true_inverse_order() {
         .tabu_signature(&director)
         .into_owned();
 
-    assert_eq!(forward_signature.undo_id(), &reverse_signature.move_id);
+    assert_eq!(forward_signature.undo_id(), reverse_signature.move_id());
 
     let mut acceptor = TabuSearchAcceptor::<Sol>::new(
         TabuSearchPolicy {

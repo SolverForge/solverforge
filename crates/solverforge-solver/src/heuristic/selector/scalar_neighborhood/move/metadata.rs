@@ -80,7 +80,7 @@ where
     let to = encode_option_debug(to_value.as_ref());
     let entity = encode_usize(entity_index);
     let variable = hash_str(slot.variable_name());
-    MoveTabuSignature::new(
+    MoveTabuSignature::from_identity(
         scope,
         smallvec![
             encode_usize(slot.descriptor_index()),
@@ -122,7 +122,7 @@ where
         TABU_OP_SWAP,
         entities.into_iter().map(|(entity, _)| entity),
     );
-    MoveTabuSignature::new_self_undoing(scope, move_id)
+    MoveTabuSignature::from_self_undoing_identity(scope, move_id)
         .with_entity_tokens([
             scope.entity_token(encode_usize(left)),
             scope.entity_token(encode_usize(right)),
@@ -171,7 +171,7 @@ where
         from
     ];
     undo_move_id.extend(entity_ids.iter().copied());
-    MoveTabuSignature::new(scope, move_id, undo_move_id)
+    MoveTabuSignature::from_identity(scope, move_id, undo_move_id)
         .with_entity_tokens(
             entity_ids
                 .iter()
@@ -208,7 +208,7 @@ where
         .collect::<Vec<_>>();
     entities.sort_unstable();
     entities.dedup();
-    MoveTabuSignature::new_self_undoing(scope, move_id)
+    MoveTabuSignature::from_self_undoing_identity(scope, move_id)
         .with_entity_tokens(
             entities
                 .iter()
@@ -252,7 +252,7 @@ where
             slot.current_value(director.working_solution(), entity),
         ));
     }
-    MoveTabuSignature::new_self_undoing(scope, move_id).with_entity_tokens(
+    MoveTabuSignature::from_self_undoing_identity(scope, move_id).with_entity_tokens(
         entities
             .iter()
             .copied()

@@ -188,7 +188,7 @@ where
         let scope = MoveTabuScope::new(self.descriptor_index, self.variable_name);
 
         Cow::Owned(
-            MoveTabuSignature::new(
+            MoveTabuSignature::from_identity(
                 scope,
                 smallvec![
                     encode_usize(self.descriptor_index),

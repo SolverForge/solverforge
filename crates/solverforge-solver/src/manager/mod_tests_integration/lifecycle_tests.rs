@@ -12,6 +12,7 @@ use super::lifecycle_solutions::{
     PauseOrderingSolution, PauseRequestedProgressSolution, TerminalHookLifecycleSolution,
     ZeroVariableLifecycleSolution,
 };
+use crate::SolverEventTryRecvError;
 
 mod terminal;
 
@@ -159,6 +160,13 @@ fn retained_job_pause_resume_completion_flow() {
         MANAGER.get_status(job_id),
         Err(SolverManagerError::JobNotFound { .. })
     ));
+
+    assert!(format!("{receiver:?}").starts_with("SolverEventReceiver"));
+    while receiver.blocking_recv().is_some() {}
+    assert_eq!(
+        receiver.try_recv().unwrap_err(),
+        SolverEventTryRecvError::Disconnected
+    );
 }
 
 #[test]

@@ -173,7 +173,7 @@ where
         .map(|value_id| scope.value_token(value_id))
         .collect();
 
-    MoveTabuSignature::new(scope, move_id, undo_move_id)
+    MoveTabuSignature::from_identity(scope, move_id, undo_move_id)
         .with_entity_tokens([scope.entity_token(entity_id)])
         .with_destination_value_tokens(destination_value_tokens)
 }

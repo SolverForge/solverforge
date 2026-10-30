@@ -1,16 +1,12 @@
 use std::time::{Duration, Instant};
 
-use solverforge_core::domain::PlanningSolution;
-use tokio::sync::mpsc::{error::TryRecvError, UnboundedReceiver};
-
 use super::super::SolverEvent;
+use crate::{SolverEventReceiver, SolverEventTryRecvError as TryRecvError};
+use solverforge_core::domain::PlanningSolution;
 
 const EVENT_TIMEOUT: Duration = Duration::from_secs(30);
 
-pub(super) fn recv_event<S>(
-    receiver: &mut UnboundedReceiver<SolverEvent<S>>,
-    context: &str,
-) -> SolverEvent<S>
+pub(super) fn recv_event<S>(receiver: &mut SolverEventReceiver<S>, context: &str) -> SolverEvent<S>
 where
     S: PlanningSolution,
 {

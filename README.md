@@ -715,6 +715,10 @@ let analysis = MANAGER.analyze_snapshot(job_id, Some(snapshot.snapshot_revision)
 MANAGER.delete(job_id).unwrap();
 ```
 
+`solve()` hands back the job id and an owned `SolverEventReceiver`, which
+yields the job's `SolverEvent`s through `recv().await` in async code,
+`blocking_recv()` on a plain thread, or `try_recv()` without waiting.
+
 ### Real-time problem changes
 
 A running or paused job accepts problem changes. The runtime applies queued

@@ -31,8 +31,8 @@ impl Move<TestSolution> for NoopMove {
         let identity = crate::heuristic::r#move::metadata::hash_str("phase_tests_noop_move");
         Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
-            smallvec::smallvec![identity],
-            smallvec::smallvec![identity],
+            &[identity],
+            &[identity],
         ))
     }
 }
@@ -154,8 +154,8 @@ impl Move<TestSolution> for ScoreFieldMove {
         let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "score");
         Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
-            smallvec::smallvec![self.0 as u64],
-            smallvec::smallvec![self.0 as u64],
+            &[self.0 as u64],
+            &[self.0 as u64],
         ))
     }
 }
@@ -368,8 +368,8 @@ impl Move<TestSolution> for CancelOnDoableMove {
         let scope = crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "score");
         Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
-            smallvec::smallvec![self.score as u64],
-            smallvec::smallvec![self.score as u64],
+            &[self.score as u64],
+            &[self.score as u64],
         ))
     }
 }

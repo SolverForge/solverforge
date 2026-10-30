@@ -107,10 +107,14 @@ struct MoveTabuScope: pub struct MoveTabuScope { pub descriptor_index: usize, pu
     MoveTabuScope: pub const fn new(descriptor_index: usize, variable_name: &'static str) -> Self
     MoveTabuScope: pub const fn entity_token(self, entity_id: u64) -> ScopedEntityTabuToken
     MoveTabuScope: pub const fn value_token(self, value_id: u64) -> ScopedValueTabuToken
-struct MoveTabuSignature: pub struct MoveTabuSignature { pub scope: MoveTabuScope, pub entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]>, pub destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]>, pub move_id: SmallVec<[u64; 8]>, pub undo_move_id: MoveUndoIdentity, }
-    MoveTabuSignature: pub fn new_self_undoing( scope: MoveTabuScope, move_id: SmallVec<[u64; 8]>, ) -> Self
-    MoveTabuSignature: pub fn new( scope: MoveTabuScope, move_id: SmallVec<[u64; 8]>, undo_move_id: SmallVec<[u64; 8]>, ) -> Self
-    MoveTabuSignature: pub fn undo_id(&self) -> &SmallVec<[u64; 8]>
+struct MoveTabuSignature: pub struct MoveTabuSignature { /* private fields */ }
+    MoveTabuSignature: pub fn new_self_undoing(scope: MoveTabuScope, move_id: &[u64]) -> Self
+    MoveTabuSignature: pub fn new(scope: MoveTabuScope, move_id: &[u64], undo_move_id: &[u64]) -> Self
+    MoveTabuSignature: pub fn scope(&self) -> MoveTabuScope
+    MoveTabuSignature: pub fn entity_tokens(&self) -> &[ScopedEntityTabuToken]
+    MoveTabuSignature: pub fn destination_value_tokens(&self) -> &[ScopedValueTabuToken]
+    MoveTabuSignature: pub fn move_id(&self) -> &[u64]
+    MoveTabuSignature: pub fn undo_id(&self) -> &[u64]
     MoveTabuSignature: pub fn with_entity_tokens<I>(self, entity_tokens: I) -> Self where I: IntoIterator<Item = ScopedEntityTabuToken>,
     MoveTabuSignature: pub fn with_destination_value_tokens<I>( self, destination_value_tokens: I, ) -> Self where I: IntoIterator<Item = ScopedValueTabuToken>,
 struct MoveTelemetry: pub struct MoveTelemetry {Show 14 fields pub move_label: String, pub moves_generated: u64, pub moves_evaluated: u64, pub moves_accepted: u64, pub moves_applied: u64, pub moves_not_doable: u64, pub moves_acceptor_rejected: u64, pub moves_forager_ignored: u64, pub moves_score_improving: u64, pub moves_applied_improving: u64, pub moves_score_equal: u64, pub moves_score_worse: u64, pub moves_rejected_improving: u64, pub applied_score_improvement: f64, }
@@ -347,10 +351,14 @@ struct SimpleDecider: pub struct SimpleDecider<S: PlanningSolution, V: Clone + S
     SimpleDecider: pub fn with_bounder<B2>(self, bounder: B2) -> SimpleDecider<S, V, B2>
     SimpleDecider: pub fn with_variable_index(self, variable_index: usize) -> Self
 struct SolverEventMetadata: pub struct SolverEventMetadata<Sc: Score> { pub job_id: usize, pub event_sequence: u64, pub lifecycle_state: SolverLifecycleState, pub terminal_reason: Option<SolverTerminalReason>, pub telemetry: SolverTelemetry, pub current_score: Option<Sc>, pub best_score: Option<Sc>, pub snapshot_revision: Option<u64>, }
+struct SolverEventReceiver: pub struct SolverEventReceiver<S: PlanningSolution> { /* private fields */ }
+    SolverEventReceiver: pub async fn recv(&mut self) -> Option<SolverEvent<S>>
+    SolverEventReceiver: pub fn blocking_recv(&mut self) -> Option<SolverEvent<S>>
+    SolverEventReceiver: pub fn try_recv(&mut self) -> Result<SolverEvent<S>, SolverEventTryRecvError>
 struct SolverManager: pub struct SolverManager<S: Solvable> { /* private fields */ }
     SolverManager: pub const fn new() -> Self
-    SolverManager: pub fn solve( &'static self, solution: S, ) -> Result<(usize, UnboundedReceiver<SolverEvent<S>>), SolverManagerError>
-    SolverManager: pub fn solve_with_qualified_candidate_trace_provenance( &'static self, solution: S, provenance: QualifiedCandidateTraceRunProvenance, ) -> Result<(usize, UnboundedReceiver<SolverEvent<S>>), SolverManagerError>
+    SolverManager: pub fn solve( &'static self, solution: S, ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError>
+    SolverManager: pub fn solve_with_qualified_candidate_trace_provenance( &'static self, solution: S, provenance: QualifiedCandidateTraceRunProvenance, ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError>
     SolverManager: pub fn get_status( &self, job_id: usize, ) -> Result<SolverStatus<S::Score>, SolverManagerError>
     SolverManager: pub fn get_telemetry_detail( &self, job_id: usize, ) -> Result<SolverTelemetryDetail<S::Score>, SolverManagerError>
     SolverManager: pub fn pause(&self, job_id: usize) -> Result<(), SolverManagerError>
@@ -542,11 +550,11 @@ enum ExplorationType: pub enum ExplorationType { DepthFirst, BreadthFirst, Score
 enum ForagerDecision: pub enum ForagerDecision { Keep, Release, Replace(CandidateId), }
 enum MoveCandidateRef: pub enum MoveCandidateRef<'a, S, M> where S: PlanningSolution, M: Move<S>,{ Borrowed(&'a M), Sequential(SequentialCompositeMoveRef<'a, S, M>), }
 enum MoveCandidateUndo: pub enum MoveCandidateUndo<U> { Borrowed(U), Sequential { first: U, second: U, }, }
-enum MoveUndoIdentity: pub enum MoveUndoIdentity { SameAsMoveId, Explicit(SmallVec<[u64; 8]>), }
 enum RuntimeBuildError: pub enum RuntimeBuildError { Configuration { message: String, }, Declaration { message: String, }, Compilation { path: String, message: String, }, Preparation { phase_index: usize, message: String, }, ConstraintWeights { message: String, }, Execution { phase_index: usize, message: String, }, }
     RuntimeBuildError: pub fn declaration(message: impl Into<String>) -> Self
 enum SolverEvent: pub enum SolverEvent<S: PlanningSolution> { Progress { metadata: SolverEventMetadata<S::Score>, }, BestSolution { metadata: SolverEventMetadata<S::Score>, solution: S, }, PauseRequested { metadata: SolverEventMetadata<S::Score>, }, Paused { metadata: SolverEventMetadata<S::Score>, }, Resumed { metadata: SolverEventMetadata<S::Score>, }, Completed { metadata: SolverEventMetadata<S::Score>, solution: S, }, Cancelled { metadata: SolverEventMetadata<S::Score>, }, Failed { metadata: SolverEventMetadata<S::Score>, error: String, }, }
     SolverEvent: pub fn metadata(&self) -> &SolverEventMetadata<S::Score>
+enum SolverEventTryRecvError: pub enum SolverEventTryRecvError { Empty, Disconnected, }
 enum SolverLifecycleState: pub enum SolverLifecycleState { Solving, PauseRequested, Paused, Completed, Cancelled, Failed, }
     SolverLifecycleState: pub fn is_terminal(self) -> bool
 enum SolverManagerError: pub enum SolverManagerError { NoFreeJobSlots, JobNotFound { job_id: usize, }, InvalidStateTransition { job_id: usize, action: &'static str, state: SolverLifecycleState, }, NoSnapshotAvailable { job_id: usize, }, SnapshotNotFound { job_id: usize, snapshot_revision: u64, }, }

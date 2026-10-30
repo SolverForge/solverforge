@@ -10,6 +10,7 @@ use crate::stats::QualifiedCandidateTraceRunProvenance;
 use crate::RuntimeBuildResult;
 
 use super::super::solution_manager::Analyzable;
+use super::receiver::SolverEventReceiver;
 use super::runtime::{panic_payload_to_string, SolverRuntime};
 #[cfg(test)]
 use super::slot::SLOT_FREE;
@@ -77,10 +78,12 @@ where
         }
     }
 
+    /// Starts a retained solve job and returns its id with the job's event
+    /// stream.
     pub fn solve(
         &'static self,
         solution: S,
-    ) -> Result<(usize, mpsc::UnboundedReceiver<SolverEvent<S>>), SolverManagerError> {
+    ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError> {
         self.submit(solution, None)
     }
 
@@ -93,7 +96,7 @@ where
         &'static self,
         solution: S,
         provenance: QualifiedCandidateTraceRunProvenance,
-    ) -> Result<(usize, mpsc::UnboundedReceiver<SolverEvent<S>>), SolverManagerError> {
+    ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError> {
         self.submit(solution, Some(provenance))
     }
 
@@ -101,7 +104,7 @@ where
         &'static self,
         solution: S,
         qualified_candidate_trace_provenance: Option<QualifiedCandidateTraceRunProvenance>,
-    ) -> Result<(usize, mpsc::UnboundedReceiver<SolverEvent<S>>), SolverManagerError> {
+    ) -> Result<(usize, SolverEventReceiver<S>), SolverManagerError> {
         let (sender, receiver) = mpsc::unbounded_channel();
 
         let Some(slot_idx) = self
@@ -154,7 +157,7 @@ where
             runtime.slot.worker_exited();
         });
 
-        Ok((slot_idx, receiver))
+        Ok((slot_idx, SolverEventReceiver::new(receiver)))
     }
 
     pub fn get_status(&self, job_id: usize) -> Result<SolverStatus<S::Score>, SolverManagerError> {

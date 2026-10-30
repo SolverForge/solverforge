@@ -206,7 +206,8 @@ where
         move_id.extend(value_ids.iter().copied());
 
         Cow::Owned(
-            MoveTabuSignature::new_self_undoing(scope, move_id).with_entity_tokens(entity_tokens),
+            MoveTabuSignature::from_self_undoing_identity(scope, move_id)
+                .with_entity_tokens(entity_tokens),
         )
     }
 }

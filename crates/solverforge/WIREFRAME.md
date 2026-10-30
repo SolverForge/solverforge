@@ -171,6 +171,8 @@ The root keeps these; `solverforge::config` has every configuration type:
 - `SolverRuntime`
 - `SolverEvent`
 - `SolverEventMetadata`
+- `SolverEventReceiver` (per-job event stream returned by `SolverManager::solve`: `recv().await`, `blocking_recv()`, `try_recv()`)
+- `SolverEventTryRecvError` (`Empty` or `Disconnected`, from `SolverEventReceiver::try_recv`)
 - `SolverLifecycleState`
 - `SolverStatus`
 - `SolverTelemetryDetail`

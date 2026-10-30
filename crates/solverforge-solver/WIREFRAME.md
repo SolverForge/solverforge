@@ -15,7 +15,7 @@ Solver engine: phases, moves, selectors, acceptors, foragers, termination, and s
 - `rayon` (workspace) — Parallel computation
 - `smallvec` (workspace) — Stack-allocated small vectors
 - `serde` (workspace) — Serialization
-- `tokio` (sync feature) — `mpsc` channels for solution streaming
+- `tokio` (sync feature) — `mpsc` channel behind `SolverEventReceiver`
 
 **Features:** `default` is an empty feature set.
 
@@ -319,6 +319,7 @@ src/
 │   ├── solver_manager/runtime/pause.rs — Pause settlement with or without a public snapshot according to structural completion
 │   ├── solver_manager/runtime/problem_change.rs — Runtime-side problem-change bit decode and FIFO drain/close
 │   ├── solver_manager/problem_change.rs — ProblemChangeId, SolverManager::add_problem_change, per-job change queue
+│   ├── solver_manager/receiver.rs      — SolverEventReceiver and SolverEventTryRecvError
 │   ├── solver_manager/slot.rs          — Internal retained-job slots and snapshot records
 │   ├── solver_manager/manager.rs       — MAX_JOBS, Solvable trait, SolverManager
 │   ├── solution_manager.rs             — analyze() free fn, Analyzable trait, ScoreAnalysis, ConstraintAnalysis
@@ -395,13 +396,13 @@ modules are private, so an item has exactly one path:
 
 **Model and search composition:** `ListVariableSlot`, `RuntimeModel`, `VariableSlot`, `bind_scalar_groups`, `ScalarGroupBinding`, `ValueSource`, `ScalarVariableSlot`, `CustomSearchPhase`, `local_search`, `Search`, `SearchContext`, `PlanningModelSupport`, `ConflictRepair`, `RepairCandidate`, `RepairLimits`, `RepairProvider`, `ScalarAssignmentRule`, `ScalarCandidate`, `ScalarCandidateProvider`, `ScalarEdit`, `ScalarGroup`, `ScalarGroupLimits`, `ScalarTarget`, `ListVariableEntity`, `ListVariableMetadata`
 
-**Moves and move streams:** `SequentialCompositeMoveRef`, `MoveTabuScope`, `MoveTabuSignature`, `MoveUndoIdentity`, `ScopedEntityTabuToken`, `ScopedValueTabuToken`, `Move`, `MoveAffectedEntity`, `DefaultDistanceMeter`, `CandidateId`, `MoveCandidateRef`, `MoveCandidateUndo`, `MoveCursor`, `MoveSelector`, `MoveSelectorIter`, `MoveStreamContext`, `CrossEntityDistanceMeter`, `DefaultCrossEntityDistanceMeter`
+**Moves and move streams:** `SequentialCompositeMoveRef`, `MoveTabuScope`, `MoveTabuSignature`, `ScopedEntityTabuToken`, `ScopedValueTabuToken`, `Move`, `MoveAffectedEntity`, `DefaultDistanceMeter`, `CandidateId`, `MoveCandidateRef`, `MoveCandidateUndo`, `MoveCursor`, `MoveSelector`, `MoveSelectorIter`, `MoveStreamContext`, `CrossEntityDistanceMeter`, `DefaultCrossEntityDistanceMeter`
 
 **Phases:** `ScoreBounder`, `ExhaustiveSearchConfig`, `ExhaustiveSearchDecider`, `SimpleDecider`, `ExplorationType`, `ExhaustiveSearchNode`, `ExhaustiveSearchPhase`, `Acceptor`, `ForagerDecision`, `LocalSearchForager`, `ChildPhases`, `PartitionedSearchConfig`, `FunctionalPartitioner`, `SolutionPartitioner`, `ThreadCount`, `PartitionedSearchPhase`, `Phase`
 
 **Solver scope and progress:** `PhaseScope`, `ProgressCallback`, `SolverProgressKind`, `SolverProgressRef`, `SolverScope`, `StepScope`
 
-**Solver management and analysis:** `analyze`, `Analyzable`, `ConstraintAnalysis`, `ScoreAnalysis`, `Solvable`, `SolverManager`, `ProblemChangeId`, `SolverPanicPayload`, `SolverRuntime`, `SolverEvent`, `SolverEventMetadata`, `SolverLifecycleState`, `SolverManagerError`, `SolverSnapshot`, `SolverSnapshotAnalysis`, `SolverStatus`, `SolverTelemetryDetail`, `SolverTerminalReason`, `ClosureProblemChange`, `ProblemChange`
+**Solver management and analysis:** `analyze`, `Analyzable`, `ConstraintAnalysis`, `ScoreAnalysis`, `Solvable`, `SolverManager`, `ProblemChangeId`, `SolverPanicPayload`, `SolverRuntime`, `SolverEvent`, `SolverEventMetadata`, `SolverEventReceiver`, `SolverEventTryRecvError`, `SolverLifecycleState`, `SolverManagerError`, `SolverSnapshot`, `SolverSnapshotAnalysis`, `SolverStatus`, `SolverTelemetryDetail`, `SolverTerminalReason`, `ClosureProblemChange`, `ProblemChange`
 
 **Configured run boundary:** `log_solve_start`, `try_run_solver_with_config_and_search`, `try_run_weighted_solver_with_config_and_search`, `RuntimeBuildError`, `RuntimeBuildResult`
 
@@ -459,7 +460,9 @@ snapshot.
 - `MoveTabuScope { descriptor_index, variable_name }`
 - `ScopedEntityTabuToken { scope, entity_id }`
 - `ScopedValueTabuToken { scope, value_id }`
-- `MoveTabuSignature { scope, entity_tokens, destination_value_tokens, move_id, undo_move_id }`
+- `MoveTabuSignature` (private fields) — `new(scope, move_id: &[u64], undo_move_id: &[u64])`, `new_self_undoing(scope, move_id: &[u64])`, `with_entity_tokens(iter)`, `with_destination_value_tokens(iter)`; read through `scope()`, `entity_tokens() -> &[ScopedEntityTabuToken]`, `destination_value_tokens() -> &[ScopedValueTabuToken]`, `move_id() -> &[u64]`, and `undo_id() -> &[u64]` (the move id itself for a self-undoing move)
+
+Constructors copy the given ids into inline storage (up to eight id components and two tokens of each kind without a heap allocation); the storage type is not part of the API.
 
 Entity and destination-value tabu memories compare scoped tokens directly, so equal raw ids from different descriptors or variables do not collide. Exact move memories still store ordered `move_id` and `undo_move_id` sequences without hashing away structure. Sequential composite moves use one shared selector-order composition rule for both fields, so cartesian reversals remain visible to move tabu and undo-move tabu. True self-inverse coordinate moves, such as scalar swaps, pillar swaps, list swaps, and list reversals, use canonical coordinate identities for both fields so default move-tabu blocks non-aspirational immediate reversals while value tabu remains value-sensitive through scoped destination-value tokens.
 
@@ -744,7 +747,8 @@ snapshot, or partial paused snapshot.
 
 ### `SolverManager<S: Solvable>`
 
-Static lifetime retained-job manager: `solve()` returns `(job_id, receiver)`;
+Static lifetime retained-job manager: `solve()` returns
+`(job_id, SolverEventReceiver<S>)`;
 `solve_with_qualified_candidate_trace_provenance()` uses the same lifecycle
 while installing an externally validated trace attestation. Other methods are
 `get_status()`, `get_telemetry_detail()`, `pause()`, `resume()`, `cancel()`,
@@ -780,6 +784,10 @@ Retained job summary from `get_status()`. Fields: `job_id`, `lifecycle_state`, `
 ### `SolverTelemetryDetail<Sc>`
 
 Detached retained-job telemetry returned by `get_telemetry_detail()`. It contains the current `SolverStatus<Sc>` plus optional candidate-trace detail under one retained-publication lock: when detail is present, the status scores and `latest_snapshot_revision` identify the exact paired snapshot a caller may fetch and validate. Ordinary status, snapshot, and lifecycle-event payloads remain compact and never materialize the candidate trace.
+
+### `SolverEventReceiver<S>` / `SolverEventTryRecvError` — `manager/solver_manager/receiver.rs`
+
+Owned per-job event stream returned by `solve()`. `async fn recv(&mut self) -> Option<SolverEvent<S>>` waits for the next event; `blocking_recv(&mut self) -> Option<SolverEvent<S>>` blocks the current thread (it panics inside an async context); `try_recv(&mut self) -> Result<SolverEvent<S>, SolverEventTryRecvError>` returns a buffered event without waiting. `SolverEventTryRecvError` is `Empty` (nothing buffered yet) or `Disconnected` (the job was deleted and every buffered event was received). The stream is unbounded, so the solver never blocks on a slow consumer. Implements `Debug`.
 
 ### `SolverEvent<S>`
 
@@ -1086,4 +1094,4 @@ monomorphized score-director lifecycle.
 - **Cursor-owned candidate lifetime.** Hot phases evaluate cursor candidates by stable ID, release losers immediately, and move the winner out exactly once. A sequential composite owns its two child moves in one two-slot allocation.
 - **Neighborhood support modules stay private.** `list_support.rs`, `nearby_list_support.rs`, and `sublist_support.rs` exist only to share selected-entity snapshots, bounded stable top-k nearby ordering, and exact finite-selector counting. Public cursor hot loops for list and sublist neighborhoods remain explicit.
 - **Canonical neighborhood tests live under subsystem trees.** Multi-file selector behavior for list, nearby-list, and sublist families is documented under `heuristic/selector/tests/`, while move legality stays under `heuristic/move/tests/`.
-- **Rayon for parallelism.** Partitioned search uses rayon for CPU-bound parallel solving. `tokio::sync::mpsc` for solution streaming.
+- **Rayon for parallelism.** Partitioned search uses rayon for CPU-bound parallel solving. An unbounded `tokio::sync::mpsc` channel, owned by `SolverEventReceiver`, streams solver events; no tokio type appears in the public API.

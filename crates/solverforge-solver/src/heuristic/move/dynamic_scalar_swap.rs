@@ -156,7 +156,7 @@ where
         );
 
         Cow::Owned(
-            MoveTabuSignature::new_self_undoing(scope, move_id)
+            MoveTabuSignature::from_self_undoing_identity(scope, move_id)
                 .with_entity_tokens([
                     scope.entity_token(left_entity_id),
                     scope.entity_token(right_entity_id),

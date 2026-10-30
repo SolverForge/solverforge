@@ -75,23 +75,42 @@ pub struct ScopedValueTabuToken {
 /// Self-undoing moves store one identity instead of two equal ones; the
 /// reverse view resolves to the stored move id.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MoveUndoIdentity {
+pub(crate) enum MoveUndoIdentity {
     SameAsMoveId,
     Explicit(MoveIdentity),
 }
 
+/// Tabu identity of one move: its scope, the entity and destination-value
+/// tokens it touches, its exact move id and its reverse (undo) id.
+///
+/// Constructors copy the given ids into inline storage; ids of up to eight
+/// components and up to two tokens of each kind stay off the heap.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoveTabuSignature {
-    pub scope: MoveTabuScope,
-    pub entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]>,
-    pub destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]>,
-    pub move_id: MoveIdentity,
-    pub undo_move_id: MoveUndoIdentity,
+    pub(crate) scope: MoveTabuScope,
+    pub(crate) entity_tokens: SmallVec<[ScopedEntityTabuToken; 2]>,
+    pub(crate) destination_value_tokens: SmallVec<[ScopedValueTabuToken; 2]>,
+    pub(crate) move_id: MoveIdentity,
+    pub(crate) undo_move_id: MoveUndoIdentity,
 }
 
 impl MoveTabuSignature {
     /// A move whose undo identity equals its move identity.
-    pub fn new_self_undoing(scope: MoveTabuScope, move_id: MoveIdentity) -> Self {
+    pub fn new_self_undoing(scope: MoveTabuScope, move_id: &[u64]) -> Self {
+        Self::from_self_undoing_identity(scope, MoveIdentity::from_slice(move_id))
+    }
+
+    /// A move whose reverse identity is spelled out (distinct undo id).
+    pub fn new(scope: MoveTabuScope, move_id: &[u64], undo_move_id: &[u64]) -> Self {
+        Self::from_identity(
+            scope,
+            MoveIdentity::from_slice(move_id),
+            MoveIdentity::from_slice(undo_move_id),
+        )
+    }
+
+    /// Takes ownership of an already built self-undoing move identity.
+    pub(crate) fn from_self_undoing_identity(scope: MoveTabuScope, move_id: MoveIdentity) -> Self {
         Self {
             scope,
             entity_tokens: SmallVec::new(),
@@ -101,8 +120,12 @@ impl MoveTabuSignature {
         }
     }
 
-    /// A move whose reverse identity is spelled out (distinct undo id).
-    pub fn new(scope: MoveTabuScope, move_id: MoveIdentity, undo_move_id: MoveIdentity) -> Self {
+    /// Takes ownership of already built move and undo identities.
+    pub(crate) fn from_identity(
+        scope: MoveTabuScope,
+        move_id: MoveIdentity,
+        undo_move_id: MoveIdentity,
+    ) -> Self {
         Self {
             scope,
             entity_tokens: SmallVec::new(),
@@ -112,14 +135,35 @@ impl MoveTabuSignature {
         }
     }
 
+    /// The scope the move's tokens and ids belong to.
+    pub fn scope(&self) -> MoveTabuScope {
+        self.scope
+    }
+
+    /// The entity tokens entity tabu records for this move.
+    pub fn entity_tokens(&self) -> &[ScopedEntityTabuToken] {
+        &self.entity_tokens
+    }
+
+    /// The destination value tokens value tabu records for this move.
+    pub fn destination_value_tokens(&self) -> &[ScopedValueTabuToken] {
+        &self.destination_value_tokens
+    }
+
+    /// The exact move identity move tabu records for this move.
+    pub fn move_id(&self) -> &[u64] {
+        &self.move_id
+    }
+
     /// The reverse identity this move records when it is accepted.
-    pub fn undo_id(&self) -> &MoveIdentity {
+    pub fn undo_id(&self) -> &[u64] {
         match &self.undo_move_id {
             MoveUndoIdentity::SameAsMoveId => &self.move_id,
             MoveUndoIdentity::Explicit(id) => id,
         }
     }
 
+    /// Replaces the entity tokens.
     pub fn with_entity_tokens<I>(mut self, entity_tokens: I) -> Self
     where
         I: IntoIterator<Item = ScopedEntityTabuToken>,
@@ -128,6 +172,7 @@ impl MoveTabuSignature {
         self
     }
 
+    /// Replaces the destination value tokens.
     pub fn with_destination_value_tokens<I>(mut self, destination_value_tokens: I) -> Self
     where
         I: IntoIterator<Item = ScopedValueTabuToken>,
@@ -274,7 +319,7 @@ pub(crate) fn compose_sequential_tabu_signature(
         MoveTabuScope::new(left.scope.descriptor_index, prefix)
     };
 
-    MoveTabuSignature::new(scope, move_id, undo_move_id)
+    MoveTabuSignature::from_identity(scope, move_id, undo_move_id)
         .with_entity_tokens(entity_tokens)
         .with_destination_value_tokens(destination_value_tokens)
 }

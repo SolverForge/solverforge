@@ -91,7 +91,7 @@ where
         ],
     );
 
-    MoveTabuSignature::new_self_undoing(scope, move_id)
+    MoveTabuSignature::from_self_undoing_identity(scope, move_id)
         .with_entity_tokens([scope.entity_token(entity_id)])
         .with_destination_value_tokens(destination_value_tokens)
 }

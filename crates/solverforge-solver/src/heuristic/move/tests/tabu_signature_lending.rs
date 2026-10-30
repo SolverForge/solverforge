@@ -52,11 +52,7 @@ fn runtime_move(entity: usize, row: usize) -> RuntimeMove {
 }
 
 fn composite_signature() -> MoveTabuSignature {
-    MoveTabuSignature::new(
-        MoveTabuScope::new(0, "row"),
-        smallvec::smallvec![7],
-        smallvec::smallvec![8],
-    )
+    MoveTabuSignature::new(MoveTabuScope::new(0, "row"), &[7], &[8])
 }
 
 fn assert_lends(signature: Cow<'_, MoveTabuSignature>, stored: &MoveTabuSignature) {

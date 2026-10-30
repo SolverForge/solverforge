@@ -248,7 +248,7 @@ where
     undo_move_id.extend(second_value_ids.iter().copied());
     undo_move_id.extend(first_value_ids.iter().copied());
 
-    MoveTabuSignature::new(scope, move_id, undo_move_id)
+    MoveTabuSignature::from_identity(scope, move_id, undo_move_id)
         .with_entity_tokens(entity_tokens)
         .with_destination_value_tokens(destination_value_tokens)
 }

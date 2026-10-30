@@ -1,7 +1,6 @@
 use std::any::TypeId;
 use std::borrow::Cow;
 
-use smallvec::smallvec;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::BendableScore;
 use solverforge_scoring::Director;
@@ -201,8 +200,8 @@ impl Move<BendableRepairPlan> for BendableRepairMove {
     ) -> Cow<'_, MoveTabuSignature> {
         Cow::Owned(MoveTabuSignature::new(
             MoveTabuScope::new(0, "bendable_repair_move"),
-            smallvec![hash_str("bendable_repair_move")],
-            smallvec![hash_str("bendable_repair_move")],
+            &[hash_str("bendable_repair_move")],
+            &[hash_str("bendable_repair_move")],
         ))
     }
 }

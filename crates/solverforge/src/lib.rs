@@ -171,8 +171,7 @@ pub mod heuristic {
         CandidateId, CrossEntityDistanceMeter, DefaultCrossEntityDistanceMeter,
         DefaultDistanceMeter, Move, MoveAffectedEntity, MoveCandidateRef, MoveCandidateUndo,
         MoveCursor, MoveSelector, MoveSelectorIter, MoveStreamContext, MoveTabuScope,
-        MoveTabuSignature, MoveUndoIdentity, ScopedEntityTabuToken, ScopedValueTabuToken,
-        SequentialCompositeMoveRef,
+        MoveTabuSignature, ScopedEntityTabuToken, ScopedValueTabuToken, SequentialCompositeMoveRef,
     };
 }
 /// Phases and their parts: local search acceptors and foragers, exhaustive
@@ -229,9 +228,10 @@ pub use solverforge_solver::{
     RuntimeBuildError, RuntimeBuildResult, ScalarAssignmentRule, ScalarCandidate,
     ScalarCandidateProvider, ScalarEdit, ScalarGroup, ScalarGroupLimits, ScalarTarget,
     ScoreAnalysis, Search, SearchContext, SelectorTelemetry, SimpleDecider, SolutionPartitioner,
-    Solvable, SolverEvent, SolverEventMetadata, SolverLifecycleState, SolverManager,
-    SolverManagerError, SolverRuntime, SolverSnapshot, SolverSnapshotAnalysis, SolverStatus,
-    SolverTelemetry, SolverTelemetryDetail, SolverTerminalReason, ThreadCount,
+    Solvable, SolverEvent, SolverEventMetadata, SolverEventReceiver, SolverEventTryRecvError,
+    SolverLifecycleState, SolverManager, SolverManagerError, SolverRuntime, SolverSnapshot,
+    SolverSnapshotAnalysis, SolverStatus, SolverTelemetry, SolverTelemetryDetail,
+    SolverTerminalReason, ThreadCount,
 };
 pub use solverforge_solver::{
     CandidatePullTelemetry, CandidateTraceCompositeIdentity, CandidateTraceConstructionTarget,

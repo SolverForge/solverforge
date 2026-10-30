@@ -3,7 +3,6 @@ use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use smallvec::smallvec;
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::score::{HardSoftScore, SoftScore};
 use solverforge_scoring::Director;
@@ -139,8 +138,8 @@ impl Move<InterruptPlan> for InterruptMove {
     ) -> Cow<'_, MoveTabuSignature> {
         Cow::Owned(MoveTabuSignature::new(
             MoveTabuScope::new(0, "interrupt_move"),
-            smallvec![hash_str("vnd_interrupt_move")],
-            smallvec![hash_str("vnd_interrupt_move")],
+            &[hash_str("vnd_interrupt_move")],
+            &[hash_str("vnd_interrupt_move")],
         ))
     }
 }
@@ -444,8 +443,8 @@ impl Move<HardRepairPlan> for HardRepairMove {
     ) -> Cow<'_, MoveTabuSignature> {
         Cow::Owned(MoveTabuSignature::new(
             MoveTabuScope::new(0, "hard_repair_move"),
-            smallvec![hash_str("vnd_hard_repair_move")],
-            smallvec![hash_str("vnd_hard_repair_move")],
+            &[hash_str("vnd_hard_repair_move")],
+            &[hash_str("vnd_hard_repair_move")],
         ))
     }
 }

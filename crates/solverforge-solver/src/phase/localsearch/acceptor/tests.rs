@@ -31,23 +31,19 @@ fn signature(
     undo_move_id: &[u64],
 ) -> MoveTabuSignature {
     let scope = MoveTabuScope::new(descriptor_index, variable_name);
-    MoveTabuSignature::new(
-        scope,
-        move_id.iter().copied().collect(),
-        undo_move_id.iter().copied().collect(),
-    )
-    .with_entity_tokens(
-        entity_ids
-            .iter()
-            .copied()
-            .map(|entity_id| scope.entity_token(entity_id)),
-    )
-    .with_destination_value_tokens(
-        destination_value_ids
-            .iter()
-            .copied()
-            .map(|value_id| scope.value_token(value_id)),
-    )
+    MoveTabuSignature::new(scope, move_id, undo_move_id)
+        .with_entity_tokens(
+            entity_ids
+                .iter()
+                .copied()
+                .map(|entity_id| scope.entity_token(entity_id)),
+        )
+        .with_destination_value_tokens(
+            destination_value_ids
+                .iter()
+                .copied()
+                .map(|value_id| scope.value_token(value_id)),
+        )
 }
 
 fn policy(
@@ -163,10 +159,7 @@ fn tabu_search_blocks_exact_move_and_undo_move() {
 fn tabu_search_self_undoing_move_blocks_both_memories() {
     let mut acceptor =
         TabuSearchAcceptor::<DummySolution>::new(policy(None, None, None, Some(2), false));
-    let committed = MoveTabuSignature::new_self_undoing(
-        MoveTabuScope::new(0, "worker"),
-        smallvec::smallvec![10, 20],
-    );
+    let committed = MoveTabuSignature::new_self_undoing(MoveTabuScope::new(0, "worker"), &[10, 20]);
     let same_id_repeat = signature(0, "worker", &[], &[], &[10, 20], &[10, 20]);
 
     acceptor.phase_started(&SoftScore::of(-10));
@@ -311,14 +304,14 @@ fn tabu_search_signature_tokens_keep_duplicate_entity_ids_distinct() {
     let mut acceptor =
         TabuSearchAcceptor::<DummySolution>::new(policy(Some(2), None, None, None, true));
     let scope = MoveTabuScope::new(0, "worker");
-    let duplicate = MoveTabuSignature::new(scope, smallvec::smallvec![10], smallvec::smallvec![11])
+    let duplicate = MoveTabuSignature::new(scope, &[10], &[11])
         .with_entity_tokens([scope.entity_token(7), scope.entity_token(7)]);
     let other_scope_duplicate = ScopedEntityTabuToken {
         scope: MoveTabuScope::new(0, "other"),
         entity_id: 7,
     };
-    let single = MoveTabuSignature::new(scope, smallvec::smallvec![12], smallvec::smallvec![13])
-        .with_entity_tokens([other_scope_duplicate]);
+    let single =
+        MoveTabuSignature::new(scope, &[12], &[13]).with_entity_tokens([other_scope_duplicate]);
 
     acceptor.phase_started(&SoftScore::of(-10));
     acceptor.step_ended(&SoftScore::of(-9), Some(duplicate));

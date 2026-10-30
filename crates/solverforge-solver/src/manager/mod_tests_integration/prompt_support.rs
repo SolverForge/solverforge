@@ -176,8 +176,8 @@ impl Move<PromptControlSolution> for NoOpMove {
         let identity = crate::heuristic::r#move::metadata::hash_str("prompt_support_noop_move");
         Cow::Owned(crate::heuristic::r#move::MoveTabuSignature::new(
             scope,
-            smallvec::smallvec![identity],
-            smallvec::smallvec![identity],
+            &[identity],
+            &[identity],
         ))
     }
 }

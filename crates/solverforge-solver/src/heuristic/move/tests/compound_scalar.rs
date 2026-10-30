@@ -280,8 +280,8 @@ fn sequential_move_checks_pins_in_each_child_descriptor() {
     let right = ChangeMove::new(0, Some(3), get_right, set_right, 0, "right", 1);
     let signature = MoveTabuSignature::new(
         crate::heuristic::r#move::metadata::MoveTabuScope::new(0, "left"),
-        smallvec::smallvec![],
-        smallvec::smallvec![],
+        &[],
+        &[],
     );
     let composite =
         SequentialCompositeMoveRef::new(&left, &right, 0, &[0], "left", &signature, false);

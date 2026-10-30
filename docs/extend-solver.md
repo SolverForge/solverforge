@@ -214,6 +214,18 @@ fact indexes and planning-variable references valid. Run real-time jobs without
 a solver-level time limit and end them with `cancel()`: configured limits stay
 binding during re-construction.
 
+## Custom move tabu signatures
+
+A custom `Move` reports its tabu identity from `tabu_signature` as a
+`MoveTabuSignature`. Build it from slices: `MoveTabuSignature::new(scope,
+&move_id, &undo_move_id)` for a move with a distinct reverse identity, or
+`MoveTabuSignature::new_self_undoing(scope, &move_id)` when the move undoes to
+itself, then attach scoped tokens with `with_entity_tokens` and
+`with_destination_value_tokens`. The constructors copy the ids into inline
+storage, and the accessors (`move_id()`, `undo_id()`, `entity_tokens()`,
+`destination_value_tokens()`) return slices, so a custom move needs no extra
+dependency to describe itself.
+
 ## Practical path
 
 1. Start from the scaffolded project.

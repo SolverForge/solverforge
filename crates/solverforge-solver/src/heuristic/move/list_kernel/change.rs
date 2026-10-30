@@ -160,7 +160,7 @@ where
         entity_tokens.push(scope.entity_token(destination_entity_id));
     }
 
-    MoveTabuSignature::new(
+    MoveTabuSignature::from_identity(
         scope,
         smallvec![
             encode_usize(access.descriptor_index()),

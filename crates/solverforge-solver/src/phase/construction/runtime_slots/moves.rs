@@ -131,7 +131,7 @@ where
         let scope = MoveTabuScope::new(self.slot.descriptor_index(), self.slot.variable_name());
         let variable = hash_str(self.slot.variable_name());
         Cow::Owned(
-            MoveTabuSignature::new(
+            MoveTabuSignature::from_identity(
                 scope,
                 smallvec![
                     encode_usize(self.slot.descriptor_index()),
@@ -294,7 +294,7 @@ where
             position
         ];
         Cow::Owned(
-            MoveTabuSignature::new_self_undoing(scope, move_id)
+            MoveTabuSignature::from_self_undoing_identity(scope, move_id)
                 .with_entity_tokens([scope.entity_token(entity)])
                 .with_destination_value_tokens([scope.value_token(source)]),
         )

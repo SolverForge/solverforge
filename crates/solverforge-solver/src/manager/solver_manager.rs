@@ -11,6 +11,7 @@ Provides the high-level API for:
 
 pub(crate) mod manager;
 pub(crate) mod problem_change;
+pub(crate) mod receiver;
 pub(crate) mod runtime;
 mod slot;
 pub(crate) mod types;

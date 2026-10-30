@@ -1,9 +1,8 @@
-/* Declarative macros for reducing score type boilerplate.
-
-These macros generate the repetitive trait implementations that all
-field-based score types share: arithmetic ops, ordering, multiply/divide,
-and slash-separated parsing.
-*/
+//! Declarative macros for reducing score type boilerplate.
+//!
+//! These macros generate the repetitive trait implementations that all
+//! field-based score types share: arithmetic ops, ordering, multiply/divide,
+//! and slash-separated parsing.
 
 /* Generates `PartialOrd`, `Add`, `Sub`, and `Neg` for a field-based score type.
 

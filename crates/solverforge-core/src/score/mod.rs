@@ -1,8 +1,7 @@
-/* Score types for representing solution quality
-
-Scores are used to compare solutions and guide the optimization process.
-All score types are immutable and implement arithmetic operations.
-*/
+//! Score types for representing solution quality
+//!
+//! Scores are used to compare solutions and guide the optimization process.
+//! All score types are immutable and implement arithmetic operations.
 
 #[macro_use]
 mod macros;

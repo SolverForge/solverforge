@@ -1,8 +1,7 @@
-/* HardSoftDecimalScore - Two-level score with i64 precision and x100000 scaling
-
-This score type represents a decimal score without heap allocation.
-Internal values are scaled by 100000 to provide 5 decimal places of precision.
-*/
+//! HardSoftDecimalScore - Two-level score with i64 precision and x100000 scaling
+//!
+//! This score type represents a decimal score without heap allocation.
+//! Internal values are scaled by 100000 to provide 5 decimal places of precision.
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -10,36 +9,35 @@ use std::fmt;
 use super::traits::{ParseableScore, Score, ScoreParseError};
 use super::ScoreLevel;
 
-// Scale factor for 5 decimal places of precision.
+/// Scale factor for 5 decimal places of precision.
 const SCALE: i64 = 100_000;
 
-/* A score with separate hard and soft constraint levels, using i64 with x100000 scaling.
-
-This provides 5 decimal places of precision while maintaining zero heap allocation
-and full type safety.
-
-Internal values are stored pre-scaled. Use [`of`](Self::of) for unscaled input
-or [`of_scaled`](Self::of_scaled) for pre-scaled values.
-
-# Examples
-
-```
-use solverforge_core::{HardSoftDecimalScore, Score};
-
-// Create from unscaled values (automatically multiplied by 100000)
-let score1 = HardSoftDecimalScore::of(-1, -100);
-assert_eq!(score1.hard_scaled(), -100000);
-assert_eq!(score1.soft_scaled(), -10000000);
-
-// Create from pre-scaled values (for minute-based penalties)
-let score2 = HardSoftDecimalScore::of_scaled(-3050000, 0);  // -30.5 hard
-assert!(!score2.is_feasible());
-
-// Display shows values (trailing zeros stripped)
-let score3 = HardSoftDecimalScore::of_scaled(-150000, -250000);
-assert_eq!(format!("{}", score3), "-1.5hard/-2.5soft");
-```
-*/
+/// A score with separate hard and soft constraint levels, using i64 with x100000 scaling.
+///
+/// This provides 5 decimal places of precision while maintaining zero heap allocation
+/// and full type safety.
+///
+/// Internal values are stored pre-scaled. Use [`of`](Self::of) for unscaled input
+/// or [`of_scaled`](Self::of_scaled) for pre-scaled values.
+///
+/// # Examples
+///
+/// ```
+/// use solverforge_core::{HardSoftDecimalScore, Score};
+///
+/// // Create from unscaled values (automatically multiplied by 100000)
+/// let score1 = HardSoftDecimalScore::of(-1, -100);
+/// assert_eq!(score1.hard_scaled(), -100000);
+/// assert_eq!(score1.soft_scaled(), -10000000);
+///
+/// // Create from pre-scaled values (for minute-based penalties)
+/// let score2 = HardSoftDecimalScore::of_scaled(-3050000, 0);  // -30.5 hard
+/// assert!(!score2.is_feasible());
+///
+/// // Display shows values (trailing zeros stripped)
+/// let score3 = HardSoftDecimalScore::of_scaled(-150000, -250000);
+/// assert_eq!(format!("{}", score3), "-1.5hard/-2.5soft");
+/// ```
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HardSoftDecimalScore {
@@ -63,20 +61,19 @@ impl HardSoftDecimalScore {
         soft: SCALE,
     };
 
-    /* Creates a new score from unscaled values.
-
-    The values are automatically multiplied by 100000.
-
-    # Examples
-
-    ```
-    use solverforge_core::HardSoftDecimalScore;
-
-    let score = HardSoftDecimalScore::of(-2, -100);
-    assert_eq!(score.hard_scaled(), -200000);
-    assert_eq!(score.soft_scaled(), -10000000);
-    ```
-    */
+    /// Creates a new score from unscaled values.
+    ///
+    /// The values are automatically multiplied by 100000.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use solverforge_core::HardSoftDecimalScore;
+    ///
+    /// let score = HardSoftDecimalScore::of(-2, -100);
+    /// assert_eq!(score.hard_scaled(), -200000);
+    /// assert_eq!(score.soft_scaled(), -10000000);
+    /// ```
     #[inline]
     pub const fn of(hard: i64, soft: i64) -> Self {
         HardSoftDecimalScore {
@@ -85,20 +82,19 @@ impl HardSoftDecimalScore {
         }
     }
 
-    /* Creates a new score from pre-scaled values.
-
-    Use this for minute-based penalties where precision matters.
-
-    # Examples
-
-    ```
-    use solverforge_core::HardSoftDecimalScore;
-
-    // -30.5 hard constraint (overlap of 30.5 minutes)
-    let score = HardSoftDecimalScore::of_scaled(-3050000, 0);
-    assert_eq!(score.hard_scaled(), -3050000);
-    ```
-    */
+    /// Creates a new score from pre-scaled values.
+    ///
+    /// Use this for minute-based penalties where precision matters.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use solverforge_core::HardSoftDecimalScore;
+    ///
+    /// // -30.5 hard constraint (overlap of 30.5 minutes)
+    /// let score = HardSoftDecimalScore::of_scaled(-3050000, 0);
+    /// assert_eq!(score.hard_scaled(), -3050000);
+    /// ```
     #[inline]
     pub const fn of_scaled(hard: i64, soft: i64) -> Self {
         HardSoftDecimalScore { hard, soft }
@@ -132,6 +128,11 @@ impl HardSoftDecimalScore {
         }
     }
 
+    /// Creates a soft-only score from an unscaled value.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `soft * 100_000` overflows `i64`.
     #[inline]
     pub const fn of_soft(soft: i64) -> Self {
         HardSoftDecimalScore {
@@ -156,39 +157,44 @@ impl HardSoftDecimalScore {
         })
     }
 
+    /// Creates a hard-only score from a pre-scaled value (`100_000` is one hard unit).
     #[inline]
     pub const fn of_hard_scaled(hard: i64) -> Self {
         HardSoftDecimalScore { hard, soft: 0 }
     }
 
+    /// Creates a soft-only score from a pre-scaled value (`100_000` is one soft unit).
     #[inline]
     pub const fn of_soft_scaled(soft: i64) -> Self {
         HardSoftDecimalScore { hard: 0, soft }
     }
 
+    /// Returns the hard level scaled by `100_000`.
     #[inline]
     pub const fn hard_scaled(&self) -> i64 {
         self.hard
     }
 
+    /// Returns the soft level scaled by `100_000`.
     #[inline]
     pub const fn soft_scaled(&self) -> i64 {
         self.soft
     }
 
+    /// Returns this score with the soft level zeroed.
     pub const fn hard_score(&self) -> HardSoftDecimalScore {
         HardSoftDecimalScore::of_scaled(self.hard, 0)
     }
 
+    /// Returns this score with the hard level zeroed.
     pub const fn soft_score(&self) -> HardSoftDecimalScore {
         HardSoftDecimalScore::of_scaled(0, self.soft)
     }
 
-    /* Returns true if this score has a non-zero hard component.
-
-    Used by constraint streams to determine if a weight represents
-    a hard or soft constraint.
-    */
+    /// Returns true if this score has a non-zero hard component.
+    ///
+    /// Used by constraint streams to determine if a weight represents
+    /// a hard or soft constraint.
     #[inline]
     pub const fn has_hard_component(&self) -> bool {
         self.hard != 0
@@ -273,10 +279,9 @@ impl fmt::Display for HardSoftDecimalScore {
     }
 }
 
-/* One scaled level written as an exact decimal: the integer part, then up to
-five fractional digits with trailing zeros trimmed. Integer arithmetic only,
-so every `i64` (including `i64::MIN`) prints exactly and parses back to itself.
-*/
+/// One scaled level written as an exact decimal: the integer part, then up to
+/// five fractional digits with trailing zeros trimmed. Integer arithmetic only,
+/// so every `i64` (including `i64::MIN`) prints exactly and parses back to itself.
 struct Fixed(i64);
 
 impl fmt::Display for Fixed {
@@ -300,10 +305,9 @@ impl fmt::Display for Fixed {
 /// Number of fractional decimal digits a scaled level holds.
 const FRACTION_DIGITS: usize = 5;
 
-/* Parses one level written as `[-+]?digits(.digits)?` with at most five
-fractional digits into its scaled value, rejecting anything outside `i64`
-after scaling. `NaN`, infinities and exponents are not decimals and fail.
-*/
+/// Parses one level written as `[-+]?digits(.digits)?` with at most five
+/// fractional digits into its scaled value, rejecting anything outside `i64`
+/// after scaling. `NaN`, infinities and exponents are not decimals and fail.
 fn parse_fixed(text: &str) -> Result<i64, String> {
     let (negative, unsigned) = match text.as_bytes().first() {
         Some(b'-') => (true, &text[1..]),

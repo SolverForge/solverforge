@@ -1,4 +1,4 @@
-// Core domain traits
+//! Core domain traits
 
 use std::any::Any;
 use std::hash::Hash;
@@ -45,64 +45,59 @@ use crate::score::Score;
 ///
 /// Planning solutions must be `Send + Sync` to support multi-threaded solving.
 pub trait PlanningSolution: Clone + Send + Sync + 'static {
-    // The score type used to evaluate this solution.
+    /// The score type used to evaluate this solution.
     type Score: Score;
 
-    /* Returns the current score of this solution, if calculated.
-
-    Returns `None` if the solution has not been scored yet.
-    */
+    /// Returns the current score of this solution, if calculated.
+    ///
+    /// Returns `None` if the solution has not been scored yet.
     fn score(&self) -> Option<Self::Score>;
 
+    /// Stores the score; `None` marks the solution as unscored.
     fn set_score(&mut self, score: Option<Self::Score>);
 
-    /* Updates shadow variables for the descriptor/entity pair.
-
-    Default implementation is a no-op. Solutions with derived state can override
-    this to keep cached values synchronized during solving.
-    */
+    /// Updates shadow variables for the descriptor/entity pair.
+    ///
+    /// Default implementation is a no-op. Solutions with derived state can override
+    /// this to keep cached values synchronized during solving.
     fn update_entity_shadows(&mut self, _descriptor_index: usize, _entity_index: usize) {}
 
-    /* Updates all shadow variables for the full solution.
-
-    Default implementation is a no-op. Solutions with derived state can override
-    this to refresh all cached values before initialization.
-    */
+    /// Updates all shadow variables for the full solution.
+    ///
+    /// Default implementation is a no-op. Solutions with derived state can override
+    /// this to refresh all cached values before initialization.
     fn update_all_shadows(&mut self) {}
 
-    /* Whether this solution type carries runtime constraint weights.
-
-    Whether a value's weights apply is decided by the score director's weight
-    mode, a type chosen when the director is built; solves pick the weighted
-    mode only when this constant is `true` and some multiplier differs from
-    `1`. `#[planning_solution]` sets it to `true` exactly when a field is
-    marked `#[constraint_weights]`, and then also routes the solve through the
-    weighted entrypoint. A manual implementation that overrides
-    `constraint_weights` must set it to `true` as well, or the weights are
-    never applied.
-    */
+    /// Whether this solution type carries runtime constraint weights.
+    ///
+    /// Whether a value's weights apply is decided by the score director's weight
+    /// mode, a type chosen when the director is built; solves pick the weighted
+    /// mode only when this constant is `true` and some multiplier differs from
+    /// `1`. `#[planning_solution]` sets it to `true` exactly when a field is
+    /// marked `#[constraint_weights]`, and then also routes the solve through the
+    /// weighted entrypoint. A manual implementation that overrides
+    /// `constraint_weights` must set it to `true` as well, or the weights are
+    /// never applied.
     const HAS_CONSTRAINT_WEIGHTS: bool = false;
 
-    /* Returns the runtime constraint weight multipliers carried by this solution.
-
-    Default implementation returns `None`: every constraint keeps its coded
-    weight. `#[planning_solution]` generates this accessor for the field marked
-    `#[constraint_weights]`. Weighted-mode score directors bind these
-    multipliers on construction and on every (re)initialization, so a running
-    solve must reset its director after changing them.
-    */
+    /// Returns the runtime constraint weight multipliers carried by this solution.
+    ///
+    /// Default implementation returns `None`: every constraint keeps its coded
+    /// weight. `#[planning_solution]` generates this accessor for the field marked
+    /// `#[constraint_weights]`. Weighted-mode score directors bind these
+    /// multipliers on construction and on every (re)initialization, so a running
+    /// solve must reset its director after changing them.
     fn constraint_weights(&self) -> Option<&ConstraintWeights> {
         None
     }
 
-    /* Returns the elements whose list shadows
-    `update_entity_shadows(descriptor_index, entity_index)` writes, with the
-    change source their stream rows are reported under.
-
-    A score director retracts these rows before the shadow write and inserts
-    them after it, so streams that read element shadows stay incremental.
-    Default implementation reports no list shadows.
-    */
+    /// Returns the elements whose list shadows
+    /// `update_entity_shadows(descriptor_index, entity_index)` writes, with the
+    /// change source their stream rows are reported under.
+    ///
+    /// A score director retracts these rows before the shadow write and inserts
+    /// them after it, so streams that read element shadows stay incremental.
+    /// Default implementation reports no list shadows.
     fn list_shadow_elements(
         &self,
         _descriptor_index: usize,
@@ -111,23 +106,20 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
         None
     }
 
-    /* Clears the list shadows of an element that no list holds any more.
-
-    Default implementation is a no-op.
-    */
+    /// Clears the list shadows of an element that no list holds any more.
+    ///
+    /// Default implementation is a no-op.
     fn clear_list_shadows(&mut self, _element: usize) {}
 
-    /* Returns the change source under which rows of `collection` are reported
-    when they carry list shadows, or `None` when the collection holds none.
-    */
+    /// Returns the change source under which rows of `collection` are reported
+    /// when they carry list shadows, or `None` when the collection holds none.
     fn list_shadow_source(_collection: &str) -> Option<usize> {
         None
     }
 
-    /* Returns true if this solution is fully initialized.
-
-    A solution is initialized when all planning variables have been assigned.
-    */
+    /// Returns true if this solution is fully initialized.
+    ///
+    /// A solution is initialized when all planning variables have been assigned.
     fn is_initialized(&self) -> bool {
         // Default implementation - can be overridden by derived code
         true
@@ -165,18 +157,17 @@ pub trait PlanningSolution: Clone + Send + Sync + 'static {
 /// during solving. Override `is_pinned()` to return true for pinned entities;
 /// manually assembled entity descriptors must also supply a pin predicate.
 pub trait PlanningEntity: Clone + Send + Sync + Any + 'static {
-    /* Returns true if this entity is pinned (should not be changed).
-
-    Default implementation returns false (entity can be changed).
-    */
+    /// Returns true if this entity is pinned (should not be changed).
+    ///
+    /// Default implementation returns false (entity can be changed).
     fn is_pinned(&self) -> bool {
         false
     }
 
-    // Cast to Any for dynamic typing support.
+    /// Cast to Any for dynamic typing support.
     fn as_any(&self) -> &dyn Any;
 
-    // Cast to mutable Any for dynamic typing support.
+    /// Cast to mutable Any for dynamic typing support.
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
@@ -202,7 +193,7 @@ pub trait PlanningEntity: Clone + Send + Sync + Any + 'static {
 /// }
 /// ```
 pub trait ProblemFact: Clone + Send + Sync + Any + 'static {
-    // Cast to Any for dynamic typing support.
+    /// Cast to Any for dynamic typing support.
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -229,12 +220,11 @@ pub trait ProblemFact: Clone + Send + Sync + Any + 'static {
 ///
 /// The ID type must be `Eq + Hash + Clone`.
 pub trait PlanningId {
-    // The type of the unique identifier.
+    /// The type of the unique identifier.
     type Id: Eq + Hash + Clone + Send + Sync + 'static;
 
-    /* Returns the unique identifier for this object.
-
-    This must never return a value that changes during solving.
-    */
+    /// Returns the unique identifier for this object.
+    ///
+    /// This must never return a value that changes during solving.
     fn planning_id(&self) -> Self::Id;
 }

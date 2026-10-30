@@ -12,6 +12,7 @@ trait bounds from phantom type parameters. Clippy's type_complexity lint
 triggers on these tuples but the pattern is architecturally required.
 */
 #![allow(clippy::type_complexity)]
+#![warn(missing_docs)]
 #![warn(unreachable_pub)]
 
 pub mod constraint;

@@ -2,9 +2,13 @@ use super::*;
 
 /// Public dynamic list variable slot.
 pub struct DynamicListVariableSlot<S> {
+    /// Logical entity class ID the slot is bound to.
     pub entity: EntityClassId,
+    /// Logical variable ID the slot is bound to.
     pub variable: VariableId,
+    /// Entity type name, checked against the `SolutionDescriptor` on resolution.
     pub entity_type_name: &'static str,
+    /// Variable name, checked against the `SolutionDescriptor` on resolution.
     pub variable_name: &'static str,
     pub(super) descriptor_index: Option<usize>,
     pub(super) descriptor_variable_index: Option<usize>,
@@ -137,6 +141,11 @@ impl<S> DynamicListVariableSlot<S> {
         Ok(self)
     }
 
+    /// Resolves this slot's descriptor and variable indexes against `descriptor`.
+    ///
+    /// Fails when the logical entity ID, entity type name, logical variable ID,
+    /// variable name or variable kind do not match the descriptor, or when the
+    /// slot was pre-bound to a different descriptor index.
     pub fn resolve_descriptor_index(
         &mut self,
         descriptor: &SolutionDescriptor,
@@ -165,15 +174,21 @@ impl<S> DynamicListVariableSlot<S> {
         Ok(())
     }
 
+    /// Consuming form of [`resolve_descriptor_index`](Self::resolve_descriptor_index).
     pub fn resolved_against(mut self, descriptor: &SolutionDescriptor) -> Result<Self, String> {
         self.resolve_descriptor_index(descriptor)?;
         Ok(self)
     }
 
+    /// Returns `true` once both the descriptor index and the variable index are resolved.
     pub fn is_descriptor_resolved(&self) -> bool {
         self.descriptor_index.is_some() && self.descriptor_variable_index.is_some()
     }
 
+    /// Index of this slot's entity descriptor in the `SolutionDescriptor`.
+    ///
+    /// # Panics
+    /// Panics if the slot has not been resolved against a `SolutionDescriptor`.
     pub fn descriptor_index(&self) -> usize {
         self.descriptor_index.unwrap_or_else(|| {
             panic!(
@@ -183,6 +198,10 @@ impl<S> DynamicListVariableSlot<S> {
         })
     }
 
+    /// Index of this slot's variable within its entity descriptor.
+    ///
+    /// # Panics
+    /// Panics if the slot has not been resolved against a `SolutionDescriptor`.
     pub fn descriptor_variable_index(&self) -> usize {
         self.descriptor_variable_index.unwrap_or_else(|| {
             panic!(
@@ -192,47 +211,60 @@ impl<S> DynamicListVariableSlot<S> {
         })
     }
 
+    /// Returns `true` when this slot matches a configuration target; `None` for
+    /// either name matches any entity class or variable.
     pub fn matches_target(&self, entity_class: Option<&str>, variable_name: Option<&str>) -> bool {
         entity_class.is_none_or(|entity| entity == self.entity_type_name)
             && variable_name.is_none_or(|variable| variable == self.variable_name)
     }
 
+    /// Number of rows of the bound entity class.
     pub fn entity_count(&self, solution: &S) -> usize {
         self.access.entity_count(solution)
     }
 
+    /// Number of declared elements the list variable distributes.
     pub fn element_count(&self, solution: &S) -> usize {
         self.access.element_count(solution)
     }
 
+    /// Element value at declared source index `element_index`; `None` when the element is missing.
     pub fn element(&self, solution: &S, element_index: usize) -> Option<usize> {
         self.access.element(solution, element_index)
     }
 
+    /// Elements currently placed in any row's list.
     pub fn assigned_elements(&self, solution: &S) -> Vec<usize> {
         self.access.assigned_elements(solution)
     }
 
+    /// Length of one row's list.
     pub fn list_len(&self, solution: &S, row: usize) -> usize {
         self.access.len(solution, row)
     }
 
+    /// Element at `pos` in one row's list; `None` when `pos` is out of range.
     pub fn list_get(&self, solution: &S, row: usize, pos: usize) -> Option<usize> {
         self.access.get(solution, row, pos)
     }
 
+    /// Inserts `value` at `pos` in one row's list.
     pub fn list_insert(&self, solution: &mut S, row: usize, pos: usize, value: usize) {
         self.access.insert(solution, row, pos, value);
     }
 
+    /// Removes and returns the element at `pos` in one row's list; `None` when
+    /// `pos` is out of range.
     pub fn list_remove(&self, solution: &mut S, row: usize, pos: usize) -> Option<usize> {
         self.access.remove(solution, row, pos)
     }
 
+    /// Optional list operations the access binds.
     pub fn access_capabilities(&self) -> DynamicListAccessCapabilities {
         self.access.capabilities()
     }
 
+    /// Overwrites the element at `pos`; returns `false` when the access does not bind `set`.
     pub fn list_set(&self, solution: &mut S, row: usize, pos: usize, value: usize) -> bool {
         self.access.set(solution, row, pos, value)
     }
@@ -244,10 +276,14 @@ impl<S> DynamicListVariableSlot<S> {
         self.access.replace(solution, row, values)
     }
 
+    /// Reverses positions `start..end` of one row's list; returns `false` when
+    /// the access does not bind `reverse`.
     pub fn list_reverse(&self, solution: &mut S, row: usize, start: usize, end: usize) -> bool {
         self.access.reverse(solution, row, start, end)
     }
 
+    /// Removes and returns positions `start..end` of one row's list; `None`
+    /// when the access does not bind sublist operations.
     pub fn sublist_remove(
         &self,
         solution: &mut S,
@@ -258,6 +294,8 @@ impl<S> DynamicListVariableSlot<S> {
         self.access.sublist_remove(solution, row, start, end)
     }
 
+    /// Inserts `values` at `pos` in one row's list; returns `false` when the
+    /// access does not bind sublist operations.
     pub fn sublist_insert(
         &self,
         solution: &mut S,
@@ -276,12 +314,14 @@ impl<S> DynamicListVariableSlot<S> {
         self.metadata.as_deref()
     }
 
+    /// Capabilities of the attached metadata; `None` when no metadata is attached.
     pub fn metadata_capabilities(&self) -> Option<DynamicListMetadataCapabilities> {
         self.metadata
             .as_ref()
             .map(|metadata| metadata.capabilities())
     }
 
+    /// Returns the attached metadata, or an error naming the slot when none is attached.
     pub fn require_metadata(&self) -> Result<&dyn DynamicListMetadata<S>, String> {
         self.metadata().ok_or_else(|| {
             format!(
@@ -296,6 +336,7 @@ impl<S> DynamicListVariableSlot<S>
 where
     S: DynamicModelBackend,
 {
+    /// Creates a slot whose access is the model backend itself, without metadata.
     pub fn new(
         entity: EntityClassId,
         variable: VariableId,

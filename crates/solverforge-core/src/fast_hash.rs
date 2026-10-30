@@ -1,22 +1,27 @@
-/* Deterministic fast hashing for engine-internal index keys.
-
-Index keys are minted by the engine itself (`RowHandle` slots, source
-indexes, descriptor ids, group coordinates); they are never adversarial
-input, so the DoS-resistant seeded default buys nothing on the event
-path and costs a full SipHash round per probe. The default also
-randomises bucket order per process, which an engine advertising a
-reproducible environment mode cannot want.
-
-Integer writes take a multiply-xor round; opaque keys such as `String`
-codes fall back to byte-wise FNV-1a.
-*/
+//! Deterministic fast hashing for engine-internal index keys.
+//!
+//! Index keys are minted by the engine itself (`RowHandle` slots, source
+//! indexes, descriptor ids, group coordinates); they are never adversarial
+//! input, so the DoS-resistant seeded default buys nothing on the event
+//! path and costs a full SipHash round per probe. The default also
+//! randomises bucket order per process, which an engine advertising a
+//! reproducible environment mode cannot want.
+//!
+//! Integer writes take a multiply-xor round; opaque keys such as `String`
+//! codes fall back to byte-wise FNV-1a.
 
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasherDefault, Hasher};
 
+/// A `HashMap` hashed with [`FastHasher`]: deterministic across runs, not DoS-resistant.
 pub type FastMap<K, V> = HashMap<K, V, BuildHasherDefault<FastHasher>>;
+/// A `HashSet` hashed with [`FastHasher`]: deterministic across runs, not DoS-resistant.
 pub type FastSet<T> = HashSet<T, BuildHasherDefault<FastHasher>>;
 
+/// Unseeded hasher for engine-minted keys: a multiply-xor round per integer
+/// write and FNV-1a over byte writes.
+///
+/// It is deterministic across processes and must not hash untrusted input.
 #[derive(Default)]
 pub struct FastHasher(u64);
 

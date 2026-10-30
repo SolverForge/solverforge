@@ -1,11 +1,10 @@
-/* Serde support for `BendableScore`.
-
-serde implements its traits for `[T; N]` only for fixed lengths up to 32, so
-the derive cannot be used on the const-generic level arrays. These impls give
-the same wire shape the derive gives every other score type,
-`{"hard": [...], "soft": [...]}`, and fill the arrays in place: a level list
-whose length is not exactly `H` (or `S`) is rejected with a length error.
-*/
+//! Serde support for `BendableScore`.
+//!
+//! serde implements its traits for `[T; N]` only for fixed lengths up to 32, so
+//! the derive cannot be used on the const-generic level arrays. These impls give
+//! the same wire shape the derive gives every other score type,
+//! `{"hard": [...], "soft": [...]}`, and fill the arrays in place: a level list
+//! whose length is not exactly `H` (or `S`) is rejected with a length error.
 
 use std::fmt;
 use std::marker::PhantomData;

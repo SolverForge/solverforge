@@ -1,4 +1,4 @@
-// Solution descriptor.
+//! Solution descriptor.
 
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -14,17 +14,17 @@ use crate::domain::entity_ref::EntityRef;
 /// - Problem fact types
 /// - Score type
 pub struct SolutionDescriptor {
-    // Name of the solution type.
+    /// Name of the solution type.
     pub type_name: &'static str,
-    // TypeId of the solution type.
+    /// TypeId of the solution type.
     pub type_id: TypeId,
-    // Descriptors for all entity types in this solution.
+    /// Descriptors for all entity types in this solution.
     pub entity_descriptors: Vec<EntityDescriptor>,
-    // Descriptors for all problem fact types.
+    /// Descriptors for all problem fact types.
     pub problem_fact_descriptors: Vec<ProblemFactDescriptor>,
-    // Name of the score field.
+    /// Name of the score field.
     pub score_field: &'static str,
-    // Whether the score type is Option<Score>.
+    /// Whether the score type is `Option<Score>`.
     pub score_is_optional: bool,
     // Index mapping entity TypeId to descriptor index for O(1) lookup.
     entity_type_index: HashMap<TypeId, usize>,
@@ -33,6 +33,7 @@ pub struct SolutionDescriptor {
 }
 
 impl SolutionDescriptor {
+    /// Creates an empty descriptor whose score lives in an optional `score` field.
     pub fn new(type_name: &'static str, type_id: TypeId) -> Self {
         SolutionDescriptor {
             type_name,
@@ -46,6 +47,8 @@ impl SolutionDescriptor {
         }
     }
 
+    /// Appends an entity descriptor and indexes it by `TypeId` (first
+    /// descriptor wins) and by logical ID.
     pub fn with_entity(mut self, descriptor: EntityDescriptor) -> Self {
         let index = self.entity_descriptors.len();
         let type_id = descriptor.type_id;
@@ -58,28 +61,33 @@ impl SolutionDescriptor {
         self
     }
 
+    /// Appends a problem fact descriptor.
     pub fn with_problem_fact(mut self, descriptor: ProblemFactDescriptor) -> Self {
         self.problem_fact_descriptors.push(descriptor);
         self
     }
 
+    /// Sets the name of the score field.
     pub fn with_score_field(mut self, field: &'static str) -> Self {
         self.score_field = field;
         self
     }
 
+    /// Finds an entity descriptor by type name.
     pub fn find_entity_descriptor(&self, type_name: &str) -> Option<&EntityDescriptor> {
         self.entity_descriptors
             .iter()
             .find(|d| d.type_name == type_name)
     }
 
+    /// Finds the first entity descriptor registered for `type_id`.
     pub fn find_entity_descriptor_by_type(&self, type_id: TypeId) -> Option<&EntityDescriptor> {
         self.entity_type_index
             .get(&type_id)
             .and_then(|&idx| self.entity_descriptors.get(idx))
     }
 
+    /// Finds the entity descriptor registered for a logical entity class ID.
     pub fn find_entity_descriptor_by_logical_id(
         &self,
         logical_id: EntityClassId,
@@ -88,6 +96,7 @@ impl SolutionDescriptor {
             .and_then(|idx| self.entity_descriptors.get(idx))
     }
 
+    /// Index of the entity descriptor registered for a logical entity class ID.
     pub fn entity_descriptor_index_by_logical_id(
         &self,
         logical_id: EntityClassId,
@@ -95,6 +104,7 @@ impl SolutionDescriptor {
         self.entity_logical_index.get(&logical_id).copied()
     }
 
+    /// Collects the genuine variables of every entity type, in descriptor order.
     pub fn genuine_variable_descriptors(&self) -> Vec<&VariableDescriptor> {
         self.entity_descriptors
             .iter()
@@ -102,6 +112,7 @@ impl SolutionDescriptor {
             .collect()
     }
 
+    /// Collects the shadow variables of every entity type, in descriptor order.
     pub fn shadow_variable_descriptors(&self) -> Vec<&VariableDescriptor> {
         self.entity_descriptors
             .iter()
@@ -121,6 +132,7 @@ impl SolutionDescriptor {
         Some(total)
     }
 
+    /// References to every entity in `solution`, each paired with its entity descriptor index.
     pub fn all_entity_refs(&self, solution: &dyn Any) -> Vec<(usize, EntityRef)> {
         let mut refs = Vec::new();
         for (desc_idx, desc) in self.entity_descriptors.iter().enumerate() {
@@ -131,6 +143,8 @@ impl SolutionDescriptor {
         refs
     }
 
+    /// Calls `f(descriptor_index, entity_index, entity)` for every entity;
+    /// entity types without an extractor are skipped.
     pub fn for_each_entity<F>(&self, solution: &dyn Any, mut f: F)
     where
         F: FnMut(usize, usize, &dyn Any),
@@ -142,6 +156,8 @@ impl SolutionDescriptor {
         }
     }
 
+    /// Borrows one entity; `None` when either index is out of range, the
+    /// descriptor has no extractor, or the solution type does not match.
     pub fn get_entity<'a>(
         &self,
         solution: &'a dyn Any,
@@ -153,6 +169,8 @@ impl SolutionDescriptor {
             .get_entity(solution, entity_index)
     }
 
+    /// Mutably borrows one entity; `None` when either index is out of range,
+    /// the descriptor has no extractor, or the solution type does not match.
     pub fn get_entity_mut<'a>(
         &self,
         solution: &'a mut dyn Any,
@@ -164,14 +182,17 @@ impl SolutionDescriptor {
             .get_entity_mut(solution, entity_index)
     }
 
+    /// Number of entity descriptors.
     pub fn entity_descriptor_count(&self) -> usize {
         self.entity_descriptors.len()
     }
 
+    /// Number of problem fact descriptors.
     pub fn problem_fact_descriptor_count(&self) -> usize {
         self.problem_fact_descriptors.len()
     }
 
+    /// Returns `true` when every entity descriptor has an extractor.
     pub fn all_extractors_configured(&self) -> bool {
         self.entity_descriptors.iter().all(|d| d.has_extractor())
     }

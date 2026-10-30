@@ -30,12 +30,16 @@ pub use scalar_slot::DynamicScalarVariableSlot;
 /// state. The trait is expressed in logical entity and variable IDs rather
 /// than Rust `TypeId`s.
 pub trait DynamicModelBackend: Clone + Send + Sync + 'static {
+    /// Score type produced for this model.
     type Score: Score;
 
+    /// Number of rows (entities) of class `entity`.
     fn entity_count(&self, entity: EntityClassId) -> usize;
 
+    /// Value of a scalar variable on one row; `None` means unassigned.
     fn get_scalar(&self, entity: EntityClassId, row: usize, variable: VariableId) -> Option<usize>;
 
+    /// Assigns (`Some`) or unassigns (`None`) a scalar variable on one row.
     fn set_scalar(
         &mut self,
         entity: EntityClassId,
@@ -44,8 +48,10 @@ pub trait DynamicModelBackend: Clone + Send + Sync + 'static {
         value: Option<usize>,
     );
 
+    /// Length of a list variable on one row.
     fn list_len(&self, entity: EntityClassId, row: usize, variable: VariableId) -> usize;
 
+    /// Element at `pos` in a row's list; `None` when `pos` is out of range.
     fn list_get(
         &self,
         entity: EntityClassId,
@@ -54,6 +60,7 @@ pub trait DynamicModelBackend: Clone + Send + Sync + 'static {
         pos: usize,
     ) -> Option<usize>;
 
+    /// Inserts `value` at `pos` in a row's list.
     fn list_insert(
         &mut self,
         entity: EntityClassId,
@@ -63,6 +70,7 @@ pub trait DynamicModelBackend: Clone + Send + Sync + 'static {
         value: usize,
     );
 
+    /// Removes and returns the element at `pos` in a row's list; `None` when `pos` is out of range.
     fn list_remove(
         &mut self,
         entity: EntityClassId,
@@ -71,9 +79,11 @@ pub trait DynamicModelBackend: Clone + Send + Sync + 'static {
         pos: usize,
     ) -> Option<usize>;
 
+    /// Candidate values for a scalar variable on one row.
     fn candidate_values(&self, entity: EntityClassId, row: usize, variable: VariableId)
         -> &[usize];
 
+    /// Returns `true` when `value` is a legal assignment for a scalar variable on one row.
     fn scalar_value_is_legal(
         &self,
         entity: EntityClassId,
@@ -82,10 +92,13 @@ pub trait DynamicModelBackend: Clone + Send + Sync + 'static {
         value: usize,
     ) -> bool;
 
+    /// Number of declared elements a list variable distributes; defaults to `0`.
     fn list_element_count(&self, _entity: EntityClassId, _variable: VariableId) -> usize {
         0
     }
 
+    /// Element value at declared source index `element_index`; `None` when the
+    /// element is missing. Defaults to the index itself.
     fn list_element(
         &self,
         _entity: EntityClassId,
@@ -95,6 +108,7 @@ pub trait DynamicModelBackend: Clone + Send + Sync + 'static {
         Some(element_index)
     }
 
+    /// Elements currently placed in any row's list; defaults to none.
     fn list_assigned_elements(&self, _entity: EntityClassId, _variable: VariableId) -> Vec<usize> {
         Vec::new()
     }
@@ -102,12 +116,19 @@ pub trait DynamicModelBackend: Clone + Send + Sync + 'static {
 
 /// Object-safe dynamic scalar variable access.
 pub trait DynamicScalarAccess<S>: Send + Sync {
+    /// Entity class this access is bound to.
     fn entity_class(&self) -> EntityClassId;
+    /// Variable this access is bound to.
     fn variable(&self) -> VariableId;
+    /// Number of rows of the bound entity class.
     fn entity_count(&self, solution: &S) -> usize;
+    /// Value on one row; `None` means unassigned.
     fn get(&self, solution: &S, row: usize) -> Option<usize>;
+    /// Assigns (`Some`) or unassigns (`None`) the value on one row.
     fn set(&self, solution: &mut S, row: usize, value: Option<usize>);
+    /// Candidate values for one row.
     fn candidate_values<'a>(&self, solution: &'a S, row: usize) -> &'a [usize];
+    /// Returns `true` when `value` is a legal assignment for one row.
     fn value_is_legal(&self, solution: &S, row: usize, value: usize) -> bool;
 
     /// Whether this slot structurally supplies an ordered nearby-value source.
@@ -184,28 +205,49 @@ pub trait DynamicScalarAccess<S>: Send + Sync {
 /// sublist, permute, swap, ruin, or route phase.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DynamicListAccessCapabilities {
+    /// [`DynamicListAccess::set`] is bound.
     pub set: bool,
+    /// [`DynamicListAccess::replace`] is bound.
     pub replace: bool,
+    /// [`DynamicListAccess::reverse`] is bound.
     pub reverse: bool,
+    /// [`DynamicListAccess::sublist_remove`] and [`DynamicListAccess::sublist_insert`] are bound.
     pub sublist: bool,
 }
 
+/// Object-safe dynamic list variable access.
+///
+/// Optional operations return `false`/`None` when they are not bound; check
+/// [`capabilities`](Self::capabilities) before relying on them.
 pub trait DynamicListAccess<S>: Send + Sync {
+    /// Entity class this access is bound to.
     fn entity_class(&self) -> EntityClassId;
+    /// Variable this access is bound to.
     fn variable(&self) -> VariableId;
+    /// Number of rows of the bound entity class.
     fn entity_count(&self, solution: &S) -> usize;
+    /// Number of declared elements the list variable distributes.
     fn element_count(&self, solution: &S) -> usize;
+    /// Element value at declared source index `element_index`; `None` when the element is missing.
     fn element(&self, solution: &S, element_index: usize) -> Option<usize>;
+    /// Elements currently placed in any row's list.
     fn assigned_elements(&self, solution: &S) -> Vec<usize>;
+    /// Length of one row's list.
     fn len(&self, solution: &S, row: usize) -> usize;
+    /// Element at `pos` in one row's list; `None` when `pos` is out of range.
     fn get(&self, solution: &S, row: usize, pos: usize) -> Option<usize>;
+    /// Inserts `value` at `pos` in one row's list.
     fn insert(&self, solution: &mut S, row: usize, pos: usize, value: usize);
+    /// Removes and returns the element at `pos` in one row's list; `None` when
+    /// `pos` is out of range.
     fn remove(&self, solution: &mut S, row: usize, pos: usize) -> Option<usize>;
 
+    /// Optional operations this access binds; defaults to none.
     fn capabilities(&self) -> DynamicListAccessCapabilities {
         DynamicListAccessCapabilities::default()
     }
 
+    /// Overwrites the element at `pos`; returns `false` when the operation is not bound.
     fn set(&self, _solution: &mut S, _row: usize, _pos: usize, _value: usize) -> bool {
         false
     }
@@ -215,10 +257,14 @@ pub trait DynamicListAccess<S>: Send + Sync {
         false
     }
 
+    /// Reverses positions `start..end` of one row's list; returns `false` when
+    /// the operation is not bound.
     fn reverse(&self, _solution: &mut S, _row: usize, _start: usize, _end: usize) -> bool {
         false
     }
 
+    /// Removes and returns positions `start..end` of one row's list; `None`
+    /// when the operation is not bound.
     fn sublist_remove(
         &self,
         _solution: &mut S,
@@ -229,6 +275,8 @@ pub trait DynamicListAccess<S>: Send + Sync {
         None
     }
 
+    /// Inserts `values` at `pos` in one row's list; returns `false` when the
+    /// operation is not bound.
     fn sublist_insert(
         &self,
         _solution: &mut S,
@@ -250,7 +298,9 @@ pub trait DynamicListAccess<S>: Send + Sync {
 /// individual element may still return `None` to mean unrestricted.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DynamicListMetadataCapabilities {
+    /// [`DynamicListMetadata::element_owner`] is available.
     pub element_owner: bool,
+    /// [`DynamicListMetadata::construction_order_key`] is available.
     pub construction_order_key: bool,
     /// Duration metadata. Full precedence-aware construction requires this
     /// together with `precedence_successors`; successor-only metadata remains
@@ -260,9 +310,14 @@ pub struct DynamicListMetadataCapabilities {
     /// duration so dynamic bindings preserve the same successor-only policy
     /// as native list slots.
     pub precedence_successors: bool,
+    /// [`DynamicListMetadata::cross_position_distance`] is available.
     pub cross_position_distance: bool,
+    /// [`DynamicListMetadata::intra_position_distance`] is available.
     pub intra_position_distance: bool,
+    /// The route bundle (`route_depot`, `route_distance`, `route_feasible`) is available.
     pub route: bool,
+    /// The savings bundle (`savings_depot`, `savings_metric_class`,
+    /// `savings_distance`, `savings_feasible`) is available.
     pub savings: bool,
 }
 
@@ -276,8 +331,11 @@ pub struct DynamicListMetadataCapabilities {
 /// an implementation must not synthesize depot, metric, distance, feasibility,
 /// precedence, or ownership defaults.
 pub trait DynamicListMetadata<S>: Send + Sync {
+    /// Entity class this metadata is bound to.
     fn entity_class(&self) -> EntityClassId;
+    /// Variable this metadata is bound to.
     fn variable(&self) -> VariableId;
+    /// Metadata this implementation declares.
     fn capabilities(&self) -> DynamicListMetadataCapabilities;
 
     /// Fixed owner for one element when owner restriction is declared.
@@ -335,12 +393,19 @@ pub trait DynamicListMetadata<S>: Send + Sync {
     /// phase must require both that base access and this complete metadata
     /// bundle: depot, distance, and feasibility.
     fn route_depot(&self, solution: &S, entity: usize) -> Option<usize>;
+    /// Distance from element `from` to element `to` on one route; `None` when unavailable.
     fn route_distance(&self, solution: &S, entity: usize, from: usize, to: usize) -> Option<i64>;
+    /// Whether a complete candidate route is feasible for one entity; `None` when unavailable.
     fn route_feasible(&self, solution: &S, entity: usize, route: &[usize]) -> Option<bool>;
 
     /// Savings-specific bundle used only by Clarke-Wright construction.
     fn savings_depot(&self, solution: &S, entity: usize) -> Option<usize>;
+    /// Savings metric class of one owner; owners in the same class must share
+    /// depot and distance behavior.
     fn savings_metric_class(&self, solution: &S, entity: usize) -> Option<usize>;
+    /// Distance from element `from` to element `to` used for savings; `None` when unavailable.
     fn savings_distance(&self, solution: &S, entity: usize, from: usize, to: usize) -> Option<i64>;
+    /// Whether a merged candidate route is feasible for savings construction;
+    /// `None` when unavailable.
     fn savings_feasible(&self, solution: &S, entity: usize, route: &[usize]) -> Option<bool>;
 }

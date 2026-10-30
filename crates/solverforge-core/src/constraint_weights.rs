@@ -1,54 +1,51 @@
-/* Runtime per-constraint weight multipliers.
-
-`ConstraintWeights` lives on a planning solution (through the
-`#[constraint_weights]` field attribute) and scales each named constraint's
-coded contribution by a non-negative integer multiplier.
-*/
+//! Runtime per-constraint weight multipliers.
+//!
+//! `ConstraintWeights` lives on a planning solution (through the
+//! `#[constraint_weights]` field attribute) and scales each named constraint's
+//! coded contribution by a non-negative integer multiplier.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::constraint::ConstraintRef;
 
-/* Largest accepted constraint weight multiplier.
-
-Multipliers scale exact `i64` score levels. Capping them at one million keeps
-a coded per-match contribution of up to about 9.2e12 per level (for example
-92 million hard units of a `HardSoftDecimalScore`, which stores five decimal
-places) representable after scaling, while still letting UIs ship baseline
-multipliers such as `{"Travel time": 10}` with generous slider ranges.
-Score scaling itself stays strict and panics on any remaining overflow.
-*/
+/// Largest accepted constraint weight multiplier.
+///
+/// Multipliers scale exact `i64` score levels. Capping them at one million keeps
+/// a coded per-match contribution of up to about 9.2e12 per level (for example
+/// 92 million hard units of a `HardSoftDecimalScore`, which stores five decimal
+/// places) representable after scaling, while still letting UIs ship baseline
+/// multipliers such as `{"Travel time": 10}` with generous slider ranges.
+/// Score scaling itself stays strict and panics on any remaining overflow.
 pub const MAX_CONSTRAINT_WEIGHT_MULTIPLIER: u32 = 1_000_000;
 
-/* Per-constraint multipliers keyed by `ConstraintRef::full_name()`.
-
-A constraint that is not listed keeps multiplier `1`, its coded behavior.
-Multiplier `0` disables the constraint and `n` scales its contribution `n`
-times. An override applies to every terminal carrying that constraint name.
-
-# Example
-
-```
-use solverforge_core::{ConstraintRef, ConstraintWeights};
-
-let mut weights = ConstraintWeights::new();
-weights.set("Travel time", 10).set("Overtime", 0);
-
-assert_eq!(weights.get("Travel time"), Some(10));
-assert_eq!(weights.multiplier_for(&ConstraintRef::new("", "Overtime")), 0);
-assert_eq!(weights.multiplier_for(&ConstraintRef::new("", "Unlisted")), 1);
-
-let known = [
-    ConstraintRef::new("", "Travel time"),
-    ConstraintRef::new("", "Overtime"),
-];
-assert!(weights.validate(&known).is_ok());
-
-weights.set("Travle time", 2);
-let error = weights.validate(&known).unwrap_err();
-assert!(error.to_string().contains("did you mean \"Travel time\""));
-```
-*/
+/// Per-constraint multipliers keyed by `ConstraintRef::full_name()`.
+///
+/// A constraint that is not listed keeps multiplier `1`, its coded behavior.
+/// Multiplier `0` disables the constraint and `n` scales its contribution `n`
+/// times. An override applies to every terminal carrying that constraint name.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_core::{ConstraintRef, ConstraintWeights};
+///
+/// let mut weights = ConstraintWeights::new();
+/// weights.set("Travel time", 10).set("Overtime", 0);
+///
+/// assert_eq!(weights.get("Travel time"), Some(10));
+/// assert_eq!(weights.multiplier_for(&ConstraintRef::new("", "Overtime")), 0);
+/// assert_eq!(weights.multiplier_for(&ConstraintRef::new("", "Unlisted")), 1);
+///
+/// let known = [
+///     ConstraintRef::new("", "Travel time"),
+///     ConstraintRef::new("", "Overtime"),
+/// ];
+/// assert!(weights.validate(&known).is_ok());
+///
+/// weights.set("Travle time", 2);
+/// let error = weights.validate(&known).unwrap_err();
+/// assert!(error.to_string().contains("did you mean \"Travel time\""));
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(
     feature = "serde",
@@ -60,24 +57,31 @@ pub struct ConstraintWeights {
 }
 
 impl ConstraintWeights {
+    /// Creates an empty set of weights, under which every constraint keeps multiplier `1`.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets the multiplier for the constraint whose full name is `constraint`,
+    /// replacing any previous value.
+    ///
+    /// The multiplier is only range-checked by [`validate`](Self::validate).
     pub fn set(&mut self, constraint: impl Into<String>, multiplier: u32) -> &mut Self {
         self.multipliers.insert(constraint.into(), multiplier);
         self
     }
 
+    /// Removes the override for `constraint`, returning its previous multiplier.
     pub fn remove(&mut self, constraint: &str) -> Option<u32> {
         self.multipliers.remove(constraint)
     }
 
+    /// Returns the explicit multiplier for `constraint`, or `None` when it is not listed.
     pub fn get(&self, constraint: &str) -> Option<u32> {
         self.multipliers.get(constraint).copied()
     }
 
-    // Returns the multiplier for `constraint`, `1` when it is not listed.
+    /// Returns the multiplier for `constraint`, `1` when it is not listed.
     pub fn multiplier_for(&self, constraint: &ConstraintRef) -> u32 {
         if self.multipliers.is_empty() {
             return 1;
@@ -85,25 +89,27 @@ impl ConstraintWeights {
         self.get(&constraint.full_name()).unwrap_or(1)
     }
 
+    /// Returns `true` when no constraint has an override.
     pub fn is_empty(&self) -> bool {
         self.multipliers.is_empty()
     }
 
+    /// Returns the number of constraints with an override.
     pub fn len(&self) -> usize {
         self.multipliers.len()
     }
 
+    /// Iterates over `(constraint full name, multiplier)` pairs in name order.
     pub fn iter(&self) -> impl Iterator<Item = (&str, u32)> {
         self.multipliers
             .iter()
             .map(|(name, multiplier)| (name.as_str(), *multiplier))
     }
 
-    /* Checks every listed name against the known constraints and every
-    multiplier against `MAX_CONSTRAINT_WEIGHT_MULTIPLIER`.
-
-    Names are checked in sorted order, so the reported error is deterministic.
-    */
+    /// Checks every listed name against the known constraints and every
+    /// multiplier against `MAX_CONSTRAINT_WEIGHT_MULTIPLIER`.
+    ///
+    /// Names are checked in sorted order, so the reported error is deterministic.
     pub fn validate<'a>(
         &self,
         known: impl IntoIterator<Item = &'a ConstraintRef>,
@@ -129,23 +135,31 @@ impl ConstraintWeights {
     }
 }
 
-// Error reported when constraint weights do not fit the model's constraints.
+/// Error reported when constraint weights do not fit the model's constraints.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ConstraintWeightError {
+    /// A listed name matches no constraint in the model.
     #[error(
         "constraint weight names unknown constraint \"{name}\"{}; known constraints: {}",
         suggestion_text(suggestions),
         known_text(known)
     )]
     UnknownConstraint {
+        /// The unknown constraint name.
         name: String,
+        /// Known names within a small edit distance of `name`, for a "did you mean" hint.
         suggestions: Vec<String>,
+        /// Full names of every constraint in the model, sorted.
         known: Vec<String>,
     },
+    /// A multiplier exceeds [`MAX_CONSTRAINT_WEIGHT_MULTIPLIER`].
     #[error("constraint weight multiplier {multiplier} for \"{name}\" exceeds the maximum {max}")]
     MultiplierTooLarge {
+        /// The constraint whose multiplier is too large.
         name: String,
+        /// The rejected multiplier.
         multiplier: u32,
+        /// The largest accepted multiplier.
         max: u32,
     },
 }

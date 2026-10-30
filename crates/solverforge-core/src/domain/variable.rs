@@ -1,48 +1,48 @@
-// Variable type definitions
+//! Variable type definitions
 
-// The type of a planning variable.
+/// The type of a planning variable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VariableType {
-    // A genuine planning variable that the solver optimizes.
+    /// A genuine planning variable that the solver optimizes.
     Genuine,
-    // A list variable containing multiple values.
+    /// A list variable containing multiple values.
     List,
-    // A shadow variable computed from other variables.
+    /// A shadow variable computed from other variables.
     Shadow(ShadowVariableKind),
 }
 
-// The kind of shadow variable.
+/// The kind of shadow variable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ShadowVariableKind {
-    // Custom shadow variable with user-defined listener.
+    /// Custom shadow variable with user-defined listener.
     Custom,
-    // Inverse of another variable (bidirectional relationship).
+    /// Inverse of another variable (bidirectional relationship).
     InverseRelation,
-    // Index within a list variable.
+    /// Index within a list variable.
     Index,
-    // Next element in a list variable.
+    /// Next element in a list variable.
     NextElement,
-    // Previous element in a list variable.
+    /// Previous element in a list variable.
     PreviousElement,
-    // Cascading update from other shadow variables.
+    /// Cascading update from other shadow variables.
     Cascading,
-    // Piggyback on another shadow variable's listener.
+    /// Piggyback on another shadow variable's listener.
     Piggyback,
 }
 
-// The type of value range for a planning variable.
+/// The type of value range for a planning variable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValueRangeType {
-    // A collection of discrete values.
+    /// A collection of discrete values.
     Collection,
-    // A countable range (e.g., integers from 1 to 100).
+    /// A countable range (e.g., integers from 1 to 100).
     CountableRange {
-        // Inclusive start of the range.
+        /// Inclusive start of the range.
         from: i64,
-        // Exclusive end of the range.
+        /// Exclusive end of the range.
         to: i64,
     },
-    // An entity-dependent value range.
+    /// An entity-dependent value range.
     EntityDependent,
 }
 
@@ -54,20 +54,24 @@ impl VariableType {
         matches!(self, VariableType::Genuine | VariableType::List)
     }
 
+    /// Returns `true` for shadow variables.
     pub fn is_shadow(&self) -> bool {
         matches!(self, VariableType::Shadow(_))
     }
 
+    /// Returns `true` for list variables.
     pub fn is_list(&self) -> bool {
         matches!(self, VariableType::List)
     }
 
+    /// Returns `true` for genuine scalar variables.
     pub fn is_basic(&self) -> bool {
         matches!(self, VariableType::Genuine)
     }
 }
 
 impl ShadowVariableKind {
+    /// Returns `true` for kinds updated by a listener (`Custom` and `Cascading`).
     pub fn requires_listener(&self) -> bool {
         matches!(
             self,
@@ -75,6 +79,8 @@ impl ShadowVariableKind {
         )
     }
 
+    /// Returns `true` for kinds the solver maintains itself (`InverseRelation`,
+    /// `Index`, `NextElement`, `PreviousElement`).
     pub fn is_automatic(&self) -> bool {
         matches!(
             self,

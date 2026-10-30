@@ -1,16 +1,15 @@
-/* Key-indexed membership state for count-backed existence relations.
-
-An existence event touches O(children) right-side keys: each key's count
-must move, and every left row carrying one of those keys must land on the
-key's current membership. One compact touched list per event drives the
-membership pass, so a key removed and re-added inside one event simply ends
-on its final count — no born/died sets, no direction tracking.
-
-The dense shape stores counts and buckets indexed directly by `usize` keys
-(planning ids), where hashing costs more than the index. Dispatch happens
-once at construction; the event path calls one enum method per key and
-nothing else branches.
-*/
+//! Key-indexed membership state for count-backed existence relations.
+//!
+//! An existence event touches O(children) right-side keys: each key's count
+//! must move, and every left row carrying one of those keys must land on the
+//! key's current membership. One compact touched list per event drives the
+//! membership pass, so a key removed and re-added inside one event simply ends
+//! on its final count — no born/died sets, no direction tracking.
+//!
+//! The dense shape stores counts and buckets indexed directly by `usize` keys
+//! (planning ids), where hashing costs more than the index. Dispatch happens
+//! once at construction; the event path calls one enum method per key and
+//! nothing else branches.
 
 use super::{FastMap, RowHandle};
 
@@ -229,9 +228,9 @@ impl DenseKeys {
             self.left_buckets.resize_with(raw + 1, Vec::new);
         }
     }
-    /* add/take are per-key-per-event hot calls: in-Touched check inlined
-    (no separate `touch` frame), and the grow branch is the cheap len compare
-    — `grow` itself only runs during warmup, never again. */
+    /// add/take are per-key-per-event hot calls: in-Touched check inlined
+    /// (no separate `touch` frame), and the grow branch is the cheap len compare
+    /// — `grow` itself only runs during warmup, never again.
     #[inline]
     pub(crate) fn add(&mut self, raw: usize, n: usize) -> usize {
         if self.counts.len() <= raw {

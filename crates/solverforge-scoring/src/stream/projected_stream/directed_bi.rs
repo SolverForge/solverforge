@@ -8,6 +8,9 @@ use crate::stream::weighting_support::ConstraintWeight;
 
 use super::source::Source;
 
+/// Directed self-join over projected rows, pairing `left` with `right` when
+/// `KL(left) == KR(right)`; produced by
+/// [`Stream::join`](crate::stream::projected::Stream::join) with `equal_bi(..)`.
 pub struct DirectedBi<S, Out, K, Src, F, KL, KR, PF, Sc>
 where
     Sc: Score,
@@ -32,6 +35,7 @@ where
     PF: BiFilter<S, Out, Out>,
     Sc: Score + 'static,
 {
+    /// Keeps only pairs for which `predicate` returns `true`, after the existing filter.
     pub fn filter<P>(
         self,
         predicate: P,
@@ -88,6 +92,11 @@ where
         }
     }
 
+    /// Penalizes each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&Out, &Out)` pair returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -103,6 +112,11 @@ where
         )
     }
 
+    /// Rewards each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&Out, &Out)` pair returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -119,6 +133,8 @@ where
     }
 }
 
+/// Builder holding a weighted projected directed self-join constraint until
+/// [`named`](Self::named) finalizes it.
 pub struct DirectedBiBuilder<S, Out, K, Src, F, KL, KR, PF, W, Sc>
 where
     Sc: Score,
@@ -147,6 +163,7 @@ where
     W: Fn(&Out, &Out) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds the projected `DirectedBi` constraint.
     pub fn named(
         self,
         name: &str,

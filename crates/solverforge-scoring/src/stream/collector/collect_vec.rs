@@ -2,6 +2,10 @@ use std::marker::PhantomData;
 
 use super::{Accumulator, Collector};
 
+/// Values collected by [`collect_vec`] for one group.
+///
+/// Iteration follows the accumulator's current insertion order, which is not a
+/// semantic guarantee: sort before scoring if order matters.
 #[derive(Debug)]
 pub struct CollectedVec<T> {
     slots: Vec<Option<T>>,
@@ -18,6 +22,7 @@ impl<T> CollectedVec<T> {
         }
     }
 
+    /// Iterates the collected values.
     pub fn iter(&self) -> CollectedVecIter<'_, T> {
         CollectedVecIter {
             values: self,
@@ -25,16 +30,19 @@ impl<T> CollectedVec<T> {
         }
     }
 
+    /// Returns the number of collected values.
     #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
+    /// Returns `true` when no values are collected.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
+    /// Clones the collected values into a `Vec`, in iteration order.
     pub fn to_vec(&self) -> Vec<T>
     where
         T: Clone,
@@ -111,6 +119,7 @@ where
     }
 }
 
+/// Collector created by [`collect_vec`].
 pub struct CollectVecCollector<T, F> {
     mapper: F,
     _phantom: PhantomData<fn() -> T>,
@@ -138,6 +147,8 @@ where
     }
 }
 
+/// Accumulator of [`CollectVecCollector`]; its retraction token is the value's
+/// slot.
 pub struct CollectVecAccumulator<T> {
     values: CollectedVec<T>,
 }

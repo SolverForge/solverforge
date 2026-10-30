@@ -1,12 +1,11 @@
-/* Generic terminal path for the fluent cross-bi stream.
-
-A `Bi` finalizes onto the same `OperatorTerminal` used by the canonical
-tri chain: the first relationship is the stream's own unary key pair,
-adapted onto borrowed `Leaf` views by `BiUnaryPlan`, and the authored
-`BiFilter` runs inside the scored operator so evaluate, match_count,
-initialize, and mutations honor it exactly once. No shared-key retention
-engine is involved.
-*/
+//! Generic terminal path for the fluent cross-bi stream.
+//!
+//! A `Bi` finalizes onto the same `OperatorTerminal` used by the canonical
+//! tri chain: the first relationship is the stream's own unary key pair,
+//! adapted onto borrowed `Leaf` views by `BiUnaryPlan`, and the authored
+//! `BiFilter` runs inside the scored operator so evaluate, match_count,
+//! initialize, and mutations honor it exactly once. No shared-key retention
+//! engine is involved.
 
 use std::borrow::Cow;
 use std::hash::Hash;
@@ -20,13 +19,12 @@ use super::super::relational::index::HashIndex;
 use super::super::relational::operator::{CollectionNode, JoinNode, Operator, Pair};
 use super::super::relational::{HandleMap, Leaf, RowHandle};
 
-/* The predicate first-join plan: an explicit opposite-input scan.
-
-Non-indexable by construction, so it never fabricates a constant equality
-key. It executes the raw entity predicate on the borrowed `Leaf` views the
-join operator probes with, and names the plan type so the fluent stream can
-avoid `impl Trait` in associated-type position.
-*/
+/// The predicate first-join plan: an explicit opposite-input scan.
+///
+/// Non-indexable by construction, so it never fabricates a constant equality
+/// key. It executes the raw entity predicate on the borrowed `Leaf` views the
+/// join operator probes with, and names the plan type so the fluent stream can
+/// avoid `impl Trait` in associated-type position.
 pub struct BiPredicatePlan<P> {
     predicate: P,
 }
@@ -47,8 +45,8 @@ impl<P> CompileCondition for BiPredicatePlan<P> {
 
 impl<P> IndexedPlan for BiPredicatePlan<P> {
     type Kind = super::super::joiner::plan::ResidualKind;
-    // The scan side keeps its handles in one contiguous list so candidate
-    // probing borrows them directly instead of rebuilding a Vec per left row.
+    /// The scan side keeps its handles in one contiguous list so candidate
+    /// probing borrows them directly instead of rebuilding a Vec per left row.
     type Indexes = (Vec<RowHandle>, Vec<RowHandle>);
     fn new_indexes(&self) -> Self::Indexes {
         (Vec::new(), Vec::new())
@@ -88,12 +86,11 @@ where
     }
 }
 
-/* The first-join plan as compiled from a Bi stream's unary key pair.
-
-Keys take entities, not rows; the adapter lifts them onto the borrowed
-`Leaf` views the join operator probes with. Both closure types stay
-concrete and monomorphized.
-*/
+/// The first-join plan as compiled from a Bi stream's unary key pair.
+///
+/// Keys take entities, not rows; the adapter lifts them onto the borrowed
+/// `Leaf` views the join operator probes with. Both closure types stay
+/// concrete and monomorphized.
 pub struct BiUnaryPlan<K, KA, KB> {
     key_a: KA,
     key_b: KB,
@@ -110,9 +107,9 @@ impl<K, KA, KB> BiUnaryPlan<K, KA, KB> {
         }
     }
 
-    /* Borrows the unary key pair for stream methods that need the raw keys
-    (grouping, projection, flattening). The join/finalize paths use the plan
-    itself, never these accessors. */
+    /// Borrows the unary key pair for stream methods that need the raw keys
+    /// (grouping, projection, flattening). The join/finalize paths use the plan
+    /// itself, never these accessors.
     #[doc(hidden)]
     pub fn into_keys(self) -> (KA, KB) {
         (self.key_a, self.key_b)
@@ -181,7 +178,7 @@ where
     }
 }
 
-/* Borrowed (A, B) entity pair off a bi row view. */
+/// Borrowed (A, B) entity pair off a bi row view.
 pub(super) trait BiEntities<'a, A, B> {
     fn entities(&self) -> (&'a A, &'a B);
     fn indexes(&self) -> (usize, usize);
@@ -198,12 +195,11 @@ impl<'a, A, B> BiEntities<'a, A, B> for Pair<Leaf<'a, A>, Leaf<'a, B>> {
     }
 }
 
-/* Scored bi operator: the join tree plus the authored filter as one row producer.
-
-The terminal's weight closure receives filtered rows only. Filters never run
-twice: stateless evaluation applies them here, and retained mutations publish
-post-filter deltas through the same predicate.
-*/
+/// Scored bi operator: the join tree plus the authored filter as one row producer.
+///
+/// The terminal's weight closure receives filtered rows only. Filters never run
+/// twice: stateless evaluation applies them here, and retained mutations publish
+/// post-filter deltas through the same predicate.
 pub struct BiScored<S, A, B, EA, EB, P, F>
 where
     P: IndexedPlan,

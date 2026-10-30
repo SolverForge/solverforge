@@ -17,6 +17,15 @@ use crate::api::{
 use crate::stream::relational::operator::Operator;
 use crate::stream::relational::RowHandle;
 
+/// Scoring terminal that owns one operator tree and scores it for several named
+/// constraints.
+///
+/// `#[solverforge_constraints]` appends terminals to one grouped node through
+/// [`penalize`](Self::penalize)/[`reward`](Self::reward) and
+/// [`SharedOperatorBuilder::named`]. Every entity notification advances the
+/// operator once, then each scorer in `Scorers` re-scores the changed rows, so
+/// terminals share accumulator state but keep their own identity, weight and
+/// weight slot. `A` adapts each terminal's weight to the operator's rows.
 pub struct SharedOperatorTerminal<S, O, A, Scorers, Sc> {
     operator: O,
     adapter: A,
@@ -29,6 +38,10 @@ pub struct SharedOperatorTerminal<S, O, A, Scorers, Sc> {
     marker: PhantomData<fn() -> (S, Sc)>,
 }
 
+/// Builder holding a terminal's impact and weight until it is named.
+///
+/// `Scorers` is `()` for the first terminal; [`first_named`](Self::first_named)
+/// finalizes it, [`named`](Self::named) appends to an existing chain.
 pub struct SharedOperatorBuilder<S, O, A, Scorers, W, Sc> {
     terminal: SharedOperatorTerminal<S, O, A, Scorers, Sc>,
     impact: ImpactType,
@@ -37,6 +50,8 @@ pub struct SharedOperatorBuilder<S, O, A, Scorers, W, Sc> {
 }
 
 impl<S, O, A, W, Sc> SharedOperatorBuilder<S, O, A, (), W, Sc> {
+    /// Starts the first terminal over `operator`. Hardness comes from
+    /// `adapter.is_hard(&weight)`.
     pub fn first(operator: O, adapter: A, impact: ImpactType, weight: W) -> Self {
         Self {
             terminal: SharedOperatorTerminal {
@@ -56,11 +71,14 @@ impl<S, O, A, W, Sc> SharedOperatorBuilder<S, O, A, (), W, Sc> {
         }
     }
 
+    /// Sets the function that lists the entities behind a row, used by
+    /// `get_matches`. Without it, `get_matches` returns no matches.
     pub fn with_explainer(mut self, explain: fn(&O, &S, RowHandle, &mut Vec<EntityRef>)) -> Self {
         self.terminal.explain = Some(explain);
         self
     }
 
+    /// Like [`first`](Self::first), with explicit hardness.
     pub fn first_with_hard(
         operator: O,
         adapter: A,
@@ -81,6 +99,7 @@ where
     A: AdaptWeight<S, O, W, Sc>,
     Sc: Score,
 {
+    /// Names the first terminal, producing a one-scorer terminal.
     pub fn first_named(
         self,
         name: &str,
@@ -114,6 +133,7 @@ where
     O: Operator<S> + Send + Sync,
     Sc: Score,
 {
+    /// Starts another penalizing terminal over the same operator.
     pub fn penalize<W>(self, weight: W) -> SharedOperatorBuilder<S, O, A, Scorers, W, Sc> {
         SharedOperatorBuilder {
             terminal: self,
@@ -122,6 +142,7 @@ where
             hard: None,
         }
     }
+    /// Starts another rewarding terminal over the same operator.
     pub fn reward<W>(self, weight: W) -> SharedOperatorBuilder<S, O, A, Scorers, W, Sc> {
         SharedOperatorBuilder {
             terminal: self,
@@ -131,12 +152,15 @@ where
         }
     }
 
+    /// Sums every scorer over the operator's current rows, without retained state.
     pub fn evaluate(&self, solution: &S) -> Sc
     where
         Scorers: OperatorScorerSet<S, O, Sc>,
     {
         self.scorers.evaluate(&self.operator, solution)
     }
+    /// Initializes the operator from `solution` and returns the summed score of
+    /// every scorer.
     pub fn initialize(&mut self, solution: &S) -> Sc
     where
         Scorers: OperatorScorerSet<S, O, Sc>,
@@ -144,26 +168,39 @@ where
         self.operator.initialize(solution);
         self.scorers.initialize(&self.operator, solution)
     }
+    /// Retracts an entity from the operator and returns the summed score delta.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the delta overflows.
     pub fn on_retract(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc
     where
         Scorers: OperatorScorerSet<S, O, Sc>,
     {
         checked(self.update(solution, index, descriptor, false))
     }
+    /// Inserts an entity into the operator and returns the summed score delta.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the delta overflows.
     pub fn on_insert(&mut self, solution: &S, index: usize, descriptor: usize) -> Sc
     where
         Scorers: OperatorScorerSet<S, O, Sc>,
     {
         checked(self.update(solution, index, descriptor, true))
     }
+    /// Number of notifications that changed at least one operator row.
     pub fn update_count(&self) -> usize {
         self.update_count
     }
+    /// Count of row-changing notifications; currently incremented together with
+    /// [`update_count`](Self::update_count).
     pub fn changed_key_count(&self) -> usize {
         self.changed_key_count
     }
 
-    // Unchecked delta with its overflow flag; see `ScoreSum`.
+    /// Unchecked delta with its overflow flag; see `ScoreSum`.
     fn update(&mut self, solution: &S, index: usize, descriptor: usize, insert: bool) -> (Sc, bool)
     where
         Scorers: OperatorScorerSet<S, O, Sc>,
@@ -194,7 +231,7 @@ where
         )
     }
 
-    // Feeds one entity change through the shared operator, collecting changed rows.
+    /// Feeds one entity change through the shared operator, collecting changed rows.
     #[inline(always)]
     fn advance_operator(&mut self, solution: &S, index: usize, descriptor: usize, insert: bool) {
         self.removed.clear();
@@ -231,6 +268,7 @@ where
     Scorers: OperatorScorerSet<S, O, Sc>,
     Sc: Score,
 {
+    /// Names this terminal and appends it to the scorer chain.
     pub fn named(
         self,
         name: &str,

@@ -1,34 +1,32 @@
-// Count collector for counting stream matches.
+//! Count collector for counting stream matches.
 
 use super::{Accumulator, Collector};
 
-/* Creates a collector that counts stream matches.
-
-# Example
-
-```
-use solverforge_scoring::stream::collector::{count, Accumulator, Collector};
-
-let collector = count();
-let mut acc = collector.create_accumulator();
-
-acc.accumulate(collector.extract(&1));
-let second = acc.accumulate(collector.extract(&2));
-acc.accumulate(collector.extract(&3));
-assert_eq!(acc.get(), 3);
-
-acc.retract(second);
-assert_eq!(acc.get(), 2);
-```
-*/
+/// Creates a collector that counts stream matches.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_scoring::stream::collector::{count, Accumulator, Collector};
+///
+/// let collector = count();
+/// let mut acc = Collector::<&i32>::create_accumulator(&collector);
+///
+/// acc.accumulate(collector.extract(&1));
+/// let second = acc.accumulate(collector.extract(&2));
+/// acc.accumulate(collector.extract(&3));
+/// assert_eq!(acc.get(), 3);
+///
+/// acc.retract(second);
+/// assert_eq!(acc.get(), 2);
+/// ```
 pub const fn count() -> CountCollector {
     CountCollector
 }
 
-/* A collector that counts stream matches.
-
-Created by the [`count()`] function.
-*/
+/// A collector that counts stream matches.
+///
+/// Created by the [`count()`] function.
 pub struct CountCollector;
 
 impl<Input> Collector<Input> for CountCollector
@@ -47,13 +45,13 @@ where
     }
 }
 
-// Accumulator for counting entities.
+/// Accumulator for counting entities.
 pub struct CountAccumulator {
     count: usize,
 }
 
 impl CountAccumulator {
-    // Returns the current count.
+    /// Returns the current count.
     #[inline]
     pub fn get(&self) -> usize {
         self.count

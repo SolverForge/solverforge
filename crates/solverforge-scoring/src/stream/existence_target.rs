@@ -1,13 +1,12 @@
-/* Existence targets: turn a left filtered stream plus a right stream (direct
-or flattened) into a count-backed existence constraint.
-
-The relationship is a named pair of key adapters over the two operators'
-views. The left input is a `CollectionNode` over the left stream (whose
-membership is the stream's own filter); the right input is a `CollectionNode`
-over the right stream, or the parent collection with a `ParentChildKeys`
-adapter when the right stream is flattened. Right-side children are read
-straight from the solution and never become rows.
-*/
+//! Existence targets: turn a left filtered stream plus a right stream (direct
+//! or flattened) into a count-backed existence constraint.
+//!
+//! The relationship is a named pair of key adapters over the two operators'
+//! views. The left input is a `CollectionNode` over the left stream (whose
+//! membership is the stream's own filter); the right input is a `CollectionNode`
+//! over the right stream, or the parent collection with a `ParentChildKeys`
+//! adapter when the right stream is flattened. Right-side children are read
+//! straight from the solution and never become rows.
 
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -22,6 +21,9 @@ use super::relational::operator::{CollectionNode, ParentChildKeys, UnitKeys};
 use super::relational::view_plan::EntityKey;
 use super::uni_stream::UniConstraintStream;
 
+/// A stream flattened into child items `B`, usable as the right side of
+/// `if_exists`/`if_not_exists`. Built by
+/// [`UniConstraintStream::flattened`](crate::stream::UniConstraintStream::flattened).
 pub struct FlattenedCollectionTarget<S, P, B, EP, FP, Flatten, Sc>
 where
     Sc: Score,
@@ -31,21 +33,24 @@ where
     pub(crate) _phantom: PhantomData<(fn() -> B, fn() -> Sc)>,
 }
 
+/// Right-hand side of [`if_exists`](crate::stream::UniConstraintStream::if_exists)
+/// and [`if_not_exists`](crate::stream::UniConstraintStream::if_not_exists).
 pub trait ExistenceTarget<S, A, EA, FA, Sc: Score>
 where
     EA: CollectionExtract<S, Item = A>,
     FA: UniFilter<S, A>,
 {
+    /// The existence stream produced.
     type Output;
 
+    /// Builds the existence stream from the left stream's extractor and filter.
     fn apply(self, mode: ExistenceMode, extractor_a: EA, filter_a: FA) -> Self::Output;
 }
 
-/* Direct existence: `.if_exists((other_stream, equal_bi(ka, kb)))`.
-
-Both inputs are collections over their streams, so each input's membership is
-that stream's accumulated filter, and the relationship keys off the leaf views.
-*/
+/// Direct existence: `.if_exists((other_stream, equal_bi(ka, kb)))`.
+///
+/// Both inputs are collections over their streams, so each input's membership is
+/// that stream's accumulated filter, and the relationship keys off the leaf views.
 impl<S, A, B, EA, FA, EB, FB, K, KA, KB, Mode, Sc> ExistenceTarget<S, A, EA, FA, Sc>
     for (
         UniConstraintStream<S, B, EB, FB, Sc>,
@@ -91,11 +96,10 @@ where
     }
 }
 
-/* Flattened existence: `.if_not_exists((stream.flattened(|p| ..), equal_bi(..)))`.
-
-The right input is the parent collection; the key adapter expands each
-parent's children in place from the solution, so no child rows are created.
-*/
+/// Flattened existence: `.if_not_exists((stream.flattened(|p| ..), equal_bi(..)))`.
+///
+/// The right input is the parent collection; the key adapter expands each
+/// parent's children in place from the solution, so no child rows are created.
 impl<S, A, P, B, EA, FA, EP, FP, K, KA, KB, Mode, Flatten, Sc> ExistenceTarget<S, A, EA, FA, Sc>
     for (
         FlattenedCollectionTarget<S, P, B, EP, FP, Flatten, Sc>,

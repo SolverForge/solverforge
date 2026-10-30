@@ -22,7 +22,7 @@ use super::relational::{HandleMap, Leaf, RowHandle};
 use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
 
-/* The full quad tree: ((A ⋈ B) ⋈ C) ⋈ D, each step its own compiled plan. */
+/// The full quad tree: ((A ⋈ B) ⋈ C) ⋈ D, each step its own compiled plan.
 pub(crate) type BuiltQuad<S, EA, EB, EC, ED, P1, P2, P3> = JoinNode<
     S,
     JoinNode<
@@ -35,11 +35,11 @@ pub(crate) type BuiltQuad<S, EA, EB, EC, ED, P1, P2, P3> = JoinNode<
     <P3 as CompileCondition>::Plan,
 >;
 
-/* The quad tree's borrowed row: `Pair<Pair<Pair<Leaf<A>, Leaf<B>>, Leaf<C>>, Leaf<D>>`. */
+/// The quad tree's borrowed row: `Pair<Pair<Pair<Leaf<A>, Leaf<B>>, Leaf<C>>, Leaf<D>>`.
 pub(crate) type QuadRow<'a, S, EA, EB, EC, ED, P1, P2, P3> =
     <BuiltQuad<S, EA, EB, EC, ED, P1, P2, P3> as Operator<S>>::View<'a>;
 
-/* Borrowed (A, B, C, D) entity quadruple off a quad row view. */
+/// Borrowed (A, B, C, D) entity quadruple off a quad row view.
 pub(crate) trait QuadEntities<'a, A, B, C, D> {
     fn entities(&self) -> (&'a A, &'a B, &'a C, &'a D);
     fn indexes(&self) -> (usize, usize, usize, usize);
@@ -68,6 +68,9 @@ impl<'a, A, B, C, D> QuadEntities<'a, A, B, C, D>
     }
 }
 
+/// Four-collection join stream: `((A ⋈ B) ⋈ C) ⋈ D`, each relationship
+/// compiled from its own joiner (`P1`, `P2`, `P3`), so each left key reads the
+/// whole row joined so far.
 pub struct Quad<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F, Sc>
 where
     Sc: Score,
@@ -106,7 +109,7 @@ where
     F: QuadFilter<S, A, B, C, D>,
     Sc: Score + 'static,
 {
-    /* Adds a filter predicate to the stream. */
+    /// Adds a filter predicate to the stream.
     pub fn filter<P>(
         self,
         predicate: P,
@@ -154,13 +157,12 @@ where
         }
     }
 
-    /* Extends this quadruple with a fifth source E.
-
-    Later joins of a chain take VIEW keys, not entity keys: the left key
-    closure receives the whole borrowed (A, B, C, D) row, the right key
-    receives `&Leaf<'_, E>` and reads fields via `.entity`. `equal_bi` with
-    entity closures does NOT typecheck here (E0631) — use `equal_on`.
-    */
+    /// Extends this quadruple with a fifth source E.
+    ///
+    /// Later joins of a chain take VIEW keys, not entity keys: the left key
+    /// closure receives the whole borrowed (A, B, C, D) row, the right key
+    /// receives `&Leaf<'_, E>` and reads fields via `.entity`. `equal_bi` with
+    /// entity closures does NOT typecheck here (E0631) — use `equal_on`.
     #[allow(clippy::type_complexity)]
     pub fn join<E, EE, P4>(
         self,
@@ -232,6 +234,11 @@ where
         }
     }
 
+    /// Penalizes each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched entities returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -263,6 +270,11 @@ where
         )
     }
 
+    /// Rewards each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched entities returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -295,7 +307,7 @@ where
     }
 }
 
-/* Zero-erasure builder for finalizing a canonical quad constraint. */
+/// Zero-erasure builder for finalizing a canonical quad constraint.
 pub struct QuadBuilder<S, A, B, C, D, EA, EB, EC, ED, P1, P2, P3, F, W, Sc>
 where
     Sc: Score,
@@ -338,6 +350,7 @@ where
     W: Fn(&A, &B, &C, &D) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds it.
     pub fn named(
         self,
         name: &str,

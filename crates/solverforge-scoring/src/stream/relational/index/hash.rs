@@ -1,11 +1,10 @@
-/* Typed hash index for one join side's equality relationship.
-
-Each join owns its own key type `K`: indexes are never shared across
-joins, so heterogeneous successive keys stay in separate domains. The
-index maps keys to stable input handles and retains the reverse
-handle-to-old-key link, so retraction removes the exact bucket entry
-without re-deriving keys from mutated values.
-*/
+//! Typed hash index for one join side's equality relationship.
+//!
+//! Each join owns its own key type `K`: indexes are never shared across
+//! joins, so heterogeneous successive keys stay in separate domains. The
+//! index maps keys to stable input handles and retains the reverse
+//! handle-to-old-key link, so retraction removes the exact bucket entry
+//! without re-deriving keys from mutated values.
 
 use std::hash::Hash;
 
@@ -72,8 +71,8 @@ where
         }
     }
 
-    // Keep occupied buckets in place. Only empty buckets relinquish their
-    // allocation to the pool; entry access hashes the owned key once.
+    /// Keep occupied buckets in place. Only empty buckets relinquish their
+    /// allocation to the pool; entry access hashes the owned key once.
     fn remove_from_bucket(&mut self, handle: RowHandle, key: K, position: usize) {
         if let std::collections::hash_map::Entry::Occupied(mut entry) = self.by_key.entry(key) {
             let bucket = entry.get_mut();

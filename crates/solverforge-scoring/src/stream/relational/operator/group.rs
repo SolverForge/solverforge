@@ -45,6 +45,8 @@ pub struct GroupNode<O, F, C, K, A: Accumulator<V, R>, V, R> {
     marker: PhantomData<fn() -> (V, R)>,
 }
 impl<O, F, C, K, A: Accumulator<V, R>, V, R> GroupNode<O, F, C, K, A, V, R> {
+    /// Groups the rows of `input` by `key`, accumulating each group with
+    /// `collector`. Emits one row per non-empty group.
     pub fn new(input: O, key: F, collector: C) -> Self {
         Self {
             input,

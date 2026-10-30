@@ -1,11 +1,10 @@
-/* Batch score accumulation with one overflow check.
-
-Score `Add`/`Sub`/`Neg` panic on overflow, which costs one branch per
-operation. Scoring loops that fold many row scores into a delta instead add
-through `Score::overflowing_*`, record whether any level wrapped, and check
-once when the batch is finished. A wrapped level still panics, at the end of
-the batch instead of at the row.
-*/
+//! Batch score accumulation with one overflow check.
+//!
+//! Score `Add`/`Sub`/`Neg` panic on overflow, which costs one branch per
+//! operation. Scoring loops that fold many row scores into a delta instead add
+//! through `Score::overflowing_*`, record whether any level wrapped, and check
+//! once when the batch is finished. A wrapped level still panics, at the end of
+//! the batch instead of at the row.
 
 use solverforge_core::score::Score;
 use solverforge_core::ImpactType;
@@ -31,7 +30,7 @@ impl<Sc: Score> ScoreSum<Sc> {
         self.overflow |= wrapped;
     }
 
-    /* Folds in an unchecked result `(score, overflowed)` from a part. */
+    /// Folds in an unchecked result `(score, overflowed)` from a part.
     #[inline(always)]
     pub(crate) fn add_parts(&mut self, (score, overflowed): (Sc, bool)) {
         self.add(score);
@@ -57,14 +56,14 @@ impl<Sc: Score> ScoreSum<Sc> {
         self.total
     }
 
-    /* Returns the unchecked total and its overflow flag for a caller that
-    folds it into a larger batch. */
+    /// Returns the unchecked total and its overflow flag for a caller that
+    /// folds it into a larger batch.
     #[inline(always)]
     pub(crate) fn into_parts(self) -> (Sc, bool) {
         (self.total, self.overflow)
     }
 
-    /* `into_parts` after applying `impact` as `finish_with` does. */
+    /// `into_parts` after applying `impact` as `finish_with` does.
     #[inline(always)]
     pub(crate) fn into_parts_with(mut self, impact: ImpactType) -> (Sc, bool) {
         if impact == ImpactType::Penalty {
@@ -75,9 +74,9 @@ impl<Sc: Score> ScoreSum<Sc> {
         self.into_parts()
     }
 
-    /* Finishes a sum of unsigned row weights and applies the constraint's
-    impact once: a penalty negates the total, so rows are summed without a
-    per-row sign. */
+    /// Finishes a sum of unsigned row weights and applies the constraint's
+    /// impact once: a penalty negates the total, so rows are summed without a
+    /// per-row sign.
     #[inline(always)]
     #[track_caller]
     pub(crate) fn finish_with(mut self, impact: ImpactType) -> Sc {
@@ -97,8 +96,8 @@ fn score_sum_overflow() -> ! {
     panic!("a score delta overflows i64")
 }
 
-/* Checks an unchecked `(score, overflowed)` result: the public boundary of a
-constraint whose internals sum without per-operation checks. */
+/// Checks an unchecked `(score, overflowed)` result: the public boundary of a
+/// constraint whose internals sum without per-operation checks.
 #[inline(always)]
 #[track_caller]
 pub(crate) fn checked<Sc>((score, overflowed): (Sc, bool)) -> Sc {

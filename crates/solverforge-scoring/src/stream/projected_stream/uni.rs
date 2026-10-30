@@ -12,6 +12,8 @@ use super::grouped::Grouped;
 use super::join_target::ProjectedJoinTarget;
 use super::source::{FilteredSource, MergedSource, Source};
 
+/// Stream of projected rows `Out` from source `Src`, filtered by `F`; built by
+/// [`UniConstraintStream::project`](crate::stream::UniConstraintStream::project).
 pub struct Stream<S, Out, Src, F, Sc>
 where
     Sc: Score,
@@ -37,6 +39,7 @@ where
         }
     }
 
+    /// Keeps only rows for which `predicate` returns `true`, after the existing filter.
     pub fn filter<P>(
         self,
         predicate: P,
@@ -60,6 +63,8 @@ where
         }
     }
 
+    /// Merges with another projected stream of the same row type: the result emits
+    /// the rows of both, each filtered by its own stream's filter.
     pub fn merge<OtherSrc, OtherF>(
         self,
         other: Stream<S, Out, OtherSrc, OtherF, Sc>,
@@ -83,6 +88,7 @@ where
         }
     }
 
+    /// Groups rows by `key_fn`, aggregating each group with `collector`.
     pub fn group_by<K, KF, C, V, R, Acc>(
         self,
         key_fn: KF,
@@ -108,6 +114,8 @@ where
         }
     }
 
+    /// Self-joins the rows; see
+    /// [`ProjectedJoinTarget`](crate::stream::projected::ProjectedJoinTarget).
     pub fn join<J>(self, joiner: J) -> J::Output
     where
         J: ProjectedJoinTarget<S, Out, Src, F, Sc>,
@@ -134,6 +142,11 @@ where
         }
     }
 
+    /// Penalizes each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched row returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -149,6 +162,11 @@ where
         )
     }
 
+    /// Rewards each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched row returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,

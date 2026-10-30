@@ -1,42 +1,50 @@
-/* Zero-erasure bi-constraint stream for self-join patterns.
-
-A `BiConstraintStream` operates on pairs of entities from the same
-collection (self-join), such as comparing Shifts to each other.
-All type information is preserved at compile time - no Arc, no dyn.
-
-# Example
-
-```
-use solverforge_scoring::stream::ConstraintFactory;
-use solverforge_scoring::stream::joiner::equal;
-use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-use solverforge_core::score::SoftScore;
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-struct Task { team: u32 }
-
-#[derive(Clone)]
-struct Solution { tasks: Vec<Task> }
-
-// Penalize when two tasks are on the same team
-let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-.for_each(Solution::tasks())
-.join(equal(|t: &Task| t.team))
-.penalize(SoftScore::of(1))
-.named("Team conflict");
-
-let solution = Solution {
-tasks: vec![
-Task { team: 1 },
-Task { team: 1 },
-Task { team: 2 },
-],
-};
-
-// One pair on team 1: (0, 1) = -1 penalty
-assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
-```
-*/
+//! Zero-erasure bi-constraint stream for self-join patterns.
+//!
+//! A `BiConstraintStream` operates on pairs of entities from the same
+//! collection (self-join), such as comparing Shifts to each other.
+//! All type information is preserved at compile time - no Arc, no dyn.
+//!
+//! # Example
+//!
+//! ```
+//! use solverforge_core::score::SoftScore;
+//! use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+//! use solverforge_scoring::stream::joiner::equal;
+//! use solverforge_scoring::stream::ConstraintFactory;
+//!
+//! #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+//! struct Task {
+//!     team: u32,
+//! }
+//!
+//! #[derive(Clone)]
+//! struct Solution {
+//!     tasks: Vec<Task>,
+//! }
+//! # use solverforge_scoring::stream::{source, ChangeSource, CollectionExtract};
+//! # impl Solution {
+//! #     fn tasks() -> impl CollectionExtract<Solution, Item = Task> {
+//! #         fn tasks(s: &Solution) -> &[Task] {
+//! #             s.tasks.as_slice()
+//! #         }
+//! #         source(tasks as fn(&Solution) -> &[Task], ChangeSource::Descriptor(0))
+//! #     }
+//! # }
+//!
+//! // Penalize when two tasks are on the same team
+//! let constraint = ConstraintFactory::<Solution, SoftScore>::new()
+//!     .for_each(Solution::tasks())
+//!     .join(equal(|t: &Task| t.team))
+//!     .penalize(SoftScore::of(1))
+//!     .named("Team conflict");
+//!
+//! let solution = Solution {
+//!     tasks: vec![Task { team: 1 }, Task { team: 1 }, Task { team: 2 }],
+//! };
+//!
+//! // One pair on team 1: (0, 1) = -1 penalty
+//! assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
+//! ```
 
 use std::hash::Hash;
 
@@ -48,7 +56,7 @@ use super::tri_stream::TriConstraintStream;
 
 super::arity_stream_macros::impl_arity_stream!(bi, BiConstraintStream, BiConstraintBuilder);
 
-// join method - transitions to TriConstraintStream
+/// join method - transitions to TriConstraintStream
 impl<S, A, K, E, KE, F, Sc> BiConstraintStream<S, A, K, E, KE, F, Sc>
 where
     S: Send + Sync + 'static,
@@ -59,43 +67,59 @@ where
     F: BiFilter<S, A, A>,
     Sc: Score + 'static,
 {
-    /* Joins this stream with a third element to create triples.
-
-    # Example
-
-    ```
-    use solverforge_scoring::stream::ConstraintFactory;
-    use solverforge_scoring::stream::joiner::equal;
-    use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-    use solverforge_core::score::SoftScore;
-
-    #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-    struct Task { team: u32 }
-
-    #[derive(Clone)]
-    struct Solution { tasks: Vec<Task> }
-
-    // Penalize when three tasks are on the same team
-    let constraint = ConstraintFactory::<Solution, SoftScore>::new()
-    .for_each(Solution::tasks())
-    .join(equal(|t: &Task| t.team))
-    .join(equal(|t: &Task| t.team))
-    .penalize(SoftScore::of(1))
-    .named("Team clustering");
-
-    let solution = Solution {
-    tasks: vec![
-    Task { team: 1 },
-    Task { team: 1 },
-    Task { team: 1 },
-    Task { team: 2 },
-    ],
-    };
-
-    // One triple on team 1: (0, 1, 2) = -1 penalty
-    assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
-    ```
-    */
+    /// Joins this stream with a third element to create triples.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use solverforge_core::score::SoftScore;
+    /// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+    /// use solverforge_scoring::stream::joiner::equal;
+    /// use solverforge_scoring::stream::BiConstraintStream;
+    ///
+    /// #[derive(Clone, Debug, Hash, PartialEq, Eq)]
+    /// struct Task {
+    ///     team: u32,
+    /// }
+    ///
+    /// #[derive(Clone)]
+    /// struct Solution {
+    ///     tasks: Vec<Task>,
+    /// }
+    /// # use solverforge_scoring::stream::{source, ChangeSource, CollectionExtract};
+    /// # impl Solution {
+    /// #     fn tasks() -> impl CollectionExtract<Solution, Item = Task> {
+    /// #         fn tasks(s: &Solution) -> &[Task] {
+    /// #             s.tasks.as_slice()
+    /// #         }
+    /// #         source(tasks as fn(&Solution) -> &[Task], ChangeSource::Descriptor(0))
+    /// #     }
+    /// # }
+    ///
+    /// // Penalize when three tasks are on the same team
+    /// // `join` needs a `Fn(&S, &A, usize) -> K` key, so start from a closure-keyed
+    /// // self-join rather than `.for_each(..).join(equal(..))`, whose key is an
+    /// // `EntityKeyAdapter`.
+    /// let constraint = BiConstraintStream::<_, _, _, _, _, _, SoftScore>::new_self_join(
+    ///     Solution::tasks(),
+    ///     |_s: &Solution, t: &Task, _idx: usize| t.team,
+    /// )
+    ///     .join(equal(|t: &Task| t.team))
+    ///     .penalize(SoftScore::of(1))
+    ///     .named("Team clustering");
+    ///
+    /// let solution = Solution {
+    ///     tasks: vec![
+    ///         Task { team: 1 },
+    ///         Task { team: 1 },
+    ///         Task { team: 1 },
+    ///         Task { team: 2 },
+    ///     ],
+    /// };
+    ///
+    /// // One triple on team 1: (0, 1, 2) = -1 penalty
+    /// assert_eq!(constraint.evaluate(&solution), SoftScore::of(-1));
+    /// ```
     pub fn join<J>(
         self,
         joiner: J,

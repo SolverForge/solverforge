@@ -1,9 +1,9 @@
 use super::*;
 
 impl ListPrecedenceState {
-    // Snapshots the owner's route into the reusable scratch buffers. The
-    // scratch slots must not be aliased by `replace_owner_route_scratch`'s
-    // diff bookkeeping (it swaps them into the owner route storage).
+    /// Snapshots the owner's route into the reusable scratch buffers. The
+    /// scratch slots must not be aliased by `replace_owner_route_scratch`'s
+    /// diff bookkeeping (it swaps them into the owner route storage).
     fn owner_route_snapshot<S>(
         &mut self,
         solution: &S,

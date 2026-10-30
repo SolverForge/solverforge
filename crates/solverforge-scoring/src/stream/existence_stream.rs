@@ -1,13 +1,12 @@
-/* Semi/anti existence streams over the count-backed membership engine.
-
-An existence constraint is a semi/anti join: it retains only left rows whose
-matching-right key is alive (or dead, for `NotExists`). There is no third
-retention engine — the relationship is a named pair of key adapters over the
-two operators' views, the left is a collection over the left stream (whose
-membership is the stream's own filter), the right is a collection over the
-right stream (children expanded in place by the key adapter), and scoring is
-the generic `OperatorTerminal`.
-*/
+//! Semi/anti existence streams over the count-backed membership engine.
+//!
+//! An existence constraint is a semi/anti join: it retains only left rows whose
+//! matching-right key is alive (or dead, for `NotExists`). There is no third
+//! retention engine — the relationship is a named pair of key adapters over the
+//! two operators' views, the left is a collection over the left stream (whose
+//! membership is the stream's own filter), the right is a collection over the
+//! right stream (children expanded in place by the key adapter), and scoring is
+//! the generic `OperatorTerminal`.
 
 use std::marker::PhantomData;
 
@@ -19,15 +18,18 @@ use super::relational::Leaf;
 use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
 
+/// Whether an existence constraint keeps entities with or without a match.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExistenceMode {
+    /// Keep left entities with at least one matching right entity.
     Exists,
+    /// Keep left entities with no matching right entity.
     NotExists,
 }
 
-/* Zero-erasure existence stream: a left operator, a right operator, and the
-named key adapters between them. `named()` builds the count-backed
-`ExistenceNode` and its generic terminal. */
+/// Zero-erasure existence stream: a left operator, a right operator, and the
+/// named key adapters between them. `named()` builds the count-backed
+/// `ExistenceNode` and its generic terminal.
 pub struct ExistsConstraintStream<S, A, K, L, R, LK, RK, Sc>
 where
     Sc: Score,
@@ -95,6 +97,11 @@ where
         }
     }
 
+    /// Penalizes each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched entity returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -120,6 +127,11 @@ where
         )
     }
 
+    /// Rewards each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched entity returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -146,6 +158,7 @@ where
     }
 }
 
+/// Builder holding a weighted existence constraint until [`named`](Self::named) finalizes it.
 pub struct ExistsConstraintBuilder<S, A, K, L, R, LK, RK, W, Sc>
 where
     Sc: Score,
@@ -173,6 +186,8 @@ where
     W: for<'a> Fn(&S, &Leaf<'a, A>) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds it as an `OperatorTerminal` over the
+    /// count-backed `ExistenceNode`.
     pub fn named(
         self,
         name: &str,

@@ -7,19 +7,39 @@ use solverforge_core::ConstraintRef;
 use super::incremental::{ConstraintMetadata, ConstraintResult, ConstraintSet};
 use crate::api::analysis::ConstraintAnalysis;
 
+/// Two constraint sets scored as one, left first then right.
+///
+/// Results, metadata entries and weight slots list every `Left` constraint
+/// before every `Right` one. `#[solverforge_constraints]` builds these to join
+/// member sets without erasing their concrete types.
 pub struct ConstraintSetChain<Left, Right> {
     left: Left,
     right: Right,
 }
 
+/// Where the next authored constraint of an [`OrderedConstraintSetChain`] comes
+/// from.
 pub enum ConstraintSetSource {
+    /// The next single constraint of the left (shared-node) set.
     Left,
+    /// The next member of the right set, which may span several constraints.
     Right {
+        /// Number of per-constraint results this member contributes.
         constraint_count: usize,
+        /// Number of raw metadata entries this member contributes.
         metadata_entry_count: usize,
     },
 }
 
+/// Two constraint sets scored as one while reporting per-constraint output in
+/// authored order.
+///
+/// `order` interleaves the left and right outputs: each [`ConstraintSetSource::Left`]
+/// takes one item from the left set, each [`ConstraintSetSource::Right`] takes its
+/// spans from the right set. Scores are plain sums; only result, analysis and
+/// metadata lists are reordered. Weight slots keep structural order (left set
+/// first). The per-constraint methods panic when `order` does not consume every
+/// left and right item exactly.
 pub struct OrderedConstraintSetChain<Left, Right> {
     left: Left,
     right: Right,
@@ -27,17 +47,20 @@ pub struct OrderedConstraintSetChain<Left, Right> {
 }
 
 impl<Left, Right> ConstraintSetChain<Left, Right> {
+    /// Chains `left` and `right`; the left set's constraints come first.
     pub fn new(left: Left, right: Right) -> Self {
         Self { left, right }
     }
 }
 
 impl<Left, Right> OrderedConstraintSetChain<Left, Right> {
+    /// Chains `left` and `right`, reporting per-constraint output in the order
+    /// given by `order`.
     pub fn new(left: Left, right: Right, order: Vec<ConstraintSetSource>) -> Self {
         Self { left, right, order }
     }
 
-    // Restores authored order across per-constraint left and right outputs.
+    /// Restores authored order across per-constraint left and right outputs.
     fn interleave<T>(&self, left: Vec<T>, right: Vec<T>, what: &str) -> Vec<T> {
         let mut left = VecDeque::from(left);
         let mut right = VecDeque::from(right);

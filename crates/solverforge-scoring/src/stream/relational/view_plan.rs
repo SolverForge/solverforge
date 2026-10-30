@@ -1,13 +1,13 @@
-#![allow(dead_code)] // PairKey/FlattenedPairKey used by the flattened_bi port
-                     /* Named key adapters and a generic equality plan for relational joins.
+//! Named key adapters and a generic equality plan for relational joins.
+//!
+//! A join's condition must be a nameable type so a stream can store it. Key
+//! extractors implement `ViewKey`, spelled per view shape: `EntityKey` reads one
+//! entity off a leaf, `ChildKey` reads a flattened child, `PairKey` composes two
+//! keys over one view, and `FlattenedPairKey` composes the owning entity's key
+//! with the flattened child's key. `ViewEqualPlan` is the typed-hash-equality
+//! plan over any two such keys.
 
-                     A join's condition must be a nameable type so a stream can store it. Key
-                     extractors implement `ViewKey`, spelled per view shape: `EntityKey` reads one
-                     entity off a leaf, `ChildKey` reads a flattened child, `PairKey` composes two
-                     keys over one view, and `FlattenedPairKey` composes the owning entity's key
-                     with the flattened child's key. `ViewEqualPlan` is the typed-hash-equality
-                     plan over any two such keys.
-                     */
+#![allow(dead_code)] // PairKey/FlattenedPairKey used by the flattened_bi port
 
 use std::borrow::Cow;
 use std::hash::Hash;
@@ -19,17 +19,20 @@ use super::{Leaf, RowHandle};
 use crate::stream::joiner::plan::{CompileCondition, EqualityKind, ExecutablePlan, IndexedPlan};
 use crate::stream::joiner::Joiner;
 
-/* Reads a join key out of an operator view. */
+/// Reads a join key out of an operator view.
 pub trait ViewKey<V> {
+    /// The key type.
     type Key;
 
+    /// Reads the key of `view`.
     fn key(&self, view: &V) -> Self::Key;
 }
 
-/* Wraps an entity key extractor onto a leaf view. */
+/// Wraps an entity key extractor onto a leaf view.
 pub struct EntityKey<F>(F);
 
 impl<F> EntityKey<F> {
+    /// Wraps an entity key closure `inner`.
     pub fn new(inner: F) -> Self {
         Self(inner)
     }
@@ -47,10 +50,11 @@ where
     }
 }
 
-/* Wraps an entity key extractor onto a flattened child view. */
+/// Wraps an entity key extractor onto a flattened child view.
 pub struct ChildKey<F>(F);
 
 impl<F> ChildKey<F> {
+    /// Wraps a child key closure `inner`.
     pub fn new(inner: F) -> Self {
         Self(inner)
     }
@@ -68,10 +72,11 @@ where
     }
 }
 
-/* Composes two keys over the same view into a tuple, e.g. (join key, lookup key). */
+/// Composes two keys over the same view into a tuple, e.g. (join key, lookup key).
 pub struct PairKey<A, B>(A, B);
 
 impl<A, B> PairKey<A, B> {
+    /// Composes `first` and `second` into a `(first, second)` key.
     pub fn new(first: A, second: B) -> Self {
         Self(first, second)
     }
@@ -90,12 +95,13 @@ where
     }
 }
 
-/* Composes the owning entity's key with the flattened child's key:
-`(key_b(owner), c_key(child))`. The right input is a `FlattenNode` over a
-collection of `B`, so the owner view is `Leaf<B>`. */
+/// Composes the owning entity's key with the flattened child's key:
+/// `(key_b(owner), c_key(child))`. The right input is a `FlattenNode` over a
+/// collection of `B`, so the owner view is `Leaf<B>`.
 pub struct FlattenedPairKey<KB, CK>(KB, CK);
 
 impl<KB, CK> FlattenedPairKey<KB, CK> {
+    /// Composes `owner_key` of the owner with `child_key` of the child.
     pub fn new(owner_key: KB, child_key: CK) -> Self {
         Self(owner_key, child_key)
     }
@@ -114,7 +120,7 @@ where
     }
 }
 
-/* Reads a grouped row's own key, for matching against a target domain. */
+/// Reads a grouped row's own key, for matching against a target domain.
 pub struct GroupKey;
 
 impl<S, O, K, A, V, R> ViewKey<super::operator::GroupView<'_, S, O, K, A, V, R>> for GroupKey
@@ -132,7 +138,7 @@ where
     }
 }
 
-/* Typed hash-equality plan over two named view keys. */
+/// Typed hash-equality plan over two named view keys.
 pub struct ViewEqualPlan<K, KeyA, KeyB> {
     key_a: KeyA,
     key_b: KeyB,
@@ -140,6 +146,7 @@ pub struct ViewEqualPlan<K, KeyA, KeyB> {
 }
 
 impl<K, KeyA, KeyB> ViewEqualPlan<K, KeyA, KeyB> {
+    /// Creates the plan matching `key_a` of the left view to `key_b` of the right view.
     pub fn new(key_a: KeyA, key_b: KeyB) -> Self {
         Self {
             key_a,

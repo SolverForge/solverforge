@@ -20,6 +20,8 @@ use super::scored::{BiScored, BiUnaryPlan};
 type BiInput<S, A, B, EA, EB, JK, KA, KB, F> =
     BiScored<S, A, B, EA, EB, BiUnaryPlan<JK, KA, KB>, F>;
 
+/// Keyed cross join whose pairs are grouped by a key `GK` and aggregated by a
+/// collector.
 pub struct Grouped<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, Sc>
 where
     Sc: Score,
@@ -91,6 +93,11 @@ where
         }
     }
 
+    /// Penalizes each group by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&key, &result)` returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -124,6 +131,11 @@ where
         )
     }
 
+    /// Rewards each group by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&key, &result)` returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -157,6 +169,9 @@ where
         )
     }
 
+    /// Complements the groups with the entities of `extractor_t`: each target `t`
+    /// yields a row keyed `key_t(t)` holding the real group's result, or
+    /// `default_fn(t)` when that group is empty.
     pub fn complement<T, ET, KT, D>(
         self,
         extractor_t: ET,
@@ -185,6 +200,8 @@ where
     }
 }
 
+/// Builder holding a weighted grouped cross-join constraint until
+/// [`named`](Self::named) finalizes it.
 pub struct GroupedBuilder<S, A, B, JK, GK, EA, EB, KA, KB, F, GF, C, V, R, Acc, W, Sc>
 where
     Sc: Score,
@@ -236,6 +253,9 @@ where
     W: Fn(&GK, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds it as a
+    /// [`SharedOperatorTerminal`](crate::constraint::relational::SharedOperatorTerminal),
+    /// to which further terminals over the same grouped node can be appended.
     pub fn named(
         self,
         name: &str,

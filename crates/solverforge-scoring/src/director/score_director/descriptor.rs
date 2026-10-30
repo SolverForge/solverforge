@@ -2,20 +2,19 @@ use std::marker::PhantomData;
 
 use solverforge_core::domain::SolutionDescriptor;
 
-/* How a `ScoreDirector` holds its solution descriptor.
-
-An owned `SolutionDescriptor` serves a single director. A
-`ReplicaDescriptor` borrows the descriptor and carries the constraint-set
-constructor, so the director can fork evaluator replicas that share the same
-descriptor without copying it.
-*/
+/// How a `ScoreDirector` holds its solution descriptor.
+///
+/// An owned `SolutionDescriptor` serves a single director. A
+/// `ReplicaDescriptor` borrows the descriptor and carries the constraint-set
+/// constructor, so the director can fork evaluator replicas that share the same
+/// descriptor without copying it.
 pub trait DirectorDescriptor<S, C> {
+    /// Returns the solution descriptor.
     fn solution_descriptor(&self) -> &SolutionDescriptor;
 
-    /* A handle for an evaluator replica plus the constructor that builds the
-    replica's constraint set from its own working solution. `None` when
-    this director cannot fork replicas.
-    */
+    /// A handle for an evaluator replica plus the constructor that builds the
+    /// replica's constraint set from its own working solution. `None` when
+    /// this director cannot fork replicas.
     fn replica(&self) -> Option<(Self, fn(&S) -> C)>
     where
         Self: Sized;
@@ -32,9 +31,8 @@ impl<S, C> DirectorDescriptor<S, C> for SolutionDescriptor {
     }
 }
 
-/* A borrowed solution descriptor plus the constraint-set constructor used for
-the working solution and every evaluator replica.
-*/
+/// A borrowed solution descriptor plus the constraint-set constructor used for
+/// the working solution and every evaluator replica.
 pub struct ReplicaDescriptor<'d, S, C> {
     descriptor: &'d SolutionDescriptor,
     constraints: fn(&S) -> C,
@@ -42,6 +40,8 @@ pub struct ReplicaDescriptor<'d, S, C> {
 }
 
 impl<'d, S, C> ReplicaDescriptor<'d, S, C> {
+    /// Borrows `descriptor` and records `constraints`, which builds the constraint
+    /// set for the working solution and for every replica.
     pub fn new(descriptor: &'d SolutionDescriptor, constraints: fn(&S) -> C) -> Self {
         Self {
             descriptor,

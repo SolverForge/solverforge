@@ -3,11 +3,10 @@ use std::marker::PhantomData;
 
 use super::{Accumulator, Collector};
 
-/* A consecutive run of unique integer points.
-
-`item_count` includes duplicate input items mapped to points in the run.
-`point_count` counts only unique points.
-*/
+/// A consecutive run of unique integer points.
+///
+/// `item_count` includes duplicate input items mapped to points in the run.
+/// `point_count` counts only unique points.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Run {
     start: i64,
@@ -26,28 +25,32 @@ impl Run {
         }
     }
 
+    /// Returns the first point of the run.
     #[inline]
     pub fn start(&self) -> i64 {
         self.start
     }
 
+    /// Returns the last point of the run (inclusive).
     #[inline]
     pub fn end(&self) -> i64 {
         self.end
     }
 
+    /// Returns the number of unique points in the run.
     #[inline]
     pub fn point_count(&self) -> usize {
         self.point_count
     }
 
+    /// Returns the number of input items mapped to points of the run.
     #[inline]
     pub fn item_count(&self) -> usize {
         self.item_count
     }
 }
 
-// Aggregated consecutive-run result.
+/// Aggregated consecutive-run result.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Runs {
     runs: Vec<Run>,
@@ -56,37 +59,41 @@ pub struct Runs {
 }
 
 impl Runs {
+    /// Returns the runs in ascending order.
     #[inline]
     pub fn runs(&self) -> &[Run] {
         &self.runs
     }
 
+    /// Returns the number of unique points across all runs.
     #[inline]
     pub fn point_count(&self) -> usize {
         self.point_count
     }
 
+    /// Returns the number of input items across all runs.
     #[inline]
     pub fn item_count(&self) -> usize {
         self.item_count
     }
 
+    /// Returns the number of runs.
     #[inline]
     pub fn len(&self) -> usize {
         self.runs.len()
     }
 
+    /// Returns `true` when there are no runs.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.runs.is_empty()
     }
 }
 
-/* Creates a collector that groups extracted `i64` points into consecutive runs.
-
-Duplicate points increase the `item_count` of their run but count as one unique
-point for `point_count`.
-*/
+/// Creates a collector that groups extracted `i64` points into consecutive runs.
+///
+/// Duplicate points increase the `item_count` of their run but count as one unique
+/// point for `point_count`.
 pub fn consecutive_runs<F>(index_fn: F) -> RunsCollector<F>
 where
     F: Send + Sync,
@@ -97,7 +104,7 @@ where
     }
 }
 
-// Collector for consecutive runs over concrete i64 indexes.
+/// Collector for consecutive runs over concrete i64 indexes.
 pub struct RunsCollector<F> {
     index_fn: F,
     _phantom: PhantomData<fn()>,
@@ -122,7 +129,7 @@ where
     }
 }
 
-// Incremental accumulator for consecutive runs.
+/// Incremental accumulator for consecutive runs.
 pub struct RunsAccumulator {
     points: BTreeMap<i64, usize>,
     item_count: usize,

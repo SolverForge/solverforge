@@ -265,10 +265,10 @@ impl ListPrecedenceState {
         false
     }
 
-    // DFS probe over successors with a generation-stamped visit mask; the
-    // stack lives in scratch storage so repeated probes never reallocate.
-    // Stamps must stay < u32::MAX probes per refresh call; the caller resets
-    // scratch_queued whenever scratch_visited_stamp wraps to keep stamps unique.
+    /// DFS probe over successors with a generation-stamped visit mask; the
+    /// stack lives in scratch storage so repeated probes never reallocate.
+    /// Stamps must stay < u32::MAX probes per refresh call; the caller resets
+    /// scratch_queued whenever scratch_visited_stamp wraps to keep stamps unique.
     fn reaches_with_scratch(&mut self, start: NodeId, target: NodeId, visit_id: usize) -> bool {
         if start == target {
             return true;

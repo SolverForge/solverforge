@@ -1,25 +1,26 @@
-/* Borrowed row shapes for relational operators.
+//! Borrowed row shapes for relational operators.
+//!
+//! A row is either a leaf borrowing one entity or a concatenation of a prior
+//! row with a new entity reference. Concatenation is structural — no arity
+//! ceiling, no erased values — so a later join's key closure can inspect any
+//! earlier binding. Rows borrow; they never own entities and never hold
+//! solution borrows between callbacks.
 
-A row is either a leaf borrowing one entity or a concatenation of a prior
-row with a new entity reference. Concatenation is structural — no arity
-ceiling, no erased values — so a later join's key closure can inspect any
-earlier binding. Rows borrow; they never own entities and never hold
-solution borrows between callbacks.
-*/
-
-/* A borrowed view of one source entity.
-
-The lifetime is the traversal borrow, not a stored solution reference.
-`index` carries the semantic source slice index alongside the entity so
-low-level filters keep exact index semantics without storage-ID leakage.
-*/
+/// A borrowed view of one source entity.
+///
+/// The lifetime is the traversal borrow, not a stored solution reference.
+/// `index` carries the semantic source slice index alongside the entity so
+/// low-level filters keep exact index semantics without storage-ID leakage.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Leaf<'r, T> {
+    /// The borrowed entity.
     pub entity: &'r T,
+    /// The entity's index in its source slice.
     pub index: usize,
 }
 
 impl<'r, T> Leaf<'r, T> {
+    /// Creates a leaf for `entity` at source index `index`.
     pub fn new(entity: &'r T, index: usize) -> Leaf<'r, T> {
         Leaf { entity, index }
     }
@@ -32,21 +33,23 @@ impl<T> Clone for Leaf<'_, T> {
     }
 }
 
-/* Recursive concatenation of a prior row with a new entity reference.
-
-A later join's left key closure receives the whole prior row in this
-shape, so it can inspect any earlier binding or combine several. Binding
-order walks the left spine first, matching authored tuple orientation.
-*/
+/// Recursive concatenation of a prior row with a new entity reference.
+///
+/// A later join's left key closure receives the whole prior row in this
+/// shape, so it can inspect any earlier binding or combine several. Binding
+/// order walks the left spine first, matching authored tuple orientation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Concat<'r, Left, T> {
+    /// The prior row.
     pub left: Left,
+    /// The newly bound entity.
     pub right: Leaf<'r, T>,
 }
 
 impl<'r, Left: Copy, T: Copy> Copy for Concat<'r, Left, T> {}
 
 impl<'r, Left, T> Concat<'r, Left, T> {
+    /// Appends `entity` at source index `index` to `left`.
     pub fn new(left: Left, entity: &'r T, index: usize) -> Concat<'r, Left, T> {
         Concat {
             left,
@@ -55,14 +58,13 @@ impl<'r, Left, T> Concat<'r, Left, T> {
     }
 }
 
-/* Row depth as a compile-time property of the nesting.
-
-Depth keeps operator recursion monomorphized without runtime tags.
-`DEPTH` is read by row-shape assertions at operator construction sites.
-*/
+/// Row depth as a compile-time property of the nesting.
+///
+/// Depth keeps operator recursion monomorphized without runtime tags.
+/// `DEPTH` is read by row-shape assertions at operator construction sites.
 #[allow(dead_code)]
 pub(crate) trait Row {
-    // Number of bound entities in this row (leaf = 1).
+    /// Number of bound entities in this row (leaf = 1).
     const DEPTH: usize;
 }
 

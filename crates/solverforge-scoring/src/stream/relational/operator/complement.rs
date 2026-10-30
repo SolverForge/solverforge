@@ -23,15 +23,14 @@ pub struct ComplementEvaluation<E, T> {
     left: E,
     defaults: Vec<T>,
 }
-/* Target-domain left outer join with owned defaults. Inputs, including grouped
-accumulators, have exactly one owner in the indexed membership relation.
-
-The complement is a scored join: each matching (target, result) pair is a
-published row and each unmatched target emits its default, so the node owns
-the equality plan's indexes directly — the same retention shape as
-`JoinNode`. Membership per se lives in the count-backed `ExistenceNode`;
-this node never reuses that engine.
-*/
+/// Target-domain left outer join with owned defaults. Inputs, including grouped
+/// accumulators, have exactly one owner in the indexed membership relation.
+///
+/// The complement is a scored join: each matching (target, result) pair is a
+/// published row and each unmatched target emits its default, so the node owns
+/// the equality plan's indexes directly — the same retention shape as
+/// `JoinNode`. Membership per se lives in the count-backed `ExistenceNode`;
+/// this node never reuses that engine.
 pub struct ComplementNode<
     S,
     L,
@@ -63,6 +62,8 @@ where
     for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,
     F: for<'a> Fn(&S, &L::View<'a>) -> T,
 {
+    /// Creates the node: `targets` rows are matched against `results` rows by
+    /// `condition`, and an unmatched target emits `default(solution, target)`.
     pub fn new<C: CompileCondition<Plan = P>>(
         targets: L,
         results: R,

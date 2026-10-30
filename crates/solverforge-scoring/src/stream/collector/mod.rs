@@ -1,4 +1,4 @@
-// Collectors for grouping and aggregating stream matches.
+//! Collectors for grouping and aggregating stream matches.
 
 mod collect_vec;
 mod core;

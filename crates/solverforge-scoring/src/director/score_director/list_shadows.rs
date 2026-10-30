@@ -1,22 +1,21 @@
-/* Stream rows of list-shadowed elements.
-
-An owner's list shadow update rewrites fields of the elements it holds, so
-those writes are mutations the constraint streams must see. Every element row
-is retracted while it still holds the shadows it was inserted with, and
-inserted again once its shadows are final:
-
-- before an owner's list changes, the rows of the elements it holds are
-  retracted and marked pending;
-- after the change, the rows of elements that arrived from no list are
-  retracted, the shadows are rewritten, and every element the owner now
-  holds is inserted;
-- an element that left this owner and is still pending is held by no list
-  yet: its shadows are cleared and its row inserted. If another owner picks it
-  up afterwards, that owner retracts the cleared row like any arrival.
-
-Pending marks are reused across moves, so tracking allocates only while the
-element count grows.
-*/
+//! Stream rows of list-shadowed elements.
+//!
+//! An owner's list shadow update rewrites fields of the elements it holds, so
+//! those writes are mutations the constraint streams must see. Every element row
+//! is retracted while it still holds the shadows it was inserted with, and
+//! inserted again once its shadows are final:
+//!
+//! - before an owner's list changes, the rows of the elements it holds are
+//!   retracted and marked pending;
+//! - after the change, the rows of elements that arrived from no list are
+//!   retracted, the shadows are rewritten, and every element the owner now
+//!   holds is inserted;
+//! - an element that left this owner and is still pending is held by no list
+//!   yet: its shadows are cleared and its row inserted. If another owner picks it
+//!   up afterwards, that owner retracts the cleared row like any arrival.
+//!
+//! Pending marks are reused across moves, so tracking allocates only while the
+//! element count grows.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
@@ -86,10 +85,9 @@ impl ListShadowRows {
         delta
     }
 
-    /* Rewrites the owner's shadows between retracting its arrivals and
-    inserting everything it holds, and inserts the owner's own row too, so
-    the owner observes its refreshed aggregates.
-    */
+    /// Rewrites the owner's shadows between retracting its arrivals and
+    /// inserting everything it holds, and inserts the owner's own row too, so
+    /// the owner observes its refreshed aggregates.
     pub(super) fn refresh_owner<S, C>(
         &mut self,
         solution: &mut S,

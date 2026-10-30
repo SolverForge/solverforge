@@ -1,21 +1,20 @@
-/* Self-join uniqueness operator.
-
-Same-source n-ary streams enumerate unique ordered combinations within one
-collection: every binding shares a key, and each row is one increasing source-
-index tuple of a fixed arity. This node owns that policy concretely so the
-self-join terminals score through the generic `OperatorTerminal`.
-
-The view is `[Leaf<'a, A>; N]` in canonical index order. Retention stores
-input handle tuples; identities resolve on demand, and provenance falls out of
-each member's own provenance.
-*/
+//! Self-join uniqueness operator.
+//!
+//! Same-source n-ary streams enumerate unique ordered combinations within one
+//! collection: every binding shares a key, and each row is one increasing source-
+//! index tuple of a fixed arity. This node owns that policy concretely so the
+//! self-join terminals score through the generic `OperatorTerminal`.
+//!
+//! The view is `[Leaf<'a, A>; N]` in canonical index order. Retention stores
+//! input handle tuples; identities resolve on demand, and provenance falls out of
+//! each member's own provenance.
 
 use super::Operator;
 use crate::stream::key_extract::KeyExtract;
 use crate::stream::relational::{DenseRowStore, FastMap, HandleMap, Leaf, RowHandle};
 use std::marker::PhantomData;
 
-/* Enumerates every increasing `N`-combination of `items` (already index-sorted). */
+/// Enumerates every increasing `N`-combination of `items` (already index-sorted).
 fn all_combinations<T: Copy, const N: usize>(items: &[T], mut emit: impl FnMut([T; N])) {
     let mut buf: [Option<T>; N] = [None; N];
     fn rec<T: Copy, const N: usize>(
@@ -37,8 +36,8 @@ fn all_combinations<T: Copy, const N: usize>(items: &[T], mut emit: impl FnMut([
     rec(items, 0, 0, &mut buf, &mut emit);
 }
 
-/* Enumerates every increasing `N`-combination of `items` that contains
-`items[target]`, keeping canonical index order. `items` is index-sorted. */
+/// Enumerates every increasing `N`-combination of `items` that contains
+/// `items[target]`, keeping canonical index order. `items` is index-sorted.
 fn combinations_with<T: Copy, const N: usize>(
     items: &[T],
     target: usize,
@@ -69,6 +68,10 @@ fn combinations_with<T: Copy, const N: usize>(
     rec(items, &others, 0, 0, &mut picks, &mut emit);
 }
 
+/// Same-collection join of arity `N`: one row per increasing index
+/// combination of `N` input rows whose keys `KE` are equal.
+///
+/// The view is `[Leaf<'a, A>; N]` in index order.
 pub struct SelfJoinNode<S, A, O, K, KE, const N: usize> {
     input: O,
     key: KE,
@@ -85,6 +88,7 @@ pub struct SelfJoinNode<S, A, O, K, KE, const N: usize> {
 }
 
 impl<S, A, O, K, KE, const N: usize> SelfJoinNode<S, A, O, K, KE, N> {
+    /// Creates the node over `input`, keying rows with `key`.
     pub fn new(input: O, key: KE) -> Self {
         Self {
             input,

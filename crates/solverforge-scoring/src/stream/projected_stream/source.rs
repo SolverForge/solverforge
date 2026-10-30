@@ -13,14 +13,23 @@ pub(super) use single::SingleSource;
 
 use crate::stream::collection_extract::ChangeSource;
 
+/// Receives the rows a [`Projection`] emits.
 pub trait ProjectionSink<Out> {
+    /// Accepts one emitted row.
     fn emit(&mut self, output: Out);
 }
 
+/// Retained projection for
+/// [`UniConstraintStream::project`](crate::stream::UniConstraintStream::project):
+/// maps one entity to a bounded number of scoring rows.
 pub trait Projection<A>: Send + Sync {
+    /// The emitted row type; it need not be `Clone`.
     type Out: Send + Sync + 'static;
+    /// Declared maximum number of rows one `project` call emits. Sources combine
+    /// it (a merge adds both bounds); nothing reads it at runtime.
     const MAX_EMITS: usize;
 
+    /// Emits the rows for `input` into `sink`.
     fn project<Sink>(&self, input: &A, sink: &mut Sink)
     where
         Sink: ProjectionSink<Self::Out>;

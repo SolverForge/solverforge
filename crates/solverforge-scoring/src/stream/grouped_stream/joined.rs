@@ -20,19 +20,18 @@ use crate::constraint::relational::{
     SharedOperatorTerminal,
 };
 
-/* The grouped source input: the leaf collection with its authored source
-filter applied, then grouped. Naming this keeps the `GroupView`'s upstream
-operator concrete in bounds without a closure type. */
+/// The grouped source input: the leaf collection with its authored source
+/// filter applied, then grouped. Naming this keeps the `GroupView`'s upstream
+/// operator concrete in bounds without a closure type.
 type SourceInput<S, A, E, Fi> = FilterNode<CollectionNode<S, E>, LeafFilter<S, A, Fi>>;
 
-/* A grouped result related to a second collection by the group key.
-
-`GroupedJoinedStream` is produced by `GroupedConstraintStream::join`. The left
-tree filters the source, groups it, and joins the group key to the second
-collection. The terminal weight sees the group key, the aggregated result, and
-the right entity, so a grouped aggregate is scored together with the entities
-it relates to without becoming a terminal first.
-*/
+/// A grouped result related to a second collection by the group key.
+///
+/// `GroupedJoinedStream` is produced by `GroupedConstraintStream::join`. The left
+/// tree filters the source, groups it, and joins the group key to the second
+/// collection. The terminal weight sees the group key, the aggregated result, and
+/// the right entity, so a grouped aggregate is scored together with the entities
+/// it relates to without becoming a terminal first.
 pub struct GroupedJoinedStream<S, A, B, K, E, EB, Fi, KF, C, V, R, Acc, KB, Sc>
 where
     Sc: Score,

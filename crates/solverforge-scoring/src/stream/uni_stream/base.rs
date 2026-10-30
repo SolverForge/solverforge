@@ -12,22 +12,21 @@ use super::super::existence_target::FlattenedCollectionTarget;
 use super::super::filter::{AndUniFilter, FnUniFilter, TrueFilter, UniFilter};
 use super::super::grouped_stream::GroupedConstraintStream;
 
-/* Zero-erasure constraint stream over a single entity type.
-
-`UniConstraintStream` accumulates filters and can be finalized into
-an `IncrementalUniConstraint` via `penalize()` or `reward()`.
-
-All type parameters are concrete - no trait objects, no Arc allocations
-in the hot path.
-
-# Type Parameters
-
-- `S` - Solution type
-- `A` - Entity type
-- `E` - Extractor function type
-- `F` - Combined filter type
-- `Sc` - Score type
-*/
+/// Zero-erasure constraint stream over a single entity type.
+///
+/// `UniConstraintStream` accumulates filters and can be finalized into
+/// an `IncrementalUniConstraint` via `penalize()` or `reward()`.
+///
+/// All type parameters are concrete - no trait objects, no Arc allocations
+/// in the hot path.
+///
+/// # Type Parameters
+///
+/// - `S` - Solution type
+/// - `A` - Entity type
+/// - `E` - Extractor function type
+/// - `F` - Combined filter type
+/// - `Sc` - Score type
 pub struct UniConstraintStream<S, A, E, F, Sc>
 where
     Sc: Score,
@@ -44,7 +43,7 @@ where
     E: CollectionExtract<S, Item = A>,
     Sc: Score + 'static,
 {
-    // Creates a new uni-constraint stream with the given extractor.
+    /// Creates a new uni-constraint stream with the given extractor.
     pub fn new(extractor: E) -> Self {
         Self {
             extractor,
@@ -62,6 +61,9 @@ where
     F: UniFilter<S, A>,
     Sc: Score + 'static,
 {
+    /// Flattens each entity into the children `flatten` returns, as the right side
+    /// of [`if_exists`](Self::if_exists) or [`if_not_exists`](Self::if_not_exists).
+    /// Children are read from the solution and never become rows.
     pub fn flattened<B, Flat>(
         self,
         flatten: Flat,
@@ -78,7 +80,7 @@ where
         }
     }
 
-    /* Adds a filter predicate to the stream. */
+    /// Adds a filter predicate to the stream.
     pub fn filter<P>(
         self,
         predicate: P,
@@ -115,7 +117,7 @@ where
         target.apply(self.extractor, self.filter)
     }
 
-    /* Groups entities by key and aggregates with a collector. */
+    /// Groups entities by key and aggregates with a collector.
     pub fn group_by<K, KF, C, V, R, Acc>(
         self,
         key_fn: KF,
@@ -135,7 +137,7 @@ where
         GroupedConstraintStream::new(self.extractor, self.filter, key_fn, collector)
     }
 
-    /* Creates a balance constraint that penalizes uneven distribution across groups. */
+    /// Creates a balance constraint that penalizes uneven distribution across groups.
     pub fn balance<K, KF>(self, key_fn: KF) -> BalanceConstraintStream<S, A, K, E, F, KF, Sc>
     where
         K: Clone + Eq + Hash + Send + Sync + 'static,
@@ -153,6 +155,8 @@ where
     F: UniFilter<S, A>,
     Sc: Score + 'static,
 {
+    /// Keeps entities that have at least one match in `target`, typically
+    /// `(other_stream, equal_bi(left_key, right_key))`.
     pub fn if_exists<T>(self, target: T) -> T::Output
     where
         T: ExistenceTarget<S, A, E, F, Sc>,
@@ -160,6 +164,8 @@ where
         target.apply(ExistenceMode::Exists, self.extractor, self.filter)
     }
 
+    /// Keeps entities that have no match in `target`, typically
+    /// `(other_stream, equal_bi(left_key, right_key))`.
     pub fn if_not_exists<T>(self, target: T) -> T::Output
     where
         T: ExistenceTarget<S, A, E, F, Sc>,

@@ -29,15 +29,24 @@ pub enum SharedNodeOperation {
 /// notification bookkeeping while the terminal was incrementally live.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SharedNodeDiagnostics {
+    /// Identity of the shared node.
     pub id: SharedNodeId,
+    /// Compiler fingerprint of the node's structure.
     pub fingerprint: String,
+    /// Relational family of the node.
     pub operation: SharedNodeOperation,
+    /// Names of the terminals authored over this node.
     pub terminal_consumers: Vec<String>,
+    /// Number of entity notifications that changed at least one of the node's
+    /// rows.
     pub update_count: usize,
+    /// Count of row-changing notifications. `SharedOperatorTerminal` increments
+    /// it together with `update_count`, so the two are currently equal.
     pub changed_key_count: usize,
 }
 
 impl SharedNodeDiagnostics {
+    /// Creates diagnostics from their parts.
     pub fn new(
         id: SharedNodeId,
         fingerprint: impl Into<String>,

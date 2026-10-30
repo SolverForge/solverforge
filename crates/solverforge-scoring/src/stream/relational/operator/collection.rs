@@ -3,6 +3,10 @@ use super::Operator;
 use crate::stream::collection_extract::CollectionExtract;
 use std::marker::PhantomData;
 
+/// Leaf operator over one collection: one row per entity that the extractor
+/// yields and accepts through `CollectionExtract::contains`.
+///
+/// It reacts only to notifications for the descriptor that owns its source.
 pub struct CollectionNode<S, E> {
     extractor: E,
     binding: BindingId,
@@ -12,6 +16,8 @@ pub struct CollectionNode<S, E> {
 }
 
 impl<S, E> CollectionNode<S, E> {
+    /// Creates the node. `binding` is the authored source position reported by
+    /// provenance.
     pub fn new(extractor: E, binding: u32) -> Self {
         Self {
             extractor,

@@ -5,6 +5,9 @@ use std::ops::Range;
 use super::runs::{runs_from_counts, Runs};
 use super::{Accumulator, Collector};
 
+/// Creates a collector recording which `i64` indexes the group's matches map to.
+///
+/// `index_fn` maps each match to an index; several matches may share one.
 pub fn indexed_presence<F>(index_fn: F) -> IndexedPresenceCollector<F>
 where
     F: Send + Sync,
@@ -15,6 +18,7 @@ where
     }
 }
 
+/// Collector created by [`indexed_presence`].
 pub struct IndexedPresenceCollector<F> {
     index_fn: F,
     _phantom: PhantomData<fn()>,
@@ -39,6 +43,8 @@ where
     }
 }
 
+/// The set of indexes present in a group, with the number of matches mapped to
+/// them.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct IndexedPresence {
     points: BTreeMap<i64, usize>,
@@ -46,30 +52,39 @@ pub struct IndexedPresence {
 }
 
 impl IndexedPresence {
+    /// Returns `true` if some match maps to `index`.
     #[inline]
     pub fn contains(&self, index: i64) -> bool {
         self.points.contains_key(&index)
     }
 
+    /// Returns the number of distinct indexes present.
     #[inline]
     pub fn count(&self) -> usize {
         self.points.len()
     }
 
+    /// Returns the number of matches, counting duplicates.
     #[inline]
     pub fn item_count(&self) -> usize {
         self.item_count
     }
 
+    /// Returns `true` when no index is present.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.points.is_empty()
     }
 
+    /// Returns the maximal runs of consecutive present indexes.
     pub fn runs(&self) -> Runs {
         runs_from_counts(&self.points)
     }
 
+    /// Returns the maximal runs of consecutive indexes in `horizon` that are absent.
+    ///
+    /// Walks every index in `horizon`, so the cost grows with its length. An empty
+    /// horizon yields no runs.
     pub fn complement_runs(&self, horizon: Range<i64>) -> Runs {
         if horizon.start >= horizon.end {
             return Runs::default();
@@ -89,6 +104,7 @@ impl IndexedPresence {
         runs_from_counts(&complement)
     }
 
+    /// Returns the number of distinct present indexes in `range`.
     pub fn count_in(&self, range: Range<i64>) -> usize {
         if range.start >= range.end {
             return 0;
@@ -96,11 +112,13 @@ impl IndexedPresence {
         self.points.range(range).count()
     }
 
+    /// Returns `true` if any index in `range` is present.
     pub fn any_in(&self, range: Range<i64>) -> bool {
         self.count_in(range) > 0
     }
 }
 
+/// Accumulator of [`IndexedPresenceCollector`]; its retraction token is the index.
 pub struct IndexedPresenceAccumulator {
     presence: IndexedPresence,
 }

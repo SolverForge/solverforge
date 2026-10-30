@@ -1,10 +1,9 @@
-/* JoinTarget trait for single `.join()` dispatch on UniConstraintStream.
-
-Three impls cover all join patterns:
-1. `EqualJoiner<KA, KA, K>` — self-join, returns `BiConstraintStream`
-2. `(EB, EqualJoiner<KA, KB, K>)` — keyed cross-join, returns `Bi`
-3. `(UniConstraintStream<...>, P)` — predicate cross-join, returns `Bi`
-*/
+//! JoinTarget trait for single `.join()` dispatch on UniConstraintStream.
+//!
+//! Three impls cover all join patterns:
+//! 1. `EqualJoiner<KA, KA, K>` — self-join, returns `BiConstraintStream`
+//! 2. `(EB, EqualJoiner<KA, KB, K>)` — keyed cross-join, returns `Bi`
+//! 3. `(UniConstraintStream<...>, P)` — predicate cross-join, returns `Bi`
 
 use std::hash::Hash;
 
@@ -26,22 +25,21 @@ use super::relational::view_plan::{EntityKey, ViewEqualPlan};
 use super::relational::Leaf;
 use super::UniConstraintStream;
 
-/* Trait for single `.join()` dispatch.
-
-`E` is the extractor type of the left stream.
-`F` is the filter type of the left stream.
-Implementors consume `self` and receive the left stream's extractor and filter,
-producing the appropriate cross-stream type.
-*/
+/// Trait for single `.join()` dispatch.
+///
+/// `E` is the extractor type of the left stream.
+/// `F` is the filter type of the left stream.
+/// Implementors consume `self` and receive the left stream's extractor and filter,
+/// producing the appropriate cross-stream type.
 pub trait JoinTarget<S, A, E, F, Sc: Score> {
-    // The resulting constraint stream type.
+    /// The resulting constraint stream type.
     type Output;
 
-    // Applies the join, consuming both the target and the left stream's components.
+    /// Applies the join, consuming both the target and the left stream's components.
     fn apply(self, extractor_a: E, filter_a: F) -> Self::Output;
 }
 
-// Self-join: `.join(equal(|a: &A| a.key))` — pairs same-collection entities.
+/// Self-join: `.join(equal(|a: &A| a.key))` — pairs same-collection entities.
 impl<S, A, E, F, K, KA, Sc> JoinTarget<S, A, E, F, Sc> for EqualJoiner<KA, KA, K, Symmetric>
 where
     S: Send + Sync + 'static,
@@ -62,7 +60,7 @@ where
     }
 }
 
-// Keyed cross-join: `.join((extractor_b, equal_bi(ka, kb)))` — pairs two collections by key.
+/// Keyed cross-join: `.join((extractor_b, equal_bi(ka, kb)))` — pairs two collections by key.
 impl<S, A, B, E, F, EB, K, KA, KB, Mode, Sc> JoinTarget<S, A, E, F, Sc>
     for (EB, EqualJoiner<KA, KB, K, Mode>)
 where
@@ -149,7 +147,7 @@ impl_comparison_join_target!(LessThanOrEqualJoiner, true, true);
 impl_comparison_join_target!(GreaterThanJoiner, false, false);
 impl_comparison_join_target!(GreaterThanOrEqualJoiner, false, true);
 
-// Interval overlap over entity-authored bounds, executed over leaf views.
+/// Interval overlap over entity-authored bounds, executed over leaf views.
 impl<S, A, B, E, F, EB, K, SA, EA, SB, EBd, Sc> JoinTarget<S, A, E, F, Sc>
     for (EB, OverlappingJoiner<SA, EA, SB, EBd, K>)
 where
@@ -182,8 +180,8 @@ where
     }
 }
 
-// Composed conjunction: each operand converts to its view plan, then the two
-// compose into one concrete `AndJoiner` plan. No dynamic condition list.
+/// Composed conjunction: each operand converts to its view plan, then the two
+/// compose into one concrete `AndJoiner` plan. No dynamic condition list.
 impl<S, A, B, E, F, EB, J1, J2, Sc> JoinTarget<S, A, E, F, Sc> for (EB, AndJoiner<J1, J2>)
 where
     S: Send + Sync + 'static,
@@ -219,10 +217,10 @@ where
     }
 }
 
-// Predicate cross-join: `.join((other_stream, |a, b| predicate))` — an
-// explicit opposite-input scan under the exact predicate. The relationship
-// compiles to `FilteringJoiner`, so no synthetic constant equality key is
-// ever built for a non-indexable condition.
+/// Predicate cross-join: `.join((other_stream, |a, b| predicate))` — an
+/// explicit opposite-input scan under the exact predicate. The relationship
+/// compiles to `FilteringJoiner`, so no synthetic constant equality key is
+/// ever built for a non-indexable condition.
 impl<S, A, B, E, F, EB, FB, P, Sc> JoinTarget<S, A, E, F, Sc>
     for (UniConstraintStream<S, B, EB, FB, Sc>, P)
 where
@@ -251,12 +249,14 @@ where
     }
 }
 
-/* Converts an entity-authored condition into the leaf-view plan the operator
-tree executes. Used by the conjunction impl to compose operands; the
-top-level equality, comparison, and overlap impls build their plans directly
-so the equality path keeps producing `BiUnaryPlan`. */
+/// Converts an entity-authored condition into the leaf-view plan the operator
+/// tree executes. Used by the conjunction impl to compose operands; the
+/// top-level equality, comparison, and overlap impls build their plans directly
+/// so the equality path keeps producing `BiUnaryPlan`.
 pub trait ToViewPlan<A, B> {
+    /// The leaf-view plan the condition converts to.
     type ViewPlan;
+    /// Converts the condition into its leaf-view plan.
     fn into_view_plan(self) -> Self::ViewPlan;
 }
 

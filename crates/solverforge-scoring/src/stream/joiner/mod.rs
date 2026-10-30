@@ -1,4 +1,4 @@
-// Joiner functions for constraint stream joins.
+//! Joiner functions for constraint stream joins.
 
 mod comparison;
 mod equal;

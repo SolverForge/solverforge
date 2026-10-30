@@ -1,7 +1,6 @@
-/* O(1) flattened bi-constraint stream.
-
-Provides O(1) lookup for flattened items by pre-indexing C items by key.
-*/
+//! O(1) flattened bi-constraint stream.
+//!
+//! Provides O(1) lookup for flattened items by pre-indexing C items by key.
 
 mod base;
 mod builder;

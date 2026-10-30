@@ -15,9 +15,12 @@ use crate::stream::{
 
 use super::{AdaptWeight, RowWeight};
 
+/// Adapts a `(&K, &R)` group weight to rows of a `GroupNode` with key `K` and
+/// collector result `R`.
 pub struct GroupAdapter<K, R>(PhantomData<fn() -> (K, R)>);
 
 impl<K, R> GroupAdapter<K, R> {
+    /// Creates the adapter.
     pub fn new() -> Self {
         Self(PhantomData)
     }
@@ -74,9 +77,12 @@ where
     }
 }
 
+/// Adapts a `(&K, &R, &B)` weight to rows joining a grouped row (key `K`,
+/// result `R`) with a `B` entity.
 pub struct GroupedJoinAdapter<K, R, B>(PhantomData<fn() -> (K, R, B)>);
 
 impl<K, R, B> GroupedJoinAdapter<K, R, B> {
+    /// Creates the adapter.
     pub fn new() -> Self {
         Self(PhantomData)
     }
@@ -167,17 +173,23 @@ where
     }
 }
 
+/// Adapts a `(&K, &R)` weight to complemented rows over groups keyed by `K`.
+///
+/// The weight's key is always the complement target's key `KB(target)`; a
+/// target without a real group scores its default result.
 pub struct DirectComplementAdapter<KB, K, R> {
     key: KB,
     marker: PhantomData<fn() -> (K, R)>,
 }
 
+/// Like [`DirectComplementAdapter`], for groups keyed by `Option<K>`.
 pub struct OptionalComplementAdapter<KB, K, R> {
     key: KB,
     marker: PhantomData<fn() -> (K, R)>,
 }
 
 impl<KB, K, R> DirectComplementAdapter<KB, K, R> {
+    /// Creates the adapter around the complement target key `key`.
     pub fn new(key: KB) -> Self {
         Self {
             key,
@@ -186,6 +198,7 @@ impl<KB, K, R> DirectComplementAdapter<KB, K, R> {
     }
 }
 impl<KB, K, R> OptionalComplementAdapter<KB, K, R> {
+    /// Creates the adapter around the complement target key `key`.
     pub fn new(key: KB) -> Self {
         Self {
             key,

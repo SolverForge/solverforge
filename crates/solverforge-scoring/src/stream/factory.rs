@@ -1,7 +1,6 @@
-/* Constraint factory for creating monomorphized constraint streams.
-
-The factory is the entry point for the fluent constraint API.
-*/
+//! Constraint factory for creating monomorphized constraint streams.
+//!
+//! The factory is the entry point for the fluent constraint API.
 
 use std::marker::PhantomData;
 
@@ -11,35 +10,45 @@ use super::collection_extract::CollectionExtract;
 use super::filter::TrueFilter;
 use super::UniConstraintStream;
 
-/* Factory for creating constraint streams.
-
-`ConstraintFactory` is parameterized by the solution type `S` and score type `Sc`.
-It serves as the entry point for defining constraints using the fluent API.
-
-# Example
-
-```
-use solverforge_scoring::stream::ConstraintFactory;
-use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-use solverforge_core::score::SoftScore;
-
-#[derive(Clone)]
-struct Solution {
-values: Vec<Option<i32>>,
-}
-
-let factory = ConstraintFactory::<Solution, SoftScore>::new();
-
-let constraint = factory
-.for_each(Solution::values())
-.filter(|v: &Option<i32>| v.is_none())
-.penalize(SoftScore::of(1))
-.named("Unassigned");
-
-let solution = Solution { values: vec![Some(1), None, None] };
-assert_eq!(constraint.evaluate(&solution), SoftScore::of(-2));
-```
-*/
+/// Factory for creating constraint streams.
+///
+/// `ConstraintFactory` is parameterized by the solution type `S` and score type `Sc`.
+/// It serves as the entry point for defining constraints using the fluent API.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_core::score::SoftScore;
+/// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+/// use solverforge_scoring::stream::ConstraintFactory;
+///
+/// #[derive(Clone)]
+/// struct Solution {
+///     values: Vec<Option<i32>>,
+/// }
+/// # use solverforge_scoring::stream::{source, ChangeSource, CollectionExtract};
+/// # impl Solution {
+/// #     fn values() -> impl CollectionExtract<Solution, Item = Option<i32>> {
+/// #         fn values(s: &Solution) -> &[Option<i32>] {
+/// #             s.values.as_slice()
+/// #         }
+/// #         source(values as fn(&Solution) -> &[Option<i32>], ChangeSource::Descriptor(0))
+/// #     }
+/// # }
+///
+/// let factory = ConstraintFactory::<Solution, SoftScore>::new();
+///
+/// let constraint = factory
+///     .for_each(Solution::values())
+///     .filter(|v: &Option<i32>| v.is_none())
+///     .penalize(SoftScore::of(1))
+///     .named("Unassigned");
+///
+/// let solution = Solution {
+///     values: vec![Some(1), None, None],
+/// };
+/// assert_eq!(constraint.evaluate(&solution), SoftScore::of(-2));
+/// ```
 pub struct ConstraintFactory<S, Sc: Score> {
     _phantom: PhantomData<(fn() -> S, fn() -> Sc)>,
 }
@@ -49,20 +58,19 @@ where
     S: Send + Sync + 'static,
     Sc: Score + 'static,
 {
-    // Creates a new constraint factory.
+    /// Creates a new constraint factory.
     pub fn new() -> Self {
         Self {
             _phantom: PhantomData,
         }
     }
 
-    /* Creates a zero-erasure uni-constraint stream over a collection source.
-
-    For macro-generated models, pass the inherent solution source method:
-    `ConstraintFactory::new().for_each(Schedule::shifts())`.
-    Low-level callers can still pass any `CollectionExtract<S, Item = A>`.
-    The extractor type is preserved as a concrete generic for full zero-erasure.
-    */
+    /// Creates a zero-erasure uni-constraint stream over a collection source.
+    ///
+    /// For macro-generated models, pass the inherent solution source method:
+    /// `ConstraintFactory::new().for_each(Schedule::shifts())`.
+    /// Low-level callers can still pass any `CollectionExtract<S, Item = A>`.
+    /// The extractor type is preserved as a concrete generic for full zero-erasure.
     pub fn for_each<A, E>(self, extractor: E) -> UniConstraintStream<S, A, E, TrueFilter, Sc>
     where
         A: Clone + Send + Sync + 'static,

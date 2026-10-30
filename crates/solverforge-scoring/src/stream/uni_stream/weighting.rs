@@ -37,6 +37,11 @@ where
         }
     }
 
+    /// Penalizes each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched entity returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -52,6 +57,11 @@ where
         )
     }
 
+    /// Rewards each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched entity returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -64,7 +74,7 @@ where
     }
 }
 
-// Zero-erasure builder for finalizing a uni-constraint.
+/// Zero-erasure builder for finalizing a uni-constraint.
 pub struct UniConstraintBuilder<S, A, E, F, W, Sc>
 where
     Sc: Score,
@@ -86,7 +96,7 @@ where
     W: Fn(&A) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    // Finalizes the builder into a zero-erasure `IncrementalUniConstraint`.
+    /// Finalizes the builder into a zero-erasure `IncrementalUniConstraint`.
     pub fn named(
         self,
         name: &str,

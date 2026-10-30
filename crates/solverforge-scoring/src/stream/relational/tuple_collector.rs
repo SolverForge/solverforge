@@ -8,6 +8,7 @@ pub struct TupleCollector<C, V, R, Acc> {
     marker: PhantomData<fn() -> (V, R, Acc)>,
 }
 impl<C, V, R, Acc> TupleCollector<C, V, R, Acc> {
+    /// Wraps `inner`, which collects tuples of entity references.
     pub fn new(inner: C) -> Self {
         Self {
             inner,

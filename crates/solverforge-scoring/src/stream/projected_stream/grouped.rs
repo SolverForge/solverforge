@@ -15,6 +15,7 @@ use crate::stream::weighting_support::ConstraintWeight;
 use super::complemented_grouped::ComplementedGrouped;
 use super::source::{ProjectedCollector, ProjectedRow, Source, SourceNode};
 
+/// Projected rows grouped by a key `K` and aggregated by a collector.
 pub struct Grouped<S, Out, K, Src, F, KF, C, V, R, Acc, Sc>
 where
     Sc: Score,
@@ -69,6 +70,11 @@ where
         }
     }
 
+    /// Penalizes each group by `weight_fn`.
+    ///
+    /// `weight_fn` is a fixed score, or a closure over the matched `(&key, &result)` returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight_fn: W,
@@ -84,6 +90,11 @@ where
         )
     }
 
+    /// Rewards each group by `weight_fn`.
+    ///
+    /// `weight_fn` is a fixed score, or a closure over the matched `(&key, &result)` returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight_fn: W,
@@ -99,6 +110,9 @@ where
         )
     }
 
+    /// Complements the groups with the entities of `extractor_b`: each `b` yields a
+    /// row keyed `key_b(b)` holding the real group's result, or `default_fn(b)` when
+    /// that group is empty.
     pub fn complement<B, EB, KB, D>(
         self,
         extractor_b: EB,
@@ -141,6 +155,8 @@ where
         }
     }
 
+    /// Like [`complement`](Self::complement), regrouping rows by `key_a`; rows whose
+    /// key is `None` join no target and contribute nothing.
     pub fn complement_with_key<B, EB, KA2, KB, D>(
         self,
         extractor_b: EB,
@@ -168,6 +184,8 @@ where
     }
 }
 
+/// Builder holding a weighted grouped projected constraint until
+/// [`named`](Self::named) finalizes it.
 pub struct GroupedBuilder<S, Out, K, Src, F, KF, C, V, R, Acc, W, Sc>
 where
     Sc: Score,
@@ -206,6 +224,9 @@ where
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds it as a
+    /// [`SharedOperatorTerminal`](crate::constraint::relational::SharedOperatorTerminal),
+    /// to which further terminals over the same grouped node can be appended.
     pub fn named(
         self,
         name: &str,

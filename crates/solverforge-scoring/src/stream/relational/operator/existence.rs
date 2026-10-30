@@ -8,22 +8,24 @@ use crate::stream::relational::{FastMap, HandleMap, Leaf, RowHandle};
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-/* Membership key source for one right-side row.
-
-Plain rows contribute their single equality key; a parent row contributes the
-multiset of its children's keys, read straight from the solution. Either way
-the contribution is pushed into the node's reused scratch buffer — right-side
-children never become rows and never receive handles.
-*/
+/// Membership key source for one right-side row.
+///
+/// Plain rows contribute their single equality key; a parent row contributes the
+/// multiset of its children's keys, read straight from the solution. Either way
+/// the contribution is pushed into the node's reused scratch buffer — right-side
+/// children never become rows and never receive handles.
 pub trait RightKeySet<V>: Send + Sync {
+    /// The key type contributed.
     type Key;
 
+    /// Pushes the keys `view` contributes onto `out`.
     fn push_keys(&self, view: &V, out: &mut Vec<Self::Key>);
 }
 
-/* One row, one key. */
+/// One row, one key.
 pub struct UnitKeys<VK>(VK);
 impl<VK> UnitKeys<VK> {
+    /// Wraps the view key extractor `inner`.
     pub fn new(inner: VK) -> Self {
         Self(inner)
     }
@@ -40,14 +42,16 @@ where
     }
 }
 
-/* One parent row, its children's keys. The children are read through the
-solution-borrowed flatten extractor, so a changed parent costs one pass over
-its own elements and nothing is materialized. */
+/// One parent row, its children's keys. The children are read through the
+/// solution-borrowed flatten extractor, so a changed parent costs one pass over
+/// its own elements and nothing is materialized.
 pub struct ParentChildKeys<KB, F> {
     key_b: KB,
     flatten: F,
 }
 impl<KB, F> ParentChildKeys<KB, F> {
+    /// Contributes `key_b(child)` for every child that `flatten` borrows from a
+    /// parent row.
     pub fn new(key_b: KB, flatten: F) -> Self {
         Self { key_b, flatten }
     }
@@ -67,12 +71,13 @@ where
     }
 }
 
-/* Pushes one key per grouped row: the group's aggregated result, read through
-the accumulator so grouped-existence keys off the aggregate like any other view
-key. */
+/// Pushes one key per grouped row: the group's aggregated result, read through
+/// the accumulator so grouped-existence keys off the aggregate like any other view
+/// key.
 pub struct GroupRightKeys<RK>(RK);
 
 impl<RK> GroupRightKeys<RK> {
+    /// Wraps `inner`, which reads one key off a grouped row.
     pub fn new(inner: RK) -> Self {
         Self(inner)
     }
@@ -91,15 +96,14 @@ where
     }
 }
 
-/* Semi/anti join over concrete row producers, answered from per-key counts.
-
-The node retains one occurrence count per right-side key, each right row's
-stored key contribution, and one key bucket of left rows per key. A key whose
-count crosses the alive/dead threshold publishes or retracts every left row
-carrying it; nothing else changes. Left rows are re-keyed from the live
-solution on insert, so a changed key moves the row between key domains without
-pair bookkeeping. Only left rows are published, never scored pair rows.
-*/
+/// Semi/anti join over concrete row producers, answered from per-key counts.
+///
+/// The node retains one occurrence count per right-side key, each right row's
+/// stored key contribution, and one key bucket of left rows per key. A key whose
+/// count crosses the alive/dead threshold publishes or retracts every left row
+/// carrying it; nothing else changes. Left rows are re-keyed from the live
+/// solution on insert, so a changed key moves the row between key domains without
+/// pair bookkeeping. Only left rows are published, never scored pair rows.
 pub struct ExistenceNode<S, L, R, K, LK, RK> {
     left: L,
     right: R,
@@ -146,6 +150,8 @@ where
     for<'a> LK: ViewKey<L::View<'a>, Key = K>,
     for<'a> RK: RightKeySet<R::View<'a>, Key = K>,
 {
+    /// Creates the node. A left row is published while some right row contributes
+    /// its key (`exists == true`), or while none does (`exists == false`).
     pub fn new(left: L, right: R, left_key: LK, right_keys: RK, exists: bool) -> Self {
         Self {
             left,

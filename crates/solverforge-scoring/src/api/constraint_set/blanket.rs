@@ -1,4 +1,4 @@
-/* Every `IncrementalConstraint` is a one-constraint `ConstraintSet`. */
+//! Every `IncrementalConstraint` is a one-constraint `ConstraintSet`.
 
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;

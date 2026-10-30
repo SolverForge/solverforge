@@ -17,6 +17,7 @@ impl<S: 'static, O: Operator<S>> Clone for Contributors<'_, S, O> {
 /// A borrowed group key and accumulator-owned result, with complete input lineage.
 /// Use `with_result` to borrow collector results without cloning them.
 pub struct GroupView<'a, S: 'static, O: Operator<S>, K, A, V, R> {
+    /// The group's key.
     pub key: &'a K,
     pub(super) accumulator: &'a A,
     pub(super) input: &'a O,
@@ -31,6 +32,7 @@ impl<S: 'static, O: Operator<S>, K, A, V, R> Clone for GroupView<'_, S, O, K, A,
     }
 }
 impl<S: 'static, O: Operator<S>, K, A: Accumulator<V, R>, V, R> GroupView<'_, S, O, K, A, V, R> {
+    /// Borrows the group's collector result.
     pub fn with_result<T>(&self, f: impl FnOnce(&R) -> T) -> T {
         self.accumulator.with_result(f)
     }

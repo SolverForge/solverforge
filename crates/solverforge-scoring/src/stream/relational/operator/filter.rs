@@ -1,8 +1,9 @@
 use super::Operator;
 
-/* A row predicate over a borrowed operator view. Named as a trait so a filter
-node's predicate type need not be a bare closure in an operator's type. */
+/// A row predicate over a borrowed operator view. Named as a trait so a filter
+/// node's predicate type need not be a bare closure in an operator's type.
 pub trait FilterPredicate<S, V>: Send + Sync {
+    /// Returns `true` when `row` passes.
     fn accepts(&self, solution: &S, row: &V) -> bool;
 }
 
@@ -27,6 +28,7 @@ pub struct FilterNode<O, F> {
     child_inserted: Vec<RowHandle>,
 }
 impl<O, F> FilterNode<O, F> {
+    /// Keeps the rows of `input` that `predicate` accepts.
     pub fn new(input: O, predicate: F) -> Self {
         Self {
             input,

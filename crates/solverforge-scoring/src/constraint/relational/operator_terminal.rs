@@ -29,6 +29,8 @@ pub struct OperatorTerminal<S, O, W, Sc> {
 }
 
 impl<S, O, W, Sc> OperatorTerminal<S, O, W, Sc> {
+    /// Creates the terminal. `impact` signs every retained row weight; `hard` is
+    /// the reported hardness.
     pub fn new(
         constraint_ref: ConstraintRef,
         impact: ImpactType,

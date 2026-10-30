@@ -362,9 +362,9 @@ Avoid `#[derive(Clone)]` on generic types when it would introduce unnecessary bo
   items use `///` (or `/** */`); plain `//` and `/* */` comments never
   replace them. docs.rs renders only doc comments, so a comment-style sweep
   must leave them in place. `solverforge`, `solverforge-core`,
-  `solverforge-config`, `solverforge-console`, `solverforge-macros`,
-  `solverforge-bridge` and `solverforge-cvrp` warn on `missing_docs`, so every
-  new public item there needs a doc comment.
+  `solverforge-config`, `solverforge-scoring`, `solverforge-console`,
+  `solverforge-macros`, `solverforge-bridge` and `solverforge-cvrp` warn on
+  `missing_docs`, so every new public item there needs a doc comment.
 - Move implementation code into dedicated files.
 - Keep Rust source and test files under 500 LOC. When a module grows beyond
   that boundary, split it by subsystem or behavior into adjacent implementation

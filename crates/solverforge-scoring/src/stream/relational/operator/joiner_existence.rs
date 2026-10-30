@@ -40,6 +40,9 @@ impl<S: 'static, L: Operator<S>, R: Operator<S>, P: IndexedPlan + 'static>
 where
     for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,
 {
+    /// Creates the node. A left row is published while some right row satisfies
+    /// `condition` with it (`exists == true`), or while none does
+    /// (`exists == false`).
     pub fn new<C: CompileCondition<Plan = P>>(
         left: L,
         right: R,

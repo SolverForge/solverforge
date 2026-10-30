@@ -1,11 +1,10 @@
-/* Score director implementations.
-
-The score director manages solution state and score calculation.
-
-# Score Director Types
-
-- [`ScoreDirector`] - Zero-erasure incremental scoring
-*/
+//! Score director implementations.
+//!
+//! The score director manages solution state and score calculation.
+//!
+//! # Score Director Types
+//!
+//! - [`ScoreDirector`](score_director::ScoreDirector) - Zero-erasure incremental scoring
 
 mod traits;
 

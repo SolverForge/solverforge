@@ -19,6 +19,8 @@ use crate::stream::weighting_support::ConstraintWeight;
 
 use super::source::{ProjectedCollector, ProjectedRow, Source, SourceNode};
 
+/// Grouped projected stream complemented with `B` entities: every `B` yields one
+/// row keyed `key_b(b)`, holding the real group's result or `default_fn(b)`.
 pub struct ComplementedGrouped<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, Sc>
 where
     Sc: Score,
@@ -85,6 +87,11 @@ where
         }
     }
 
+    /// Penalizes each row by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&key, &result)` returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -117,6 +124,11 @@ where
         )
     }
 
+    /// Rewards each row by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&key, &result)` returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -150,6 +162,8 @@ where
     }
 }
 
+/// Builder holding a weighted complemented grouped projected constraint until
+/// [`named`](Self::named) finalizes it.
 pub struct ComplementedGroupedBuilder<S, Out, B, K, Src, EB, F, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     Sc: Score,
@@ -196,6 +210,9 @@ where
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds it as a
+    /// [`SharedOperatorTerminal`](crate::constraint::relational::SharedOperatorTerminal),
+    /// to which further terminals over the same grouped node can be appended.
     pub fn named(
         self,
         name: &str,

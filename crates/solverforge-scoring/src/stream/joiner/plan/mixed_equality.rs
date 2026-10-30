@@ -21,7 +21,7 @@ impl<L, R, E: EqualityKeys<L, R>, P: Joiner<L, R>, const FIRST: bool> EqualityKe
     fn right_key(&self, row: &R) -> Self::Key {
         self.equality.right_key(row)
     }
-    // Preserve authored short-circuit invocation order.
+    /// Preserve authored short-circuit invocation order.
     #[allow(clippy::if_same_then_else)]
     fn residual_matches(&self, left: &L, right: &R) -> bool {
         if FIRST {
@@ -34,7 +34,7 @@ impl<L, R, E: EqualityKeys<L, R>, P: Joiner<L, R>, const FIRST: bool> EqualityKe
 impl<L, R, E: Joiner<L, R>, P: Joiner<L, R>, const FIRST: bool> Joiner<L, R>
     for EqualityWithResidual<E, P, FIRST>
 {
-    // Preserve authored short-circuit invocation order.
+    /// Preserve authored short-circuit invocation order.
     #[allow(clippy::if_same_then_else)]
     fn matches(&self, left: &L, right: &R) -> bool {
         if FIRST {
@@ -52,9 +52,9 @@ impl<L, R, E: Joiner<L, R>, P: Joiner<L, R>, const FIRST: bool> PlannedCondition
         self.matches(left, right)
     }
 }
-/* Already a compiled mixed plan: composing it further is a no-op, so it is
-its own compiled condition. This lets an equality+residual conjunction be the
-condition a stream hands to `from_condition`. */
+/// Already a compiled mixed plan: composing it further is a no-op, so it is
+/// its own compiled condition. This lets an equality+residual conjunction be the
+/// condition a stream hands to `from_condition`.
 impl<E: EqualityPlan, P, const FIRST: bool> super::CompileCondition
     for EqualityWithResidual<E, P, FIRST>
 {

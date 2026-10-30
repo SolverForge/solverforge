@@ -1,9 +1,8 @@
-/* Per-terminal scorers behind a shared operator tree.
-
-Each `OperatorScorer` owns one terminal's identity, weight, and retained
-unsigned row weights; `ScorerChain` composes several scorers over one operator
-so compiler-shared grouped nodes keep a single accumulator state.
-*/
+//! Per-terminal scorers behind a shared operator tree.
+//!
+//! Each `OperatorScorer` owns one terminal's identity, weight, and retained
+//! unsigned row weights; `ScorerChain` composes several scorers over one operator
+//! so compiler-shared grouped nodes keep a single accumulator state.
 
 use crate::constraint::score_sum::ScoreSum;
 use solverforge_core::{score::Score, ConstraintRef, ImpactType};
@@ -17,14 +16,22 @@ use crate::api::{
 use crate::stream::relational::operator::Operator;
 use crate::stream::relational::{HandleMap, RowHandle};
 
+/// Unsigned score of one row of operator `O`; the terminal applies the
+/// impact.
 pub trait RowWeight<S: 'static, O: Operator<S>, Sc>: Send + Sync {
+    /// Scores `row`.
     fn score(&self, solution: &S, row: &O::View<'_>) -> Sc;
 }
 
+/// Turns an authored weight `W` into a [`RowWeight`] for operator `O`'s
+/// rows.
 pub trait AdaptWeight<S: 'static, O: Operator<S>, W, Sc>: Send + Sync {
+    /// The row weight produced from `W`.
     type RowWeight: RowWeight<S, O, Sc>;
 
+    /// Wraps `weight` as a row weight.
     fn adapt(&self, weight: W) -> Self::RowWeight;
+    /// Reports whether `weight` marks the constraint hard.
     fn is_hard(&self, weight: &W) -> bool;
 }
 
@@ -55,7 +62,7 @@ impl<W, Sc> OperatorScorer<W, Sc> {
 }
 
 impl<W, Sc: Score> OperatorScorer<W, Sc> {
-    // Retained weights are unsigned; this applies the impact for readers.
+    /// Retained weights are unsigned; this applies the impact for readers.
     fn signed(&self, weight: Sc) -> Sc {
         match self.impact {
             ImpactType::Penalty => -weight,
@@ -88,9 +95,9 @@ pub trait OperatorScorerSet<S: 'static, O: Operator<S>, Sc: Score>: Send + Sync 
         None
     }
 
-    /* Weighted counterparts: one multiplier per scorer, in chain order. Each
-    scorer scales its own contribution, so terminals sharing one operator
-    keep independent multipliers while the operator state stays shared. */
+    /// Weighted counterparts: one multiplier per scorer, in chain order. Each
+    /// scorer scales its own contribution, so terminals sharing one operator
+    /// keep independent multipliers while the operator state stays shared.
     fn weight_refs<'a>(&'a self, refs: &mut Vec<&'a ConstraintRef>);
     fn evaluate_weighted(&self, operator: &O, solution: &S, multipliers: &[u32]) -> Sc;
     fn initialize_weighted(&mut self, operator: &O, solution: &S, multipliers: &[u32]) -> Sc;

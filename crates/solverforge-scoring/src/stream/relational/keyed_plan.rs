@@ -1,14 +1,13 @@
-/* Keyed equality plans: keyed probes and key readback for retained joins.
-
-`JoinNode` probes by rows. A complement's restore pass needs the same probe
-by KEY: when a result row is removed, the targets that may regain their
-default are the live left rows still indexed under the removed row's key.
-Capturing row handles at index time instead would replay stale handles after
-a target retracts and re-inserts (new generation on the same slot), skipping
-their defaults — traced as a retained-vs-full-evaluation divergence. The key
-is stable where handles are not, so the node reads the removed row's key back
-from its index and re-derives current target handles from the left index.
-*/
+//! Keyed equality plans: keyed probes and key readback for retained joins.
+//!
+//! `JoinNode` probes by rows. A complement's restore pass needs the same probe
+//! by KEY: when a result row is removed, the targets that may regain their
+//! default are the live left rows still indexed under the removed row's key.
+//! Capturing row handles at index time instead would replay stale handles after
+//! a target retracts and re-inserts (new generation on the same slot), skipping
+//! their defaults — traced as a retained-vs-full-evaluation divergence. The key
+//! is stable where handles are not, so the node reads the removed row's key back
+//! from its index and re-derives current target handles from the left index.
 
 use crate::stream::joiner::plan::{EqualityPlan, IndexedPlan};
 use crate::stream::relational::index::HashIndex;
@@ -37,9 +36,9 @@ pub trait RightKeyOf: IndexedPlan {
     ) -> Option<&'i Self::Key>;
 }
 
-/* Blanket over hash-indexed equality plans: both indexes are keyed by the
-plan's own `EqualityPlan::Key`, so both probes are member lookups on the
-index pair. Implemented per side through the shape traits below. */
+/// Blanket over hash-indexed equality plans: both indexes are keyed by the
+/// plan's own `EqualityPlan::Key`, so both probes are member lookups on the
+/// index pair. Implemented per side through the shape traits below.
 impl<P> KeyOf for P
 where
     P: EqualityPlan + IndexedPlan,
@@ -76,9 +75,9 @@ where
     }
 }
 
-/* The left/right index of a plan's `Indexes` pair is a `HashIndex` keyed by
-K. Implemented only where the shape actually holds, so no structural
-guessing. */
+/// The left/right index of a plan's `Indexes` pair is a `HashIndex` keyed by
+/// K. Implemented only where the shape actually holds, so no structural
+/// guessing.
 pub trait LeftHashIndex<K> {
     fn left_hash(&self) -> &HashIndex<K>;
 }

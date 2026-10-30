@@ -13,10 +13,10 @@ use super::super::relational::Leaf;
 use super::scored::FlattenedBiScored;
 use crate::constraint::relational::OperatorTerminal;
 
-/* Finalizes a flattened bi-constraint onto the shared operator tree: a
-`JoinNode` between the A collection and a `FlattenNode` over the B collection,
-joined on `(join key, lookup key) == (owner key, child key)`. Scoring is the
-generic `OperatorTerminal`. */
+/// Finalizes a flattened bi-constraint onto the shared operator tree: a
+/// `JoinNode` between the A collection and a `FlattenNode` over the B collection,
+/// joined on `(join key, lookup key) == (owner key, child key)`. Scoring is the
+/// generic `OperatorTerminal`.
 pub struct FlattenedBiConstraintBuilder<
     S,
     A,
@@ -96,6 +96,7 @@ where
     W: Fn(&A, &C) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds it.
     pub fn named(
         self,
         name: &str,

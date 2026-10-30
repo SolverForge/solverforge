@@ -1,11 +1,10 @@
-/* Typed condition planning: concrete indexes and exact residual matching.
-
-Equality conjunctions normalize into one heterogeneous composite hash key,
-including equality components separated by predicates or range conditions.
-Mixed plans index equality and retain the authored residual predicates.
-Ordered and interval plans execute their concrete candidate indexes; arbitrary
-predicates explicitly scan. No closure inspection or dynamic condition list.
-*/
+//! Typed condition planning: concrete indexes and exact residual matching.
+//!
+//! Equality conjunctions normalize into one heterogeneous composite hash key,
+//! including equality components separated by predicates or range conditions.
+//! Mixed plans index equality and retain the authored residual predicates.
+//! Ordered and interval plans execute their concrete candidate indexes; arbitrary
+//! predicates explicitly scan. No closure inspection or dynamic condition list.
 
 use super::match_condition::AndJoiner;
 use super::{EqualJoiner, FilteringJoiner};
@@ -23,22 +22,22 @@ pub use mixed_equality::EqualityWithResidual;
 mod ordered_interval;
 pub use executable::{CompileCondition, ExecutablePlan, IndexedPlan};
 
-/* Deterministic execution strategy compiled from a condition's structure. */
+/// Deterministic execution strategy compiled from a condition's structure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Strategy {
-    /* Typed hash indexes on both inputs plus exact equality residual. */
+    /// Typed hash indexes on both inputs plus exact equality residual.
     EquiHash,
-    /* Typed ordered bounds plus exact strict/inclusive residual. */
+    /// Typed ordered bounds plus exact strict/inclusive residual.
     OrderedScan,
-    /* Interval candidate narrowing plus exact half-open predicate. */
+    /// Interval candidate narrowing plus exact half-open predicate.
     IntervalNarrow,
-    /* Explicit opposite-input scan with the exact predicate. */
+    /// Explicit opposite-input scan with the exact predicate.
     Scan,
 }
 
 impl Strategy {
-    /* Prefer the most selective usable structural index; retain all residuals.
-    Equality > ordered > interval > explicit scan. */
+    /// Prefer the most selective usable structural index; retain all residuals.
+    /// Equality > ordered > interval > explicit scan.
     #[inline]
     pub const fn combine(self, other: Strategy) -> Strategy {
         match (self, other) {
@@ -52,21 +51,20 @@ impl Strategy {
     }
 }
 
-/* A condition with a statically planned execution strategy.
-
-`check` is the exact residual semantic check over one borrowed left row
-and one right entity — the same predicate `matches` evaluates, exposed
-so operators apply residuals without re-dispatching through `Joiner`.
-*/
+/// A condition with a statically planned execution strategy.
+///
+/// `check` is the exact residual semantic check over one borrowed left row
+/// and one right entity — the same predicate `matches` evaluates, exposed
+/// so operators apply residuals without re-dispatching through `Joiner`.
 pub trait PlannedCondition<Row, C>: Send + Sync {
-    /* The deterministic strategy for this condition's structure. */
+    /// The deterministic strategy for this condition's structure.
     const STRATEGY: Strategy;
 
-    /* Exact residual check: must agree with `Joiner::matches`. */
+    /// Exact residual check: must agree with `Joiner::matches`.
     fn check(&self, row: &Row, c: &C) -> bool;
 }
 
-/* Reads the planned strategy for one condition value. */
+/// Reads the planned strategy for one condition value.
 #[inline]
 pub fn plan_strategy<Row, C, P>(condition: &P) -> Strategy
 where

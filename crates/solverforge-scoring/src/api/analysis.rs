@@ -1,9 +1,8 @@
-/* Score analysis types for detailed constraint tracking.
-
-This module provides types for analyzing constraint matches in detail,
-including which entities are involved in each match, score explanations,
-and entity-level indictments.
-*/
+//! Score analysis types for detailed constraint tracking.
+//!
+//! This module provides types for analyzing constraint matches in detail,
+//! including which entities are involved in each match, score explanations,
+//! and entity-level indictments.
 
 use std::any::Any;
 use std::fmt::Debug;
@@ -13,22 +12,21 @@ use std::sync::Arc;
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
 
-/* Reference to an entity involved in a constraint match.
-Uses type erasure to allow storing references to different entity types
-in a single collection.
-*/
+/// Reference to an entity involved in a constraint match.
+/// Uses type erasure to allow storing references to different entity types
+/// in a single collection.
 #[derive(Clone)]
 pub struct EntityRef {
-    // Type name of the entity (e.g., "Shift", "Employee").
+    /// Type name of the entity (e.g., "Shift", "Employee").
     pub type_name: String,
-    // String representation for display.
+    /// String representation for display.
     pub display: String,
     // Type-erased entity for programmatic access.
     entity: Arc<dyn Any + Send + Sync>,
 }
 
 impl EntityRef {
-    // Creates a new entity reference from a concrete entity.
+    /// Creates a new entity reference from a concrete entity.
     pub fn new<T: Clone + Debug + Send + Sync + 'static>(entity: &T) -> Self {
         Self {
             type_name: std::any::type_name::<T>().to_string(),
@@ -37,7 +35,7 @@ impl EntityRef {
         }
     }
 
-    // Creates an entity reference with a custom display string.
+    /// Creates an entity reference with a custom display string.
     pub fn with_display<T: Clone + Send + Sync + 'static>(entity: &T, display: String) -> Self {
         Self {
             type_name: std::any::type_name::<T>().to_string(),
@@ -46,12 +44,12 @@ impl EntityRef {
         }
     }
 
-    // Attempts to downcast to the concrete entity type.
+    /// Attempts to downcast to the concrete entity type.
     pub fn as_entity<T: 'static>(&self) -> Option<&T> {
         self.entity.downcast_ref::<T>()
     }
 
-    // Returns the short type name (without module path).
+    /// Returns the short type name (without module path).
     pub fn short_type_name(&self) -> &str {
         self.type_name
             .rsplit("::")
@@ -84,17 +82,17 @@ impl Hash for EntityRef {
     }
 }
 
-// Justification for why a constraint matched.
+/// Justification for why a constraint matched.
 #[derive(Debug, Clone)]
 pub struct ConstraintJustification {
-    // Entities involved in the match.
+    /// Entities involved in the match.
     pub entities: Vec<EntityRef>,
-    // Human-readable description of why the constraint matched.
+    /// Human-readable description of why the constraint matched.
     pub description: String,
 }
 
 impl ConstraintJustification {
-    // Creates a justification from entities, auto-generating description.
+    /// Creates a justification from entities, auto-generating description.
     pub fn new(entities: Vec<EntityRef>) -> Self {
         let description = if entities.is_empty() {
             "No entities".to_string()
@@ -111,7 +109,7 @@ impl ConstraintJustification {
         }
     }
 
-    // Creates a justification with a custom description.
+    /// Creates a justification with a custom description.
     pub fn with_description(entities: Vec<EntityRef>, description: String) -> Self {
         Self {
             entities,
@@ -120,19 +118,19 @@ impl ConstraintJustification {
     }
 }
 
-// A detailed constraint match with entity information.
+/// A detailed constraint match with entity information.
 #[derive(Debug, Clone)]
 pub struct DetailedConstraintMatch<'a, Sc: Score> {
-    // Reference to the constraint that matched.
+    /// Reference to the constraint that matched.
     pub constraint_ref: &'a ConstraintRef,
-    // Score impact of this match.
+    /// Score impact of this match.
     pub score: Sc,
-    // Justification with involved entities.
+    /// Justification with involved entities.
     pub justification: ConstraintJustification,
 }
 
 impl<'a, Sc: Score> DetailedConstraintMatch<'a, Sc> {
-    // Creates a new detailed constraint match.
+    /// Creates a new detailed constraint match.
     pub fn new(
         constraint_ref: &'a ConstraintRef,
         score: Sc,
@@ -146,23 +144,23 @@ impl<'a, Sc: Score> DetailedConstraintMatch<'a, Sc> {
     }
 }
 
-// Per-constraint breakdown in a score explanation.
+/// Per-constraint breakdown in a score explanation.
 #[derive(Debug, Clone)]
 pub struct ConstraintAnalysis<'a, Sc: Score> {
-    // Constraint reference.
+    /// Constraint reference.
     pub constraint_ref: &'a ConstraintRef,
-    // Bound runtime weight multiplier; `0` means the constraint is disabled.
+    /// Bound runtime weight multiplier; `0` means the constraint is disabled.
     pub weight_multiplier: u32,
-    // Total (weighted) score from this constraint.
+    /// Total (weighted) score from this constraint.
     pub score: Sc,
-    // All matches for this constraint.
+    /// All matches for this constraint.
     pub matches: Vec<DetailedConstraintMatch<'a, Sc>>,
-    // Whether this is a hard constraint.
+    /// Whether this is a hard constraint.
     pub is_hard: bool,
 }
 
 impl<'a, Sc: Score> ConstraintAnalysis<'a, Sc> {
-    // Creates a new constraint analysis.
+    /// Creates a new constraint analysis.
     pub fn new(
         constraint_ref: &'a ConstraintRef,
         weight_multiplier: u32,
@@ -179,12 +177,12 @@ impl<'a, Sc: Score> ConstraintAnalysis<'a, Sc> {
         }
     }
 
-    // Returns the number of matches.
+    /// Returns the number of matches.
     pub fn match_count(&self) -> usize {
         self.matches.len()
     }
 
-    // Returns the constraint name.
+    /// Returns the constraint name.
     pub fn name(&self) -> &str {
         &self.constraint_ref.name
     }

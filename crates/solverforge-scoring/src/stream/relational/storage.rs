@@ -1,11 +1,10 @@
-/* Dense row store with stable generational handles.
-
-Owns payloads in a dense `Vec`, resolving `RowHandle`s through a
-slot-to-position indirection table. Retraction uses `swap_remove` with
-repair of the moved entry's slot link, so live handles survive arbitrary
-removal order. No score/key assumptions: the store is payload-agnostic and
-shared by operator state of every kind.
-*/
+//! Dense row store with stable generational handles.
+//!
+//! Owns payloads in a dense `Vec`, resolving `RowHandle`s through a
+//! slot-to-position indirection table. Retraction uses `swap_remove` with
+//! repair of the moved entry's slot link, so live handles survive arbitrary
+//! removal order. No score/key assumptions: the store is payload-agnostic and
+//! shared by operator state of every kind.
 
 use super::identity::RowHandle;
 
@@ -21,13 +20,12 @@ struct Entry<T> {
     slot: u32,
 }
 
-/* Dense owned storage for operator rows behind stable handles.
-
-Insert returns a fresh handle; retract returns the owned payload so
-callers can reuse retained keys/scores/tokens without re-reading them.
-Point lookup, full traversal, and length back the retained-state
-invariant checks the operator tests run after every event.
-*/
+/// Dense owned storage for operator rows behind stable handles.
+///
+/// Insert returns a fresh handle; retract returns the owned payload so
+/// callers can reuse retained keys/scores/tokens without re-reading them.
+/// Point lookup, full traversal, and length back the retained-state
+/// invariant checks the operator tests run after every event.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DenseRowStore<T> {
     entries: Vec<Entry<T>>,
@@ -44,7 +42,7 @@ impl<T> DenseRowStore<T> {
         }
     }
 
-    /* Live row count for retained-state invariant assertions. */
+    /// Live row count for retained-state invariant assertions.
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.entries.len()
@@ -109,11 +107,10 @@ impl<T> DenseRowStore<T> {
         Some(&mut self.entries[position].payload)
     }
 
-    /* Removes a row, returning its owned payload.
-
-    Unknown or stale handles resolve to `None` and change nothing, so
-    double retraction is a safe no-op rather than a panic.
-    */
+    /// Removes a row, returning its owned payload.
+    ///
+    /// Unknown or stale handles resolve to `None` and change nothing, so
+    /// double retraction is a safe no-op rather than a panic.
     pub(crate) fn retract(&mut self, handle: RowHandle) -> Option<T> {
         let position = self.resolve(handle)?;
         let last = self.entries.len() - 1;

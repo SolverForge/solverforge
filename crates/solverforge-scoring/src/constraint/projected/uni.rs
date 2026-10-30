@@ -8,6 +8,11 @@ use crate::stream::filter::UniFilter;
 use crate::stream::projected::{RowCoordinate, RowOwner, Source};
 use crate::stream::relational::hash::{FastMap, FastSet};
 
+/// Constraint scoring each retained projected row on its own.
+///
+/// Every row from `Src` that passes `F` contributes `W(row)`, signed by the
+/// impact. Retained contributions are keyed by `RowCoordinate`, so an owner
+/// change re-scores only that owner's rows.
 pub struct Uni<S, Out, Src, F, W, Sc>
 where
     Src: Source<S, Out>,
@@ -34,6 +39,8 @@ where
     W: Fn(&Out) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Creates the constraint. `is_hard` is the reported hardness; `impact_type`
+    /// signs every row weight.
     pub fn new(
         constraint_ref: ConstraintRef,
         impact_type: ImpactType,

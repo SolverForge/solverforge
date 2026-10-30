@@ -1,4 +1,4 @@
-// Score director trait definition.
+//! Score director trait definition.
 
 use solverforge_core::domain::{PlanningSolution, SolutionDescriptor};
 use solverforge_core::ConstraintRef;
@@ -11,56 +11,58 @@ use crate::api::constraint_set::ConstraintMetadata;
 /// wrapped director after speculative scoring.
 #[derive(Debug, PartialEq, Eq)]
 pub struct DirectorScoreState<Sc> {
+    /// The score stored on the working solution.
     pub solution_score: Option<Sc>,
+    /// The director's cached committed score, `None` before initialization.
     pub committed_score: Option<Sc>,
+    /// Whether incremental state was initialized.
     pub initialized: bool,
 }
 
-/* The score director manages solution state and score calculation.
-
-It is responsible for:
-- Maintaining the working solution
-- Calculating scores (incrementally when possible)
-- Notifying about variable changes for incremental updates
-- Providing access to solution metadata via descriptors
-*/
+/// The score director manages solution state and score calculation.
+///
+/// It is responsible for:
+/// - Maintaining the working solution
+/// - Calculating scores (incrementally when possible)
+/// - Notifying about variable changes for incremental updates
+/// - Providing access to solution metadata via descriptors
 pub trait Director<S: PlanningSolution>: Send {
-    // Returns a reference to the working solution.
+    /// Returns a reference to the working solution.
     fn working_solution(&self) -> &S;
 
-    // Returns a mutable reference to the working solution.
+    /// Returns a mutable reference to the working solution.
     fn working_solution_mut(&mut self) -> &mut S;
 
-    // Calculates and returns the current score.
+    /// Calculates and returns the current score.
     fn calculate_score(&mut self) -> S::Score;
 
-    // Calculates the current score from scratch without mutating the committed score state.
+    /// Calculates the current score from scratch without mutating the committed score state.
     fn fresh_score(&self) -> Option<S::Score> {
         None
     }
 
-    // Returns the solution descriptor for this solution type.
+    /// Returns the solution descriptor for this solution type.
     fn solution_descriptor(&self) -> &SolutionDescriptor;
 
-    // Clones the working solution.
+    /// Clones the working solution.
     fn clone_working_solution(&self) -> S;
 
-    // Called before a planning variable is changed.
+    /// Called before a planning variable is changed.
     fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize);
 
-    // Called after a planning variable is changed.
+    /// Called after a planning variable is changed.
     fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize);
 
-    // Returns the number of entities for a given descriptor index.
+    /// Returns the number of entities for a given descriptor index.
     fn entity_count(&self, descriptor_index: usize) -> Option<usize>;
 
-    // Returns the total number of entities across all collections.
+    /// Returns the total number of entities across all collections.
     fn total_entity_count(&self) -> Option<usize>;
 
-    // Returns immutable scoring-constraint metadata known to this director.
+    /// Returns immutable scoring-constraint metadata known to this director.
     fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>>;
 
-    // Returns whether a known constraint is hard.
+    /// Returns whether a known constraint is hard.
     fn constraint_is_hard(&self, constraint_ref: &ConstraintRef) -> Option<bool> {
         let metadata = self.constraint_metadata();
         metadata
@@ -69,13 +71,13 @@ pub trait Director<S: PlanningSolution>: Send {
             .map(|metadata| metadata.is_hard)
     }
 
-    // Returns true if this score director supports incremental scoring.
+    /// Returns true if this score director supports incremental scoring.
     fn is_incremental(&self) -> bool {
         false
     }
 
-    // Snapshots the committed score state so speculative evaluation can roll
-    // back exactly.
+    /// Snapshots the committed score state so speculative evaluation can roll
+    /// back exactly.
     fn snapshot_score_state(&self) -> DirectorScoreState<S::Score> {
         let solution_score = self.working_solution().score();
         DirectorScoreState {
@@ -85,22 +87,20 @@ pub trait Director<S: PlanningSolution>: Send {
         }
     }
 
-    // Restores a previously snapshotted committed score state.
+    /// Restores a previously snapshotted committed score state.
     fn restore_score_state(&mut self, state: DirectorScoreState<S::Score>) {
         self.working_solution_mut().set_score(state.solution_score);
     }
 
-    /* Discards incremental score state after the working solution was
-    rewritten outside the variable-change protocol. The next
-    `calculate_score` reinitializes from the rewritten solution.
-    */
+    /// Discards incremental score state after the working solution was
+    /// rewritten outside the variable-change protocol. The next
+    /// `calculate_score` reinitializes from the rewritten solution.
     fn reset(&mut self) {}
 
-    /* Builds an independent evaluator replica: an owned copy of the working
-    solution with freshly initialized incremental constraint state.
-
-    Returns `None` when this director cannot construct one.
-    */
+    /// Builds an independent evaluator replica: an owned copy of the working
+    /// solution with freshly initialized incremental constraint state.
+    ///
+    /// Returns `None` when this director cannot construct one.
     fn fork_replica(&self) -> Option<Self>
     where
         Self: Sized,

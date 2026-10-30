@@ -17,6 +17,8 @@ where
     F: UniFilter<S, A>,
     Sc: Score + 'static,
 {
+    /// Keeps only entities whose planning variable is unassigned, as reported by
+    /// the macro-generated `UnassignedEntity` impl.
     pub fn unassigned(
         self,
     ) -> UniConstraintStream<S, A, E, AndUniFilter<F, FnUniFilter<fn(&S, &A) -> bool>>, Sc> {

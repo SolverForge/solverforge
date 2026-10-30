@@ -1,17 +1,17 @@
-// Filter adapters for converting between filter types.
+//! Filter adapters for converting between filter types.
 
 use std::marker::PhantomData;
 
 use super::traits::{BiFilter, TriFilter, UniFilter};
 
-// Applies a uni-filter to both elements of a pair (for self-joins).
+/// Applies a uni-filter to both elements of a pair (for self-joins).
 pub struct UniBiFilter<F, A> {
     filter: F,
     _phantom: PhantomData<fn() -> A>,
 }
 
 impl<F, A> UniBiFilter<F, A> {
-    // Creates a bi-filter from a uni-filter.
+    /// Creates a bi-filter from a uni-filter.
     #[inline]
     pub fn new(filter: F) -> Self {
         Self {
@@ -32,14 +32,14 @@ where
     }
 }
 
-// Applies a uni-filter to the left element of a cross-entity pair.
+/// Applies a uni-filter to the left element of a cross-entity pair.
 pub struct UniLeftBiFilter<F, B> {
     filter: F,
     _phantom: PhantomData<fn() -> B>,
 }
 
 impl<F, B> UniLeftBiFilter<F, B> {
-    // Creates a bi-filter from a uni-filter applied to the left element.
+    /// Creates a bi-filter from a uni-filter applied to the left element.
     #[inline]
     pub fn new(filter: F) -> Self {
         Self {
@@ -60,8 +60,8 @@ where
     }
 }
 
-// Lifts a bi-filter over (A, B) into the tri chain over (A, B, C),
-// preserving the A and B source slice indexes and ignoring C.
+/// Lifts a bi-filter over (A, B) into the tri chain over (A, B, C),
+/// preserving the A and B source slice indexes and ignoring C.
 #[doc(hidden)]
 pub struct TriAsBiFilter<F, A, B> {
     filter: F,
@@ -69,7 +69,7 @@ pub struct TriAsBiFilter<F, A, B> {
 }
 
 impl<F, A, B> TriAsBiFilter<F, A, B> {
-    // Creates a tri-filter from a bi-filter over the first two sources.
+    /// Creates a tri-filter from a bi-filter over the first two sources.
     #[inline]
     pub fn new(filter: F) -> Self {
         Self {
@@ -119,14 +119,15 @@ impl<L, R, P> PairFilter<L, R, P> {
     }
 }
 
-// Applies the two stream membership filters to a joined pair (no predicate).
-// Used when the join condition already carries the relationship predicate.
+/// Applies the two stream membership filters to a joined pair (no predicate).
+/// Used when the join condition already carries the relationship predicate.
 pub struct UniPairFilter<L, R> {
     left_filter: L,
     right_filter: R,
 }
 
 impl<L, R> UniPairFilter<L, R> {
+    /// Combines the left and right stream membership filters.
     #[inline]
     pub fn new(left_filter: L, right_filter: R) -> Self {
         Self {
@@ -161,8 +162,8 @@ where
     }
 }
 
-// Lifts a tri-filter over (A, B, C) into the quad chain over (A, B, C, D),
-// preserving the A, B and C source slice indexes and ignoring D.
+/// Lifts a tri-filter over (A, B, C) into the quad chain over (A, B, C, D),
+/// preserving the A, B and C source slice indexes and ignoring D.
 #[doc(hidden)]
 pub struct TriAsQuadFilter<F, A, B, C> {
     filter: F,
@@ -170,7 +171,7 @@ pub struct TriAsQuadFilter<F, A, B, C> {
 }
 
 impl<F, A, B, C> TriAsQuadFilter<F, A, B, C> {
-    // Creates a quad-filter from a tri-filter over the first three sources.
+    /// Creates a quad-filter from a tri-filter over the first three sources.
     #[inline]
     pub fn new(filter: F) -> Self {
         Self {
@@ -205,8 +206,8 @@ where
     }
 }
 
-// Lifts a quad-filter over (A, B, C, D) into the penta chain over (A, B, C, D, E),
-// preserving source slice indexes and ignoring E.
+/// Lifts a quad-filter over (A, B, C, D) into the penta chain over (A, B, C, D, E),
+/// preserving source slice indexes and ignoring E.
 #[doc(hidden)]
 pub struct QuadAsPentaFilter<F, A, B, C, D> {
     filter: F,

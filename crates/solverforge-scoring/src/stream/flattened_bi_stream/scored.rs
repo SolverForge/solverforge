@@ -1,11 +1,10 @@
-/* Scoring operator for the flattened bi-constraint.
-
-The join tree publishes `Pair<Leaf<A>, FlattenView<Leaf<B>, C>>`: the left
-entity plus the flattened child with its owning B row. The authored bi filter
-runs inside this operator on `(A, C)` with the A and owning-B source indexes,
-so evaluate, match_count, initialize, and mutations honor it exactly once and
-scoring is the generic `OperatorTerminal`.
-*/
+//! Scoring operator for the flattened bi-constraint.
+//!
+//! The join tree publishes `Pair<Leaf<A>, FlattenView<Leaf<B>, C>>`: the left
+//! entity plus the flattened child with its owning B row. The authored bi filter
+//! runs inside this operator on `(A, C)` with the A and owning-B source indexes,
+//! so evaluate, match_count, initialize, and mutations honor it exactly once and
+//! scoring is the generic `OperatorTerminal`.
 
 use std::marker::PhantomData;
 
@@ -13,7 +12,7 @@ use super::super::filter::BiFilter;
 use super::super::relational::operator::{FlattenView, Operator, Pair};
 use super::super::relational::{HandleMap, Leaf, RowHandle};
 
-/* Borrowed (A, C) pair plus the A and owning-B source indexes. */
+/// Borrowed (A, C) pair plus the A and owning-B source indexes.
 pub(super) trait FlattenedBiEntities<'a, A, B, C> {
     fn entities(&self) -> (&'a A, &'a C);
     fn indexes(&self) -> (usize, usize);

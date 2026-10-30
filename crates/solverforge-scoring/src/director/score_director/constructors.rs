@@ -15,13 +15,12 @@ where
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
 {
-    /* Creates a new zero-erasure score director with an empty descriptor.
-
-    Use this for manual solver loops that don't need the `Director` trait.
-    For full solver infrastructure integration, use `with_descriptor()`.
-
-    The constraints should be a tuple of monomorphized constraints (e.g., `(C1, C2, C3)`).
-    */
+    /// Creates a new zero-erasure score director with an empty descriptor.
+    ///
+    /// Use this for manual solver loops that don't need the `Director` trait.
+    /// For full solver infrastructure integration, use `with_descriptor()`.
+    ///
+    /// The constraints should be a tuple of monomorphized constraints (e.g., `(C1, C2, C3)`).
     pub fn new(solution: S, constraints: C) -> Self {
         use std::any::TypeId;
         Self::with_descriptor(
@@ -40,9 +39,8 @@ where
     C: ConstraintSet<S, S::Score>,
     Desc: DirectorDescriptor<S, C>,
 {
-    /* Creates a new zero-erasure unweighted score director with a solution
-    descriptor; see `with_descriptor_in_mode`.
-    */
+    /// Creates a new zero-erasure unweighted score director with a solution
+    /// descriptor; see `with_descriptor_in_mode`.
     pub fn with_descriptor(
         solution: S,
         constraints: C,
@@ -59,8 +57,8 @@ where
     S::Score: Score,
     C: ConstraintSet<S, S::Score>,
 {
-    /* Creates a weighted score director with an empty descriptor: the
-    weighted counterpart of `new`. */
+    /// Creates a weighted score director with an empty descriptor: the
+    /// weighted counterpart of `new`.
     pub fn new_weighted(solution: S, constraints: C) -> Self {
         use std::any::TypeId;
         Self::with_descriptor_in_mode(
@@ -79,8 +77,8 @@ where
     C: ConstraintSet<S, S::Score>,
     Desc: DirectorDescriptor<S, C>,
 {
-    /* Creates a weighted score director with a solution descriptor: the
-    weighted counterpart of `with_descriptor`. */
+    /// Creates a weighted score director with a solution descriptor: the
+    /// weighted counterpart of `with_descriptor`.
     pub fn with_descriptor_weighted(
         solution: S,
         constraints: C,
@@ -99,20 +97,19 @@ where
     Desc: DirectorDescriptor<S, C>,
     M: WeightMode,
 {
-    /* Creates a new zero-erasure score director in weight mode `M` with a
-    solution descriptor.
-
-    This constructor enables the `Director` trait implementation for
-    integration with the full solver infrastructure (phases, move selectors, etc.).
-
-    # Arguments
-
-    * `solution` - The initial solution
-    * `constraints` - Tuple of monomorphized constraints (e.g., `(C1, C2, C3)`)
-    * `solution_descriptor` - Metadata for solver infrastructure: an owned
-      `SolutionDescriptor`, or a `ReplicaDescriptor` to fork evaluator replicas
-    * `entity_counter` - Function returning entity count for descriptor index
-    */
+    /// Creates a new zero-erasure score director in weight mode `M` with a
+    /// solution descriptor.
+    ///
+    /// This constructor enables the `Director` trait implementation for
+    /// integration with the full solver infrastructure (phases, move selectors, etc.).
+    ///
+    /// # Arguments
+    ///
+    /// * `solution` - The initial solution
+    /// * `constraints` - Tuple of monomorphized constraints (e.g., `(C1, C2, C3)`)
+    /// * `solution_descriptor` - Metadata for solver infrastructure: an owned
+    ///   `SolutionDescriptor`, or a `ReplicaDescriptor` to fork evaluator replicas
+    /// * `entity_counter` - Function returning entity count for descriptor index
     pub fn with_descriptor_in_mode(
         solution: S,
         constraints: C,
@@ -134,10 +131,9 @@ where
         }
     }
 
-    /* Rebuilds this director in weight mode `M2` over the same working
-    solution, constraint set and descriptor. Incremental state is dropped as
-    by `reset()`; the next score calculation initializes under the new mode.
-    */
+    /// Rebuilds this director in weight mode `M2` over the same working
+    /// solution, constraint set and descriptor. Incremental state is dropped as
+    /// by `reset()`; the next score calculation initializes under the new mode.
     pub fn into_weight_mode<M2: WeightMode>(mut self) -> ScoreDirector<S, C, Desc, M2> {
         self.reset_impl();
         let mut weight_mode = M2::unbound();
@@ -161,11 +157,10 @@ where
     S: PlanningSolution,
     S::Score: Score,
 {
-    /* Creates a non-incremental director for use in tests and simple scenarios.
-
-    Uses an empty constraint set — `calculate_score()` always returns zero.
-    For tests that set score directly on the solution, this is sufficient.
-    */
+    /// Creates a non-incremental director for use in tests and simple scenarios.
+    ///
+    /// Uses an empty constraint set — `calculate_score()` always returns zero.
+    /// For tests that set score directly on the solution, this is sufficient.
     pub fn simple(
         solution: S,
         descriptor: SolutionDescriptor,
@@ -174,7 +169,7 @@ where
         Self::with_descriptor(solution, (), descriptor, entity_counter)
     }
 
-    /* Creates a non-incremental director with empty descriptor and zero entity counter. */
+    /// Creates a non-incremental director with empty descriptor and zero entity counter.
     pub fn simple_zero(solution: S) -> Self {
         use std::any::TypeId;
         Self::with_descriptor(

@@ -1,6 +1,6 @@
 use super::*;
 
-/* Scored quad operator: the tree plus the authored filter as one row producer. */
+/// Scored quad operator: the tree plus the authored filter as one row producer.
 pub struct QuadScored<
     S,
     A,

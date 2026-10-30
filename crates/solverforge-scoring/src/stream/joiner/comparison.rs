@@ -1,33 +1,29 @@
-// Comparison joiners for less than / greater than matching.
+//! Comparison joiners for less than / greater than matching.
 
 use std::marker::PhantomData;
 
 use super::Joiner;
 
-/* Creates a joiner that matches when `left(a) < right(b)`.
-
-# Example
-
-```
-use solverforge_scoring::stream::joiner::{Joiner, less_than};
-
-#[derive(Clone)]
-struct Task { end: i64, start: i64 }
-
-// Task A must end before Task B starts
-let sequential = less_than(|t: &Task| t.end, |t: &Task| t.start);
-
-assert!(sequential.matches(
-&Task { end: 10, start: 0 },
-&Task { end: 20, start: 15 }
-));
-
-assert!(!sequential.matches(
-&Task { end: 10, start: 0 },
-&Task { end: 20, start: 5 }
-));
-```
-*/
+/// Creates a joiner that matches when `left(a) < right(b)`.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_scoring::stream::joiner::{less_than, Joiner};
+///
+/// #[derive(Clone)]
+/// struct Task {
+///     end: i64,
+///     start: i64,
+/// }
+///
+/// // Task A must end before Task B starts
+/// let sequential = less_than(|t: &Task| t.end, |t: &Task| t.start);
+///
+/// assert!(sequential.matches(&Task { end: 10, start: 0 }, &Task { end: 20, start: 15 }));
+///
+/// assert!(!sequential.matches(&Task { end: 10, start: 0 }, &Task { end: 20, start: 5 }));
+/// ```
 pub fn less_than<T, Fa, Fb>(left: Fa, right: Fb) -> LessThanJoiner<Fa, Fb, T>
 where
     T: Ord,
@@ -41,12 +37,11 @@ where
     }
 }
 
-/* Creates a joiner matching when the left row's key is less than the right's.
-
-Row-aware form of [`less_than`]: the left closure receives the whole
-borrowed left row, so a later comparison can inspect any earlier
-binding. Extractors stay accessible for ordered index planning.
-*/
+/// Creates a joiner matching when the left row's key is less than the right's.
+///
+/// Row-aware form of [`less_than`]: the left closure receives the whole
+/// borrowed left row, so a later comparison can inspect any earlier
+/// binding. Extractors stay accessible for ordered index planning.
 pub fn less_than_on<T, LK, KC>(left: LK, right: KC) -> LessThanJoiner<LK, KC, T>
 where
     T: Ord,
@@ -60,7 +55,7 @@ where
     }
 }
 
-// A joiner that matches when `left(a) < right(b)`.
+/// A joiner that matches when `left(a) < right(b)`.
 pub struct LessThanJoiner<Fa, Fb, T> {
     pub(super) left: Fa,
     pub(super) right: Fb,
@@ -75,7 +70,7 @@ impl<Fa, Fb, T> LessThanJoiner<Fa, Fb, T> {
             second: other,
         }
     }
-    /* Consumes the joiner and returns the key extractors for index planning. */
+    /// Consumes the joiner and returns the key extractors for index planning.
     #[inline]
     pub fn into_keys(self) -> (Fa, Fb) {
         (self.left, self.right)
@@ -94,20 +89,19 @@ where
     }
 }
 
-/* Creates a joiner that matches when `left(a) <= right(b)`.
-
-# Example
-
-```
-use solverforge_scoring::stream::joiner::{Joiner, less_than_or_equal};
-
-let joiner = less_than_or_equal(|x: &i32| *x, |y: &i32| *y);
-
-assert!(joiner.matches(&5, &10));
-assert!(joiner.matches(&5, &5));
-assert!(!joiner.matches(&10, &5));
-```
-*/
+/// Creates a joiner that matches when `left(a) <= right(b)`.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_scoring::stream::joiner::{less_than_or_equal, Joiner};
+///
+/// let joiner = less_than_or_equal(|x: &i32| *x, |y: &i32| *y);
+///
+/// assert!(joiner.matches(&5, &10));
+/// assert!(joiner.matches(&5, &5));
+/// assert!(!joiner.matches(&10, &5));
+/// ```
 pub fn less_than_or_equal<T, Fa, Fb>(left: Fa, right: Fb) -> LessThanOrEqualJoiner<Fa, Fb, T>
 where
     T: Ord,
@@ -121,8 +115,8 @@ where
     }
 }
 
-/* Row-aware form of [`less_than_or_equal`]: strict/inclusive direction
-preserved, left closure over the whole borrowed row. */
+/// Row-aware form of [`less_than_or_equal`]: strict/inclusive direction
+/// preserved, left closure over the whole borrowed row.
 pub fn less_than_or_equal_on<T, LK, KC>(left: LK, right: KC) -> LessThanOrEqualJoiner<LK, KC, T>
 where
     T: Ord,
@@ -136,7 +130,7 @@ where
     }
 }
 
-// A joiner that matches when `left(a) <= right(b)`.
+/// A joiner that matches when `left(a) <= right(b)`.
 pub struct LessThanOrEqualJoiner<Fa, Fb, T> {
     pub(super) left: Fa,
     pub(super) right: Fb,
@@ -151,7 +145,7 @@ impl<Fa, Fb, T> LessThanOrEqualJoiner<Fa, Fb, T> {
             second: other,
         }
     }
-    /* Consumes the joiner and returns the key extractors for index planning. */
+    /// Consumes the joiner and returns the key extractors for index planning.
     #[inline]
     pub fn into_keys(self) -> (Fa, Fb) {
         (self.left, self.right)
@@ -170,20 +164,19 @@ where
     }
 }
 
-/* Creates a joiner that matches when `left(a) > right(b)`.
-
-# Example
-
-```
-use solverforge_scoring::stream::joiner::{Joiner, greater_than};
-
-let joiner = greater_than(|x: &i32| *x, |y: &i32| *y);
-
-assert!(joiner.matches(&10, &5));
-assert!(!joiner.matches(&5, &10));
-assert!(!joiner.matches(&5, &5));
-```
-*/
+/// Creates a joiner that matches when `left(a) > right(b)`.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_scoring::stream::joiner::{greater_than, Joiner};
+///
+/// let joiner = greater_than(|x: &i32| *x, |y: &i32| *y);
+///
+/// assert!(joiner.matches(&10, &5));
+/// assert!(!joiner.matches(&5, &10));
+/// assert!(!joiner.matches(&5, &5));
+/// ```
 pub fn greater_than<T, Fa, Fb>(left: Fa, right: Fb) -> GreaterThanJoiner<Fa, Fb, T>
 where
     T: Ord,
@@ -197,8 +190,8 @@ where
     }
 }
 
-/* Row-aware form of [`greater_than`]: direction preserved, left closure
-over the whole borrowed row. */
+/// Row-aware form of [`greater_than`]: direction preserved, left closure
+/// over the whole borrowed row.
 pub fn greater_than_on<T, LK, KC>(left: LK, right: KC) -> GreaterThanJoiner<LK, KC, T>
 where
     T: Ord,
@@ -212,7 +205,7 @@ where
     }
 }
 
-// A joiner that matches when `left(a) > right(b)`.
+/// A joiner that matches when `left(a) > right(b)`.
 pub struct GreaterThanJoiner<Fa, Fb, T> {
     pub(super) left: Fa,
     pub(super) right: Fb,
@@ -227,7 +220,7 @@ impl<Fa, Fb, T> GreaterThanJoiner<Fa, Fb, T> {
             second: other,
         }
     }
-    /* Consumes the joiner and returns the key extractors for index planning. */
+    /// Consumes the joiner and returns the key extractors for index planning.
     #[inline]
     pub fn into_keys(self) -> (Fa, Fb) {
         (self.left, self.right)
@@ -246,20 +239,19 @@ where
     }
 }
 
-/* Creates a joiner that matches when `left(a) >= right(b)`.
-
-# Example
-
-```
-use solverforge_scoring::stream::joiner::{Joiner, greater_than_or_equal};
-
-let joiner = greater_than_or_equal(|x: &i32| *x, |y: &i32| *y);
-
-assert!(joiner.matches(&10, &5));
-assert!(joiner.matches(&5, &5));
-assert!(!joiner.matches(&5, &10));
-```
-*/
+/// Creates a joiner that matches when `left(a) >= right(b)`.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_scoring::stream::joiner::{greater_than_or_equal, Joiner};
+///
+/// let joiner = greater_than_or_equal(|x: &i32| *x, |y: &i32| *y);
+///
+/// assert!(joiner.matches(&10, &5));
+/// assert!(joiner.matches(&5, &5));
+/// assert!(!joiner.matches(&5, &10));
+/// ```
 pub fn greater_than_or_equal<T, Fa, Fb>(left: Fa, right: Fb) -> GreaterThanOrEqualJoiner<Fa, Fb, T>
 where
     T: Ord,
@@ -273,8 +265,8 @@ where
     }
 }
 
-/* Row-aware form of [`greater_than_or_equal`]: direction preserved, left
-closure over the whole borrowed row. */
+/// Row-aware form of [`greater_than_or_equal`]: direction preserved, left
+/// closure over the whole borrowed row.
 pub fn greater_than_or_equal_on<T, LK, KC>(
     left: LK,
     right: KC,
@@ -291,7 +283,7 @@ where
     }
 }
 
-// A joiner that matches when `left(a) >= right(b)`.
+/// A joiner that matches when `left(a) >= right(b)`.
 pub struct GreaterThanOrEqualJoiner<Fa, Fb, T> {
     pub(super) left: Fa,
     pub(super) right: Fb,
@@ -306,7 +298,7 @@ impl<Fa, Fb, T> GreaterThanOrEqualJoiner<Fa, Fb, T> {
             second: other,
         }
     }
-    /* Consumes the joiner and returns the key extractors for index planning. */
+    /// Consumes the joiner and returns the key extractors for index planning.
     #[inline]
     pub fn into_keys(self) -> (Fa, Fb) {
         (self.left, self.right)

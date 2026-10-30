@@ -4,8 +4,11 @@ use crate::stream::relational::{DenseRowStore, HandleMap, Leaf, RowHandle};
 
 /// A borrowed child with its complete owning row and child position.
 pub struct FlattenView<'a, V, T> {
+    /// The owning input row.
     pub input: V,
+    /// The borrowed child.
     pub value: &'a T,
+    /// Position of the child in its owner's slice.
     pub child: usize,
 }
 impl<V: Copy, T> Copy for FlattenView<'_, V, T> {}
@@ -20,22 +23,23 @@ impl<V: ExplainRow, T> ExplainRow for FlattenView<'_, V, T> {
     }
 }
 
-/* Named source of borrowed children for one input operator.
-
-`FlattenNode` borrows children out of the solution and ties the result to the
-solution borrow. Spelled as a raw `for<'a> Fn(&'a S, O::View<'a>) -> &'a [T]`
-that bound cannot appear in a struct field or a return type, so a stream that
-owns a flattened operator could not name its own type. `FlattenSource<S, O>`
-is that bound as a name: `O` carries the borrowed view, so both an ordinary
-closure (blanket impl) and a concrete adapter (`ParentFlatten`) satisfy it.
-*/
+/// Named source of borrowed children for one input operator.
+///
+/// `FlattenNode` borrows children out of the solution and ties the result to the
+/// solution borrow. Spelled as a raw `for<'a> Fn(&'a S, O::View<'a>) -> &'a [T]`
+/// that bound cannot appear in a struct field or a return type, so a stream that
+/// owns a flattened operator could not name its own type. `FlattenSource<S, O>`
+/// is that bound as a name: `O` carries the borrowed view, so both an ordinary
+/// closure (blanket impl) and a concrete adapter (`ParentFlatten`) satisfy it.
 pub trait FlattenSource<S: 'static, O: Operator<S>> {
+    /// The child item type.
     type Item: 'static;
 
+    /// Borrows the children of one input row from the solution.
     fn flatten<'a>(&self, solution: &'a S, view: O::View<'a>) -> &'a [Self::Item];
 }
 
-/* Ordinary closures keep the current shape. */
+/// Ordinary closures keep the current shape.
 impl<S: 'static, O: Operator<S>, F, T: 'static> FlattenSource<S, O> for F
 where
     F: for<'a> Fn(&'a S, O::View<'a>) -> &'a [T],
@@ -48,13 +52,14 @@ where
     }
 }
 
-/* A nameable flattened extractor: any `FlattenExtract<P>` lifted onto a
-collection operator over `P`. */
+/// A nameable flattened extractor: any `FlattenExtract<P>` lifted onto a
+/// collection operator over `P`.
 pub struct ParentFlatten<Inner> {
     inner: Inner,
 }
 
 impl<Inner> ParentFlatten<Inner> {
+    /// Wraps a [`FlattenExtract`](crate::stream::FlattenExtract) extractor.
     pub fn new(inner: Inner) -> Self {
         Self { inner }
     }
@@ -99,6 +104,7 @@ pub struct FlattenNode<O, F> {
     child_inserted: Vec<RowHandle>,
 }
 impl<O, F> FlattenNode<O, F> {
+    /// Emits one row per child that `extractor` borrows from each `input` row.
     pub fn new(input: O, extractor: F) -> Self {
         Self {
             input,

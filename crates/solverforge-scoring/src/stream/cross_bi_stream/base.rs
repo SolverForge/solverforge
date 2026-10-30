@@ -18,16 +18,15 @@ use super::super::projected_stream::{JoinedSource, Stream};
 use super::grouped::Grouped;
 use super::scored::BiUnaryPlan;
 
-/* Zero-erasure constraint stream over cross-entity pairs.
-
-`Bi` joins entities from collection A with collection B, accumulates
-filters on joined pairs, and finalizes into an operator terminal via
-`penalize()` or `reward()`. `P` is the compiled first-relationship plan:
-`BiUnaryPlan` for a keyed join, `FilteringJoiner` for a predicate join.
-The finalize, join, and filter paths are generic over `P`; grouping,
-projection, and flattening are specialized to `BiUnaryPlan`, where a
-unary key pair exists to rederive.
-*/
+/// Zero-erasure constraint stream over cross-entity pairs.
+///
+/// `Bi` joins entities from collection A with collection B, accumulates
+/// filters on joined pairs, and finalizes into an operator terminal via
+/// `penalize()` or `reward()`. `P` is the compiled first-relationship plan:
+/// `BiUnaryPlan` for a keyed join, `FilteringJoiner` for a predicate join.
+/// The finalize, join, and filter paths are generic over `P`; grouping,
+/// projection, and flattening are specialized to `BiUnaryPlan`, where a
+/// unary key pair exists to rederive.
 pub struct Bi<S, A, B, P, EA, EB, F, Sc>
 where
     Sc: Score,
@@ -51,6 +50,8 @@ where
     KB: Fn(&B) -> K + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Creates a keyed cross join pairing `A` and `B` entities whose keys
+    /// `key_a(a)` and `key_b(b)` are equal.
     pub fn new(extractor_a: EA, extractor_b: EB, key_a: KA, key_b: KB) -> Self {
         Bi {
             extractor_a,
@@ -103,12 +104,11 @@ where
     F: BiFilter<S, A, B>,
     Sc: Score + 'static,
 {
-    /* Builds a stream from a compiled first-relationship plan and filter.
-
-    Used by the join-target dispatch: an equality target supplies a
-    `BiUnaryPlan`, a predicate target a `FilteringJoiner`. Neither path
-    fabricates a constant equality key.
-    */
+    /// Builds a stream from a compiled first-relationship plan and filter.
+    ///
+    /// Used by the join-target dispatch: an equality target supplies a
+    /// `BiUnaryPlan`, a predicate target a `FilteringJoiner`. Neither path
+    /// fabricates a constant equality key.
     pub(crate) fn from_condition(extractor_a: EA, extractor_b: EB, plan: P, filter: F) -> Self {
         Bi {
             extractor_a,
@@ -119,7 +119,7 @@ where
         }
     }
 
-    /* Adds a filter predicate to the stream. */
+    /// Adds a filter predicate to the stream.
     pub fn filter<Q>(
         self,
         predicate: Q,
@@ -150,31 +150,30 @@ where
         }
     }
 
-    /* Extends the joined (A, B) pairs with a third source C.
-
-    One uniform `.join()`: the target tuple's condition type chooses
-    execution through `CompileCondition`. A row-aware joiner (`equal_on`)
-    relates the whole borrowed (A, B) row to C on its own key domain; a
-    unary joiner (`equal_bi`) is adapted onto the row so the same
-    independent-domain tree executes it. Shared-key retention is not
-    involved at any depth.
-
-    # Key shapes
-
-    This is the SECOND or later join of a chain, so its keys are view
-    keys, not entity keys:
-
-    - left key — called on the whole borrowed row so far:
-      `|row: &Pair<Leaf<'_, A>, Leaf<'_, B>>| row.left.entity.key`
-      (any earlier binding is reachable through `row.left` / `row.right`)
-    - right key — called on a `Leaf` view of the new entity:
-      `|c: &Leaf<'_, C>| c.entity.key`
-
-    `equal_bi(|a: &A| ..., |b: &B| ...)` does NOT typecheck here (error E0631
-    "expected fn(&'b Pair<Leaf<'a, A>, Leaf<'a, B>>)") — the left row of a
-    later join is the join result, and an ambiguous entity key cannot say
-    WHICH side of a self-join it reads. Use `equal_on`.
-    */
+    /// Extends the joined (A, B) pairs with a third source C.
+    ///
+    /// One uniform `.join()`: the target tuple's condition type chooses
+    /// execution through `CompileCondition`. A row-aware joiner (`equal_on`)
+    /// relates the whole borrowed (A, B) row to C on its own key domain; a
+    /// unary joiner (`equal_bi`) is adapted onto the row so the same
+    /// independent-domain tree executes it. Shared-key retention is not
+    /// involved at any depth.
+    ///
+    /// # Key shapes
+    ///
+    /// This is the SECOND or later join of a chain, so its keys are view
+    /// keys, not entity keys:
+    ///
+    /// - left key — called on the whole borrowed row so far:
+    ///   `|row: &Pair<Leaf<'_, A>, Leaf<'_, B>>| row.left.entity.key`
+    ///   (any earlier binding is reachable through `row.left` / `row.right`)
+    /// - right key — called on a `Leaf` view of the new entity:
+    ///   `|c: &Leaf<'_, C>| c.entity.key`
+    ///
+    /// `equal_bi(|a: &A| ..., |b: &B| ...)` does NOT typecheck here (error E0631
+    /// "expected fn(&'b Pair<Leaf<'a, A>, Leaf<'a, B>>)") — the left row of a
+    /// later join is the join result, and an ambiguous entity key cannot say
+    /// WHICH side of a self-join it reads. Use `equal_on`.
     pub fn join<C, EC, P2>(
         self,
         target: (EC, P2),
@@ -237,7 +236,7 @@ where
     F: BiFilter<S, A, B>,
     Sc: Score + 'static,
 {
-    /* Expands items from entity B into separate (A, C) pairs with O(1) lookup. */
+    /// Expands items from entity B into separate (A, C) pairs with O(1) lookup.
     pub fn flatten_last<C, CK, Flatten, CKeyFn, ALookup>(
         self,
         flatten: Flatten,
@@ -279,6 +278,8 @@ where
         )
     }
 
+    /// Groups joined pairs by `group_key_fn(a, b)`, aggregating each group with
+    /// `collector`.
     pub fn group_by<GK, GF, C, V, R, Acc>(
         self,
         group_key_fn: GF,
@@ -312,6 +313,8 @@ where
         }
     }
 
+    /// Projects each joined pair to an `Out` row with `project`, continuing as a
+    /// projected stream.
     pub fn project<Out, Proj>(
         self,
         project: Proj,

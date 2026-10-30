@@ -1,45 +1,43 @@
-/* `CollectionExtract`: the source of a stream's rows.
+//! `CollectionExtract`: the source of a stream's rows.
+//!
+//! A stream source is a planning-model collection: the accessor that
+//! `#[planning_solution]` generates for each entity, fact and list-element
+//! collection (`Plan::shifts()`). Each accessor reports which descriptor owns its
+//! rows, so incremental scoring can map an entity notification to the rows it
+//! changes. A raw closure or `fn` item carries no such identity and is not a
+//! source.
 
-A stream source is a planning-model collection: the accessor that
-`#[planning_solution]` generates for each entity, fact and list-element
-collection (`Plan::shifts()`). Each accessor reports which descriptor owns its
-rows, so incremental scoring can map an entity notification to the rows it
-changes. A raw closure or `fn` item carries no such identity and is not a
-source.
-*/
-
-/* Extracts a slice of entities from the solution.
-
-The associated type `Item` names the entity type, allowing callers to
-write `E: CollectionExtract<S, Item = A>` when `A` must be inferred from `E`
-rather than stated as a separate generic parameter.
-*/
+/// Extracts a slice of entities from the solution.
+///
+/// The associated type `Item` names the entity type, allowing callers to
+/// write `E: CollectionExtract<S, Item = A>` when `A` must be inferred from `E`
+/// rather than stated as a separate generic parameter.
 #[diagnostic::on_unimplemented(
     message = "`{Self}` is not a stream source",
     label = "stream sources must come from the planning model",
     note = "pass the generated accessor, e.g. `Plan::shifts()`"
 )]
 pub trait CollectionExtract<S>: Send + Sync {
-    // The entity type yielded by this extractor.
+    /// The entity type yielded by this extractor.
     type Item;
 
-    // Extracts the entity slice from the solution.
+    /// Extracts the entity slice from the solution.
     fn extract<'s>(&self, s: &'s S) -> &'s [Self::Item];
 
-    // Reports whether this extractor's own source-level predicate accepts an item.
+    /// Reports whether this extractor's own source-level predicate accepts an item.
     fn contains(&self, _s: &S, _item: &Self::Item) -> bool {
         true
     }
 
-    // The descriptor that owns this source's rows, or `Static` when no
-    // planning-variable change can alter them. Macro-generated solution source
-    // methods attach it through hidden internal support.
+    /// The descriptor that owns this source's rows, or `Static` when no
+    /// planning-variable change can alter them. Macro-generated solution source
+    /// methods attach it through hidden internal support.
     fn change_source(&self) -> ChangeSource;
 }
 
-/* Preserves a unary stream's membership at the source boundary, before
-indexed joins build keys or materialize pairs. The original slice and index
-mapping remain unchanged so descriptor-local mutations keep their identity. */
+/// Preserves a unary stream's membership at the source boundary, before
+/// indexed joins build keys or materialize pairs. The original slice and index
+/// mapping remain unchanged so descriptor-local mutations keep their identity.
 #[doc(hidden)]
 pub struct FilteredExtract<E, F> {
     extractor: E,
@@ -91,9 +89,12 @@ impl ChangeSource {
     }
 }
 
+/// Borrows the child items of one parent entity, for flattened streams.
 pub trait FlattenExtract<P>: Send + Sync {
+    /// The child item type.
     type Item;
 
+    /// Returns `parent`'s children.
     fn extract<'s>(&self, parent: &'s P) -> &'s [Self::Item];
 }
 
@@ -109,6 +110,7 @@ where
     }
 }
 
+/// Adapts a closure returning `&Vec<B>` to [`FlattenExtract`].
 #[derive(Clone, Copy)]
 pub struct FlattenVecExtract<F>(pub F);
 

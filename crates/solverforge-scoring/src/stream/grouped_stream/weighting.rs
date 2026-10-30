@@ -15,7 +15,7 @@ use crate::constraint::relational::{
 
 type SourceInput<S, A, E, Fi> = FilterNode<CollectionNode<S, E>, LeafFilter<S, A, Fi>>;
 
-// Zero-erasure builder for finalizing a grouped constraint.
+/// Zero-erasure builder for finalizing a grouped constraint.
 pub struct GroupedConstraintBuilder<S, A, K, E, Fi, KF, C, V, R, Acc, W, Sc>
 where
     Sc: Score,
@@ -54,6 +54,9 @@ where
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds it as a
+    /// [`SharedOperatorTerminal`](crate::constraint::relational::SharedOperatorTerminal),
+    /// to which further terminals over the same grouped node can be appended.
     pub fn named(
         self,
         name: &str,

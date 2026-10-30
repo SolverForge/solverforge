@@ -10,13 +10,12 @@ use super::super::weighting_support::ConstraintWeight;
 
 use super::builder::FlattenedBiConstraintBuilder;
 
-/* Flattened bi-constraint stream.
-
-Joins each A entity to the flattened C items of the B entity sharing its join
-key, matching on a second lookup key. The relationship is a `ViewEqualPlan`
-over `(join key, lookup key)` on the left and `(owner key, child key)` on the
-right; the right input is a `FlattenNode` over a B collection.
-*/
+/// Flattened bi-constraint stream.
+///
+/// Joins each A entity to the flattened C items of the B entity sharing its join
+/// key, matching on a second lookup key. The relationship is a `ViewEqualPlan`
+/// over `(join key, lookup key)` on the left and `(owner key, child key)` on the
+/// right; the right input is a `FlattenNode` over a B collection.
 pub struct FlattenedBiConstraintStream<
     S,
     A,
@@ -89,6 +88,8 @@ where
     ALookup: Fn(&A) -> CK + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Creates the stream: `A` joins the `B` entities with `key_a(a) == key_b(b)`,
+    /// then the child items `flatten(b)` whose `c_key_fn(c)` equals `a_lookup_fn(a)`.
     pub fn new(
         extractor_a: EA,
         extractor_b: EB,
@@ -131,7 +132,7 @@ where
     F: BiFilter<S, A, C>,
     Sc: Score + 'static,
 {
-    // Adds a filter predicate to the stream.
+    /// Adds a filter predicate to the stream.
     pub fn filter<P>(
         self,
         predicate: P,
@@ -215,6 +216,11 @@ where
         }
     }
 
+    /// Penalizes each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&A, &C)` pair returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -247,6 +253,11 @@ where
         )
     }
 
+    /// Rewards each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&A, &C)` pair returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,

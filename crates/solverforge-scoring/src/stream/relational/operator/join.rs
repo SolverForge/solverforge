@@ -10,6 +10,8 @@ struct JoinedRow {
     right_position: usize,
 }
 
+/// Join of two operators under a compiled plan `P`: one row per left/right pair
+/// the plan matches.
 pub struct JoinNode<S, L, R, P: IndexedPlan> {
     left: L,
     right: R,
@@ -31,6 +33,7 @@ impl<S: 'static, L: Operator<S>, R: Operator<S>, P: IndexedPlan + 'static> JoinN
 where
     for<'a> P: ExecutablePlan<L::View<'a>, R::View<'a>>,
 {
+    /// Creates the node, compiling `condition` into its plan and indexes.
     pub fn new<C: CompileCondition<Plan = P>>(left: L, right: R, condition: C) -> Self {
         let plan = condition.compile();
         let indexes = plan.new_indexes();

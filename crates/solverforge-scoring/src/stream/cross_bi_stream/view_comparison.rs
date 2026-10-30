@@ -1,12 +1,11 @@
-/* Named view-keyed plans for comparison and overlap conditions.
-
-A comparison joiner is authored as `Fn(&A) -> T` over entities, but the
-operator tree hands join plans leaf *views*. Equality solves this with
-`BiUnaryPlan`, a hand-written plan that stores the entity closures and reads
-`.entity` off each leaf. These are the same idea for the ordered and interval
-strategies, so all four comparison directions and overlap compose at every
-fluent arity instead of only the two-argument raw form.
-*/
+//! Named view-keyed plans for comparison and overlap conditions.
+//!
+//! A comparison joiner is authored as `Fn(&A) -> T` over entities, but the
+//! operator tree hands join plans leaf *views*. Equality solves this with
+//! `BiUnaryPlan`, a hand-written plan that stores the entity closures and reads
+//! `.entity` off each leaf. These are the same idea for the ordered and interval
+//! strategies, so all four comparison directions and overlap compose at every
+//! fluent arity instead of only the two-argument raw form.
 
 use std::borrow::Cow;
 use std::marker::PhantomData;
@@ -16,9 +15,9 @@ use super::super::relational::{Leaf, RowHandle};
 use crate::stream::joiner::plan::{CompileCondition, ExecutablePlan, IndexedPlan, ResidualKind};
 use crate::stream::joiner::Joiner;
 
-/* Ordered comparison plan. `LESS` true means the relationship is
-`left(a) < right(b)`; false means `left(a) > right(b)`. `INCLUSIVE` widens the
-strict operator to `<=` / `>=`. */
+/// Ordered comparison plan. `LESS` true means the relationship is
+/// `left(a) < right(b)`; false means `left(a) > right(b)`. `INCLUSIVE` widens the
+/// strict operator to `<=` / `>=`.
 pub struct ViewComparisonPlan<K, KA, KB, const LESS: bool, const INCLUSIVE: bool> {
     key_a: KA,
     key_b: KB,
@@ -105,9 +104,9 @@ where
     fn insert_right_transient(&self, i: &mut Self::Indexes, h: RowHandle, row: &Leaf<'x, B>) {
         i.1.insert(h, (self.key_b)(row.entity));
     }
-    /* Candidates in the right index satisfying the direction against the left
-    key. A left value `l` pairs with right values `r` where `l < r` (LESS) or
-    `l > r` (not LESS), so the right probe is the inverse direction. */
+    /// Candidates in the right index satisfying the direction against the left
+    /// key. A left value `l` pairs with right values `r` where `l < r` (LESS) or
+    /// `l > r` (not LESS), so the right probe is the inverse direction.
     fn right_candidates<'i>(
         &self,
         i: &'i Self::Indexes,
@@ -130,8 +129,8 @@ where
     }
 }
 
-/* Interval overlap plan: `start_a < end_b && start_b < end_a` (half-open),
-the same predicate the raw overlap joiner evaluates. */
+/// Interval overlap plan: `start_a < end_b && start_b < end_a` (half-open),
+/// the same predicate the raw overlap joiner evaluates.
 pub struct ViewOverlapPlan<K, SA, EA, SB, EB> {
     start_a: SA,
     end_a: EA,

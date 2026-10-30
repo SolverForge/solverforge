@@ -9,13 +9,17 @@ use super::bi::Bi;
 use super::directed_bi::DirectedBi;
 use super::source::Source;
 
+/// Joiner accepted by [`Stream::join`](crate::stream::projected::Stream::join):
+/// `equal(key)` builds a symmetric `Bi`, `equal_bi(left, right)` a `DirectedBi`.
 pub trait ProjectedJoinTarget<S, Out, Src, F, Sc: Score>
 where
     Src: Source<S, Out>,
     F: UniFilter<S, Out>,
 {
+    /// The joined stream type.
     type Output;
 
+    /// Builds the joined stream from the projected source and its filter.
     fn apply(self, source: Src, filter: F) -> Self::Output;
 }
 

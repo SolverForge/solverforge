@@ -1,11 +1,10 @@
 use super::*;
 
-/* Scored tri operator: the tree plus the authored filter as one row producer.
-
-The terminal's weight closure receives filtered rows only. Filters never
-run twice: stateless evaluation applies them here, and retained mutations
-publish post-filter deltas through the same predicate.
-*/
+/// Scored tri operator: the tree plus the authored filter as one row producer.
+///
+/// The terminal's weight closure receives filtered rows only. Filters never
+/// run twice: stateless evaluation applies them here, and retained mutations
+/// publish post-filter deltas through the same predicate.
 pub struct TriScored<
     S,
     A,

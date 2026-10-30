@@ -1,8 +1,7 @@
-/* Zero-erasure complemented constraint stream.
-
-A `ComplementedConstraintStream` adds entities from a complement source
-that are not present in grouped results, with default values.
-*/
+//! Zero-erasure complemented constraint stream.
+//!
+//! A `ComplementedConstraintStream` adds entities from a complement source
+//! that are not present in grouped results, with default values.
 
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -22,74 +21,94 @@ use crate::constraint::relational::{
     SharedOperatorTerminal,
 };
 
-/* Zero-erasure constraint stream with complemented groups.
-
-`ComplementedConstraintStream` results from calling `complement` on a
-`GroupedConstraintStream`. It ensures all keys from a complement source
-are represented, using default values for missing keys.
-
-The key function for A entities returns `Option<K>` to allow skipping
-entities without valid keys (e.g., unassigned shifts).
-
-# Type Parameters
-
-- `S` - Solution type
-- `A` - Original entity type (e.g., Shift)
-- `B` - Complement entity type (e.g., Employee)
-- `K` - Group key type
-- `EA` - Extractor for A entities
-- `EB` - Extractor for B entities (complement source)
-- `KA` - Key function for A (returns `Option<K>` to allow filtering)
-- `KB` - Key function for B
-- `C` - Collector type
-- `D` - Default value function
-- `Sc` - Score type
-
-# Example
-
-```
-use solverforge_scoring::stream::ConstraintFactory;
-use solverforge_scoring::stream::collector::count;
-use solverforge_scoring::api::constraint_set::IncrementalConstraint;
-use solverforge_core::score::SoftScore;
-
-#[derive(Clone, Hash, PartialEq, Eq)]
-struct Employee { id: usize }
-
-#[derive(Clone, Hash, PartialEq, Eq)]
-struct Shift { employee_id: usize }
-
-#[derive(Clone)]
-struct Schedule {
-employees: Vec<Employee>,
-shifts: Vec<Shift>,
-}
-
-// Count shifts per employee, including employees with 0 shifts
-let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
-.for_each(Schedule::shifts())
-.group_by(|shift: &Shift| shift.employee_id, count())
-.complement(
-|s: &Schedule| s.employees.as_slice(),
-|emp: &Employee| emp.id,
-|_emp: &Employee| 0usize,
-)
-.penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
-.named("Shift count");
-
-let schedule = Schedule {
-employees: vec![Employee { id: 0 }, Employee { id: 1 }, Employee { id: 2 }],
-shifts: vec![
-Shift { employee_id: 0 },
-Shift { employee_id: 0 },
-// Employee 1 has 0 shifts, Employee 2 has 0 shifts
-],
-};
-
-// Employee 0: 2, Employee 1: 0, Employee 2: 0 → Total: -2
-assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
-```
-*/
+/// Zero-erasure constraint stream with complemented groups.
+///
+/// `ComplementedConstraintStream` results from calling `complement` on a
+/// `GroupedConstraintStream`. It ensures all keys from a complement source
+/// are represented, using default values for missing keys.
+///
+/// The key function for A entities returns `Option<K>` to allow skipping
+/// entities without valid keys (e.g., unassigned shifts).
+///
+/// # Type Parameters
+///
+/// - `S` - Solution type
+/// - `A` - Original entity type (e.g., Shift)
+/// - `B` - Complement entity type (e.g., Employee)
+/// - `K` - Group key type
+/// - `EA` - Extractor for A entities
+/// - `EB` - Extractor for B entities (complement source)
+/// - `KA` - Key function for A (returns `Option<K>` to allow filtering)
+/// - `KB` - Key function for B
+/// - `C` - Collector type
+/// - `D` - Default value function
+/// - `Sc` - Score type
+///
+/// # Example
+///
+/// ```
+/// use solverforge_core::score::SoftScore;
+/// use solverforge_scoring::api::constraint_set::IncrementalConstraint;
+/// use solverforge_scoring::stream::collector::count;
+/// use solverforge_scoring::stream::ConstraintFactory;
+///
+/// #[derive(Clone, Hash, PartialEq, Eq)]
+/// struct Employee {
+///     id: usize,
+/// }
+///
+/// #[derive(Clone, Hash, PartialEq, Eq)]
+/// struct Shift {
+///     employee_id: usize,
+/// }
+///
+/// #[derive(Clone)]
+/// struct Schedule {
+///     employees: Vec<Employee>,
+///     shifts: Vec<Shift>,
+/// }
+/// # use solverforge_scoring::stream::{source, ChangeSource, CollectionExtract};
+/// # impl Schedule {
+/// #     fn employees() -> impl CollectionExtract<Schedule, Item = Employee> {
+/// #         fn employees(s: &Schedule) -> &[Employee] {
+/// #             s.employees.as_slice()
+/// #         }
+/// #         source(employees as fn(&Schedule) -> &[Employee], ChangeSource::Descriptor(0))
+/// #     }
+/// # }
+/// # impl Schedule {
+/// #     fn shifts() -> impl CollectionExtract<Schedule, Item = Shift> {
+/// #         fn shifts(s: &Schedule) -> &[Shift] {
+/// #             s.shifts.as_slice()
+/// #         }
+/// #         source(shifts as fn(&Schedule) -> &[Shift], ChangeSource::Descriptor(1))
+/// #     }
+/// # }
+///
+/// // Count shifts per employee, including employees with 0 shifts
+/// let constraint = ConstraintFactory::<Schedule, SoftScore>::new()
+///     .for_each(Schedule::shifts())
+///     .group_by(|shift: &Shift| shift.employee_id, count())
+///     .complement(
+///         Schedule::employees(),
+///         |emp: &Employee| emp.id,
+///         |_emp: &Employee| 0usize,
+///     )
+///     .penalize(|_employee_id: &usize, count: &usize| SoftScore::of(*count as i64))
+///     .named("Shift count");
+///
+/// let schedule = Schedule {
+///     employees: vec![Employee { id: 0 }, Employee { id: 1 }, Employee { id: 2 }],
+///     shifts: vec![
+///         Shift { employee_id: 0 },
+///         Shift { employee_id: 0 },
+///         // Employee 1 has 0 shifts, Employee 2 has 0 shifts
+///     ],
+/// };
+///
+/// // Employee 0: 2, Employee 1: 0, Employee 2: 0 → Total: -2
+/// assert_eq!(constraint.evaluate(&schedule), SoftScore::of(-2));
+/// ```
 pub struct ComplementedConstraintStream<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc>
 where
     Sc: Score,
@@ -153,7 +172,7 @@ where
         }
     }
 
-    // Creates a new complemented constraint stream.
+    /// Creates a new complemented constraint stream.
     pub(crate) fn new(
         extractor_a: EA,
         extractor_b: EB,
@@ -173,6 +192,11 @@ where
         }
     }
 
+    /// Penalizes each key by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&key, &result)` returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -204,6 +228,11 @@ where
         )
     }
 
+    /// Rewards each key by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&key, &result)` returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -244,7 +273,7 @@ impl<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, Sc: Score> std::fmt::Debug
     }
 }
 
-// Zero-erasure builder for finalizing a complemented constraint.
+/// Zero-erasure builder for finalizing a complemented constraint.
 pub struct ComplementedConstraintBuilder<S, A, B, K, EA, EB, KA, KB, C, V, R, Acc, D, W, Sc>
 where
     Sc: Score,
@@ -289,6 +318,9 @@ where
     W: Fn(&K, &R) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds it as a
+    /// [`SharedOperatorTerminal`](crate::constraint::relational::SharedOperatorTerminal),
+    /// to which further terminals over the same grouped node can be appended.
     pub fn named(
         self,
         name: &str,

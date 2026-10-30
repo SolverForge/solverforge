@@ -47,6 +47,11 @@ where
         }
     }
 
+    /// Penalizes each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&A, &B)` pair returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -62,6 +67,11 @@ where
         )
     }
 
+    /// Rewards each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&A, &B)` pair returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -78,7 +88,7 @@ where
     }
 }
 
-// Zero-erasure builder for finalizing a cross-bi constraint.
+/// Zero-erasure builder for finalizing a cross-bi constraint.
 pub struct Builder<S, A, B, P, EA, EB, F, W, Sc>
 where
     Sc: Score,
@@ -108,12 +118,11 @@ where
     W: Fn(&A, &B) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    /* Finalizes into the generic operator terminal.
-
-    The compiled first-relationship plan becomes the `JoinNode`'s condition;
-    the authored bi filter runs inside the scored operator so evaluate,
-    match_count, initialize, and mutations honor it exactly once.
-    */
+    /// Finalizes into the generic operator terminal.
+    ///
+    /// The compiled first-relationship plan becomes the `JoinNode`'s condition;
+    /// the authored bi filter runs inside the scored operator so evaluate,
+    /// match_count, initialize, and mutations honor it exactly once.
     pub fn named(
         self,
         name: &str,

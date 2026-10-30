@@ -9,13 +9,12 @@ use super::super::complemented_stream::ComplementedConstraintStream;
 use super::super::filter::UniFilter;
 use super::super::weighting_support::ConstraintWeight;
 
-/* Zero-erasure constraint stream over grouped entities.
-
-`GroupedConstraintStream` is created by `UniConstraintStream::group_by()`
-and operates on (key, collector_result) tuples.
-
-All type parameters are concrete - no trait objects, no Arc allocations.
-*/
+/// Zero-erasure constraint stream over grouped entities.
+///
+/// `GroupedConstraintStream` is created by `UniConstraintStream::group_by()`
+/// and operates on (key, collector_result) tuples.
+///
+/// All type parameters are concrete - no trait objects, no Arc allocations.
 pub struct GroupedConstraintStream<S, A, K, E, Fi, KF, C, V, R, Acc, Sc>
 where
     Sc: Score,
@@ -71,7 +70,7 @@ where
         }
     }
 
-    // Creates a new zero-erasure grouped constraint stream.
+    /// Creates a new zero-erasure grouped constraint stream.
     pub(crate) fn new(extractor: E, filter: Fi, key_fn: KF, collector: C) -> Self {
         Self {
             extractor,
@@ -82,6 +81,11 @@ where
         }
     }
 
+    /// Penalizes each group by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&key, &result)` returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -110,6 +114,11 @@ where
         )
     }
 
+    /// Rewards each group by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&key, &result)` returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -138,7 +147,7 @@ where
         )
     }
 
-    /* Adds complement entities with default values for missing keys. */
+    /// Adds complement entities with default values for missing keys.
     pub fn complement<B, EB, KB, D>(
         self,
         extractor_b: EB,
@@ -178,12 +187,11 @@ where
         )
     }
 
-    /* Relates the grouped result to a second collection by the group key.
-
-    The result is a join of the group (key + aggregate) with every entity of
-    the second collection whose key equals the group key. Weighting sees the
-    group key, its aggregated result, and the matched entity.
-    */
+    /// Relates the grouped result to a second collection by the group key.
+    ///
+    /// The result is a join of the group (key + aggregate) with every entity of
+    /// the second collection whose key equals the group key. Weighting sees the
+    /// group key, its aggregated result, and the matched entity.
     pub fn join<B, EB, KB>(
         self,
         target: (EB, KB),
@@ -204,7 +212,7 @@ where
         )
     }
 
-    /* Adds complement entities with a custom key function for filtering. */
+    /// Adds complement entities with a custom key function for filtering.
     pub fn complement_with_key<B, EB, KA2, KB, D>(
         self,
         extractor_b: EB,

@@ -1,14 +1,13 @@
-/* Runtime constraint weight modes of the score director.
-
-The weight mode is a type parameter of `ScoreDirector`, chosen once when the
-director is built. Every mode-dependent scoring call dispatches statically
-through the sealed `Mode` methods below, so an `UnweightedMode` director
-compiles to exactly the unweighted constraint-set calls: it holds no weight
-storage, never binds multipliers, and never names a `*_weighted` method,
-whatever the solution type. A `WeightedMode` director binds one multiplier
-per constraint weight slot on construction and on every (re)initialization
-and always takes the weighted calls.
-*/
+//! Runtime constraint weight modes of the score director.
+//!
+//! The weight mode is a type parameter of `ScoreDirector`, chosen once when the
+//! director is built. Every mode-dependent scoring call dispatches statically
+//! through the sealed `Mode` methods below, so an `UnweightedMode` director
+//! compiles to exactly the unweighted constraint-set calls: it holds no weight
+//! storage, never binds multipliers, and never names a `*_weighted` method,
+//! whatever the solution type. A `WeightedMode` director binds one multiplier
+//! per constraint weight slot on construction and on every (re)initialization
+//! and always takes the weighted calls.
 
 use solverforge_core::domain::PlanningSolution;
 use solverforge_core::score::Score;
@@ -41,10 +40,10 @@ impl WeightMode for UnweightedMode {
 }
 
 impl WeightedMode {
-    /* The bound multipliers, cut to exactly the set's slot count. Every
-    composite set splits its slots at structural widths, so a slice whose
-    length is the set's constant `constraint_count()` lets each nested split
-    and per-slot load compile without a bounds check. */
+    /// The bound multipliers, cut to exactly the set's slot count. Every
+    /// composite set splits its slots at structural widths, so a slice whose
+    /// length is the set's constant `constraint_count()` lets each nested split
+    /// and per-slot load compile without a bounds check.
     #[inline(always)]
     fn slots<S, Sc, C>(&self, constraints: &C) -> &[u32]
     where
@@ -73,9 +72,9 @@ pub fn requires_weighted_mode<S: PlanningSolution>(solution: &S) -> bool {
 pub(crate) mod sealed {
     use super::*;
 
-    /* The mode-dependent scoring calls. `UnweightedMode` forwards to the
-    unweighted constraint-set methods verbatim; `WeightedMode` passes its
-    bound multipliers to the weighted ones. */
+    /// The mode-dependent scoring calls. `UnweightedMode` forwards to the
+    /// unweighted constraint-set methods verbatim; `WeightedMode` passes its
+    /// bound multipliers to the weighted ones.
     pub trait Mode {
         fn unbound() -> Self;
 
@@ -229,7 +228,7 @@ pub(crate) mod sealed {
             Self::default()
         }
 
-        // Resolves the solution's multiplier for every weight slot by name.
+        /// Resolves the solution's multiplier for every weight slot by name.
         fn bind<S, C>(&mut self, solution: &S, constraints: &C)
         where
             S: PlanningSolution,
@@ -334,8 +333,8 @@ pub(crate) mod sealed {
     }
 }
 
-/* Entity-row deltas as the list-shadow bookkeeping applies them, through the
-director's weight mode. */
+/// Entity-row deltas as the list-shadow bookkeeping applies them, through the
+/// director's weight mode.
 pub(super) trait RowDeltas<S, Sc> {
     fn insert_row(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;
     fn retract_row(&mut self, solution: &S, entity_index: usize, descriptor_index: usize) -> Sc;

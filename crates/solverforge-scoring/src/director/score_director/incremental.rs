@@ -9,68 +9,83 @@ use super::list_shadows::ListShadowRows;
 use super::weight_mode::{ModeRows, UnweightedMode, WeightMode};
 use crate::api::constraint_set::{ConstraintMetadata, ConstraintSet};
 
-/* A zero-erasure score director for incremental scoring.
-
-Unlike `IncrementalDirector` which uses BAVET session with trait objects,
-this director uses a monomorphized `ConstraintSet` where all constraint types
-are known at compile time, enabling complete monomorphization.
-
-# Type Parameters
-
-- `S`: The solution type (must implement `PlanningSolution`)
-- `C`: The constraint set type (tuple of monomorphized constraints)
-- `Desc`: How the solution descriptor is held; an owned `SolutionDescriptor`
-by default, or a `ReplicaDescriptor` for directors that fork evaluator
-replicas
-- `M`: The runtime constraint weight mode, fixed for the director's lifetime:
-`UnweightedMode` by default (coded weights, no weight storage), or
-`WeightedMode` (contributions scaled by the solution's bound multipliers)
-
-# Example
-
-```
-use solverforge_scoring::director::score_director::ScoreDirector;
-use solverforge_scoring::api::constraint_set::{ConstraintSet, IncrementalConstraint};
-use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
-use solverforge_core::domain::PlanningSolution;
-use solverforge_core::{ConstraintRef, ImpactType};
-use solverforge_core::score::SoftScore;
-
-#[derive(Clone)]
-struct Solution {
-values: Vec<Option<i32>>,
-score: Option<SoftScore>,
-}
-
-impl PlanningSolution for Solution {
-type Score = SoftScore;
-fn score(&self) -> Option<Self::Score> { self.score }
-fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-}
-
-// Create zero-erasure constraint (all closures as generics)
-let c1 = IncrementalUniConstraint::new(
-ConstraintRef::new("", "Unassigned"),
-ImpactType::Penalty,
-|s: &Solution| s.values.as_slice(),
-|_s: &Solution, v: &Option<i32>| v.is_none(),
-|_: &Option<i32>| SoftScore::of(1),
-false,
-);
-
-// Create a zero-erasure director with a tuple-based constraint set
-let solution = Solution { values: vec![Some(1), None, Some(2)], score: None };
-let mut director = ScoreDirector::new(solution, (c1,));
-
-// First calculation evaluates all constraints
-let score = director.calculate_score();
-assert_eq!(score, SoftScore::of(-1)); // One unassigned
-
-// Subsequent calculations are O(1) - return cached score
-let score2 = director.calculate_score();
-assert_eq!(score, score2);
-```
-*/
+/// A zero-erasure score director for incremental scoring.
+///
+/// Unlike `IncrementalDirector` which uses BAVET session with trait objects,
+/// this director uses a monomorphized `ConstraintSet` where all constraint types
+/// are known at compile time, enabling complete monomorphization.
+///
+/// # Type Parameters
+///
+/// - `S`: The solution type (must implement `PlanningSolution`)
+/// - `C`: The constraint set type (tuple of monomorphized constraints)
+/// - `Desc`: How the solution descriptor is held; an owned `SolutionDescriptor`
+///   by default, or a `ReplicaDescriptor` for directors that fork evaluator
+///   replicas
+/// - `M`: The runtime constraint weight mode, fixed for the director's lifetime:
+///   `UnweightedMode` by default (coded weights, no weight storage), or
+///   `WeightedMode` (contributions scaled by the solution's bound multipliers)
+///
+/// # Example
+///
+/// ```
+/// use solverforge_core::domain::PlanningSolution;
+/// use solverforge_core::score::SoftScore;
+/// use solverforge_core::{ConstraintRef, ImpactType};
+/// use solverforge_scoring::api::constraint_set::{ConstraintSet, IncrementalConstraint};
+/// use solverforge_scoring::constraint::incremental::IncrementalUniConstraint;
+/// use solverforge_scoring::director::score_director::ScoreDirector;
+///
+/// #[derive(Clone)]
+/// struct Solution {
+///     values: Vec<Option<i32>>,
+///     score: Option<SoftScore>,
+/// }
+/// # use solverforge_scoring::stream::{source, ChangeSource, CollectionExtract};
+/// # impl Solution {
+/// #     fn values() -> impl CollectionExtract<Solution, Item = Option<i32>> {
+/// #         fn values(s: &Solution) -> &[Option<i32>] {
+/// #             s.values.as_slice()
+/// #         }
+/// #         source(values as fn(&Solution) -> &[Option<i32>], ChangeSource::Descriptor(0))
+/// #     }
+/// # }
+///
+/// impl PlanningSolution for Solution {
+///     type Score = SoftScore;
+///     fn score(&self) -> Option<Self::Score> {
+///         self.score
+///     }
+///     fn set_score(&mut self, score: Option<Self::Score>) {
+///         self.score = score;
+///     }
+/// }
+///
+/// // Create zero-erasure constraint (all closures as generics)
+/// let c1 = IncrementalUniConstraint::new(
+///     ConstraintRef::new("", "Unassigned"),
+///     ImpactType::Penalty,
+///     Solution::values(),
+///     |_s: &Solution, v: &Option<i32>| v.is_none(),
+///     |_: &Option<i32>| SoftScore::of(1),
+///     false,
+/// );
+///
+/// // Create a zero-erasure director with a tuple-based constraint set
+/// let solution = Solution {
+///     values: vec![Some(1), None, Some(2)],
+///     score: None,
+/// };
+/// let mut director = ScoreDirector::new(solution, (c1,));
+///
+/// // First calculation evaluates all constraints
+/// let score = director.calculate_score();
+/// assert_eq!(score, SoftScore::of(-1)); // One unassigned
+///
+/// // Subsequent calculations are O(1) - return cached score
+/// let score2 = director.calculate_score();
+/// assert_eq!(score, score2);
+/// ```
 pub struct ScoreDirector<S, C, Desc = SolutionDescriptor, M = UnweightedMode>
 where
     S: PlanningSolution,
@@ -83,15 +98,14 @@ where
     pub(super) cached_score: S::Score,
     pub(super) initialized: bool,
     pub(super) list_shadow_rows: ListShadowRows,
-    // The weight mode and, for `WeightedMode`, its bound multipliers.
+    /// The weight mode and, for `WeightedMode`, its bound multipliers.
     pub(super) weight_mode: M,
     pub(super) solution_descriptor: Desc,
-    /* Entity counter function.
-
-    Returns the number of entities for the given descriptor index.
-    This concrete function pointer preserves full type information
-    throughout the solver pipeline.
-    */
+    /// Entity counter function.
+    ///
+    /// Returns the number of entities for the given descriptor index.
+    /// This concrete function pointer preserves full type information
+    /// throughout the solver pipeline.
     pub(super) entity_counter: fn(&S, usize) -> usize,
     pub(super) _phantom: PhantomData<fn() -> S>,
 }
@@ -104,13 +118,12 @@ where
     Desc: DirectorDescriptor<S, C>,
     M: WeightMode,
 {
-    /* Builds an initialized evaluator replica: a clone of the working
-    solution, a constraint set built for that clone, and the same borrowed
-    descriptor.
-
-    The working-solution clone is the evaluator replica clone boundary: it
-    happens when replicas are created, never per candidate or per step.
-    */
+    /// Builds an initialized evaluator replica: a clone of the working
+    /// solution, a constraint set built for that clone, and the same borrowed
+    /// descriptor.
+    ///
+    /// The working-solution clone is the evaluator replica clone boundary: it
+    /// happens when replicas are created, never per candidate or per step.
     pub(crate) fn fork_replica_impl(&self) -> Option<Self> {
         let (descriptor, constraints) = self.solution_descriptor.replica()?;
         let solution = self.working_solution.clone();
@@ -200,12 +213,11 @@ where
         self.cached_score = self.cached_score + delta;
     }
 
-    /* Drops all incremental state after the working solution was rewritten
-    outside the variable-change protocol. A director that records its
-    constraint-set constructor rebuilds the set from the current solution,
-    because constraint sets may compile solution-derived plans that a plain
-    reset would keep stale.
-    */
+    /// Drops all incremental state after the working solution was rewritten
+    /// outside the variable-change protocol. A director that records its
+    /// constraint-set constructor rebuilds the set from the current solution,
+    /// because constraint sets may compile solution-derived plans that a plain
+    /// reset would keep stale.
     pub(crate) fn reset_impl(&mut self) {
         match self.solution_descriptor.replica() {
             Some((_, constraints)) => self.constraints = constraints(&self.working_solution),
@@ -250,72 +262,68 @@ where
         cloned
     }
 
-    // Returns a reference to the working solution.
+    /// Returns a reference to the working solution.
     pub fn working_solution(&self) -> &S {
         &self.working_solution
     }
 
-    /* Returns a mutable reference to the working solution.
-
-    Note: After modifying the solution directly, you must call
-    `reset()` to recalculate the score from scratch. This includes the
-    solution's constraint weights: a `WeightedMode` director rebinds them on
-    the next initialization after `reset()`, never mid-session; an
-    `UnweightedMode` director never reads them.
-    */
+    /// Returns a mutable reference to the working solution.
+    ///
+    /// Note: After modifying the solution directly, you must call
+    /// `reset()` to recalculate the score from scratch. This includes the
+    /// solution's constraint weights: a `WeightedMode` director rebinds them on
+    /// the next initialization after `reset()`, never mid-session; an
+    /// `UnweightedMode` director never reads them.
     pub fn working_solution_mut(&mut self) -> &mut S {
         &mut self.working_solution
     }
 
-    // Consumes the director and returns the working solution with final score set.
+    /// Consumes the director and returns the working solution with final score set.
     pub fn into_working_solution(mut self) -> S {
         self.working_solution.set_score(Some(self.cached_score));
         self.working_solution
     }
 
-    /* Calculates and returns the current score.
-
-    On first call, updates all configured shadows and initializes all constraints
-    (O(n) for uni, O(n²) for bi). Subsequent calls return the cached score (O(1)).
-
-    Also sets the score on the working solution to keep it in sync.
-    */
+    /// Calculates and returns the current score.
+    ///
+    /// On first call, updates all configured shadows and initializes all constraints
+    /// (O(n) for uni, O(n²) for bi). Subsequent calls return the cached score (O(1)).
+    ///
+    /// Also sets the score on the working solution to keep it in sync.
     pub fn calculate_score(&mut self) -> S::Score {
         self.calculate_score_impl()
     }
 
-    /* Called before changing an entity's variable.
-
-    This retracts the entity from all constraints, computing the delta
-    that will be applied when the change completes.
-
-    # Arguments
-
-    * `descriptor_index` - Index of the entity descriptor (entity class)
-    * `entity_index` - Index of the entity being changed
-    */
+    /// Called before changing an entity's variable.
+    ///
+    /// This retracts the entity from all constraints, computing the delta
+    /// that will be applied when the change completes.
+    ///
+    /// # Arguments
+    ///
+    /// * `descriptor_index` - Index of the entity descriptor (entity class)
+    /// * `entity_index` - Index of the entity being changed
     #[inline]
     pub fn before_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         self.before_variable_changed_impl(descriptor_index, entity_index);
     }
 
-    /* Called after changing an entity's variable.
-
-    This updates any configured shadows for the descriptor/entity pair, then
-    inserts the entity (with new state) into all constraints, computing the
-    delta and updating the cached score.
-
-    # Arguments
-
-    * `descriptor_index` - Index of the entity descriptor (entity class)
-    * `entity_index` - Index of the entity that was changed
-    */
+    /// Called after changing an entity's variable.
+    ///
+    /// This updates any configured shadows for the descriptor/entity pair, then
+    /// inserts the entity (with new state) into all constraints, computing the
+    /// delta and updating the cached score.
+    ///
+    /// # Arguments
+    ///
+    /// * `descriptor_index` - Index of the entity descriptor (entity class)
+    /// * `entity_index` - Index of the entity that was changed
     #[inline]
     pub fn after_variable_changed(&mut self, descriptor_index: usize, entity_index: usize) {
         self.after_variable_changed_impl(descriptor_index, entity_index);
     }
 
-    /* Convenience method for a complete variable change cycle. */
+    /// Convenience method for a complete variable change cycle.
     #[inline]
     pub fn do_change<F>(
         &mut self,
@@ -332,77 +340,83 @@ where
         self.cached_score
     }
 
-    /* Returns the cached score without recalculation. */
+    /// Returns the cached score without recalculation.
     #[inline]
     pub fn get_score(&self) -> S::Score {
         self.cached_score
     }
 
-    /* Discards incremental state after an external rewrite of the working
-    solution; see `reset_impl` for the constraint-set rebuild. */
+    /// Discards incremental state after an external rewrite of the working
+    /// solution; see `reset_impl` for the constraint-set rebuild.
     pub fn reset(&mut self) {
         self.reset_impl();
     }
 
-    /* Clones the working solution. */
+    /// Clones the working solution.
     pub fn clone_working_solution(&self) -> S {
         self.clone_working_solution_impl()
     }
 
-    // Returns a reference to the constraint set.
+    /// Returns a reference to the constraint set.
     pub fn constraints(&self) -> &C {
         &self.constraints
     }
 
-    // Returns a mutable reference to the constraint set.
+    /// Returns a mutable reference to the constraint set.
     pub fn constraints_mut(&mut self) -> &mut C {
         &mut self.constraints
     }
 
-    // Returns immutable scoring-constraint metadata.
+    /// Returns immutable scoring-constraint metadata.
     pub fn constraint_metadata(&self) -> Vec<ConstraintMetadata<'_>> {
         self.constraints.constraint_metadata()
     }
 
-    // Returns the number of constraints.
+    /// Returns the number of constraints.
     pub fn constraint_count(&self) -> usize {
         self.constraints.constraint_count()
     }
 
-    // Returns whether the director is initialized.
+    /// Returns whether the director is initialized.
     pub fn is_initialized(&self) -> bool {
         self.initialized
     }
 
-    /* Consumes the director and returns the working solution.
-
-    Use this to extract the final solution after solving.
-
-    # Examples
-
-    ```
-    use solverforge_scoring::director::score_director::ScoreDirector;
-    use solverforge_core::domain::PlanningSolution;
-    use solverforge_core::score::SoftScore;
-
-    #[derive(Clone)]
-    struct Solution {
-    values: Vec<i32>,
-    score: Option<SoftScore>,
-    }
-
-    impl PlanningSolution for Solution {
-    type Score = SoftScore;
-    fn score(&self) -> Option<Self::Score> { self.score }
-    fn set_score(&mut self, score: Option<Self::Score>) { self.score = score; }
-    }
-
-    let solution = Solution { values: vec![1, 2, 3], score: None };
-    let director = ScoreDirector::new(solution, ());
-    let result = director.take_solution();
-    assert_eq!(result.values, vec![1, 2, 3]);
-    ```
-    */
+    /// Consumes the director and returns the working solution.
+    ///
+    /// Use this to extract the final solution after solving.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use solverforge_core::domain::PlanningSolution;
+    /// use solverforge_core::score::SoftScore;
+    /// use solverforge_scoring::director::score_director::ScoreDirector;
+    ///
+    /// #[derive(Clone)]
+    /// struct Solution {
+    ///     values: Vec<i32>,
+    ///     score: Option<SoftScore>,
+    /// }
+    ///
+    /// impl PlanningSolution for Solution {
+    ///     type Score = SoftScore;
+    ///     fn score(&self) -> Option<Self::Score> {
+    ///         self.score
+    ///     }
+    ///     fn set_score(&mut self, score: Option<Self::Score>) {
+    ///         self.score = score;
+    ///     }
+    /// }
+    ///
+    /// let solution = Solution {
+    ///     values: vec![1, 2, 3],
+    ///     score: None,
+    /// };
+    /// let director = ScoreDirector::new(solution, ());
+    /// let result = director.take_solution();
+    /// assert_eq!(result.values, vec![1, 2, 3]);
+    /// ```
     pub fn take_solution(self) -> S {
         self.working_solution
     }

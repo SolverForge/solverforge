@@ -20,6 +20,7 @@ pub struct MergeNode<L, R> {
     child_r_inserted: Vec<RowHandle>,
 }
 impl<L, R> MergeNode<L, R> {
+    /// Emits every row of `left` and every row of `right`, each as its own row.
     pub fn new(left: L, right: R) -> Self {
         Self {
             left,

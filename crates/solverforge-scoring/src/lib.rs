@@ -17,6 +17,7 @@
 // Zero-erasure architecture intentionally uses complex generic types
 #![allow(clippy::type_complexity)]
 #![warn(unreachable_pub)]
+#![warn(missing_docs)]
 
 // Core modules
 pub mod api;

@@ -13,6 +13,26 @@ type NodeId = usize;
 type OwnerId = usize;
 type Edge = (NodeId, NodeId);
 
+/// Stock incremental constraint that scores list-variable routes against fixed
+/// precedence edges, over `HardSoftScore`.
+///
+/// Node `n` must run after every node that precedes it in a route and after
+/// every fixed predecessor. The constraint builds one precedence graph from the
+/// fixed edges plus every adjacent pair of every owner's route, and scores:
+///
+/// - hard: one point per out-of-range fixed successor, per route slot holding
+///   no node or an out-of-range node, per node in the wrong owner (see
+///   [`with_expected_owner`](Self::with_expected_owner)), per node assigned zero
+///   times (and `count - 1` for a node assigned `count > 1` times), plus
+///   `node_count` while the graph has a cycle;
+/// - soft: minus the makespan, the latest finish over the graph where a node
+///   finishes at the latest predecessor finish plus its duration (`0` while the
+///   graph is cyclic).
+///
+/// `on_retract` defers the owner and returns zero; the matching `on_insert`
+/// diffs the owner's old and new route edges and refreshes the graph from the
+/// touched nodes, returning the whole delta. Notifications for other
+/// descriptors, and before `initialize`, return zero.
 pub struct ListPrecedenceMakespanConstraint<S> {
     constraint_ref: ConstraintRef,
     list_descriptor_index: usize,
@@ -28,6 +48,14 @@ pub struct ListPrecedenceMakespanConstraint<S> {
 }
 
 impl<S> ListPrecedenceMakespanConstraint<S> {
+    /// Creates the constraint.
+    ///
+    /// - `list_descriptor_index`: descriptor whose entities own the routes.
+    /// - `node_count`: number of nodes; node ids are `0..node_count`.
+    /// - `node_duration`: duration of a node.
+    /// - `fixed_successors`: pushes the fixed successors of a node.
+    /// - `list_owner_count`, `list_len`, `list_get`: the owners, the length of an
+    ///   owner's route and the node at a route position (`None` for an empty slot).
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,
@@ -54,6 +82,9 @@ impl<S> ListPrecedenceMakespanConstraint<S> {
         }
     }
 
+    /// Adds fixed-owner validation: when `expected_owner` returns `Some(owner)`
+    /// for a node routed by a different owner, that slot costs one hard point.
+    /// `None` disables the check.
     pub fn with_expected_owner(
         mut self,
         expected_owner: Option<fn(&S, NodeId) -> Option<OwnerId>>,

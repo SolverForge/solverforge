@@ -14,6 +14,13 @@ struct ProjectedJoinRow<Out> {
     coordinate: RowCoordinate,
 }
 
+/// Symmetric self-join constraint over retained projected rows.
+///
+/// Projected rows from `Src` that pass `F` are bucketed by `KF`; each unordered
+/// pair of distinct rows with equal keys that passes the pair filter `PF` is
+/// scored by `W`, signed by the impact. Pairs are oriented by `RowCoordinate`,
+/// and the pair filter receives each row's primary owner entity index, not a
+/// storage row id. Produced by `stream::projected::Stream::join(equal(..))`.
 pub struct Bi<S, Out, K, Src, F, KF, PF, W, Sc>
 where
     Src: Source<S, Out>,
@@ -48,6 +55,8 @@ where
     W: Fn(&Out, &Out) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Creates the constraint. `is_hard` is the reported hardness; `impact_type`
+    /// signs every pair weight.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,

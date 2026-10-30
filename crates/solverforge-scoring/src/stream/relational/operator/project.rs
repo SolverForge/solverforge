@@ -4,8 +4,11 @@ use crate::stream::relational::{DenseRowStore, HandleMap, RowHandle};
 
 /// Borrowed owned output with its entire upstream row and emission position.
 pub struct ProjectView<'a, V, T> {
+    /// The upstream row.
     pub input: V,
+    /// The projected value, owned by the node.
     pub value: &'a T,
+    /// Position of this value among the values emitted for the same upstream row.
     pub emission: usize,
 }
 impl<V: Copy, T> Copy for ProjectView<'_, V, T> {}
@@ -42,6 +45,7 @@ pub struct ProjectEvaluation<E, T> {
     values: Vec<Vec<T>>,
 }
 impl<O, F, T> ProjectNode<O, F, T> {
+    /// Emits the values `mapper` produces for each `input` row.
     pub fn new(input: O, mapper: F) -> Self {
         Self {
             input,

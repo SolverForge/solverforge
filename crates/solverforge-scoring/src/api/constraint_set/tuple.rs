@@ -1,9 +1,8 @@
-/* `ConstraintSet` for the empty tuple and for tuples of nested sets.
-
-Tuple children are scored left to right; their weight slots are laid out in
-the same order, so each weighted call hands every child the next
-`constraint_count()` multipliers.
-*/
+//! `ConstraintSet` for the empty tuple and for tuples of nested sets.
+//!
+//! Tuple children are scored left to right; their weight slots are laid out in
+//! the same order, so each weighted call hands every child the next
+//! `constraint_count()` multipliers.
 
 use solverforge_core::score::Score;
 use solverforge_core::ConstraintRef;
@@ -12,7 +11,7 @@ use super::super::analysis::ConstraintAnalysis;
 use super::incremental::{ConstraintMetadata, ConstraintResult, ConstraintSet};
 use super::weighting::take_slots;
 
-// Implement `ConstraintSet` for an empty tuple (no constraints).
+/// Implement `ConstraintSet` for an empty tuple (no constraints).
 impl<S: Send + Sync, Sc: Score> ConstraintSet<S, Sc> for () {
     #[inline]
     fn evaluate_all(&self, _solution: &S) -> Sc {

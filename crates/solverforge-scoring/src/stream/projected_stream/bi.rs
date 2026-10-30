@@ -11,6 +11,8 @@ use crate::stream::weighting_support::ConstraintWeight;
 use super::source::{Projection, SingleSource, Source};
 use super::uni::Stream;
 
+/// Symmetric self-join over projected rows with equal keys `KF`; produced by
+/// [`Stream::join`](crate::stream::projected::Stream::join) with `equal(..)`.
 pub struct Bi<S, Out, K, Src, F, KF, PF, Sc>
 where
     Sc: Score,
@@ -33,6 +35,7 @@ where
     PF: BiFilter<S, Out, Out>,
     Sc: Score + 'static,
 {
+    /// Keeps only pairs for which `predicate` returns `true`, after the existing filter.
     pub fn filter<P>(
         self,
         predicate: P,
@@ -86,6 +89,11 @@ where
         }
     }
 
+    /// Penalizes each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&Out, &Out)` pair returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -101,6 +109,11 @@ where
         )
     }
 
+    /// Rewards each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&Out, &Out)` pair returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -117,6 +130,8 @@ where
     }
 }
 
+/// Builder holding a weighted projected self-join constraint until
+/// [`named`](Self::named) finalizes it.
 pub struct BiBuilder<S, Out, K, Src, F, KF, PF, W, Sc>
 where
     Sc: Score,
@@ -143,6 +158,7 @@ where
     W: Fn(&Out, &Out) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds the projected `Bi` constraint.
     pub fn named(
         self,
         name: &str,
@@ -160,6 +176,7 @@ where
     }
 }
 
+/// Builder holding a weighted projected-row constraint until [`named`](Self::named) finalizes it.
 pub struct Builder<S, Out, Src, F, W, Sc>
 where
     Sc: Score,
@@ -181,6 +198,7 @@ where
     W: Fn(&Out) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds the projected `Uni` constraint.
     pub fn named(self, name: &str) -> crate::constraint::projected::Uni<S, Out, Src, F, W, Sc> {
         crate::constraint::projected::Uni::new(
             solverforge_core::ConstraintRef::new("", name),
@@ -201,6 +219,8 @@ where
     F: UniFilter<S, A>,
     Sc: Score + 'static,
 {
+    /// Projects each entity that passes the stream filter into zero or more `Out`
+    /// rows emitted by `projection`.
     pub fn project<P>(
         self,
         projection: P,

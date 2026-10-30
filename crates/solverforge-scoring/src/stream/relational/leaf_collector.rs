@@ -1,10 +1,9 @@
-/* Adapters that let entity collectors drive the leaf-view `GroupNode`.
-
-`GroupNode` groups operator rows, whose view is `Leaf<'a, A>`. The fluent
-collector surface is written against `&A`. `LeafCollector` bridges the two
-without cloning the collector or the entity. `V`, `R`, `Acc` are named so the
-`for<'i> Collector<&'i A>` bound can expose its associated types.
-*/
+//! Adapters that let entity collectors drive the leaf-view `GroupNode`.
+//!
+//! `GroupNode` groups operator rows, whose view is `Leaf<'a, A>`. The fluent
+//! collector surface is written against `&A`. `LeafCollector` bridges the two
+//! without cloning the collector or the entity. `V`, `R`, `Acc` are named so the
+//! `for<'i> Collector<&'i A>` bound can expose its associated types.
 
 use std::marker::PhantomData;
 
@@ -46,9 +45,9 @@ where
     }
 }
 
-/* Reads an entity key off a leaf view and wraps it as `Some`, so a target
-domain joins against an `Option`-keyed group without a capturing closure in
-the plan's type. */
+/// Reads an entity key off a leaf view and wraps it as `Some`, so a target
+/// domain joins against an `Option`-keyed group without a capturing closure in
+/// the plan's type.
 pub struct OptionalEntityKey<F>(F);
 
 impl<F> OptionalEntityKey<F> {
@@ -69,7 +68,7 @@ where
     }
 }
 
-/* A key read straight off a leaf view's entity. */
+/// A key read straight off a leaf view's entity.
 pub(crate) fn leaf_key<A, K, F>(f: F) -> impl Fn(&Leaf<'_, A>) -> K + Send + Sync
 where
     F: Fn(&A) -> K + Send + Sync,
@@ -77,8 +76,8 @@ where
     move |leaf: &Leaf<'_, A>| f(leaf.entity)
 }
 
-/* Adapts an entity filter to a `FilterNode` predicate over a leaf view, so a
-stream's authored filter stays binding when the row is grouped and joined. */
+/// Adapts an entity filter to a `FilterNode` predicate over a leaf view, so a
+/// stream's authored filter stays binding when the row is grouped and joined.
 pub struct LeafFilter<S, A, F> {
     filter: F,
     marker: PhantomData<fn() -> (S, A)>,

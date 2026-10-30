@@ -1,18 +1,16 @@
-// Core joiner traits and types for defining match conditions.
+//! Core joiner traits and types for defining match conditions.
 
-/* A joiner defines matching conditions between two entities.
-
-Joiners are used in stream operations like `join()`
-to determine which entity pairs should be matched.
-*/
+/// A joiner defines matching conditions between two entities.
+///
+/// Joiners are used in stream operations like `join()`
+/// to determine which entity pairs should be matched.
 pub trait Joiner<A, B>: Send + Sync {
-    // Returns true if the two entities should be joined.
+    /// Returns true if the two entities should be joined.
     fn matches(&self, a: &A, b: &B) -> bool;
 
-    /* Combines this joiner with another using AND semantics.
-
-    The resulting joiner matches only if both joiners match.
-    */
+    /// Combines this joiner with another using AND semantics.
+    ///
+    /// The resulting joiner matches only if both joiners match.
     fn and<J>(self, other: J) -> AndJoiner<Self, J>
     where
         Self: Sized,
@@ -25,23 +23,22 @@ pub trait Joiner<A, B>: Send + Sync {
     }
 }
 
-/* A joiner that combines two joiners with AND semantics.
-
-Created by calling `joiner.and(other)`.
-*/
+/// A joiner that combines two joiners with AND semantics.
+///
+/// Created by calling `joiner.and(other)`.
 pub struct AndJoiner<J1, J2> {
     pub(super) first: J1,
     pub(super) second: J2,
 }
 
 impl<J1, J2> AndJoiner<J1, J2> {
-    /* Builds a conjunction from its two operands. */
+    /// Builds a conjunction from its two operands.
     pub fn new(first: J1, second: J2) -> Self {
         Self { first, second }
     }
 
-    /* Consumes the conjunction and returns both operands, so a stream can
-    convert each side to a view-compatible plan. */
+    /// Consumes the conjunction and returns both operands, so a stream can
+    /// convert each side to a view-compatible plan.
     pub fn into_parts(self) -> (J1, J2) {
         (self.first, self.second)
     }
@@ -66,13 +63,13 @@ where
     }
 }
 
-// A joiner wrapping a closure for testing and simple cases.
+/// A joiner wrapping a closure for testing and simple cases.
 pub struct FnJoiner<F> {
     f: F,
 }
 
 impl<F> FnJoiner<F> {
-    // Creates a joiner from a closure.
+    /// Creates a joiner from a closure.
     pub fn new(f: F) -> Self {
         Self { f }
     }

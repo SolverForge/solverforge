@@ -1,65 +1,79 @@
-/* Fluent constraint stream API for zero-erasure constraint programming.
-
-This module provides an ergonomic builder pattern for defining constraints
-that compile to fully monomorphized, monomorphized constraint implementations.
-
-# Overview
-
-The stream API transforms verbose constraint definitions into concise,
-fluent declarations while preserving full type information through the
-entire evaluation pipeline.
-
-# Example
-
-```
-use solverforge_scoring::stream::ConstraintFactory;
-use solverforge_scoring::api::constraint_set::{ConstraintSet, IncrementalConstraint};
-use solverforge_core::score::SoftScore;
-
-#[derive(Clone)]
-struct Schedule {
-shifts: Vec<Shift>,
-}
-
-#[derive(Clone, Debug)]
-struct Shift {
-employee_idx: Option<usize>,
-required_skill: String,
-}
-
-// Define constraints using the fluent API
-let unassigned = ConstraintFactory::<Schedule, SoftScore>::new()
-.for_each(Schedule::shifts())
-.filter(|shift: &Shift| shift.employee_idx.is_none())
-.penalize(SoftScore::of(1))
-.named("Unassigned shift");
-
-// Use the constraint
-let schedule = Schedule {
-shifts: vec![
-Shift { employee_idx: Some(0), required_skill: "A".into() },
-Shift { employee_idx: None, required_skill: "B".into() },
-],
-};
-
-assert_eq!(unassigned.evaluate(&schedule), SoftScore::of(-1));
-```
-
-# Architecture
-
-The stream builders produce existing constraint types at definition time:
-
-```text
-ConstraintFactory::new()
-.for_each(extractor)     -> UniConstraintStream<S, A, Sc>
-.filter(predicate)            -> UniConstraintStream (accumulates filters)
-.penalize(weight)             -> UniConstraintBuilder<S, A, Sc>
-.named(name)                  -> IncrementalUniConstraint<S, A, Sc>
-```
-
-The final `IncrementalUniConstraint` is fully monomorphized with no
-virtual dispatch in the hot path.
-*/
+//! Fluent constraint stream API for zero-erasure constraint programming.
+//!
+//! This module provides an ergonomic builder pattern for defining constraints
+//! that compile to fully monomorphized, monomorphized constraint implementations.
+//!
+//! # Overview
+//!
+//! The stream API transforms verbose constraint definitions into concise,
+//! fluent declarations while preserving full type information through the
+//! entire evaluation pipeline.
+//!
+//! # Example
+//!
+//! ```
+//! use solverforge_core::score::SoftScore;
+//! use solverforge_scoring::api::constraint_set::{ConstraintSet, IncrementalConstraint};
+//! use solverforge_scoring::stream::ConstraintFactory;
+//!
+//! #[derive(Clone)]
+//! struct Schedule {
+//!     shifts: Vec<Shift>,
+//! }
+//! # use solverforge_scoring::stream::{source, ChangeSource, CollectionExtract};
+//! # impl Schedule {
+//! #     fn shifts() -> impl CollectionExtract<Schedule, Item = Shift> {
+//! #         fn shifts(s: &Schedule) -> &[Shift] {
+//! #             s.shifts.as_slice()
+//! #         }
+//! #         source(shifts as fn(&Schedule) -> &[Shift], ChangeSource::Descriptor(0))
+//! #     }
+//! # }
+//!
+//! #[derive(Clone, Debug)]
+//! struct Shift {
+//!     employee_idx: Option<usize>,
+//!     required_skill: String,
+//! }
+//!
+//! // Define constraints using the fluent API
+//! let unassigned = ConstraintFactory::<Schedule, SoftScore>::new()
+//!     .for_each(Schedule::shifts())
+//!     .filter(|shift: &Shift| shift.employee_idx.is_none())
+//!     .penalize(SoftScore::of(1))
+//!     .named("Unassigned shift");
+//!
+//! // Use the constraint
+//! let schedule = Schedule {
+//!     shifts: vec![
+//!         Shift {
+//!             employee_idx: Some(0),
+//!             required_skill: "A".into(),
+//!         },
+//!         Shift {
+//!             employee_idx: None,
+//!             required_skill: "B".into(),
+//!         },
+//!     ],
+//! };
+//!
+//! assert_eq!(unassigned.evaluate(&schedule), SoftScore::of(-1));
+//! ```
+//!
+//! # Architecture
+//!
+//! The stream builders produce existing constraint types at definition time:
+//!
+//! ```text
+//! ConstraintFactory::new()
+//! .for_each(extractor)     -> UniConstraintStream<S, A, Sc>
+//! .filter(predicate)            -> UniConstraintStream (accumulates filters)
+//! .penalize(weight)             -> UniConstraintBuilder<S, A, Sc>
+//! .named(name)                  -> IncrementalUniConstraint<S, A, Sc>
+//! ```
+//!
+//! The final `IncrementalUniConstraint` is fully monomorphized with no
+//! virtual dispatch in the hot path.
 
 #[macro_use]
 mod arity_stream_macros;
@@ -99,6 +113,7 @@ mod weighting_support;
 #[cfg(test)]
 mod tests;
 
+/// Cross-collection join streams and their builders.
 pub mod cross {
     pub use super::cross_bi_stream::{
         Bi, Builder, ComplementedGrouped, ComplementedGroupedBuilder, Grouped, GroupedBuilder,
@@ -108,10 +123,12 @@ pub mod cross {
     pub use super::cross_tri_stream::Tri;
 }
 
+/// Chain stream and builder.
 pub mod chain {
     pub use super::chain_stream::{Chain, ChainBuilder};
 }
 
+/// Projected streams: rows emitted by a [`Projection`] instead of stored entities.
 pub mod projected {
     pub use super::projected_stream::{
         Bi, BiBuilder, Builder, ComplementedGrouped, ComplementedGroupedBuilder, DirectedBi,

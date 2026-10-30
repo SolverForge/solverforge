@@ -22,7 +22,7 @@ use super::relational::{HandleMap, Leaf, RowHandle};
 use super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
 
-/* The full penta tree: ((((A ⋈ B) ⋈ C) ⋈ D) ⋈ E), each step its own plan. */
+/// The full penta tree: ((((A ⋈ B) ⋈ C) ⋈ D) ⋈ E), each step its own plan.
 pub(super) type BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4> = JoinNode<
     S,
     JoinNode<
@@ -45,11 +45,12 @@ pub(super) type BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4> = JoinNode<
     <P4 as CompileCondition>::Plan,
 >;
 
-/* The penta tree's borrowed row: `Pair<Pair<Pair<Pair<Leaf<A>, Leaf<B>>, Leaf<C>>, Leaf<D>>, Leaf<E>>`. */
+/// The penta tree's borrowed row: `Pair<Pair<Pair<Pair<Leaf<A>, Leaf<B>>,
+/// Leaf<C>>, Leaf<D>>, Leaf<E>>`.
 pub(super) type PentaRow<'a, S, EA, EB, EC, ED, EE, P1, P2, P3, P4> =
     <BuiltPenta<S, EA, EB, EC, ED, EE, P1, P2, P3, P4> as Operator<S>>::View<'a>;
 
-/* Borrowed (A, B, C, D, E) entity quintuple off a penta row view. */
+/// Borrowed (A, B, C, D, E) entity quintuple off a penta row view.
 pub(super) trait PentaEntities<'a, A, B, C, D, E> {
     fn entities(&self) -> (&'a A, &'a B, &'a C, &'a D, &'a E);
     fn indexes(&self) -> (usize, usize, usize, usize, usize);
@@ -80,6 +81,9 @@ impl<'a, A, B, C, D, E> PentaEntities<'a, A, B, C, D, E>
     }
 }
 
+/// Five-collection join stream: the tri join extended with `D` through `P3` and
+/// then `E` through `P4`, each step compiled into its own plan over the row
+/// before it.
 pub struct Penta<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, Sc>
 where
     Sc: Score,
@@ -123,7 +127,7 @@ where
     F: PentaFilter<S, A, B, C, D, E>,
     Sc: Score + 'static,
 {
-    /* Adds a filter predicate to the stream. */
+    /// Adds a filter predicate to the stream.
     #[allow(clippy::type_complexity)]
     pub fn filter<P>(
         self,
@@ -196,6 +200,11 @@ where
         }
     }
 
+    /// Penalizes each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched entities returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     #[allow(clippy::type_complexity)]
     pub fn penalize<W>(
         self,
@@ -231,6 +240,11 @@ where
         )
     }
 
+    /// Rewards each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched entities returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     #[allow(clippy::type_complexity)]
     pub fn reward<W>(
         self,
@@ -267,7 +281,7 @@ where
     }
 }
 
-/* Zero-erasure builder for finalizing a canonical penta constraint. */
+/// Zero-erasure builder for finalizing a canonical penta constraint.
 impl<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, Sc>
     Penta<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, Sc>
 where
@@ -343,6 +357,8 @@ where
     }
 }
 
+/// Builder holding a weighted five-collection join constraint until
+/// [`named`](Self::named) finalizes it.
 pub struct PentaBuilder<S, A, B, C, D, E, EA, EB, EC, ED, EE, P1, P2, P3, P4, F, W, Sc>
 where
     Sc: Score,
@@ -392,6 +408,7 @@ where
     W: Fn(&A, &B, &C, &D, &E) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Names the constraint and builds it.
     pub fn named(
         self,
         name: &str,

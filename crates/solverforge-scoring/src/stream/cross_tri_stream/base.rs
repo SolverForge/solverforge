@@ -24,8 +24,8 @@ use super::super::relational::{HandleMap, Leaf, RowHandle};
 use super::super::weighting_support::ConstraintWeight;
 use crate::constraint::relational::OperatorTerminal;
 
-/* The full tri tree: (A ⋈ B on the AB plan) ⋈ C on P2. Entity types ride
-inside the extractors and the AB plan's key closures. */
+/// The full tri tree: (A ⋈ B on the AB plan) ⋈ C on P2. Entity types ride
+/// inside the extractors and the AB plan's key closures.
 pub(crate) type BuiltTri<S, EA, EB, EC, P1, P2> = JoinNode<
     S,
     JoinNode<S, CollectionNode<S, EA>, CollectionNode<S, EB>, <P1 as CompileCondition>::Plan>,
@@ -33,12 +33,12 @@ pub(crate) type BuiltTri<S, EA, EB, EC, P1, P2> = JoinNode<
     <P2 as CompileCondition>::Plan,
 >;
 
-/* The tri tree's borrowed row: `Pair<Pair<Leaf<A>, Leaf<B>>, Leaf<C>>`. */
+/// The tri tree's borrowed row: `Pair<Pair<Leaf<A>, Leaf<B>>, Leaf<C>>`.
 pub(crate) type TriRow<'a, S, EA, EB, EC, P1, P2> =
     <BuiltTri<S, EA, EB, EC, P1, P2> as Operator<S>>::View<'a>;
 
-/* Assembles the tri tree from extractors, unary first keys, and a compiled
-second-relationship plan. Shared by `Bi::join` dispatch. */
+/// Assembles the tri tree from extractors, unary first keys, and a compiled
+/// second-relationship plan. Shared by `Bi::join` dispatch.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_tree<S, A, B, C, EA, EB, EC, P1, P2>(
     extractor_a: EA,
@@ -80,8 +80,8 @@ where
     JoinNode::new(left, CollectionNode::new(extractor_c, 2), second_plan)
 }
 
-/* Assembles a `Tri` from a Bi stream's parts plus the compiled second
-condition. Single construction point for `Bi::join` dispatch. */
+/// Assembles a `Tri` from a Bi stream's parts plus the compiled second
+/// condition. Single construction point for `Bi::join` dispatch.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn assemble_tri<S, A, B, C, EA, EB, EC, P1, P2, F, Sc>(
     extractor_a: EA,
@@ -126,6 +126,8 @@ where
     }
 }
 
+/// Three-collection join stream: `(A ⋈ B) ⋈ C`, with `P1` relating `A` to `B`
+/// and `P2` relating the joined pair to `C`.
 pub struct Tri<S, A, B, C, EA, EB, EC, P1, P2, F, Sc>
 where
     Sc: Score,
@@ -157,7 +159,7 @@ where
     F: TriFilter<S, A, B, C>,
     Sc: Score + 'static,
 {
-    /* Adds a filter predicate to the stream. */
+    /// Adds a filter predicate to the stream.
     pub fn filter<P>(
         self,
         predicate: P,
@@ -217,24 +219,23 @@ where
         }
     }
 
-    /* Extends this triple with a fourth source D.
-
-    The target tuple's condition compiles fresh, so its left closure receives
-    the whole borrowed (A, B, C) row and the fourth key domain is independent
-    of every earlier relationship.
-
-    # Key shapes
-
-    Later joins of a chain take VIEW keys, not entity keys:
-
-    - left key — the whole borrowed row so far (for a Tri this is
-      `&Pair<Pair<Leaf<'_, A>, Leaf<'_, B>>, Leaf<'_, C>>`)
-    - right key — `&Leaf<'_, D>` of the new entity, reading fields via `.entity`
-
-    `equal_bi` with entity closures does NOT typecheck here (E0631, expected
-    `fn(&Pair<...>)`) — use `equal_on`. The first join of a chain keeps
-    `equal_bi` with plain entity keys.
-    */
+    /// Extends this triple with a fourth source D.
+    ///
+    /// The target tuple's condition compiles fresh, so its left closure receives
+    /// the whole borrowed (A, B, C) row and the fourth key domain is independent
+    /// of every earlier relationship.
+    ///
+    /// # Key shapes
+    ///
+    /// Later joins of a chain take VIEW keys, not entity keys:
+    ///
+    /// - left key — the whole borrowed row so far (for a Tri this is
+    ///   `&Pair<Pair<Leaf<'_, A>, Leaf<'_, B>>, Leaf<'_, C>>`)
+    /// - right key — `&Leaf<'_, D>` of the new entity, reading fields via `.entity`
+    ///
+    /// `equal_bi` with entity closures does NOT typecheck here (E0631, expected
+    /// `fn(&Pair<...>)`) — use `equal_on`. The first join of a chain keeps
+    /// `equal_bi` with plain entity keys.
     pub fn join<D, ED, P3>(
         self,
         target: (ED, P3),
@@ -279,6 +280,12 @@ where
         }
     }
 
+    /// Penalizes each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&A, &B, &C)`
+    /// triple returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn penalize<W>(
         self,
         weight: W,
@@ -294,6 +301,12 @@ where
         )
     }
 
+    /// Rewards each match by `weight`.
+    ///
+    /// `weight` is a fixed score, or a closure over the matched `(&A, &B, &C)`
+    /// triple returning one.
+    /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+    /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
     pub fn reward<W>(
         self,
         weight: W,
@@ -310,7 +323,7 @@ where
     }
 }
 
-/* Zero-erasure builder for finalizing a canonical tri constraint. */
+/// Zero-erasure builder for finalizing a canonical tri constraint.
 pub struct Builder<S, A, B, C, EA, EB, EC, P1, P2, F, W, Sc>
 where
     Sc: Score,
@@ -342,12 +355,11 @@ where
     W: Fn(&A, &B, &C) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
-    /* Finalizes into the generic operator terminal.
-
-    The authored tri filter runs inside the scored operator so evaluate,
-    match_count, initialize, and mutations all honor it exactly once; the
-    terminal's weight stays the plain authored per-row weight.
-    */
+    /// Finalizes into the generic operator terminal.
+    ///
+    /// The authored tri filter runs inside the scored operator so evaluate,
+    /// match_count, initialize, and mutations all honor it exactly once; the
+    /// terminal's weight stays the plain authored per-row weight.
     pub fn named(
         self,
         name: &str,
@@ -376,7 +388,7 @@ where
     }
 }
 
-/* Borrowed (A, B, C) entity triple off a tri row view. */
+/// Borrowed (A, B, C) entity triple off a tri row view.
 pub(crate) trait TriEntities<'a, A, B, C> {
     fn entities(&self) -> (&'a A, &'a B, &'a C);
     fn indexes(&self) -> (usize, usize, usize);

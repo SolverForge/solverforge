@@ -1,39 +1,50 @@
-// Equal joiner for matching on property equality.
+//! Equal joiner for matching on property equality.
 
 use std::marker::PhantomData;
 
 use super::Joiner;
 
-// Marker for same-source joins where each unordered pair is considered once.
+/// Marker for same-source joins where each unordered pair is considered once.
 pub struct Symmetric;
 
-// Marker for left/right joins where pair orientation is part of the semantics.
+/// Marker for left/right joins where pair orientation is part of the semantics.
 pub struct Directed;
 
-/* Creates a joiner that matches when a property is equal on both sides.
-
-This is the primary joiner for self-joins where you're matching
-entities from the same collection on a shared property.
-
-# Example
-
-```
-use solverforge_scoring::stream::joiner::{Joiner, equal};
-
-#[derive(Clone)]
-struct Shift { employee_id: Option<usize>, start: i64 }
-
-// Match shifts with the same employee (self-join)
-let same_employee = equal(|s: &Shift| s.employee_id);
-
-let a = Shift { employee_id: Some(5), start: 0 };
-let b = Shift { employee_id: Some(5), start: 8 };
-let c = Shift { employee_id: Some(3), start: 16 };
-
-assert!(same_employee.matches(&a, &b));
-assert!(!same_employee.matches(&a, &c));
-```
-*/
+/// Creates a joiner that matches when a property is equal on both sides.
+///
+/// This is the primary joiner for self-joins where you're matching
+/// entities from the same collection on a shared property.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_scoring::stream::joiner::{equal, Joiner};
+///
+/// #[derive(Clone)]
+/// struct Shift {
+///     employee_id: Option<usize>,
+///     start: i64,
+/// }
+///
+/// // Match shifts with the same employee (self-join)
+/// let same_employee = equal(|s: &Shift| s.employee_id);
+///
+/// let a = Shift {
+///     employee_id: Some(5),
+///     start: 0,
+/// };
+/// let b = Shift {
+///     employee_id: Some(5),
+///     start: 8,
+/// };
+/// let c = Shift {
+///     employee_id: Some(3),
+///     start: 16,
+/// };
+///
+/// assert!(same_employee.matches(&a, &b));
+/// assert!(!same_employee.matches(&a, &c));
+/// ```
 pub fn equal<A, T, F>(key: F) -> EqualJoiner<F, F, T, Symmetric>
 where
     T: PartialEq,
@@ -46,34 +57,45 @@ where
     }
 }
 
-/* Creates a joiner that matches when extracted values are equal.
-
-Use this for cross-joins between different entity types.
-
-# Example
-
-```
-use solverforge_scoring::stream::joiner::{Joiner, equal_bi};
-
-#[derive(Clone)]
-struct Employee { id: usize, department: String }
-#[derive(Clone)]
-struct Task { assigned_to: usize, name: String }
-
-// Match employees to their assigned tasks
-let by_id = equal_bi(
-|e: &Employee| e.id,
-|t: &Task| t.assigned_to
-);
-
-let emp = Employee { id: 5, department: "Engineering".into() };
-let task1 = Task { assigned_to: 5, name: "Review".into() };
-let task2 = Task { assigned_to: 3, name: "Test".into() };
-
-assert!(by_id.matches(&emp, &task1));
-assert!(!by_id.matches(&emp, &task2));
-```
-*/
+/// Creates a joiner that matches when extracted values are equal.
+///
+/// Use this for cross-joins between different entity types.
+///
+/// # Example
+///
+/// ```
+/// use solverforge_scoring::stream::joiner::{equal_bi, Joiner};
+///
+/// #[derive(Clone)]
+/// struct Employee {
+///     id: usize,
+///     department: String,
+/// }
+/// #[derive(Clone)]
+/// struct Task {
+///     assigned_to: usize,
+///     name: String,
+/// }
+///
+/// // Match employees to their assigned tasks
+/// let by_id = equal_bi(|e: &Employee| e.id, |t: &Task| t.assigned_to);
+///
+/// let emp = Employee {
+///     id: 5,
+///     department: "Engineering".into(),
+/// };
+/// let task1 = Task {
+///     assigned_to: 5,
+///     name: "Review".into(),
+/// };
+/// let task2 = Task {
+///     assigned_to: 3,
+///     name: "Test".into(),
+/// };
+///
+/// assert!(by_id.matches(&emp, &task1));
+/// assert!(!by_id.matches(&emp, &task2));
+/// ```
 pub fn equal_bi<T, Fa, Fb>(left: Fa, right: Fb) -> EqualJoiner<Fa, Fb, T, Directed>
 where
     T: PartialEq,
@@ -87,8 +109,8 @@ where
     }
 }
 
-/* Builds an `EqualJoiner` from raw key extractors (crate-internal adapter
-for fluent dispatch sites that lift unary keys onto row views). */
+/// Builds an `EqualJoiner` from raw key extractors (crate-internal adapter
+/// for fluent dispatch sites that lift unary keys onto row views).
 pub fn equal_raw<Fa, Fb, T>(left: Fa, right: Fb) -> EqualJoiner<Fa, Fb, T, Directed>
 where
     T: PartialEq,
@@ -102,19 +124,18 @@ where
     }
 }
 
-/* Creates a joiner whose left key inspects the whole joined left row.
-
-The left closure receives the borrowed left row (recursive `Concat` of
-`Leaf` views), so the second relationship in a chain can inspect any
-earlier binding or combine several. The right closure sees only the new
-right entity. Successive joins keep independent key types: each uniform
-`.join()` carries its own `K2` domain rather than inheriting the first
-join's key.
-
-Row and right-input types stay method-generic (never impl generics), so
-successive joins keep heterogeneous key types without unifying domains.
-See `constraint::tests::relational::fluent_chain` for the exercised shapes.
-*/
+/// Creates a joiner whose left key inspects the whole joined left row.
+///
+/// The left closure receives the borrowed left row (recursive `Concat` of
+/// `Leaf` views), so the second relationship in a chain can inspect any
+/// earlier binding or combine several. The right closure sees only the new
+/// right entity. Successive joins keep independent key types: each uniform
+/// `.join()` carries its own `K2` domain rather than inheriting the first
+/// join's key.
+///
+/// Row and right-input types stay method-generic (never impl generics), so
+/// successive joins keep heterogeneous key types without unifying domains.
+/// See `constraint::tests::relational::fluent_chain` for the exercised shapes.
 pub fn equal_on<K2, LK, KC>(left: LK, right: KC) -> EqualJoiner<LK, KC, K2, Directed>
 where
     K2: PartialEq,
@@ -128,10 +149,9 @@ where
     }
 }
 
-/* A joiner that matches when extracted values are equal.
-
-Created by the [`equal()`] or [`equal_bi()`] functions.
-*/
+/// A joiner that matches when extracted values are equal.
+///
+/// Created by the [`equal()`] or [`equal_bi()`] functions.
 pub struct EqualJoiner<Fa, Fb, T, Mode = Directed> {
     left: Fa,
     right: Fb,
@@ -146,7 +166,7 @@ impl<Fa, Fb, T, Mode> EqualJoiner<Fa, Fb, T, Mode> {
             second: other,
         }
     }
-    // Extracts the join key from an A entity.
+    /// Extracts the join key from an A entity.
     #[inline]
     pub fn key_a<A>(&self, a: &A) -> T
     where
@@ -155,7 +175,7 @@ impl<Fa, Fb, T, Mode> EqualJoiner<Fa, Fb, T, Mode> {
         (self.left)(a)
     }
 
-    // Extracts the join key from a B entity.
+    /// Extracts the join key from a B entity.
     #[inline]
     pub fn key_b<B>(&self, b: &B) -> T
     where
@@ -164,17 +184,16 @@ impl<Fa, Fb, T, Mode> EqualJoiner<Fa, Fb, T, Mode> {
         (self.right)(b)
     }
 
-    /* Consumes the joiner and returns the key extractors.
-
-    This is useful for zero-erasure constraint creation where
-    the key extractors need to be stored as concrete types.
-    */
+    /// Consumes the joiner and returns the key extractors.
+    ///
+    /// This is useful for zero-erasure constraint creation where
+    /// the key extractors need to be stored as concrete types.
     #[inline]
     pub fn into_keys(self) -> (Fa, Fb) {
         (self.left, self.right)
     }
 
-    // Returns references to the key extractors.
+    /// Returns references to the key extractors.
     #[inline]
     pub fn key_extractors(&self) -> (&Fa, &Fb) {
         (&self.left, &self.right)

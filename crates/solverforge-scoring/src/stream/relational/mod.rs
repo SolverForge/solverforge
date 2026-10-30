@@ -1,10 +1,9 @@
-/* Typed relational row machinery for the common operator tree.
-
-Stable generational identities, dense swap_remove storage, borrowed row
-shapes, concrete index strategies, and the operator protocol. Scoring
-terminals live under `constraint::relational`. Nothing here introduces a
-public erased graph API: every type is concrete and monomorphized.
-*/
+//! Typed relational row machinery for the common operator tree.
+//!
+//! Stable generational identities, dense swap_remove storage, borrowed row
+//! shapes, concrete index strategies, and the operator protocol. Scoring
+//! terminals live under `constraint::relational`. Nothing here introduces a
+//! public erased graph API: every type is concrete and monomorphized.
 
 pub(crate) mod count_state;
 mod handle_map;

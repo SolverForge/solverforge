@@ -1,6 +1,6 @@
 use super::*;
 
-/* Scored penta operator: the tree plus the authored filter as one row producer. */
+/// Scored penta operator: the tree plus the authored filter as one row producer.
 pub struct PentaScored<
     S,
     A,

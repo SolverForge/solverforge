@@ -13,6 +13,12 @@ pub(super) struct ProjectedDirectedJoinRow<Out> {
     pub(super) coordinate: RowCoordinate,
 }
 
+/// Directed self-join constraint over retained projected rows.
+///
+/// Scores every oriented pair `(left, right)` of distinct rows where
+/// `KL(left) == KR(right)` and the pair filter `PF` accepts it, so one unordered
+/// pair can match in both directions. Produced by
+/// `stream::projected::Stream::join(equal_bi(left_key, right_key))`.
 pub struct DirectedBi<S, Out, K, Src, F, KL, KR, PF, W, Sc>
 where
     Src: Source<S, Out>,
@@ -50,6 +56,8 @@ where
     W: Fn(&Out, &Out) -> Sc + Send + Sync,
     Sc: Score + 'static,
 {
+    /// Creates the constraint. `is_hard` is the reported hardness; `impact_type`
+    /// signs every pair weight.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         constraint_ref: ConstraintRef,

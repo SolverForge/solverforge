@@ -7,6 +7,8 @@ use crate::stream::relational::{DenseRowStore, HashIndex};
 
 use super::{RowCoordinate, Source};
 
+/// Projected source over a keyed cross join: each accepted `(A, B)` pair with
+/// equal keys emits one `Out` row. Built by `stream::cross::Bi::project`.
 pub struct JoinedSource<S, A, B, K, EA, EB, KA, KB, F, P, Out> {
     extractor_a: EA,
     extractor_b: EB,
@@ -38,15 +40,14 @@ impl<S, A, B, K, EA, EB, KA, KB, F, P, Out> JoinedSource<S, A, B, K, EA, EB, KA,
     }
 }
 
-/* Retained join index state.
-
-Uses the shared `HashIndex` and `DenseRowStore` rather than a bespoke
-`HashMap<K, Vec<usize>>` pair: each accepted entity gets a stable handle
-with a reverse handle-to-old-key link, so retraction removes the exact
-bucket entry without re-deriving a key from mutated data. The store
-payload is the entity's semantic slice index, keeping reverse lookups
-free.
-*/
+/// Retained join index state.
+///
+/// Uses the shared `HashIndex` and `DenseRowStore` rather than a bespoke
+/// `HashMap<K, Vec<usize>>` pair: each accepted entity gets a stable handle
+/// with a reverse handle-to-old-key link, so retraction removes the exact
+/// bucket entry without re-deriving a key from mutated data. The store
+/// payload is the entity's semantic slice index, keeping reverse lookups
+/// free.
 pub struct JoinedState<K> {
     left_by_key: HashIndex<K>,
     right_by_key: HashIndex<K>,
@@ -82,11 +83,10 @@ where
         self.right_by_key.insert(handle, key);
     }
 
-    /* Drops one entity's handle, key, and bucket entry.
-
-    The reverse handle-to-old-key link is what lets the shared index drop
-    the exact bucket entry; callers may pass a stale key without harm.
-    */
+    /// Drops one entity's handle, key, and bucket entry.
+    ///
+    /// The reverse handle-to-old-key link is what lets the shared index drop
+    /// the exact bucket entry; callers may pass a stale key without harm.
     fn retract_left(&mut self, entity_index: usize, _key: &K) {
         let handle = self
             .left_rows
@@ -111,7 +111,7 @@ where
         }
     }
 
-    /* Semantic slice indexes of the opposite side matching `key`. */
+    /// Semantic slice indexes of the opposite side matching `key`.
     fn left_indexes(&self, key: &K) -> Vec<usize> {
         self.left_by_key
             .lookup(key)

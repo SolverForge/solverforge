@@ -1,8 +1,7 @@
-/* Shared implementation for self-join n-ary constraint stream macros.
-
-This keeps the per-arity files thin and explicit while centralizing the
-repeated stream/builder generation strategy in one place.
-*/
+//! Shared implementation for self-join n-ary constraint stream macros.
+//!
+//! This keeps the per-arity files thin and explicit while centralizing the
+//! repeated stream/builder generation strategy in one place.
 
 macro_rules! repeat_tokens {
     ($_ignore:tt => $($tokens:tt)*) => {
@@ -56,6 +55,12 @@ macro_rules! impl_nary_arity_stream_common {
         weight_indices = [$($weight_idx:ident),+],
         filter_indices = [$($filter_idx:ident),*]
     ) => {
+        /// Same-collection constraint stream over tuples of `A` entities whose keys are
+        /// equal.
+        ///
+        /// Each unordered combination of distinct entities from extractor `E` with equal
+        /// keys `KE` appears once, in increasing index order, and is kept when filter `F`
+        /// accepts it.
         pub struct $stream<S, A, K, E, KE, F, Sc>
         where
             Sc: solverforge_core::score::Score,
@@ -76,6 +81,7 @@ macro_rules! impl_nary_arity_stream_common {
             KE: super::key_extract::KeyExtract<S, A, K>,
             Sc: solverforge_core::score::Score + 'static,
         {
+            /// Creates a stream over every equal-key tuple, with no filter.
             pub fn new_self_join(extractor: E, key_extractor: KE) -> Self {
                 Self {
                     extractor,
@@ -116,6 +122,7 @@ macro_rules! impl_nary_arity_stream_common {
                 }
             }
 
+            /// Creates a stream over every equal-key tuple accepted by `filter`.
             pub fn new_self_join_with_filter(extractor: E, key_extractor: KE, filter: F) -> Self {
                 Self {
                     extractor,
@@ -125,6 +132,7 @@ macro_rules! impl_nary_arity_stream_common {
                 }
             }
 
+            /// Keeps only tuples for which `predicate` returns `true`, after the existing filter.
             pub fn filter<P>(
                 self,
                 predicate: P,
@@ -205,6 +213,11 @@ macro_rules! impl_nary_arity_stream_common {
                     }, crate::stream::relational::TupleCollector::new(collector))
             }
 
+            /// Penalizes each match by `weight`.
+            ///
+            /// `weight` is a fixed score, or a closure over the matched entities returning one.
+            /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+            /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
             pub fn penalize<W>(
                 self,
                 weight: W,
@@ -234,6 +247,11 @@ macro_rules! impl_nary_arity_stream_common {
                 )
             }
 
+            /// Rewards each match by `weight`.
+            ///
+            /// `weight` is a fixed score, or a closure over the matched entities returning one.
+            /// A fixed weight with a non-zero hard level marks the constraint hard; closures
+            /// are soft unless wrapped in [`hard_weight`](crate::stream::hard_weight).
             pub fn reward<W>(
                 self,
                 weight: W,
@@ -272,6 +290,8 @@ macro_rules! impl_nary_arity_stream_common {
             }
         }
 
+        /// Builder holding a weighted same-collection tuple constraint until
+        /// [`named`](Self::named) finalizes it.
         pub struct $builder<S, A, K, E, KE, F, W, Sc>
         where
             Sc: solverforge_core::score::Score,
@@ -297,6 +317,8 @@ macro_rules! impl_nary_arity_stream_common {
             W: Fn($(repeat_tokens!($entity => &A)),+) -> Sc + Send + Sync,
             Sc: solverforge_core::score::Score + 'static,
         {
+            /// Names the constraint and builds it as an `OperatorTerminal` over a
+            /// `SelfJoinNode`.
             pub fn named(
                 self,
                 name: &str,

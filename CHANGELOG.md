@@ -1,6 +1,112 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.24.0](https://github.com/SolverForge/solverforge/compare/v0.23.0...v0.24.0) (2026-11-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **solver:** AcceptorBuilder::build, AcceptorBuilder::build_with_seed and ForagerBuilder::build return Result<_, ConfigValueError>. An accepted_count forager with `limit = 0` is rejected instead of running with limit 1.
+* **scoring:** ConstraintSet implementations must provide constraint_weight_refs and the *_weighted methods; ConstraintAnalysis replaces weight with weight_multiplier in scoring and solver analysis; IncrementalConstraint::weight() is removed; ConstraintWeightOverrides and WeightProvider are removed.
+* **scoring:** IncrementalConstraintSealed is renamed SingleConstraint and is no longer #[doc(hidden)]. Hand-written constraints write `impl SingleConstraint for MyConstraint {}`.
+* **solver:** ListVariableSlot has no construction_list_remove field and ListVariableSlot::new no longer takes that hook.
+* **solver:** RuntimeBuildError gains the ConstraintWeights variant.
+* **solver:** SearchContext::new returns RuntimeBuildResult<SearchContext> and SearchContext::try_new is removed; build_descriptor_move_selector returns Result<DescriptorSelector<S>, RuntimeBuildError>.
+* **solver:** SelectorTelemetry loses its six conflict_repair_* fields, which could never be non-zero, and PhaseStats/SolverStats record_conflict_repair_* methods other than provider_generated now take a count.
+* **solver:** Solvable::solve returns RuntimeBuildResult<()>; manual implementations return Ok(()) on success.
+* **solver:** SolverManager::solve returns SolverEventReceiver instead of tokio's UnboundedReceiver, and MoveTabuSignature takes and returns slices instead of SmallVec.
+* **solver:** SolverScope::rng() is no longer public; use SolverScope::random_below or SolverScope::random_u64.
+* **cvrp:** VrpSolution::vehicle_data_ptr(&self, usize) -> *const ProblemData is replaced by vehicle_data(&self, usize) -> Option<&ProblemData>. Implementations return Some(&data) (for an Arc, Some(&self.shared)) instead of a pointer, and None instead of null.
+* **solver:** `MoveArena` is no longer exported from solverforge-solver or `solverforge::heuristic`, and `MoveSelector::append_moves` is removed. A custom selector that overrode `append_moves` drops the override; candidates are taken from the selector's cursor by `CandidateId`.
+* **config:** `SolverConfig::from_yaml_file`, `SolverConfig::from_yaml_str` and `ConfigError::Yaml` are removed. Convert YAML solver files to TOML and load them with `SolverConfig::from_toml_file` / `from_toml_str`.
+* **facade:** `solverforge::bridge` is removed and `solverforge::console` exposes only `init()`; depend on solverforge-bridge or solverforge-console directly for anything else.
+* **scoring:** a ScoreDirector built with `new`/`with_descriptor` no longer applies a solution's constraint weights; use the weighted constructors.
+* **scoring:** closures, `fn` items and `vec(...)` are no longer stream sources; pass the generated accessor such as `Plan::shifts()`, and give a hand-written `CollectionExtract` a `change_source`.
+* **config:** configuration with unknown keys now fails to load with ConfigError::Toml. In Rust, `AcceptorConfig::HillClimbing` and the `ForagerConfig::{BestScore, FirstAccepted, FirstBestScoreImproving, FirstLastStepScoreImproving}` variants are written with `{}`.
+* **solver:** consume problem changes by ownership and drop SolverHandle
+* **core:** every Score implementation must provide scale(i64).
+* models without `solver_toml` no longer pick up a solver.toml from the working directory; add `solver_toml = "../../solver.toml"` (the scaffold default) to keep using a file. RuntimeBuildError gains the Configuration variant.
+* **core,scoring:** score arithmetic that overflows i64 now panics in release builds instead of returning a wrapped score; multiply and divide panic for non-finite factors and zero divisors. Score gains provided overflowing_* methods.
+* **core,scoring:** solverforge-core no longer exports `domain::listener`, `domain::supply`, `ListVariableSolution`, `ValueRangeProvider`, `FieldValueRangeProvider`, `ComputedValueRangeProvider`, `StaticValueRange`, `IntegerRange`, `SolverForgeError` or `error::Result`; solverforge-scoring no longer exports `ScoreExplanation`, `Indictment`, `IndictmentMap`, `DetailedConstraintEvaluation`, `constraint::shared::compute_hash`, `stream::key_extract::PhantomKey` or `impl_get_matches_nary!`. Facade users lose the same items under `solverforge::domain` and `solverforge::analysis`.
+* **solver:** solverforge-solver items are reachable only at the crate root (`solverforge_solver::Name`); module paths such as `solverforge_solver::heuristic::...` and `solverforge_solver::stats::...` are gone. Host-provider contracts (`RuntimeProviderRegistry`, `RuntimeCandidateMetricRegistry`, `RuntimeHostCompoundProvider`, ...) are imported from solverforge-bridge. The deleted factories, builders, selectors, moves, terminations and phase composites listed above have no replacement; configure the solver through SolverConfig and custom search instead.
+* **facade:** the `decimal` feature is removed from solverforge and solverforge-core; drop it from `features = [...]`.
+
+### Features
+
+* **core:** add exact Score::scale and ConstraintWeights ([b82ac39](https://github.com/SolverForge/solverforge/commit/b82ac397b6c07edfa09f4ef4345f0f3eb6ceef0a))
+* **core:** serialize BendableScore under the serde feature ([7cd008a](https://github.com/SolverForge/solverforge/commit/7cd008a2a22163450738e3f4fe436600edcc97d9)), closes #93
+* **facade:** export every type the facade's own signatures use ([f463ff7](https://github.com/SolverForge/solverforge/commit/f463ff7c3b2f9f04b6078fc365b1797a5a264df0)), references #84
+* **macros:** generate constraint weight accessors from #[constraint_weights] ([fb6c4cf](https://github.com/SolverForge/solverforge/commit/fb6c4cfae2727413adcf926f453b8f181c183643))
+* **macros:** generate solve_with_config for synchronous configured solves ([fb2b9aa](https://github.com/SolverForge/solverforge/commit/fb2b9aae2c30a92f5e711e7e070f296965371262)), references #84
+* **scoring:** name the single-constraint marker SingleConstraint ([6e6e148](https://github.com/SolverForge/solverforge/commit/6e6e14866afd5c35ef13dcb55dd6a38c1accedac)), references #84
+* **scoring:** publish stream::chain ([18798bf](https://github.com/SolverForge/solverforge/commit/18798bf7bb6ee16c3d68024c17897406c1d9b9b5)), references #84
+* **scoring:** scale each constraint's contribution by its bound weight ([f36cbd5](https://github.com/SolverForge/solverforge/commit/f36cbd56cd713991f6def0d331e6d856b6ffd175))
+* **solver:** apply queued problem changes at runtime safe points ([2900805](https://github.com/SolverForge/solverforge/commit/29008054a9994441209db415cd322fcdfca0d583))
+* **solver:** fail the solve at start on invalid constraint weights ([3d003d2](https://github.com/SolverForge/solverforge/commit/3d003d226041d31fff281654b86e9553bb26e2d9))
+* **solverforge:** expose real-time problem changes through the facade ([178cbdb](https://github.com/SolverForge/solverforge/commit/178cbdbce4a774b07f5cabb36dca6116d55507b0))
+* **solver:** give SolverScope seeded draws and keep its generator private ([7423718](https://github.com/SolverForge/solverforge/commit/74237186e5573dcae1e5467240b63fbc5431351b)), references #84
+* **solver:** validate constraint weights installed by problem changes ([55bbe3a](https://github.com/SolverForge/solverforge/commit/55bbe3a5bbae184bcf9d8c343dfc2d9db5f0162e))
+
+
+### Bug Fixes
+
+* **bench:** make the zero-regression gate pass an unchanged tree without loosening it ([81c8ed2](https://github.com/SolverForge/solverforge/commit/81c8ed273193f2528528c6949a5dfa6d264f3f17)), references #134
+* **bridge:** print and parse decimal DynamicScores through the exact core grammar ([5093022](https://github.com/SolverForge/solverforge/commit/50930229a4e2552b87c3816bc956d5e6d78fce35))
+* **config:** reject unknown keys in solver configuration ([677ec55](https://github.com/SolverForge/solverforge/commit/677ec55b620c18f7c599b37bcc268f3ac74c5d79)), closes #88
+* **core,scoring:** panic on score arithmetic overflow instead of wrapping ([41d2a61](https://github.com/SolverForge/solverforge/commit/41d2a61f5dabe327862dd9f3e2f3b814b84e9876)), closes #95
+* **core:** parse and print HardSoftDecimalScore with exact fixed-point arithmetic ([adb168f](https://github.com/SolverForge/solverforge/commit/adb168ff7e838dcf1879010cecd4540801413bac)), closes #94
+* **cvrp:** return Option<&ProblemData> from VrpSolution instead of a raw pointer ([7414ab1](https://github.com/SolverForge/solverforge/commit/7414ab1a2e64e8cf0dad5d0f3063a163c5a384a6)), closes #96
+* **facade:** make verbose-logging enable console; delete the empty decimal feature ([7be8892](https://github.com/SolverForge/solverforge/commit/7be889297218603947d44a3a045bb66e30fff18c)), closes #86
+* **macros:** pass the user's struct through the model attributes unchanged ([977ba20](https://github.com/SolverForge/solverforge/commit/977ba20ab660bc31179762f6e414882f83f2f7b7)), closes #82
+* **macros:** report invalid planning_solution paths as spanned errors ([c461401](https://github.com/SolverForge/solverforge/commit/c461401dea31591eae90056a7db20e987b73e884)), closes #100
+* **scoring:** accept only planning-model collections as stream sources ([f997617](https://github.com/SolverForge/solverforge/commit/f9976175a096f845048205dca1d1d4ac70da9d50)), closes #107
+* **scoring:** keep cross-stream filters when a five-source join continues ([ae0ec9f](https://github.com/SolverForge/solverforge/commit/ae0ec9fd009b970440f0a9e34c7712d6f1ca2875)), closes #105
+* **scoring:** let fluent same-collection self-joins continue past two sources ([16d3952](https://github.com/SolverForge/solverforge/commit/16d395282a17c871ddeb8cbc4ff56178f09bc384)), closes #158
+* **scoring:** rebuild replica constraint sets on director reset ([65da6c8](https://github.com/SolverForge/solverforge/commit/65da6c8a87e6e0d1d54fb1cf3a6e24c7ffe7428b))
+* **solver:** delete MoveArena and the eager move-collection path ([290882d](https://github.com/SolverForge/solverforge/commit/290882da3ce81e1b850a47e7c72ff2f02125a4df)), closes #109
+* **solver:** fail the solve on a best_score_limit that does not parse ([fbea906](https://github.com/SolverForge/solverforge/commit/fbea906543b923694ac950b9af7492fd8afeb631)), closes #127
+* **solver:** make SearchContext::new and the descriptor selector fallible ([d7989bc](https://github.com/SolverForge/solverforge/commit/d7989bc55968ad71cf14a026e0b3df0cba57c258)), closes #85
+* **solver:** record conflict-repair telemetry where outcomes are decided ([80852fa](https://github.com/SolverForge/solverforge/commit/80852fa8f8c54197b3d205c0aa58951a11b3cd9c))
+* **solver:** reject out-of-domain move-selector and construction values ([0b09124](https://github.com/SolverForge/solverforge/commit/0b09124157efe1c529623ff8a5515c20d80b228f)), closes #148
+* **solver:** return solve errors from Solvable instead of re-panicking ([9dde1b9](https://github.com/SolverForge/solverforge/commit/9dde1b98ced11c1b4dc6017165e92b18a826d1ad))
+* **solver:** validate acceptor and forager values when compiling the config ([e4d7c61](https://github.com/SolverForge/solverforge/commit/e4d7c6193196e8817bdae23c5167c5f15f0b0dd7))
+* stop reading solver.toml from the working directory ([e5ca007](https://github.com/SolverForge/solverforge/commit/e5ca007e5062dc42aa25a7ea870727d5605f55f3)), closes #87
+
+
+### Code Refactoring
+
+* **config:** move the list move-selector configs to move_selector/list.rs ([7ed6b57](https://github.com/SolverForge/solverforge/commit/7ed6b57e98fab765e18b1fa44a3c0affd283620a)), references #91
+* **config:** remove YAML solver configuration ([582799a](https://github.com/SolverForge/solverforge/commit/582799a89dead62e6ff6a18e5c45b3c3d6368eca)), closes #89
+* **console:** move the solve-end summary formatter to format/solve_end.rs ([98fc4d1](https://github.com/SolverForge/solverforge/commit/98fc4d115172680fafe508bd2ce9629630bfd180)), references #91
+* **core,scoring:** delete public types nothing produces or consumes ([824c54e](https://github.com/SolverForge/solverforge/commit/824c54e36398e236a013e189259451c5a7bf23e8)), references #83
+* **core:** move the dynamic slot adapters out of domain/dynamic.rs ([d190a27](https://github.com/SolverForge/solverforge/commit/d190a2702b43b1b8541d08868f5ea26421fa09df)), references #91
+* **facade:** stop re-exporting solverforge-bridge and solverforge-console ([677c875](https://github.com/SolverForge/solverforge/commit/677c875b11e74d6932725d6b67f87e69b77c15e2)), closes #151
+* **macros:** extract the scalar hook wiring from generate_support_impl ([0a9f637](https://github.com/SolverForge/solverforge/commit/0a9f637af7c7b8126d35af825db4ed2f909f6ca7)), references #91
+* **scoring:** make the constraint weight mode a ScoreDirector type ([c4a6336](https://github.com/SolverForge/solverforge/commit/c4a6336cd0cba954dd7d390801ef41f548cec40a))
+* **scoring:** move the scored cross tri/quad/penta operators into child files ([28c8f5f](https://github.com/SolverForge/solverforge/commit/28c8f5f9c0241cb66f1638367418596adbee5483)), references #91
+* **scoring:** split list_precedence.rs and move its tests out of line ([cf755c9](https://github.com/SolverForge/solverforge/commit/cf755c983b72fdba8469da454a114f1e1c9e4dbe)), references #91
+* **scoring:** split operator scorers from the shared terminal ([5a6ce7a](https://github.com/SolverForge/solverforge/commit/5a6ce7a4473b9b75dbf5c7c1f52501abfbda800e))
+* **solver:** consume problem changes by ownership and drop SolverHandle ([6e82289](https://github.com/SolverForge/solverforge/commit/6e822896186f1782436df97a9f2d12546f1cf62b))
+* **solver:** delete the unused construction_list_remove list hook ([7cc7f52](https://github.com/SolverForge/solverforge/commit/7cc7f52ba08839e119e2dd4c0ea1ca4b83b24ec9)), closes #161
+* **solver:** export the supported solver surface once and delete what nothing reaches ([2d93015](https://github.com/SolverForge/solverforge/commit/2d930159cc7bec1cf185b12c156318b6f5237d98)), references #83
+* **solver:** extract Clarke-Wright savings generation from the kernel ([13ebdac](https://github.com/SolverForge/solverforge/commit/13ebdacd2d89cbe56010a6f971e8b6246416c55a)), references #91
+* **solver:** hide tokio and smallvec types behind SolverForge API types ([edd275a](https://github.com/SolverForge/solverforge/commit/edd275a4ea3e1adf17271988951a068aa18bf5c2)), closes #150
+* **solver:** move RuntimeListSlot's position meter to runtime_list/meter.rs ([e6a2476](https://github.com/SolverForge/solverforge/commit/e6a2476dc54b62241e0a8cf31e1dbd0047f540f7)), references #91
+* **solver:** move configured termination assembly to run/termination.rs ([5c92618](https://github.com/SolverForge/solverforge/commit/5c9261838b5d2d2bd3a482a65085d8da14928430)), references #91
+* **solver:** move grouped/provider selector compilation to selector_tree/grouped.rs ([3351a36](https://github.com/SolverForge/solverforge/commit/3351a36ad9400d924d969eb9345431209aebdad0)), references #91
+* **solver:** move list-slot cursor opening to cursor/slot/open.rs ([44c676f](https://github.com/SolverForge/solverforge/commit/44c676ff00dc0dabc6950507f4084705889e470a)), references #91
+* **solver:** move precedence route deltas and cycle checks to precedence_route/delta.rs ([b66885f](https://github.com/SolverForge/solverforge/commit/b66885f9807afda7468c8d925ab4d55559b501da)), references #91
+* **solver:** move runtime list-move tabu and trace identities to recipe_identity.rs ([44085a0](https://github.com/SolverForge/solverforge/commit/44085a01901682d7a01269475d8a2c5ea70900a9)), references #91
+* **solver:** move strength-ordered construction selection to forager_step/strength.rs ([cb81c19](https://github.com/SolverForge/solverforge/commit/cb81c197cc63397dd91af1fbdffa9cc1280b4c70)), references #91
+* **solver:** move the candidate store and arena cursor out of borrowed.rs ([8fd0898](https://github.com/SolverForge/solverforge/commit/8fd08989fc4848bf797b99f17fad82b59efeaf82)), references #91
+* **solver:** move the cartesian product cursor into its own file ([d0302d0](https://github.com/SolverForge/solverforge/commit/d0302d0ca61127eae181417bb1d51f7ac6e8f6dc)), references #91
+* **solver:** move the compiled provider plan types to graph/provider.rs ([9589289](https://github.com/SolverForge/solverforge/commit/958928983d7bbb8e09c0346612883a6432532b87)), references #91
+* **solver:** move the descriptor nearby selectors out of change_swap.rs ([2e094d8](https://github.com/SolverForge/solverforge/commit/2e094d8cf9e7608a8c31c0a9543d9187b861cd7a)), references #91
+* **solver:** move the global construction iterations out of global.rs ([c9f7050](https://github.com/SolverForge/solverforge/commit/c9f7050e6443a55996dad3315f6531354491bf3d)), references #91
+* **solver:** split stats/candidate_trace.rs by trace value ([4b760c8](https://github.com/SolverForge/solverforge/commit/4b760c87bc216055e6d76be424a5d9cb24a3e470)), references #91
+* **solver:** split the solver scope's included source files ([4503b57](https://github.com/SolverForge/solverforge/commit/4503b574a85b69e6216681f5b32c3778d96ed0c2)), references #91
+
+
 ## [0.23.0](https://github.com/SolverForge/solverforge/compare/v0.22.0...v0.23.0) (2026-10-27)
 
 

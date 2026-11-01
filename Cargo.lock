@@ -437,7 +437,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "solverforge"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "serde",
  "solverforge-config",
@@ -452,7 +452,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-bridge"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "solverforge-config",
  "solverforge-core",
@@ -462,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-config"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "serde",
  "thiserror",
@@ -471,7 +471,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-console"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "num-format",
  "owo-colors",
@@ -481,7 +481,7 @@ dependencies = [
 
 [[package]]
 name = "solverforge-core"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "serde",
  "thiserror",
@@ -490,14 +490,14 @@ dependencies = [
 
 [[package]]
 name = "solverforge-cvrp"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "solverforge-solver",
 ]
 
 [[package]]
 name = "solverforge-macros"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -508,14 +508,14 @@ dependencies = [
 
 [[package]]
 name = "solverforge-scoring"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "solverforge-core",
 ]
 
 [[package]]
 name = "solverforge-solver"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "rand",
  "rayon",

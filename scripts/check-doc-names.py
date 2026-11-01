@@ -18,6 +18,9 @@ For each wireframe's file map (the `├──` / `└──` tree):
 - every multi-hump CamelCase name in a file-map description must be
   defined, as above.
 
+For each wireframe table headed `| Field |` under a `### `Type`` heading,
+every listed field must be a field of that struct in the crate's sources.
+
 For each crate with a public-api.txt snapshot, every public struct, enum,
 trait, function, type alias and macro in it must be named in the crate's
 WIREFRAME.md.
@@ -126,6 +129,60 @@ def check_file_map(path, types, problems):
             problems.append(f"{path.relative_to(ROOT)}:{number}: file `{relative}` does not exist")
 
 
+def struct_fields(crate, name):
+    """The field names of `struct name { ... }` in the crate, or None."""
+    header = re.compile(rf"\bstruct\s+{re.escape(name)}\b[^;{{]*\{{")
+    field = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?([a-z_][a-z0-9_]*)\s*:", re.MULTILINE)
+    for source in crate.glob("src/**/*.rs"):
+        text = source.read_text(encoding="utf-8")
+        found = header.search(text)
+        if not found:
+            continue
+        depth, start = 1, found.end()
+        end = start
+        while depth and end < len(text):
+            depth += {"{": 1, "}": -1}.get(text[end], 0)
+            end += 1
+        body = "\n".join(
+            line for line in text[start:end - 1].splitlines() if not line.lstrip().startswith("//")
+        )
+        names = set(field.findall(body))
+        # A `#[serde(flatten)]` field serializes as its own type's fields, and
+        # wireframes list those serialized keys.
+        flatten = re.compile(r"#\[serde\(flatten\)\]\s*(?:pub(?:\([^)]*\))?\s+)?\w+\s*:\s*(?:Option<)?([A-Z]\w*)")
+        for inner in flatten.findall(body):
+            names.update(struct_fields(crate, inner) or ())
+        return names
+    return None
+
+
+def check_field_tables(path, problems):
+    heading = re.compile(r"^#{2,4} (?:`([A-Z][A-Za-z0-9]*))?")
+    row = re.compile(r"^\| `([a-z_][a-z0-9_]*)` \|")
+    owner, fields, in_table = None, None, False
+    for number, line in prose_lines(path):
+        title = heading.match(line)
+        if title:
+            owner, fields, in_table = title.group(1), None, False
+            continue
+        if line.startswith("| Field |"):
+            in_table = owner is not None
+            if in_table:
+                fields = struct_fields(path.parent, owner)
+                if fields is None:
+                    problems.append(
+                        f"{path.relative_to(ROOT)}:{number}: no struct `{owner}` for its field table"
+                    )
+                    in_table = False
+            continue
+        if not line.startswith("|"):
+            in_table = False
+            continue
+        cell = row.match(line)
+        if in_table and cell and cell.group(1) not in fields:
+            problems.append(f"{path.relative_to(ROOT)}:{number}: `{owner}` has no field `{cell.group(1)}`")
+
+
 def check_public_api(path, problems):
     snapshot = path.parent / "public-api.txt"
     if not snapshot.exists():
@@ -151,6 +208,7 @@ def main():
     for path in sorted(ROOT.glob("crates/*/WIREFRAME.md")):
         check_inline(path, types, functions, problems)
         check_file_map(path, types, problems)
+        check_field_tables(path, problems)
         check_public_api(path, problems)
     for path in sorted(ROOT.glob("docs/*.md")):
         check_inline(path, types, functions, problems)

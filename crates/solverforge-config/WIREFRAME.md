@@ -315,7 +315,6 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 | Field | Type |
 |-------|------|
 | `late_acceptance_size` | `Option<usize>` |
-| `tolerance` | `Option<f64>` |
 
 ### `GreatDelugeConfig`
 

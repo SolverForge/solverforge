@@ -198,7 +198,9 @@ Derives: `Debug, Clone, Default, Deserialize, Serialize`.
 `acceptor`, `forager`, and `move_selector`.
 
 When `phases` is omitted, the solver runtime uses the canonical model-aware
-default profile, including construction and any selected built-in search phases.
+default profile: construction, then the default local search when the top-level
+`termination` has an effective limit. Without one the profile is construction
+only, because that local search would never end.
 When only `move_selector` is omitted for an explicit `AcceptorForager` local
 search phase, the canonical runtime resolves model-aware selector defaults from
 declared runtime capabilities. Nearby scalar

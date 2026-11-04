@@ -40,7 +40,9 @@ pub struct SolverConfig {
     pub score_director: Option<DirectorConfig>,
 
     /// Phases, run in order. Omitted or empty: the model-aware default
-    /// profile.
+    /// profile, which is construction followed by the default local search
+    /// when `termination` has an effective limit, and construction only
+    /// otherwise, because that local search would never end.
     #[serde(default)]
     pub phases: Vec<PhaseConfig>,
 
